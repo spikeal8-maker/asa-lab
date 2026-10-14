@@ -14,7 +14,13 @@ interface SourceRule {
 }
 const sources: Record<string, SourceRule> = contract.sources;
 const sourceNames = Object.keys(sources);
-const fieldNames = new Set(Object.values(sources).flatMap((rule) => Object.keys(rule.fields)));
+// API diagnostic quality reports also emit sequence. That key alone is not DB
+// evidence; chess rows still have their DB provenance or created_at_ms marker.
+const fieldNames = new Set(
+  Object.values(sources)
+    .flatMap((rule) => Object.keys(rule.fields))
+    .filter((name) => name !== 'sequence'),
+);
 const fieldMarker = new RegExp(`"(?:${[...fieldNames].join('|')})"\\s*:`);
 const timestampPattern = new RegExp(contract.timestamp.pattern);
 

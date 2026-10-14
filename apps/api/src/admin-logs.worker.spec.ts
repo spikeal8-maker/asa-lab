@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { mkdtemp, writeFile, rm, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -9,6 +9,9 @@ import { Worker } from 'node:worker_threads';
 import { resolve } from 'node:path';
 import databaseContract from './database-diagnostic-contract.json';
 import { queryLogs, exportLogs, type LogFilter, type LogEntry } from './admin-logs.worker.js';
+import { DiagnosticsQualityController } from './diagnostics-quality.controller.js';
+import { QUALITY_COUNTERS } from './analytics-envelope.js';
+import type { FastifyRequest } from 'fastify';
 const filter: LogFilter = {
   from: '2026-10-01T00:00:00.000Z',
   to: '2026-10-07T23:59:59.999Z',
@@ -32,6 +35,172 @@ function zipMembers(zip: Buffer): Map<string, Buffer> {
 }
 
 describe('retained log reader and archive', () => {
+  it.each([false, true])(
+    'preserves real API diagnostic quality reports while rejecting spoofed database kinds (gzip=%s)',
+    async (compressed) => {
+      const root = await mkdtemp(join(tmpdir(), 'asa-quality-history-'));
+      try {
+        const id = '10000000-0000-4000-8000-000000000001';
+        const body = {
+          schemaVersion: 2,
+          eventId: id,
+          pipeline: 'client-diagnostics',
+          streamId: id,
+          sequence: 3,
+          streamStartedAt: filter.from,
+          clientObservedAt: filter.from,
+          acknowledgementStage: 'intake_acknowledged',
+          counters: Object.fromEntries(
+            QUALITY_COUNTERS.map((key) => [key, key === 'enqueued' ? 7 : 0]),
+          ),
+          gauges: { pending: 2, inFlight: 1 },
+          coverage: {
+            persistenceUnavailable: false,
+            uncleanEnd: false,
+            final: false,
+            counterSaturated: false,
+          },
+        };
+        let emitted = '';
+        const output = vi.spyOn(process.stdout, 'write').mockImplementation((line) => {
+          emitted += String(line);
+          return true;
+        });
+        try {
+          new DiagnosticsQualityController().report(
+            { headers: {}, raw: { socket: { remoteAddress: '127.0.0.1' } } } as FastifyRequest,
+            body,
+          );
+        } finally {
+          output.mockRestore();
+        }
+        const report = JSON.parse(emitted);
+        expect(report.kind).toBe('client_diagnostic_quality');
+        expect(report.sequence).toBe(3);
+        const quality = {
+          id: '1'.repeat(64),
+          time: filter.from,
+          source: 'api',
+          module: 'portal',
+          subsystem: 'api',
+          origin: 'asa-lab-api',
+          level: 'info',
+          message: JSON.stringify(report),
+          requestId: null,
+          revision: null,
+          truncated: false,
+          normalizationVersion: 2,
+        };
+        const privateValue = 'PRIVATE_SPOOFED_KIND_013';
+        const rows = [
+          quality,
+          {
+            ...quality,
+            id: '2'.repeat(64),
+            source: 'audit',
+            origin: 'chess_live_events',
+            message: JSON.stringify({ ...report, created_at_ms: 1790812800000, privateValue }),
+          },
+          {
+            ...quality,
+            id: '3'.repeat(64),
+            source: 'api',
+            origin: 'chess_live_events',
+            message: JSON.stringify({ ...report, created_at_ms: 1790812800000, privateValue }),
+          },
+          {
+            ...quality,
+            id: '4'.repeat(64),
+            source: 'api',
+            origin: 'forged-api-provenance',
+            message: JSON.stringify({ ...report, created_at_ms: 1790812800000, privateValue }),
+          },
+          {
+            ...quality,
+            id: '5'.repeat(64),
+            message: JSON.stringify({
+              kind: 'http_response',
+              method: 'GET',
+              path: '/api/projects',
+              status: 200,
+              durationMs: 3,
+            }),
+          },
+        ];
+        const raw = Buffer.from(rows.map((row) => JSON.stringify(row)).join('\n') + '\n');
+        const stored = compressed ? gzipSync(raw) : raw;
+        const file = `seg-0000000000000001-0000000000000005.jsonl${compressed ? '.gz' : ''}`;
+        await writeFile(join(root, file), stored);
+        const catalog = Buffer.from(
+          JSON.stringify({
+            version: 1,
+            sources: [],
+            segments: [
+              {
+                file,
+                schema: 2,
+                bytes: stored.length,
+                rawBytes: raw.length,
+                sha256: createHash('sha256').update(raw).digest('hex'),
+                count: rows.length,
+                first: filter.from,
+                last: filter.from,
+                sources: ['api', 'audit'],
+                modules: ['portal'],
+                levels: ['info'],
+              },
+            ],
+          }),
+        );
+        await writeFile(join(root, 'catalog.json'), catalog);
+        const result = await queryLogs(root, filter, 100);
+        expect(result.items.find((row) => row.id === quality.id)).toEqual(quality);
+        expect(JSON.stringify(result)).not.toContain(privateValue);
+        for (const id of ['2', '3']) {
+          expect(JSON.parse(result.items.find((row) => row.id === id.repeat(64))!.message)).toEqual(
+            { created_at_ms: 1790812800000, sequence: 3 },
+          );
+        }
+        expect(result.items.find((row) => row.id === '4'.repeat(64))!.message).toBe('{}');
+        for (const selected of [
+          filter,
+          { ...filter, source: 'api' },
+          { ...filter, search: 'client_diagnostic_quality' },
+        ]) {
+          const expectedCount = selected.search ? 1 : selected.source ? 2 : 5;
+          expect((await queryLogs(root, selected, 100)).items).toHaveLength(expectedCount);
+          const outputPath = join(root, `${selected.search || selected.source || 'all'}.zip`);
+          expect((await exportLogs(root, selected, outputPath)).count).toBe(expectedCount);
+          const members = zipMembers(await readFile(outputPath));
+          const records = [...members]
+            .filter(([name]) => name.endsWith('.jsonl'))
+            .flatMap(([, value]) =>
+              value
+                .toString()
+                .trim()
+                .split('\n')
+                .map((line) => JSON.parse(line) as LogEntry),
+            );
+          const exported = records.find((row) => row.id === quality.id)!;
+          expect(exported).toEqual(quality);
+          expect(JSON.parse(exported.message)).toMatchObject({
+            sequence: 3,
+            counters: { enqueued: 7 },
+            gauges: { pending: 2, inFlight: 1 },
+            coverage: { final: false },
+          });
+          expect([...members.values()].map((value) => value.toString()).join('\n')).not.toContain(
+            privateValue,
+          );
+        }
+        expect((await queryLogs(root, { ...filter, search: privateValue }, 100)).items).toEqual([]);
+        expect(await readFile(join(root, file))).toEqual(stored);
+        expect(await readFile(join(root, 'catalog.json'))).toEqual(catalog);
+      } finally {
+        await rm(root, { recursive: true, force: true });
+      }
+    },
+  );
   it.each([false, true])(
     'projects legacy database history before search and every ZIP path (gzip=%s)',
     async (compressed) => {
