@@ -152,7 +152,8 @@ class ActualDatabaseProgressTests(unittest.TestCase):
             old = baseline.Collector(Path(temp), {}); old.postgres = container
             execute = old.command; before_bytes = []
             def scaled_before(args, **kwargs):
-                data = execute(args, **kwargs); before_bytes.append(len(data))
+                data = execute(args, **kwargs)
+                before_bytes.append({'lane': 'fresh' if ' OR ' in kwargs['sql'] else 'history', 'bytes': len(data)})
                 if len(data) > 4096: raise RuntimeError('scaled 4096-byte command overflow; cursor not advanced')
                 return data
             old.command = scaled_before
@@ -160,7 +161,9 @@ class ActualDatabaseProgressTests(unittest.TestCase):
                 for _ in range(2): old.set_state('database:last', 0); old.database()
             self.assertIsNone(old.state('db:audit_events'))
             self.assertEqual(old.db.execute('SELECT count(*) FROM events').fetchone()[0], 0)
-            self.assertTrue(all(size > 4096 for size in before_bytes))
+            fresh_bytes = [sample['bytes'] for sample in before_bytes if sample['lane'] == 'fresh']
+            self.assertEqual(len(fresh_bytes), 2)
+            self.assertTrue(all(size > 4096 for size in fresh_bytes), before_bytes)
             print('OBS017_ACTUAL_BEFORE ' + json.dumps({'baseline': '0724a63', 'scaledCommandBound': 4096,
                 'actualSqlResponseBytes': before_bytes, 'cursorAdvanced': False, 'saved': 0}), flush=True)
             old.db.close()
