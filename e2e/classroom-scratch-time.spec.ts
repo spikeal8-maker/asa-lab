@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { isExpectedTelemetryRejection } from '../tools/blocks/browser/telemetry-fixture.mjs';
 
 // The clock is virtual, but route fulfillment and fetch body delivery are real IO.
 // Observe native JSON consumption so a time jump cannot manufacture a delivery timeout.
@@ -246,6 +247,16 @@ test('telemetry rejection leaves the real Scratch minute save and controlled exi
   const page = await fixture.context.newPage();
   await acknowledgeVisitsAndQuality(page);
   const requests: string[] = [];
+  const rejectedResponses: Array<{ method: string; url: string; status: number }> = [];
+  page.on('response', (response) => {
+    if (response.status() === 401) {
+      rejectedResponses.push({
+        method: response.request().method(),
+        url: response.url(),
+        status: response.status(),
+      });
+    }
+  });
   page.on('request', (request) => requests.push(request.url()));
   await page.route('**/api/analytics/v2/module-session', (route) =>
     route.fulfill({
@@ -287,7 +298,16 @@ test('telemetry rejection leaves the real Scratch minute save and controlled exi
     expect(saved.targets.some((t) => t.name === 'Saved despite telemetry')).toBe(true);
     expect(requests.some((url) => url.endsWith('/api/auth/refresh'))).toBe(false);
     expect(requests.some((url) => url.includes('/api/analytics/v2/module-session'))).toBe(true);
-    expect(fixture.pageErrors).toEqual([]);
+    expect(
+      fixture.pageErrors.filter((error, index) => {
+        const detail = fixture.pageErrorEvidence[index];
+        return !(
+          detail?.index === index &&
+          error === `console: ${detail.text}` &&
+          isExpectedTelemetryRejection(detail, rejectedResponses, parentOrigin)
+        );
+      }),
+    ).toEqual([]);
   } finally {
     await fixture.close();
   }

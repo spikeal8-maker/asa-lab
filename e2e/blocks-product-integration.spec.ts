@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import fs from 'node:fs';
 import { createHash } from 'node:crypto';
+import { isTelemetryRequest } from '../tools/blocks/browser/telemetry-fixture.mjs';
 
 let createProtocolFixture: typeof import('../tools/blocks/browser/fixture.mjs').createProtocolFixture;
 let advanceMinuteAutosave: typeof import('../tools/blocks/browser/fixture.mjs').advanceMinuteAutosave;
@@ -2194,6 +2195,7 @@ test('native File saves an edited sb3 and restores code and media in a fresh edi
       httpRequests.filter(
         ({ method, url }) =>
           !['GET', 'HEAD'].includes(method) &&
+          !isTelemetryRequest({ method, url }, parentOrigin) &&
           !runtimeSessionRequests.some(
             (runtimeSessionRequest) =>
               runtimeSessionRequest.method === method && runtimeSessionRequest.url === url,
