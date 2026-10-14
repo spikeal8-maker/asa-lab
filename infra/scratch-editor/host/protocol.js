@@ -139,6 +139,14 @@
     let session = null;
     let started = false;
     let stopped = false;
+    let tokenRefresh = null;
+    const finishTokenRefresh = (ok) => {
+      if (!tokenRefresh) return;
+      const pending = tokenRefresh;
+      tokenRefresh = null;
+      globalThis.clearTimeout(pending.timer);
+      pending.resolve(ok);
+    };
 
     const reject = (reason) => {
       options.onRejected?.(reason);
@@ -188,6 +196,7 @@
       if (message.messageType === 'ASA_BLOCKS_TOKEN_UPDATE') {
         if (!validRuntimeToken(message.runtimeToken)) return reject('runtime_token');
         session.runtimeToken = message.runtimeToken;
+        if (tokenRefresh && session.runtimeToken !== tokenRefresh.token) finishTokenRefresh(true);
         options.onTokenUpdate?.();
         return true;
       }
@@ -201,6 +210,7 @@
           options.onStop?.();
           return true;
         } finally {
+          finishTokenRefresh(false);
           session = null;
           stopped = true;
         }
@@ -227,6 +237,7 @@
         started = true;
       },
       dispose() {
+        finishTokenRefresh(false);
         if (started) {
           window.removeEventListener('message', onMessage);
           started = false;
@@ -244,6 +255,35 @@
       },
       getRuntimeToken() {
         return session?.runtimeToken ?? null;
+      },
+      requestRuntimeTokenRefresh(token) {
+        if (!session || stopped) return Promise.resolve(false);
+        if (session.runtimeToken !== token) return Promise.resolve(true);
+        if (tokenRefresh) return tokenRefresh.promise;
+        let resolve;
+        const promise = new Promise((done) => {
+          resolve = done;
+        });
+        tokenRefresh = {
+          token,
+          promise,
+          resolve,
+          timer: globalThis.setTimeout(() => finishTokenRefresh(false), 15_000),
+        };
+        try {
+          parentWindow.postMessage(
+            {
+              protocolVersion: PROTOCOL_VERSION,
+              projectId: session.projectId,
+              sessionNonce: session.sessionNonce,
+              messageType: 'ASA_BLOCKS_TOKEN_REFRESH_REQUIRED',
+            },
+            expectedParentOrigin,
+          );
+        } catch {
+          finishTokenRefresh(false);
+        }
+        return promise;
       },
       isInitialized() {
         return Boolean(session);

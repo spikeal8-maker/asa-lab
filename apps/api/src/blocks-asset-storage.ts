@@ -381,7 +381,7 @@ export class PgBlocksAssetMetadataStore implements BlocksAssetMetadataPort {
         `INSERT INTO public.blocks_blobs
            (tenant_id, sha256, data_format, size_bytes, object_key)
          VALUES ($1,$2,$3,$4,$5)
-         ON CONFLICT (tenant_id, sha256, data_format) DO NOTHING`,
+         ON CONFLICT DO NOTHING`,
         [
           input.tenantId,
           input.reference.sha256,

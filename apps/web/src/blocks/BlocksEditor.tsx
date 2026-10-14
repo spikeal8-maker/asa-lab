@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { saveProjectSnapshot } from '../project-snapshot-client';
 import { BlocksEditorShell } from './BlocksEditorShell';
 import { BlocksRuntimeBridge, requireExactHttpOrigin } from './runtime-protocol';
-import { requestBlocksRuntimeSession } from './runtime-session';
+import { requestBlocksRuntimeSessionResult } from './runtime-session';
 import { beginDiagnosticContext, reportClientDiagnostic } from '../client-diagnostics';
 import { newClientId } from '../client-id';
 import { trackBlocksActivity } from './module-activity';
@@ -113,8 +113,15 @@ export function BlocksEditor({
     let refreshTimer: number | null = null;
     let refreshController: AbortController | null = null;
     let refreshPromise: Promise<boolean> | null = null;
+    let refreshFailures = 0;
+    let connectFailures = 0;
+    let connectRetryTimer: number | null = null;
+    let startupFailed = false;
     const startupTimer = window.setTimeout(() => {
       if (!disposed) {
+        startupFailed = true;
+        requestController?.abort();
+        if (connectRetryTimer !== null) window.clearTimeout(connectRetryTimer);
         reportClientDiagnostic('editor_start_timeout', 'scratch');
         setStartupState('error');
       }
@@ -142,13 +149,15 @@ export function BlocksEditor({
     function refreshCapability(): Promise<boolean> {
       if (disposed || !bridge) return Promise.resolve(false);
       if (refreshPromise) return refreshPromise;
+      clearRefreshTimer();
 
       const refreshGeneration = loadGeneration;
       const activeBridge = bridge;
       const controller = new AbortController();
       refreshController = controller;
       const activePromise = (async (): Promise<boolean> => {
-        const session = await requestBlocksRuntimeSession(projectId, controller.signal);
+        const result = await requestBlocksRuntimeSessionResult(projectId, controller.signal);
+        const session = result.session;
         if (
           disposed ||
           controller.signal.aborted ||
@@ -159,6 +168,20 @@ export function BlocksEditor({
         }
         if (!session || session.runtimeOrigin !== runtimeOrigin) {
           reportClientDiagnostic('session_refresh_failed', 'scratch');
+          if (result.retryable) {
+            clearRefreshTimer();
+            refreshFailures += 1;
+            refreshTimer = window.setTimeout(
+              () => {
+                refreshTimer = null;
+                void refreshCapability();
+              },
+              Math.max(
+                result.retryAfterMs,
+                Math.min(30_000, 1_000 * 2 ** Math.min(5, refreshFailures - 1)),
+              ),
+            );
+          }
           return false;
         }
         try {
@@ -167,6 +190,7 @@ export function BlocksEditor({
           return false;
         }
         scheduleRefresh(session.expiresAt);
+        refreshFailures = 0;
         return true;
       })();
 
@@ -182,6 +206,8 @@ export function BlocksEditor({
       if (disposed) return;
       activity.setReady(false);
       editorReady = false;
+      startupFailed = true;
+      if (connectRetryTimer !== null) window.clearTimeout(connectRetryTimer);
       reportClientDiagnostic(
         runtimeFailure ? 'editor_runtime_error' : 'editor_start_failed',
         'scratch',
@@ -192,6 +218,7 @@ export function BlocksEditor({
 
     const onMessage = (event: MessageEvent): void => {
       if (event.source !== frame.contentWindow) return;
+      if (startupFailed) return;
       if (!bridge?.acceptChildMessage(event)) return;
       const payload = event.data as Record<string, unknown>;
       if (payload['messageType'] === 'ASA_BLOCKS_USER_ACTIVITY') activity.input();
@@ -245,9 +272,22 @@ export function BlocksEditor({
     };
 
     const connect = async (generation: number, controller: AbortController): Promise<void> => {
-      const session = await requestBlocksRuntimeSession(projectId, controller.signal);
-      if (disposed || controller.signal.aborted || generation !== loadGeneration) return;
+      const result = await requestBlocksRuntimeSessionResult(projectId, controller.signal);
+      const session = result.session;
+      if (disposed || startupFailed || controller.signal.aborted || generation !== loadGeneration)
+        return;
       if (!session || session.runtimeOrigin !== runtimeOrigin) {
+        if (result.retryable && connectFailures < 2 && !startupFailed) {
+          connectFailures += 1;
+          connectRetryTimer = window.setTimeout(
+            () => {
+              connectRetryTimer = null;
+              if (!startupFailed) void connect(generation, controller);
+            },
+            Math.max(result.retryAfterMs, 1_000 * connectFailures),
+          );
+          return;
+        }
         failStartup();
         return;
       }
@@ -298,6 +338,10 @@ export function BlocksEditor({
       requestController?.abort();
       refreshController?.abort();
       clearRefreshTimer();
+      if (connectRetryTimer !== null) window.clearTimeout(connectRetryTimer);
+      connectFailures = 0;
+      refreshFailures = 0;
+      startupFailed = false;
       refreshPromise = null;
       requestController = new AbortController();
       loadGeneration += 1;
@@ -318,6 +362,7 @@ export function BlocksEditor({
       requestController?.abort();
       refreshController?.abort();
       clearRefreshTimer();
+      if (connectRetryTimer !== null) window.clearTimeout(connectRetryTimer);
       window.clearTimeout(startupTimer);
       window.clearInterval(heartbeatTimer);
       document.removeEventListener('visibilitychange', noteVisible);

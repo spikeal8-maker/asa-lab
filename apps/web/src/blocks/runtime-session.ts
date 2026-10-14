@@ -116,10 +116,14 @@ export function parseBlocksRuntimeSession(
   });
 }
 
-export async function requestBlocksRuntimeSession(
+export type BlocksRuntimeSessionResult =
+  | { session: BlocksRuntimeSession; retryable: false; retryAfterMs: 0 }
+  | { session: null; retryable: boolean; retryAfterMs: number };
+
+export async function requestBlocksRuntimeSessionResult(
   projectId: string,
   signal: AbortSignal,
-): Promise<BlocksRuntimeSession | null> {
+): Promise<BlocksRuntimeSessionResult> {
   let response: Response;
   try {
     response = await fetchWithSessionRefresh(
@@ -132,16 +136,34 @@ export async function requestBlocksRuntimeSession(
       },
     );
   } catch {
-    return null;
+    return { session: null, retryable: true, retryAfterMs: 1_000 };
   }
 
-  if (!response.ok) return null;
+  if (!response.ok) {
+    const retryAfter = response.headers.get('retry-after');
+    const seconds = retryAfter && /^\d+$/.test(retryAfter) ? Number(retryAfter) : 0;
+    return {
+      session: null,
+      retryable: response.status === 429 || response.status >= 500,
+      retryAfterMs: Math.max(1_000, Math.min(300_000, seconds * 1_000)),
+    };
+  }
 
   let payload: unknown;
   try {
     payload = await response.json();
   } catch {
-    return null;
+    return { session: null, retryable: false, retryAfterMs: 0 };
   }
-  return parseBlocksRuntimeSession(payload);
+  const session = parseBlocksRuntimeSession(payload);
+  return session
+    ? { session, retryable: false, retryAfterMs: 0 }
+    : { session: null, retryable: false, retryAfterMs: 0 };
+}
+
+export async function requestBlocksRuntimeSession(
+  projectId: string,
+  signal: AbortSignal,
+): Promise<BlocksRuntimeSession | null> {
+  return (await requestBlocksRuntimeSessionResult(projectId, signal)).session;
 }

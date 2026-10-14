@@ -116,6 +116,7 @@ function loadStorage(fetchMock, randomUUID) {
       const request = this.webStore?.update?.(created);
       if (!request) throw new Error('fixture_store_not_configured');
       const response = await fetchMock(request.url, { ...request, body: data });
+      if (response.status === 401) throw 401; // Pinned upstream FetchTool rejection.
       if (!response.ok || response.redirected) throw new Error('asset_write_failed');
       return response.json();
     }
@@ -149,6 +150,147 @@ async function storeAsset(storage, value) {
         : storage.scratchStorage.AssetType.Sound;
   return storage.scratchStorage.store(type, value.dataFormat, value.bytes, value.assetId);
 }
+
+test('project-open asset read renews expired authority and still verifies the returned bytes', async () => {
+  const media = asset('a'.repeat(32), 'png', Uint8Array.of(1, 2, 3));
+  let token = TOKEN;
+  const calls = [];
+  const create = loadStorage(async (url, init) => {
+    calls.push(init);
+    return init.headers.authorization === `Bearer ${TOKEN}`
+      ? new globalThis.Response('{}', { status: 401 })
+      : new globalThis.Response(media.bytes, {
+          status: 200,
+          headers: { 'content-type': 'image/png' },
+        });
+  });
+  const storage = create({
+    projectId: PROJECT_ID,
+    projectJson: project('Saved project', [media]),
+    assets: [reference(media)],
+    draftRevision: 7,
+    apiOrigin: API_ORIGIN,
+    getRuntimeToken: () => token,
+    canSave: true,
+    refreshRuntimeToken: async () => {
+      token = 'fresh.payload.signature';
+      return true;
+    },
+  });
+  await storage.prepareProjectAssets();
+  assert.equal(calls.length, 2);
+  assert.equal(calls[1].headers.authorization, 'Bearer fresh.payload.signature');
+  assert.equal(storage.getConfirmedRevision(), 7);
+});
+
+test('asset upload recovers expired authority once and verifies the retried durable bytes', async () => {
+  const media = asset('a'.repeat(32), 'png', Uint8Array.of(1, 2, 3));
+  let token = TOKEN;
+  const calls = [];
+  let renewals = 0;
+  const create = loadStorage(
+    async (url, init) => {
+      calls.push(init);
+      if (init.headers.authorization === `Bearer ${TOKEN}`)
+        return new globalThis.Response('{}', { status: 401 });
+      return new globalThis.Response(JSON.stringify({ status: 'ok', asset: reference(media) }), {
+        status: 200,
+      });
+    },
+    () => 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+  );
+  const storage = create({
+    projectId: PROJECT_ID,
+    projectJson: null,
+    assets: [],
+    draftRevision: 0,
+    apiOrigin: API_ORIGIN,
+    getRuntimeToken: () => token,
+    canSave: true,
+    refreshRuntimeToken: async (previous) => {
+      assert.equal(previous, TOKEN);
+      renewals += 1;
+      token = 'fresh.payload.signature';
+      return true;
+    },
+  });
+  await storeAsset(storage, media);
+  assert.equal(renewals, 1);
+  assert.equal(calls.length, 2);
+  assert.equal(calls[1].headers.authorization, 'Bearer fresh.payload.signature');
+  assert.deepEqual(calls[0].body, calls[1].body);
+});
+
+test('draft authority retry keeps the same mutation identity and does not retry a second denial', async () => {
+  for (const renewedStatus of [200, 401]) {
+    let token = TOKEN;
+    const calls = [];
+    const create = loadStorage(
+      async (url, init) => {
+        calls.push(init);
+        if (calls.length === 1) return new globalThis.Response('{}', { status: 401 });
+        return new globalThis.Response(JSON.stringify({ status: 'ok', revision: 1 }), {
+          status: renewedStatus,
+        });
+      },
+      () => 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    );
+    const storage = create({
+      projectId: PROJECT_ID,
+      projectJson: null,
+      assets: [],
+      draftRevision: 0,
+      apiOrigin: API_ORIGIN,
+      getRuntimeToken: () => token,
+      canSave: true,
+      refreshRuntimeToken: async () => {
+        token = 'fresh.payload.signature';
+        return true;
+      },
+    });
+    const save = storage.saveProject(
+      PROJECT_ID,
+      JSON.stringify({ targets: [], monitors: [], extensions: [] }),
+    );
+    if (renewedStatus === 200) await save;
+    else await assert.rejects(save, /draft_write_failed/);
+    assert.equal(calls.length, 2);
+    assert.equal(calls[0].body, calls[1].body);
+    assert.equal(storage.getConfirmedRevision(), renewedStatus === 200 ? 1 : 0);
+  }
+});
+
+test('expired authority fails closed when refresh is rejected or returns the unchanged token', async () => {
+  for (const result of [false, true]) {
+    let calls = 0;
+    const create = loadStorage(
+      async () => {
+        calls += 1;
+        return new globalThis.Response('{}', { status: 401 });
+      },
+      () => 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    );
+    const storage = create({
+      projectId: PROJECT_ID,
+      projectJson: null,
+      assets: [],
+      draftRevision: 0,
+      apiOrigin: API_ORIGIN,
+      getRuntimeToken: () => TOKEN,
+      canSave: true,
+      refreshRuntimeToken: async () => result,
+    });
+    await assert.rejects(
+      storage.saveProject(
+        PROJECT_ID,
+        JSON.stringify({ targets: [], monitors: [], extensions: [] }),
+      ),
+      /draft_write_failed/,
+    );
+    assert.equal(calls, 1);
+    assert.equal(storage.getConfirmedRevision(), 0);
+  }
+});
 
 test('legacy parallel persistence symbols are absent from current Scratch source and tests', () => {
   const legacySymbols = [

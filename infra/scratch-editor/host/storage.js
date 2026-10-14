@@ -231,6 +231,30 @@
       return token;
     };
 
+    const renewToken = async (token) => {
+      if (disposed) return false;
+      if (getToken() !== token) return true;
+      if (!options.refreshRuntimeToken) return false;
+      try {
+        return (
+          Boolean(await options.refreshRuntimeToken(token)) && !disposed && getToken() !== token
+        );
+      } catch {
+        return false;
+      }
+    };
+    const runtimeFetch = async (url, init) => {
+      const token = getToken();
+      const send = () =>
+        fetch(url, {
+          ...init,
+          headers: { ...init.headers, authorization: `Bearer ${getToken()}` },
+        });
+      const response = await send();
+      if (response.status !== 401 || !(await renewToken(token))) return response;
+      return send();
+    };
+
     const saveFailureReason = (error) =>
       typeof error?.code === 'string' && error.code.length > 0 ? error.code : 'save_failed';
     const publishUpstreamSaveOutcome = (outcome) => {
@@ -341,9 +365,19 @@
         upstreamSaveGeneration = generation;
       }
       try {
-        const response = await enqueueUpstreamAssetStore(() =>
-          upstreamStore(assetType, format, data, assetId),
-        );
+        const response = await enqueueUpstreamAssetStore(async () => {
+          if (disposed) throw unavailable('storage_disposed');
+          const token = getToken();
+          try {
+            return await upstreamStore(assetType, format, data, assetId);
+          } catch (error) {
+            // Pinned Scratch FetchTool rejects with the HTTP status number.
+            if ((error === 401 || error?.status === 401) && (await renewToken(token))) {
+              return upstreamStore(assetType, format, data, assetId);
+            }
+            throw error;
+          }
+        });
         const expected = {
           assetId: String(assetId),
           dataFormat: format,
@@ -383,7 +417,7 @@
       const existing = verifiedRuntimeAssets.get(key(type, reference.assetId, format));
       if (existing) return existing;
 
-      const response = await fetch(
+      const response = await runtimeFetch(
         `${options.apiOrigin}/api/blocks/runtime/projects/${options.projectId}/assets/${reference.assetId}.${reference.dataFormat}`,
         {
           method: 'GET',
@@ -436,7 +470,7 @@
     const sendDraftMutation = async (mutation, reconciliation) => {
       let response;
       try {
-        response = await fetch(
+        response = await runtimeFetch(
           `${options.apiOrigin}/api/blocks/runtime/projects/${options.projectId}/draft`,
           {
             method: 'PUT',

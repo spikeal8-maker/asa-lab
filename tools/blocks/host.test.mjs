@@ -1344,13 +1344,17 @@ test('status reporter sends bounded dirty generation and native thumbnail revisi
   });
 });
 
-function protocolHarness() {
+function protocolHarness(
+  timers = { setTimeout: globalThis.setTimeout, clearTimeout: globalThis.clearTimeout },
+) {
   const handlers = new Map();
-  const parent = {};
+  const requests = [];
+  const parent = { postMessage: (message, origin) => requests.push({ message, origin }) };
   const calls = [];
   const rejections = [];
   const api = loadHost('protocol', {
     URL,
+    ...timers,
     window: {
       addEventListener: (event, handler) => handlers.set(event, handler),
       removeEventListener: (event) => handlers.delete(event),
@@ -1363,8 +1367,62 @@ function protocolHarness() {
     onRejected: (reason) => rejections.push(reason),
   });
   protocol.start();
-  return { handlers, parent, calls, rejections, protocol };
+  return { handlers, parent, calls, rejections, protocol, requests };
 }
+
+test('expired concurrent requests wait for one bound token update, rejecting forged updates', async () => {
+  const f = protocolHarness();
+  const emit = (data, source = f.parent, origin = API_ORIGIN) =>
+    f.handlers.get('message')({ source, origin, data });
+  emit(validInitMessage());
+  const first = f.protocol.requestRuntimeTokenRefresh(RUNTIME_TOKEN);
+  assert.equal(first, f.protocol.requestRuntimeTokenRefresh(RUNTIME_TOKEN));
+  assert.equal(f.requests.length, 1);
+  assert.equal(f.requests[0].origin, API_ORIGIN);
+  assert.equal(f.requests[0].message.messageType, 'ASA_BLOCKS_TOKEN_REFRESH_REQUIRED');
+  let finished = false;
+  first.then(() => {
+    finished = true;
+  });
+  const update = {
+    ...validInitMessage(),
+    messageType: 'ASA_BLOCKS_TOKEN_UPDATE',
+    runtimeToken: 'fresh.payload.signature',
+  };
+  emit(update, {});
+  emit(update, f.parent, 'https://untrusted.example');
+  emit({ ...update, sessionNonce: 'other' });
+  emit({ ...update, runtimeToken: RUNTIME_TOKEN });
+  await Promise.resolve();
+  assert.equal(finished, false);
+  emit(update);
+  assert.equal(await first, true);
+  assert.equal(f.protocol.getRuntimeToken(), 'fresh.payload.signature');
+  assert.equal(await f.protocol.requestRuntimeTokenRefresh(RUNTIME_TOKEN), true);
+  assert.equal(f.requests.length, 1);
+  f.protocol.dispose();
+});
+
+test('token refresh has a deadline and disposal settles pending saves without accepting authority', async () => {
+  const timers = new Map();
+  const f = protocolHarness({
+    setTimeout: (fn, delay) => {
+      assert.equal(delay, 15_000);
+      timers.set(1, fn);
+      return 1;
+    },
+    clearTimeout: (id) => timers.delete(id),
+  });
+  f.handlers.get('message')({ source: f.parent, origin: API_ORIGIN, data: validInitMessage() });
+  const timeout = f.protocol.requestRuntimeTokenRefresh(RUNTIME_TOKEN);
+  timers.get(1)();
+  assert.equal(await timeout, false);
+  const stopped = f.protocol.requestRuntimeTokenRefresh(RUNTIME_TOKEN);
+  f.protocol.dispose();
+  assert.equal(await stopped, false);
+  assert.equal(timers.size, 0);
+  assert.equal(await f.protocol.requestRuntimeTokenRefresh(RUNTIME_TOKEN), false);
+});
 
 function validInitMessage(overrides = {}) {
   return {
