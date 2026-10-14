@@ -1,0 +1,176 @@
+{
+  "version": 1,
+  "description": "Closed database diagnostic projection shared by collector and reader. Unknown fields/values and nulls are omitted. No recursive payloads or arbitrary strings. Native IDs are used only by the collector's existing event hash.",
+  "timestamp": {
+    "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?(?:Z|[+-][0-9]{2}:[0-9]{2})$",
+    "minYear": 1970,
+    "maxYear": 2100
+  },
+  "sources": {
+    "audit_events": {
+      "timeColumn": "created_at",
+      "fields": {
+        "created_at": { "type": "timestamp" },
+        "entity_type": {
+          "type": "enum",
+          "values": [
+            "account",
+            "school",
+            "classroom",
+            "student_seat",
+            "project",
+            "checkers_classroom",
+            "checkers_class_game"
+          ]
+        },
+        "action": {
+          "type": "enum",
+          "values": [
+            "account.registered",
+            "capability.educator_attested",
+            "capability.educator_enabled",
+            "capability.educator_disabled",
+            "workspace.switched",
+            "session.revoked",
+            "session.revoked_others",
+            "school.created",
+            "classroom.student_seat_created",
+            "classroom.student_seat_updated",
+            "classroom.join_code_rotated",
+            "classroom.join_code_revoked",
+            "classroom.safe_mode_updated",
+            "checkers.student_enrolled",
+            "checkers.challenge_created"
+          ]
+        }
+      }
+    },
+    "administrative_audit_events": {
+      "timeColumn": "occurred_at",
+      "severity": { "field": "result", "error": ["failed"], "warn": ["denied"] },
+      "fields": {
+        "occurred_at": { "type": "timestamp" },
+        "scope_kind": { "type": "enum", "values": ["platform", "organization"] },
+        "actor_role": {
+          "type": "enum",
+          "values": ["platform_admin", "owner", "school_admin", "moderator", "billing_admin"]
+        },
+        "action": {
+          "type": "enum",
+          "values": [
+            "administration.open",
+            "administration.scopes.read",
+            "administration.audit.read",
+            "administration.accounts.read",
+            "administration.accounts.manage",
+            "administration.organizations.read",
+            "administration.security.read",
+            "administration.security.manage",
+            "administration.moderation.read",
+            "administration.billing.read",
+            "administration.operations.read"
+          ]
+        },
+        "reason_code": {
+          "type": "enum",
+          "values": ["no_admin_grant", "scope_not_granted", "permission_not_granted"]
+        },
+        "result": { "type": "enum", "values": ["allowed", "denied", "succeeded", "failed"] },
+        "before_version": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+        "after_version": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 }
+      }
+    },
+    "classroom_activity_events": {
+      "timeColumn": "occurred_at",
+      "fields": {
+        "occurred_at": { "type": "timestamp" },
+        "first_occurred_at": { "type": "timestamp" },
+        "action": {
+          "type": "enum",
+          "values": [
+            "project.created",
+            "project.opened",
+            "project.saved",
+            "project.updated",
+            "seat.signed_in",
+            "seat.signed_out"
+          ]
+        },
+        "occurrence_count": { "type": "integer", "minimum": 1, "maximum": 2147483647 }
+      }
+    },
+    "account_external_identity_events": {
+      "timeColumn": "occurred_at",
+      "fields": {
+        "occurred_at": { "type": "timestamp" },
+        "provider": { "type": "enum", "values": ["max"] },
+        "event": { "type": "enum", "values": ["linked", "verified", "used", "revoked"] }
+      }
+    },
+    "grade_change_events": {
+      "timeColumn": "created_at",
+      "fields": {
+        "created_at": { "type": "timestamp" },
+        "event_kind": { "type": "enum", "values": ["published", "corrected", "invalidated"] }
+      }
+    },
+    "checkers_reaction_events": {
+      "timeColumn": "created_at",
+      "fields": {
+        "created_at": { "type": "timestamp" },
+        "reaction_id": {
+          "type": "enum",
+          "values": [
+            "good-luck",
+            "good-move",
+            "thanks-for-game",
+            "applause",
+            "thinking",
+            "friendly-smile"
+          ]
+        },
+        "game_state": { "type": "enum", "values": ["active", "finished"] }
+      }
+    },
+    "chess_live_events": {
+      "timeColumn": "created_at_ms",
+      "fields": {
+        "created_at_ms": { "type": "integer", "minimum": 0, "maximum": 4102444800000 },
+        "sequence": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 }
+      }
+    },
+    "max_webhook_events": {
+      "timeColumn": "received_at",
+      "fields": { "received_at": { "type": "timestamp" } }
+    },
+    "product_analytics_events": {
+      "timeColumn": "occurred_at",
+      "severity": { "field": "outcome", "error": ["failed"], "warn": ["blocked"] },
+      "fields": {
+        "occurred_at": { "type": "timestamp" },
+        "actor_kind": { "type": "enum", "values": ["account", "student", "anonymous"] },
+        "event_type": {
+          "type": "enum",
+          "values": [
+            "auth.login",
+            "auth.register",
+            "auth.max",
+            "auth.class_join",
+            "session.observed",
+            "module.opened"
+          ]
+        },
+        "outcome": { "type": "enum", "values": ["succeeded", "failed", "blocked"] },
+        "auth_method": {
+          "type": "enum",
+          "values": ["password", "organization", "max", "class_code"]
+        },
+        "module_key": { "type": "enum", "values": ["electronics", "three-d", "chess", "checkers"] },
+        "network_kind": {
+          "type": "enum",
+          "values": ["public", "local_network", "local_device", "proxy", "unknown"]
+        }
+      }
+    }
+  }
+}

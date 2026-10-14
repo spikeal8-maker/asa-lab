@@ -27,6 +27,31 @@ UTC = timezone.utc
 SEGMENT_PATTERN = re.compile(r"seg-\d{16}-\d{16}\.jsonl(?:\.gz)?$")
 RETIRE_SECONDS = 600  # Longer than five-minute resumable searches and exports.
 SENSITIVE = re.compile(r"password|passwd|secret|cookie|authorization|credential|student.?code|token|api.?key|jwt|signing.?key", re.I)
+DATABASE_DIAGNOSTICS = json.loads((Path(__file__).resolve().parent.parent /
+    'apps/api/src/database-diagnostic-contract.json').read_text(encoding='utf-8'))
+
+
+def database_diagnostics(origin, value):
+    """Project known DB rows before classification or persistence; fail closed."""
+    fields = DATABASE_DIAGNOSTICS['sources'][origin]['fields']
+    if not isinstance(value, dict): return {}
+    result = {}
+    for key, rule in fields.items():
+        item = value.get(key)
+        valid = False
+        if rule['type'] == 'enum':
+            valid = isinstance(item, str) and item in rule['values']
+        elif rule['type'] == 'integer':
+            valid = type(item) is int and rule['minimum'] <= item <= rule['maximum']
+        elif rule['type'] == 'timestamp' and isinstance(item, str):
+            stamp = DATABASE_DIAGNOSTICS['timestamp']
+            if re.fullmatch(stamp['pattern'], item):
+                try:
+                    parsed = datetime.fromisoformat(item.replace('Z', '+00:00'))
+                    valid = stamp['minYear'] <= parsed.year <= stamp['maxYear']
+                except ValueError: pass
+        if valid: result[key] = item
+    return result
 
 
 def history_error(reason):
@@ -177,7 +202,14 @@ def normalize(source: str, raw: str, at: str, identity: str, origin: str = "") -
         payload = json.loads(raw)
     except ValueError:
         pass
-    level = log_level(payload, raw)
+    database_rule = DATABASE_DIAGNOSTICS['sources'].get(origin) if source in ('audit', 'auth') else None
+    if database_rule is not None:
+        payload = database_diagnostics(origin, payload)
+        severity = database_rule.get('severity', {})
+        outcome = payload.get(severity.get('field'))
+        level = 'error' if outcome in severity.get('error', ()) else 'warn' if outcome in severity.get('warn', ()) else 'info'
+    else:
+        level = log_level(payload, raw)
     module = "scratch" if source == "scratch" else "auth" if source == "auth" else "system"
     request_id = revision = None
     if isinstance(payload, dict):
@@ -501,7 +533,7 @@ class Collector:
         if not getattr(self, "postgres", None):
             self.status("database-events", "unavailable", "Canonical PostgreSQL was not identified")
             return
-        tables = {"audit_events": "created_at", "administrative_audit_events": "occurred_at", "classroom_activity_events": "occurred_at", "account_external_identity_events": "occurred_at", "grade_change_events": "created_at", "checkers_reaction_events": "created_at", "chess_live_events": "created_at_ms", "max_webhook_events": "received_at", "product_analytics_events": "occurred_at"}
+        tables = {table: rule['timeColumn'] for table, rule in DATABASE_DIAGNOSTICS['sources'].items()}
         failures = 0
         for table, column in tables.items():
             key = "db:" + table
