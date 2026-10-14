@@ -4585,7 +4585,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: Scratch_protocol_fixture_compatibility_selected
+      checkpoint: UI_fixture_invalid_actor_repair_selected
       owner_acceptance: pending
       normative_refs:
         - document: PORTABLE-DEPLOYMENT-CONTRACT
@@ -4809,12 +4809,12 @@ parallel_lanes:
         owner_instruction: Implement item8 then item9 with separate reports, integrate all prepared changes into main and fully update the canonical site after required release checks.
         candidate_baseline_sha: b1a93e6c14cac35cf5e440e4af86650ebf9bb3bb
         acceptance_scope: Endpoint-correct Scratch diagnostics fixture preserving heartbeat failure, recovery and hidden-tab assertions.
-        next_action: Scratch_protocol_fixture_compatibility_then_final_release_gates_and_guarded_site_update
+        next_action: valid_UI_fixture_actor_then_final_release_gates_and_guarded_site_update
       release_execution:
         status: in_progress
-        selected_phase: Scratch_protocol_fixture_compatibility
+        selected_phase: UI_fixture_invalid_actor_repair
         owner_authorization: explicit_OBS008_then_OBS009_then_all_changes_main_and_full_site_update_20261014
-        candidate_source_sha: 85742e662fb03bf8b981d69bc3182e4009b75958
+        candidate_source_sha: 0e9045500fd2c069b35e6c51d9dcaad039258be2
         integration_branch: codex/observability-main-integration
         registration_fixture_result:
           id: TASK-RELEASE-REGISTRATION-FIXTURE-001
@@ -4847,18 +4847,31 @@ parallel_lanes:
           local_browser: discovery402_only_not_execution
           report: docs/execution/RELEASE_UI_TELEMETRY_FIXTURE_REPORT.md
           full_UI_execution: required_on_final_main
-        current_baseline_task:
+        Scratch_protocol_fixture_result:
           id: TASK-RELEASE-SCRATCH-PROTOCOL-FIXTURE-001
-          specification: docs/delivery/RELEASE_SCRATCH_PROTOCOL_FIXTURE_SPEC.md
-          branch: codex/release-scratch-protocol-fixture
-          status: in_progress
-          category: B_CLIENT_telemetry_receipts_and_expected401_in_shared_Scratch_fixture
-          failing_run: 38485756130
-          failing_source_sha: 35a9c99ba1d238ac2e678acc0c564aea7ca0cff6
-          observed: 51_passed_4_failed_2_direct_fixture_B_1_known_clock_blocker_1_autosave_causality_unproved
-          scope: Correct exact telemetry receipts and native File classification; correlate expected module-session401 console record without deleting raw errors.
-          out_of_scope: Existing recovery_clock_pauseAt_and_unproved_failed_autosave_case_no_assertion_or_timer_changes
-          deployment_gate: final_General_real_Scratch_classification_and_verified_Portable_Release_before_live_update
+          source_sha: 0e9045500fd2c069b35e6c51d9dcaad039258be2
+          initial_source_sha: 15a48da0bcd0cca0d6b0ce28e17d79aad153bcb8
+          independent_review: pass_new_reviewer_after_ESM_loader_repair
+          local_focused: 39_passed_reused_helper_units_unchanged_by_loader_repair
+          local_import_smoke: actual_Playwright_Node_only_before_fail_after_pass_no_browser_server
+          original_assertions: 434_retained_432_initially_unchanged_2_authorized_classification_changes_loader_repair_434_identical
+          source_Scratch_run: 38491966252
+          source_real_activity_minute_save: success
+          source_cumulative_browser: in_progress_at_checkpoint
+          recovery_specs: unchanged_no_closure_claim
+        current_baseline_task:
+          id: TASK-RELEASE-UI-TELEMETRY-FIXTURE-001
+          specification: docs/delivery/RELEASE_UI_TELEMETRY_FIXTURE_SPEC.md
+          branch: codex/release-ui-actor-fixture-repair
+          status: repair_in_progress
+          category: A_existing_classroom_fixture_invalid_Account_workspace_identifiers_rejected_by_strict_new_receipt_helper
+          failing_run: 38491966270
+          failing_source_sha: 0e9045500fd2c069b35e6c51d9dcaad039258be2
+          failed_step: Account_settings_synthetic_UI_and_layout_regression
+          observed: 400_passed_2_failed_invalid_product_quality_actor_account1_workspace1
+          scope: Replace invalid synthetic Account and workspace identifiers consistently in existing classroom-owner fixture; preserve strict telemetry validators and all business assertions.
+          forbidden: product_validator_weakening_invalid_actor_success_ACK_assertion_filters_workflow_or_production_changes
+          deployment_gate: exact_final_main_General_and_verified_Portable_Release_before_live_update
         main_integration_result:
           source_sha: 3ab6693eb3bf52d7ba73c5f6679bbac83c656efb
           main_publication: completed_normal_fast_forward
