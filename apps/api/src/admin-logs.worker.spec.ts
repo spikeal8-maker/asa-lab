@@ -4,7 +4,8 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { inflateRawSync, gzipSync } from 'node:zlib';
 import { createHash } from 'node:crypto';
-import { queryLogs, exportLogs, type LogFilter } from './admin-logs.worker.js';
+import { execFileSync } from 'node:child_process';
+import { queryLogs, exportLogs, type LogFilter, type LogEntry } from './admin-logs.worker.js';
 const filter: LogFilter = {
   from: '2026-10-01T00:00:00.000Z',
   to: '2026-10-07T23:59:59.999Z',
@@ -16,6 +17,74 @@ const filter: LogFilter = {
 };
 
 describe('retained log reader and archive', () => {
+  it('keeps all nine newly collected database sources private through query and ZIP paths', async () => {
+    const temporary = await mkdtemp(join(tmpdir(), 'asa-db-diagnostics-'));
+    try {
+      execFileSync('python', ['tools/test_database_diagnostics.py', '--write-store', temporary]);
+      const root = join(temporary, '.asa', 'diagnostics', 'store');
+      const selected = {
+        ...filter,
+        from: '2000-01-01T00:00:00.000Z',
+        to: '2100-01-01T00:00:00.000Z',
+      };
+      const result = await queryLogs(root, selected, 100);
+      expect(result.items).toHaveLength(18);
+      expect(new Set(result.items.map((item) => item.origin)).size).toBe(9);
+      const forbidden = [
+        'PRIVATE_PERSON_012',
+        'private012@example.invalid',
+        '203.0.113.212',
+        'PRIVATE_CONTENT_012',
+        'PRIVATE_SECRET_012',
+        'PRIVATE_NESTED_012',
+      ];
+      for (const secret of forbidden) expect(JSON.stringify(result)).not.toContain(secret);
+      expect(
+        result.items
+          .filter((item) => item.origin === 'product_analytics_events')
+          .every((item) => JSON.parse(item.message).outcome === 'failed'),
+      ).toBe(true);
+      for (const search of ['', 'failed']) {
+        const output = join(temporary, search ? 'filtered.zip' : 'all.zip');
+        const exported = await exportLogs(root, { ...selected, search }, output);
+        expect(exported.count).toBe(search ? 4 : 18);
+        const zip = await readFile(output);
+        let contents = '';
+        const records: LogEntry[] = [];
+        for (let offset = 0; zip.readUInt32LE(offset) === 0x04034b50;) {
+          const name = zip
+            .subarray(offset + 30, offset + 30 + zip.readUInt16LE(offset + 26))
+            .toString();
+          const start = offset + 30 + zip.readUInt16LE(offset + 26) + zip.readUInt16LE(offset + 28);
+          const end = start + zip.readUInt32LE(offset + 18);
+          const bytes = zip.subarray(start, end);
+          const text = (
+            zip.readUInt16LE(offset + 8) === 8 ? inflateRawSync(bytes) : bytes
+          ).toString();
+          contents += text;
+          if (name.endsWith('.jsonl'))
+            records.push(
+              ...text
+                .trim()
+                .split('\n')
+                .map((line) => JSON.parse(line) as LogEntry),
+            );
+          offset = end;
+        }
+        for (const secret of forbidden) expect(contents).not.toContain(secret);
+        expect(records).toHaveLength(exported.count);
+        expect(
+          records.some((item) =>
+            search
+              ? JSON.parse(item.message).outcome === 'failed'
+              : JSON.parse(item.message).action === 'account.registered',
+          ),
+        ).toBe(true);
+      }
+    } finally {
+      await rm(temporary, { recursive: true, force: true });
+    }
+  });
   it.each([false, true])(
     'filters old and indexed mixed subsystems in queries and ZIP exports (index=%s)',
     async (indexed) => {
