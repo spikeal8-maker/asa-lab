@@ -396,6 +396,60 @@ class CollectorTests(unittest.TestCase):
                     self.assertEqual(c.upgrade_file_event(event), event)
                 finally: c.db.close()
 
+    def test_obs015_truncated_history_import_preserves_editor_hints_and_source_priority(self):
+        for compressed in (False, True):
+            with self.subTest(compressed=compressed), tempfile.TemporaryDirectory() as temp:
+                root = Path(temp); c = Collector(root, {'retentionDays': 365})
+                c.reader_format = 2 if compressed else 1
+                try:
+                    c.add(normalize('api', 'retained original', now(), 'retained-original'))
+                    c.publish()
+                    originals = {p.name: p.read_bytes() for p in c.store.glob('seg-*')}
+                    rows = []; expected = {}
+                    for module in ('scratch', 'electronics', 'three-d', 'chess', 'checkers'):
+                        for level in ('info', 'warn', 'error'):
+                            event = normalize('api', json.dumps({'path': '/api/' + module + '/fixture', 'msg': 'x' * 20000, 'level': level}), now(), module + level)
+                            self.assertTrue(event['truncated'])
+                            rows.append(event); expected[event['id']] = (module, module, level)
+                    host = normalize('linux:journal', json.dumps({'level': 'warn'}), now(), 'host-control')
+                    host.update(module='chess', subsystem='chess', truncated=True)
+                    rows.append(host); expected[host['id']] = ('system', 'host', 'warn')
+                    database = normalize('audit', json.dumps({'event_type': 'auth.login', 'outcome': 'failed'}), now(), 'database-control', 'product_analytics_events')
+                    database.update(subsystem='chess', truncated=True)
+                    rows.append(database); expected[database['id']] = ('system', 'analytics', 'error')
+                    unknown = normalize('api', 'partial JSON message', now(), 'unknown-hint')
+                    unknown.update(subsystem={'untrusted': 'chess'}, truncated=True)
+                    rows.append(unknown); expected[unknown['id']] = ('system', 'api', 'info')
+                    archive = root/'truncated-editor-history.zip'
+                    with zipfile.ZipFile(archive, 'w') as z:
+                        z.writestr('manifest.json', json.dumps({'normalized': True, 'count': len(rows)}))
+                        z.writestr('records/part-00001.jsonl', '\n'.join(map(json.dumps, rows)) + '\n')
+                    archive_bytes = archive.read_bytes()
+                    self.assertEqual(c.import_history(archive)['count'], len(rows))
+                    self.assertEqual(c.import_history(archive)['count'], len(rows))
+                    self.assertEqual(c.db.execute('SELECT count(*) FROM events').fetchone()[0], len(rows) + 1)
+                    imported = {json.loads(gzip.decompress(row[0]))['id']: json.loads(gzip.decompress(row[0]))
+                                for row in c.db.execute('SELECT payload FROM events WHERE published=0')}
+                    self.assertEqual(set(imported), set(expected))
+                    for original in rows:
+                        actual = imported[original['id']]
+                        self.assertEqual((actual['module'], actual['subsystem'], actual['level']), expected[actual['id']])
+                        self.assertEqual(actual['message'], original['message'])
+                    c.publish()
+                    for file, data in originals.items(): self.assertEqual((c.store/file).read_bytes(), data)
+                    self.assertEqual(archive.read_bytes(), archive_bytes)
+                    catalog = json.loads((c.store/'catalog.json').read_text())
+                    self.assertEqual(sum(meta['count'] for meta in catalog['segments']), len(rows) + 1)
+                    records = []
+                    for meta in catalog['segments']:
+                        raw = (c.store/meta['file']).read_bytes()
+                        if compressed: raw = gzip.decompress(raw)
+                        records.extend(json.loads(line) for line in raw.splitlines())
+                    for event in records:
+                        if event['id'] in expected:
+                            self.assertEqual((event['module'], event['subsystem'], event['level']), expected[event['id']])
+                finally: c.db.close()
+
     def test_obs015_editor_import_and_catalog_keep_levels_and_originals(self):
         for compressed in (False, True):
             with self.subTest(compressed=compressed), tempfile.TemporaryDirectory() as temp:

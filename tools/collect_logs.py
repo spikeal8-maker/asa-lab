@@ -1023,10 +1023,14 @@ class Collector:
                                 not isinstance(entry.get("source"), str) or not 1 <= len(entry["source"]) <= 200 or
                                 not isinstance(entry.get("message"), str) or len(entry["message"]) > 16384 or not timestamp(entry.get("time"), "")):
                                 raise RuntimeError("Diagnostic archive contains an invalid record")
+                            editor_hint = editor_module(entry.get('subsystem')) if entry['source'] in ('api', 'web') else None
                             entry = {k: v for k, v in entry.items() if k in ("id", "time", "source", "module", "level", "message", "requestId", "revision", "origin", "truncated", "timeBasis", "windowsRecordId", "windowsEventId", "normalizationVersion")}
                             entry["time"] = timestamp(entry["time"], "")
                             entry["message"] = clean(entry["message"])
                             entry["origin"] = clean(str(entry.get("origin", "")))[:500]
+                            # Truncated editor JSON cannot reconstruct this known classification hint.
+                            if editor_hint and entry['origin'] not in DATABASE_DIAGNOSTICS['sources']:
+                                entry['subsystem'] = editor_hint
                             entry["requestId"] = entry.get("requestId") if isinstance(entry.get("requestId"), str) and re.fullmatch(r"[a-fA-F0-9-]{36}", entry["requestId"]) else None
                             entry["revision"] = entry.get("revision") if isinstance(entry.get("revision"), str) and re.fullmatch(r"[a-f0-9]{7,64}", entry["revision"]) else None
                             entry["truncated"] = entry.get("truncated") is True
