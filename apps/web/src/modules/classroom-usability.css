@@ -2133,7 +2133,7 @@
 }
 
 /* Very narrow class lists: five metrics become a readable 3+2 composition. */
-@container classroom (max-width: 360px) {
+@container classroom (min-width: 281px) and (max-width: 360px) {
   .classroom-owner-list .classroom-list-row {
     grid-template-columns: 44px repeat(4, minmax(0, 1fr)) 44px;
     grid-template-rows: minmax(44px, auto) auto auto auto;
