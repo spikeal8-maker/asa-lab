@@ -440,7 +440,7 @@ class CollectorTests(unittest.TestCase):
                     c.publish()
                     for file, data in originals.items(): self.assertEqual((c.store/file).read_bytes(), data)
                     self.assertEqual(archive.read_bytes(), archive_bytes)
-                    catalog = json.loads((c.store/'catalog.json').read_text())
+                    catalog = json.loads((c.store/'catalog.json').read_text(encoding='utf-8'))
                     self.assertEqual(sum(meta['count'] for meta in catalog['segments']), len(rows) + 1)
                     records = []
                     for meta in catalog['segments']:
@@ -457,7 +457,7 @@ class CollectorTests(unittest.TestCase):
             with self.subTest(compressed=compressed), tempfile.TemporaryDirectory() as temp:
                 c, rows, originals = editor_classification_fixture(Path(temp), compressed)
                 try:
-                    catalog = json.loads((c.store/'catalog.json').read_text())
+                    catalog = json.loads((c.store/'catalog.json').read_text(encoding='utf-8'))
                     self.assertEqual(sum(meta['count'] for meta in catalog['segments']), 45)
                     for meta in catalog['segments']:
                         self.assertEqual(set(meta['modules']), {'scratch', 'electronics', 'three-d', 'chess', 'checkers'})
@@ -476,7 +476,7 @@ class CollectorTests(unittest.TestCase):
                     snapshot = {p.name: p.read_bytes() for p in c.store.glob('seg-*')}
                     c.publish()
                     self.assertEqual({p.name: p.read_bytes() for p in c.store.glob('seg-*')}, snapshot)
-                    self.assertEqual(json.loads((c.store/'catalog.json').read_text())['segments'], catalog['segments'])
+                    self.assertEqual(json.loads((c.store/'catalog.json').read_text(encoding='utf-8'))['segments'], catalog['segments'])
                 finally: c.db.close()
 
     def test_obs014_host_source_owns_classification_over_payload(self):
@@ -496,7 +496,7 @@ class CollectorTests(unittest.TestCase):
             with self.subTest(compressed=compressed), tempfile.TemporaryDirectory() as temp:
                 c, rows, originals = system_classification_fixture(Path(temp), compressed)
                 try:
-                    catalog = json.loads((c.store / 'catalog.json').read_text())
+                    catalog = json.loads((c.store / 'catalog.json').read_text(encoding='utf-8'))
                     self.assertEqual(sum(meta['count'] for meta in catalog['segments']), 18)
                     self.assertEqual(c.db.execute('SELECT count(*) FROM events').fetchone()[0], 18)
                     for name, data in originals.items(): self.assertEqual((c.store / name).read_bytes(), data)
@@ -521,7 +521,7 @@ class CollectorTests(unittest.TestCase):
                     c.publish()
                     self.assertEqual({p.name: p.read_bytes() for p in c.store.glob('seg-*')}, before)
                     cached = c.state('classification:system_metadata')
-                    catalog = json.loads((c.store / 'catalog.json').read_text())
+                    catalog = json.loads((c.store / 'catalog.json').read_text(encoding='utf-8'))
                     self.assertTrue(set(cached).issubset({s['file'] for s in catalog['segments']}))
                     with patch('collect_logs.gzip.open', side_effect=AssertionError('redundant classification scan')), patch('builtins.open', side_effect=AssertionError('redundant classification scan')):
                         for meta in catalog['segments']:
