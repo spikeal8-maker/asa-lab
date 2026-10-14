@@ -18,6 +18,7 @@ import tempfile
 import time
 import uuid
 import zipfile
+import zlib
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from deployment.paths import atomic_bytes
@@ -26,6 +27,31 @@ UTC = timezone.utc
 SEGMENT_PATTERN = re.compile(r"seg-\d{16}-\d{16}\.jsonl(?:\.gz)?$")
 RETIRE_SECONDS = 600  # Longer than five-minute resumable searches and exports.
 SENSITIVE = re.compile(r"password|passwd|secret|cookie|authorization|credential|student.?code|token|api.?key|jwt|signing.?key", re.I)
+
+
+def history_error(reason):
+    return RuntimeError(f"Diagnostic history/index inconsistency: {reason}; private payloads were preserved; restore a consistent diagnostic snapshot")
+
+
+def immutable_segment_bytes(path, data):
+    """Link a complete, flushed file into its final name without replacement."""
+    from deployment.paths import plain_paths
+    plain_paths(path.parent, ())
+    fd, name = tempfile.mkstemp(prefix='.' + path.name + '.', suffix='.tmp', dir=path.parent)
+    temporary = Path(name)
+    try:
+        with os.fdopen(fd, 'wb') as stream:
+            if os.name != 'nt': os.fchmod(stream.fileno(), 0o640)
+            stream.write(data); stream.flush(); os.fsync(stream.fileno())
+        try:
+            os.link(temporary, path)
+        except FileExistsError:
+            # The winner is complete because publication itself is atomic.
+            # Never open the destination for writing, even after a precheck.
+            if path.read_bytes() != data:
+                raise history_error(f'immutable segment collision at {path.name}')
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 def now() -> str:
@@ -222,7 +248,11 @@ class Collector:
         if os.name != "nt":
             os.chmod(self.store, 0o2750)
             os.chmod(self.private, 0o700)
-        self.db = sqlite3.connect(self.private / "index.sqlite", timeout=5)
+        index = self.private / "index.sqlite"
+        if not index.exists() and (any(SEGMENT_PATTERN.fullmatch(p.name) for p in self.store.glob('seg-*.jsonl*')) or
+                                   ((self.store/'catalog.json').exists() and json.loads((self.store/'catalog.json').read_text(encoding='utf-8')).get('segments'))):
+            raise history_error('private index is missing beside retained history')
+        self.db = sqlite3.connect(index, timeout=5)
         self.db.execute("PRAGMA journal_mode=WAL")
         self.db.executescript("""CREATE TABLE IF NOT EXISTS events(seq INTEGER PRIMARY KEY AUTOINCREMENT,id TEXT UNIQUE,time TEXT,source TEXT,payload TEXT,published INTEGER DEFAULT 0);
             CREATE TABLE IF NOT EXISTS state(key TEXT PRIMARY KEY,value TEXT);
@@ -230,11 +260,84 @@ class Collector:
         # Published JSONL is the durable payload. Keep only a binary digest and
         # sequence in its duplicate index, rather than a second copy of every log.
         try:
+            self.validate_history_index()
             self.upgrade_index()
             self.finish_compaction()
         except Exception:
             self.db.close()
             raise
+
+    def validate_history_index(self):
+        """Verify history ownership before upgrade, retirement or publication.
+
+        Sequence gaps from duplicate inserts are valid. Retired originals can
+        have missing/remapped rows; only durable retirement or compaction intent
+        permits that exception, never an unrecognized orphan filename.
+        """
+        try:
+            files = {p.name: p for p in self.store.glob('seg-*.jsonl*') if SEGMENT_PATTERN.fullmatch(p.name)}
+            retired = self.state('retired:segments', {})
+            pending = self.state('compaction:pending')
+            catalog = self.store/'catalog.json'
+            referenced = {s['file'] for s in json.loads(catalog.read_text(encoding='utf-8'))['segments']} if catalog.exists() else set()
+            referenced.update(name for name in self.state('segments', {}) if name not in retired)
+            if not referenced.issubset(files): raise ValueError('a referenced immutable segment is missing')
+            sequence = self.db.execute("SELECT seq FROM sqlite_sequence WHERE name='events'").fetchone()
+            high = sequence[0] if sequence else 0
+            required = self.db.execute('SELECT coalesce(max(seq),0) FROM events').fetchone()[0]
+            if files: required = max(required, max(int(name.split('-')[2].split('.')[0]) for name in files))
+            pending_name = None
+            if pending:
+                required = max(required, pending['first']+pending['count']-1)
+                pending_name = f"seg-{pending['first']:016d}-{pending['first']+pending['count']-1:016d}.jsonl.gz"
+            if type(high) is not int or high < required: raise ValueError('private event sequence is behind retained history or indexed events')
+            for identity,payload in self.db.execute('SELECT id,payload FROM events WHERE published=0'):
+                digest = bytes.fromhex(identity) if isinstance(identity,str) else identity
+                entry = json.loads(unpack_payload(payload))
+                if bytes.fromhex(entry['id']) != digest:
+                    raise ValueError('unpublished payload identity differs from private index')
+            covered = []
+            pending_ids = None
+            for name, file in files.items():
+                # Durable retirement authorizes eventual deletion, including
+                # compaction originals whose IDs now own different sequences.
+                if name in retired: continue
+                opener = gzip.open if name.endswith('.gz') else open
+                with opener(file, 'rb') as stream: raw = stream.read(4*1024*1024+1)
+                if len(raw) > 4*1024*1024 or not raw.endswith(b'\n'): raise ValueError(f'invalid segment size or termination: {name}')
+                entries = [json.loads(line) for line in raw.splitlines()]
+                ids = [bytes.fromhex(e['id']) for e in entries]
+                if not ids or any(len(identity) != 32 for identity in ids) or len(set(ids)) != len(ids): raise ValueError(f'invalid segment identities: {name}')
+                if name == pending_name:
+                    # A crash may publish the reserved output before the index
+                    # remap. Check it against the durable original snapshots.
+                    if pending_ids is None:
+                        pending_ids = []
+                        for original in pending['originals']:
+                            data = files[original['file']].read_bytes()
+                            content = gzip.decompress(data) if original['file'].endswith('.gz') else data
+                            if len(content) != original['rawBytes'] or hashlib.sha256(content).hexdigest() != original['sha256']:
+                                raise ValueError('compaction original differs from its durable intent')
+                            pending_ids.extend(bytes.fromhex(json.loads(line)['id']) for line in content.splitlines())
+                    if ids != pending_ids: raise ValueError('pending compaction output identities differ from originals')
+                    continue
+                first, last = map(int, name.split('.')[0].split('-')[1:])
+                rows = self.db.execute('SELECT seq,id FROM events WHERE seq BETWEEN ? AND ? ORDER BY seq', (first,last)).fetchall()
+                indexed = [bytes.fromhex(row[1]) if isinstance(row[1],str) else row[1] for row in rows]
+                if indexed != ids or rows[0][0] != first or rows[-1][0] != last:
+                    raise ValueError(f'immutable segment identities differ from private index: {name}')
+                covered.append((first,last))
+            # Every published index row must still have an active immutable
+            # payload. Merge overlapping replay prefixes without retaining IDs.
+            end = 0
+            for first,last in sorted(covered):
+                if first > end+1 and self.db.execute('SELECT 1 FROM events WHERE published=1 AND seq>? AND seq<? LIMIT 1',(end,first)).fetchone():
+                    raise ValueError('published private index row has no immutable payload')
+                end = max(end,last)
+            if self.db.execute('SELECT 1 FROM events WHERE published=1 AND seq>? LIMIT 1',(end,)).fetchone():
+                raise ValueError('published private index row has no immutable payload')
+        except (ValueError, TypeError, KeyError, IndexError, OSError, EOFError, sqlite3.Error, zlib.error) as exc:
+            raise history_error(str(exc)) from exc
 
     def upgrade_index(self):
         if self.state("index:version") == 2: return
@@ -721,7 +824,7 @@ class Collector:
         compressed = self.reader_format >= 2
         file = name + (".gz" if compressed else "")
         data = gzip.compress(raw, compresslevel=6, mtime=0) if compressed else raw
-        atomic_bytes(self.store / file, data)
+        immutable_segment_bytes(self.store / file, data)
         return dict(file=file, schema=2, sha256=hashlib.sha256(raw).hexdigest(), bytes=len(data), rawBytes=len(raw), count=len(events), first=min(e["time"] for e in events), last=max(e["time"] for e in events), sources=sorted({e["source"] for e in events}), subsystems=sorted({event_subsystem(e) for e in events}), sourceRanges=self.source_ranges(events), originRanges=self.source_ranges(events, "origin"), modules=sorted({e["module"] for e in events}), levels=sorted({e["level"] for e in events}))
 
     def finish_compaction(self):
@@ -733,6 +836,7 @@ class Collector:
         """
         intent = self.state("compaction:pending")
         if not intent: return
+        self.validate_history_index()
         events = []
         for meta in intent["originals"]:
             data = (self.store / meta["file"]).read_bytes()
@@ -852,6 +956,7 @@ class Collector:
         return result
 
     def publish(self):
+        self.validate_history_index()
         self.finish_compaction()
         self.db.commit()
         retired = self.state("retired:segments", {})

@@ -1,6 +1,8 @@
 import json
 import gzip
 import secrets
+from contextlib import ExitStack
+import threading
 import zipfile
 import os
 import subprocess
@@ -15,6 +17,125 @@ from collect_logs import Collector, normalize, now, file_timestamp, clean, RETIR
 
 
 class CollectorTests(unittest.TestCase):
+    @staticmethod
+    def open_and_close(root):
+        Collector(root,{}).db.close()
+
+    @staticmethod
+    def history_bytes(collector):
+        return {p.name: p.read_bytes() for p in collector.store.iterdir()
+                if p.name == 'catalog.json' or p.name.startswith('seg-')}
+
+    def test_obs011_missing_index_preserves_history_without_recreating_index(self):
+        for reader in (1, 2):
+            with self.subTest(reader=reader), tempfile.TemporaryDirectory() as temp, ExitStack() as cleanup:
+                root=Path(temp); c=Collector(root,{}); cleanup.callback(c.db.close); c.reader_format=reader
+                c.add(normalize('api','retained',now(),'retained')); c.publish()
+                before=self.history_bytes(c); c.db.close()
+                index=c.private/'index.sqlite'; index.unlink()
+                with self.assertRaisesRegex(RuntimeError,'restore.*diagnostic snapshot'): self.open_and_close(root)
+                self.assertFalse(index.exists()); self.assertEqual(self.history_bytes(c),before)
+
+    def test_obs011_inconsistent_index_fails_before_history_or_catalog_mutation(self):
+        for reader in (1, 2):
+            for reopen in (False, True):
+                for mode in ('empty','sequence','identity','published_without_file'):
+                    with self.subTest(reader=reader,reopen=reopen,mode=mode), tempfile.TemporaryDirectory() as temp, ExitStack() as cleanup:
+                        root=Path(temp); c=Collector(root,{}); cleanup.callback(c.db.close); c.reader_format=reader
+                        for i in range(2): c.add(normalize('api','retained '+str(i),now(),str(i)))
+                        c.publish(); before=self.history_bytes(c)
+                        if mode=='empty': c.db.execute('DELETE FROM events')
+                        elif mode=='sequence': c.db.execute("UPDATE sqlite_sequence SET seq=0 WHERE name='events'")
+                        elif mode=='identity': c.db.execute('UPDATE events SET id=? WHERE seq=1',(bytes.fromhex('a'*64),))
+                        else: c.db.execute('INSERT INTO events(id,published) VALUES(?,1)',(bytes.fromhex('b'*64),))
+                        c.db.commit()
+                        if reopen:
+                            c.db.close()
+                            with self.assertRaisesRegex(RuntimeError,'restore.*diagnostic snapshot'): self.open_and_close(root)
+                        else:
+                            with self.assertRaisesRegex(RuntimeError,'restore.*diagnostic snapshot'): c.publish()
+                            c.db.close()
+                        self.assertEqual(self.history_bytes(c),before)
+
+    def test_obs011_unknown_orphan_identity_cannot_be_adopted(self):
+        for reader in (1,2):
+            with self.subTest(reader=reader), tempfile.TemporaryDirectory() as temp, ExitStack() as cleanup:
+                c=Collector(Path(temp),{}); cleanup.callback(c.db.close); c.reader_format=reader
+                c.add(normalize('api','private',now(),'private')); c.db.commit()
+                c.write_segment('seg-0000000000000001-0000000000000001.jsonl',[normalize('api','foreign',now(),'foreign')])
+                before=self.history_bytes(c)
+                with self.assertRaisesRegex(RuntimeError,'restore.*diagnostic snapshot'): c.publish()
+                self.assertEqual(self.history_bytes(c),before); c.db.close()
+
+    def test_obs011_live_sequence_rollback_without_segments_fails_closed(self):
+        with tempfile.TemporaryDirectory() as temp, ExitStack() as cleanup:
+            c=Collector(Path(temp),{}); cleanup.callback(c.db.close); c.add(normalize('api','private',now(),'private'))
+            c.db.execute("UPDATE sqlite_sequence SET seq=0 WHERE name='events'")
+            with self.assertRaisesRegex(RuntimeError,'restore.*diagnostic snapshot'): c.publish()
+            self.assertEqual(self.history_bytes(c),{}); c.db.close()
+
+    def test_obs011_unpublished_payload_identity_fails_before_any_publication(self):
+        for reader in (1,2):
+            for reopen in (False,True):
+                with self.subTest(reader=reader,reopen=reopen), tempfile.TemporaryDirectory() as temp, ExitStack() as cleanup:
+                    root=Path(temp); c=Collector(root,{}); cleanup.callback(c.db.close); c.reader_format=reader
+                    c.add(normalize('api','retained',now(),'retained')); c.publish()
+                    c.add(normalize('api','pending',now(),'pending'))
+                    c.db.execute('UPDATE events SET id=? WHERE published=0',(bytes.fromhex('c'*64),)); c.db.commit()
+                    before=self.history_bytes(c)
+                    if reopen:
+                        c.db.close()
+                        with self.assertRaisesRegex(RuntimeError,'restore.*diagnostic snapshot'): self.open_and_close(root)
+                    else:
+                        with self.assertRaisesRegex(RuntimeError,'restore.*diagnostic snapshot'): c.publish()
+                    self.assertEqual(self.history_bytes(c),before)
+
+    def test_obs011_segment_collision_preserves_bytes_and_identical_replay(self):
+        for reader in (1,2):
+            with self.subTest(reader=reader), tempfile.TemporaryDirectory() as temp, ExitStack() as cleanup:
+                c=Collector(Path(temp),{}); cleanup.callback(c.db.close); c.reader_format=reader
+                name='seg-0000000000000001-0000000000000001.jsonl'
+                event=normalize('api','immutable',now(),'immutable'); meta=c.write_segment(name,[event])
+                before=self.history_bytes(c); self.assertEqual(c.write_segment(name,[event]),meta)
+                with self.assertRaisesRegex(RuntimeError,'collision.*restore.*diagnostic snapshot'):
+                    c.write_segment(name,[{**event,'message':'different bytes, same identity'}])
+                self.assertEqual(self.history_bytes(c),before); c.db.close()
+
+    def test_obs011_atomic_competing_segment_creation_never_clobbers(self):
+        for reader in (1,2):
+            for identical in (False,True):
+                with self.subTest(reader=reader,identical=identical), tempfile.TemporaryDirectory() as temp, ExitStack() as cleanup:
+                    c=Collector(Path(temp),{}); cleanup.callback(c.db.close); c.reader_format=reader
+                    event=normalize('api','first writer',now(),'first')
+                    other=event if identical else normalize('api','second writer',now(),'second')
+                    name='seg-0000000000000001-0000000000000001.jsonl'
+                    barrier=threading.Barrier(2); link=os.link; outcomes=[]
+                    def competing_link(*args,**kwargs):
+                        barrier.wait(timeout=5); return link(*args,**kwargs)
+                    def write(entry):
+                        try: outcomes.append(c.write_segment(name,[entry]))
+                        except Exception as exc: outcomes.append(exc)
+                    with patch('collect_logs.os.link',side_effect=competing_link):
+                        threads=[threading.Thread(target=write,args=(e,)) for e in (event,other)]
+                        for thread in threads: thread.start()
+                        for thread in threads: thread.join(timeout=10)
+                    self.assertEqual(sum(isinstance(v,dict) for v in outcomes),2 if identical else 1)
+                    if not identical: self.assertTrue(any(isinstance(v,RuntimeError) for v in outcomes))
+                    raw=next(c.store.glob('seg-*')).read_bytes()
+                    if reader==2: raw=gzip.decompress(raw)
+                    self.assertIn(json.loads(raw),[event,other]); c.db.close()
+
+    def test_obs011_valid_restart_keeps_gapped_sequences_and_retired_history(self):
+        with tempfile.TemporaryDirectory() as temp, ExitStack() as cleanup:
+            root=Path(temp); c=Collector(root,{}); cleanup.callback(c.db.close)
+            event=normalize('api','first',now(),'first'); c.add(event); c.add(event)
+            c.add(normalize('api','third',now(),'third')); c.publish(); c.db.close()
+            c=Collector(root,{}); c.reader_format=2; c.publish(); c.db.close()
+            c=Collector(root,{}); c.reader_format=2; c.publish()
+            self.assertEqual(c.db.execute('SELECT count(*) FROM events').fetchone()[0],2)
+            self.assertEqual(sum(s['count'] for s in json.loads((c.store/'catalog.json').read_text())['segments']),2)
+            c.db.close()
+
     def test_real_hardlinked_publication_temps_do_not_modify_foreign_sentinel(self):
         with tempfile.TemporaryDirectory() as directory, tempfile.TemporaryDirectory() as foreign:
             root = Path(directory).resolve(); collector = Collector(root, {'project': 'fixture'})
@@ -25,8 +146,9 @@ class CollectorTests(unittest.TestCase):
             os.link(sentinel, collector.private / 'windows-cursors.json')
             write_collector_health(root, 'ok')
             write_process_health(root, {'nonce': 'fixture'})
-            collector.add(normalize('api', 'fixture', now(), 'fixture'))
-            collector.write_segment(segment, [normalize('api', 'fixture', now(), 'fixture')])
+            event = normalize('api', 'fixture', now(), 'fixture')
+            collector.add(event)
+            collector.write_segment(segment, [event])
             collector.publish()
             if os.name == 'nt':
                 with patch.object(collector, 'command', return_value=b'{"events":[],"sources":[]}'):
@@ -234,6 +356,9 @@ class CollectorTests(unittest.TestCase):
                 self.assertEqual({e['id'] for e in events},ids); self.assertEqual(len(events),256)
                 self.assertLess(len(catalog['segments']),256)
                 self.assertTrue(all((c.store/s['file']).exists() for s in before['segments']))
+                # Finished compaction leaves retired originals with remapped
+                # sequences; both restart and another publication remain valid.
+                c.db.close(); c=Collector(root,{}); c.reader_format=2; c.publish()
                 c.add(normalize('api','after recovery',now(),'later'))
                 self.assertGreater(c.db.execute('SELECT max(seq) FROM events').fetchone()[0],288); c.db.close()
 
