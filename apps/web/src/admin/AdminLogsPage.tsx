@@ -90,6 +90,9 @@ const MODULE: Record<string, string> = {
   portal: 'Сайт',
   scratch: 'Scratch',
   electronics: 'Электроника',
+  'three-d': '3D',
+  chess: 'Шахматы',
+  checkers: 'Шашки',
   auth: 'Вход',
   system: 'Система',
 };

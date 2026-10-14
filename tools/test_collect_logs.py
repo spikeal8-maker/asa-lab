@@ -57,6 +57,49 @@ def system_classification_fixture(root, compressed):
     return c, rows, originals
 
 
+def editor_classification_fixture(root, compressed):
+    """Five editor names, explicit levels and all three retained-history paths."""
+    c = Collector(root, {'retentionDays': 365})
+    c.reader_format = 2 if compressed else 1
+    rows = []
+    for generation in ('fresh', 'imported', 'legacy'):
+        batch = []
+        for module in ('scratch', 'electronics', 'three-d', 'chess', 'checkers'):
+            for level in ('info', 'warn', 'error'):
+                payload = {'kind': 'client_diagnostic', 'module': 'blocks' if module == 'scratch' else module,
+                           'level': level, 'path': '/api/diagnostics/client', 'message': 'OBS015 failure marker'}
+                event = normalize('api', json.dumps(payload), '2026-10-02T00:00:00.000Z',
+                                  generation + module + level, 'application-stdout')
+                # Input levels are independently known, including old rows without a payload level.
+                event['level'] = level
+                if generation != 'fresh':
+                    event.update(subsystem='audit', module=payload['module'] if generation == 'imported' else 'portal')
+                    event.pop('normalizationVersion', None)
+                    old_payload = dict(payload); old_payload.pop('level')
+                    event['message'] = json.dumps(old_payload)
+                batch.append(event)
+        if generation == 'imported':
+            archive = root / 'synthetic-editor-import.zip'
+            with zipfile.ZipFile(archive, 'w') as z:
+                z.writestr('manifest.json', json.dumps({'normalized': True, 'count': len(batch)}))
+                z.writestr('records/part-00001.jsonl', '\n'.join(map(json.dumps, batch)) + '\n')
+            c.import_history(archive); c.import_history(archive)
+        elif generation == 'legacy':
+            first = c.db.execute("SELECT seq FROM sqlite_sequence WHERE name='events'").fetchone()[0] + 1
+            for event in batch: c.add(event)
+            last = c.db.execute('SELECT max(seq) FROM events').fetchone()[0]
+            meta = c.write_segment(f'seg-{first:016d}-{last:016d}.jsonl', batch)
+            meta.update(subsystems=['audit'], modules=['portal'], levels=['error'])
+            c.set_state('segments', {meta['file']: meta})
+            c.db.execute('UPDATE events SET published=1,payload=NULL,time=NULL,source=NULL WHERE seq>=?', (first,))
+        else:
+            for event in batch: c.add(event)
+        rows.extend(batch)
+    originals = {p.name: p.read_bytes() for p in c.store.glob('seg-*')}
+    c.publish()
+    return c, rows, originals
+
+
 class CollectorTests(unittest.TestCase):
     @staticmethod
     def open_and_close(root):
@@ -320,6 +363,65 @@ class CollectorTests(unittest.TestCase):
             meta = c.write_segment('seg-0000000000000001-0000000000000007.jsonl', events)
             self.assertEqual(set(meta['subsystems']), {item[2] for item in cases})
             c.db.close()
+
+    def test_obs015_all_editor_names_and_route_source_priorities(self):
+        for module in ('scratch', 'electronics', 'three-d', 'chess', 'checkers'):
+            with self.subTest(module=module):
+                reported = 'blocks' if module == 'scratch' else module
+                event = normalize('api', json.dumps({'kind': 'client_diagnostic', 'module': reported, 'level': 'warn'}), now(), module)
+                self.assertEqual((event['module'], event['subsystem'], event['level']), (module, module, 'warn'))
+                route = 'blocks' if module == 'scratch' else module
+                event = normalize('api', json.dumps({'path': '/api/' + route + '/fixture', 'module': 'electronics', 'level': 'info'}), now(), module)
+                self.assertEqual((event['module'], event['subsystem']), (module, module))
+        for source, payload, expected in (
+            ('linux:journal', {'module': 'chess'}, ('system', 'host')),
+            ('scratch', {'module': 'chess'}, ('scratch', 'scratch')),
+            ('postgres', {'module': 'chess'}, ('system', 'database')),
+            ('api', {'kind': 'client_diagnostic', 'module': 'unknown'}, ('portal', 'api')),
+            ('api', {'path': '/api/projects/fixture', 'module': 'chess'}, ('chess', 'projects')),
+        ):
+            with self.subTest(source=source, payload=payload):
+                event = normalize(source, json.dumps(payload), now(), str(payload))
+                self.assertEqual((event['module'], event['subsystem']), expected)
+
+    def test_obs015_truncated_json_keeps_classification_collected_before_truncation(self):
+        for module in ('scratch', 'electronics', 'three-d', 'chess', 'checkers'):
+            payload = {'path': '/api/' + module + '/fixture', 'msg': 'x' * 20000, 'level': 'warn'}
+            event = normalize('api', json.dumps(payload), now(), module)
+            self.assertTrue(event['truncated'])
+            self.assertEqual((event['module'], event['subsystem']), (module, module))
+            with tempfile.TemporaryDirectory() as temp:
+                c = Collector(Path(temp), {})
+                try:
+                    self.assertEqual(c.upgrade_file_event(event), event)
+                finally: c.db.close()
+
+    def test_obs015_editor_import_and_catalog_keep_levels_and_originals(self):
+        for compressed in (False, True):
+            with self.subTest(compressed=compressed), tempfile.TemporaryDirectory() as temp:
+                c, rows, originals = editor_classification_fixture(Path(temp), compressed)
+                try:
+                    catalog = json.loads((c.store/'catalog.json').read_text())
+                    self.assertEqual(sum(meta['count'] for meta in catalog['segments']), 45)
+                    for meta in catalog['segments']:
+                        self.assertEqual(set(meta['modules']), {'scratch', 'electronics', 'three-d', 'chess', 'checkers'})
+                        self.assertEqual(set(meta['subsystems']), set(meta['modules']))
+                        self.assertEqual(set(meta['levels']), {'info', 'warn', 'error'})
+                    for file, raw in originals.items(): self.assertEqual((c.store/file).read_bytes(), raw)
+                    expected = {row['id']: row for row in rows}
+                    seen = []
+                    for meta in catalog['segments']:
+                        raw = (c.store/meta['file']).read_bytes()
+                        if compressed: raw = gzip.decompress(raw)
+                        for line in raw.splitlines():
+                            event = json.loads(line); seen.append(event['id'])
+                            self.assertEqual(event['level'], expected[event['id']]['level'])
+                    self.assertEqual(set(seen), set(expected))
+                    snapshot = {p.name: p.read_bytes() for p in c.store.glob('seg-*')}
+                    c.publish()
+                    self.assertEqual({p.name: p.read_bytes() for p in c.store.glob('seg-*')}, snapshot)
+                    self.assertEqual(json.loads((c.store/'catalog.json').read_text())['segments'], catalog['segments'])
+                finally: c.db.close()
 
     def test_obs014_host_source_owns_classification_over_payload(self):
         payload = json.dumps({'module': 'scratch', 'path': '/api/electronics/fixture',
@@ -690,7 +792,10 @@ class CollectorTests(unittest.TestCase):
 
 
 if __name__ == '__main__':
-    if len(sys.argv) == 4 and sys.argv[1] == '--write-system-store':
+    if len(sys.argv) == 4 and sys.argv[1] == '--write-editor-store':
+        c, _, _ = editor_classification_fixture(Path(sys.argv[2]), sys.argv[3] == 'gzip')
+        c.db.close()
+    elif len(sys.argv) == 4 and sys.argv[1] == '--write-system-store':
         c, _, _ = system_classification_fixture(Path(sys.argv[2]), sys.argv[3] == 'gzip')
         c.db.close()
     else: unittest.main()

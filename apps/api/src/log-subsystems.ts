@@ -24,6 +24,38 @@ export const LOG_SUBSYSTEMS = [
   'metrics',
 ] as const;
 
+export const LOG_EDITOR_MODULES = [
+  'scratch',
+  'electronics',
+  'three-d',
+  'chess',
+  'checkers',
+] as const;
+export const LOG_MODULES = ['portal', 'auth', 'system', ...LOG_EDITOR_MODULES] as const;
+
+export function logEditorModule(value: string): string | undefined {
+  if (value === 'blocks') return 'scratch';
+  return (LOG_EDITOR_MODULES as readonly string[]).includes(value) ? value : undefined;
+}
+
+/** Classification does not confer trust on reported browser context. */
+export function logModule(source: string, subsystem: string, reported = '', previous = ''): string {
+  if (isHostLogSource(source)) return 'system';
+  const own = logEditorModule(source);
+  if (own) return own;
+  if (source === 'api' || source === 'web') {
+    return (
+      logEditorModule(subsystem) ??
+      logEditorModule(reported) ??
+      logEditorModule(previous) ??
+      (['auth', 'portal', 'system'].includes(reported)
+        ? reported
+        : previous || (source === 'api' ? 'portal' : 'system'))
+    );
+  }
+  return previous || 'system';
+}
+
 export function safeLogPath(url = '/'): string {
   return url
     .split('?')[0]!
@@ -49,10 +81,17 @@ export function logSubsystem(
   module = '',
 ): string {
   if (isHostLogSource(source)) return source === 'metrics' ? 'metrics' : 'host';
-  if (source === 'api' && kind === 'client_diagnostic') {
+  const editor = logEditorModule(source);
+  if (editor) return editor;
+  if (
+    source === 'api' &&
+    kind === 'client_diagnostic' &&
+    (!path || path.startsWith('/api/diagnostics/'))
+  ) {
     if (module === 'auth') return 'access';
     if (module === 'portal') return 'web';
-    if (module === 'scratch' || module === 'electronics') return module;
+    const context = logEditorModule(module);
+    if (context) return context;
   }
   if (source === 'web' && path.startsWith('/internal/blocks/')) return 'scratch';
   if (source === 'api') {

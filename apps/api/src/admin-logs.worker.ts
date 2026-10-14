@@ -3,7 +3,13 @@ import { open, readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { deflateRawSync, gunzipSync, inflateRawSync } from 'node:zlib';
 import { createHash } from 'node:crypto';
-import { LOG_SUBSYSTEMS, logSubsystem, isHostLogSource } from './log-subsystems.js';
+import {
+  LOG_SUBSYSTEMS,
+  logSubsystem,
+  isHostLogSource,
+  logEditorModule,
+  logModule,
+} from './log-subsystems.js';
 import { projectDatabaseEntry } from './database-diagnostics.js';
 
 export const LOG_STORE_FORMAT = 2;
@@ -189,27 +195,31 @@ function parseEntry(line: string): LogEntry {
       origin: typeof entry.origin === 'string' ? entry.origin : '',
     };
   }
-  if (isHostLogSource(entry.source)) {
-    entry = { ...entry, subsystem: logSubsystem(entry.source), module: 'system' };
-  } else if (
-    !LOG_SUBSYSTEMS.includes(entry.subsystem as (typeof LOG_SUBSYSTEMS)[number]) ||
-    (entry.subsystem === 'host' && ['api', 'web', 'scratch'].includes(entry.source))
+  let path = '';
+  let kind = '';
+  let module = '';
+  if (
+    (entry.source === 'api' || entry.source === 'web') &&
+    entry.message.trimStart().startsWith('{')
   ) {
-    let path = '';
-    let kind = '';
-    let module = '';
-    if ((entry.source === 'api' || entry.source === 'web') && entry.message.startsWith('{')) {
-      try {
-        const value = JSON.parse(entry.message);
-        if (typeof value?.path === 'string') path = value.path;
-        if (typeof value?.kind === 'string') kind = value.kind;
-        if (typeof value?.module === 'string') module = value.module;
-      } catch {
-        /* Historical plain messages remain searchable. */
-      }
+    try {
+      const value = JSON.parse(entry.message);
+      if (typeof value?.path === 'string') path = value.path;
+      if (typeof value?.kind === 'string') kind = value.kind;
+      if (typeof value?.module === 'string') module = value.module;
+    } catch {
+      /* Historical plain messages remain searchable. */
     }
-    entry = { ...entry, subsystem: logSubsystem(entry.source, path, entry.origin, kind, module) };
   }
+  const subsystem =
+    isHostLogSource(entry.source) ||
+    logEditorModule(entry.source) ||
+    (['api', 'web'].includes(entry.source) && (!entry.truncated || path || kind || module)) ||
+    (entry.subsystem === 'host' && ['api', 'web'].includes(entry.source)) ||
+    !LOG_SUBSYSTEMS.includes(entry.subsystem as (typeof LOG_SUBSYSTEMS)[number])
+      ? logSubsystem(entry.source, path, entry.origin, kind, module)
+      : entry.subsystem!;
+  entry = { ...entry, subsystem, module: logModule(entry.source, subsystem, module, entry.module) };
   return entry;
 }
 

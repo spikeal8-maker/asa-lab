@@ -169,12 +169,21 @@ def host_source(source: str) -> bool:
     return source.startswith(("windows:", "linux:")) or source in ("docker-desktop", "docker-lifecycle", "metrics")
 
 
+EDITOR_MODULES = ('scratch', 'electronics', 'three-d', 'chess', 'checkers')
+LOG_MODULES = ('system', 'portal', 'auth', *EDITOR_MODULES)
+
+
+def editor_module(value):
+    return 'scratch' if value == 'blocks' else value if value in EDITOR_MODULES else None
+
+
 def subsystem(source: str, payload=None, origin="") -> str:
     if host_source(source): return "metrics" if source == "metrics" else "host"
-    if source == 'api' and isinstance(payload, dict) and payload.get('kind') == 'client_diagnostic':
+    if editor_module(source): return editor_module(source)
+    if source == 'api' and isinstance(payload, dict) and payload.get('kind') == 'client_diagnostic' and (not payload.get('path') or str(payload['path']).startswith('/api/diagnostics/')):
         module = payload.get('module')
-        if module in ('portal', 'scratch', 'electronics', 'auth'):
-            return {'portal': 'web', 'auth': 'access'}.get(module, module)
+        if editor_module(module): return editor_module(module)
+        if module in ('portal', 'auth'): return {'portal': 'web', 'auth': 'access'}[module]
     if source == 'web' and isinstance(payload, dict) and str(payload.get('path', '')).startswith('/internal/blocks/'): return 'scratch'
     if source == "api":
         route = str(payload.get("path", "")).split("?")[0].split("/") if isinstance(payload, dict) else []
@@ -193,18 +202,37 @@ def subsystem(source: str, payload=None, origin="") -> str:
     return source if source in ("web", "scratch", "electronics", "chess", "checkers", "three-d", "audit", "updates", "backup", "metrics") else "audit"
 
 
+def classification_payload(event):
+    if event['source'] not in ('api', 'web'): return {}
+    try: payload = json.loads(event['message'])
+    except (ValueError, TypeError): return {}
+    return payload if isinstance(payload, dict) else {}
+
+
 def event_subsystem(event):
-    if host_source(event["source"]): return subsystem(event["source"])
-    if event.get("subsystem") and not (event["subsystem"] == "host" and event["source"] in ("api", "web", "scratch")):
-        return event["subsystem"]
-    try: payload = json.loads(event["message"]) if event["source"] in ("api", "web") else None
-    except (ValueError, TypeError): payload = None
-    return subsystem(event["source"], payload, event.get("origin", ""))
+    source = event['source']
+    if host_source(source) or editor_module(source): return subsystem(source)
+    if source in ('api', 'web'):
+        payload = classification_payload(event)
+        if event.get('truncated') and not payload and event.get('subsystem') not in (None, 'host'):
+            return event['subsystem']
+        return subsystem(source, payload, event.get('origin', ''))
+    return event.get('subsystem') or subsystem(source, origin=event.get('origin', ''))
 
 
 def classify_event(event):
-    return {**event, "subsystem": event_subsystem(event),
-            "module": "system" if host_source(event["source"]) else event["module"]}
+    source = event['source']
+    group = event_subsystem(event)
+    if host_source(source): module = 'system'
+    elif editor_module(source): module = editor_module(source)
+    elif source in ('api', 'web'):
+        payload = classification_payload(event)
+        module = editor_module(group) or editor_module(payload.get('module')) or editor_module(event.get('module'))
+        if not module:
+            reported = payload.get('module')
+            module = reported if reported in ('auth', 'portal', 'system') else event.get('module', 'portal' if source == 'api' else 'system')
+    else: module = event.get('module', 'system')
+    return {**event, 'subsystem': group, 'module': module}
 
 
 def normalize(source: str, raw: str, at: str, identity: str, origin: str = "") -> dict:
@@ -224,9 +252,9 @@ def normalize(source: str, raw: str, at: str, identity: str, origin: str = "") -
     module = "scratch" if source == "scratch" else "auth" if source == "auth" else "system"
     request_id = revision = None
     if isinstance(payload, dict):
-        route = str(payload.get("path", ""))
+        route = str(payload.get("path", "")) if source in ("api", "web") else ""
         module = "electronics" if "electronics" in route else "scratch" if "blocks" in route or "scratch" in route else "auth" if "/auth/" in route or "class-join" in route else "portal" if source == "api" else module
-        if payload.get("module") in ("scratch", "electronics", "auth", "portal", "system"):
+        if source in ("api", "web") and payload.get("module") in LOG_MODULES:
             module = payload["module"]
         if payload.get("kind") == "client_diagnostic" and payload.get("level") not in ("info", "warn", "error"):
             level = "error"
@@ -240,7 +268,9 @@ def normalize(source: str, raw: str, at: str, identity: str, origin: str = "") -
     else:
         message = clean(raw)
     truncated = len(message) > 16384
-    return dict(id=hashlib.sha256((source + "\0" + identity).encode()).hexdigest(), time=at, source=source, subsystem=subsystem(source, payload, origin), module="system" if host_source(source) else module, level=level, message=message[:16384], requestId=request_id, revision=revision, origin=clean(origin), truncated=truncated, normalizationVersion=2)
+    event = classify_event(dict(id=hashlib.sha256((source + "\0" + identity).encode()).hexdigest(), time=at, source=source, subsystem=subsystem(source, payload, origin), module="system" if host_source(source) else module, level=level, message=message, requestId=request_id, revision=revision, origin=clean(origin), truncated=truncated, normalizationVersion=2))
+    event['message'] = message[:16384]
+    return event
 
 
 def linux_resources(proc=Path('/proc'), previous=None):
@@ -877,14 +907,15 @@ class Collector:
             return {**meta, 'subsystems': sorted({subsystem(s) for s in meta['sources']}), 'modules': ['system']}
         mixed = any(host_source(s) for s in meta['sources'])
         stale_application = 'host' in meta.get('subsystems', ()) and any(s in ('api', 'web', 'scratch') for s in meta['sources'])
-        signature = hashlib.sha256(json.dumps(meta, sort_keys=True).encode()).hexdigest()
-        if (mixed or stale_application) and cached.get(meta['file']) != signature:
+        editors = any(s in ('api', 'web', 'blocks', *EDITOR_MODULES) for s in meta['sources'])
+        signature = hashlib.sha256(('editor-classification-v1:' + json.dumps(meta, sort_keys=True)).encode()).hexdigest()
+        if (mixed or stale_application or editors) and cached.get(meta['file']) != signature:
             opener = gzip.open if meta['file'].endswith('.gz') else open
             with opener(self.store / meta['file'], 'rb') as stream: raw = stream.read(4 * 1024 * 1024 + 1)
             if len(raw) > 4 * 1024 * 1024: raise history_error('classification segment exceeds limit')
             events = [classify_event(json.loads(line)) for line in raw.splitlines()]
-            meta = {**meta, 'subsystems': sorted({e['subsystem'] for e in events}), 'modules': sorted({e['module'] for e in events})}
-        cached[meta['file']] = hashlib.sha256(json.dumps(meta, sort_keys=True).encode()).hexdigest()
+            meta = {**meta, 'subsystems': sorted({e['subsystem'] for e in events}), 'modules': sorted({e['module'] for e in events}), 'levels': sorted({e['level'] for e in events})}
+        cached[meta['file']] = hashlib.sha256(('editor-classification-v1:' + json.dumps(meta, sort_keys=True)).encode()).hexdigest()
         return meta
 
     def finish_compaction(self):
@@ -957,10 +988,10 @@ class Collector:
         file_sources = {"updates", "docker-desktop", *(s["source"] for s in self.config.get("fileSources", []))}
         if entry["source"] in file_sources:
             entry["time"], entry["timeBasis"] = file_timestamp(entry["message"], entry["time"])
-        if not entry["source"].startswith("windows:") and not entry.get("truncated"):
+        if entry.get("level") not in ("info", "warn", "error") and not entry["source"].startswith("windows:") and not entry.get("truncated"):
             try: payload = json.loads(entry["message"])
             except ValueError: payload = None
-            entry["level"] = "error" if isinstance(payload, dict) and payload.get("kind") == "client_diagnostic" else log_level(payload, entry["message"])
+            entry["level"] = log_level(payload, entry["message"])
         entry["normalizationVersion"] = 2
         return entry
 
@@ -988,7 +1019,7 @@ class Collector:
                             if len(line) > 256 * 1024: raise RuntimeError("Diagnostic archive record is too large")
                             entry = json.loads(line)
                             if (not isinstance(entry, dict) or not re.fullmatch(r"[a-f0-9]{64}", str(entry.get("id", ""))) or
-                                entry.get("module") not in ("system", "portal", "scratch", "electronics", "auth") or entry.get("level") not in ("info", "warn", "error") or
+                                entry.get("module") not in (*LOG_MODULES, "blocks") or entry.get("level") not in ("info", "warn", "error") or
                                 not isinstance(entry.get("source"), str) or not 1 <= len(entry["source"]) <= 200 or
                                 not isinstance(entry.get("message"), str) or len(entry["message"]) > 16384 or not timestamp(entry.get("time"), "")):
                                 raise RuntimeError("Diagnostic archive contains an invalid record")

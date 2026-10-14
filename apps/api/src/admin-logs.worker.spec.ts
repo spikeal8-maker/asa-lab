@@ -36,6 +36,130 @@ function zipMembers(zip: Buffer): Map<string, Buffer> {
 }
 
 describe('retained log reader and archive', () => {
+  it('preserves previously classified truncated editor JSON without trusting host or database hints', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'asa-editor-truncated-'));
+    try {
+      const rows = ['scratch', 'electronics', 'three-d', 'chess', 'checkers'].map((module, i) => ({
+        id: String(i + 1).repeat(64),
+        time: filter.from,
+        source: 'api',
+        module,
+        subsystem: module,
+        level: 'warn',
+        message: '{"path":"/api/' + module + '/fixture","msg":"' + 'x'.repeat(16000),
+        requestId: null,
+        revision: null,
+        origin: 'application-stdout',
+        truncated: true,
+      }));
+      const raw = Buffer.from(rows.map((row) => JSON.stringify(row)).join('\n') + '\n');
+      const file = 'seg-0000000000000001-0000000000000005.jsonl';
+      await writeFile(join(root, file), raw);
+      await writeFile(
+        join(root, 'catalog.json'),
+        JSON.stringify({
+          version: 1,
+          sources: [],
+          segments: [
+            {
+              file,
+              bytes: raw.length,
+              count: 5,
+              first: filter.from,
+              last: filter.from,
+              sources: ['api'],
+              modules: ['portal'],
+              levels: ['error'],
+            },
+          ],
+        }),
+      );
+      const result = await queryLogs(root, filter, 100);
+      expect(result.items.sort((a, b) => a.id.localeCompare(b.id))).toEqual(rows);
+      for (const row of rows)
+        expect(
+          (await queryLogs(root, { ...filter, module: row.module, subsystem: row.subsystem }, 100))
+            .items,
+        ).toEqual([row]);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it.each([false, true])(
+    'classifies all five editors and preserves imported levels through query and ZIP (gzip=%s)',
+    async (compressed) => {
+      const temporary = await mkdtemp(join(tmpdir(), 'asa-editor-classification-'));
+      try {
+        execFileSync('python', [
+          'tools/test_collect_logs.py',
+          '--write-editor-store',
+          temporary,
+          compressed ? 'gzip' : 'raw',
+        ]);
+        const root = join(temporary, '.asa', 'diagnostics', 'store');
+        const catalog = JSON.parse((await readFile(join(root, 'catalog.json'))).toString());
+        for (const segment of catalog.segments) {
+          segment.modules = ['portal'];
+          segment.subsystems = ['audit'];
+          segment.levels = ['error'];
+        }
+        const catalogBytes = Buffer.from(JSON.stringify(catalog));
+        await writeFile(join(root, 'catalog.json'), catalogBytes);
+        const originals = new Map<string, Buffer>();
+        for (const segment of catalog.segments)
+          originals.set(segment.file, await readFile(join(root, segment.file)));
+        const all = await queryLogs(root, logFilter(filter), 100);
+        expect(all.items).toHaveLength(45);
+        expect(new Set(all.items.map((row) => row.id)).size).toBe(45);
+        for (const module of ['scratch', 'electronics', 'three-d', 'chess', 'checkers']) {
+          for (const level of ['info', 'warn', 'error']) {
+            for (const search of ['', 'OBS015 failure marker']) {
+              const selected = logFilter({ ...filter, module, subsystem: module, level, search });
+              const result = await queryLogs(root, selected, 100);
+              expect(result.items).toHaveLength(3);
+              for (const entry of result.items) {
+                expect(entry.module).toBe(module);
+                expect(entry.subsystem).toBe(module);
+                expect(entry.level).toBe(level);
+              }
+              const output = join(temporary, `${module}-${level}-${search ? 'search' : 'all'}.zip`);
+              expect((await exportLogs(root, selected, output)).count).toBe(3);
+              const members = zipMembers(await readFile(output));
+              const records = [...members.entries()]
+                .filter(([name]) => name.startsWith('records/'))
+                .flatMap(([, raw]) =>
+                  raw
+                    .toString()
+                    .trim()
+                    .split('\n')
+                    .filter(Boolean)
+                    .map((line) => JSON.parse(line) as LogEntry),
+                );
+              expect(records.map((row) => row.id).sort()).toEqual(
+                result.items.map((row) => row.id).sort(),
+              );
+              for (const entry of records)
+                expect(entry).toEqual(all.items.find((row) => row.id === entry.id));
+              const exported = JSON.parse(members.get('manifest.json')!.toString()).catalog;
+              for (const segment of exported.segments) {
+                expect(segment.modules).toEqual([module]);
+                expect(segment.subsystems).toEqual([module]);
+                expect(segment.levels).toEqual([level]);
+              }
+            }
+          }
+        }
+        expect(await readFile(join(root, 'catalog.json'))).toEqual(catalogBytes);
+        for (const [file, bytes] of originals)
+          expect(await readFile(join(root, file))).toEqual(bytes);
+      } finally {
+        await rm(temporary, { recursive: true, force: true });
+      }
+    },
+    20_000,
+  );
+
   it.each([false, true])(
     'classifies Linux and Docker consistently through collector, import, query and ZIP (gzip=%s)',
     async (compressed) => {
