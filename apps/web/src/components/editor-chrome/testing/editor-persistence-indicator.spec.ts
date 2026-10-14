@@ -56,6 +56,68 @@ describe('shared editor persistence presentation', () => {
     expect(EDITOR_PERSISTENCE_TIMING.savedVisibilityMs).toBeLessThanOrEqual(1_500);
   });
 
+  it('distinguishes waiting for upload from a request and makes no unconfirmed local-copy promise', () => {
+    expect(editorPersistencePresentation('dirty', null, true)).toEqual({
+      label: 'Ждёт отправки',
+      detail: 'Последние изменения сохранены в этом браузере. Ожидается отправка на сервер.',
+    });
+    expect(editorPersistencePresentation('dirty', null, false).detail).toContain(
+      'только в открытом редакторе',
+    );
+    expect(editorPersistencePresentation('dirty', null, false).detail).not.toContain('сохранены');
+    expect(editorPersistencePresentation('saving', null).detail).toBe(
+      'Изменения проекта отправляются на сервер.',
+    );
+  });
+
+  it('keeps dirty honest through the minute, storage failure, edits during a request and conflict', () => {
+    vi.useFakeTimers();
+    const container = document.createElement('div');
+    const root = createRoot(container);
+    const render = (
+      status: 'saved' | 'dirty' | 'saving' | 'error',
+      localCopySaved = true,
+      issue: 'conflict' | null = null,
+    ) =>
+      act(() =>
+        root.render(
+          createElement(EditorPersistenceIndicator, {
+            status,
+            issue,
+            localCopySaved,
+            className: 'test-status',
+          }),
+        ),
+      );
+    const indicator = () => container.querySelector('[role="status"]')!;
+
+    render('dirty');
+    act(() => vi.advanceTimersByTime(59_999));
+    expect(indicator().textContent).toBe('Ждёт отправки');
+    expect(indicator().getAttribute('data-persistence-status')).toBe('dirty');
+    expect(indicator().getAttribute('title')).toContain('сохранены в этом браузере');
+    render('dirty', false);
+    expect(indicator().getAttribute('title')).toContain('только в открытом редакторе');
+    expect(indicator().textContent).not.toContain('Сохраняем');
+
+    render('saving');
+    expect(indicator().textContent).toBe('Сохраняем…');
+    render('dirty'); // A new edit is not acknowledged by the pending request.
+    expect(indicator().textContent).toBe('Ждёт отправки');
+    render('error', true, 'conflict');
+    expect(indicator().textContent).toBe('Не удалось сохранить');
+    expect(indicator().getAttribute('title')).toContain('отправка остановлена');
+    render('dirty');
+    expect(indicator().textContent).toBe('');
+    act(() => vi.advanceTimersByTime(900));
+    expect(indicator().textContent).toBe('Ждёт отправки');
+    render('saved');
+    expect(indicator().textContent).toBe('✓Сохранено');
+    render('dirty');
+    expect(indicator().textContent).not.toContain('Сохранено');
+    act(() => root.unmount());
+  });
+
   it('stays quiet at rest and only confirms a save that took long enough to show', () => {
     vi.useFakeTimers();
     const container = document.createElement('div');
@@ -77,8 +139,9 @@ describe('shared editor persistence presentation', () => {
     act(() => vi.advanceTimersByTime(EDITOR_PERSISTENCE_TIMING.pendingDelayMs - 1));
     expect(container.textContent).toBe('');
     act(() => vi.advanceTimersByTime(1));
-    expect(container.textContent).toBe('Сохраняем…');
+    expect(container.textContent).toBe('Ждёт отправки');
     render('saving');
+    expect(container.textContent).toBe('Сохраняем…');
     render('saved');
     expect(container.textContent).toBe('✓Сохранено');
     act(() => vi.advanceTimersByTime(EDITOR_PERSISTENCE_TIMING.savedVisibilityMs));

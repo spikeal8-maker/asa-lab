@@ -14,10 +14,18 @@ export const EDITOR_PERSISTENCE_TIMING = {
 } as const;
 
 export function editorPersistencePresentation(
-  status: Exclude<EditorPersistenceStatus, 'dirty'>,
+  status: EditorPersistenceStatus,
   issue: EditorPersistenceIssue | null,
   localCopySaved = false,
 ): EditorPersistencePresentation {
+  if (status === 'dirty') {
+    return {
+      label: 'Ждёт отправки',
+      detail: localCopySaved
+        ? 'Последние изменения сохранены в этом браузере. Ожидается отправка на сервер.'
+        : 'Изменения ожидают отправки на сервер и пока находятся только в открытом редакторе.',
+    };
+  }
   if (status === 'saving') {
     return { label: 'Сохраняем…', detail: 'Изменения проекта отправляются на сервер.' };
   }
@@ -67,24 +75,27 @@ export function EditorPersistenceIndicator({
   readonly className: string;
   readonly localCopySaved?: boolean;
 }): JSX.Element {
-  const [visibleStatus, setVisibleStatus] = useState<'saved' | 'saving' | 'error' | null>(
+  const [visibleStatus, setVisibleStatus] = useState<EditorPersistenceStatus | null>(
     status === 'error' ? 'error' : null,
   );
   const visibleStatusRef = useRef(visibleStatus);
 
   useEffect(() => {
     let timer: number | null = null;
-    const show = (next: 'saved' | 'saving' | 'error' | null): void => {
+    const show = (next: EditorPersistenceStatus | null): void => {
       visibleStatusRef.current = next;
       setVisibleStatus(next);
     };
     if (status === 'error') {
       show('error');
     } else if (status === 'dirty' || status === 'saving') {
-      if (visibleStatusRef.current !== 'saving') {
-        timer = window.setTimeout(() => show('saving'), EDITOR_PERSISTENCE_TIMING.pendingDelayMs);
+      if (visibleStatusRef.current === 'dirty' || visibleStatusRef.current === 'saving') {
+        show(status);
+      } else {
+        show(null);
+        timer = window.setTimeout(() => show(status), EDITOR_PERSISTENCE_TIMING.pendingDelayMs);
       }
-    } else if (visibleStatusRef.current === 'saving') {
+    } else if (visibleStatusRef.current === 'dirty' || visibleStatusRef.current === 'saving') {
       show('saved');
       timer = window.setTimeout(() => show(null), EDITOR_PERSISTENCE_TIMING.savedVisibilityMs);
     } else {
@@ -95,20 +106,22 @@ export function EditorPersistenceIndicator({
     };
   }, [status]);
 
-  const presentation = visibleStatus
-    ? editorPersistencePresentation(visibleStatus, issue, localCopySaved)
+  // Never retain a success or in-flight message for a different current state.
+  const displayedStatus = visibleStatus === status ? visibleStatus : null;
+  const presentation = displayedStatus
+    ? editorPersistencePresentation(displayedStatus, issue, localCopySaved)
     : null;
 
   return (
     <span
-      className={`${className}${visibleStatus ? ` ${visibleStatus}` : ' quiet'}`}
-      data-persistence-status={visibleStatus ?? 'quiet'}
+      className={`${className}${displayedStatus ? ` ${displayedStatus}` : ' quiet'}`}
+      data-persistence-status={displayedStatus ?? 'quiet'}
       title={presentation?.detail}
       role="status"
       aria-live="polite"
       aria-hidden={presentation ? undefined : true}
     >
-      {visibleStatus === 'saved' ? (
+      {displayedStatus === 'saved' ? (
         <span className="editor-persistence-check" aria-hidden="true">
           ✓
         </span>

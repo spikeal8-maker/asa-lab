@@ -2628,6 +2628,140 @@ test.afterAll(async () => {
   await admin.end();
 });
 
+test('saving indicator: pending local copy is distinct from actual save and acknowledgement', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await loginWithOrganization(page, teacher);
+  const projectId = await createProject(page, 'Truthful saving indicator');
+  await saveDocument(
+    page,
+    projectId,
+    circuitDocument({ switchClosed: true, resistorOhms: 220, reversedLed: false }),
+  );
+  await page.goto(`/#/home/${projectId}`);
+  await expect(page.locator('.workbench-stage')).toBeVisible();
+  const indicator = page.locator('.workbench-save-state');
+  const timeline: unknown[] = [];
+  const layouts: unknown[] = [];
+  const evidenceDir = `${ARTIFACT_DIR}/save-indicator`;
+  mkdirSync(evidenceDir, { recursive: true });
+  let puts = 0;
+  let release: (() => void) | undefined;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  page.on('request', (request) => {
+    if (
+      request.method() === 'PUT' &&
+      new URL(request.url()).pathname === `/api/projects/${projectId}/draft`
+    ) {
+      puts += 1;
+      timeline.push({ event: 'PUT', at: Date.now(), document: request.postDataJSON() });
+    }
+  });
+  await page.route(`**/api/projects/${projectId}/draft`, async (route) => {
+    if (route.request().method() !== 'PUT') return route.continue();
+    const response = await route.fetch();
+    timeline.push({ event: 'server_response_held', at: Date.now(), status: response.status() });
+    await held;
+    await route.fulfill({ response });
+  });
+  try {
+    const value = await e01Resistance(page);
+    await value.fill('330');
+    await expect(page.locator('.workbench-main')).toHaveAttribute(
+      'data-project-save-status',
+      'dirty',
+    );
+    await expect(indicator).toHaveAttribute('data-persistence-status', 'dirty');
+    await expect(indicator).toHaveText('Ждёт отправки');
+    await expect(indicator).toHaveAttribute(
+      'title',
+      'Последние изменения сохранены в этом браузере. Ожидается отправка на сервер.',
+    );
+    expect(puts).toBe(0);
+    const local = await e01LocalDraft(page, projectId);
+    expect(local).not.toBeNull();
+    const stored = JSON.parse(local!) as { document: SchematicDocument };
+    expect(stored.document.components.find((entry) => entry.kind === 'resistor')?.value).toBe(330);
+    timeline.push({
+      event: 'dirty_local_readback_no_PUT',
+      at: Date.now(),
+      puts,
+      label: await indicator.textContent(),
+      local: stored,
+    });
+    for (const width of [1440, 1024, 390, 320]) {
+      await page.setViewportSize({ width, height: 900 });
+      await expect(indicator).toBeVisible();
+      const layout = await indicator.evaluate((element) => {
+        const bounds = element.getBoundingClientRect();
+        const text = document.createRange();
+        text.selectNodeContents(element);
+        const caption = text.getBoundingClientRect();
+        const style = getComputedStyle(element);
+        return {
+          width: innerWidth,
+          pageWidth: document.documentElement.scrollWidth,
+          left: bounds.left,
+          right: bounds.right,
+          textLeft: caption.left,
+          textRight: caption.right,
+          contentLeft: bounds.left + parseFloat(style.paddingLeft),
+          contentRight: bounds.right - parseFloat(style.paddingRight),
+        };
+      });
+      layouts.push(layout);
+      expect(layout.pageWidth).toBeLessThanOrEqual(width);
+      expect(layout.left).toBeGreaterThanOrEqual(0);
+      expect(layout.right).toBeLessThanOrEqual(width);
+      expect(layout.textLeft).toBeGreaterThanOrEqual(layout.contentLeft - 1);
+      expect(layout.textRight).toBeLessThanOrEqual(layout.contentRight + 1);
+      if (width === 1440 || width === 390)
+        await page.screenshot({ path: `${evidenceDir}/pending-${width}.png`, fullPage: true });
+    }
+    expect(puts).toBe(0);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.getByRole('button', { name: 'Сохранить проект', exact: true }).click();
+    await expect.poll(() => puts).toBe(1);
+    await expect(indicator).toHaveAttribute('data-persistence-status', 'saving');
+    await expect(indicator).toHaveText('Сохраняем…');
+    timeline.push({
+      event: 'actual_request_saving',
+      at: Date.now(),
+      puts,
+      label: await indicator.textContent(),
+    });
+    release!();
+    await expect(page.locator('.workbench-main')).toHaveAttribute(
+      'data-project-save-status',
+      'saved',
+    );
+    await expect(indicator).toHaveAttribute('data-persistence-status', 'saved');
+    await expect(indicator).toHaveText('✓Сохранено');
+    timeline.push({
+      event: 'acknowledged_saved',
+      at: Date.now(),
+      puts,
+      label: await indicator.textContent(),
+    });
+    expect(puts).toBe(1);
+    const response = await page.context().request.get(`/api/projects/${projectId}`);
+    expect(response.status()).toBe(200);
+    const server = (await response.json()) as { draft: { document: SchematicDocument } };
+    expect(server.draft.document.components.find((entry) => entry.kind === 'resistor')?.value).toBe(
+      330,
+    );
+  } finally {
+    release?.();
+    writeFileSync(
+      `${evidenceDir}/timeline.json`,
+      JSON.stringify({ projectId, puts, timeline, layouts }, null, 2),
+    );
+  }
+});
+
 test('simulation fault semantics: unpowered supported circuit stays distinct from Worker failure', async ({
   page,
 }) => {
@@ -5493,7 +5627,7 @@ async function e01AffectedToolbarLayouts(
       );
     } else {
       await expect(emergency).toHaveCount(0);
-      expect(['quiet', 'saving']).toContain(layout.persistence.indicator.status);
+      expect(['quiet', 'dirty']).toContain(layout.persistence.indicator.status);
     }
     const presentation = layout.persistence.indicator;
     if (presentation.status === 'quiet') {
@@ -5507,9 +5641,11 @@ async function e01AffectedToolbarLayouts(
       expect(presentation.box.width).toBeGreaterThan(0);
       expect(presentation.box.height).toBeGreaterThan(0);
       expect(presentation.ariaHidden).toBeNull();
-      if (presentation.status === 'saving') {
-        expect(presentation.label).toBe('Сохраняем…');
-        expect(presentation.detail).toBe('Изменения проекта отправляются на сервер.');
+      if (presentation.status === 'dirty') {
+        expect(presentation.label).toBe('Ждёт отправки');
+        expect(presentation.detail).toBe(
+          'Последние изменения сохранены в этом браузере. Ожидается отправка на сервер.',
+        );
       }
     }
     await expect(anchor).toBeVisible();
