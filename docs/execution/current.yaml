@@ -634,92 +634,117 @@ parallel_lanes:
     owned_paths:
     - apps/web/src/electronics/testing/workbench-field-drag.spec.ts
     task:
-      id: TASK-ELECTRONICS-SAVE-RETRY-CADENCE-001
-      issue: 571
+      id: TASK-ELECTRONICS-SAVE-INDICATOR-001
+      issue: 569
       branch: main
       base_branch: main
       pr: null
       status: in_progress
-      checkpoint: point4_code_published_functional_verified_repository_gate_pending
+      checkpoint: owner_four_point_completion_selected_verification_only
       kind: repair
       owner_acceptance: pending
       programme_issue: 452
-      owner_problem: E01 excessive automatic save retries after transient server or transport failure
+      owner_problem: E01 verify all four approved saving and server-request points together; publish missing truthful indicator only after permitted review
       context_hints:
-        - docs/product/electronics/tasks/TASK-ELECTRONICS-SAVE-RETRY-CADENCE-001.md
-        - docs/product/electronics/components/ui-assets-persistence.yaml
-      repair_scope: ONLY space automatic transient save retries by60000ms; preserve ordinary minute autosave, local
-        protection, latest payload, identity/CAS, serial queue and existing manual/departure semantics.
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-SAVE-INDICATOR-001.md
+      - docs/product/electronics/components/ui-assets-persistence.yaml
+      repair_scope: ONLY transfer preserved569 indicator and compatible tests onto main containing570 and571; verify all four points on one exact candidate. Preserve existing local protection and all suspended work.
+      baseline_sha: 796f52cc8de7ebabf5a18fab3db956cf25170df7
+      preserved_source_candidate_sha: d3d417cfd1aaeafe2d037e428298c60d57a8bb3d
+      technical_acceptance: pending_exact_combined_gates_and_new_independent_review
+      publication_authorization: owner_explicit_all_four_points_in_main; development_publication_only_after_new_independent_functional_verification
       school_actions: deferred_by_owner_no_installation_actions
-      baseline_sha: f603cc4b95eb4c20f03c73c74ed8ee45cef90072
-      point3_verification: Existing immediate local protection independently verified; no product change required;
-        raw pupil166.7 document survived held remote reply in570 evidence.
-      technical_acceptance: pending_repository_gate
       deployment: not_requested
       database_actions: none
-      next_action: STOP after owner-approved point4 publication checkpoint; do not select another point, claim
-        repository success, close571, integrate569, release or deploy.
-      source_baseline_sha: 553421019c5bb1ec02d5bbfc1bba01bbf1024583
-      source_candidate_sha: a418055cabe8754c1c6f884c403f8e658368e32e
-      source_candidate_tree: 0c9ce1b8dcc96399bc5270ad18b468f510f9d42f
-      product_publication_sha: 08477d7be1bde913d19dd1509035654c7607887b
-      product_publication_tree: 375d8204a5d1210b2a8e252f09a9fae408c0e6b5
-      publication_parent: db94f4e7530ef2598bcbd8ce63434f481baa48c8
-      publication_level: unaccepted_development_commit
-      source_review: approve
-      functional_review: pass
-      independent_source_reviewer: electronics_autosave_retry_point4_independent_review
-      independent_publication_verifier: electronics_retry_point4_main_preservation_review
-      independent_publication_preservation: pass_5_reviewed_blobs_and_modes_equal_a418_all_4069_foreign_entries_current_equal_parent
-      ci_snapshot_observed_at: 2026-10-14T19:03:02.554Z
-      exact_candidate_evidence:
-        before_browser_run: 38616996039
-        before_browser_conclusion: expected_failure_retry_after_5023ms_2PUT_during_30060ms
-        focused_browser_run: 38616995130
-        focused_job: 116034526702
-        focused_conclusion: success
-        directed_browser_job: 116035905195
-        directed_browser_conclusion: success
-        domain_tests: 644
-        editor_tests: 434
-        fresh_nx_tasks: 70
-        cache: skipped_literal_NX_SKIP_NX_CACHE_true
-        automatic_retry_after_failure_ms: 60030
-        manual_save_delay_ms: 102
-        feature_general_run: 38616758304
-        feature_general_status_observed: completed
-        feature_general_conclusion: failure
-        feature_governance_conclusion: success
-        feature_code_conclusion: success
-        feature_data_job: 116036823193
-        feature_data_conclusion: failure
-        feature_data_classification: C_unrelated_observability_five_python_ENOENT_fixtures
-        feature_access_job: 116036822580
-        feature_access_status: completed
-        publication_general_run: 38619237005
-        publication_general_status_observed: in_progress
-        publication_general_conclusion: null
-        feature_access_conclusion: success
-        publication_governance_job: 116042150739
-        publication_governance_conclusion: success
-        publication_code_job: 116042931447
-        publication_code_conclusion: success
-        publication_data_job: 116045651628
-        publication_data_status: in_progress
-        publication_access_job: 116045651771
-        publication_access_status: in_progress
-      prior_point2_general_observation:
-        publication_sha: 74a348a33e64731c670746fd8bd23349fb584f20
-        general_run: 38613886264
-        conclusion: cancelled
-        category: E_stale_cancelled_workflow_not_PASS_or_product_FAIL
-        governance: success
-        code: success
-        data: cancelled_before_data_gate
-        access: cancelled_before_browser
-        preservation: Original570 suspended task snapshot remains unchanged; this is a later observation.
-      issue_state: open
+      next_action: Verify exact combined candidate and new independent review before unaccepted development publication; no technical acceptance, closeout or release while required General is unmet. STOP after four-point completion report.
     suspended_slices:
+    - task_id: TASK-ELECTRONICS-SAVE-RETRY-CADENCE-001
+      accepted_task_snapshot:
+        id: TASK-ELECTRONICS-SAVE-RETRY-CADENCE-001
+        issue: 571
+        branch: main
+        base_branch: main
+        pr: null
+        status: in_progress
+        checkpoint: point4_code_published_functional_verified_repository_gate_pending
+        kind: repair
+        owner_acceptance: pending
+        programme_issue: 452
+        owner_problem: E01 excessive automatic save retries after transient server or transport failure
+        context_hints:
+          - docs/product/electronics/tasks/TASK-ELECTRONICS-SAVE-RETRY-CADENCE-001.md
+          - docs/product/electronics/components/ui-assets-persistence.yaml
+        repair_scope: ONLY space automatic transient save retries by60000ms; preserve ordinary minute autosave, local
+          protection, latest payload, identity/CAS, serial queue and existing manual/departure semantics.
+        school_actions: deferred_by_owner_no_installation_actions
+        baseline_sha: f603cc4b95eb4c20f03c73c74ed8ee45cef90072
+        point3_verification: Existing immediate local protection independently verified; no product change required;
+          raw pupil166.7 document survived held remote reply in570 evidence.
+        technical_acceptance: pending_repository_gate
+        deployment: not_requested
+        database_actions: none
+        next_action: STOP after owner-approved point4 publication checkpoint; do not select another point, claim
+          repository success, close571, integrate569, release or deploy.
+        source_baseline_sha: 553421019c5bb1ec02d5bbfc1bba01bbf1024583
+        source_candidate_sha: a418055cabe8754c1c6f884c403f8e658368e32e
+        source_candidate_tree: 0c9ce1b8dcc96399bc5270ad18b468f510f9d42f
+        product_publication_sha: 08477d7be1bde913d19dd1509035654c7607887b
+        product_publication_tree: 375d8204a5d1210b2a8e252f09a9fae408c0e6b5
+        publication_parent: db94f4e7530ef2598bcbd8ce63434f481baa48c8
+        publication_level: unaccepted_development_commit
+        source_review: approve
+        functional_review: pass
+        independent_source_reviewer: electronics_autosave_retry_point4_independent_review
+        independent_publication_verifier: electronics_retry_point4_main_preservation_review
+        independent_publication_preservation: pass_5_reviewed_blobs_and_modes_equal_a418_all_4069_foreign_entries_current_equal_parent
+        ci_snapshot_observed_at: 2026-10-14T19:03:02.554Z
+        exact_candidate_evidence:
+          before_browser_run: 38616996039
+          before_browser_conclusion: expected_failure_retry_after_5023ms_2PUT_during_30060ms
+          focused_browser_run: 38616995130
+          focused_job: 116034526702
+          focused_conclusion: success
+          directed_browser_job: 116035905195
+          directed_browser_conclusion: success
+          domain_tests: 644
+          editor_tests: 434
+          fresh_nx_tasks: 70
+          cache: skipped_literal_NX_SKIP_NX_CACHE_true
+          automatic_retry_after_failure_ms: 60030
+          manual_save_delay_ms: 102
+          feature_general_run: 38616758304
+          feature_general_status_observed: completed
+          feature_general_conclusion: failure
+          feature_governance_conclusion: success
+          feature_code_conclusion: success
+          feature_data_job: 116036823193
+          feature_data_conclusion: failure
+          feature_data_classification: C_unrelated_observability_five_python_ENOENT_fixtures
+          feature_access_job: 116036822580
+          feature_access_status: completed
+          publication_general_run: 38619237005
+          publication_general_status_observed: in_progress
+          publication_general_conclusion: null
+          feature_access_conclusion: success
+          publication_governance_job: 116042150739
+          publication_governance_conclusion: success
+          publication_code_job: 116042931447
+          publication_code_conclusion: success
+          publication_data_job: 116045651628
+          publication_data_status: in_progress
+          publication_access_job: 116045651771
+          publication_access_status: in_progress
+        prior_point2_general_observation:
+          publication_sha: 74a348a33e64731c670746fd8bd23349fb584f20
+          general_run: 38613886264
+          conclusion: cancelled
+          category: E_stale_cancelled_workflow_not_PASS_or_product_FAIL
+          governance: success
+          code: success
+          data: cancelled_before_data_gate
+          access: cancelled_before_browser
+          preservation: Original570 suspended task snapshot remains unchanged; this is a later observation.
+        issue_state: open
     - task_id: TASK-ELECTRONICS-PROJECT-POLLING-001
       accepted_task_snapshot:
         id: TASK-ELECTRONICS-PROJECT-POLLING-001
@@ -5747,6 +5772,12 @@ blocking:
     - documentation_update
     - focused_verification
     - independent_source_review
+    - development_publication_after_independent_functional_verification
+    owner_publication_permission:
+      source: Latest direct owner instruction requires all four approved saving points in main.
+      conditions: New exact combined SHA independently source/functionally approved; canonical focused and all three directed built-browser cases successful; preserve every unrelated change.
+      level: unaccepted_development_publication_only
+      distinction: integration above means technically accepted integration; this permission does not close the external gate cause or allow technical acceptance, Issue closure, release or deployment.
     reason: Candidate d3d417cfd1aaeafe2d037e428298c60d57a8bb3d passes canonical focused and actual
       directed browser evidence38603937841, but exact General38603732138 attempt2 fails unrelated
       Observability fixture apps/api/src/admin-logs.worker.spec.ts because spawnSync python returns

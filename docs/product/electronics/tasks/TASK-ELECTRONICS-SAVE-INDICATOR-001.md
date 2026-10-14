@@ -98,3 +98,37 @@ accepted fix, fresh remote/current/dirty checks and required exact gate evidence
 +new independent acceptance. Preserve all other lanes and suspended566 in full.
 STOP point1; points2–4 are not selected. Deployment and school actions remain
 not requested.
+
+## Owner-authorized four-point completion — 14 October 2026
+
+The owner now requires all four approved saving/server-request points in main
+and verification together. This bounded completion transfers only the preserved
+indicator source, its CSS and compatible tests onto the current main which
+already contains the polling and retry repairs. It preserves immediate local
+draft protection; no additional storage repair is selected. The previous
+checkpoint above remains historical evidence, not authorization or acceptance
+of this new combined version.
+
+Verify the existing three directed production-browser cases together: truthful
+pending/request/visible acknowledgement, no blind idle project polling with
+safe focus reconciliation, and minute-spaced transient retries with immediate
+manual save and latest local document. Run canonical `pnpm gate:electronics-m1`
+with literal `NX_SKIP_NX_CACHE=true`, the otherwise uncovered mounted indicator
+tests, applicable exact General, and a new independent review of the combined
+SHA. Reuse saved causal BEFORE evidence; no repeated baseline measurement is
+required. Preserve the 570/571 cases and update only the generated source digest.
+
+The existing 569 acceptance blocker's cause and prohibited acceptance actions
+remain. The latest explicit owner instruction additionally permits unaccepted
+development publication in main after new independent source/functional approval
+and successful exact focused and all three directed browser cases. This scoped
+permission is recorded in the blocker's `allows`; its `integration` restriction
+continues to prohibit technically accepted integration. It does not close the
+external cause or allow repository success, technical acceptance, Issue closure,
+release, owner acceptance or deployment while required gates are unmet. Preserve
+the entire previous 571 task and suspended 570/569/566 records and all unrelated
+lane state.
+
+No unrelated module repair, additional original-owner problem, school/runtime
+update, database or network operation is included. Report the four-point result
+and STOP.
