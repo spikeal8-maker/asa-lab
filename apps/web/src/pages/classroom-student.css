@@ -892,12 +892,10 @@
 /* Give long labels a complete track, without making all eight buttons a
    tall vertical list. DOM order remains row-major and every section is visible. */
 @media (max-width: 430px) {
-  .classroom-student .participant-tabs button:is(
-    :nth-child(1),
-    :nth-child(2),
-    :nth-child(5),
-    :nth-child(8)
-  ) {
+  .classroom-student .participant-tabs button:nth-child(1),
+  .classroom-student .participant-tabs button:nth-child(2),
+  .classroom-student .participant-tabs button:nth-child(5),
+  .classroom-student .participant-tabs button:nth-child(8) {
     grid-column: span 2;
   }
 }
@@ -907,12 +905,10 @@
   .classroom-student .participant-tabs {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  .classroom-student .participant-tabs button:is(
-    :nth-child(1),
-    :nth-child(2),
-    :nth-child(5),
-    :nth-child(8)
-  ) {
+  .classroom-student .participant-tabs button:nth-child(1),
+  .classroom-student .participant-tabs button:nth-child(2),
+  .classroom-student .participant-tabs button:nth-child(5),
+  .classroom-student .participant-tabs button:nth-child(8) {
     grid-column: auto;
   }
 }
