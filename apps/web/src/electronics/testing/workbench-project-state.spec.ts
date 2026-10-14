@@ -153,7 +153,9 @@ function Probe({
 }
 
 async function mountProject() {
-  vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+  vi.useFakeTimers({
+    toFake: ['Date', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'],
+  });
   vi.setSystemTime(0);
   window.localStorage.clear();
   vi.spyOn(api, 'me').mockResolvedValue({
@@ -226,6 +228,72 @@ afterEach(async () => {
 });
 
 describe('Electronics project autosave in the mounted editor hook', () => {
+  it('opens once without background polling and refreshes a clean document on focus', async () => {
+    await mountProject();
+    const open = vi.mocked(api.openProject);
+    expect(open).toHaveBeenCalledTimes(1);
+    await advance(12_000);
+    expect(open).toHaveBeenCalledTimes(1);
+    const remote = normalizeLoadedDocument({
+      ...initialDocument,
+      viewport: { x: 0, y: 0, zoom: 2 },
+    });
+    open.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      data: {
+        project,
+        draft: { projectId, document: remote, revision: 2, updatedAt: '' },
+        versions: [],
+        result: null,
+      },
+    } as Awaited<ReturnType<typeof api.openProject>>);
+    await act(async () => window.dispatchEvent(new Event('focus')));
+    expect(open).toHaveBeenCalledTimes(2);
+    expect(state().document).toEqual(remote);
+    expect(state().saveStatus).toBe('saved');
+  });
+
+  it('does not fetch on dirty focus or overwrite an edit made during a clean focus request', async () => {
+    await mountProject();
+    const open = vi.mocked(api.openProject);
+    let finish: ((value: Awaited<ReturnType<typeof api.openProject>>) => void) | undefined;
+    open.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    await act(async () => window.dispatchEvent(new Event('focus')));
+    await act(async () => window.dispatchEvent(new Event('focus')));
+    expect(open).toHaveBeenCalledTimes(2);
+    const local = edit(3);
+    await act(async () => window.dispatchEvent(new Event('focus')));
+    expect(open).toHaveBeenCalledTimes(2);
+    const remote = normalizeLoadedDocument({
+      ...initialDocument,
+      viewport: { x: 0, y: 0, zoom: 2 },
+    });
+    await act(async () =>
+      finish!({
+        ok: true,
+        status: 200,
+        data: {
+          project,
+          draft: { projectId, document: remote, revision: 2, updatedAt: '' },
+          versions: [],
+          result: null,
+        },
+      } as Awaited<ReturnType<typeof api.openProject>>),
+    );
+    expect(state().document).toEqual(local);
+    expect(state().saveStatus).toBe('dirty');
+    expect(state().localCopySaved).toBe(true);
+    expect(
+      readLocalProjectDraft(window.localStorage, projectId, 'electronics', userId)?.document,
+    ).toEqual(local);
+  });
+
   it('retracts another-tab-cleared local durability and restores the current copy on save failure', async () => {
     const save = await mountProject();
     const latest = edit(2);
