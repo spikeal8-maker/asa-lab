@@ -9065,3 +9065,157 @@ test('RGB LED mirrors ordinary LED lit, reverse-polarity and burnout states', as
   }
   failures.assertEmpty();
 });
+
+test('Electronics automatic save retry waits a minute and preserves latest work', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const evidenceDir = 'reports/playwright/electronics-save-retry';
+  mkdirSync(evidenceDir, { recursive: true });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await loginWithOrganization(page, teacher);
+  const projectId = await createProject(page, 'Owner point4 minute retry');
+  await saveDocument(page, projectId, e01Document());
+  await page.goto(`/#/home/${projectId}`);
+  await component(page, 'resistor-axial').locator('.workbench-part').press('Enter');
+  const value = page
+    .locator('.workbench-inspector label')
+    .filter({ hasText: 'Сопротивление' })
+    .locator('input[type="number"]');
+  await expect(value).toHaveValue('50');
+  const requests: { at: number; body: unknown }[] = [];
+  const replies: { at: number; status: number }[] = [];
+  page.on('request', (request) => {
+    if (
+      request.method() === 'PUT' &&
+      new URL(request.url()).pathname === `/api/projects/${projectId}/draft`
+    )
+      requests.push({ at: Date.now(), body: request.postDataJSON() });
+  });
+  page.on('response', (response) => {
+    if (
+      response.request().method() === 'PUT' &&
+      new URL(response.url()).pathname === `/api/projects/${projectId}/draft`
+    )
+      replies.push({ at: Date.now(), status: response.status() });
+  });
+  let failureSentAt = 0;
+  let failed = false;
+  await page.route(`**/api/projects/${projectId}/draft`, async (route) => {
+    if (route.request().method() === 'PUT' && !failed) {
+      failed = true;
+      failureSentAt = Date.now();
+      await route.fulfill({
+        status: 503,
+        contentType: 'application/json',
+        body: JSON.stringify({ code: 'temporary', message: 'Temporary transport failure' }),
+      });
+    } else await route.continue();
+  });
+  await value.fill('166.7');
+  await page.getByRole('button', { name: 'Сохранить проект', exact: true }).click();
+  await expect(page.locator('.workbench-main')).toHaveAttribute(
+    'data-project-save-status',
+    'error',
+  );
+  expect(requests).toHaveLength(1);
+  await expect.poll(() => replies[0]?.status).toBe(503);
+  // Real elapsed browser time: no fake clock, online/focus event, reload or
+  // manual retry wakes the automatic retry during this quiet interval.
+  await page.waitForTimeout(30_000);
+  writeFileSync(
+    `${evidenceDir}/quiet-30s.json`,
+    JSON.stringify(
+      {
+        failureSentAt,
+        capturedAt: Date.now(),
+        requests,
+        replies,
+        local: await e01LocalDraft(page, projectId),
+      },
+      null,
+      2,
+    ),
+  );
+  expect(requests).toHaveLength(1);
+  await value.fill('220.5');
+  const localDuringDelay = JSON.parse((await e01LocalDraft(page, projectId)) ?? 'null') as {
+    document: SchematicDocument;
+  } | null;
+  expect(localDuringDelay?.document.components.find((item) => item.id === 'resistor')?.value).toBe(
+    220.5,
+  );
+  await page.waitForTimeout(Math.max(0, failureSentAt + 59_000 - Date.now()));
+  writeFileSync(
+    `${evidenceDir}/quiet-59s.json`,
+    JSON.stringify(
+      { failureSentAt, capturedAt: Date.now(), requests, replies, localDuringDelay },
+      null,
+      2,
+    ),
+  );
+  expect(requests).toHaveLength(1);
+  await expect(page.locator('.workbench-main')).toHaveAttribute(
+    'data-project-save-status',
+    'error',
+  );
+  await expect
+    .poll(() => replies.filter((reply) => reply.status === 200).length, {
+      timeout: 10_000,
+      intervals: [100],
+    })
+    .toBe(1);
+  expect(requests).toHaveLength(2);
+  expect(requests[1]!.at - failureSentAt).toBeGreaterThanOrEqual(60_000);
+  await expect(page.locator('.workbench-main')).toHaveAttribute(
+    'data-project-save-status',
+    'saved',
+  );
+  const automaticServer = await e01Server(page, projectId);
+  expect(
+    automaticServer.draft.document.components.find((item) => item.id === 'resistor')?.value,
+  ).toBe(220.5);
+  expect(await e01LocalDraft(page, projectId)).toBeNull();
+
+  // A deliberate save remains immediate after another pupil edit.
+  await value.fill('330.5');
+  const manualLocal = JSON.parse((await e01LocalDraft(page, projectId)) ?? 'null') as {
+    document: SchematicDocument;
+  } | null;
+  expect(manualLocal?.document.components.find((item) => item.id === 'resistor')?.value).toBe(
+    330.5,
+  );
+  const manualRequestedAt = Date.now();
+  await page.getByRole('button', { name: 'Сохранить проект', exact: true }).click();
+  await expect.poll(() => replies.filter((reply) => reply.status === 200).length).toBe(2);
+  expect(requests).toHaveLength(3);
+  expect(requests[2]!.at - manualRequestedAt).toBeLessThan(10_000);
+  await expect(page.locator('.workbench-main')).toHaveAttribute(
+    'data-project-save-status',
+    'saved',
+  );
+  const manualServer = await e01Server(page, projectId);
+  expect(manualServer.draft.document.components.find((item) => item.id === 'resistor')?.value).toBe(
+    330.5,
+  );
+  writeFileSync(
+    `${evidenceDir}/minute-retry.json`,
+    JSON.stringify(
+      {
+        projectId,
+        failureSentAt,
+        requests,
+        replies,
+        localDuringDelay,
+        automaticServer,
+        manualRequestedAt,
+        manualLocal,
+        manualServer,
+        finalLocal: await e01LocalDraft(page, projectId),
+      },
+      null,
+      2,
+    ),
+  );
+  await page.screenshot({ path: `${evidenceDir}/saved-latest-1440.png`, fullPage: true });
+});
