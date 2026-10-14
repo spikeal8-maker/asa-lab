@@ -1,5 +1,4 @@
 import { test, expect, type Page } from '@playwright/test';
-import { isExpectedTelemetryRejection } from '../tools/blocks/browser/telemetry-fixture.mjs';
 
 // The clock is virtual, but route fulfillment and fetch body delivery are real IO.
 // Observe native JSON consumption so a time jump cannot manufacture a delivery timeout.
@@ -242,6 +241,9 @@ test('real Scratch input reaches bounded analytics while heartbeat/idle do not; 
 test('telemetry rejection leaves the real Scratch minute save and controlled exit working', async () => {
   const { createProtocolFixture, installMinuteAutosaveClock, waitForMinuteAutosaveArm } =
     await import('../tools/blocks/browser/fixture.mjs');
+  // Keep the native MJS graph ahead of Playwright's TypeScript module loader.
+  const { isExpectedTelemetryRejection } =
+    await import('../tools/blocks/browser/telemetry-fixture.mjs');
   const { parentOrigin } = await import('../tools/blocks/browser/protocol.mjs');
   const fixture = await createProtocolFixture({ product: true, locale: 'en-US' });
   const page = await fixture.context.newPage();
