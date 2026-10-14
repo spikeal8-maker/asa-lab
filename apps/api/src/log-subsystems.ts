@@ -30,6 +30,16 @@ export function safeLogPath(url = '/'): string {
     .replace(/^(\/api\/classroom-teacher-invitations\/)[^/]+.*$/, '$1[redacted]');
 }
 
+export function isHostLogSource(source: string): boolean {
+  return (
+    source.startsWith('windows:') ||
+    source.startsWith('linux:') ||
+    source === 'docker-desktop' ||
+    source === 'docker-lifecycle' ||
+    source === 'metrics'
+  );
+}
+
 /** Server-owned route grouping is independent of the client's editor context. */
 export function logSubsystem(
   source: string,
@@ -38,6 +48,7 @@ export function logSubsystem(
   kind = '',
   module = '',
 ): string {
+  if (isHostLogSource(source)) return source === 'metrics' ? 'metrics' : 'host';
   if (source === 'api' && kind === 'client_diagnostic') {
     if (module === 'auth') return 'access';
     if (module === 'portal') return 'web';
@@ -69,7 +80,6 @@ export function logSubsystem(
       return route;
     return 'api';
   }
-  if (source.startsWith('windows:') || source === 'docker-desktop') return 'host';
   if (source === 'postgres' || source === 'migration') return 'database';
   if (source.startsWith('minio')) return 'storage';
   if (source === 'tunnel') return 'network';

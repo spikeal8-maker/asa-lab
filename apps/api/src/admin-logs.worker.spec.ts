@@ -11,6 +11,7 @@ import databaseContract from './database-diagnostic-contract.json';
 import { queryLogs, exportLogs, type LogFilter, type LogEntry } from './admin-logs.worker.js';
 import { DiagnosticsQualityController } from './diagnostics-quality.controller.js';
 import { QUALITY_COUNTERS } from './analytics-envelope.js';
+import { logFilter } from './admin-logs.controller.js';
 import type { FastifyRequest } from 'fastify';
 const filter: LogFilter = {
   from: '2026-10-01T00:00:00.000Z',
@@ -35,6 +36,99 @@ function zipMembers(zip: Buffer): Map<string, Buffer> {
 }
 
 describe('retained log reader and archive', () => {
+  it.each([false, true])(
+    'classifies Linux and Docker consistently through collector, import, query and ZIP (gzip=%s)',
+    async (compressed) => {
+      const temporary = await mkdtemp(join(tmpdir(), 'asa-system-classification-'));
+      try {
+        execFileSync('python', [
+          'tools/test_collect_logs.py',
+          '--write-system-store',
+          temporary,
+          compressed ? 'gzip' : 'raw',
+        ]);
+        const root = join(temporary, '.asa', 'diagnostics', 'store');
+        const catalog = JSON.parse((await readFile(join(root, 'catalog.json'))).toString());
+        // Legacy catalog hints may disagree with both source and normalized row hints.
+        for (const segment of catalog.segments) {
+          segment.sources = ['api'];
+          segment.modules = ['scratch'];
+          segment.subsystems = ['audit'];
+        }
+        const catalogBytes = Buffer.from(JSON.stringify(catalog));
+        await writeFile(join(root, 'catalog.json'), catalogBytes);
+        const originals = new Map<string, Buffer>();
+        for (const segment of catalog.segments) {
+          originals.set(segment.file, await readFile(join(root, segment.file)));
+        }
+        const hostSources = ['linux:journal', 'linux:kernel', 'docker-lifecycle'];
+        const all = await queryLogs(root, logFilter(filter), 100);
+        expect(all.items).toHaveLength(18);
+        expect(new Set(all.items.map((entry) => entry.id)).size).toBe(18);
+        for (const entry of all.items) {
+          const host = hostSources.includes(entry.source);
+          expect(entry.subsystem).toBe(
+            host ? 'host' : entry.source === 'api' ? 'projects' : 'scratch',
+          );
+          if (host) expect(entry.module).toBe('system');
+          expect(entry.origin).toBe('generic-application-origin');
+          expect(entry.level).toBe('warn');
+          expect(JSON.parse(entry.message).module).toBe('scratch');
+        }
+        const selections = [
+          { scope: 'all', count: 18 },
+          { scope: 'application', count: 9 },
+          { scope: 'host', count: 9 },
+          { scope: 'host', subsystem: 'host', module: 'system', count: 9 },
+          { scope: 'application', subsystem: 'host', count: 0 },
+          { scope: 'application', subsystem: 'projects', count: 3 },
+          { scope: 'application', subsystem: 'scratch', count: 6 },
+          ...hostSources.map((source) => ({ scope: 'host', source, count: 3 })),
+          { scope: 'host', module: 'scratch', count: 0 },
+        ];
+        for (const [index, selection] of selections.entries()) {
+          for (const search of ['', 'OBS014 fixture']) {
+            const selected = logFilter({ ...filter, ...selection, search });
+            const result = await queryLogs(root, selected, 100);
+            expect(result.items).toHaveLength(selection.count);
+            const output = join(temporary, `selection-${index}-${search ? 'search' : 'all'}.zip`);
+            expect((await exportLogs(root, selected, output)).count).toBe(selection.count);
+            const members = zipMembers(await readFile(output));
+            const records = [...members.entries()]
+              .filter(([name]) => name.startsWith('records/'))
+              .flatMap(([, data]) =>
+                data
+                  .toString()
+                  .trim()
+                  .split('\n')
+                  .filter(Boolean)
+                  .map((line) => JSON.parse(line) as LogEntry),
+              );
+            expect(records.map((entry) => entry.id).sort()).toEqual(
+              result.items.map((entry) => entry.id).sort(),
+            );
+            for (const entry of records)
+              expect(entry).toEqual(all.items.find((row) => row.id === entry.id));
+            const exportedCatalog = JSON.parse(members.get('manifest.json')!.toString()).catalog;
+            if (selection.scope === 'host') {
+              for (const segment of exportedCatalog.segments) {
+                expect(segment.subsystems).toEqual(['host']);
+                expect(segment.modules).toEqual(['system']);
+              }
+            }
+          }
+        }
+        // Read/export projections never rewrite retained history or its published snapshot.
+        expect(await readFile(join(root, 'catalog.json'))).toEqual(catalogBytes);
+        for (const [file, bytes] of originals)
+          expect(await readFile(join(root, file))).toEqual(bytes);
+      } finally {
+        await rm(temporary, { recursive: true, force: true });
+      }
+    },
+    20_000,
+  );
+
   it.each([false, true])(
     'preserves real API diagnostic quality reports while rejecting spoofed database kinds (gzip=%s)',
     async (compressed) => {
@@ -240,6 +334,13 @@ describe('retained log reader and archive', () => {
         }));
         const base = rows[0]!;
         rows.push(
+          ...['linux:journal', 'docker-lifecycle'].map((source, i) => ({
+            ...base,
+            id: String(i + 8).repeat(64),
+            source,
+            subsystem: 'host',
+            module: 'system',
+          })),
           { ...base, id: 'a'.repeat(64), message: `{broken ${privateValue}` },
           {
             ...base,

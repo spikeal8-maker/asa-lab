@@ -17,6 +17,46 @@ from collect_logs import Collector, normalize, now, file_timestamp, clean, RETIR
 from test_database_diagnostics import DatabaseDiagnosticTests  # Included by the canonical collector test runner.
 
 
+def system_classification_fixture(root, compressed):
+    """Synthetic fresh, imported and immutable legacy history for Python/API tests."""
+    c = Collector(root, {'retentionDays': 365})
+    c.reader_format = 2 if compressed else 1
+    sources = ('linux:journal', 'linux:kernel', 'docker-lifecycle', 'api', 'web', 'scratch')
+    rows = []
+    for generation in ('fresh', 'imported', 'legacy'):
+        batch = []
+        for source in sources:
+            payload = {'msg': 'OBS014 fixture', 'module': 'scratch', 'level': 'warn',
+                       'path': '/internal/blocks/editor' if source == 'web' else '/api/projects/fixture'}
+            event = normalize(source, json.dumps(payload), '2026-10-02T00:00:00.000Z',
+                              generation + source, 'generic-application-origin')
+            if generation != 'fresh':
+                event.update(subsystem='scratch' if source in sources[:3] else 'host', module='scratch')
+            batch.append(event)
+        if generation == 'imported':
+            archive = root / 'synthetic-import.zip'
+            with zipfile.ZipFile(archive, 'w') as z:
+                z.writestr('manifest.json', json.dumps({'normalized': True, 'count': len(batch)}))
+                z.writestr('records/part-00001.jsonl', '\n'.join(map(json.dumps, batch)) + '\n')
+            c.import_history(archive)
+            c.import_history(archive)
+        elif generation == 'legacy':
+            # Model retained old bytes and a valid index, with misleading cached hints.
+            first = c.db.execute("SELECT seq FROM sqlite_sequence WHERE name='events'").fetchone()[0] + 1
+            for event in batch: c.add(event)
+            last = c.db.execute("SELECT max(seq) FROM events").fetchone()[0]
+            meta = c.write_segment(f'seg-{first:016d}-{last:016d}.jsonl', batch)
+            meta.update(subsystems=['audit'], modules=['scratch'])
+            c.set_state('segments', {meta['file']: meta})
+            c.db.execute('UPDATE events SET published=1,payload=NULL,time=NULL,source=NULL WHERE seq>=?', (first,))
+        else:
+            for event in batch: c.add(event)
+        rows.extend(batch)
+    originals = {p.name: p.read_bytes() for p in c.store.glob('seg-*')}
+    c.publish()
+    return c, rows, originals
+
+
 class CollectorTests(unittest.TestCase):
     @staticmethod
     def open_and_close(root):
@@ -280,6 +320,55 @@ class CollectorTests(unittest.TestCase):
             meta = c.write_segment('seg-0000000000000001-0000000000000007.jsonl', events)
             self.assertEqual(set(meta['subsystems']), {item[2] for item in cases})
             c.db.close()
+
+    def test_obs014_host_source_owns_classification_over_payload(self):
+        payload = json.dumps({'module': 'scratch', 'path': '/api/electronics/fixture',
+                              'subsystem': 'scratch', 'level': 'warn', 'msg': 'OBS014 fixture'})
+        for source in ('linux:journal', 'linux:kernel', 'docker-lifecycle', 'windows:System', 'docker-desktop'):
+            with self.subTest(source=source):
+                event = normalize(source, payload, now(), 'stable', 'generic-application-origin')
+                self.assertEqual(event['subsystem'], 'host')
+                self.assertEqual(event['module'], 'system')
+                self.assertEqual(event['level'], 'warn')
+                self.assertEqual(event['id'], normalize(source, 'other', now(), 'stable')['id'])
+                self.assertEqual(json.loads(event['message'])['module'], 'scratch')
+
+    def test_obs014_publish_and_import_classification_preserve_originals(self):
+        for compressed in (False, True):
+            with self.subTest(compressed=compressed), tempfile.TemporaryDirectory() as temp:
+                c, rows, originals = system_classification_fixture(Path(temp), compressed)
+                try:
+                    catalog = json.loads((c.store / 'catalog.json').read_text())
+                    self.assertEqual(sum(meta['count'] for meta in catalog['segments']), 18)
+                    self.assertEqual(c.db.execute('SELECT count(*) FROM events').fetchone()[0], 18)
+                    for name, data in originals.items(): self.assertEqual((c.store / name).read_bytes(), data)
+                    by_id = {}
+                    for meta in catalog['segments']:
+                        data = (c.store / meta['file']).read_bytes()
+                        actual = [json.loads(line) for line in (gzip.decompress(data) if meta['file'].endswith('.gz') else data).splitlines()]
+                        expected_subsystems = {'host' if e['source'] in ('linux:journal', 'linux:kernel', 'docker-lifecycle')
+                                               else 'projects' if e['source'] == 'api' else 'scratch' for e in actual}
+                        self.assertEqual(set(meta['subsystems']), expected_subsystems)
+                        expected_modules = {'system' if e['source'] in ('linux:journal', 'linux:kernel', 'docker-lifecycle') else e['module'] for e in actual}
+                        self.assertEqual(set(meta['modules']), expected_modules)
+                        by_id.update((e['id'], e) for e in actual)
+                    self.assertEqual(set(by_id), {e['id'] for e in rows})
+                    # Only the deliberately retained legacy bytes keep stale outer hints.
+                    for event in rows[:12]:
+                        stored = by_id[event['id']]
+                        self.assertEqual(stored['subsystem'], 'host' if event['source'] in ('linux:journal', 'linux:kernel', 'docker-lifecycle') else 'projects' if event['source'] == 'api' else 'scratch')
+                        if event['source'] in ('linux:journal', 'linux:kernel', 'docker-lifecycle'):
+                            self.assertEqual(stored['module'], 'system')
+                    before = {p.name: p.read_bytes() for p in c.store.glob('seg-*')}
+                    c.publish()
+                    self.assertEqual({p.name: p.read_bytes() for p in c.store.glob('seg-*')}, before)
+                    cached = c.state('classification:system_metadata')
+                    catalog = json.loads((c.store / 'catalog.json').read_text())
+                    self.assertTrue(set(cached).issubset({s['file'] for s in catalog['segments']}))
+                    with patch('collect_logs.gzip.open', side_effect=AssertionError('redundant classification scan')), patch('builtins.open', side_effect=AssertionError('redundant classification scan')):
+                        for meta in catalog['segments']:
+                            self.assertEqual(c.system_metadata(meta, cached), meta)
+                finally: c.db.close()
 
     def test_first_startup_failure_publishes_health_without_a_catalog(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -600,4 +689,8 @@ class CollectorTests(unittest.TestCase):
             collector.db.close()
 
 
-if __name__ == '__main__': unittest.main()
+if __name__ == '__main__':
+    if len(sys.argv) == 4 and sys.argv[1] == '--write-system-store':
+        c, _, _ = system_classification_fixture(Path(sys.argv[2]), sys.argv[3] == 'gzip')
+        c.db.close()
+    else: unittest.main()

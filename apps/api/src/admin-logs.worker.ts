@@ -3,7 +3,7 @@ import { open, readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { deflateRawSync, gunzipSync, inflateRawSync } from 'node:zlib';
 import { createHash } from 'node:crypto';
-import { LOG_SUBSYSTEMS, logSubsystem } from './log-subsystems.js';
+import { LOG_SUBSYSTEMS, logSubsystem, isHostLogSource } from './log-subsystems.js';
 import { projectDatabaseEntry } from './database-diagnostics.js';
 
 export const LOG_STORE_FORMAT = 2;
@@ -110,7 +110,7 @@ function candidates(catalog: LogCatalog, filter: LogFilter): readonly Segment[] 
 }
 
 function inScope(source: string, scope: LogFilter['scope']): boolean {
-  const host = source.startsWith('windows:') || source === 'docker-desktop' || source === 'metrics';
+  const host = isHostLogSource(source);
   return !scope || scope === 'all' || (scope === 'host' ? host : !host);
 }
 
@@ -189,7 +189,12 @@ function parseEntry(line: string): LogEntry {
       origin: typeof entry.origin === 'string' ? entry.origin : '',
     };
   }
-  if (!LOG_SUBSYSTEMS.includes(entry.subsystem as (typeof LOG_SUBSYSTEMS)[number])) {
+  if (isHostLogSource(entry.source)) {
+    entry = { ...entry, subsystem: logSubsystem(entry.source), module: 'system' };
+  } else if (
+    !LOG_SUBSYSTEMS.includes(entry.subsystem as (typeof LOG_SUBSYSTEMS)[number]) ||
+    (entry.subsystem === 'host' && ['api', 'web', 'scratch'].includes(entry.source))
+  ) {
     let path = '';
     let kind = '';
     let module = '';

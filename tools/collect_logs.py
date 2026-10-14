@@ -165,7 +165,12 @@ def unpack_payload(value) -> str:
     return gzip.decompress(value).decode("utf-8") if isinstance(value, bytes) else value
 
 
+def host_source(source: str) -> bool:
+    return source.startswith(("windows:", "linux:")) or source in ("docker-desktop", "docker-lifecycle", "metrics")
+
+
 def subsystem(source: str, payload=None, origin="") -> str:
+    if host_source(source): return "metrics" if source == "metrics" else "host"
     if source == 'api' and isinstance(payload, dict) and payload.get('kind') == 'client_diagnostic':
         module = payload.get('module')
         if module in ('portal', 'scratch', 'electronics', 'auth'):
@@ -179,7 +184,6 @@ def subsystem(source: str, payload=None, origin="") -> str:
         if route == 'assignments': return 'learning'
         if route in ('session', 'workspaces', 'capabilities', 'schools'): return 'access'
         return route if route in ("projects", "learning", "courses", "analytics", "diagnostics", "electronics", "chess", "checkers", "three-d") else "api"
-    if source.startswith(("windows:", "linux:")) or source in ("docker-desktop", "docker-lifecycle"): return "host"
     if source in ("postgres", "migration"): return "database"
     if source.startswith("minio"): return "storage"
     if source == "tunnel": return "network"
@@ -190,10 +194,17 @@ def subsystem(source: str, payload=None, origin="") -> str:
 
 
 def event_subsystem(event):
-    if event.get("subsystem"): return event["subsystem"]
+    if host_source(event["source"]): return subsystem(event["source"])
+    if event.get("subsystem") and not (event["subsystem"] == "host" and event["source"] in ("api", "web", "scratch")):
+        return event["subsystem"]
     try: payload = json.loads(event["message"]) if event["source"] in ("api", "web") else None
     except (ValueError, TypeError): payload = None
     return subsystem(event["source"], payload, event.get("origin", ""))
+
+
+def classify_event(event):
+    return {**event, "subsystem": event_subsystem(event),
+            "module": "system" if host_source(event["source"]) else event["module"]}
 
 
 def normalize(source: str, raw: str, at: str, identity: str, origin: str = "") -> dict:
@@ -229,7 +240,7 @@ def normalize(source: str, raw: str, at: str, identity: str, origin: str = "") -
     else:
         message = clean(raw)
     truncated = len(message) > 16384
-    return dict(id=hashlib.sha256((source + "\0" + identity).encode()).hexdigest(), time=at, source=source, subsystem=subsystem(source, payload, origin), module=module, level=level, message=message[:16384], requestId=request_id, revision=revision, origin=clean(origin), truncated=truncated, normalizationVersion=2)
+    return dict(id=hashlib.sha256((source + "\0" + identity).encode()).hexdigest(), time=at, source=source, subsystem=subsystem(source, payload, origin), module="system" if host_source(source) else module, level=level, message=message[:16384], requestId=request_id, revision=revision, origin=clean(origin), truncated=truncated, normalizationVersion=2)
 
 
 def linux_resources(proc=Path('/proc'), previous=None):
@@ -442,6 +453,7 @@ class Collector:
         self.db.execute("INSERT OR REPLACE INTO sources VALUES(?,?)", (source, json.dumps(value)))
 
     def add(self, event):
+        event = classify_event(event)
         cutoff = (datetime.now(UTC) - timedelta(days=self.config.get("retentionDays", 30))).isoformat(timespec="milliseconds").replace("+00:00", "Z")
         if event["time"] < cutoff: return
         encoded = json.dumps(event, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
@@ -840,7 +852,7 @@ class Collector:
 
     @staticmethod
     def host_segment(meta):
-        return all(s in ("docker-desktop", "metrics", "docker-lifecycle") or s.startswith(("windows:", "linux:")) for s in meta["sources"])
+        return all(host_source(s) for s in meta["sources"])
 
     @staticmethod
     def source_ranges(events, key="source"):
@@ -857,7 +869,23 @@ class Collector:
         file = name + (".gz" if compressed else "")
         data = gzip.compress(raw, compresslevel=6, mtime=0) if compressed else raw
         immutable_segment_bytes(self.store / file, data)
-        return dict(file=file, schema=2, sha256=hashlib.sha256(raw).hexdigest(), bytes=len(data), rawBytes=len(raw), count=len(events), first=min(e["time"] for e in events), last=max(e["time"] for e in events), sources=sorted({e["source"] for e in events}), subsystems=sorted({event_subsystem(e) for e in events}), sourceRanges=self.source_ranges(events), originRanges=self.source_ranges(events, "origin"), modules=sorted({e["module"] for e in events}), levels=sorted({e["level"] for e in events}))
+        return dict(file=file, schema=2, sha256=hashlib.sha256(raw).hexdigest(), bytes=len(data), rawBytes=len(raw), count=len(events), first=min(e["time"] for e in events), last=max(e["time"] for e in events), sources=sorted({e["source"] for e in events}), subsystems=sorted({event_subsystem(e) for e in events}), sourceRanges=self.source_ranges(events), originRanges=self.source_ranges(events, "origin"), modules=sorted({classify_event(e)["module"] for e in events}), levels=sorted({e["level"] for e in events}))
+
+    def system_metadata(self, meta, cached):
+        """Repair classification hints without rewriting immutable segment payloads."""
+        if meta['sources'] and self.host_segment(meta):
+            return {**meta, 'subsystems': sorted({subsystem(s) for s in meta['sources']}), 'modules': ['system']}
+        mixed = any(host_source(s) for s in meta['sources'])
+        stale_application = 'host' in meta.get('subsystems', ()) and any(s in ('api', 'web', 'scratch') for s in meta['sources'])
+        signature = hashlib.sha256(json.dumps(meta, sort_keys=True).encode()).hexdigest()
+        if (mixed or stale_application) and cached.get(meta['file']) != signature:
+            opener = gzip.open if meta['file'].endswith('.gz') else open
+            with opener(self.store / meta['file'], 'rb') as stream: raw = stream.read(4 * 1024 * 1024 + 1)
+            if len(raw) > 4 * 1024 * 1024: raise history_error('classification segment exceeds limit')
+            events = [classify_event(json.loads(line)) for line in raw.splitlines()]
+            meta = {**meta, 'subsystems': sorted({e['subsystem'] for e in events}), 'modules': sorted({e['module'] for e in events})}
+        cached[meta['file']] = hashlib.sha256(json.dumps(meta, sort_keys=True).encode()).hexdigest()
+        return meta
 
     def finish_compaction(self):
         """Complete a durable compaction intent before accepting new events.
@@ -924,6 +952,7 @@ class Collector:
         return segments, retired
 
     def upgrade_file_event(self, entry):
+        entry = classify_event(entry)
         if entry.get("normalizationVersion") == 2: return entry
         file_sources = {"updates", "docker-desktop", *(s["source"] for s in self.config.get("fileSources", []))}
         if entry["source"] in file_sources:
@@ -1007,6 +1036,7 @@ class Collector:
                 (self.store / name).unlink(missing_ok=True)
                 retired.pop(name)
         previous = self.state("segments", {})
+        system_metadata = self.state("classification:system_metadata", {})
         while True:
             fetched = self.db.execute("SELECT seq,payload FROM events WHERE published=0 ORDER BY seq LIMIT 1000").fetchall()
             rows, events, byte_count = [], [], 0
@@ -1043,7 +1073,7 @@ class Collector:
                 meta = dict(file=name, bytes=file.stat().st_size, rawBytes=len(raw), count=len(events), first=min(e["time"] for e in events), last=max(e["time"] for e in events), sources=sorted({e["source"] for e in events}), sourceRanges=self.source_ranges(events), originRanges=self.source_ranges(events, "origin"), modules=sorted({e["module"] for e in events}), levels=sorted({e["level"] for e in events}))
                 if all(e.get("normalizationVersion") == 2 for e in events):
                     meta.update(schema=2, sha256=hashlib.sha256(raw).hexdigest())
-            segments.append(meta)
+            segments.append(self.system_metadata(meta, system_metadata))
         # A crash after immutable file publication, before SQLite commit, can
         # leave an older prefix of a subsequently replayed batch. Keep the
         # superset only after verifying that all of the prefix IDs are present.
@@ -1103,6 +1133,7 @@ class Collector:
             source["retainedTo"] = max((r["last"] for r in ranges), default=None)
             source["trimmed"] = bool(evicted.get("auth" if origin == "product_analytics_events" else "audit" if origin else event_source))
         self.set_state("segments", {s["file"]: s for s in segments})
+        self.set_state("classification:system_metadata", {s['file']: system_metadata[s['file']] for s in segments if s['file'] in system_metadata})
         self.set_state("retired:segments", retired)
         self.set_state("evicted:sources", evicted)
         if trimmed: self.set_state("trimmedAt", now())
