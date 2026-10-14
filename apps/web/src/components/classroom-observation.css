@@ -304,7 +304,7 @@
 /* On very narrow classroom surfaces the primary project title gets a full
    text track. The action remains explicit and reachable, below metadata,
    rather than squeezing ordinary Russian words into single-character lines. */
-@container classroom (max-width: 390px) {
+@container classroom (max-width: 360px) {
   .classroom-observation .observation-projects > li {
     grid-template-columns: 32px minmax(0, 1fr);
     gap: 6px 10px;
