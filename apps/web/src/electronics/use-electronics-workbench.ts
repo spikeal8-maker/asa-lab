@@ -338,7 +338,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
           Math.max(0, Math.round((window.performance.now() - startedAt) * 1000)),
         );
       }
-    }, 100);
+    }, 10);
     return () => window.clearInterval(interval);
   }, [simulationRunning]);
 

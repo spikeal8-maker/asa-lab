@@ -59,9 +59,10 @@ const ARDUINO_SOURCE_PROPERTY = 'arduinoSource' as const;
 const RUNTIME_INPUT_OBSERVATION_WINDOW_MICROSECONDS = 100_000;
 // Presentation requests are finite even when host demand accumulates faster than
 // physics can advance. This does not change the engine's barriers/work budget.
-// At most 100 ms separates complete observations, including during catch-up.
+// At most 25 ms separates complete observations, including during catch-up.
+// A 100 ms observation grid aliases a 50 ms HIGH / 50 ms LOW sketch.
 // This is a model-time bound, not a wall-time/throughput promise.
-const COMPLETE_OBSERVATION_WINDOW_MICROSECONDS = 100_000;
+const COMPLETE_OBSERVATION_WINDOW_MICROSECONDS = 25_000;
 
 function boundedInputObservationHorizon(
   eventAtMicroseconds: number,

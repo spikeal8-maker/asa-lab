@@ -62,7 +62,24 @@ type WorkerReceipt = {
   computeMs: number | null;
 };
 type UiReceipt = { at: number; time: string; brightness: number[]; serial: string[] };
-type ProbeWindow = Window & { __bitwiseWorker?: WorkerReceipt[]; __bitwiseUi?: UiReceipt[] };
+type PaintReceipt = {
+  at: number;
+  brightness: number[];
+  images: Array<{
+    href: string;
+    decoded: boolean;
+    opacity: number;
+    visible: boolean;
+    lit: boolean;
+  }>;
+  stablePreviousFrame: boolean;
+};
+type ProbeWindow = Window & {
+  __bitwiseWorker?: WorkerReceipt[];
+  __bitwiseUi?: UiReceipt[];
+  __ownerPaint?: PaintReceipt[];
+  __ownerStartClicks?: Array<{ at: number; trusted: boolean }>;
+};
 
 function fixture(): SchematicDocument {
   const components: SchematicDocument['components'][number][] = [
@@ -234,12 +251,91 @@ async function observeRealWorkerAndUi(page: Page, ledCount = 8): Promise<void> {
       characterData: true,
       attributeFilter: ['data-led-brightness'],
     });
+    // Only the three owner cases collect paint. The original generic journeys
+    // retain their original observer cost and raw predicate semantics.
+    if (ledCount === 3) {
+      const paints: PaintReceipt[] = [];
+      probe.__ownerPaint = paints;
+      const startClicks: Array<{ at: number; trusted: boolean }> = [];
+      probe.__ownerStartClicks = startClicks;
+      document.addEventListener(
+        'click',
+        (event) => {
+          if ((event.target as Element | null)?.closest('[aria-label="Начать моделирование"]'))
+            startClicks.push({ at: performance.now(), trusted: event.isTrusted });
+        },
+        true,
+      );
+      const decoded = new Map<string, boolean>();
+      let previous = '';
+      const paint = () => {
+        const elements = Array.from({ length: ledCount }, (_, index) =>
+          document.querySelector<SVGSVGElement>(
+            `[data-component-id="led${index}"] .workbench-production-visual`,
+          ),
+        );
+        if (elements.every((element) => element)) {
+          const brightness = elements.map((element) =>
+            Number(element!.getAttribute('data-led-brightness') ?? '0'),
+          );
+          const images = elements.map((element) => {
+            const image = element!.querySelector<SVGImageElement>('.workbench-led-asset');
+            const href = image?.href.baseVal ?? '';
+            if (href && !decoded.has(href)) {
+              decoded.set(href, false);
+              const resource = new Image();
+              resource.src = href;
+              void resource.decode().then(
+                () => decoded.set(href, resource.naturalWidth > 0 && resource.naturalHeight > 0),
+                () => decoded.set(href, false),
+              );
+            }
+            let opacity = 1;
+            let visible = !!image;
+            for (
+              let ancestor: Element | null = image ?? null;
+              ancestor;
+              ancestor = ancestor.parentElement
+            ) {
+              const style = getComputedStyle(ancestor);
+              opacity *= Number(style.opacity);
+              visible &&= style.display !== 'none' && style.visibility === 'visible';
+            }
+            const box = image?.getBoundingClientRect();
+            visible &&=
+              !!box &&
+              box.width > 0 &&
+              box.height > 0 &&
+              box.right > 0 &&
+              box.bottom > 0 &&
+              box.left < innerWidth &&
+              box.top < innerHeight;
+            const lit = element!.classList.contains('is-lit');
+            visible &&= image?.getAttribute('data-owner-image-status') !== 'failed';
+            return { href, decoded: decoded.get(href) === true, opacity, visible, lit };
+          });
+          const signature = JSON.stringify({ brightness, images });
+          paints.push({
+            at: performance.now(),
+            brightness,
+            images,
+            stablePreviousFrame: signature === previous,
+          });
+          previous = signature;
+          if (paints.length > 400) paints.shift();
+        }
+        requestAnimationFrame(paint);
+      };
+      requestAnimationFrame(paint);
+    }
   }, ledCount);
 }
 async function observation(page: Page) {
   return page.evaluate(() => ({
     worker: (window as ProbeWindow).__bitwiseWorker ?? [],
     ui: (window as ProbeWindow).__bitwiseUi ?? [],
+    paint: (window as ProbeWindow).__ownerPaint ?? [],
+    startClicks: (window as ProbeWindow).__ownerStartClicks ?? [],
   }));
 }
 // Keep polling beside the full receipts: transporting their canonical state on
@@ -558,6 +654,19 @@ function ownerTimingSummary({ source }: { source: string }) {
       row.advance.result.quality?.passed,
   );
   const ui = probe.__bitwiseUi ?? [];
+  const paint = (probe.__ownerPaint ?? []).filter(
+    (row) =>
+      row.stablePreviousFrame &&
+      row.images.length === 3 &&
+      row.brightness.length === 3 &&
+      row.images.every(
+        (image, index) =>
+          image.decoded &&
+          image.visible &&
+          image.opacity === 1 &&
+          image.lit === row.brightness[index]! > 0,
+      ),
+  );
   const changes: number[] = [];
   for (const row of ui) {
     const level = row.brightness.every((value) => value > 0)
@@ -579,6 +688,32 @@ function ownerTimingSummary({ source }: { source: string }) {
     ),
     visibleAllHigh: ui.some((row) => row.brightness.every((value) => value > 0)),
     visibleChanges: changes.length,
+    readyCount: ready.length,
+    wallSpan: ready.length ? ready.at(-1)!.at - ready[0]!.at : 0,
+    paintHigh: paint.some((row) => row.brightness.every((value) => value > 0)),
+    paintLow: paint.some((row) => row.brightness.every((value) => value === 0)),
+  };
+}
+
+function blinkWallMetrics(rows: ReadonlyArray<{ at: number; level: number }>, delayMs: number) {
+  const first = rows.findIndex((row) => row.level === 1);
+  const last = rows.findLastIndex((row) => row.level === 1);
+  const completeCycles = first < 0 ? [] : rows.slice(first, last + 1);
+  const halves: number[] = [];
+  const duration = { high: 0, low: 0 };
+  for (let index = 1; index < completeCycles.length; index++) {
+    const half = completeCycles[index]!.at - completeCycles[index - 1]!.at;
+    halves.push(half);
+    duration[completeCycles[index - 1]!.level === 1 ? 'high' : 'low'] += half;
+  }
+  return {
+    halves,
+    halfBoundsPassed:
+      halves.length > 0 && halves.every((half) => half >= delayMs * 0.5 && half <= delayMs * 2),
+    // Whole HIGH -> HIGH cycles avoid bias from a truncated last LOW. At least
+    // four cycles average the 16.7ms browser paint quantisation; 40/60 duty fails.
+    cycles: (completeCycles.length - 1) / 2,
+    duty: duration.high / (duration.high + duration.low),
   };
 }
 
@@ -653,6 +788,7 @@ for (const delayMs of [null, 100, 50] as const) {
       const probe = window as ProbeWindow;
       if (probe.__bitwiseWorker) probe.__bitwiseWorker.length = 0;
       if (probe.__bitwiseUi) probe.__bitwiseUi.length = 0;
+      if (probe.__ownerPaint) probe.__ownerPaint.length = 0;
       return performance.now();
     });
     let raw: Awaited<ReturnType<typeof observation>> | null = null;
@@ -663,9 +799,17 @@ for (const delayMs of [null, 100, 50] as const) {
         await expect
           .poll(async () => {
             const summary = await page.evaluate(ownerTimingSummary, { source });
-            return { ready: summary.completeAllHigh, visible: summary.visibleAllHigh };
+            return {
+              ready: summary.completeAllHigh,
+              visible: summary.visibleAllHigh,
+              paint: summary.paintHigh,
+              // Repeated genuine checkpoints and actual paint over one wall
+              // second, not a realtime claim from the first 256us checkpoint.
+              sustained:
+                summary.readyCount >= 8 && summary.committed >= 1_024 && summary.wallSpan >= 1_000,
+            };
           })
-          .toEqual({ ready: true, visible: true });
+          .toEqual({ ready: true, visible: true, paint: true, sustained: true });
       } else {
         // A correct GPIO event log alone cannot pass a hidden/aliased blink.
         // Both on and off states must actually reach the production DOM.
@@ -673,7 +817,10 @@ for (const delayMs of [null, 100, 50] as const) {
           .poll(async () => {
             const summary = await page.evaluate(ownerTimingSummary, { source });
             return (
-              summary.committed >= 1_000_000 && summary.visibleChanges >= (delayMs === 100 ? 8 : 16)
+              summary.committed >= 1_250_000 &&
+              summary.visibleChanges >= (delayMs === 100 ? 8 : 16) &&
+              summary.paintHigh &&
+              summary.paintLow
             );
           })
           .toBe(true);
@@ -717,6 +864,8 @@ for (const delayMs of [null, 100, 50] as const) {
     const ready = raw!.worker.filter(
       (row) => row.requestSource === source && row.advance.executionStatus === 'ready',
     );
+    expect(raw!.startClicks).toHaveLength(1);
+    expect(raw!.startClicks[0]!.trusted).toBe(true);
     expect(ready.some((row) => row.advance.committedHorizonMicroseconds === 0)).toBe(true);
     for (const row of ready) {
       expect(row.advance.committedHorizonMicroseconds).toBe(
@@ -738,18 +887,29 @@ for (const delayMs of [null, 100, 50] as const) {
     for (const row of raw!.worker.filter((row) => row.requestSource === source))
       for (const event of row.boards.find((board) => board.componentId === 'uno')?.runtime
         .eventQueue ?? [])
-        if (event.kind === 'output-change' && event.terminal === 'd13')
+        if (event.kind === 'output-change' && ['d13', 'd12', 'd11'].includes(event.terminal))
           events.set(event.sequence, event);
-    const edges = [...events.values()]
-      .sort((a, b) => a.sequence - b.sequence)
-      .filter((event, index, rows) => index === 0 || event.voltage !== rows[index - 1]!.voltage);
+    const pinEdges = ['d13', 'd12', 'd11'].map((terminal) =>
+      [...events.values()]
+        .filter((event) => event.terminal === terminal)
+        .sort((a, b) => a.sequence - b.sequence)
+        .filter((event, index, rows) => index === 0 || event.voltage !== rows[index - 1]!.voltage),
+    );
+    const edges = pinEdges[0]!;
+    for (let pin = 0; pin < pinEdges.length; pin++) {
+      expect(pinEdges[pin]![0]).toMatchObject({ voltage: 0, atMicroseconds: pin });
+      expect(pinEdges[pin]![1]).toMatchObject({ voltage: 5, atMicroseconds: 4 + pin });
+    }
     if (delayMs !== null) {
       expect(edges.length).toBeGreaterThanOrEqual(delayMs === 100 ? 10 : 20);
-      for (let index = 1; index < edges.length; index++) {
-        const interval = edges[index]!.atMicroseconds - edges[index - 1]!.atMicroseconds;
-        expect(interval).toBeGreaterThanOrEqual(delayMs * 1000);
-        expect(interval).toBeLessThanOrEqual(delayMs * 1000 + 10);
-      }
+      // Initial LOW@0 -> first HIGH@4us configures the outputs. Anchor the
+      // regular blink at that HIGH; retain its initialization evidence above.
+      for (const pin of pinEdges)
+        for (let index = 2; index < pin.length; index++) {
+          const interval = pin[index]!.atMicroseconds - pin[index - 1]!.atMicroseconds;
+          expect(interval).toBeGreaterThanOrEqual(delayMs * 1000);
+          expect(interval).toBeLessThanOrEqual(delayMs * 1000 + 10);
+        }
     }
     const transitions: Array<{
       at: number;
@@ -792,6 +952,62 @@ for (const delayMs of [null, 100, 50] as const) {
       });
     }
     expect(transitions.some((row) => row.level === 1)).toBe(true);
+    const painted = raw!.paint.filter(
+      (row) =>
+        row.at >= startAt &&
+        row.stablePreviousFrame &&
+        row.images.length === 3 &&
+        row.brightness.length === 3 &&
+        row.images.every(
+          (image, index) =>
+            image.decoded &&
+            image.visible &&
+            image.opacity === 1 &&
+            image.lit === row.brightness[index]! > 0,
+        ),
+    );
+    expect(painted.some((row) => row.brightness.every((value) => value > 0))).toBe(true);
+    const paintTransitions: typeof transitions = [];
+    for (const row of painted) {
+      const level = row.brightness.every((value) => value > 0)
+        ? 1
+        : row.brightness.every((value) => value === 0)
+          ? 0
+          : -1;
+      if (level < 0 || level === paintTransitions.at(-1)?.level) continue;
+      const matching = ready
+        .filter(
+          (frame) =>
+            frame.at <= row.at &&
+            row.brightness.every(
+              (value, index) =>
+                value ===
+                Math.round(
+                  Math.max(
+                    0,
+                    Math.min(
+                      100,
+                      frame.advance.result?.components.find(
+                        (component) => component.componentId === `led${index}`,
+                      )?.brightness ?? 0,
+                    ),
+                  ),
+                ),
+            ),
+        )
+        .at(-1);
+      if (!matching) {
+        expect(level).toBe(0);
+        continue;
+      }
+      paintTransitions.push({
+        at: row.at,
+        level,
+        readyAt: matching.at,
+        committed: matching.advance.committedHorizonMicroseconds,
+        publicationMs: row.at - matching.at,
+      });
+    }
     if (delayMs !== null) {
       expect(transitions.length).toBeGreaterThanOrEqual(delayMs === 100 ? 8 : 16);
       const first = transitions[0]!;
@@ -810,18 +1026,67 @@ for (const delayMs of [null, 100, 50] as const) {
         expect(transitions[index]!.at - transitions[index - 1]!.at).toBeLessThanOrEqual(
           delayMs * 3,
         );
+      // Independently challenge effective image presentation. Check each
+      // half, both polarities and duty; a good mean cannot hide 5ms bursts or
+      // a dark second. Time-zero configuration is reported separately.
+      const firstPaintHigh = paintTransitions.findIndex((row) => row.level === 1);
+      expect(firstPaintHigh).toBeGreaterThanOrEqual(0);
+      const steady = paintTransitions.slice(firstPaintHigh);
+      expect(steady.length).toBeGreaterThanOrEqual(delayMs === 100 ? 8 : 16);
+      for (const phases of [transitions, paintTransitions]) {
+        const wall = blinkWallMetrics(phases, delayMs);
+        expect(wall.cycles).toBeGreaterThanOrEqual(4);
+        expect(wall.halfBoundsPassed).toBe(true);
+        expect(wall.duty).toBeGreaterThanOrEqual(0.45);
+        expect(wall.duty).toBeLessThanOrEqual(0.55);
+      }
+      const paintFirst = steady[0]!;
+      const paintLast = steady.at(-1)!;
+      expect(
+        Math.abs(
+          paintLast.at - paintFirst.at - (paintLast.committed - paintFirst.committed) / 1000,
+        ),
+      ).toBeLessThanOrEqual(250);
+    } else {
+      const lit = ready.filter((row) => row.advance.committedHorizonMicroseconds > 0);
+      expect(lit.length).toBeGreaterThanOrEqual(7);
+      expect(lit.at(-1)!.advance.committedHorizonMicroseconds).toBeGreaterThan(
+        lit[0]!.advance.committedHorizonMicroseconds,
+      );
+      expect(lit.at(-1)!.at - ready[0]!.at).toBeGreaterThanOrEqual(1_000);
+      for (const row of lit) {
+        for (let index = 0; index < 3; index++)
+          expect(
+            row.advance.result?.components.find(
+              (component) => component.componentId === `led${index}`,
+            )?.brightness,
+          ).toBeGreaterThan(0);
+      }
     }
     writeFileSync(
       resolve(artifactRoot, `owner-${name}-timing.json`),
       JSON.stringify(
         {
           startAt,
+          startClicks: raw!.startClicks,
+          firstRequestAt: ready[0]!.requestAt,
           firstReadyAt: ready[0]!.at,
+          firstPaintAt: painted.find((row) => row.brightness.every((value) => value > 0))!.at,
           firstReadyMs: ready[0]!.at - startAt,
           firstLedMs: transitions.find((row) => row.level === 1)!.at - startAt,
           requestedPeriodUs: delayMs === null ? null : delayMs * 2000,
           edges,
+          pinEdges,
+          wallMetrics:
+            delayMs === null
+              ? null
+              : {
+                  dom: blinkWallMetrics(transitions, delayMs),
+                  paint: blinkWallMetrics(paintTransitions, delayMs),
+                },
           transitions,
+          paintTransitions,
+          painted,
           horizonTimeline: raw!.worker.map((row) => ({
             at: row.at,
             requestAt: row.requestAt,
@@ -842,6 +1107,38 @@ for (const delayMs of [null, 100, 50] as const) {
         null,
         2,
       ) + '\n',
+    );
+    // Native screenshots occur after the measured raw snapshot; screenshot
+    // transport must not distort the timing sample it is meant to illustrate.
+    const screenshots: unknown[] = [];
+    for (const level of delayMs === null ? [1] : [1, 0]) {
+      await page.waitForFunction((level) => {
+        const row = (window as ProbeWindow).__ownerPaint?.at(-1);
+        return (
+          !!row?.stablePreviousFrame &&
+          row.images.every(
+            (image, index) =>
+              image.decoded &&
+              image.visible &&
+              image.opacity === 1 &&
+              image.lit === row.brightness[index]! > 0,
+          ) &&
+          row.brightness.every((value) => (level ? value > 0 : value === 0))
+        );
+      }, level);
+      const beforeScreenshot = await page.evaluate(() =>
+        (window as ProbeWindow).__ownerPaint?.at(-1),
+      );
+      const path = resolve(artifactRoot, `owner-${name}-${level ? 'on' : 'off'}.png`);
+      await page.screenshot({ path });
+      const afterScreenshot = await page.evaluate(() =>
+        (window as ProbeWindow).__ownerPaint?.at(-1),
+      );
+      screenshots.push({ level, path, beforeScreenshot, afterScreenshot });
+    }
+    writeFileSync(
+      resolve(artifactRoot, `owner-${name}-paint-screenshots.json`),
+      JSON.stringify(screenshots, null, 2) + '\n',
     );
     await page.getByRole('button', { name: 'Остановить моделирование', exact: true }).click();
     const final = await read();
