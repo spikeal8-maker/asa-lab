@@ -4585,13 +4585,13 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: OBS008_OBS009_main_integrated_canonical_site_updated_report_STOP
+      checkpoint: OBS010_existing_implementation_accepted_reused_browser_evidence_main_report_STOP
       owner_acceptance: pending
       normative_refs:
         - document: PORTABLE-DEPLOYMENT-CONTRACT
           revision: '1.0'
         - document: OBSERVABILITY-REPAIR-SPEC
-          revision: '1.8'
+          revision: '1.9'
         - document: RELEASE-REGISTRATION-FIXTURE-SPEC
           revision: '1.0'
         - document: RELEASE-SCRATCH-CLOCK-SPEC
@@ -4608,9 +4608,9 @@ parallel_lanes:
       selected_slice: OBS3B-CLIENT
       item_execution:
         document: docs/product/ASA_OBSERVABILITY_REPAIR_SPEC.md
-        selected_item: OBS-009
-        status: implemented_integrated_deployed_owner_batch_completed
-        completed_items: [OBS-001, OBS-002, OBS-003, OBS-004, OBS-005, OBS-006, OBS-007, OBS-008, OBS-009]
+        selected_item: OBS-010
+        status: existing_main_implementation_verified_reused_exact_source_browser_evidence
+        completed_items: [OBS-001, OBS-002, OBS-003, OBS-004, OBS-005, OBS-006, OBS-007, OBS-008, OBS-009, OBS-010]
         accepted_items:
           OBS-001:
             status: implemented_focused_verified
@@ -4799,19 +4799,33 @@ parallel_lanes:
             deployment: canonical_site_fb4f4f6c_schema212_verified
             database_actions: none
             report: docs/execution/OBS_009_REPORT.md
+          OBS-010:
+            status: implemented_existing_main_focused_verified_and_independently_reviewed
+            initial_source_sha: 3ab6693eb3bf52d7ba73c5f6679bbac83c656efb
+            final_browser_source_sha: 0e9045500fd2c069b35e6c51d9dcaad039258be2
+            reviewed_main_sha: b5bf8a3c250cb8bd84665dee1639014fb0eae840
+            independent_review: scoped_pass_existing_implementation_and_source_equivalence
+            focused_browser_run: 38491966252
+            focused_browser_result: two_selected_real_browser_scenarios_passed_reused_not_rerun
+            source_equivalence: selected_tests_harness_shipping_CLIENT_Scratch_build_inputs_and_dependency_lock_unchanged
+            whole_Scratch_workflow: failure_54_passed1_unrelated_VSCR470_recovery_clock_failed
+            local_new_product_tests: not_run_no_product_test_or_dependency_changes
+            product_integration: already_in_main_no_duplicate_source_change
+            deployment: not_run_this_item_explicitly_excluded_by_owner
+            database_actions: none
+            report: docs/execution/OBS_010_REPORT.md
         owner_authorized_batch:
-          ordered_items: [OBS-008, OBS-009]
-          reports: separate_after_each_item
+          ordered_items: [OBS-010]
+          reports: complete_after_selected_item_then_STOP
           integration_into_main: authorized
-          resolve_necessary_integration_conflicts: authorized_by_full_main_update_request
-          canonical_site_update: explicitly_authorized_after_required_checks
-          remaining_OBS010_through_OBS045: not_selected_as_numbered_tasks_necessary_integration_compatibility_repairs_separately_scoped
+          canonical_site_update: explicitly_excluded_for_this_item
+          remaining_OBS011_through_OBS045: not_selected
         mode: one_item_per_executor_report_then_controller_continues_owner_batch
         next_item_requires_owner_instruction: true
-        owner_instruction: Implement item8 then item9 with separate reports, integrate all prepared changes into main and fully update the canonical site after required release checks.
-        candidate_baseline_sha: b1a93e6c14cac35cf5e440e4af86650ebf9bb3bb
-        acceptance_scope: Endpoint-correct Scratch diagnostics fixture preserving heartbeat failure, recovery and hidden-tab assertions.
-        next_action: STOP_owner_batch_complete_OBS010_requires_new_instruction
+        owner_instruction: Continue one numbered item at a time; select OBS010, push result into main, do not update the site, report and STOP.
+        candidate_baseline_sha: b5bf8a3c250cb8bd84665dee1639014fb0eae840
+        acceptance_scope: Existing browser fixture visit and quality acknowledgements unblock actual module-session requests; wait for close receipt and preserve the minute-save controlled-exit401 scenario.
+        next_action: STOP_OBS010_complete_OBS011_requires_new_owner_instruction
       release_execution:
         status: completed_owner_authorized_batch_with_documented_diagnostics_limitations
         selected_phase: report_and_STOP_after_OBS008_OBS009_main_and_canonical_site_update
@@ -5033,27 +5047,23 @@ parallel_lanes:
           runtime_evidence: actual_PostgreSQL_receipts_concurrency_authority_replay_lock_isolation_RLS_upgrade_and_existing_browser_journeys_pass_on_556_and_aab
           production_evidence: pending_OBS6_guarded_release_and_safe_legacy_analytics_projection
       priority_note: >-
-        Owner-authorized OBS-008 and OBS-009 are implemented, independently reviewed, reported,
-        integrated with prepared CLIENT and parallel main changes, and deployed in canonical production.
-        Final product SHA fb4f4f6c has exact General38496115989 all4 jobs SUCCESS, Delivery38496116071
-        SUCCESS and Release38498149543 all required contracts, images and publish/backup-restore SUCCESS.
-        Runtime Web/API/Scratch revisions match fb4f4f6c; schema212; verified full backup and unchanged
-        persistent stores/private environment/aggregate data counts. Initial public HTTP404 was inspected;
-        strict public entry passed before explicit manager acknowledgement and operation receipt recovery.
-        Collector runs and core service collection is current, but source coverage is incomplete and Windows
-        runner management rejects an omitted default XML RunLevel; these findings remain separate follow-up.
-        Existing VSCR470 virtual-clock acceptance blocker remains open. Authenticated owner save/reopen and
-        classroom acceptance are NOT_RUN. Historical dated slice evidence remains historical; this batch
-        does not close the whole programme or authorize OBS010-045. Report and STOP after this batch.
-      deployment_authorized: true
+        OBS001-009 were integrated and the previous owner batch deployed fb4f4f6c/schema212.
+        The current owner instruction selects only OBS010 with main publication and explicitly no site update.
+        OBS010 implementation already exists from integration3ab and subsequent reviewed fixture repairs.
+        Independent scoped review at b5bf8a3c confirms all selected criteria. Both actual browser tests passed
+        run38491966252 at0e; exact selected source/harness/product/dependency/build input equivalence to b5
+        permits reuse without another heavy run. Whole Scratch remains FAILURE54PASS1knownVSCR470clockFAIL.
+        Current changes are detailed specification1.9, document registry, canonical acceptance and report only.
+        No runtime/database operation or OBS011 is authorized by this item. Report, push main and STOP.
+      deployment_authorized: false
       destructive_database_actions_authorized: false
       owner_classroom_acceptance: not_run
       scope_note: >-
-        The explicit owner batch comprised OBS008 then OBS009, all prepared changes into main and a full
-        canonical site update after required checks. This batch is complete with documented diagnostics
-        limitations. Overall observability and owner classroom acceptance remain in progress; OBS010-045
-        require the next owner instruction. Preserve unrelated lane acceptance, protected data, existing
-        installation and security boundaries. No historical school root cause or full source coverage is claimed.
+        Current owner scope is OBS010 only, push into main, no site update. Existing implementation may be
+        accepted with independently reviewed equivalent-source executed evidence; do not manufacture another
+        source fix or heavy rerun. Historical release_execution remains the completed OBS008-009 deployment
+        record and grants no new deployment authorization. Preserve other lane blockers and protected data.
+        OBS011-045, Windows runner management, incomplete source coverage and VSCR470 remain unselected.
     gates:
       focused:
         workflow: ASA Lab Governance and Code Gates
