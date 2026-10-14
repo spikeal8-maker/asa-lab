@@ -26,6 +26,16 @@ suites:
   accessibility:
     description: Доступность критических пользовательских путей.
 tests:
+  - id: TST-OBS-DATABASE-PROGRESS-001
+    title: Bounded database pages preserve same-time progress, retry, mutable rereads and truthful backlog
+    suite: integration
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: python -B tools/test_collect_logs.py
+    timeout_seconds: 120
+    owner: admin-auth
+    artifacts: [collector-report, isolated-postgresql-progress-report]
   - id: TST-OBS-DATABASE-IDENTITY-001
     title: Database schema extension preserves event identity, immutable history and mutable observations
     suite: integration
