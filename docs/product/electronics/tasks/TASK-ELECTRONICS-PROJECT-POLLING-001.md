@@ -97,3 +97,43 @@ transferred to the combined main SHA. No repository PASS, acceptance or release
 claim is made. Documentation checkpoint uses `[skip ci]` after local canonical
 governance/control-plane checks; its own SHA has no remote-CI claim and does not
 cancel/repeat the product workflow. Root reports before selecting another point.
+
+## Four-point technical acceptance — 14 October 2026
+
+Owner point2 is technically accepted through bounded completion569. Blind3000-ms project polling is removed; initial load, clean focus, CAS409 and late-GET protection remain. Immediate local protection (owner point3) is preserved and verified, with no new storage repair.
+
+All four approved saving points are present in main
+`387a4d02294ac1ffc9309a5e4a24e2ceff64d84c`, tree
+`9e1fb353e5b4dd0e0a5d73c211b5480f9288dfc0`. New
+[exact-main General38626738375](https://github.com/spikeal8-maker/asa-lab/actions/runs/38626738375)
+completed SUCCESS: Governance116067686618, Code/types/build116068469409,
+Data/PostgreSQL/RLS116070835413 and Access116070835621 all SUCCESS. This is the
+actual main gate, not a transferred status from an older candidate.
+
+A new final independent reviewer approved this exact main SHA with no findings,
+including all six owned blobs/modes equal the reviewed source and all4072 foreign
+entries/modes plus entire current.yaml preserved from its fresh parentdd686675.
+Original report: `C:/Users/spike/.codex/temp/electronics-e01/four-points-final-main-independent-review-387a.md`,
+SHA256 `90fd4abbd15a595ed80db2fea30e6cb0c7ca3e5939f5b09760730d449a20bc1b`.
+The source review and functional/layout evidence belong to
+`bdcda1b037b5d5840380126566ca9e436e4ec8fc`: [run38623487785](https://github.com/spikeal8-maker/asa-lab/actions/runs/38623487785)
+SUCCESS, canonical `pnpm gate:electronics-m1`644 domain+434 editor and7 mounted
+indicator tests;70 fresh Nx tasks, literal `NX_SKIP_NX_CACHE=true`. The three
+directed built-browser cases pass: visible ACK with0 pending PUT,0 idle GET/10s
+and preserved166.7 local copy, automatic retry60030ms/latest220.5 and manual
+99ms/latest330.5. All product/runtime/build inputs between source and main were
+independently verified equal; the source browser run is not falsely reported as
+a new main run or a full ordinary browser gate.
+
+Artifact11924045867:4600160bytes/39CRC entries, SHA256
+`01203dfd2e657eb9b60274964e11ca8259062586b0c3fbcae9d405b302167f9a`.
+Saved causal BEFORE and previous candidate/failed-CI records above remain
+historical evidence. The new accepted_slices records for569/570/571 supersede
+their unchanged historical suspended snapshots. Only the569 acceptance blocker
+is resolved by the successful exact main gate and new independent approval.
+
+This closes these bounded technical repairs only. Owner acceptance of the
+installation/programme remains pending, deployment not_run. #566 cross-tab loss
+repair and #452 remain open; school hardware evidence is separate. No other
+complaint is accepted or activated, no working DB/network/installation action
+was performed. STOP after the four approved points.

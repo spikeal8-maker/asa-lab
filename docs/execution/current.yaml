@@ -639,24 +639,46 @@ parallel_lanes:
       branch: main
       base_branch: main
       pr: null
-      status: in_progress
-      checkpoint: owner_four_point_completion_selected_verification_only
+      status: done
+      checkpoint: all_four_owner_save_points_in_main_technical_accepted_STOP
       kind: repair
       owner_acceptance: pending
       programme_issue: 452
-      owner_problem: E01 verify all four approved saving and server-request points together; publish missing truthful indicator only after permitted review
+      owner_problem: E01 verify all four approved saving and server-request points
+        together; publish missing truthful indicator only after permitted review
       context_hints:
-      - docs/product/electronics/tasks/TASK-ELECTRONICS-SAVE-INDICATOR-001.md
-      - docs/product/electronics/components/ui-assets-persistence.yaml
-      repair_scope: ONLY transfer preserved569 indicator and compatible tests onto main containing570 and571; verify all four points on one exact candidate. Preserve existing local protection and all suspended work.
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-SAVE-INDICATOR-001.md
+        - docs/product/electronics/components/ui-assets-persistence.yaml
+      repair_scope: ONLY transfer preserved569 indicator and compatible tests onto
+        main containing570 and571; verify all four points on one exact candidate.
+        Preserve existing local protection and all suspended work.
       baseline_sha: 796f52cc8de7ebabf5a18fab3db956cf25170df7
       preserved_source_candidate_sha: d3d417cfd1aaeafe2d037e428298c60d57a8bb3d
-      technical_acceptance: pending_exact_combined_gates_and_new_independent_review
-      publication_authorization: owner_explicit_all_four_points_in_main; development_publication_only_after_new_independent_functional_verification
+      technical_acceptance: accepted_exact_main_general_and_new_independent_review
+      publication_authorization: owner_explicit_all_four_points_in_main;
+        development_publication_only_after_new_independent_functional_verification
       school_actions: deferred_by_owner_no_installation_actions
-      deployment: not_requested
+      deployment: not_run
       database_actions: none
-      next_action: Verify exact combined candidate and new independent review before unaccepted development publication; no technical acceptance, closeout or release while required General is unmet. STOP after four-point completion report.
+      next_action: STOP all four approved saving points technically accepted; no next
+        task selected;566 and programme452 remain open; no deployment or owner
+        acceptance
+      accepted_candidate_sha: 387a4d02294ac1ffc9309a5e4a24e2ceff64d84c
+      integrated_sha: 387a4d02294ac1ffc9309a5e4a24e2ceff64d84c
+      source_candidate_sha: bdcda1b037b5d5840380126566ca9e436e4ec8fc
+      independent_review: approved
+      independent_review_sha: 387a4d02294ac1ffc9309a5e4a24e2ceff64d84c
+      independent_review_original_sha256: 90fd4abbd15a595ed80db2fea30e6cb0c7ca3e5939f5b09760730d449a20bc1b
+      exact_main_general_run: 38626738375
+      exact_main_general_conclusion: success
+      source_focused_run: 38623487785
+      source_focused_sha: bdcda1b037b5d5840380126566ca9e436e4ec8fc
+      source_directed_browser_cases: 3
+      point3_verification: PRESERVED_PASS immediate synchronous local draft/readback;
+        held remote reply retains pupil166.7; no new storage repair
+      resolved_acceptance_blocker: ELECTRONICS-569-EXACT-GATES
+      historical_task_snapshots: Preserved unchanged; accepted_slices569570571 records
+        supersede their historical pending/blocked snapshots
     suspended_slices:
     - task_id: TASK-ELECTRONICS-SAVE-RETRY-CADENCE-001
       accepted_task_snapshot:
@@ -2237,6 +2259,84 @@ parallel_lanes:
       owner_acceptance: pending
       deployment: not_run
       production_slices_since_hygiene542: 2
+    - task_id: TASK-ELECTRONICS-SAVE-INDICATOR-001
+      issue: 569
+      owner_point: 1
+      status: technical_accepted
+      accepted_via: Owner-authorized four-point completion569; historical suspended
+        snapshot retained
+      accepted_candidate_sha: 387a4d02294ac1ffc9309a5e4a24e2ceff64d84c
+      candidate_tree: 9e1fb353e5b4dd0e0a5d73c211b5480f9288dfc0
+      integrated_sha: 387a4d02294ac1ffc9309a5e4a24e2ceff64d84c
+      independent_review: approved
+      independent_review_sha: 387a4d02294ac1ffc9309a5e4a24e2ceff64d84c
+      independent_review_original_sha256: 90fd4abbd15a595ed80db2fea30e6cb0c7ca3e5939f5b09760730d449a20bc1b
+      independent_evidence: docs/product/electronics/tasks/TASK-ELECTRONICS-SAVE-INDICATOR-001.md
+      exact_main_general_run: 38626738375
+      exact_main_general_conclusion: success
+      source_candidate_sha: bdcda1b037b5d5840380126566ca9e436e4ec8fc
+      source_focused_run: 38623487785
+      source_focused_conclusion: success
+      source_directed_browser_run: 38623487785
+      source_directed_browser_cases: 3
+      source_runtime_equivalence: New independent reviewer proved all
+        product/runtime/build inputs identical between sourcebdc and accepted
+        main387a; source browser is not a rerun on387a
+      nx_fresh_tasks: 70
+      owner_acceptance: pending
+      deployment: not_run
+    - task_id: TASK-ELECTRONICS-PROJECT-POLLING-001
+      issue: 570
+      owner_point: 2
+      status: technical_accepted
+      accepted_via: Owner-authorized four-point completion569; historical suspended
+        snapshot retained
+      accepted_candidate_sha: 387a4d02294ac1ffc9309a5e4a24e2ceff64d84c
+      candidate_tree: 9e1fb353e5b4dd0e0a5d73c211b5480f9288dfc0
+      integrated_sha: 387a4d02294ac1ffc9309a5e4a24e2ceff64d84c
+      independent_review: approved
+      independent_review_sha: 387a4d02294ac1ffc9309a5e4a24e2ceff64d84c
+      independent_review_original_sha256: 90fd4abbd15a595ed80db2fea30e6cb0c7ca3e5939f5b09760730d449a20bc1b
+      independent_evidence: docs/product/electronics/tasks/TASK-ELECTRONICS-PROJECT-POLLING-001.md
+      exact_main_general_run: 38626738375
+      exact_main_general_conclusion: success
+      source_candidate_sha: bdcda1b037b5d5840380126566ca9e436e4ec8fc
+      source_focused_run: 38623487785
+      source_focused_conclusion: success
+      source_directed_browser_run: 38623487785
+      source_directed_browser_cases: 3
+      source_runtime_equivalence: New independent reviewer proved all
+        product/runtime/build inputs identical between sourcebdc and accepted
+        main387a; source browser is not a rerun on387a
+      nx_fresh_tasks: 70
+      owner_acceptance: pending
+      deployment: not_run
+    - task_id: TASK-ELECTRONICS-SAVE-RETRY-CADENCE-001
+      issue: 571
+      owner_point: 4
+      status: technical_accepted
+      accepted_via: Owner-authorized four-point completion569; historical suspended
+        snapshot retained
+      accepted_candidate_sha: 387a4d02294ac1ffc9309a5e4a24e2ceff64d84c
+      candidate_tree: 9e1fb353e5b4dd0e0a5d73c211b5480f9288dfc0
+      integrated_sha: 387a4d02294ac1ffc9309a5e4a24e2ceff64d84c
+      independent_review: approved
+      independent_review_sha: 387a4d02294ac1ffc9309a5e4a24e2ceff64d84c
+      independent_review_original_sha256: 90fd4abbd15a595ed80db2fea30e6cb0c7ca3e5939f5b09760730d449a20bc1b
+      independent_evidence: docs/product/electronics/tasks/TASK-ELECTRONICS-SAVE-RETRY-CADENCE-001.md
+      exact_main_general_run: 38626738375
+      exact_main_general_conclusion: success
+      source_candidate_sha: bdcda1b037b5d5840380126566ca9e436e4ec8fc
+      source_focused_run: 38623487785
+      source_focused_conclusion: success
+      source_directed_browser_run: 38623487785
+      source_directed_browser_cases: 3
+      source_runtime_equivalence: New independent reviewer proved all
+        product/runtime/build inputs identical between sourcebdc and accepted
+        main387a; source browser is not a rerun on387a
+      nx_fresh_tasks: 70
+      owner_acceptance: pending
+      deployment: not_run
     suspended_tasks:
     - task_id: TASK-ELECTRONICS-PSU-WIRE-ENTRY-001
       issue: 466
@@ -5809,32 +5909,4 @@ blocking:
       do not authorize foreign repair or acceptance. Preserve accepted526 and paused544; do not close566 or452.
       Required exact-head gates and independent acceptance must be satisfied before integration or closure.
     evidence: docs/product/electronics/tasks/TASK-ELECTRONICS-CROSS-TAB-DRAFT-SAFETY-001.md
-  - id: ELECTRONICS-569-EXACT-GATES
-    kind: acceptance_blocker
-    lane: electronics
-    task_id: TASK-ELECTRONICS-SAVE-INDICATOR-001
-    blocks:
-    - integration
-    - technical_acceptance
-    - closeout
-    - close_issue
-    - owner_acceptance
-    - release_claim
-    allows:
-    - documentation_update
-    - focused_verification
-    - independent_source_review
-    - development_publication_after_independent_functional_verification
-    owner_publication_permission:
-      source: Latest direct owner instruction requires all four approved saving points in main.
-      conditions: New exact combined SHA independently source/functionally approved; canonical focused and all three directed built-browser cases successful; preserve every unrelated change.
-      level: unaccepted_development_publication_only
-      distinction: integration above means technically accepted integration; this permission does not close the external gate cause or allow technical acceptance, Issue closure, release or deployment.
-    reason: Candidate d3d417cfd1aaeafe2d037e428298c60d57a8bb3d passes canonical focused and actual
-      directed browser evidence38603937841, but exact General38603732138 attempt2 fails unrelated
-      Observability fixture apps/api/src/admin-logs.worker.spec.ts because spawnSync python returns
-      ENOENT before privacy assertions. Governance, Code and Access succeed. One authorized Data-only
-      retry resolved initial pre-test ECR429; no further blind retry or foreign repair is authorized.
-      Preserve candidate and evidence; required exact gates and new independent acceptance remain unmet.
-    evidence: docs/product/electronics/tasks/TASK-ELECTRONICS-SAVE-INDICATOR-001.md
 next_task: null
