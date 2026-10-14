@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
 
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
@@ -147,5 +149,52 @@ describe('shared editor persistence presentation', () => {
     act(() => vi.advanceTimersByTime(EDITOR_PERSISTENCE_TIMING.savedVisibilityMs));
     expect(container.textContent).toBe('');
     act(() => root.unmount());
+  });
+
+  it('actually paints the acknowledged success for the existing visibility interval', () => {
+    vi.useFakeTimers();
+    const css = readFileSync(
+      resolve(process.cwd(), 'apps/web/src/electronics/workbench.css'),
+      'utf8',
+    );
+    const style = document.createElement('style');
+    style.textContent = ['saved', 'quiet']
+      .map((state) => {
+        const rule = css.match(new RegExp(`\\.workbench-save-state\\.${state}\\s*\\{[^}]*\\}`));
+        if (!rule) throw new Error(`Missing production ${state} indicator rule`);
+        return rule[0];
+      })
+      .join('\n');
+    document.head.appendChild(style);
+    const container = document.body.appendChild(document.createElement('div'));
+    const root = createRoot(container);
+    const render = (status: 'dirty' | 'saved') =>
+      act(() =>
+        root.render(
+          createElement(EditorPersistenceIndicator, {
+            status,
+            issue: null,
+            className: 'workbench-save-state',
+            localCopySaved: true,
+          }),
+        ),
+      );
+    try {
+      render('dirty');
+      act(() => vi.advanceTimersByTime(EDITOR_PERSISTENCE_TIMING.pendingDelayMs));
+      render('saved');
+      const indicator = container.querySelector('[role="status"]')!;
+      expect(indicator.textContent).toBe('✓Сохранено');
+      expect(getComputedStyle(indicator).opacity).toBe('1');
+      act(() => vi.advanceTimersByTime(EDITOR_PERSISTENCE_TIMING.savedVisibilityMs - 1));
+      expect(getComputedStyle(indicator).opacity).toBe('1');
+      act(() => vi.advanceTimersByTime(1));
+      expect(indicator.textContent).toBe('');
+      expect(getComputedStyle(indicator).visibility).toBe('hidden');
+    } finally {
+      act(() => root.unmount());
+      container.remove();
+      style.remove();
+    }
   });
 });

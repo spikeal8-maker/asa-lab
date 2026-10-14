@@ -2642,6 +2642,40 @@ test('saving indicator: pending local copy is distinct from actual save and ackn
   await page.goto(`/#/home/${projectId}`);
   await expect(page.locator('.workbench-stage')).toBeVisible();
   const indicator = page.locator('.workbench-save-state');
+  const paintedIndicator = async () => {
+    const paint = await indicator.evaluate((element) => {
+      const ancestors: Array<{
+        tag: string;
+        opacity: number;
+        visibility: string;
+        display: string;
+      }> = [];
+      for (let current: Element | null = element; current; current = current.parentElement) {
+        const style = getComputedStyle(current);
+        ancestors.push({
+          tag: current.tagName,
+          opacity: Number(style.opacity),
+          visibility: style.visibility,
+          display: style.display,
+        });
+      }
+      const box = element.getBoundingClientRect();
+      return {
+        ancestors,
+        effectiveOpacity: ancestors.reduce((value, ancestor) => value * ancestor.opacity, 1),
+        width: box.width,
+        height: box.height,
+      };
+    });
+    expect(paint.width).toBeGreaterThan(0);
+    expect(paint.height).toBeGreaterThan(0);
+    expect(paint.effectiveOpacity).toBe(1);
+    for (const ancestor of paint.ancestors) {
+      expect(ancestor.display).not.toBe('none');
+      expect(ancestor.visibility).toBe('visible');
+    }
+    return paint;
+  };
   const timeline: unknown[] = [];
   const layouts: unknown[] = [];
   const evidenceDir = `${ARTIFACT_DIR}/save-indicator`;
@@ -2695,6 +2729,7 @@ test('saving indicator: pending local copy is distinct from actual save and ackn
     for (const width of [1440, 1024, 390, 320]) {
       await page.setViewportSize({ width, height: 900 });
       await expect(indicator).toBeVisible();
+      const paint = await paintedIndicator();
       const layout = await indicator.evaluate((element) => {
         const bounds = element.getBoundingClientRect();
         const text = document.createRange();
@@ -2712,7 +2747,7 @@ test('saving indicator: pending local copy is distinct from actual save and ackn
           contentRight: bounds.right - parseFloat(style.paddingRight),
         };
       });
-      layouts.push(layout);
+      layouts.push({ ...layout, paint });
       expect(layout.pageWidth).toBeLessThanOrEqual(width);
       expect(layout.left).toBeGreaterThanOrEqual(0);
       expect(layout.right).toBeLessThanOrEqual(width);
@@ -2727,11 +2762,13 @@ test('saving indicator: pending local copy is distinct from actual save and ackn
     await expect.poll(() => puts).toBe(1);
     await expect(indicator).toHaveAttribute('data-persistence-status', 'saving');
     await expect(indicator).toHaveText('Сохраняем…');
+    const savingPaint = await paintedIndicator();
     timeline.push({
       event: 'actual_request_saving',
       at: Date.now(),
       puts,
       label: await indicator.textContent(),
+      paint: savingPaint,
     });
     release!();
     await expect(page.locator('.workbench-main')).toHaveAttribute(
@@ -2740,11 +2777,14 @@ test('saving indicator: pending local copy is distinct from actual save and ackn
     );
     await expect(indicator).toHaveAttribute('data-persistence-status', 'saved');
     await expect(indicator).toHaveText('✓Сохранено');
+    const savedPaint = await paintedIndicator();
+    await page.screenshot({ path: `${evidenceDir}/acknowledged-1440.png`, fullPage: true });
     timeline.push({
       event: 'acknowledged_saved',
       at: Date.now(),
       puts,
       label: await indicator.textContent(),
+      paint: savedPaint,
     });
     expect(puts).toBe(1);
     const response = await page.context().request.get(`/api/projects/${projectId}`);
