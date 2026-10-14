@@ -834,7 +834,7 @@ for (const delayMs of [null, 100, 50] as const) {
     expect(saved.draft.document).toEqual(expected);
     expect(saved.draft.revision).toBe(before.draft.revision + 1);
     // A pupil closes the saved source pane so all three LEDs can actually be seen.
-    await page.getByRole('button', { name: 'Закрыть панель кода', exact: true }).click();
+    await page.getByRole('button', { name: 'Закрыть редактор кода', exact: true }).click();
     await expect(page.locator('.arduino-code-panel')).toHaveClass(/closed/);
     expect((await read()).draft).toEqual(saved.draft);
     const startAt = await page.evaluate(() => {
