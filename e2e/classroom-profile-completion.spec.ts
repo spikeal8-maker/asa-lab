@@ -192,65 +192,68 @@ async function assertLayout(page: Page, width: number, file: string) {
   // No hidden horizontally scrolling rail: all eight profile sections are visible at once.
   if (width <= 600) {
     const sections = page.getByRole('navigation', { name: 'Разделы профиля' });
-    const layout = await sections.evaluate((nav) => ({
-      scrollWidth: nav.scrollWidth,
-      clientWidth: nav.clientWidth,
-      buttons: [...nav.querySelectorAll('button')].map((button) => ({
-        x: button.getBoundingClientRect().left,
-        right: button.getBoundingClientRect().right,
-        top: button.getBoundingClientRect().top,
-        bottom: button.getBoundingClientRect().bottom,
-        height: button.getBoundingClientRect().height,
-        scrollWidth: button.scrollWidth,
-        clientWidth: button.clientWidth,
-      })),
-      // scrollWidth alone misses overflow-wrap:anywhere, which can hide
-      // a broken word within a narrow but technically non-overflowing button.
-      splitWords: [...nav.querySelectorAll('button')].flatMap((button) => {
-        const broken: Array<{ label: string; word: string }> = [];
+    const layout = await sections.evaluate((nav) => {
+      const buttons = [...nav.querySelectorAll<HTMLButtonElement>('button')];
+      return {
+        scrollWidth: nav.scrollWidth,
+        clientWidth: nav.clientWidth,
+        buttons: buttons.map((button) => {
+          const rect = button.getBoundingClientRect();
+          return {
+            left: rect.left,
+            right: rect.right,
+            height: rect.height,
+            top: rect.top,
+            bottom: rect.bottom,
+            scrollWidth: button.scrollWidth,
+            clientWidth: button.clientWidth,
+          };
+        }),
+      };
+    });
+    // A button may have no overflow yet display an unreadable word split across lines.
+    // Measure actual rendered glyph fragments, not just scrollWidth.
+    const splitWords = await sections.locator('button').evaluateAll((buttons) => {
+      const broken: string[] = [];
+      for (const button of buttons) {
         const walker = document.createTreeWalker(button, NodeFilter.SHOW_TEXT);
         let node: Node | null;
         while ((node = walker.nextNode())) {
-          for (const match of node.textContent?.matchAll(/\S+/gu) ?? []) {
+          const content = node.textContent ?? '';
+          for (const match of content.matchAll(/\S+/gu)) {
             const range = document.createRange();
             range.setStart(node, match.index);
             range.setEnd(node, match.index + match[0].length);
-            const fragments = [...range.getClientRects()];
-            const buttonRect = button.getBoundingClientRect();
-            if (
-              fragments.length !== 1 ||
-              fragments.some(
-                (rect) =>
-                  rect.left < buttonRect.left - 1 || rect.right > buttonRect.right + 1,
-              )
-            ) {
-              broken.push({ label: button.textContent ?? '', word: match[0] });
+            const fragments = Array.from(range.getClientRects());
+            const box = button.getBoundingClientRect();
+            if (fragments.length !== 1) {
+              broken.push(match[0]);
+              continue;
+            }
+            const fragment = fragments[0]!;
+            if (fragment.left < box.left - 1 || fragment.right > box.right + 1) {
+              broken.push(match[0]);
             }
           }
         }
-        return broken;
-      }),
-    }));
+      }
+      return broken;
+    });
     expect(layout.buttons).toHaveLength(8);
     expect(layout.scrollWidth).toBeLessThanOrEqual(layout.clientWidth + 1);
-    expect(layout.splitWords, 'Every full Russian tab label must remain readable').toEqual([]);
+    expect(splitWords, 'Every full Russian tab label must remain readable').toEqual([]);
     for (const button of layout.buttons) {
-      expect(button.x).toBeGreaterThanOrEqual(0);
+      expect(button.left).toBeGreaterThanOrEqual(0);
       expect(button.right).toBeLessThanOrEqual(width + 1);
       expect(button.height).toBeGreaterThanOrEqual(44);
       expect(button.scrollWidth).toBeLessThanOrEqual(button.clientWidth + 1);
     }
-    // All eight hit targets must be disjoint, not merely inside the viewport.
-    for (let i = 0; i < layout.buttons.length; i++) {
-      for (let j = i + 1; j < layout.buttons.length; j++) {
-        const a = layout.buttons[i]!,
-          b = layout.buttons[j]!;
-        const xOverlap = Math.min(a.right, b.right) - Math.max(a.x, b.x);
-        const yOverlap = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
-        expect(
-          xOverlap > 1 && yOverlap > 1,
-          'Profile section buttons must not overlap',
-        ).toBe(false);
+    // All eight hit targets must be disjoint, not just fully inside the viewport.
+    for (const [index, first] of layout.buttons.entries()) {
+      for (const second of layout.buttons.slice(index + 1)) {
+        const xOverlap = Math.min(first.right, second.right) - Math.max(first.left, second.left);
+        const yOverlap = Math.min(first.bottom, second.bottom) - Math.max(first.top, second.top);
+        expect(xOverlap > 1 && yOverlap > 1).toBe(false);
       }
     }
   }
