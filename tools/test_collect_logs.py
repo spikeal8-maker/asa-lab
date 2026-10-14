@@ -15,7 +15,7 @@ from pathlib import Path
 from datetime import datetime, timedelta, timezone
 from collect_logs import Collector, normalize, now, file_timestamp, clean, RETIRE_SECONDS, write_collector_health, write_process_health, linux_resources, resource_warnings
 from test_database_diagnostics import DatabaseDiagnosticTests  # Included by the canonical collector test runner.
-from test_database_identity import ActualDatabaseIdentityTests
+from test_database_identity import ActualDatabaseIdentityTests, DatabaseIdentityUnitTests
 
 
 def system_classification_fixture(root, compressed):

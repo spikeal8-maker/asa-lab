@@ -29,6 +29,11 @@ RETIRE_SECONDS = 600  # Longer than five-minute resumable searches and exports.
 SENSITIVE = re.compile(r"password|passwd|secret|cookie|authorization|credential|student.?code|token|api.?key|jwt|signing.?key", re.I)
 DATABASE_DIAGNOSTICS = json.loads((Path(__file__).resolve().parent.parent /
     'apps/api/src/database-diagnostic-contract.json').read_text(encoding='utf-8'))
+# Actual primary keys of the nine supported tables. Never infer a key from the
+# public diagnostic projection (two different rows can have identical messages).
+DATABASE_NATIVE_KEYS = {table: ('event_hash',) if table == 'max_webhook_events' else ('id',)
+                        for table in DATABASE_DIAGNOSTICS['sources']}
+DATABASE_IDENTITY_LIMIT = 256
 
 
 def database_diagnostics(origin, value):
@@ -336,6 +341,9 @@ class Collector:
             self.validate_history_index()
             self.upgrade_index()
             self.finish_compaction()
+            self.db.executescript('''CREATE TABLE IF NOT EXISTS database_observations(
+                event_id BLOB PRIMARY KEY, native_key BLOB NOT NULL, fields TEXT NOT NULL);
+                CREATE INDEX IF NOT EXISTS database_native_key ON database_observations(native_key);''')
         except Exception:
             self.db.close()
             raise
@@ -502,6 +510,63 @@ class Collector:
             output.seek(0)
             return output.read()
 
+    def add_database_row(self, table, value, defaults, at):
+        """Reuse an exact observation across additive, default-only schemas.
+
+        Private compatibility rows contain only hashes and are bounded by retained
+        events and 256 columns per row. Candidate rows stream from SQLite. No raw
+        native key, original value or default is written to this index.
+        """
+        if not isinstance(value, dict) or not 1 <= len(value) <= DATABASE_IDENTITY_LIMIT:
+            raise ValueError('Database identity column bound exceeded or invalid row')
+        keys = DATABASE_NATIVE_KEYS[table]
+        if any(type(value.get(key)) not in (str, int) or not str(value[key]) or
+               len(str(value[key]).encode()) > 1024 for key in keys):
+            raise ValueError('Missing or invalid database primary key; identity not inferred')
+        def digest(item):
+            return hashlib.sha256(json.dumps(item, ensure_ascii=False, sort_keys=True).encode()).hexdigest()
+        native = bytes.fromhex(digest([table, [(key, value[key]) for key in keys]]))
+        fields = {digest(key): digest(item) for key, item in value.items()}
+        missing = {digest(key): digest(item) for key, item in defaults.items()}
+        source = 'auth' if table == 'product_analytics_events' else 'audit'
+        raw = json.dumps(value, ensure_ascii=False, sort_keys=True)
+        event = normalize(source, raw, at, table + ':' + raw, table)
+        candidates = self.db.execute('''SELECT o.event_id,o.fields FROM database_observations o
+            JOIN events e ON e.id=o.event_id WHERE o.native_key=?''', (native,))
+        match = None
+        for identity, encoded in candidates:
+            previous = json.loads(encoded)
+            if all(fields.get(key) == item for key, item in previous.items()) and all(
+                    missing.get(key) == item for key, item in fields.items() if key not in previous):
+                candidate = (len(previous), identity)
+                if match is None or candidate > match: match = candidate
+        if match:
+            event['id'] = match[1].hex()
+        else:
+            # PostgreSQL row_to_json preserves physical column order. ADD COLUMN
+            # appends fields, so older whole-row hashes can be verified exactly
+            # by removing only trailing fields equal to their missing defaults.
+            # An index hit includes the complete old raw row and actual PK.
+            prefix = dict(value)
+            while True:
+                legacy_raw = json.dumps(prefix, ensure_ascii=False, sort_keys=True)
+                identity = hashlib.sha256((source + '\0' + table + ':' + legacy_raw).encode()).digest()
+                if self.db.execute('SELECT 1 FROM events WHERE id=?', (identity,)).fetchone():
+                    event['id'] = identity.hex()
+                    break
+                last = next(reversed(prefix))
+                if last in keys or last == DATABASE_DIAGNOSTICS['sources'][table]['timeColumn'] or last not in defaults or digest(prefix[last]) != digest(defaults[last]):
+                    break
+                prefix.pop(last)
+        self.add(event)
+        identity = bytes.fromhex(event['id'])
+        if self.db.execute('SELECT 1 FROM events WHERE id=?', (identity,)).fetchone():
+            self.db.execute('INSERT OR REPLACE INTO database_observations VALUES(?,?,?)',
+                            (identity, native, json.dumps(fields, separators=(',', ':'))))
+
+    def prune_database_observations(self):
+        self.db.execute('DELETE FROM database_observations WHERE event_id NOT IN (SELECT id FROM events)')
+
     def docker(self):
         project = self.config.get("project", "asa-lab-dev")
         try:
@@ -592,16 +657,22 @@ class Collector:
             else:
                 condition = f'"{column}" BETWEEN TIMESTAMPTZ \'{since}\' AND TIMESTAMPTZ \'{until}\''
                 condition += f' OR "{column}" BETWEEN NOW() - INTERVAL \'30 minutes\' AND NOW()'
+            # attmissingval records the actual fast ADD COLUMN default. A
+            # nullable added column has a null missing value. Volatile defaults
+            # lack that proof and therefore cannot silently alias an old event.
+            defaults_sql = f'''(SELECT json_object_agg(a.attname,
+                CASE WHEN a.atthasmissing THEN to_jsonb(a.attmissingval)->0 ELSE 'null'::jsonb END)
+                FROM pg_attribute a WHERE a.attrelid='public."{table}"'::regclass
+                AND a.attnum>0 AND NOT a.attisdropped)::text'''
             sql = f'''BEGIN READ ONLY; SET LOCAL statement_timeout='15s';
-                COPY (SELECT row_to_json(t)::text FROM (SELECT * FROM public."{table}" WHERE {condition} ORDER BY "{column}") t) TO STDOUT WITH CSV; ROLLBACK;'''
+                COPY (SELECT row_to_json(t)::text, {defaults_sql} FROM (SELECT * FROM public."{table}" WHERE {condition} ORDER BY "{column}") t) TO STDOUT WITH CSV; ROLLBACK;'''
             try:
                 data = self.command(["docker", "exec", "-i", self.postgres, "sh", "-c", 'exec psql -X -q -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"'], sql=sql)
                 for row in csv.reader(io.StringIO(data.decode())):
                     value = json.loads(row[0])
                     stamp = datetime.fromtimestamp(value[column] / 1000, UTC).isoformat() if column.endswith("_ms") else value[column]
-                    raw = json.dumps(value, ensure_ascii=False, sort_keys=True)
-                    source = "auth" if table == "product_analytics_events" else "audit"
-                    self.add(normalize(source, raw, timestamp(stamp, until), table + ":" + raw, table))
+                    defaults = json.loads(row[1]) if len(row) > 1 else {}
+                    self.add_database_row(table, value, defaults, timestamp(stamp, until))
                 self.set_state(key, until)
                 self.status("database-events:" + table, "ok", "Fresh database events", until)
             except Exception as exc:
@@ -622,14 +693,14 @@ class Collector:
             else:
                 historical_condition = f'"{column}" BETWEEN TIMESTAMPTZ \'{history_since.isoformat()}\' AND TIMESTAMPTZ \'{history_until.isoformat()}\''
             historical_sql = f'''BEGIN READ ONLY; SET LOCAL statement_timeout='15s';
-                COPY (SELECT row_to_json(t)::text FROM (SELECT * FROM public."{table}" WHERE {historical_condition} ORDER BY "{column}") t) TO STDOUT WITH CSV; ROLLBACK;'''
+                COPY (SELECT row_to_json(t)::text, {defaults_sql} FROM (SELECT * FROM public."{table}" WHERE {historical_condition} ORDER BY "{column}") t) TO STDOUT WITH CSV; ROLLBACK;'''
             try:
                 data = self.command(["docker", "exec", "-i", self.postgres, "sh", "-c", 'exec psql -X -q -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"'], sql=historical_sql)
                 for row in csv.reader(io.StringIO(data.decode("utf-8"))):
                     value = json.loads(row[0])
                     stamp = datetime.fromtimestamp(value[column] / 1000, UTC).isoformat() if column.endswith("_ms") else value[column]
-                    raw = json.dumps(value, ensure_ascii=False, sort_keys=True)
-                    self.add(normalize("auth" if table == "product_analytics_events" else "audit", raw, timestamp(stamp, history_until.isoformat()), table + ":" + raw, table))
+                    defaults = json.loads(row[1]) if len(row) > 1 else {}
+                    self.add_database_row(table, value, defaults, timestamp(stamp, history_until.isoformat()))
                 complete = history_until >= datetime.now(UTC) - timedelta(seconds=30)
                 self.set_state(history_key, cutoff.isoformat() if complete else history_until.isoformat())
                 if complete: self.set_state(history_key + ":completed", time.time())
@@ -1145,6 +1216,7 @@ class Collector:
             for source in oldest["sources"]: evicted[source] = True
             trimmed = True
         while total > max(1024 * 1024, limit * 3 // 4) and segments: evict()
+        self.prune_database_observations()
         self.db.commit()
         self.db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
         if trimmed or self.state("vacuum:day") != datetime.now(UTC).date().isoformat():
@@ -1157,6 +1229,7 @@ class Collector:
         while active_bytes() > limit and segments:
             target = total * 0.9
             while segments and total > target: evict()
+            self.prune_database_observations()
             self.db.commit(); self.db.execute("VACUUM"); self.db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
         sources = [json.loads(r[0]) for r in self.db.execute("SELECT payload FROM sources ORDER BY name")]
         for source in sources:
