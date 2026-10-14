@@ -2,6 +2,8 @@ import { test, expect } from '@playwright/test';
 import fs from 'node:fs';
 import { createHash } from 'node:crypto';
 
+let isTelemetryRequest: typeof import('../tools/blocks/browser/telemetry-fixture.mjs').isTelemetryRequest;
+
 let createProtocolFixture: typeof import('../tools/blocks/browser/fixture.mjs').createProtocolFixture;
 let advanceMinuteAutosave: typeof import('../tools/blocks/browser/fixture.mjs').advanceMinuteAutosave;
 let installMinuteAutosaveClock: typeof import('../tools/blocks/browser/fixture.mjs').installMinuteAutosaveClock;
@@ -137,6 +139,8 @@ test.beforeAll(async () => {
     installMinuteAutosaveClock,
     waitForMinuteAutosaveArm,
   } = await import('../tools/blocks/browser/fixture.mjs'));
+  // Load native fixture dependencies before Playwright's TypeScript module loader.
+  ({ isTelemetryRequest } = await import('../tools/blocks/browser/telemetry-fixture.mjs'));
   ({ parentOrigin, projectId, runtimeUrl } = await import('../tools/blocks/browser/protocol.mjs'));
   fs.mkdirSync(evidenceDir, { recursive: true });
 });
@@ -2194,6 +2198,7 @@ test('native File saves an edited sb3 and restores code and media in a fresh edi
       httpRequests.filter(
         ({ method, url }) =>
           !['GET', 'HEAD'].includes(method) &&
+          !isTelemetryRequest({ method, url }, parentOrigin) &&
           !runtimeSessionRequests.some(
             (runtimeSessionRequest) =>
               runtimeSessionRequest.method === method && runtimeSessionRequest.url === url,

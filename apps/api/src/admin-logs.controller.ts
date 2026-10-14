@@ -16,7 +16,7 @@ import { TOKENS, SESSION_COOKIE } from './tokens.js';
 import { AdminControlPlaneService } from './admin-control-plane.service.js';
 import { AdminLogsService } from './admin-logs.service.js';
 import type { LogFilter } from './admin-logs.worker.js';
-import { LOG_SUBSYSTEMS } from './log-subsystems.js';
+import { LOG_SUBSYSTEMS, LOG_MODULES, logEditorModule } from './log-subsystems.js';
 
 function fail(code: string, status: number): never {
   throw new HttpException(
@@ -56,15 +56,15 @@ export function logFilter(input: unknown): LogFilter {
     return raw;
   };
   const source = text('source', 200);
-  const module = text('module', 20);
+  const requestedModule = text('module', 20);
+  const module = logEditorModule(requestedModule) ?? requestedModule;
   const subsystem = text('subsystem', 30);
   if (subsystem && !LOG_SUBSYSTEMS.includes(subsystem as (typeof LOG_SUBSYSTEMS)[number]))
     fail('validation_error', 400);
   const level = text('level', 10);
   const scope = text('scope', 20) || 'all';
   if (!['all', 'application', 'host'].includes(scope)) fail('validation_error', 400);
-  if (module && !['scratch', 'electronics', 'auth', 'portal', 'system'].includes(module))
-    fail('validation_error', 400);
+  if (module && !(LOG_MODULES as readonly string[]).includes(module)) fail('validation_error', 400);
   if (level && !['error', 'warn', 'info'].includes(level)) fail('validation_error', 400);
   const beforeTime = text('beforeTime', 30);
   const beforeId = text('beforeId', 64);

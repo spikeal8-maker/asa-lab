@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { registerAccountSetup } from './registration-setup';
 
 const ORIGIN = 'http://127.0.0.1:4612';
 
@@ -9,17 +10,21 @@ test.describe('E1-FIX-01 StudentSeat admission behind one NAT', () => {
     test.setTimeout(90_000);
 
     const id = crypto.randomUUID().replaceAll('-', '');
-    const register = await page.request.post('/api/auth/register', {
-      headers: { origin: ORIGIN },
-      data: {
-        email: `${id}@student-seat-e1.test`,
-        username: `seat_e1_${id.slice(0, 20)}`,
-        displayName: 'StudentSeat E1 Teacher',
-        password: `Safe-${id}-Password`,
-        birthDate: '1990-04-12',
-        country: 'RU',
+    const register = await registerAccountSetup(
+      page.request,
+      {
+        headers: { origin: ORIGIN },
+        data: {
+          email: `${id}@student-seat-e1.test`,
+          username: `seat_e1_${id.slice(0, 20)}`,
+          displayName: 'StudentSeat E1 Teacher',
+          password: `Safe-${id}-Password`,
+          birthDate: '1990-04-12',
+          country: 'RU',
+        },
       },
-    });
+      test.info(),
+    );
     expect(register.status(), await register.text()).toBe(201);
 
     const attest = await page.request.post('/api/capabilities/educator/self-attest', {

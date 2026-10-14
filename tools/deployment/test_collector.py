@@ -460,7 +460,8 @@ class CollectorLifecycleTests(unittest.TestCase):
                 link = root / name; link.parent.mkdir(parents=True, exist_ok=True)
                 target = Path(foreign).resolve()
                 environment = dict(os.environ, ASA_TEST_JUNCTION=str(link), ASA_TEST_TARGET=str(target))
-                subprocess.run(['powershell.exe', '-NoProfile', '-Command', "$ErrorActionPreference='Stop'; New-Item -ItemType Junction -Path $env:ASA_TEST_JUNCTION -Target $env:ASA_TEST_TARGET | Out-Null"], env=environment, check=True, capture_output=True, timeout=15)
+                # Allow bounded extra time for cold PowerShell startup on hosted Windows.
+                subprocess.run(['powershell.exe', '-NoProfile', '-Command', "$ErrorActionPreference='Stop'; New-Item -ItemType Junction -Path $env:ASA_TEST_JUNCTION -Target $env:ASA_TEST_TARGET | Out-Null"], env=environment, check=True, capture_output=True, timeout=60)
                 try:
                     self.assertTrue(link.lstat().st_file_attributes & 0x400)
                     selected_root = link if name == 'root-alias' else root

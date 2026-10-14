@@ -1558,7 +1558,7 @@
   font-weight: 500;
 }
 .workbench-save-state.saved {
-  opacity: 0;
+  opacity: 1;
   pointer-events: none;
 }
 .workbench-save-state.dirty,

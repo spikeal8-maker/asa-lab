@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useState } from 'react';
+import { setTelemetryContext } from '../../../apps/web/src/telemetry-context';
 import { createRoot } from 'react-dom/client';
 import { api, type Project } from '../../../apps/web/src/api';
 import { BlocksEditor } from '../../../apps/web/src/blocks/BlocksEditor';
@@ -22,7 +23,16 @@ const user =
         email: 'scratch-acceptance@example.test',
       };
 
+// Explicit synthetic Account/workspace belongs only to this HTTP browser fixture.
+const telemetryActor = {
+  kind: 'account' as const,
+  accountId: user.id,
+  workspaceId: '55555555-5555-4555-8555-555555555555',
+};
 function ProductFixture() {
+  useLayoutEffect(() => {
+    setTelemetryContext(telemetryActor, true, 'editor.blocks');
+  }, []);
   const avatar = useEditorAvatar(user);
   const [route, setRoute] = useState(window.location.hash || '#/editor');
   const [project, setProject] = useState<Project | null>(null);
@@ -65,6 +75,7 @@ function ProductFixture() {
     <BlocksEditor
       projectId={projectId}
       recoveryPrincipalKey={user.id}
+      telemetryActor={telemetryActor}
       onBack={() => {
         window.location.hash = '/projects';
       }}

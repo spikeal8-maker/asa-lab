@@ -5,6 +5,7 @@ import { createHash } from 'node:crypto';
 import { URL } from 'node:url';
 import { chromium, expect } from '@playwright/test';
 import { runtimeUrl, parentPort, parentOrigin, projectId, runtimeToken } from './protocol.mjs';
+import { isTelemetryRequest, telemetryReceipt } from './telemetry-fixture.mjs';
 
 export async function installMinuteAutosaveClock(page) {
   await page.clock.install();
@@ -211,6 +212,26 @@ window.addEventListener('message', (event) => {
 
   const server = http.createServer(async (request, response) => {
     const requestUrl = request.url ?? '/';
+    const telemetryRequest = {
+      method: request.method,
+      url: `http://${request.headers.host}${requestUrl}`,
+    };
+    if (product && isTelemetryRequest(telemetryRequest, parentOrigin)) {
+      let body;
+      try {
+        body = JSON.parse((await requestBody(request)).toString('utf8'));
+      } catch {
+        body = null;
+      }
+      const receipt = telemetryReceipt(telemetryRequest, body, parentOrigin);
+      response.statusCode = receipt?.status ?? 400;
+      response.setHeader('Content-Type', 'application/json; charset=utf-8');
+      response.setHeader('Cache-Control', 'no-store');
+      response.end(
+        JSON.stringify(receipt?.json ?? { error: { code: 'invalid_fixture_telemetry' } }),
+      );
+      return;
+    }
     if (product && requestUrl.startsWith('/internal/blocks/')) {
       const upstream = http.get(
         `${runtimeUrl}/${requestUrl.slice('/internal/blocks/'.length)}`,
@@ -646,6 +667,7 @@ window.addEventListener('message', (event) => {
   let browser;
   let context;
   const pageErrors = [];
+  const pageErrorEvidence = [];
   const allRequests = [];
   const configureContext = async (target) => {
     target.on('request', (request) => {
@@ -653,10 +675,24 @@ window.addEventListener('message', (event) => {
     });
     target.on('page', (page) => {
       page.on('pageerror', (error) => {
-        if (!error.message.includes('protocol-fixture-fatal')) pageErrors.push(error.message);
+        if (!error.message.includes('protocol-fixture-fatal')) {
+          pageErrorEvidence.push({
+            index: pageErrors.length,
+            kind: 'pageerror',
+            text: error.message,
+          });
+          pageErrors.push(error.message);
+        }
       });
       page.on('console', (message) => {
         if (message.type() === 'error' && !message.text().includes('protocol-fixture-fatal')) {
+          pageErrorEvidence.push({
+            index: pageErrors.length,
+            kind: 'console',
+            type: message.type(),
+            text: message.text(),
+            url: message.location().url,
+          });
           pageErrors.push(`console: ${message.text()}`);
         }
       });
@@ -696,6 +732,7 @@ window.addEventListener('message', (event) => {
         return context;
       },
       pageErrors,
+      pageErrorEvidence,
       allRequests,
       runtimeAssetEvidence,
       runtimeAssetPutEvidence,

@@ -2628,6 +2628,180 @@ test.afterAll(async () => {
   await admin.end();
 });
 
+test('saving indicator: pending local copy is distinct from actual save and acknowledgement', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await loginWithOrganization(page, teacher);
+  const projectId = await createProject(page, 'Truthful saving indicator');
+  await saveDocument(
+    page,
+    projectId,
+    circuitDocument({ switchClosed: true, resistorOhms: 220, reversedLed: false }),
+  );
+  await page.goto(`/#/home/${projectId}`);
+  await expect(page.locator('.workbench-stage')).toBeVisible();
+  const indicator = page.locator('.workbench-save-state');
+  const paintedIndicator = async () => {
+    const paint = await indicator.evaluate((element) => {
+      const ancestors: Array<{
+        tag: string;
+        opacity: number;
+        visibility: string;
+        display: string;
+      }> = [];
+      for (let current: Element | null = element; current; current = current.parentElement) {
+        const style = getComputedStyle(current);
+        ancestors.push({
+          tag: current.tagName,
+          opacity: Number(style.opacity),
+          visibility: style.visibility,
+          display: style.display,
+        });
+      }
+      const box = element.getBoundingClientRect();
+      return {
+        ancestors,
+        effectiveOpacity: ancestors.reduce((value, ancestor) => value * ancestor.opacity, 1),
+        width: box.width,
+        height: box.height,
+      };
+    });
+    expect(paint.width).toBeGreaterThan(0);
+    expect(paint.height).toBeGreaterThan(0);
+    expect(paint.effectiveOpacity).toBe(1);
+    for (const ancestor of paint.ancestors) {
+      expect(ancestor.display).not.toBe('none');
+      expect(ancestor.visibility).toBe('visible');
+    }
+    return paint;
+  };
+  const timeline: unknown[] = [];
+  const layouts: unknown[] = [];
+  const evidenceDir = `${ARTIFACT_DIR}/save-indicator`;
+  mkdirSync(evidenceDir, { recursive: true });
+  let puts = 0;
+  let release: (() => void) | undefined;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  page.on('request', (request) => {
+    if (
+      request.method() === 'PUT' &&
+      new URL(request.url()).pathname === `/api/projects/${projectId}/draft`
+    ) {
+      puts += 1;
+      timeline.push({ event: 'PUT', at: Date.now(), document: request.postDataJSON() });
+    }
+  });
+  await page.route(`**/api/projects/${projectId}/draft`, async (route) => {
+    if (route.request().method() !== 'PUT') return route.continue();
+    const response = await route.fetch();
+    timeline.push({ event: 'server_response_held', at: Date.now(), status: response.status() });
+    await held;
+    await route.fulfill({ response });
+  });
+  try {
+    const value = await e01Resistance(page);
+    await value.fill('330');
+    await expect(page.locator('.workbench-main')).toHaveAttribute(
+      'data-project-save-status',
+      'dirty',
+    );
+    await expect(indicator).toHaveAttribute('data-persistence-status', 'dirty');
+    await expect(indicator).toHaveText('Ждёт отправки');
+    await expect(indicator).toHaveAttribute(
+      'title',
+      'Последние изменения сохранены в этом браузере. Ожидается отправка на сервер.',
+    );
+    expect(puts).toBe(0);
+    const local = await e01LocalDraft(page, projectId);
+    expect(local).not.toBeNull();
+    const stored = JSON.parse(local!) as { document: SchematicDocument };
+    expect(stored.document.components.find((entry) => entry.kind === 'resistor')?.value).toBe(330);
+    timeline.push({
+      event: 'dirty_local_readback_no_PUT',
+      at: Date.now(),
+      puts,
+      label: await indicator.textContent(),
+      local: stored,
+    });
+    for (const width of [1440, 1024, 390, 320]) {
+      await page.setViewportSize({ width, height: 900 });
+      await expect(indicator).toBeVisible();
+      const paint = await paintedIndicator();
+      const layout = await indicator.evaluate((element) => {
+        const bounds = element.getBoundingClientRect();
+        const text = document.createRange();
+        text.selectNodeContents(element);
+        const caption = text.getBoundingClientRect();
+        const style = getComputedStyle(element);
+        return {
+          width: innerWidth,
+          pageWidth: document.documentElement.scrollWidth,
+          left: bounds.left,
+          right: bounds.right,
+          textLeft: caption.left,
+          textRight: caption.right,
+          contentLeft: bounds.left + parseFloat(style.paddingLeft),
+          contentRight: bounds.right - parseFloat(style.paddingRight),
+        };
+      });
+      layouts.push({ ...layout, paint });
+      expect(layout.pageWidth).toBeLessThanOrEqual(width);
+      expect(layout.left).toBeGreaterThanOrEqual(0);
+      expect(layout.right).toBeLessThanOrEqual(width);
+      expect(layout.textLeft).toBeGreaterThanOrEqual(layout.contentLeft - 1);
+      expect(layout.textRight).toBeLessThanOrEqual(layout.contentRight + 1);
+      if (width === 1440 || width === 390)
+        await page.screenshot({ path: `${evidenceDir}/pending-${width}.png`, fullPage: true });
+    }
+    expect(puts).toBe(0);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.getByRole('button', { name: 'Сохранить проект', exact: true }).click();
+    await expect.poll(() => puts).toBe(1);
+    await expect(indicator).toHaveAttribute('data-persistence-status', 'saving');
+    await expect(indicator).toHaveText('Сохраняем…');
+    const savingPaint = await paintedIndicator();
+    timeline.push({
+      event: 'actual_request_saving',
+      at: Date.now(),
+      puts,
+      label: await indicator.textContent(),
+      paint: savingPaint,
+    });
+    release!();
+    await expect(page.locator('.workbench-main')).toHaveAttribute(
+      'data-project-save-status',
+      'saved',
+    );
+    await expect(indicator).toHaveAttribute('data-persistence-status', 'saved');
+    await expect(indicator).toHaveText('✓Сохранено');
+    const savedPaint = await paintedIndicator();
+    await page.screenshot({ path: `${evidenceDir}/acknowledged-1440.png`, fullPage: true });
+    timeline.push({
+      event: 'acknowledged_saved',
+      at: Date.now(),
+      puts,
+      label: await indicator.textContent(),
+      paint: savedPaint,
+    });
+    expect(puts).toBe(1);
+    const response = await page.context().request.get(`/api/projects/${projectId}`);
+    expect(response.status()).toBe(200);
+    const server = (await response.json()) as { draft: { document: SchematicDocument } };
+    expect(server.draft.document.components.find((entry) => entry.kind === 'resistor')?.value).toBe(
+      330,
+    );
+  } finally {
+    release?.();
+    writeFileSync(
+      `${evidenceDir}/timeline.json`,
+      JSON.stringify({ projectId, puts, timeline, layouts }, null, 2),
+    );
+  }
+});
+
 test('simulation fault semantics: unpowered supported circuit stays distinct from Worker failure', async ({
   page,
 }) => {
@@ -5336,6 +5510,110 @@ async function e01Server(page: Page, projectId: string) {
   return response.json() as Promise<{ draft: { revision: number; document: SchematicDocument } }>;
 }
 
+test('project refresh: no idle polling and focus never overwrites pupil edits', async ({
+  page,
+}) => {
+  const evidenceDir = 'reports/playwright/electronics-project-refresh';
+  mkdirSync(evidenceDir, { recursive: true });
+  await loginWithOrganization(page, teacher);
+  const projectId = await createProject(page, 'Electronics owner point 2 refresh');
+  const original = circuitDocument({ switchClosed: false, resistorOhms: 50, reversedLed: false });
+  await saveDocument(page, projectId, original);
+  const reads: { at: number; method: string }[] = [];
+  page.on('request', (request) => {
+    if (
+      request.method() === 'GET' &&
+      new URL(request.url()).pathname === `/api/projects/${projectId}`
+    )
+      reads.push({ at: Date.now(), method: request.method() });
+  });
+  await page.goto(`/#/home/${projectId}`);
+  await expect(page.locator('.workbench-stage')).toBeVisible();
+  await saveEditorNow(page);
+  const initialReads = reads.length;
+  expect(initialReads).toBeGreaterThanOrEqual(1);
+  const audit: Record<string, unknown> = { projectId, initialReads, reads };
+  let release: (() => void) | undefined;
+  try {
+    // Observe three old polling deadlines in real browser time, without changing clocks or timeouts.
+    await page.waitForTimeout(10_000);
+    audit['idleReads'] = reads.length - initialReads;
+    expect(audit['idleReads']).toBe(0);
+    const remote = {
+      ...original,
+      components: original.components.map((part) =>
+        part.id === 'resistor' ? { ...part, value: 100 } : part,
+      ),
+    };
+    await saveDocument(page, projectId, remote);
+    const cleanResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'GET' &&
+        new URL(response.url()).pathname === `/api/projects/${projectId}`,
+    );
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+    expect((await cleanResponse).status()).toBe(200);
+    const value = await e01Resistance(page);
+    await expect(value).toHaveValue('100');
+    expect(reads.length).toBe(initialReads + 1);
+    audit['cleanFocusReads'] = reads.length - initialReads;
+
+    const lateRemote = {
+      ...remote,
+      components: remote.components.map((part) =>
+        part.id === 'resistor' ? { ...part, value: 200 } : part,
+      ),
+    };
+    await saveDocument(page, projectId, lateRemote);
+    let captured: (() => void) | undefined;
+    const capturedResponse = new Promise<void>((resolve) => {
+      captured = resolve;
+    });
+    const heldResponse = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await page.route(`**/api/projects/${projectId}`, async (route) => {
+      const response = await route.fetch();
+      captured!();
+      await heldResponse;
+      await route.fulfill({ response });
+    });
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+    await capturedResponse;
+    await value.fill('166.7');
+    await expect(value).toHaveValue('166.7');
+    const localBefore = await e01LocalDraft(page, projectId);
+    expect(localBefore).not.toBeNull();
+    expect(
+      JSON.parse(localBefore!).document.components.find(
+        (part: { id: string }) => part.id === 'resistor',
+      ).value,
+    ).toBe(166.7);
+    const lateResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'GET' &&
+        new URL(response.url()).pathname === `/api/projects/${projectId}`,
+    );
+    release!();
+    expect((await lateResponse).status()).toBe(200);
+    // Allow the fulfilled fetch and React update to settle before checking preservation.
+    await page.waitForTimeout(100);
+    await expect(value).toHaveValue('166.7');
+    expect(await e01LocalDraft(page, projectId)).toBe(localBefore);
+    const beforeDirtyFocus = reads.length;
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+    await page.waitForTimeout(100);
+    expect(reads.length).toBe(beforeDirtyFocus);
+    audit['lateAndDirtyFocusReads'] = reads.length - initialReads - 1;
+    audit['localBeforeAndAfterEqual'] = (await e01LocalDraft(page, projectId)) === localBefore;
+    audit['pupilResistance'] = await value.inputValue();
+    await page.screenshot({ path: `${evidenceDir}/pupil-edit-preserved.png`, fullPage: true });
+  } finally {
+    release?.();
+    writeFileSync(`${evidenceDir}/timeline.json`, JSON.stringify(audit, null, 2));
+  }
+});
+
 async function e01Resistance(page: Page) {
   await component(page, 'resistor-axial').locator('.workbench-part').press('Enter');
   return page
@@ -5493,7 +5771,7 @@ async function e01AffectedToolbarLayouts(
       );
     } else {
       await expect(emergency).toHaveCount(0);
-      expect(['quiet', 'saving']).toContain(layout.persistence.indicator.status);
+      expect(['quiet', 'dirty']).toContain(layout.persistence.indicator.status);
     }
     const presentation = layout.persistence.indicator;
     if (presentation.status === 'quiet') {
@@ -5507,9 +5785,11 @@ async function e01AffectedToolbarLayouts(
       expect(presentation.box.width).toBeGreaterThan(0);
       expect(presentation.box.height).toBeGreaterThan(0);
       expect(presentation.ariaHidden).toBeNull();
-      if (presentation.status === 'saving') {
-        expect(presentation.label).toBe('Сохраняем…');
-        expect(presentation.detail).toBe('Изменения проекта отправляются на сервер.');
+      if (presentation.status === 'dirty') {
+        expect(presentation.label).toBe('Ждёт отправки');
+        expect(presentation.detail).toBe(
+          'Последние изменения сохранены в этом браузере. Ожидается отправка на сервер.',
+        );
       }
     }
     await expect(anchor).toBeVisible();
@@ -8960,4 +9240,158 @@ test('RGB LED mirrors ordinary LED lit, reverse-polarity and burnout states', as
     }
   }
   failures.assertEmpty();
+});
+
+test('Electronics automatic save retry waits a minute and preserves latest work', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const evidenceDir = 'reports/playwright/electronics-save-retry';
+  mkdirSync(evidenceDir, { recursive: true });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await loginWithOrganization(page, teacher);
+  const projectId = await createProject(page, 'Owner point4 minute retry');
+  await saveDocument(page, projectId, e01Document());
+  await page.goto(`/#/home/${projectId}`);
+  await component(page, 'resistor-axial').locator('.workbench-part').press('Enter');
+  const value = page
+    .locator('.workbench-inspector label')
+    .filter({ hasText: 'Сопротивление' })
+    .locator('input[type="number"]');
+  await expect(value).toHaveValue('50');
+  const requests: { at: number; body: unknown }[] = [];
+  const replies: { at: number; status: number }[] = [];
+  page.on('request', (request) => {
+    if (
+      request.method() === 'PUT' &&
+      new URL(request.url()).pathname === `/api/projects/${projectId}/draft`
+    )
+      requests.push({ at: Date.now(), body: request.postDataJSON() });
+  });
+  page.on('response', (response) => {
+    if (
+      response.request().method() === 'PUT' &&
+      new URL(response.url()).pathname === `/api/projects/${projectId}/draft`
+    )
+      replies.push({ at: Date.now(), status: response.status() });
+  });
+  let failureSentAt = 0;
+  let failed = false;
+  await page.route(`**/api/projects/${projectId}/draft`, async (route) => {
+    if (route.request().method() === 'PUT' && !failed) {
+      failed = true;
+      failureSentAt = Date.now();
+      await route.fulfill({
+        status: 503,
+        contentType: 'application/json',
+        body: JSON.stringify({ code: 'temporary', message: 'Temporary transport failure' }),
+      });
+    } else await route.continue();
+  });
+  await value.fill('166.7');
+  await page.getByRole('button', { name: 'Сохранить проект', exact: true }).click();
+  await expect(page.locator('.workbench-main')).toHaveAttribute(
+    'data-project-save-status',
+    'error',
+  );
+  expect(requests).toHaveLength(1);
+  await expect.poll(() => replies[0]?.status).toBe(503);
+  // Real elapsed browser time: no fake clock, online/focus event, reload or
+  // manual retry wakes the automatic retry during this quiet interval.
+  await page.waitForTimeout(30_000);
+  writeFileSync(
+    `${evidenceDir}/quiet-30s.json`,
+    JSON.stringify(
+      {
+        failureSentAt,
+        capturedAt: Date.now(),
+        requests,
+        replies,
+        local: await e01LocalDraft(page, projectId),
+      },
+      null,
+      2,
+    ),
+  );
+  expect(requests).toHaveLength(1);
+  await value.fill('220.5');
+  const localDuringDelay = JSON.parse((await e01LocalDraft(page, projectId)) ?? 'null') as {
+    document: SchematicDocument;
+  } | null;
+  expect(localDuringDelay?.document.components.find((item) => item.id === 'resistor')?.value).toBe(
+    220.5,
+  );
+  await page.waitForTimeout(Math.max(0, failureSentAt + 59_000 - Date.now()));
+  writeFileSync(
+    `${evidenceDir}/quiet-59s.json`,
+    JSON.stringify(
+      { failureSentAt, capturedAt: Date.now(), requests, replies, localDuringDelay },
+      null,
+      2,
+    ),
+  );
+  expect(requests).toHaveLength(1);
+  await expect(page.locator('.workbench-main')).toHaveAttribute(
+    'data-project-save-status',
+    'error',
+  );
+  await expect
+    .poll(() => replies.filter((reply) => reply.status === 200).length, {
+      timeout: 10_000,
+      intervals: [100],
+    })
+    .toBe(1);
+  expect(requests).toHaveLength(2);
+  expect(requests[1]!.at - failureSentAt).toBeGreaterThanOrEqual(60_000);
+  await expect(page.locator('.workbench-main')).toHaveAttribute(
+    'data-project-save-status',
+    'saved',
+  );
+  const automaticServer = await e01Server(page, projectId);
+  expect(
+    automaticServer.draft.document.components.find((item) => item.id === 'resistor')?.value,
+  ).toBe(220.5);
+  expect(await e01LocalDraft(page, projectId)).toBeNull();
+
+  // A deliberate save remains immediate after another pupil edit.
+  await value.fill('330.5');
+  const manualLocal = JSON.parse((await e01LocalDraft(page, projectId)) ?? 'null') as {
+    document: SchematicDocument;
+  } | null;
+  expect(manualLocal?.document.components.find((item) => item.id === 'resistor')?.value).toBe(
+    330.5,
+  );
+  const manualRequestedAt = Date.now();
+  await page.getByRole('button', { name: 'Сохранить проект', exact: true }).click();
+  await expect.poll(() => replies.filter((reply) => reply.status === 200).length).toBe(2);
+  expect(requests).toHaveLength(3);
+  expect(requests[2]!.at - manualRequestedAt).toBeLessThan(10_000);
+  await expect(page.locator('.workbench-main')).toHaveAttribute(
+    'data-project-save-status',
+    'saved',
+  );
+  const manualServer = await e01Server(page, projectId);
+  expect(manualServer.draft.document.components.find((item) => item.id === 'resistor')?.value).toBe(
+    330.5,
+  );
+  writeFileSync(
+    `${evidenceDir}/minute-retry.json`,
+    JSON.stringify(
+      {
+        projectId,
+        failureSentAt,
+        requests,
+        replies,
+        localDuringDelay,
+        automaticServer,
+        manualRequestedAt,
+        manualLocal,
+        manualServer,
+        finalLocal: await e01LocalDraft(page, projectId),
+      },
+      null,
+      2,
+    ),
+  );
+  await page.screenshot({ path: `${evidenceDir}/saved-latest-1440.png`, fullPage: true });
 });

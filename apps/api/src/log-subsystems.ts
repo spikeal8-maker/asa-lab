@@ -24,10 +24,52 @@ export const LOG_SUBSYSTEMS = [
   'metrics',
 ] as const;
 
+export const LOG_EDITOR_MODULES = [
+  'scratch',
+  'electronics',
+  'three-d',
+  'chess',
+  'checkers',
+] as const;
+export const LOG_MODULES = ['portal', 'auth', 'system', ...LOG_EDITOR_MODULES] as const;
+
+export function logEditorModule(value: string): string | undefined {
+  if (value === 'blocks') return 'scratch';
+  return (LOG_EDITOR_MODULES as readonly string[]).includes(value) ? value : undefined;
+}
+
+/** Classification does not confer trust on reported browser context. */
+export function logModule(source: string, subsystem: string, reported = '', previous = ''): string {
+  if (isHostLogSource(source)) return 'system';
+  const own = logEditorModule(source);
+  if (own) return own;
+  if (source === 'api' || source === 'web') {
+    return (
+      logEditorModule(subsystem) ??
+      logEditorModule(reported) ??
+      logEditorModule(previous) ??
+      (['auth', 'portal', 'system'].includes(reported)
+        ? reported
+        : previous || (source === 'api' ? 'portal' : 'system'))
+    );
+  }
+  return previous || 'system';
+}
+
 export function safeLogPath(url = '/'): string {
   return url
     .split('?')[0]!
     .replace(/^(\/api\/classroom-teacher-invitations\/)[^/]+.*$/, '$1[redacted]');
+}
+
+export function isHostLogSource(source: string): boolean {
+  return (
+    source.startsWith('windows:') ||
+    source.startsWith('linux:') ||
+    source === 'docker-desktop' ||
+    source === 'docker-lifecycle' ||
+    source === 'metrics'
+  );
 }
 
 /** Server-owned route grouping is independent of the client's editor context. */
@@ -38,10 +80,18 @@ export function logSubsystem(
   kind = '',
   module = '',
 ): string {
-  if (source === 'api' && kind === 'client_diagnostic') {
+  if (isHostLogSource(source)) return source === 'metrics' ? 'metrics' : 'host';
+  const editor = logEditorModule(source);
+  if (editor) return editor;
+  if (
+    source === 'api' &&
+    kind === 'client_diagnostic' &&
+    (!path || path.startsWith('/api/diagnostics/'))
+  ) {
     if (module === 'auth') return 'access';
     if (module === 'portal') return 'web';
-    if (module === 'scratch' || module === 'electronics') return module;
+    const context = logEditorModule(module);
+    if (context) return context;
   }
   if (source === 'web' && path.startsWith('/internal/blocks/')) return 'scratch';
   if (source === 'api') {
@@ -69,7 +119,6 @@ export function logSubsystem(
       return route;
     return 'api';
   }
-  if (source.startsWith('windows:') || source === 'docker-desktop') return 'host';
   if (source === 'postgres' || source === 'migration') return 'database';
   if (source.startsWith('minio')) return 'storage';
   if (source === 'tunnel') return 'network';

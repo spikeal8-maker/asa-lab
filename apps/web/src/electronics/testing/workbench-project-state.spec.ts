@@ -153,7 +153,9 @@ function Probe({
 }
 
 async function mountProject() {
-  vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+  vi.useFakeTimers({
+    toFake: ['Date', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'],
+  });
   vi.setSystemTime(0);
   window.localStorage.clear();
   vi.spyOn(api, 'me').mockResolvedValue({
@@ -226,6 +228,72 @@ afterEach(async () => {
 });
 
 describe('Electronics project autosave in the mounted editor hook', () => {
+  it('opens once without background polling and refreshes a clean document on focus', async () => {
+    await mountProject();
+    const open = vi.mocked(api.openProject);
+    expect(open).toHaveBeenCalledTimes(1);
+    await advance(12_000);
+    expect(open).toHaveBeenCalledTimes(1);
+    const remote = normalizeLoadedDocument({
+      ...initialDocument,
+      viewport: { x: 0, y: 0, zoom: 2 },
+    });
+    open.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      data: {
+        project,
+        draft: { projectId, document: remote, revision: 2, updatedAt: '' },
+        versions: [],
+        result: null,
+      },
+    } as Awaited<ReturnType<typeof api.openProject>>);
+    await act(async () => window.dispatchEvent(new Event('focus')));
+    expect(open).toHaveBeenCalledTimes(2);
+    expect(state().document).toEqual(remote);
+    expect(state().saveStatus).toBe('saved');
+  });
+
+  it('does not fetch on dirty focus or overwrite an edit made during a clean focus request', async () => {
+    await mountProject();
+    const open = vi.mocked(api.openProject);
+    let finish: ((value: Awaited<ReturnType<typeof api.openProject>>) => void) | undefined;
+    open.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    await act(async () => window.dispatchEvent(new Event('focus')));
+    await act(async () => window.dispatchEvent(new Event('focus')));
+    expect(open).toHaveBeenCalledTimes(2);
+    const local = edit(3);
+    await act(async () => window.dispatchEvent(new Event('focus')));
+    expect(open).toHaveBeenCalledTimes(2);
+    const remote = normalizeLoadedDocument({
+      ...initialDocument,
+      viewport: { x: 0, y: 0, zoom: 2 },
+    });
+    await act(async () =>
+      finish!({
+        ok: true,
+        status: 200,
+        data: {
+          project,
+          draft: { projectId, document: remote, revision: 2, updatedAt: '' },
+          versions: [],
+          result: null,
+        },
+      } as Awaited<ReturnType<typeof api.openProject>>),
+    );
+    expect(state().document).toEqual(local);
+    expect(state().saveStatus).toBe('dirty');
+    expect(state().localCopySaved).toBe(true);
+    expect(
+      readLocalProjectDraft(window.localStorage, projectId, 'electronics', userId)?.document,
+    ).toEqual(local);
+  });
+
   it('retracts another-tab-cleared local durability and restores the current copy on save failure', async () => {
     const save = await mountProject();
     const latest = edit(2);
@@ -889,7 +957,7 @@ describe('Electronics project autosave in the mounted editor hook', () => {
     await act(async () => {
       void state().saveNow();
     });
-    const latest = edit(3);
+    edit(3);
     await act(async () =>
       resolveFirst({
         ok: false,
@@ -898,7 +966,13 @@ describe('Electronics project autosave in the mounted editor hook', () => {
       } as Awaited<ReturnType<typeof api.saveDraft>>),
     );
     expect(state().saveStatus).toBe('error');
-    await advance(4_999);
+    await advance(30_000);
+    const latest = edit(4);
+    expect(state().localCopySaved).toBe(true);
+    expect(
+      readLocalProjectDraft(window.localStorage, projectId, 'electronics', userId)?.document,
+    ).toEqual(latest);
+    await advance(29_999);
     expect(save).toHaveBeenCalledTimes(1);
     await advance(1);
     expect(save).toHaveBeenCalledTimes(2);
@@ -907,7 +981,7 @@ describe('Electronics project autosave in the mounted editor hook', () => {
   });
 
   it.each([0, 408, 500, 503])(
-    'backs off temporary HTTP %s failures without edits or retry storms',
+    'spaces temporary HTTP %s retries by one minute without edits or retry storms',
     async (status) => {
       const save = await mountProject();
       save.mockResolvedValue({
@@ -917,7 +991,7 @@ describe('Electronics project autosave in the mounted editor hook', () => {
       } as Awaited<ReturnType<typeof api.saveDraft>>);
       const latest = edit(2);
       await act(async () => state().saveNow());
-      for (const interval of [5_000, 10_000, 20_000, 40_000, 60_000, 60_000]) {
+      for (const interval of [60_000, 60_000, 60_000, 60_000, 60_000, 60_000]) {
         const before = save.mock.calls.length;
         await advance(interval - 1);
         expect(save).toHaveBeenCalledTimes(before);
@@ -977,7 +1051,7 @@ describe('Electronics project autosave in the mounted editor hook', () => {
     const latest = edit(2);
     await act(async () => state().saveNow());
     expect(state().saveStatus).toBe('error');
-    await advance(4_999);
+    await advance(59_999);
     expect(save).toHaveBeenCalledTimes(1);
     await advance(1);
     expect(save).toHaveBeenCalledTimes(2);
@@ -985,6 +1059,30 @@ describe('Electronics project autosave in the mounted editor hook', () => {
     expect(state().saveStatus).toBe('saved');
   });
 
+  it('spaces a temporary identity transport retry by a minute before sending the latest draft', async () => {
+    const save = await mountProject();
+    const me = vi.mocked(api.me);
+    me.mockResolvedValueOnce({
+      ok: false,
+      status: 503,
+      error: { code: 'temporary', message: 'Temporary' },
+    } as Awaited<ReturnType<typeof api.me>>);
+    edit(2);
+    await act(async () => state().saveNow());
+    expect(state().saveStatus).toBe('error');
+    expect(save).not.toHaveBeenCalled();
+    const identityAttempts = me.mock.calls.length;
+    await advance(30_000);
+    const latest = edit(3);
+    await advance(29_999);
+    expect(me).toHaveBeenCalledTimes(identityAttempts);
+    expect(save).not.toHaveBeenCalled();
+    expect(state().localCopySaved).toBe(true);
+    await advance(1);
+    expect(me).toHaveBeenCalledTimes(identityAttempts + 1);
+    expect(save).toHaveBeenCalledExactlyOnceWith(projectId, latest, 1);
+    expect(state().saveStatus).toBe('saved');
+  });
   it('clears the error after a successful manual retry without creating another autosave', async () => {
     const save = await mountProject();
     save.mockResolvedValueOnce({

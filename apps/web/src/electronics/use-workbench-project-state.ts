@@ -236,7 +236,6 @@ export function useWorkbenchProjectState(projectId: string, userId: string, seat
   const loadedScopeRef = useRef<typeof scope | null>(null);
   const loadGenerationRef = useRef(0);
   const retryAtRef = useRef<number | null>(null);
-  const failureCountRef = useRef(0);
   const saveIssueRef = useRef<EditorPersistenceIssue | null>(null);
   const inScope = useCallback(() => scope.active && scopeRef.current === scope, [scope]);
   const storeLocal = useCallback(
@@ -320,7 +319,6 @@ export function useWorkbenchProjectState(projectId: string, userId: string, seat
     const generation = ++loadGenerationRef.current;
     saveFailedRef.current = false;
     retryAtRef.current = null;
-    failureCountRef.current = 0;
     saveIssueRef.current = null;
     setLocalDocument(null);
     setBusy(false);
@@ -482,12 +480,10 @@ export function useWorkbenchProjectState(projectId: string, userId: string, seat
         requestInFlight = false;
       }
     };
-    const interval = window.setInterval(() => void synchronize(), 3_000);
     const onFocus = (): void => void synchronize();
     window.addEventListener('focus', onFocus);
     return () => {
       active = false;
-      window.clearInterval(interval);
       window.removeEventListener('focus', onFocus);
     };
   }, [
@@ -550,9 +546,7 @@ export function useWorkbenchProjectState(projectId: string, userId: string, seat
       if (documentRef.current) storeLocal(documentRef.current);
       saveFailedRef.current = true;
       saveIssueRef.current = issue;
-      retryAtRef.current = transient
-        ? Date.now() + transientSaveRetryDelay(++failureCountRef.current)
-        : null;
+      retryAtRef.current = transient ? Date.now() + transientSaveRetryDelay() : null;
       setSaveFailed(true);
       setSaveError('Не удалось сохранить последние изменения на сервере.');
       setSaveIssue(issue);
@@ -671,7 +665,6 @@ export function useWorkbenchProjectState(projectId: string, userId: string, seat
                 saveFailedRef.current = false;
                 saveIssueRef.current = null;
                 retryAtRef.current = null;
-                failureCountRef.current = 0;
                 setSaveFailed(false);
                 setSaveError(null);
                 setSaveIssue(null);
@@ -712,7 +705,6 @@ export function useWorkbenchProjectState(projectId: string, userId: string, seat
         saveFailedRef.current = false;
         saveIssueRef.current = null;
         retryAtRef.current = null;
-        failureCountRef.current = 0;
         setSaveFailed(false);
         setSaveError(null);
         setSaveIssue(null);
