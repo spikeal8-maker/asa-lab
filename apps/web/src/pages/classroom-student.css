@@ -861,3 +861,28 @@
     font-size: 12px;
   }
 }
+
+/* All eight profile sections stay directly available on phones, without a clipped rail. */
+@media (max-width: 600px) {
+  .classroom-student .participant-tabs {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    align-items: stretch;
+    gap: 5px;
+    overflow-x: visible;
+    scrollbar-width: auto;
+  }
+  .classroom-student .participant-tabs button {
+    box-sizing: border-box;
+    flex: initial;
+    width: 100%;
+    min-width: 0;
+    min-height: 52px;
+    height: auto;
+    padding: 5px 3px;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    line-height: 1.2;
+    text-align: center;
+  }
+}

@@ -189,6 +189,29 @@ async function assertLayout(page: Page, width: number, file: string) {
     expect(item.needed).toBeLessThanOrEqual(item.available + 1);
   }
   await expect(page.getByRole('region', { name: 'Последние оценки' })).toBeVisible();
+  // No hidden horizontally scrolling rail: all eight profile sections are visible at once.
+  if (width <= 600) {
+    const sections = page.getByRole('navigation', { name: 'Разделы профиля' });
+    const layout = await sections.evaluate((nav) => ({
+      scrollWidth: nav.scrollWidth,
+      clientWidth: nav.clientWidth,
+      buttons: [...nav.querySelectorAll('button')].map((button) => ({
+        x: button.getBoundingClientRect().left,
+        right: button.getBoundingClientRect().right,
+        height: button.getBoundingClientRect().height,
+        scrollWidth: button.scrollWidth,
+        clientWidth: button.clientWidth,
+      })),
+    }));
+    expect(layout.buttons).toHaveLength(8);
+    expect(layout.scrollWidth).toBeLessThanOrEqual(layout.clientWidth + 1);
+    for (const button of layout.buttons) {
+      expect(button.x).toBeGreaterThanOrEqual(0);
+      expect(button.right).toBeLessThanOrEqual(width + 1);
+      expect(button.height).toBeGreaterThanOrEqual(44);
+      expect(button.scrollWidth).toBeLessThanOrEqual(button.clientWidth + 1);
+    }
+  }
   // The long learner name and both navigation targets occupy different bands.
   if (width <= 600) {
     const heading = (await page.locator('.classroom-student-identity h1').boundingBox())!;
