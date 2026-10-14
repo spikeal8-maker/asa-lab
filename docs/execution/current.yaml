@@ -634,54 +634,78 @@ parallel_lanes:
     owned_paths:
     - apps/web/src/electronics/testing/workbench-field-drag.spec.ts
     task:
-      id: TASK-ELECTRONICS-PROJECT-POLLING-001
-      issue: 570
+      id: TASK-ELECTRONICS-SAVE-RETRY-CADENCE-001
+      issue: 571
       branch: main
       base_branch: main
       pr: null
       status: in_progress
-      checkpoint: point2_code_published_functional_verified_repository_gate_pending
+      checkpoint: point4_selected_transient_retry_minute_spacing
       kind: repair
       owner_acceptance: pending
       programme_issue: 452
-      owner_problem: E01 unnecessary server traffic during normal Electronics editing
+      owner_problem: E01 excessive automatic save retries after transient server or transport failure
       context_hints:
-      - docs/product/electronics/tasks/TASK-ELECTRONICS-PROJECT-POLLING-001.md
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-SAVE-RETRY-CADENCE-001.md
       - docs/product/electronics/components/ui-assets-persistence.yaml
-      repair_scope: ONLY remove blind 3000ms project GET; preserve initial load, clean focus, late-response protection and CAS409 recovery; minute autosave, immediate local draft and retries unchanged.
+      repair_scope: ONLY space automatic transient save retries by60000ms; preserve ordinary minute autosave, local protection, latest payload, identity/CAS, serial queue and existing manual/departure semantics.
       school_actions: deferred_by_owner_no_installation_actions
-      source_candidate_sha: 88d1360c532bff3d1fab7f31167f9999ff3ee512
-      source_candidate_tree: 8276203a10d8da465b478d96ce17dc50ff63a159
-      product_publication_sha: 74a348a33e64731c670746fd8bd23349fb584f20
-      product_publication_tree: 921df699b565fde4875e8cfdbe9f0b47ef8a31c6
-      publication_parent: d4659e5c6a0d7025ab73eada73e7451aeae10df4
-      publication_level: unaccepted_development_commit
-      source_review: approve
-      functional_review: pass
-      independent_source_review_record: 570-independent-review-88d1360c.md
-      independent_source_review_sha256: 24acd3b620a61ebe88cd31b84bf9d185eb1ce8537d0b7eb841590f7b7d81125b
-      independent_publication_preservation: pass_4_reviewed_blobs_and_4066_foreign_entries_preserved
-      exact_candidate_evidence:
-        before_browser_run: 38611133072
-        before_browser_conclusion: expected_failure_3_periodic_GET_during_10_seconds
-        focused_browser_run: 38611413891
-        focused_job: 116015459688
-        focused_conclusion: success
-        directed_browser_job: 116016934140
-        directed_browser_conclusion: success
-        feature_general_run: 38611291291
-        feature_data_job: 116018207204
-        feature_data_conclusion: failure
-        feature_data_category: C_unrelated_observability_three_python_ENOENT_fixtures
-        publication_general_run: 38613886264
-        publication_general_status_observed: pending
-        publication_general_conclusion: null
-      issue_state: open
-      technical_acceptance: pending_repository_gate
+      baseline_sha: f603cc4b95eb4c20f03c73c74ed8ee45cef90072
+      point3_verification: Existing immediate local protection independently verified; no product change required; raw pupil166.7 document survived held remote reply in570 evidence.
+      technical_acceptance: pending
       deployment: not_requested
       database_actions: none
-      next_action: Controller reports point2 publication before selecting point3; do not claim repository success, close570, integrate569, release or deploy.
+      next_action: Implement only point4 then new independent exact-SHA review; no other module repair or next point.
     suspended_slices:
+    - task_id: TASK-ELECTRONICS-PROJECT-POLLING-001
+      accepted_task_snapshot:
+        id: TASK-ELECTRONICS-PROJECT-POLLING-001
+        issue: 570
+        branch: main
+        base_branch: main
+        pr: null
+        status: in_progress
+        checkpoint: point2_code_published_functional_verified_repository_gate_pending
+        kind: repair
+        owner_acceptance: pending
+        programme_issue: 452
+        owner_problem: E01 unnecessary server traffic during normal Electronics editing
+        context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-PROJECT-POLLING-001.md
+        - docs/product/electronics/components/ui-assets-persistence.yaml
+        repair_scope: ONLY remove blind 3000ms project GET; preserve initial load, clean focus, late-response protection and CAS409 recovery; minute autosave, immediate local draft and retries unchanged.
+        school_actions: deferred_by_owner_no_installation_actions
+        source_candidate_sha: 88d1360c532bff3d1fab7f31167f9999ff3ee512
+        source_candidate_tree: 8276203a10d8da465b478d96ce17dc50ff63a159
+        product_publication_sha: 74a348a33e64731c670746fd8bd23349fb584f20
+        product_publication_tree: 921df699b565fde4875e8cfdbe9f0b47ef8a31c6
+        publication_parent: d4659e5c6a0d7025ab73eada73e7451aeae10df4
+        publication_level: unaccepted_development_commit
+        source_review: approve
+        functional_review: pass
+        independent_source_review_record: 570-independent-review-88d1360c.md
+        independent_source_review_sha256: 24acd3b620a61ebe88cd31b84bf9d185eb1ce8537d0b7eb841590f7b7d81125b
+        independent_publication_preservation: pass_4_reviewed_blobs_and_4066_foreign_entries_preserved
+        exact_candidate_evidence:
+          before_browser_run: 38611133072
+          before_browser_conclusion: expected_failure_3_periodic_GET_during_10_seconds
+          focused_browser_run: 38611413891
+          focused_job: 116015459688
+          focused_conclusion: success
+          directed_browser_job: 116016934140
+          directed_browser_conclusion: success
+          feature_general_run: 38611291291
+          feature_data_job: 116018207204
+          feature_data_conclusion: failure
+          feature_data_category: C_unrelated_observability_three_python_ENOENT_fixtures
+          publication_general_run: 38613886264
+          publication_general_status_observed: pending
+          publication_general_conclusion: null
+        issue_state: open
+        technical_acceptance: pending_repository_gate
+        deployment: not_requested
+        database_actions: none
+        next_action: Controller reports point2 publication before selecting point3; do not claim repository success, close570, integrate569, release or deploy.
     - task_id: TASK-ELECTRONICS-SAVE-INDICATOR-001
       accepted_task_snapshot:
         id: TASK-ELECTRONICS-SAVE-INDICATOR-001
