@@ -4585,7 +4585,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: UI_fixture_invalid_actor_repair_selected
+      checkpoint: Windows_junction_fixture_setup_budget_selected
       owner_acceptance: pending
       normative_refs:
         - document: PORTABLE-DEPLOYMENT-CONTRACT
@@ -4599,6 +4599,8 @@ parallel_lanes:
         - document: RELEASE-UI-TELEMETRY-FIXTURE-SPEC
           revision: '1.0'
         - document: RELEASE-SCRATCH-PROTOCOL-FIXTURE-SPEC
+          revision: '1.0'
+        - document: RELEASE-WINDOWS-JUNCTION-FIXTURE-SPEC
           revision: '1.0'
     programme:
       owner_authorization: sequential_log_and_user_observability_repair_20261011
@@ -4809,12 +4811,12 @@ parallel_lanes:
         owner_instruction: Implement item8 then item9 with separate reports, integrate all prepared changes into main and fully update the canonical site after required release checks.
         candidate_baseline_sha: b1a93e6c14cac35cf5e440e4af86650ebf9bb3bb
         acceptance_scope: Endpoint-correct Scratch diagnostics fixture preserving heartbeat failure, recovery and hidden-tab assertions.
-        next_action: valid_UI_fixture_actor_then_final_release_gates_and_guarded_site_update
+        next_action: Windows_fixture_setup_repair_then_final_release_gates_and_guarded_site_update
       release_execution:
         status: in_progress
-        selected_phase: UI_fixture_invalid_actor_repair
+        selected_phase: Windows_junction_fixture_setup_budget
         owner_authorization: explicit_OBS008_then_OBS009_then_all_changes_main_and_full_site_update_20261014
-        candidate_source_sha: 0e9045500fd2c069b35e6c51d9dcaad039258be2
+        candidate_source_sha: d9aa03130d3e7c78fa5d7f659d4f2d7bc16accde
         integration_branch: codex/observability-main-integration
         registration_fixture_result:
           id: TASK-RELEASE-REGISTRATION-FIXTURE-001
@@ -4857,21 +4859,28 @@ parallel_lanes:
           original_assertions: 434_retained_432_initially_unchanged_2_authorized_classification_changes_loader_repair_434_identical
           source_Scratch_run: 38491966252
           source_real_activity_minute_save: success
-          source_cumulative_browser: in_progress_at_checkpoint
+          source_cumulative_browser: 54_passed_1_known_VSCR470_clock_failure_no_product_or_recovery_changes
           recovery_specs: unchanged_no_closure_claim
-        current_baseline_task:
+        UI_actor_fixture_repair_result:
           id: TASK-RELEASE-UI-TELEMETRY-FIXTURE-001
-          specification: docs/delivery/RELEASE_UI_TELEMETRY_FIXTURE_SPEC.md
-          branch: codex/release-ui-actor-fixture-repair
-          status: repair_in_progress
-          category: A_existing_classroom_fixture_invalid_Account_workspace_identifiers_rejected_by_strict_new_receipt_helper
-          failing_run: 38491966270
-          failing_source_sha: 0e9045500fd2c069b35e6c51d9dcaad039258be2
-          failed_step: Account_settings_synthetic_UI_and_layout_regression
-          observed: 400_passed_2_failed_invalid_product_quality_actor_account1_workspace1
-          scope: Replace invalid synthetic Account and workspace identifiers consistently in existing classroom-owner fixture; preserve strict telemetry validators and all business assertions.
-          forbidden: product_validator_weakening_invalid_actor_success_ACK_assertion_filters_workflow_or_production_changes
-          deployment_gate: exact_final_main_General_and_verified_Portable_Release_before_live_update
+          source_sha: d9aa03130d3e7c78fa5d7f659d4f2d7bc16accde
+          independent_review: pass
+          actual_fixture_before: invalid_actor_invalid_quality_HTTP400_business_mutation1
+          actual_fixture_after: valid_actor_valid_quality_HTTP200_business_mutation0
+          preservation: all1257_expect_calls_15_API_paths_classId_mutation_push_AST_identical
+          unchanged_helpers_and_tests: 29_units_and_Scratch_byte_identical_not_rerun
+          report: docs/execution/RELEASE_UI_ACTOR_FIXTURE_REPORT.md
+          final_full_UI_CI: required
+        current_baseline_task:
+          id: TASK-RELEASE-WINDOWS-JUNCTION-FIXTURE-001
+          specification: docs/delivery/RELEASE_WINDOWS_JUNCTION_FIXTURE_SPEC.md
+          branch: codex/release-windows-junction-fixture
+          status: in_progress
+          category: D_hosted_Windows_PowerShell_junction_fixture_setup_timeout_before_assertions
+          failing_runs: [38488975580, 38494073569]
+          observed: first_junction_setup_exceeds15_seconds_before_security_assertions_Linux_contracts_pass
+          scope: Only bounded60_second_test_fixture_creation_timeout_and_comment_in_test_collector_python; all_security_assertions_and_production30_second_budget_unchanged.
+          deployment_gate: final_main_General_and_all_Portable_Release_contracts_build_publish_backup_restore_success
         main_integration_result:
           source_sha: 3ab6693eb3bf52d7ba73c5f6679bbac83c656efb
           main_publication: completed_normal_fast_forward
