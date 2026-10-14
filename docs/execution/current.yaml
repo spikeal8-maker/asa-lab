@@ -634,7 +634,24 @@ parallel_lanes:
     owned_paths:
     - apps/web/src/electronics/testing/workbench-field-drag.spec.ts
     task:
-      id: TASK-ELECTRONICS-CROSS-TAB-DRAFT-SAFETY-001
+      id: TASK-ELECTRONICS-SAVE-INDICATOR-001
+      issue: 569
+      branch: main
+      base_branch: main
+      pr: null
+      status: in_progress
+      checkpoint: owner_point_1_truthful_saving_feedback
+      kind: repair
+      owner_acceptance: pending
+      programme_issue: 452
+      owner_problem: E01 truthful pending local copy versus actual network save
+      context_hints:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-SAVE-INDICATOR-001.md
+      - docs/product/electronics/components/ui-assets-persistence.yaml
+      repair_scope: ONLY indicator dirty versus actual saving; preserve unchanged minute cadence and local protection; report before point2.
+      school_actions: deferred_by_owner_no_installation_actions
+    suspended_slices:
+    - task_id: TASK-ELECTRONICS-CROSS-TAB-DRAFT-SAFETY-001
       issue: 566
       branch: main
       base_branch: main
@@ -679,7 +696,6 @@ parallel_lanes:
       database_actions: none
       next_action: Preserve exact candidate and evidence; no repair, rerun, integration, closeout or installation action;
         report and STOP. No next task.
-    suspended_slices:
     - task_id: TASK-ELECTRONICS-GOVERNANCE-007
       issue: 535
       status: technical_accepted
