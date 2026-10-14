@@ -634,42 +634,60 @@ parallel_lanes:
     owned_paths:
     - apps/web/src/electronics/testing/workbench-field-drag.spec.ts
     task:
-      id: TASK-ELECTRONICS-SAVE-INDICATOR-001
-      issue: 569
+      id: TASK-ELECTRONICS-PROJECT-POLLING-001
+      issue: 570
       branch: main
       base_branch: main
       pr: null
-      status: blocked
-      checkpoint: candidate_exact_focused_browser_passed_general_external_fixture_failed
+      status: in_progress
+      checkpoint: owner_point2_selected_before_bounded_implementation
       kind: repair
       owner_acceptance: pending
       programme_issue: 452
-      owner_problem: E01 truthful pending local copy versus actual network save
+      owner_problem: E01 unnecessary server traffic during normal Electronics editing
       context_hints:
-      - docs/product/electronics/tasks/TASK-ELECTRONICS-SAVE-INDICATOR-001.md
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-PROJECT-POLLING-001.md
       - docs/product/electronics/components/ui-assets-persistence.yaml
-      repair_scope: ONLY indicator dirty versus actual saving; preserve unchanged minute cadence and local protection; report before point2.
+      repair_scope: ONLY remove blind 3000ms project GET; preserve initial load, clean focus, late-response protection and CAS409 recovery; minute autosave, immediate local draft and retries unchanged.
       school_actions: deferred_by_owner_no_installation_actions
-      preserved_candidate_sha: d3d417cfd1aaeafe2d037e428298c60d57a8bb3d
-      preserved_candidate_tree: 36fbfb94fe32d7ed8358128f107d912b545dd29b
-      preserved_candidate_branch: codex/electronics-save-indicator-569
-      independent_review: blocked_external_baseline
-      exact_candidate_evidence:
-        focused_run: 38603937841
-        focused_job: 115989895473
-        focused_conclusion: success
-        directed_browser_run: 38603937841
-        directed_browser_job: 115991080347
-        directed_browser_conclusion: success
-        general_run: 38603732138
-        general_attempt: 2
-        general_conclusion: failure
-        data_job: 116000847298
-        failure_category: C_unrelated_observability_fixture_python_ENOENT
-        product_integrated: false
-        deployment: not_requested
-      checkpoint_evidence: docs/product/electronics/tasks/TASK-ELECTRONICS-SAVE-INDICATOR-001.md
     suspended_slices:
+    - task_id: TASK-ELECTRONICS-SAVE-INDICATOR-001
+      accepted_task_snapshot:
+        id: TASK-ELECTRONICS-SAVE-INDICATOR-001
+        issue: 569
+        branch: main
+        base_branch: main
+        pr: null
+        status: blocked
+        checkpoint: candidate_exact_focused_browser_passed_general_external_fixture_failed
+        kind: repair
+        owner_acceptance: pending
+        programme_issue: 452
+        owner_problem: E01 truthful pending local copy versus actual network save
+        context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-SAVE-INDICATOR-001.md
+        - docs/product/electronics/components/ui-assets-persistence.yaml
+        repair_scope: ONLY indicator dirty versus actual saving; preserve unchanged minute cadence and local protection; report before point2.
+        school_actions: deferred_by_owner_no_installation_actions
+        preserved_candidate_sha: d3d417cfd1aaeafe2d037e428298c60d57a8bb3d
+        preserved_candidate_tree: 36fbfb94fe32d7ed8358128f107d912b545dd29b
+        preserved_candidate_branch: codex/electronics-save-indicator-569
+        independent_review: blocked_external_baseline
+        exact_candidate_evidence:
+          focused_run: 38603937841
+          focused_job: 115989895473
+          focused_conclusion: success
+          directed_browser_run: 38603937841
+          directed_browser_job: 115991080347
+          directed_browser_conclusion: success
+          general_run: 38603732138
+          general_attempt: 2
+          general_conclusion: failure
+          data_job: 116000847298
+          failure_category: C_unrelated_observability_fixture_python_ENOENT
+          product_integrated: false
+          deployment: not_requested
+        checkpoint_evidence: docs/product/electronics/tasks/TASK-ELECTRONICS-SAVE-INDICATOR-001.md
     - task_id: TASK-ELECTRONICS-CROSS-TAB-DRAFT-SAFETY-001
       issue: 566
       branch: main
