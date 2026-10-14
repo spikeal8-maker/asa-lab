@@ -16,6 +16,7 @@ from datetime import datetime, timedelta, timezone
 from collect_logs import Collector, normalize, now, file_timestamp, clean, RETIRE_SECONDS, write_collector_health, write_process_health, linux_resources, resource_warnings
 from test_database_diagnostics import DatabaseDiagnosticTests  # Included by the canonical collector test runner.
 from test_database_identity import ActualDatabaseIdentityTests, DatabaseIdentityUnitTests
+from test_database_progress import ActualDatabaseProgressTests, DatabaseProgressUnitTests, response
 
 
 def system_classification_fixture(root, compressed):
@@ -549,11 +550,10 @@ class CollectorTests(unittest.TestCase):
             c = Collector(Path(temp), {}); c.postgres = 'fixture'
             stamp = (datetime.now(timezone.utc)-timedelta(days=3)).isoformat()
             row = dict(id='retained-native-id', created_at=stamp, action='fixture')
-            stream = io.StringIO(); csv.writer(stream).writerow([json.dumps(row)])
             queries = []
             def command(args, **kwargs):
                 sql = kwargs['sql']; queries.append(sql)
-                return stream.getvalue().encode() if '"audit_events"' in sql and ' OR ' not in sql else b''
+                return response([row]) if '"audit_events"' in sql and ' OR ' not in sql else response([])
             c.command = command
             with patch('collect_logs.time.time', return_value=100000): c.database()
             self.assertEqual(c.db.execute('SELECT count(*) FROM events').fetchone()[0], 1)
@@ -574,7 +574,7 @@ class CollectorTests(unittest.TestCase):
             c.set_state('db:history:audit_events', cursor)
             def command(args, **kwargs):
                 if ' OR ' not in kwargs['sql']: raise RuntimeError('bounded query timeout')
-                return b''
+                return response([])
             c.command=command; c.database()
             self.assertEqual(c.state('db:history:audit_events'),cursor)
             self.assertIsNone(c.state('db:history:audit_events:completed'))

@@ -34,6 +34,8 @@ DATABASE_DIAGNOSTICS = json.loads((Path(__file__).resolve().parent.parent /
 DATABASE_NATIVE_KEYS = {table: ('event_hash',) if table == 'max_webhook_events' else ('id',)
                         for table in DATABASE_DIAGNOSTICS['sources']}
 DATABASE_IDENTITY_LIMIT = 256
+DATABASE_BATCH_ROWS = 128
+DATABASE_BATCH_BYTES = 4 * 1024 * 1024
 
 
 def database_diagnostics(origin, value):
@@ -635,82 +637,128 @@ class Collector:
         except Exception as exc:
             self.status("docker", "error", str(exc))
 
+    def database_batch(self, table, condition, after=None):
+        """One bounded keyset page, with a required completion trailer.
+
+        The raw native key is private cursor state only. Its PostgreSQL type is
+        inferred from the table column, including uuid and bigint primary keys.
+        """
+        column = DATABASE_DIAGNOSTICS['sources'][table]['timeColumn']
+        keys = (column, *DATABASE_NATIVE_KEYS[table])
+        order = ','.join(f'"{key}"' for key in keys)
+        def literal(value):
+            return "E'" + str(value).replace('\\', '\\\\').replace("'", "''") + "'"
+        if after is not None:
+            if not isinstance(after, list) or len(after) != len(keys):
+                raise ValueError('Invalid database keyset cursor')
+            condition = f'({condition}) AND ({order}) > ({",".join(map(literal, after))})'
+        defaults_sql = f'''(SELECT json_object_agg(a.attname,
+            CASE WHEN a.atthasmissing THEN to_jsonb(a.attmissingval)->0 ELSE 'null'::jsonb END)
+            FROM pg_attribute a WHERE a.attrelid='public."{table}"'::regclass
+            AND a.attnum>0 AND NOT a.attisdropped)::text'''
+        # Limit before encoding. The doubled UTF-8 length also bounds CSV quote
+        # escaping; the extra allowance covers separators and the final trailer.
+        sql = f'''BEGIN READ ONLY; SET LOCAL statement_timeout='15s';
+            COPY (WITH candidates AS MATERIALIZED (
+                SELECT * FROM public."{table}" WHERE {condition} ORDER BY {order} LIMIT {DATABASE_BATCH_ROWS + 1}
+            ), encoded AS MATERIALIZED (
+                SELECT row_to_json(t)::text AS raw, {defaults_sql} AS defaults,
+                    row_number() OVER (ORDER BY {order}) AS n FROM candidates t
+            ), measured AS (
+                SELECT *, sum(2*(octet_length(raw)+octet_length(defaults))+256) OVER (ORDER BY n) AS bytes FROM encoded
+            ), batch AS MATERIALIZED (
+                SELECT * FROM measured WHERE n<={DATABASE_BATCH_ROWS} AND bytes<={DATABASE_BATCH_BYTES - 256}
+            ) SELECT raw,defaults FROM (
+                SELECT raw,defaults,n FROM batch
+                UNION ALL SELECT 'null', json_build_object('count',(SELECT count(*) FROM batch),
+                    'more',(SELECT count(*) FROM encoded)>(SELECT count(*) FROM batch))::text,
+                    {DATABASE_BATCH_ROWS + 2}
+            ) result ORDER BY n) TO STDOUT WITH CSV; ROLLBACK;'''
+        data = self.command(["docker", "exec", "-i", self.postgres, "sh", "-c",
+            'exec psql -X -q -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"'], sql=sql, timeout=25)
+        if len(data) > DATABASE_BATCH_BYTES:
+            raise RuntimeError('Database page exceeds byte bound; cursor retained')
+        # The process-wide csv default is too small for valid bounded rows.
+        prior_limit = csv.field_size_limit()
+        try:
+            csv.field_size_limit(DATABASE_BATCH_BYTES)
+            records = list(csv.reader(io.StringIO(data.decode('utf-8')), strict=True))
+        finally:
+            csv.field_size_limit(prior_limit)
+        if not records or len(records) > DATABASE_BATCH_ROWS + 1 or any(len(row) != 2 for row in records):
+            raise ValueError('Incomplete database page; cursor retained')
+        trailer = records.pop()
+        if trailer[0] != 'null': raise ValueError('Missing database page trailer; cursor retained')
+        meta = json.loads(trailer[1])
+        if not isinstance(meta, dict) or type(meta.get('count')) is not int or meta['count'] != len(records) or type(meta.get('more')) is not bool:
+            raise ValueError('Invalid database page trailer; cursor retained')
+        rows = [(json.loads(raw), json.loads(defaults)) for raw, defaults in records]
+        if meta['more'] and not rows: raise RuntimeError('Database row exceeds bounded page; cursor retained')
+        if any(not isinstance(value, dict) or not isinstance(defaults, dict) or any(key not in value for key in keys) for value, defaults in rows):
+            raise ValueError('Invalid database page row; cursor retained')
+        return rows, meta['more'], [rows[-1][0][key] for key in keys] if rows else after
+
     def database(self):
         if time.time() - self.state("database:last", 0) < 120: return
         if not getattr(self, "postgres", None):
             self.status("database-events", "unavailable", "Canonical PostgreSQL was not identified")
             return
         tables = {table: rule['timeColumn'] for table, rule in DATABASE_DIAGNOSTICS['sources'].items()}
-        failures = 0
+        failures, pending = 0, 0
         for table, column in tables.items():
             key = "db:" + table
             cutoff = datetime.now(UTC) - timedelta(days=self.config.get("retentionDays", 30))
-            since = self.state(key, cutoff.isoformat())
-            span = self.state(key + ":span", 6 * 3600)
-            until = min(datetime.now(UTC), datetime.fromisoformat(since.replace("Z", "+00:00")) + timedelta(seconds=span)).isoformat()
-            if column.endswith("_ms"):
-                start_ms = int(datetime.fromisoformat(since).timestamp() * 1000)
-                end_ms = int(datetime.fromisoformat(until).timestamp() * 1000)
-                condition = f'"{column}" BETWEEN {start_ms} AND {end_ms}'
-                recent_ms = int((datetime.now(UTC) - timedelta(minutes=30)).timestamp() * 1000)
-                condition += f' OR "{column}" BETWEEN {recent_ms} AND {int(datetime.now(UTC).timestamp() * 1000)}'
-            else:
-                condition = f'"{column}" BETWEEN TIMESTAMPTZ \'{since}\' AND TIMESTAMPTZ \'{until}\''
-                condition += f' OR "{column}" BETWEEN NOW() - INTERVAL \'30 minutes\' AND NOW()'
-            # attmissingval records the actual fast ADD COLUMN default. A
-            # nullable added column has a null missing value. Volatile defaults
-            # lack that proof and therefore cannot silently alias an old event.
-            defaults_sql = f'''(SELECT json_object_agg(a.attname,
-                CASE WHEN a.atthasmissing THEN to_jsonb(a.attmissingval)->0 ELSE 'null'::jsonb END)
-                FROM pg_attribute a WHERE a.attrelid='public."{table}"'::regclass
-                AND a.attnum>0 AND NOT a.attisdropped)::text'''
-            sql = f'''BEGIN READ ONLY; SET LOCAL statement_timeout='15s';
-                COPY (SELECT row_to_json(t)::text, {defaults_sql} FROM (SELECT * FROM public."{table}" WHERE {condition} ORDER BY "{column}") t) TO STDOUT WITH CSV; ROLLBACK;'''
-            try:
-                data = self.command(["docker", "exec", "-i", self.postgres, "sh", "-c", 'exec psql -X -q -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"'], sql=sql)
-                for row in csv.reader(io.StringIO(data.decode())):
-                    value = json.loads(row[0])
-                    stamp = datetime.fromtimestamp(value[column] / 1000, UTC).isoformat() if column.endswith("_ms") else value[column]
-                    defaults = json.loads(row[1]) if len(row) > 1 else {}
-                    self.add_database_row(table, value, defaults, timestamp(stamp, until))
-                self.set_state(key, until)
-                self.status("database-events:" + table, "ok", "Fresh database events", until)
-            except Exception as exc:
-                failures += 1
-                self.set_state(key + ":span", max(1, span // 2))
-                self.status("database-events:" + table, "error", str(exc))
-            # Historical reconciliation has its own cursor and schedule. The
-            # fresh cursor is necessarily older than the 120-second throttle.
-            # Never use its age to decide whether history should be revisited.
-            history_key = "db:history:" + table
-            if time.time() - self.state(history_key + ":completed", 0) < 6 * 3600:
-                continue
-            history_since = max(cutoff, datetime.fromisoformat(self.state(history_key, cutoff.isoformat()).replace("Z", "+00:00")))
-            history_span = self.state(history_key + ":span", self.config.get("retentionDays", 30) * 86400)
-            history_until = min(datetime.now(UTC), history_since + timedelta(seconds=history_span))
-            if column.endswith("_ms"):
-                historical_condition = f'"{column}" BETWEEN {int(history_since.timestamp()*1000)} AND {int(history_until.timestamp()*1000)}'
-            else:
-                historical_condition = f'"{column}" BETWEEN TIMESTAMPTZ \'{history_since.isoformat()}\' AND TIMESTAMPTZ \'{history_until.isoformat()}\''
-            historical_sql = f'''BEGIN READ ONLY; SET LOCAL statement_timeout='15s';
-                COPY (SELECT row_to_json(t)::text, {defaults_sql} FROM (SELECT * FROM public."{table}" WHERE {historical_condition} ORDER BY "{column}") t) TO STDOUT WITH CSV; ROLLBACK;'''
-            try:
-                data = self.command(["docker", "exec", "-i", self.postgres, "sh", "-c", 'exec psql -X -q -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"'], sql=historical_sql)
-                for row in csv.reader(io.StringIO(data.decode("utf-8"))):
-                    value = json.loads(row[0])
-                    stamp = datetime.fromtimestamp(value[column] / 1000, UTC).isoformat() if column.endswith("_ms") else value[column]
-                    defaults = json.loads(row[1]) if len(row) > 1 else {}
-                    self.add_database_row(table, value, defaults, timestamp(stamp, history_until.isoformat()))
-                complete = history_until >= datetime.now(UTC) - timedelta(seconds=30)
-                self.set_state(history_key, cutoff.isoformat() if complete else history_until.isoformat())
-                if complete: self.set_state(history_key + ":completed", time.time())
-                self.status("database-history:" + table, "ok" if complete else "pending", "Historical reconciliation complete" if complete else "History collection is queued", history_until.isoformat())
-            except Exception as exc:
-                failures += 1
-                self.set_state(history_key + ":span", max(1, history_span // 2))
-                self.status("database-history:" + table, "error", str(exc))
+            for history in (False, True):
+                lane_key = 'db:history:' + table if history else key
+                source = ('database-history:' if history else 'database-events:') + table
+                if history and time.time() - self.state(lane_key + ':completed', 0) < 6 * 3600:
+                    continue
+                span = self.state(lane_key + ':span', self.config.get('retentionDays', 30)*86400 if history else 6*3600)
+                window = self.state(lane_key + ':window')
+                if window is None:
+                    start = max(cutoff, datetime.fromisoformat(self.state(lane_key, cutoff.isoformat()).replace('Z', '+00:00')))
+                    end = min(datetime.now(UTC), start + timedelta(seconds=span))
+                    recent_end = datetime.now(UTC)
+                    window = dict(start=start.isoformat(), end=end.isoformat(), recentEnd=recent_end.isoformat(),
+                                  recentStart=(recent_end-timedelta(minutes=30)).isoformat(), after=None)
+                def between(start, end):
+                    if column.endswith('_ms'):
+                        return f'"{column}" BETWEEN {int(datetime.fromisoformat(start).timestamp()*1000)} AND {int(datetime.fromisoformat(end).timestamp()*1000)}'
+                    return f'"{column}" BETWEEN TIMESTAMPTZ \'{start}\' AND TIMESTAMPTZ \'{end}\''
+                condition = between(window['start'], window['end'])
+                if not history: condition += ' OR ' + between(window['recentStart'], window['recentEnd'])
+                # Keep the attempted window on errors too: an uncommitted page
+                # must be retried against the same upper bound, even after restart.
+                self.set_state(lane_key + ':window', window)
+                self.db.execute('SAVEPOINT database_page')
+                try:
+                    rows, more, after = self.database_batch(table, condition, window['after'])
+                    for value, defaults in rows:
+                        stamp = datetime.fromtimestamp(value[column]/1000, UTC).isoformat() if column.endswith('_ms') else value[column]
+                        self.add_database_row(table, value, defaults, timestamp(stamp, window['end']))
+                    if more:
+                        self.set_state(lane_key + ':window', {**window, 'after': after})
+                    else:
+                        self.set_state(lane_key + ':window', None)
+                        complete = history and datetime.fromisoformat(window['end']) >= datetime.now(UTC)-timedelta(seconds=30)
+                        self.set_state(lane_key, cutoff.isoformat() if complete else window['end'])
+                        if complete: self.set_state(lane_key + ':completed', time.time())
+                    # A keyset time at a tie is not complete coverage through that
+                    # timestamp. Only completed windows advance collectedThrough.
+                    caught_up = not more and datetime.fromisoformat(window['end']) >= datetime.now(UTC)-timedelta(seconds=30)
+                    if not caught_up: pending += 1
+                    detail = 'Database backlog; bounded page continuation queued' if more else 'Historical reconciliation complete' if history and caught_up else 'Fresh database events' if caught_up else 'Database backlog; next time window queued'
+                    self.status(source, 'ok' if caught_up else 'pending', detail,
+                                window['end'] if not more else None)
+                    self.db.execute('RELEASE database_page')
+                except Exception as exc:
+                    self.db.execute('ROLLBACK TO database_page'); self.db.execute('RELEASE database_page')
+                    failures += 1
+                    self.set_state(lane_key + ':span', max(1, span // 2))
+                    self.status(source, 'error', str(exc))
         self.set_state("database:last", time.time())
-        self.status("database-events", "error" if failures else "ok", f"{failures} table sources require attention" if failures else "")
+        self.status("database-events", 'error' if failures else 'pending' if pending else 'ok',
+                    f'{failures} table sources require attention' if failures else f'{pending} database sources have queued backlog' if pending else '')
 
     def files(self):
         configured = [{"source": "updates", "path": str(self.root / ".asa" / "logs")}, *self.config.get("fileSources", [])]
