@@ -4756,13 +4756,13 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: OBS015_OBS016_OBS017_verified_reported_STOP_no_site_update
+      checkpoint: OBS015_OBS016_OBS017_main_published_bounded_Windows_fixture_repair_pending
       owner_acceptance: pending
       normative_refs:
         - document: PORTABLE-DEPLOYMENT-CONTRACT
           revision: '1.0'
         - document: OBSERVABILITY-REPAIR-SPEC
-          revision: '1.13'
+          revision: '1.14'
         - document: RELEASE-REGISTRATION-FIXTURE-SPEC
           revision: '1.0'
         - document: RELEASE-SCRATCH-CLOCK-SPEC
@@ -5118,6 +5118,18 @@ parallel_lanes:
           forbidden: production_runtime_changes_assertion_removal_or_skip_live_Docker_or_new_user_item
           required_review: fresh_independent_scoped_review_before_main_integration
           after_acceptance: preserve_OBS017_candidate_and_continue_final_review_integration_no_OBS018
+        windows_fixture_repair:
+          id: OBS-015-CI-UTF8
+          status: selected_pending_bounded_author
+          source_baseline_sha: 43f3fa587318d0d06acfc48e4213344d0d821c71
+          failure_run: 38622500252
+          failure_job: 116053283644
+          failure_scope: six_cp1252_UnicodeDecodeError_subcases_in_three_OBS014_OBS015_test_methods
+          document: docs/product/ASA_OBSERVABILITY_REPAIR_SPEC.md
+          section: '24'
+          allowed_scope: explicit_UTF8_catalog_reads_in_three_existing_test_methods_only
+          product_changes: forbidden
+          next_action: Fresh_bounded_author_fresh_review_actual_Windows_CI_separate_report_main_then_restore_batch_STOP
         owner_authorized_batch:
           status: completed_three_items_verified_reported_STOP
           ordered_items: [OBS-015, OBS-016, OBS-017]
@@ -5130,7 +5142,7 @@ parallel_lanes:
         owner_instruction: Continue three sequential items OBS015 then OBS016 then OBS017, report each, publish into main without site update, STOP after OBS017.
         candidate_baseline_sha: 6a23ee5948650d0bd551338c03415a445046ab3d
         acceptance_scope: Bounded recent database batches advance without missing equal-time rows or duplicating observations, preserve history and report truthful backlog/error status.
-        next_action: STOP_completed_owner_batch_OBS015_OBS016_OBS017_main_publication_no_site_update_OBS018_requires_owner_instruction
+        next_action: Complete_selected_own_Windows_fixture_encoding_repair_then_restore_STOP_no_OBS018
       release_execution:
         status: completed_owner_authorized_batch_with_documented_diagnostics_limitations
         selected_phase: report_and_STOP_after_OBS008_OBS009_main_and_canonical_site_update
