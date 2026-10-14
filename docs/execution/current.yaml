@@ -4585,7 +4585,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: OBS011_selected_history_index_loss_fail_closed_implementation_pending
+      checkpoint: OBS011_history_index_loss_no_clobber_accepted_main_report_STOP
       owner_acceptance: pending
       normative_refs:
         - document: PORTABLE-DEPLOYMENT-CONTRACT
@@ -4609,8 +4609,8 @@ parallel_lanes:
       item_execution:
         document: docs/product/ASA_OBSERVABILITY_REPAIR_SPEC.md
         selected_item: OBS-011
-        status: selected_implementation_pending
-        completed_items: [OBS-001, OBS-002, OBS-003, OBS-004, OBS-005, OBS-006, OBS-007, OBS-008, OBS-009, OBS-010]
+        status: implemented_focused_verified_independently_reviewed
+        completed_items: [OBS-001, OBS-002, OBS-003, OBS-004, OBS-005, OBS-006, OBS-007, OBS-008, OBS-009, OBS-010, OBS-011]
         accepted_items:
           OBS-001:
             status: implemented_focused_verified
@@ -4814,6 +4814,21 @@ parallel_lanes:
             deployment: not_run_this_item_explicitly_excluded_by_owner
             database_actions: none
             report: docs/execution/OBS_010_REPORT.md
+          OBS-011:
+            status: implemented_focused_verified_and_independently_reviewed
+            source_sha: e1c9f989699234aede76a4c2f5dc9d3cafd562d1
+            source_branch: codex/observability-item-11
+            authoring_baseline_sha: 648ddb3cba8b109f074893a53799a35a6bfb22be
+            independent_review: scoped_challenge_pass_exact_source_no_test_rerun
+            local_before: 25_failed_subcases_3_passed_scenarios
+            payload_identity_before: 4_failed_scenarios
+            local_after: 8_methods_32_scenarios_passed
+            local_collector_total: 41_passed_0_skipped_includes_33_existing_8_new
+            exact_ci_conclusion: not_run_before_main_publication_not_claimed_green
+            product_integration: main_publication_authorized_after_focused_checks_and_review
+            deployment: not_run_explicitly_excluded_by_owner
+            database_actions: temporary_diagnostic_SQLite_fixtures_only_no_live_actions
+            report: docs/execution/OBS_011_REPORT.md
         owner_authorized_batch:
           ordered_items: [OBS-011]
           reports: complete_after_selected_item_then_STOP
@@ -4825,7 +4840,7 @@ parallel_lanes:
         owner_instruction: Implement OBS011 only, publish into main, do not update the site, report and STOP.
         candidate_baseline_sha: eb39c4202530efd51f6be589a471b9519d941980
         acceptance_scope: Fail closed on missing or inconsistent diagnostic index with retained history; immutable no-clobber publication preserves raw and gzip segments including crash replay.
-        next_action: implement_OBS011_focused_tests_independent_review_report_main_STOP
+        next_action: STOP_OBS011_complete_OBS012_requires_new_owner_instruction
       release_execution:
         status: completed_owner_authorized_batch_with_documented_diagnostics_limitations
         selected_phase: report_and_STOP_after_OBS008_OBS009_main_and_canonical_site_update
@@ -5047,9 +5062,10 @@ parallel_lanes:
           runtime_evidence: actual_PostgreSQL_receipts_concurrency_authority_replay_lock_isolation_RLS_upgrade_and_existing_browser_journeys_pass_on_556_and_aab
           production_evidence: pending_OBS6_guarded_release_and_safe_legacy_analytics_projection
       priority_note: >-
-        OBS001-010 are accepted. The current owner instruction selects OBS011 only:
+        OBS001-011 are accepted. The current owner instruction selected OBS011 only:
         protect retained history against lost/inconsistent private index and immutable filename collision.
-        Use temporary data for focused tests; independent challenge review is required for history safety.
+        Temporary-data focused tests passed: 8 methods / 32 scenarios and 41 total collector tests.
+        Exact-source independent challenge review PASS; no heavy or duplicate test reruns.
         Publish result into main, report and STOP. The historical release record grants no new deployment authority.
       deployment_authorized: false
       destructive_database_actions_authorized: false
