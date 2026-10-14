@@ -1,6 +1,7 @@
 import type { Page } from '@playwright/test';
 import { existsSync } from 'node:fs';
 import { resolve, sep } from 'node:path';
+import { telemetryReceipt } from './telemetry-receipts';
 
 // Production-built UI, synthetic API only: no listening server or real student data.
 export const origin = 'http://127.0.0.1:4612';
@@ -80,6 +81,8 @@ export async function fixture(
     const path = new URL(request.url()).pathname;
     const method = request.method();
     const reply = (json: unknown, status = 200) => route.fulfill({ json, status });
+    const telemetry = telemetryReceipt(request);
+    if (telemetry) return route.fulfill(telemetry);
     if (
       !['GET', 'HEAD'].includes(method) &&
       !path.includes('observation') &&

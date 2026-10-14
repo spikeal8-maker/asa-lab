@@ -2,6 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve, sep } from 'node:path';
 import type { LearningNotification } from '../apps/web/src/api';
+import { telemetryReceipt } from './fixtures/telemetry-receipts';
 
 const evidence = 'e2e/artifacts/owner-preview/access-a-ui';
 const r3Evidence = 'reports/playwright/portal-compact-settings-r3-20261008';
@@ -728,6 +729,8 @@ async function fixture(
       diagnostics.push(request.postDataJSON());
       return reply({ accepted: true }, 202);
     }
+    const telemetry = telemetryReceipt(request);
+    if (telemetry) return route.fulfill(telemetry);
     if (!['GET', 'HEAD'].includes(method)) mutations.push(path);
     if (path === '/api/account/presentation') {
       if (presentationFailure)
