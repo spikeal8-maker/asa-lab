@@ -4585,7 +4585,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: Windows_junction_fixture_setup_budget_selected
+      checkpoint: OBS008_OBS009_main_integrated_canonical_site_updated_report_STOP
       owner_acceptance: pending
       normative_refs:
         - document: PORTABLE-DEPLOYMENT-CONTRACT
@@ -4609,7 +4609,7 @@ parallel_lanes:
       item_execution:
         document: docs/product/ASA_OBSERVABILITY_REPAIR_SPEC.md
         selected_item: OBS-009
-        status: implemented_focused_verified
+        status: implemented_integrated_deployed_owner_batch_completed
         completed_items: [OBS-001, OBS-002, OBS-003, OBS-004, OBS-005, OBS-006, OBS-007, OBS-008, OBS-009]
         accepted_items:
           OBS-001:
@@ -4625,8 +4625,8 @@ parallel_lanes:
             exact_ci_item_tests: 5_passed
             exact_ci_focused: 281_passed_1_failed_baseline_OBS009
             exact_ci_postgres_and_browser: skipped
-            product_integration: held_with_unaccepted_CLIENT_parent
-            deployment: not_run
+            product_integration: integrated_main_owner_authorized_release_fb4f4f6c
+            deployment: canonical_site_fb4f4f6c_schema212_verified
             database_actions: none
             report: docs/execution/OBS_001_REPORT.md
           OBS-002:
@@ -4646,8 +4646,8 @@ parallel_lanes:
             exact_ci_item_tests: 37_passed
             exact_ci_focused: baseline_OBS009_failure_own37_passed
             exact_ci_postgres_and_browser: skipped
-            product_integration: held_with_unaccepted_CLIENT_parent
-            deployment: not_run
+            product_integration: integrated_main_owner_authorized_release_fb4f4f6c
+            deployment: canonical_site_fb4f4f6c_schema212_verified
             database_actions: none
             report: docs/execution/OBS_002_REPORT.md
           OBS-003:
@@ -4666,8 +4666,8 @@ parallel_lanes:
             exact_ci_additional_api_suite: 3_passed
             exact_ci_focused: 345_passed_1_failed_baseline_OBS009
             exact_ci_postgres_and_browser: skipped
-            product_integration: held_with_unaccepted_CLIENT_parent
-            deployment: not_run
+            product_integration: integrated_main_owner_authorized_release_fb4f4f6c
+            deployment: canonical_site_fb4f4f6c_schema212_verified
             database_actions: none
             report: docs/execution/OBS_003_REPORT.md
           OBS-004:
@@ -4685,8 +4685,8 @@ parallel_lanes:
             exact_ci_regressions: 86_passed
             exact_ci_focused: 362_passed_1_failed_baseline_OBS009
             exact_ci_postgres_and_browser: skipped
-            product_integration: held_with_unaccepted_CLIENT_parent
-            deployment: not_run
+            product_integration: integrated_main_owner_authorized_release_fb4f4f6c
+            deployment: canonical_site_fb4f4f6c_schema212_verified
             database_actions: none
             report: docs/execution/OBS_004_REPORT.md
           OBS-005:
@@ -4704,9 +4704,9 @@ parallel_lanes:
             exact_ci_auth_regressions: 37_passed
             exact_ci_focused: 374_passed_1_failed_baseline_OBS009
             exact_ci_code_postgres_and_browser: skipped
-            product_integration: held_with_unaccepted_CLIENT_parent
+            product_integration: integrated_main_owner_authorized_release_fb4f4f6c
             main_convergence: foreign_learning_App_conflict_aborted_canonical_selection_only_inherited
-            deployment: not_run
+            deployment: canonical_site_fb4f4f6c_schema212_verified
             database_actions: none
             report: docs/execution/OBS_005_REPORT.md
           OBS-006:
@@ -4725,9 +4725,9 @@ parallel_lanes:
             exact_ci_focused: 386_passed_1_failed_baseline_OBS009
             exact_ci_postgres_and_browser: skipped
             exact_ci_code_gate: not_reached_after_focused_failure
-            product_integration: held_with_unaccepted_CLIENT_parent
+            product_integration: integrated_main_owner_authorized_release_fb4f4f6c
             main_convergence: canonical_report5_and_selection6_only_inherited_foreign_App_conflict_deferred
-            deployment: not_run
+            deployment: canonical_site_fb4f4f6c_schema212_verified
             database_actions: none
             report: docs/execution/OBS_006_REPORT.md
           OBS-007:
@@ -4754,9 +4754,9 @@ parallel_lanes:
             exact_ci_postgres_and_browser: skipped
             exact_ci_code_gate: not_reached_after_focused_failure
             real_browser_BFCache: not_run_synthetic_PageTransitionEvent_only
-            product_integration: held_with_unaccepted_CLIENT_parent
+            product_integration: integrated_main_owner_authorized_release_fb4f4f6c
             main_convergence: canonical_report6_and_selection7_only_inherited_foreign_App_conflict_deferred
-            deployment: not_run
+            deployment: canonical_site_fb4f4f6c_schema212_verified
             database_actions: none
             report: docs/execution/OBS_007_REPORT.md
           OBS-008:
@@ -4774,8 +4774,8 @@ parallel_lanes:
             exact_ci_selected_tests: 179_passed
             exact_ci_focused: 437_passed_1_failed_baseline_OBS009
             exact_ci_postgres_and_browser: skipped
-            product_integration: held_with_unaccepted_CLIENT_parent_until_owner_authorized_batch_integration
-            deployment: pending_after_OBS009_and_required_checks
+            product_integration: integrated_main_owner_authorized_release_fb4f4f6c
+            deployment: canonical_site_fb4f4f6c_schema212_verified
             database_actions: none
             report: docs/execution/OBS_008_REPORT.md
           OBS-009:
@@ -4795,8 +4795,8 @@ parallel_lanes:
             exact_ci_item_tests: 29_passed
             exact_ci_lint_typecheck_build: 27_projects_passed
             exact_ci_postgres_and_browser: cancelled_pending_exact_main_general
-            product_integration: pending_owner_authorized_main_integration
-            deployment: pending_required_release_checks
+            product_integration: integrated_main_owner_authorized_release_fb4f4f6c
+            deployment: canonical_site_fb4f4f6c_schema212_verified
             database_actions: none
             report: docs/execution/OBS_009_REPORT.md
         owner_authorized_batch:
@@ -4807,21 +4807,21 @@ parallel_lanes:
           canonical_site_update: explicitly_authorized_after_required_checks
           remaining_OBS010_through_OBS045: not_selected_as_numbered_tasks_necessary_integration_compatibility_repairs_separately_scoped
         mode: one_item_per_executor_report_then_controller_continues_owner_batch
-        next_item_requires_owner_instruction: false
+        next_item_requires_owner_instruction: true
         owner_instruction: Implement item8 then item9 with separate reports, integrate all prepared changes into main and fully update the canonical site after required release checks.
         candidate_baseline_sha: b1a93e6c14cac35cf5e440e4af86650ebf9bb3bb
         acceptance_scope: Endpoint-correct Scratch diagnostics fixture preserving heartbeat failure, recovery and hidden-tab assertions.
-        next_action: Windows_fixture_setup_repair_then_final_release_gates_and_guarded_site_update
+        next_action: STOP_owner_batch_complete_OBS010_requires_new_instruction
       release_execution:
-        status: in_progress
-        selected_phase: Windows_junction_fixture_setup_budget
+        status: completed_owner_authorized_batch_with_documented_diagnostics_limitations
+        selected_phase: report_and_STOP_after_OBS008_OBS009_main_and_canonical_site_update
         owner_authorization: explicit_OBS008_then_OBS009_then_all_changes_main_and_full_site_update_20261014
-        candidate_source_sha: d9aa03130d3e7c78fa5d7f659d4f2d7bc16accde
+        candidate_source_sha: fb4f4f6c4e158de49d76f8fade9322a0a0cea894
         integration_branch: codex/observability-main-integration
         registration_fixture_result:
           id: TASK-RELEASE-REGISTRATION-FIXTURE-001
           source_sha: 2a3d2f49fc7ed8412914e3ca0800ced59bf623b5
-          status: implemented_focused_verified_pending_final_main_browser_CI
+          status: implemented_independently_reviewed_final_main_browser_CI_success
           independent_review: pass
           local_focused: 30_passed
           source_general_run: 38483765579
@@ -4848,7 +4848,7 @@ parallel_lanes:
           original_assertion_preservation: 1257_expect_calls_identical_across_5_UI_specs
           local_browser: discovery402_only_not_execution
           report: docs/execution/RELEASE_UI_TELEMETRY_FIXTURE_REPORT.md
-          full_UI_execution: required_on_final_main
+          full_UI_execution: final_main_402_passed_run38496115989
         Scratch_protocol_fixture_result:
           id: TASK-RELEASE-SCRATCH-PROTOCOL-FIXTURE-001
           source_sha: 0e9045500fd2c069b35e6c51d9dcaad039258be2
@@ -4870,17 +4870,23 @@ parallel_lanes:
           preservation: all1257_expect_calls_15_API_paths_classId_mutation_push_AST_identical
           unchanged_helpers_and_tests: 29_units_and_Scratch_byte_identical_not_rerun
           report: docs/execution/RELEASE_UI_ACTOR_FIXTURE_REPORT.md
-          final_full_UI_CI: required
+          final_full_UI_CI: final_main_402_passed_run38496115989
         current_baseline_task:
           id: TASK-RELEASE-WINDOWS-JUNCTION-FIXTURE-001
           specification: docs/delivery/RELEASE_WINDOWS_JUNCTION_FIXTURE_SPEC.md
           branch: codex/release-windows-junction-fixture
-          status: in_progress
+          status: implemented_independently_reviewed_final_release_Windows_and_Linux_contracts_success
           category: D_hosted_Windows_PowerShell_junction_fixture_setup_timeout_before_assertions
-          failing_runs: [38488975580, 38494073569]
+          failing_runs:
+          - 38488975580
+          - 38494073569
           observed: first_junction_setup_exceeds15_seconds_before_security_assertions_Linux_contracts_pass
           scope: Only bounded60_second_test_fixture_creation_timeout_and_comment_in_test_collector_python; all_security_assertions_and_production30_second_budget_unchanged.
           deployment_gate: final_main_General_and_all_Portable_Release_contracts_build_publish_backup_restore_success
+          source_sha: fb4f4f6c4e158de49d76f8fade9322a0a0cea894
+          focused: actual_Windows_single_test_all5_junction_locations_passed
+          independent_review: pass
+          report: docs/execution/OBS_008_009_RELEASE_REPORT.md
         main_integration_result:
           source_sha: 3ab6693eb3bf52d7ba73c5f6679bbac83c656efb
           main_publication: completed_normal_fast_forward
@@ -4893,18 +4899,82 @@ parallel_lanes:
           original_main_general_run: 38480278081
           original_main_general: cancelled_to_avoid_repeating_known_identical_baseline_failure
         scope: Merge prepared CLIENT and accepted repairs with current main, resolve necessary conflicts preserving both features.
-        required_fixture_compatibility: Existing classroom Scratch browser fixture must acknowledge v2 visits and quality so new CLIENT queue can reach module-session; preserve all behavioral assertions.
+        required_fixture_compatibility: Existing classroom Scratch browser fixture must acknowledge v2 visits and quality so new CLIENT queue can reach module-session; preserve all behavioral
+          assertions.
         gate_order: Focused checks and independent source review before main publication, exact main General all required jobs and portable release checks before runtime update.
-        production_directory: 'F:\Asa-Lab\asa-lab'
+        production_directory: F:\Asa-Lab\asa-lab
         production_project: asa-lab-dev
         production_profile: production
         production_entry_origin: https://asa-lab.ru
         production_before_revision: fa282924d97c21c552f5bdef11b9af94324b02fc
         production_before_schema: 203
         production_manager: tools/asa_manager.py
-        backup: required_verified_full_recovery_set_before_switch
-        deployment: pending
+        backup:
+          path: F:\Asa-Lab\asa-lab\backups\20261014T020114Z-9d5587b4
+          status: full_recovery_set_hash_verified
+          verified_files: 1576
+          runtime_revision: fa282924d97c21c552f5bdef11b9af94324b02fc
+          includes:
+          - PostgreSQL_dump_ACL
+          - globals_without_role_passwords
+          - MinIO_objects
+          - private_env
+          - configuration
+          - hash_manifest
+        deployment:
+          status: success_after_inspected_transient_public_entry_recovery
+          revision: fb4f4f6c4e158de49d76f8fade9322a0a0cea894
+          schema: 212
+          receipt_at: '2026-10-14T02:05:15.097544+00:00'
+          recovered: true
+          initial_failure: EDITOR_ENTRY_HTTP_public_health404_after_containers_ready
+          recovery: exact_images_schema_and_strict_public_embedded_entry_verified_then_manager_acknowledge_archived_original_markers_and_success_receipt_recorded_without_restart_or_database_restore
+          entry_http: pass
+          user_flow: not_run_authenticated_save_reopen_no_owner_session
+          browser_public_home_and_registration_and_login_forms: pass_actual_IAB_after_reload
+          same_PostgreSQL_and_MinIO_volumes: true
+          same_private_env_SHA256: true
+          aggregate_counts_unchanged:
+            accounts: 71
+            classroom_student_seats: 418
+            principals: 416
+            projects: 1114
+            workspaces: 71
         owner_product_acceptance: not_claimed_by_health_or_CI
+        final_main_general:
+          revision: fb4f4f6c4e158de49d76f8fade9322a0a0cea894
+          run: 38496115989
+          conclusion: success
+          required_jobs: all4_success
+          access_unit: 849_passed_89_files
+          real_browser: 21_passed
+          synthetic_UI_layout: 402_passed
+        final_portable_delivery:
+          revision: fb4f4f6c4e158de49d76f8fade9322a0a0cea894
+          run: 38496116071
+          conclusion: success
+          required_jobs: Windows_Linux_contracts_and_images_all_success
+        final_portable_release:
+          revision: fb4f4f6c4e158de49d76f8fade9322a0a0cea894
+          run: 38498149543
+          conclusion: success
+          required_jobs: gate_Windows_Linux_contracts_4_images_publish_and_exact_image_backup_restore_all_success
+        collector_observation:
+          process: running_current_revision_and_script_digest
+          cycle: ok_fresh
+          core_sources: api_web_scratch_postgres_minio_migration_all_ok
+          coverage_complete: false
+          source_states:
+            ok: 65
+            pending: 98
+            unavailable: 2
+            error: 0
+          excluded_not_applicable: 1
+          runner_management: degraded_COLLECTOR_RUNNER_IDENTITY_existing_Windows_task_XML_omits_default_RunLevel_but_actual_task_Limited0_owned_action_root_and_user_match
+          permissions: windows_Security_and_restricted_channel_discovery_unavailable_no_elevation
+          followup: recorded_not_repaired_as_unselected_next_task
+        known_Scratch_acceptance_blocker: VSCR470_pagehide_clock_pauseAt_past_unchanged_54_passed1_failed_run38491966252_all_Scratch_source_byte_identical_to0e
+        report: docs/execution/OBS_008_009_RELEASE_REPORT.md
       dependency_order: [OBS1, OBS3A, OBS2, OBS3B-SERVER, OBS3B-CLIENT, OBS4, OBS5, OBS6]
       completed_slices: [OBS1, OBS3A, OBS2, OBS3B-SERVER]
       remaining_slices: [OBS3B-CLIENT, OBS4, OBS5, OBS6]
@@ -4963,36 +5033,27 @@ parallel_lanes:
           runtime_evidence: actual_PostgreSQL_receipts_concurrency_authority_replay_lock_isolation_RLS_upgrade_and_existing_browser_journeys_pass_on_556_and_aab
           production_evidence: pending_OBS6_guarded_release_and_safe_legacy_analytics_projection
       priority_note: >-
-        SERVER source and independent review passed; exact integrated aab General all four jobs succeeded.
-        Main integration 3e09 preserves byte-identical product source and the later foreign documents,
-        with independent preservation review and four Python validators; no full 3e09 CI is claimed.
-        Owner narrowed execution to one numbered item with report and STOP; OBS-001 is focused-verified.
-        OBS-002 independent source review and focused checks passed after deadline repair; report and STOP.
-        OBS-003 exact acknowledgement contracts passed source review and focused checks; report and STOP.
-        OBS-004 storage coverage passed source review and focused checks; report and STOP.
-        OBS-005 shared operation waiters passed source review and focused checks; report and STOP.
-        OBS-006 synchronous close-before-quality passed source review and focused checks; report and STOP.
-        OBS-007 BFCache resume passed focused checks and new independent review after stale initial timer repair; report and STOP.
-        OBS-008 exact fractional receipts passed source review and 179 selected local/CI tests; separate report recorded.
-        OBS-009 fixture passed independent source review and 29 local/CI tests; exact focused438 and Code job succeeded.
-        Main integration3ab is source-reviewed and published; full release is gated by a separate browser setup quota baseline repair.
-        OBS-009 known focused blocker is repaired; source09 broader jobs were cancelled in favor of exact final main verification.
-        Remaining OBS3B-CLIENT work includes stable retry identities,
-        confirmed module sessions and visits, independent truthful quality ledgers and diagnostic intake.
-        Preserve canonical Account/Seat authority, existing Scratch single-writer ownership, telemetry
-        exclusion from auth refresh, academic edit-qualified intervals and transactional project activity.
-        Aggregate OBS3B acceptance still requires CLIENT. Module coverage, safe legacy DB-log projection,
-        administrator scope/UI and integrated guarded release remain subsequent slices. No historical
-        school root cause, classroom acceptance or production release is claimed.
+        Owner-authorized OBS-008 and OBS-009 are implemented, independently reviewed, reported,
+        integrated with prepared CLIENT and parallel main changes, and deployed in canonical production.
+        Final product SHA fb4f4f6c has exact General38496115989 all4 jobs SUCCESS, Delivery38496116071
+        SUCCESS and Release38498149543 all required contracts, images and publish/backup-restore SUCCESS.
+        Runtime Web/API/Scratch revisions match fb4f4f6c; schema212; verified full backup and unchanged
+        persistent stores/private environment/aggregate data counts. Initial public HTTP404 was inspected;
+        strict public entry passed before explicit manager acknowledgement and operation receipt recovery.
+        Collector runs and core service collection is current, but source coverage is incomplete and Windows
+        runner management rejects an omitted default XML RunLevel; these findings remain separate follow-up.
+        Existing VSCR470 virtual-clock acceptance blocker remains open. Authenticated owner save/reopen and
+        classroom acceptance are NOT_RUN. Historical dated slice evidence remains historical; this batch
+        does not close the whole programme or authorize OBS010-045. Report and STOP after this batch.
       deployment_authorized: true
       destructive_database_actions_authorized: false
       owner_classroom_acceptance: not_run
       scope_note: >-
-        Owner authorized the observability programme and subsequently required one numbered item per run,
-        a complete report and STOP until the next explicit instruction. OBS-001 source/focused result is
-        accepted; OBS-002 through OBS-009 are focused-verified and reported. Main integration is source-reviewed and published; a separate bounded CI registration setup task is selected before the authorized full guarded site update. Preserve all foreign source and unfinished drafts.
-        The CLIENT package and release remain unfinished. Preserve unrelated lane owner
-        acceptance, protected data, canonical installation and security boundaries.
+        The explicit owner batch comprised OBS008 then OBS009, all prepared changes into main and a full
+        canonical site update after required checks. This batch is complete with documented diagnostics
+        limitations. Overall observability and owner classroom acceptance remain in progress; OBS010-045
+        require the next owner instruction. Preserve unrelated lane acceptance, protected data, existing
+        installation and security boundaries. No historical school root cause or full source coverage is claimed.
     gates:
       focused:
         workflow: ASA Lab Governance and Code Gates
