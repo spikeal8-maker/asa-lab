@@ -4585,13 +4585,13 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: OBS010_existing_implementation_accepted_reused_browser_evidence_main_report_STOP
+      checkpoint: OBS011_selected_history_index_loss_fail_closed_implementation_pending
       owner_acceptance: pending
       normative_refs:
         - document: PORTABLE-DEPLOYMENT-CONTRACT
           revision: '1.0'
         - document: OBSERVABILITY-REPAIR-SPEC
-          revision: '1.9'
+          revision: '1.10'
         - document: RELEASE-REGISTRATION-FIXTURE-SPEC
           revision: '1.0'
         - document: RELEASE-SCRATCH-CLOCK-SPEC
@@ -4608,8 +4608,8 @@ parallel_lanes:
       selected_slice: OBS3B-CLIENT
       item_execution:
         document: docs/product/ASA_OBSERVABILITY_REPAIR_SPEC.md
-        selected_item: OBS-010
-        status: existing_main_implementation_verified_reused_exact_source_browser_evidence
+        selected_item: OBS-011
+        status: selected_implementation_pending
         completed_items: [OBS-001, OBS-002, OBS-003, OBS-004, OBS-005, OBS-006, OBS-007, OBS-008, OBS-009, OBS-010]
         accepted_items:
           OBS-001:
@@ -4815,17 +4815,17 @@ parallel_lanes:
             database_actions: none
             report: docs/execution/OBS_010_REPORT.md
         owner_authorized_batch:
-          ordered_items: [OBS-010]
+          ordered_items: [OBS-011]
           reports: complete_after_selected_item_then_STOP
           integration_into_main: authorized
           canonical_site_update: explicitly_excluded_for_this_item
-          remaining_OBS011_through_OBS045: not_selected
+          remaining_OBS012_through_OBS045: not_selected
         mode: one_item_per_executor_report_then_controller_continues_owner_batch
         next_item_requires_owner_instruction: true
-        owner_instruction: Continue one numbered item at a time; select OBS010, push result into main, do not update the site, report and STOP.
-        candidate_baseline_sha: b5bf8a3c250cb8bd84665dee1639014fb0eae840
-        acceptance_scope: Existing browser fixture visit and quality acknowledgements unblock actual module-session requests; wait for close receipt and preserve the minute-save controlled-exit401 scenario.
-        next_action: STOP_OBS010_complete_OBS011_requires_new_owner_instruction
+        owner_instruction: Implement OBS011 only, publish into main, do not update the site, report and STOP.
+        candidate_baseline_sha: eb39c4202530efd51f6be589a471b9519d941980
+        acceptance_scope: Fail closed on missing or inconsistent diagnostic index with retained history; immutable no-clobber publication preserves raw and gzip segments including crash replay.
+        next_action: implement_OBS011_focused_tests_independent_review_report_main_STOP
       release_execution:
         status: completed_owner_authorized_batch_with_documented_diagnostics_limitations
         selected_phase: report_and_STOP_after_OBS008_OBS009_main_and_canonical_site_update
@@ -5047,23 +5047,17 @@ parallel_lanes:
           runtime_evidence: actual_PostgreSQL_receipts_concurrency_authority_replay_lock_isolation_RLS_upgrade_and_existing_browser_journeys_pass_on_556_and_aab
           production_evidence: pending_OBS6_guarded_release_and_safe_legacy_analytics_projection
       priority_note: >-
-        OBS001-009 were integrated and the previous owner batch deployed fb4f4f6c/schema212.
-        The current owner instruction selects only OBS010 with main publication and explicitly no site update.
-        OBS010 implementation already exists from integration3ab and subsequent reviewed fixture repairs.
-        Independent scoped review at b5bf8a3c confirms all selected criteria. Both actual browser tests passed
-        run38491966252 at0e; exact selected source/harness/product/dependency/build input equivalence to b5
-        permits reuse without another heavy run. Whole Scratch remains FAILURE54PASS1knownVSCR470clockFAIL.
-        Current changes are detailed specification1.9, document registry, canonical acceptance and report only.
-        No runtime/database operation or OBS011 is authorized by this item. Report, push main and STOP.
+        OBS001-010 are accepted. The current owner instruction selects OBS011 only:
+        protect retained history against lost/inconsistent private index and immutable filename collision.
+        Use temporary data for focused tests; independent challenge review is required for history safety.
+        Publish result into main, report and STOP. The historical release record grants no new deployment authority.
       deployment_authorized: false
       destructive_database_actions_authorized: false
       owner_classroom_acceptance: not_run
       scope_note: >-
-        Current owner scope is OBS010 only, push into main, no site update. Existing implementation may be
-        accepted with independently reviewed equivalent-source executed evidence; do not manufacture another
-        source fix or heavy rerun. Historical release_execution remains the completed OBS008-009 deployment
-        record and grants no new deployment authorization. Preserve other lane blockers and protected data.
-        OBS011-045, Windows runner management, incomplete source coverage and VSCR470 remain unselected.
+        OBS011 only; no site update or live database/log operations. Preserve accepted results,
+        other lanes and blockers. OBS012-045, Windows runner management, incomplete coverage
+        and VSCR470 remain outside this item. No destructive automatic recovery of diagnostic history.
     gates:
       focused:
         workflow: ASA Lab Governance and Code Gates
