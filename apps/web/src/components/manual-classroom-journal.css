@@ -601,3 +601,17 @@
     --journal-name-width: 160px;
   }
 }
+
+/* On narrow containers, keep the roster readable without hiding the first grade. */
+@container classroom (max-width: 360px) {
+  .classroom-owner-workspace .manual-journal {
+    --journal-name-width: clamp(124px, 46cqi, 160px);
+    --journal-work-width: 116px;
+  }
+  .classroom-owner-workspace .manual-journal thead th:not(:first-child),
+  .classroom-owner-workspace .manual-journal tbody td {
+    width: var(--journal-work-width);
+    min-width: var(--journal-work-width);
+    max-width: var(--journal-work-width);
+  }
+}

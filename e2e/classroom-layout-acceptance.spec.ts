@@ -456,3 +456,28 @@ for (const width of [320, 390, 1024, 1440]) {
     });
   }
 }
+
+// Intermediate phone/tablet widths complete the owner's seven-width acceptance matrix.
+// This uses the built React bundle and the same synthetic fixture as the main suite.
+for (const width of [360, 430, 768]) {
+  test(`class list, pupil roster and journal at ${width}px`, async ({ page }) => {
+    mkdirSync(out, { recursive: true });
+    await page.setViewportSize({ width, height: 1000 });
+    const state = await seedPresentation(page, true);
+    await page.goto('/#/classrooms');
+    await photograph(page, `${width}-filled-classes`, '.classroom-owner-list');
+    await page.goto(`/#/classrooms/${classId}`);
+    await section(page, 'Ученики');
+    await photograph(page, `${width}-filled-students`, '.classroom-roster-panel');
+    await section(page, 'Журнал');
+    await expect(page.locator('.manual-journal-column')).toHaveCount(10);
+    await photograph(page, `${width}-filled-journal`, '.manual-journal');
+    const nameWidth = await page
+      .locator('.manual-journal tbody tr > th:first-child')
+      .first()
+      .evaluate((element) => element.getBoundingClientRect().width);
+    expect(nameWidth).toBeGreaterThanOrEqual(120);
+    expect(nameWidth).toBeLessThanOrEqual(222);
+    expect(state.errors).toEqual([]);
+  });
+}

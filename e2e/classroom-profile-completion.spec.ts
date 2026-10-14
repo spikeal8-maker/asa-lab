@@ -175,6 +175,19 @@ async function assertLayout(page: Page, width: number, file: string) {
     expect(rect.x + rect.width).toBeLessThanOrEqual(width + 1);
   }
   expect(previousRect.x + previousRect.width).toBeLessThan(nextRect.x);
+  const pagerText = await studentPager
+    .locator('.classroom-student-navigation-label, .classroom-student-navigation-button small')
+    .evaluateAll((nodes) =>
+      nodes.map((node) => ({
+        available: (node as HTMLElement).clientWidth,
+        needed: (node as HTMLElement).scrollWidth,
+        whiteSpace: getComputedStyle(node).whiteSpace,
+      })),
+    );
+  for (const item of pagerText) {
+    expect(item.whiteSpace).toBe('normal');
+    expect(item.needed).toBeLessThanOrEqual(item.available + 1);
+  }
   await expect(page.getByRole('region', { name: 'Последние оценки' })).toBeVisible();
   // The long learner name and both navigation targets occupy different bands.
   if (width <= 600) {
@@ -327,7 +340,7 @@ test('assigned without a project stays one row through start, submission and rev
   // Work/grade tab selection survives switching pupils; return to works explicitly.
   await page.getByRole('button', { name: 'Все работы', exact: true }).click();
   await expect(page.getByRole('region', { name: 'Последние оценки' })).toBeVisible();
-  for (const width of [320, 390, 1024, 1440]) {
+  for (const width of [320, 360, 390, 430, 768, 1024, 1440]) {
     await assertLayout(page, width, 'student-review-navigation');
   }
   await page.getByRole('button', { name: 'Задания', exact: true }).click();
@@ -669,6 +682,12 @@ test('real full Account and Seat manual history preserves zero and all five leve
     await expect(page.getByRole('heading', { name: 'История ручной оценки' })).toBeVisible();
     const history = page.locator('.participant-history');
     await expect(history.locator('ol li')).toHaveCount(5);
+    const longComment = history.locator('details.participant-history-note').first();
+    await expect(longComment).toHaveCount(1);
+    await expect(longComment).not.toHaveAttribute('open', '');
+    await longComment.locator('summary').click();
+    await expect(longComment).toHaveAttribute('open', '');
+    await expect(longComment.locator('p')).toBeVisible();
     await expect(history).toContainText(
       `Уточнение: ${'ПодробныйКомментарийПреподавателя'.repeat(8)}`,
     );

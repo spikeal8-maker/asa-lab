@@ -383,14 +383,21 @@
 .classroom-student-navigation-label {
   font-size: 13px;
   font-weight: 700;
-  white-space: nowrap;
+  min-width: 0;
+  line-height: 1.2;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 .classroom-student-navigation-button small {
+  display: -webkit-box;
+  min-width: 0;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow-wrap: anywhere;
+  white-space: normal;
   font-size: 11px;
-  line-height: 1.35;
+  line-height: 1.3;
   color: #5d717f;
 }
 .classroom-student-navigation-position {
