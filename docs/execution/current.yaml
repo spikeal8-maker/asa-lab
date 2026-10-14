@@ -4620,7 +4620,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: OBS015_selected_owner_batch_015_016_017
+      checkpoint: OBS015_accepted_OBS016_selected_owner_batch_015_016_017
       owner_acceptance: pending
       normative_refs:
         - document: PORTABLE-DEPLOYMENT-CONTRACT
@@ -4643,9 +4643,9 @@ parallel_lanes:
       selected_slice: OBS3B-CLIENT
       item_execution:
         document: docs/product/ASA_OBSERVABILITY_REPAIR_SPEC.md
-        selected_item: OBS-015
+        selected_item: OBS-016
         status: selected_pending_bounded_author
-        completed_items: [OBS-001, OBS-002, OBS-003, OBS-004, OBS-005, OBS-006, OBS-007, OBS-008, OBS-009, OBS-010, OBS-011, OBS-012, OBS-013, OBS-014]
+        completed_items: [OBS-001, OBS-002, OBS-003, OBS-004, OBS-005, OBS-006, OBS-007, OBS-008, OBS-009, OBS-010, OBS-011, OBS-012, OBS-013, OBS-014, OBS-015]
         accepted_items:
           OBS-001:
             status: implemented_focused_verified
@@ -4909,6 +4909,21 @@ parallel_lanes:
             deployment: not_run_explicitly_excluded_by_owner
             database_actions: temporary_fixtures_only_no_live_actions
             report: docs/execution/OBS_014_REPORT.md
+          OBS-015:
+            status: implemented_repaired_focused_verified_and_independently_reviewed
+            source_sha: 90ed457646d399f020d88fc6f113e5092079a6ed
+            initial_source_sha: 24dacff3a3c41bbecfdab1d92c00fdd0bc7f5549
+            converged_source_sha: a5aab962fa37e5c2bf0c226c73a2f9f59bacfc84
+            authoring_baseline_sha: cf29d247a099b6929efa32c8d7542dde27943d7d
+            independent_review: initial_needs_fix_truncated_import_final_fresh_review_PASS
+            local_after: 51_distinct_collector_57_API_and_1_actual_SSR_passed_2_large_worker_skips
+            layout: 4_static_actual_SSR_viewports_passed_not_hydrated_SPA_owner_acceptance
+            convergence: unrelated_electronics_docs_only_9_source_blobs_identical_before_bounded_repair
+            producer_limit: classification_for_5_editors_does_not_add_new_browser_event_producers
+            exact_ci_conclusion: source_workflow_in_progress_not_claimed_green
+            deployment: not_run_explicitly_excluded_by_owner
+            database_actions: temporary_fixtures_only_no_live_actions
+            report: docs/execution/OBS_015_REPORT.md
         owner_authorized_batch:
           status: authorized_sequential_execution
           ordered_items: [OBS-015, OBS-016, OBS-017]
@@ -4919,9 +4934,9 @@ parallel_lanes:
         mode: one_item_per_executor_report_then_controller_continues_owner_batch
         next_item_requires_owner_instruction: false
         owner_instruction: Continue three sequential items OBS015 then OBS016 then OBS017, report each, publish into main without site update, STOP after OBS017.
-        candidate_baseline_sha: 6629ffe900b7878250ae6777aec67edaf3f5e87a
-        acceptance_scope: Classify all five editor modules consistently in collector, catalog, API, filters, import and ZIP; preserve INFO/WARN levels and historical bytes.
-        next_action: NEW_bounded_author_OBS015_only_focused_checks_independent_review_report_then_controller_selects_OBS016
+        candidate_baseline_sha: 90ed457646d399f020d88fc6f113e5092079a6ed
+        acceptance_scope: Verify real isolated PostgreSQL collection before and after schema extension; repair reproduced identity drift without losing legitimate mutable observations or historical IDs.
+        next_action: NEW_bounded_author_OBS016_only_real_isolated_CI_database_evidence_focused_checks_review_report_then_controller_selects_OBS017
       release_execution:
         status: completed_owner_authorized_batch_with_documented_diagnostics_limitations
         selected_phase: report_and_STOP_after_OBS008_OBS009_main_and_canonical_site_update
@@ -5143,9 +5158,9 @@ parallel_lanes:
           runtime_evidence: actual_PostgreSQL_receipts_concurrency_authority_replay_lock_isolation_RLS_upgrade_and_existing_browser_journeys_pass_on_556_and_aab
           production_evidence: pending_OBS6_guarded_release_and_safe_legacy_analytics_projection
       priority_note: >-
-        OBS001-014 accepted within each report's declared scope. Owner explicitly authorized next three
-        sequential items OBS015, OBS016, OBS017, each with report and main publication. Only OBS015 selected
-        for this author. Fresh bounded author and independent review per item; controller STOP after OBS017.
+        OBS001-015 accepted within each report's declared scope. OBS015 initial independent NEEDS_FIX was
+        repaired and fresh final review passed the exact source including composed import/query/ZIP probes.
+        Owner batch OBS015-017 continues; only OBS016 selected for new author. Controller STOP after OBS017.
       deployment_authorized: false
       destructive_database_actions_authorized: false
       owner_classroom_acceptance: not_run
