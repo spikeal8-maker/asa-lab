@@ -4693,13 +4693,13 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: OBS016_accepted_OBS017_selected_owner_batch_015_016_017
+      checkpoint: OBS017_candidate_waits_OBS015_test_runtime_fixture_repair
       owner_acceptance: pending
       normative_refs:
         - document: PORTABLE-DEPLOYMENT-CONTRACT
           revision: '1.0'
         - document: OBSERVABILITY-REPAIR-SPEC
-          revision: '1.12'
+          revision: '1.13'
         - document: RELEASE-REGISTRATION-FIXTURE-SPEC
           revision: '1.0'
         - document: RELEASE-SCRATCH-CLOCK-SPEC
@@ -5013,6 +5013,20 @@ parallel_lanes:
             deployment: not_run_explicitly_excluded_by_owner
             database_actions: isolated_synthetic_GitHub_PostgreSQL_only_no_working_database
             report: docs/execution/OBS_016_REPORT.md
+        baseline_repair:
+          id: OBS-015-CI-PYTHON
+          status: selected_pending_bounded_author
+          reason: own_observability_fixtures_spawn_python_but_disposable_test_image_has_no_Python
+          failure_run: 38611190772
+          failure_source_sha: 90ed457646d399f020d88fc6f113e5092079a6ed
+          failure_scope: data_gate_5_python_ENOENT_failures_3983_other_tests_passed_code_and_browser_passed
+          document: docs/product/ASA_OBSERVABILITY_REPAIR_SPEC.md
+          section: '23'
+          authoring_baseline_sha: 553421019c5bb1ec02d5bbfc1bba01bbf1024583
+          allowed_scope: test_stage_Python_runtime_dependency_and_minimal_necessary_verification_only
+          forbidden: production_runtime_changes_assertion_removal_or_skip_live_Docker_or_new_user_item
+          required_review: fresh_independent_scoped_review_before_main_integration
+          after_acceptance: preserve_OBS017_candidate_and_continue_final_review_integration_no_OBS018
         owner_authorized_batch:
           status: authorized_sequential_execution
           ordered_items: [OBS-015, OBS-016, OBS-017]
@@ -5025,7 +5039,7 @@ parallel_lanes:
         owner_instruction: Continue three sequential items OBS015 then OBS016 then OBS017, report each, publish into main without site update, STOP after OBS017.
         candidate_baseline_sha: 3843956f0b33383ac32d3104680e961e7d818405
         acceptance_scope: Bounded recent database batches advance without missing equal-time rows or duplicating observations, preserve history and report truthful backlog/error status.
-        next_action: NEW_bounded_author_OBS017_only_focused_and_actual_SQL_CI_checks_independent_review_report_then_controller_STOP
+        next_action: Complete_selected_test_runtime_baseline_repair_then_resume_preserved_OBS017_final_review_and_batch_STOP
       release_execution:
         status: completed_owner_authorized_batch_with_documented_diagnostics_limitations
         selected_phase: report_and_STOP_after_OBS008_OBS009_main_and_canonical_site_update
