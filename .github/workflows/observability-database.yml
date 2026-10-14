@@ -1,0 +1,43 @@
+name: Observability Database Identity
+
+on:
+  push:
+    branches: [main, 'codex/observability-item-*']
+    paths:
+      - tools/collect_logs.py
+      - tools/test_collect_logs.py
+      - tools/test_database_*.py
+      - tools/deployment/paths.py
+      - apps/api/src/database-diagnostic-contract.json
+      - .github/workflows/observability-database.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  database:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: obs_ci
+          POSTGRES_PASSWORD: synthetic_ci_only
+          POSTGRES_DB: observability_identity_test
+        options: >-
+          --health-cmd "pg_isready -U obs_ci -d observability_identity_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Canonical collector tests with isolated actual PostgreSQL
+        env:
+          ASA_OBS_DATABASE_TEST: '1'
+          ASA_OBS_TEST_CONTAINER: ${{ job.services.postgres.id }}
+        run: python -B tools/test_collect_logs.py
