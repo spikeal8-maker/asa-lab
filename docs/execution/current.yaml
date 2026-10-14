@@ -4601,13 +4601,13 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: OBS012_013_014_batch_accepted_main_reports_controller_STOP
+      checkpoint: OBS015_selected_owner_batch_015_016_017
       owner_acceptance: pending
       normative_refs:
         - document: PORTABLE-DEPLOYMENT-CONTRACT
           revision: '1.0'
         - document: OBSERVABILITY-REPAIR-SPEC
-          revision: '1.11'
+          revision: '1.12'
         - document: RELEASE-REGISTRATION-FIXTURE-SPEC
           revision: '1.0'
         - document: RELEASE-SCRATCH-CLOCK-SPEC
@@ -4624,8 +4624,8 @@ parallel_lanes:
       selected_slice: OBS3B-CLIENT
       item_execution:
         document: docs/product/ASA_OBSERVABILITY_REPAIR_SPEC.md
-        selected_item: OBS-014
-        status: implemented_focused_verified_independently_reviewed
+        selected_item: OBS-015
+        status: selected_pending_bounded_author
         completed_items: [OBS-001, OBS-002, OBS-003, OBS-004, OBS-005, OBS-006, OBS-007, OBS-008, OBS-009, OBS-010, OBS-011, OBS-012, OBS-013, OBS-014]
         accepted_items:
           OBS-001:
@@ -4891,18 +4891,18 @@ parallel_lanes:
             database_actions: temporary_fixtures_only_no_live_actions
             report: docs/execution/OBS_014_REPORT.md
         owner_authorized_batch:
-          status: completed_focused_verified_and_independently_reviewed
-          ordered_items: [OBS-012, OBS-013, OBS-014]
-          reports: separate_report_after_each_item_controller_STOP_after_OBS014
+          status: authorized_sequential_execution
+          ordered_items: [OBS-015, OBS-016, OBS-017]
+          reports: separate_report_after_each_item_controller_STOP_after_OBS017
           integration_into_main: authorized
           canonical_site_update: explicitly_excluded_for_this_item
-          remaining_OBS015_through_OBS045: not_selected
+          remaining_OBS018_through_OBS045: not_selected
         mode: one_item_per_executor_report_then_controller_continues_owner_batch
-        next_item_requires_owner_instruction: true
-        owner_instruction: Implement three sequential items OBS012 then OBS013 then OBS014, report each, publish into main without site update, STOP after OBS014.
-        candidate_baseline_sha: 3a3497e31194880a191fa3b63bdef4decc546c69
-        acceptance_scope: Consistent Linux and Docker system classification across collector, catalog, API, search, import and ZIP; preserve application classification and original history.
-        next_action: STOP_OBS012_013_014_batch_complete_OBS015_requires_new_owner_instruction
+        next_item_requires_owner_instruction: false
+        owner_instruction: Continue three sequential items OBS015 then OBS016 then OBS017, report each, publish into main without site update, STOP after OBS017.
+        candidate_baseline_sha: 6629ffe900b7878250ae6777aec67edaf3f5e87a
+        acceptance_scope: Classify all five editor modules consistently in collector, catalog, API, filters, import and ZIP; preserve INFO/WARN levels and historical bytes.
+        next_action: NEW_bounded_author_OBS015_only_focused_checks_independent_review_report_then_controller_selects_OBS016
       release_execution:
         status: completed_owner_authorized_batch_with_documented_diagnostics_limitations
         selected_phase: report_and_STOP_after_OBS008_OBS009_main_and_canonical_site_update
@@ -5124,18 +5124,18 @@ parallel_lanes:
           runtime_evidence: actual_PostgreSQL_receipts_concurrency_authority_replay_lock_isolation_RLS_upgrade_and_existing_browser_journeys_pass_on_556_and_aab
           production_evidence: pending_OBS6_guarded_release_and_safe_legacy_analytics_projection
       priority_note: >-
-        OBS001-014 accepted within each report's declared focused scope. The authorized sequential batch
-        OBS012, OBS013, OBS014 is complete with separate reports and main publication. OBS013 initial
-        independent NEEDS_FIX was repaired and a fresh final reviewer passed it. OBS014 exact-source review PASS.
-        Controller and executors STOP; OBS015 requires a new owner instruction. No new deployment authorization.
+        OBS001-014 accepted within each report's declared scope. Owner explicitly authorized next three
+        sequential items OBS015, OBS016, OBS017, each with report and main publication. Only OBS015 selected
+        for this author. Fresh bounded author and independent review per item; controller STOP after OBS017.
       deployment_authorized: false
       destructive_database_actions_authorized: false
       owner_classroom_acceptance: not_run
       scope_note: >-
-        Completed batch OBS012-014: closed new DB diagnostics, safe legacy read/export, consistent Linux/Docker
-        classification. No website update, live database/logs, Docker or schedule operations. Preserve prior
-        accepted results, other lanes and blockers. Full repository/new GitHub CI success and live Linux
-        collection are not inferred from local focused evidence. OBS015-045 remain unselected.
+        Authorized batch OBS015-017: all editor classifications, schema-compatible identity verification,
+        bounded progress under recent DB load. No website update or live database/logs, local Docker or
+        schedule operations. Isolated synthetic database evidence may run in GitHub CI; no production data.
+        Preserve accepted history, other lanes and blockers. OBS018-045 remain unselected; no full programme
+        or live Linux acceptance is inferred from focused evidence.
     gates:
       focused:
         workflow: ASA Lab Governance and Code Gates
