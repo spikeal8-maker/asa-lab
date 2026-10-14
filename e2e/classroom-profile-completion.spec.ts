@@ -219,7 +219,10 @@ async function assertLayout(page: Page, width: number, file: string) {
             const buttonRect = button.getBoundingClientRect();
             if (
               fragments.length !== 1 ||
-              fragments.some((rect) => rect.left < buttonRect.left - 1 || rect.right > buttonRect.right + 1)
+              fragments.some(
+                (rect) =>
+                  rect.left < buttonRect.left - 1 || rect.right > buttonRect.right + 1,
+              )
             ) {
               broken.push({ label: button.textContent ?? '', word: match[0] });
             }
@@ -240,10 +243,14 @@ async function assertLayout(page: Page, width: number, file: string) {
     // All eight hit targets must be disjoint, not merely inside the viewport.
     for (let i = 0; i < layout.buttons.length; i++) {
       for (let j = i + 1; j < layout.buttons.length; j++) {
-        const a = layout.buttons[i]!, b = layout.buttons[j]!;
+        const a = layout.buttons[i]!,
+          b = layout.buttons[j]!;
         const xOverlap = Math.min(a.right, b.right) - Math.max(a.x, b.x);
         const yOverlap = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
-        expect(xOverlap > 1 && yOverlap > 1, 'Profile section buttons must not overlap').toBe(false);
+        expect(
+          xOverlap > 1 && yOverlap > 1,
+          'Profile section buttons must not overlap',
+        ).toBe(false);
       }
     }
   }
