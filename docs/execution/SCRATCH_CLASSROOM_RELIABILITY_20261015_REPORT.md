@@ -83,6 +83,8 @@ Access A job не стартовал из-за внешнего `public.ecr.aws:
 неизменяемым PostgreSQL digest; доступность именно этого digest проверена
 через `docker buildx imagetools inspect`. Версия БД, credentials одноразового
 стенда и все assertions сохранены; рабочая PostgreSQL не затрагивается.
+Ожидаемый `semantic_contract` image этого job также согласован с источником;
+исторические identity/layer receipts и исходные full-file hashes не менялись.
 Финальные проверки выпуска и фактическое обновление сайта фиксируются отдельно.
 
 ## POST_STEP_REVIEW
