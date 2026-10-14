@@ -4781,7 +4781,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: OBS015_OBS016_OBS017_main_published_bounded_Windows_fixture_repair_pending
+      checkpoint: OBS015_OBS016_OBS017_verified_reported_STOP_no_site_update
       owner_acceptance: pending
       normative_refs:
         - document: PORTABLE-DEPLOYMENT-CONTRACT
@@ -5083,6 +5083,7 @@ parallel_lanes:
             producer_limit: classification_for_5_editors_does_not_add_new_browser_event_producers
             exact_ci_conclusion: source_run38611190772_failed_5_missing_Python_fixtures_repaired_separately
             baseline_repair_report: docs/execution/OBS_015_CI_PYTHON_REPORT.md
+            Windows_fixture_repair_report: docs/execution/OBS_015_CI_UTF8_REPORT.md
             repaired_test_environment_CI: run38617737022_exact654f_success_attempt2_infrastructure429_retry
             deployment: not_run_explicitly_excluded_by_owner
             database_actions: temporary_fixtures_only_no_live_actions
@@ -5145,7 +5146,18 @@ parallel_lanes:
           after_acceptance: preserve_OBS017_candidate_and_continue_final_review_integration_no_OBS018
         windows_fixture_repair:
           id: OBS-015-CI-UTF8
-          status: selected_pending_bounded_author
+          status: implemented_focused_verified_actual_Windows_and_Linux_contracts_passed
+          source_sha: 46fd6ac08f27c0663267cb2494b4166033032972
+          independent_review: pass_exact_source_five_args_only_real_cp1252_reproduction
+          before: actual_Windows_six_errors_and_local_real_cp1252_six_errors
+          focused_after: three_existing_methods_six_raw_gzip_cases_passed
+          actual_CI_run: 38623836696
+          actual_Windows_job: 116057850687
+          actual_Windows: SUCCESS_61_collector_run59pass2skips_and71_deployment_run69pass2skips
+          actual_Linux_job: 116057850085
+          actual_Linux: SUCCESS_61_collector_run58pass3skips_and71_deployment_run70pass1skip
+          workflow_total: cancelled_after_both_contract_jobs_success_to_stop_optional_unchanged_image_rebuild_not_full_PASS
+          report: docs/execution/OBS_015_CI_UTF8_REPORT.md
           source_baseline_sha: 43f3fa587318d0d06acfc48e4213344d0d821c71
           failure_run: 38622500252
           failure_job: 116053283644
@@ -5154,7 +5166,7 @@ parallel_lanes:
           section: '24'
           allowed_scope: explicit_UTF8_catalog_reads_in_three_existing_test_methods_only
           product_changes: forbidden
-          next_action: Fresh_bounded_author_fresh_review_actual_Windows_CI_separate_report_main_then_restore_batch_STOP
+          next_action: STOP_repair_accepted_product_unchanged_no_OBS018
         owner_authorized_batch:
           status: completed_three_items_verified_reported_STOP
           ordered_items: [OBS-015, OBS-016, OBS-017]
@@ -5167,7 +5179,7 @@ parallel_lanes:
         owner_instruction: Continue three sequential items OBS015 then OBS016 then OBS017, report each, publish into main without site update, STOP after OBS017.
         candidate_baseline_sha: 6a23ee5948650d0bd551338c03415a445046ab3d
         acceptance_scope: Bounded recent database batches advance without missing equal-time rows or duplicating observations, preserve history and report truthful backlog/error status.
-        next_action: Complete_selected_own_Windows_fixture_encoding_repair_then_restore_STOP_no_OBS018
+        next_action: STOP_completed_owner_batch_OBS015_OBS016_OBS017_main_publication_no_site_update_OBS018_requires_owner_instruction
       release_execution:
         status: completed_owner_authorized_batch_with_documented_diagnostics_limitations
         selected_phase: report_and_STOP_after_OBS008_OBS009_main_and_canonical_site_update
