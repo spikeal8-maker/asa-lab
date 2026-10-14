@@ -5336,6 +5336,110 @@ async function e01Server(page: Page, projectId: string) {
   return response.json() as Promise<{ draft: { revision: number; document: SchematicDocument } }>;
 }
 
+test('project refresh: no idle polling and focus never overwrites pupil edits', async ({
+  page,
+}) => {
+  const evidenceDir = 'reports/playwright/electronics-project-refresh';
+  mkdirSync(evidenceDir, { recursive: true });
+  await loginWithOrganization(page, teacher);
+  const projectId = await createProject(page, 'Electronics owner point 2 refresh');
+  const original = circuitDocument({ switchClosed: false, resistorOhms: 50, reversedLed: false });
+  await saveDocument(page, projectId, original);
+  const reads: { at: number; method: string }[] = [];
+  page.on('request', (request) => {
+    if (
+      request.method() === 'GET' &&
+      new URL(request.url()).pathname === `/api/projects/${projectId}`
+    )
+      reads.push({ at: Date.now(), method: request.method() });
+  });
+  await page.goto(`/#/home/${projectId}`);
+  await expect(page.locator('.workbench-stage')).toBeVisible();
+  await saveEditorNow(page);
+  const initialReads = reads.length;
+  expect(initialReads).toBeGreaterThanOrEqual(1);
+  const audit: Record<string, unknown> = { projectId, initialReads, reads };
+  let release: (() => void) | undefined;
+  try {
+    // Observe three old polling deadlines in real browser time, without changing clocks or timeouts.
+    await page.waitForTimeout(10_000);
+    audit['idleReads'] = reads.length - initialReads;
+    expect(audit['idleReads']).toBe(0);
+    const remote = {
+      ...original,
+      components: original.components.map((part) =>
+        part.id === 'resistor' ? { ...part, value: 100 } : part,
+      ),
+    };
+    await saveDocument(page, projectId, remote);
+    const cleanResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'GET' &&
+        new URL(response.url()).pathname === `/api/projects/${projectId}`,
+    );
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+    expect((await cleanResponse).status()).toBe(200);
+    const value = await e01Resistance(page);
+    await expect(value).toHaveValue('100');
+    expect(reads.length).toBe(initialReads + 1);
+    audit['cleanFocusReads'] = reads.length - initialReads;
+
+    const lateRemote = {
+      ...remote,
+      components: remote.components.map((part) =>
+        part.id === 'resistor' ? { ...part, value: 200 } : part,
+      ),
+    };
+    await saveDocument(page, projectId, lateRemote);
+    let captured: (() => void) | undefined;
+    const capturedResponse = new Promise<void>((resolve) => {
+      captured = resolve;
+    });
+    const heldResponse = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await page.route(`**/api/projects/${projectId}`, async (route) => {
+      const response = await route.fetch();
+      captured!();
+      await heldResponse;
+      await route.fulfill({ response });
+    });
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+    await capturedResponse;
+    await value.fill('166.7');
+    await expect(value).toHaveValue('166.7');
+    const localBefore = await e01LocalDraft(page, projectId);
+    expect(localBefore).not.toBeNull();
+    expect(
+      JSON.parse(localBefore!).document.components.find(
+        (part: { id: string }) => part.id === 'resistor',
+      ).value,
+    ).toBe(166.7);
+    const lateResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'GET' &&
+        new URL(response.url()).pathname === `/api/projects/${projectId}`,
+    );
+    release!();
+    expect((await lateResponse).status()).toBe(200);
+    // Allow the fulfilled fetch and React update to settle before checking preservation.
+    await page.waitForTimeout(100);
+    await expect(value).toHaveValue('166.7');
+    expect(await e01LocalDraft(page, projectId)).toBe(localBefore);
+    const beforeDirtyFocus = reads.length;
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+    await page.waitForTimeout(100);
+    expect(reads.length).toBe(beforeDirtyFocus);
+    audit['lateAndDirtyFocusReads'] = reads.length - initialReads - 1;
+    audit['localBeforeAndAfterEqual'] = (await e01LocalDraft(page, projectId)) === localBefore;
+    audit['pupilResistance'] = await value.inputValue();
+    await page.screenshot({ path: `${evidenceDir}/pupil-edit-preserved.png`, fullPage: true });
+  } finally {
+    release?.();
+    writeFileSync(`${evidenceDir}/timeline.json`, JSON.stringify(audit, null, 2));
+  }
+});
+
 async function e01Resistance(page: Page) {
   await component(page, 'resistor-axial').locator('.workbench-part').press('Enter');
   return page

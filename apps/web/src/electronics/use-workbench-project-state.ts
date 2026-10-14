@@ -482,12 +482,10 @@ export function useWorkbenchProjectState(projectId: string, userId: string, seat
         requestInFlight = false;
       }
     };
-    const interval = window.setInterval(() => void synchronize(), 3_000);
     const onFocus = (): void => void synchronize();
     window.addEventListener('focus', onFocus);
     return () => {
       active = false;
-      window.clearInterval(interval);
       window.removeEventListener('focus', onFocus);
     };
   }, [
