@@ -64,12 +64,16 @@ type WorkerReceipt = {
 type UiReceipt = { at: number; time: string; brightness: number[]; serial: string[] };
 type PaintReceipt = {
   at: number;
+  previousFrameAt: number | null;
   brightness: number[];
   images: Array<{
     href: string;
     decoded: boolean;
     opacity: number;
     visible: boolean;
+    unoccluded: boolean;
+    rect: { x: number; y: number; width: number; height: number } | null;
+    hitTargets: string[];
     lit: boolean;
   }>;
   stablePreviousFrame: boolean;
@@ -268,6 +272,7 @@ async function observeRealWorkerAndUi(page: Page, ledCount = 8): Promise<void> {
       );
       const decoded = new Map<string, boolean>();
       let previous = '';
+      let previousFrameAt: number | null = null;
       const paint = () => {
         const elements = Array.from({ length: ledCount }, (_, index) =>
           document.querySelector<SVGSVGElement>(
@@ -312,16 +317,51 @@ async function observeRealWorkerAndUi(page: Page, ledCount = 8): Promise<void> {
               box.top < innerHeight;
             const lit = element!.classList.contains('is-lit');
             visible &&= image?.getAttribute('data-owner-image-status') !== 'failed';
-            return { href, decoded: decoded.get(href) === true, opacity, visible, lit };
+            const component = element!.closest('[data-component-id]');
+            const hits = box
+              ? [0.35, 0.5, 0.65].map(
+                  (fraction) =>
+                    document.elementsFromPoint(
+                      box.left + box.width * fraction,
+                      box.top + box.height * 0.5,
+                    )[0],
+                )
+              : [];
+            const unoccluded =
+              hits.length === 3 &&
+              hits.every((hit) => !!hit && !!component?.contains(hit)) &&
+              !!box &&
+              box.left >= 0 &&
+              box.top >= 0 &&
+              box.right <= innerWidth &&
+              box.bottom <= innerHeight;
+            return {
+              href,
+              decoded: decoded.get(href) === true,
+              opacity,
+              visible,
+              lit,
+              unoccluded,
+              rect: box ? { x: box.x, y: box.y, width: box.width, height: box.height } : null,
+              hitTargets: hits.map(
+                (hit) =>
+                  hit?.closest('[data-component-id]')?.getAttribute('data-component-id') ??
+                  hit?.tagName ??
+                  'none',
+              ),
+            };
           });
           const signature = JSON.stringify({ brightness, images });
+          const at = performance.now();
           paints.push({
-            at: performance.now(),
+            at,
+            previousFrameAt,
             brightness,
             images,
             stablePreviousFrame: signature === previous,
           });
           previous = signature;
+          previousFrameAt = at;
           if (paints.length > 400) paints.shift();
         }
         requestAnimationFrame(paint);
@@ -663,6 +703,7 @@ function ownerTimingSummary({ source }: { source: string }) {
         (image, index) =>
           image.decoded &&
           image.visible &&
+          image.unoccluded &&
           image.opacity === 1 &&
           image.lit === row.brightness[index]! > 0,
       ),
@@ -715,6 +756,14 @@ function blinkWallMetrics(rows: ReadonlyArray<{ at: number; level: number }>, de
     cycles: (completeCycles.length - 1) / 2,
     duty: duration.high / (duration.high + duration.low),
   };
+}
+
+function witnessedPaintFrames(rows: ReadonlyArray<PaintReceipt>, startAt: number) {
+  return rows.flatMap((row) =>
+    row.stablePreviousFrame && row.previousFrameAt !== null && row.previousFrameAt >= startAt
+      ? [{ ...row, at: row.previousFrameAt, confirmedAt: row.at }]
+      : [],
+  );
 }
 
 for (const delayMs of [null, 100, 50] as const) {
@@ -784,6 +833,10 @@ for (const delayMs of [null, 100, 50] as const) {
     };
     expect(saved.draft.document).toEqual(expected);
     expect(saved.draft.revision).toBe(before.draft.revision + 1);
+    // A pupil closes the saved source pane so all three LEDs can actually be seen.
+    await page.getByRole('button', { name: 'Закрыть панель кода', exact: true }).click();
+    await expect(page.locator('.arduino-code-panel')).toHaveClass(/closed/);
+    expect((await read()).draft).toEqual(saved.draft);
     const startAt = await page.evaluate(() => {
       const probe = window as ProbeWindow;
       if (probe.__bitwiseWorker) probe.__bitwiseWorker.length = 0;
@@ -952,7 +1005,9 @@ for (const delayMs of [null, 100, 50] as const) {
       });
     }
     expect(transitions.some((row) => row.level === 1)).toBe(true);
-    const painted = raw!.paint.filter(
+    // A stable second RAF witnesses the preceding frame. Its confirmation
+    // time is retained separately; it is not that frame's presentation onset.
+    const painted = witnessedPaintFrames(raw!.paint, startAt).filter(
       (row) =>
         row.at >= startAt &&
         row.stablePreviousFrame &&
@@ -962,12 +1017,13 @@ for (const delayMs of [null, 100, 50] as const) {
           (image, index) =>
             image.decoded &&
             image.visible &&
+            image.unoccluded &&
             image.opacity === 1 &&
             image.lit === row.brightness[index]! > 0,
         ),
     );
     expect(painted.some((row) => row.brightness.every((value) => value > 0))).toBe(true);
-    const paintTransitions: typeof transitions = [];
+    const paintTransitions: Array<(typeof transitions)[number] & { confirmedAt: number }> = [];
     for (const row of painted) {
       const level = row.brightness.every((value) => value > 0)
         ? 1
@@ -1002,6 +1058,7 @@ for (const delayMs of [null, 100, 50] as const) {
       }
       paintTransitions.push({
         at: row.at,
+        confirmedAt: row.confirmedAt,
         level,
         readyAt: matching.at,
         committed: matching.advance.committedHorizonMicroseconds,
@@ -1111,7 +1168,10 @@ for (const delayMs of [null, 100, 50] as const) {
     // Native screenshots occur after the measured raw snapshot; screenshot
     // transport must not distort the timing sample it is meant to illustrate.
     const screenshots: unknown[] = [];
-    for (const level of delayMs === null ? [1] : [1, 0]) {
+    // Neutral names are deliberate: asynchronous native capture can cross a
+    // blink edge. Before/after receipts bound it; reviewers classify real pixels.
+    const requestedLevels = delayMs === null ? [1] : [1, 0, 1, 0, 1, 0];
+    for (const [index, level] of requestedLevels.entries()) {
       await page.waitForFunction((level) => {
         const row = (window as ProbeWindow).__ownerPaint?.at(-1);
         return (
@@ -1120,6 +1180,7 @@ for (const delayMs of [null, 100, 50] as const) {
             (image, index) =>
               image.decoded &&
               image.visible &&
+              image.unoccluded &&
               image.opacity === 1 &&
               image.lit === row.brightness[index]! > 0,
           ) &&
@@ -1129,12 +1190,18 @@ for (const delayMs of [null, 100, 50] as const) {
       const beforeScreenshot = await page.evaluate(() =>
         (window as ProbeWindow).__ownerPaint?.at(-1),
       );
-      const path = resolve(artifactRoot, `owner-${name}-${level ? 'on' : 'off'}.png`);
+      const path = resolve(artifactRoot, `owner-${name}-frame-${index + 1}.png`);
       await page.screenshot({ path });
       const afterScreenshot = await page.evaluate(() =>
         (window as ProbeWindow).__ownerPaint?.at(-1),
       );
-      screenshots.push({ level, path, beforeScreenshot, afterScreenshot });
+      screenshots.push({
+        requestedLevel: level,
+        capturedPixelPhase: 'requires independent visual classification',
+        path,
+        beforeScreenshot,
+        afterScreenshot,
+      });
     }
     writeFileSync(
       resolve(artifactRoot, `owner-${name}-paint-screenshots.json`),
