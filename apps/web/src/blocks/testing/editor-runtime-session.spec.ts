@@ -458,6 +458,7 @@ describe('BlocksEditor runtime session bootstrap', () => {
   });
 
   it.each([401, 404, 409, 503])('does not INIT when runtime-session returns %s', async (status) => {
+    vi.useFakeTimers();
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => jsonResponse({}, status)),
@@ -466,12 +467,19 @@ describe('BlocksEditor runtime session bootstrap', () => {
     const postMessage = spyOnPostMessage(iframe);
 
     await fireLoad(iframe);
+    if (status === 503) {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(3_000);
+        await flushAsync();
+      });
+    }
 
     expect(initCalls(postMessage)).toHaveLength(0);
     expect(container?.textContent).toContain('Не удалось открыть среду');
   });
 
   it('does not INIT when the runtime-session request fails', async () => {
+    vi.useFakeTimers();
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => {
@@ -482,6 +490,10 @@ describe('BlocksEditor runtime session bootstrap', () => {
     const postMessage = spyOnPostMessage(iframe);
 
     await fireLoad(iframe);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3_000);
+      await flushAsync();
+    });
 
     expect(initCalls(postMessage)).toHaveLength(0);
     expect(container?.textContent).toContain('Не удалось открыть среду');
@@ -531,7 +543,7 @@ describe('BlocksEditor runtime session bootstrap', () => {
     const fetchMock = vi.fn(async (url: string) => {
       if (url === '/api/diagnostics/client') return jsonResponse({}, 202);
       return ++sessions === 1
-        ? jsonResponse({}, 503)
+        ? jsonResponse({}, 400)
         : jsonResponse(session('fresh.runtime.token'));
     });
     vi.stubGlobal('fetch', fetchMock);
@@ -690,6 +702,111 @@ describe('BlocksEditor runtime session bootstrap', () => {
       messages.filter((message) => message['messageType'] === 'ASA_BLOCKS_TOKEN_UPDATE'),
     ).toHaveLength(1);
     expect(storageSet).not.toHaveBeenCalled();
+  });
+
+  it('cancels a long Retry-After when the startup deadline expires', async () => {
+    vi.useFakeTimers();
+    let grants = 0;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input, options) => {
+        const telemetry = telemetryResponse(input, options);
+        if (telemetry) return telemetry;
+        grants += 1;
+        const response = jsonResponse({}, 429);
+        response.headers.set('retry-after', '60');
+        return response;
+      }),
+    );
+    const iframe = await renderEditor();
+    const postMessage = spyOnPostMessage(iframe);
+    await fireLoad(iframe);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60_000);
+      await flushAsync();
+    });
+    expect(grants).toBe(1);
+    expect(initCalls(postMessage)).toHaveLength(0);
+    expect(container?.textContent).toContain('Не удалось открыть среду');
+  });
+
+  it('does not initialize from a response that arrives after the startup deadline', async () => {
+    vi.useFakeTimers();
+    let resolveGrant!: (response: Response) => void;
+    const pending = new Promise<Response>((resolve) => {
+      resolveGrant = resolve;
+    });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input, options) => telemetryResponse(input, options) ?? pending),
+    );
+    const iframe = await renderEditor();
+    const postMessage = spyOnPostMessage(iframe);
+    await fireLoad(iframe);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(45_000);
+      resolveGrant(jsonResponse(session()));
+      await flushAsync();
+    });
+    expect(initCalls(postMessage)).toHaveLength(0);
+    expect(container?.textContent).toContain('Не удалось открыть среду');
+  });
+
+  it('retries a transient capability refresh without remounting or replacing the project', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2030-01-01T00:00:00.000Z'));
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(session('initial.runtime.token', nowSeconds + 30)))
+      .mockResolvedValueOnce(jsonResponse({}, 503))
+      .mockResolvedValueOnce(jsonResponse(session('fresh.runtime.token', nowSeconds + 600)));
+    vi.stubGlobal('fetch', fetchMock);
+    const iframe = await renderEditor();
+    const postMessage = spyOnPostMessage(iframe);
+    await fireLoad(iframe);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+      await flushAsync();
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000);
+      await flushAsync();
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(initCalls(postMessage)).toHaveLength(1);
+    expect(
+      postMessage.mock.calls.some(
+        ([message]) =>
+          (message as Record<string, unknown>)['messageType'] === 'ASA_BLOCKS_TOKEN_UPDATE',
+      ),
+    ).toBe(true);
+  });
+
+  it('retries startup throttling using Retry-After without creating another iframe', async () => {
+    vi.useFakeTimers();
+    const limited = jsonResponse({}, 429);
+    limited.headers.set('retry-after', '3');
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(limited)
+      .mockResolvedValueOnce(jsonResponse(session()));
+    vi.stubGlobal('fetch', fetchMock);
+    const iframe = await renderEditor();
+    const postMessage = spyOnPostMessage(iframe);
+    await fireLoad(iframe);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2_999);
+      await flushAsync();
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+      await flushAsync();
+    });
+    expect(initCalls(postMessage)).toHaveLength(1);
+    expect(container?.querySelector('iframe')).toBe(iframe);
   });
 
   it('keeps proactive refresh single-flight when child refresh demand joins an in-flight rotation', async () => {

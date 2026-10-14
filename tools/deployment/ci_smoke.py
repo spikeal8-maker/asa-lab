@@ -21,6 +21,7 @@ from deployment.releases import apply_release_environment, validate_resolved_ima
 from deployment.system import Installation, run
 from deployment.collector import reader_probe, verify_effective_exec, verify_effective_empty
 from deployment.ci_collector_cleanup import cleanup_collector, finish_cleanup
+from deployment.ci_collector_fixture import copy_collector_fixture
 
 require(os.environ.get("GITHUB_ACTIONS") == "true", "CI_ONLY", "This test is only allowed in an isolated GitHub runner.")
 release = json.loads(Path(sys.argv[1]).read_text())
@@ -32,10 +33,7 @@ with tempfile.TemporaryDirectory(prefix="asa-delivery-") as directory:
     (root / ".asa" / "diagnostics" / "store").mkdir(parents=True)
     for file in ("compose.yaml", "compose.dev.yaml"):
         shutil.copyfile(source / file, root / file)
-    (root / 'tools').mkdir()
-    for file in ('collect_logs.py', 'collect-windows-logs.ps1', 'collector-scheduler.ps1', 'log_collector.py'):
-        shutil.copyfile(source / 'tools' / file, root / 'tools' / file)
-    shutil.copytree(source / 'tools/deployment', root / 'tools/deployment', ignore=shutil.ignore_patterns('__pycache__'))
+    copy_collector_fixture(source, root)
     first_environment(root, "dev")
     env = root / ".env"
     env.write_text(env.read_text().replace("COMPOSE_PROJECT_NAME=asa-lab-dev", "COMPOSE_PROJECT_NAME=asa-lab-ci-delivery"))

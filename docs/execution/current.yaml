@@ -3276,10 +3276,20 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: r7_owner_arduino_complete_observation_cadence_repair
+      checkpoint: r8_remove_redundant_metadata_analysis
       owner_acceptance: pending
       selected_at: '2026-10-13T19:13:54.343466+00:00'
-      repair_scope: 'R7 owner Arduino startup and 5/10Hz visible cadence: bounded complete ready observation cap 25000us and host presentation tick 20ms in live-simulation-worker-controller.ts/use-electronics-workbench.ts, supporting existing controller/host tests and electronics-ready-cadence.spec.ts. Preserve R6 product, both full generic cases and three owner programmes. Correct initial phase anchor; require actual HIGH/LOW half durations, duty/gaps, model/wall progression and loaded effective LED image paint. Physical quantum1000us, instruction1us, event256, precision, every runtime state and yielded-null remain unchanged. No inserted pupil delay, timeout increase, school operations or unrelated repair. New exact source focused/directed evidence then required final gates and NEW independent review before integration.'
+      r7_preserved_repair_scope: 'R7 owner Arduino startup and 5/10Hz visible cadence: bounded complete ready observation cap 25000us and host presentation tick 20ms in live-simulation-worker-controller.ts/use-electronics-workbench.ts, supporting existing controller/host tests and electronics-ready-cadence.spec.ts. Preserve R6 product, both full generic cases and three owner programmes. Correct initial phase anchor; require actual HIGH/LOW half durations, duty/gaps, model/wall progression and loaded effective LED image paint. Physical quantum1000us, instruction1us, event256, precision, every runtime state and yielded-null remain unchanged. No inserted pupil delay, timeout increase, school operations or unrelated repair. New exact source focused/directed evidence then required final gates and NEW independent review before integration.'
+      repair_scope: 'R8 metadata with preserved structural prevalidation: compileCircuit then simulationInputDigest in the same old order before continuation/input/horizon guards; simulation.ts pure accessor for the existing document-independent MODEL_SET_DIGEST and engine.ts metadata lookup replacing only the unnecessary numeric solve/quality in analyseCircuit(document).modelSetDigest. Preserve all actual scheduler/solve/quality/validation/state work and physical precision; no persistent cache, new runtime, timeout increase or foreign repair. Supporting existing simulation-contract/engine-timed tests plus external baseline parity; one exact focused gate and five production browser journeys before new independent review.'
+      r8_preserved_source_sha: 21e2ef06a5642a061d8fa13f8a75a308df13e649
+      r8_preserved_source_tree: c86eb2d10ec76b72e78a9741421d95d84b7e0aeb
+      r8_causal_report_sha256: 110edacf8d77edeb7d71f584975c715bfa8b9c2f2d38f16b032e9be7cd27a0b0
+      r8_proven_cause: 'Every advance repeats complete standalone analysis only for a module-constant registry digest. Retained GPIO71ready C=H0to1.75s over4155.7ms wall; evaluator elapsed3823.5ms is not sampled CPU. Speedup and school frequency remain unproved.'
+      r7_status: not_accepted_directed_failed
+      r7_actual_host_tick_ms: 10
+      r7_documentation_correction: 'Historical selected20ms retained above/in R7 history; actual controller-authorized source21e uses10ms and ready25000us. R8 does not change these values.'
+      implementation_acceptance: Exact digest and whole-return/state/fault equivalence versus21e; no skipped real physical quality checks. Frozen focused gate and generic Serial/GPIO plus owner no-delay/5Hz/10Hz actual unoccluded paint with unchanged timeouts. Then required final General/ordinary gates and NEW independent review; no capacity/deployment/owner acceptance claim.
+      next_action: One lossless metadata-only causal patch after canonical R8 selection; narrow laws and baseline parity then one changed-cause focused/five-case production CI. Author reports exact candidate/raw/self-review and STOP; no product main push before controller approval.
       r7_owner_request: 'Owner current complaint: delayed LED startup, Arduino delay100ms appears near1s, three HIGH outputs d13/d12/d11 without delay fail. Controller explicitly selects one cadence repair; no school capacity claim.'
       r7_source_baseline: c7b80c20b22e8b62eda086db3d2751df69fd56a9
       r7_directed_run: 38633617297
@@ -3307,7 +3317,7 @@ parallel_lanes:
       residual_proposal_original_sha256: ec4db8d67151a59317d5544ea05ed3511abcd0615e094258be22e958f7d3da7b
       residual_profile: One actual final0677 fullGPIO0..2s profile; observation callback9.5pct self, solveStep53.8pct inclusive, quality19.3pct/allNumbers12.5pct outside repair scope. No school or browser timing claim.
       r6_preserved_implementation_acceptance: Fresh actual full-return corpus/parity versus0677 plus stale/dynamic/state challenges and focused gate before unchanged fullGPIO/Serial browser; no claimed sufficiency until actual directed and ordinary exact all8/newreview.
-      implementation_acceptance: R7 complete ready C=H only, canonical whole/partition/runtime-state equivalence, actual loaded LED paint, strict HIGH/LOW wall halves/gaps/duty and model-wall rate. Both full generic and three owner programmes with unchanged timeouts; new exact focused/directed then required final gates and independent review.
+      r7_preserved_implementation_acceptance: R7 complete ready C=H only, canonical whole/partition/runtime-state equivalence, actual loaded LED paint, strict HIGH/LOW wall halves/gaps/duty and model-wall rate. Both full generic and three owner programmes with unchanged timeouts; new exact focused/directed then required final gates and independent review.
       r1_directed_probe: 66310186ec6eab8dee9634de3143fce0bc4f27ab
       r1_directed_run: 38006467707
       r1_directed_conclusion: failure
@@ -3318,7 +3328,7 @@ parallel_lanes:
       exact_candidate_electronics_conclusion: not_dispatched_after_directed_fail
       actual_new_failure: Directed6a GPIO initial0..5/0..7,15readyC=H0..1.4s/0yielded0fault, wallcompute4423.1ms/max551.2/UI8.3..21.7ms. Latefullsnapshot and stickyshrink explanations disproved; CPU-vs-host unmeasured. Piezo fullStop/PCM/SaveCAS2to3/cookies/finaldraft and valid11130877B118records passed; whole546 NOT accepted.
       r6_preserved_next_action: NEW bounded R6 author inherits preservedeb and canonical selection. ONE actualprofile then controller actualcheck/proposal confirmation before ONE causal product patch within finite envelope. Fresh full-return parity versus currenteb/state/negative challenges; focusedgate NX_SKIP_NX_CACHE=true, selfreview, one unpublishedSHA STOP. Root actualproof and NEW independent source review; directed GPIO/Serial/piezo then exact General4/Electronics4 and NEW product review. Only546/noPortal/school.
-      next_action: R7 implement the selected complete observation cadence repair after fresh canonical guard; meaningful controller/state/oracle challenges, new frozen focused gate and one five-case production browser run. Exact final General/ordinary gates and NEW independent review before integration. Author STOP; only546, no other module/school.
+      r7_preserved_next_action: R7 implement the selected complete observation cadence repair after fresh canonical guard; meaningful controller/state/oracle challenges, new frozen focused gate and one five-case production browser run. Exact final General/ordinary gates and NEW independent review before integration. Author STOP; only546, no other module/school.
       r3_profile_source_sha: 037ebb37a0609d247f19a96811a8b52c1960a9a5
       r3_profile_proposal_original_sha256: 7280eda6cdcf9e769d10477379cfeacab955e72714efba2639fc1b9499fe66e6
       r3_profile_manifest_sha256: b6b4c6933d8176eb870d5518f963939f6dba36a88e2e4d3dc8e02283f9e2c9c2

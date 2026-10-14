@@ -1152,6 +1152,68 @@ test('server revision movement rejects autosave without overwrite or automatic r
   }
 });
 
+test('expired asset and draft capabilities recover in the real pinned Scratch without reloading', async () => {
+  const serverProject = await realRuntimeBootstrapFixture();
+  const fixture = await createProtocolFixture({
+    product: true,
+    locale: 'en-US',
+    runtimeSession: {
+      draftRevision: 23,
+      projectJson: serverProject.projectJson,
+      assets: serverProject.assets,
+    },
+    runtimeAssets: serverProject.runtimeAssets,
+  });
+  const page = await minuteClockPage(fixture);
+  let expiredAsset = '';
+  let rejectDraft = true;
+  const draftBodies: string[] = [];
+  const assetTokens: string[] = [];
+  await page.route('**/api/blocks/runtime/projects/**', async (route) => {
+    const request = route.request();
+    if (request.method() !== 'PUT') return route.continue();
+    const path = new URL(request.url()).pathname;
+    let reject = false;
+    if (path.includes('/assets/')) {
+      if (!expiredAsset) {
+        expiredAsset = path;
+        reject = true;
+      }
+      if (path === expiredAsset) assetTokens.push(request.headers()['authorization']);
+    } else if (path.endsWith('/draft')) {
+      draftBodies.push(request.postData()!);
+      reject = rejectDraft;
+      rejectDraft = false;
+    }
+    if (!reject) return route.continue();
+    await route.fulfill({
+      status: 401,
+      headers: { 'Access-Control-Allow-Origin': request.headers()['origin'] ?? parentOrigin },
+      contentType: 'application/json',
+      body: JSON.stringify({ code: 'expired_token' }),
+    });
+  });
+  try {
+    await page.goto(`${parentOrigin}/product`, { waitUntil: 'domcontentloaded' });
+    const frame = page.frameLocator('iframe[title="Scratch runtime"]');
+    const shell = frame.locator('[data-asa-host-shell]');
+    await expect(shell).toHaveAttribute('data-editor-state', 'ready', { timeout: 45000 });
+    await editLiveServerProjectAndAddMedia(frame);
+    await advanceMinuteCheckpoint(page);
+    await expect.poll(() => fixture.getServerRevision(), { timeout: 20_000 }).toBe(24);
+    expect(assetTokens).toHaveLength(2);
+    expect(assetTokens[1]).not.toBe(assetTokens[0]);
+    expect(draftBodies).toHaveLength(2);
+    expect(draftBodies[1]).toBe(draftBodies[0]);
+    expect(fixture.runtimeDraftEvidence).toHaveLength(1);
+    expect(fixture.runtimePersistenceMetrics.revisionCommits).toBe(1);
+    expect(fixture.getRuntimeSessionSequence()).toBe(3);
+    await expect(shell).toHaveAttribute('data-editor-state', 'ready');
+  } finally {
+    await fixture.close();
+  }
+});
+
 test('asset PUT failure makes autosave fail closed before draft PUT', async () => {
   const serverProject = await realRuntimeBootstrapFixture();
   const fixture = await createProtocolFixture({
