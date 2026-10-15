@@ -44,7 +44,7 @@ async function prepare() {
     [teacherAccount, classroomId, 'Ученик защищённого класса', randomUUID().slice(0, 8)],
   );
   const seatId = seat.rows[0].id as string;
-  await admin.query("UPDATE classroom_student_seats SET status='active' WHERE id=$1", [seatId]);
+  await admin.query('UPDATE classroom_student_seats SET status=\'active\' WHERE id=$1', [seatId]);
   const prepared = await runtime.query(
     'SELECT classroom_participant_prepare($1,$2::uuid[]) AS ready',
     [teacherPrincipal, [classroomId]],
@@ -86,7 +86,7 @@ async function prepare() {
 }
 
 describe('Safe Mode refuses new external classroom publications on real PostgreSQL', () => {
-  it('protects Seat work against teacher publication until both class and Seat policies allow it', async () => {
+  it('blocks Seat publication until both class and individual protections are disabled', async () => {
     const f = await prepare();
     const projectId = await f.project(f.seatPrincipal, null);
 
@@ -109,16 +109,12 @@ describe('Safe Mode refuses new external classroom publications on real PostgreS
     });
 
     // Individual protection cannot be overridden by disabling only the class default.
-    await admin.query('UPDATE classrooms SET safe_mode_default=false WHERE id=$1', [
-      f.classroomId,
-    ]);
+    await admin.query('UPDATE classrooms SET safe_mode_default=false WHERE id=$1', [f.classroomId]);
     await expect(
       runtime.query('SELECT gallery_publish($1,$2) AS ok', [f.teacherPrincipal, projectId]),
     ).rejects.toMatchObject({ code: 'P5S01' });
 
-    await admin.query('UPDATE classroom_student_seats SET safe_mode=false WHERE id=$1', [
-      f.seatId,
-    ]);
+    await admin.query('UPDATE classroom_student_seats SET safe_mode=false WHERE id=$1', [f.seatId]);
     const published = await runtime.query('SELECT gallery_publish($1,$2) AS ok', [
       f.teacherPrincipal,
       projectId,
@@ -136,9 +132,7 @@ describe('Safe Mode refuses new external classroom publications on real PostgreS
 
     // Taking an already published item down must remain possible after protection
     // is switched on. This slice does NOT automatically revoke old publications.
-    await admin.query('UPDATE classrooms SET safe_mode_default=true WHERE id=$1', [
-      f.classroomId,
-    ]);
+    await admin.query('UPDATE classrooms SET safe_mode_default=true WHERE id=$1', [f.classroomId]);
     const removed = await runtime.query('SELECT gallery_unpublish($1,$2) AS ok', [
       f.teacherPrincipal,
       projectId,
