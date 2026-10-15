@@ -1,0 +1,81 @@
+name: ASA AI Chat Focused
+
+"on":
+  pull_request:
+    paths:
+      - 'apps/api/src/ai-*'
+      - 'apps/api/src/app.module.ts'
+      - 'apps/api/src/tokens.ts'
+      - 'apps/web/src/ai/**'
+      - 'apps/web/src/admin/AdminAiPage.tsx'
+      - 'apps/web/src/admin/admin-navigation.ts'
+      - 'apps/web/src/App.tsx'
+      - 'e2e/ai-chat.spec.ts'
+      - 'migrations/0213_ai_assistant_text_chat.sql'
+      - 'tests/admin/ai-chat.pg.spec.ts'
+      - 'playwright.ai-chat.config.ts'
+      - '.github/workflows/ai-chat-focused.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: asa-ai-chat-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  focused:
+    name: AI unit and API/Web types
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: AI Chat unit regression
+        run: pnpm exec vitest run apps/api/src/ai-chat.service.spec.ts
+      - name: No unformatted files
+        run: pnpm exec prettier --check apps/api/src/ai-* apps/web/src/ai e2e/ai-chat.spec.ts tests/admin/ai-chat.pg.spec.ts
+      - name: API TypeScript
+        run: pnpm exec nx run api:typecheck --skip-nx-cache
+      - name: Web TypeScript
+        run: pnpm exec nx run web:typecheck --skip-nx-cache
+
+  browser:
+    name: AI desktop and mobile browser
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Install Chromium dependencies
+        run: pnpm exec playwright install --with-deps chromium
+      - name: AI browser journeys without provider credentials
+        run: pnpm exec playwright test --config playwright.ai-chat.config.ts
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-chat-browser-${{ github.sha }}
+          path: reports/playwright/ai-chat/
+          if-no-files-found: ignore
