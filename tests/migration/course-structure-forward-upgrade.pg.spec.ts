@@ -338,7 +338,10 @@ describe('Course Builder structure forward upgrade', () => {
             plan.filter((item) => Number(item.version) <= 210),
           ),
         ).toBe(post191Versions.length - post210Versions.length);
-        expect(await applyIsolatedTestPlan(upgrade, plan)).toBe(2);
+        // Future product migrations (such as AI 0213) are additive; the
+        // Course Builder fixture is intentionally pinned through 0212.
+        const remaining = plan.filter((item) => Number(item.version) > 210);
+        expect(await applyIsolatedTestPlan(upgrade, plan)).toBe(remaining.length);
         expect(await applyIsolatedTestPlan(upgrade, plan)).toBe(0);
       } finally {
         upgrade.release();
