@@ -86,7 +86,7 @@ async function prepare() {
 }
 
 describe('Safe Mode refuses new external classroom publications on real PostgreSQL', () => {
-  it('blocks Seat publication until both class and individual protections are disabled', async () => {
+  it('blocks publication until both class and Seat protections are off', async () => {
     const f = await prepare();
     const projectId = await f.project(f.seatPrincipal, null);
 
