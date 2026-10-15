@@ -179,7 +179,7 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(headerSource).toContain('data-simulation-status={c.simulationStatus}');
     expect(controllerModuleSource).toContain('new ElectronicsLiveSimulationWorkerController()');
     expect(controllerModuleSource).toContain(
-      'simulationWorkerRef.current?.update(runtimeDocument, requestedHorizonMicroseconds)',
+      'simulationWorkerRef.current?.update(runtimeDocument, requestedHorizonMicrosecondsRef.current)',
     );
     expect(controllerModuleSource).toContain(
       'simulationWorkerRef.current?.restart(currentRuntimeDocument)',

@@ -318,15 +318,31 @@ async function observeRealWorkerAndUi(page: Page, ledCount = 8): Promise<void> {
             const lit = element!.classList.contains('is-lit');
             visible &&= image?.getAttribute('data-owner-image-status') !== 'failed';
             const component = element!.closest('[data-component-id]');
-            const hits = box
-              ? [0.35, 0.5, 0.65].map(
-                  (fraction) =>
+            // Production image pixels deliberately ignore pointer input. Let
+            // this image participate in the synchronous hit test, then restore
+            // its exact inline style before yielding or painting. Transparent
+            // wire targets below the image must not look like visual blockers;
+            // an editor panel above it must still make the same samples fail.
+            const hits: Array<Element | undefined> = [];
+            if (image && box) {
+              const originalStyle = image.getAttribute('style');
+              try {
+                image.style.setProperty('pointer-events', 'all', 'important');
+                for (const fraction of [0.35, 0.5, 0.65]) {
+                  hits.push(
                     document.elementsFromPoint(
                       box.left + box.width * fraction,
                       box.top + box.height * 0.5,
                     )[0],
-                )
-              : [];
+                  );
+                }
+              } finally {
+                // Synchronize SVG's CSSOM before removing an originally
+                // absent attribute; removeAttribute alone leaves style="".
+                image.setAttribute('style', originalStyle ?? '');
+                if (originalStyle === null) image.removeAttribute('style');
+              }
+            }
             const unoccluded =
               hits.length === 3 &&
               hits.every((hit) => !!hit && !!component?.contains(hit)) &&

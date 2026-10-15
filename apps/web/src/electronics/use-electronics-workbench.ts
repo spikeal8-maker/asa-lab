@@ -277,7 +277,9 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
   }
 
   const simulationStartedAtRef = useRef<number | null>(null);
-  const [requestedHorizonMicroseconds, setRequestedHorizonMicroseconds] = useState(0);
+  // Host demand is not a new electrical frame. Keep the clock out of React
+  // state so a pending Worker does not redraw the whole editor every 10 ms.
+  const requestedHorizonMicrosecondsRef = useRef(0);
   const [committedHorizonMicroseconds, setCommittedHorizonMicroseconds] = useState(0);
   const [generationPending, setGenerationPending] = useState(false);
   const [simulationMessage, setSimulationMessage] = useState<SimulationStatusMessage | null>(null);
@@ -306,7 +308,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
     resetSimulation();
     setRuntimeOverrides({});
     simulationStartedAtRef.current = null;
-    setRequestedHorizonMicroseconds(0);
+    requestedHorizonMicrosecondsRef.current = 0;
     setCommittedHorizonMicroseconds(0);
     setSimulationMessage(null);
     setLiveResult(null);
@@ -322,7 +324,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
   useEffect(() => {
     if (!simulationRunning) {
       simulationStartedAtRef.current = null;
-      setRequestedHorizonMicroseconds(0);
+      requestedHorizonMicrosecondsRef.current = 0;
       setCommittedHorizonMicroseconds(0);
       setLiveResult(null);
       setArduinoSerialByBoard({});
@@ -330,17 +332,23 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
     }
 
     simulationStartedAtRef.current = window.performance.now();
-    setRequestedHorizonMicroseconds(0);
+    requestedHorizonMicrosecondsRef.current = 0;
+    let active = true;
     const interval = window.setInterval(() => {
+      if (!active) return;
       const startedAt = simulationStartedAtRef.current;
-      if (startedAt !== null) {
-        setRequestedHorizonMicroseconds(
-          Math.max(0, Math.round((window.performance.now() - startedAt) * 1000)),
-        );
+      const currentDocument = runtimeDocumentRef.current;
+      if (startedAt !== null && currentDocument) {
+        const horizon = Math.max(0, Math.round((window.performance.now() - startedAt) * 1000));
+        requestedHorizonMicrosecondsRef.current = horizon;
+        simulationWorkerRef.current?.update(currentDocument, horizon);
       }
     }, 10);
-    return () => window.clearInterval(interval);
-  }, [simulationRunning]);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, [projectId, simulationRunning]);
 
   useEffect(() => {
     const controller = simulationWorkerRef.current;
@@ -381,6 +389,8 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
           failureCode: failure.code,
         });
         setGenerationPending(false);
+        simulationStartedAtRef.current = null;
+        requestedHorizonMicrosecondsRef.current = 0;
         resetSimulationRef.current();
         setLiveResult(null);
         setArduinoSerialByBoard({});
@@ -392,25 +402,24 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
 
   useEffect(() => {
     if (!runtimeDocument || !simulationRunning) return;
-    simulationWorkerRef.current?.update(runtimeDocument, requestedHorizonMicroseconds);
-  }, [requestedHorizonMicroseconds, runtimeDocument, simulationRunning]);
+    simulationWorkerRef.current?.update(runtimeDocument, requestedHorizonMicrosecondsRef.current);
+  }, [runtimeDocument, simulationRunning]);
 
   function sendArduinoSerialRx(boardId: string, text: string): void {
     if (!simulationRunning || !text) return;
-    simulationWorkerRef.current?.sendSerialRx(boardId, text, requestedHorizonMicroseconds);
+    simulationWorkerRef.current?.sendSerialRx(
+      boardId,
+      text,
+      requestedHorizonMicrosecondsRef.current,
+    );
   }
 
   const result = useMemo(
     () =>
       simulationRunning
         ? liveResult
-        : calculateLiveSimulation(
-            runtimeDocument,
-            persistedResult,
-            false,
-            requestedHorizonMicroseconds / 1000,
-          ),
-    [liveResult, persistedResult, requestedHorizonMicroseconds, runtimeDocument, simulationRunning],
+        : calculateLiveSimulation(runtimeDocument, persistedResult, false, 0),
+    [liveResult, persistedResult, runtimeDocument, simulationRunning],
   );
   usePiezoAudio(runtimeDocument, result, simulationRunning);
 
@@ -1361,7 +1370,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
     const currentRuntimeDocument = runtimeDocumentRef.current;
     if (!currentRuntimeDocument) return;
     simulationStartedAtRef.current = window.performance.now();
-    setRequestedHorizonMicroseconds(0);
+    requestedHorizonMicrosecondsRef.current = 0;
     setLiveResult(null);
     simulationWorkerRef.current?.restart(currentRuntimeDocument);
     setNotice('Arduino перезапущена: setup() и loop() выполняются сначала.');
@@ -2837,7 +2846,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
     simulationRunning,
     arduinoSerialByBoard,
     sendArduinoSerialRx,
-    simulationTimeMs: requestedHorizonMicroseconds / 1000,
+    simulationTimeMs: requestedHorizonMicrosecondsRef.current / 1000,
     committedSimulationTimeMs: committedHorizonMicroseconds / 1000,
     simulationStatus: simulationRunning && generationPending ? 'starting' : simulationStatus,
     simulationMessage,

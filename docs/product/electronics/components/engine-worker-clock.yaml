@@ -130,6 +130,7 @@ components:
     - apps/web/src/electronics/use-workbench-project-state.ts
     tests:
     - apps/web/src/electronics/testing/live-simulation-worker-controller.spec.ts
+    - apps/web/src/electronics/testing/use-electronics-workbench-clock.spec.ts
     - e2e/electronics-simulation.spec.ts
     - e2e/electronics-ready-cadence.spec.ts
     dependencies:
