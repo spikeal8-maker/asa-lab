@@ -114,6 +114,61 @@ describe('Arduino instruction-us-v1 execution clock (scheduler foundation)', () 
     expect(fault.events).toEqual([]);
     expect(fault.state.outputVoltages).toEqual({});
   });
+  it('reinitializes loop bindings between prepared writes with exact fronts across JSON quanta', () => {
+    const source = `int count=0;void setup(){pinMode(13,OUTPUT);}void loop(){
+      int temporary=7;digitalWrite(13,HIGH);delayMicroseconds(2);
+      count+=temporary;digitalWrite(13,LOW);delayMicroseconds(1);}`;
+    const whole = through(source, 0.04);
+    expect(whole.state.variables).toEqual({ count: 28 });
+    expect(whole.state.locals).toEqual({ temporary: 7 });
+    expect(whole.state.loopIterations).toBe(4);
+    expect(
+      whole.events
+        .filter((event) => event.kind === 'output-change')
+        .map((event) => [event.atMicroseconds, event.voltage]),
+    ).toEqual([
+      [0, 0],
+      [3, 5],
+      [8, 0],
+      [13, 5],
+      [18, 0],
+      [23, 5],
+      [28, 0],
+      [33, 5],
+      [38, 0],
+    ]);
+    for (const budget of [1, 7, 256]) {
+      const resumed = through(source, 0.04, undefined, undefined, budget);
+      expect(resumed.state).toStrictEqual(whole.state);
+      expect(resumed.events).toStrictEqual(whole.events);
+    }
+  });
+
+  it('evaluates cached global declaration initializers against each new input and source', () => {
+    const source = `int observed=digitalRead(2);void setup(){pinMode(13,OUTPUT);
+      digitalWrite(13,HIGH);}void loop(){delay(1);}`;
+    for (const voltage of [0, 5, 0]) {
+      const actual = advanceClockedArduinoRuntime(source, { d2: voltage }, 0.01);
+      expect(actual.state.variables.observed).toBe(voltage === 0 ? 0 : 1);
+      expect(actual.state.outputVoltages.d13).toBe(5);
+    }
+    const changed = advanceClockedArduinoRuntime(source.replace('digitalRead(2)', '9'), {}, 0.01);
+    expect(changed.state.variables.observed).toBe(9);
+  });
+
+  it('discards prepared GPIO actions when a later expression faults in the same batch', () => {
+    const source = `int value=32767;void setup(){pinMode(13,OUTPUT);
+      digitalWrite(13,HIGH);value++;}void loop(){delay(1);}`;
+    const result = advanceClockedArduinoRuntime(source, {}, 0.01);
+    expect(result.executionStatus).toBe('fault');
+    expect(result.diagnostics[0]?.code).toBe('arithmetic_error');
+    expect(result.setupActions).toEqual([]);
+    expect(result.loopActions).toEqual([]);
+    expect(result.events).toEqual([]);
+    expect(result.state.eventQueue).toEqual([]);
+    expect(result.state.outputVoltages).toEqual({});
+  });
+
   it('finishes millis busy-wait instead of treating it as an infinite program', () => {
     const source = `void setup(){pinMode(13,OUTPUT);while(millis()<10){}
       digitalWrite(13,HIGH);}void loop(){delay(100);}`;

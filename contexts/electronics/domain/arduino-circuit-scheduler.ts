@@ -395,6 +395,7 @@ function applyInput(
  * The caller supplies the full input history (or omits it to keep the old history).
  */
 interface ClockPreparation {
+  readonly sourceSupport: Map<string, ReturnType<typeof analyseArduinoSourceSupport>>;
   activeDocument?: ElectronicsDocument;
   digest?: string;
   solveDocument?: ElectronicsDocument;
@@ -407,7 +408,10 @@ interface ClockPreparation {
 }
 /** One immutable document and one request; never a shared/persisted state authority. */
 export function createArduinoCircuitClockExecutor(document: ElectronicsDocument) {
-  const preparation: ClockPreparation = { operatingPoint: createArduinoOperatingPointReuse() };
+  const preparation: ClockPreparation = {
+    sourceSupport: new Map(),
+    operatingPoint: createArduinoOperatingPointReuse(),
+  };
   return (
     horizon: number,
     previous?: ArduinoCircuitClockState,
@@ -533,9 +537,13 @@ export function advanceArduinoCircuitClock(
   ]);
   for (const board of boards) {
     const source = arduinoSourceFor(board);
-    const supportDiagnostics = analyseArduinoSourceSupport(source).filter(
-      (entry) => entry.status === 'unsupported',
-    );
+    let support = ownedPreparation?.sourceSupport.get(source);
+    if (!support) {
+      support = analyseArduinoSourceSupport(source);
+      if (ownedPreparation && ownedPreparation.sourceSupport.size < MAX_BOARDS)
+        ownedPreparation.sourceSupport.set(source, support);
+    }
+    const supportDiagnostics = support.filter((entry) => entry.status === 'unsupported');
     const globalUnsupported = supportDiagnostics.find(
       (entry) => entry.code !== 'syntax-error' && !localUnsupportedCodes.has(entry.code),
     );

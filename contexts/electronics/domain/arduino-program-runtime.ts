@@ -438,6 +438,7 @@ function expireTones(
   tones: Map<Terminal, ArduinoTimedWaveformState>,
   emit: (event: Omit<ArduinoRuntimeEvent, 'sequence' | 'atMicroseconds'>, atMs: number) => void,
 ): void {
+  if (tones.size === 0) return;
   const targetMicroseconds = microsecondsFromMilliseconds(targetTimeMs);
   const ordered = [...tones].sort(
     ([a, left], [b, right]) =>
@@ -1657,6 +1658,9 @@ function initializeGlobals(declarations: readonly GlobalDeclaration[], state: Ru
 
 interface ArduinoProgramCompilation {
   readonly cleanSource: string;
+  readonly fingerprint: string;
+  readonly declarations: readonly GlobalDeclaration[];
+  readonly servoDeclarations: readonly string[];
   readonly setupInstructions: readonly CompiledInstruction[];
   readonly loopInstructions: readonly CompiledInstruction[];
   readonly diagnostics: readonly ArduinoRuntimeDiagnostic[];
@@ -1746,6 +1750,9 @@ function compileArduinoProgram(source: string): ArduinoProgramCompilation {
   if (bytes > COMPILATION_CACHE_BYTES) return compilation;
   for (const instruction of [...compilation.setupInstructions, ...compilation.loopInstructions])
     Object.freeze(instruction);
+  for (const declaration of compilation.declarations) Object.freeze(declaration);
+  Object.freeze(compilation.declarations);
+  Object.freeze(compilation.servoDeclarations);
   Object.freeze(compilation.setupInstructions);
   Object.freeze(compilation.loopInstructions);
   Object.freeze(compilation.diagnostics);
@@ -1785,6 +1792,7 @@ function compileUncachedArduinoProgram(source: string): ArduinoProgramCompilatio
   const setupBody = extractedSetupBody ?? '';
   const loopBody = extractedLoopBody ?? (declaredSetup || declaredLoop ? '' : cleanSource);
   const servoDeclarations = arduinoServoDeclarationNames(cleanSource);
+  const declarations = globalDeclarations(cleanSource);
   const bodyLine = (name: string): number => {
     const match = new RegExp(`\\bvoid\\s+${name}\\s*\\([^)]*\\)\\s*\\{`).exec(cleanSource);
     return match
@@ -1810,7 +1818,7 @@ function compileUncachedArduinoProgram(source: string): ArduinoProgramCompilatio
       statementCount: 0,
     };
     try {
-      initializeGlobals(globalDeclarations(cleanSource), validation);
+      initializeGlobals(declarations, validation);
       const globals = new Map(validation.scopes[0]);
       for (const instructions of [setupInstructions, loopInstructions]) {
         validation.scopes.splice(0, validation.scopes.length, new Map(globals), new Map());
@@ -1834,6 +1842,9 @@ function compileUncachedArduinoProgram(source: string): ArduinoProgramCompilatio
   }
   return {
     cleanSource,
+    fingerprint: programFingerprint(source),
+    declarations,
+    servoDeclarations,
     setupInstructions,
     loopInstructions,
     diagnostics: messages.map((message) => ({
@@ -1858,14 +1869,14 @@ export function arduinoRuntimeStateMatchesProgram(
   const compilation = compileArduinoProgram(source);
   const instructions =
     state.phase === 'setup' ? compilation.setupInstructions : compilation.loopInstructions;
-  const servoDeclarations = arduinoServoDeclarationNames(compilation.cleanSource);
+  const servoDeclarations = compilation.servoDeclarations;
   const persistedServoNames = state.servo ? Object.keys(state.servo.objects).sort() : [];
   return (
     compilation.diagnostics.length === 0 &&
     (state.servo === undefined ||
       (servoDeclarations.length === persistedServoNames.length &&
         servoDeclarations.every((name, index) => name === persistedServoNames[index]))) &&
-    state.programFingerprint === programFingerprint(source) &&
+    state.programFingerprint === compilation.fingerprint &&
     state.programCounter <= instructions.length &&
     state.scopes.length ===
       instructions
@@ -1939,10 +1950,8 @@ function advanceRuntime(
 ): ArduinoRuntimeAdvance {
   const clocked = clockProfile === 'instruction-us-v1';
   const compilation = compileArduinoProgram(source);
-  const { cleanSource, setupInstructions, loopInstructions } = compilation;
-  const declarations = globalDeclarations(cleanSource);
-  const servoDeclarations = arduinoServoDeclarationNames(cleanSource);
-  const fingerprint = programFingerprint(source);
+  const { setupInstructions, loopInstructions, declarations, servoDeclarations, fingerprint } =
+    compilation;
   const invalidClockTime =
     clocked &&
     (!Number.isFinite(simulationTimeMs) ||
@@ -2157,6 +2166,27 @@ function advanceRuntime(
     simulationTimeMs: resumeAtMs,
     statementCount: clocked ? 0 : continuousStatementCount,
   };
+  const commitActions = (
+    actions: readonly ArduinoProgramAction[],
+    start: number,
+    atMs: number,
+  ): void => {
+    for (let index = start; index < actions.length; index += 1) {
+      const action = actions[index]!;
+      if (action.kind === 'delay') {
+        resumeAtMs = clocked
+          ? Math.min(
+              MAX_CLOCK_MICROSECONDS,
+              microsecondsFromMilliseconds(resumeAtMs) +
+                microsecondsFromMilliseconds(action.durationMs),
+            ) / 1000
+          : resumeAtMs + action.durationMs;
+        if (action.durationMs > 0) continuousStatementCount = 0;
+      } else {
+        applyRuntimeAction(action, atMs, pinModes, outputVoltages, tones, emit);
+      }
+    }
+  };
   while (
     resumeAtMs <= targetTimeMs &&
     (clocked
@@ -2178,7 +2208,8 @@ function advanceRuntime(
     const instructions = phase === 'setup' ? setupInstructions : loopInstructions;
 
     if (phase === 'setup' && programCounter >= instructions.length) {
-      scopes.splice(1, scopes.length - 1, new Map());
+      if (scopes.length !== 2 || scopes[1]!.size !== 0)
+        scopes.splice(1, scopes.length - 1, new Map());
       phase = 'loop';
       programCounter = 0;
       loopIterationActive = false;
@@ -2195,7 +2226,8 @@ function advanceRuntime(
     }
 
     if (phase === 'loop' && programCounter >= instructions.length) {
-      scopes.splice(1, scopes.length - 1, new Map());
+      if (scopes.length !== 2 || scopes[1]!.size !== 0)
+        scopes.splice(1, scopes.length - 1, new Map());
       programCounter = 0;
       loopIterationActive = false;
       completedLoops += 1;
@@ -2220,6 +2252,33 @@ function advanceRuntime(
     }
 
     const actions = phase === 'setup' ? setupActions : loopActions;
+    const literal = instruction.kind === 'simple' ? literalCommands.get(instruction) : undefined;
+    if (clocked && literal) {
+      // Prepared commands contain only literal operands and actions. Execute each
+      // instruction normally without marshalling unrelated evaluator peripherals.
+      // Binding checks, action order, faults and the one-us instruction cost remain.
+      try {
+        for (const scope of scopes) {
+          if (scope.has(literal.name))
+            throw new SyntaxError(`«${literal.name}» — переменная, а не функция.`);
+        }
+        const actionStart = actions.length;
+        for (const action of literal.actions) actions.push(action);
+        programCounter += 1;
+        commitActions(actions, actionStart, resumeAtMs);
+      } catch (error) {
+        if (!(error instanceof SyntaxError) && !(error instanceof ArduinoArithmeticError))
+          throw error;
+        diagnostics.push({
+          code: error instanceof ArduinoArithmeticError ? 'arithmetic_error' : 'compile_error',
+          severity: 'error',
+          message: `Строка ${instruction.line}: ${error.message}`,
+          line: instruction.line,
+        });
+      }
+      consumeClockInstruction();
+      continue;
+    }
     instructionState.pulseWait = pulseWait;
     instructionState.ultrasonicAdapter = ultrasonicAdapter;
     instructionState.serial = serial;
@@ -2231,22 +2290,6 @@ function advanceRuntime(
     let ultrasonicAdapterBlocked = false;
     const actionStart = actions.length;
     const executionTimeMs = resumeAtMs;
-    const commitActions = (start: number, atMs: number): void => {
-      for (const action of actions.slice(start)) {
-        if (action.kind === 'delay') {
-          resumeAtMs = clocked
-            ? Math.min(
-                MAX_CLOCK_MICROSECONDS,
-                microsecondsFromMilliseconds(resumeAtMs) +
-                  microsecondsFromMilliseconds(action.durationMs),
-              ) / 1000
-            : resumeAtMs + action.durationMs;
-          if (action.durationMs > 0) continuousStatementCount = 0;
-        } else {
-          applyRuntimeAction(action, atMs, pinModes, outputVoltages, tones, emit);
-        }
-      }
-    };
 
     try {
       if (instruction.kind === 'branch') {
@@ -2256,21 +2299,22 @@ function advanceRuntime(
             ? programCounter + 1
             : instruction.falseTarget;
       } else if (instruction.kind === 'simple') {
-        const literal = literalCommands.get(instruction);
         if (literal) {
           if (consumeStatement(instructionState)) {
-            if (scopes.some((scope) => scope.has(literal.name)))
-              throw new SyntaxError(`«${literal.name}» — переменная, а не функция.`);
-            actions.push(...literal.actions);
+            for (const scope of scopes) {
+              if (scope.has(literal.name))
+                throw new SyntaxError(`«${literal.name}» — переменная, а не функция.`);
+            }
+            for (const action of literal.actions) actions.push(action);
           }
         } else executeSimpleStatement(instruction.statement, instructionState);
         programCounter += 1;
-        commitActions(actionStart, executionTimeMs);
+        commitActions(actions, actionStart, executionTimeMs);
       }
     } catch (error) {
       if (error instanceof ArduinoUltrasonicAdapterWaitSignal) {
         ultrasonicAdapterBlocked = true;
-        commitActions(actionStart, executionTimeMs);
+        commitActions(actions, actionStart, executionTimeMs);
         resumeAtMs = Math.min(MAX_CLOCK_MICROSECONDS, error.wakeAtMicroseconds) / 1000;
       } else if (error instanceof ArduinoPulseWaitSignal) {
         pulseBlocked = true;
