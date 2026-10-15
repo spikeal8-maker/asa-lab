@@ -32,6 +32,7 @@ on:
       - 'package.json'
       - 'pnpm-lock.yaml'
       - '.github/workflows/scratch-focused.yml'
+      - '.github/workflows/source-installation.yml'
   pull_request:
     paths:
       - 'compose*.yaml'
@@ -61,6 +62,7 @@ on:
       - 'package.json'
       - 'pnpm-lock.yaml'
       - '.github/workflows/scratch-focused.yml'
+      - '.github/workflows/source-installation.yml'
   workflow_dispatch:
 
 permissions:
@@ -215,61 +217,7 @@ jobs:
         if: always()
         run: docker rm -f asa-lab-scratch-editor || true
 
-      - name: Fresh exported-source installation with standard defaults
-        env:
-          ASA_BUILD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
-        run: |
-          portable=$(mktemp -d "$RUNNER_TEMP/asa-portable-XXXXXX")
-          echo "ASA_PORTABLE_ROOT=$portable" >> "$GITHUB_ENV"
-          git archive --format=zip --output="$RUNNER_TEMP/asa-source.zip" "$ASA_BUILD_REVISION"
-          python3 -m zipfile -e "$RUNNER_TEMP/asa-source.zip" "$portable"
-          cd "$portable"
-          test ! -e .git
-          # ZIP extractors do not have to preserve executable permission bits.
-          # doctor is read-only: missing private configuration is expected here.
-          doctor_status=0
-          sh tools/asa-lab.sh doctor || doctor_status=$?
-          test "$doctor_status" -eq 78
-          test ! -e .env
-          test ! -e .asa
-          sh tools/asa-lab.sh up
-          sha256sum .env > .env.sha256
-          sh tools/asa-lab.sh doctor
-          sha256sum --check .env.sha256
-
-      - name: PowerShell repeat startup preserves configuration and data
-        shell: pwsh
-        env:
-          ASA_BUILD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
-        run: |
-          Set-Location $env:ASA_PORTABLE_ROOT
-          $before = (Get-FileHash .env).Hash
-          ./tools/asa-lab.ps1 -Action up -Profile dev
-          if ($before -ne (Get-FileHash .env).Hash) { throw 'Repeated startup changed credentials' }
-          ./tools/docker-update.ps1 -SelfTest
-
-      - name: Source and portable updater embedded-entry guard unit tests
-        run: |
-          node --test tools/deployment/test-editor-entry.mjs
-          python -m unittest tools.deployment.test_contracts
-
-      - name: Real default-port Scratch journey from fresh install
-        env:
-          ASA_BUILD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
-        run: node tools/blocks/portable-smoke.mjs
-
-      - name: Preserve fresh-install evidence without environment or credentials
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: scratch-portable-${{ github.event.pull_request.head.sha || github.sha }}
-          path: reports/blocks/portable-install/
-          retention-days: 14
-
-      - name: Stop only the disposable installation
-        if: always()
-        run: |
-          if [ -n "${ASA_PORTABLE_ROOT:-}" ] && [ -f "$ASA_PORTABLE_ROOT/.env" ]; then
-            cd "$ASA_PORTABLE_ROOT"
-            sh tools/asa-lab.sh down
-          fi
+  portable:
+    name: Fresh ZIP installation
+    needs: contracts
+    uses: ./.github/workflows/source-installation.yml
