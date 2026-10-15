@@ -87,11 +87,11 @@ describe('Course Builder structure forward upgrade', () => {
         '0212', // Exact published catalogue copy.
       ];
       const pre153 = plan.filter((item) => Number(item.version) <= 152);
-      // This test checks the historical Course Builder 0153–0199 upgrade window.
-      // Newer migrations are covered by the full migration smoke, not this fixed fixture.
+      // This historical Course Builder fixture ends at the current published
+      // Learning/Portal schema 0212; AI migration 0213 is separately verified.
       const upgradePlan = plan.filter((item) => {
         const version = Number(item.version);
-        return version > 152 && version <= 199;
+        return version > 152 && version <= 212;
       });
       expect(upgradePlan.map((item) => item.version)).toEqual(expectedUpgradeVersions);
       const bootstrap = await pool.connect();
