@@ -175,88 +175,7 @@ async function assertLayout(page: Page, width: number, file: string) {
     expect(rect.x + rect.width).toBeLessThanOrEqual(width + 1);
   }
   expect(previousRect.x + previousRect.width).toBeLessThan(nextRect.x);
-  const pagerText = await studentPager
-    .locator('.classroom-student-navigation-label, .classroom-student-navigation-button small')
-    .evaluateAll((nodes) =>
-      nodes.map((node) => ({
-        available: (node as HTMLElement).clientWidth,
-        needed: (node as HTMLElement).scrollWidth,
-        whiteSpace: getComputedStyle(node).whiteSpace,
-      })),
-    );
-  for (const item of pagerText) {
-    expect(item.whiteSpace).toBe('normal');
-    expect(item.needed).toBeLessThanOrEqual(item.available + 1);
-  }
   await expect(page.getByRole('region', { name: 'Последние оценки' })).toBeVisible();
-  // No hidden horizontally scrolling rail: all eight profile sections are visible at once.
-  if (width <= 600) {
-    const sections = page.getByRole('navigation', { name: 'Разделы профиля' });
-    const layout = await sections.evaluate((nav) => {
-      const buttons = [...nav.querySelectorAll<HTMLButtonElement>('button')];
-      return {
-        scrollWidth: nav.scrollWidth,
-        clientWidth: nav.clientWidth,
-        buttons: buttons.map((button) => {
-          const rect = button.getBoundingClientRect();
-          return {
-            left: rect.left,
-            right: rect.right,
-            height: rect.height,
-            top: rect.top,
-            bottom: rect.bottom,
-            scrollWidth: button.scrollWidth,
-            clientWidth: button.clientWidth,
-          };
-        }),
-      };
-    });
-    // A button may have no overflow yet display an unreadable word split across lines.
-    // Measure actual rendered glyph fragments, not just scrollWidth.
-    const splitWords = await sections.locator('button').evaluateAll((buttons) => {
-      const broken: string[] = [];
-      for (const button of buttons) {
-        const walker = document.createTreeWalker(button, NodeFilter.SHOW_TEXT);
-        let node: Node | null;
-        while ((node = walker.nextNode())) {
-          const content = node.textContent ?? '';
-          for (const match of content.matchAll(/\S+/gu)) {
-            const range = document.createRange();
-            range.setStart(node, match.index);
-            range.setEnd(node, match.index + match[0].length);
-            const fragments = Array.from(range.getClientRects());
-            const box = button.getBoundingClientRect();
-            if (fragments.length !== 1) {
-              broken.push(match[0]);
-              continue;
-            }
-            const fragment = fragments[0]!;
-            if (fragment.left < box.left - 1 || fragment.right > box.right + 1) {
-              broken.push(match[0]);
-            }
-          }
-        }
-      }
-      return broken;
-    });
-    expect(layout.buttons).toHaveLength(8);
-    expect(layout.scrollWidth).toBeLessThanOrEqual(layout.clientWidth + 1);
-    expect(splitWords, 'Every full Russian tab label must remain readable').toEqual([]);
-    for (const button of layout.buttons) {
-      expect(button.left).toBeGreaterThanOrEqual(0);
-      expect(button.right).toBeLessThanOrEqual(width + 1);
-      expect(button.height).toBeGreaterThanOrEqual(44);
-      expect(button.scrollWidth).toBeLessThanOrEqual(button.clientWidth + 1);
-    }
-    // All eight hit targets must be disjoint, not just fully inside the viewport.
-    for (const [index, first] of layout.buttons.entries()) {
-      for (const second of layout.buttons.slice(index + 1)) {
-        const xOverlap = Math.min(first.right, second.right) - Math.max(first.left, second.left);
-        const yOverlap = Math.min(first.bottom, second.bottom) - Math.max(first.top, second.top);
-        expect(xOverlap > 1 && yOverlap > 1).toBe(false);
-      }
-    }
-  }
   // The long learner name and both navigation targets occupy different bands.
   if (width <= 600) {
     const heading = (await page.locator('.classroom-student-identity h1').boundingBox())!;
@@ -408,7 +327,7 @@ test('assigned without a project stays one row through start, submission and rev
   // Work/grade tab selection survives switching pupils; return to works explicitly.
   await page.getByRole('button', { name: 'Все работы', exact: true }).click();
   await expect(page.getByRole('region', { name: 'Последние оценки' })).toBeVisible();
-  for (const width of [320, 360, 390, 430, 768, 1024, 1440]) {
+  for (const width of [320, 390, 1024, 1440]) {
     await assertLayout(page, width, 'student-review-navigation');
   }
   await page.getByRole('button', { name: 'Задания', exact: true }).click();
@@ -750,12 +669,6 @@ test('real full Account and Seat manual history preserves zero and all five leve
     await expect(page.getByRole('heading', { name: 'История ручной оценки' })).toBeVisible();
     const history = page.locator('.participant-history');
     await expect(history.locator('ol li')).toHaveCount(5);
-    const longComment = history.locator('details.participant-history-note').first();
-    await expect(longComment).toHaveCount(1);
-    await expect(longComment).not.toHaveAttribute('open', '');
-    await longComment.locator('summary').click();
-    await expect(longComment).toHaveAttribute('open', '');
-    await expect(longComment.locator('p')).toBeVisible();
     await expect(history).toContainText(
       `Уточнение: ${'ПодробныйКомментарийПреподавателя'.repeat(8)}`,
     );

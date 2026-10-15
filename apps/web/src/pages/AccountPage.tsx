@@ -2,6 +2,7 @@ import { LearningInbox } from '../components/LearningInbox';
 import { PresentationControls, usePresentation } from '../components/PresentationPreferences';
 import { LearningNotificationPreferences } from '../components/LearningNotificationPreferences';
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { systemFeedback } from '../components/system-feedback';
 import {
   api,
   type AccountProfile,
@@ -101,6 +102,9 @@ export function AccountPage({
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  useEffect(() => {
+    if (notice) systemFeedback.success(notice);
+  }, [notice]);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -633,7 +637,7 @@ export function AccountPage({
           </select>
         </label>
         <aside className="account-settings-navigation" aria-label="Разделы настроек">
-          <nav>
+          <nav className="asa-system-tabs asa-system-tabs--vertical">
             {SETTINGS_PANELS.map((item) => (
               <button
                 key={item.id}
@@ -664,11 +668,6 @@ export function AccountPage({
           {error && panel !== 'interface' ? (
             <p className="account-message error" role="alert">
               {error}
-            </p>
-          ) : null}
-          {notice && panel !== 'interface' ? (
-            <p className="account-message success" role="status">
-              {notice}
             </p>
           ) : null}
 
@@ -849,11 +848,6 @@ export function AccountPage({
                 {error ? (
                   <p className="account-message error" role="alert">
                     {error}
-                  </p>
-                ) : null}
-                {notice ? (
-                  <p className="account-save-status" role="status">
-                    {notice}
                   </p>
                 ) : null}
               </div>

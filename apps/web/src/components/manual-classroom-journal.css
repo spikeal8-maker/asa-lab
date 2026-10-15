@@ -601,10 +601,3 @@
     --journal-name-width: 160px;
   }
 }
-
-/* On narrow containers, keep the sticky names readable; grade headings retain 132px. */
-@container classroom (max-width: 360px) {
-  .classroom-owner-workspace .manual-journal {
-    --journal-name-width: clamp(124px, 46cqi, 160px);
-  }
-}

@@ -1,4 +1,5 @@
 import { Fragment, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { systemFeedback } from './system-feedback';
 import {
   participantsApi,
   PARTICIPANT_FACTORS,
@@ -78,6 +79,9 @@ export function ClassroomRatingSettings({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
+  useEffect(() => {
+    if (notice) systemFeedback.success(notice);
+  }, [notice]);
   const receipt = useRef<{ payload: string; id: string } | null>(null);
   const generation = useRef(0);
   const load = useCallback(async () => {
@@ -219,7 +223,6 @@ export function ClassroomRatingSettings({
           >
             {busy ? 'Сохраняем…' : 'Сохранить рейтинг'}
           </button>
-          {notice ? <p role="status">{notice}</p> : null}
         </>
       ) : null}
     </section>

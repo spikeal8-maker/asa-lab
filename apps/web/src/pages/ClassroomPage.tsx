@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { SystemTabs } from '../components/SystemTabs';
+import { systemFeedback } from '../components/system-feedback';
 import {
   api,
   type Classroom,
@@ -401,6 +403,9 @@ function ClassroomPageContent({
   const [actionError, setActionError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  useEffect(() => {
+    if (notice) systemFeedback.success(notice);
+  }, [notice]);
   // null = closed; [] = all active learners; non-empty = selected learner cards.
   const [accessCardIds, setAccessCardIds] = useState<string[] | null>(null);
   const [codeEditor, setCodeEditor] = useState<ClassroomStudentSeat | null>(null);
@@ -572,7 +577,10 @@ function ClassroomPageContent({
         setActionError(null);
         setNotice(null);
       },
-      fail: setActionError,
+      fail: (message) => {
+        setActionError(message);
+        systemFeedback.error(message);
+      },
       finish: () => setBusy(null),
     });
   }
@@ -606,7 +614,7 @@ function ClassroomPageContent({
           : current,
       );
       setEditing(null);
-      setNotice(`Настройки «${result.student.displayLabel}» сохранены.`);
+      setNotice('Настройки ученика сохранены.');
       await reload();
     });
   }
@@ -804,26 +812,15 @@ function ClassroomPageContent({
             ))}
           </select>
         </label>
-        <nav className="classroom-workspace-tabs" aria-label="Разделы класса">
-          {TABS.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              className={tab === item.id ? 'active' : undefined}
-              aria-current={tab === item.id ? 'page' : undefined}
-              onClick={() => setTab(item.id)}
-            >
-              {item.label}
-            </button>
-          ))}
-        </nav>
+        <SystemTabs
+          items={TABS}
+          active={tab}
+          onChange={setTab}
+          label="Разделы класса"
+          className="classroom-workspace-tabs"
+        />
       </div>
 
-      {notice ? (
-        <p className="notice-success" role="status">
-          {notice}
-        </p>
-      ) : null}
 
       {actionError ? (
         <p className="form-error" role="alert">

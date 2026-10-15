@@ -1,3 +1,5 @@
+import { SystemTabs } from '../components/SystemTabs';
+import { systemFeedback } from '../components/system-feedback';
 import '../modules/classroom-owner-layout.css';
 import '../modules/classroom-mobile.css';
 import '../modules/classroom-usability.css';
@@ -85,6 +87,9 @@ export function DashboardPage({
   const [list, setList] = useState<ListState>({ kind: 'loading' });
   const [modalOpen, setModalOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  useEffect(() => {
+    if (notice) systemFeedback.success(notice);
+  }, [notice]);
   const [roleView, setRoleView] = useState<ClassroomRoleView>('teaching');
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [sort, setSort] = useState<SortKey>('created-desc');
@@ -246,29 +251,18 @@ export function DashboardPage({
         <button type="button" className="classroom-attend-link" onClick={onAttendClasses}>
           Я учусь в классе →
         </button>
-        <nav className="classroom-role-tabs" aria-label="Роли в классах">
-          {CLASSROOM_ROLE_TABS.map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              className={roleView === tab.id ? 'active' : undefined}
-              aria-current={roleView === tab.id ? 'page' : undefined}
-              onClick={() => {
-                setRoleView(tab.id);
-                setSelected(new Set());
-              }}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </nav>
+<SystemTabs
+          items={CLASSROOM_ROLE_TABS}
+          active={roleView}
+          onChange={(next) => {
+            setRoleView(next);
+            setSelected(new Set());
+          }}
+          label="Роли в классах"
+          className="classroom-role-tabs"
+        />
       </section>
 
-      {notice ? (
-        <p className="notice-success" role="status" aria-live="polite">
-          {notice}
-        </p>
-      ) : null}
 
       <section className="classroom-hub-toolbar" aria-label="Действия с классами">
         <label className="classroom-select-all">
@@ -581,7 +575,7 @@ export function DashboardPage({
           onClose={() => setEditing(null)}
           onSaved={(classroom) => {
             setEditing(null);
-            setNotice(`Класс «${classroom.title}» обновлён.`);
+            setNotice('Класс обновлён.');
             void reload();
           }}
         />
@@ -593,9 +587,7 @@ export function DashboardPage({
           onCreated={(classroom, created) => {
             setModalOpen(false);
             setNotice(
-              created
-                ? `Класс «${classroom.title}» создан.`
-                : `Класс «${classroom.title}» уже существует.`,
+              created ? 'Класс создан.' : 'Класс уже существует.',
             );
             restoreFocus('header');
             void reload();

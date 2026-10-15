@@ -1,10 +1,17 @@
 import { useState } from 'react';
+import { SystemTabs } from '../components/SystemTabs';
 import type { ClassroomStudentSession } from '../api';
 import { SeatAssignments } from '../components/SeatAssignments';
 import { SeatCourses } from '../components/SeatCourses';
 import { SeatQuizzes } from '../components/SeatQuizzes';
 import { SeatResults } from '../components/SeatResults';
 import { AttendedClassesPage } from './AttendedClassesPage';
+
+const LEARNING_TABS = [
+  { id: 'self', label: 'Самостоятельно' },
+  { id: 'teacher', label: 'С преподавателем' },
+  { id: 'completed', label: 'Завершённое' },
+] as const;
 
 export function LearningPage({
   seat,
@@ -15,25 +22,13 @@ export function LearningPage({
 }): JSX.Element {
   const [tab, setTab] = useState<'self' | 'teacher' | 'completed'>('teacher');
   const navigation = (
-    <nav aria-label="Разделы моего обучения" className="learning-sections">
-      {(
-        [
-          { id: 'self', title: 'Самостоятельно' },
-          { id: 'teacher', title: 'С преподавателем' },
-          { id: 'completed', title: 'Завершённое' },
-        ] as const
-      ).map((item) => (
-        <button
-          type="button"
-          key={item.id}
-          className="btn-secondary"
-          aria-current={tab === item.id ? 'page' : undefined}
-          onClick={() => setTab(item.id)}
-        >
-          {item.title}
-        </button>
-      ))}
-    </nav>
+    <SystemTabs
+      items={LEARNING_TABS}
+      active={tab}
+      onChange={setTab}
+      label="Разделы моего обучения"
+      className="learning-sections"
+    />
   );
 
   if (tab === 'self')
