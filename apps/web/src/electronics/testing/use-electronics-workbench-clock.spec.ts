@@ -1,5 +1,5 @@
 /* @vitest-environment jsdom */
-import { act, createElement, startTransition, Suspense, useLayoutEffect } from 'react';
+import { act, createElement, startTransition, StrictMode, Suspense, useLayoutEffect } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api, type Project, type SchematicDocument, type SolveResult } from '../../api';
@@ -88,7 +88,7 @@ function Probe({ id = 'clock-project' }: { id?: string }) {
     `${workbench.simulationTimeMs}:${workbench.result?.current}`,
   );
 }
-const worker = () => transport.instances[0]!;
+const worker = () => transport.instances.at(-1)!;
 async function mount(id = 'clock-project') {
   await act(async () =>
     root.render(createElement(Suspense, { fallback: 'pending' }, createElement(Probe, { id }))),
@@ -151,6 +151,92 @@ afterEach(async () => {
   vi.useRealTimers();
 });
 describe('mounted workbench host demand clock', () => {
+  for (const strict of [false, true]) {
+    it(`resumes the same clock after Suspense hide/reveal${strict ? ' with StrictMode replay' : ''}`, async () => {
+      const scene = () => {
+        const child = createElement(Suspense, { fallback: 'pending' }, createElement(Probe));
+        return strict ? createElement(StrictMode, null, child) : child;
+      };
+      await act(async () => root.render(scene()));
+      expect(workbench.status).toBe('ready');
+      await act(async () => workbench.toggleSimulation());
+      await tick(20);
+      const starts = worker().start.mock.calls.length;
+      const restarts = worker().restart.mock.calls.length;
+      const intervals = vi
+        .mocked(window.setInterval)
+        .mock.calls.filter((entry) => entry[1] === 10).length;
+      let resume!: () => void;
+      await act(async () => {
+        suspendRender = new Promise<void>((resolve) => {
+          resume = resolve;
+        });
+        root.render(scene());
+      });
+      expect(host.textContent).toContain('pending');
+      worker().update.mockClear();
+      await tick(20);
+      expect(worker().update).not.toHaveBeenCalled();
+      await act(async () => {
+        suspendRender = null;
+        resume();
+      });
+      expect(host.textContent).not.toContain('pending');
+      worker().update.mockClear();
+      for (let turn = 0; turn < 5; turn += 1) await tick(10);
+      expect(worker().update.mock.calls.map((call) => call[1])).toEqual([
+        50_000, 60_000, 70_000, 80_000, 90_000,
+      ]);
+      expect(worker().start).toHaveBeenCalledTimes(starts);
+      expect(worker().restart).toHaveBeenCalledTimes(restarts);
+      expect(
+        vi.mocked(window.setInterval).mock.calls.filter((entry) => entry[1] === 10),
+      ).toHaveLength(intervals);
+    });
+  }
+
+  it('does not publish an aborted pending edit after a newer source has committed', async () => {
+    await mount();
+    await act(async () => workbench.toggleSimulation());
+    await tick(20);
+    const losingSource = 'void setup(){}void loop(){delay(999);}';
+    let resume!: () => void;
+    await act(async () =>
+      startTransition(() => {
+        suspendRender = new Promise<void>((resolve) => {
+          resume = resolve;
+        });
+        workbench.updateArduinoProgram('uno', {
+          arduinoSource: losingSource,
+        });
+      }),
+    );
+    worker().update.mockClear();
+    await tick(10);
+    expect(
+      (worker().update.mock.calls.at(-1)![0] as SchematicDocument).components[0]!.stateProperties!
+        .arduinoSource,
+    ).toBe(initial.components[0]!.stateProperties!.arduinoSource);
+    const winningSource = 'void setup(){}void loop(){delay(77);}';
+    await act(async () => {
+      suspendRender = null;
+      workbench.updateArduinoProgram('uno', { arduinoSource: winningSource });
+    });
+    await act(async () => resume());
+    await tick(10);
+    expect(
+      (worker().update.mock.calls.at(-1)![0] as SchematicDocument).components[0]!.stateProperties!
+        .arduinoSource,
+    ).toBe(winningSource);
+    expect(
+      worker().update.mock.calls.some(
+        (call) =>
+          (call[0] as SchematicDocument).components[0]!.stateProperties!.arduinoSource ===
+          losingSource,
+      ),
+    ).toBe(false);
+  });
+
   it('withholds suspended source edits from the active Worker until the transition commits', async () => {
     await mount();
     await act(async () => workbench.toggleSimulation());

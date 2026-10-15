@@ -294,17 +294,27 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
   }
   const runtimeDocumentRef = useRef(runtimeDocument);
   const resetSimulationRef = useRef(resetSimulation);
-  const committedHostSessionRef = useRef<object | null>(null);
+  const committedHostSessionRef = useRef<{
+    projectId: string;
+    running: boolean;
+    active: boolean;
+  } | null>(null);
   useLayoutEffect(() => {
     // A suspended render must not publish its document to the active timer.
     runtimeDocumentRef.current = runtimeDocument;
     resetSimulationRef.current = resetSimulation;
   });
   useLayoutEffect(() => {
-    const session = simulationRunning ? {} : null;
-    committedHostSessionRef.current = session;
+    // Suspense can detach/reveal layout effects without restarting the passive
+    // interval. Keep the same logical run identity across that lifecycle.
+    let session = committedHostSessionRef.current;
+    if (!session || session.projectId !== projectId || session.running !== simulationRunning) {
+      session = { projectId, running: simulationRunning, active: false };
+      committedHostSessionRef.current = session;
+    }
+    session.active = simulationRunning;
     return () => {
-      committedHostSessionRef.current = null;
+      session.active = false;
     };
   }, [projectId, simulationRunning]);
 
@@ -350,7 +360,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
     const interval = window.setInterval(() => {
       // Layout cleanup invalidates the old project/run before passive interval
       // cleanup, including a Stop or route commit while another render waits.
-      if (!active || !session || committedHostSessionRef.current !== session) return;
+      if (!active || !session?.active || committedHostSessionRef.current !== session) return;
       const startedAt = simulationStartedAtRef.current;
       const currentDocument = runtimeDocumentRef.current;
       if (startedAt !== null && currentDocument) {
