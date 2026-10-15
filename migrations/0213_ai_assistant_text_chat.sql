@@ -55,6 +55,8 @@ CREATE INDEX ai_assistant_messages_thread_idx
 CREATE INDEX ai_assistant_messages_quota_idx
     ON ai_assistant_messages (account_id, created_at DESC)
     WHERE role = 'user';
+CREATE UNIQUE INDEX ai_assistant_user_request_once_idx
+    ON ai_assistant_messages (account_id, request_id) WHERE role = 'user';
 ALTER TABLE ai_assistant_threads ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ai_assistant_messages ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON ai_assistant_threads FROM PUBLIC, asalab_app;
@@ -191,11 +193,11 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
 $$;
 
 CREATE FUNCTION ai_chat_messages(p_principal uuid, p_thread uuid)
-RETURNS TABLE (id uuid, role varchar, content varchar, created_at timestamptz)
-LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
-    SELECT m.id, m.role, m.content, m.created_at
+RETURNS TABLE (id uuid, role varchar, content varchar, created_at timestamptz, request_id uuid)
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $
+    SELECT m.id, m.role, m.content, m.created_at, m.request_id
       FROM (
-          SELECT msg.id, msg.role, msg.content, msg.created_at
+          SELECT msg.id, msg.role, msg.content, msg.created_at, msg.request_id
             FROM public.ai_assistant_messages msg
             JOIN public.ai_assistant_threads t ON t.id = msg.thread_id
             JOIN public.principals p ON p.account_id = t.account_id
@@ -206,10 +208,14 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
      ORDER BY m.created_at ASC, m.id ASC
 $$;
 
-CREATE FUNCTION ai_chat_begin(p_principal uuid, p_thread uuid, p_text varchar)
-RETURNS uuid
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
-DECLARE v_account uuid; v_request uuid := gen_random_uuid(); v_title varchar(120);
+CREATE FUNCTION ai_chat_begin(p_principal uuid, p_thread uuid, p_request uuid, p_text varchar)
+RETURNS boolean
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $
+DECLARE
+    v_account uuid;
+    v_existing_text varchar;
+    v_existing_thread uuid;
+    v_title varchar(120);
 BEGIN
     IF char_length(trim(p_text)) NOT BETWEEN 1 AND 3000 THEN
         RAISE EXCEPTION 'AI_INPUT_INVALID' USING ERRCODE = '22023';
@@ -220,6 +226,16 @@ BEGIN
         RAISE EXCEPTION 'AI_ACCOUNT_REQUIRED' USING ERRCODE = '42501';
     END IF;
     PERFORM pg_advisory_xact_lock(hashtextextended(v_account::text, 7312));
+    -- Replays are resolved before the busy/quota checks and never trigger another provider call.
+    SELECT m.thread_id, m.content INTO v_existing_thread, v_existing_text
+      FROM public.ai_assistant_messages m
+     WHERE m.account_id = v_account AND m.request_id = p_request AND m.role = 'user';
+    IF FOUND THEN
+        IF v_existing_thread <> p_thread OR v_existing_text <> trim(p_text) THEN
+            RAISE EXCEPTION 'AI_REQUEST_ID_REUSED' USING ERRCODE = '22023';
+        END IF;
+        RETURN false;
+    END IF;
     IF (SELECT count(*) FROM public.ai_assistant_messages m
          WHERE m.account_id = v_account AND m.role = 'user'
            AND m.created_at > now() - interval '1 hour') >= 30 THEN
@@ -237,8 +253,8 @@ BEGIN
     END IF;
     INSERT INTO public.ai_assistant_messages
         (thread_id, account_id, request_id, role, content)
-      VALUES (p_thread, v_account, v_request, 'user', trim(p_text));
-    RETURN v_request;
+      VALUES (p_thread, v_account, p_request, 'user', trim(p_text));
+    RETURN true;
 END;
 $$;
 
@@ -298,7 +314,7 @@ REVOKE ALL ON FUNCTION ai_runtime_config() FROM PUBLIC;
 REVOKE ALL ON FUNCTION ai_chat_create(uuid) FROM PUBLIC;
 REVOKE ALL ON FUNCTION ai_chat_list(uuid) FROM PUBLIC;
 REVOKE ALL ON FUNCTION ai_chat_messages(uuid, uuid) FROM PUBLIC;
-REVOKE ALL ON FUNCTION ai_chat_begin(uuid, uuid, varchar) FROM PUBLIC;
+REVOKE ALL ON FUNCTION ai_chat_begin(uuid, uuid, uuid, varchar) FROM PUBLIC;
 REVOKE ALL ON FUNCTION ai_chat_finish(uuid, uuid, uuid, varchar) FROM PUBLIC;
 REVOKE ALL ON FUNCTION ai_chat_abort(uuid, uuid, uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION ai_admin_get_config(uuid) TO asalab_app;
@@ -309,6 +325,6 @@ GRANT EXECUTE ON FUNCTION ai_runtime_config() TO asalab_app;
 GRANT EXECUTE ON FUNCTION ai_chat_create(uuid) TO asalab_app;
 GRANT EXECUTE ON FUNCTION ai_chat_list(uuid) TO asalab_app;
 GRANT EXECUTE ON FUNCTION ai_chat_messages(uuid, uuid) TO asalab_app;
-GRANT EXECUTE ON FUNCTION ai_chat_begin(uuid, uuid, varchar) TO asalab_app;
+GRANT EXECUTE ON FUNCTION ai_chat_begin(uuid, uuid, uuid, varchar) TO asalab_app;
 GRANT EXECUTE ON FUNCTION ai_chat_finish(uuid, uuid, uuid, varchar) TO asalab_app;
 GRANT EXECUTE ON FUNCTION ai_chat_abort(uuid, uuid, uuid) TO asalab_app;
