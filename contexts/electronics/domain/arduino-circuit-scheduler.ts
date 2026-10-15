@@ -1171,7 +1171,8 @@ export function advanceArduinoCircuitClock(
       sensorOutputChanged ||= step.echoChanged;
     }
     if (sensorOutputChanged) cachedFrame = undefined;
-    const physicsDue = nextPhysicsTime() === time || (eventPhysics && failureTime === time);
+    const failureDue = eventPhysics && failureTime === time;
+    const physicsDue = nextPhysicsTime() === time || failureDue;
     if (hasPhysics && eventPhysics) {
       if (!commitPhysics(time)) return fault('physical_advance_failed', 'Physical barrier failed.');
     } else if (hasPhysics) {
@@ -1184,6 +1185,37 @@ export function advanceArduinoCircuitClock(
         );
       physicalState = advanced.transientState;
       cachedFrame = undefined;
+    }
+    // A sleeping strict-v2 board consumes no electrical observation at a pure
+    // physics barrier. The real physical step and its quality check above still
+    // run. Do not construct a second, zero-duration frame that no consumer sees;
+    // final ready publication below always performs the original sample.
+    if (
+      eventPhysics &&
+      physicsDue &&
+      !failureDue &&
+      !sensorOutputChanged &&
+      hcSr04Components.length === 0 &&
+      pingUltrasonicComponents.length === 0 &&
+      servoComponents.length === 0 &&
+      (inputs[nextInputIndex]?.atMicroseconds ?? Number.POSITIVE_INFINITY) > time &&
+      physicalState?.thermal.every((thermal) => thermal.failureMode !== 'open') &&
+      runnableBoards.every((board) => {
+        const runtime = states.get(board.id);
+        return (
+          !pendingProgramLoads.has(board.id) &&
+          runtime !== undefined &&
+          Math.round(runtime.resumeAtMs * 1000) > time &&
+          !runtime.pulseWait &&
+          !runtime.ultrasonicAdapter &&
+          !runtime.servo &&
+          Object.keys(runtime.tones).length === 0
+        );
+      })
+    ) {
+      reachedMicroseconds = time;
+      clockEvents++;
+      continue;
     }
     let inputChanged = false;
     while (inputs[nextInputIndex]?.atMicroseconds === time) {

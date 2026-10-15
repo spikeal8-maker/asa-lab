@@ -694,6 +694,57 @@ describe('event execution request ownership and physical barriers', () => {
       expect(doc).toStrictEqual(before);
     },
   );
+  it.each([1, 7, 256])(
+    'samples a wake/read and delivers input exactly on a physics barrier with budget %i',
+    (budget) => {
+      const cases = [
+        {
+          source:
+            'int seen=0;void setup(){pinMode(13,OUTPUT);digitalWrite(13,HIGH);delayMicroseconds(997);seen=digitalRead(13);digitalWrite(13,LOW);}void loop(){delay(1);}',
+          expected: 1,
+          inputEvents: [],
+        },
+        {
+          source:
+            'int seen=0;void setup(){Serial.begin(9600);delayMicroseconds(998);seen=Serial.read();}void loop(){delay(1);}',
+          expected: 65,
+          inputEvents: [
+            { atMicroseconds: 1000, targetId: 'uno', operation: 'serialRx', payload: 'A' },
+          ],
+        },
+      ];
+      for (const scenario of cases) {
+        const doc = eventCircuit(scenario.source);
+        const before = finish(doc, {
+          requestedHorizonMicroseconds: 999,
+          maxEvents: budget,
+          inputEvents: scenario.inputEvents,
+        }).result;
+        expect(before.executionStatus).toBe('ready');
+        expect(
+          JSON.parse(before.state.continuation!.serializedState).boards[0].runtime.variables.seen,
+        ).toBe(0);
+        const at = finish(doc, {
+          requestedHorizonMicroseconds: 1000,
+          maxEvents: budget,
+          state: JSON.parse(JSON.stringify(before.state)),
+        }).result;
+        expect(at.executionStatus).toBe('ready');
+        expect(at.observation!.quality.passed).toBe(true);
+        expect(
+          JSON.parse(at.state.continuation!.serializedState).boards[0].runtime.variables.seen,
+        ).toBe(scenario.expected);
+        expect(at).toStrictEqual(
+          finish(doc, {
+            requestedHorizonMicroseconds: 1000,
+            maxEvents: budget,
+            inputEvents: scenario.inputEvents,
+          }).result,
+        );
+      }
+    },
+  );
+
   it('owns document and continuation before the first step and rolls back the entire request fault', () => {
     const source =
       'void setup(){pinMode(13,OUTPUT);}void loop(){digitalWrite(13,HIGH);delay(1);int n=0;int bad=1/n;}';

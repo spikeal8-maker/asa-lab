@@ -20,6 +20,10 @@ const controllerModuleSource = readFileSync(
   resolve(electronicsRoot, 'use-electronics-workbench.ts'),
   'utf8',
 );
+const simulationLoaderSource = readFileSync(
+  resolve(electronicsRoot, 'load-simulation-worker-controller.ts'),
+  'utf8',
+);
 const projectStateSource = readFileSync(
   resolve(electronicsRoot, 'use-workbench-project-state.ts'),
   'utf8',
@@ -177,12 +181,15 @@ describe('owner-reference Electronics presentation contract', () => {
     );
     expect(headerSource).toContain("aria-label={c.simulationRunning ? 'Остановить моделирование'");
     expect(headerSource).toContain('data-simulation-status={c.simulationStatus}');
-    expect(controllerModuleSource).toContain('new ElectronicsLiveSimulationWorkerController()');
+    expect(controllerModuleSource).toContain('void loadSimulationWorkerController()');
+    expect(controllerModuleSource).toContain('if (currentSession()) start(new Controller())');
+    expect(simulationLoaderSource).toContain("await import('./live-simulation-worker-controller')");
+    expect(controllerModuleSource).not.toContain('new ElectronicsLiveSimulationWorkerController()');
     expect(controllerModuleSource).toContain(
-      'simulationWorkerRef.current?.update(runtimeDocument, requestedHorizonMicrosecondsRef.current)',
+      'simulationCommandRef.current?.((worker) => worker.update(runtimeDocument, horizon))',
     );
     expect(controllerModuleSource).toContain(
-      'simulationWorkerRef.current?.restart(currentRuntimeDocument)',
+      'simulationCommandRef.current?.((worker) => worker.restart(currentRuntimeDocument))',
     );
     expect(controllerModuleSource).not.toContain(
       'simulationWorkerRef.current?.update(runtimeDocument, simulationTimeMs)',

@@ -252,6 +252,13 @@ Then run ONE short causal CPU profile of exact20114 existing delay2000 fixture w
 
 One exact candidate and author STOP, then root actual proof, NEW independent exact review and changed-cause focused/browser/General/ordinary acceptance. Above60Hz projection remains separately prepared read-only, not selected for implementation here. Only the owner's Arduino/LED timing problem is being repaired; school/live Docker/DB/server/network/foreign work untouched.
 
+### CI follow-up author evidence
+
+The saved exact-source delay2000 profile located duplicate zero-duration observations after a genuine 1ms physical commit while the strict-v2 board sleeps. The selected guard now omits only that unconsumed duplicate: every physical step and its quality check still runs; pending instructions/programs/input, pulse/tone/Servo/sensors, failure boundaries and open components retain the original observation path. Final ready publication uses the original sample. Unchanged whole/partition/JSON fixture with all assertions: unprofiled ABBA before3052/2865ms, after1669/1421ms, byte-identical complete return. The real65 no-delay requests remain full-return identical (before1179/1183ms, after1170/1020ms). These local results do not replace exact CI/browser acceptance.
+
+The PSU regression now awaits real dynamic-import settling instead of assuming20 microtasks; real controller/client/evaluator and all document/recovery/save assertions remain. Presentation contracts require the deferred loader and queued current-horizon update/restart. Three new budget1/7/256 regressions verify electrical read and Serial input exactly at the1000us physical barrier. Directed local148 core and24 compatibility tests, types/lint/routing pass. External2112 complete before/after scheduler returns cover whole/partition/JSON, exact wake/input/failure, tone and genuinely solved multiboard fallback. No timeout,5000ms case body, physical precision, event budget, browser fixture or source-size threshold changed. Source review and required final gates remain pending.
+
+
 
 ## R15 follow-up: measured no-delay throughput and required scheduler responsibility review
 
