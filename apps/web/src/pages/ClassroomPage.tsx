@@ -821,7 +821,6 @@ function ClassroomPageContent({
         />
       </div>
 
-
       {actionError ? (
         <p className="form-error" role="alert">
           {actionError}

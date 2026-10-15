@@ -80,9 +80,7 @@ export function dismissSystemFeedback(id: number): void {
     const lifetime = next ? lifetimeFor(next.kind) : null;
     visible = [
       ...visible.filter((item) => item.id !== id),
-      ...(next
-        ? [{ ...next, expiresAt: lifetime === null ? null : Date.now() + lifetime }]
-        : []),
+      ...(next ? [{ ...next, expiresAt: lifetime === null ? null : Date.now() + lifetime }] : []),
     ];
     changed();
     return;

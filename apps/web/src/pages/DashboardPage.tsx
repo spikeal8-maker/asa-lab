@@ -251,7 +251,7 @@ export function DashboardPage({
         <button type="button" className="classroom-attend-link" onClick={onAttendClasses}>
           Я учусь в классе →
         </button>
-<SystemTabs
+        <SystemTabs
           items={CLASSROOM_ROLE_TABS}
           active={roleView}
           onChange={(next) => {
@@ -262,7 +262,6 @@ export function DashboardPage({
           className="classroom-role-tabs"
         />
       </section>
-
 
       <section className="classroom-hub-toolbar" aria-label="Действия с классами">
         <label className="classroom-select-all">
@@ -586,9 +585,7 @@ export function DashboardPage({
           onClose={closeModal}
           onCreated={(classroom, created) => {
             setModalOpen(false);
-            setNotice(
-              created ? 'Класс создан.' : 'Класс уже существует.',
-            );
+            setNotice(created ? 'Класс создан.' : 'Класс уже существует.');
             restoreFocus('header');
             void reload();
           }}
