@@ -221,12 +221,20 @@ jobs:
         run: |
           portable=$(mktemp -d "$RUNNER_TEMP/asa-portable-XXXXXX")
           echo "ASA_PORTABLE_ROOT=$portable" >> "$GITHUB_ENV"
-          git archive "$ASA_BUILD_REVISION" | tar -x -C "$portable"
+          git archive --format=zip --output="$RUNNER_TEMP/asa-source.zip" "$ASA_BUILD_REVISION"
+          python3 -m zipfile -e "$RUNNER_TEMP/asa-source.zip" "$portable"
           cd "$portable"
-          ./tools/asa-lab.sh doctor
-          sed -i 's|/asalab$|/asalab_portable_test|;s|=asalab$|=asalab_portable_test|;s|APPLY:asalab$|APPLY:asalab_portable_test|' .env
+          test ! -e .git
+          # ZIP extractors do not have to preserve executable permission bits.
+          # doctor is read-only: missing private configuration is expected here.
+          doctor_status=0
+          sh tools/asa-lab.sh doctor || doctor_status=$?
+          test "$doctor_status" -eq 78
+          test ! -e .env
+          test ! -e .asa
+          sh tools/asa-lab.sh up
           sha256sum .env > .env.sha256
-          ./tools/asa-lab.sh up
+          sh tools/asa-lab.sh doctor
           sha256sum --check .env.sha256
 
       - name: PowerShell repeat startup preserves configuration and data
@@ -263,5 +271,5 @@ jobs:
         run: |
           if [ -n "${ASA_PORTABLE_ROOT:-}" ] && [ -f "$ASA_PORTABLE_ROOT/.env" ]; then
             cd "$ASA_PORTABLE_ROOT"
-            ./tools/asa-lab.sh down
+            sh tools/asa-lab.sh down
           fi
