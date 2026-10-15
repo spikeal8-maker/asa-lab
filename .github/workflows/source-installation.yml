@@ -5,9 +5,9 @@ on:
   workflow_dispatch:
     inputs:
       proof:
-        description: 'Real persistence journey to run in the disposable install'
+        description: 'Persistence and targeted browser journey in the disposable install'
         type: choice
-        options: [standard, clock]
+        options: [standard, clock, media]
         default: standard
 
 permissions:
@@ -50,8 +50,8 @@ jobs:
       - name: Install exact dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Focused contracts and security gate for clock proof
-        if: inputs.proof == 'clock'
+      - name: Focused contracts and security gate for targeted proof
+        if: inputs.proof == 'clock' || inputs.proof == 'media'
         run: pnpm gate:blocks
 
       - name: Install Chromium for persistence journey
@@ -101,6 +101,16 @@ jobs:
           ASA_BUILD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
         run: node tools/blocks/portable-smoke.mjs
 
+      - name: Existing-project Abby and Pop autosave, including clean media
+        if: inputs.proof == 'media'
+        env:
+          BLOCKS_RUNTIME_URL: http://127.0.0.1:4613
+          BLOCKS_PARENT_PORT: 4612
+          PLAYWRIGHT_JSON_OUTPUT_FILE: ${{ github.workspace }}/reports/blocks/portable-install/abby-pop-browser.json
+        run: >-
+          pnpm exec playwright test --config tools/blocks/browser/playwright.config.mjs
+          --grep 'existing project adding Abby' --reporter=list,json
+
       - name: Real server TTL with student clocks, resume and save
         if: inputs.proof == 'clock'
         env:
@@ -113,6 +123,15 @@ jobs:
         with:
           name: scratch-portable-${{ github.event.pull_request.head.sha || github.sha }}
           path: reports/blocks/portable-install/
+          retention-days: 14
+
+      - name: Preserve Abby and Pop stages and byte comparisons
+        if: always() && inputs.proof == 'media'
+        uses: actions/upload-artifact@v4
+        with:
+          name: scratch-media-${{ github.event.pull_request.head.sha || github.sha }}
+          path: reports/blocks/product-integration/abby-pop-*
+          if-no-files-found: error
           retention-days: 14
 
       - name: Stop only the disposable installation
