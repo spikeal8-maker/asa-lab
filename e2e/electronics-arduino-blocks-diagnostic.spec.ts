@@ -358,9 +358,12 @@ test('Diagnostic: real Arduino Blocks 1s to 100ms, rapid close and running drag'
       .getByTestId('arduino-block-workspace')
       .locator(`.blocklyBlockCanvas [data-id="${id}"]`)
       .first();
+  const fieldText = (id: string) =>
+    block(id).locator(
+      `xpath=.//*[local-name()="text" and ancestor::*[@data-id][1][@data-id="${id}"]]`,
+    );
   const number = async (id: string, old: string, next: string) => {
-    await block(id)
-      .locator('text')
+    await fieldText(id)
       .filter({ hasText: new RegExp(`^${old}$`) })
       .first()
       .click();
@@ -368,7 +371,7 @@ test('Diagnostic: real Arduino Blocks 1s to 100ms, rapid close and running drag'
     await page.locator('.blocklyHtmlInput').press('Enter');
   };
   const milliseconds = async (id: string) => {
-    await block(id).locator('text').filter({ hasText: /^с$/ }).first().click();
+    await fieldText(id).filter({ hasText: /^с$/ }).first().click();
     await page.getByRole('listbox').getByRole('option', { name: 'мс', exact: true }).click();
   };
   const run = async (source: string, horizon: number) => {
@@ -495,8 +498,8 @@ test('Diagnostic: real Arduino Blocks 1s to 100ms, rapid close and running drag'
     await page.getByRole('button', { name: 'Открыть редактор кода', exact: true }).click();
     await expect(source).toHaveValue(expectedSource(100));
     for (const id of ['wait-high', 'wait-low']) {
-      await expect(block(id).locator('text').filter({ hasText: /^100$/ }).first()).toBeVisible();
-      await expect(block(id).locator('text').filter({ hasText: /^мс$/ }).first()).toBeVisible();
+      await expect(fieldText(id).filter({ hasText: /^100$/ }).first()).toBeVisible();
+      await expect(fieldText(id).filter({ hasText: /^мс$/ }).first()).toBeVisible();
     }
     phase = 'after-100ms';
     await run(expectedSource(100), 650_000);
