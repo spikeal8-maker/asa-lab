@@ -2,6 +2,8 @@ import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import type pg from 'pg';
 import { AiChatService } from '../../apps/api/src/ai-chat.service';
+import { hashSessionToken } from '../../contexts/identity/dist/index.js';
+import { buildTestApp, inject } from '../portal/app';
 import { testAdminPool, testAppPool } from '../portal/helpers';
 
 interface Identity {
@@ -184,4 +186,148 @@ describe('AI Chat PostgreSQL access and request replay', () => {
       ]),
     ).rejects.toMatchObject({ code: '22023' });
   });
+
+  it('wires real Nest HTTP sessions, admin permissions, tenant ownership and paid idempotency', async () => {
+    async function createSession(actor: Identity, label: string): Promise<string> {
+      const unique = randomUUID();
+      const tenant = await admin.query<{ id: string }>(
+        'INSERT INTO tenants (title, workspace_slug) VALUES ($1,$2) RETURNING id',
+        [`AI HTTP test ${label}`, `ai-http-${unique}`],
+      );
+      const workspace = await admin.query<{ id: string }>(
+        "INSERT INTO workspaces (tenant_id,kind,title) VALUES ($1,'personal',$2) RETURNING id",
+        [tenant.rows[0]!.id, `AI HTTP ${label}`],
+      );
+      await admin.query(
+        'INSERT INTO workspace_memberships (account_id,workspace_id,role) VALUES ($1,$2,$3)',
+        [actor.accountId, workspace.rows[0]!.id, 'owner'],
+      );
+      await admin.query(
+        'INSERT INTO profiles (account_id,username,display_name) VALUES ($1,$2,$3)',
+        [actor.accountId, `ai_${unique.replaceAll('-', '')}`, label],
+      );
+      const token = `ai-http-${randomUUID()}`;
+      await admin.query(
+        `INSERT INTO sessions_v2
+           (principal_id,active_workspace_id,token_hash,expires_at,client_metadata)
+         VALUES ($1,$2,$3,now() + interval '1 hour','{}'::jsonb)`,
+        [actor.principalId, workspace.rows[0]!.id, hashSessionToken(token)],
+      );
+      return token;
+    }
+
+    const ownerToken = await createSession(owner, 'owner');
+    const strangerToken = await createSession(stranger, 'stranger');
+    const adminToken = await createSession(platformAdmin, 'admin');
+    const previousEncryptionKey = process.env['ASA_SETTINGS_ENCRYPTION_KEY'];
+    process.env['ASA_SETTINGS_ENCRYPTION_KEY'] = requestKey;
+    const mockFetch = vi.fn<typeof fetch>(
+      async () =>
+        new Response(
+          JSON.stringify({
+            output: [{ content: [{ type: 'output_text', text: 'HTTP GPT успешно ответил' }] }],
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        ),
+    );
+    vi.stubGlobal('fetch', mockFetch);
+
+    const app = await buildTestApp(runtime);
+    const host = '127.0.0.1:4610';
+    try {
+      const anonymous = await inject(app, { method: 'GET', url: '/api/ai/threads' });
+      expect(anonymous.statusCode).toBe(401);
+
+      const deniedAdmin = await inject(app, {
+        method: 'GET',
+        url: '/api/admin/v1/ai',
+        headers: { host },
+        cookies: { asa_session: ownerToken },
+      });
+      expect(deniedAdmin.statusCode).toBe(403);
+      const allowedAdmin = await inject(app, {
+        method: 'GET',
+        url: '/api/admin/v1/ai',
+        headers: { host },
+        cookies: { asa_session: adminToken },
+      });
+      expect(allowedAdmin.statusCode).toBe(200);
+      expect(allowedAdmin.body).not.toContain('sk-ai-private-integration-key-001');
+
+      const newChat = await inject(app, {
+        method: 'POST',
+        url: '/api/ai/threads',
+        headers: { host, 'content-type': 'application/json' },
+        cookies: { asa_session: ownerToken },
+        payload: {},
+      });
+      expect(newChat.statusCode).toBe(201);
+      const threadId = (newChat.json() as { id: string }).id;
+      const msgUrl = `/api/ai/threads/${threadId}/messages`;
+
+      const strangerRead = await inject(app, {
+        method: 'GET',
+        url: msgUrl,
+        headers: { host },
+        cookies: { asa_session: strangerToken },
+      });
+      expect(strangerRead.statusCode).toBe(200);
+      expect(strangerRead.json()).toEqual({ items: [] });
+      const outsiderSend = await inject(app, {
+        method: 'POST',
+        url: msgUrl,
+        headers: { host, 'content-type': 'application/json' },
+        cookies: { asa_session: strangerToken },
+        payload: { message: 'Чужой запрос', requestId: randomUUID() },
+      });
+      expect(outsiderSend.statusCode).toBe(409);
+      expect(mockFetch).not.toHaveBeenCalled();
+
+      const operation = randomUUID();
+      const data = { message: 'HTTP проверка', requestId: operation };
+      const first = await inject(app, {
+        method: 'POST',
+        url: msgUrl,
+        headers: { host, 'content-type': 'application/json' },
+        cookies: { asa_session: ownerToken },
+        payload: data,
+      });
+      expect(first.statusCode).toBe(200);
+      expect(first.json()).toMatchObject({
+        replayed: false,
+        messages: [
+          { role: 'user', requestId: operation, content: 'HTTP проверка' },
+          { role: 'assistant', requestId: operation, content: 'HTTP GPT успешно ответил' },
+        ],
+      });
+      const replay = await inject(app, {
+        method: 'POST',
+        url: msgUrl,
+        headers: { host, 'content-type': 'application/json' },
+        cookies: { asa_session: ownerToken },
+        payload: data,
+      });
+      expect(replay.statusCode).toBe(200);
+      expect(replay.json()).toMatchObject({ replayed: true });
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+
+      const wrongOrigin = await inject(app, {
+        method: 'POST',
+        url: '/api/ai/threads',
+        headers: {
+          host,
+          origin: 'https://unauthorized.example',
+          'content-type': 'application/json',
+        },
+        cookies: { asa_session: ownerToken },
+        payload: {},
+      });
+      expect(wrongOrigin.statusCode).toBe(403);
+    } finally {
+      await app.close();
+      vi.unstubAllGlobals();
+      if (previousEncryptionKey === undefined) delete process.env['ASA_SETTINGS_ENCRYPTION_KEY'];
+      else process.env['ASA_SETTINGS_ENCRYPTION_KEY'] = previousEncryptionKey;
+    }
+  }, 30000);
 });
