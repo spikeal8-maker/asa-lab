@@ -1583,9 +1583,7 @@ function ClassroomPageContent({
             });
             if (!result.ok) return result.error.message || 'Не удалось добавить ученика.';
             setDialog(null);
-            setNotice(
-              'Ученик добавлен. Код доступен в списке и карточке доступа.',
-            );
+            setNotice('Ученик добавлен. Код доступен в списке и карточке доступа.');
             await reload();
             return null;
           }}
