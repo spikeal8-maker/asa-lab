@@ -94,12 +94,12 @@ Do not create a process-local Scratch token blacklist as the primary model.
 
 ## Token refresh and browser handling
 
-Child cannot mint a token. Parent Web owns the rotation lifecycle and keeps `expiresAt` only in memory.
+Child cannot mint a token. Parent Web owns the rotation lifecycle and keeps timing metadata only in memory. Validate `expiresAt` against the same-origin runtime-session response's HTTP `Date`, never the student's calendar clock. Missing/invalid server time fails closed. Subtract the full monotonic request/body-read duration and one second of HTTP date uncertainty, and cap the local lifetime at the contract's 15-minute ceiling. This local deadline does not extend server authority or change the six-field bootstrap JSON contract.
 
 ```text
 initial runtime-session
-→ remember expiresAt in Parent memory
-→ schedule proactive refresh 60 seconds before expiry
+→ derive a conservative performance.now deadline from server Date and expiresAt
+→ schedule proactive refresh 60 seconds before that local deadline
 → POST the same /api/projects/{projectId}/blocks/runtime-session endpoint
 → strict-parse the returned session and require the same configured runtimeOrigin
 → ASA_BLOCKS_TOKEN_UPDATE to the same projectId/sessionNonce
@@ -108,6 +108,8 @@ initial runtime-session
 ```
 
 A child `ASA_BLOCKS_TOKEN_REFRESH_REQUIRED` message, when used, joins the same Parent-owned single-flight refresh. It does not mint authority and does not create a second INIT.
+
+On becoming visible, `pageshow`, restored connectivity, or a detected parent timer pause, Parent requests a fresh capability through the same single-flight path. This also covers systems where `performance.now` stops during sleep. A response from a request that crossed a resume event is discarded and fetched again; it cannot establish a new deadline from pre-sleep server time. Coalesce activation events, keep transient failures on the existing bounded backoff, and remove listeners/timers on reload or unmount. Calendar changes must not trigger false heartbeat failures or postpone capability renewal. Server JWT expiry, principal/tenant/project binding and current authority checks remain mandatory.
 
 Explicit Save has a timer-throttling fallback:
 
