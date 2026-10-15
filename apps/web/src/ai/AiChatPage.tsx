@@ -13,6 +13,7 @@ interface AiMessage {
   readonly role: 'user' | 'assistant';
   readonly content: string;
   readonly createdAt: string;
+  readonly requestId: string;
 }
 
 interface AiStatus {
@@ -66,6 +67,8 @@ export function AiChatPage(): JSX.Element {
   const [sideOpen, setSideOpen] = useState(() => window.matchMedia('(min-width: 1120px)').matches);
   const [desktop, setDesktop] = useState(() => window.matchMedia('(min-width: 1120px)').matches);
   const selectedVersion = useRef(0);
+  const pendingRequest = useRef<{ threadId: string; requestId: string; text: string } | null>(null);
+  const [pendingMessage, setPendingMessage] = useState<{ requestId: string; text: string } | null>(null);
   const chatScroll = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -112,6 +115,8 @@ export function AiChatPage(): JSX.Element {
   async function selectThread(id: string): Promise<void> {
     if (busy) return;
     const version = ++selectedVersion.current;
+    pendingRequest.current = null;
+    setPendingMessage(null);
     setCurrentId(id);
     setMessages([]);
     setError(null);
@@ -139,6 +144,8 @@ export function AiChatPage(): JSX.Element {
       return null;
     }
     selectedVersion.current += 1;
+    pendingRequest.current = null;
+    setPendingMessage(null);
     setCurrentId(result.data.id);
     setMessages([]);
     if (!desktop) setSideOpen(false);
@@ -146,10 +153,20 @@ export function AiChatPage(): JSX.Element {
     return result.data.id;
   }
 
+
   async function send(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     const text = draft.trim();
     if (!text || text.length > 3000 || !status?.enabled || busy) return;
+
+    // A repeated click after a network-unknown outcome must use exactly the
+    // original billable admission ID rather than silently paying twice.
+    const previous = pendingRequest.current;
+    const requestId =
+      previous?.threadId === currentId && previous.text === text
+        ? previous.requestId
+        : crypto.randomUUID();
+    setPendingMessage({ requestId, text });
     setBusy(true);
     setError(null);
     const version = ++selectedVersion.current;
@@ -169,39 +186,67 @@ export function AiChatPage(): JSX.Element {
         setMessages([]);
         if (!desktop) setSideOpen(false);
       }
-      const result = await call<{ messages: AiMessage[] }>(
+      pendingRequest.current = { threadId: id, requestId, text };
+      const result = await call<{ messages: AiMessage[]; replayed: boolean }>(
         '/api/ai/threads/' + encodeURIComponent(id) + '/messages',
         {
           method: 'POST',
-          body: JSON.stringify({ message: text }),
+          body: JSON.stringify({ message: text, requestId }),
         },
       );
       if (version !== selectedVersion.current) return;
       if (result.ok) {
         setMessages(result.data.messages);
-        setDraft('');
+        const completed = result.data.messages.some(
+          (message) => message.requestId === requestId && message.role === 'assistant',
+        );
+        if (!result.data.replayed || completed) {
+          setDraft('');
+          pendingRequest.current = null;
+        } else {
+          setError(
+            'Запрос уже был принят. Повторная отправка модели не выполнялась. Обновите историю, чтобы проверить ответ.',
+          );
+        }
       } else {
         setError(result.error.message);
+        // A lost response may still have committed the user turn. Load it by
+        // the stable request ID, not by matching arbitrary previous text.
         const history = await call<{ items: AiMessage[] }>(
           '/api/ai/threads/' + encodeURIComponent(id) + '/messages',
         );
         if (history.ok && version === selectedVersion.current) {
           setMessages(history.data.items);
-          if (history.data.items.some((item) => item.role === 'user' && item.content === text)) {
+          if (
+            history.data.items.some(
+              (message) => message.role === 'user' && message.requestId === requestId,
+            )
+          ) {
             setDraft('');
+          }
+          if (
+            history.data.items.some(
+              (message) => message.role === 'assistant' && message.requestId === requestId,
+            )
+          ) {
+            pendingRequest.current = null;
+            setError(null);
           }
         }
       }
       await refreshThreads();
     } finally {
-      setBusy(false);
+      if (version === selectedVersion.current) {
+        setPendingMessage(null);
+        setBusy(false);
+      }
     }
   }
 
   const visible = threads.filter((thread) =>
     thread.title.toLocaleLowerCase('ru-RU').includes(search.trim().toLocaleLowerCase('ru-RU')),
   );
-  const empty = messages.length === 0;
+  const empty = messages.length === 0 && pendingMessage === null;
 
   return (
     <main id="main-content" className="asa-ai-layout" tabIndex={-1}>
@@ -339,6 +384,14 @@ export function AiChatPage(): JSX.Element {
                       )}
                     </article>
                   ))}
+                  {pendingMessage && !messages.some(
+                    (message) =>
+                      message.requestId === pendingMessage.requestId && message.role === 'user',
+                  ) ? (
+                    <article className="chat-turn chat-turn-user" data-testid="ai-pending-message">
+                      <div className="chat-user-bubble">{pendingMessage.text}</div>
+                    </article>
+                  ) : null}
                   {busy ? (
                     <div className="chat-runtime-note" role="status">
                       Модель формирует ответ… Сообщение сохранится в истории.
@@ -351,6 +404,15 @@ export function AiChatPage(): JSX.Element {
           {error ? (
             <div className="asa-ai-error" role="alert">
               {error}
+              {currentId && !busy ? (
+                <button
+                  className="btn-secondary"
+                  type="button"
+                  onClick={() => void selectThread(currentId)}
+                >
+                  Обновить переписку
+                </button>
+              ) : null}
             </div>
           ) : null}
           <div className="chat-composer-dock">
