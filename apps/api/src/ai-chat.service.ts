@@ -34,6 +34,7 @@ export interface AiMessage {
   readonly role: 'user' | 'assistant';
   readonly content: string;
   readonly createdAt: string;
+  readonly requestId: string;
 }
 
 interface AdminRow {
@@ -245,12 +246,14 @@ export class AiChatService {
       role: 'user' | 'assistant';
       content: string;
       created_at: Date | string;
+      request_id: string;
     }>('SELECT * FROM ai_chat_messages($1,$2)', [principalId, threadId]);
     return result.rows.map((row) => ({
       id: row.id,
       role: row.role,
       content: row.content,
       createdAt: new Date(row.created_at).toISOString(),
+      requestId: row.request_id,
     }));
   }
 
@@ -258,7 +261,8 @@ export class AiChatService {
     principalId: string,
     threadId: string,
     text: string,
-  ): Promise<{ readonly messages: readonly AiMessage[] }> {
+    clientRequestId: string,
+  ): Promise<{ readonly messages: readonly AiMessage[]; readonly replayed: boolean }> {
     const prompt = text.trim();
     if (prompt.length < 1 || prompt.length > 3000) {
       throw new AiServiceError(
@@ -276,13 +280,14 @@ export class AiChatService {
         'ИИ не подключён. Настройте провайдера в админке.',
       );
     }
-    let requestId: string;
+    const requestId = clientRequestId;
+    let accepted: boolean;
     try {
-      const admitted = await this.pool.query<{ id: string }>(
-        'SELECT ai_chat_begin($1,$2,$3::varchar) AS id',
-        [principalId, threadId, prompt],
+      const admitted = await this.pool.query<{ admitted: boolean }>(
+        'SELECT ai_chat_begin($1,$2,$3,$4::varchar) AS admitted',
+        [principalId, threadId, requestId, prompt],
       );
-      requestId = admitted.rows[0]?.id ?? '';
+      accepted = admitted.rows[0]?.admitted === true;
     } catch (problem) {
       if ((problem as { code?: string }).code === '42501') {
         throw new AiServiceError('ai_access_denied', 403, 'Доступ к диалогу запрещён.');
@@ -303,8 +308,10 @@ export class AiChatService {
       }
       throw problem;
     }
-    if (!requestId)
-      throw new AiServiceError('ai_send_failed', 503, 'Не удалось отправить сообщение.');
+    if (!accepted) {
+      // After a lost response, never repeat a paid model POST for the same operation.
+      return { messages: await this.messages(principalId, threadId), replayed: true };
+    }
 
     try {
       const history = await this.messages(principalId, threadId);
@@ -319,7 +326,7 @@ export class AiChatService {
         requestId,
         reply.slice(0, 8192),
       ]);
-      return { messages: await this.messages(principalId, threadId) };
+      return { messages: await this.messages(principalId, threadId), replayed: false };
     } catch (problem) {
       await this.pool
         .query('SELECT ai_chat_abort($1,$2,$3)', [principalId, threadId, requestId])
@@ -441,15 +448,10 @@ export class AiChatService {
     } catch {
       throw new AiServiceError('ai_response_invalid', 503, 'Модель вернула некорректный ответ.');
     }
-    let reply = '';
-    if (openai) {
-      reply = extractOpenAiText(body);
-    } else {
-      const result = body as {
-        choices?: Array<{ message?: { content?: string } }>;
-      };
-      reply = result.choices?.[0]?.message?.content ?? '';
-    }
+    const reply = openai
+      ? extractOpenAiText(body)
+      : ((body as { choices?: Array<{ message?: { content?: string } }> })
+          .choices?.[0]?.message?.content ?? '');
     if (!reply.trim()) {
       throw new AiServiceError('ai_response_empty', 503, 'Модель не вернула текст ответа.');
     }
