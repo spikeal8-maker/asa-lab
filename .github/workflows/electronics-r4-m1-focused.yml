@@ -87,7 +87,7 @@ jobs:
           -v "$PWD/reports/profile-src/production-worker-profile.ts:/workspace/e2e/production-worker-profile.ts:ro"
           -v "$PWD/reports/profile-src/electronics-ready-cadence.spec.ts:/workspace/e2e/electronics-ready-cadence.spec.ts:ro"
           test-runner pnpm exec playwright test e2e/electronics-ready-cadence.spec.ts
-          --grep '^Canonical ready cadence: gpio sketch saved, observed completely and reopened with cookies only$'
+          --grep 'Canonical ready cadence: gpio sketch saved, observed completely and reopened with cookies only$'
           --workers=1
 
       - name: Verify immutable built Worker identity after diagnostic
