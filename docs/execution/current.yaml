@@ -81,6 +81,49 @@ primary_lane:
     - docs/architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md
 
 parallel_lanes:
+  - id: electronics-save-conflict
+    parent_lane: electronics
+    worktree_id: electronics-point4-observability-fixture
+    owned_paths:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-SAVE-CONFLICT-001.md
+    task:
+      id: TASK-ELECTRONICS-SAVE-CONFLICT-001
+      issue: 579
+      branch: main
+      base_branch: main
+      pr: null
+      status: in_review
+      kind: repair
+      checkpoint: point4_focused_and_independent_review_passed_pending_exact_sha_ci
+      owner_acceptance: pending
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-SAVE-CONFLICT-001.md
+        - docs/product/electronics/components/ui-assets-persistence.yaml
+      owner_authorization: Explicit owner point4 request; publish in main and stop. No deployment.
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: 6bf3b9541be435c94f0156c3b8958f2b8320f729
+      head_sha: null
+      observed_at: '2026-10-15T19:23:45Z'
+      main:
+        branch: main
+        sha: 6bf3b9541be435c94f0156c3b8958f2b8320f729
+      observation_note: Dated point4 selection; fetch main before writes. Preserve point3 and all parallel lanes.
+    execution_lease:
+      executor_id: electronics-save-conflict-point4
+      holder: unassigned
+      acquired_at: null
+      expires_at: null
+      reviewer_role_requires_lease: false
+    gates:
+      focused:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm test apps/web/src/electronics/testing/workbench-project-state.spec.ts apps/web/src/electronics/testing/workbench-autosave.spec.ts apps/web/src/electronics/testing/electronics-document-merge.spec.ts apps/web/src/electronics/testing/electronics-project-recovery.spec.ts
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
   - id: electronics-save-validation
     parent_lane: electronics
     worktree_id: observability-fixture-utf8
