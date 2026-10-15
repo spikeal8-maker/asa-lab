@@ -5,10 +5,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api, type AuthoredActivityDraft, type Classroom, type ModuleSummary } from '../../api';
 import { AuthoredMaterialsPage } from '../../pages/AuthoredMaterialsPage';
-import {
-  clearSystemFeedback,
-  getSystemFeedbackSnapshot,
-} from '../../components/system-feedback';
+import { clearSystemFeedback, getSystemFeedbackSnapshot } from '../../components/system-feedback';
 
 const reactTestGlobal = globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean };
 const draftId = '11111111-1111-4111-8111-111111111111';
