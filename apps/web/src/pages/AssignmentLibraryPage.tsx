@@ -770,7 +770,7 @@ export function AssignmentLibraryPage({
           folders={folders}
           defaultFolderId={scope.kind === 'folder' ? scope.id : null}
           onClose={() => setEditing(null)}
-          onSaved={async (_id) => {
+          onSaved={async () => {
             setEditing(null);
             setNotice('Задание сохранено.');
             await reload();
