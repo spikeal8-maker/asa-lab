@@ -3,6 +3,12 @@ name: Source ZIP Installation
 on:
   workflow_call:
   workflow_dispatch:
+    inputs:
+      proof:
+        description: 'Real persistence journey to run in the disposable install'
+        type: choice
+        options: [standard, clock]
+        default: standard
 
 permissions:
   contents: read
@@ -43,6 +49,10 @@ jobs:
 
       - name: Install exact dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Focused contracts and security gate for clock proof
+        if: inputs.proof == 'clock'
+        run: pnpm gate:blocks
 
       - name: Install Chromium for persistence journey
         run: pnpm exec playwright install --with-deps chromium
@@ -86,9 +96,16 @@ jobs:
           python -m unittest tools.deployment.test_contracts
 
       - name: Real default-port Scratch journey from fresh install
+        if: inputs.proof != 'clock'
         env:
           ASA_BUILD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
         run: node tools/blocks/portable-smoke.mjs
+
+      - name: Real server TTL with student clocks, resume and save
+        if: inputs.proof == 'clock'
+        env:
+          ASA_BUILD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: node tools/blocks/clock-smoke.mjs
 
       - name: Preserve fresh-install evidence without environment or credentials
         if: always()

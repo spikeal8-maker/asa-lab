@@ -86,7 +86,7 @@ function session(runtimeToken = 'real.runtime.token', expiresAt = 4_000_000_000)
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { 'content-type': 'application/json' },
+    headers: { 'content-type': 'application/json', date: new Date().toUTCString() },
   });
 }
 
@@ -674,6 +674,119 @@ describe('BlocksEditor runtime session bootstrap', () => {
 
     expect(container!.querySelector('[data-asa-blocks-save]')).toBeNull();
     expect(container!.textContent).not.toContain('Сохранить в ASA');
+  });
+
+  it.each([-3, 3])(
+    'opens and refreshes with a %s hour client offset and a later clock jump',
+    async (hours) => {
+      vi.useFakeTimers();
+      const serverStart = Date.UTC(2030, 0, 1);
+      vi.setSystemTime(serverStart + hours * 3_600_000);
+      let grants = 0;
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async (input, options) => {
+          const telemetry = telemetryResponse(input, options);
+          if (telemetry) return telemetry;
+          grants += 1;
+          const serverNow = serverStart + performance.now();
+          const answer = jsonResponse(
+            session(`grant.number.${grants}`, Math.floor(serverNow / 1000) + 600),
+          );
+          answer.headers.set('date', new Date(serverNow).toUTCString());
+          return answer;
+        }),
+      );
+      const iframe = await renderEditor();
+      const post = spyOnPostMessage(iframe);
+      await fireLoad(iframe);
+      expect(initCalls(post)).toHaveLength(1);
+      vi.setSystemTime(serverStart + 86_400_000);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(539_000);
+      });
+      expect(grants).toBe(2);
+      expect(initCalls(post)).toHaveLength(1);
+      expect(
+        post.mock.calls.filter(
+          ([m]) => (m as Record<string, unknown>)['messageType'] === 'ASA_BLOCKS_TOKEN_UPDATE',
+        ),
+      ).toHaveLength(1);
+    },
+  );
+
+  it('refreshes on resume even when monotonic time froze, coalesces events and stops after unmount', async () => {
+    vi.useFakeTimers();
+    vi.spyOn(performance, 'now').mockReturnValue(0);
+    vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+    let grants = 0;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input, options) => {
+        const telemetry = telemetryResponse(input, options);
+        if (telemetry) return telemetry;
+        grants += 1;
+        return jsonResponse(session(`grant.number.${grants}`));
+      }),
+    );
+    const iframe = await renderEditor();
+    const post = spyOnPostMessage(iframe);
+    await fireLoad(iframe);
+    await act(async () => {
+      document.dispatchEvent(new Event('visibilitychange'));
+      window.dispatchEvent(new Event('pageshow'));
+      window.dispatchEvent(new Event('online'));
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(grants).toBe(2);
+    expect(initCalls(post)).toHaveLength(1);
+    await act(async () => root?.unmount());
+    root = null;
+    window.dispatchEvent(new Event('online'));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(grants).toBe(2);
+  });
+
+  it('discards a pre-suspension refresh response and waits for a fresh grant in the same flight', async () => {
+    vi.useFakeTimers();
+    vi.spyOn(performance, 'now').mockReturnValue(0);
+    vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+    let resolveOld!: (value: Response) => void;
+    const oldResponse = new Promise<Response>((resolve) => {
+      resolveOld = resolve;
+    });
+    let grants = 0;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input, options) => {
+        const telemetry = telemetryResponse(input, options);
+        if (telemetry) return telemetry;
+        grants += 1;
+        if (grants === 2) return oldResponse;
+        return jsonResponse(
+          session(grants === 1 ? 'initial.runtime.token' : 'fresh.runtime.token'),
+        );
+      }),
+    );
+    const iframe = await renderEditor();
+    const post = spyOnPostMessage(iframe);
+    await fireLoad(iframe);
+    await act(async () => {
+      window.dispatchEvent(new Event('online'));
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(grants).toBe(2);
+    await act(async () => {
+      document.dispatchEvent(new Event('visibilitychange'));
+      resolveOld(jsonResponse(session('stale.runtime.token')));
+      await flushAsync();
+    });
+    expect(grants).toBe(3);
+    const updates = post.mock.calls
+      .map(([m]) => m as Record<string, unknown>)
+      .filter((m) => m['messageType'] === 'ASA_BLOCKS_TOKEN_UPDATE');
+    expect(updates.map((m) => m['runtimeToken'])).toEqual(['fresh.runtime.token']);
+    expect(initCalls(post)).toHaveLength(1);
   });
 
   it('refreshes expiring authority proactively with TOKEN_UPDATE and no second INIT', async () => {
