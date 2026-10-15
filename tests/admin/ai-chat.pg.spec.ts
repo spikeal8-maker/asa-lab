@@ -19,6 +19,7 @@ let owner: Identity;
 let stranger: Identity;
 let platformAdmin: Identity;
 let providerCalls = 0;
+let apiClosedRuntime = false;
 
 async function makeIdentity(name: string, elevated: boolean): Promise<Identity> {
   const id = randomUUID();
@@ -75,7 +76,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await runtime?.end();
+  if (!apiClosedRuntime) await runtime?.end();
   await admin?.end();
 });
 
@@ -325,6 +326,7 @@ describe('AI Chat PostgreSQL access and request replay', () => {
       expect(wrongOrigin.statusCode).toBe(403);
     } finally {
       await app.close();
+      apiClosedRuntime = true;
       vi.unstubAllGlobals();
       if (previousEncryptionKey === undefined) delete process.env['ASA_SETTINGS_ENCRYPTION_KEY'];
       else process.env['ASA_SETTINGS_ENCRYPTION_KEY'] = previousEncryptionKey;
