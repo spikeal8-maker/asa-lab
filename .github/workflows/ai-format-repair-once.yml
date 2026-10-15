@@ -1,0 +1,80 @@
+name: AI integration one-time formatter
+"on":
+  push:
+    branches:
+      - feature/ai-chat-gpt-integration-20261014
+    paths:
+      - .github/workflows/ai-format-repair-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    if: github.repository == 'spikeal8-maker/asa-lab' && github.ref == 'refs/heads/feature/ai-chat-gpt-integration-20261014'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/ai-chat-gpt-integration-20261014
+          persist-credentials: true
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Apply canonical repository formatting
+        shell: bash
+        run: |
+          set -euo pipefail
+          for iteration in 1 2 3; do
+            pnpm exec prettier --write \
+              apps/api/src/ai-chat.service.ts \
+              apps/api/src/ai-chat.controller.ts \
+              apps/api/src/ai-chat.service.spec.ts \
+              apps/web/src/ai/AiChatPage.tsx \
+              apps/web/src/App.tsx \
+              e2e/ai-chat.spec.ts \
+              e2e/access-account-ui.spec.ts \
+              tests/admin/ai-chat.pg.spec.ts \
+              tests/migration/course-structure-forward-upgrade.pg.spec.ts \
+              playwright.ai-chat.config.ts
+            if pnpm exec prettier --check \
+              apps/api/src/ai-chat.service.ts \
+              apps/api/src/ai-chat.controller.ts \
+              apps/api/src/ai-chat.service.spec.ts \
+              apps/web/src/ai/AiChatPage.tsx \
+              apps/web/src/App.tsx \
+              e2e/ai-chat.spec.ts \
+              e2e/access-account-ui.spec.ts \
+              tests/admin/ai-chat.pg.spec.ts \
+              tests/migration/course-structure-forward-upgrade.pg.spec.ts \
+              playwright.ai-chat.config.ts; then
+              break
+            fi
+            if [ "$iteration" -eq 3 ]; then
+              exit 1
+            fi
+          done
+          git add -- \
+            apps/api/src/ai-chat.service.ts \
+            apps/api/src/ai-chat.controller.ts \
+            apps/api/src/ai-chat.service.spec.ts \
+            apps/web/src/ai/AiChatPage.tsx \
+            apps/web/src/App.tsx \
+            e2e/ai-chat.spec.ts \
+            e2e/access-account-ui.spec.ts \
+            tests/admin/ai-chat.pg.spec.ts \
+            tests/migration/course-structure-forward-upgrade.pg.spec.ts \
+            playwright.ai-chat.config.ts
+          if ! git diff --cached --quiet; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit -m "style(ai): canonical formatting for end-to-end chat"
+            git push origin HEAD:refs/heads/feature/ai-chat-gpt-integration-20261014
+          fi
