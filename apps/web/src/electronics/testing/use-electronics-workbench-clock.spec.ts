@@ -1,5 +1,5 @@
 /* @vitest-environment jsdom */
-import { act, createElement } from 'react';
+import { act, createElement, startTransition, Suspense, useLayoutEffect } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api, type Project, type SchematicDocument, type SolveResult } from '../../api';
@@ -75,9 +75,13 @@ let host: HTMLDivElement;
 let root: Root;
 let workbench: ReturnType<typeof useElectronicsWorkbench>;
 let renders: number;
+let suspendRender: Promise<void> | null;
+let onLayoutCommit: (() => void) | null;
 function Probe({ id = 'clock-project' }: { id?: string }) {
   workbench = useElectronicsWorkbench(id, 'clock-pupil');
+  useLayoutEffect(() => onLayoutCommit?.());
   renders += 1;
+  if (suspendRender) throw suspendRender;
   return createElement(
     'output',
     null,
@@ -86,7 +90,9 @@ function Probe({ id = 'clock-project' }: { id?: string }) {
 }
 const worker = () => transport.instances[0]!;
 async function mount(id = 'clock-project') {
-  await act(async () => root.render(createElement(Probe, { id })));
+  await act(async () =>
+    root.render(createElement(Suspense, { fallback: 'pending' }, createElement(Probe, { id }))),
+  );
   expect(workbench.status).toBe('ready');
 }
 async function tick(milliseconds: number) {
@@ -107,6 +113,8 @@ beforeEach(() => {
   localStorage.clear();
   transport.instances.length = 0;
   renders = 0;
+  suspendRender = null;
+  onLayoutCommit = null;
   vi.spyOn(api, 'me').mockResolvedValue({
     ok: true,
     status: 200,
@@ -143,6 +151,93 @@ afterEach(async () => {
   vi.useRealTimers();
 });
 describe('mounted workbench host demand clock', () => {
+  it('withholds suspended source edits from the active Worker until the transition commits', async () => {
+    await mount();
+    await act(async () => workbench.toggleSimulation());
+    const oldTick = intervalCallback();
+    await tick(20);
+    const oldSource = initial.components[0]!.stateProperties!.arduinoSource;
+    const newSource = 'void setup(){}void loop(){delay(999);}';
+    const oldDom = host.textContent;
+    let resume!: () => void;
+    await act(async () => {
+      startTransition(() => {
+        suspendRender = new Promise<void>((resolve) => {
+          resume = resolve;
+        });
+        workbench.updateArduinoProgram('uno', { arduinoSource: newSource });
+      });
+    });
+    expect(host.textContent).toBe(oldDom);
+    expect(host.textContent).not.toBe('pending');
+    worker().update.mockClear();
+    await tick(10);
+    expect(worker().update).toHaveBeenCalled();
+    expect(
+      (worker().update.mock.calls.at(-1)![0] as SchematicDocument).components[0]!.stateProperties!
+        .arduinoSource,
+    ).toBe(oldSource);
+    await act(async () => {
+      oldTick();
+      suspendRender = null;
+      resume();
+    });
+    expect(host.textContent).not.toBe(oldDom);
+    expect(
+      (worker().update.mock.calls.at(-1)![0] as SchematicDocument).components[0]!.stateProperties!
+        .arduinoSource,
+    ).toBe(newSource);
+    worker().update.mockClear();
+    await tick(10);
+    expect(
+      (worker().update.mock.calls.at(-1)![0] as SchematicDocument).components[0]!.stateProperties!
+        .arduinoSource,
+    ).toBe(newSource);
+  });
+
+  it('invalidates old project and Stop ticks during layout commit before passive cleanup', async () => {
+    await mount();
+    await act(async () => workbench.toggleSimulation());
+    const oldTick = intervalCallback();
+    await tick(20);
+    const sentAtLayout: number[] = [];
+    onLayoutCommit = () => {
+      const before = worker().update.mock.calls.length;
+      oldTick();
+      sentAtLayout.push(worker().update.mock.calls.length - before);
+    };
+    await act(async () => {
+      startTransition(() =>
+        root.render(
+          createElement(
+            Suspense,
+            { fallback: 'pending' },
+            createElement(Probe, { id: 'layout-project' }),
+          ),
+        ),
+      );
+    });
+    expect(sentAtLayout.length).toBeGreaterThan(0);
+    expect(sentAtLayout.every((count) => count === 0)).toBe(true);
+    onLayoutCommit = null;
+    expect(workbench.status).toBe('ready');
+    await act(async () => workbench.toggleSimulation());
+    const currentTick = vi
+      .mocked(window.setInterval)
+      .mock.calls.filter((entry) => entry[1] === 10)
+      .at(-1)![0] as () => void;
+    const stoppedAtLayout: number[] = [];
+    onLayoutCommit = () => {
+      const before = worker().update.mock.calls.length;
+      currentTick();
+      stoppedAtLayout.push(worker().update.mock.calls.length - before);
+    };
+    await act(async () => workbench.toggleSimulation());
+    expect(stoppedAtLayout.length).toBeGreaterThan(0);
+    expect(stoppedAtLayout.every((count) => count === 0)).toBe(true);
+    onLayoutCommit = null;
+  });
+
   it('advances pending Worker demand every 10ms without rendering; ready still publishes', async () => {
     await mount();
     await act(async () => workbench.toggleSimulation());

@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -292,9 +293,20 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
     simulationWorkerRef.current = new ElectronicsLiveSimulationWorkerController();
   }
   const runtimeDocumentRef = useRef(runtimeDocument);
-  runtimeDocumentRef.current = runtimeDocument;
   const resetSimulationRef = useRef(resetSimulation);
-  resetSimulationRef.current = resetSimulation;
+  const committedHostSessionRef = useRef<object | null>(null);
+  useLayoutEffect(() => {
+    // A suspended render must not publish its document to the active timer.
+    runtimeDocumentRef.current = runtimeDocument;
+    resetSimulationRef.current = resetSimulation;
+  });
+  useLayoutEffect(() => {
+    const session = simulationRunning ? {} : null;
+    committedHostSessionRef.current = session;
+    return () => {
+      committedHostSessionRef.current = null;
+    };
+  }, [projectId, simulationRunning]);
 
   async function toggleSimulation(): Promise<void> {
     setSimulationMessage(null);
@@ -333,9 +345,12 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
 
     simulationStartedAtRef.current = window.performance.now();
     requestedHorizonMicrosecondsRef.current = 0;
+    const session = committedHostSessionRef.current;
     let active = true;
     const interval = window.setInterval(() => {
-      if (!active) return;
+      // Layout cleanup invalidates the old project/run before passive interval
+      // cleanup, including a Stop or route commit while another render waits.
+      if (!active || !session || committedHostSessionRef.current !== session) return;
       const startedAt = simulationStartedAtRef.current;
       const currentDocument = runtimeDocumentRef.current;
       if (startedAt !== null && currentDocument) {
