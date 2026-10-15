@@ -39,12 +39,14 @@ async function prepare() {
      VALUES($1,$2,$3,$4,'owner')`,
     [teacher.tenantId, classroomId, teacher.teacherId, teacherAccount],
   );
-  const seat = await admin.query(
-    `SELECT id FROM classroom_management_add_seat($1,$2,$3,$4,true)`,
-    [teacherAccount, classroomId, 'Ученик защищённого класса', randomUUID().slice(0, 8)],
-  );
+  const seat = await admin.query(`SELECT id FROM classroom_management_add_seat($1,$2,$3,$4,true)`, [
+    teacherAccount,
+    classroomId,
+    'Ученик защищённого класса',
+    randomUUID().slice(0, 8),
+  ]);
   const seatId = seat.rows[0].id as string;
-  await admin.query('UPDATE classroom_student_seats SET status=\'active\' WHERE id=$1', [seatId]);
+  await admin.query("UPDATE classroom_student_seats SET status='active' WHERE id=$1", [seatId]);
   const prepared = await runtime.query(
     'SELECT classroom_participant_prepare($1,$2::uuid[]) AS ready',
     [teacherPrincipal, [classroomId]],
