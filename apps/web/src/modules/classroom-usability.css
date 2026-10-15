@@ -118,7 +118,7 @@
 }
 .classroom-owner-list :is(.classroom-list-head, .classroom-list-row) {
   display: grid;
-  grid-template-columns: 28px minmax(190px, 1fr) 60px 62px 80px 74px 70px 116px 96px 36px;
+  grid-template-columns: 28px minmax(190px, 1fr) 60px 62px 80px 74px 70px 116px 112px 36px;
   gap: 8px;
   padding: 0 8px;
   align-items: center;
