@@ -13,10 +13,12 @@ import {
 import {
   analyseCircuit,
   compileCircuit,
+  simulationModelSetDigest,
   type SimulationQuality,
   type SimulationResult,
   type SimulationStatus,
 } from './domain/simulation.js';
+import { simulationInputDigest } from './domain/simulation-input-digest.js';
 import type { ComponentResult, Diagnostic, NodeResult } from './domain/solver.js';
 
 export const ELECTRONICS_ENGINE_CONTRACT_VERSION = 1 as const;
@@ -363,7 +365,11 @@ export function advanceElectronicsToHorizon(
     };
   }
 
-  const modelSetDigest = analyseCircuit(document).modelSetDigest;
+  // Preserve the old structural validation and exception priority before continuation guards.
+  // The registry identity itself does not require a separate numerical solve/quality check.
+  compileCircuit(document);
+  simulationInputDigest(document, 0);
+  const modelSetDigest = simulationModelSetDigest();
   let previous: ArduinoCircuitClockState | undefined;
   if (previousContinuation) {
     const decoded = decodeTimedContinuation(previousContinuation, modelSetDigest);

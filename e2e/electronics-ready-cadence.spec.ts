@@ -636,12 +636,22 @@ for (const kind of ['serial', 'gpio'] as const) {
 // These are the owner's three-pin programmes, not shortened substitutes for
 // the eight-pin GPIO/Serial cases above. Runtime events establish logical
 // timing; real DOM transitions separately establish visible publication.
-function threeLedFixture(): SchematicDocument {
+function threeLedFixture(includeSteadyLed = false): SchematicDocument {
   const original = fixture();
   const keep = new Set(['uno', 'r0', 'led0', 'r1', 'led1', 'r2', 'led2']);
+  if (includeSteadyLed) {
+    keep.add('r3');
+    keep.add('led3');
+  }
   return {
     ...original,
-    components: original.components.filter((component) => keep.has(component.id)),
+    components: original.components
+      .filter((component) => keep.has(component.id))
+      .map((component) =>
+        component.id === 'r3' || component.id === 'led3'
+          ? { ...component, position: { x: 730, y: component.id === 'r3' ? 570 : 660 } }
+          : component,
+      ),
     connections: original.connections
       .filter(
         (connection) =>
@@ -653,7 +663,10 @@ function threeLedFixture(): SchematicDocument {
               ...connection,
               from: {
                 ...connection.from,
-                terminal: `d${13 - Number(connection.to.componentId.slice(1))}` as 'd13',
+                terminal:
+                  connection.to.componentId === 'r3'
+                    ? 'power-5v'
+                    : (`d${13 - Number(connection.to.componentId.slice(1))}` as 'd13'),
               },
             }
           : connection,
@@ -661,7 +674,27 @@ function threeLedFixture(): SchematicDocument {
   };
 }
 
+const owner100msSource = `void setup()
+{
+pinMode(13, OUTPUT);
+pinMode(12, OUTPUT);
+pinMode(11, OUTPUT);
+}
+
+void loop()
+{
+digitalWrite(13, HIGH);
+digitalWrite(12, HIGH);
+digitalWrite(11, HIGH);
+delay(100);
+digitalWrite(13, LOW);
+digitalWrite(12, LOW);
+digitalWrite(11, LOW);
+delay(100);
+}`;
+
 function threeLedSource(delayMs: number | null): string {
+  if (delayMs === 100) return owner100msSource;
   return `void setup() {
   pinMode(13, OUTPUT);
   pinMode(12, OUTPUT);
@@ -801,7 +834,7 @@ for (const delayMs of [null, 100, 50] as const) {
     const seeded = await page.context().request.put(`${endpoint}/draft`, {
       headers: { origin },
       data: {
-        document: threeLedFixture(),
+        document: threeLedFixture(delayMs === 100),
         baseRevision: empty.draft.revision,
         mutationId: crypto.randomUUID(),
       },
@@ -928,6 +961,21 @@ for (const delayMs of [null, 100, 50] as const) {
       expect(row.advance.result?.quality?.passed).toBe(true);
       expect(row.advance.diagnostics).toEqual([]);
       expect(Number.isFinite(row.computeMs)).toBe(true);
+      if (delayMs === 100) {
+        expect(
+          row.advance.result?.components.find((component) => component.componentId === 'led3'),
+        ).toMatchObject({ lit: true });
+        expect(
+          row.advance.result?.components.find((component) => component.componentId === 'led3')
+            ?.brightness,
+        ).toBeGreaterThan(0);
+      }
+    }
+    if (delayMs === 100) {
+      const steady = page.locator('[data-component-id="led3"] .workbench-production-visual');
+      await expect(steady).toBeVisible();
+      await expect(steady).toHaveClass(/is-lit/);
+      expect(Number(await steady.getAttribute('data-led-brightness'))).toBeGreaterThan(0);
     }
     for (const row of raw!.worker.filter((row) => row.advance.executionStatus === 'yielded'))
       expect(row.advance.result).toBeNull();

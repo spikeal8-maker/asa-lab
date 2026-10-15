@@ -1,11 +1,18 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type {
   ComponentKind,
   ElectronicsDocument,
   SchematicComponent,
   Terminal,
 } from '../domain/document';
-import { analyseCircuit, compileCircuit, verifyCircuitQuality } from '../domain/simulation';
+import {
+  analyseCircuit,
+  compileCircuit,
+  simulationModelSetDigest,
+  verifyCircuitQuality,
+} from '../domain/simulation';
+
+import * as solver from '../domain/solver';
 
 function component(
   id: string,
@@ -57,6 +64,38 @@ function simpleOhmLaw(vertices: readonly { x: number; y: number }[] = []): Elect
 }
 
 describe('R4-M1 simulation implementation contract', () => {
+  it('uses one registry identity for supported, unsupported and rejected-quality analysis', () => {
+    const supported = simpleOhmLaw();
+    const unsupported = document([component('unknown', 'visual', 0)], []);
+    const expected = simulationModelSetDigest();
+    expect(expected).toMatch(/^sha256:[0-9a-f]{64}$/);
+    expect(analyseCircuit(supported)).toMatchObject({ status: 'solved', modelSetDigest: expected });
+    expect(analyseCircuit(unsupported)).toMatchObject({
+      status: 'unsupported',
+      modelSetDigest: expected,
+      solved: false,
+    });
+    const frame = solver.solveCircuit(supported);
+    const corrupt = vi.spyOn(solver, 'solveCircuit').mockReturnValue({
+      ...frame,
+      components: frame.components.map((entry) => ({
+        ...entry,
+        terminalCurrents: Object.fromEntries(
+          Object.keys(entry.terminalCurrents ?? {}).map((key) => [key, 1]),
+        ),
+      })),
+    });
+    try {
+      expect(analyseCircuit(supported)).toMatchObject({
+        status: 'nonconvergent',
+        modelSetDigest: expected,
+        solved: false,
+        quality: { passed: false },
+      });
+    } finally {
+      corrupt.mockRestore();
+    }
+  });
   it('compiles a deterministic electrical topology independent of wire geometry', () => {
     const straight = compileCircuit(simpleOhmLaw());
     const bent = compileCircuit(

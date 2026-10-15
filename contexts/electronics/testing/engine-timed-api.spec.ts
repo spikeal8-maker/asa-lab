@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   advanceElectronicsToHorizon,
   parseElectronicsEngineDocument,
@@ -8,6 +8,8 @@ import {
   resumeElectronicsTimedState,
   type ElectronicsEngineDocument,
 } from '../engine';
+
+import * as simulation from '../domain/simulation';
 
 function circuit(source: string): ElectronicsEngineDocument {
   const parsed = parseElectronicsEngineDocument({
@@ -93,6 +95,153 @@ function pirCircuit(): ElectronicsEngineDocument {
 }
 
 describe('Electronics canonical timed engine facade', () => {
+  it('preserves complete timed returns with the former analysis-based registry lookup', () => {
+    const supported = circuit(
+      'void setup(){pinMode(13,OUTPUT);}void loop(){digitalWrite(13,HIGH);delay(1);digitalWrite(13,LOW);delay(1);}',
+    );
+    const unsupported = {
+      ...supported,
+      components: [
+        ...supported.components,
+        { id: 'unknown', kind: 'visual' as const, value: -0, position: { x: 0, y: 0 } },
+      ],
+    };
+    for (const document of [supported, unsupported]) {
+      const compare = (request: Parameters<typeof advanceElectronicsToHorizon>[1]) => {
+        const candidate = advanceElectronicsToHorizon(document, request);
+        const lookup = vi
+          .spyOn(simulation, 'simulationModelSetDigest')
+          .mockImplementation(() => simulation.analyseCircuit(document).modelSetDigest);
+        try {
+          expect(advanceElectronicsToHorizon(document, request)).toStrictEqual(candidate);
+        } finally {
+          lookup.mockRestore();
+        }
+        return candidate;
+      };
+      const whole = compare({ requestedHorizonMicroseconds: 2500, maxEvents: 1024 });
+      let state;
+      for (const horizon of [0, 500, 2500]) {
+        const result = compare({ requestedHorizonMicroseconds: horizon, state, maxEvents: 1024 });
+        state = JSON.parse(JSON.stringify(result.state));
+        if (result.executionStatus === 'ready' && horizon === 2500) {
+          expect(result).toStrictEqual(whole);
+        }
+      }
+      let yielded = compare({ requestedHorizonMicroseconds: 2500, maxEvents: 1 });
+      let resumes = 0;
+      while (yielded.executionStatus === 'yielded' && resumes++ < 50) {
+        expect(yielded.observation).toBeNull();
+        yielded = compare({
+          requestedHorizonMicroseconds: 2500,
+          state: JSON.parse(JSON.stringify(yielded.state)),
+          maxEvents: 1,
+        });
+      }
+      expect(yielded.executionStatus).not.toBe('yielded');
+      expect(yielded).toStrictEqual(whole);
+      compare({ requestedHorizonMicroseconds: NaN });
+      compare({ requestedHorizonMicroseconds: 2500, maxEvents: 0 });
+      compare({
+        requestedHorizonMicroseconds: 2500,
+        state: pauseElectronicsTimedState(whole.state),
+      });
+    }
+  });
+
+  it('withholds the timed observation when the actual physical quality check rejects a frame', () => {
+    const document = circuit(`void setup(){pinMode(13,OUTPUT);digitalWrite(13,HIGH);}${IDLE}`);
+    const verify = simulation.verifyCircuitQuality;
+    const quality = vi.spyOn(simulation, 'verifyCircuitQuality').mockImplementation((...args) => ({
+      ...verify(...args),
+      passed: false,
+      maxKclResidualAmp: 1,
+    }));
+    try {
+      expect(
+        advanceElectronicsToHorizon(document, { requestedHorizonMicroseconds: 10 }),
+      ).toMatchObject({
+        executionStatus: 'fault',
+        committedHorizonMicroseconds: 0,
+        observation: null,
+      });
+      expect(quality).toHaveBeenCalled();
+    } finally {
+      quality.mockRestore();
+    }
+  });
+
+  it('advances with real physical quality but without standalone snapshot analysis', () => {
+    const document = circuit(`void setup(){pinMode(13,OUTPUT);digitalWrite(13,HIGH);}${IDLE}`);
+    const analysis = vi.spyOn(simulation, 'analyseCircuit').mockImplementation(() => {
+      throw new Error('A timed advance must not run standalone snapshot analysis for metadata');
+    });
+    const quality = vi.spyOn(simulation, 'verifyCircuitQuality');
+    try {
+      const ready = advanceElectronicsToHorizon(document, { requestedHorizonMicroseconds: 10 });
+      expect(ready.executionStatus).toBe('ready');
+      if (ready.executionStatus !== 'ready') return;
+      expect(ready.observation.quality.passed).toBe(true);
+      expect(quality).toHaveBeenCalled();
+      expect(analysis).not.toHaveBeenCalled();
+      expect(ready.state.continuation!.modelSetDigest).toBe(simulation.simulationModelSetDigest());
+      const rejected = advanceElectronicsToHorizon(document, {
+        requestedHorizonMicroseconds: 20,
+        state: {
+          ...ready.state,
+          continuation: { ...ready.state.continuation!, modelSetDigest: 'sha256:stale-models' },
+        },
+      });
+      expect(rejected).toMatchObject({
+        executionStatus: 'fault',
+        committedHorizonMicroseconds: 10,
+        observation: null,
+        diagnostics: [{ code: 'invalid_timed_continuation' }],
+      });
+      expect(rejected.state.continuation!.modelSetDigest).toBe('sha256:stale-models');
+    } finally {
+      quality.mockRestore();
+      analysis.mockRestore();
+    }
+  });
+
+  it('preserves structural exception priority ahead of bad timed guards', () => {
+    const base = circuit(IDLE);
+    const malformed = {
+      ...base,
+      components: base.components.map((entry) => ({ ...entry, value: NaN })),
+    };
+    const requests = [
+      { requestedHorizonMicroseconds: 10 },
+      { requestedHorizonMicroseconds: NaN },
+      { requestedHorizonMicroseconds: 10, maxEvents: 0 },
+      {
+        requestedHorizonMicroseconds: 10,
+        state: {
+          version: 1 as const,
+          lifecycle: 'running' as const,
+          continuation: { modelSetDigest: 'bad' } as never,
+        },
+      },
+      {
+        requestedHorizonMicroseconds: 10,
+        inputEvents: [{ atMicroseconds: 1, targetId: 'uno', operation: 'unknown', payload: true }],
+      },
+    ];
+    for (const request of requests) {
+      expect(() => advanceElectronicsToHorizon(malformed, request)).toThrow(TypeError);
+      expect(() => advanceElectronicsToHorizon(malformed, request)).toThrow('must be finite');
+    }
+    const paused = advanceElectronicsToHorizon(malformed, {
+      requestedHorizonMicroseconds: 10,
+      state: { version: 1, lifecycle: 'paused', continuation: null },
+    });
+    expect(paused).toMatchObject({
+      executionStatus: 'fault',
+      observation: null,
+      diagnostics: [{ code: 'timed_state_paused' }],
+    });
+  });
   it('returns a serializable ready continuation at the requested microsecond horizon', () => {
     const document = circuit(`void setup(){pinMode(13,OUTPUT);digitalWrite(13,HIGH);}${IDLE}`);
     const result = advanceElectronicsToHorizon(document, {

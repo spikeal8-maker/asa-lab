@@ -93,6 +93,11 @@ const MODEL_SET_DIGEST = `sha256:${sha256Hex(
   }),
 )}`;
 
+/** Identity of the complete canonical model registry, independent of any circuit. */
+export function simulationModelSetDigest(): string {
+  return MODEL_SET_DIGEST;
+}
+
 function ordinalCompare(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0;
 }
