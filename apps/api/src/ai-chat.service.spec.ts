@@ -98,7 +98,7 @@ describe('ASA native AI Chat', () => {
     const query = vi.fn(async (sql: string) => {
       queries.push(sql);
       if (sql.includes('ai_runtime_config')) return { rows: [secureRuntime()] };
-      if (sql.includes('ai_chat_begin')) return { rows: [{ id: REQUEST }] };
+      if (sql.includes('ai_chat_begin')) return { rows: [{ admitted: true }] };
       if (sql.includes('ai_chat_messages')) {
         return {
           rows: persisted
@@ -134,7 +134,7 @@ describe('ASA native AI Chat', () => {
       encryptionKey: ROOT,
       fetchImpl,
     });
-    const result = await service.send(PRINCIPAL, THREAD, 'Объясни Arduino');
+    const result = await service.send(PRINCIPAL, THREAD, 'Объясни Arduino', REQUEST);
     expect(result.messages).toHaveLength(2);
     expect(queries.findIndex((sql) => sql.includes('ai_chat_begin'))).toBeLessThan(
       queries.findIndex((sql) => sql.includes('ai_chat_finish')),
@@ -157,7 +157,7 @@ describe('ASA native AI Chat', () => {
     const query = vi.fn(async (sql: string) => {
       queries.push(sql);
       if (sql.includes('ai_runtime_config')) return { rows: [secureRuntime()] };
-      if (sql.includes('ai_chat_begin')) return { rows: [{ id: REQUEST }] };
+      if (sql.includes('ai_chat_begin')) return { rows: [{ admitted: true }] };
       if (sql.includes('ai_chat_messages')) {
         return { rows: [{ id: 'u1', role: 'user', content: 'Вопрос', created_at: new Date() }] };
       }
@@ -171,12 +171,29 @@ describe('ASA native AI Chat', () => {
       encryptionKey: ROOT,
       fetchImpl,
     });
-    await expect(service.send(PRINCIPAL, THREAD, 'Вопрос')).rejects.toMatchObject({
+    await expect(service.send(PRINCIPAL, THREAD, 'Вопрос', REQUEST)).rejects.toMatchObject({
       code: 'ai_provider_error',
       status: 503,
     } satisfies Partial<AiServiceError>);
     expect(fetchImpl).toHaveBeenCalledTimes(1);
     expect(queries.some((sql) => sql.includes('ai_chat_abort'))).toBe(true);
     expect(queries.some((sql) => sql.includes('ai_chat_finish'))).toBe(false);
+  });
+
+  it('does not call provider again when the same client request ID is replayed', async () => {
+    const query = vi.fn(async (sql: string) => {
+      if (sql.includes('ai_runtime_config')) return { rows: [secureRuntime()] };
+      if (sql.includes('ai_chat_begin')) return { rows: [{ admitted: false }] };
+      if (sql.includes('ai_chat_messages')) {
+        return { rows: [{ id: 'existing', role: 'user', content: 'Вопрос', request_id: REQUEST, created_at: new Date(1) }] };
+      }
+      throw new Error('Unexpected database command');
+    });
+    const fetchImpl = vi.fn<typeof fetch>(async () => { throw new Error('A replay must never POST to provider'); });
+    const service = new AiChatService({ query } as unknown as pg.Pool, { encryptionKey: ROOT, fetchImpl });
+    const result = await service.send(PRINCIPAL, THREAD, 'Вопрос', REQUEST);
+    expect(result.replayed).toBe(true);
+    expect(result.messages).toHaveLength(1);
+    expect(fetchImpl).not.toHaveBeenCalled();
   });
 });
