@@ -288,7 +288,16 @@ export function removeSelectionFromDocument(
   const ids = new Set(selection.ids);
   return {
     ...document,
-    components: document.components.filter((item) => !ids.has(item.id)),
+    components: document.components
+      .filter((item) => !ids.has(item.id))
+      .map((item) => {
+        if (!item.holeBindings) return item;
+        const retained = Object.entries(item.holeBindings).filter(
+          ([, binding]) => !ids.has(binding.breadboardComponentId),
+        );
+        if (retained.length === Object.keys(item.holeBindings).length) return item;
+        return { ...item, holeBindings: Object.fromEntries(retained) };
+      }),
     connections: document.connections.filter(
       (wire) => !ids.has(wire.from.componentId) && !ids.has(wire.to.componentId),
     ),

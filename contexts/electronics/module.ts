@@ -106,10 +106,10 @@ const ELECTRONICS_MANIFEST = {
   },
 } as const;
 
-function invalidDocument(message: string): readonly ModuleDiagnostic[] {
+function invalidDocument(message: string, reasonCode: string): readonly ModuleDiagnostic[] {
   return [
     {
-      code: 'electronics_document_invalid',
+      code: reasonCode,
       severity: 'error',
       message,
     },
@@ -126,7 +126,7 @@ export const ELECTRONICS_MODULE = defineModule<ElectronicsDocument, SimulationRe
     validate: (payload: unknown) => {
       const parsed = parseElectronicsDocument(payload);
       if (!parsed.ok) {
-        return { ok: false, diagnostics: invalidDocument(parsed.message) };
+        return { ok: false, diagnostics: invalidDocument(parsed.message, parsed.reasonCode) };
       }
       return { ok: true, payload: parsed.document, diagnostics: [] };
     },

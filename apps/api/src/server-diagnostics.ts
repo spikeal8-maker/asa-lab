@@ -7,6 +7,51 @@ import { logSubsystem, safeLogPath } from './log-subsystems.js';
 const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 const MODULES = new Set(['portal', 'scratch', 'electronics', 'auth']);
 export const requestFailures = new WeakMap<object, string>();
+export const requestValidationReasons = new WeakMap<object, string>();
+const VALIDATION_REASONS = new Set<string>([
+  // Explicit API exposure policy; canonical classification stays in the module.
+  'electronics_component_id',
+  'electronics_component_kind',
+  'electronics_component_name',
+  'electronics_component_pins',
+  'electronics_component_position',
+  'electronics_component_rotation',
+  'electronics_component_shape',
+  'electronics_component_state',
+  'electronics_component_type',
+  'electronics_component_value',
+  'electronics_component_variant',
+  'electronics_component_wiper',
+  'electronics_connection_endpoint',
+  'electronics_connection_id',
+  'electronics_connection_shape',
+  'electronics_document_arrays',
+  'electronics_document_shape',
+  'electronics_document_size',
+  'electronics_hole_binding_reference',
+  'electronics_hole_binding_shape',
+  'electronics_hole_bindings_shape',
+  'electronics_internal_connection_pair',
+  'electronics_internal_connection_reference',
+  'electronics_internal_connections',
+  'electronics_model_identity',
+  'electronics_schema_version',
+  'electronics_simulation',
+  'electronics_state_properties',
+  'electronics_state_value',
+  'electronics_viewport',
+  'electronics_wire_color',
+  'electronics_wire_position',
+  'electronics_wire_vertices',
+  'draft_body_invalid',
+  'draft_base_revision_invalid',
+  'draft_mutation_id_invalid',
+  'draft_document_unserializable',
+  'draft_module_unavailable',
+]);
+export function safeValidationReason(value: unknown): string | undefined {
+  return typeof value === 'string' && VALIDATION_REASONS.has(value) ? value : undefined;
+}
 
 export function diagnosticContext(request: FastifyRequest) {
   const instance = request.headers['x-asa-diagnostic-instance'];
@@ -105,6 +150,12 @@ export function recordServerFailure(
         ? (response as { error?: { code?: unknown } }).error?.code
         : null;
     if (typeof code === 'string' && /^[a-z][a-z0-9_]{0,63}$/.test(code)) failure.errorCode = code;
+    if (status === 400 && code === 'validation_error') {
+      const reason = safeValidationReason(
+        (response as { error?: { reasonCode?: unknown } }).error?.reasonCode,
+      );
+      if (reason) requestValidationReasons.set(request, reason);
+    }
   }
   requestFailures.set(request, failure.errorCode);
   if (status >= 500)

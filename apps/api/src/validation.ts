@@ -1,5 +1,27 @@
 /** Strict runtime body validation for the composition root: bodies must be
  * plain JSON objects with exactly the allowed properties. */
+import type { RegisteredModule } from '@asa-lab/module-sdk';
+
+/** The same subject-neutral provider adapter used by Project Core composition. */
+export function validationMessage(
+  entry: RegisteredModule,
+  value: unknown,
+):
+  | { readonly ok: true; readonly document: unknown }
+  | { readonly ok: false; readonly message: string; readonly reasonCode?: string } {
+  const provider = entry.provider;
+  if (!provider)
+    return { ok: false, message: `module "${entry.manifest.moduleKey}" has no provider` };
+  const result = provider.validate(value);
+  if (!result.ok)
+    return {
+      ok: false,
+      ...(result.diagnostics[0]?.code ? { reasonCode: result.diagnostics[0].code } : {}),
+      message:
+        result.diagnostics.map((diagnostic) => diagnostic.message).join('; ') || 'invalid document',
+    };
+  return { ok: true, document: result.payload };
+}
 
 export function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);

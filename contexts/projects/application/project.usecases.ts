@@ -41,10 +41,15 @@ export type ProjectErrorCode =
 
 export type UseCaseResult<T> =
   | { readonly ok: true; readonly value: T }
-  | { readonly ok: false; readonly code: ProjectErrorCode; readonly message: string };
+  | {
+      readonly ok: false;
+      readonly code: ProjectErrorCode;
+      readonly message: string;
+      readonly reasonCode?: string;
+    };
 
-function fail<T>(code: ProjectErrorCode, message: string): UseCaseResult<T> {
-  return { ok: false, code, message };
+function fail<T>(code: ProjectErrorCode, message: string, reasonCode?: string): UseCaseResult<T> {
+  return { ok: false, code, message, ...(reasonCode ? { reasonCode } : {}) };
 }
 
 /**
@@ -523,20 +528,28 @@ export class SaveDraftUseCase {
     mutationId: string;
   }): Promise<UseCaseResult<ProjectDraft>> {
     if (!Number.isSafeInteger(input.baseRevision) || input.baseRevision < 0) {
-      return fail('validation_error', 'baseRevision must be a non-negative integer');
+      return fail(
+        'validation_error',
+        'baseRevision must be a non-negative integer',
+        'draft_base_revision_invalid',
+      );
     }
     if (
       !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
         input.mutationId,
       )
     ) {
-      return fail('validation_error', 'mutationId must be a UUID v4');
+      return fail('validation_error', 'mutationId must be a UUID v4', 'draft_mutation_id_invalid');
     }
     if (this.persistenceGuard) {
       try {
         input = { ...input, actor: { ...input.actor }, document: structuredClone(input.document) };
       } catch {
-        return fail('validation_error', 'Project document must be serializable.');
+        return fail(
+          'validation_error',
+          'Project document must be serializable.',
+          'draft_document_unserializable',
+        );
       }
     }
     const loaded = await this.repository.load(input.tenantId, input.projectId, input.actor);
@@ -545,11 +558,15 @@ export class SaveDraftUseCase {
     }
     const module = this.modules.get(loaded.project.moduleKey);
     if (!module) {
-      return fail('validation_error', `module "${loaded.project.moduleKey}" is not registered`);
+      return fail(
+        'validation_error',
+        `module "${loaded.project.moduleKey}" is not registered`,
+        'draft_module_unavailable',
+      );
     }
     const parsed = module.validateDocument(input.document);
     if (!parsed.ok) {
-      return fail('validation_error', parsed.message);
+      return fail('validation_error', parsed.message, parsed.reasonCode);
     }
     // Detach the validated document from caller and guard mutations across await.
     let document = parsed.document;

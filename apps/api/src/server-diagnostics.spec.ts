@@ -9,6 +9,8 @@ import {
   safeServerError,
   diagnosticContext,
   requestFailures,
+  requestValidationReasons,
+  safeValidationReason,
   recordServerFailure,
 } from './server-diagnostics.js';
 
@@ -25,6 +27,40 @@ class DiagnosticFixtureController {
 class DiagnosticFixtureModule {}
 
 describe('structured server error evidence', () => {
+  it.each([
+    ['electronics_hole_binding_reference', 400, 'validation_error', true],
+    ['private-student-data', 400, 'validation_error', false],
+    ['electronics_hole_binding_reference', 500, 'validation_error', false],
+    ['electronics_hole_binding_reference', 403, 'permission_denied', false],
+  ])(
+    'admits only finite validation reasons for HTTP400: %s/%s',
+    (reasonCode, status, code, admitted) => {
+      const request = {
+        id: 'test',
+        method: 'PUT',
+        raw: { url: '/api/projects/p1/draft' },
+        headers: {},
+      } as unknown as FastifyRequest;
+      const out = vi.spyOn(process.stdout, 'write').mockReturnValue(true);
+      try {
+        recordServerFailure(
+          new HttpException(
+            { error: { code, reasonCode, message: 'private-student-data' } },
+            status,
+          ),
+          request,
+          status,
+          null,
+          null,
+        );
+        expect(requestValidationReasons.get(request)).toBe(admitted ? reasonCode : undefined);
+        expect(JSON.stringify(out.mock.calls)).not.toContain('private-student-data');
+        expect(safeValidationReason('password=private-student-data')).toBeUndefined();
+      } finally {
+        out.mockRestore();
+      }
+    },
+  );
   it('redacts invitation capabilities and queries before writing stdout', () => {
     expect(
       safeLogPath('/api/classroom-teacher-invitations/private-capability/accept?secret=x'),
