@@ -194,7 +194,7 @@ $$;
 
 CREATE FUNCTION ai_chat_messages(p_principal uuid, p_thread uuid)
 RETURNS TABLE (id uuid, role varchar, content varchar, created_at timestamptz, request_id uuid)
-LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
     SELECT m.id, m.role, m.content, m.created_at, m.request_id
       FROM (
           SELECT msg.id, msg.role, msg.content, msg.created_at, msg.request_id
@@ -210,7 +210,7 @@ $$;
 
 CREATE FUNCTION ai_chat_begin(p_principal uuid, p_thread uuid, p_request uuid, p_text varchar)
 RETURNS boolean
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
 DECLARE
     v_account uuid;
     v_existing_text varchar;
