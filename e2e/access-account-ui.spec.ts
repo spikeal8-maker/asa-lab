@@ -4748,18 +4748,20 @@ for (const seat of [false, true])
           },
         });
       });
-      await page.route(`**/api/projects/${startupProjectId}/blocks/runtime-session`, (route) =>
-        route.fulfill({
+      await page.route(`**/api/projects/${startupProjectId}/blocks/runtime-session`, (route) => {
+        const serverNow = new Date();
+        return route.fulfill({
+          headers: { date: serverNow.toUTCString() },
           json: {
             runtimeOrigin: 'http://127.0.0.1:4612',
             runtimeToken: 'fixture.payload.signature',
-            expiresAt: Math.floor(Date.now() / 1000) + 3600,
+            expiresAt: Math.floor(serverNow.getTime() / 1000) + 3600,
             draftRevision: 7,
             projectJson,
             assets: [],
           },
-        }),
-      );
+        });
+      });
       // GUI is a protocol fixture, not a second Scratch runtime. The compiled ASA
       // host, Blocks adapter, actor props and real bridge execute unchanged.
       await page.route(
