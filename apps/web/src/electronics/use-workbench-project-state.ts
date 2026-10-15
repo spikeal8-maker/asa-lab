@@ -25,7 +25,7 @@ import {
   mergeElectronicsDocuments,
 } from './electronics-document-merge';
 import type { EditorPersistenceIssue } from '../components/editor-chrome/EditorPersistenceIndicator';
-import { ElectronicsProjectRecovery } from './electronics-project-recovery';
+import { createElectronicsProjectRecovery } from './electronics-project-recovery';
 
 export type SimulationRuntimeStatus =
   'stopped' | 'validating' | 'starting' | 'running' | 'stopping';
@@ -42,6 +42,28 @@ interface PersistenceScope {
   conflictRebases: number;
   conflictRetryAt: number | null;
   confirmed: { revision: number; document: SchematicDocument } | null;
+}
+
+function createPersistenceScope(
+  projectId: string,
+  userId: string,
+  identityKind: 'account' | 'seat',
+): PersistenceScope {
+  return {
+    projectId,
+    userId,
+    identityKind,
+    active: true,
+    detachedRequested: false,
+    blocked: false,
+    conflictRebases: 0,
+    conflictRetryAt: null,
+    confirmed: null,
+  };
+}
+
+function conflictRetryPending(scope: PersistenceScope): boolean {
+  return scope.conflictRetryAt !== null && Date.now() < scope.conflictRetryAt;
 }
 
 function isLocalSchematicDocument(value: unknown): value is SchematicDocument {
@@ -208,7 +230,7 @@ export function useWorkbenchProjectState(projectId: string, userId: string, seat
     } catch {
       /* recovery still works without a reload hint */
     }
-    return new ElectronicsProjectRecovery<SchematicDocument>(
+    return createElectronicsProjectRecovery<SchematicDocument>(
       () => window.localStorage,
       session,
       projectId,
@@ -228,34 +250,14 @@ export function useWorkbenchProjectState(projectId: string, userId: string, seat
       },
     );
   }, [projectId, userId, identityKind]);
-  const scopeRef = useRef<PersistenceScope>({
-    projectId,
-    userId,
-    identityKind,
-    active: true,
-    detachedRequested: false,
-    blocked: false,
-    conflictRebases: 0,
-    conflictRetryAt: null,
-    confirmed: null,
-  });
+  const scopeRef = useRef(createPersistenceScope(projectId, userId, identityKind));
   if (
     scopeRef.current.projectId !== projectId ||
     scopeRef.current.userId !== userId ||
     scopeRef.current.identityKind !== identityKind
   ) {
     scopeRef.current.active = false;
-    scopeRef.current = {
-      projectId,
-      userId,
-      identityKind,
-      active: true,
-      detachedRequested: false,
-      blocked: false,
-      conflictRebases: 0,
-      conflictRetryAt: null,
-      confirmed: null,
-    };
+    scopeRef.current = createPersistenceScope(projectId, userId, identityKind);
     documentRef.current = null;
     savedDocumentRef.current = null;
     savingDocumentRef.current = null;
@@ -785,8 +787,7 @@ export function useWorkbenchProjectState(projectId: string, userId: string, seat
       explicit = !quiet,
     ): Promise<SolveResult | null> => {
       // Do not cancel the scheduled retry when a safety event is suppressed.
-      if (!explicit && scope.conflictRetryAt !== null && Date.now() < scope.conflictRetryAt)
-        return Promise.resolve(null);
+      if (!explicit && conflictRetryPending(scope)) return Promise.resolve(null);
       if (explicit && saveFailedRef.current && saveIssueRef.current === 'conflict') {
         // Only an explicit retry starts a new reconciliation budget.
         scope.conflictRebases = 0;
@@ -798,7 +799,7 @@ export function useWorkbenchProjectState(projectId: string, userId: string, seat
           if (
             scopeRef.current !== scope ||
             scope.blocked ||
-            (scope.conflictRetryAt !== null && Date.now() < scope.conflictRetryAt) ||
+            conflictRetryPending(scope) ||
             scope.confirmed?.document === nextDocument
           )
             return Promise.resolve(null);
@@ -815,7 +816,7 @@ export function useWorkbenchProjectState(projectId: string, userId: string, seat
         if (
           (quiet && savedDocumentRef.current === nextDocument) ||
           (!explicit &&
-            ((scope.conflictRetryAt !== null && Date.now() < scope.conflictRetryAt) ||
+            (conflictRetryPending(scope) ||
               (saveFailedRef.current &&
                 (retryAtRef.current === null || Date.now() < retryAtRef.current))))
         ) {
