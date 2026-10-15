@@ -150,13 +150,14 @@
  * fourth visible pupil at a 1024px viewport; keep the existing 44px targets
  * while reclaiming horizontal padding, not font readability.
  */
-@container classroom (min-width: 600px) and (max-width: 1100px) {
+@media (min-width: 601px) and (max-width: 1100px) {
   .classroom-owner-workspace .classroom-workspace-tabs.asa-system-tabs {
     width: 100%;
     flex-wrap: nowrap;
     gap: 2px;
     padding: 2px;
     margin-bottom: 8px;
+    overflow-x: auto;
   }
 
   .classroom-owner-workspace .classroom-workspace-tabs.asa-system-tabs > button {

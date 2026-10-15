@@ -560,7 +560,7 @@ function ClassroomPageContent({
     try {
       await navigator.clipboard.writeText(value);
       setActionError(null);
-      setNotice(message);
+      systemFeedback.success(message);
     } catch {
       setActionError('Не удалось скопировать код. Выделите и скопируйте его вручную.');
     }
@@ -1303,7 +1303,7 @@ function ClassroomPageContent({
                                     await api.removeClassroomSeat(classroomId, student.id),
                                     'Не удалось удалить ученика из класса.',
                                   );
-                                  setNotice(`${student.displayLabel} удалён из класса.`);
+                                  setNotice('Ученик удалён из класса.');
                                   await reload();
                                 },
                               );
@@ -1584,7 +1584,7 @@ function ClassroomPageContent({
             if (!result.ok) return result.error.message || 'Не удалось добавить ученика.';
             setDialog(null);
             setNotice(
-              `${result.data.student.displayLabel} добавлен. Код доступен в списке и карточке доступа.`,
+              'Ученик добавлен. Код доступен в списке и карточке доступа.',
             );
             await reload();
             return null;

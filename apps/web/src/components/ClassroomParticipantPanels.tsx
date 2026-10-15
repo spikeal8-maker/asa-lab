@@ -126,7 +126,7 @@ export function ClassroomRatingSettings({
     if (result.ok) {
       setSettings(result.data);
       receipt.current = null;
-      setNotice('Рейтинг сохранён');
+      systemFeedback.success('Рейтинг сохранён');
       onSaved();
     } else setError(result.error.message);
   }

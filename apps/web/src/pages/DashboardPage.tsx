@@ -572,7 +572,7 @@ export function DashboardPage({
         <ClassroomPropertiesModal
           classroom={editing}
           onClose={() => setEditing(null)}
-          onSaved={(classroom) => {
+          onSaved={() => {
             setEditing(null);
             setNotice('Класс обновлён.');
             void reload();
@@ -583,7 +583,7 @@ export function DashboardPage({
       {modalOpen ? (
         <CreateClassroomModal
           onClose={closeModal}
-          onCreated={(classroom, created) => {
+          onCreated={(_classroom, created) => {
             setModalOpen(false);
             setNotice(created ? 'Класс создан.' : 'Класс уже существует.');
             restoreFocus('header');
