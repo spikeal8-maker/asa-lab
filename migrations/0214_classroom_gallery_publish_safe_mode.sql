@@ -14,9 +14,10 @@ LANGUAGE plpgsql VOLATILE SECURITY DEFINER
 SET search_path = pg_catalog, pg_temp AS $$
 BEGIN
   -- A revoke must always remain possible, even when protection is enabled.
-  IF TG_TABLE_NAME = 'project_publication_state'
-     AND NEW.state NOT IN ('public', 'unlisted') THEN
-    RETURN NEW;
+  IF TG_TABLE_NAME = 'project_publication_state' THEN
+    IF NEW.state NOT IN ('public', 'unlisted') THEN
+      RETURN NEW;
+    END IF;
   END IF;
 
   IF EXISTS (
