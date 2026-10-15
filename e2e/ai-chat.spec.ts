@@ -37,7 +37,7 @@ interface Message {
   requestId: string;
 }
 
-function fixture(page: Page) {
+async function fixture(page: Page) {
   const threads: { id: string; title: string; updatedAt: string }[] = [];
   const messages = new Map<string, Message[]>();
   const requests: string[] = [];
@@ -48,7 +48,7 @@ function fixture(page: Page) {
   const waitForAnswer = new Promise<void>((resolve) => { releaseAnswer = resolve; });
   const respond = (route: Route, json: unknown, status = 200) => route.fulfill({ status, json });
 
-  void page.route('**/api/**', async (route) => {
+  await page.route('**/api/**', async (route) => {
     const req = route.request();
     const path = new URL(req.url()).pathname;
     const method = req.method();
@@ -126,7 +126,7 @@ function fixture(page: Page) {
 for (const width of [1440, 1024, 390, 320]) {
   test(`AI text chat shows pending, model reply and saved history at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 750 });
-    const fake = fixture(page);
+    const fake = await fixture(page);
     await page.goto('/#/ai');
     await expect(page.getByRole('heading', { name: 'Чем я могу помочь?' })).toBeVisible();
     await page.getByRole('textbox', { name: 'Сообщение ИИ' }).fill('Что такое Arduino?');
@@ -151,12 +151,12 @@ for (const width of [1440, 1024, 390, 320]) {
 }
 
 test('Platform admin configures GPT without returning secret in page', async ({ page }) => {
-  fixture(page);
+  await fixture(page);
   await page.goto('/#/admin/ai');
   await expect(page.getByRole('heading', { name: 'ИИ и модели' })).toBeVisible();
   await expect(page.getByText('Не задан', { exact: true })).toBeVisible();
   const secret = 'sk-ai-fake-test-secret-safe-value';
-  await page.getByRole('textbox', { name: /Новый API-ключ/ }).fill(secret);
+  await page.getByLabel(/Новый API-ключ/).fill(secret);
   await page.getByRole('button', { name: 'Сохранить настройки' }).click();
   await expect(page.getByText('Настройки сохранены. Новый API-ключ не возвращается в браузер.')).toBeVisible();
   await expect(page.getByText('Настроен', { exact: true })).toBeVisible();
