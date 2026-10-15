@@ -23,6 +23,7 @@ import { logSubsystem, safeLogPath } from './log-subsystems.js';
 import {
   diagnosticContext,
   requestFailures,
+  requestValidationReasons,
   recordServerFailure,
   ServerDiagnosticsFilter,
 } from './server-diagnostics.js';
@@ -376,6 +377,7 @@ export async function createApiApp(
             status: reply.statusCode,
             durationMs,
             errorCode: requestFailures.get(request),
+            reasonCode: requestValidationReasons.get(request),
             ...diagnosticContext(request),
           })}\n`,
         );

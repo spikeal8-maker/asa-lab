@@ -95,7 +95,7 @@ export interface SaveSnapshotInput {
 
 export type ProjectDocumentValidation =
   | { readonly ok: true; readonly document: unknown }
-  | { readonly ok: false; readonly message: string };
+  | { readonly ok: false; readonly message: string; readonly reasonCode?: string };
 
 /** Subject-neutral contract consumed by Project Core. */
 export interface ProjectModule {
