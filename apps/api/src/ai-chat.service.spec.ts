@@ -185,12 +185,27 @@ describe('ASA native AI Chat', () => {
       if (sql.includes('ai_runtime_config')) return { rows: [secureRuntime()] };
       if (sql.includes('ai_chat_begin')) return { rows: [{ admitted: false }] };
       if (sql.includes('ai_chat_messages')) {
-        return { rows: [{ id: 'existing', role: 'user', content: 'Вопрос', request_id: REQUEST, created_at: new Date(1) }] };
+        return {
+          rows: [
+            {
+              id: 'existing',
+              role: 'user',
+              content: 'Вопрос',
+              request_id: REQUEST,
+              created_at: new Date(1),
+            },
+          ],
+        };
       }
       throw new Error('Unexpected database command');
     });
-    const fetchImpl = vi.fn<typeof fetch>(async () => { throw new Error('A replay must never POST to provider'); });
-    const service = new AiChatService({ query } as unknown as pg.Pool, { encryptionKey: ROOT, fetchImpl });
+    const fetchImpl = vi.fn<typeof fetch>(async () => {
+      throw new Error('A replay must never POST to provider');
+    });
+    const service = new AiChatService({ query } as unknown as pg.Pool, {
+      encryptionKey: ROOT,
+      fetchImpl,
+    });
     const result = await service.send(PRINCIPAL, THREAD, 'Вопрос', REQUEST);
     expect(result.replayed).toBe(true);
     expect(result.messages).toHaveLength(1);

@@ -450,8 +450,8 @@ export class AiChatService {
     }
     const reply = openai
       ? extractOpenAiText(body)
-      : ((body as { choices?: Array<{ message?: { content?: string } }> })
-          .choices?.[0]?.message?.content ?? '');
+      : ((body as { choices?: Array<{ message?: { content?: string } }> }).choices?.[0]?.message
+          ?.content ?? '');
     if (!reply.trim()) {
       throw new AiServiceError('ai_response_empty', 503, 'Модель не вернула текст ответа.');
     }

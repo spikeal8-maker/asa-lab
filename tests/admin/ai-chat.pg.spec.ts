@@ -60,9 +60,14 @@ beforeAll(async () => {
       expect(posted.model).toBe('gpt-5-mini');
       expect(posted.store).toBe(false);
       expect(posted.input.at(-1)?.content).toBe('Что такое Arduino?');
-      return new Response(JSON.stringify({
-        output: [{ content: [{ type: 'output_text', text: 'Arduino — платформа для электроники.' }] }],
-      }), { status: 200 });
+      return new Response(
+        JSON.stringify({
+          output: [
+            { content: [{ type: 'output_text', text: 'Arduino — платформа для электроники.' }] },
+          ],
+        }),
+        { status: 200 },
+      );
     }),
   });
 });
@@ -74,11 +79,7 @@ afterAll(async () => {
 
 describe('AI Chat PostgreSQL access and request replay', () => {
   it('denies direct runtime table reads and unprivileged admin configuration', async () => {
-    for (const table of [
-      'ai_assistant_config',
-      'ai_assistant_threads',
-      'ai_assistant_messages',
-    ]) {
+    for (const table of ['ai_assistant_config', 'ai_assistant_threads', 'ai_assistant_messages']) {
       await expect(runtime.query(`SELECT * FROM public.${table}`)).rejects.toMatchObject({
         code: '42501',
       });
@@ -89,17 +90,29 @@ describe('AI Chat PostgreSQL access and request replay', () => {
   });
 
   it('stores an encrypted provider key through platform-admin only', async () => {
-    await expect(service.saveAdminConfig(owner.principalId, {
-      enabled: true, provider: 'openai', model: 'gpt-5-mini',
-      apiKey: 'sk-ai-private-integration-key-001',
-    }, randomUUID())).rejects.toMatchObject({ code: '42501' });
+    await expect(
+      service.saveAdminConfig(
+        owner.principalId,
+        {
+          enabled: true,
+          provider: 'openai',
+          model: 'gpt-5-mini',
+          apiKey: 'sk-ai-private-integration-key-001',
+        },
+        randomUUID(),
+      ),
+    ).rejects.toMatchObject({ code: '42501' });
 
-    const saved = await service.saveAdminConfig(platformAdmin.principalId, {
-      enabled: true,
-      provider: 'openai',
-      model: 'gpt-5-mini',
-      apiKey: 'sk-ai-private-integration-key-001',
-    }, randomUUID());
+    const saved = await service.saveAdminConfig(
+      platformAdmin.principalId,
+      {
+        enabled: true,
+        provider: 'openai',
+        model: 'gpt-5-mini',
+        apiKey: 'sk-ai-private-integration-key-001',
+      },
+      randomUUID(),
+    );
     expect(saved.enabled).toBe(true);
     expect(saved.apiKeyConfigured).toBe(true);
     expect(JSON.stringify(saved)).not.toContain('sk-ai-private-integration-key-001');
@@ -118,14 +131,24 @@ describe('AI Chat PostgreSQL access and request replay', () => {
       service.send(stranger.principalId, thread.id, 'Чужое сообщение', randomUUID()),
     ).rejects.toMatchObject({ code: 'ai_thread_busy', status: 409 });
 
-    const response = await service.send(owner.principalId, thread.id, 'Что такое Arduino?', operation);
+    const response = await service.send(
+      owner.principalId,
+      thread.id,
+      'Что такое Arduino?',
+      operation,
+    );
     expect(response.replayed).toBe(false);
     expect(response.messages.map((m) => m.role)).toEqual(['user', 'assistant']);
     expect(response.messages[0]?.requestId).toBe(operation);
     expect(response.messages[1]?.requestId).toBe(operation);
     expect(providerCalls).toBe(1);
 
-    const replay = await service.send(owner.principalId, thread.id, 'Что такое Arduino?', operation);
+    const replay = await service.send(
+      owner.principalId,
+      thread.id,
+      'Что такое Arduino?',
+      operation,
+    );
     expect(replay.replayed).toBe(true);
     expect(providerCalls).toBe(1);
     expect(replay.messages).toEqual(response.messages);
@@ -144,11 +167,21 @@ describe('AI Chat PostgreSQL access and request replay', () => {
       [owner.principalId, other.id, operation, 'Один запрос'],
     );
     expect(admitted.rows[0]!.admitted).toBe(true);
-    await expect(runtime.query('SELECT ai_chat_begin($1,$2,$3,$4::varchar)', [
-      owner.principalId, other.id, operation, 'Другой текст',
-    ])).rejects.toMatchObject({ code: '22023' });
-    await expect(runtime.query('SELECT ai_chat_begin($1,$2,$3,$4::varchar)', [
-      owner.principalId, thread.id, operation, 'Один запрос',
-    ])).rejects.toMatchObject({ code: '22023' });
+    await expect(
+      runtime.query('SELECT ai_chat_begin($1,$2,$3,$4::varchar)', [
+        owner.principalId,
+        other.id,
+        operation,
+        'Другой текст',
+      ]),
+    ).rejects.toMatchObject({ code: '22023' });
+    await expect(
+      runtime.query('SELECT ai_chat_begin($1,$2,$3,$4::varchar)', [
+        owner.principalId,
+        thread.id,
+        operation,
+        'Один запрос',
+      ]),
+    ).rejects.toMatchObject({ code: '22023' });
   });
 });

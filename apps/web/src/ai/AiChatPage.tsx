@@ -68,7 +68,9 @@ export function AiChatPage(): JSX.Element {
   const [desktop, setDesktop] = useState(() => window.matchMedia('(min-width: 1120px)').matches);
   const selectedVersion = useRef(0);
   const pendingRequest = useRef<{ threadId: string; requestId: string; text: string } | null>(null);
-  const [pendingMessage, setPendingMessage] = useState<{ requestId: string; text: string } | null>(null);
+  const [pendingMessage, setPendingMessage] = useState<{ requestId: string; text: string } | null>(
+    null,
+  );
   const chatScroll = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -152,7 +154,6 @@ export function AiChatPage(): JSX.Element {
     await refreshThreads();
     return result.data.id;
   }
-
 
   async function send(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
@@ -384,7 +385,8 @@ export function AiChatPage(): JSX.Element {
                       )}
                     </article>
                   ))}
-                  {pendingMessage && !messages.some(
+                  {pendingMessage &&
+                  !messages.some(
                     (message) =>
                       message.requestId === pendingMessage.requestId && message.role === 'user',
                   ) ? (
