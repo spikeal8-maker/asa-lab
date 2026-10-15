@@ -2784,7 +2784,7 @@ test('narrow time-zone action pair tolerates wider 16px font metrics', async ({ 
   await form.getByRole('button', { name: 'Сохранить оформление', exact: true }).click();
   await expect(form.getByRole('alert')).toBeVisible();
   await zoneForm.getByRole('button', { name: 'Сохранить часовой пояс', exact: true }).click();
-  await expect(page.locator('.account-interface-feedback .account-save-status')).toContainText(
+  await expect(page.locator('.asa-toast-viewport .asa-toast--success').filter({ hasText: 'Часовой пояс' })).toContainText(
     'Часовой пояс',
   );
   await assertPairs('partial-error');
@@ -2826,7 +2826,7 @@ for (const width of [1440, 1024, 390, 320])
     await expect(
       zoneForm.getByRole('button', { name: 'Сохранить часовой пояс', exact: true }),
     ).toBeDisabled();
-    await expect(page.locator('.account-interface-feedback .account-save-status')).toContainText(
+    await expect(page.locator('.asa-toast-viewport .asa-toast--success').filter({ hasText: 'Часовой пояс' })).toContainText(
       'Часовой пояс',
     );
     await expect(zoneForm.locator('[role="status"]')).toHaveCount(0);
