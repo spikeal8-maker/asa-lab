@@ -85,6 +85,7 @@ describe('Course Builder structure forward upgrade', () => {
         '0210', // Bind history content checks to class candidates; preserve data and caller settings.
         '0211', // Canonical manual material delivery.
         '0212', // Exact published catalogue copy.
+        '0214', // Additive Safe Mode publication guards; do not rewrite saved learning data.
       ];
       const pre153 = plan.filter((item) => Number(item.version) <= 152);
       const upgradePlan = plan.filter((item) => Number(item.version) > 152);
@@ -326,14 +327,14 @@ describe('Course Builder structure forward upgrade', () => {
           ),
         ).toBe(expectedUpgradeVersions.length - post191Versions.length);
         const post210Versions = expectedUpgradeVersions.filter((version) => Number(version) > 210);
-        expect(post210Versions).toEqual(['0211', '0212']);
+        expect(post210Versions).toEqual(['0211', '0212', '0214']);
         expect(
           await applyIsolatedTestPlan(
             upgrade,
             plan.filter((item) => Number(item.version) <= 210),
           ),
         ).toBe(post191Versions.length - post210Versions.length);
-        expect(await applyIsolatedTestPlan(upgrade, plan)).toBe(2);
+        expect(await applyIsolatedTestPlan(upgrade, plan)).toBe(3);
         expect(await applyIsolatedTestPlan(upgrade, plan)).toBe(0);
       } finally {
         upgrade.release();
