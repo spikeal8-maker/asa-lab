@@ -681,6 +681,42 @@
       return staged.length;
     };
 
+    const prepareMissingProjectAssets = async (references) => {
+      const missing = references.filter(
+        (reference) => !durableAssets.has(runtimeKey(reference.assetId, reference.dataFormat)),
+      );
+      if (missing.length === 0) return;
+      const live = options.getProjectAssets?.();
+      const candidates = new Map();
+      for (const asset of [
+        ...(Array.isArray(live) ? live : []),
+        ...cachedAssets.values(),
+        ...recoveryAssets.values(),
+      ]) {
+        const assetKey = runtimeKey(asset?.assetId, asset?.dataFormat);
+        if (!candidates.has(assetKey)) candidates.set(assetKey, asset);
+      }
+      // Scratch's clean bit describes its own store lifecycle, not ASA
+      // durability. Snapshot every missing reference before starting uploads.
+      const uploads = missing.map((reference) => {
+        const asset = candidates.get(runtimeKey(reference.assetId, reference.dataFormat));
+        const data = exactBytes(asset?.data);
+        if (
+          !asset ||
+          !validTypeAndFormat(asset.assetType, reference.dataFormat) ||
+          !data?.byteLength
+        ) {
+          throw unavailable('asset_reference_missing');
+        }
+        return { assetType: asset.assetType, ...reference, data };
+      });
+      await Promise.all(
+        uploads.map((asset) =>
+          scratchStorage.store(asset.assetType, asset.dataFormat, asset.data, asset.assetId),
+        ),
+      );
+    };
+
     scratchStorage.addHelper(
       {
         load: async (type, id, format) => {
@@ -805,8 +841,12 @@
         const generationAtStart = Number.isSafeInteger(upstreamSaveGeneration)
           ? upstreamSaveGeneration
           : currentGeneration;
+        const saveSequenceAtStart = upstreamSaveSequence;
         try {
-          const references = referencedProjectAssets(projectJson).map((reference) => {
+          const projectReferences = referencedProjectAssets(projectJson);
+          await prepareMissingProjectAssets(projectReferences);
+          if (disposed) throw unavailable('storage_disposed');
+          const references = projectReferences.map((reference) => {
             const durable = durableAssets.get(runtimeKey(reference.assetId, reference.dataFormat));
             if (!durable) throw unavailable('asset_reference_missing');
             return durable;
@@ -845,12 +885,15 @@
           }
           return { id: options.projectId };
         } catch (error) {
-          publishUpstreamSaveOutcome({
-            ok: false,
-            reason: saveFailureReason(error),
-            savedGeneration: Number.isSafeInteger(generationAtStart) ? generationAtStart : null,
-            latestGeneration: options.getProjectGeneration?.(),
-          });
+          // A failed fallback asset store already publishes its outcome.
+          if (upstreamSaveSequence === saveSequenceAtStart) {
+            publishUpstreamSaveOutcome({
+              ok: false,
+              reason: saveFailureReason(error),
+              savedGeneration: Number.isSafeInteger(generationAtStart) ? generationAtStart : null,
+              latestGeneration: options.getProjectGeneration?.(),
+            });
+          }
           throw error;
         } finally {
           upstreamSaveGeneration = null;
