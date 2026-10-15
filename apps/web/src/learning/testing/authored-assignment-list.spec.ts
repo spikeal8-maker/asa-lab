@@ -5,6 +5,10 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api, type AuthoredActivityDraft, type Classroom, type ModuleSummary } from '../../api';
 import { AuthoredMaterialsPage } from '../../pages/AuthoredMaterialsPage';
+import {
+  clearSystemFeedback,
+  getSystemFeedbackSnapshot,
+} from '../../components/system-feedback';
 
 const reactTestGlobal = globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean };
 const draftId = '11111111-1111-4111-8111-111111111111';
@@ -104,6 +108,7 @@ afterEach(async () => {
   container?.remove();
   root = null;
   container = null;
+  clearSystemFeedback();
   vi.restoreAllMocks();
 });
 
@@ -765,6 +770,8 @@ describe('V-UX2A authored assignment list', () => {
     expect(assign.mock.calls[2]?.[1].requestId).toBe(assign.mock.calls[1]?.[1].requestId);
     expect(assign.mock.calls[2]?.[1].dueAt).toBe(assign.mock.calls[1]?.[1].dueAt);
     expect(container.querySelector('.teacher-assign-dialog')).toBeNull();
-    expect(container.textContent).toContain('Задание назначено в классы: 2. Учеников: 4.');
+    expect(getSystemFeedbackSnapshot().map((item) => item.message)).toContain(
+      'Задание назначено в классы: 2. Учеников: 4.',
+    );
   });
 });
