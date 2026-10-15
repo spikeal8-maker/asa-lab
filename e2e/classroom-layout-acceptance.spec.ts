@@ -136,6 +136,9 @@ async function seedPresentation(page: Page, populated: boolean) {
         id === classId
           ? {
               classroomId: id,
+              averageRating: 10.5,
+              ratingParticipants: students.length,
+              ratingPeriodDays: 30,
               students: students.length,
               works: works.length,
               assigned: students.reduce((n, student) => n + student.assignedCount, 0),
@@ -147,6 +150,9 @@ async function seedPresentation(page: Page, populated: boolean) {
             }
           : {
               classroomId: id,
+              averageRating: null,
+              ratingParticipants: 0,
+              ratingPeriodDays: 30,
               students: 13 + (index % 3),
               works: 22 + index * 2,
               assigned: 40 + index,
@@ -402,6 +408,10 @@ for (const width of [320, 390, 1024, 1440]) {
       await page.goto('/#/classrooms');
       await photograph(page, `${prefix}-classes`, '.classroom-owner-list');
       await expect(page.locator('.classroom-title-row .classroom-metrics')).toBeVisible();
+      await expect(
+        page.locator('.classroom-row-rating .classroom-stat-number').filter({ hasText: '10,5' }),
+      ).not.toHaveCount(0);
+      await expect(page.getByRole('searchbox', { name: 'Поиск класса по названию' })).toBeVisible();
       await page.goto(`/#/classrooms/${classId}`);
       for (const [label, key] of sections) {
         await section(page, label);
