@@ -493,7 +493,13 @@ test('Diagnostic: real Arduino Blocks 1s to 100ms, rapid close and running drag'
     expect(closeInterval).toBeLessThan(180);
     // Closing only hides the mounted Blockly editor. Observe publication while
     // closed instead of assuming the unmount cleanup ran.
-    await expect(source).toHaveValue(expectedSource(100));
+    await expect(
+      page.getByRole('textbox', {
+        name: 'Сгенерированный код Arduino',
+        exact: true,
+        includeHidden: true,
+      }),
+    ).toHaveValue(expectedSource(100));
     await snapshot('published-while-closed');
     await page.getByRole('button', { name: 'Открыть редактор кода', exact: true }).click();
     await expect(source).toHaveValue(expectedSource(100));
