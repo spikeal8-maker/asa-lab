@@ -413,6 +413,17 @@ export class GalleryController {
         typeof cause === 'object' &&
         cause !== null &&
         'code' in cause &&
+        cause.code === 'P5S01'
+      ) {
+        throw new HttpException(
+          error('classroom_safe_mode', 'Безопасный режим запрещает публикацию этой работы.'),
+          403,
+        );
+      }
+      if (
+        typeof cause === 'object' &&
+        cause !== null &&
+        'code' in cause &&
         cause.code === 'P5L01'
       ) {
         throw new HttpException(

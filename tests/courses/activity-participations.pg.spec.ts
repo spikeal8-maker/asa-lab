@@ -2508,14 +2508,16 @@ describe('A4-1 immutable learning project origin', () => {
        VALUES ($1,$2,decode(repeat('00',64),'hex'),'image/png',16,16,1,$3)`,
       [owner.tenantId, publishedBeforeLearning, learnerPrincipal],
     );
-    expect(
-      (
-        await app.query('SELECT gallery_publish($1,$2) AS ok', [
-          ownerPrincipal,
-          publishedBeforeLearning,
-        ])
-      ).rows[0].ok,
-    ).toBe(true);
+    // Safe Mode blocks even an otherwise authorized teacher publishing for a pupil.
+    const publishArgs = [ownerPrincipal, publishedBeforeLearning];
+    const denied = app.query('SELECT gallery_publish($1,$2) AS ok', publishArgs);
+    await expect(denied).rejects.toMatchObject({ code: 'P5S01' });
+    // This test also needs a normally publishable, not-yet-assigned work.
+    // Disable BOTH layers explicitly; do not bypass the publication guard.
+    await admin.query('UPDATE classrooms SET safe_mode_default=false WHERE id=$1', [classroom]);
+    await admin.query('UPDATE classroom_student_seats SET safe_mode=false WHERE id=$1', [seatId]);
+    const published = await app.query('SELECT gallery_publish($1,$2) AS ok', publishArgs);
+    expect(published.rows[0].ok).toBe(true);
     const publishedRun = await createRun({ handout: await directHandout() });
     const publishedParticipation = await assign(publishedRun);
     await expect(
@@ -2534,6 +2536,12 @@ describe('A4-1 immutable learning project origin', () => {
         [owner.tenantId, await directHandout(), seatId, publishedBeforeLearning],
       ),
     ).rejects.toThrow(/active unpublished project/);
+    // Restore the shared fixture for later learning tests; the publication is
+    // intentionally removed before restoring the school safety boundary.
+    const removed = await app.query('SELECT gallery_unpublish($1,$2) AS ok', publishArgs);
+    expect(removed.rows[0].ok).toBe(true);
+    await admin.query('UPDATE classroom_student_seats SET safe_mode=true WHERE id=$1', [seatId]);
+    await admin.query('UPDATE classrooms SET safe_mode_default=true WHERE id=$1', [classroom]);
   });
 
   it('keeps a linked Account legacy original protected across school and project tenants', async () => {
