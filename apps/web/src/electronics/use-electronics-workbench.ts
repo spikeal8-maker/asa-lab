@@ -90,9 +90,11 @@ import {
   type VertexDrag,
 } from './workbench-model';
 import { calculateLiveSimulation, calculateSimulationPreflight } from './live-simulation';
-import { ElectronicsLiveSimulationWorkerController } from './live-simulation-worker-controller';
+import type { ElectronicsLiveSimulationWorkerController } from './live-simulation-worker-controller';
+import { loadSimulationWorkerController } from './load-simulation-worker-controller';
 import {
   circuitStateMessage,
+  SimulationFailure,
   simulationFailureMessage,
   type SimulationStatusMessage,
 } from './simulation-failure';
@@ -290,9 +292,9 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
     Readonly<Record<string, ElectronicsArduinoSerialProjection>>
   >({});
   const simulationWorkerRef = useRef<ElectronicsLiveSimulationWorkerController | null>(null);
-  if (simulationWorkerRef.current === null) {
-    simulationWorkerRef.current = new ElectronicsLiveSimulationWorkerController();
-  }
+  const simulationCommandRef = useRef<
+    ((command: (controller: ElectronicsLiveSimulationWorkerController) => void) => void) | null
+  >(null);
   const runtimeDocumentRef = useRef(runtimeDocument);
   const resetSimulationRef = useRef(resetSimulation);
   const committedHostSessionRef = useRef<{
@@ -382,10 +384,9 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
   }, [projectId, simulationRunning]);
 
   useEffect(() => {
-    const controller = simulationWorkerRef.current;
-    if (!controller) return;
+    let controller = simulationWorkerRef.current;
     if (!simulationRunning) {
-      controller.stop();
+      controller?.stop();
       return;
     }
     const initialDocument = runtimeDocumentRef.current;
@@ -395,73 +396,107 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
     const session = committedHostSessionRef.current;
     let active = true;
     const currentSession = () => active && committedHostSessionRef.current === session;
-    controller.start(projectId, initialDocument, {
-      onGenerationPending: () => {
-        if (!currentSession()) return;
-        simulationStartedAtRef.current = null;
-        setGenerationPending(true);
-        setCommittedHorizonMicroseconds(0);
-        setLiveResult(null);
-        setSimulationMessage(null);
-      },
-      onInitialReady: (hostOffsetMicroseconds) => {
-        if (!currentSession() || simulationStartedAtRef.current !== null) return;
-        simulationHostOffsetMicrosecondsRef.current = hostOffsetMicroseconds;
-        requestedHorizonMicrosecondsRef.current = hostOffsetMicroseconds;
-        simulationStartedAtRef.current = window.performance.now();
-      },
-      onResult: (nextResult) => {
-        if (!currentSession()) return;
-        setGenerationPending(false);
-        setLiveResult(nextResult);
-        setSimulationMessage(circuitStateMessage(nextResult));
-        confirmSimulationStarted();
-      },
-      onCommittedHorizon: (horizon) => {
-        if (currentSession()) setCommittedHorizonMicroseconds(horizon);
-      },
-      onSerialProjection: (serial) => {
-        if (!currentSession()) return;
-        setArduinoSerialByBoard(
-          Object.fromEntries(serial.map((entry) => [entry.componentId, entry])) as Readonly<
-            Record<string, ElectronicsArduinoSerialProjection>
-          >,
+    // Only committed document updates and explicit user commands enter this
+    // queue. Host ticks remain idle until the complete initial ready frame.
+    const pendingCommands: Array<(worker: ElectronicsLiveSimulationWorkerController) => void> = [];
+    const dispatch = (command: (worker: ElectronicsLiveSimulationWorkerController) => void) => {
+      if (!currentSession()) return;
+      if (controller) command(controller);
+      else pendingCommands.push(command);
+    };
+    simulationCommandRef.current = dispatch;
+    const fail = (failure: SimulationFailure) => {
+      if (!currentSession()) return;
+      active = false;
+      pendingCommands.length = 0;
+      reportClientDiagnostic('simulation_failed', 'electronics', {
+        phase: 'simulation',
+        category: failure.category,
+        failureCode: failure.code,
+      });
+      setGenerationPending(false);
+      simulationStartedAtRef.current = null;
+      requestedHorizonMicrosecondsRef.current = 0;
+      resetSimulationRef.current();
+      setLiveResult(null);
+      setArduinoSerialByBoard({});
+      setSimulationMessage(simulationFailureMessage(failure));
+    };
+    const start = (worker: ElectronicsLiveSimulationWorkerController) => {
+      if (!currentSession()) return;
+      controller = worker;
+      simulationWorkerRef.current = worker;
+      worker.start(projectId, initialDocument, {
+        onGenerationPending: () => {
+          if (!currentSession()) return;
+          simulationStartedAtRef.current = null;
+          setGenerationPending(true);
+          setCommittedHorizonMicroseconds(0);
+          setLiveResult(null);
+          setSimulationMessage(null);
+        },
+        onInitialReady: (hostOffsetMicroseconds) => {
+          if (!currentSession() || simulationStartedAtRef.current !== null) return;
+          simulationHostOffsetMicrosecondsRef.current = hostOffsetMicroseconds;
+          requestedHorizonMicrosecondsRef.current = hostOffsetMicroseconds;
+          simulationStartedAtRef.current = window.performance.now();
+        },
+        onResult: (nextResult) => {
+          if (!currentSession()) return;
+          setGenerationPending(false);
+          setLiveResult(nextResult);
+          setSimulationMessage(circuitStateMessage(nextResult));
+          confirmSimulationStarted();
+        },
+        onCommittedHorizon: (horizon) => {
+          if (currentSession()) setCommittedHorizonMicroseconds(horizon);
+        },
+        onSerialProjection: (serial) => {
+          if (!currentSession()) return;
+          setArduinoSerialByBoard(
+            Object.fromEntries(serial.map((entry) => [entry.componentId, entry])) as Readonly<
+              Record<string, ElectronicsArduinoSerialProjection>
+            >,
+          );
+        },
+        onFailure: fail,
+      });
+      for (const command of pendingCommands) {
+        if (!currentSession()) break;
+        command(worker);
+      }
+      pendingCommands.length = 0;
+    };
+    if (controller) start(controller);
+    else {
+      void loadSimulationWorkerController()
+        .then((Controller) => {
+          if (currentSession()) start(new Controller());
+        })
+        .catch(() =>
+          fail(
+            new SimulationFailure('technical', 'worker-start', 'Simulation module could not load.'),
+          ),
         );
-      },
-      onFailure: (failure) => {
-        if (!currentSession()) return;
-        reportClientDiagnostic('simulation_failed', 'electronics', {
-          phase: 'simulation',
-          category: failure.category,
-          failureCode: failure.code,
-        });
-        setGenerationPending(false);
-        simulationStartedAtRef.current = null;
-        requestedHorizonMicrosecondsRef.current = 0;
-        resetSimulationRef.current();
-        setLiveResult(null);
-        setArduinoSerialByBoard({});
-        setSimulationMessage(simulationFailureMessage(failure));
-      },
-    });
+    }
     return () => {
       active = false;
-      controller.stop();
+      pendingCommands.length = 0;
+      if (simulationCommandRef.current === dispatch) simulationCommandRef.current = null;
+      controller?.stop();
     };
   }, [confirmSimulationStarted, projectId, setNotice, simulationRunning]);
 
   useEffect(() => {
     if (!runtimeDocument || !simulationRunning) return;
-    simulationWorkerRef.current?.update(runtimeDocument, requestedHorizonMicrosecondsRef.current);
+    const horizon = requestedHorizonMicrosecondsRef.current;
+    simulationCommandRef.current?.((worker) => worker.update(runtimeDocument, horizon));
   }, [runtimeDocument, simulationRunning]);
 
   function sendArduinoSerialRx(boardId: string, text: string): void {
     if (!simulationRunning || !text) return;
-    simulationWorkerRef.current?.sendSerialRx(
-      boardId,
-      text,
-      requestedHorizonMicrosecondsRef.current,
-    );
+    const horizon = requestedHorizonMicrosecondsRef.current;
+    simulationCommandRef.current?.((worker) => worker.sendSerialRx(boardId, text, horizon));
   }
 
   const result = useMemo(
@@ -1423,7 +1458,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
     simulationHostOffsetMicrosecondsRef.current = 0;
     requestedHorizonMicrosecondsRef.current = 0;
     setLiveResult(null);
-    simulationWorkerRef.current?.restart(currentRuntimeDocument);
+    simulationCommandRef.current?.((worker) => worker.restart(currentRuntimeDocument));
     setNotice('Arduino перезапущена: setup() и loop() выполняются сначала.');
   }
 

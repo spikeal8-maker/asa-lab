@@ -126,6 +126,7 @@ components:
     - docs/product/electronics/ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md#5-e-opt-2--dedicated-electronics-worker
     sources:
     - apps/web/src/electronics/live-simulation-worker-controller.ts
+    - apps/web/src/electronics/load-simulation-worker-controller.ts
     - apps/web/src/electronics/use-electronics-workbench.ts
     - apps/web/src/electronics/use-workbench-project-state.ts
     tests:

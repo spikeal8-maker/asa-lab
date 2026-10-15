@@ -4,6 +4,8 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api, type Project, type SchematicDocument, type SolveResult } from '../../api';
 import type { LiveSimulationWorkerCallbacks } from '../live-simulation-worker-controller';
+import { ElectronicsLiveSimulationWorkerController } from '../live-simulation-worker-controller';
+import { loadSimulationWorkerController } from '../load-simulation-worker-controller';
 import { SimulationFailure } from '../simulation-failure';
 import { useElectronicsWorkbench } from '../use-electronics-workbench';
 
@@ -49,6 +51,9 @@ vi.mock('../live-simulation-worker-controller', () => ({
 vi.mock('../use-piezo-audio', () => ({
   unlockPiezoAudio: async () => {},
   usePiezoAudio: () => {},
+}));
+vi.mock('../load-simulation-worker-controller', () => ({
+  loadSimulationWorkerController: vi.fn(),
 }));
 vi.mock('../../client-diagnostics', () => ({ reportClientDiagnostic: vi.fn() }));
 (
@@ -103,6 +108,16 @@ function Probe({ id = 'clock-project' }: { id?: string }) {
   );
 }
 const worker = () => transport.instances.at(-1)!;
+function deferredController() {
+  let resolve!: (controller: typeof ElectronicsLiveSimulationWorkerController) => void;
+  let reject!: (reason: Error) => void;
+  const promise = new Promise<typeof ElectronicsLiveSimulationWorkerController>((done, fail) => {
+    resolve = done;
+    reject = fail;
+  });
+  vi.mocked(loadSimulationWorkerController).mockReturnValueOnce(promise);
+  return { resolve: () => resolve(ElectronicsLiveSimulationWorkerController), reject };
+}
 async function mount(id = 'clock-project') {
   await act(async () =>
     root.render(createElement(Suspense, { fallback: 'pending' }, createElement(Probe, { id }))),
@@ -127,6 +142,9 @@ beforeEach(() => {
   localStorage.clear();
   transport.instances.length = 0;
   transport.autoReady = true;
+  vi.mocked(loadSimulationWorkerController)
+    .mockReset()
+    .mockResolvedValue(ElectronicsLiveSimulationWorkerController);
   renders = 0;
   suspendRender = null;
   onLayoutCommit = null;
@@ -166,6 +184,174 @@ afterEach(async () => {
   vi.useRealTimers();
 });
 describe('mounted workbench host demand clock', () => {
+  it('loads only after Start and preserves every pending committed input in order before H0', async () => {
+    const loading = deferredController();
+    transport.autoReady = false;
+    await mount();
+    await tick(50);
+    expect(loadSimulationWorkerController).not.toHaveBeenCalled();
+    expect(transport.instances).toHaveLength(0);
+    await act(async () => workbench.toggleSimulation());
+    expect(loadSimulationWorkerController).toHaveBeenCalledTimes(1);
+    await tick(2000);
+    expect(workbench.simulationStatus).toBe('starting');
+    expect(workbench.simulationTimeMs).toBe(0);
+    expect(transport.instances).toHaveLength(0);
+    await act(async () => workbench.toggleComponentState('switch'));
+    workbench.sendArduinoSerialRx('uno', 'first');
+    const source = 'void setup(){}void loop(){delay(77);}';
+    await act(async () => workbench.updateArduinoProgram('uno', { arduinoSource: source }));
+    await act(async () => workbench.resetArduinoRuntime('uno'));
+    workbench.sendArduinoSerialRx('uno', 'after reset');
+    await act(async () => workbench.toggleComponentState('switch'));
+    await act(async () => loading.resolve());
+    const instance = worker();
+    expect(instance.start).toHaveBeenCalledTimes(1);
+    expect(instance.start.mock.calls[0]![1].components[1].state).toBe(false);
+    const calls = [
+      ...instance.update.mock.calls.map((args, i) => ({
+        order: instance.update.mock.invocationCallOrder[i]!,
+        value: [
+          'update',
+          args[0].components[1].state,
+          args[0].components[0].stateProperties.arduinoSource,
+          args[1],
+        ],
+      })),
+      ...instance.sendSerialRx.mock.calls.map((args, i) => ({
+        order: instance.sendSerialRx.mock.invocationCallOrder[i]!,
+        value: ['serial', ...args],
+      })),
+      ...instance.restart.mock.calls.map((args, i) => ({
+        order: instance.restart.mock.invocationCallOrder[i]!,
+        value: [
+          'restart',
+          args[0].components[1].state,
+          args[0].components[0].stateProperties.arduinoSource,
+        ],
+      })),
+    ]
+      .sort((a, b) => a.order - b.order)
+      .map((call) => call.value);
+    expect(calls).toEqual([
+      ['update', false, initial.components[0]!.stateProperties!.arduinoSource, 0],
+      ['update', true, initial.components[0]!.stateProperties!.arduinoSource, 0],
+      ['serial', 'uno', 'first', 0],
+      ['update', true, source, 0],
+      ['restart', true, source],
+      ['serial', 'uno', 'after reset', 0],
+      ['update', false, source, 0],
+    ]);
+    await tick(500);
+    expect(workbench.simulationTimeMs).toBe(0);
+    await act(async () => {
+      instance.callbacks!.onInitialReady!(0);
+      instance.callbacks!.onCommittedHorizon!(0);
+      instance.callbacks!.onResult(ready);
+    });
+    await tick(10);
+    expect(instance.update.mock.calls.at(-1)![1]).toBe(10_000);
+    expect(api.saveDraft).not.toHaveBeenCalled();
+  });
+
+  it('reports a failed capability load and retries on the next Start', async () => {
+    const loading = deferredController();
+    await mount();
+    await act(async () => workbench.toggleSimulation());
+    workbench.sendArduinoSerialRx('uno', 'discard failed run');
+    await act(async () => loading.reject(new Error('chunk unavailable')));
+    expect(workbench.simulationRunning).toBe(false);
+    expect(workbench.simulationMessage?.code).toBe('worker-start');
+    expect(workbench.result).toBeNull();
+    expect(transport.instances).toHaveLength(0);
+    await act(async () => workbench.toggleSimulation());
+    expect(loadSimulationWorkerController).toHaveBeenCalledTimes(2);
+    expect(worker().sendSerialRx).not.toHaveBeenCalled();
+    expect(workbench.result).toBe(ready);
+    await tick(10);
+    expect(worker().update.mock.calls.at(-1)![1]).toBe(10_000);
+  });
+
+  for (const outcome of ['resolve', 'reject'] as const) {
+    it(`ignores stale load ${outcome} after Stop and a newer Start`, async () => {
+      const loading = deferredController();
+      await mount();
+      await act(async () => workbench.toggleSimulation());
+      workbench.sendArduinoSerialRx('uno', 'old run');
+      await act(async () => workbench.toggleSimulation());
+      expect(workbench.simulationRunning).toBe(false);
+      await act(async () => workbench.toggleSimulation());
+      const current = worker();
+      await act(async () =>
+        outcome === 'resolve' ? loading.resolve() : loading.reject(new Error('old failure')),
+      );
+      expect(transport.instances).toHaveLength(1);
+      expect(worker()).toBe(current);
+      expect(current.start).toHaveBeenCalledTimes(1);
+      expect(current.sendSerialRx).not.toHaveBeenCalled();
+      expect(workbench.simulationMessage).toBeNull();
+      expect(workbench.result).toBe(ready);
+    });
+  }
+
+  for (const destination of ['replacement', 'unmount'] as const) {
+    it(`discards a pending capability after ${destination}`, async () => {
+      const loading = deferredController();
+      await mount();
+      await act(async () => workbench.toggleSimulation());
+      workbench.sendArduinoSerialRx('uno', 'old project');
+      if (destination === 'replacement') await mount('replacement');
+      else await act(async () => root.render(null));
+      await act(async () => loading.resolve());
+      expect(transport.instances).toHaveLength(0);
+      if (destination === 'replacement') {
+        await act(async () => workbench.toggleSimulation());
+        expect(worker().start.mock.calls[0]![0]).toBe('replacement');
+        expect(worker().sendSerialRx).not.toHaveBeenCalled();
+      }
+    });
+  }
+
+  for (const strict of [false, true]) {
+    it(`keeps a pending load across Suspense hide/reveal${strict ? ' with StrictMode' : ''}`, async () => {
+      const loading = deferredController();
+      transport.autoReady = false;
+      const scene = () => {
+        const child = createElement(Suspense, { fallback: 'pending' }, createElement(Probe));
+        return strict ? createElement(StrictMode, null, child) : child;
+      };
+      await act(async () => root.render(scene()));
+      await act(async () => workbench.toggleSimulation());
+      await act(async () => workbench.toggleComponentState('switch'));
+      let resume!: () => void;
+      await act(async () => {
+        suspendRender = new Promise<void>((resolve) => {
+          resume = resolve;
+        });
+        root.render(scene());
+      });
+      expect(host.textContent).toContain('pending');
+      await act(async () => loading.resolve());
+      expect(worker().start).toHaveBeenCalledTimes(1);
+      expect(worker().update.mock.calls.at(-1)![0].components[1].state).toBe(true);
+      await tick(500);
+      expect(workbench.simulationTimeMs).toBe(0);
+      await act(async () => {
+        suspendRender = null;
+        resume();
+      });
+      expect(host.textContent).not.toContain('pending');
+      expect(loadSimulationWorkerController).toHaveBeenCalledTimes(1);
+      await act(async () => {
+        worker().callbacks!.onInitialReady!(0);
+        worker().callbacks!.onCommittedHorizon!(0);
+        worker().callbacks!.onResult(ready);
+      });
+      await tick(10);
+      expect(worker().update.mock.calls.at(-1)![1]).toBe(10_000);
+    });
+  }
+
   it('waits through preflight and H0, then retains elapsed demand across later ready frames', async () => {
     transport.autoReady = false;
     await mount();
@@ -430,6 +616,7 @@ describe('mounted workbench host demand clock', () => {
     // Separate event turns prevent React test batching from hiding tick renders.
     for (let turn = 0; turn < 10; turn += 1) await tick(10);
     expect(renders).toBe(before);
+    expect(loadSimulationWorkerController).toHaveBeenCalledTimes(1);
     expect(worker().update.mock.calls.map((call) => call[1])).toEqual([
       10_000, 20_000, 30_000, 40_000, 50_000, 60_000, 70_000, 80_000, 90_000, 100_000,
     ]);
@@ -487,6 +674,7 @@ describe('mounted workbench host demand clock', () => {
     expect(worker().update).not.toHaveBeenCalled();
     await act(async () => workbench.toggleSimulation());
     await tick(10);
+    expect(loadSimulationWorkerController).toHaveBeenCalledTimes(1);
     expect(worker().update.mock.calls.at(-1)![1]).toBe(10_000);
     worker().update.mockClear();
     oldTick();

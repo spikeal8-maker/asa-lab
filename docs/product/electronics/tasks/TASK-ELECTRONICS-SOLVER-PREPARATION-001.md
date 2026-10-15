@@ -233,6 +233,12 @@ ONE bounded author may replace eager controller construction in apps/web/src/ele
 
 Targeted mounted-hook deferred-success/failure/retry/input/stale/lifecycle tests, type/lint and actual build size/dependency evidence are required. One final SHA then author STOP. Root actual review and NEW independent final source review precede changed-cause seven-case production browser, exact required General/ordinary evidence and NEW product review. Existing source or mathematical approvals are not combined product acceptance. Full per-LED above60Hz policy remains another necessary bounded repair of this same goal. Foreign work and school/DB/server/network/deployment untouched.
 
+### Startup dependency author evidence
+
+The hook now imports the complete unchanged controller/client capability only after committed Start through one loader; a successful instance is reused on subsequent runs. Committed document snapshots, Serial and Arduino reset commands are replayed in original order after loading. Cleanup/failure releases the pending queue, while existing layout/session guards reject stale completion. No host ticks enter the queue before H0. No arbitrary input limit, timeout, eager preload, budget change or physics edit was introduced. As with existing controller pending inputs, indefinite loading plus continued user input can retain an uncapped command queue until cancellation/failure; commands are not silently discarded.
+
+Short local Vite builds measured SchematicEditor 210346 -> 196484 bytes against the unchanged 209000 ceiling. The manifest exposes the controller as a dynamic entry absent from the editor's recursive static-import graph; all existing bundle checks pass. Targeted mounted-hook20 and controller52 tests pass, including pending command order, H0 anchoring, stale success/rejection, Stop/replacement/unmount, Suspense/StrictMode and single-load reuse. Web typecheck and focused lint pass. These direct runs execute no Nx tasks and do not replace required final CI or product review. Loader-retry tests prove a new hook attempt with a recoverable mocked loader, not universal browser module-cache/network recovery. Real cold-load wall latency, native network failure/retry and all seven unchanged production browser scenarios remain for final exact evidence. Controller/client/runtime and original browser assertions remain unchanged from the preserved CPU candidate.
+
 
 ## R15 follow-up: measured no-delay throughput and required scheduler responsibility review
 
