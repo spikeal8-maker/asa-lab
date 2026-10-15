@@ -536,7 +536,15 @@ try {
   assert.ok(projectId && UUID_RE.test(projectId), 'runtime-session must expose created project id');
 
   expect(portalCookieLeaked, 'Editor persistence must omit account cookies').toBe(false);
-  await expect(page.locator('iframe')).toHaveAttribute('src', '/internal/blocks/?asaStatus=parent');
+  const runtimeSource = await page.locator('iframe').getAttribute('src');
+  assert.ok(runtimeSource?.startsWith('/internal/blocks/?'));
+  const runtimeEntry = new URL(runtimeSource, origin);
+  expect(runtimeEntry.origin).toBe(origin);
+  expect(runtimeEntry.pathname).toBe('/internal/blocks/');
+  expect(runtimeEntry.hash).toBe('');
+  expect([...runtimeEntry.searchParams.keys()].sort()).toEqual(['asaStatus', 'diagnosticInstance']);
+  expect(runtimeEntry.searchParams.get('asaStatus')).toBe('parent');
+  expect(runtimeEntry.searchParams.get('diagnosticInstance')).toMatch(UUID_RE);
 
   const marker = `ASA Durable Sprite ${projectId.slice(0, 8)}`;
   const variable = `ASA_Durable_Proof_${projectId.slice(0, 6)}`;

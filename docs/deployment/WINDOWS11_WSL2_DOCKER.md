@@ -31,14 +31,15 @@ mkdir -p ~/work
 cd ~/work
 git clone https://github.com/spikeal8-maker/asa-lab.git
 cd asa-lab
-./tools/asa-lab.sh doctor
 ```
 
 ## Private local configuration
 
-The `doctor` command above creates an ignored `.env` with consistent generated
-credentials. To manage credentials manually instead, remove the generated file,
-copy the template and replace every placeholder secret:
+The first `up` below creates an ignored `.env` with consistent generated
+credentials. `doctor` is read-only: before the first startup it reports missing
+private configuration and exits without creating files. After startup it checks
+the existing configuration. To configure a new installation manually before
+`up`, copy the template and replace every placeholder secret:
 
 ```bash
 cp .env.docker.example .env

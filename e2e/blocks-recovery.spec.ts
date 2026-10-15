@@ -285,11 +285,13 @@ test('pagehide before the local debounce flushes newest recovery for a fresh bro
     let frame = page.frameLocator('iframe[title="Scratch runtime"]');
     await waitReady(frame);
 
+    // Pause against the browser's own clock, while the project is still clean.
+    // A future boundary avoids racing the running clock with host wall time.
+    await page.clock.pauseAt(await page.evaluate(() => Date.now() + 60_000));
     const program = frame.locator('.blocklyBlockCanvas').first();
     await program.getByText('10', { exact: true }).dblclick();
     const input = frame.locator('.blocklyHtmlInput:focus');
     await input.fill('73');
-    await page.clock.pauseAt(Date.now());
     await input.press('Enter');
     await page.clock.runFor(100);
     await expect(program.getByText('73', { exact: true })).toBeVisible();
