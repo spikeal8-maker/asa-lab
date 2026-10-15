@@ -369,10 +369,7 @@ test('Diagnostic: real Arduino Blocks 1s to 100ms, rapid close and running drag'
   };
   const milliseconds = async (id: string) => {
     await block(id).locator('text').filter({ hasText: /^с$/ }).first().click();
-    await page
-      .locator('.blocklyDropdownMenu [role^="menuitem"]')
-      .filter({ hasText: /^мс$/ })
-      .click();
+    await page.getByRole('listbox').getByRole('option', { name: 'мс', exact: true }).click();
   };
   const run = async (source: string, horizon: number) => {
     await page.getByRole('button', { name: 'Начать моделирование', exact: true }).click();
