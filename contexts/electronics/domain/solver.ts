@@ -24,6 +24,7 @@ import { buildNetlist, terminalKey } from './netlist.js';
 import { solveLinear } from './linear-system.js';
 import { planCapacitorConstraints, recoverCapacitorCurrents } from './capacitor-constraints.js';
 import {
+  electricalModelFor,
   unsupportedElectricalComponents,
   validateElectricalTerminalContract,
 } from './model-registry.js';
@@ -418,7 +419,90 @@ export interface SolveOptions {
 /** Capacitor-voltage and motor-current continuity in zero-duration event frames. */
 export const ELECTRICAL_EVENT_FRAME_VERSION = 2;
 
+interface ArduinoAlgebraicPoint {
+  readonly solution: number[];
+  readonly matrix: number[][];
+  readonly rhs: number[];
+  readonly diodeStates: ReadonlyMap<string, boolean>;
+  readonly diodeSegments: ReadonlyMap<string, number>;
+  readonly iterations: number;
+}
+
+/** Numerical work only. Owned by one scheduler advance, never persisted or shared. */
+export function createArduinoOperatingPointReuse() {
+  let previousDocument: ElectronicsDocument | undefined;
+  let eligible = false;
+  let previousKey: readonly unknown[] | undefined;
+  let slot: { point?: ArduinoAlgebraicPoint } = {};
+  return (
+    document: ElectronicsDocument,
+    branches: readonly (ReturnType<typeof arduinoOutputBranchesFromSnapshot>[number] & {
+      readonly component: SchematicComponent;
+    })[],
+    snapshots: ReadonlyMap<string, ArduinoRuntimeSnapshot>,
+    failedIds: ReadonlySet<string>,
+  ): { point?: ArduinoAlgebraicPoint } | undefined => {
+    if (previousDocument !== document) {
+      previousDocument = document;
+      previousKey = undefined;
+      slot = {};
+      eligible = document.components.every((component) => {
+        const model = electricalModelFor(component);
+        return (
+          model.support === 'supported' &&
+          model.version === 1 &&
+          model.profileVersion === 1 &&
+          ((model.id === 'arduino-uno' &&
+            model.profileId === 'arduino-uno-r3' &&
+            isArduinoUno(component)) ||
+            (model.id === 'resistor' &&
+              model.profileId === 'axial-resistor' &&
+              component.kind === 'resistor') ||
+            (model.id === 'ordinary-led' &&
+              model.profileId === 'generic-red-led' &&
+              component.kind === 'led'))
+        );
+      });
+    }
+    if (!eligible || [...snapshots.values()].some((snapshot) => snapshot.diagnostics.length > 0)) {
+      previousKey = undefined;
+      slot = {};
+      return undefined;
+    }
+    const key: unknown[] = [failedIds.size, ...failedIds, branches.length];
+    for (const branch of branches)
+      key.push(
+        branch.component.id,
+        branch.id,
+        branch.terminal,
+        branch.ground,
+        branch.targetVoltage,
+        branch.resistanceOhm,
+      );
+    key.push(snapshots.size);
+    for (const [id, snapshot] of snapshots) {
+      key.push(id, snapshot.pinModes.size);
+      for (const [terminal, mode] of snapshot.pinModes) key.push(terminal, mode);
+      key.push(snapshot.tones.size);
+      for (const [terminal, tone] of snapshot.tones)
+        key.push(terminal, tone.terminal, tone.frequencyHz, tone.source);
+    }
+    if (
+      !previousKey ||
+      key.length !== previousKey.length ||
+      !key.every((value, index) => Object.is(value, previousKey![index]))
+    ) {
+      previousKey = key;
+      slot = {};
+    }
+    return slot;
+  };
+}
+
+type ArduinoOperatingPointReuse = ReturnType<typeof createArduinoOperatingPointReuse>;
+
 interface InternalSolveOptions extends SolveOptions {
+  readonly operatingPointReuse?: ArduinoOperatingPointReuse | undefined;
   readonly preparation?: CircuitSolvePreparation | undefined;
   readonly transientStepSeconds?: number;
   readonly capacitorPreviousVoltageById?: Readonly<Record<string, number>>;
@@ -1299,6 +1383,7 @@ function solveCircuitBase(
   if (!transientRequested)
     return solveCircuitStep(document, {
       preparation: options.preparation,
+      operatingPointReuse: options.operatingPointReuse,
       ...options,
       arduinoRuntimeStateById: arduinoRuntimeStatesFromController(options.controllerState),
     });
@@ -1450,6 +1535,7 @@ function solveCircuitBase(
   if (options.clockedRcTransient && startTimeMs === targetTimeMs) {
     const frame = solveCircuitStep(document, {
       preparation: options.preparation,
+      operatingPointReuse: options.operatingPointReuse,
       simulationTimeMs: targetTimeMs,
       heldArduinoSnapshots: options.heldArduinoSnapshots,
       hcSr04RuntimeStateById: options.hcSr04RuntimeStateById,
@@ -1537,6 +1623,7 @@ function solveCircuitBase(
     if (orderedCapacitors.length === 0) {
       acceptedResult = solveCircuitStep(document, {
         preparation: options.preparation,
+        operatingPointReuse: options.operatingPointReuse,
         ...common,
         simulationTimeMs: stepEndTimeMs,
         transientStepSeconds: stepMs / 1_000,
@@ -1558,6 +1645,7 @@ function solveCircuitBase(
       // state instead of asymptotically freezing at VBE.
       const switched = solveCircuitStep(document, {
         preparation: options.preparation,
+        operatingPointReuse: options.operatingPointReuse,
         ...common,
         simulationTimeMs: stepEndTimeMs,
         transientStepSeconds: stepMs / 1_000,
@@ -1585,6 +1673,7 @@ function solveCircuitBase(
     } else {
       const full = solveCircuitStep(document, {
         preparation: options.preparation,
+        operatingPointReuse: options.operatingPointReuse,
         ...common,
         simulationTimeMs: stepEndTimeMs,
         transientStepSeconds: stepMs / 1_000,
@@ -1592,6 +1681,7 @@ function solveCircuitBase(
       const halfStepMs = stepMs / 2;
       const firstHalf = solveCircuitStep(document, {
         preparation: options.preparation,
+        operatingPointReuse: options.operatingPointReuse,
         ...common,
         simulationTimeMs: currentTimeMs + halfStepMs,
         transientStepSeconds: halfStepMs / 1_000,
@@ -1607,6 +1697,7 @@ function solveCircuitBase(
         : motorStateById;
       const secondHalf = solveCircuitStep(document, {
         preparation: options.preparation,
+        operatingPointReuse: options.operatingPointReuse,
         simulationTimeMs: stepEndTimeMs,
         transientStepSeconds: halfStepMs / 1_000,
         capacitorPreviousVoltageById: halfVoltageById,
@@ -1802,6 +1893,7 @@ function solveCircuitBase(
     if (failureOccurred) {
       const postFailure = solveCircuitStep(document, {
         preparation: options.preparation,
+        operatingPointReuse: options.operatingPointReuse,
         heldArduinoSnapshots: options.heldArduinoSnapshots,
         hcSr04RuntimeStateById: options.hcSr04RuntimeStateById,
         pingUltrasonicRuntimeStateById: options.pingUltrasonicRuntimeStateById,
@@ -1872,6 +1964,7 @@ function solveCircuitBase(
       finalResult ??
       solveCircuitStep(document, {
         preparation: options.preparation,
+        operatingPointReuse: options.operatingPointReuse,
         heldArduinoSnapshots: options.heldArduinoSnapshots,
         hcSr04RuntimeStateById: options.hcSr04RuntimeStateById,
         pingUltrasonicRuntimeStateById: options.pingUltrasonicRuntimeStateById,
@@ -2080,9 +2173,11 @@ export function solveCircuitWithHeldArduino(
   pingUltrasonicStates?: ReadonlyMap<string, PingUltrasonicRuntimeState>,
   servoStates?: ReadonlyMap<string, ServoMotorRuntimeState>,
   preparation?: CircuitSolvePreparation,
+  operatingPointReuse?: ArduinoOperatingPointReuse,
 ): SolveResult {
   return solveCircuitStep(document, {
     preparation,
+    operatingPointReuse,
     simulationTimeMs,
     heldArduinoSnapshots: snapshots,
     ...(hcSr04States ? { hcSr04RuntimeStateById: hcSr04States } : {}),
@@ -2166,9 +2261,11 @@ export function solveRcCircuitWithHeldArduino(
   pingUltrasonicStates?: ReadonlyMap<string, PingUltrasonicRuntimeState>,
   servoStates?: ReadonlyMap<string, ServoMotorRuntimeState>,
   preparation?: CircuitSolvePreparation,
+  operatingPointReuse?: ArduinoOperatingPointReuse,
 ): SolveResult {
   return solveCircuitBase(document, {
     preparation,
+    operatingPointReuse,
     simulationTimeMs,
     ...(transientState ? { transientState } : {}),
     heldArduinoSnapshots: snapshots,
@@ -2757,7 +2854,23 @@ function solveCircuitStep(
   const voltageFrom = (values: number[], node: number): number =>
     referenceNodes.has(node) ? 0 : (values[nodeVariables.get(node) as number] as number);
 
-  for (; iterations <= maxIterations; iterations += 1) {
+  const pointSlot = options.operatingPointReuse?.(
+    document,
+    arduinoBranches,
+    arduinoSnapshots,
+    failedComponentIds,
+  );
+  const reusedPoint = pointSlot?.point;
+  if (reusedPoint) {
+    solution = reusedPoint.solution;
+    finalMatrix = reusedPoint.matrix;
+    finalRhs = reusedPoint.rhs;
+    iterations = reusedPoint.iterations;
+    converged = true;
+    for (const [key, value] of reusedPoint.diodeStates) diodeStates.set(key, value);
+    for (const [key, value] of reusedPoint.diodeSegments) diodeSegmentIndices.set(key, value);
+  }
+  for (; !reusedPoint && iterations <= maxIterations; iterations += 1) {
     const matrix = Array.from({ length: size }, () => Array<number>(size).fill(0));
     const rhs = Array<number>(size).fill(0);
     const stampConductance = (left: number, right: number, conductance: number): void => {
@@ -4465,6 +4578,22 @@ function solveCircuitStep(
     });
   }
 
+  if (
+    pointSlot &&
+    !reusedPoint &&
+    finalMatrix &&
+    finalRhs &&
+    diagnostics.every((diagnostic) => diagnostic.code === 'circuit_ok')
+  ) {
+    pointSlot.point = {
+      solution,
+      matrix: finalMatrix,
+      rhs: finalRhs,
+      diodeStates: new Map(diodeStates),
+      diodeSegments: new Map(diodeSegmentIndices),
+      iterations,
+    };
+  }
   const nodes: NodeResult[] = Array.from({ length: netlist.nodeCount }, (_, node) => ({
     id: `net-${node}`,
     voltage: round(voltageFrom(solution as number[], node)),

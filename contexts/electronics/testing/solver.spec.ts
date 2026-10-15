@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import * as linearSystem from '../domain/linear-system';
 import {
   parseElectronicsDocument,
   type ComponentKind,
@@ -24,12 +25,14 @@ import {
 } from '../domain/led-model';
 import {
   prepareCircuitSolve,
+  createArduinoOperatingPointReuse,
   solveCircuit,
   solveCircuitWithHeldArduino,
   solveRcCircuitWithHeldArduino,
 } from '../domain/solver';
 import { arduinoSnapshotFromState } from '../domain/arduino-model';
 import { advanceArduinoRuntime } from '../domain/arduino-program-runtime';
+import type { ArduinoRuntimeState } from '../domain/arduino-program-runtime';
 import {
   canonicalPhotoresistorProfileRegistry,
   photoresistorIlluminanceLux,
@@ -338,6 +341,216 @@ describe('advance-local immutable solve preparation', () => {
       preparation,
     );
     expect(bytes(failedFrame)).not.toBe(bytes(initial));
+  });
+});
+
+describe('advance-local Arduino algebraic operating point', () => {
+  const source = 'void setup(){pinMode(13,OUTPUT);digitalWrite(13,HIGH);}void loop(){delay(1000);}';
+  const fixture = () =>
+    doc(
+      [
+        component('uno', 'visual', 5, {
+          componentTypeId: 'arduino-uno',
+          pinIds: ['d13', 'power-5v', 'power-3v3', 'power-gnd-1'],
+          stateProperties: { arduinoSource: source },
+        }),
+        component('r', 'resistor', 330, {
+          componentTypeId: 'resistor-axial',
+          pinIds: ['lead-1', 'lead-2'],
+        }),
+        component('led', 'led', 2, {
+          componentTypeId: 'led-5mm',
+          pinIds: ['anode', 'cathode'],
+        }),
+      ],
+      [
+        connect('a', 'uno', 'd13', 'r', 'lead-1'),
+        connect('b', 'r', 'lead-2', 'led', 'anode'),
+        connect('c', 'led', 'cathode', 'uno', 'power-gnd-1'),
+      ],
+    );
+  const snapshots = (state: ArduinoRuntimeState) =>
+    new Map([['uno', arduinoSnapshotFromState(state)]]);
+  const encode = (value: unknown) =>
+    JSON.stringify(value, (_key, entry) =>
+      entry === undefined
+        ? { undefined: true }
+        : typeof entry === 'number'
+          ? Object.is(entry, -0)
+            ? { number: '-0' }
+            : !Number.isFinite(entry)
+              ? { number: String(entry) }
+              : entry
+          : entry,
+    );
+
+  it('reuses numerical work while rebuilding current controller and independent result objects', () => {
+    const document = fixture();
+    const reuse = createArduinoOperatingPointReuse();
+    const state = advanceArduinoRuntime(source).state;
+    const solve = (time: number, current = state) =>
+      solveCircuitWithHeldArduino(
+        document,
+        time,
+        snapshots(current),
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        reuse,
+      );
+    const spy = vi.spyOn(linearSystem, 'solveLinear');
+    try {
+      const first = solve(1);
+      expect(first.solved).toBe(true);
+      expect(spy).toHaveBeenCalled();
+      spy.mockClear();
+      const current = { ...state, programCounter: 19, variables: { pupilCounter: 23 } };
+      const second = solve(2, current);
+      expect(spy).not.toHaveBeenCalled();
+      expect(second).not.toBe(first);
+      expect(second.components).not.toBe(first.components);
+      expect(second.controllerState?.simulationTimeMs).toBe(2);
+      expect(second.controllerState?.boards[0]?.runtime).toEqual(current);
+      expect(second.iterations).toBe(first.iterations);
+      const uncached = solveCircuitWithHeldArduino(document, 2, snapshots(current));
+      expect(encode(second)).toBe(encode(uncached));
+      spy.mockClear();
+      // A new scheduler advance owns a new cache, even for the same document.
+      solveCircuitWithHeldArduino(
+        document,
+        2,
+        snapshots(current),
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        createArduinoOperatingPointReuse(),
+      );
+      expect(spy).toHaveBeenCalled();
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('invalidates GPIO, high impedance, pull-up, signed zero, tone and runtime faults', () => {
+    const document = fixture();
+    const reuse = createArduinoOperatingPointReuse();
+    const state = advanceArduinoRuntime(source).state;
+    const variants: ArduinoRuntimeState[] = [
+      state,
+      { ...state, outputVoltages: { d13: 0 } },
+      { ...state, outputVoltages: { d13: -0 } },
+      { ...state, pinModes: { d13: 'INPUT' }, outputVoltages: {} },
+      { ...state, pinModes: { d13: 'INPUT_PULLUP' }, outputVoltages: {} },
+      { ...state, tones: { d13: { frequencyHz: 500 } } },
+      { ...state, faults: [{ code: 'arithmetic_error', message: 'division by zero' }] },
+      { ...state, outputVoltages: { d13: NaN } },
+      { ...state, outputVoltages: { d13: Infinity } },
+      state,
+    ];
+    for (const [index, current] of variants.entries()) {
+      const expected = solveCircuitWithHeldArduino(document, index, snapshots(current));
+      for (let repeat = 0; repeat < 2; repeat++)
+        expect(
+          encode(
+            solveCircuitWithHeldArduino(
+              document,
+              index,
+              snapshots(current),
+              undefined,
+              undefined,
+              undefined,
+              undefined,
+              reuse,
+            ),
+          ),
+        ).toBe(encode(expected));
+    }
+  });
+
+  it('rebuilds carried temperature, damage and failed-open observations', () => {
+    const document = fixture();
+    const snapshot = snapshots(advanceArduinoRuntime(source).state);
+    const reuse = createArduinoOperatingPointReuse();
+    const initial = solveRcCircuitWithHeldArduino(document, 1, snapshot).transientState!;
+    expect(initial.thermal.length).toBeGreaterThan(0);
+    for (const thermal of [
+      initial.thermal,
+      initial.thermal.map((entry) => ({
+        ...entry,
+        temperatureCelsius: 80,
+        accumulatedDamage: 0.123,
+      })),
+      initial.thermal.map((entry) => ({ ...entry, failureMode: 'open' as const })),
+      initial.thermal,
+    ]) {
+      const carried = { ...initial, thermal };
+      const expected = solveRcCircuitWithHeldArduino(document, 2, snapshot, carried);
+      const actual = solveRcCircuitWithHeldArduino(
+        document,
+        2,
+        snapshot,
+        carried,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        reuse,
+      );
+      expect(encode(actual)).toBe(encode(expected));
+    }
+  });
+
+  it('rejects stale document identity, unknown model versions and other electrical models', () => {
+    const original = fixture();
+    const reuse = createArduinoOperatingPointReuse();
+    const snapshot = snapshots(advanceArduinoRuntime(source).state);
+    const documents = [
+      original,
+      {
+        ...original,
+        components: original.components.map((entry) =>
+          entry.id === 'r' ? { ...entry, value: 470 } : entry,
+        ),
+      },
+      { ...original, connections: original.connections.slice(1) },
+      {
+        ...original,
+        components: original.components.map((entry) =>
+          entry.id === 'r'
+            ? {
+                ...entry,
+                ...electricalModelIdentityForComponent(entry),
+                electricalModelVersion: 999,
+              }
+            : entry,
+        ),
+      },
+      ...['capacitor', 'lamp', 'photoresistor', 'potentiometer', 'source'].map((kind) => ({
+        ...original,
+        components: [...original.components, component('other', kind as ComponentKind, 1)],
+      })),
+      original,
+    ];
+    for (const document of documents) {
+      const expected = solveCircuitWithHeldArduino(document, 0, snapshot);
+      for (let repeat = 0; repeat < 2; repeat++)
+        expect(
+          encode(
+            solveCircuitWithHeldArduino(
+              document,
+              0,
+              snapshot,
+              undefined,
+              undefined,
+              undefined,
+              undefined,
+              reuse,
+            ),
+          ),
+        ).toBe(encode(expected));
+    }
   });
 });
 

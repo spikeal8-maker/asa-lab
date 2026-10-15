@@ -35,6 +35,7 @@ import { electricalModelFor } from './model-registry.js';
 import { compileCircuit, verifyCircuitQuality, type SimulationQuality } from './simulation.js';
 import {
   prepareCircuitSolve,
+  createArduinoOperatingPointReuse,
   clockedRcStateIsCompatible,
   clockedPhysicalStateIsCompatible,
   solveCircuitWithHeldArduino,
@@ -752,6 +753,7 @@ export function advanceArduinoCircuitClock(
     }
     return solvePreparation;
   };
+  const operatingPointReuse = createArduinoOperatingPointReuse();
   const advancePhysics = (time: number) =>
     withQuality(
       solveRcCircuitWithHeldArduino(
@@ -763,6 +765,7 @@ export function advanceArduinoCircuitClock(
         pingUltrasonicStates,
         servoStates,
         preparation(),
+        operatingPointReuse,
       ),
       time,
     );
@@ -794,6 +797,7 @@ export function advanceArduinoCircuitClock(
               pingUltrasonicStates,
               servoStates,
               preparation(),
+              operatingPointReuse,
             ),
         time,
       );
@@ -807,6 +811,7 @@ export function advanceArduinoCircuitClock(
           pingUltrasonicStates,
           servoStates,
           preparation(),
+          operatingPointReuse,
         ),
         time,
       );

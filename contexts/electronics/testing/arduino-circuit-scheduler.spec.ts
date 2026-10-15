@@ -117,6 +117,119 @@ function through(
   }
   throw new Error('Scheduler did not reach target');
 }
+describe('Arduino operating-point reuse mathematical timing', () => {
+  const ownerCircuit = (delay: number | null) => {
+    const pins = [13, 12, 11];
+    const source = `void setup(){${pins.map((pin) => `pinMode(${pin},OUTPUT);`).join('')}}
+      void loop(){${pins.map((pin) => `digitalWrite(${pin},HIGH);`).join('')}
+      ${delay === null ? '' : `delay(${delay});${pins.map((pin) => `digitalWrite(${pin},LOW);`).join('')}delay(${delay});`}}`;
+    const uno = board('uno', source);
+    const components: SchematicComponent[] = [{ ...uno, pinIds: [...uno.pinIds!, 'd12', 'd11'] }];
+    const wires: [string, string, string, string][] = [];
+    for (const pin of pins) {
+      components.push(
+        {
+          ...part(`r${pin}`, 'resistor', 330),
+          componentTypeId: 'resistor-axial',
+          pinIds: ['lead-1', 'lead-2'],
+        },
+        {
+          ...part(`led${pin}`, 'led', 2),
+          componentTypeId: 'led-5mm',
+          pinIds: ['anode', 'cathode'],
+        },
+      );
+      wires.push(
+        ['uno', `d${pin}`, `r${pin}`, 'lead-1'],
+        [`r${pin}`, 'lead-2', `led${pin}`, 'anode'],
+        [`led${pin}`, 'cathode', 'uno', 'power-gnd-1'],
+      );
+    }
+    return circuit(components, wires);
+  };
+
+  it.each([1, 50, 100, 2000])('keeps exact three-pin fronts for delay(%i)', (delay) => {
+    const document = ownerCircuit(delay);
+    const d = delay * 1000;
+    const period = 2 * d + 9;
+    const end = 2 * period + 8;
+    const done = through(document, end);
+    expect(done.executionStatus).toBe('ready');
+    expect(done.result?.quality.passed).toBe(true);
+    for (const [index, pin] of [13, 12, 11].entries()) {
+      const edges = done.events.filter(
+        (event) => event.kind === 'output-change' && event.terminal === `d${pin}`,
+      );
+      const high = edges.filter((event) => event.voltage === 5);
+      expect(high.map((event) => event.atMicroseconds)).toEqual([
+        4 + index,
+        4 + index + period,
+        4 + index + 2 * period,
+      ]);
+      expect(
+        edges
+          .filter((event) => event.voltage === 0 && event.atMicroseconds > high[0]!.atMicroseconds)
+          .map((event) => event.atMicroseconds),
+      ).toEqual([d + 8 + index, d + 8 + index + period]);
+    }
+    // Partitioning/serialized continuation must not change thermal integration or GPIO.
+    const first = through(document, period);
+    const resumed = through(document, end, JSON.parse(JSON.stringify(first.state)));
+    expect(resumed.state).toEqual(done.state);
+    expect(resumed.result).toEqual(done.result);
+    expect([...first.events, ...resumed.events]).toEqual(done.events);
+  });
+
+  it('keeps a no-delay three-output sketch bounded, exact and complete after JSON yields', () => {
+    const document = ownerCircuit(null);
+    const whole = through(document, 2048);
+    const partitioned = through(document, 2048, undefined, undefined, 7);
+    expect(partitioned.state).toEqual(whole.state);
+    expect(partitioned.result).toEqual(whole.result);
+    expect(partitioned.events).toEqual(whole.events);
+    expect(whole.state?.reachedMicroseconds).toBe(2048);
+    expect(whole.result?.quality.passed).toBe(true);
+    for (const pin of [13, 12, 11])
+      expect(
+        whole.result?.components.find((entry) => entry.componentId === `led${pin}`)?.brightness,
+      ).toBeGreaterThan(0);
+  });
+
+  it('preserves the instruction cost of 2000 delay calls rather than replacing them by one delay', () => {
+    const make = (calls: string) => {
+      const document = ownerCircuit(null);
+      return {
+        ...document,
+        components: document.components.map((entry) =>
+          entry.id === 'uno'
+            ? {
+                ...entry,
+                stateProperties: {
+                  arduinoSource: `void setup(){pinMode(13,OUTPUT);}void loop(){digitalWrite(13,HIGH);${calls}digitalWrite(13,LOW);delay(100);}`,
+                },
+              }
+            : entry,
+        ),
+      };
+    };
+    const single = through(make('delay(2000);'), 2_003_000);
+    const repeated = through(make('delay(1);'.repeat(2000)), 2_003_000);
+    const low = (result: ArduinoCircuitClockAdvance) =>
+      result.events.find(
+        (event) =>
+          event.kind === 'output-change' &&
+          event.terminal === 'd13' &&
+          event.voltage === 0 &&
+          event.atMicroseconds > 2,
+      )!.atMicroseconds;
+    expect(low(single)).toBe(2_000_004);
+    expect(low(repeated)).toBe(2_002_003);
+    expect(low(repeated) - low(single)).toBe(1999);
+    expect(single.result?.quality.passed).toBe(true);
+    expect(repeated.result?.quality.passed).toBe(true);
+  });
+});
+
 const idle = 'void loop(){delay(100);}';
 const runtime = (result: ArduinoCircuitClockAdvance, id = 'uno') =>
   result.state!.boards.find((entry) => entry.componentId === id)!.runtime;
