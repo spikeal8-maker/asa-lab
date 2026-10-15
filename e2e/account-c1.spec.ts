@@ -152,7 +152,7 @@ test('owner completes Account C1 and existing project modules remain available',
   await page.getByLabel(/^Отображаемое имя/).fill('Owner C1 Ready');
   await page.getByRole('button', { name: 'Сохранить изменения' }).click();
   await expect(
-    settingsContent.getByText(/Изменения сохранены|Роль педагога включена/),
+    page.locator('.asa-toast-viewport .asa-toast--success').getByText(/Изменения сохранены|Роль педагога включена/),
   ).toBeVisible();
   await page.screenshot({
     path: `${EVIDENCE_DIR}/03-account-profile-desktop.png`,
@@ -240,7 +240,7 @@ test('owner completes Account C1 and existing project modules remain available',
   await settingsContent.getByRole('button', { name: 'Сохранить пароль', exact: true }).click();
   expect((await passwordChangeResponsePromise).status()).toBe(200);
   await expect(
-    settingsContent.getByText('Пароль изменён. Остальные входы завершены.'),
+    page.locator('.asa-toast-viewport .asa-toast--success').getByText('Пароль изменён. Остальные входы завершены.'),
   ).toBeVisible();
   await expect(currentPasswordInput).toHaveValue('');
   await expect(newPasswordInput).toHaveValue('');
@@ -408,7 +408,7 @@ test('migrated teacher changes password through organization browser login', asy
   await savePasswordButton.click();
   expect((await passwordChangeResponse).status()).toBe(200);
   await expect(
-    settingsContent.getByText('Пароль изменён. Остальные входы завершены.'),
+    page.locator('.asa-toast-viewport .asa-toast--success').getByText('Пароль изменён. Остальные входы завершены.'),
   ).toBeVisible();
 
   const organizationSessionAfterChange = await context.request.get('/api/auth/me');
