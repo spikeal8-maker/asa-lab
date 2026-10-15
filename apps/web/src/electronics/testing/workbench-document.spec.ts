@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
+import { parseElectronicsDocument } from '@asa-lab/electronics';
 import type { SchematicDocument } from '../../api';
 import {
   configureProductionLibrary,
@@ -68,6 +69,49 @@ beforeAll(() => {
   configureProductionLibrary(
     JSON.parse(readFileSync(resolve(root, 'catalog.json'), 'utf8')) as OwnerCatalogManifest,
   );
+});
+
+it('deleting a breadboard preserves the circuit and clears only bindings to deleted boards', () => {
+  const document: SchematicDocument = {
+    ...EMPTY,
+    components: [
+      { id: 'board-a', kind: 'breadboard', value: 0, position: { x: 0, y: 0 }, pinIds: ['H1'] },
+      { id: 'board-b', kind: 'breadboard', value: 0, position: { x: 100, y: 0 }, pinIds: ['H1'] },
+      {
+        id: 'resistor',
+        kind: 'resistor',
+        value: 1000,
+        position: { x: 10, y: 10 },
+        pinIds: ['a', 'b'],
+        holeBindings: {
+          a: { breadboardComponentId: 'board-a', holeId: 'H1' },
+          b: { breadboardComponentId: 'board-b', holeId: 'H1' },
+        },
+      },
+      { id: 'led', kind: 'led', value: 2, position: { x: 50, y: 10 } },
+    ],
+    connections: [
+      {
+        id: 'wire',
+        from: { componentId: 'resistor', terminal: 'a' },
+        to: { componentId: 'led', terminal: 'a' },
+      },
+    ],
+  };
+  expect(parseElectronicsDocument(document).ok).toBe(true);
+  const removed = removeSelectionFromDocument(document, {
+    kind: 'component',
+    id: 'board-a',
+    ids: ['board-a'],
+  });
+  expect(parseElectronicsDocument(removed).ok).toBe(true);
+  expect(removed.components.find((item) => item.id === 'resistor')?.holeBindings).toEqual({
+    b: document.components[2]!.holeBindings!.b,
+  });
+  expect(removed.connections).toEqual(document.connections);
+  expect(removed.components.map((item) => item.id)).toEqual(['board-b', 'resistor', 'led']);
+  expect(document.components[2]!.holeBindings?.a).toBeDefined();
+  expect(parseElectronicsDocument(JSON.parse(JSON.stringify(removed))).ok).toBe(true);
 });
 
 function populated(): SchematicDocument {

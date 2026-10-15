@@ -113,6 +113,14 @@ Component Library
 
 ## 5. CircuitDocument
 
+Deleting a breadboard detaches only the surviving components' bindings to the deleted
+board; components, wires between survivors and bindings to other boards remain intact.
+Invalid documents are still rejected. Validation failures carry additive finite
+`reasonCode` values (`electronics_*` or draft-envelope codes) through the provider,
+Project Core and API. HTTP400 `validation_error` request logs include only an approved
+reason and the existing request ID; never document content, Arduino code or raw error
+messages. A failed save does not advance the confirmed revision or remove local recovery.
+
 Документ хранит только пользовательское и версионируемое состояние:
 
 - stable component IDs;

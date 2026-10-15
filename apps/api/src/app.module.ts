@@ -97,33 +97,7 @@ import { DiagnosticsQualityController } from './diagnostics-quality.controller.j
 import { ProductAnalyticsController } from './product-analytics.controller.js';
 import { ProductAnalyticsService } from './product-analytics.service.js';
 import { createBlocksDraftPersistenceGuard } from './blocks-draft-composition.js';
-
-function validationMessage(
-  entry: RegisteredModule,
-  value: unknown,
-):
-  | {
-      readonly ok: true;
-      readonly document: unknown;
-    }
-  | {
-      readonly ok: false;
-      readonly message: string;
-    } {
-  const provider = entry.provider;
-  if (!provider) {
-    return { ok: false, message: `module "${entry.manifest.moduleKey}" has no provider` };
-  }
-  const result = provider.validate(value);
-  if (!result.ok) {
-    return {
-      ok: false,
-      message:
-        result.diagnostics.map((diagnostic) => diagnostic.message).join('; ') || 'invalid document',
-    };
-  }
-  return { ok: true, document: result.payload };
-}
+import { validationMessage } from './validation.js';
 
 @Module({})
 export class AppModule {

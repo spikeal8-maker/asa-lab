@@ -42,6 +42,7 @@ import {
 } from './learning-canonical-projection.service.js';
 import { learningWorkContextForProject, type WorkRow } from './learning-work-context.js';
 import { checkBodyShape, checkIdempotencyKey, isPlainObject } from './validation.js';
+import { safeValidationReason } from './server-diagnostics.js';
 
 interface ProjectRequestContext {
   readonly tenantId: string;
@@ -51,8 +52,9 @@ interface ProjectRequestContext {
   readonly seatId: string | null;
 }
 
-function error(code: string, message: string): { error: { code: string; message: string } } {
-  return { error: { code, message } };
+function error(code: string, message: string, reasonCode?: string) {
+  const reason = code === 'validation_error' ? safeValidationReason(reasonCode) : undefined;
+  return { error: { code, message, ...(reason ? { reasonCode: reason } : {}) } };
 }
 
 function genericProjectIdempotencyKey(value: string | undefined): string {
@@ -151,8 +153,8 @@ export class ProjectsController {
     return { principalId: context.principalId, userId: context.userId };
   }
 
-  private static reject(code: ProjectErrorCode, message: string): never {
-    throw new HttpException(error(code, message), STATUS_BY_CODE[code]);
+  private static reject(code: ProjectErrorCode, message: string, reasonCode?: string): never {
+    throw new HttpException(error(code, message, reasonCode), STATUS_BY_CODE[code]);
   }
 
   private analyse(moduleKey: string, document: unknown): unknown {
@@ -518,13 +520,18 @@ export class ProjectsController {
   ): Promise<{ draft: unknown; result: unknown }> {
     const context = await this.requireContext(request);
     const shape = checkBodyShape(rawBody, ['document', 'baseRevision', 'mutationId']);
-    if (!shape.ok) throw new HttpException(error('validation_error', shape.message), 400);
+    if (!shape.ok)
+      throw new HttpException(error('validation_error', shape.message, 'draft_body_invalid'), 400);
     if (
       !Number.isSafeInteger(shape.body['baseRevision']) ||
       Number(shape.body['baseRevision']) < 0
     ) {
       throw new HttpException(
-        error('validation_error', 'baseRevision must be a non-negative integer'),
+        error(
+          'validation_error',
+          'baseRevision must be a non-negative integer',
+          'draft_base_revision_invalid',
+        ),
         400,
       );
     }
@@ -536,7 +543,7 @@ export class ProjectsController {
       baseRevision: Number(shape.body['baseRevision']),
       mutationId: String(shape.body['mutationId'] ?? ''),
     });
-    if (!result.ok) ProjectsController.reject(result.code, result.message);
+    if (!result.ok) ProjectsController.reject(result.code, result.message, result.reasonCode);
     const opened = await this.openUseCase.execute(
       context.tenantId,
       projectId,
