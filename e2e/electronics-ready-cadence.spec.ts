@@ -8,6 +8,7 @@ import type { ElectronicsTimedState } from '../contexts/electronics/engine';
 import type { SimulationTimedAdvancePayload } from '../apps/web/src/electronics/simulation-worker-protocol';
 import type { ArduinoRuntimeState } from '../contexts/electronics/domain/arduino-program-runtime';
 import { collectBrowserFailures } from './browser-failures';
+import { startProductionWorkerProfile } from './production-worker-profile';
 import { loginWithOrganization } from './organization-login';
 import { e2eAdminPool, seedTeacher, type SeededTeacher } from './seed';
 
@@ -435,6 +436,10 @@ function compactObservation({
   };
 }
 async function runActualSketch(page: Page, kind: 'serial' | 'gpio', source: string, path: string) {
+  const cpuProfile =
+    process.env['ASA_546_CPU_PROFILE'] === 'true' && kind === 'gpio'
+      ? await startProductionWorkerProfile(page, `${path}-profile`)
+      : null;
   let raw: Awaited<ReturnType<typeof observation>>;
   try {
     await page.getByRole('button', { name: 'Начать моделирование', exact: true }).click();
@@ -454,6 +459,8 @@ async function runActualSketch(page: Page, kind: 'serial' | 'gpio', source: stri
         .toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
     }
   } finally {
+    // TEMP: stop samplers before raw collection; preserve any original assertion error.
+    await cpuProfile?.stop().catch((error: unknown) => console.error('ASA546 profile stop:', error));
     // Preserve complete canonical state/events/quality even when a predicate fails.
     raw = await observation(page);
     writeFileSync(
@@ -464,6 +471,7 @@ async function runActualSketch(page: Page, kind: 'serial' | 'gpio', source: stri
         2,
       ) + '\n',
     );
+    await cpuProfile?.persist().catch((error: unknown) => console.error('ASA546 profile persist:', error));
   }
   await page.screenshot({ path: `${path}.png` });
   const ready = raw.worker.filter(
