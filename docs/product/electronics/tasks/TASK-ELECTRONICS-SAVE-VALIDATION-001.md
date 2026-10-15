@@ -38,6 +38,8 @@ No new backend, schema, migration, source of truth or retry loop.
 - `apps/api/src/server-diagnostics.ts`, `app.factory.ts`: safe request log metadata.
 - Focused changed tests: workbench-document, electronics-save-validation, server-diagnostics.
   Existing workbench-project-state HTTP400 recovery and Project Core tests verify compatibility.
+  One existing Blocks writer assertion must include the new additive baseRevision reason;
+  exact equality and the no-guard/no-write assertions remain intact.
   The API gateway uses an explicit finite exposure allowlist; domain classification stays canonical.
   Shared logging and generic project tests acquire no runtime Electronics dependency.
 
