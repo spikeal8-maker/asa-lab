@@ -61,13 +61,22 @@ lost-reply readback remained dirty; same-actor two-editor test lost the second
 editor's local durability after the first editor acknowledged/cleared its draft.
 All three concrete regressions are repaired.
 
-Final recovery/load verification:52 hook tests,6 recovery tests and7 generic
+Final recovery/load verification:52 hook tests,7 recovery tests and7 generic
 local draft compatibility tests PASS. Previously verified unchanged scheduler10
 and document merge6 tests PASS. Each repeat followed a concrete changed dependency
 or independent-review finding; no full local repository/browser reruns.
 ESLint/routing/control-plane, exact published SHA CI and independent review evidence
 are recorded in the dated owner report. No real PostgreSQL/browser load result is
 claimed from mounted React and in-memory CAS tests.
+
+The first exact-SHA general CI found a current-slice bundle regression:
+210395 bytes against the unchanged209000 ceiling. Bounded source repair replaces
+class property plumbing with writer closures, reuses canonical paired-byte draft
+validation with an optional storage key, and factors identical scope/cooldown
+logic. Opaque128-bit writer IDs and deterministic latest-copy selection preserve
+the recovery contract. Fresh production build measures208930 bytes; the initial
+JS/CSS graph remains462744 bytes. No budget, Vite chunk or workflow gate changed.
+The seventh recovery test covers replacement during the actual source read.
 
 Recovery retention: unconfirmed branches stay intact. Semantic acknowledgement
 sweeps matching/included source branches across repeated reloads; exact-byte

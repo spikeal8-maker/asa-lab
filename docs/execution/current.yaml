@@ -94,7 +94,7 @@ parallel_lanes:
       pr: null
       status: in_review
       kind: repair
-      checkpoint: point4_focused_and_independent_review_passed_pending_exact_sha_ci
+      checkpoint: point4_bundle_repair_208930_focused_review_pending_exact_sha_ci
       owner_acceptance: pending
       context_hints:
         - docs/product/electronics/tasks/TASK-ELECTRONICS-SAVE-CONFLICT-001.md

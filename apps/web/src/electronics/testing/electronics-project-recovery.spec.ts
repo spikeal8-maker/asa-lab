@@ -1,6 +1,6 @@
 /* @vitest-environment jsdom */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ElectronicsProjectRecovery } from '../electronics-project-recovery';
+import { createElectronicsProjectRecovery } from '../electronics-project-recovery';
 import { writeLocalProjectDraft, localProjectDraftKey } from '../../modules/project-local-draft';
 
 function memoryStorage(): Storage {
@@ -25,7 +25,7 @@ afterEach(() => vi.useRealTimers());
 describe('Electronics owned recovery slots', () => {
   const input = (value: number) => ({ baseRevision: 1, document: { value } });
   const store = (local: Storage, session: Storage | null, user = 'user') =>
-    new ElectronicsProjectRecovery<{ value: number }>(
+    createElectronicsProjectRecovery<{ value: number }>(
       () => local,
       session,
       'project',
@@ -102,7 +102,7 @@ describe('Electronics owned recovery slots', () => {
     expect(recovery.write(input(20))).toBe(false);
     expect(recovery.readOwned()?.document.value).toBe(10);
     expect(store(local, null, 'other-user').read()).toBeNull();
-    const denied = new ElectronicsProjectRecovery(
+    const denied = createElectronicsProjectRecovery(
       () => {
         throw new Error('denied');
       },
@@ -173,6 +173,31 @@ describe('Electronics owned recovery slots', () => {
     expect(raced).toBe(true);
     expect(a.readOwned()?.document.value).toBe(560);
     expect(reload.read()).toBeNull();
+    vi.restoreAllMocks();
+  });
+
+  it('acknowledges the bytes actually read when a tab replaces the source during validation', () => {
+    const local = memoryStorage(),
+      session = memoryStorage();
+    const original = store(local, session);
+    original.write(input(330));
+    const key = session.getItem(
+      localProjectDraftKey('project', 'user', 'account') + ':electronics-editor:',
+    )!;
+    const reader = store(local, memoryStorage());
+    const get = local.getItem.bind(local);
+    let replaced = false;
+    vi.spyOn(local, 'getItem').mockImplementation((requested) => {
+      const value = get(requested);
+      if (requested === key && !replaced) {
+        replaced = true;
+        original.write(input(560));
+      }
+      return value;
+    });
+    reader.clear({ value: 330 });
+    expect(replaced).toBe(true);
+    expect(original.readOwned()?.document.value).toBe(560);
     vi.restoreAllMocks();
   });
 });

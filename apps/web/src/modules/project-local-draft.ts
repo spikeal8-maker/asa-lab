@@ -52,9 +52,24 @@ export function readLocalProjectDraft<TDocument = unknown>(
   userId?: string,
   identityKind?: 'account' | 'seat',
 ): LocalProjectDraft<TDocument> | null {
+  return (
+    readLocalProjectDraftEntry<TDocument>(source, projectId, moduleKey, userId, identityKind)
+      ?.draft ?? null
+  );
+}
+
+/** Return the bytes that were validated, even if another tab replaces the key. */
+export function readLocalProjectDraftEntry<TDocument = unknown>(
+  source: DraftStorageSource,
+  projectId: string,
+  moduleKey: string,
+  userId?: string,
+  identityKind?: 'account' | 'seat',
+  storageKey?: string,
+): { raw: string; draft: LocalProjectDraft<TDocument> } | null {
   try {
     const storage = resolveStorage(source);
-    const key = localProjectDraftKey(projectId, userId, identityKind);
+    const key = storageKey ?? localProjectDraftKey(projectId, userId, identityKind);
     const raw = storage.getItem(key);
     if (!raw) return null;
     const acknowledged = moduleKey === 'electronics' ? storage.getItem(`${key}:ack`) : null;
@@ -77,7 +92,7 @@ export function readLocalProjectDraft<TDocument = unknown>(
     ) {
       return null;
     }
-    return parsed as unknown as LocalProjectDraft<TDocument>;
+    return { raw, draft: parsed as unknown as LocalProjectDraft<TDocument> };
   } catch {
     return null;
   }
@@ -94,6 +109,7 @@ export function writeLocalProjectDraft<TDocument>(
     readonly baseDocument?: TDocument;
     readonly document: TDocument;
   },
+  storageKey?: string,
 ): boolean {
   try {
     const record: LocalProjectDraft<TDocument> = {
@@ -103,7 +119,8 @@ export function writeLocalProjectDraft<TDocument>(
       updatedAt: new Date().toISOString(),
     };
     const storage = resolveStorage(source);
-    const key = localProjectDraftKey(input.projectId, input.userId, input.identityKind);
+    const key =
+      storageKey ?? localProjectDraftKey(input.projectId, input.userId, input.identityKind);
     const serialized = JSON.stringify(record);
     storage.setItem(key, serialized);
     // A new local write is pending even if an older copy here was acknowledged.
