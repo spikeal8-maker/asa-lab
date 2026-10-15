@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   advanceElectronicsToHorizon,
+  createElectronicsAdvanceSession,
   parseElectronicsEngineDocument,
   pauseElectronicsTimedState,
   projectElectronicsArduinoSerial,
@@ -616,5 +617,243 @@ describe('Electronics canonical timed engine facade', () => {
       profile: 'rc-inputs-v2',
       boards: [],
     });
+  });
+});
+
+describe('event execution request ownership and physical barriers', () => {
+  const eventCircuit = (source: string): ElectronicsEngineDocument => {
+    const base = circuit(source);
+    const parsed = parseElectronicsEngineDocument({
+      ...base,
+      components: [
+        base.components[0]!,
+        {
+          id: 'r',
+          kind: 'resistor',
+          value: 330,
+          position: { x: 100, y: 0 },
+          componentTypeId: 'resistor-axial',
+          pinIds: ['lead-1', 'lead-2'],
+        },
+      ],
+      connections: [
+        {
+          id: 'w0',
+          from: { componentId: 'uno', terminal: 'd13' },
+          to: { componentId: 'r', terminal: 'lead-1' },
+        },
+        {
+          id: 'w1',
+          from: { componentId: 'r', terminal: 'lead-2' },
+          to: { componentId: 'uno', terminal: 'power-gnd-1' },
+        },
+      ],
+    });
+    if (!parsed.ok) throw new Error(parsed.message);
+    return parsed.document;
+  };
+  const finish = (
+    document: ElectronicsEngineDocument,
+    request: Parameters<typeof advanceElectronicsToHorizon>[1],
+  ) => {
+    const session = createElectronicsAdvanceSession(document, request);
+    let steps = 0;
+    let result;
+    do {
+      result = session.step();
+      steps++;
+    } while (!result && steps < 100_000);
+    expect(result).toBeTruthy();
+    return { result: result!, steps };
+  };
+  const reference = (document: ElectronicsEngineDocument, horizon: number, budget: number) => {
+    let state;
+    for (let i = 0; i < 100_000; i++) {
+      const result = advanceElectronicsToHorizon(document, {
+        requestedHorizonMicroseconds: horizon,
+        state,
+        maxEvents: budget,
+      });
+      if (result.executionStatus !== 'yielded') return result;
+      expect(result.observation).toBeNull();
+      state = JSON.parse(JSON.stringify(result.state));
+    }
+    throw new Error('bounded reference did not finish');
+  };
+  it.each([1, 7, 256])(
+    'preserves every instruction and full public result with budget %i',
+    (budget) => {
+      const doc = eventCircuit(
+        'void setup(){pinMode(13,OUTPUT);}void loop(){digitalWrite(13,HIGH);}',
+      );
+      const before = structuredClone(doc);
+      const actual = finish(doc, { requestedHorizonMicroseconds: 2048, maxEvents: budget });
+      expect(actual.result.state.continuation?.clockProfileId).toBe('electrothermal-events-v2');
+      expect(actual.result).toStrictEqual(reference(doc, 2048, budget));
+      expect(actual.steps).toBeGreaterThan(2048 / budget);
+      expect(doc).toStrictEqual(before);
+    },
+  );
+  it('owns document and continuation before the first step and rolls back the entire request fault', () => {
+    const source =
+      'void setup(){pinMode(13,OUTPUT);}void loop(){digitalWrite(13,HIGH);delay(1);int n=0;int bad=1/n;}';
+    const doc = eventCircuit(source);
+    const initial = advanceElectronicsToHorizon(doc, { requestedHorizonMicroseconds: 0 });
+    const request = { requestedHorizonMicroseconds: 5000, state: initial.state, maxEvents: 1 };
+    const owned = structuredClone(request);
+    const session = createElectronicsAdvanceSession(doc, request);
+    (doc.components[0]!.stateProperties as Record<string, unknown>)['arduinoSource'] =
+      'void loop(){}';
+    Object.assign(request.state, { lifecycle: 'paused' });
+    let result,
+      steps = 0;
+    do {
+      result = session.step();
+      steps++;
+    } while (!result && steps < 1000);
+    expect(steps).toBeGreaterThan(3);
+    expect(result).toMatchObject({
+      executionStatus: 'fault',
+      observation: null,
+      state: owned.state,
+      committedHorizonMicroseconds: 0,
+    });
+  });
+  it('appends Serial input once across many private batches', () => {
+    const doc = eventCircuit(
+      'int x=0;void setup(){Serial.begin(9600);}void loop(){if(Serial.available()>0){x+=Serial.read();}}',
+    );
+    const initial = advanceElectronicsToHorizon(doc, { requestedHorizonMicroseconds: 0 });
+    const request = {
+      requestedHorizonMicroseconds: 2000,
+      state: initial.state,
+      maxEvents: 7,
+      inputEvents: [{ atMicroseconds: 10, targetId: 'uno', operation: 'serialRx', payload: 'A' }],
+    } as const;
+    const result = finish(doc, request).result;
+    expect(result.executionStatus).toBe('ready');
+    const raw = JSON.parse(result.state.continuation!.serializedState);
+    expect(raw.inputs).toHaveLength(1);
+    expect(raw.boards[0].runtime.variables.x).toBe(65);
+  });
+  it('samples actual driven terminal voltage at a read instruction inside a grouped batch', () => {
+    const doc = eventCircuit(
+      'int seen=0;void setup(){pinMode(13,OUTPUT);}void loop(){digitalWrite(13,HIGH);seen=digitalRead(13);delay(1000);}',
+    );
+    const result = finish(doc, { requestedHorizonMicroseconds: 5000, maxEvents: 7 }).result;
+    expect(result.executionStatus).toBe('ready');
+    const state = JSON.parse(result.state.continuation!.serializedState);
+    expect(state.profile).toBe('electrothermal-events-v2');
+    expect(state.boards[0].runtime.variables.seen).toBe(1);
+    expect(result).toStrictEqual(reference(doc, 5000, 1));
+  });
+  it('starts the cooling epoch at the exact falling GPIO edge without applying LOW to past heating', () => {
+    const base = circuit(
+      'void setup(){pinMode(13,OUTPUT);}void loop(){digitalWrite(13,HIGH);delay(100);digitalWrite(13,LOW);delay(100);}',
+    );
+    const parsed = parseElectronicsEngineDocument({
+      ...base,
+      components: [
+        base.components[0]!,
+        {
+          id: 'r',
+          kind: 'resistor',
+          value: 100,
+          position: { x: 100, y: 0 },
+          componentTypeId: 'resistor-axial',
+          pinIds: ['lead-1', 'lead-2'],
+          stateProperties: { powerRatingWatt: 0.01 },
+        },
+      ],
+      connections: [
+        {
+          id: 'w0',
+          from: { componentId: 'uno', terminal: 'd13' },
+          to: { componentId: 'r', terminal: 'lead-1' },
+        },
+        {
+          id: 'w1',
+          from: { componentId: 'r', terminal: 'lead-2' },
+          to: { componentId: 'uno', terminal: 'power-gnd-1' },
+        },
+      ],
+    });
+    if (!parsed.ok) throw new Error(parsed.message);
+    const doc = parsed.document;
+    const high = finish(doc, { requestedHorizonMicroseconds: 100003 }).result;
+    const before = JSON.parse(high.state.continuation!.serializedState);
+    const epoch = before.thermalEpochs[0];
+    expect(epoch.atMicroseconds).toBe(2);
+    const low = finish(doc, { requestedHorizonMicroseconds: 100004, state: high.state }).result;
+    const after = JSON.parse(low.state.continuation!.serializedState);
+    expect(after.thermalEpochs[0]).toMatchObject({ atMicroseconds: 100004, loadRatio: 0 });
+    const heated = 25 + 55 * Math.min(epoch.loadRatio, 4) * (1 - Math.exp(-0.100002 / 4));
+    expect(after.thermalEpochs[0].temperatureCelsius).toBeCloseTo(heated, 9);
+    const cool = finish(doc, { requestedHorizonMicroseconds: 150000, state: low.state }).result;
+    const cooled = JSON.parse(cool.state.continuation!.serializedState);
+    expect(cooled.thermalEpochs).toEqual(after.thermalEpochs);
+    expect(cooled.physicalState.thermal[0].temperatureCelsius).toBeCloseTo(
+      25 + (heated - 25) * Math.exp(-0.049996 / 4),
+      9,
+    );
+    expect(finish(doc, { requestedHorizonMicroseconds: 150000 }).result).toStrictEqual(cool);
+  });
+  it('keeps a constant-load thermal epoch through UI tails and fails at the first exact integer microsecond', () => {
+    const base = circuit(IDLE);
+    const resistor = {
+      id: 'r',
+      kind: 'resistor' as const,
+      position: { x: 100, y: 0 },
+      componentTypeId: 'resistor-axial',
+      pinIds: ['lead-1', 'lead-2'],
+      value: 100,
+      stateProperties: { powerRatingWatt: 0.01 },
+    };
+    const parsed = parseElectronicsEngineDocument({
+      ...base,
+      components: [
+        base.components[0]!,
+        resistor,
+        { ...resistor, id: 'neighbor', stateProperties: { powerRatingWatt: 1 } },
+      ],
+      connections: ['r', 'neighbor'].flatMap((id) => [
+        {
+          id: id + 'a',
+          from: { componentId: 'uno', terminal: 'power-5v' },
+          to: { componentId: id, terminal: 'lead-1' },
+        },
+        {
+          id: id + 'b',
+          from: { componentId: id, terminal: 'lead-2' },
+          to: { componentId: 'uno', terminal: 'power-gnd-1' },
+        },
+      ]),
+    });
+    if (!parsed.ok) throw new Error(parsed.message);
+    const doc = parsed.document;
+    const before = finish(doc, { requestedHorizonMicroseconds: 799999 }).result;
+    expect(before.executionStatus, JSON.stringify(before.diagnostics)).toBe('ready');
+    const prior = JSON.parse(before.state.continuation!.serializedState);
+    expect(prior.profile).toBe('electrothermal-events-v2');
+    expect(
+      prior.physicalState.thermal.find(
+        (entry: { componentId: string }) => entry.componentId === 'r',
+      ).failureMode,
+    ).toBe('none');
+    const at = finish(doc, { requestedHorizonMicroseconds: 800000, state: before.state }).result;
+    const whole = finish(doc, { requestedHorizonMicroseconds: 800000 }).result;
+    expect(at).toStrictEqual(whole);
+    const carried = JSON.parse(at.state.continuation!.serializedState);
+    expect(
+      carried.physicalState.thermal.find(
+        (entry: { componentId: string }) => entry.componentId === 'r',
+      ).failureMode,
+    ).toBe('open');
+    expect(
+      at.observation!.components.find((entry) => entry.componentId === 'neighbor')!.current,
+    ).toBeCloseTo(5 / 100.1, 10);
+    const after = finish(doc, { requestedHorizonMicroseconds: 800001, state: at.state }).result;
+    expect(after.executionStatus).toBe('ready');
+    expect(after.observation!.quality.passed).toBe(true);
   });
 });

@@ -1,5 +1,6 @@
 import {
   advanceElectronicsToHorizon,
+  createElectronicsAdvanceSession,
   analyseElectronicsSnapshot,
   prepareElectronicsSnapshot,
   projectElectronicsArduinoSerial,
@@ -151,34 +152,91 @@ export function evaluateSimulationWorkerRequest(
       state: request.state,
       ...(request.inputEvents ? { inputEvents: request.inputEvents } : {}),
     });
-    const advance = advancePayload(request.document, timed);
-    return {
-      protocolVersion: ELECTRONICS_SIMULATION_WORKER_PROTOCOL,
-      requestId: request.requestId,
-      generationId: request.generationId,
-      projectSessionId: request.projectSessionId,
-      ok: true,
-      kind: 'advance',
-      advance,
-      metrics: {
-        computeMs: globalThis.performance.now() - startedAt,
-        solverRevision: ELECTRONICS_SIMULATION_ENGINE_REVISION,
-        executionStatus: timed.executionStatus,
-        requestedHorizonMicroseconds: timed.requestedHorizonMicroseconds,
-        committedHorizonMicroseconds: timed.committedHorizonMicroseconds,
-        ...(timed.state.continuation
-          ? { simulationInputDigest: timed.state.continuation.documentDigest }
-          : {}),
-        ...(advance.result?.topologySignature
-          ? { topologySignature: advance.result.topologySignature }
-          : {}),
-      },
-    };
+    return timedResponse(request, timed, globalThis.performance.now() - startedAt);
   } catch (error) {
     return failure(
       request,
       'internal',
       error instanceof Error ? error.message : 'Electronics simulation evaluation failed.',
     );
+  }
+}
+
+function timedResponse(
+  request: SimulationAdvanceRequest,
+  timed: ElectronicsTimedAdvanceResult,
+  computeMs: number,
+): ElectronicsSimulationWorkerResponse {
+  const projectionStarted = globalThis.performance.now();
+  const advance = advancePayload(request.document, timed);
+  return {
+    protocolVersion: ELECTRONICS_SIMULATION_WORKER_PROTOCOL,
+    requestId: request.requestId,
+    generationId: request.generationId,
+    projectSessionId: request.projectSessionId,
+    ok: true,
+    kind: 'advance',
+    advance,
+    metrics: {
+      computeMs: computeMs + globalThis.performance.now() - projectionStarted,
+      solverRevision: ELECTRONICS_SIMULATION_ENGINE_REVISION,
+      executionStatus: timed.executionStatus,
+      requestedHorizonMicroseconds: timed.requestedHorizonMicroseconds,
+      committedHorizonMicroseconds: timed.committedHorizonMicroseconds,
+      ...(timed.state.continuation
+        ? { simulationInputDigest: timed.state.continuation.documentDigest }
+        : {}),
+      ...(advance.result?.topologySignature
+        ? { topologySignature: advance.result.topologySignature }
+        : {}),
+    },
+  };
+}
+
+/** Continue fixed canonical batches privately; only a complete request is published. */
+export async function evaluateSimulationWorkerRequestBatched(
+  request: EvaluationRequest,
+  isCurrent: () => boolean,
+  yieldControl: () => Promise<void> = () => new Promise((resolve) => setTimeout(resolve, 0)),
+): Promise<ElectronicsSimulationWorkerResponse | null> {
+  if (
+    request.kind !== 'advance' ||
+    request.protocolVersion !== ELECTRONICS_SIMULATION_WORKER_PROTOCOL ||
+    request.engineRevision !== ELECTRONICS_SIMULATION_ENGINE_REVISION ||
+    !Number.isSafeInteger(request.requestedHorizonMicroseconds) ||
+    request.requestedHorizonMicroseconds < 0
+  )
+    return isCurrent() ? evaluateSimulationWorkerRequest(request) : null;
+  try {
+    const prepareStarted = globalThis.performance.now();
+    const owned = structuredClone(request);
+    const session = createElectronicsAdvanceSession(owned.document, {
+      requestedHorizonMicroseconds: owned.requestedHorizonMicroseconds,
+      state: owned.state,
+      ...(owned.inputEvents ? { inputEvents: owned.inputEvents } : {}),
+    });
+    let computeMs = globalThis.performance.now() - prepareStarted;
+    let sliceStarted = globalThis.performance.now();
+    while (isCurrent()) {
+      const before = globalThis.performance.now();
+      const timed = session.step();
+      const now = globalThis.performance.now();
+      computeMs += now - before;
+      if (!isCurrent()) return null;
+      if (timed) return timedResponse(owned, timed, computeMs);
+      if (now - sliceStarted >= 8) {
+        await yieldControl();
+        sliceStarted = globalThis.performance.now();
+      }
+    }
+    return null;
+  } catch (error) {
+    return isCurrent()
+      ? failure(
+          request,
+          'internal',
+          error instanceof Error ? error.message : 'Electronics execution failed.',
+        )
+      : null;
   }
 }

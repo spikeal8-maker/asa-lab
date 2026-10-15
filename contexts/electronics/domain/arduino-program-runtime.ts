@@ -164,6 +164,8 @@ export interface ArduinoRuntimeState {
 
 export interface ArduinoRuntimeAdvance {
   readonly executionStatus: 'ready' | 'yielded' | 'fault';
+  /** Present only for a circuit-owned event batch. */
+  readonly executedInstructions?: number;
   readonly setupActions: readonly ArduinoProgramAction[];
   readonly loopActions: readonly ArduinoProgramAction[];
   readonly events: readonly ArduinoRuntimeEvent[];
@@ -1671,6 +1673,56 @@ function applyScopeInstruction(instruction: ScopeInstruction, scopes: ArduinoSco
   }
 }
 
+// Immutable literal command operands belong to the compiled instruction, not runtime state.
+// Names, reads, side effects and nonliteral expressions always use the original evaluator.
+const literalCommands = new WeakMap<
+  CompiledInstruction,
+  { name: string; actions: readonly ArduinoProgramAction[] }
+>();
+function prepareLiteralCommand(instruction: CompiledInstruction, state: RuntimeState): void {
+  if (instruction.kind !== 'simple') return;
+  const call = /^([A-Za-z_]\w*)\s*\(([\s\S]*)\)$/.exec(instruction.statement.trim());
+  if (
+    !call ||
+    ![
+      'pinMode',
+      'digitalWrite',
+      'analogWrite',
+      'delay',
+      'delayMicroseconds',
+      'tone',
+      'noTone',
+    ].includes(call[1]!)
+  )
+    return;
+  const args = splitArguments(call[2] ?? '').filter(Boolean);
+  const constant = (argument: string) => {
+    const tokens = tokenize(argument);
+    return (
+      tokens.length === 1 &&
+      (tokens[0]!.kind === 'number' ||
+        ['HIGH', 'LOW', 'INPUT', 'OUTPUT', 'INPUT_PULLUP', 'LED_BUILTIN', 'true', 'false'].includes(
+          tokens[0]!.value,
+        ))
+    );
+  };
+  if (args.every(constant)) {
+    const literalState = { ...state, validateOnly: false, actions: [] as ArduinoProgramAction[] };
+    try {
+      executeSimpleStatement(instruction.statement, literalState);
+    } catch (error) {
+      // A validation-only conversion may defer a numeric fault until execution.
+      // Preparing immutable literals must not change that error's timing or kind.
+      if (error instanceof SyntaxError || error instanceof ArduinoArithmeticError) return;
+      throw error;
+    }
+    literalCommands.set(instruction, {
+      name: call[1]!,
+      actions: literalState.actions.map((action) => Object.freeze({ ...action })),
+    });
+  }
+}
+
 const COMPILATION_CACHE_ENTRIES = 32;
 const COMPILATION_CACHE_BYTES = 2 * 1024 * 1024;
 const compilationCache = new Map<
@@ -1766,8 +1818,10 @@ function compileUncachedArduinoProgram(source: string): ArduinoProgramCompilatio
           validation.statementCount = 0;
           validation.actions.length = 0;
           if (instruction.kind === 'branch') evaluate(instruction.condition, validation);
-          if (instruction.kind === 'simple')
+          if (instruction.kind === 'simple') {
             executeSimpleStatement(instruction.statement, validation);
+            prepareLiteralCommand(instruction, validation);
+          }
           if (instruction.kind === 'enter-scope' || instruction.kind === 'exit-scope')
             applyScopeInstruction(instruction, validation.scopes);
         }
@@ -1854,6 +1908,7 @@ export function advanceClockedArduinoRuntime(
   options: {
     readonly instructionBudget?: number;
     readonly pulseInputSample?: boolean;
+    readonly stopAtElectricalBoundary?: boolean;
   } = {},
 ): ArduinoRuntimeAdvance {
   return advanceRuntime(
@@ -1867,6 +1922,7 @@ export function advanceClockedArduinoRuntime(
       clamp(options.instructionBudget ?? MAX_ADVANCE_STATEMENTS, 1, MAX_ADVANCE_STATEMENTS),
     ),
     Boolean(options.pulseInputSample),
+    Boolean(options.stopAtElectricalBoundary),
   );
 }
 
@@ -1879,6 +1935,7 @@ function advanceRuntime(
   clockProfile: ArduinoClockProfile,
   instructionBudget = MAX_ADVANCE_STATEMENTS,
   pulseInputSample = false,
+  stopAtElectricalBoundary = false,
 ): ArduinoRuntimeAdvance {
   const clocked = clockProfile === 'instruction-us-v1';
   const compilation = compileArduinoProgram(source);
@@ -2080,6 +2137,26 @@ function advanceRuntime(
   }
 
   let completedLoops = 0;
+  let sampledElectricalInput = false;
+  const instructionState: RuntimeState = {
+    scopes,
+    get inputs() {
+      sampledElectricalInput = true;
+      return readInputs
+        ? readInputs({ simulationTimeMs: resumeAtMs, pinModes, outputVoltages, tones })
+        : inputs;
+    },
+    get actions() {
+      return phase === 'setup' ? setupActions : loopActions;
+    },
+    diagnostics,
+    pulseWait,
+    ultrasonicAdapter,
+    serial,
+    servo,
+    simulationTimeMs: resumeAtMs,
+    statementCount: clocked ? 0 : continuousStatementCount,
+  };
   while (
     resumeAtMs <= targetTimeMs &&
     (clocked
@@ -2087,6 +2164,16 @@ function advanceRuntime(
       : completedLoops < MAX_LOOP_ADVANCES && advanceStatementCount < MAX_ADVANCE_STATEMENTS) &&
     diagnostics.length === 0
   ) {
+    if (
+      stopAtElectricalBoundary &&
+      executedInstructions > 0 &&
+      (events.length > 0 ||
+        sampledElectricalInput ||
+        pulseWait ||
+        ultrasonicAdapter ||
+        (servoDeclarations.length > 0 && servo !== previous?.servo))
+    )
+      break;
     expireTones(resumeAtMs, tones, emit);
     const instructions = phase === 'setup' ? setupInstructions : loopInstructions;
 
@@ -2133,22 +2220,12 @@ function advanceRuntime(
     }
 
     const actions = phase === 'setup' ? setupActions : loopActions;
-    const instructionState: RuntimeState = {
-      scopes,
-      get inputs() {
-        return readInputs
-          ? readInputs({ simulationTimeMs: resumeAtMs, pinModes, outputVoltages, tones })
-          : inputs;
-      },
-      actions,
-      diagnostics,
-      pulseWait,
-      ultrasonicAdapter,
-      serial,
-      servo,
-      simulationTimeMs: resumeAtMs,
-      statementCount: clocked ? 0 : continuousStatementCount,
-    };
+    instructionState.pulseWait = pulseWait;
+    instructionState.ultrasonicAdapter = ultrasonicAdapter;
+    instructionState.serial = serial;
+    instructionState.servo = servo;
+    instructionState.simulationTimeMs = resumeAtMs;
+    instructionState.statementCount = clocked ? 0 : continuousStatementCount;
     const statementCountBefore = instructionState.statementCount;
     let pulseBlocked = false;
     let ultrasonicAdapterBlocked = false;
@@ -2179,7 +2256,14 @@ function advanceRuntime(
             ? programCounter + 1
             : instruction.falseTarget;
       } else if (instruction.kind === 'simple') {
-        executeSimpleStatement(instruction.statement, instructionState);
+        const literal = literalCommands.get(instruction);
+        if (literal) {
+          if (consumeStatement(instructionState)) {
+            if (scopes.some((scope) => scope.has(literal.name)))
+              throw new SyntaxError(`«${literal.name}» — переменная, а не функция.`);
+            actions.push(...literal.actions);
+          }
+        } else executeSimpleStatement(instruction.statement, instructionState);
         programCounter += 1;
         commitActions(actionStart, executionTimeMs);
       }
@@ -2274,6 +2358,7 @@ function advanceRuntime(
   }
   return {
     executionStatus: diagnostics.length > 0 ? 'fault' : yielded ? 'yielded' : 'ready',
+    ...(stopAtElectricalBoundary ? { executedInstructions } : {}),
     setupActions,
     loopActions,
     events,

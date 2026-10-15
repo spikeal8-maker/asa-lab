@@ -501,6 +501,14 @@ export function createArduinoOperatingPointReuse() {
 
 type ArduinoOperatingPointReuse = ReturnType<typeof createArduinoOperatingPointReuse>;
 
+export interface ArduinoThermalEpoch {
+  readonly componentId: string;
+  readonly atMicroseconds: number;
+  readonly temperatureCelsius: number;
+  readonly accumulatedDamage: number;
+  readonly loadRatio: number;
+}
+
 interface InternalSolveOptions extends SolveOptions {
   readonly operatingPointReuse?: ArduinoOperatingPointReuse | undefined;
   readonly preparation?: CircuitSolvePreparation | undefined;
@@ -522,6 +530,7 @@ interface InternalSolveOptions extends SolveOptions {
   readonly servoRuntimeStateById?: ReadonlyMap<string, ServoMotorRuntimeState> | undefined;
   /** RC clock only: honour t=0/sub-ms horizons and allow zero-duration observation. */
   readonly clockedRcTransient?: boolean;
+  readonly thermalEpochs?: ReadonlyMap<string, ArduinoThermalEpoch> | undefined;
   /** Algebraic event frame: preserve capacitor voltage, solve its instantaneous current. */
   readonly holdCapacitorVoltages?: boolean | undefined;
   /** Algebraic event frame: armature current and mechanical state cannot jump. */
@@ -1859,6 +1868,7 @@ function solveCircuitBase(
       );
       if (!componentResult) continue;
       const profile = thermalProfileFor(component)!;
+      const epoch = options.thermalEpochs?.get(component.id);
       const observation =
         component.kind === 'lamp'
           ? advanceIncandescentLampThermalState(
@@ -1870,9 +1880,11 @@ function solveCircuitBase(
           : advanceThermalState(
               profile,
               componentResult,
-              previous.temperatureCelsius,
-              previous.accumulatedDamage,
-              stepMs / 1_000,
+              epoch?.temperatureCelsius ?? previous.temperatureCelsius,
+              epoch?.accumulatedDamage ?? previous.accumulatedDamage,
+              epoch
+                ? (Math.round(stepEndTimeMs * 1000) - epoch.atMicroseconds) / 1_000_000
+                : stepMs / 1_000,
             );
       const failureMode = observation.failed ? ('open' as const) : ('none' as const);
       thermalById.set(component.id, {
@@ -2262,10 +2274,12 @@ export function solveRcCircuitWithHeldArduino(
   servoStates?: ReadonlyMap<string, ServoMotorRuntimeState>,
   preparation?: CircuitSolvePreparation,
   operatingPointReuse?: ArduinoOperatingPointReuse,
+  thermalEpochs?: ReadonlyMap<string, ArduinoThermalEpoch>,
 ): SolveResult {
   return solveCircuitBase(document, {
     preparation,
     operatingPointReuse,
+    thermalEpochs,
     simulationTimeMs,
     ...(transientState ? { transientState } : {}),
     heldArduinoSnapshots: snapshots,

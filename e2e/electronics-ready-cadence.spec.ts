@@ -1277,3 +1277,186 @@ for (const delayMs of [null, 100, 50] as const) {
     failures.assertEmpty();
   });
 }
+
+const independentPortsSource = `void setup(){pinMode(13,OUTPUT);pinMode(12,OUTPUT);pinMode(11,OUTPUT);}
+void loop(){digitalWrite(13,HIGH);digitalWrite(12,LOW);digitalWrite(11,LOW);delay(100);
+digitalWrite(13,LOW);digitalWrite(12,HIGH);delay(100);digitalWrite(12,LOW);digitalWrite(11,HIGH);delay(100);}`;
+
+for (const mode of ['no-delay realtime', 'independent ports'] as const) {
+  test(`Owner Arduino execution: ${mode}, production frames and painted LEDs`, async ({ page }) => {
+    const source = mode === 'no-delay realtime' ? threeLedSource(null) : independentPortsSource;
+    await page.setViewportSize({ width: 1600, height: 1000 });
+    const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
+    await observeRealWorkerAndUi(page, 3);
+    await loginWithOrganization(page, teacher);
+    const origin = new URL(page.url()).origin;
+    const created = await page.context().request.post('/api/projects', {
+      headers: { origin, 'idempotency-key': crypto.randomUUID() },
+      data: {
+        scope: 'personal',
+        classroomId: null,
+        module: 'electronics',
+        title: `Arduino ${mode}`,
+      },
+    });
+    expect(created.status()).toBe(201);
+    const id = ((await created.json()) as { project: { id: string } }).project.id;
+    const endpoint = `/api/projects/${id}`;
+    const get = async () => {
+      const response = await page.context().request.get(endpoint, { headers: { origin } });
+      expect(response.status()).toBe(200);
+      return response.json() as Promise<{
+        draft: { revision: number; document: SchematicDocument };
+      }>;
+    };
+    const initial = await get();
+    const seeded = await page.context().request.put(`${endpoint}/draft`, {
+      headers: { origin },
+      data: {
+        document: threeLedFixture(false),
+        baseRevision: initial.draft.revision,
+        mutationId: crypto.randomUUID(),
+      },
+    });
+    expect(seeded.status()).toBe(200);
+    await page.goto(`/#/home/${id}`);
+    await expect(page.locator('.workbench-stage')).toBeVisible();
+    await page.getByRole('button', { name: 'Открыть редактор кода', exact: true }).click();
+    await page.locator('.arduino-source-editor textarea').fill(source);
+    const saved = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === `${endpoint}/draft` &&
+        response.request().method() === 'PUT',
+    );
+    await page.getByRole('button', { name: 'Сохранить проект', exact: true }).click();
+    expect((await saved).status()).toBe(200);
+    const persisted = await get();
+    expect(
+      persisted.draft.document.components.find((c) => c.id === 'uno')?.stateProperties?.[
+        'arduinoSource'
+      ],
+    ).toBe(source);
+    await page.getByRole('button', { name: 'Закрыть редактор кода', exact: true }).click();
+    const startAt = await page.evaluate(() => {
+      const probe = window as ProbeWindow;
+      if (probe.__bitwiseWorker) probe.__bitwiseWorker.length = 0;
+      if (probe.__bitwiseUi) probe.__bitwiseUi.length = 0;
+      if (probe.__ownerPaint) probe.__ownerPaint.length = 0;
+      return performance.now();
+    });
+    let raw: Awaited<ReturnType<typeof observation>> | undefined;
+    let assetsReadyAt = startAt;
+    try {
+      await page.getByRole('button', { name: 'Начать моделирование', exact: true }).click();
+      await page.waitForFunction(() => {
+        const row = (window as ProbeWindow).__ownerPaint?.at(-1);
+        return (
+          !!row &&
+          row.brightness.some((value) => value > 0) &&
+          row.images.every(
+            (image) => image.decoded && image.visible && image.unoccluded && image.opacity === 1,
+          )
+        );
+      });
+      assetsReadyAt = await page.evaluate(() => performance.now());
+      await expect
+        .poll(() =>
+          page.evaluate(
+            ({ source }) => {
+              const probe = window as ProbeWindow;
+              const ready = (probe.__bitwiseWorker ?? []).filter(
+                (row) => row.requestSource === source && row.advance.executionStatus === 'ready',
+              );
+              return (ready.at(-1)?.advance.committedHorizonMicroseconds ?? 0) >= 1_250_000;
+            },
+            { source },
+          ),
+        )
+        .toBe(true);
+    } finally {
+      raw = await observation(page);
+      writeFileSync(
+        resolve(artifactRoot, `owner-execution-${mode.replaceAll(' ', '-')}-raw.json`),
+        JSON.stringify({ source, startAt, assetsReadyAt, persisted, ...raw }, null, 2) + '\n',
+      );
+    }
+    const ready = raw.worker.filter(
+      (row) => row.requestSource === source && row.advance.executionStatus === 'ready',
+    );
+    expect(ready.length).toBeGreaterThanOrEqual(8);
+    for (const frame of ready) {
+      expect(frame.advance.committedHorizonMicroseconds).toBe(
+        frame.advance.requestedHorizonMicroseconds,
+      );
+      expect(frame.advance.result?.solved).toBe(true);
+      expect(frame.advance.result?.quality?.passed).toBe(true);
+    }
+    const first = ready[0]!,
+      last = ready.at(-1)!;
+    const modelMs =
+      (last.advance.committedHorizonMicroseconds - first.advance.committedHorizonMicroseconds) /
+      1000;
+    const wallMs = last.at - first.at;
+    expect(modelMs).toBeGreaterThanOrEqual(1250);
+    expect(Math.abs(modelMs - wallMs)).toBeLessThanOrEqual(250);
+    const paint = witnessedPaintFrames(raw.paint, assetsReadyAt);
+    for (const row of paint)
+      for (const [index, image] of row.images.entries()) {
+        expect(image.decoded).toBe(true);
+        expect(image.visible).toBe(true);
+        expect(image.unoccluded).toBe(true);
+        expect(image.opacity).toBe(1);
+        expect(image.lit).toBe(row.brightness[index]! > 0);
+      }
+    expect(paint.length).toBeGreaterThan(0);
+    if (mode === 'no-delay realtime') {
+      for (const frame of ready.filter(
+        (frame) => frame.advance.committedHorizonMicroseconds >= 25_000,
+      ))
+        for (const id of ['led0', 'led1', 'led2'])
+          expect(
+            frame.advance.result?.components.find((c) => c.componentId === id)?.brightness,
+          ).toBeGreaterThan(0);
+      expect(paint.some((row) => row.brightness.every((value) => value > 0))).toBe(true);
+    } else {
+      const vectors = paint.map((row) => row.brightness.map((value) => Number(value > 0)).join(''));
+      for (const pattern of ['100', '010', '001'])
+        expect(vectors.filter((value) => value === pattern).length).toBeGreaterThanOrEqual(3);
+      for (let pin = 0; pin < 3; pin++) {
+        const changes: Array<{ at: number; level: number }> = [];
+        for (const row of paint) {
+          const level = Number(row.brightness[pin]! > 0);
+          if (changes.at(-1)?.level !== level) changes.push({ at: row.at, level });
+        }
+        const highs = changes.filter((row) => row.level === 1);
+        expect(highs.length).toBeGreaterThanOrEqual(4);
+        for (let i = 1; i < highs.length; i++)
+          expect(highs[i]!.at - highs[i - 1]!.at).toBeGreaterThanOrEqual(225);
+        for (let i = 1; i < highs.length; i++)
+          expect(highs[i]!.at - highs[i - 1]!.at).toBeLessThanOrEqual(375);
+      }
+      for (const frame of ready.filter(
+        (frame) => frame.advance.committedHorizonMicroseconds >= 10,
+      )) {
+        const at = frame.advance.committedHorizonMicroseconds;
+        const phase = (at - 4) % 300011;
+        const expected = [
+          phase < 100004,
+          phase >= 100005 && phase < 200007,
+          phase >= 200008 || phase < 2,
+        ];
+        // Exclude only the exact instruction-wide setup/transitions, which retain their raw GPIO evidence.
+        if ([0, 1, 2, 100004, 100005, 200007, 200008].includes(phase)) continue;
+        expected.forEach((lit, index) =>
+          expect(
+            (frame.advance.result?.components.find((c) => c.componentId === `led${index}`)
+              ?.brightness ?? 0) > 0,
+          ).toBe(lit),
+        );
+      }
+    }
+    await page.getByRole('button', { name: 'Остановить моделирование', exact: true }).click();
+    expect((await get()).draft).toEqual(persisted.draft);
+    failures.assertEmpty();
+  });
+}
