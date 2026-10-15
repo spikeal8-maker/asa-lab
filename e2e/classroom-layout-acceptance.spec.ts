@@ -136,7 +136,7 @@ async function seedPresentation(page: Page, populated: boolean) {
         id === classId
           ? {
               classroomId: id,
-              averageRating: 10.5,
+              averageRating: students.length > 0 ? 10.5 : null,
               ratingParticipants: students.length,
               ratingPeriodDays: 30,
               students: students.length,
@@ -396,6 +396,29 @@ async function photograph(page: Page, file: string, expectedPanel: string) {
     .toEqual([]);
 }
 
+test('classroom name search filters cards without changing the teacher totals', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 900 });
+  await seedPresentation(page, true);
+  await page.goto('/#/classrooms');
+  const search = page.getByRole('searchbox', { name: 'Поиск класса по названию' });
+  const classes = page.getByTestId('classroom-card');
+  const totalClasses = page.locator('.classroom-title-row .classroom-metrics strong').first();
+  await expect(classes).toHaveCount(23);
+  await expect(totalClasses).toHaveText('23');
+  await search.fill('7А Робототехника');
+  await expect(classes).toHaveCount(1);
+  await expect(classes.first()).toContainText('7А Робототехника');
+  await expect(totalClasses).toHaveText('23');
+  await search.fill('Такого класса не существует');
+  await expect(classes).toHaveCount(0);
+  await expect(page.getByText('Классы не найдены. Измените поисковый запрос.')).toBeVisible();
+  await search.clear();
+  await expect(classes).toHaveCount(23);
+  await expect(totalClasses).toHaveText('23');
+});
+
 for (const width of [320, 390, 1024, 1440]) {
   for (const populated of [false, true]) {
     test(`all classroom screens ${width}px ${populated ? 'populated' : 'empty'}`, async ({
@@ -408,9 +431,11 @@ for (const width of [320, 390, 1024, 1440]) {
       await page.goto('/#/classrooms');
       await photograph(page, `${prefix}-classes`, '.classroom-owner-list');
       await expect(page.locator('.classroom-title-row .classroom-metrics')).toBeVisible();
-      await expect(
-        page.locator('.classroom-row-rating .classroom-stat-number').filter({ hasText: '10,5' }),
-      ).not.toHaveCount(0);
+      const ratedClass = page
+        .locator('.classroom-row-rating .classroom-stat-number')
+        .filter({ hasText: '10,5' });
+      if (populated) await expect(ratedClass).toHaveCount(1);
+      else await expect(ratedClass).toHaveCount(0);
       await expect(page.getByRole('searchbox', { name: 'Поиск класса по названию' })).toBeVisible();
       await page.goto(`/#/classrooms/${classId}`);
       for (const [label, key] of sections) {

@@ -17,11 +17,15 @@ type ListState =
 
 type ClassroomRoleView = 'teaching' | 'archived' | 'coteaching' | 'enrolled';
 
-const CLASSROOM_ROLE_TABS: ReadonlyArray<{ id: ClassroomRoleView; label: string }> = [
-  { id: 'teaching', label: 'Преподавание' },
-  { id: 'archived', label: 'В архиве' },
-  { id: 'coteaching', label: 'Совместное преподавание' },
-  { id: 'enrolled', label: 'Зарегистрированные' },
+const CLASSROOM_ROLE_TABS: ReadonlyArray<{
+  id: ClassroomRoleView;
+  label: string;
+  compactLabel: string;
+}> = [
+  { id: 'teaching', label: 'Преподавание', compactLabel: 'Преподавание' },
+  { id: 'archived', label: 'В архиве', compactLabel: 'Архив' },
+  { id: 'coteaching', label: 'Совместное преподавание', compactLabel: 'Совместно' },
+  { id: 'enrolled', label: 'Зарегистрированные', compactLabel: 'Учусь' },
 ];
 
 /**
@@ -262,13 +266,19 @@ export function DashboardPage({
               key={tab.id}
               type="button"
               className={roleView === tab.id ? 'active' : undefined}
+              aria-label={tab.label}
               aria-current={roleView === tab.id ? 'page' : undefined}
               onClick={() => {
                 setRoleView(tab.id);
                 setSelected(new Set());
               }}
             >
-              {tab.label}
+              <span className="classroom-role-label-full" aria-hidden="true">
+                {tab.label}
+              </span>
+              <span className="classroom-role-label-compact" aria-hidden="true">
+                {tab.compactLabel}
+              </span>
             </button>
           ))}
         </nav>
@@ -400,7 +410,10 @@ export function DashboardPage({
         </Dropdown>
       </section>
 
-      {list.kind === 'ready' && search.trim() && roleItems.length > 0 && visibleItems.length === 0 ? (
+      {list.kind === 'ready' &&
+      search.trim() &&
+      roleItems.length > 0 &&
+      visibleItems.length === 0 ? (
         <p className="classroom-search-empty" role="status">
           Классы не найдены. Измените поисковый запрос.
         </p>
@@ -472,154 +485,154 @@ export function DashboardPage({
               metric?.ratingPeriodDays,
             );
             return (
-            <li key={classroom.id} className="classroom-list-row" data-testid="classroom-card">
-              <label className="classroom-row-select">
-                <input
-                  type="checkbox"
-                  checked={selected.has(classroom.id)}
-                  aria-label={`Выбрать класс ${classroom.title}`}
-                  onChange={() => toggleOne(classroom.id)}
-                />
-              </label>
-              <button
-                type="button"
-                className="classroom-row-title"
-                onClick={() => onOpenProjects(classroom.id, classroom.title)}
-              >
-                {classroom.title}
-                {classroom.status === 'archived' ? (
-                  <em className="classroom-row-archived">в архиве</em>
-                ) : null}
-              </button>
-              <span className="classroom-row-students" data-label="Ученики">
-                <span className="classroom-stat-number">
-                  {rowMetrics.get(classroom.id)?.students ?? '—'}
+              <li key={classroom.id} className="classroom-list-row" data-testid="classroom-card">
+                <label className="classroom-row-select">
+                  <input
+                    type="checkbox"
+                    checked={selected.has(classroom.id)}
+                    aria-label={`Выбрать класс ${classroom.title}`}
+                    onChange={() => toggleOne(classroom.id)}
+                  />
+                </label>
+                <button
+                  type="button"
+                  className="classroom-row-title"
+                  onClick={() => onOpenProjects(classroom.id, classroom.title)}
+                >
+                  {classroom.title}
+                  {classroom.status === 'archived' ? (
+                    <em className="classroom-row-archived">в архиве</em>
+                  ) : null}
+                </button>
+                <span className="classroom-row-students" data-label="Ученики">
+                  <span className="classroom-stat-number">
+                    {rowMetrics.get(classroom.id)?.students ?? '—'}
+                  </span>
+                  <span className="classroom-stat-label">Ученики</span>
                 </span>
-                <span className="classroom-stat-label">Ученики</span>
-              </span>
-              <span className="classroom-row-works" data-label="Работы">
-                <span className="classroom-stat-number">
-                  {rowMetrics.get(classroom.id)?.works ?? '—'}
+                <span className="classroom-row-works" data-label="Работы">
+                  <span className="classroom-stat-number">
+                    {rowMetrics.get(classroom.id)?.works ?? '—'}
+                  </span>
+                  <span className="classroom-stat-label">Работы</span>
                 </span>
-                <span className="classroom-stat-label">Работы</span>
-              </span>
-              <span className="classroom-row-progress" data-label="Сдано">
-                <span className="classroom-stat-number">
-                  {rowMetrics.has(classroom.id)
-                    ? `${rowMetrics.get(classroom.id)!.submitted}/${rowMetrics.get(classroom.id)!.assigned}`
-                    : '—'}
+                <span className="classroom-row-progress" data-label="Сдано">
+                  <span className="classroom-stat-number">
+                    {rowMetrics.has(classroom.id)
+                      ? `${rowMetrics.get(classroom.id)!.submitted}/${rowMetrics.get(classroom.id)!.assigned}`
+                      : '—'}
+                  </span>
+                  <span className="classroom-stat-label">Сдано</span>
                 </span>
-                <span className="classroom-stat-label">Сдано</span>
-              </span>
-              <span className="classroom-row-awaiting" data-label="Ждут">
-                <span className="classroom-stat-number">
-                  {rowMetrics.get(classroom.id)?.waiting ?? '—'}
+                <span className="classroom-row-awaiting" data-label="Ждут">
+                  <span className="classroom-stat-number">
+                    {rowMetrics.get(classroom.id)?.waiting ?? '—'}
+                  </span>
+                  <span className="classroom-stat-label">Ждут</span>
                 </span>
-                <span className="classroom-stat-label">Ждут</span>
-              </span>
-              <span className="classroom-row-behind" data-label="Не сдали">
-                <span className="classroom-stat-number">
-                  {rowMetrics.get(classroom.id)?.notSubmitted ?? '—'}
+                <span className="classroom-row-behind" data-label="Не сдали">
+                  <span className="classroom-stat-number">
+                    {rowMetrics.get(classroom.id)?.notSubmitted ?? '—'}
+                  </span>
+                  <span className="classroom-stat-label">Не сдали</span>
                 </span>
-                <span className="classroom-stat-label">Не сдали</span>
-              </span>
-              <span className="classroom-row-rating" data-label="Средний рейтинг">
-                <span className="classroom-rating-value">
-                  <span className="classroom-stat-number">{rating.value}</span>
-                  <abbr
-                    className="classroom-rating-help"
-                    title={rating.detail}
-                    aria-label={rating.detail}
-                    tabIndex={0}
-                  >
-                    ⓘ
-                  </abbr>
+                <span className="classroom-row-rating" data-label="Средний рейтинг">
+                  <span className="classroom-rating-value">
+                    <span className="classroom-stat-number">{rating.value}</span>
+                    <abbr
+                      className="classroom-rating-help"
+                      title={rating.detail}
+                      aria-label={rating.detail}
+                      tabIndex={0}
+                    >
+                      ⓘ
+                    </abbr>
+                  </span>
+                  <span className="classroom-stat-label">Средний рейтинг</span>
                 </span>
-                <span className="classroom-stat-label">Средний рейтинг</span>
-              </span>
-              <span className="classroom-row-date">
-                {/* Подпись нужна только архиву: у остальных её говорит колонка. */}
-                {classroom.status === 'archived' ? <small>В архиве с</small> : null}
-                {time.date(
-                  classroom.status === 'archived'
-                    ? (classroom.archivedAt ?? classroom.createdAt)
-                    : classroom.createdAt,
-                )}
-              </span>
-              {/* Everything a teacher does to a class from outside it. Tinkercad
+                <span className="classroom-row-date">
+                  {/* Подпись нужна только архиву: у остальных её говорит колонка. */}
+                  {classroom.status === 'archived' ? <small>В архиве с</small> : null}
+                  {time.date(
+                    classroom.status === 'archived'
+                      ? (classroom.archivedAt ?? classroom.createdAt)
+                      : classroom.createdAt,
+                  )}
+                </span>
+                {/* Everything a teacher does to a class from outside it. Tinkercad
                   puts properties and removal here, and it is right: opening a
                   class to rename it is a trip for nothing. */}
-              <Dropdown
-                className="classroom-row-menu"
-                ariaLabel={`Действия с классом ${classroom.title}`}
-                label="•••"
-              >
-                {(close) => (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        close();
-                        onOpenProjects(classroom.id, classroom.title);
-                      }}
-                    >
-                      Открыть класс
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        close();
-                        setEditing(classroom);
-                      }}
-                    >
-                      Свойства
-                    </button>
-                    {classroom.status === 'archived' ? (
+                <Dropdown
+                  className="classroom-row-menu"
+                  ariaLabel={`Действия с классом ${classroom.title}`}
+                  label="•••"
+                >
+                  {(close) => (
+                    <>
                       <button
                         type="button"
-                        disabled={busy}
                         onClick={() => {
                           close();
-                          void applyStatus([classroom], 'active');
+                          onOpenProjects(classroom.id, classroom.title);
                         }}
                       >
-                        Вернуть из архива
+                        Открыть класс
                       </button>
-                    ) : (
                       <button
                         type="button"
-                        disabled={busy}
                         onClick={() => {
                           close();
-                          void applyStatus([classroom], 'archived');
+                          setEditing(classroom);
                         }}
                       >
-                        Архивировать
+                        Свойства
                       </button>
-                    )}
-                    <button
-                      type="button"
-                      className="danger"
-                      disabled={busy || classroom.teacherRole !== 'owner'}
-                      title={
-                        classroom.teacherRole === 'owner'
-                          ? undefined
-                          : 'Удалить класс может только основной преподаватель.'
-                      }
-                      onClick={() => {
-                        close();
-                        if (confirmRemoval([classroom])) void applyStatus([classroom], 'deleted');
-                      }}
-                    >
-                      Удалить
-                    </button>
-                    <p className="dropdown-hint">
-                      {ageBandLabel(classroom.ageBand)} · создан {time.date(classroom.createdAt)}
-                    </p>
-                  </>
-                )}
-              </Dropdown>
-            </li>
+                      {classroom.status === 'archived' ? (
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => {
+                            close();
+                            void applyStatus([classroom], 'active');
+                          }}
+                        >
+                          Вернуть из архива
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => {
+                            close();
+                            void applyStatus([classroom], 'archived');
+                          }}
+                        >
+                          Архивировать
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        className="danger"
+                        disabled={busy || classroom.teacherRole !== 'owner'}
+                        title={
+                          classroom.teacherRole === 'owner'
+                            ? undefined
+                            : 'Удалить класс может только основной преподаватель.'
+                        }
+                        onClick={() => {
+                          close();
+                          if (confirmRemoval([classroom])) void applyStatus([classroom], 'deleted');
+                        }}
+                      >
+                        Удалить
+                      </button>
+                      <p className="dropdown-hint">
+                        {ageBandLabel(classroom.ageBand)} · создан {time.date(classroom.createdAt)}
+                      </p>
+                    </>
+                  )}
+                </Dropdown>
+              </li>
             );
           })}
         </ul>

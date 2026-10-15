@@ -255,7 +255,9 @@ describe('classroom observation — real PostgreSQL, restricted runtime and API'
       ratingPeriodDays: 7,
     });
     const emptyId = await f.createClass();
-    expect((await f.summary([f.classId, emptyId])).items.find((i) => i.classroomId === emptyId)).toMatchObject({
+    expect(
+      (await f.summary([f.classId, emptyId])).items.find((i) => i.classroomId === emptyId),
+    ).toMatchObject({
       averageRating: null,
       ratingParticipants: 0,
       ratingPeriodDays: 30,
