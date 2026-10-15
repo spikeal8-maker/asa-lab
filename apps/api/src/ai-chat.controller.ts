@@ -115,6 +115,16 @@ export class AiChatController {
     if (typeof body['message'] !== 'string') {
       return reject('ai_input_invalid', 'Нужен текст сообщения.', 400);
     }
-    return this.safe(() => this.ai.send(account.principalId, threadId, body['message'] as string));
+    if (typeof body['requestId'] !== 'string' || !UUID.test(body['requestId'])) {
+      return reject('ai_request_id_invalid', 'Нужен уникальный идентификатор отправки.', 400);
+    }
+    return this.safe(() =>
+      this.ai.send(
+        account.principalId,
+        threadId,
+        body['message'] as string,
+        body['requestId'] as string,
+      ),
+    );
   }
 }
