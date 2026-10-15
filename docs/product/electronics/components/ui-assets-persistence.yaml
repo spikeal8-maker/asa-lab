@@ -110,12 +110,14 @@ components:
     - docs/product/electronics/README.md#5-circuitdocument
     - AGENTS.md#5-инварианты-симуляции
     sources:
+    - apps/web/src/components/editor-chrome/EditorPersistenceIndicator.tsx
     - apps/web/src/electronics/use-workbench-project-state.ts
     - apps/web/src/electronics/ArduinoCodePanel.tsx
     - apps/web/src/electronics/electronics-document-merge.ts
     - apps/web/src/electronics/workbench-autosave.ts
     - apps/web/src/modules/project-local-draft.ts
     tests:
+    - apps/web/src/components/editor-chrome/testing/editor-persistence-indicator.spec.ts
     - apps/web/src/electronics/testing/workbench-project-state.spec.ts
     - apps/web/src/electronics/testing/arduino-code-contract.spec.ts
     - apps/web/src/electronics/testing/arduino-code-panel-persistence.spec.ts

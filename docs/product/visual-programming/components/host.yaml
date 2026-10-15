@@ -91,6 +91,7 @@ components:
       - e2e/blocks-product-integration.spec.ts
       - apps/web/src/blocks/testing/runtime-origin.spec.ts
       - apps/web/src/blocks/testing/editor-shell.spec.ts
+      - tools/blocks/clock-smoke.mjs
     task: VSCR-M1-002B
     depends_on: [blocks.host.protocol, blocks.host.storage-adapter]
 

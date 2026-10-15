@@ -1,9 +1,16 @@
 import { parentPort, workerData } from 'node:worker_threads';
 import { open, readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
-import { deflateRawSync, gunzipSync } from 'node:zlib';
+import { deflateRawSync, gunzipSync, inflateRawSync } from 'node:zlib';
 import { createHash } from 'node:crypto';
-import { LOG_SUBSYSTEMS, logSubsystem } from './log-subsystems.js';
+import {
+  LOG_SUBSYSTEMS,
+  logSubsystem,
+  isHostLogSource,
+  logEditorModule,
+  logModule,
+} from './log-subsystems.js';
+import { projectDatabaseEntry } from './database-diagnostics.js';
 
 export const LOG_STORE_FORMAT = 2;
 const MAX_SEGMENT_BYTES = 4 * 1024 * 1024;
@@ -98,19 +105,18 @@ export async function readLogCatalog(root: string): Promise<LogCatalog | null> {
 }
 
 function candidates(catalog: LogCatalog, filter: LogFilter): readonly Segment[] {
-  return catalog.segments
-    .filter((s) => s.last >= filter.from && s.first <= filter.to)
-    .filter((s) => !filter.before || s.first <= filter.before.time)
-    .filter((s) => !filter.source || s.sources.includes(filter.source))
-    .filter((s) => !filter.module || s.modules.includes(filter.module))
-    .filter((s) => !filter.subsystem || !s.subsystems || s.subsystems.includes(filter.subsystem))
-    .filter((s) => !filter.level || s.levels.includes(filter.level))
-    .filter((s) => s.sources.some((source) => inScope(source, filter.scope)))
-    .sort((a, b) => b.last.localeCompare(a.last));
+  return (
+    catalog.segments
+      .filter((s) => s.last >= filter.from && s.first <= filter.to)
+      .filter((s) => !filter.before || s.first <= filter.before.time)
+      // Historical classification can change under the privacy projection. Apply
+      // source/module/level/subsystem/scope filters to the projected rows below.
+      .sort((a, b) => b.last.localeCompare(a.last))
+  );
 }
 
 function inScope(source: string, scope: LogFilter['scope']): boolean {
-  const host = source.startsWith('windows:') || source === 'docker-desktop' || source === 'metrics';
+  const host = isHostLogSource(source);
   return !scope || scope === 'all' || (scope === 'host' ? host : !host);
 }
 
@@ -181,22 +187,39 @@ function parseEntry(line: string): LogEntry {
     !Number.isFinite(Date.parse(entry.time))
   )
     throw new Error('LOG_SEGMENT_INVALID');
-  if (!LOG_SUBSYSTEMS.includes(entry.subsystem as (typeof LOG_SUBSYSTEMS)[number])) {
-    let path = '';
-    let kind = '';
-    let module = '';
-    if ((entry.source === 'api' || entry.source === 'web') && entry.message.startsWith('{')) {
-      try {
-        const value = JSON.parse(entry.message);
-        if (typeof value?.path === 'string') path = value.path;
-        if (typeof value?.kind === 'string') kind = value.kind;
-        if (typeof value?.module === 'string') module = value.module;
-      } catch {
-        /* Historical plain messages remain searchable. */
-      }
-    }
-    entry = { ...entry, subsystem: logSubsystem(entry.source, path, entry.origin, kind, module) };
+  entry = projectDatabaseEntry(entry);
+  if (typeof entry.source !== 'string' || typeof entry.origin !== 'string') {
+    entry = {
+      ...entry,
+      source: typeof entry.source === 'string' ? entry.source : 'unknown',
+      origin: typeof entry.origin === 'string' ? entry.origin : '',
+    };
   }
+  let path = '';
+  let kind = '';
+  let module = '';
+  if (
+    (entry.source === 'api' || entry.source === 'web') &&
+    entry.message.trimStart().startsWith('{')
+  ) {
+    try {
+      const value = JSON.parse(entry.message);
+      if (typeof value?.path === 'string') path = value.path;
+      if (typeof value?.kind === 'string') kind = value.kind;
+      if (typeof value?.module === 'string') module = value.module;
+    } catch {
+      /* Historical plain messages remain searchable. */
+    }
+  }
+  const subsystem =
+    isHostLogSource(entry.source) ||
+    logEditorModule(entry.source) ||
+    (['api', 'web'].includes(entry.source) && (!entry.truncated || path || kind || module)) ||
+    (entry.subsystem === 'host' && ['api', 'web'].includes(entry.source)) ||
+    !LOG_SUBSYSTEMS.includes(entry.subsystem as (typeof LOG_SUBSYSTEMS)[number])
+      ? logSubsystem(entry.source, path, entry.origin, kind, module)
+      : entry.subsystem!;
+  entry = { ...entry, subsystem, module: logModule(entry.source, subsystem, module, entry.module) };
   return entry;
 }
 
@@ -287,6 +310,8 @@ export async function exportLogs(root: string, filter: LogFilter, output: string
   let batch = '';
   let batchBytes = 0;
   let part = 0;
+  const exportedSegments: Segment[] = [];
+  let batchEntries: LogEntry[] = [];
   const write = async (data: Buffer): Promise<void> => {
     if (offset + data.length > MAX_EXPORT_BYTES) throw new Error('LOG_EXPORT_TOO_LARGE');
     await handle.writeFile(data);
@@ -337,11 +362,42 @@ export async function exportLogs(root: string, filter: LogFilter, output: string
     }
     const flush = async (): Promise<void> => {
       if (!batch) return;
-      await add(`records/part-${String(++part).padStart(5, '0')}.jsonl`, Buffer.from(batch));
+      await addRecords(Buffer.from(batch), batchEntries);
       batch = '';
       batchBytes = 0;
+      batchEntries = [];
+    };
+    const addRecords = async (
+      raw: Buffer,
+      events: readonly LogEntry[],
+      prepared?: { deflate: Buffer; crc: number },
+    ): Promise<void> => {
+      const file = `records/part-${String(++part).padStart(5, '0')}.jsonl`;
+      await add(file, raw, prepared);
+      const times = events.map((event) => event.time).sort();
+      exportedSegments.push({
+        file,
+        bytes: raw.length,
+        rawBytes: raw.length,
+        schema: 2,
+        sha256: createHash('sha256').update(raw).digest('hex'),
+        count: events.length,
+        first: times[0]!,
+        last: times.at(-1)!,
+        sources: [...new Set(events.map((event) => event.source))],
+        modules: [...new Set(events.map((event) => event.module))],
+        levels: [...new Set(events.map((event) => event.level))],
+        subsystems: [
+          ...new Set(events.flatMap((event) => (event.subsystem ? [event.subsystem] : []))),
+        ],
+      });
     };
     for (const segment of selected) {
+      // Validate the original gzip/checksum before projecting. Catalog classification
+      // is only an optimization hint: inspect every actual row before copying bytes.
+      const { raw, stored } = await segmentData(root, segment);
+      const lines = raw.toString('utf8').split('\n').filter(Boolean);
+      const events = lines.map(parseEntry);
       const whole =
         segment.file.endsWith('.gz') &&
         segment.schema === 2 &&
@@ -358,35 +414,39 @@ export async function exportLogs(root: string, filter: LogFilter, output: string
         segment.sources.every((source) => inScope(source, filter.scope)) &&
         (!filter.source || segment.sources.every((s) => s === filter.source)) &&
         (!filter.module || segment.modules.every((s) => s === filter.module)) &&
-        (!filter.level || segment.levels.every((s) => s === filter.level));
+        (!filter.level || segment.levels.every((s) => s === filter.level)) &&
+        events.every(
+          (event, index) =>
+            matches(event, { ...filter, before: null }) && JSON.stringify(event) === lines[index],
+        );
       if (whole) {
-        const { raw, stored } = await segmentData(root, segment);
         // Python's canonical gzip output is a single member with no optional header.
         // Reuse its validated deflate stream inside ZIP: extracted files stay JSONL.
-        if (
-          stored[0] !== 31 ||
-          stored[1] !== 139 ||
-          stored[2] !== 8 ||
-          stored[3] !== 0 ||
-          stored.readUInt32LE(stored.length - 4) !== raw.length
-        )
-          throw new Error('LOG_SEGMENT_INVALID');
-        let lines = 0;
-        for (const byte of raw) if (byte === 10) lines += 1;
-        if (lines !== segment.count) throw new Error('LOG_SEGMENT_INVALID');
+        let prepared: { deflate: Buffer; crc: number } | undefined;
+        if (stored[3] === 0 && stored.readUInt32LE(stored.length - 4) === raw.length) {
+          const deflate = stored.subarray(10, stored.length - 8);
+          const decoded = inflateRawSync(deflate, {
+            maxOutputLength: MAX_SEGMENT_BYTES,
+            info: true,
+          }) as unknown as { buffer: Buffer; engine: { bytesWritten: number } };
+          if (decoded.engine.bytesWritten === deflate.length && decoded.buffer.equals(raw)) {
+            prepared = { deflate, crc: stored.readUInt32LE(stored.length - 8) };
+          }
+        }
+        let lineCount = 0;
+        for (const byte of raw) if (byte === 10) lineCount += 1;
+        if (lineCount !== segment.count) throw new Error('LOG_SEGMENT_INVALID');
         await flush();
-        await add(`records/part-${String(++part).padStart(5, '0')}.jsonl`, raw, {
-          deflate: stored.subarray(10, stored.length - 8),
-          crc: stored.readUInt32LE(stored.length - 8),
-        });
+        await addRecords(raw, events, prepared);
         count += segment.count;
         uncompressed += raw.length;
       } else {
-        for await (const event of entries(root, segment)) {
+        for (const event of events) {
           if (!matches(event, { ...filter, before: null })) continue;
           const line = `${JSON.stringify(event)}\n`;
           const lineBytes = Buffer.byteLength(line);
           batch += line;
+          batchEntries.push(event);
           batchBytes += lineBytes;
           uncompressed += lineBytes;
           count += 1;
@@ -396,11 +456,33 @@ export async function exportLogs(root: string, filter: LogFilter, output: string
       if (uncompressed > 64 * 1024 * 1024 * 1024) throw new Error('LOG_EXPORT_TOO_LARGE');
     }
     await flush();
+    // Search text may itself be private historical content. Record that a search
+    // was applied without copying that text into the archive's metadata.
+    const { search, ...exportFilter } = filter;
     await add(
       'manifest.json',
       Buffer.from(
         JSON.stringify(
-          { filter, count, catalog, exportedAt: new Date().toISOString(), normalized: true },
+          {
+            filter: exportFilter,
+            searchApplied: Boolean(search),
+            count,
+            catalog: {
+              version: 1,
+              collectedAt: new Date().toISOString(),
+              bytes: exportedSegments.reduce((sum, segment) => sum + segment.bytes, 0),
+              retentionDays: Number.isSafeInteger(catalog.retentionDays)
+                ? catalog.retentionDays
+                : null,
+              maxBytes: Number.isSafeInteger(catalog.maxBytes) ? catalog.maxBytes : null,
+              trimmed: catalog.trimmed === true,
+              sources: [],
+              segments: exportedSegments,
+            },
+            sourceStatusIncluded: false,
+            exportedAt: new Date().toISOString(),
+            normalized: true,
+          },
           null,
           2,
         ),

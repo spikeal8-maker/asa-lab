@@ -1,10 +1,14 @@
 import type { Page } from '@playwright/test';
 import { existsSync } from 'node:fs';
 import { resolve, sep } from 'node:path';
+import { telemetryReceipt } from './telemetry-receipts';
 
 // Production-built UI, synthetic API only: no listening server or real student data.
 export const origin = 'http://127.0.0.1:4612';
 export const classId = '10000000-0000-4000-8000-000000000001';
+const accountId = '20000000-0000-4000-8000-000000000001';
+const coTeacherAccountId = '20000000-0000-4000-8000-000000000002';
+const workspaceId = '30000000-0000-4000-8000-000000000001';
 export const classCode = 'ABC DEF 234';
 export const seat = (index: number, label = `Ученик ${String(index + 1).padStart(2, '0')}`) => ({
   id: `seat-${index}`,
@@ -80,6 +84,8 @@ export async function fixture(
     const path = new URL(request.url()).pathname;
     const method = request.method();
     const reply = (json: unknown, status = 200) => route.fulfill({ json, status });
+    const telemetry = telemetryReceipt(request);
+    if (telemetry) return route.fulfill(telemetry);
     if (
       !['GET', 'HEAD'].includes(method) &&
       !path.includes('observation') &&
@@ -90,12 +96,12 @@ export async function fixture(
       return reply({
         authenticated: true,
         user: {
-          id: 'account-1',
+          id: accountId,
           email: 'synthetic@example.test',
           displayName: 'Тестовый преподаватель',
         },
         account: {
-          id: 'account-1',
+          id: accountId,
           email: 'synthetic@example.test',
           displayName: 'Тестовый преподаватель',
         },
@@ -105,13 +111,13 @@ export async function fixture(
         ],
         workspaces: [
           {
-            workspaceId: 'workspace-1',
+            workspaceId,
             kind: 'personal',
             title: 'Личное пространство',
             role: 'owner',
           },
         ],
-        activeWorkspace: { workspaceId: 'workspace-1', kind: 'personal' },
+        activeWorkspace: { workspaceId, kind: 'personal' },
         navigation: {
           classes: !options.account,
           classroomManagement: !options.account,
@@ -225,13 +231,13 @@ export async function fixture(
       return reply({
         items: [
           {
-            accountId: 'account-1',
+            accountId,
             displayName: 'Марина Александрова',
             role: 'owner',
             avatarDataUrl: null,
           },
           {
-            accountId: 'account-2',
+            accountId: coTeacherAccountId,
             displayName: 'Виктор Константинов',
             role: 'co_teacher',
             avatarDataUrl: null,

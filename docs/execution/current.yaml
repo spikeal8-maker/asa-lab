@@ -634,13 +634,232 @@ parallel_lanes:
     owned_paths:
     - apps/web/src/electronics/testing/workbench-field-drag.spec.ts
     task:
-      id: TASK-ELECTRONICS-CROSS-TAB-DRAFT-SAFETY-001
+      id: TASK-ELECTRONICS-SAVE-INDICATOR-001
+      issue: 569
+      branch: main
+      base_branch: main
+      pr: null
+      status: done
+      checkpoint: all_four_owner_save_points_in_main_technical_accepted_STOP
+      kind: repair
+      owner_acceptance: pending
+      programme_issue: 452
+      owner_problem: E01 verify all four approved saving and server-request points
+        together; publish missing truthful indicator only after permitted review
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-SAVE-INDICATOR-001.md
+        - docs/product/electronics/components/ui-assets-persistence.yaml
+      repair_scope: ONLY transfer preserved569 indicator and compatible tests onto
+        main containing570 and571; verify all four points on one exact candidate.
+        Preserve existing local protection and all suspended work.
+      baseline_sha: 796f52cc8de7ebabf5a18fab3db956cf25170df7
+      preserved_source_candidate_sha: d3d417cfd1aaeafe2d037e428298c60d57a8bb3d
+      technical_acceptance: accepted_exact_main_general_and_new_independent_review
+      publication_authorization: owner_explicit_all_four_points_in_main;
+        development_publication_only_after_new_independent_functional_verification
+      school_actions: deferred_by_owner_no_installation_actions
+      deployment: not_run
+      database_actions: none
+      next_action: STOP all four approved saving points technically accepted; no next
+        task selected;566 and programme452 remain open; no deployment or owner
+        acceptance
+      accepted_candidate_sha: 387a4d02294ac1ffc9309a5e4a24e2ceff64d84c
+      integrated_sha: 387a4d02294ac1ffc9309a5e4a24e2ceff64d84c
+      source_candidate_sha: bdcda1b037b5d5840380126566ca9e436e4ec8fc
+      independent_review: approved
+      independent_review_sha: 387a4d02294ac1ffc9309a5e4a24e2ceff64d84c
+      independent_review_original_sha256: 90fd4abbd15a595ed80db2fea30e6cb0c7ca3e5939f5b09760730d449a20bc1b
+      exact_main_general_run: 38626738375
+      exact_main_general_conclusion: success
+      source_focused_run: 38623487785
+      source_focused_sha: bdcda1b037b5d5840380126566ca9e436e4ec8fc
+      source_directed_browser_cases: 3
+      point3_verification: PRESERVED_PASS immediate synchronous local draft/readback;
+        held remote reply retains pupil166.7; no new storage repair
+      resolved_acceptance_blocker: ELECTRONICS-569-EXACT-GATES
+      historical_task_snapshots: Preserved unchanged; accepted_slices569570571 records
+        supersede their historical pending/blocked snapshots
+    suspended_slices:
+    - task_id: TASK-ELECTRONICS-SAVE-RETRY-CADENCE-001
+      accepted_task_snapshot:
+        id: TASK-ELECTRONICS-SAVE-RETRY-CADENCE-001
+        issue: 571
+        branch: main
+        base_branch: main
+        pr: null
+        status: in_progress
+        checkpoint: point4_code_published_functional_verified_repository_gate_pending
+        kind: repair
+        owner_acceptance: pending
+        programme_issue: 452
+        owner_problem: E01 excessive automatic save retries after transient server or transport failure
+        context_hints:
+          - docs/product/electronics/tasks/TASK-ELECTRONICS-SAVE-RETRY-CADENCE-001.md
+          - docs/product/electronics/components/ui-assets-persistence.yaml
+        repair_scope: ONLY space automatic transient save retries by60000ms; preserve ordinary minute autosave, local
+          protection, latest payload, identity/CAS, serial queue and existing manual/departure semantics.
+        school_actions: deferred_by_owner_no_installation_actions
+        baseline_sha: f603cc4b95eb4c20f03c73c74ed8ee45cef90072
+        point3_verification: Existing immediate local protection independently verified; no product change required;
+          raw pupil166.7 document survived held remote reply in570 evidence.
+        technical_acceptance: pending_repository_gate
+        deployment: not_requested
+        database_actions: none
+        next_action: STOP after owner-approved point4 publication checkpoint; do not select another point, claim
+          repository success, close571, integrate569, release or deploy.
+        source_baseline_sha: 553421019c5bb1ec02d5bbfc1bba01bbf1024583
+        source_candidate_sha: a418055cabe8754c1c6f884c403f8e658368e32e
+        source_candidate_tree: 0c9ce1b8dcc96399bc5270ad18b468f510f9d42f
+        product_publication_sha: 08477d7be1bde913d19dd1509035654c7607887b
+        product_publication_tree: 375d8204a5d1210b2a8e252f09a9fae408c0e6b5
+        publication_parent: db94f4e7530ef2598bcbd8ce63434f481baa48c8
+        publication_level: unaccepted_development_commit
+        source_review: approve
+        functional_review: pass
+        independent_source_reviewer: electronics_autosave_retry_point4_independent_review
+        independent_publication_verifier: electronics_retry_point4_main_preservation_review
+        independent_publication_preservation: pass_5_reviewed_blobs_and_modes_equal_a418_all_4069_foreign_entries_current_equal_parent
+        ci_snapshot_observed_at: 2026-10-14T19:03:02.554Z
+        exact_candidate_evidence:
+          before_browser_run: 38616996039
+          before_browser_conclusion: expected_failure_retry_after_5023ms_2PUT_during_30060ms
+          focused_browser_run: 38616995130
+          focused_job: 116034526702
+          focused_conclusion: success
+          directed_browser_job: 116035905195
+          directed_browser_conclusion: success
+          domain_tests: 644
+          editor_tests: 434
+          fresh_nx_tasks: 70
+          cache: skipped_literal_NX_SKIP_NX_CACHE_true
+          automatic_retry_after_failure_ms: 60030
+          manual_save_delay_ms: 102
+          feature_general_run: 38616758304
+          feature_general_status_observed: completed
+          feature_general_conclusion: failure
+          feature_governance_conclusion: success
+          feature_code_conclusion: success
+          feature_data_job: 116036823193
+          feature_data_conclusion: failure
+          feature_data_classification: C_unrelated_observability_five_python_ENOENT_fixtures
+          feature_access_job: 116036822580
+          feature_access_status: completed
+          publication_general_run: 38619237005
+          publication_general_status_observed: in_progress
+          publication_general_conclusion: null
+          feature_access_conclusion: success
+          publication_governance_job: 116042150739
+          publication_governance_conclusion: success
+          publication_code_job: 116042931447
+          publication_code_conclusion: success
+          publication_data_job: 116045651628
+          publication_data_status: in_progress
+          publication_access_job: 116045651771
+          publication_access_status: in_progress
+        prior_point2_general_observation:
+          publication_sha: 74a348a33e64731c670746fd8bd23349fb584f20
+          general_run: 38613886264
+          conclusion: cancelled
+          category: E_stale_cancelled_workflow_not_PASS_or_product_FAIL
+          governance: success
+          code: success
+          data: cancelled_before_data_gate
+          access: cancelled_before_browser
+          preservation: Original570 suspended task snapshot remains unchanged; this is a later observation.
+        issue_state: open
+    - task_id: TASK-ELECTRONICS-PROJECT-POLLING-001
+      accepted_task_snapshot:
+        id: TASK-ELECTRONICS-PROJECT-POLLING-001
+        issue: 570
+        branch: main
+        base_branch: main
+        pr: null
+        status: in_progress
+        checkpoint: point2_code_published_functional_verified_repository_gate_pending
+        kind: repair
+        owner_acceptance: pending
+        programme_issue: 452
+        owner_problem: E01 unnecessary server traffic during normal Electronics editing
+        context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-PROJECT-POLLING-001.md
+        - docs/product/electronics/components/ui-assets-persistence.yaml
+        repair_scope: ONLY remove blind 3000ms project GET; preserve initial load, clean focus, late-response protection and CAS409 recovery; minute autosave, immediate local draft and retries unchanged.
+        school_actions: deferred_by_owner_no_installation_actions
+        source_candidate_sha: 88d1360c532bff3d1fab7f31167f9999ff3ee512
+        source_candidate_tree: 8276203a10d8da465b478d96ce17dc50ff63a159
+        product_publication_sha: 74a348a33e64731c670746fd8bd23349fb584f20
+        product_publication_tree: 921df699b565fde4875e8cfdbe9f0b47ef8a31c6
+        publication_parent: d4659e5c6a0d7025ab73eada73e7451aeae10df4
+        publication_level: unaccepted_development_commit
+        source_review: approve
+        functional_review: pass
+        independent_source_review_record: 570-independent-review-88d1360c.md
+        independent_source_review_sha256: 24acd3b620a61ebe88cd31b84bf9d185eb1ce8537d0b7eb841590f7b7d81125b
+        independent_publication_preservation: pass_4_reviewed_blobs_and_4066_foreign_entries_preserved
+        exact_candidate_evidence:
+          before_browser_run: 38611133072
+          before_browser_conclusion: expected_failure_3_periodic_GET_during_10_seconds
+          focused_browser_run: 38611413891
+          focused_job: 116015459688
+          focused_conclusion: success
+          directed_browser_job: 116016934140
+          directed_browser_conclusion: success
+          feature_general_run: 38611291291
+          feature_data_job: 116018207204
+          feature_data_conclusion: failure
+          feature_data_category: C_unrelated_observability_three_python_ENOENT_fixtures
+          publication_general_run: 38613886264
+          publication_general_status_observed: pending
+          publication_general_conclusion: null
+        issue_state: open
+        technical_acceptance: pending_repository_gate
+        deployment: not_requested
+        database_actions: none
+        next_action: Controller reports point2 publication before selecting point3; do not claim repository success, close570, integrate569, release or deploy.
+    - task_id: TASK-ELECTRONICS-SAVE-INDICATOR-001
+      accepted_task_snapshot:
+        id: TASK-ELECTRONICS-SAVE-INDICATOR-001
+        issue: 569
+        branch: main
+        base_branch: main
+        pr: null
+        status: blocked
+        checkpoint: candidate_exact_focused_browser_passed_general_external_fixture_failed
+        kind: repair
+        owner_acceptance: pending
+        programme_issue: 452
+        owner_problem: E01 truthful pending local copy versus actual network save
+        context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-SAVE-INDICATOR-001.md
+        - docs/product/electronics/components/ui-assets-persistence.yaml
+        repair_scope: ONLY indicator dirty versus actual saving; preserve unchanged minute cadence and local protection; report before point2.
+        school_actions: deferred_by_owner_no_installation_actions
+        preserved_candidate_sha: d3d417cfd1aaeafe2d037e428298c60d57a8bb3d
+        preserved_candidate_tree: 36fbfb94fe32d7ed8358128f107d912b545dd29b
+        preserved_candidate_branch: codex/electronics-save-indicator-569
+        independent_review: blocked_external_baseline
+        exact_candidate_evidence:
+          focused_run: 38603937841
+          focused_job: 115989895473
+          focused_conclusion: success
+          directed_browser_run: 38603937841
+          directed_browser_job: 115991080347
+          directed_browser_conclusion: success
+          general_run: 38603732138
+          general_attempt: 2
+          general_conclusion: failure
+          data_job: 116000847298
+          failure_category: C_unrelated_observability_fixture_python_ENOENT
+          product_integrated: false
+          deployment: not_requested
+        checkpoint_evidence: docs/product/electronics/tasks/TASK-ELECTRONICS-SAVE-INDICATOR-001.md
+    - task_id: TASK-ELECTRONICS-CROSS-TAB-DRAFT-SAFETY-001
       issue: 566
       branch: main
       base_branch: main
       pr: null
-      status: in_progress
-      checkpoint: owner_first_problem_two_tab_recovery_cleanup_before
+      status: blocked
+      checkpoint: save_scenario_passed_exact_acceptance_gates_failed
       kind: repair
       owner_acceptance: pending
       programme_issue: 452
@@ -660,9 +879,25 @@ parallel_lanes:
       paused_field_ci_cancellation: requested_by_controller; cancelled is not PASS
       accepted_save_recovery_sha: 185d723b900b5e497bf1fc323ed64409c095d0f6
       school_actions: deferred_by_owner_no_installation_actions
-      next_action: Reproduce exact production-browser two-tab cleanup loss, minimal fix, focused and required gates, NEW
-        independent review; report and STOP
-    suspended_slices:
+      candidate_branch: codex/electronics-save-cross-tab-566
+      candidate_sha: d94d3a91fa6768d536728a3fcd774a44b18f564f
+      candidate_tree: 57f8ae5e7be996580f7761520489ff69ba19e251
+      candidate_integration: not_integrated
+      exact_save_scenario: passed_in_ordinary_built_browser_gate
+      exact_general_run: 38480957015
+      exact_general_url: https://github.com/spikeal8-maker/asa-lab/actions/runs/38480957015
+      exact_general_conclusion: failure
+      exact_general_failure: Access registration setup HTTP429 in two scenarios; not a save product finding
+      exact_electronics_run: 38480969448
+      exact_electronics_url: https://github.com/spikeal8-maker/asa-lab/actions/runs/38480969448
+      exact_electronics_conclusion: failure
+      exact_electronics_browser: 150 passed, 1 image recovery href retry0 failure; cross-tab save scenario passed
+      independent_review: acceptance_blocked_required_gates_failed_no_product_findings_reported
+      technical_acceptance: blocked
+      deployment: not_run
+      database_actions: none
+      next_action: Preserve exact candidate and evidence; no repair, rerun, integration, closeout or installation action;
+        report and STOP. No next task.
     - task_id: TASK-ELECTRONICS-GOVERNANCE-007
       issue: 535
       status: technical_accepted
@@ -2024,6 +2259,84 @@ parallel_lanes:
       owner_acceptance: pending
       deployment: not_run
       production_slices_since_hygiene542: 2
+    - task_id: TASK-ELECTRONICS-SAVE-INDICATOR-001
+      issue: 569
+      owner_point: 1
+      status: technical_accepted
+      accepted_via: Owner-authorized four-point completion569; historical suspended
+        snapshot retained
+      accepted_candidate_sha: 387a4d02294ac1ffc9309a5e4a24e2ceff64d84c
+      candidate_tree: 9e1fb353e5b4dd0e0a5d73c211b5480f9288dfc0
+      integrated_sha: 387a4d02294ac1ffc9309a5e4a24e2ceff64d84c
+      independent_review: approved
+      independent_review_sha: 387a4d02294ac1ffc9309a5e4a24e2ceff64d84c
+      independent_review_original_sha256: 90fd4abbd15a595ed80db2fea30e6cb0c7ca3e5939f5b09760730d449a20bc1b
+      independent_evidence: docs/product/electronics/tasks/TASK-ELECTRONICS-SAVE-INDICATOR-001.md
+      exact_main_general_run: 38626738375
+      exact_main_general_conclusion: success
+      source_candidate_sha: bdcda1b037b5d5840380126566ca9e436e4ec8fc
+      source_focused_run: 38623487785
+      source_focused_conclusion: success
+      source_directed_browser_run: 38623487785
+      source_directed_browser_cases: 3
+      source_runtime_equivalence: New independent reviewer proved all
+        product/runtime/build inputs identical between sourcebdc and accepted
+        main387a; source browser is not a rerun on387a
+      nx_fresh_tasks: 70
+      owner_acceptance: pending
+      deployment: not_run
+    - task_id: TASK-ELECTRONICS-PROJECT-POLLING-001
+      issue: 570
+      owner_point: 2
+      status: technical_accepted
+      accepted_via: Owner-authorized four-point completion569; historical suspended
+        snapshot retained
+      accepted_candidate_sha: 387a4d02294ac1ffc9309a5e4a24e2ceff64d84c
+      candidate_tree: 9e1fb353e5b4dd0e0a5d73c211b5480f9288dfc0
+      integrated_sha: 387a4d02294ac1ffc9309a5e4a24e2ceff64d84c
+      independent_review: approved
+      independent_review_sha: 387a4d02294ac1ffc9309a5e4a24e2ceff64d84c
+      independent_review_original_sha256: 90fd4abbd15a595ed80db2fea30e6cb0c7ca3e5939f5b09760730d449a20bc1b
+      independent_evidence: docs/product/electronics/tasks/TASK-ELECTRONICS-PROJECT-POLLING-001.md
+      exact_main_general_run: 38626738375
+      exact_main_general_conclusion: success
+      source_candidate_sha: bdcda1b037b5d5840380126566ca9e436e4ec8fc
+      source_focused_run: 38623487785
+      source_focused_conclusion: success
+      source_directed_browser_run: 38623487785
+      source_directed_browser_cases: 3
+      source_runtime_equivalence: New independent reviewer proved all
+        product/runtime/build inputs identical between sourcebdc and accepted
+        main387a; source browser is not a rerun on387a
+      nx_fresh_tasks: 70
+      owner_acceptance: pending
+      deployment: not_run
+    - task_id: TASK-ELECTRONICS-SAVE-RETRY-CADENCE-001
+      issue: 571
+      owner_point: 4
+      status: technical_accepted
+      accepted_via: Owner-authorized four-point completion569; historical suspended
+        snapshot retained
+      accepted_candidate_sha: 387a4d02294ac1ffc9309a5e4a24e2ceff64d84c
+      candidate_tree: 9e1fb353e5b4dd0e0a5d73c211b5480f9288dfc0
+      integrated_sha: 387a4d02294ac1ffc9309a5e4a24e2ceff64d84c
+      independent_review: approved
+      independent_review_sha: 387a4d02294ac1ffc9309a5e4a24e2ceff64d84c
+      independent_review_original_sha256: 90fd4abbd15a595ed80db2fea30e6cb0c7ca3e5939f5b09760730d449a20bc1b
+      independent_evidence: docs/product/electronics/tasks/TASK-ELECTRONICS-SAVE-RETRY-CADENCE-001.md
+      exact_main_general_run: 38626738375
+      exact_main_general_conclusion: success
+      source_candidate_sha: bdcda1b037b5d5840380126566ca9e436e4ec8fc
+      source_focused_run: 38623487785
+      source_focused_conclusion: success
+      source_directed_browser_run: 38623487785
+      source_directed_browser_cases: 3
+      source_runtime_equivalence: New independent reviewer proved all
+        product/runtime/build inputs identical between sourcebdc and accepted
+        main387a; source browser is not a rerun on387a
+      nx_fresh_tasks: 70
+      owner_acceptance: pending
+      deployment: not_run
     suspended_tasks:
     - task_id: TASK-ELECTRONICS-PSU-WIRE-ENTRY-001
       issue: 466
@@ -2963,10 +3276,42 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: r6_actual_gpio_cpu_localization_then_one_causal_compute_repair
+      checkpoint: r9_host_demand_without_editor_state_tick
       owner_acceptance: pending
       selected_at: '2026-10-13T19:13:54.343466+00:00'
-      repair_scope: 'R6 first ONE actual exacteb fullGPIO CPU profile, normal100000us horizons0..2s, complete ready/state, CPU+wall without coverage. Send actual hotspot and ONE proposal to controller before product edits. Finite product paths ONLY solver.ts and simulation.ts plus solver.spec.ts/simulation-contract.spec.ts: document-derived immutable preparation or repeated allocation in observations/independent validation. Preserve every physical step/arithmetic/quality check/output/state. Outside envelope STOP proposal; no speculative changes.'
+      r7_preserved_repair_scope: 'R7 owner Arduino startup and 5/10Hz visible cadence: bounded complete ready observation cap 25000us and host presentation tick 20ms in live-simulation-worker-controller.ts/use-electronics-workbench.ts, supporting existing controller/host tests and electronics-ready-cadence.spec.ts. Preserve R6 product, both full generic cases and three owner programmes. Correct initial phase anchor; require actual HIGH/LOW half durations, duty/gaps, model/wall progression and loaded effective LED image paint. Physical quantum1000us, instruction1us, event256, precision, every runtime state and yielded-null remain unchanged. No inserted pupil delay, timeout increase, school operations or unrelated repair. New exact source focused/directed evidence then required final gates and NEW independent review before integration.'
+      r8_preserved_repair_scope: 'R8 metadata with preserved structural prevalidation: compileCircuit then simulationInputDigest in the same old order before continuation/input/horizon guards; simulation.ts pure accessor for the existing document-independent MODEL_SET_DIGEST and engine.ts metadata lookup replacing only the unnecessary numeric solve/quality in analyseCircuit(document).modelSetDigest. Preserve all actual scheduler/solve/quality/validation/state work and physical precision; no persistent cache, new runtime, timeout increase or foreign repair. Supporting existing simulation-contract/engine-timed tests plus external baseline parity; one exact focused gate and five production browser journeys before new independent review.'
+      repair_scope: 'R9 host scheduling only in use-electronics-workbench.ts: retain 10ms wall-clock demand and 25000us complete-ready cap while removing requested-horizon React state updates that rerender the whole editor without a new result. Use current document/clock refs and controller demand directly; preserve source/runtime input and serialRX timestamp freshness, start/stop/restart/failure/unmount and simulationTimeMs consumers. Supporting focused mounted-hook tests and reviewed TEST-only synchronous LED hit oracle in existing ready-cadence spec. No Worker/solver/numerics/cache/budget/precision/timeout/pupil programme changes or foreign repair.'
+      r8_preserved_source_sha: 21e2ef06a5642a061d8fa13f8a75a308df13e649
+      r8_preserved_source_tree: c86eb2d10ec76b72e78a9741421d95d84b7e0aeb
+      r8_causal_report_sha256: 110edacf8d77edeb7d71f584975c715bfa8b9c2f2d38f16b032e9be7cd27a0b0
+      r8_proven_cause: 'Every advance repeats complete standalone analysis only for a module-constant registry digest. Retained GPIO71ready C=H0to1.75s over4155.7ms wall; evaluator elapsed3823.5ms is not sampled CPU. Speedup and school frequency remain unproved.'
+      r7_status: not_accepted_directed_failed
+      r7_actual_host_tick_ms: 10
+      r7_documentation_correction: 'Historical selected20ms retained above/in R7 history; actual controller-authorized source21e uses10ms and ready25000us. R8 does not change these values.'
+      implementation_acceptance: Exact digest and whole-return/state/fault equivalence versus21e; no skipped real physical quality checks. Frozen focused gate and generic Serial/GPIO plus owner no-delay/5Hz/10Hz actual unoccluded paint with unchanged timeouts. Then required final General/ordinary gates and NEW independent review; no capacity/deployment/owner acceptance claim.
+      next_action: New bounded R9 implementer inherits preserved db96 and this canonical selection; implement host-demand ref scheduling only plus reviewed oracle and meaningful mounted-hook regression. Send exact candidate and narrow evidence then STOP for controller actual diff and NEW independent source review before one frozen focused/five-case browser run. Blocks diagnostic continues independently; no unproved Blocks product repair. Full ordinary/final General and NEW independent product review remain required before integration or acceptance.
+      r9_profile_run: 38766810620
+      r9_profile_source_sha: db96c92365913362ae225a09b41926f7015b30e0
+      r9_profile_report_sha256: ee778bddcd37f54e8763f3c6ab2dbf503f04dbd96436d3b83dd6ce38753ba8f7
+      r9_causal_boundary: 'Actual page ThreadTime3.242s over4.651s; source setState each10ms rerenders SchematicEditor even with stable runtime document/no new ready. Exact React sampled percentage and speedup unproved. Actual Worker solveStep54.71pct inclusive/quality16.37pct overlap; fixed preparation small, no further cache patch justified. Profile overhead and failed initial5000ms predicate preserved, reopened NOT_RUN.'
+      r9_baseline_classification: 'Main2af General38764896188 Gov/Code PASS, Data ECR Node429 before tests (D), Access S4 deferred host Account historical/known Blocks overlay expected ready received error at4800 (C unrelated). Neither repaired in Electronics; no release or acceptance claim from this baseline.'
+      r9_oracle_patch_sha256: 34952a3ab2828fe98d53e8bd3313c786a26e7b43bb4c25cdcba274b2c176ad72
+      r9_oracle_boundary: 'TEMP proposal only; one hit-test block, inverse git bytes exact; real DOM7/7 including opaque panel/hidden/opacity/decode negatives. Exact inline style restored before yielding; native browser frames still mandatory and observer cost must be retained in interpretation. No weakened timing/paint assertions.'
+      r8_candidate_sha: db96c92365913362ae225a09b41926f7015b30e0
+      r8_candidate_tree: d0636ec0abad217d4b6ebaa3b4c20ff27fda7925
+      r8_general_run: 38758753296
+      r8_general_conclusion: success
+      r8_directed_run: 38758878615
+      r8_directed_conclusion: failure
+      r8_independent_review: request_changes_source_approved_product_not_accepted
+      r8_residual_evidence: 'Owner100 DOM4.931Hz and native OFF/ON with steady fourth LED; generic8 reopened reaches1.4s not final LED, owner50 strict halves/duty fail, pointerEvents-none invalidates image hit oracle. Evaluator elapsed is not CPU utilization. Blocks100ms generation is correct; workspace-triggered generation restart remains unverified. Pending publication is cancelled on actual unmount, whereas ordinary close keeps the panel mounted and is a negative control. No school frequency or capacity claim.'
+      r8_diagnostic_boundary: 'New diagnostic e2e files and temporary CDP instrumentation only, separate workflow refs with frozen db96 build/source digests. Actual Blocks UI edits and Worker source receipts; initial/reopen profiler preserves existing5000/30000ms and original pupil actions. No product patch, test weakening, new stack, server or installation action.'
+      r7_owner_request: 'Owner current complaint: delayed LED startup, Arduino delay100ms appears near1s, three HIGH outputs d13/d12/d11 without delay fail. Controller explicitly selects one cadence repair; no school capacity claim.'
+      r7_source_baseline: c7b80c20b22e8b62eda086db3d2751df69fd56a9
+      r7_directed_run: 38633617297
+      r7_independent_review: request_changes
+      r7_proven_cause: 'Canonical 50ms half edges correct at50004/50005us and54 complete ready/0yielded;100ms host/window aliases10Hz: only11DOM phases,maxquiet1739.6ms. delay100 initialLOW@0 toHIGH@4us was initialization, not regular period. No-delay all3HIGH completes atC=H256us/DOM519ms, sustained rate and paint not yet proved.'
       preserved_candidate_sha: 03344e9c6b74a064ab90fd8294199b4dde783ff5
       preserved_candidate_tree: 727086ecacb0f2c039387bf5b46477553c6d5983
       candidate_publication: published
@@ -2988,7 +3333,8 @@ parallel_lanes:
       residual_localization_head: 76252052130f9100f2654d2f656f342a36566c2b
       residual_proposal_original_sha256: ec4db8d67151a59317d5544ea05ed3511abcd0615e094258be22e958f7d3da7b
       residual_profile: One actual final0677 fullGPIO0..2s profile; observation callback9.5pct self, solveStep53.8pct inclusive, quality19.3pct/allNumbers12.5pct outside repair scope. No school or browser timing claim.
-      implementation_acceptance: Fresh actual full-return corpus/parity versus0677 plus stale/dynamic/state challenges and focused gate before unchanged fullGPIO/Serial browser; no claimed sufficiency until actual directed and ordinary exact all8/newreview.
+      r6_preserved_implementation_acceptance: Fresh actual full-return corpus/parity versus0677 plus stale/dynamic/state challenges and focused gate before unchanged fullGPIO/Serial browser; no claimed sufficiency until actual directed and ordinary exact all8/newreview.
+      r7_preserved_implementation_acceptance: R7 complete ready C=H only, canonical whole/partition/runtime-state equivalence, actual loaded LED paint, strict HIGH/LOW wall halves/gaps/duty and model-wall rate. Both full generic and three owner programmes with unchanged timeouts; new exact focused/directed then required final gates and independent review.
       r1_directed_probe: 66310186ec6eab8dee9634de3143fce0bc4f27ab
       r1_directed_run: 38006467707
       r1_directed_conclusion: failure
@@ -2998,7 +3344,8 @@ parallel_lanes:
       exact_candidate_electronics_run: null
       exact_candidate_electronics_conclusion: not_dispatched_after_directed_fail
       actual_new_failure: Directed6a GPIO initial0..5/0..7,15readyC=H0..1.4s/0yielded0fault, wallcompute4423.1ms/max551.2/UI8.3..21.7ms. Latefullsnapshot and stickyshrink explanations disproved; CPU-vs-host unmeasured. Piezo fullStop/PCM/SaveCAS2to3/cookies/finaldraft and valid11130877B118records passed; whole546 NOT accepted.
-      next_action: NEW bounded R6 author inherits preservedeb and canonical selection. ONE actualprofile then controller actualcheck/proposal confirmation before ONE causal product patch within finite envelope. Fresh full-return parity versus currenteb/state/negative challenges; focusedgate NX_SKIP_NX_CACHE=true, selfreview, one unpublishedSHA STOP. Root actualproof and NEW independent source review; directed GPIO/Serial/piezo then exact General4/Electronics4 and NEW product review. Only546/noPortal/school.
+      r6_preserved_next_action: NEW bounded R6 author inherits preservedeb and canonical selection. ONE actualprofile then controller actualcheck/proposal confirmation before ONE causal product patch within finite envelope. Fresh full-return parity versus currenteb/state/negative challenges; focusedgate NX_SKIP_NX_CACHE=true, selfreview, one unpublishedSHA STOP. Root actualproof and NEW independent source review; directed GPIO/Serial/piezo then exact General4/Electronics4 and NEW product review. Only546/noPortal/school.
+      r7_preserved_next_action: R7 implement the selected complete observation cadence repair after fresh canonical guard; meaningful controller/state/oracle challenges, new frozen focused gate and one five-case production browser run. Exact final General/ordinary gates and NEW independent review before integration. Author STOP; only546, no other module/school.
       r3_profile_source_sha: 037ebb37a0609d247f19a96811a8b52c1960a9a5
       r3_profile_proposal_original_sha256: 7280eda6cdcf9e769d10477379cfeacab955e72714efba2639fc1b9499fe66e6
       r3_profile_manifest_sha256: b6b4c6933d8176eb870d5518f963939f6dba36a88e2e4d3dc8e02283f9e2c9c2
@@ -4568,22 +4915,32 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: obs009_scratch_diagnostic_fixture
+      checkpoint: OBS015_OBS016_OBS017_verified_reported_STOP_no_site_update
       owner_acceptance: pending
       normative_refs:
         - document: PORTABLE-DEPLOYMENT-CONTRACT
           revision: '1.0'
         - document: OBSERVABILITY-REPAIR-SPEC
-          revision: '1.8'
+          revision: '1.14'
+        - document: RELEASE-REGISTRATION-FIXTURE-SPEC
+          revision: '1.0'
+        - document: RELEASE-SCRATCH-CLOCK-SPEC
+          revision: '1.0'
+        - document: RELEASE-UI-TELEMETRY-FIXTURE-SPEC
+          revision: '1.0'
+        - document: RELEASE-SCRATCH-PROTOCOL-FIXTURE-SPEC
+          revision: '1.0'
+        - document: RELEASE-WINDOWS-JUNCTION-FIXTURE-SPEC
+          revision: '1.0'
     programme:
       owner_authorization: sequential_log_and_user_observability_repair_20261011
       status: in_progress
       selected_slice: OBS3B-CLIENT
       item_execution:
         document: docs/product/ASA_OBSERVABILITY_REPAIR_SPEC.md
-        selected_item: OBS-009
-        status: in_progress
-        completed_items: [OBS-001, OBS-002, OBS-003, OBS-004, OBS-005, OBS-006, OBS-007, OBS-008]
+        selected_item: OBS-017
+        status: completed_focused_verified_independently_reviewed_reported_STOP
+        completed_items: [OBS-001, OBS-002, OBS-003, OBS-004, OBS-005, OBS-006, OBS-007, OBS-008, OBS-009, OBS-010, OBS-011, OBS-012, OBS-013, OBS-014, OBS-015, OBS-016, OBS-017]
         accepted_items:
           OBS-001:
             status: implemented_focused_verified
@@ -4598,8 +4955,8 @@ parallel_lanes:
             exact_ci_item_tests: 5_passed
             exact_ci_focused: 281_passed_1_failed_baseline_OBS009
             exact_ci_postgres_and_browser: skipped
-            product_integration: held_with_unaccepted_CLIENT_parent
-            deployment: not_run
+            product_integration: integrated_main_owner_authorized_release_fb4f4f6c
+            deployment: canonical_site_fb4f4f6c_schema212_verified
             database_actions: none
             report: docs/execution/OBS_001_REPORT.md
           OBS-002:
@@ -4619,8 +4976,8 @@ parallel_lanes:
             exact_ci_item_tests: 37_passed
             exact_ci_focused: baseline_OBS009_failure_own37_passed
             exact_ci_postgres_and_browser: skipped
-            product_integration: held_with_unaccepted_CLIENT_parent
-            deployment: not_run
+            product_integration: integrated_main_owner_authorized_release_fb4f4f6c
+            deployment: canonical_site_fb4f4f6c_schema212_verified
             database_actions: none
             report: docs/execution/OBS_002_REPORT.md
           OBS-003:
@@ -4639,8 +4996,8 @@ parallel_lanes:
             exact_ci_additional_api_suite: 3_passed
             exact_ci_focused: 345_passed_1_failed_baseline_OBS009
             exact_ci_postgres_and_browser: skipped
-            product_integration: held_with_unaccepted_CLIENT_parent
-            deployment: not_run
+            product_integration: integrated_main_owner_authorized_release_fb4f4f6c
+            deployment: canonical_site_fb4f4f6c_schema212_verified
             database_actions: none
             report: docs/execution/OBS_003_REPORT.md
           OBS-004:
@@ -4658,8 +5015,8 @@ parallel_lanes:
             exact_ci_regressions: 86_passed
             exact_ci_focused: 362_passed_1_failed_baseline_OBS009
             exact_ci_postgres_and_browser: skipped
-            product_integration: held_with_unaccepted_CLIENT_parent
-            deployment: not_run
+            product_integration: integrated_main_owner_authorized_release_fb4f4f6c
+            deployment: canonical_site_fb4f4f6c_schema212_verified
             database_actions: none
             report: docs/execution/OBS_004_REPORT.md
           OBS-005:
@@ -4677,9 +5034,9 @@ parallel_lanes:
             exact_ci_auth_regressions: 37_passed
             exact_ci_focused: 374_passed_1_failed_baseline_OBS009
             exact_ci_code_postgres_and_browser: skipped
-            product_integration: held_with_unaccepted_CLIENT_parent
+            product_integration: integrated_main_owner_authorized_release_fb4f4f6c
             main_convergence: foreign_learning_App_conflict_aborted_canonical_selection_only_inherited
-            deployment: not_run
+            deployment: canonical_site_fb4f4f6c_schema212_verified
             database_actions: none
             report: docs/execution/OBS_005_REPORT.md
           OBS-006:
@@ -4698,9 +5055,9 @@ parallel_lanes:
             exact_ci_focused: 386_passed_1_failed_baseline_OBS009
             exact_ci_postgres_and_browser: skipped
             exact_ci_code_gate: not_reached_after_focused_failure
-            product_integration: held_with_unaccepted_CLIENT_parent
+            product_integration: integrated_main_owner_authorized_release_fb4f4f6c
             main_convergence: canonical_report5_and_selection6_only_inherited_foreign_App_conflict_deferred
-            deployment: not_run
+            deployment: canonical_site_fb4f4f6c_schema212_verified
             database_actions: none
             report: docs/execution/OBS_006_REPORT.md
           OBS-007:
@@ -4727,9 +5084,9 @@ parallel_lanes:
             exact_ci_postgres_and_browser: skipped
             exact_ci_code_gate: not_reached_after_focused_failure
             real_browser_BFCache: not_run_synthetic_PageTransitionEvent_only
-            product_integration: held_with_unaccepted_CLIENT_parent
+            product_integration: integrated_main_owner_authorized_release_fb4f4f6c
             main_convergence: canonical_report6_and_selection7_only_inherited_foreign_App_conflict_deferred
-            deployment: not_run
+            deployment: canonical_site_fb4f4f6c_schema212_verified
             database_actions: none
             report: docs/execution/OBS_007_REPORT.md
           OBS-008:
@@ -4747,23 +5104,379 @@ parallel_lanes:
             exact_ci_selected_tests: 179_passed
             exact_ci_focused: 437_passed_1_failed_baseline_OBS009
             exact_ci_postgres_and_browser: skipped
-            product_integration: held_with_unaccepted_CLIENT_parent_until_owner_authorized_batch_integration
-            deployment: pending_after_OBS009_and_required_checks
+            product_integration: integrated_main_owner_authorized_release_fb4f4f6c
+            deployment: canonical_site_fb4f4f6c_schema212_verified
             database_actions: none
             report: docs/execution/OBS_008_REPORT.md
+          OBS-009:
+            status: implemented_focused_verified
+            source_sha: 75e2b4687fdbc2cacd77c5933b92bba415901adf
+            source_branch: codex/observability-item-09
+            authoring_baseline_sha: af30cdea694fece82efb974ed1b2a72adc3d449d
+            independent_review: scoped_pass
+            local_before: 1_failed_28_intentionally_skipped
+            local_intermediate_case_only: isolated_pass_full_file_28_passed_1_failed_shared_outbox_fixture
+            local_final: 29_passed_0_skipped_assertions_unchanged
+            exact_ci_run: 38476998498
+            exact_ci_conclusion: cancelled_by_controller_to_avoid_unconverged_heavy_duplicate_gates
+            exact_ci_governance: success
+            exact_ci_code_job: success
+            exact_ci_focused: 438_passed_0_failed
+            exact_ci_item_tests: 29_passed
+            exact_ci_lint_typecheck_build: 27_projects_passed
+            exact_ci_postgres_and_browser: cancelled_pending_exact_main_general
+            product_integration: integrated_main_owner_authorized_release_fb4f4f6c
+            deployment: canonical_site_fb4f4f6c_schema212_verified
+            database_actions: none
+            report: docs/execution/OBS_009_REPORT.md
+          OBS-010:
+            status: implemented_existing_main_focused_verified_and_independently_reviewed
+            initial_source_sha: 3ab6693eb3bf52d7ba73c5f6679bbac83c656efb
+            final_browser_source_sha: 0e9045500fd2c069b35e6c51d9dcaad039258be2
+            reviewed_main_sha: b5bf8a3c250cb8bd84665dee1639014fb0eae840
+            independent_review: scoped_pass_existing_implementation_and_source_equivalence
+            focused_browser_run: 38491966252
+            focused_browser_result: two_selected_real_browser_scenarios_passed_reused_not_rerun
+            source_equivalence: selected_tests_harness_shipping_CLIENT_Scratch_build_inputs_and_dependency_lock_unchanged
+            whole_Scratch_workflow: failure_54_passed1_unrelated_VSCR470_recovery_clock_failed
+            local_new_product_tests: not_run_no_product_test_or_dependency_changes
+            product_integration: already_in_main_no_duplicate_source_change
+            deployment: not_run_this_item_explicitly_excluded_by_owner
+            database_actions: none
+            report: docs/execution/OBS_010_REPORT.md
+          OBS-011:
+            status: implemented_focused_verified_and_independently_reviewed
+            source_sha: e1c9f989699234aede76a4c2f5dc9d3cafd562d1
+            source_branch: codex/observability-item-11
+            authoring_baseline_sha: 648ddb3cba8b109f074893a53799a35a6bfb22be
+            independent_review: scoped_challenge_pass_exact_source_no_test_rerun
+            local_before: 25_failed_subcases_3_passed_scenarios
+            payload_identity_before: 4_failed_scenarios
+            local_after: 8_methods_32_scenarios_passed
+            local_collector_total: 41_passed_0_skipped_includes_33_existing_8_new
+            exact_ci_conclusion: not_run_before_main_publication_not_claimed_green
+            product_integration: main_publication_authorized_after_focused_checks_and_review
+            deployment: not_run_explicitly_excluded_by_owner
+            database_actions: temporary_diagnostic_SQLite_fixtures_only_no_live_actions
+            report: docs/execution/OBS_011_REPORT.md
+          OBS-012:
+            status: implemented_focused_verified_and_independently_reviewed
+            source_sha: dfb768a75c1b972362479ef4e5bbc78cb6ed18e4
+            initial_source_sha: 1d37a204c887451745ca6e79341846cb2d2b4e6c
+            authoring_baseline_sha: 8cf3e6fae0f0c456fd11d542ac5383d1c29df715
+            independent_review: scoped_challenge_pass_exact_final_source
+            local_before: 19_python_subfailures_and_one_worker_privacy_failure
+            local_after: 45_collector_passed_includes_4_new_and_7_distinct_worker_checks_passed
+            large_worker_regressions: 2_intentionally_skipped
+            convergence: foreign_electronics_docs_only_product_paths_byte_identical_no_rerun
+            exact_ci_conclusion: not_run_before_main_publication_not_claimed_green
+            deployment: not_run_explicitly_excluded_by_owner
+            database_actions: temporary_fixtures_only_no_live_actions
+            report: docs/execution/OBS_012_REPORT.md
+          OBS-013:
+            status: implemented_repaired_focused_verified_and_independently_reviewed
+            source_sha: a5f4aca80fe469885b716e06dde822e478e489b6
+            initial_source_sha: 10491503082b9229670c146e635031c6682d0caa
+            authoring_baseline_sha: 7e31490e7c25811ac53b81756a8ca758cf57e329
+            initial_independent_review: needs_fix_real_API_quality_sequence_false_positive
+            independent_review: scoped_challenge_pass_fresh_reviewer_after_repair
+            local_before: 2_reader_crashes_and_2_privacy_failures_raw_gzip
+            repair_before: 2_actual_quality_producer_failures_raw_gzip
+            local_after: 17_worker_passed_plus_21_unchanged_service_controller_passed_38_distinct
+            large_worker_regressions: 2_intentionally_skipped_bounded_256_row_volume_check_passed
+            packaging: isolated_actual_API_compiler_options_JSON_copy_and_real_Worker_passed_not_full_build
+            archive_source_status: explicitly_omitted_no_complete_coverage_claim
+            exact_ci_conclusion: not_run_before_main_publication_not_claimed_green
+            deployment: not_run_explicitly_excluded_by_owner
+            database_actions: temporary_fixtures_only_no_live_actions
+            report: docs/execution/OBS_013_REPORT.md
+          OBS-014:
+            status: implemented_focused_verified_and_independently_reviewed
+            source_sha: 3a3497e31194880a191fa3b63bdef4decc546c69
+            authoring_baseline_sha: 3e762aebf0529cf0141e7ddc951ad430b8e28c82
+            independent_review: scoped_challenge_pass_exact_source_and_one_isolated_temporary_probe
+            local_before: 2_python_methods_7_failed_subcases_and_2_raw_gzip_worker_failures
+            local_after: 47_collector_and_52_API_passed_2_large_API_tests_skipped
+            deployment_contracts: 67_passed_2_platform_skipped_69_run
+            metadata: bounded_active_private_digest_cache_idempotent_no_immutable_file_rewrite
+            lint_limit: Nx_module_boundaries_skipped_without_cached_ProjectGraph_not_full_gate
+            exact_ci_conclusion: not_run_before_main_publication_not_claimed_green
+            deployment: not_run_explicitly_excluded_by_owner
+            database_actions: temporary_fixtures_only_no_live_actions
+            report: docs/execution/OBS_014_REPORT.md
+          OBS-015:
+            status: implemented_repaired_focused_verified_and_independently_reviewed
+            source_sha: 90ed457646d399f020d88fc6f113e5092079a6ed
+            initial_source_sha: 24dacff3a3c41bbecfdab1d92c00fdd0bc7f5549
+            converged_source_sha: a5aab962fa37e5c2bf0c226c73a2f9f59bacfc84
+            authoring_baseline_sha: cf29d247a099b6929efa32c8d7542dde27943d7d
+            independent_review: initial_needs_fix_truncated_import_final_fresh_review_PASS
+            local_after: 51_distinct_collector_57_API_and_1_actual_SSR_passed_2_large_worker_skips
+            layout: 4_static_actual_SSR_viewports_passed_not_hydrated_SPA_owner_acceptance
+            convergence: unrelated_electronics_docs_only_9_source_blobs_identical_before_bounded_repair
+            producer_limit: classification_for_5_editors_does_not_add_new_browser_event_producers
+            exact_ci_conclusion: source_run38611190772_failed_5_missing_Python_fixtures_repaired_separately
+            baseline_repair_report: docs/execution/OBS_015_CI_PYTHON_REPORT.md
+            Windows_fixture_repair_report: docs/execution/OBS_015_CI_UTF8_REPORT.md
+            repaired_test_environment_CI: run38617737022_exact654f_success_attempt2_infrastructure429_retry
+            deployment: not_run_explicitly_excluded_by_owner
+            database_actions: temporary_fixtures_only_no_live_actions
+            report: docs/execution/OBS_015_REPORT.md
+          OBS-016:
+            status: implemented_actual_database_verified_and_independently_reviewed
+            source_sha: 3843956f0b33383ac32d3104680e961e7d818405
+            author_source_sha: 46b0ae4adabbe1c47c1f50d18d2e4fd43b941cd0
+            authoring_baseline_sha: d4659e5c6a0d7025ab73eada73e7451aeae10df4
+            independent_review: pass_exact_final_source_no_actionable_defect
+            actual_database_before: baseline_run38613177389_schema_change_27_to54
+            actual_database_after: unchanged27_repeat27_real_mutations28_29_30
+            local_after: 56_passed_1_actual_database_skip_57_run
+            exact_source_CI: focused_database_run38614199354_success_56_passed_1_platform_skip
+            compatibility: exact_legacy_hash_and_hashed_full_fields_with_proved_missing_defaults
+            mutable_limit: no_per_native_cap_260_observations_and_retention_cleanup_verified
+            convergence: foreign_electronics_only_five_tested_blobs_identical_full_integrated_CI_not_claimed
+            deployment: not_run_explicitly_excluded_by_owner
+            database_actions: isolated_synthetic_GitHub_PostgreSQL_only_no_working_database
+            report: docs/execution/OBS_016_REPORT.md
+          OBS-017:
+            status: implemented_actual_database_verified_independently_reviewed
+            source_sha: 6a23ee5948650d0bd551338c03415a445046ab3d
+            author_source_sha: a9f1a45a9c6841a854fc97993c3941733038a9cc
+            authoring_baseline_sha: 0724a63a2f6752b4be769e0064ab60a1345e35f6
+            independent_review: pass_exact_final_source_six_blob_and_fourteen_evidence_hashes_verified
+            actual_database_before: fresh4347_bytes_over_scaled4096_twice_no_cursor_progress_saved0
+            actual_database_after: all81_distinct_ids_mutable82_maxpage1364_timeout_restart_retry_history_passed
+            local_after: 59_passed_2_actual_database_skips_61_run
+            exact_source_CI: focused_database_run38616913334_success_60_passed_1_platform_skip
+            limits: 128_rows_4MiB_CSV_15s_SQL_25s_command_frozen_windows_required_trailer
+            atomicity: SAVEPOINT_events_fingerprints_cursor_and_quality_status_no_partial_progress
+            quality: pending_backlog_coverageComplete_false_until_window_completed
+            convergence: source_blobs_identical_foreign_electronics_preserved_test_runtime_repair_accepted
+            final_composition_general_CI: automatic_after_main_push_pending_not_claimed_green
+            deployment: not_run_explicitly_excluded_by_owner
+            database_actions: isolated_synthetic_GitHub_PostgreSQL_only_no_working_database
+            report: docs/execution/OBS_017_REPORT.md
+        baseline_repair:
+          id: OBS-015-CI-PYTHON
+          status: implemented_actual_test_image_verified_independently_reviewed
+          source_sha: 654f3d620d98d0f935e2c1d9f5746a2349305fb6
+          independent_review: pass_exact_source_stage_and_fixture_preservation
+          actual_CI_run: 38617737022
+          actual_CI_conclusion: success_attempt2_one_failed_data_job_retry_after_registry429
+          actual_data_job: 116048575513
+          actual_test_stage: Python3_alias_and_nonroot_SQLite_smoke_passed
+          actual_tests: 3990_passed_424_files_and16_RLS_passed_original_five_fixtures_unchanged
+          report: docs/execution/OBS_015_CI_PYTHON_REPORT.md
+          reason: own_observability_fixtures_spawn_python_but_disposable_test_image_has_no_Python
+          failure_run: 38611190772
+          failure_source_sha: 90ed457646d399f020d88fc6f113e5092079a6ed
+          failure_scope: data_gate_5_python_ENOENT_failures_3983_other_tests_passed_code_and_browser_passed
+          document: docs/product/ASA_OBSERVABILITY_REPAIR_SPEC.md
+          section: '23'
+          authoring_baseline_sha: 553421019c5bb1ec02d5bbfc1bba01bbf1024583
+          allowed_scope: test_stage_Python_runtime_dependency_and_minimal_necessary_verification_only
+          forbidden: production_runtime_changes_assertion_removal_or_skip_live_Docker_or_new_user_item
+          required_review: fresh_independent_scoped_review_before_main_integration
+          after_acceptance: preserve_OBS017_candidate_and_continue_final_review_integration_no_OBS018
+        windows_fixture_repair:
+          id: OBS-015-CI-UTF8
+          status: implemented_focused_verified_actual_Windows_and_Linux_contracts_passed
+          source_sha: 46fd6ac08f27c0663267cb2494b4166033032972
+          independent_review: pass_exact_source_five_args_only_real_cp1252_reproduction
+          before: actual_Windows_six_errors_and_local_real_cp1252_six_errors
+          focused_after: three_existing_methods_six_raw_gzip_cases_passed
+          actual_CI_run: 38623836696
+          actual_Windows_job: 116057850687
+          actual_Windows: SUCCESS_61_collector_run59pass2skips_and71_deployment_run69pass2skips
+          actual_Linux_job: 116057850085
+          actual_Linux: SUCCESS_61_collector_run58pass3skips_and71_deployment_run70pass1skip
+          workflow_total: cancelled_after_both_contract_jobs_success_to_stop_optional_unchanged_image_rebuild_not_full_PASS
+          report: docs/execution/OBS_015_CI_UTF8_REPORT.md
+          source_baseline_sha: 43f3fa587318d0d06acfc48e4213344d0d821c71
+          failure_run: 38622500252
+          failure_job: 116053283644
+          failure_scope: six_cp1252_UnicodeDecodeError_subcases_in_three_OBS014_OBS015_test_methods
+          document: docs/product/ASA_OBSERVABILITY_REPAIR_SPEC.md
+          section: '24'
+          allowed_scope: explicit_UTF8_catalog_reads_in_three_existing_test_methods_only
+          product_changes: forbidden
+          next_action: STOP_repair_accepted_product_unchanged_no_OBS018
         owner_authorized_batch:
-          ordered_items: [OBS-008, OBS-009]
-          reports: separate_after_each_item
+          status: completed_three_items_verified_reported_STOP
+          ordered_items: [OBS-015, OBS-016, OBS-017]
+          reports: separate_report_after_each_item_controller_STOP_after_OBS017
           integration_into_main: authorized
-          resolve_necessary_integration_conflicts: authorized_by_full_main_update_request
-          canonical_site_update: explicitly_authorized_after_required_checks
-          remaining_OBS010_through_OBS045: not_implemented_by_this_authorization
+          canonical_site_update: explicitly_excluded_for_this_item
+          remaining_OBS018_through_OBS045: not_selected
         mode: one_item_per_executor_report_then_controller_continues_owner_batch
-        next_item_requires_owner_instruction: false
-        owner_instruction: Implement item8 then item9 with separate reports, integrate all prepared changes into main and fully update the canonical site after required release checks.
-        candidate_baseline_sha: b1a93e6c14cac35cf5e440e4af86650ebf9bb3bb
-        acceptance_scope: Endpoint-correct Scratch diagnostics fixture preserving heartbeat failure, recovery and hidden-tab assertions.
-        next_action: implement_OBS009_verify_report_then_owner_authorized_main_integration_and_full_site_update
+        next_item_requires_owner_instruction: true
+        owner_instruction: Continue three sequential items OBS015 then OBS016 then OBS017, report each, publish into main without site update, STOP after OBS017.
+        candidate_baseline_sha: 6a23ee5948650d0bd551338c03415a445046ab3d
+        acceptance_scope: Bounded recent database batches advance without missing equal-time rows or duplicating observations, preserve history and report truthful backlog/error status.
+        next_action: STOP_completed_owner_batch_OBS015_OBS016_OBS017_main_publication_no_site_update_OBS018_requires_owner_instruction
+      release_execution:
+        status: completed_owner_authorized_batch_with_documented_diagnostics_limitations
+        selected_phase: report_and_STOP_after_OBS008_OBS009_main_and_canonical_site_update
+        owner_authorization: explicit_OBS008_then_OBS009_then_all_changes_main_and_full_site_update_20261014
+        candidate_source_sha: fb4f4f6c4e158de49d76f8fade9322a0a0cea894
+        integration_branch: codex/observability-main-integration
+        registration_fixture_result:
+          id: TASK-RELEASE-REGISTRATION-FIXTURE-001
+          source_sha: 2a3d2f49fc7ed8412914e3ca0800ced59bf623b5
+          status: implemented_independently_reviewed_final_main_browser_CI_success
+          independent_review: pass
+          local_focused: 30_passed
+          source_general_run: 38483765579
+          source_general: governance_and_code_success_remaining_cancelled_for_final_main_gate
+          assertion_preservation: 214_assertions_3_payload_origin_3_timeout_declarations_unchanged
+          local_browser_discovery: not_run_missing_identity_dist_no_local_build
+          report: docs/execution/RELEASE_REGISTRATION_FIXTURE_REPORT.md
+          production_quota: unchanged_generic900_per5min_registration60_per_hour
+        Scratch_clock_result:
+          id: TASK-RELEASE-SCRATCH-CLOCK-001
+          source_sha: 35a9c99ba1d238ac2e678acc0c564aea7ca0cff6
+          independent_review: pass_new_reviewer_after_two_line_lint_repair
+          source_focused_run: 38485756130
+          source_focused_contracts: success
+          source_real_activity_minute_save: success
+          source_cumulative_browser: 51_passed_4_failed_classified_separately
+          local: format_targeted_ESLint_discovery2_assertion_preservation_pass
+          original_assertions: 23_retained_4_identity_checks_added
+        UI_telemetry_fixture_result:
+          id: TASK-RELEASE-UI-TELEMETRY-FIXTURE-001
+          source_sha: 85742e662fb03bf8b981d69bc3182e4009b75958
+          independent_review: pass
+          local_focused: 29_passed
+          original_assertion_preservation: 1257_expect_calls_identical_across_5_UI_specs
+          local_browser: discovery402_only_not_execution
+          report: docs/execution/RELEASE_UI_TELEMETRY_FIXTURE_REPORT.md
+          full_UI_execution: final_main_402_passed_run38496115989
+        Scratch_protocol_fixture_result:
+          id: TASK-RELEASE-SCRATCH-PROTOCOL-FIXTURE-001
+          source_sha: 0e9045500fd2c069b35e6c51d9dcaad039258be2
+          initial_source_sha: 15a48da0bcd0cca0d6b0ce28e17d79aad153bcb8
+          independent_review: pass_new_reviewer_after_ESM_loader_repair
+          local_focused: 39_passed_reused_helper_units_unchanged_by_loader_repair
+          local_import_smoke: actual_Playwright_Node_only_before_fail_after_pass_no_browser_server
+          original_assertions: 434_retained_432_initially_unchanged_2_authorized_classification_changes_loader_repair_434_identical
+          source_Scratch_run: 38491966252
+          source_real_activity_minute_save: success
+          source_cumulative_browser: 54_passed_1_known_VSCR470_clock_failure_no_product_or_recovery_changes
+          recovery_specs: unchanged_no_closure_claim
+        UI_actor_fixture_repair_result:
+          id: TASK-RELEASE-UI-TELEMETRY-FIXTURE-001
+          source_sha: d9aa03130d3e7c78fa5d7f659d4f2d7bc16accde
+          independent_review: pass
+          actual_fixture_before: invalid_actor_invalid_quality_HTTP400_business_mutation1
+          actual_fixture_after: valid_actor_valid_quality_HTTP200_business_mutation0
+          preservation: all1257_expect_calls_15_API_paths_classId_mutation_push_AST_identical
+          unchanged_helpers_and_tests: 29_units_and_Scratch_byte_identical_not_rerun
+          report: docs/execution/RELEASE_UI_ACTOR_FIXTURE_REPORT.md
+          final_full_UI_CI: final_main_402_passed_run38496115989
+        current_baseline_task:
+          id: TASK-RELEASE-WINDOWS-JUNCTION-FIXTURE-001
+          specification: docs/delivery/RELEASE_WINDOWS_JUNCTION_FIXTURE_SPEC.md
+          branch: codex/release-windows-junction-fixture
+          status: implemented_independently_reviewed_final_release_Windows_and_Linux_contracts_success
+          category: D_hosted_Windows_PowerShell_junction_fixture_setup_timeout_before_assertions
+          failing_runs:
+          - 38488975580
+          - 38494073569
+          observed: first_junction_setup_exceeds15_seconds_before_security_assertions_Linux_contracts_pass
+          scope: Only bounded60_second_test_fixture_creation_timeout_and_comment_in_test_collector_python; all_security_assertions_and_production30_second_budget_unchanged.
+          deployment_gate: final_main_General_and_all_Portable_Release_contracts_build_publish_backup_restore_success
+          source_sha: fb4f4f6c4e158de49d76f8fade9322a0a0cea894
+          focused: actual_Windows_single_test_all5_junction_locations_passed
+          independent_review: pass
+          report: docs/execution/OBS_008_009_RELEASE_REPORT.md
+        main_integration_result:
+          source_sha: 3ab6693eb3bf52d7ba73c5f6679bbac83c656efb
+          main_publication: completed_normal_fast_forward
+          independent_review: pass_full_CLIENT_delta_and_preservation
+          local_focused: 93_passed_6_files
+          local_browser: discovery_only_2_scenarios_not_executed
+          preservation: 53_main_paths_28_CLIENT_paths_8_critical_repairs_byte_identical
+          source_general_run: 38479261357
+          source_general: governance_code_postgres_success_browser_baseline_quota_failure
+          original_main_general_run: 38480278081
+          original_main_general: cancelled_to_avoid_repeating_known_identical_baseline_failure
+        scope: Merge prepared CLIENT and accepted repairs with current main, resolve necessary conflicts preserving both features.
+        required_fixture_compatibility: Existing classroom Scratch browser fixture must acknowledge v2 visits and quality so new CLIENT queue can reach module-session; preserve all behavioral
+          assertions.
+        gate_order: Focused checks and independent source review before main publication, exact main General all required jobs and portable release checks before runtime update.
+        production_directory: F:\Asa-Lab\asa-lab
+        production_project: asa-lab-dev
+        production_profile: production
+        production_entry_origin: https://asa-lab.ru
+        production_before_revision: fa282924d97c21c552f5bdef11b9af94324b02fc
+        production_before_schema: 203
+        production_manager: tools/asa_manager.py
+        backup:
+          path: F:\Asa-Lab\asa-lab\backups\20261014T020114Z-9d5587b4
+          status: full_recovery_set_hash_verified
+          verified_files: 1576
+          runtime_revision: fa282924d97c21c552f5bdef11b9af94324b02fc
+          includes:
+          - PostgreSQL_dump_ACL
+          - globals_without_role_passwords
+          - MinIO_objects
+          - private_env
+          - configuration
+          - hash_manifest
+        deployment:
+          status: success_after_inspected_transient_public_entry_recovery
+          revision: fb4f4f6c4e158de49d76f8fade9322a0a0cea894
+          schema: 212
+          receipt_at: '2026-10-14T02:05:15.097544+00:00'
+          recovered: true
+          initial_failure: EDITOR_ENTRY_HTTP_public_health404_after_containers_ready
+          recovery: exact_images_schema_and_strict_public_embedded_entry_verified_then_manager_acknowledge_archived_original_markers_and_success_receipt_recorded_without_restart_or_database_restore
+          entry_http: pass
+          user_flow: not_run_authenticated_save_reopen_no_owner_session
+          browser_public_home_and_registration_and_login_forms: pass_actual_IAB_after_reload
+          same_PostgreSQL_and_MinIO_volumes: true
+          same_private_env_SHA256: true
+          aggregate_counts_unchanged:
+            accounts: 71
+            classroom_student_seats: 418
+            principals: 416
+            projects: 1114
+            workspaces: 71
+        owner_product_acceptance: not_claimed_by_health_or_CI
+        final_main_general:
+          revision: fb4f4f6c4e158de49d76f8fade9322a0a0cea894
+          run: 38496115989
+          conclusion: success
+          required_jobs: all4_success
+          access_unit: 849_passed_89_files
+          real_browser: 21_passed
+          synthetic_UI_layout: 402_passed
+        final_portable_delivery:
+          revision: fb4f4f6c4e158de49d76f8fade9322a0a0cea894
+          run: 38496116071
+          conclusion: success
+          required_jobs: Windows_Linux_contracts_and_images_all_success
+        final_portable_release:
+          revision: fb4f4f6c4e158de49d76f8fade9322a0a0cea894
+          run: 38498149543
+          conclusion: success
+          required_jobs: gate_Windows_Linux_contracts_4_images_publish_and_exact_image_backup_restore_all_success
+        collector_observation:
+          process: running_current_revision_and_script_digest
+          cycle: ok_fresh
+          core_sources: api_web_scratch_postgres_minio_migration_all_ok
+          coverage_complete: false
+          source_states:
+            ok: 65
+            pending: 98
+            unavailable: 2
+            error: 0
+          excluded_not_applicable: 1
+          runner_management: degraded_COLLECTOR_RUNNER_IDENTITY_existing_Windows_task_XML_omits_default_RunLevel_but_actual_task_Limited0_owned_action_root_and_user_match
+          permissions: windows_Security_and_restricted_channel_discovery_unavailable_no_elevation
+          followup: recorded_not_repaired_as_unselected_next_task
+        known_Scratch_acceptance_blocker: VSCR470_pagehide_clock_pauseAt_past_unchanged_54_passed1_failed_run38491966252_all_Scratch_source_byte_identical_to0e
+        report: docs/execution/OBS_008_009_RELEASE_REPORT.md
       dependency_order: [OBS1, OBS3A, OBS2, OBS3B-SERVER, OBS3B-CLIENT, OBS4, OBS5, OBS6]
       completed_slices: [OBS1, OBS3A, OBS2, OBS3B-SERVER]
       remaining_slices: [OBS3B-CLIENT, OBS4, OBS5, OBS6]
@@ -4822,35 +5535,18 @@ parallel_lanes:
           runtime_evidence: actual_PostgreSQL_receipts_concurrency_authority_replay_lock_isolation_RLS_upgrade_and_existing_browser_journeys_pass_on_556_and_aab
           production_evidence: pending_OBS6_guarded_release_and_safe_legacy_analytics_projection
       priority_note: >-
-        SERVER source and independent review passed; exact integrated aab General all four jobs succeeded.
-        Main integration 3e09 preserves byte-identical product source and the later foreign documents,
-        with independent preservation review and four Python validators; no full 3e09 CI is claimed.
-        Owner narrowed execution to one numbered item with report and STOP; OBS-001 is focused-verified.
-        OBS-002 independent source review and focused checks passed after deadline repair; report and STOP.
-        OBS-003 exact acknowledgement contracts passed source review and focused checks; report and STOP.
-        OBS-004 storage coverage passed source review and focused checks; report and STOP.
-        OBS-005 shared operation waiters passed source review and focused checks; report and STOP.
-        OBS-006 synchronous close-before-quality passed source review and focused checks; report and STOP.
-        OBS-007 BFCache resume passed focused checks and new independent review after stale initial timer repair; report and STOP.
-        OBS-008 exact fractional receipts passed source review and 179 selected local/CI tests; separate report recorded.
-        Owner-authorized OBS-009 fixture is now selected, then main integration and full guarded site update.
-        Exact general CLIENT CI still fails the separate baseline OBS-009 fixture.
-        Remaining OBS3B-CLIENT work includes stable retry identities,
-        confirmed module sessions and visits, independent truthful quality ledgers and diagnostic intake.
-        Preserve canonical Account/Seat authority, existing Scratch single-writer ownership, telemetry
-        exclusion from auth refresh, academic edit-qualified intervals and transactional project activity.
-        Aggregate OBS3B acceptance still requires CLIENT. Module coverage, safe legacy DB-log projection,
-        administrator scope/UI and integrated guarded release remain subsequent slices. No historical
-        school root cause, classroom acceptance or production release is claimed.
-      deployment_authorized: true
+        OBS001-016 accepted within each report's declared scope. OBS016 real PostgreSQL baseline reproduced
+        schema-only duplicates, exact focused repaired CI succeeded, independent review PASS. Only OBS017
+        selected for new bounded author. Controller STOP after OBS017; OBS018 needs new owner instruction.
+      deployment_authorized: false
       destructive_database_actions_authorized: false
       owner_classroom_acceptance: not_run
       scope_note: >-
-        Owner authorized the observability programme and subsequently required one numbered item per run,
-        a complete report and STOP until the next explicit instruction. OBS-001 source/focused result is
-        accepted; OBS-002 through OBS-008 are focused-verified and reported. OBS-009 is selected under the explicit owner batch, followed by main integration and full guarded site update; each executor handles only its selected item.
-        The CLIENT package and release remain unfinished. Preserve unrelated lane owner
-        acceptance, protected data, canonical installation and security boundaries.
+        Authorized batch OBS015-017: all editor classifications, schema-compatible identity verification,
+        bounded progress under recent DB load. No website update or live database/logs, local Docker or
+        schedule operations. Isolated synthetic database evidence may run in GitHub CI; no production data.
+        Preserve accepted history, other lanes and blockers. OBS018-045 remain unselected; no full programme
+        or live Linux acceptance is inferred from focused evidence.
     gates:
       focused:
         workflow: ASA Lab Governance and Code Gates
@@ -5227,4 +5923,24 @@ blocking:
       actual42ready37fractional and correctintegertext. IndependentC baseline557 must be repaired/reviewed
       and required exact gates green; labels552 repaired separately. No product clock regression proven.
     evidence: docs/product/electronics/evidence/startup-audio-552-final-review-975f1fef.md
+  - id: ELECTRONICS-566-EXACT-GATES
+    kind: acceptance_blocker
+    lane: electronics
+    task_id: TASK-ELECTRONICS-CROSS-TAB-DRAFT-SAFETY-001
+    blocks:
+    - integration
+    - technical_acceptance
+    - closeout
+    - close_issue
+    - owner_acceptance
+    - release_claim
+    allows:
+    - documentation_update
+    - independent_source_review
+    reason: Save candidate d94d3a91fa6768d536728a3fcd774a44b18f564f passes its actual ordinary browser cross-tab
+      recovery scenario, but exact General38480957015 fails two Access registration HTTP429 setup scenarios and
+      ordinary Electronics38480969448 fails one image recovery href retry0 scenario (150 passed). These failures
+      do not authorize foreign repair or acceptance. Preserve accepted526 and paused544; do not close566 or452.
+      Required exact-head gates and independent acceptance must be satisfied before integration or closure.
+    evidence: docs/product/electronics/tasks/TASK-ELECTRONICS-CROSS-TAB-DRAFT-SAFETY-001.md
 next_task: null

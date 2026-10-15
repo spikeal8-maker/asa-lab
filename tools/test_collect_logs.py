@@ -1,6 +1,8 @@
 import json
 import gzip
 import secrets
+from contextlib import ExitStack
+import threading
 import zipfile
 import os
 import subprocess
@@ -12,9 +14,214 @@ from unittest.mock import patch
 from pathlib import Path
 from datetime import datetime, timedelta, timezone
 from collect_logs import Collector, normalize, now, file_timestamp, clean, RETIRE_SECONDS, write_collector_health, write_process_health, linux_resources, resource_warnings
+from test_database_diagnostics import DatabaseDiagnosticTests  # Included by the canonical collector test runner.
+from test_database_identity import ActualDatabaseIdentityTests, DatabaseIdentityUnitTests
+from test_database_progress import ActualDatabaseProgressTests, DatabaseProgressUnitTests, response
+
+
+def system_classification_fixture(root, compressed):
+    """Synthetic fresh, imported and immutable legacy history for Python/API tests."""
+    c = Collector(root, {'retentionDays': 365})
+    c.reader_format = 2 if compressed else 1
+    sources = ('linux:journal', 'linux:kernel', 'docker-lifecycle', 'api', 'web', 'scratch')
+    rows = []
+    for generation in ('fresh', 'imported', 'legacy'):
+        batch = []
+        for source in sources:
+            payload = {'msg': 'OBS014 fixture', 'module': 'scratch', 'level': 'warn',
+                       'path': '/internal/blocks/editor' if source == 'web' else '/api/projects/fixture'}
+            event = normalize(source, json.dumps(payload), '2026-10-02T00:00:00.000Z',
+                              generation + source, 'generic-application-origin')
+            if generation != 'fresh':
+                event.update(subsystem='scratch' if source in sources[:3] else 'host', module='scratch')
+            batch.append(event)
+        if generation == 'imported':
+            archive = root / 'synthetic-import.zip'
+            with zipfile.ZipFile(archive, 'w') as z:
+                z.writestr('manifest.json', json.dumps({'normalized': True, 'count': len(batch)}))
+                z.writestr('records/part-00001.jsonl', '\n'.join(map(json.dumps, batch)) + '\n')
+            c.import_history(archive)
+            c.import_history(archive)
+        elif generation == 'legacy':
+            # Model retained old bytes and a valid index, with misleading cached hints.
+            first = c.db.execute("SELECT seq FROM sqlite_sequence WHERE name='events'").fetchone()[0] + 1
+            for event in batch: c.add(event)
+            last = c.db.execute("SELECT max(seq) FROM events").fetchone()[0]
+            meta = c.write_segment(f'seg-{first:016d}-{last:016d}.jsonl', batch)
+            meta.update(subsystems=['audit'], modules=['scratch'])
+            c.set_state('segments', {meta['file']: meta})
+            c.db.execute('UPDATE events SET published=1,payload=NULL,time=NULL,source=NULL WHERE seq>=?', (first,))
+        else:
+            for event in batch: c.add(event)
+        rows.extend(batch)
+    originals = {p.name: p.read_bytes() for p in c.store.glob('seg-*')}
+    c.publish()
+    return c, rows, originals
+
+
+def editor_classification_fixture(root, compressed):
+    """Five editor names, explicit levels and all three retained-history paths."""
+    c = Collector(root, {'retentionDays': 365})
+    c.reader_format = 2 if compressed else 1
+    rows = []
+    for generation in ('fresh', 'imported', 'legacy'):
+        batch = []
+        for module in ('scratch', 'electronics', 'three-d', 'chess', 'checkers'):
+            for level in ('info', 'warn', 'error'):
+                payload = {'kind': 'client_diagnostic', 'module': 'blocks' if module == 'scratch' else module,
+                           'level': level, 'path': '/api/diagnostics/client', 'message': 'OBS015 failure marker'}
+                event = normalize('api', json.dumps(payload), '2026-10-02T00:00:00.000Z',
+                                  generation + module + level, 'application-stdout')
+                # Input levels are independently known, including old rows without a payload level.
+                event['level'] = level
+                if generation != 'fresh':
+                    event.update(subsystem='audit', module=payload['module'] if generation == 'imported' else 'portal')
+                    event.pop('normalizationVersion', None)
+                    old_payload = dict(payload); old_payload.pop('level')
+                    event['message'] = json.dumps(old_payload)
+                batch.append(event)
+        if generation == 'imported':
+            archive = root / 'synthetic-editor-import.zip'
+            with zipfile.ZipFile(archive, 'w') as z:
+                z.writestr('manifest.json', json.dumps({'normalized': True, 'count': len(batch)}))
+                z.writestr('records/part-00001.jsonl', '\n'.join(map(json.dumps, batch)) + '\n')
+            c.import_history(archive); c.import_history(archive)
+        elif generation == 'legacy':
+            first = c.db.execute("SELECT seq FROM sqlite_sequence WHERE name='events'").fetchone()[0] + 1
+            for event in batch: c.add(event)
+            last = c.db.execute('SELECT max(seq) FROM events').fetchone()[0]
+            meta = c.write_segment(f'seg-{first:016d}-{last:016d}.jsonl', batch)
+            meta.update(subsystems=['audit'], modules=['portal'], levels=['error'])
+            c.set_state('segments', {meta['file']: meta})
+            c.db.execute('UPDATE events SET published=1,payload=NULL,time=NULL,source=NULL WHERE seq>=?', (first,))
+        else:
+            for event in batch: c.add(event)
+        rows.extend(batch)
+    originals = {p.name: p.read_bytes() for p in c.store.glob('seg-*')}
+    c.publish()
+    return c, rows, originals
 
 
 class CollectorTests(unittest.TestCase):
+    @staticmethod
+    def open_and_close(root):
+        Collector(root,{}).db.close()
+
+    @staticmethod
+    def history_bytes(collector):
+        return {p.name: p.read_bytes() for p in collector.store.iterdir()
+                if p.name == 'catalog.json' or p.name.startswith('seg-')}
+
+    def test_obs011_missing_index_preserves_history_without_recreating_index(self):
+        for reader in (1, 2):
+            with self.subTest(reader=reader), tempfile.TemporaryDirectory() as temp, ExitStack() as cleanup:
+                root=Path(temp); c=Collector(root,{}); cleanup.callback(c.db.close); c.reader_format=reader
+                c.add(normalize('api','retained',now(),'retained')); c.publish()
+                before=self.history_bytes(c); c.db.close()
+                index=c.private/'index.sqlite'; index.unlink()
+                with self.assertRaisesRegex(RuntimeError,'restore.*diagnostic snapshot'): self.open_and_close(root)
+                self.assertFalse(index.exists()); self.assertEqual(self.history_bytes(c),before)
+
+    def test_obs011_inconsistent_index_fails_before_history_or_catalog_mutation(self):
+        for reader in (1, 2):
+            for reopen in (False, True):
+                for mode in ('empty','sequence','identity','published_without_file'):
+                    with self.subTest(reader=reader,reopen=reopen,mode=mode), tempfile.TemporaryDirectory() as temp, ExitStack() as cleanup:
+                        root=Path(temp); c=Collector(root,{}); cleanup.callback(c.db.close); c.reader_format=reader
+                        for i in range(2): c.add(normalize('api','retained '+str(i),now(),str(i)))
+                        c.publish(); before=self.history_bytes(c)
+                        if mode=='empty': c.db.execute('DELETE FROM events')
+                        elif mode=='sequence': c.db.execute("UPDATE sqlite_sequence SET seq=0 WHERE name='events'")
+                        elif mode=='identity': c.db.execute('UPDATE events SET id=? WHERE seq=1',(bytes.fromhex('a'*64),))
+                        else: c.db.execute('INSERT INTO events(id,published) VALUES(?,1)',(bytes.fromhex('b'*64),))
+                        c.db.commit()
+                        if reopen:
+                            c.db.close()
+                            with self.assertRaisesRegex(RuntimeError,'restore.*diagnostic snapshot'): self.open_and_close(root)
+                        else:
+                            with self.assertRaisesRegex(RuntimeError,'restore.*diagnostic snapshot'): c.publish()
+                            c.db.close()
+                        self.assertEqual(self.history_bytes(c),before)
+
+    def test_obs011_unknown_orphan_identity_cannot_be_adopted(self):
+        for reader in (1,2):
+            with self.subTest(reader=reader), tempfile.TemporaryDirectory() as temp, ExitStack() as cleanup:
+                c=Collector(Path(temp),{}); cleanup.callback(c.db.close); c.reader_format=reader
+                c.add(normalize('api','private',now(),'private')); c.db.commit()
+                c.write_segment('seg-0000000000000001-0000000000000001.jsonl',[normalize('api','foreign',now(),'foreign')])
+                before=self.history_bytes(c)
+                with self.assertRaisesRegex(RuntimeError,'restore.*diagnostic snapshot'): c.publish()
+                self.assertEqual(self.history_bytes(c),before); c.db.close()
+
+    def test_obs011_live_sequence_rollback_without_segments_fails_closed(self):
+        with tempfile.TemporaryDirectory() as temp, ExitStack() as cleanup:
+            c=Collector(Path(temp),{}); cleanup.callback(c.db.close); c.add(normalize('api','private',now(),'private'))
+            c.db.execute("UPDATE sqlite_sequence SET seq=0 WHERE name='events'")
+            with self.assertRaisesRegex(RuntimeError,'restore.*diagnostic snapshot'): c.publish()
+            self.assertEqual(self.history_bytes(c),{}); c.db.close()
+
+    def test_obs011_unpublished_payload_identity_fails_before_any_publication(self):
+        for reader in (1,2):
+            for reopen in (False,True):
+                with self.subTest(reader=reader,reopen=reopen), tempfile.TemporaryDirectory() as temp, ExitStack() as cleanup:
+                    root=Path(temp); c=Collector(root,{}); cleanup.callback(c.db.close); c.reader_format=reader
+                    c.add(normalize('api','retained',now(),'retained')); c.publish()
+                    c.add(normalize('api','pending',now(),'pending'))
+                    c.db.execute('UPDATE events SET id=? WHERE published=0',(bytes.fromhex('c'*64),)); c.db.commit()
+                    before=self.history_bytes(c)
+                    if reopen:
+                        c.db.close()
+                        with self.assertRaisesRegex(RuntimeError,'restore.*diagnostic snapshot'): self.open_and_close(root)
+                    else:
+                        with self.assertRaisesRegex(RuntimeError,'restore.*diagnostic snapshot'): c.publish()
+                    self.assertEqual(self.history_bytes(c),before)
+
+    def test_obs011_segment_collision_preserves_bytes_and_identical_replay(self):
+        for reader in (1,2):
+            with self.subTest(reader=reader), tempfile.TemporaryDirectory() as temp, ExitStack() as cleanup:
+                c=Collector(Path(temp),{}); cleanup.callback(c.db.close); c.reader_format=reader
+                name='seg-0000000000000001-0000000000000001.jsonl'
+                event=normalize('api','immutable',now(),'immutable'); meta=c.write_segment(name,[event])
+                before=self.history_bytes(c); self.assertEqual(c.write_segment(name,[event]),meta)
+                with self.assertRaisesRegex(RuntimeError,'collision.*restore.*diagnostic snapshot'):
+                    c.write_segment(name,[{**event,'message':'different bytes, same identity'}])
+                self.assertEqual(self.history_bytes(c),before); c.db.close()
+
+    def test_obs011_atomic_competing_segment_creation_never_clobbers(self):
+        for reader in (1,2):
+            for identical in (False,True):
+                with self.subTest(reader=reader,identical=identical), tempfile.TemporaryDirectory() as temp, ExitStack() as cleanup:
+                    c=Collector(Path(temp),{}); cleanup.callback(c.db.close); c.reader_format=reader
+                    event=normalize('api','first writer',now(),'first')
+                    other=event if identical else normalize('api','second writer',now(),'second')
+                    name='seg-0000000000000001-0000000000000001.jsonl'
+                    barrier=threading.Barrier(2); link=os.link; outcomes=[]
+                    def competing_link(*args,**kwargs):
+                        barrier.wait(timeout=5); return link(*args,**kwargs)
+                    def write(entry):
+                        try: outcomes.append(c.write_segment(name,[entry]))
+                        except Exception as exc: outcomes.append(exc)
+                    with patch('collect_logs.os.link',side_effect=competing_link):
+                        threads=[threading.Thread(target=write,args=(e,)) for e in (event,other)]
+                        for thread in threads: thread.start()
+                        for thread in threads: thread.join(timeout=10)
+                    self.assertEqual(sum(isinstance(v,dict) for v in outcomes),2 if identical else 1)
+                    if not identical: self.assertTrue(any(isinstance(v,RuntimeError) for v in outcomes))
+                    raw=next(c.store.glob('seg-*')).read_bytes()
+                    if reader==2: raw=gzip.decompress(raw)
+                    self.assertIn(json.loads(raw),[event,other]); c.db.close()
+
+    def test_obs011_valid_restart_keeps_gapped_sequences_and_retired_history(self):
+        with tempfile.TemporaryDirectory() as temp, ExitStack() as cleanup:
+            root=Path(temp); c=Collector(root,{}); cleanup.callback(c.db.close)
+            event=normalize('api','first',now(),'first'); c.add(event); c.add(event)
+            c.add(normalize('api','third',now(),'third')); c.publish(); c.db.close()
+            c=Collector(root,{}); c.reader_format=2; c.publish(); c.db.close()
+            c=Collector(root,{}); c.reader_format=2; c.publish()
+            self.assertEqual(c.db.execute('SELECT count(*) FROM events').fetchone()[0],2)
+            self.assertEqual(sum(s['count'] for s in json.loads((c.store/'catalog.json').read_text())['segments']),2)
+            c.db.close()
+
     def test_real_hardlinked_publication_temps_do_not_modify_foreign_sentinel(self):
         with tempfile.TemporaryDirectory() as directory, tempfile.TemporaryDirectory() as foreign:
             root = Path(directory).resolve(); collector = Collector(root, {'project': 'fixture'})
@@ -25,8 +232,9 @@ class CollectorTests(unittest.TestCase):
             os.link(sentinel, collector.private / 'windows-cursors.json')
             write_collector_health(root, 'ok')
             write_process_health(root, {'nonce': 'fixture'})
-            collector.add(normalize('api', 'fixture', now(), 'fixture'))
-            collector.write_segment(segment, [normalize('api', 'fixture', now(), 'fixture')])
+            event = normalize('api', 'fixture', now(), 'fixture')
+            collector.add(event)
+            collector.write_segment(segment, [event])
             collector.publish()
             if os.name == 'nt':
                 with patch.object(collector, 'command', return_value=b'{"events":[],"sources":[]}'):
@@ -158,6 +366,168 @@ class CollectorTests(unittest.TestCase):
             self.assertEqual(set(meta['subsystems']), {item[2] for item in cases})
             c.db.close()
 
+    def test_obs015_all_editor_names_and_route_source_priorities(self):
+        for module in ('scratch', 'electronics', 'three-d', 'chess', 'checkers'):
+            with self.subTest(module=module):
+                reported = 'blocks' if module == 'scratch' else module
+                event = normalize('api', json.dumps({'kind': 'client_diagnostic', 'module': reported, 'level': 'warn'}), now(), module)
+                self.assertEqual((event['module'], event['subsystem'], event['level']), (module, module, 'warn'))
+                route = 'blocks' if module == 'scratch' else module
+                event = normalize('api', json.dumps({'path': '/api/' + route + '/fixture', 'module': 'electronics', 'level': 'info'}), now(), module)
+                self.assertEqual((event['module'], event['subsystem']), (module, module))
+        for source, payload, expected in (
+            ('linux:journal', {'module': 'chess'}, ('system', 'host')),
+            ('scratch', {'module': 'chess'}, ('scratch', 'scratch')),
+            ('postgres', {'module': 'chess'}, ('system', 'database')),
+            ('api', {'kind': 'client_diagnostic', 'module': 'unknown'}, ('portal', 'api')),
+            ('api', {'path': '/api/projects/fixture', 'module': 'chess'}, ('chess', 'projects')),
+        ):
+            with self.subTest(source=source, payload=payload):
+                event = normalize(source, json.dumps(payload), now(), str(payload))
+                self.assertEqual((event['module'], event['subsystem']), expected)
+
+    def test_obs015_truncated_json_keeps_classification_collected_before_truncation(self):
+        for module in ('scratch', 'electronics', 'three-d', 'chess', 'checkers'):
+            payload = {'path': '/api/' + module + '/fixture', 'msg': 'x' * 20000, 'level': 'warn'}
+            event = normalize('api', json.dumps(payload), now(), module)
+            self.assertTrue(event['truncated'])
+            self.assertEqual((event['module'], event['subsystem']), (module, module))
+            with tempfile.TemporaryDirectory() as temp:
+                c = Collector(Path(temp), {})
+                try:
+                    self.assertEqual(c.upgrade_file_event(event), event)
+                finally: c.db.close()
+
+    def test_obs015_truncated_history_import_preserves_editor_hints_and_source_priority(self):
+        for compressed in (False, True):
+            with self.subTest(compressed=compressed), tempfile.TemporaryDirectory() as temp:
+                root = Path(temp); c = Collector(root, {'retentionDays': 365})
+                c.reader_format = 2 if compressed else 1
+                try:
+                    c.add(normalize('api', 'retained original', now(), 'retained-original'))
+                    c.publish()
+                    originals = {p.name: p.read_bytes() for p in c.store.glob('seg-*')}
+                    rows = []; expected = {}
+                    for module in ('scratch', 'electronics', 'three-d', 'chess', 'checkers'):
+                        for level in ('info', 'warn', 'error'):
+                            event = normalize('api', json.dumps({'path': '/api/' + module + '/fixture', 'msg': 'x' * 20000, 'level': level}), now(), module + level)
+                            self.assertTrue(event['truncated'])
+                            rows.append(event); expected[event['id']] = (module, module, level)
+                    host = normalize('linux:journal', json.dumps({'level': 'warn'}), now(), 'host-control')
+                    host.update(module='chess', subsystem='chess', truncated=True)
+                    rows.append(host); expected[host['id']] = ('system', 'host', 'warn')
+                    database = normalize('audit', json.dumps({'event_type': 'auth.login', 'outcome': 'failed'}), now(), 'database-control', 'product_analytics_events')
+                    database.update(subsystem='chess', truncated=True)
+                    rows.append(database); expected[database['id']] = ('system', 'analytics', 'error')
+                    unknown = normalize('api', 'partial JSON message', now(), 'unknown-hint')
+                    unknown.update(subsystem={'untrusted': 'chess'}, truncated=True)
+                    rows.append(unknown); expected[unknown['id']] = ('system', 'api', 'info')
+                    archive = root/'truncated-editor-history.zip'
+                    with zipfile.ZipFile(archive, 'w') as z:
+                        z.writestr('manifest.json', json.dumps({'normalized': True, 'count': len(rows)}))
+                        z.writestr('records/part-00001.jsonl', '\n'.join(map(json.dumps, rows)) + '\n')
+                    archive_bytes = archive.read_bytes()
+                    self.assertEqual(c.import_history(archive)['count'], len(rows))
+                    self.assertEqual(c.import_history(archive)['count'], len(rows))
+                    self.assertEqual(c.db.execute('SELECT count(*) FROM events').fetchone()[0], len(rows) + 1)
+                    imported = {json.loads(gzip.decompress(row[0]))['id']: json.loads(gzip.decompress(row[0]))
+                                for row in c.db.execute('SELECT payload FROM events WHERE published=0')}
+                    self.assertEqual(set(imported), set(expected))
+                    for original in rows:
+                        actual = imported[original['id']]
+                        self.assertEqual((actual['module'], actual['subsystem'], actual['level']), expected[actual['id']])
+                        self.assertEqual(actual['message'], original['message'])
+                    c.publish()
+                    for file, data in originals.items(): self.assertEqual((c.store/file).read_bytes(), data)
+                    self.assertEqual(archive.read_bytes(), archive_bytes)
+                    catalog = json.loads((c.store/'catalog.json').read_text(encoding='utf-8'))
+                    self.assertEqual(sum(meta['count'] for meta in catalog['segments']), len(rows) + 1)
+                    records = []
+                    for meta in catalog['segments']:
+                        raw = (c.store/meta['file']).read_bytes()
+                        if compressed: raw = gzip.decompress(raw)
+                        records.extend(json.loads(line) for line in raw.splitlines())
+                    for event in records:
+                        if event['id'] in expected:
+                            self.assertEqual((event['module'], event['subsystem'], event['level']), expected[event['id']])
+                finally: c.db.close()
+
+    def test_obs015_editor_import_and_catalog_keep_levels_and_originals(self):
+        for compressed in (False, True):
+            with self.subTest(compressed=compressed), tempfile.TemporaryDirectory() as temp:
+                c, rows, originals = editor_classification_fixture(Path(temp), compressed)
+                try:
+                    catalog = json.loads((c.store/'catalog.json').read_text(encoding='utf-8'))
+                    self.assertEqual(sum(meta['count'] for meta in catalog['segments']), 45)
+                    for meta in catalog['segments']:
+                        self.assertEqual(set(meta['modules']), {'scratch', 'electronics', 'three-d', 'chess', 'checkers'})
+                        self.assertEqual(set(meta['subsystems']), set(meta['modules']))
+                        self.assertEqual(set(meta['levels']), {'info', 'warn', 'error'})
+                    for file, raw in originals.items(): self.assertEqual((c.store/file).read_bytes(), raw)
+                    expected = {row['id']: row for row in rows}
+                    seen = []
+                    for meta in catalog['segments']:
+                        raw = (c.store/meta['file']).read_bytes()
+                        if compressed: raw = gzip.decompress(raw)
+                        for line in raw.splitlines():
+                            event = json.loads(line); seen.append(event['id'])
+                            self.assertEqual(event['level'], expected[event['id']]['level'])
+                    self.assertEqual(set(seen), set(expected))
+                    snapshot = {p.name: p.read_bytes() for p in c.store.glob('seg-*')}
+                    c.publish()
+                    self.assertEqual({p.name: p.read_bytes() for p in c.store.glob('seg-*')}, snapshot)
+                    self.assertEqual(json.loads((c.store/'catalog.json').read_text(encoding='utf-8'))['segments'], catalog['segments'])
+                finally: c.db.close()
+
+    def test_obs014_host_source_owns_classification_over_payload(self):
+        payload = json.dumps({'module': 'scratch', 'path': '/api/electronics/fixture',
+                              'subsystem': 'scratch', 'level': 'warn', 'msg': 'OBS014 fixture'})
+        for source in ('linux:journal', 'linux:kernel', 'docker-lifecycle', 'windows:System', 'docker-desktop'):
+            with self.subTest(source=source):
+                event = normalize(source, payload, now(), 'stable', 'generic-application-origin')
+                self.assertEqual(event['subsystem'], 'host')
+                self.assertEqual(event['module'], 'system')
+                self.assertEqual(event['level'], 'warn')
+                self.assertEqual(event['id'], normalize(source, 'other', now(), 'stable')['id'])
+                self.assertEqual(json.loads(event['message'])['module'], 'scratch')
+
+    def test_obs014_publish_and_import_classification_preserve_originals(self):
+        for compressed in (False, True):
+            with self.subTest(compressed=compressed), tempfile.TemporaryDirectory() as temp:
+                c, rows, originals = system_classification_fixture(Path(temp), compressed)
+                try:
+                    catalog = json.loads((c.store / 'catalog.json').read_text(encoding='utf-8'))
+                    self.assertEqual(sum(meta['count'] for meta in catalog['segments']), 18)
+                    self.assertEqual(c.db.execute('SELECT count(*) FROM events').fetchone()[0], 18)
+                    for name, data in originals.items(): self.assertEqual((c.store / name).read_bytes(), data)
+                    by_id = {}
+                    for meta in catalog['segments']:
+                        data = (c.store / meta['file']).read_bytes()
+                        actual = [json.loads(line) for line in (gzip.decompress(data) if meta['file'].endswith('.gz') else data).splitlines()]
+                        expected_subsystems = {'host' if e['source'] in ('linux:journal', 'linux:kernel', 'docker-lifecycle')
+                                               else 'projects' if e['source'] == 'api' else 'scratch' for e in actual}
+                        self.assertEqual(set(meta['subsystems']), expected_subsystems)
+                        expected_modules = {'system' if e['source'] in ('linux:journal', 'linux:kernel', 'docker-lifecycle') else e['module'] for e in actual}
+                        self.assertEqual(set(meta['modules']), expected_modules)
+                        by_id.update((e['id'], e) for e in actual)
+                    self.assertEqual(set(by_id), {e['id'] for e in rows})
+                    # Only the deliberately retained legacy bytes keep stale outer hints.
+                    for event in rows[:12]:
+                        stored = by_id[event['id']]
+                        self.assertEqual(stored['subsystem'], 'host' if event['source'] in ('linux:journal', 'linux:kernel', 'docker-lifecycle') else 'projects' if event['source'] == 'api' else 'scratch')
+                        if event['source'] in ('linux:journal', 'linux:kernel', 'docker-lifecycle'):
+                            self.assertEqual(stored['module'], 'system')
+                    before = {p.name: p.read_bytes() for p in c.store.glob('seg-*')}
+                    c.publish()
+                    self.assertEqual({p.name: p.read_bytes() for p in c.store.glob('seg-*')}, before)
+                    cached = c.state('classification:system_metadata')
+                    catalog = json.loads((c.store / 'catalog.json').read_text(encoding='utf-8'))
+                    self.assertTrue(set(cached).issubset({s['file'] for s in catalog['segments']}))
+                    with patch('collect_logs.gzip.open', side_effect=AssertionError('redundant classification scan')), patch('builtins.open', side_effect=AssertionError('redundant classification scan')):
+                        for meta in catalog['segments']:
+                            self.assertEqual(c.system_metadata(meta, cached), meta)
+                finally: c.db.close()
+
     def test_first_startup_failure_publishes_health_without_a_catalog(self):
         with tempfile.TemporaryDirectory() as temp:
             result=subprocess.run([sys.executable,str(Path(__file__).with_name('collect_logs.py')),'--root',temp,'--once'],capture_output=True,timeout=10)
@@ -180,11 +550,10 @@ class CollectorTests(unittest.TestCase):
             c = Collector(Path(temp), {}); c.postgres = 'fixture'
             stamp = (datetime.now(timezone.utc)-timedelta(days=3)).isoformat()
             row = dict(id='retained-native-id', created_at=stamp, action='fixture')
-            stream = io.StringIO(); csv.writer(stream).writerow([json.dumps(row)])
             queries = []
             def command(args, **kwargs):
                 sql = kwargs['sql']; queries.append(sql)
-                return stream.getvalue().encode() if '"audit_events"' in sql and ' OR ' not in sql else b''
+                return response([row]) if '"audit_events"' in sql and ' OR ' not in sql else response([])
             c.command = command
             with patch('collect_logs.time.time', return_value=100000): c.database()
             self.assertEqual(c.db.execute('SELECT count(*) FROM events').fetchone()[0], 1)
@@ -205,7 +574,7 @@ class CollectorTests(unittest.TestCase):
             c.set_state('db:history:audit_events', cursor)
             def command(args, **kwargs):
                 if ' OR ' not in kwargs['sql']: raise RuntimeError('bounded query timeout')
-                return b''
+                return response([])
             c.command=command; c.database()
             self.assertEqual(c.state('db:history:audit_events'),cursor)
             self.assertIsNone(c.state('db:history:audit_events:completed'))
@@ -234,6 +603,9 @@ class CollectorTests(unittest.TestCase):
                 self.assertEqual({e['id'] for e in events},ids); self.assertEqual(len(events),256)
                 self.assertLess(len(catalog['segments']),256)
                 self.assertTrue(all((c.store/s['file']).exists() for s in before['segments']))
+                # Finished compaction leaves retired originals with remapped
+                # sequences; both restart and another publication remain valid.
+                c.db.close(); c=Collector(root,{}); c.reader_format=2; c.publish()
                 c.add(normalize('api','after recovery',now(),'later'))
                 self.assertGreater(c.db.execute('SELECT max(seq) FROM events').fetchone()[0],288); c.db.close()
 
@@ -474,4 +846,11 @@ class CollectorTests(unittest.TestCase):
             collector.db.close()
 
 
-if __name__ == '__main__': unittest.main()
+if __name__ == '__main__':
+    if len(sys.argv) == 4 and sys.argv[1] == '--write-editor-store':
+        c, _, _ = editor_classification_fixture(Path(sys.argv[2]), sys.argv[3] == 'gzip')
+        c.db.close()
+    elif len(sys.argv) == 4 and sys.argv[1] == '--write-system-store':
+        c, _, _ = system_classification_fixture(Path(sys.argv[2]), sys.argv[3] == 'gzip')
+        c.db.close()
+    else: unittest.main()

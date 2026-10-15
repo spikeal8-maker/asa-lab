@@ -13,6 +13,8 @@ export interface BlocksRuntimeSession {
   readonly runtimeOrigin: string;
   readonly runtimeToken: string;
   readonly expiresAt: number;
+  /** Local timing metadata, never part of the API/bootstrap wire contract. */
+  readonly expiresAtMonotonicMs: number;
   readonly draftRevision: number;
   readonly projectJson: Record<string, unknown> | null;
   readonly assets: readonly BlocksRuntimeAsset[];
@@ -79,7 +81,8 @@ function isAsset(value: unknown): value is BlocksRuntimeAsset {
 
 export function parseBlocksRuntimeSession(
   value: unknown,
-  nowSeconds = Math.floor(Date.now() / 1000),
+  serverNowSeconds: number,
+  requestStartedAtMs = performance.now(),
 ): BlocksRuntimeSession | null {
   if (!isRecord(value) || !hasExactKeys(value, SESSION_KEYS)) return null;
   if (!isExactHttpOrigin(value.runtimeOrigin)) return null;
@@ -93,7 +96,9 @@ export function parseBlocksRuntimeSession(
   if (
     typeof value.expiresAt !== 'number' ||
     !Number.isSafeInteger(value.expiresAt) ||
-    value.expiresAt <= nowSeconds
+    !Number.isSafeInteger(serverNowSeconds) ||
+    serverNowSeconds < 0 ||
+    value.expiresAt <= serverNowSeconds
   )
     return null;
 
@@ -106,20 +111,36 @@ export function parseBlocksRuntimeSession(
   if (!isProjectJson(value.projectJson)) return null;
   if (!Array.isArray(value.assets) || !value.assets.every(isAsset)) return null;
 
+  const receivedAtMs = performance.now();
+  const elapsedMs = receivedAtMs - requestStartedAtMs;
+  if (!Number.isFinite(elapsedMs) || elapsedMs < 0) return null;
+  // HTTP Date has second precision. Subtract its uncertainty and the entire
+  // round trip/body read; never derive capability lifetime from client clocks.
+  // The contract's 15-minute ceiling also bounds an erroneous proxy Date.
+  const remainingMs =
+    Math.min(15 * 60_000, (value.expiresAt - serverNowSeconds) * 1000) - elapsedMs - 1000;
+  if (remainingMs <= 0) return null;
+
   return Object.freeze({
     runtimeOrigin: value.runtimeOrigin,
     runtimeToken: value.runtimeToken,
     expiresAt: value.expiresAt,
+    expiresAtMonotonicMs: receivedAtMs + remainingMs,
     draftRevision: value.draftRevision,
     projectJson: value.projectJson,
     assets: Object.freeze([...value.assets]),
   });
 }
 
-export async function requestBlocksRuntimeSession(
+export type BlocksRuntimeSessionResult =
+  | { session: BlocksRuntimeSession; retryable: false; retryAfterMs: 0 }
+  | { session: null; retryable: boolean; retryAfterMs: number };
+
+export async function requestBlocksRuntimeSessionResult(
   projectId: string,
   signal: AbortSignal,
-): Promise<BlocksRuntimeSession | null> {
+): Promise<BlocksRuntimeSessionResult> {
+  const requestStartedAtMs = performance.now();
   let response: Response;
   try {
     response = await fetchWithSessionRefresh(
@@ -132,16 +153,36 @@ export async function requestBlocksRuntimeSession(
       },
     );
   } catch {
-    return null;
+    return { session: null, retryable: true, retryAfterMs: 1_000 };
   }
 
-  if (!response.ok) return null;
+  if (!response.ok) {
+    const retryAfter = response.headers.get('retry-after');
+    const seconds = retryAfter && /^\d+$/.test(retryAfter) ? Number(retryAfter) : 0;
+    return {
+      session: null,
+      retryable: response.status === 429 || response.status >= 500,
+      retryAfterMs: Math.max(1_000, Math.min(300_000, seconds * 1_000)),
+    };
+  }
 
   let payload: unknown;
   try {
     payload = await response.json();
   } catch {
-    return null;
+    return { session: null, retryable: false, retryAfterMs: 0 };
   }
-  return parseBlocksRuntimeSession(payload);
+  const serverDate = response.headers.get('date');
+  const serverNowSeconds = serverDate ? Math.floor(Date.parse(serverDate) / 1000) : NaN;
+  const session = parseBlocksRuntimeSession(payload, serverNowSeconds, requestStartedAtMs);
+  return session
+    ? { session, retryable: false, retryAfterMs: 0 }
+    : { session: null, retryable: false, retryAfterMs: 0 };
+}
+
+export async function requestBlocksRuntimeSession(
+  projectId: string,
+  signal: AbortSignal,
+): Promise<BlocksRuntimeSession | null> {
+  return (await requestBlocksRuntimeSessionResult(projectId, signal)).session;
 }

@@ -7,7 +7,7 @@ let refreshInFlight: Promise<boolean> | null = null;
 function canRefresh(path: string): boolean {
   // Observability is best-effort and cannot rotate credentials or log out the
   // user, including a StudentSeat without an Account refresh credential.
-  if (/^\/api\/(?:analytics|diagnostics)(?:\/|\?|$)/.test(path)) return false;
+  if (isTelemetryPath(path)) return false;
   // Preview must not refresh or rotate authentication state after a 401.
   if (/^\/api\/learning\/activities\/[^/]+\/preview(?:\?|$)/.test(path)) return false;
   // A StudentSeat has its own session, never an Account refresh credential.
@@ -63,14 +63,19 @@ export async function fetchWithSessionRefresh(
   path: string,
   init: RequestInit = {},
 ): Promise<Response> {
+  const telemetryBeforeRequest = telemetryContext();
   const request = (): Promise<Response> =>
     fetch(path, { credentials: 'same-origin', ...init, cache: 'no-store' });
   const response = await request();
   if (response.status !== 401 || !canRefresh(path)) return response;
-  return (await refreshSession()) ? request() : response;
+  if (!(await refreshSession())) return response;
+  const retried = await request();
+  if (retried.ok) confirmTelemetryProductSession(telemetryBeforeRequest);
+  return retried;
 }
 
 export function notifySessionLoggedOut(): void {
+  setTelemetryContext(null, false, telemetryContext().route);
   clearProtectedSessionCache();
   if (typeof window !== 'undefined') window.dispatchEvent(new Event(LOCAL_LOGOUT_EVENT));
   if (typeof BroadcastChannel === 'undefined') return;
@@ -89,6 +94,7 @@ export function onSessionLoggedOut(listener: () => void): () => void {
   const channel = new BroadcastChannel(SESSION_CHANNEL);
   channel.onmessage = (event) => {
     if ((event.data as { type?: unknown } | null)?.type === 'logged-out') {
+      setTelemetryContext(null, false, telemetryContext().route);
       clearProtectedSessionCache();
       listener();
     }
@@ -114,3 +120,9 @@ function clearProtectedSessionCache(): void {
   }
 }
 import { reportClientDiagnostic } from './client-diagnostics';
+import { isTelemetryPath } from './telemetry-contract';
+import {
+  confirmTelemetryProductSession,
+  setTelemetryContext,
+  telemetryContext,
+} from './telemetry-context';

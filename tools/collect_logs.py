@@ -18,6 +18,7 @@ import tempfile
 import time
 import uuid
 import zipfile
+import zlib
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from deployment.paths import atomic_bytes
@@ -26,6 +27,63 @@ UTC = timezone.utc
 SEGMENT_PATTERN = re.compile(r"seg-\d{16}-\d{16}\.jsonl(?:\.gz)?$")
 RETIRE_SECONDS = 600  # Longer than five-minute resumable searches and exports.
 SENSITIVE = re.compile(r"password|passwd|secret|cookie|authorization|credential|student.?code|token|api.?key|jwt|signing.?key", re.I)
+DATABASE_DIAGNOSTICS = json.loads((Path(__file__).resolve().parent.parent /
+    'apps/api/src/database-diagnostic-contract.json').read_text(encoding='utf-8'))
+# Actual primary keys of the nine supported tables. Never infer a key from the
+# public diagnostic projection (two different rows can have identical messages).
+DATABASE_NATIVE_KEYS = {table: ('event_hash',) if table == 'max_webhook_events' else ('id',)
+                        for table in DATABASE_DIAGNOSTICS['sources']}
+DATABASE_IDENTITY_LIMIT = 256
+DATABASE_BATCH_ROWS = 128
+DATABASE_BATCH_BYTES = 4 * 1024 * 1024
+
+
+def database_diagnostics(origin, value):
+    """Project known DB rows before classification or persistence; fail closed."""
+    fields = DATABASE_DIAGNOSTICS['sources'][origin]['fields']
+    if not isinstance(value, dict): return {}
+    result = {}
+    for key, rule in fields.items():
+        item = value.get(key)
+        valid = False
+        if rule['type'] == 'enum':
+            valid = isinstance(item, str) and item in rule['values']
+        elif rule['type'] == 'integer':
+            valid = type(item) is int and rule['minimum'] <= item <= rule['maximum']
+        elif rule['type'] == 'timestamp' and isinstance(item, str):
+            stamp = DATABASE_DIAGNOSTICS['timestamp']
+            if re.fullmatch(stamp['pattern'], item):
+                try:
+                    parsed = datetime.fromisoformat(item.replace('Z', '+00:00'))
+                    valid = stamp['minYear'] <= parsed.year <= stamp['maxYear']
+                except ValueError: pass
+        if valid: result[key] = item
+    return result
+
+
+def history_error(reason):
+    return RuntimeError(f"Diagnostic history/index inconsistency: {reason}; private payloads were preserved; restore a consistent diagnostic snapshot")
+
+
+def immutable_segment_bytes(path, data):
+    """Link a complete, flushed file into its final name without replacement."""
+    from deployment.paths import plain_paths
+    plain_paths(path.parent, ())
+    fd, name = tempfile.mkstemp(prefix='.' + path.name + '.', suffix='.tmp', dir=path.parent)
+    temporary = Path(name)
+    try:
+        with os.fdopen(fd, 'wb') as stream:
+            if os.name != 'nt': os.fchmod(stream.fileno(), 0o640)
+            stream.write(data); stream.flush(); os.fsync(stream.fileno())
+        try:
+            os.link(temporary, path)
+        except FileExistsError:
+            # The winner is complete because publication itself is atomic.
+            # Never open the destination for writing, even after a precheck.
+            if path.read_bytes() != data:
+                raise history_error(f'immutable segment collision at {path.name}')
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 def now() -> str:
@@ -114,11 +172,25 @@ def unpack_payload(value) -> str:
     return gzip.decompress(value).decode("utf-8") if isinstance(value, bytes) else value
 
 
+def host_source(source: str) -> bool:
+    return source.startswith(("windows:", "linux:")) or source in ("docker-desktop", "docker-lifecycle", "metrics")
+
+
+EDITOR_MODULES = ('scratch', 'electronics', 'three-d', 'chess', 'checkers')
+LOG_MODULES = ('system', 'portal', 'auth', *EDITOR_MODULES)
+
+
+def editor_module(value):
+    return 'scratch' if value == 'blocks' else value if value in EDITOR_MODULES else None
+
+
 def subsystem(source: str, payload=None, origin="") -> str:
-    if source == 'api' and isinstance(payload, dict) and payload.get('kind') == 'client_diagnostic':
+    if host_source(source): return "metrics" if source == "metrics" else "host"
+    if editor_module(source): return editor_module(source)
+    if source == 'api' and isinstance(payload, dict) and payload.get('kind') == 'client_diagnostic' and (not payload.get('path') or str(payload['path']).startswith('/api/diagnostics/')):
         module = payload.get('module')
-        if module in ('portal', 'scratch', 'electronics', 'auth'):
-            return {'portal': 'web', 'auth': 'access'}.get(module, module)
+        if editor_module(module): return editor_module(module)
+        if module in ('portal', 'auth'): return {'portal': 'web', 'auth': 'access'}[module]
     if source == 'web' and isinstance(payload, dict) and str(payload.get('path', '')).startswith('/internal/blocks/'): return 'scratch'
     if source == "api":
         route = str(payload.get("path", "")).split("?")[0].split("/") if isinstance(payload, dict) else []
@@ -128,7 +200,6 @@ def subsystem(source: str, payload=None, origin="") -> str:
         if route == 'assignments': return 'learning'
         if route in ('session', 'workspaces', 'capabilities', 'schools'): return 'access'
         return route if route in ("projects", "learning", "courses", "analytics", "diagnostics", "electronics", "chess", "checkers", "three-d") else "api"
-    if source.startswith(("windows:", "linux:")) or source in ("docker-desktop", "docker-lifecycle"): return "host"
     if source in ("postgres", "migration"): return "database"
     if source.startswith("minio"): return "storage"
     if source == "tunnel": return "network"
@@ -138,11 +209,37 @@ def subsystem(source: str, payload=None, origin="") -> str:
     return source if source in ("web", "scratch", "electronics", "chess", "checkers", "three-d", "audit", "updates", "backup", "metrics") else "audit"
 
 
+def classification_payload(event):
+    if event['source'] not in ('api', 'web'): return {}
+    try: payload = json.loads(event['message'])
+    except (ValueError, TypeError): return {}
+    return payload if isinstance(payload, dict) else {}
+
+
 def event_subsystem(event):
-    if event.get("subsystem"): return event["subsystem"]
-    try: payload = json.loads(event["message"]) if event["source"] in ("api", "web") else None
-    except (ValueError, TypeError): payload = None
-    return subsystem(event["source"], payload, event.get("origin", ""))
+    source = event['source']
+    if host_source(source) or editor_module(source): return subsystem(source)
+    if source in ('api', 'web'):
+        payload = classification_payload(event)
+        if event.get('truncated') and not payload and event.get('subsystem') not in (None, 'host'):
+            return event['subsystem']
+        return subsystem(source, payload, event.get('origin', ''))
+    return event.get('subsystem') or subsystem(source, origin=event.get('origin', ''))
+
+
+def classify_event(event):
+    source = event['source']
+    group = event_subsystem(event)
+    if host_source(source): module = 'system'
+    elif editor_module(source): module = editor_module(source)
+    elif source in ('api', 'web'):
+        payload = classification_payload(event)
+        module = editor_module(group) or editor_module(payload.get('module')) or editor_module(event.get('module'))
+        if not module:
+            reported = payload.get('module')
+            module = reported if reported in ('auth', 'portal', 'system') else event.get('module', 'portal' if source == 'api' else 'system')
+    else: module = event.get('module', 'system')
+    return {**event, 'subsystem': group, 'module': module}
 
 
 def normalize(source: str, raw: str, at: str, identity: str, origin: str = "") -> dict:
@@ -151,13 +248,20 @@ def normalize(source: str, raw: str, at: str, identity: str, origin: str = "") -
         payload = json.loads(raw)
     except ValueError:
         pass
-    level = log_level(payload, raw)
+    database_rule = DATABASE_DIAGNOSTICS['sources'].get(origin) if source in ('audit', 'auth') else None
+    if database_rule is not None:
+        payload = database_diagnostics(origin, payload)
+        severity = database_rule.get('severity', {})
+        outcome = payload.get(severity.get('field'))
+        level = 'error' if outcome in severity.get('error', ()) else 'warn' if outcome in severity.get('warn', ()) else 'info'
+    else:
+        level = log_level(payload, raw)
     module = "scratch" if source == "scratch" else "auth" if source == "auth" else "system"
     request_id = revision = None
     if isinstance(payload, dict):
-        route = str(payload.get("path", ""))
+        route = str(payload.get("path", "")) if source in ("api", "web") else ""
         module = "electronics" if "electronics" in route else "scratch" if "blocks" in route or "scratch" in route else "auth" if "/auth/" in route or "class-join" in route else "portal" if source == "api" else module
-        if payload.get("module") in ("scratch", "electronics", "auth", "portal", "system"):
+        if source in ("api", "web") and payload.get("module") in LOG_MODULES:
             module = payload["module"]
         if payload.get("kind") == "client_diagnostic" and payload.get("level") not in ("info", "warn", "error"):
             level = "error"
@@ -171,7 +275,9 @@ def normalize(source: str, raw: str, at: str, identity: str, origin: str = "") -
     else:
         message = clean(raw)
     truncated = len(message) > 16384
-    return dict(id=hashlib.sha256((source + "\0" + identity).encode()).hexdigest(), time=at, source=source, subsystem=subsystem(source, payload, origin), module=module, level=level, message=message[:16384], requestId=request_id, revision=revision, origin=clean(origin), truncated=truncated, normalizationVersion=2)
+    event = classify_event(dict(id=hashlib.sha256((source + "\0" + identity).encode()).hexdigest(), time=at, source=source, subsystem=subsystem(source, payload, origin), module="system" if host_source(source) else module, level=level, message=message, requestId=request_id, revision=revision, origin=clean(origin), truncated=truncated, normalizationVersion=2))
+    event['message'] = message[:16384]
+    return event
 
 
 def linux_resources(proc=Path('/proc'), previous=None):
@@ -222,7 +328,11 @@ class Collector:
         if os.name != "nt":
             os.chmod(self.store, 0o2750)
             os.chmod(self.private, 0o700)
-        self.db = sqlite3.connect(self.private / "index.sqlite", timeout=5)
+        index = self.private / "index.sqlite"
+        if not index.exists() and (any(SEGMENT_PATTERN.fullmatch(p.name) for p in self.store.glob('seg-*.jsonl*')) or
+                                   ((self.store/'catalog.json').exists() and json.loads((self.store/'catalog.json').read_text(encoding='utf-8')).get('segments'))):
+            raise history_error('private index is missing beside retained history')
+        self.db = sqlite3.connect(index, timeout=5)
         self.db.execute("PRAGMA journal_mode=WAL")
         self.db.executescript("""CREATE TABLE IF NOT EXISTS events(seq INTEGER PRIMARY KEY AUTOINCREMENT,id TEXT UNIQUE,time TEXT,source TEXT,payload TEXT,published INTEGER DEFAULT 0);
             CREATE TABLE IF NOT EXISTS state(key TEXT PRIMARY KEY,value TEXT);
@@ -230,11 +340,87 @@ class Collector:
         # Published JSONL is the durable payload. Keep only a binary digest and
         # sequence in its duplicate index, rather than a second copy of every log.
         try:
+            self.validate_history_index()
             self.upgrade_index()
             self.finish_compaction()
+            self.db.executescript('''CREATE TABLE IF NOT EXISTS database_observations(
+                event_id BLOB PRIMARY KEY, native_key BLOB NOT NULL, fields TEXT NOT NULL);
+                CREATE INDEX IF NOT EXISTS database_native_key ON database_observations(native_key);''')
         except Exception:
             self.db.close()
             raise
+
+    def validate_history_index(self):
+        """Verify history ownership before upgrade, retirement or publication.
+
+        Sequence gaps from duplicate inserts are valid. Retired originals can
+        have missing/remapped rows; only durable retirement or compaction intent
+        permits that exception, never an unrecognized orphan filename.
+        """
+        try:
+            files = {p.name: p for p in self.store.glob('seg-*.jsonl*') if SEGMENT_PATTERN.fullmatch(p.name)}
+            retired = self.state('retired:segments', {})
+            pending = self.state('compaction:pending')
+            catalog = self.store/'catalog.json'
+            referenced = {s['file'] for s in json.loads(catalog.read_text(encoding='utf-8'))['segments']} if catalog.exists() else set()
+            referenced.update(name for name in self.state('segments', {}) if name not in retired)
+            if not referenced.issubset(files): raise ValueError('a referenced immutable segment is missing')
+            sequence = self.db.execute("SELECT seq FROM sqlite_sequence WHERE name='events'").fetchone()
+            high = sequence[0] if sequence else 0
+            required = self.db.execute('SELECT coalesce(max(seq),0) FROM events').fetchone()[0]
+            if files: required = max(required, max(int(name.split('-')[2].split('.')[0]) for name in files))
+            pending_name = None
+            if pending:
+                required = max(required, pending['first']+pending['count']-1)
+                pending_name = f"seg-{pending['first']:016d}-{pending['first']+pending['count']-1:016d}.jsonl.gz"
+            if type(high) is not int or high < required: raise ValueError('private event sequence is behind retained history or indexed events')
+            for identity,payload in self.db.execute('SELECT id,payload FROM events WHERE published=0'):
+                digest = bytes.fromhex(identity) if isinstance(identity,str) else identity
+                entry = json.loads(unpack_payload(payload))
+                if bytes.fromhex(entry['id']) != digest:
+                    raise ValueError('unpublished payload identity differs from private index')
+            covered = []
+            pending_ids = None
+            for name, file in files.items():
+                # Durable retirement authorizes eventual deletion, including
+                # compaction originals whose IDs now own different sequences.
+                if name in retired: continue
+                opener = gzip.open if name.endswith('.gz') else open
+                with opener(file, 'rb') as stream: raw = stream.read(4*1024*1024+1)
+                if len(raw) > 4*1024*1024 or not raw.endswith(b'\n'): raise ValueError(f'invalid segment size or termination: {name}')
+                entries = [json.loads(line) for line in raw.splitlines()]
+                ids = [bytes.fromhex(e['id']) for e in entries]
+                if not ids or any(len(identity) != 32 for identity in ids) or len(set(ids)) != len(ids): raise ValueError(f'invalid segment identities: {name}')
+                if name == pending_name:
+                    # A crash may publish the reserved output before the index
+                    # remap. Check it against the durable original snapshots.
+                    if pending_ids is None:
+                        pending_ids = []
+                        for original in pending['originals']:
+                            data = files[original['file']].read_bytes()
+                            content = gzip.decompress(data) if original['file'].endswith('.gz') else data
+                            if len(content) != original['rawBytes'] or hashlib.sha256(content).hexdigest() != original['sha256']:
+                                raise ValueError('compaction original differs from its durable intent')
+                            pending_ids.extend(bytes.fromhex(json.loads(line)['id']) for line in content.splitlines())
+                    if ids != pending_ids: raise ValueError('pending compaction output identities differ from originals')
+                    continue
+                first, last = map(int, name.split('.')[0].split('-')[1:])
+                rows = self.db.execute('SELECT seq,id FROM events WHERE seq BETWEEN ? AND ? ORDER BY seq', (first,last)).fetchall()
+                indexed = [bytes.fromhex(row[1]) if isinstance(row[1],str) else row[1] for row in rows]
+                if indexed != ids or rows[0][0] != first or rows[-1][0] != last:
+                    raise ValueError(f'immutable segment identities differ from private index: {name}')
+                covered.append((first,last))
+            # Every published index row must still have an active immutable
+            # payload. Merge overlapping replay prefixes without retaining IDs.
+            end = 0
+            for first,last in sorted(covered):
+                if first > end+1 and self.db.execute('SELECT 1 FROM events WHERE published=1 AND seq>? AND seq<? LIMIT 1',(end,first)).fetchone():
+                    raise ValueError('published private index row has no immutable payload')
+                end = max(end,last)
+            if self.db.execute('SELECT 1 FROM events WHERE published=1 AND seq>? LIMIT 1',(end,)).fetchone():
+                raise ValueError('published private index row has no immutable payload')
+        except (ValueError, TypeError, KeyError, IndexError, OSError, EOFError, sqlite3.Error, zlib.error) as exc:
+            raise history_error(str(exc)) from exc
 
     def upgrade_index(self):
         if self.state("index:version") == 2: return
@@ -307,6 +493,7 @@ class Collector:
         self.db.execute("INSERT OR REPLACE INTO sources VALUES(?,?)", (source, json.dumps(value)))
 
     def add(self, event):
+        event = classify_event(event)
         cutoff = (datetime.now(UTC) - timedelta(days=self.config.get("retentionDays", 30))).isoformat(timespec="milliseconds").replace("+00:00", "Z")
         if event["time"] < cutoff: return
         encoded = json.dumps(event, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
@@ -324,6 +511,63 @@ class Collector:
                 raise RuntimeError(errors.read(1000).decode(errors="replace") or f"exit {result.returncode}")
             output.seek(0)
             return output.read()
+
+    def add_database_row(self, table, value, defaults, at):
+        """Reuse an exact observation across additive, default-only schemas.
+
+        Private compatibility rows contain only hashes and are bounded by retained
+        events and 256 columns per row. Candidate rows stream from SQLite. No raw
+        native key, original value or default is written to this index.
+        """
+        if not isinstance(value, dict) or not 1 <= len(value) <= DATABASE_IDENTITY_LIMIT:
+            raise ValueError('Database identity column bound exceeded or invalid row')
+        keys = DATABASE_NATIVE_KEYS[table]
+        if any(type(value.get(key)) not in (str, int) or not str(value[key]) or
+               len(str(value[key]).encode()) > 1024 for key in keys):
+            raise ValueError('Missing or invalid database primary key; identity not inferred')
+        def digest(item):
+            return hashlib.sha256(json.dumps(item, ensure_ascii=False, sort_keys=True).encode()).hexdigest()
+        native = bytes.fromhex(digest([table, [(key, value[key]) for key in keys]]))
+        fields = {digest(key): digest(item) for key, item in value.items()}
+        missing = {digest(key): digest(item) for key, item in defaults.items()}
+        source = 'auth' if table == 'product_analytics_events' else 'audit'
+        raw = json.dumps(value, ensure_ascii=False, sort_keys=True)
+        event = normalize(source, raw, at, table + ':' + raw, table)
+        candidates = self.db.execute('''SELECT o.event_id,o.fields FROM database_observations o
+            JOIN events e ON e.id=o.event_id WHERE o.native_key=?''', (native,))
+        match = None
+        for identity, encoded in candidates:
+            previous = json.loads(encoded)
+            if all(fields.get(key) == item for key, item in previous.items()) and all(
+                    missing.get(key) == item for key, item in fields.items() if key not in previous):
+                candidate = (len(previous), identity)
+                if match is None or candidate > match: match = candidate
+        if match:
+            event['id'] = match[1].hex()
+        else:
+            # PostgreSQL row_to_json preserves physical column order. ADD COLUMN
+            # appends fields, so older whole-row hashes can be verified exactly
+            # by removing only trailing fields equal to their missing defaults.
+            # An index hit includes the complete old raw row and actual PK.
+            prefix = dict(value)
+            while True:
+                legacy_raw = json.dumps(prefix, ensure_ascii=False, sort_keys=True)
+                identity = hashlib.sha256((source + '\0' + table + ':' + legacy_raw).encode()).digest()
+                if self.db.execute('SELECT 1 FROM events WHERE id=?', (identity,)).fetchone():
+                    event['id'] = identity.hex()
+                    break
+                last = next(reversed(prefix))
+                if last in keys or last == DATABASE_DIAGNOSTICS['sources'][table]['timeColumn'] or last not in defaults or digest(prefix[last]) != digest(defaults[last]):
+                    break
+                prefix.pop(last)
+        self.add(event)
+        identity = bytes.fromhex(event['id'])
+        if self.db.execute('SELECT 1 FROM events WHERE id=?', (identity,)).fetchone():
+            self.db.execute('INSERT OR REPLACE INTO database_observations VALUES(?,?,?)',
+                            (identity, native, json.dumps(fields, separators=(',', ':'))))
+
+    def prune_database_observations(self):
+        self.db.execute('DELETE FROM database_observations WHERE event_id NOT IN (SELECT id FROM events)')
 
     def docker(self):
         project = self.config.get("project", "asa-lab-dev")
@@ -393,76 +637,128 @@ class Collector:
         except Exception as exc:
             self.status("docker", "error", str(exc))
 
+    def database_batch(self, table, condition, after=None):
+        """One bounded keyset page, with a required completion trailer.
+
+        The raw native key is private cursor state only. Its PostgreSQL type is
+        inferred from the table column, including uuid and bigint primary keys.
+        """
+        column = DATABASE_DIAGNOSTICS['sources'][table]['timeColumn']
+        keys = (column, *DATABASE_NATIVE_KEYS[table])
+        order = ','.join(f'"{key}"' for key in keys)
+        def literal(value):
+            return "E'" + str(value).replace('\\', '\\\\').replace("'", "''") + "'"
+        if after is not None:
+            if not isinstance(after, list) or len(after) != len(keys):
+                raise ValueError('Invalid database keyset cursor')
+            condition = f'({condition}) AND ({order}) > ({",".join(map(literal, after))})'
+        defaults_sql = f'''(SELECT json_object_agg(a.attname,
+            CASE WHEN a.atthasmissing THEN to_jsonb(a.attmissingval)->0 ELSE 'null'::jsonb END)
+            FROM pg_attribute a WHERE a.attrelid='public."{table}"'::regclass
+            AND a.attnum>0 AND NOT a.attisdropped)::text'''
+        # Limit before encoding. The doubled UTF-8 length also bounds CSV quote
+        # escaping; the extra allowance covers separators and the final trailer.
+        sql = f'''BEGIN READ ONLY; SET LOCAL statement_timeout='15s';
+            COPY (WITH candidates AS MATERIALIZED (
+                SELECT * FROM public."{table}" WHERE {condition} ORDER BY {order} LIMIT {DATABASE_BATCH_ROWS + 1}
+            ), encoded AS MATERIALIZED (
+                SELECT row_to_json(t)::text AS raw, {defaults_sql} AS defaults,
+                    row_number() OVER (ORDER BY {order}) AS n FROM candidates t
+            ), measured AS (
+                SELECT *, sum(2*(octet_length(raw)+octet_length(defaults))+256) OVER (ORDER BY n) AS bytes FROM encoded
+            ), batch AS MATERIALIZED (
+                SELECT * FROM measured WHERE n<={DATABASE_BATCH_ROWS} AND bytes<={DATABASE_BATCH_BYTES - 256}
+            ) SELECT raw,defaults FROM (
+                SELECT raw,defaults,n FROM batch
+                UNION ALL SELECT 'null', json_build_object('count',(SELECT count(*) FROM batch),
+                    'more',(SELECT count(*) FROM encoded)>(SELECT count(*) FROM batch))::text,
+                    {DATABASE_BATCH_ROWS + 2}
+            ) result ORDER BY n) TO STDOUT WITH CSV; ROLLBACK;'''
+        data = self.command(["docker", "exec", "-i", self.postgres, "sh", "-c",
+            'exec psql -X -q -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"'], sql=sql, timeout=25)
+        if len(data) > DATABASE_BATCH_BYTES:
+            raise RuntimeError('Database page exceeds byte bound; cursor retained')
+        # The process-wide csv default is too small for valid bounded rows.
+        prior_limit = csv.field_size_limit()
+        try:
+            csv.field_size_limit(DATABASE_BATCH_BYTES)
+            records = list(csv.reader(io.StringIO(data.decode('utf-8')), strict=True))
+        finally:
+            csv.field_size_limit(prior_limit)
+        if not records or len(records) > DATABASE_BATCH_ROWS + 1 or any(len(row) != 2 for row in records):
+            raise ValueError('Incomplete database page; cursor retained')
+        trailer = records.pop()
+        if trailer[0] != 'null': raise ValueError('Missing database page trailer; cursor retained')
+        meta = json.loads(trailer[1])
+        if not isinstance(meta, dict) or type(meta.get('count')) is not int or meta['count'] != len(records) or type(meta.get('more')) is not bool:
+            raise ValueError('Invalid database page trailer; cursor retained')
+        rows = [(json.loads(raw), json.loads(defaults)) for raw, defaults in records]
+        if meta['more'] and not rows: raise RuntimeError('Database row exceeds bounded page; cursor retained')
+        if any(not isinstance(value, dict) or not isinstance(defaults, dict) or any(key not in value for key in keys) for value, defaults in rows):
+            raise ValueError('Invalid database page row; cursor retained')
+        return rows, meta['more'], [rows[-1][0][key] for key in keys] if rows else after
+
     def database(self):
         if time.time() - self.state("database:last", 0) < 120: return
         if not getattr(self, "postgres", None):
             self.status("database-events", "unavailable", "Canonical PostgreSQL was not identified")
             return
-        tables = {"audit_events": "created_at", "administrative_audit_events": "occurred_at", "classroom_activity_events": "occurred_at", "account_external_identity_events": "occurred_at", "grade_change_events": "created_at", "checkers_reaction_events": "created_at", "chess_live_events": "created_at_ms", "max_webhook_events": "received_at", "product_analytics_events": "occurred_at"}
-        failures = 0
+        tables = {table: rule['timeColumn'] for table, rule in DATABASE_DIAGNOSTICS['sources'].items()}
+        failures, pending = 0, 0
         for table, column in tables.items():
             key = "db:" + table
             cutoff = datetime.now(UTC) - timedelta(days=self.config.get("retentionDays", 30))
-            since = self.state(key, cutoff.isoformat())
-            span = self.state(key + ":span", 6 * 3600)
-            until = min(datetime.now(UTC), datetime.fromisoformat(since.replace("Z", "+00:00")) + timedelta(seconds=span)).isoformat()
-            if column.endswith("_ms"):
-                start_ms = int(datetime.fromisoformat(since).timestamp() * 1000)
-                end_ms = int(datetime.fromisoformat(until).timestamp() * 1000)
-                condition = f'"{column}" BETWEEN {start_ms} AND {end_ms}'
-                recent_ms = int((datetime.now(UTC) - timedelta(minutes=30)).timestamp() * 1000)
-                condition += f' OR "{column}" BETWEEN {recent_ms} AND {int(datetime.now(UTC).timestamp() * 1000)}'
-            else:
-                condition = f'"{column}" BETWEEN TIMESTAMPTZ \'{since}\' AND TIMESTAMPTZ \'{until}\''
-                condition += f' OR "{column}" BETWEEN NOW() - INTERVAL \'30 minutes\' AND NOW()'
-            sql = f'''BEGIN READ ONLY; SET LOCAL statement_timeout='15s';
-                COPY (SELECT row_to_json(t)::text FROM (SELECT * FROM public."{table}" WHERE {condition} ORDER BY "{column}") t) TO STDOUT WITH CSV; ROLLBACK;'''
-            try:
-                data = self.command(["docker", "exec", "-i", self.postgres, "sh", "-c", 'exec psql -X -q -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"'], sql=sql)
-                for row in csv.reader(io.StringIO(data.decode())):
-                    value = json.loads(row[0])
-                    stamp = datetime.fromtimestamp(value[column] / 1000, UTC).isoformat() if column.endswith("_ms") else value[column]
-                    raw = json.dumps(value, ensure_ascii=False, sort_keys=True)
-                    source = "auth" if table == "product_analytics_events" else "audit"
-                    self.add(normalize(source, raw, timestamp(stamp, until), table + ":" + raw, table))
-                self.set_state(key, until)
-                self.status("database-events:" + table, "ok", "Fresh database events", until)
-            except Exception as exc:
-                failures += 1
-                self.set_state(key + ":span", max(1, span // 2))
-                self.status("database-events:" + table, "error", str(exc))
-            # Historical reconciliation has its own cursor and schedule. The
-            # fresh cursor is necessarily older than the 120-second throttle.
-            # Never use its age to decide whether history should be revisited.
-            history_key = "db:history:" + table
-            if time.time() - self.state(history_key + ":completed", 0) < 6 * 3600:
-                continue
-            history_since = max(cutoff, datetime.fromisoformat(self.state(history_key, cutoff.isoformat()).replace("Z", "+00:00")))
-            history_span = self.state(history_key + ":span", self.config.get("retentionDays", 30) * 86400)
-            history_until = min(datetime.now(UTC), history_since + timedelta(seconds=history_span))
-            if column.endswith("_ms"):
-                historical_condition = f'"{column}" BETWEEN {int(history_since.timestamp()*1000)} AND {int(history_until.timestamp()*1000)}'
-            else:
-                historical_condition = f'"{column}" BETWEEN TIMESTAMPTZ \'{history_since.isoformat()}\' AND TIMESTAMPTZ \'{history_until.isoformat()}\''
-            historical_sql = f'''BEGIN READ ONLY; SET LOCAL statement_timeout='15s';
-                COPY (SELECT row_to_json(t)::text FROM (SELECT * FROM public."{table}" WHERE {historical_condition} ORDER BY "{column}") t) TO STDOUT WITH CSV; ROLLBACK;'''
-            try:
-                data = self.command(["docker", "exec", "-i", self.postgres, "sh", "-c", 'exec psql -X -q -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"'], sql=historical_sql)
-                for row in csv.reader(io.StringIO(data.decode("utf-8"))):
-                    value = json.loads(row[0])
-                    stamp = datetime.fromtimestamp(value[column] / 1000, UTC).isoformat() if column.endswith("_ms") else value[column]
-                    raw = json.dumps(value, ensure_ascii=False, sort_keys=True)
-                    self.add(normalize("auth" if table == "product_analytics_events" else "audit", raw, timestamp(stamp, history_until.isoformat()), table + ":" + raw, table))
-                complete = history_until >= datetime.now(UTC) - timedelta(seconds=30)
-                self.set_state(history_key, cutoff.isoformat() if complete else history_until.isoformat())
-                if complete: self.set_state(history_key + ":completed", time.time())
-                self.status("database-history:" + table, "ok" if complete else "pending", "Historical reconciliation complete" if complete else "History collection is queued", history_until.isoformat())
-            except Exception as exc:
-                failures += 1
-                self.set_state(history_key + ":span", max(1, history_span // 2))
-                self.status("database-history:" + table, "error", str(exc))
+            for history in (False, True):
+                lane_key = 'db:history:' + table if history else key
+                source = ('database-history:' if history else 'database-events:') + table
+                if history and time.time() - self.state(lane_key + ':completed', 0) < 6 * 3600:
+                    continue
+                span = self.state(lane_key + ':span', self.config.get('retentionDays', 30)*86400 if history else 6*3600)
+                window = self.state(lane_key + ':window')
+                if window is None:
+                    start = max(cutoff, datetime.fromisoformat(self.state(lane_key, cutoff.isoformat()).replace('Z', '+00:00')))
+                    end = min(datetime.now(UTC), start + timedelta(seconds=span))
+                    recent_end = datetime.now(UTC)
+                    window = dict(start=start.isoformat(), end=end.isoformat(), recentEnd=recent_end.isoformat(),
+                                  recentStart=(recent_end-timedelta(minutes=30)).isoformat(), after=None)
+                def between(start, end):
+                    if column.endswith('_ms'):
+                        return f'"{column}" BETWEEN {int(datetime.fromisoformat(start).timestamp()*1000)} AND {int(datetime.fromisoformat(end).timestamp()*1000)}'
+                    return f'"{column}" BETWEEN TIMESTAMPTZ \'{start}\' AND TIMESTAMPTZ \'{end}\''
+                condition = between(window['start'], window['end'])
+                if not history: condition += ' OR ' + between(window['recentStart'], window['recentEnd'])
+                # Keep the attempted window on errors too: an uncommitted page
+                # must be retried against the same upper bound, even after restart.
+                self.set_state(lane_key + ':window', window)
+                self.db.execute('SAVEPOINT database_page')
+                try:
+                    rows, more, after = self.database_batch(table, condition, window['after'])
+                    for value, defaults in rows:
+                        stamp = datetime.fromtimestamp(value[column]/1000, UTC).isoformat() if column.endswith('_ms') else value[column]
+                        self.add_database_row(table, value, defaults, timestamp(stamp, window['end']))
+                    if more:
+                        self.set_state(lane_key + ':window', {**window, 'after': after})
+                    else:
+                        self.set_state(lane_key + ':window', None)
+                        complete = history and datetime.fromisoformat(window['end']) >= datetime.now(UTC)-timedelta(seconds=30)
+                        self.set_state(lane_key, cutoff.isoformat() if complete else window['end'])
+                        if complete: self.set_state(lane_key + ':completed', time.time())
+                    # A keyset time at a tie is not complete coverage through that
+                    # timestamp. Only completed windows advance collectedThrough.
+                    caught_up = not more and datetime.fromisoformat(window['end']) >= datetime.now(UTC)-timedelta(seconds=30)
+                    if not caught_up: pending += 1
+                    detail = 'Database backlog; bounded page continuation queued' if more else 'Historical reconciliation complete' if history and caught_up else 'Fresh database events' if caught_up else 'Database backlog; next time window queued'
+                    self.status(source, 'ok' if caught_up else 'pending', detail,
+                                window['end'] if not more else None)
+                    self.db.execute('RELEASE database_page')
+                except Exception as exc:
+                    self.db.execute('ROLLBACK TO database_page'); self.db.execute('RELEASE database_page')
+                    failures += 1
+                    self.set_state(lane_key + ':span', max(1, span // 2))
+                    self.status(source, 'error', str(exc))
         self.set_state("database:last", time.time())
-        self.status("database-events", "error" if failures else "ok", f"{failures} table sources require attention" if failures else "")
+        self.status("database-events", 'error' if failures else 'pending' if pending else 'ok',
+                    f'{failures} table sources require attention' if failures else f'{pending} database sources have queued backlog' if pending else '')
 
     def files(self):
         configured = [{"source": "updates", "path": str(self.root / ".asa" / "logs")}, *self.config.get("fileSources", [])]
@@ -705,7 +1001,7 @@ class Collector:
 
     @staticmethod
     def host_segment(meta):
-        return all(s in ("docker-desktop", "metrics", "docker-lifecycle") or s.startswith(("windows:", "linux:")) for s in meta["sources"])
+        return all(host_source(s) for s in meta["sources"])
 
     @staticmethod
     def source_ranges(events, key="source"):
@@ -721,8 +1017,25 @@ class Collector:
         compressed = self.reader_format >= 2
         file = name + (".gz" if compressed else "")
         data = gzip.compress(raw, compresslevel=6, mtime=0) if compressed else raw
-        atomic_bytes(self.store / file, data)
-        return dict(file=file, schema=2, sha256=hashlib.sha256(raw).hexdigest(), bytes=len(data), rawBytes=len(raw), count=len(events), first=min(e["time"] for e in events), last=max(e["time"] for e in events), sources=sorted({e["source"] for e in events}), subsystems=sorted({event_subsystem(e) for e in events}), sourceRanges=self.source_ranges(events), originRanges=self.source_ranges(events, "origin"), modules=sorted({e["module"] for e in events}), levels=sorted({e["level"] for e in events}))
+        immutable_segment_bytes(self.store / file, data)
+        return dict(file=file, schema=2, sha256=hashlib.sha256(raw).hexdigest(), bytes=len(data), rawBytes=len(raw), count=len(events), first=min(e["time"] for e in events), last=max(e["time"] for e in events), sources=sorted({e["source"] for e in events}), subsystems=sorted({event_subsystem(e) for e in events}), sourceRanges=self.source_ranges(events), originRanges=self.source_ranges(events, "origin"), modules=sorted({classify_event(e)["module"] for e in events}), levels=sorted({e["level"] for e in events}))
+
+    def system_metadata(self, meta, cached):
+        """Repair classification hints without rewriting immutable segment payloads."""
+        if meta['sources'] and self.host_segment(meta):
+            return {**meta, 'subsystems': sorted({subsystem(s) for s in meta['sources']}), 'modules': ['system']}
+        mixed = any(host_source(s) for s in meta['sources'])
+        stale_application = 'host' in meta.get('subsystems', ()) and any(s in ('api', 'web', 'scratch') for s in meta['sources'])
+        editors = any(s in ('api', 'web', 'blocks', *EDITOR_MODULES) for s in meta['sources'])
+        signature = hashlib.sha256(('editor-classification-v1:' + json.dumps(meta, sort_keys=True)).encode()).hexdigest()
+        if (mixed or stale_application or editors) and cached.get(meta['file']) != signature:
+            opener = gzip.open if meta['file'].endswith('.gz') else open
+            with opener(self.store / meta['file'], 'rb') as stream: raw = stream.read(4 * 1024 * 1024 + 1)
+            if len(raw) > 4 * 1024 * 1024: raise history_error('classification segment exceeds limit')
+            events = [classify_event(json.loads(line)) for line in raw.splitlines()]
+            meta = {**meta, 'subsystems': sorted({e['subsystem'] for e in events}), 'modules': sorted({e['module'] for e in events}), 'levels': sorted({e['level'] for e in events})}
+        cached[meta['file']] = hashlib.sha256(('editor-classification-v1:' + json.dumps(meta, sort_keys=True)).encode()).hexdigest()
+        return meta
 
     def finish_compaction(self):
         """Complete a durable compaction intent before accepting new events.
@@ -733,6 +1046,7 @@ class Collector:
         """
         intent = self.state("compaction:pending")
         if not intent: return
+        self.validate_history_index()
         events = []
         for meta in intent["originals"]:
             data = (self.store / meta["file"]).read_bytes()
@@ -788,14 +1102,15 @@ class Collector:
         return segments, retired
 
     def upgrade_file_event(self, entry):
+        entry = classify_event(entry)
         if entry.get("normalizationVersion") == 2: return entry
         file_sources = {"updates", "docker-desktop", *(s["source"] for s in self.config.get("fileSources", []))}
         if entry["source"] in file_sources:
             entry["time"], entry["timeBasis"] = file_timestamp(entry["message"], entry["time"])
-        if not entry["source"].startswith("windows:") and not entry.get("truncated"):
+        if entry.get("level") not in ("info", "warn", "error") and not entry["source"].startswith("windows:") and not entry.get("truncated"):
             try: payload = json.loads(entry["message"])
             except ValueError: payload = None
-            entry["level"] = "error" if isinstance(payload, dict) and payload.get("kind") == "client_diagnostic" else log_level(payload, entry["message"])
+            entry["level"] = log_level(payload, entry["message"])
         entry["normalizationVersion"] = 2
         return entry
 
@@ -823,14 +1138,18 @@ class Collector:
                             if len(line) > 256 * 1024: raise RuntimeError("Diagnostic archive record is too large")
                             entry = json.loads(line)
                             if (not isinstance(entry, dict) or not re.fullmatch(r"[a-f0-9]{64}", str(entry.get("id", ""))) or
-                                entry.get("module") not in ("system", "portal", "scratch", "electronics", "auth") or entry.get("level") not in ("info", "warn", "error") or
+                                entry.get("module") not in (*LOG_MODULES, "blocks") or entry.get("level") not in ("info", "warn", "error") or
                                 not isinstance(entry.get("source"), str) or not 1 <= len(entry["source"]) <= 200 or
                                 not isinstance(entry.get("message"), str) or len(entry["message"]) > 16384 or not timestamp(entry.get("time"), "")):
                                 raise RuntimeError("Diagnostic archive contains an invalid record")
+                            editor_hint = editor_module(entry.get('subsystem')) if entry['source'] in ('api', 'web') else None
                             entry = {k: v for k, v in entry.items() if k in ("id", "time", "source", "module", "level", "message", "requestId", "revision", "origin", "truncated", "timeBasis", "windowsRecordId", "windowsEventId", "normalizationVersion")}
                             entry["time"] = timestamp(entry["time"], "")
                             entry["message"] = clean(entry["message"])
                             entry["origin"] = clean(str(entry.get("origin", "")))[:500]
+                            # Truncated editor JSON cannot reconstruct this known classification hint.
+                            if editor_hint and entry['origin'] not in DATABASE_DIAGNOSTICS['sources']:
+                                entry['subsystem'] = editor_hint
                             entry["requestId"] = entry.get("requestId") if isinstance(entry.get("requestId"), str) and re.fullmatch(r"[a-fA-F0-9-]{36}", entry["requestId"]) else None
                             entry["revision"] = entry.get("revision") if isinstance(entry.get("revision"), str) and re.fullmatch(r"[a-f0-9]{7,64}", entry["revision"]) else None
                             entry["truncated"] = entry.get("truncated") is True
@@ -852,6 +1171,7 @@ class Collector:
         return result
 
     def publish(self):
+        self.validate_history_index()
         self.finish_compaction()
         self.db.commit()
         retired = self.state("retired:segments", {})
@@ -870,6 +1190,7 @@ class Collector:
                 (self.store / name).unlink(missing_ok=True)
                 retired.pop(name)
         previous = self.state("segments", {})
+        system_metadata = self.state("classification:system_metadata", {})
         while True:
             fetched = self.db.execute("SELECT seq,payload FROM events WHERE published=0 ORDER BY seq LIMIT 1000").fetchall()
             rows, events, byte_count = [], [], 0
@@ -906,7 +1227,7 @@ class Collector:
                 meta = dict(file=name, bytes=file.stat().st_size, rawBytes=len(raw), count=len(events), first=min(e["time"] for e in events), last=max(e["time"] for e in events), sources=sorted({e["source"] for e in events}), sourceRanges=self.source_ranges(events), originRanges=self.source_ranges(events, "origin"), modules=sorted({e["module"] for e in events}), levels=sorted({e["level"] for e in events}))
                 if all(e.get("normalizationVersion") == 2 for e in events):
                     meta.update(schema=2, sha256=hashlib.sha256(raw).hexdigest())
-            segments.append(meta)
+            segments.append(self.system_metadata(meta, system_metadata))
         # A crash after immutable file publication, before SQLite commit, can
         # leave an older prefix of a subsequently replayed batch. Keep the
         # superset only after verifying that all of the prefix IDs are present.
@@ -943,6 +1264,7 @@ class Collector:
             for source in oldest["sources"]: evicted[source] = True
             trimmed = True
         while total > max(1024 * 1024, limit * 3 // 4) and segments: evict()
+        self.prune_database_observations()
         self.db.commit()
         self.db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
         if trimmed or self.state("vacuum:day") != datetime.now(UTC).date().isoformat():
@@ -955,6 +1277,7 @@ class Collector:
         while active_bytes() > limit and segments:
             target = total * 0.9
             while segments and total > target: evict()
+            self.prune_database_observations()
             self.db.commit(); self.db.execute("VACUUM"); self.db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
         sources = [json.loads(r[0]) for r in self.db.execute("SELECT payload FROM sources ORDER BY name")]
         for source in sources:
@@ -966,6 +1289,7 @@ class Collector:
             source["retainedTo"] = max((r["last"] for r in ranges), default=None)
             source["trimmed"] = bool(evicted.get("auth" if origin == "product_analytics_events" else "audit" if origin else event_source))
         self.set_state("segments", {s["file"]: s for s in segments})
+        self.set_state("classification:system_metadata", {s['file']: system_metadata[s['file']] for s in segments if s['file'] in system_metadata})
         self.set_state("retired:segments", retired)
         self.set_state("evicted:sources", evicted)
         if trimmed: self.set_state("trimmedAt", now())

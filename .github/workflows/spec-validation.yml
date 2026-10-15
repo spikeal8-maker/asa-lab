@@ -219,7 +219,7 @@ jobs:
     timeout-minutes: 25
     services:
       postgres:
-        image: public.ecr.aws/docker/library/postgres@sha256:75adc2a65806c96bc0e59030230bfe3f1c1b0d6d8f8181a8913e2b8b53bdc166
+        image: docker.io/library/postgres@sha256:75adc2a65806c96bc0e59030230bfe3f1c1b0d6d8f8181a8913e2b8b53bdc166
         env:
           POSTGRES_DB: asa_access_a_test
           POSTGRES_USER: postgres

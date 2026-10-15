@@ -2,6 +2,8 @@ import { test, expect } from '@playwright/test';
 import fs from 'node:fs';
 import { createHash } from 'node:crypto';
 
+let isTelemetryRequest: typeof import('../tools/blocks/browser/telemetry-fixture.mjs').isTelemetryRequest;
+
 let createProtocolFixture: typeof import('../tools/blocks/browser/fixture.mjs').createProtocolFixture;
 let advanceMinuteAutosave: typeof import('../tools/blocks/browser/fixture.mjs').advanceMinuteAutosave;
 let installMinuteAutosaveClock: typeof import('../tools/blocks/browser/fixture.mjs').installMinuteAutosaveClock;
@@ -137,6 +139,8 @@ test.beforeAll(async () => {
     installMinuteAutosaveClock,
     waitForMinuteAutosaveArm,
   } = await import('../tools/blocks/browser/fixture.mjs'));
+  // Load native fixture dependencies before Playwright's TypeScript module loader.
+  ({ isTelemetryRequest } = await import('../tools/blocks/browser/telemetry-fixture.mjs'));
   ({ parentOrigin, projectId, runtimeUrl } = await import('../tools/blocks/browser/protocol.mjs'));
   fs.mkdirSync(evidenceDir, { recursive: true });
 });
@@ -443,113 +447,237 @@ test('runtime-session opens the real server project and reads declared costume a
   }
 });
 
-test('existing project adding Abby dirties default-cached Pop and completes ordinary no-click autosave', async () => {
-  const serverProject = await realRuntimeBootstrapFixture();
-  const fixture = await createProtocolFixture({
-    product: true,
-    locale: 'en-US',
-    runtimeSession: {
-      draftRevision: 23,
-      projectJson: serverProject.projectJson,
-      assets: serverProject.assets,
-    },
-    runtimeAssets: serverProject.runtimeAssets,
-  });
-  try {
+for (const cleanPop of [false, true]) {
+  test(`existing project adding Abby ${cleanPop ? 'with clean Pop still completes' : 'dirties default-cached Pop and completes'} ordinary no-click autosave`, async () => {
+    const serverProject = await realRuntimeBootstrapFixture();
+    const fixture = await createProtocolFixture({
+      product: true,
+      locale: 'en-US',
+      runtimeSession: {
+        draftRevision: 23,
+        projectJson: serverProject.projectJson,
+        assets: serverProject.assets,
+      },
+      runtimeAssets: serverProject.runtimeAssets,
+    });
     let page = await minuteClockPage(fixture);
-    await page.goto(`${parentOrigin}/product`, { waitUntil: 'domcontentloaded' });
-    let frame = page.frameLocator('iframe[title="Scratch runtime"]');
-    await expect(frame.locator('[data-asa-host-shell]')).toHaveAttribute(
-      'data-editor-state',
-      'ready',
-      { timeout: 45000 },
-    );
-
-    await frame.getByRole('button', { name: 'Choose a Sprite' }).first().click();
-    await frame.getByText('Abby', { exact: true }).click();
-    await expect(frame.getByPlaceholder('Name', { exact: true })).toHaveValue('Abby');
-
-    expect(fixture.getServerRevision()).toBe(23);
-    await advanceMinuteCheckpoint(page);
-    await expect.poll(() => fixture.getServerRevision(), { timeout: 30000 }).toBe(24);
-
-    const popFile = `${popAssetId}.wav`;
-    const popPuts = fixture.runtimeAssetPutEvidence.filter((item) => item.assetFile === popFile);
-    expect(popPuts.length).toBeGreaterThanOrEqual(1);
-    expect(popPuts.at(-1)).toMatchObject({
-      authorizationOk: true,
-      cookiePresent: false,
-      urlHasCapability: false,
-      originOk: true,
-      identityOk: true,
-      contentTypeOk: true,
+    let stage = 'opening';
+    let savedTiming: unknown = null;
+    const reloadedAssets: Array<{ assetFile: string; sha256: string; sizeBytes: number }> = [];
+    const saveErrors: string[] = [];
+    page.on('console', (message) => {
+      if (
+        ['warning', 'error'].includes(message.type()) &&
+        /save|asset_reference/.test(message.text())
+      ) {
+        saveErrors.push(message.text());
+      }
     });
-    expect(fixture.runtimeDraftEvidence.length).toBeGreaterThan(0);
+    if (cleanPop) {
+      // Exercise Scratch's valid clean=true media state without invoking a save
+      // or changing the minute timer: only ASA's acknowledgement is durability.
+      await page.addInitScript((assetId) => {
+        type Asset = { clean: boolean };
+        type Storage = { scratchStorage: { load: (...args: unknown[]) => Promise<Asset | null> } };
+        type Api = { createReadOnlyStorage: (...args: unknown[]) => Storage };
+        let api: Api;
+        const state = globalThis as unknown as { __asaCleanPopLoads: number };
+        state.__asaCleanPopLoads = 0;
+        Object.defineProperty(globalThis, 'AsaBlocksStorage', {
+          configurable: true,
+          get: () => api,
+          set(value: Api) {
+            api = {
+              ...value,
+              createReadOnlyStorage(...args: unknown[]) {
+                const storage = value.createReadOnlyStorage(...args);
+                const load = storage.scratchStorage.load.bind(storage.scratchStorage);
+                storage.scratchStorage.load = async (...params: unknown[]) => {
+                  const asset = await load(...params);
+                  if (asset && params[1] === assetId) {
+                    asset.clean = true;
+                    state.__asaCleanPopLoads += 1;
+                  }
+                  return asset;
+                };
+                return storage;
+              },
+            };
+          },
+        });
+      }, popAssetId);
+    }
+    try {
+      await page.goto(`${parentOrigin}/product`, { waitUntil: 'domcontentloaded' });
+      let frame = page.frameLocator('iframe[title="Scratch runtime"]');
+      await expect(frame.locator('[data-asa-host-shell]')).toHaveAttribute(
+        'data-editor-state',
+        'ready',
+        { timeout: 45000 },
+      );
 
-    const savedDocument = fixture.runtimeDraftEvidence.at(-1)?.body?.document?.projectJson as
-      | {
-          targets?: Array<{
-            name?: string;
-            costumes?: Array<{ assetId?: string; dataFormat?: string }>;
-            sounds?: Array<{ name?: string; assetId?: string; dataFormat?: string }>;
-          }>;
-        }
-      | undefined;
-    const abby = savedDocument?.targets?.find((target) => target.name === 'Abby');
-    expect(abby).toBeTruthy();
-    expect(
-      abby?.sounds?.some((sound) => sound.name === 'Pop' && sound.assetId === popAssetId),
-    ).toBe(true);
+      await frame.getByRole('button', { name: 'Choose a Sprite' }).first().click();
+      await frame.getByText('Abby', { exact: true }).click();
+      await expect(frame.getByPlaceholder('Name', { exact: true })).toHaveValue('Abby');
+      if (cleanPop) {
+        expect(
+          await frame
+            .locator('body')
+            .evaluate(
+              () => (globalThis as unknown as { __asaCleanPopLoads: number }).__asaCleanPopLoads,
+            ),
+        ).toBeGreaterThan(0);
+      }
 
-    const abbyAssetFiles = [...(abby?.costumes ?? []), ...(abby?.sounds ?? [])].map(
-      (asset) => `${asset.assetId}.${asset.dataFormat}`,
-    );
-    const uploaded = new Set(fixture.runtimeAssetPutEvidence.map((item) => item.assetFile));
-    for (const assetFile of abbyAssetFiles) expect(uploaded.has(assetFile)).toBe(true);
+      stage = 'first-checkpoint';
+      expect(fixture.getServerRevision()).toBe(23);
+      await advanceMinuteCheckpoint(page);
+      await expect.poll(() => fixture.getServerRevision(), { timeout: 30000 }).toBe(24);
 
-    await fixture.reopenContextWithIndexedDB();
-    page = await fixture.context.newPage();
-    await page.goto(`${parentOrigin}/product`, { waitUntil: 'domcontentloaded' });
-    frame = page.frameLocator('iframe[title="Scratch runtime"]');
-    await expect(frame.locator('[data-asa-host-shell]')).toHaveAttribute(
-      'data-editor-state',
-      'ready',
-      { timeout: 45000 },
-    );
-    await expect(frame.locator('[data-asa-host-shell]')).toHaveAttribute(
-      'data-project-source',
-      'runtime-session',
-    );
-    const abbyButton = frame.getByRole('button', { name: 'Abby', exact: true });
-    await expect(abbyButton).toBeVisible();
-    await abbyButton.click();
-    await frame.getByRole('tab', { name: 'Costumes', exact: true }).click();
-    await expect
-      .poll(() =>
-        abbyButton
-          .locator('img')
-          .first()
-          .evaluate((image) => (image as HTMLImageElement).naturalWidth),
-      )
-      .toBeGreaterThan(0);
-    await frame.getByRole('tab', { name: 'Sounds', exact: true }).click();
-    await expect(
-      frame
-        .getByRole('tabpanel', { name: 'Sounds', exact: true })
-        .getByText('Pop', { exact: true }),
-    ).toBeVisible();
+      const popFile = `${popAssetId}.wav`;
+      const popPuts = fixture.runtimeAssetPutEvidence.filter((item) => item.assetFile === popFile);
+      expect(popPuts.length).toBeGreaterThanOrEqual(1);
+      expect(popPuts.at(-1)).toMatchObject({
+        authorizationOk: true,
+        cookiePresent: false,
+        urlHasCapability: false,
+        originOk: true,
+        identityOk: true,
+        contentTypeOk: true,
+      });
+      expect(fixture.runtimeDraftEvidence.length).toBeGreaterThan(0);
+      savedTiming = await frame.locator('body').evaluate(() => ({
+        timers:
+          (globalThis as unknown as { __asaMinuteAutosaveTimers?: unknown[] })
+            .__asaMinuteAutosaveTimers ?? [],
+        shell: { ...(document.querySelector('[data-asa-host-shell]') as HTMLElement)?.dataset },
+      }));
+      stage = 'saved';
 
-    const scratchFoundationWrites = fixture.allRequests.filter(({ method, url }) => {
-      if (['GET', 'HEAD', 'OPTIONS'].includes(method) || !/^https?:/.test(url)) return false;
-      const host = new URL(url).hostname.toLowerCase();
-      return host.includes('scratch.mit.edu') || host.includes('scratchfoundation');
-    });
-    expect(scratchFoundationWrites).toEqual([]);
-    expect(fixture.pageErrors).toEqual([]);
-  } finally {
-    await fixture.close();
-  }
-});
+      const savedDocument = fixture.runtimeDraftEvidence.at(-1)?.body?.document?.projectJson as
+        | {
+            targets?: Array<{
+              name?: string;
+              costumes?: Array<{ assetId?: string; dataFormat?: string }>;
+              sounds?: Array<{ name?: string; assetId?: string; dataFormat?: string }>;
+            }>;
+          }
+        | undefined;
+      const abby = savedDocument?.targets?.find((target) => target.name === 'Abby');
+      expect(abby).toBeTruthy();
+      expect(
+        abby?.sounds?.some((sound) => sound.name === 'Pop' && sound.assetId === popAssetId),
+      ).toBe(true);
+
+      const abbyAssetFiles = [...(abby?.costumes ?? []), ...(abby?.sounds ?? [])].map(
+        (asset) => `${asset.assetId}.${asset.dataFormat}`,
+      );
+      const uploaded = new Set(fixture.runtimeAssetPutEvidence.map((item) => item.assetFile));
+      for (const assetFile of abbyAssetFiles) expect(uploaded.has(assetFile)).toBe(true);
+
+      await fixture.reopenContextWithIndexedDB();
+      stage = 'reopen';
+      page = await fixture.context.newPage();
+      await page.goto(`${parentOrigin}/product`, { waitUntil: 'domcontentloaded' });
+      frame = page.frameLocator('iframe[title="Scratch runtime"]');
+      await expect(frame.locator('[data-asa-host-shell]')).toHaveAttribute(
+        'data-editor-state',
+        'ready',
+        { timeout: 45000 },
+      );
+      await expect(frame.locator('[data-asa-host-shell]')).toHaveAttribute(
+        'data-project-source',
+        'runtime-session',
+      );
+      const abbyButton = frame.getByRole('button', { name: 'Abby', exact: true });
+      await expect(abbyButton).toBeVisible();
+      await abbyButton.click();
+      await frame.getByRole('tab', { name: 'Costumes', exact: true }).click();
+      await expect
+        .poll(() =>
+          abbyButton
+            .locator('img')
+            .first()
+            .evaluate((image) => (image as HTMLImageElement).naturalWidth),
+        )
+        .toBeGreaterThan(0);
+      await frame.getByRole('tab', { name: 'Sounds', exact: true }).click();
+      await expect(
+        frame
+          .getByRole('tabpanel', { name: 'Sounds', exact: true })
+          .getByText('Pop', { exact: true }),
+      ).toBeVisible();
+
+      for (const assetFile of abbyAssetFiles) {
+        const response = await fixture.context.request.get(
+          `${parentOrigin}/api/blocks/runtime/projects/${projectId}/assets/${assetFile}`,
+          {
+            headers: {
+              origin: parentOrigin,
+              authorization: `Bearer fixture.${fixture.getRuntimeSessionSequence()}.signature`,
+            },
+          },
+        );
+        expect(response.status()).toBe(200);
+        const bytes = await response.body();
+        const actual = {
+          assetFile,
+          sha256: createHash('sha256').update(bytes).digest('hex'),
+          sizeBytes: bytes.byteLength,
+        };
+        const written = fixture.runtimeAssetPutEvidence.find(
+          (item) => item.assetFile === assetFile,
+        );
+        expect(actual.sha256).toBe(written?.sha256);
+        expect(actual.sizeBytes).toBe(written?.sizeBytes);
+        reloadedAssets.push(actual);
+      }
+      expect(fixture.getServerRevision()).toBe(24);
+      await page.screenshot({
+        path: `${evidenceDir}/abby-pop-${cleanPop ? 'clean' : 'native'}-reopened.png`,
+      });
+
+      const scratchFoundationWrites = fixture.allRequests.filter(({ method, url }) => {
+        if (['GET', 'HEAD', 'OPTIONS'].includes(method) || !/^https?:/.test(url)) return false;
+        const host = new URL(url).hostname.toLowerCase();
+        return host.includes('scratch.mit.edu') || host.includes('scratchfoundation');
+      });
+      expect(scratchFoundationWrites).toEqual([]);
+      expect(fixture.pageErrors).toEqual([]);
+    } finally {
+      const timing = await page
+        .frameLocator('iframe[title="Scratch runtime"]')
+        .locator('body')
+        .evaluate(() => ({
+          timers:
+            (globalThis as unknown as { __asaMinuteAutosaveTimers?: unknown[] })
+              .__asaMinuteAutosaveTimers ?? [],
+          shell: { ...(document.querySelector('[data-asa-host-shell]') as HTMLElement)?.dataset },
+        }))
+        .catch(() => null);
+      fs.writeFileSync(
+        `${evidenceDir}/abby-pop-${cleanPop ? 'clean' : 'native'}-autosave.json`,
+        JSON.stringify(
+          {
+            stage,
+            revision: fixture.getServerRevision(),
+            timing,
+            savedTiming,
+            reloadedAssets,
+            saveErrors,
+            metrics: fixture.runtimePersistenceMetrics,
+            assetPuts: fixture.runtimeAssetPutEvidence,
+            draftCount: fixture.runtimeDraftEvidence.length,
+            errors: fixture.pageErrorEvidence,
+          },
+          null,
+          2,
+        ),
+      );
+      await fixture.close();
+    }
+  });
+}
 
 test('long-lived editor rotates capability in place and upstream autosaves with the refreshed bearer', async () => {
   test.setTimeout(180_000);
@@ -1143,6 +1271,68 @@ test('server revision movement rejects autosave without overwrite or automatic r
         2,
       ),
     );
+  } finally {
+    await fixture.close();
+  }
+});
+
+test('expired asset and draft capabilities recover in the real pinned Scratch without reloading', async () => {
+  const serverProject = await realRuntimeBootstrapFixture();
+  const fixture = await createProtocolFixture({
+    product: true,
+    locale: 'en-US',
+    runtimeSession: {
+      draftRevision: 23,
+      projectJson: serverProject.projectJson,
+      assets: serverProject.assets,
+    },
+    runtimeAssets: serverProject.runtimeAssets,
+  });
+  const page = await minuteClockPage(fixture);
+  let expiredAsset = '';
+  let rejectDraft = true;
+  const draftBodies: string[] = [];
+  const assetTokens: string[] = [];
+  await page.route('**/api/blocks/runtime/projects/**', async (route) => {
+    const request = route.request();
+    if (request.method() !== 'PUT') return route.continue();
+    const path = new URL(request.url()).pathname;
+    let reject = false;
+    if (path.includes('/assets/')) {
+      if (!expiredAsset) {
+        expiredAsset = path;
+        reject = true;
+      }
+      if (path === expiredAsset) assetTokens.push(request.headers()['authorization']);
+    } else if (path.endsWith('/draft')) {
+      draftBodies.push(request.postData()!);
+      reject = rejectDraft;
+      rejectDraft = false;
+    }
+    if (!reject) return route.continue();
+    await route.fulfill({
+      status: 401,
+      headers: { 'Access-Control-Allow-Origin': request.headers()['origin'] ?? parentOrigin },
+      contentType: 'application/json',
+      body: JSON.stringify({ code: 'expired_token' }),
+    });
+  });
+  try {
+    await page.goto(`${parentOrigin}/product`, { waitUntil: 'domcontentloaded' });
+    const frame = page.frameLocator('iframe[title="Scratch runtime"]');
+    const shell = frame.locator('[data-asa-host-shell]');
+    await expect(shell).toHaveAttribute('data-editor-state', 'ready', { timeout: 45000 });
+    await editLiveServerProjectAndAddMedia(frame);
+    await advanceMinuteCheckpoint(page);
+    await expect.poll(() => fixture.getServerRevision(), { timeout: 20_000 }).toBe(24);
+    expect(assetTokens).toHaveLength(2);
+    expect(assetTokens[1]).not.toBe(assetTokens[0]);
+    expect(draftBodies).toHaveLength(2);
+    expect(draftBodies[1]).toBe(draftBodies[0]);
+    expect(fixture.runtimeDraftEvidence).toHaveLength(1);
+    expect(fixture.runtimePersistenceMetrics.revisionCommits).toBe(1);
+    expect(fixture.getRuntimeSessionSequence()).toBe(3);
+    await expect(shell).toHaveAttribute('data-editor-state', 'ready');
   } finally {
     await fixture.close();
   }
@@ -2194,6 +2384,7 @@ test('native File saves an edited sb3 and restores code and media in a fresh edi
       httpRequests.filter(
         ({ method, url }) =>
           !['GET', 'HEAD'].includes(method) &&
+          !isTelemetryRequest({ method, url }, parentOrigin) &&
           !runtimeSessionRequests.some(
             (runtimeSessionRequest) =>
               runtimeSessionRequest.method === method && runtimeSessionRequest.url === url,

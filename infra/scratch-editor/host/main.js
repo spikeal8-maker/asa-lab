@@ -146,6 +146,7 @@
           bootstrap,
           recoveryApi,
           getRuntimeToken: () => protocol.getRuntimeToken(),
+          refreshRuntimeToken: (token) => protocol.requestRuntimeTokenRefresh(token),
           onReady() {
             status.textContent = 'Учебный проект готов.';
             reporter.status('editor-ready');

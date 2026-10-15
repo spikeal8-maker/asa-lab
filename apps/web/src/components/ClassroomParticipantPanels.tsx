@@ -636,6 +636,23 @@ export function ParticipantMeritsAndAvatars({
   );
 }
 
+/** Preserve the complete authorized comment, but avoid a wall of text in the history list. */
+function ParticipantHistoryNote({ text }: { text: string }): JSX.Element {
+  const characters = Array.from(text);
+  if (characters.length <= 140) return <p>{text}</p>;
+  return (
+    <details className="participant-history-note">
+      <summary>
+        <span className="participant-history-note-preview">
+          {characters.slice(0, 72).join('').trimEnd()}…
+        </span>
+        <span className="participant-history-note-action">Весь текст</span>
+      </summary>
+      <p>{text}</p>
+    </details>
+  );
+}
+
 export function ParticipantGradeHistory({
   classroomId,
   seatId,
@@ -934,7 +951,7 @@ export function ParticipantGradeHistory({
                   <span>{grade.authorName}</span>
                   <time dateTime={grade.publishedAt}>{momentLabel(grade.publishedAt)}</time>
                 </div>
-                {grade.reason ? <p>{grade.reason}</p> : null}
+                {grade.reason ? <ParticipantHistoryNote text={grade.reason} /> : null}
               </li>
             ))}
           </ol>
@@ -980,8 +997,8 @@ export function ParticipantGradeHistory({
                   <span>{r.author}</span>
                   <time dateTime={r.published_at}>{momentLabel(r.published_at)}</time>
                 </div>
-                {r.reason ? <p>{r.reason}</p> : null}
-                {r.feedback ? <p>{r.feedback}</p> : null}
+                {r.reason ? <ParticipantHistoryNote text={r.reason} /> : null}
+                {r.feedback ? <ParticipantHistoryNote text={r.feedback} /> : null}
               </li>
             ))}
           </ol>

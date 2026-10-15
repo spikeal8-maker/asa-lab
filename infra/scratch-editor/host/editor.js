@@ -69,6 +69,7 @@
     bootstrap,
     recoveryApi,
     getRuntimeToken,
+    refreshRuntimeToken,
     onReady,
     onDirty,
     onActivity,
@@ -125,8 +126,10 @@
         draftRevision: bootstrap.draftRevision,
         apiOrigin: bootstrap.apiOrigin,
         getRuntimeToken,
+        refreshRuntimeToken,
         canSave: session.mode === 'editor',
         getProjectGeneration: () => projectGeneration,
+        getProjectAssets: () => vm?.assets ?? [],
         onProjectDurable: ({ savedGeneration }) => {
           void recoveryController?.durable(savedGeneration);
         },

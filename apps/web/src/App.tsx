@@ -2,7 +2,17 @@ import {
   PresentationProvider,
   usePresentationSessionLifetime,
 } from './components/PresentationPreferences';
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import { setTelemetryContext, telemetryActor, telemetryRoute } from './telemetry-context';
 import { api, type ClassroomStudentSession, type SessionPayload } from './api';
 import { LoginPage } from './pages/LoginPage';
 import { MaxLinkPage } from './pages/MaxLinkPage';
@@ -184,6 +194,23 @@ export function App(): JSX.Element {
   const [view, setViewState] = useState<CreatorPortalView>(() =>
     creatorViewFromLocation(window.location),
   );
+  const actor = telemetryActor(session);
+  const actorIdentity =
+    actor?.kind === 'account'
+      ? `account:${actor.accountId}:${actor.workspaceId}`
+      : actor?.kind === 'student'
+        ? `student:${actor.seatId}:${actor.classId}`
+        : '';
+  const telemetryBinding = useMemo(() => actor, [actorIdentity]);
+  const telemetryReady = ['authenticated', 'student', 'anonymous'].includes(session.kind);
+  const telemetryEntry = telemetryRoute(view, window.location.pathname.startsWith('/admin'));
+  useLayoutEffect(() => {
+    setTelemetryContext(telemetryBinding, telemetryReady, telemetryEntry);
+    if (telemetryReady && telemetryBinding)
+      void import('./analytics-runtime')
+        .then((runtime) => runtime.observeAnalytics())
+        .catch(() => undefined);
+  }, [telemetryBinding, telemetryReady, telemetryEntry]);
   const viewRef = useRef(view);
   viewRef.current = view;
   const learningLeaveGuard = useRef<(() => boolean) | null>(null);
@@ -788,6 +815,7 @@ export function App(): JSX.Element {
               onModuleResolved={handleModuleResolved}
               returnTo={view.returnTo}
               seatLearner={isSeatLearner}
+              telemetryActor={telemetryBinding}
               user={portalSession.user}
             />
           </Suspense>
@@ -1028,14 +1056,13 @@ export function App(): JSX.Element {
                     onOpenWork={(projectId) => setView({ kind: 'gallery-work', projectId })}
                   />
                 ) : null}
-                {view.kind === 'ai' && session.kind === 'authenticated' ? <AiChatPage /> : null}
+                {view.kind === 'ai' && session.kind === 'authenticated' ? (
+                  <AiChatPage />
+                ) : null}
                 {view.kind === 'ai' && session.kind === 'student' ? (
                   <main id="main-content" className="portal-content" tabIndex={-1}>
                     <h1>ИИ-помощник</h1>
-                    <p>
-                      ИИ пока доступен пользователям с личным аккаунтом. Подключение учебных мест
-                      требует отдельной настройки политики доступа.
-                    </p>
+                    <p>ИИ пока доступен пользователям с личным аккаунтом. Подключение учебных мест требует отдельной настройки политики доступа.</p>
                   </main>
                 ) : null}
                 {view.kind === 'learning' ? (

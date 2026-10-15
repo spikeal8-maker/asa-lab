@@ -95,9 +95,64 @@ documents:
     kind: implementation_spec
     status: canonical
     authority: owner_sequential_observability_repairs
-    revision: '1.8'
+    revision: '1.14'
     context_role: task
     read_when: [observability_repair]
+
+  - id: RELEASE-REGISTRATION-FIXTURE-SPEC
+    path: docs/delivery/RELEASE_REGISTRATION_FIXTURE_SPEC.md
+    scope: observability
+    lanes: [observability]
+    kind: implementation_spec
+    status: canonical
+    authority: owner_authorized_full_site_update_20261014
+    revision: '1.0'
+    context_role: task
+    read_when: [release_ci_fixture_repair]
+
+  - id: RELEASE-SCRATCH-CLOCK-SPEC
+    path: docs/delivery/RELEASE_SCRATCH_CLOCK_SPEC.md
+    scope: observability
+    lanes: [observability]
+    kind: implementation_spec
+    status: canonical
+    authority: owner_authorized_release_scratch_clock_repair_20261014
+    revision: '1.0'
+    context_role: task
+    read_when: [release_ci_fixture_repair]
+
+  - id: RELEASE-UI-TELEMETRY-FIXTURE-SPEC
+    path: docs/delivery/RELEASE_UI_TELEMETRY_FIXTURE_SPEC.md
+    scope: observability
+    lanes: [observability]
+    kind: implementation_spec
+    status: canonical
+    authority: owner_authorized_release_UI_telemetry_fixture_repair_20261014
+    revision: '1.0'
+    context_role: task
+    read_when: [release_ci_fixture_repair]
+
+  - id: RELEASE-SCRATCH-PROTOCOL-FIXTURE-SPEC
+    path: docs/delivery/RELEASE_SCRATCH_PROTOCOL_FIXTURE_SPEC.md
+    scope: observability
+    lanes: [observability]
+    kind: implementation_spec
+    status: canonical
+    authority: owner_authorized_release_Scratch_protocol_fixture_repair_20261014
+    revision: '1.0'
+    context_role: task
+    read_when: [release_ci_fixture_repair]
+
+  - id: RELEASE-WINDOWS-JUNCTION-FIXTURE-SPEC
+    path: docs/delivery/RELEASE_WINDOWS_JUNCTION_FIXTURE_SPEC.md
+    scope: observability
+    lanes: [observability]
+    kind: implementation_spec
+    status: canonical
+    authority: owner_authorized_release_Windows_junction_fixture_repair_20261014
+    revision: '1.0'
+    context_role: task
+    read_when: [release_ci_fixture_repair]
 
   - id: PORTABLE-DEPLOYMENT-CONTRACT
     path: docs/agent/contracts/deployment.yaml

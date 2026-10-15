@@ -5,10 +5,12 @@ components:
     state: implemented
     risk: high
     ownership: asa
-    purpose: "Cookie-authenticated parent endpoint issuing exact editor capability plus durable Blocks bootstrap."
+    purpose: "Cookie-authenticated capability/bootstrap issuance and parent session validation/renewal."
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-004-RUNTIME-SECURITY-CONTRACT.md
         section: "Editor runtime-session issuance"
+      - path: docs/product/visual-programming/VSCR-D0-004-RUNTIME-SECURITY-CONTRACT.md
+        section: "Token refresh and browser handling"
     task: VSCR-M1-005B
     depends_on: [blocks.host.protocol, blocks.runtime.capability]
     sources:
@@ -20,10 +22,13 @@ components:
         symbols: [BlocksRuntimeSessionIssuer]
       - path: apps/api/src/blocks-runtime-config.ts
         symbols: [readBlocksRuntimeServerConfig]
+      - apps/web/src/blocks/runtime-session.ts
     tests:
       - apps/api/src/blocks-runtime-session.controller.spec.ts
       - apps/api/src/blocks-runtime-session.spec.ts
       - apps/api/src/blocks-runtime-config.spec.ts
+      - apps/web/src/blocks/testing/runtime-session-clock.spec.ts
+      - apps/web/src/blocks/testing/editor-runtime-session.spec.ts
 
   - id: blocks.runtime.capability
     state: implemented

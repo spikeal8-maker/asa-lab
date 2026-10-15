@@ -170,14 +170,14 @@ test('runtime startup failure uses the central ASA error screen and Back returns
   }
 });
 
-test('Retry returns to loading and second runtime boot reaches editor-ready', async () => {
+test('Retry after exhausted transient attempts returns to loading and reaches editor-ready', async () => {
   const fixture = await createProtocolFixture({ product: true, locale: 'en-US' });
   let requests = 0;
   await fixture.context.route(
     `${parentOrigin}/api/projects/${projectId}/blocks/runtime-session`,
     async (route) => {
       requests += 1;
-      if (requests === 1) {
+      if (requests <= 3) {
         await route.fulfill({ status: 503, contentType: 'application/json', body: '{}' });
         return;
       }
@@ -189,6 +189,7 @@ test('Retry returns to loading and second runtime boot reaches editor-ready', as
     await page.goto(`${parentOrigin}/product`, { waitUntil: 'domcontentloaded' });
     const overlay = page.locator('[data-asa-blocks-loading-overlay]');
     await expect(overlay).toHaveAttribute('data-state', 'error');
+    expect(requests).toBe(3);
 
     await overlay.getByRole('button', { name: 'Повторить', exact: true }).click();
     await expect(overlay).toHaveAttribute('data-state', 'loading');
@@ -201,7 +202,7 @@ test('Retry returns to loading and second runtime boot reaches editor-ready', as
       { timeout: 45000 },
     );
     await expect(overlay).toHaveAttribute('data-state', 'ready');
-    expect(requests).toBe(2);
+    expect(requests).toBe(4);
     expect(fixture.pageErrors.filter((error) => !error.includes('503'))).toEqual([]);
   } finally {
     await fixture.close();

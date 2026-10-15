@@ -5,6 +5,7 @@
     "incremental": false,
     "rootDir": "src",
     "outDir": "dist",
+    "resolveJsonModule": true,
     "types": ["node"],
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true

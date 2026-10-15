@@ -75,7 +75,7 @@ components:
     state: implemented
     risk: high
     ownership: asa
-    purpose: "Upstream autosave uses a 55–65 s checkpoint from first edit; fast local recovery stays separate."
+    purpose: "Upstream 55–65 s autosave confirms media before draft; local recovery stays separate."
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-002-PERSISTENCE-CONTRACT.md
         section: "Autosave transaction identity"
@@ -89,7 +89,7 @@ components:
       - path: infra/scratch-editor/host/editor.js
         symbols: [chooseAutoSaveIntervalSecs, mountEditor]
       - path: infra/scratch-editor/host/storage.js
-        symbols: [createReadOnlyStorage, persistCanonicalDocument, saveProject]
+        symbols: [prepareMissingProjectAssets, persistCanonicalDocument, saveProject]
     tests:
       - infra/scratch-editor/tests/editor-autosave.test.mjs
       - tools/blocks/save-semantics.test.mjs

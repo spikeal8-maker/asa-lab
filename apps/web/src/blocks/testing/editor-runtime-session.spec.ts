@@ -4,6 +4,62 @@ import { act, createElement, type ComponentProps } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BlocksEditor } from '../BlocksEditor';
+import { setTelemetryContext } from '../../telemetry-context';
+const TELEMETRY_ACTOR = {
+  kind: 'account' as const,
+  accountId: '33333333-3333-4333-8333-333333333333',
+  workspaceId: '55555555-5555-4555-8555-555555555555',
+};
+function telemetryResponse(input: RequestInfo | URL, options?: RequestInit): Response | null {
+  const path = String(input);
+  if (path === '/api/diagnostics/client') return jsonResponse({ accepted: true }, 202);
+  if (path === '/api/diagnostics/quality') {
+    const body = JSON.parse(options?.body as string) as Record<string, unknown>;
+    return jsonResponse(
+      {
+        accepted: true,
+        state: 'intake_acknowledged',
+        schemaVersion: 2,
+        eventId: body['eventId'],
+        streamId: body['streamId'],
+        sequence: body['sequence'],
+        pipeline: body['pipeline'],
+        acknowledgementStage: body['acknowledgementStage'],
+      },
+      202,
+    );
+  }
+  if (!path.startsWith('/api/analytics/v2/')) return null;
+  const body = JSON.parse(options?.body as string) as Record<string, unknown>;
+  return jsonResponse({
+    accepted: true,
+    state: 'persisted',
+    schemaVersion: 2,
+    eventId: body['eventId'],
+    receiptId: body['eventId'],
+    operation: body['operation'] ?? body['eventType'] ?? 'quality',
+    receivedAt: new Date().toISOString(),
+    persistedAt: new Date().toISOString(),
+    ...(body['operation']
+      ? {
+          sessionId: body['sessionId'],
+          result: {
+            creditedSeconds: 0,
+            creditedFrom: null,
+            creditedTo: null,
+            sessionState: body['operation'] === 'close' ? 'closed' : 'open',
+          },
+        }
+      : body['pipeline']
+        ? {
+            streamId: body['streamId'],
+            sequence: body['sequence'],
+            pipeline: body['pipeline'],
+            acknowledgementStage: body['acknowledgementStage'],
+          }
+        : { recordId: PROJECT_ID }),
+  });
+}
 
 const PROJECT_ID = '11111111-1111-4111-8111-111111111111';
 const RUNTIME_ORIGIN = window.location.origin;
@@ -30,7 +86,7 @@ function session(runtimeToken = 'real.runtime.token', expiresAt = 4_000_000_000)
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { 'content-type': 'application/json' },
+    headers: { 'content-type': 'application/json', date: new Date().toUTCString() },
   });
 }
 
@@ -67,8 +123,7 @@ async function dispatchChild(
 }
 
 async function flushAsync(): Promise<void> {
-  await Promise.resolve();
-  await Promise.resolve();
+  for (let i = 0; i < 12; i++) await Promise.resolve();
 }
 
 let root: Root | null = null;
@@ -127,6 +182,8 @@ afterEach(async () => {
   container?.remove();
   root = null;
   container = null;
+  setTelemetryContext(null, true, 'public');
+  vi.clearAllTimers();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
   vi.useRealTimers();
@@ -141,15 +198,17 @@ describe('BlocksEditor runtime session bootstrap', () => {
       vi.stubGlobal(
         'fetch',
         vi.fn<typeof fetch>(async (input: RequestInfo | URL, options?: RequestInit) => {
-          if (String(input).startsWith('/api/analytics/v1/module-session/')) {
+          if (String(input) === '/api/analytics/v2/module-session') {
             const body = JSON.parse(options?.body as string) as Record<string, unknown>;
             telemetry.push(body);
-            return jsonResponse({ accepted: true, sessionId: body['sessionId'] }, 202);
+            return telemetryResponse(input, options)!;
           }
-          return jsonResponse(session());
+          return telemetryResponse(input, options) ?? jsonResponse(session());
         }),
       );
-      const iframe = await renderEditor();
+      setTelemetryContext(TELEMETRY_ACTOR, true, 'editor.blocks');
+      await flushAsync();
+      const iframe = await renderEditor({ telemetryActor: TELEMETRY_ACTOR });
       const post = spyOnPostMessage(iframe);
       await fireLoad(iframe);
       const init = initCalls(post)[0]![0] as Record<string, unknown>;
@@ -164,6 +223,7 @@ describe('BlocksEditor runtime session bootstrap', () => {
         root?.render(
           createElement(BlocksEditor, {
             projectId: replacementProject,
+            telemetryActor: TELEMETRY_ACTOR,
             recoveryPrincipalKey:
               change === 'principal'
                 ? '44444444-4444-4444-8444-444444444444'
@@ -177,7 +237,7 @@ describe('BlocksEditor runtime session bootstrap', () => {
         );
         await flushAsync();
       });
-      expect(telemetry[1]?.['closed']).toBe(true);
+      expect(telemetry[1]?.['operation']).toBe('close');
       const next = container!.querySelector('iframe')!;
       expect(next).not.toBe(iframe);
       const nextPost = spyOnPostMessage(next);
@@ -202,21 +262,17 @@ describe('BlocksEditor runtime session bootstrap', () => {
       'fetch',
       vi.fn<typeof fetch>(async (input: RequestInfo | URL, options?: RequestInit) => {
         const path = String(input);
-        if (path.startsWith('/api/analytics/v1/module-session/')) {
+        if (path === '/api/analytics/v2/module-session') {
           const body = JSON.parse(options?.body as string) as Record<string, unknown>;
           telemetry.push({ path, body });
-          return jsonResponse(
-            {
-              accepted: true,
-              ...(path.endsWith('/start') ? { sessionId: body['sessionId'] } : {}),
-            },
-            202,
-          );
+          return telemetryResponse(input, options)!;
         }
-        return jsonResponse(session());
+        return telemetryResponse(input, options) ?? jsonResponse(session());
       }),
     );
-    const iframe = await renderEditor();
+    setTelemetryContext(TELEMETRY_ACTOR, true, 'editor.blocks');
+    await flushAsync();
+    const iframe = await renderEditor({ telemetryActor: TELEMETRY_ACTOR });
     const post = spyOnPostMessage(iframe);
     await fireLoad(iframe);
     const init = initCalls(post)[0]![0] as Record<string, unknown>;
@@ -246,6 +302,12 @@ describe('BlocksEditor runtime session bootstrap', () => {
     await dispatchChild(iframe, init, { messageType: 'ASA_BLOCKS_USER_ACTIVITY' });
     expect(telemetry).toHaveLength(1);
     expect(telemetry[0]?.body).toEqual({
+      schemaVersion: 2,
+      eventId: expect.any(String),
+      actorExpectation: TELEMETRY_ACTOR,
+      operation: 'start',
+      visitId: expect.any(String),
+      clientOccurredAt: expect.any(String),
       sessionId: expect.any(String),
       projectId: PROJECT_ID,
       moduleKey: 'blocks',
@@ -255,7 +317,7 @@ describe('BlocksEditor runtime session bootstrap', () => {
       document.dispatchEvent(new Event('visibilitychange'));
       await flushAsync();
     });
-    expect(telemetry[1]?.body['closed']).toBe(true);
+    expect(telemetry[1]?.body['operation']).toBe('close');
     await dispatchChild(iframe, init, { messageType: 'ASA_BLOCKS_USER_ACTIVITY' });
     vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
     await act(async () => {
@@ -267,7 +329,7 @@ describe('BlocksEditor runtime session bootstrap', () => {
     expect(telemetry).toHaveLength(3);
     expect(telemetry[2]?.body['sessionId']).not.toBe(telemetry[0]?.body['sessionId']);
     await fireLoad(iframe);
-    expect(telemetry[3]?.body['closed']).toBe(true);
+    expect(telemetry[3]?.body['operation']).toBe('close');
     await dispatchChild(iframe, init, { messageType: 'ASA_BLOCKS_USER_ACTIVITY' });
     expect(telemetry).toHaveLength(4); // Reload invalidated the old bridge/nonce.
     await act(async () => root?.unmount());
@@ -277,7 +339,9 @@ describe('BlocksEditor runtime session bootstrap', () => {
   });
   it('detects missing child heartbeats, reports recovery, and ignores hidden tabs', async () => {
     vi.useFakeTimers();
-    const fetchMock = vi.fn(async () => jsonResponse(session()));
+    const fetchMock = vi.fn<typeof fetch>(
+      async (input, options) => telemetryResponse(input, options) ?? jsonResponse(session()),
+    );
     vi.stubGlobal('fetch', fetchMock);
     const iframe = await renderEditor();
     const post = spyOnPostMessage(iframe);
@@ -394,6 +458,7 @@ describe('BlocksEditor runtime session bootstrap', () => {
   });
 
   it.each([401, 404, 409, 503])('does not INIT when runtime-session returns %s', async (status) => {
+    vi.useFakeTimers();
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => jsonResponse({}, status)),
@@ -402,12 +467,19 @@ describe('BlocksEditor runtime session bootstrap', () => {
     const postMessage = spyOnPostMessage(iframe);
 
     await fireLoad(iframe);
+    if (status === 503) {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(3_000);
+        await flushAsync();
+      });
+    }
 
     expect(initCalls(postMessage)).toHaveLength(0);
     expect(container?.textContent).toContain('Не удалось открыть среду');
   });
 
   it('does not INIT when the runtime-session request fails', async () => {
+    vi.useFakeTimers();
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => {
@@ -418,6 +490,10 @@ describe('BlocksEditor runtime session bootstrap', () => {
     const postMessage = spyOnPostMessage(iframe);
 
     await fireLoad(iframe);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3_000);
+      await flushAsync();
+    });
 
     expect(initCalls(postMessage)).toHaveLength(0);
     expect(container?.textContent).toContain('Не удалось открыть среду');
@@ -467,7 +543,7 @@ describe('BlocksEditor runtime session bootstrap', () => {
     const fetchMock = vi.fn(async (url: string) => {
       if (url === '/api/diagnostics/client') return jsonResponse({}, 202);
       return ++sessions === 1
-        ? jsonResponse({}, 503)
+        ? jsonResponse({}, 400)
         : jsonResponse(session('fresh.runtime.token'));
     });
     vi.stubGlobal('fetch', fetchMock);
@@ -600,6 +676,119 @@ describe('BlocksEditor runtime session bootstrap', () => {
     expect(container!.textContent).not.toContain('Сохранить в ASA');
   });
 
+  it.each([-3, 3])(
+    'opens and refreshes with a %s hour client offset and a later clock jump',
+    async (hours) => {
+      vi.useFakeTimers();
+      const serverStart = Date.UTC(2030, 0, 1);
+      vi.setSystemTime(serverStart + hours * 3_600_000);
+      let grants = 0;
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async (input, options) => {
+          const telemetry = telemetryResponse(input, options);
+          if (telemetry) return telemetry;
+          grants += 1;
+          const serverNow = serverStart + performance.now();
+          const answer = jsonResponse(
+            session(`grant.number.${grants}`, Math.floor(serverNow / 1000) + 600),
+          );
+          answer.headers.set('date', new Date(serverNow).toUTCString());
+          return answer;
+        }),
+      );
+      const iframe = await renderEditor();
+      const post = spyOnPostMessage(iframe);
+      await fireLoad(iframe);
+      expect(initCalls(post)).toHaveLength(1);
+      vi.setSystemTime(serverStart + 86_400_000);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(539_000);
+      });
+      expect(grants).toBe(2);
+      expect(initCalls(post)).toHaveLength(1);
+      expect(
+        post.mock.calls.filter(
+          ([m]) => (m as Record<string, unknown>)['messageType'] === 'ASA_BLOCKS_TOKEN_UPDATE',
+        ),
+      ).toHaveLength(1);
+    },
+  );
+
+  it('refreshes on resume even when monotonic time froze, coalesces events and stops after unmount', async () => {
+    vi.useFakeTimers();
+    vi.spyOn(performance, 'now').mockReturnValue(0);
+    vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+    let grants = 0;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input, options) => {
+        const telemetry = telemetryResponse(input, options);
+        if (telemetry) return telemetry;
+        grants += 1;
+        return jsonResponse(session(`grant.number.${grants}`));
+      }),
+    );
+    const iframe = await renderEditor();
+    const post = spyOnPostMessage(iframe);
+    await fireLoad(iframe);
+    await act(async () => {
+      document.dispatchEvent(new Event('visibilitychange'));
+      window.dispatchEvent(new Event('pageshow'));
+      window.dispatchEvent(new Event('online'));
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(grants).toBe(2);
+    expect(initCalls(post)).toHaveLength(1);
+    await act(async () => root?.unmount());
+    root = null;
+    window.dispatchEvent(new Event('online'));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(grants).toBe(2);
+  });
+
+  it('discards a pre-suspension refresh response and waits for a fresh grant in the same flight', async () => {
+    vi.useFakeTimers();
+    vi.spyOn(performance, 'now').mockReturnValue(0);
+    vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+    let resolveOld!: (value: Response) => void;
+    const oldResponse = new Promise<Response>((resolve) => {
+      resolveOld = resolve;
+    });
+    let grants = 0;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input, options) => {
+        const telemetry = telemetryResponse(input, options);
+        if (telemetry) return telemetry;
+        grants += 1;
+        if (grants === 2) return oldResponse;
+        return jsonResponse(
+          session(grants === 1 ? 'initial.runtime.token' : 'fresh.runtime.token'),
+        );
+      }),
+    );
+    const iframe = await renderEditor();
+    const post = spyOnPostMessage(iframe);
+    await fireLoad(iframe);
+    await act(async () => {
+      window.dispatchEvent(new Event('online'));
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(grants).toBe(2);
+    await act(async () => {
+      document.dispatchEvent(new Event('visibilitychange'));
+      resolveOld(jsonResponse(session('stale.runtime.token')));
+      await flushAsync();
+    });
+    expect(grants).toBe(3);
+    const updates = post.mock.calls
+      .map(([m]) => m as Record<string, unknown>)
+      .filter((m) => m['messageType'] === 'ASA_BLOCKS_TOKEN_UPDATE');
+    expect(updates.map((m) => m['runtimeToken'])).toEqual(['fresh.runtime.token']);
+    expect(initCalls(post)).toHaveLength(1);
+  });
+
   it('refreshes expiring authority proactively with TOKEN_UPDATE and no second INIT', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2030-01-01T00:00:00.000Z'));
@@ -626,6 +815,111 @@ describe('BlocksEditor runtime session bootstrap', () => {
       messages.filter((message) => message['messageType'] === 'ASA_BLOCKS_TOKEN_UPDATE'),
     ).toHaveLength(1);
     expect(storageSet).not.toHaveBeenCalled();
+  });
+
+  it('cancels a long Retry-After when the startup deadline expires', async () => {
+    vi.useFakeTimers();
+    let grants = 0;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input, options) => {
+        const telemetry = telemetryResponse(input, options);
+        if (telemetry) return telemetry;
+        grants += 1;
+        const response = jsonResponse({}, 429);
+        response.headers.set('retry-after', '60');
+        return response;
+      }),
+    );
+    const iframe = await renderEditor();
+    const postMessage = spyOnPostMessage(iframe);
+    await fireLoad(iframe);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60_000);
+      await flushAsync();
+    });
+    expect(grants).toBe(1);
+    expect(initCalls(postMessage)).toHaveLength(0);
+    expect(container?.textContent).toContain('Не удалось открыть среду');
+  });
+
+  it('does not initialize from a response that arrives after the startup deadline', async () => {
+    vi.useFakeTimers();
+    let resolveGrant!: (response: Response) => void;
+    const pending = new Promise<Response>((resolve) => {
+      resolveGrant = resolve;
+    });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input, options) => telemetryResponse(input, options) ?? pending),
+    );
+    const iframe = await renderEditor();
+    const postMessage = spyOnPostMessage(iframe);
+    await fireLoad(iframe);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(45_000);
+      resolveGrant(jsonResponse(session()));
+      await flushAsync();
+    });
+    expect(initCalls(postMessage)).toHaveLength(0);
+    expect(container?.textContent).toContain('Не удалось открыть среду');
+  });
+
+  it('retries a transient capability refresh without remounting or replacing the project', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2030-01-01T00:00:00.000Z'));
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(session('initial.runtime.token', nowSeconds + 30)))
+      .mockResolvedValueOnce(jsonResponse({}, 503))
+      .mockResolvedValueOnce(jsonResponse(session('fresh.runtime.token', nowSeconds + 600)));
+    vi.stubGlobal('fetch', fetchMock);
+    const iframe = await renderEditor();
+    const postMessage = spyOnPostMessage(iframe);
+    await fireLoad(iframe);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+      await flushAsync();
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000);
+      await flushAsync();
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(initCalls(postMessage)).toHaveLength(1);
+    expect(
+      postMessage.mock.calls.some(
+        ([message]) =>
+          (message as Record<string, unknown>)['messageType'] === 'ASA_BLOCKS_TOKEN_UPDATE',
+      ),
+    ).toBe(true);
+  });
+
+  it('retries startup throttling using Retry-After without creating another iframe', async () => {
+    vi.useFakeTimers();
+    const limited = jsonResponse({}, 429);
+    limited.headers.set('retry-after', '3');
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(limited)
+      .mockResolvedValueOnce(jsonResponse(session()));
+    vi.stubGlobal('fetch', fetchMock);
+    const iframe = await renderEditor();
+    const postMessage = spyOnPostMessage(iframe);
+    await fireLoad(iframe);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2_999);
+      await flushAsync();
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+      await flushAsync();
+    });
+    expect(initCalls(postMessage)).toHaveLength(1);
+    expect(container?.querySelector('iframe')).toBe(iframe);
   });
 
   it('keeps proactive refresh single-flight when child refresh demand joins an in-flight rotation', async () => {

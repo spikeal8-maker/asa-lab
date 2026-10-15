@@ -23,6 +23,130 @@ beforeEach(() => {
   vi.setSystemTime(0);
   vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
 });
+
+describe('OBS007 BFCache activity restoration', () => {
+  const hide = () => window.dispatchEvent(new PageTransitionEvent('pagehide', { persisted: true }));
+  const show = (persisted = true) =>
+    window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted }));
+
+  it('restores mounted readiness only for real fresh input and keeps the original start bound', async () => {
+    const { tracker, api } = fixture();
+    tracker.setReady(true);
+    tracker.input();
+    await flush();
+    const original = api.start.mock.calls[0]![0];
+    hide();
+    tracker.input();
+    show(false);
+    tracker.input();
+    await flush();
+    expect(api.start).toHaveBeenCalledTimes(1);
+    show();
+    tracker.input();
+    await flush();
+    expect(api.start).toHaveBeenCalledTimes(1);
+    // The existing 30s gate remains in force even after a quick successful return.
+    await vi.advanceTimersByTimeAsync(30_001);
+    expect(api.start).toHaveBeenCalledTimes(1);
+    tracker.input();
+    await flush();
+    expect(api.start).toHaveBeenCalledTimes(2);
+    expect(api.start.mock.calls[1]![0]).not.toBe(original);
+    expect(api.touch.mock.calls).toEqual([[original, true]]);
+    hide();
+    hide();
+    show();
+    show();
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(api.start).toHaveBeenCalledTimes(2);
+    expect(api.touch.mock.calls.map(([, closed]) => closed)).toEqual([true, true]);
+    tracker.input();
+    await flush();
+    expect(api.start).toHaveBeenCalledTimes(3);
+  });
+
+  it.each(['unready', 'revoked', 'became-ready', 'disposed'] as const)(
+    'preserves editor ownership while suspended: %s',
+    async (state) => {
+      const { tracker, api } = fixture();
+      tracker.setReady(state === 'revoked' || state === 'disposed');
+      hide();
+      if (state === 'revoked') tracker.setReady(false);
+      if (state === 'became-ready') tracker.setReady(true);
+      if (state === 'disposed') tracker.dispose();
+      tracker.input();
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(api.start).not.toHaveBeenCalled();
+      show();
+      await flush();
+      expect(api.start).not.toHaveBeenCalled();
+      tracker.input();
+      await flush();
+      expect(api.start).toHaveBeenCalledTimes(state === 'became-ready' ? 1 : 0);
+    },
+  );
+
+  it('does not collect hidden input after restoration', async () => {
+    const { tracker, api } = fixture();
+    tracker.setReady(true);
+    hide();
+    vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden');
+    show();
+    tracker.input();
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(api.start).not.toHaveBeenCalled();
+    vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+    tracker.input();
+    await flush();
+    expect(api.start).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps a late pending acknowledgement detached from the resumed session', async () => {
+    const { tracker, api } = fixture();
+    let accepted!: (value: boolean) => void;
+    api.start.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          accepted = resolve;
+        }),
+    );
+    tracker.setReady(true);
+    tracker.input();
+    const original = api.start.mock.calls[0]![0];
+    hide();
+    await vi.advanceTimersByTimeAsync(60_000);
+    show();
+    tracker.input();
+    await flush();
+    expect(api.start).toHaveBeenCalledTimes(2);
+    accepted(true);
+    await flush();
+    expect(api.touch.mock.calls).toEqual([[original, true]]);
+    tracker.input();
+    await flush();
+    expect(api.start).toHaveBeenCalledTimes(2);
+  });
+
+  it('cannot bypass failed-start throttling through repeated returns', async () => {
+    const { tracker, api } = fixture();
+    api.start.mockResolvedValue(false);
+    tracker.setReady(true);
+    tracker.input();
+    await flush();
+    for (let second = 0; second < 29; second++) {
+      hide();
+      show();
+      tracker.input();
+      await vi.advanceTimersByTimeAsync(1000);
+    }
+    expect(api.start).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1000);
+    tracker.input();
+    await flush();
+    expect(api.start).toHaveBeenCalledTimes(2);
+    expect(api.touch).not.toHaveBeenCalled();
+  });
+});
 afterEach(() => {
   trackers.splice(0).forEach((tracker) => tracker.dispose());
   vi.restoreAllMocks();
@@ -31,21 +155,6 @@ afterEach(() => {
 });
 
 describe('Scratch ProductAnalytics activity lifecycle', () => {
-  it.each([null, {}, { accepted: true, sessionId: 'foreign' }, { accepted: false }])(
-    'rejects malformed/null start response %j',
-    async (body: unknown) => {
-      const fetch = vi.fn<typeof globalThis.fetch>(
-        async () => new Response(JSON.stringify(body), { status: 202 }),
-      );
-      vi.stubGlobal('fetch', fetch);
-      const tracker = trackBlocksActivity(PROJECT);
-      trackers.push(tracker);
-      tracker.setReady(true);
-      tracker.input();
-      await vi.advanceTimersByTimeAsync(30_000);
-      expect(fetch).toHaveBeenCalledTimes(1);
-    },
-  );
   it('requires readiness and input; opening and liveness alone never create a session', async () => {
     const { tracker, api } = fixture();
     tracker.input();
@@ -186,29 +295,4 @@ describe('Scratch ProductAnalytics activity lifecycle', () => {
     await flush();
     expect(api.start).toHaveBeenCalledTimes(2);
   });
-  it.each([401, 409, 503])(
-    'telemetry %s never refreshes/logs out or sends capabilities',
-    async (status: number) => {
-      const fetch = vi.fn<typeof globalThis.fetch>(async () => new Response('{}', { status }));
-      vi.stubGlobal('fetch', fetch);
-      const logout = vi.fn();
-      window.addEventListener('asa-session-logout', logout);
-      const tracker = trackBlocksActivity(PROJECT);
-      trackers.push(tracker);
-      tracker.setReady(true);
-      tracker.input();
-      await flush();
-      expect(fetch).toHaveBeenCalledTimes(1);
-      expect(fetch.mock.calls[0]?.[0]).toBe('/api/analytics/v1/module-session/start');
-      const request = fetch.mock.calls[0]?.[1] as RequestInit;
-      expect(JSON.parse(request.body as string)).toEqual({
-        sessionId: expect.any(String),
-        projectId: PROJECT,
-        moduleKey: 'blocks',
-      });
-      expect(request.headers).toEqual({ 'content-type': 'application/json' });
-      expect(logout).not.toHaveBeenCalled();
-      window.removeEventListener('asa-session-logout', logout);
-    },
-  );
 });

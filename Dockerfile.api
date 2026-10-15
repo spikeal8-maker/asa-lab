@@ -28,6 +28,10 @@ RUN npx --yes playwright@1.55.1 install --with-deps chromium \
 
 FROM browser AS test
 
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends python3 python-is-python3 \
+    && rm -rf /var/lib/apt/lists/*
+
 ENV PNPM_HOME=/pnpm
 ENV PATH=${PNPM_HOME}:${PATH}
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
@@ -45,6 +49,8 @@ RUN --mount=type=cache,id=asa-pnpm9,target=/pnpm/store pnpm install --offline --
 RUN pnpm build
 
 USER node
+
+RUN python -c "import gzip, json, sqlite3, tempfile, zipfile; db = sqlite3.connect(':memory:'); assert db.execute('SELECT 1').fetchone() == (1,)"
 
 FROM ${NODE_IMAGE} AS runtime
 

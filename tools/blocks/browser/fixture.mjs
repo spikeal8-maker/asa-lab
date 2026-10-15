@@ -5,18 +5,43 @@ import { createHash } from 'node:crypto';
 import { URL } from 'node:url';
 import { chromium, expect } from '@playwright/test';
 import { runtimeUrl, parentPort, parentOrigin, projectId, runtimeToken } from './protocol.mjs';
+import { isTelemetryRequest, telemetryReceipt } from './telemetry-fixture.mjs';
 
 export async function installMinuteAutosaveClock(page) {
   await page.clock.install();
   await page.addInitScript(() => {
     if (!globalThis.location.pathname.startsWith('/internal/blocks/')) return;
     const nativeSetTimeout = globalThis.setTimeout;
+    const nativeClearTimeout = globalThis.clearTimeout;
     globalThis.__asaMinuteAutosaveArms = 0;
+    globalThis.__asaMinuteAutosaveTimers = [];
     globalThis.setTimeout = (callback, delay, ...args) => {
-      if (typeof delay === 'number' && delay >= 55_000 && delay <= 65_000) {
+      if (
+        typeof callback === 'function' &&
+        typeof delay === 'number' &&
+        delay >= 55_000 &&
+        delay <= 65_000
+      ) {
         globalThis.__asaMinuteAutosaveArms += 1;
+        const timer = { armedAt: Date.now(), delay, firedAt: null, cancelledAt: null, id: null };
+        timer.id = nativeSetTimeout.call(
+          globalThis,
+          (...values) => {
+            timer.firedAt = Date.now();
+            callback.apply(globalThis, values);
+          },
+          delay,
+          ...args,
+        );
+        globalThis.__asaMinuteAutosaveTimers.push(timer);
+        return timer.id;
       }
       return nativeSetTimeout.call(globalThis, callback, delay, ...args);
+    };
+    globalThis.clearTimeout = (id) => {
+      const timer = globalThis.__asaMinuteAutosaveTimers.find((item) => item.id === id);
+      if (timer && timer.firedAt === null) timer.cancelledAt = Date.now();
+      return nativeClearTimeout.call(globalThis, id);
     };
   });
 }
@@ -211,6 +236,26 @@ window.addEventListener('message', (event) => {
 
   const server = http.createServer(async (request, response) => {
     const requestUrl = request.url ?? '/';
+    const telemetryRequest = {
+      method: request.method,
+      url: `http://${request.headers.host}${requestUrl}`,
+    };
+    if (product && isTelemetryRequest(telemetryRequest, parentOrigin)) {
+      let body;
+      try {
+        body = JSON.parse((await requestBody(request)).toString('utf8'));
+      } catch {
+        body = null;
+      }
+      const receipt = telemetryReceipt(telemetryRequest, body, parentOrigin);
+      response.statusCode = receipt?.status ?? 400;
+      response.setHeader('Content-Type', 'application/json; charset=utf-8');
+      response.setHeader('Cache-Control', 'no-store');
+      response.end(
+        JSON.stringify(receipt?.json ?? { error: { code: 'invalid_fixture_telemetry' } }),
+      );
+      return;
+    }
     if (product && requestUrl.startsWith('/internal/blocks/')) {
       const upstream = http.get(
         `${runtimeUrl}/${requestUrl.slice('/internal/blocks/'.length)}`,
@@ -646,6 +691,7 @@ window.addEventListener('message', (event) => {
   let browser;
   let context;
   const pageErrors = [];
+  const pageErrorEvidence = [];
   const allRequests = [];
   const configureContext = async (target) => {
     target.on('request', (request) => {
@@ -653,10 +699,24 @@ window.addEventListener('message', (event) => {
     });
     target.on('page', (page) => {
       page.on('pageerror', (error) => {
-        if (!error.message.includes('protocol-fixture-fatal')) pageErrors.push(error.message);
+        if (!error.message.includes('protocol-fixture-fatal')) {
+          pageErrorEvidence.push({
+            index: pageErrors.length,
+            kind: 'pageerror',
+            text: error.message,
+          });
+          pageErrors.push(error.message);
+        }
       });
       page.on('console', (message) => {
         if (message.type() === 'error' && !message.text().includes('protocol-fixture-fatal')) {
+          pageErrorEvidence.push({
+            index: pageErrors.length,
+            kind: 'console',
+            type: message.type(),
+            text: message.text(),
+            url: message.location().url,
+          });
           pageErrors.push(`console: ${message.text()}`);
         }
       });
@@ -696,6 +756,7 @@ window.addEventListener('message', (event) => {
         return context;
       },
       pageErrors,
+      pageErrorEvidence,
       allRequests,
       runtimeAssetEvidence,
       runtimeAssetPutEvidence,
