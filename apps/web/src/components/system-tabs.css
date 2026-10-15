@@ -163,7 +163,7 @@
   .classroom-owner-workspace .classroom-workspace-tabs.asa-system-tabs > button {
     flex: 0 1 auto;
     min-height: 44px;
-    padding: 6px 7px;
+    padding: 6px 4px;
     font-size: 13px;
   }
 }
