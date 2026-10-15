@@ -8,6 +8,7 @@ import { SimulationFailure } from '../simulation-failure';
 import { useElectronicsWorkbench } from '../use-electronics-workbench';
 
 const transport = vi.hoisted(() => ({
+  autoReady: true,
   instances: [] as Array<{
     callbacks?: LiveSimulationWorkerCallbacks;
     start: ReturnType<typeof vi.fn>;
@@ -22,10 +23,23 @@ vi.mock('../live-simulation-worker-controller', () => ({
     callbacks?: LiveSimulationWorkerCallbacks;
     start = vi.fn((_id, _document, callbacks: LiveSimulationWorkerCallbacks) => {
       this.callbacks = callbacks;
+      callbacks.onGenerationPending?.();
+      if (transport.autoReady) {
+        callbacks.onInitialReady?.(0);
+        callbacks.onCommittedHorizon?.(0);
+        callbacks.onResult(ready);
+      }
     });
     update = vi.fn();
     stop = vi.fn();
-    restart = vi.fn();
+    restart = vi.fn(() => {
+      this.callbacks?.onGenerationPending?.();
+      if (transport.autoReady) {
+        this.callbacks?.onInitialReady?.(0);
+        this.callbacks?.onCommittedHorizon?.(0);
+        this.callbacks?.onResult(ready);
+      }
+    });
     sendSerialRx = vi.fn();
     constructor() {
       transport.instances.push(this);
@@ -112,6 +126,7 @@ beforeEach(() => {
   vi.spyOn(window, 'setInterval');
   localStorage.clear();
   transport.instances.length = 0;
+  transport.autoReady = true;
   renders = 0;
   suspendRender = null;
   onLayoutCommit = null;
@@ -151,6 +166,89 @@ afterEach(async () => {
   vi.useRealTimers();
 });
 describe('mounted workbench host demand clock', () => {
+  it('waits through preflight and H0, then retains elapsed demand across later ready frames', async () => {
+    transport.autoReady = false;
+    await mount();
+    await act(async () => workbench.toggleSimulation());
+    worker().update.mockClear();
+    await tick(750);
+    expect(worker().update).not.toHaveBeenCalled();
+    expect(workbench.result).toBeNull();
+    // A preflight result or an incomplete/yielded checkpoint cannot start time.
+    await act(async () => worker().callbacks!.onSerialProjection!([]));
+    await tick(250);
+    expect(worker().update).not.toHaveBeenCalled();
+    await act(async () => {
+      worker().callbacks!.onInitialReady!(0);
+      worker().callbacks!.onCommittedHorizon!(0);
+      worker().callbacks!.onResult(ready);
+    });
+    await tick(30);
+    expect(worker().update.mock.calls.map((call) => call[1])).toEqual([10_000, 20_000, 30_000]);
+    await act(async () => {
+      worker().callbacks!.onCommittedHorizon!(10_000);
+      worker().callbacks!.onResult({ ...ready, current: 2 });
+    });
+    await tick(20);
+    expect(worker().update.mock.calls.at(-1)![1]).toBe(50_000);
+    expect(workbench.committedSimulationTimeMs).toBe(10);
+    expect(workbench.result?.current).toBe(2);
+  });
+
+  it('retains pending controls and Serial, and anchors genuine resets without offset debt', async () => {
+    await mount();
+    await act(async () => workbench.toggleSimulation());
+    await tick(80);
+    await act(async () => worker().callbacks!.onGenerationPending!());
+    worker().update.mockClear();
+    await tick(500);
+    expect(worker().update).not.toHaveBeenCalled();
+    await act(async () => workbench.toggleComponentState('switch'));
+    expect(worker().update.mock.calls.at(-1)![1]).toBe(80_000);
+    expect((worker().update.mock.calls.at(-1)![0] as SchematicDocument).components[1]!.state).toBe(
+      true,
+    );
+    workbench.sendArduinoSerialRx('uno', 'queued');
+    expect(worker().sendSerialRx).toHaveBeenLastCalledWith('uno', 'queued', 80_000);
+    await act(async () => worker().callbacks!.onInitialReady!(80_000));
+    await tick(10);
+    expect(worker().update.mock.calls.at(-1)![1]).toBe(90_000);
+    transport.autoReady = false;
+    await act(async () => workbench.resetArduinoRuntime('uno'));
+    worker().update.mockClear();
+    await tick(500);
+    expect(worker().update).not.toHaveBeenCalled();
+    workbench.sendArduinoSerialRx('uno', 'reset queue');
+    expect(worker().sendSerialRx).toHaveBeenLastCalledWith('uno', 'reset queue', 0);
+    await act(async () => worker().callbacks!.onInitialReady!(0));
+    await tick(10);
+    expect(worker().update.mock.calls.at(-1)![1]).toBe(10_000);
+  });
+
+  it('rejects old initial-ready callbacks after Stop, project replacement and unmount', async () => {
+    transport.autoReady = false;
+    await mount();
+    await act(async () => workbench.toggleSimulation());
+    const stopped = worker().callbacks!;
+    await act(async () => workbench.toggleSimulation());
+    await act(async () => workbench.toggleSimulation());
+    await act(async () => stopped.onInitialReady!(999_000));
+    worker().update.mockClear();
+    await tick(50);
+    expect(worker().update).not.toHaveBeenCalled();
+    const replaced = worker().callbacks!;
+    await mount('new-project');
+    await act(async () => workbench.toggleSimulation());
+    await act(async () => replaced.onInitialReady!(999_000));
+    worker().update.mockClear();
+    await tick(50);
+    expect(worker().update).not.toHaveBeenCalled();
+    const unmounted = worker().callbacks!;
+    await act(async () => root.render(null));
+    await act(async () => unmounted.onInitialReady!(999_000));
+    await tick(50);
+    expect(worker().update).not.toHaveBeenCalled();
+  });
   for (const strict of [false, true]) {
     it(`resumes the same clock after Suspense hide/reveal${strict ? ' with StrictMode replay' : ''}`, async () => {
       const scene = () => {
@@ -335,7 +433,7 @@ describe('mounted workbench host demand clock', () => {
     expect(worker().update.mock.calls.map((call) => call[1])).toEqual([
       10_000, 20_000, 30_000, 40_000, 50_000, 60_000, 70_000, 80_000, 90_000, 100_000,
     ]);
-    expect(workbench.result).toBeNull();
+    expect(workbench.result).toBe(ready);
     await act(async () => {
       worker().callbacks!.onCommittedHorizon!(25_000);
       worker().callbacks!.onResult(ready);

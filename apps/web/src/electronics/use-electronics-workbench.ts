@@ -278,6 +278,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
   }
 
   const simulationStartedAtRef = useRef<number | null>(null);
+  const simulationHostOffsetMicrosecondsRef = useRef(0);
   // Host demand is not a new electrical frame. Keep the clock out of React
   // state so a pending Worker does not redraw the whole editor every 10 ms.
   const requestedHorizonMicrosecondsRef = useRef(0);
@@ -353,7 +354,10 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
       return;
     }
 
-    simulationStartedAtRef.current = window.performance.now();
+    // Initialization does not advance model time. The first complete time-zero
+    // observation below starts this generation's host clock exactly once.
+    simulationStartedAtRef.current = null;
+    simulationHostOffsetMicrosecondsRef.current = 0;
     requestedHorizonMicrosecondsRef.current = 0;
     const session = committedHostSessionRef.current;
     let active = true;
@@ -364,7 +368,9 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
       const startedAt = simulationStartedAtRef.current;
       const currentDocument = runtimeDocumentRef.current;
       if (startedAt !== null && currentDocument) {
-        const horizon = Math.max(0, Math.round((window.performance.now() - startedAt) * 1000));
+        const horizon =
+          simulationHostOffsetMicrosecondsRef.current +
+          Math.max(0, Math.round((window.performance.now() - startedAt) * 1000));
         requestedHorizonMicrosecondsRef.current = horizon;
         simulationWorkerRef.current?.update(currentDocument, horizon);
       }
@@ -386,21 +392,36 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
     if (!initialDocument) return;
     setLiveResult(null);
     setArduinoSerialByBoard({});
+    const session = committedHostSessionRef.current;
+    let active = true;
+    const currentSession = () => active && committedHostSessionRef.current === session;
     controller.start(projectId, initialDocument, {
       onGenerationPending: () => {
+        if (!currentSession()) return;
+        simulationStartedAtRef.current = null;
         setGenerationPending(true);
         setCommittedHorizonMicroseconds(0);
         setLiveResult(null);
         setSimulationMessage(null);
       },
+      onInitialReady: (hostOffsetMicroseconds) => {
+        if (!currentSession() || simulationStartedAtRef.current !== null) return;
+        simulationHostOffsetMicrosecondsRef.current = hostOffsetMicroseconds;
+        requestedHorizonMicrosecondsRef.current = hostOffsetMicroseconds;
+        simulationStartedAtRef.current = window.performance.now();
+      },
       onResult: (nextResult) => {
+        if (!currentSession()) return;
         setGenerationPending(false);
         setLiveResult(nextResult);
         setSimulationMessage(circuitStateMessage(nextResult));
         confirmSimulationStarted();
       },
-      onCommittedHorizon: setCommittedHorizonMicroseconds,
+      onCommittedHorizon: (horizon) => {
+        if (currentSession()) setCommittedHorizonMicroseconds(horizon);
+      },
       onSerialProjection: (serial) => {
+        if (!currentSession()) return;
         setArduinoSerialByBoard(
           Object.fromEntries(serial.map((entry) => [entry.componentId, entry])) as Readonly<
             Record<string, ElectronicsArduinoSerialProjection>
@@ -408,6 +429,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
         );
       },
       onFailure: (failure) => {
+        if (!currentSession()) return;
         reportClientDiagnostic('simulation_failed', 'electronics', {
           phase: 'simulation',
           category: failure.category,
@@ -422,7 +444,10 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
         setSimulationMessage(simulationFailureMessage(failure));
       },
     });
-    return () => controller.stop();
+    return () => {
+      active = false;
+      controller.stop();
+    };
   }, [confirmSimulationStarted, projectId, setNotice, simulationRunning]);
 
   useEffect(() => {
@@ -1394,7 +1419,8 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
     }
     const currentRuntimeDocument = runtimeDocumentRef.current;
     if (!currentRuntimeDocument) return;
-    simulationStartedAtRef.current = window.performance.now();
+    simulationStartedAtRef.current = null;
+    simulationHostOffsetMicrosecondsRef.current = 0;
     requestedHorizonMicrosecondsRef.current = 0;
     setLiveResult(null);
     simulationWorkerRef.current?.restart(currentRuntimeDocument);

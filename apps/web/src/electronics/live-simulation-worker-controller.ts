@@ -30,6 +30,7 @@ export interface ElectronicsSimulationWorkerExecutor {
 
 export interface LiveSimulationWorkerCallbacks {
   readonly onGenerationPending?: () => void;
+  readonly onInitialReady?: (hostHorizonOffsetMicroseconds: number) => void;
   readonly onResult: (result: SolveResult) => void;
   readonly onCommittedHorizon?: (committedHorizonMicroseconds: number) => void;
   readonly onSerialProjection?: (serial: readonly ElectronicsArduinoSerialProjection[]) => void;
@@ -492,6 +493,17 @@ export class ElectronicsLiveSimulationWorkerController {
       this.fail(generationId, timedAdvanceFailure(advance));
       return;
     }
+    if (
+      advance.executionStatus === 'ready' &&
+      target === this.startupTarget &&
+      (advance.requestedHorizonMicroseconds !== 0 || advance.committedHorizonMicroseconds !== 0)
+    ) {
+      this.fail(
+        generationId,
+        new Error('Initial Electronics observation must be complete at zero.'),
+      );
+      return;
+    }
     const previouslyCommitted = this.timedState.continuation?.committedHorizonMicroseconds ?? 0;
     this.timedState = advance.state;
     this.callbacks?.onSerialProjection?.(advance.serial);
@@ -534,7 +546,11 @@ export class ElectronicsLiveSimulationWorkerController {
       return;
     }
     const isStartup = target === this.startupTarget;
-    if (isStartup) this.startupTarget = null;
+    if (isStartup) {
+      this.startupTarget = null;
+      this.callbacks?.onInitialReady?.(this.horizonOffsetMicroseconds);
+      if (generationId !== this.generationId) return;
+    }
     if (isStartup || this.pendingInputEvents.length === 0) {
       this.callbacks?.onCommittedHorizon?.(advance.committedHorizonMicroseconds);
       this.callbacks?.onResult(advance.result);
