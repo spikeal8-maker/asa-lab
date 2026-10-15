@@ -577,10 +577,9 @@ function ClassroomPageContent({
         setActionError(null);
         setNotice(null);
       },
-      fail: (message) => {
-        setActionError(message);
-        systemFeedback.error(message);
-      },
+      // Keep the actionable inline error and retry in one place. Emitting a
+      // second global alert would announce the same failure twice.
+      fail: setActionError,
       finish: () => setBusy(null),
     });
   }
