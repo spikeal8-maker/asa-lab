@@ -452,4 +452,57 @@ describe('AI Chat PostgreSQL access and request replay', () => {
     expect(contents).toContain('Сообщение 1');
     expect((await service.messagePage(stranger.principalId, thread.id)).items).toEqual([]);
   });
+
+  it('stores a canceled provider response as stopped and never recharges replay', async () => {
+    const request = randomUUID();
+    const thread = await service.createThread(owner.principalId);
+    const live = new AbortController();
+    const upstream = vi.fn<typeof fetch>(
+      async () =>
+        new Response(
+          [
+            'event: response.output_text.delta',
+            'data: {"type":"response.output_text.delta","delta":"Частичный ответ"}',
+            '',
+            'event: response.output_text.delta',
+            'data: {"type":"response.output_text.delta","delta":" продолжение"}',
+            '',
+          ].join('\n'),
+          { status: 200, headers: { 'content-type': 'text/event-stream' } },
+        ),
+    );
+    const adapter = new AiChatService(runtime, { encryptionKey: requestKey, fetchImpl: upstream });
+    const deltas: string[] = [];
+    const received = await adapter.sendStream(
+      owner.principalId,
+      thread.id,
+      'Остановить ответ',
+      request,
+      (delta) => {
+        deltas.push(delta);
+        live.abort();
+      },
+      live.signal,
+    );
+    expect(received.stopped).toBe(true);
+    expect(deltas).toEqual(['Частичный ответ']);
+    expect(received.messages).toContainEqual(
+      expect.objectContaining({
+        role: 'assistant',
+        content: 'Частичный ответ',
+        requestId: request,
+        state: 'stopped',
+      }),
+    );
+    const again = await adapter.sendStream(
+      owner.principalId,
+      thread.id,
+      'Остановить ответ',
+      request,
+      () => undefined,
+      new AbortController().signal,
+    );
+    expect(again.replayed).toBe(true);
+    expect(upstream).toHaveBeenCalledTimes(1);
+  });
 });

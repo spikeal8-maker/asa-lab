@@ -274,7 +274,7 @@ test('AI renders GFM tables, code and safe links without injecting HTML', async 
     '[Документация](https://example.com/arduino)',
     '',
     '<script>window.hacked = true</script>',
-  ].join('\\n');
+  ].join('\n');
   const fake = await fixture(page, markdown);
   await page.goto('/#/ai');
   await page.getByRole('textbox', { name: 'Сообщение ИИ' }).fill('Поясни мне Arduino');
