@@ -43,7 +43,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - name: AI Chat unit regression
-        run: pnpm exec vitest run apps/api/src/ai-chat.service.spec.ts
+        run: pnpm exec vitest run apps/api/src/ai-chat.service.spec.ts apps/api/src/ai-provider-stream.spec.ts
       - name: No unformatted files
         run: pnpm exec prettier --check apps/api/src/ai-* apps/web/src/ai e2e/ai-chat.spec.ts tests/admin/ai-chat.pg.spec.ts
       - name: API TypeScript
