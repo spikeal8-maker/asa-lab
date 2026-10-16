@@ -129,6 +129,7 @@
         refreshRuntimeToken,
         canSave: session.mode === 'editor',
         getProjectGeneration: () => projectGeneration,
+        getProjectAssets: () => vm?.assets ?? [],
         onProjectDurable: ({ savedGeneration }) => {
           void recoveryController?.durable(savedGeneration);
         },

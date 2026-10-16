@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { observationApi } from '../classroom-observation-api';
+import { observationApi, type ObservationSummary } from '../classroom-observation-api';
 
 export type ClassroomMetricsData = {
   students: number;
@@ -9,10 +9,7 @@ export type ClassroomMetricsData = {
   waiting: number;
   notSubmitted: number;
 };
-type Summary = {
-  items: Array<ClassroomMetricsData & { classroomId: string }>;
-  totals: ClassroomMetricsData;
-};
+type Summary = ObservationSummary;
 
 // The observation client is supplied by slice C; this helper owns presentation only.
 export function useClassroomMetrics(ids: string, revision: unknown, enabled = true) {

@@ -44,7 +44,18 @@ function enqueue(kind: SystemFeedbackKind, raw: string): number {
   const existing = [...visible, ...pending].find(
     (item) => item.kind === kind && item.message === message,
   );
-  if (existing) return existing.id;
+  if (existing) {
+    if (visible.some((item) => item.id === existing.id)) {
+      const lifetime = lifetimeFor(kind);
+      if (lifetime !== null) {
+        visible = visible.map((item) =>
+          item.id === existing.id ? { ...item, expiresAt: Date.now() + lifetime } : item,
+        );
+        changed();
+      }
+    }
+    return existing.id;
+  }
 
   const id = ++sequence;
   const lifetime = lifetimeFor(kind);

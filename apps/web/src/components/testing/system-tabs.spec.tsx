@@ -26,6 +26,20 @@ describe('shared ASA Lab section tabs', () => {
     expect(html.match(/type="button"/g)).toHaveLength(3);
   });
 
+  it('shows short mobile copy with full accessible label', () => {
+    const html = renderToStaticMarkup(
+      <SystemTabs
+        items={[{ id: 'co', label: 'Совместное преподавание', compactLabel: 'Совместно' }]}
+        active="co"
+        onChange={() => undefined}
+        label="Роли в классах"
+      />,
+    );
+    expect(html).toContain('aria-label="Совместное преподавание"');
+    expect(html).toContain('asa-system-tab-compact');
+    expect(html).toContain('>Совместно</span>');
+  });
+
   it('supports a vertical presentation without changing the semantics', () => {
     const html = renderToStaticMarkup(
       <SystemTabs

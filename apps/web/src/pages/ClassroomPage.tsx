@@ -402,10 +402,6 @@ function ClassroomPageContent({
   const [propertiesOpen, setPropertiesOpen] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
-  useEffect(() => {
-    if (notice) systemFeedback.success(notice);
-  }, [notice]);
   // null = closed; [] = all active learners; non-empty = selected learner cards.
   const [accessCardIds, setAccessCardIds] = useState<string[] | null>(null);
   const [codeEditor, setCodeEditor] = useState<ClassroomStudentSeat | null>(null);
@@ -575,7 +571,6 @@ function ClassroomPageContent({
       start: () => {
         setBusy(key);
         setActionError(null);
-        setNotice(null);
       },
       // Keep the actionable inline error and retry in one place. Emitting a
       // second global alert would announce the same failure twice.
@@ -613,7 +608,7 @@ function ClassroomPageContent({
           : current,
       );
       setEditing(null);
-      setNotice('Настройки ученика сохранены.');
+      systemFeedback.success('Настройки ученика сохранены.');
       await reload();
     });
   }
@@ -735,7 +730,7 @@ function ClassroomPageContent({
                     'Не удалось вернуть класс из архива.',
                   );
                   if (result.classroom) confirmClassroom(result.classroom);
-                  setNotice(
+                  systemFeedback.success(
                     'Класс вернулся из архива. Выдайте новый код, чтобы впустить учеников.',
                   );
                   await reload();
@@ -753,7 +748,7 @@ function ClassroomPageContent({
                   className="classroom-code-chip"
                   showAll={true}
                   epoch={codeEpoch}
-                  onCopied={() => setNotice('Код класса скопирован.')}
+                  onCopied={() => systemFeedback.success('Код класса скопирован.')}
                   onDenied={() =>
                     setActionError('Не удалось скопировать код. Выделите и скопируйте его вручную.')
                   }
@@ -877,7 +872,7 @@ function ClassroomPageContent({
                             'Не удалось сохранить безопасный режим класса.',
                           );
                           confirmClassroom(result.classroom);
-                          setNotice(
+                          systemFeedback.success(
                             result.classroom.safeModeDefault
                               ? 'Безопасный режим включён для класса.'
                               : 'Общий безопасный режим выключен. Индивидуальные настройки сохранены.',
@@ -1176,10 +1171,9 @@ function ClassroomPageContent({
                           onEdit={archived || busy ? undefined : () => setCodeEditor(student)}
                           onCopied={() => {
                             setActionError(null);
-                            setNotice('Код ученика скопирован.');
+                            systemFeedback.success('Код ученика скопирован.');
                           }}
                           onDenied={() => {
-                            setNotice(null);
                             setActionError(
                               'Не удалось скопировать код. Выделите и скопируйте его вручную.',
                             );
@@ -1303,7 +1297,7 @@ function ClassroomPageContent({
                                     await api.removeClassroomSeat(classroomId, student.id),
                                     'Не удалось удалить ученика из класса.',
                                   );
-                                  setNotice('Ученик удалён из класса.');
+                                  systemFeedback.success('Ученик удалён из класса.');
                                   await reload();
                                 },
                               );
@@ -1354,7 +1348,7 @@ function ClassroomPageContent({
                     setTeacherInviteLink(
                       new URL(result.invitation.invitePath, window.location.origin).href,
                     );
-                    setNotice('Ссылка для коллеги создана и действует 7 дней.');
+                    systemFeedback.success('Ссылка для коллеги создана и действует 7 дней.');
                     await reloadTeacherTeam();
                   });
                 }}
@@ -1472,7 +1466,7 @@ function ClassroomPageContent({
                                 await api.removeClassroomTeacher(classroomId, teacher.accountId),
                                 'Не удалось удалить преподавателя.',
                               );
-                              setNotice('Коллега удалён из класса.');
+                              systemFeedback.success('Коллега удалён из класса.');
                               await reloadTeacherTeam();
                             },
                           );
@@ -1511,7 +1505,7 @@ function ClassroomPageContent({
                                 'Не удалось отозвать приглашение.',
                               );
                               setTeacherInviteLink(null);
-                              setNotice('Приглашение отозвано.');
+                              systemFeedback.success('Приглашение отозвано.');
                               await reloadTeacherTeam();
                             },
                           );
@@ -1551,7 +1545,7 @@ function ClassroomPageContent({
                 'Не удалось сменить код класса.',
               );
               confirmClassroom(result.classroom);
-              setNotice(
+              systemFeedback.success(
                 'Код класса обновлён. Старые карточки больше не подходят — распечатайте новые.',
               );
               setSharing(false);
@@ -1565,7 +1559,7 @@ function ClassroomPageContent({
                 'Не удалось закрыть вход.',
               );
               confirmClassroom(result.classroom);
-              setNotice('Вход по коду закрыт.');
+              systemFeedback.success('Вход по коду закрыт.');
             });
           }}
           onClose={() => setSharing(false)}
@@ -1583,7 +1577,7 @@ function ClassroomPageContent({
             });
             if (!result.ok) return result.error.message || 'Не удалось добавить ученика.';
             setDialog(null);
-            setNotice('Ученик добавлен. Код доступен в списке и карточке доступа.');
+            systemFeedback.success('Ученик добавлен. Код доступен в списке и карточке доступа.');
             await reload();
             return null;
           }}
@@ -1594,7 +1588,7 @@ function ClassroomPageContent({
           classroomId={classroomId}
           onClose={() => setDialog(null)}
           onCommitted={async (created, skipped) => {
-            setNotice(
+            systemFeedback.success(
               `Добавлено учеников: ${created}.${skipped > 0 ? ` Не добавлено строк: ${skipped}.` : ''}`,
             );
             await reload();
@@ -1648,7 +1642,7 @@ function ClassroomPageContent({
                 : current,
             );
             maskCodes();
-            setNotice('Код ученика изменён. Старый код больше не действует.');
+            systemFeedback.success('Код ученика изменён. Старый код больше не действует.');
             await reload();
           }}
         />

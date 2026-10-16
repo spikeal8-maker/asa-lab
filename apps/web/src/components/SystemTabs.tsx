@@ -9,6 +9,7 @@
 export interface SystemTab<T extends string> {
   readonly id: T;
   readonly label: string;
+  readonly compactLabel?: string;
   readonly disabled?: boolean;
 }
 
@@ -42,10 +43,22 @@ export function SystemTabs<T extends string>({
           type="button"
           disabled={item.disabled}
           className={item.id === active ? 'active' : undefined}
+          aria-label={item.compactLabel ? item.label : undefined}
           aria-current={item.id === active ? 'page' : undefined}
           onClick={() => onChange(item.id)}
         >
-          {item.label}
+          {item.compactLabel ? (
+            <>
+              <span className="asa-system-tab-full" aria-hidden="true">
+                {item.label}
+              </span>
+              <span className="asa-system-tab-compact" aria-hidden="true">
+                {item.compactLabel}
+              </span>
+            </>
+          ) : (
+            item.label
+          )}
         </button>
       ))}
     </nav>

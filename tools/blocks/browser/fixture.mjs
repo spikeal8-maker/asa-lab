@@ -12,12 +12,36 @@ export async function installMinuteAutosaveClock(page) {
   await page.addInitScript(() => {
     if (!globalThis.location.pathname.startsWith('/internal/blocks/')) return;
     const nativeSetTimeout = globalThis.setTimeout;
+    const nativeClearTimeout = globalThis.clearTimeout;
     globalThis.__asaMinuteAutosaveArms = 0;
+    globalThis.__asaMinuteAutosaveTimers = [];
     globalThis.setTimeout = (callback, delay, ...args) => {
-      if (typeof delay === 'number' && delay >= 55_000 && delay <= 65_000) {
+      if (
+        typeof callback === 'function' &&
+        typeof delay === 'number' &&
+        delay >= 55_000 &&
+        delay <= 65_000
+      ) {
         globalThis.__asaMinuteAutosaveArms += 1;
+        const timer = { armedAt: Date.now(), delay, firedAt: null, cancelledAt: null, id: null };
+        timer.id = nativeSetTimeout.call(
+          globalThis,
+          (...values) => {
+            timer.firedAt = Date.now();
+            callback.apply(globalThis, values);
+          },
+          delay,
+          ...args,
+        );
+        globalThis.__asaMinuteAutosaveTimers.push(timer);
+        return timer.id;
       }
       return nativeSetTimeout.call(globalThis, callback, delay, ...args);
+    };
+    globalThis.clearTimeout = (id) => {
+      const timer = globalThis.__asaMinuteAutosaveTimers.find((item) => item.id === id);
+      if (timer && timer.firedAt === null) timer.cancelledAt = Date.now();
+      return nativeClearTimeout.call(globalThis, id);
     };
   });
 }

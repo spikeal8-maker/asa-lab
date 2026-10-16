@@ -5,7 +5,7 @@ import { act, createElement, StrictMode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { api, type Project, type SchematicDocument } from '../../api';
-import { readLocalProjectDraft } from '../../modules/project-local-draft';
+import { readLocalProjectDraft, writeLocalProjectDraft } from '../../modules/project-local-draft';
 import {
   configureProductionLibrary,
   type OwnerCatalogManifest,
@@ -158,6 +158,7 @@ async function mountProject() {
   });
   vi.setSystemTime(0);
   window.localStorage.clear();
+  window.sessionStorage.clear();
   vi.spyOn(api, 'me').mockResolvedValue({
     ok: true,
     status: 200,
@@ -222,12 +223,192 @@ afterEach(async () => {
   host = null;
   current = null;
   window.localStorage.clear();
+  window.sessionStorage.clear();
   vi.restoreAllMocks();
   vi.useRealTimers();
   Reflect.deleteProperty(document, 'visibilityState');
 });
 
 describe('Electronics project autosave in the mounted editor hook', () => {
+  it('stops a non-advancing conflict readback instead of repeating on every hide', async () => {
+    const save = await mountProject();
+    const local = { ...state().document!, components: [resistor('local', 10)] };
+    act(() => state().setDocument(local));
+    save.mockResolvedValue({
+      ok: false,
+      status: 409,
+      error: { code: 'project_revision_conflict', message: 'Conflict' },
+    } as Awaited<ReturnType<typeof api.saveDraft>>);
+    await act(async () => state().saveNow());
+    for (let i = 0; i < 10; i++) {
+      await act(async () => window.dispatchEvent(new Event('pagehide')));
+      await advance(250);
+    }
+    await advance(180_000);
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(state().saveIssue).toBe('conflict');
+    expect(state().localCopySaved).toBe(true);
+    expect(state().document).toEqual(local);
+  });
+
+  it('finishes lost-reply readback as saved without another automatic PUT', async () => {
+    const save = await mountProject();
+    const local = normalizeLoadedDocument({
+      ...state().document!,
+      components: [resistor('committed-with-lost-reply', 10)],
+    });
+    act(() => state().setDocument(local));
+    save.mockResolvedValueOnce({
+      ok: false,
+      status: 0,
+      error: { code: 'network', message: 'Reply lost after commit' },
+    } as Awaited<ReturnType<typeof api.saveDraft>>);
+    save.mockResolvedValueOnce({
+      ok: false,
+      status: 409,
+      error: { code: 'project_revision_conflict', message: 'Conflict' },
+    } as Awaited<ReturnType<typeof api.saveDraft>>);
+    vi.mocked(api.openProject).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      data: {
+        project,
+        draft: { projectId, document: structuredClone(local), revision: 2, updatedAt: '' },
+        versions: [],
+        result: null,
+      },
+    } as Awaited<ReturnType<typeof api.openProject>>);
+    await act(async () => state().saveNow());
+    await advance(60_000);
+    expect(save).toHaveBeenCalledTimes(2);
+    expect(state().saveStatus).toBe('saved');
+    expect(state().serverRevision).toBe(2);
+    expect(state().document).toEqual(local);
+    await advance(180_000);
+    await act(async () => window.dispatchEvent(new Event('pagehide')));
+    expect(save).toHaveBeenCalledTimes(2);
+  });
+
+  it('spaces safe conflict rebases, stops after the finite budget, and permits an explicit retry', async () => {
+    const save = await mountProject();
+    let remoteRevision = 1;
+    save.mockResolvedValue({
+      ok: false,
+      status: 409,
+      error: { code: 'project_revision_conflict', message: 'Conflict' },
+    } as Awaited<ReturnType<typeof api.saveDraft>>);
+    vi.mocked(api.openProject).mockImplementation(
+      async () =>
+        ({
+          ok: true,
+          status: 200,
+          data: {
+            project,
+            draft: {
+              projectId,
+              document: { ...initialDocument, components: [resistor('remote', ++remoteRevision)] },
+              revision: remoteRevision,
+              updatedAt: '',
+            },
+            versions: [],
+            result: null,
+          },
+        }) as Awaited<ReturnType<typeof api.openProject>>,
+    );
+    act(() => state().setDocument({ ...state().document!, components: [resistor('local', 10)] }));
+    await act(async () => state().saveNow());
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      for (let event = 0; event < 5; event++) {
+        await act(async () => window.dispatchEvent(new Event('pagehide')));
+        await advance(250);
+      }
+      // New edits must neither bypass the delay nor reset the rebase budget.
+      act(() => state().setDocument({ ...state().document! }));
+      await advance(58_749);
+      expect(save).toHaveBeenCalledTimes(attempt);
+      await advance(1);
+      expect(save).toHaveBeenCalledTimes(attempt + 1);
+    }
+    expect(state().saveIssue).toBe('conflict');
+    expect(state().localCopySaved).toBe(true);
+    await advance(600_000);
+    await act(async () => window.dispatchEvent(new Event('pagehide')));
+    expect(save).toHaveBeenCalledTimes(4);
+    await act(async () => state().saveNow());
+    expect(state().saveStatus).toBe('dirty');
+    expect(save).toHaveBeenCalledTimes(5);
+    save.mockImplementationOnce(
+      async (_id, document, revision) =>
+        ({
+          ok: true,
+          status: 200,
+          data: {
+            draft: { projectId, document, revision: revision + 1, updatedAt: '' },
+            result: null,
+          },
+        }) as Awaited<ReturnType<typeof api.saveDraft>>,
+    );
+    await advance(60_000);
+    expect(state().saveStatus).toBe('saved');
+    expect(save).toHaveBeenCalledTimes(6);
+  });
+
+  it('keeps a later local edit when lost-reply readback confirms only the earlier snapshot', async () => {
+    const save = await mountProject();
+    const first = normalizeLoadedDocument({
+      ...state().document!,
+      components: [resistor('committed', 10)],
+    });
+    act(() => state().setDocument(first));
+    save.mockResolvedValueOnce({
+      ok: false,
+      status: 0,
+      error: { code: 'network', message: 'Reply lost after commit' },
+    } as Awaited<ReturnType<typeof api.saveDraft>>);
+    await act(async () => state().saveNow());
+    let readback: ((value: Awaited<ReturnType<typeof api.openProject>>) => void) | undefined;
+    vi.mocked(api.openProject).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          readback = resolve;
+        }),
+    );
+    save.mockResolvedValueOnce({
+      ok: false,
+      status: 409,
+      error: { code: 'project_revision_conflict', message: 'Conflict' },
+    } as Awaited<ReturnType<typeof api.saveDraft>>);
+    await advance(60_000);
+    const later = normalizeLoadedDocument({
+      ...first,
+      components: [...first.components, resistor('later', 20)],
+    });
+    act(() => state().setDocument(later));
+    await act(async () => window.dispatchEvent(new Event('pagehide')));
+    await act(async () =>
+      readback!({
+        ok: true,
+        status: 200,
+        data: {
+          project,
+          draft: { projectId, document: first, revision: 2, updatedAt: '' },
+          versions: [],
+          result: null,
+        },
+      } as Awaited<ReturnType<typeof api.openProject>>),
+    );
+    expect(save).toHaveBeenCalledTimes(2);
+    expect(state().saveStatus).toBe('dirty');
+    expect(state().document?.components.map((item) => item.id)).toEqual(['committed', 'later']);
+    expect(state().localCopySaved).toBe(true);
+    await advance(59_999);
+    expect(save).toHaveBeenCalledTimes(2);
+    await advance(1);
+    expect(save).toHaveBeenCalledTimes(3);
+    expect(save).toHaveBeenLastCalledWith(projectId, state().document, 2);
+    expect(state().saveStatus).toBe('saved');
+  });
+
   it('opens once without background polling and refreshes a clean document on focus', async () => {
     await mountProject();
     const open = vi.mocked(api.openProject);
@@ -253,6 +434,270 @@ describe('Electronics project autosave in the mounted editor hook', () => {
     expect(state().document).toEqual(remote);
     expect(state().saveStatus).toBe('saved');
   });
+
+  it.each([userId, 'collaborator'])(
+    'preserves both mounted editors through exit for second actor %s',
+    async (otherUser) => {
+      const save = await mountProject();
+      const first = () => state();
+      let other: ReturnType<typeof useWorkbenchProjectState> | null = null;
+      const second = () => {
+        if (!other) throw new Error('Second editor has not rendered');
+        return other;
+      };
+      function OtherEditor() {
+        other = useWorkbenchProjectState(projectId, otherUser);
+        return null;
+      }
+      let server = { document: normalizeLoadedDocument(initialDocument), revision: 1 };
+      vi.mocked(api.openProject).mockImplementation(
+        async () =>
+          ({
+            ok: true,
+            status: 200,
+            data: {
+              project,
+              draft: { projectId, ...structuredClone(server), updatedAt: '' },
+              versions: [],
+              result: null,
+            },
+          }) as Awaited<ReturnType<typeof api.openProject>>,
+      );
+      save.mockImplementation(async (_id, document, revision) => {
+        if (revision !== server.revision)
+          return {
+            ok: false,
+            status: 409,
+            error: { code: 'project_revision_conflict', message: 'Conflict' },
+          } as Awaited<ReturnType<typeof api.saveDraft>>;
+        server = {
+          document: structuredClone(document) as SchematicDocument,
+          revision: revision + 1,
+        };
+        return {
+          ok: true,
+          status: 200,
+          data: { draft: { projectId, ...server, updatedAt: '' }, result: null },
+        } as Awaited<ReturnType<typeof api.saveDraft>>;
+      });
+      const identify = (id: string) =>
+        vi.mocked(api.me).mockResolvedValue({
+          ok: true,
+          status: 200,
+          data: { authenticated: true, user: { id } },
+        } as Awaited<ReturnType<typeof api.me>>);
+      const otherHost = document.body.appendChild(document.createElement('div'));
+      const otherRoot = createRoot(otherHost);
+      const tabData = new Map<string, string>();
+      const otherSession: Storage = {
+        get length() {
+          return tabData.size;
+        },
+        key: (index) => [...tabData.keys()][index] ?? null,
+        getItem: (key) => tabData.get(key) ?? null,
+        setItem: (key, value) => {
+          tabData.set(key, value);
+        },
+        removeItem: (key) => {
+          tabData.delete(key);
+        },
+        clear: () => tabData.clear(),
+      };
+      vi.spyOn(window, 'sessionStorage', 'get').mockReturnValue(otherSession);
+      let otherMounted = true;
+      try {
+        identify(otherUser);
+        await act(async () => otherRoot.render(createElement(OtherEditor)));
+        act(() => first().setDocument({ ...first().document!, components: [resistor('a', 10)] }));
+        act(() => second().setDocument({ ...second().document!, components: [resistor('b', 20)] }));
+        identify(userId);
+        await act(async () => first().saveNow());
+        act(() =>
+          window.dispatchEvent(
+            new StorageEvent('storage', {
+              key: `asa-project-local-draft:user:account:${userId}:${projectId}`,
+              newValue: null,
+            }),
+          ),
+        );
+        expect(second().localCopySaved).toBe(true);
+        identify(otherUser);
+        await act(async () => second().saveNow());
+        expect(second().saveStatus).toBe('dirty');
+        expect(second().document?.components.map((item) => item.id)).toEqual(['a', 'b']);
+        expect(first().document?.components.map((item) => item.id)).toEqual(['a']);
+        await advance(60_000);
+        expect(second().saveStatus).toBe('saved');
+        expect(server.document.components.map((item) => item.id)).toEqual(['a', 'b']);
+        await act(async () => window.dispatchEvent(new Event('focus')));
+        const change = (editor: ReturnType<typeof useWorkbenchProjectState>, value: number) =>
+          editor.setDocument({
+            ...editor.document!,
+            components: editor.document!.components.map((item) =>
+              item.id === 'a' ? { ...item, value } : item,
+            ),
+          });
+        act(() => change(first(), 330));
+        act(() => change(second(), 470));
+        identify(userId);
+        await act(async () => first().saveNow());
+        identify(otherUser);
+        await act(async () => second().saveNow());
+        expect(second().saveIssue).toBe('conflict');
+        expect(server.document.components.find((item) => item.id === 'a')?.value).toBe(330);
+        expect(second().document?.components.find((item) => item.id === 'a')?.value).toBe(470);
+        const calls = save.mock.calls.length;
+        await advance(600_000);
+        await act(async () => window.dispatchEvent(new Event('pagehide')));
+        expect(save).toHaveBeenCalledTimes(calls);
+        act(() => change(first(), 560));
+        // Independent browser sessions are represented by verified identity at each action.
+        // On exit identity is unavailable: neither local copy may disappear or overwrite server.
+        vi.mocked(api.me).mockResolvedValue({
+          ok: true,
+          status: 200,
+          data: { authenticated: false },
+        } as Awaited<ReturnType<typeof api.me>>);
+        await act(async () => {
+          otherRoot.unmount();
+          root!.unmount();
+        });
+        otherMounted = false;
+        root = null;
+        expect(save).toHaveBeenCalledTimes(calls);
+        const owned = Array.from({ length: window.localStorage.length }, (_, index) =>
+          window.localStorage.key(index),
+        )
+          .filter((key) => key?.includes(':electronics-editor:'))
+          .map(
+            (key) =>
+              JSON.parse(window.localStorage.getItem(key!)!) as {
+                userId: string;
+                document: SchematicDocument;
+              },
+          );
+        expect(
+          owned.some(
+            (copy) =>
+              copy.userId === userId &&
+              copy.document.components.find((item) => item.id === 'a')?.value === 560,
+          ),
+        ).toBe(true);
+        expect(
+          owned.some(
+            (copy) =>
+              copy.userId === otherUser &&
+              copy.document.components.find((item) => item.id === 'a')?.value === 470,
+          ),
+        ).toBe(true);
+        expect(server.document.components.find((item) => item.id === 'a')?.value).toBe(330);
+      } finally {
+        if (otherMounted) await act(async () => otherRoot.unmount());
+        otherHost.remove();
+      }
+    },
+  );
+
+  it('allows an explicit checkpoint during the quiet conflict cooldown', async () => {
+    const save = await mountProject();
+    act(() => state().setDocument({ ...state().document!, components: [resistor('local', 10)] }));
+    save.mockResolvedValueOnce({
+      ok: false,
+      status: 409,
+      error: { code: 'project_revision_conflict', message: 'Conflict' },
+    } as Awaited<ReturnType<typeof api.saveDraft>>);
+    vi.mocked(api.openProject).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      data: {
+        project,
+        draft: {
+          projectId,
+          document: { ...initialDocument, components: [resistor('remote', 20)] },
+          revision: 2,
+          updatedAt: '',
+        },
+        versions: [],
+        result: null,
+      },
+    } as Awaited<ReturnType<typeof api.openProject>>);
+    await act(async () => state().saveNow());
+    save.mockImplementationOnce(
+      async (_id, document, revision) =>
+        ({
+          ok: true,
+          status: 200,
+          data: {
+            draft: { projectId, document, revision: revision + 1, updatedAt: '' },
+            result: { solved: true },
+          },
+        }) as Awaited<ReturnType<typeof api.saveDraft>>,
+    );
+    const checkpoint = vi.spyOn(api, 'createCheckpoint').mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { version: { versionNo: 1 } },
+    } as Awaited<ReturnType<typeof api.createCheckpoint>>);
+    await act(async () => state().checkpoint());
+    expect(save).toHaveBeenCalledTimes(2);
+    expect(checkpoint).toHaveBeenCalledExactlyOnceWith(projectId);
+    expect(state().saveStatus).toBe('saved');
+    await advance(120_000);
+    expect(save).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([false, true])(
+    'retires an included recovered branch while preserving migration=%s',
+    async (migration) => {
+      const save = await mountProject();
+      writeLocalProjectDraft(window.localStorage, {
+        projectId,
+        userId,
+        moduleKey: 'electronics',
+        baseRevision: 1,
+        baseDocument: initialDocument,
+        document: normalizeLoadedDocument({ ...initialDocument, components: [resistor('a', 10)] }),
+      });
+      const rawRemote = { ...initialDocument, components: [resistor('a', 10), resistor('b', 20)] };
+      const remote = migration ? rawRemote : normalizeLoadedDocument(rawRemote);
+      vi.mocked(api.openProject).mockResolvedValue({
+        ok: true,
+        status: 200,
+        data: {
+          project,
+          draft: { projectId, document: remote, revision: 2, updatedAt: '' },
+          versions: [],
+          result: null,
+        },
+      } as Awaited<ReturnType<typeof api.openProject>>);
+      window.sessionStorage.clear();
+      await reopenProject();
+      expect(state().document).toEqual(normalizeLoadedDocument(remote));
+      expect(state().saveStatus).toBe(migration ? 'dirty' : 'saved');
+      if (!migration)
+        expect(
+          readLocalProjectDraft(window.localStorage, projectId, 'electronics', userId),
+        ).toBeNull();
+      else
+        save.mockImplementationOnce(
+          async (_id, document, revision) =>
+            ({
+              ok: true,
+              status: 200,
+              data: {
+                draft: { projectId, document, revision: revision + 1, updatedAt: '' },
+                result: null,
+              },
+            }) as Awaited<ReturnType<typeof api.saveDraft>>,
+        );
+      await advance(180_000);
+      expect(save).toHaveBeenCalledTimes(migration ? 1 : 0);
+      expect(state().saveStatus).toBe('saved');
+      expect(
+        readLocalProjectDraft(window.localStorage, projectId, 'electronics', userId),
+      ).toBeNull();
+    },
+  );
 
   it('does not fetch on dirty focus or overwrite an edit made during a clean focus request', async () => {
     await mountProject();
@@ -301,6 +746,12 @@ describe('Electronics project autosave in the mounted editor hook', () => {
     const key = `asa-project-local-draft:user:account:${userId}:${projectId}`;
     window.localStorage.removeItem(key);
     act(() => window.dispatchEvent(new StorageEvent('storage', { key, newValue: null })));
+    expect(state().localCopySaved).toBe(true);
+    const ownedKey = Array.from({ length: window.localStorage.length }, (_, index) =>
+      window.localStorage.key(index),
+    ).find((item) => item?.startsWith(`${key}:electronics-editor:`))!;
+    window.localStorage.removeItem(ownedKey);
+    act(() => window.dispatchEvent(new StorageEvent('storage', { key: ownedKey, newValue: null })));
     expect(state().localCopySaved).toBe(false);
     save.mockResolvedValueOnce({
       ok: false,
@@ -1100,7 +1551,7 @@ describe('Electronics project autosave in the mounted editor hook', () => {
     expect(save).toHaveBeenCalledTimes(2);
     expect(save).toHaveBeenLastCalledWith(projectId, changed, 1);
     expect(state().saveStatus).toBe('saved');
-    expect(window.localStorage.length).toBe(0);
+    expect(readLocalProjectDraft(window.localStorage, projectId, 'electronics', userId)).toBeNull();
     await advance(60_000);
     expect(save).toHaveBeenCalledTimes(2);
   });

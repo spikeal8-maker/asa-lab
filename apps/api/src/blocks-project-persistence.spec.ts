@@ -776,6 +776,7 @@ describe('save/open cancellation and shared writer regressions', () => {
       ok: false,
       code: 'validation_error',
       message: 'baseRevision must be a non-negative integer',
+      reasonCode: 'draft_base_revision_invalid',
     });
     expect(validate).not.toHaveBeenCalled();
     expect(h.saveDraft).not.toHaveBeenCalled();

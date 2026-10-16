@@ -26,7 +26,7 @@ describe('shared system action feedback', () => {
       kind: 'success',
       message: 'Сохранено',
     });
-    expect(emissions).toBe(1);
+    expect(emissions).toBe(2);
     unsubscribe();
   });
 

@@ -162,31 +162,93 @@ export function terminalsForComponent(component: SchematicComponent): readonly T
     : terminalsForKind(component.kind);
 }
 
+export const ELECTRONICS_DOCUMENT_VALIDATION_REASONS = [
+  'electronics_component_id',
+  'electronics_component_kind',
+  'electronics_component_name',
+  'electronics_component_pins',
+  'electronics_component_position',
+  'electronics_component_rotation',
+  'electronics_component_shape',
+  'electronics_component_state',
+  'electronics_component_type',
+  'electronics_component_value',
+  'electronics_component_variant',
+  'electronics_component_wiper',
+  'electronics_connection_endpoint',
+  'electronics_connection_id',
+  'electronics_connection_shape',
+  'electronics_document_arrays',
+  'electronics_document_shape',
+  'electronics_document_size',
+  'electronics_hole_binding_reference',
+  'electronics_hole_binding_shape',
+  'electronics_hole_bindings_shape',
+  'electronics_internal_connection_pair',
+  'electronics_internal_connection_reference',
+  'electronics_internal_connections',
+  'electronics_model_identity',
+  'electronics_schema_version',
+  'electronics_simulation',
+  'electronics_state_properties',
+  'electronics_state_value',
+  'electronics_viewport',
+  'electronics_wire_color',
+  'electronics_wire_position',
+  'electronics_wire_vertices',
+] as const;
+
 export type DocumentParseResult =
   | { readonly ok: true; readonly document: ElectronicsDocument; readonly migrated: boolean }
-  | { readonly ok: false; readonly message: string };
+  | {
+      readonly ok: false;
+      readonly message: string;
+      readonly reasonCode: (typeof ELECTRONICS_DOCUMENT_VALIDATION_REASONS)[number];
+    };
 
 /** Accepts historical schema v1-v3 and normalises additively to production schema v4. */
 export function parseElectronicsDocument(value: unknown): DocumentParseResult {
-  if (!isPlainObject(value)) return { ok: false, message: 'document must be an object' };
+  if (!isPlainObject(value))
+    return {
+      ok: false,
+      reasonCode: 'electronics_document_shape',
+      message: 'document must be an object',
+    };
   const schemaVersion = value['schemaVersion'];
   if (schemaVersion !== 1 && schemaVersion !== 2 && schemaVersion !== 3 && schemaVersion !== 4) {
-    return { ok: false, message: 'unsupported document schemaVersion' };
+    return {
+      ok: false,
+      reasonCode: 'electronics_schema_version',
+      message: 'unsupported document schemaVersion',
+    };
   }
   const rawComponents = value['components'];
   const rawConnections = value['connections'];
   if (!Array.isArray(rawComponents) || !Array.isArray(rawConnections)) {
-    return { ok: false, message: 'document must contain components and connections arrays' };
+    return {
+      ok: false,
+      reasonCode: 'electronics_document_arrays',
+      message: 'document must contain components and connections arrays',
+    };
   }
   if (rawComponents.length > MAX_COMPONENTS || rawConnections.length > MAX_CONNECTIONS) {
-    return { ok: false, message: 'document exceeds the supported size' };
+    return {
+      ok: false,
+      reasonCode: 'electronics_document_size',
+      message: 'document exceeds the supported size',
+    };
   }
 
   const components: SchematicComponent[] = [];
   const seenComponents = new Set<string>();
   const componentById = new Map<string, SchematicComponent>();
   for (const raw of rawComponents) {
-    if (!isPlainObject(raw)) return { ok: false, message: 'component must be an object' };
+    if (!isPlainObject(raw))
+      return {
+        ok: false,
+        reasonCode: 'electronics_component_shape',
+        message: 'component must be an object',
+      };
     const {
       id,
       kind,
@@ -208,39 +270,76 @@ export function parseElectronicsDocument(value: unknown): DocumentParseResult {
       internalConnections,
     } = raw;
     if (!isId(id) || seenComponents.has(id)) {
-      return { ok: false, message: 'component id must be unique and non-empty' };
+      return {
+        ok: false,
+        reasonCode: 'electronics_component_id',
+        message: 'component id must be unique and non-empty',
+      };
     }
     if (typeof kind !== 'string' || !KINDS.includes(kind as ComponentKind)) {
-      return { ok: false, message: `unsupported component kind: ${String(kind)}` };
+      return {
+        ok: false,
+        reasonCode: 'electronics_component_kind',
+        message: `unsupported component kind: ${String(kind)}`,
+      };
     }
     const parsedPosition = parsePosition(position, 'component position');
-    if (typeof parsedPosition === 'string') return { ok: false, message: parsedPosition };
+    if (typeof parsedPosition === 'string')
+      return { ok: false, reasonCode: 'electronics_component_position', message: parsedPosition };
     if (!isFiniteNumber(componentValue) || componentValue < 0 || componentValue > 1_000_000_000) {
-      return { ok: false, message: 'component value must be a bounded non-negative number' };
+      return {
+        ok: false,
+        reasonCode: 'electronics_component_value',
+        message: 'component value must be a bounded non-negative number',
+      };
     }
     if (
       rotation !== undefined &&
       (!Number.isInteger(rotation) || !ROTATIONS.has(rotation as Rotation))
     ) {
-      return { ok: false, message: 'component rotation must use 45-degree steps' };
+      return {
+        ok: false,
+        reasonCode: 'electronics_component_rotation',
+        message: 'component rotation must use 45-degree steps',
+      };
     }
     if (name !== undefined && (typeof name !== 'string' || name.length > 120)) {
-      return { ok: false, message: 'component name must be at most 120 characters' };
+      return {
+        ok: false,
+        reasonCode: 'electronics_component_name',
+        message: 'component name must be at most 120 characters',
+      };
     }
     if (state !== undefined && typeof state !== 'boolean') {
-      return { ok: false, message: 'component state must be boolean' };
+      return {
+        ok: false,
+        reasonCode: 'electronics_component_state',
+        message: 'component state must be boolean',
+      };
     }
     if (
       wiperPosition !== undefined &&
       (!isFiniteNumber(wiperPosition) || wiperPosition < 0 || wiperPosition > 1)
     ) {
-      return { ok: false, message: 'potentiometer wiperPosition must be between 0 and 1' };
+      return {
+        ok: false,
+        reasonCode: 'electronics_component_wiper',
+        message: 'potentiometer wiperPosition must be between 0 and 1',
+      };
     }
     if (componentTypeId !== undefined && !isId(componentTypeId)) {
-      return { ok: false, message: 'componentTypeId must be a bounded non-empty string' };
+      return {
+        ok: false,
+        reasonCode: 'electronics_component_type',
+        message: 'componentTypeId must be a bounded non-empty string',
+      };
     }
     if (variantId !== undefined && !isId(variantId)) {
-      return { ok: false, message: 'variantId must be a bounded non-empty string' };
+      return {
+        ok: false,
+        reasonCode: 'electronics_component_variant',
+        message: 'variantId must be a bounded non-empty string',
+      };
     }
     const explicitIdentity = [
       electricalModelId,
@@ -261,6 +360,7 @@ export function parseElectronicsDocument(value: unknown): DocumentParseResult {
       ) {
         return {
           ok: false,
+          reasonCode: 'electronics_model_identity',
           message: 'component electrical model identity is incomplete or invalid',
         };
       }
@@ -268,12 +368,20 @@ export function parseElectronicsDocument(value: unknown): DocumentParseResult {
     let parsedStateProperties: Record<string, ProductionStateValue> | undefined;
     if (stateProperties !== undefined) {
       if (!isPlainObject(stateProperties) || Object.keys(stateProperties).length > 48) {
-        return { ok: false, message: 'stateProperties must be a bounded object' };
+        return {
+          ok: false,
+          reasonCode: 'electronics_state_properties',
+          message: 'stateProperties must be a bounded object',
+        };
       }
       parsedStateProperties = {};
       for (const [key, stateValue] of Object.entries(stateProperties)) {
         if (!isId(key) || !isStateValue(stateValue)) {
-          return { ok: false, message: 'stateProperties contains an invalid value' };
+          return {
+            ok: false,
+            reasonCode: 'electronics_state_value',
+            message: 'stateProperties contains an invalid value',
+          };
         }
         parsedStateProperties[key] = stateValue;
       }
@@ -286,7 +394,11 @@ export function parseElectronicsDocument(value: unknown): DocumentParseResult {
         !pinIds.every(isId) ||
         new Set(pinIds).size !== pinIds.length
       ) {
-        return { ok: false, message: 'pinIds must contain unique bounded pin identifiers' };
+        return {
+          ok: false,
+          reasonCode: 'electronics_component_pins',
+          message: 'pinIds must contain unique bounded pin identifiers',
+        };
       }
       parsedPinIds = [...pinIds];
     }
@@ -294,7 +406,11 @@ export function parseElectronicsDocument(value: unknown): DocumentParseResult {
       Record<string, { breadboardComponentId: string; holeId: string }> | undefined;
     if (holeBindings !== undefined) {
       if (!isPlainObject(holeBindings) || Object.keys(holeBindings).length > 64) {
-        return { ok: false, message: 'holeBindings must be a bounded object' };
+        return {
+          ok: false,
+          reasonCode: 'electronics_hole_bindings_shape',
+          message: 'holeBindings must be a bounded object',
+        };
       }
       parsedHoleBindings = {};
       for (const [pinId, binding] of Object.entries(holeBindings)) {
@@ -304,7 +420,11 @@ export function parseElectronicsDocument(value: unknown): DocumentParseResult {
           !isId(binding['breadboardComponentId']) ||
           !isId(binding['holeId'])
         ) {
-          return { ok: false, message: 'holeBindings contains an invalid binding' };
+          return {
+            ok: false,
+            reasonCode: 'electronics_hole_binding_shape',
+            message: 'holeBindings contains an invalid binding',
+          };
         }
         parsedHoleBindings[pinId] = {
           breadboardComponentId: binding['breadboardComponentId'],
@@ -315,12 +435,20 @@ export function parseElectronicsDocument(value: unknown): DocumentParseResult {
     let parsedInternalConnections: [string, string][] | undefined;
     if (internalConnections !== undefined) {
       if (!Array.isArray(internalConnections) || internalConnections.length > 1000) {
-        return { ok: false, message: 'internalConnections must be a bounded array' };
+        return {
+          ok: false,
+          reasonCode: 'electronics_internal_connections',
+          message: 'internalConnections must be a bounded array',
+        };
       }
       parsedInternalConnections = [];
       for (const pair of internalConnections) {
         if (!Array.isArray(pair) || pair.length !== 2 || !isId(pair[0]) || !isId(pair[1])) {
-          return { ok: false, message: 'internalConnections contains an invalid pin pair' };
+          return {
+            ok: false,
+            reasonCode: 'electronics_internal_connection_pair',
+            message: 'internalConnections contains an invalid pin pair',
+          };
         }
         parsedInternalConnections.push([pair[0], pair[1]]);
       }
@@ -368,7 +496,11 @@ export function parseElectronicsDocument(value: unknown): DocumentParseResult {
     const pins = new Set(terminalsForComponent(component));
     for (const [left, right] of component.internalConnections ?? []) {
       if (!pins.has(left) || !pins.has(right)) {
-        return { ok: false, message: 'internalConnections must reference component pins' };
+        return {
+          ok: false,
+          reasonCode: 'electronics_internal_connection_reference',
+          message: 'internalConnections must reference component pins',
+        };
       }
     }
     for (const [pinId, binding] of Object.entries(component.holeBindings ?? {})) {
@@ -378,7 +510,11 @@ export function parseElectronicsDocument(value: unknown): DocumentParseResult {
         board?.kind !== 'breadboard' ||
         !terminalsForComponent(board).includes(binding.holeId)
       ) {
-        return { ok: false, message: 'holeBindings must reference a real board hole' };
+        return {
+          ok: false,
+          reasonCode: 'electronics_hole_binding_reference',
+          message: 'holeBindings must reference a real board hole',
+        };
       }
     }
   }
@@ -386,15 +522,28 @@ export function parseElectronicsDocument(value: unknown): DocumentParseResult {
   const connections: SchematicConnection[] = [];
   const seenConnections = new Set<string>();
   for (const raw of rawConnections) {
-    if (!isPlainObject(raw)) return { ok: false, message: 'connection must be an object' };
+    if (!isPlainObject(raw))
+      return {
+        ok: false,
+        reasonCode: 'electronics_connection_shape',
+        message: 'connection must be an object',
+      };
     const { id, from, to, color, vertices } = raw;
     if (!isId(id) || seenConnections.has(id)) {
-      return { ok: false, message: 'connection id must be unique and non-empty' };
+      return {
+        ok: false,
+        reasonCode: 'electronics_connection_id',
+        message: 'connection id must be unique and non-empty',
+      };
     }
     const endpoints: TerminalRef[] = [];
     for (const endpoint of [from, to]) {
       if (!isPlainObject(endpoint) || !isId(endpoint['componentId'])) {
-        return { ok: false, message: 'connection endpoints must reference existing terminals' };
+        return {
+          ok: false,
+          reasonCode: 'electronics_connection_endpoint',
+          message: 'connection endpoints must reference existing terminals',
+        };
       }
       const componentId = endpoint['componentId'];
       const component = componentById.get(componentId);
@@ -404,22 +553,35 @@ export function parseElectronicsDocument(value: unknown): DocumentParseResult {
         typeof terminal !== 'string' ||
         !terminalsForComponent(component).includes(terminal as Terminal)
       ) {
-        return { ok: false, message: 'connection endpoints must reference existing terminals' };
+        return {
+          ok: false,
+          reasonCode: 'electronics_connection_endpoint',
+          message: 'connection endpoints must reference existing terminals',
+        };
       }
       endpoints.push({ componentId, terminal: terminal as Terminal });
     }
     if (color !== undefined && (typeof color !== 'string' || !COLOR_PATTERN.test(color))) {
-      return { ok: false, message: 'wire color must be a six-digit hex color' };
+      return {
+        ok: false,
+        reasonCode: 'electronics_wire_color',
+        message: 'wire color must be a six-digit hex color',
+      };
     }
     let parsedVertices: ComponentPosition[] | undefined;
     if (vertices !== undefined) {
       if (!Array.isArray(vertices) || vertices.length > MAX_WIRE_VERTICES) {
-        return { ok: false, message: 'wire vertices must be a bounded array' };
+        return {
+          ok: false,
+          reasonCode: 'electronics_wire_vertices',
+          message: 'wire vertices must be a bounded array',
+        };
       }
       parsedVertices = [];
       for (const vertex of vertices) {
         const parsed = parsePosition(vertex, 'wire vertex');
-        if (typeof parsed === 'string') return { ok: false, message: parsed };
+        if (typeof parsed === 'string')
+          return { ok: false, reasonCode: 'electronics_wire_position', message: parsed };
         parsedVertices.push(parsed);
       }
     }
@@ -444,7 +606,11 @@ export function parseElectronicsDocument(value: unknown): DocumentParseResult {
       rawViewport['zoom'] < 0.1 ||
       rawViewport['zoom'] > 8
     ) {
-      return { ok: false, message: 'viewport must contain bounded x/y/zoom numbers' };
+      return {
+        ok: false,
+        reasonCode: 'electronics_viewport',
+        message: 'viewport must contain bounded x/y/zoom numbers',
+      };
     }
     viewport = { x: rawViewport['x'], y: rawViewport['y'], zoom: rawViewport['zoom'] };
   }
@@ -459,7 +625,11 @@ export function parseElectronicsDocument(value: unknown): DocumentParseResult {
       (rawSimulation['maxIterations'] as number) < 4 ||
       (rawSimulation['maxIterations'] as number) > 100
     ) {
-      return { ok: false, message: 'simulation settings are invalid' };
+      return {
+        ok: false,
+        reasonCode: 'electronics_simulation',
+        message: 'simulation settings are invalid',
+      };
     }
     simulation = {
       running: rawSimulation['running'],

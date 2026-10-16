@@ -113,6 +113,14 @@ Component Library
 
 ## 5. CircuitDocument
 
+Deleting a breadboard detaches only the surviving components' bindings to the deleted
+board; components, wires between survivors and bindings to other boards remain intact.
+Invalid documents are still rejected. Validation failures carry additive finite
+`reasonCode` values (`electronics_*` or draft-envelope codes) through the provider,
+Project Core and API. HTTP400 `validation_error` request logs include only an approved
+reason and the existing request ID; never document content, Arduino code or raw error
+messages. A failed save does not advance the confirmed revision or remove local recovery.
+
 Документ хранит только пользовательское и версионируемое состояние:
 
 - stable component IDs;
@@ -2794,6 +2802,18 @@ Arduino считается реализованной, только когда �
   трёхсторонний merge `base + local + remote` по stable IDs компонентов и
   проводов. Независимые добавления и изменения разных свойств совмещаются и
   затем сохраняются автоматически.
+- После успешного merge автоматическая и exit-запись ждут не менее минуты.
+  До подтверждённого сохранения допускаются три rebases; следующий неразрешённый
+  конфликт останавливает автоматические попытки. Явный ручной повтор начинает
+  новый бюджет. Не продвинувшаяся server revision не разрешает перезапись.
+- Каждая вкладка электроники владеет отдельной локальной recovery-копией.
+  Reload предпочитает прежнюю ветку этой вкладки; свежая вкладка предлагает
+  последнюю неподтверждённую копию. Legacy key остаётся совместимым зеркалом.
+  Подтверждение удаляет только собственную копию; ветки той же учётной записи
+  помечаются подтверждёнными лишь при семантическом совпадении с сервером либо
+  когда трёхсторонний merge доказывает, что сервер уже содержит все их правки.
+  SHA-256 связывает отметку с точными bytes: новая правка другого writer её
+  инвалидирует, а сохранение чужого варианта не скрывает неподтверждённую ветку.
 - Массивы с семантическим порядком (например, vertices провода) атомарны. Если
   два участника по-разному изменили одно и то же свойство, удалили используемый
   компонент либо итог нарушает terminal integrity, серверная версия не

@@ -535,6 +535,15 @@ bytes unavailable
 Clean pinned default assets are uploaded on first durable save if the project references
 them and ASA has no canonical ref yet.
 
+The host supplies the live VM assets through a memory-only accessor. After the upstream
+saver uploads its dirty media, the ASA adapter checks every serialised reference against
+its acknowledged canonical references. Missing references are resolved from exact live,
+local library/default or recovery bytes, copied before any fallback upload, and sent through
+the same bounded, authenticated asset store. No draft is sent until all acknowledgements
+match identity, size and SHA-256. Missing bytes or an invalid acknowledgement leaves the
+confirmed revision unchanged and reports failure. Confirmed references are reused without
+uploading again; the adapter never treats `clean=true` as server acknowledgement.
+
 ---
 
 ## 18. Object-store dependency degradation

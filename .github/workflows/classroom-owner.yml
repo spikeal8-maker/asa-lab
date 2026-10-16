@@ -76,6 +76,11 @@ jobs:
           mkdir -p reports/checks
           set -o pipefail
           pnpm test:access-a 2>&1 | tee reports/checks/postgresql-tests.log
+      - name: Forward-upgrade historic course data through rating migration 0213
+        run: |
+          mkdir -p reports/checks
+          set -o pipefail
+          pnpm exec vitest run tests/migration/course-structure-forward-upgrade.pg.spec.ts 2>&1 | tee reports/checks/classroom-rating-forward-upgrade.log
       - name: Preserve database evidence before browser startup
         if: always()
         uses: actions/upload-artifact@v4

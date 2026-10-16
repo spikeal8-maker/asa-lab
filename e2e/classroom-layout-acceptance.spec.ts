@@ -136,6 +136,9 @@ async function seedPresentation(page: Page, populated: boolean) {
         id === classId
           ? {
               classroomId: id,
+              averageRating: students.length > 0 ? 10.5 : null,
+              ratingParticipants: students.length,
+              ratingPeriodDays: 30,
               students: students.length,
               works: works.length,
               assigned: students.reduce((n, student) => n + student.assignedCount, 0),
@@ -147,6 +150,9 @@ async function seedPresentation(page: Page, populated: boolean) {
             }
           : {
               classroomId: id,
+              averageRating: null,
+              ratingParticipants: 0,
+              ratingPeriodDays: 30,
               students: 13 + (index % 3),
               works: 22 + index * 2,
               assigned: 40 + index,
@@ -390,6 +396,74 @@ async function photograph(page: Page, file: string, expectedPanel: string) {
     .toEqual([]);
 }
 
+test('classroom name search filters cards without changing the teacher totals', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 900 });
+  await seedPresentation(page, true);
+  await page.goto('/#/classrooms');
+  const search = page.getByRole('searchbox', { name: 'Поиск класса по названию' });
+  const classes = page.getByTestId('classroom-card');
+  const totalClasses = page.locator('.classroom-title-row .classroom-metrics strong').first();
+  await expect(classes).toHaveCount(23);
+  await expect(totalClasses).toHaveText('23');
+  await search.fill('7А Робототехника');
+  await expect(classes).toHaveCount(1);
+  await expect(classes.first()).toContainText('7А Робототехника');
+  await expect(totalClasses).toHaveText('23');
+  await search.fill('Такого класса не существует');
+  await expect(classes).toHaveCount(0);
+  await expect(page.getByText('Классы не найдены. Измените поисковый запрос.')).toBeVisible();
+  await search.clear();
+  await expect(classes).toHaveCount(23);
+  await expect(totalClasses).toHaveText('23');
+});
+
+test('portal header stays a single row at 125% Windows scale and on small screens', async ({
+  page,
+}) => {
+  await seedPresentation(page, true);
+  for (const width of [320, 390, 820, 1023, 1280, 1536]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto('/#/classrooms');
+    await expect(page.locator('.portal-header')).toBeVisible();
+    const geometry = await page.locator('.portal-header').evaluate((header) => {
+      const bar = header.getBoundingClientRect();
+      const targets = [
+        '.portal-brand',
+        '.portal-global-nav',
+        '.portal-quick-create',
+        '.portal-account',
+      ]
+        .map((selector) => header.querySelector<HTMLElement>(selector))
+        .filter((item): item is HTMLElement => Boolean(item))
+        .filter((item) => getComputedStyle(item).display !== 'none')
+        .map((item) => item.getBoundingClientRect());
+      const centers = targets.map((rect) => rect.top + rect.height / 2);
+      return {
+        height: bar.height,
+        overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        verticalSpread: Math.max(...centers) - Math.min(...centers),
+        outOfBar: targets.some((rect) => rect.top < bar.top - 1 || rect.bottom > bar.bottom + 1),
+      };
+    });
+    expect(geometry.height, `One-row header at ${width}px`).toBeLessThanOrEqual(60);
+    expect(geometry.verticalSpread, `Aligned header actions at ${width}px`).toBeLessThanOrEqual(12);
+    expect(geometry.outOfBar, `Contained header actions at ${width}px`).toBe(false);
+    expect(geometry.overflow, `No page-wide horizontal scroll at ${width}px`).toBeLessThanOrEqual(
+      1,
+    );
+    if (width === 390) {
+      const row = await page.getByTestId('classroom-card').first().boundingBox();
+      expect(row?.height ?? Infinity, 'Compact mobile class line').toBeLessThanOrEqual(140);
+      await page.screenshot({ path: `${out}/390-compact-class-list.png`, fullPage: true });
+    }
+    if (width === 1536) {
+      await page.screenshot({ path: `${out}/1536-header-125pct.png`, fullPage: false });
+    }
+  }
+});
+
 for (const width of [320, 390, 1024, 1440]) {
   for (const populated of [false, true]) {
     test(`all classroom screens ${width}px ${populated ? 'populated' : 'empty'}`, async ({
@@ -402,6 +476,12 @@ for (const width of [320, 390, 1024, 1440]) {
       await page.goto('/#/classrooms');
       await photograph(page, `${prefix}-classes`, '.classroom-owner-list');
       await expect(page.locator('.classroom-title-row .classroom-metrics')).toBeVisible();
+      const ratedClass = page
+        .locator('.classroom-row-rating .classroom-stat-number')
+        .filter({ hasText: '10,5' });
+      if (populated) await expect(ratedClass).toHaveCount(1);
+      else await expect(ratedClass).toHaveCount(0);
+      await expect(page.getByRole('searchbox', { name: 'Поиск класса по названию' })).toBeVisible();
       await page.goto(`/#/classrooms/${classId}`);
       for (const [label, key] of sections) {
         await section(page, label);

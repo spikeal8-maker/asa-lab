@@ -6,17 +6,20 @@
 .asa-system-tabs {
   --asa-tabs-accent: #0878a4;
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
-  gap: 4px;
-  width: fit-content;
+  gap: 3px;
+  width: max-content;
   max-width: 100%;
   min-width: 0;
-  margin: 0 0 12px;
-  padding: 4px;
-  border: 1px solid #d8e5ed;
-  border-radius: 12px;
-  background: #f1f6f9;
+  margin: 0 0 8px;
+  padding: 2px;
+  border: 1px solid #dde8ef;
+  border-radius: 9px;
+  background: #f4f8fa;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
   box-shadow: none;
 }
 
@@ -29,18 +32,18 @@
   box-sizing: border-box;
   min-width: 0;
   min-height: 44px;
-  padding: 8px 13px;
+  padding: 6px 11px;
   border: 1px solid transparent;
-  border-radius: 8px;
+  border-radius: 6px;
   background: transparent;
   box-shadow: none;
   color: #344c5e;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 650;
   line-height: 1.25;
   text-align: center;
   text-decoration: none;
-  white-space: normal;
+  white-space: nowrap;
   overflow-wrap: normal;
   word-break: normal;
   cursor: pointer;
@@ -94,6 +97,7 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   width: 100%;
+  overflow: visible;
 }
 
 .asa-system-tabs--vertical > button {
@@ -114,8 +118,8 @@
   }
   .asa-system-tabs > button {
     min-height: 44px;
-    padding: 7px 10px;
-    font-size: 13px;
+    padding: 6px 9px;
+    font-size: 12px;
   }
 }
 
@@ -165,5 +169,17 @@
     min-height: 44px;
     padding: 6px 4px;
     font-size: 13px;
+  }
+}
+
+.asa-system-tab-compact {
+  display: none;
+}
+@media (max-width: 600px) {
+  .asa-system-tabs:not(.asa-system-tabs--vertical) .asa-system-tab-full {
+    display: none;
+  }
+  .asa-system-tabs:not(.asa-system-tabs--vertical) .asa-system-tab-compact {
+    display: inline;
   }
 }
