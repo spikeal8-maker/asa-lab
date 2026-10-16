@@ -769,3 +769,82 @@
     transition: none;
   }
 }
+
+/* Real saved work previews on the student's dashboard. */
+.learner-achievements-works {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.learner-achievements-works > li {
+  display: grid;
+  align-content: start;
+  gap: 5px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid #dee8ef;
+  border-radius: 11px;
+  background: #fbfdff;
+}
+.learner-work-thumbnail {
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  overflow: hidden;
+  border-radius: 8px;
+  background: #eef4f9;
+}
+.learner-work-thumbnail .project-preview-snapshot,
+.learner-work-thumbnail .project-preview-figure {
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+.learner-work-fallback {
+  color: #93b4ce;
+  font-size: 31px;
+}
+.learner-achievements-works strong {
+  color: #223e50;
+  font-size: 12px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.learner-achievements-works small {
+  color: #63798b;
+  font-size: 11px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.learner-work-open {
+  justify-self: start;
+  border: 0;
+  background: none;
+  padding: 3px 0;
+  color: #176d9f;
+  font-size: 11px;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+.learner-work-open:disabled {
+  color: #768593;
+  cursor: not-allowed;
+}
+@media (max-width: 480px) {
+  .learner-achievements-works {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .learner-achievements-works > li {
+    padding: 8px;
+  }
+}
