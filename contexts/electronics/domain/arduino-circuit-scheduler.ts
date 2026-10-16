@@ -1186,11 +1186,10 @@ export function advanceArduinoCircuitClock(
       physicalState = advanced.transientState;
       cachedFrame = undefined;
     }
-    // A sleeping strict-v2 board consumes no electrical observation at a pure
-    // physics barrier. The real physical step and its quality check above still
-    // run. Do not construct a second, zero-duration frame that no consumer sees;
-    // final ready publication below always performs the original sample.
-    if (
+    // At a pure strict-v2 physics barrier the real step and its quality check
+    // above already ran. Only an actual MCU input read needs another observation;
+    // sleeping boards and write-only instructions consume no electrical frame.
+    const lazyPhysicsObservation =
       eventPhysics &&
       physicsDue &&
       !failureDue &&
@@ -1205,13 +1204,15 @@ export function advanceArduinoCircuitClock(
         return (
           !pendingProgramLoads.has(board.id) &&
           runtime !== undefined &&
-          Math.round(runtime.resumeAtMs * 1000) > time &&
           !runtime.pulseWait &&
           !runtime.ultrasonicAdapter &&
           !runtime.servo &&
           Object.keys(runtime.tones).length === 0
         );
-      })
+      });
+    if (
+      lazyPhysicsObservation &&
+      runnableBoards.every((board) => Math.round(states.get(board.id)!.resumeAtMs * 1000) > time)
     ) {
       reachedMicroseconds = time;
       clockEvents++;
@@ -1233,18 +1234,27 @@ export function advanceArduinoCircuitClock(
       cachedFrame = undefined;
       inputChanged = true;
     }
-    const frame = sample(time);
-    if (!frame.solved && !isNonFatalPassiveNoSource(frame))
-      return fault(
-        'electrical_sample_failed',
-        frame.diagnostics.map((entry) => entry.message).join(' '),
-      );
-    if (!frame.quality.passed && !isNonFatalPassiveNoSource(frame))
-      return fault(
-        'electrical_quality_failed',
-        'Не выполнены проверки конечности, KCL или напряжения источников.',
-      );
-    sensorOutputChanged ||= observeSensors(frame, time);
+    let frame: ReturnType<typeof sample> | undefined;
+    let observationFault: ArduinoCircuitClockAdvance | undefined;
+    const observe = () => {
+      frame ??= sample(time);
+      if (!frame.solved && !isNonFatalPassiveNoSource(frame))
+        observationFault = fault(
+          'electrical_sample_failed',
+          frame.diagnostics.map((entry) => entry.message).join(' '),
+        );
+      else if (!frame.quality.passed && !isNonFatalPassiveNoSource(frame))
+        observationFault = fault(
+          'electrical_quality_failed',
+          'Не выполнены проверки конечности, KCL или напряжения источников.',
+        );
+      return frame;
+    };
+    if (!lazyPhysicsObservation) {
+      const observed = observe();
+      if (observationFault) return observationFault;
+      sensorOutputChanged ||= observeSensors(observed, time);
+    }
     const updates: [string, ArduinoRuntimeState, string][] = [];
     let electricalStateChanged = false;
     for (const board of runnableBoards) {
@@ -1270,12 +1280,19 @@ export function advanceArduinoCircuitClock(
       const executionSource = executionSources.get(board.id)!;
       const advanced = advanceClockedArduinoRuntime(
         executionSource,
-        frame.components.find((entry) => entry.componentId === board.id)?.terminalVoltages ?? {},
+        frame?.components.find((entry) => entry.componentId === board.id)?.terminalVoltages ?? {},
         time / 1000,
         state,
-        undefined,
+        lazyPhysicsObservation
+          ? () =>
+              observe().components.find((entry) => entry.componentId === board.id)
+                ?.terminalVoltages ?? {}
+          : undefined,
         { instructionBudget: 1, pulseInputSample },
       );
+      // A failed lazy read precedes any interpreter failure and discards all of
+      // this batch's effects, just like the eager observation did before execution.
+      if (observationFault) return observationFault;
       if (advanced.executionStatus === 'fault')
         return fault(
           'arduino_execution_failed',

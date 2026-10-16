@@ -11,6 +11,7 @@ import {
 } from '../engine';
 
 import * as simulation from '../domain/simulation';
+import * as solver from '../domain/solver';
 
 function circuit(source: string): ElectronicsEngineDocument {
   const parsed = parseElectronicsEngineDocument({
@@ -741,6 +742,86 @@ describe('event execution request ownership and physical barriers', () => {
             inputEvents: scenario.inputEvents,
           }).result,
         );
+      }
+    },
+  );
+
+  it.each([1, 7, 256])(
+    'preserves changed and unchanged output at a physical boundary before the next read, budget %i',
+    (budget) => {
+      for (const level of ['LOW', 'HIGH']) {
+        const doc = eventCircuit(
+          `int seen=-1;void setup(){pinMode(13,OUTPUT);digitalWrite(13,HIGH);delayMicroseconds(997);digitalWrite(13,${level});seen=digitalRead(13);}void loop(){delay(1);}`,
+        );
+        const before = finish(doc, {
+          requestedHorizonMicroseconds: 999,
+          maxEvents: budget,
+        }).result;
+        const saved = JSON.stringify(before.state);
+        const after = finish(doc, {
+          requestedHorizonMicroseconds: 1001,
+          maxEvents: budget,
+          state: JSON.parse(saved),
+        }).result;
+        expect(JSON.stringify(before.state)).toBe(saved);
+        expect(after.executionStatus).toBe('ready');
+        expect(after.observation!.quality.passed).toBe(true);
+        const runtime = JSON.parse(after.state.continuation!.serializedState).boards[0].runtime;
+        expect(runtime.variables.seen).toBe(level === 'HIGH' ? 1 : 0);
+        expect(runtime.outputVoltages.d13).toBe(level === 'HIGH' ? 5 : 0);
+        const boundaryEvents = runtime.eventQueue.filter(
+          (event: { atMicroseconds: number; kind: string }) =>
+            event.atMicroseconds === 1000 && event.kind === 'output-change',
+        );
+        expect(boundaryEvents).toHaveLength(level === 'HIGH' ? 0 : 1);
+        expect(after).toStrictEqual(
+          finish(doc, { requestedHorizonMicroseconds: 1001, maxEvents: budget }).result,
+        );
+      }
+    },
+  );
+
+  it.each(['sample', 'quality'] as const)(
+    'rolls back the request when the electrical %s used by a boundary read fails',
+    (kind) => {
+      const doc = eventCircuit(
+        'int seen=0;void setup(){pinMode(13,OUTPUT);digitalWrite(13,HIGH);delayMicroseconds(997);seen=digitalRead(13);}void loop(){delay(1);}',
+      );
+      const before = finish(doc, { requestedHorizonMicroseconds: 999 }).result;
+      const saved = structuredClone(before.state);
+      let atBoundary = 0;
+      const solve = solver.solveRcCircuitWithHeldArduino;
+      const verify = simulation.verifyCircuitQuality;
+      // Let the real 1ms physical commit pass, then reject the electrical frame
+      // consumed by digitalRead. The whole request must retain its old state.
+      const check =
+        kind === 'sample'
+          ? vi.spyOn(solver, 'solveRcCircuitWithHeldArduino').mockImplementation((...args) => {
+              const result = solve(...args);
+              return args[1] === 1 && ++atBoundary === 2 ? { ...result, solved: false } : result;
+            })
+          : vi.spyOn(simulation, 'verifyCircuitQuality').mockImplementation((...args) => {
+              const result = verify(...args);
+              return args[3]?.simulationTimeMs === 1 && ++atBoundary === 2
+                ? { ...result, passed: false }
+                : result;
+            });
+      try {
+        const failed = finish(doc, {
+          requestedHorizonMicroseconds: 1000,
+          state: before.state,
+        }).result;
+        expect(atBoundary).toBe(2);
+        expect(failed).toMatchObject({
+          executionStatus: 'fault',
+          committedHorizonMicroseconds: 999,
+          observation: null,
+          state: saved,
+          diagnostics: [{ code: `electrical_${kind}_failed` }],
+        });
+        expect(before.state).toStrictEqual(saved);
+      } finally {
+        check.mockRestore();
       }
     },
   );
