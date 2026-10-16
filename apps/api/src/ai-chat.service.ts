@@ -225,12 +225,19 @@ export class AiChatService {
     return this.adminConfig(principalId);
   }
 
-  async status(): Promise<{ enabled: boolean; provider: AiProvider; model: AiModel }> {
+  async status(): Promise<{
+    enabled: boolean;
+    provider: AiProvider;
+    model: AiModel;
+    availableModels: readonly AiModel[];
+  }> {
     const config = await this.runtime();
     return {
       enabled: config.enabled && this.key !== null && config.api_key_ciphertext !== null,
       provider: config.provider,
       model: config.model,
+      availableModels:
+        config.provider === 'openai' ? ['gpt-5-mini', 'gpt-4.1-mini'] : ['deepseek-chat'],
     };
   }
 
@@ -462,6 +469,7 @@ export class AiChatService {
     requestId: string,
     onDelta: (delta: string) => void,
     clientSignal: AbortSignal,
+    selectedModel?: AiModel,
   ): Promise<{
     readonly messages: readonly AiMessage[];
     readonly replayed: boolean;
@@ -476,6 +484,14 @@ export class AiChatService {
       );
     }
     const runtime = await this.runtime();
+    const model = selectedModel ?? runtime.model;
+    if (!validModel(runtime.provider, model)) {
+      throw new AiServiceError(
+        'ai_model_invalid',
+        400,
+        'Модель не поддерживается выбранным провайдером.',
+      );
+    }
     const apiKey = this.decrypt(runtime);
     if (!runtime.enabled || !apiKey) {
       throw new AiServiceError(
@@ -535,7 +551,7 @@ export class AiChatService {
       const result = await streamProviderText({
         fetchImpl: this.fetchImpl,
         provider: runtime.provider,
-        model: runtime.model,
+        model,
         apiKey,
         context,
         instructions:
