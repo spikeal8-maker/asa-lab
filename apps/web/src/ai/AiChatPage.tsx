@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 'react';
 import { call } from '../api-call';
 import './izo-chat-design.css';
 
@@ -14,6 +14,21 @@ interface AiMessage {
   readonly content: string;
   readonly createdAt: string;
   readonly requestId: string;
+}
+
+interface AiCursor {
+  readonly at: string;
+  readonly id: string;
+}
+
+interface AiPage<T> {
+  readonly items: readonly T[];
+  readonly nextCursor?: AiCursor | null;
+}
+
+function cursorQuery(cursor: AiCursor): string {
+  const query = new URLSearchParams({ beforeAt: cursor.at, beforeId: cursor.id });
+  return '?' + query.toString();
 }
 
 interface AiStatus {
@@ -57,8 +72,16 @@ function Content({ content }: { readonly content: string }): JSX.Element {
 export function AiChatPage(): JSX.Element {
   const [status, setStatus] = useState<AiStatus | null>(null);
   const [threads, setThreads] = useState<readonly AiThread[]>([]);
+  const [threadCursor, setThreadCursor] = useState<AiCursor | null>(null);
+  const [loadingMoreThreads, setLoadingMoreThreads] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState('');
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [threadActionBusy, setThreadActionBusy] = useState(false);
   const [currentId, setCurrentId] = useState<string | null>(null);
   const [messages, setMessages] = useState<readonly AiMessage[]>([]);
+  const [messageCursor, setMessageCursor] = useState<AiCursor | null>(null);
+  const [loadingOlder, setLoadingOlder] = useState(false);
   const [draft, setDraft] = useState('');
   const [search, setSearch] = useState('');
   const [busy, setBusy] = useState(false);
@@ -72,6 +95,7 @@ export function AiChatPage(): JSX.Element {
     null,
   );
   const chatScroll = useRef<HTMLDivElement>(null);
+  const restoreScroll = useRef<{ height: number; top: number } | null>(null);
 
   useEffect(() => {
     const media = window.matchMedia('(min-width: 1120px)');
@@ -87,14 +111,16 @@ export function AiChatPage(): JSX.Element {
     let active = true;
     void Promise.all([
       call<AiStatus>('/api/ai/status'),
-      call<{ items: AiThread[] }>('/api/ai/threads'),
+      call<AiPage<AiThread>>('/api/ai/threads'),
     ])
       .then(([model, history]) => {
         if (!active) return;
         if (model.ok) setStatus(model.data);
         else setError(model.error.message);
-        if (history.ok) setThreads(history.data.items);
-        else setError(history.error.message);
+        if (history.ok) {
+          setThreads(history.data.items);
+          setThreadCursor(history.data.nextCursor ?? null);
+        } else setError(history.error.message);
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -105,13 +131,112 @@ export function AiChatPage(): JSX.Element {
     };
   }, []);
 
-  useEffect(() => {
-    chatScroll.current?.scrollTo({ top: chatScroll.current.scrollHeight });
+  useLayoutEffect(() => {
+    const node = chatScroll.current;
+    if (!node) return;
+    const restore = restoreScroll.current;
+    if (restore) {
+      node.scrollTop = node.scrollHeight - restore.height + restore.top;
+      restoreScroll.current = null;
+    } else {
+      node.scrollTo({ top: node.scrollHeight });
+    }
   }, [messages, busy]);
 
   async function refreshThreads(): Promise<void> {
-    const result = await call<{ items: AiThread[] }>('/api/ai/threads');
-    if (result.ok) setThreads(result.data.items);
+    const result = await call<AiPage<AiThread>>('/api/ai/threads');
+    if (result.ok) {
+      setThreads(result.data.items);
+      setThreadCursor(result.data.nextCursor ?? null);
+    }
+  }
+
+  async function loadMoreThreads(): Promise<void> {
+    const cursor = threadCursor;
+    if (!cursor || loadingMoreThreads) return;
+    setLoadingMoreThreads(true);
+    try {
+      const result = await call<AiPage<AiThread>>('/api/ai/threads' + cursorQuery(cursor));
+      if (!result.ok) {
+        setError(result.error.message);
+        return;
+      }
+      setThreads((previous) => {
+        const ids = new Set(previous.map((thread) => thread.id));
+        return [...previous, ...result.data.items.filter((thread) => !ids.has(thread.id))];
+      });
+      setThreadCursor(result.data.nextCursor ?? null);
+    } finally {
+      setLoadingMoreThreads(false);
+    }
+  }
+
+  async function loadOlderMessages(): Promise<void> {
+    const cursor = messageCursor;
+    const threadId = currentId;
+    if (!cursor || !threadId || loadingOlder || busy) return;
+    const version = selectedVersion.current;
+    setLoadingOlder(true);
+    const node = chatScroll.current;
+    if (node) restoreScroll.current = { height: node.scrollHeight, top: node.scrollTop };
+    try {
+      const result = await call<AiPage<AiMessage>>(
+        '/api/ai/threads/' + encodeURIComponent(threadId) + '/messages' + cursorQuery(cursor),
+      );
+      if (version !== selectedVersion.current) return;
+      if (!result.ok) {
+        restoreScroll.current = null;
+        setError(result.error.message);
+        return;
+      }
+      setMessages((previous) => {
+        const seen = new Set(previous.map((message) => message.id));
+        return [...result.data.items.filter((item) => !seen.has(item.id)), ...previous];
+      });
+      setMessageCursor(result.data.nextCursor ?? null);
+    } finally {
+      setLoadingOlder(false);
+    }
+  }
+
+  async function renameThread(id: string): Promise<void> {
+    const title = editingTitle.trim();
+    if (!title || title.length > 120 || busy || threadActionBusy) return;
+    setThreadActionBusy(true);
+    const result = await call<AiThread>('/api/ai/threads/' + encodeURIComponent(id), {
+      method: 'PATCH',
+      body: JSON.stringify({ title }),
+    });
+    if (result.ok) {
+      setThreads((previous) =>
+        previous.map((thread) => (thread.id === id ? result.data : thread)),
+      );
+      setEditingId(null);
+      setError(null);
+    } else setError(result.error.message);
+    setThreadActionBusy(false);
+  }
+
+  async function deleteThread(id: string): Promise<void> {
+    if (busy || threadActionBusy) return;
+    setThreadActionBusy(true);
+    const result = await call<{ deleted: true }>('/api/ai/threads/' + encodeURIComponent(id), {
+      method: 'DELETE',
+      body: JSON.stringify({}),
+    });
+    if (result.ok) {
+      setThreads((previous) => previous.filter((thread) => thread.id !== id));
+      setConfirmDeleteId(null);
+      if (currentId === id) {
+        selectedVersion.current += 1;
+        setCurrentId(null);
+        setMessages([]);
+        setMessageCursor(null);
+        setDraft('');
+      }
+      setError(null);
+    } else setError(result.error.message);
+    setThreadActionBusy(false);
   }
 
   async function selectThread(id: string): Promise<void> {
@@ -121,9 +246,11 @@ export function AiChatPage(): JSX.Element {
     setPendingMessage(null);
     setCurrentId(id);
     setMessages([]);
+    setMessageCursor(null);
+    restoreScroll.current = null;
     setError(null);
     if (!desktop) setSideOpen(false);
-    const result = await call<{ items: AiMessage[] }>(
+    const result = await call<AiPage<AiMessage>>(
       '/api/ai/threads/' + encodeURIComponent(id) + '/messages',
     );
     if (version !== selectedVersion.current) return;
@@ -132,6 +259,7 @@ export function AiChatPage(): JSX.Element {
       return;
     }
     setMessages(result.data.items);
+    setMessageCursor(result.data.nextCursor ?? null);
   }
 
   async function newChat(): Promise<string | null> {
@@ -150,6 +278,7 @@ export function AiChatPage(): JSX.Element {
     setPendingMessage(null);
     setCurrentId(result.data.id);
     setMessages([]);
+    setMessageCursor(null);
     if (!desktop) setSideOpen(false);
     await refreshThreads();
     return result.data.id;
@@ -290,17 +419,95 @@ export function AiChatPage(): JSX.Element {
           <strong className="chat-side-section">Недавние</strong>
           <nav className="chat-history-list" aria-label="Диалоги">
             {visible.map((thread) => (
+              <div className="asa-ai-thread-row" key={thread.id}>
+                {editingId === thread.id ? (
+                  <form
+                    className="asa-ai-thread-edit"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      void renameThread(thread.id);
+                    }}
+                  >
+                    <input
+                      aria-label="Новое название диалога"
+                      maxLength={120}
+                      value={editingTitle}
+                      onChange={(event) => setEditingTitle(event.target.value)}
+                      autoFocus
+                    />
+                    <button type="submit" disabled={threadActionBusy || !editingTitle.trim()}>
+                      Сохранить
+                    </button>
+                    <button type="button" onClick={() => setEditingId(null)}>
+                      Отмена
+                    </button>
+                  </form>
+                ) : confirmDeleteId === thread.id ? (
+                  <div className="asa-ai-thread-edit" role="group" aria-label="Подтверждение удаления">
+                    <span>Удалить диалог?</span>
+                    <button
+                      type="button"
+                      disabled={threadActionBusy}
+                      onClick={() => void deleteThread(thread.id)}
+                    >
+                      Удалить
+                    </button>
+                    <button type="button" onClick={() => setConfirmDeleteId(null)}>
+                      Отмена
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      disabled={busy || threadActionBusy}
+                      className={'chat-history-item' + (currentId === thread.id ? ' active' : '')}
+                      aria-current={currentId === thread.id ? 'page' : undefined}
+                      onClick={() => void selectThread(thread.id)}
+                    >
+                      {thread.title}
+                    </button>
+                    <button
+                      className="asa-ai-thread-action"
+                      type="button"
+                      disabled={busy || threadActionBusy}
+                      aria-label={'Переименовать: ' + thread.title}
+                      title="Переименовать"
+                      onClick={() => {
+                        setEditingId(thread.id);
+                        setEditingTitle(thread.title);
+                        setConfirmDeleteId(null);
+                      }}
+                    >
+                      ✎
+                    </button>
+                    <button
+                      className="asa-ai-thread-action"
+                      type="button"
+                      disabled={busy || threadActionBusy}
+                      aria-label={'Удалить: ' + thread.title}
+                      title="Удалить"
+                      onClick={() => {
+                        setConfirmDeleteId(thread.id);
+                        setEditingId(null);
+                      }}
+                    >
+                      ×
+                    </button>
+                  </>
+                )}
+              </div>
+            ))}
+            {threadCursor ? (
               <button
                 type="button"
-                key={thread.id}
-                disabled={busy}
-                className={'chat-history-item' + (currentId === thread.id ? ' active' : '')}
-                aria-current={currentId === thread.id ? 'page' : undefined}
-                onClick={() => void selectThread(thread.id)}
+                className="chat-history-more"
+                disabled={loadingMoreThreads}
+                onClick={() => void loadMoreThreads()}
               >
-                {thread.title}
+                {loadingMoreThreads ? 'Загружаем…' : 'Показать больше диалогов'}
               </button>
-            ))}
+            ) : null}
             {!loading && visible.length === 0 ? (
               <p className="asa-ai-empty-list">Диалогов пока нет</p>
             ) : null}
@@ -356,6 +563,16 @@ export function AiChatPage(): JSX.Element {
             <div className="chat-scroll" ref={chatScroll}>
               <div className="chat-column">
                 <div className="chat-turns">
+                  {messageCursor ? (
+                    <button
+                      type="button"
+                      className="chat-load-older"
+                      disabled={loadingOlder || busy}
+                      onClick={() => void loadOlderMessages()}
+                    >
+                      {loadingOlder ? 'Загрузка…' : 'Загрузить предыдущие сообщения'}
+                    </button>
+                  ) : null}
                   {messages.map((message) => (
                     <article
                       className={
