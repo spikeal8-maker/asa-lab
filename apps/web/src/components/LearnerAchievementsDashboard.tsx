@@ -368,9 +368,10 @@ export function LearnerAchievementsDashboard({
   }, [identity, month, offset, refresh, seat !== null]);
 
   const shownMonth = month || journal?.range.from.slice(0, 7) || '';
-  const visibleClasses = section === 'awards' && selectedClassId !== null
-    ? classes.filter((entry) => entry.classroomId === selectedClassId)
-    : classes.slice(0, classLimit);
+  const visibleClasses =
+    section === 'awards' && selectedClassId !== null
+      ? classes.filter((entry) => entry.classroomId === selectedClassId)
+      : classes.slice(0, classLimit);
   const focusClass = classes.find((entry) => entry.classroomId === selectedClassId) ?? classes[0];
   const focusProfile = focusClass ? profiles[focusClass.seatId] : undefined;
   const filteredJournal = learnerJournalItems(
@@ -404,12 +405,11 @@ export function LearnerAchievementsDashboard({
     );
   }, [filteredJournal, results, section, selectedClassId, seat, shownMonth]);
   const shownTimeline = section === 'overview' ? timeline.slice(0, 4) : timeline;
-  const profileLoading = classLoading || visibleClasses.some(
-    (entry) => !profiles[entry.seatId] && !profileErrors[entry.seatId],
-  );
-  const profileUnavailable = Boolean(classesError) || visibleClasses.some(
-    (entry) => Boolean(profileErrors[entry.seatId]),
-  );
+  const profileLoading =
+    classLoading ||
+    visibleClasses.some((entry) => !profiles[entry.seatId] && !profileErrors[entry.seatId]);
+  const profileUnavailable =
+    Boolean(classesError) || visibleClasses.some((entry) => Boolean(profileErrors[entry.seatId]));
   const shownAwards = visibleClasses.flatMap((entry) => {
     if (section === 'awards' && selectedClassId && selectedClassId !== entry.classroomId) return [];
     const profile = profiles[entry.seatId];
