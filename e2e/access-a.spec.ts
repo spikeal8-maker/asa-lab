@@ -3,7 +3,6 @@ import { mkdirSync } from 'node:fs';
 import { closeAssignmentPreview, previewAssignmentAs } from './learning-authoring-navigation';
 import { e2eAdminPool } from './seed';
 import {
-  openLearnerLessons,
   openPortalSection,
   portalSection,
   openAccountMenu,
@@ -267,7 +266,7 @@ test('G, I, J: Account learner owns learning, forbidden staff link, mixed contex
   browser,
 }) => {
   await register(page, 'Ученик и преподаватель');
-  await openLearnerLessons(page);
+  await openPortalSection(page, 'Моё обучение');
   await page.getByLabel('Код класса', { exact: true }).fill(classCode);
   await page.getByRole('button', { name: 'Войти в класс', exact: true }).click();
   await expect(page.getByText(/Заявка в класс.*отправлена/)).toBeVisible();
@@ -365,7 +364,7 @@ test('G, I, J: Account learner owns learning, forbidden staff link, mixed contex
   ).toBeVisible();
   const denied = await page.request.get(`/api/classrooms/${classId}/roster`);
   expect([403, 404]).toContain(denied.status());
-  await openLearnerLessons(page);
+  await openPortalSection(page, 'Моё обучение');
   await expect(page.locator('.attended-list')).toContainText('Независимый класс Access A');
   await expect(portalSection(page, 'Классы')).toBeVisible();
   await shot(page, 'J-mixed-account-scopes');
@@ -563,9 +562,9 @@ test('H: short Student Code, reusable access cards, profile, logout and learner 
     },
   );
   expect(award.ok(), await award.text()).toBeTruthy();
-  await openLearnerLessons(page);
+  await openPortalSection(page, 'Моё обучение');
   await expect(page.getByRole('heading', { name: 'Моё обучение', exact: true })).toBeVisible();
-  await expect(page.locator('.learner-hub-header')).toContainText('Независимый класс Access A');
+  await expect(page.locator('.seat-class-heading')).toContainText('Независимый класс Access A');
   const previousToken = (await page.context().cookies()).find(
     (cookie) => cookie.name === 'asa_student_session',
   )!.value;
@@ -618,6 +617,6 @@ test('H: short Student Code, reusable access cards, profile, logout and learner 
   expect((await (await page.request.get('/api/class-join/me')).json()).student.seatId).toBe(
     second.student.id,
   );
-  await openLearnerLessons(page);
+  await openPortalSection(page, 'Моё обучение');
   await shot(page, 'H-second-seat-isolation');
 });

@@ -4,7 +4,7 @@ import { PNG } from 'pngjs';
 import type pg from 'pg';
 import { collectBrowserFailures } from './browser-failures';
 import { loginWithOrganization } from './organization-login';
-import { openLearnerLessons, openPortalSection } from './portal-navigation';
+import { openPortalSection } from './portal-navigation';
 import {
   closeAssignmentPreview,
   openExistingAssignmentEditor,
@@ -181,7 +181,7 @@ async function learnerAssignments(
   await expect(page.getByRole('button', { name: 'Продолжить', exact: true })).toHaveCount(0);
   await page.getByLabel('Код ученика', { exact: true }).fill(keys.get(handle)!);
   await page.getByRole('button', { name: 'Войти', exact: true }).click();
-  await openLearnerLessons(page);
+  await openPortalSection(page, 'Моё обучение');
   return { context, page };
 }
 
@@ -496,7 +496,7 @@ test('learner exact published task image stays pinned across v1 and v2', async (
   expect(v2.id).not.toBe(v1.id);
 
   await learnerA.page.goto('/#/');
-  await openLearnerLessons(learnerA.page);
+  await openPortalSection(learnerA.page, 'Моё обучение');
   rowA = learnerA.page.getByTestId('seat-assignments').locator('li').filter({ hasText: title });
   const v1StillA = rowA.getByRole('img', { name: `Образец: ${title}` });
   await expect(v1StillA).toBeVisible();

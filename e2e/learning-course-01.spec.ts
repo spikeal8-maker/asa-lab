@@ -5,7 +5,7 @@ import type pg from 'pg';
 import { collectBrowserFailures } from './browser-failures';
 import { loginWithOrganization } from './organization-login';
 import { e2eAdminPool, seedTeacher, type SeededTeacher } from './seed';
-import { openAccountSettings, openLearnerLessons, openPortalSection } from './portal-navigation';
+import { openAccountSettings, openPortalSection } from './portal-navigation';
 import type { TeacherHomeAttention } from '../apps/web/src/api';
 import {
   closeAssignmentPreview,
@@ -1035,7 +1035,7 @@ async function learnerAssignments(
   await expect(page.getByRole('button', { name: 'Продолжить', exact: true })).toHaveCount(0);
   await page.getByLabel('Код ученика', { exact: true }).fill(keys.get(handle)!);
   await page.getByRole('button', { name: 'Войти', exact: true }).click();
-  await openLearnerLessons(page);
+  await openPortalSection(page, 'Моё обучение');
   return { context, page };
 }
 
@@ -1056,7 +1056,7 @@ test('V3 Direct Seat double Start, lost response, second tab and reload keep one
   const learner = await learnerAssignments(browser, code, 'v3-start-irina');
   const secondTab = await learner.context.newPage();
   await secondTab.goto('/#/learning');
-  await openLearnerLessons(secondTab);
+  await openPortalSection(secondTab, 'Моё обучение');
   const assignmentRow = (tab: Page) =>
     tab.getByTestId('seat-assignments').locator('li').filter({ hasText: title });
   const firstStart = assignmentRow(learner.page).getByRole('button', {
@@ -1162,7 +1162,7 @@ test('V3 Direct Seat double Start, lost response, second tab and reload keep one
   });
   expect(courseActivityProjectId(learner.page, 'electronics')).toBe(committed.projectId);
   await learner.page.goto('/#/learning');
-  await openLearnerLessons(learner.page);
+  await openPortalSection(learner.page, 'Моё обучение');
   const continueWork = assignmentRow(learner.page).getByRole('button', {
     name: 'Открыть работу',
     exact: true,
@@ -1410,7 +1410,7 @@ for (const module of ['three-d', 'electronics'])
     await detail.getByRole('button', { name: 'Вернуть на доработку', exact: true }).click();
     await expect(detail.getByText('Ревизия 1 · На доработке')).toBeVisible();
     await learner.page.goto('/#/learning');
-    await openLearnerLessons(learner.page);
+    await openPortalSection(learner.page, 'Моё обучение');
     await expect(row).toContainText('Нужна доработка');
     await expect(row.getByRole('button', { name: 'Начать доработку', exact: true })).toBeVisible();
     await row.getByRole('button', { name: 'Открыть работу', exact: true }).click();
@@ -1507,7 +1507,7 @@ for (const module of ['three-d', 'electronics'])
     });
 
     await learner.page.goto('/#/learning');
-    await openLearnerLessons(learner.page);
+    await openPortalSection(learner.page, 'Моё обучение');
     const completedRow = learner.page
       .getByTestId('seat-assignments')
       .locator('li')

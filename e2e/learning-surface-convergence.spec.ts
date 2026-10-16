@@ -3,7 +3,7 @@ import { mkdirSync } from 'node:fs';
 import type pg from 'pg';
 import { collectBrowserFailures } from './browser-failures';
 import { loginWithOrganization } from './organization-login';
-import { openLearnerLessons, openPortalSection } from './portal-navigation';
+import { openPortalSection } from './portal-navigation';
 import { e2eAdminPool, seedTeacher, type SeededTeacher } from './seed';
 
 const evidenceDir = 'e2e/artifacts/learning/m0-007';
@@ -22,7 +22,7 @@ test.afterAll(async () => {
 });
 
 async function openLearnerLearning(page: import('@playwright/test').Page): Promise<void> {
-  await openLearnerLessons(page);
+  await openPortalSection(page, 'Моё обучение');
 }
 
 test('legacy, revision and selected-result semantics stay equal across learner and teacher surfaces', async ({
@@ -281,12 +281,8 @@ test('legacy, revision and selected-result semantics stay equal across learner a
   await student.reload();
   await openLearnerLearning(student);
   await expect(assignment).toContainText('В работе');
-  await student
-    .getByRole('navigation', { name: 'Разделы учебного кабинета' })
-    .getByRole('button', { name: 'Оценки', exact: true })
-    .click();
   const learnerResult = student
-    .locator('.learner-grade-row')
+    .locator('.seat-results li')
     .filter({ hasText: 'Canonical project' });
   await expect(learnerResult).toContainText('80/100');
   await expect(learnerResult).toContainText('В работе');
