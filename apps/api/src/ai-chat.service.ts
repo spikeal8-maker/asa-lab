@@ -37,6 +37,16 @@ export interface AiMessage {
   readonly requestId: string;
 }
 
+export interface AiCursor {
+  readonly at: string;
+  readonly id: string;
+}
+
+export interface AiPage<T> {
+  readonly items: readonly T[];
+  readonly nextCursor: AiCursor | null;
+}
+
 interface AdminRow {
   readonly enabled: boolean;
   readonly provider: AiProvider;
@@ -231,6 +241,58 @@ export class AiChatService {
     }));
   }
 
+  async threadPage(
+    principalId: string,
+    cursor: AiCursor | null = null,
+  ): Promise<AiPage<AiThread>> {
+    const result = await this.pool.query<{
+      id: string;
+      title: string;
+      updated_at: Date | string;
+    }>('SELECT * FROM ai_chat_list_page($1,$2::timestamptz,$3::uuid,$4)', [
+      principalId,
+      cursor?.at ?? null,
+      cursor?.id ?? null,
+      51,
+    ]);
+    const page = result.rows.slice(0, 50).map((row) => ({
+      id: row.id,
+      title: row.title,
+      updatedAt: new Date(row.updated_at).toISOString(),
+    }));
+    const last = page.at(-1);
+    return {
+      items: page,
+      nextCursor: result.rows.length > 50 && last ? { at: last.updatedAt, id: last.id } : null,
+    };
+  }
+
+  async renameThread(principalId: string, threadId: string, title: string): Promise<AiThread> {
+    const trimmed = title.trim();
+    if (trimmed.length < 1 || trimmed.length > 120) {
+      throw new AiServiceError('ai_title_invalid', 400, 'Название должно быть от 1 до 120 символов.');
+    }
+    const result = await this.pool.query<{
+      id: string;
+      title: string;
+      updated_at: Date | string;
+    }>('SELECT * FROM ai_chat_rename($1,$2,$3::varchar)', [principalId, threadId, trimmed]);
+    const row = result.rows[0];
+    if (!row) throw new AiServiceError('ai_thread_not_found', 404, 'Диалог не найден.');
+    return { id: row.id, title: row.title, updatedAt: new Date(row.updated_at).toISOString() };
+  }
+
+  async deleteThread(principalId: string, threadId: string): Promise<{ deleted: true }> {
+    const result = await this.pool.query<{ deleted: boolean }>(
+      'SELECT ai_chat_delete($1,$2) AS deleted',
+      [principalId, threadId],
+    );
+    if (result.rows[0]?.deleted !== true) {
+      throw new AiServiceError('ai_thread_not_available', 409, 'Диалог не найден или запрос ещё выполняется.');
+    }
+    return { deleted: true };
+  }
+
   async createThread(principalId: string): Promise<{ id: string }> {
     const result = await this.pool.query<{ id: string }>('SELECT ai_chat_create($1) AS id', [
       principalId,
@@ -255,6 +317,39 @@ export class AiChatService {
       createdAt: new Date(row.created_at).toISOString(),
       requestId: row.request_id,
     }));
+  }
+
+  async messagePage(
+    principalId: string,
+    threadId: string,
+    cursor: AiCursor | null = null,
+  ): Promise<AiPage<AiMessage>> {
+    const result = await this.pool.query<{
+      id: string;
+      role: 'user' | 'assistant';
+      content: string;
+      request_id: string;
+      created_at: Date | string;
+    }>('SELECT * FROM ai_chat_messages_page($1,$2,$3::timestamptz,$4::uuid,$5)', [
+      principalId,
+      threadId,
+      cursor?.at ?? null,
+      cursor?.id ?? null,
+      51,
+    ]);
+    const rows = result.rows.length > 50 ? result.rows.slice(1) : result.rows;
+    const items = rows.map((row) => ({
+      id: row.id,
+      role: row.role,
+      content: row.content,
+      requestId: row.request_id,
+      createdAt: new Date(row.created_at).toISOString(),
+    }));
+    const first = items[0];
+    return {
+      items,
+      nextCursor: result.rows.length > 50 && first ? { at: first.createdAt, id: first.id } : null,
+    };
   }
 
   async send(
