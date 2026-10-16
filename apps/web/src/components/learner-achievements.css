@@ -222,7 +222,9 @@
   color: inherit;
   text-align: left;
   cursor: pointer;
-  transition: border-color 120ms ease, box-shadow 120ms ease;
+  transition:
+    border-color 120ms ease,
+    box-shadow 120ms ease;
 }
 .learner-class-card:hover {
   border-color: #a9c8dc;
