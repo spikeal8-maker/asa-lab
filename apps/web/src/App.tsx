@@ -64,6 +64,9 @@ const CreatorResourcePage = lazy(() =>
 const LearningPage = lazy(() =>
   import('./pages/LearningPage').then((module) => ({ default: module.LearningPage })),
 );
+const AchievementsPage = lazy(() =>
+  import('./pages/AchievementsPage').then((module) => ({ default: module.AchievementsPage })),
+);
 const AssignmentLibraryPage = lazy(() =>
   import('./pages/AssignmentLibraryPage').then((module) => ({
     default: module.AssignmentLibraryPage,
@@ -828,6 +831,7 @@ export function App(): JSX.Element {
     else if (section === 'projects') setView({ kind: 'my-projects' });
     else if (section === 'games') setView({ kind: 'games' });
     else if (section === 'learning') setView({ kind: 'learning' });
+    else if (section === 'achievements') setView({ kind: 'achievements' });
     else if (section === 'knowledge') setView({ kind: 'knowledge' });
     else if (section === 'collections') setView({ kind: 'collections' });
     else if (section === 'gallery') setView({ kind: 'gallery' });
@@ -1061,6 +1065,20 @@ export function App(): JSX.Element {
                         projectId,
                         moduleKey,
                         returnTo: { kind: 'learning' },
+                      })
+                    }
+                  />
+                ) : null}
+                {view.kind === 'achievements' ? (
+                  <AchievementsPage
+                    seat={session.kind === 'student' ? session.session : null}
+                    onLearning={() => setView({ kind: 'learning' })}
+                    onOpenProject={(projectId, moduleKey) =>
+                      setView({
+                        kind: 'editor',
+                        projectId,
+                        moduleKey,
+                        returnTo: { kind: 'achievements' },
                       })
                     }
                   />
