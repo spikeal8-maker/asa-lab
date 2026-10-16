@@ -1,6 +1,9 @@
 name: ASA AI Chat Focused
 
 "on":
+  push:
+    branches:
+      - feature/ai-chat-gpt-integration-20261014
   pull_request:
     paths:
       - 'apps/api/src/ai-*'
