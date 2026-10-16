@@ -1,0 +1,41 @@
+name: AI rich-text dependency normalization
+"on":
+  push:
+    branches:
+      - feature/ai-chat-gpt-integration-20261014
+    paths:
+      - .github/workflows/ai-rich-text-deps-once.yml
+permissions:
+  contents: write
+jobs:
+  dependencies:
+    if: github.repository == 'spikeal8-maker/asa-lab'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/ai-chat-gpt-integration-20261014
+          persist-credentials: true
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Reuse exact IZO ASA Markdown dependencies and normalize focused regression
+        run: |
+          set -euo pipefail
+          pnpm --filter @asa-lab/web add react-markdown@10.1.0 remark-gfm@4.0.1 --save-exact
+          pnpm install --frozen-lockfile
+          pnpm exec prettier --write tests/admin/ai-chat.pg.spec.ts
+          pnpm exec prettier --check tests/admin/ai-chat.pg.spec.ts
+          git diff --check
+          git add -- apps/web/package.json pnpm-lock.yaml tests/admin/ai-chat.pg.spec.ts
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'feat(ai): import donor Markdown parser and repair PostgreSQL test format'
+          git push origin HEAD:refs/heads/feature/ai-chat-gpt-integration-20261014
