@@ -100,6 +100,19 @@ export function LearningGlyph(props: GlyphProps): JSX.Element {
   );
 }
 
+/** Achievements use the same stroke weight as every other portal destination. */
+export function AchievementsGlyph(props: GlyphProps): JSX.Element {
+  return (
+    <Glyph {...props}>
+      <path d="M7 4h10v5c0 3.1-2.2 5.4-5 5.4S7 12.1 7 9V4Z" />
+      <path d="M7 6H4v3.2A3 3 0 0 0 7 12" />
+      <path d="M17 6h3v3.2a3 3 0 0 1-3 2.8" />
+      <path d="M12 14.4V19" />
+      <path d="M8.7 20h6.6" />
+    </Glyph>
+  );
+}
+
 /** A task is something to hit, and something that gets ticked off. */
 export function ChallengesGlyph(props: GlyphProps): JSX.Element {
   return (
