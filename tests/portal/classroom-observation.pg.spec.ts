@@ -241,6 +241,41 @@ async function fixture(count = 2) {
 }
 
 describe('classroom observation — real PostgreSQL, restricted runtime and API', () => {
+  it('averages configured canonical scores, including real zeros, while excluding unavailable ratings', async () => {
+    const f = await fixture(2);
+    const factors = { projects: true, logins: false, days: false, time: false, grades: false };
+    await admin.query(
+      'INSERT INTO classroom_participant_settings(classroom_id,period_days,factors) VALUES($1,7,$2::jsonb)',
+      [f.classId, JSON.stringify(factors)],
+    );
+    await f.project(f.seats[0]!.principal);
+    expect((await f.summary()).items[0]).toMatchObject({
+      averageRating: 10,
+      ratingParticipants: 2,
+      ratingPeriodDays: 7,
+    });
+    const emptyId = await f.createClass();
+    expect(
+      (await f.summary([f.classId, emptyId])).items.find((i) => i.classroomId === emptyId),
+    ).toMatchObject({
+      averageRating: null,
+      ratingParticipants: 0,
+      ratingPeriodDays: 30,
+    });
+    const disabled = { projects: false, logins: false, days: false, time: false, grades: false };
+    await admin.query(
+      'UPDATE classroom_participant_settings SET factors=$2::jsonb,revision=revision+1 WHERE classroom_id=$1',
+      [f.classId, JSON.stringify(disabled)],
+    );
+    expect((await f.summary()).items[0]).toMatchObject({
+      averageRating: null,
+      ratingParticipants: 0,
+      ratingPeriodDays: 7,
+    });
+    const outsider = await fixture(0);
+    expect(await f.summary([f.classId, outsider.classId])).toBeNull();
+  }, 60_000);
+
   it('records confirmed first admission transactionally without allocating an identity principal', async () => {
     const f = await fixture(0);
     const id = randomUUID(),
