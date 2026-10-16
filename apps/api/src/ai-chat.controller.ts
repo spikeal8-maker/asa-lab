@@ -154,7 +154,6 @@ export class AiChatController {
     return this.safe(() => this.ai.messagePage(account.principalId, threadId, cursor));
   }
 
-
   @Post('threads/:threadId/requests/:requestId/stop')
   @HttpCode(200)
   async stop(
@@ -201,7 +200,7 @@ export class AiChatController {
       'Content-Type': 'text/event-stream; charset=utf-8',
       'Cache-Control': 'no-cache, no-transform',
       'X-Accel-Buffering': 'no',
-      'Connection': 'keep-alive',
+      Connection: 'keep-alive',
       'X-Content-Type-Options': 'nosniff',
     });
     const canceled = new AbortController();
@@ -223,9 +222,10 @@ export class AiChatController {
       event('done', result);
     } catch (problem) {
       const code = problem instanceof AiServiceError ? problem.code : 'ai_provider_unavailable';
-      const message = problem instanceof AiServiceError
-        ? problem.message
-        : 'Не удалось получить ответ модели. Сообщение сохранено.';
+      const message =
+        problem instanceof AiServiceError
+          ? problem.message
+          : 'Не удалось получить ответ модели. Сообщение сохранено.';
       event('error', { code, message });
     } finally {
       reply.raw.end();

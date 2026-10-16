@@ -54,7 +54,10 @@ export async function streamAiRequest<T>(
   let result: AiStreamResponse<T> | null = null;
   function process(frame: string): void {
     const lines = frame.split(/\r?\n/);
-    const kind = lines.find((line) => line.startsWith('event:'))?.slice(6).trim();
+    const kind = lines
+      .find((line) => line.startsWith('event:'))
+      ?.slice(6)
+      .trim();
     const data = lines
       .filter((line) => line.startsWith('data:'))
       .map((line) => line.slice(5).trimStart())
@@ -97,7 +100,10 @@ export async function streamAiRequest<T>(
     reader.releaseLock();
   }
   if (!result) {
-    throw new AiStreamClientError('ai_stream_interrupted', 'Соединение прервалось. Проверьте историю диалога.');
+    throw new AiStreamClientError(
+      'ai_stream_interrupted',
+      'Соединение прервалось. Проверьте историю диалога.',
+    );
   }
   return result;
 }

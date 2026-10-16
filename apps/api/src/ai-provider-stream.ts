@@ -36,7 +36,8 @@ function textDelta(event: string, payload: unknown, provider: StreamProvider): s
   if (!payload || typeof payload !== 'object') return '';
   if (provider === 'openai') {
     const packet = payload as { type?: string; delta?: unknown };
-    return (event === 'response.output_text.delta' || packet.type === 'response.output_text.delta') &&
+    return (event === 'response.output_text.delta' ||
+      packet.type === 'response.output_text.delta') &&
       typeof packet.delta === 'string'
       ? packet.delta
       : '';
@@ -115,7 +116,11 @@ export async function streamProviderText({
     );
   }
   if (!response.body) {
-    throw new ProviderStreamError('ai_stream_invalid', 503, 'Провайдер не поддержал потоковый ответ.');
+    throw new ProviderStreamError(
+      'ai_stream_invalid',
+      503,
+      'Провайдер не поддержал потоковый ответ.',
+    );
   }
 
   const reader = response.body.getReader();
@@ -127,7 +132,11 @@ export async function streamProviderText({
   function handle(frame: string): void {
     if (finished || combined.aborted) return;
     const lines = frame.split(/\r?\n/);
-    const event = lines.find((line) => line.startsWith('event:'))?.slice(6).trim() ?? '';
+    const event =
+      lines
+        .find((line) => line.startsWith('event:'))
+        ?.slice(6)
+        .trim() ?? '';
     const data = lines
       .filter((line) => line.startsWith('data:'))
       .map((line) => line.slice(5).trimStart())
@@ -146,7 +155,10 @@ export async function streamProviderText({
     if (event === 'error' || (payload as { type?: string }).type === 'error') {
       throw new ProviderStreamError('ai_provider_error', 503, 'Провайдер прервал генерацию.');
     }
-    if (event === 'response.completed' || (payload as { type?: string }).type === 'response.completed') {
+    if (
+      event === 'response.completed' ||
+      (payload as { type?: string }).type === 'response.completed'
+    ) {
       finished = true;
       return;
     }
@@ -164,7 +176,11 @@ export async function streamProviderText({
       if (item.done) break;
       buffer += decoder.decode(item.value, { stream: true });
       if (buffer.length > MAX_EVENT_BUFFER) {
-        throw new ProviderStreamError('ai_stream_invalid', 503, 'Превышен предел размера события модели.');
+        throw new ProviderStreamError(
+          'ai_stream_invalid',
+          503,
+          'Превышен предел размера события модели.',
+        );
       }
       let boundary = /\r?\n\r?\n/.exec(buffer);
       while (boundary) {

@@ -222,28 +222,26 @@ describe('AI Chat PostgreSQL access and request replay', () => {
     const adminToken = await createSession(platformAdmin, 'admin');
     const previousEncryptionKey = process.env['ASA_SETTINGS_ENCRYPTION_KEY'];
     process.env['ASA_SETTINGS_ENCRYPTION_KEY'] = requestKey;
-    const mockFetch = vi.fn<typeof fetch>(
-      async (_url, options) => {
-        const input = JSON.parse(String(options?.body)) as { stream?: boolean };
-        if (input.stream) {
-          const data =
-            'event: response.output_text.delta\\ndata: ' +
-            JSON.stringify({ type: 'response.output_text.delta', delta: 'Потоковый ответ GPT' }) +
-            '\\n\\n' +
-            'event: response.completed\\ndata: {"type":"response.completed"}\\n\\n';
-          return new Response(data, {
-            status: 200,
-            headers: { 'content-type': 'text/event-stream' },
-          });
-        }
-        return new Response(
-          JSON.stringify({
-            output: [{ content: [{ type: 'output_text', text: 'HTTP GPT успешно ответил' }] }],
-          }),
-          { status: 200, headers: { 'content-type': 'application/json' } },
-        );
-      },
-    );
+    const mockFetch = vi.fn<typeof fetch>(async (_url, options) => {
+      const input = JSON.parse(String(options?.body)) as { stream?: boolean };
+      if (input.stream) {
+        const data =
+          'event: response.output_text.delta\\ndata: ' +
+          JSON.stringify({ type: 'response.output_text.delta', delta: 'Потоковый ответ GPT' }) +
+          '\\n\\n' +
+          'event: response.completed\\ndata: {"type":"response.completed"}\\n\\n';
+        return new Response(data, {
+          status: 200,
+          headers: { 'content-type': 'text/event-stream' },
+        });
+      }
+      return new Response(
+        JSON.stringify({
+          output: [{ content: [{ type: 'output_text', text: 'HTTP GPT успешно ответил' }] }],
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      );
+    });
     vi.stubGlobal('fetch', mockFetch);
 
     const app = await buildTestApp(runtime);

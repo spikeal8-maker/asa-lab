@@ -200,7 +200,7 @@ RETURNS TABLE (
     id uuid, role varchar, content varchar, created_at timestamptz,
     request_id uuid, state varchar
 )
-LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
     SELECT m.id, m.role, m.content, m.created_at, m.request_id, m.state
       FROM (
           SELECT msg.id, msg.role, msg.content, msg.created_at, msg.request_id, msg.state
@@ -325,7 +325,7 @@ $$;
 -- resolve ownership independently; the browser never supplies an account_id.
 CREATE FUNCTION ai_chat_rename(p_principal uuid, p_thread uuid, p_title varchar)
 RETURNS TABLE (id uuid, title varchar, updated_at timestamptz)
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
 BEGIN
     IF char_length(trim(p_title)) NOT BETWEEN 1 AND 120 THEN
         RAISE EXCEPTION 'AI_TITLE_INVALID' USING ERRCODE = '22023';
@@ -338,11 +338,11 @@ BEGIN
        AND p.account_id = t.account_id AND t.id = p_thread
     RETURNING t.id, t.title, t.updated_at;
 END;
-$;
+$$;
 
 CREATE FUNCTION ai_chat_delete(p_principal uuid, p_thread uuid)
 RETURNS boolean
-LANGUAGE sql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $
+LANGUAGE sql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
     WITH removed AS (
         DELETE FROM public.ai_assistant_threads t
         USING public.principals p
@@ -352,13 +352,13 @@ LANGUAGE sql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $
         RETURNING t.id
     )
     SELECT EXISTS (SELECT 1 FROM removed)
-$;
+$$;
 
 CREATE FUNCTION ai_chat_list_page(
     p_principal uuid, p_before_at timestamptz, p_before_id uuid, p_limit integer
 )
 RETURNS TABLE (id uuid, title varchar, updated_at timestamptz)
-LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
     SELECT t.id, t.title, t.updated_at
       FROM public.ai_assistant_threads t
       JOIN public.principals p ON p.account_id = t.account_id
@@ -366,7 +366,7 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $
        AND (p_before_at IS NULL OR (t.updated_at, t.id) < (p_before_at, p_before_id))
      ORDER BY t.updated_at DESC, t.id DESC
      LIMIT LEAST(GREATEST(p_limit, 1), 51)
-$;
+$$;
 
 CREATE FUNCTION ai_chat_messages_page(
     p_principal uuid, p_thread uuid,
@@ -376,7 +376,7 @@ RETURNS TABLE (
     id uuid, role varchar, content varchar, created_at timestamptz,
     request_id uuid, state varchar
 )
-LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
     SELECT m.id, m.role, m.content, m.created_at, m.request_id, m.state
       FROM (
         SELECT msg.id, msg.role, msg.content, msg.created_at, msg.request_id, msg.state
@@ -391,7 +391,7 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $
          LIMIT LEAST(GREATEST(p_limit, 1), 51)
       ) m
      ORDER BY m.created_at ASC, m.id ASC
-$;
+$$;
 
 REVOKE ALL ON FUNCTION ai_chat_rename(uuid, uuid, varchar) FROM PUBLIC;
 REVOKE ALL ON FUNCTION ai_chat_delete(uuid, uuid) FROM PUBLIC;

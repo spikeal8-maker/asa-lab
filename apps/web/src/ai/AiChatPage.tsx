@@ -288,13 +288,15 @@ export function AiChatPage(): JSX.Element {
     return result.data.id;
   }
 
-
   async function stop(): Promise<void> {
     const current = activeStream.current;
     if (!current) return;
     const result = await call<{ stopped: boolean }>(
-      '/api/ai/threads/' + encodeURIComponent(current.threadId) +
-        '/requests/' + encodeURIComponent(current.requestId) + '/stop',
+      '/api/ai/threads/' +
+        encodeURIComponent(current.threadId) +
+        '/requests/' +
+        encodeURIComponent(current.requestId) +
+        '/stop',
       { method: 'POST', body: JSON.stringify({}) },
     );
     // If another server worker owns the stream, aborting this connection

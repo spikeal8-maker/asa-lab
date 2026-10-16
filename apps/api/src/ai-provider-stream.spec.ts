@@ -35,9 +35,7 @@ describe('provider SSE adapter', () => {
       'event: response.output_text.delta\ndata: {"delta":"! ✅"}\n\n' +
       'event: response.completed\ndata: {"type":"response.completed"}\n\n';
     const chunks: string[] = [];
-    const fetchImpl = vi.fn<typeof fetch>(
-      async () => fakeSse(text, [7, 9, 1, 19, 2, 3, 47, 1, 2]),
-    );
+    const fetchImpl = vi.fn<typeof fetch>(async () => fakeSse(text, [7, 9, 1, 19, 2, 3, 47, 1, 2]));
     const result = await streamProviderText({
       ...input,
       fetchImpl,
@@ -74,7 +72,10 @@ describe('provider SSE adapter', () => {
     expect(calls).toEqual(['Электроника', ' и Arduino']);
     const [url, options] = fetchImpl.mock.calls[0]!;
     expect(url).toBe('https://api.deepseek.com/chat/completions');
-    expect(JSON.parse(String(options?.body))).toMatchObject({ stream: true, model: 'deepseek-chat' });
+    expect(JSON.parse(String(options?.body))).toMatchObject({
+      stream: true,
+      model: 'deepseek-chat',
+    });
   });
 
   it('does not POST when the client has already canceled', async () => {

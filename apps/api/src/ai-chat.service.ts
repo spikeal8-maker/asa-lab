@@ -450,7 +450,6 @@ export class AiChatService {
     }
   }
 
-
   /**
    * A single paid upstream invocation feeds an SSE browser connection.
    * The existing JSON endpoint stays intact for older clients.
@@ -470,12 +469,20 @@ export class AiChatService {
   }> {
     const prompt = text.trim();
     if (prompt.length < 1 || prompt.length > 3000) {
-      throw new AiServiceError('ai_input_invalid', 400, 'Сообщение должно содержать от 1 до 3000 символов.');
+      throw new AiServiceError(
+        'ai_input_invalid',
+        400,
+        'Сообщение должно содержать от 1 до 3000 символов.',
+      );
     }
     const runtime = await this.runtime();
     const apiKey = this.decrypt(runtime);
     if (!runtime.enabled || !apiKey) {
-      throw new AiServiceError('ai_disabled', 503, 'ИИ не подключён. Настройте провайдера в админке.');
+      throw new AiServiceError(
+        'ai_disabled',
+        503,
+        'ИИ не подключён. Настройте провайдера в админке.',
+      );
     }
 
     let admitted: boolean;
@@ -498,7 +505,11 @@ export class AiChatService {
         throw new AiServiceError('ai_rate_limit', 429, 'Лимит: 30 сообщений в час на аккаунт.');
       }
       if (message.includes('AI_THREAD_BUSY_OR_MISSING')) {
-        throw new AiServiceError('ai_thread_busy', 409, 'Диалог недоступен или запрос уже выполняется.');
+        throw new AiServiceError(
+          'ai_thread_busy',
+          409,
+          'Диалог недоступен или запрос уже выполняется.',
+        );
       }
       throw problem;
     }
@@ -558,7 +569,11 @@ export class AiChatService {
         throw new AiServiceError(problem.code, problem.status, problem.message);
       }
       if (problem instanceof AiServiceError) throw problem;
-      throw new AiServiceError('ai_provider_unavailable', 503, 'Поток ответа прервался. Сообщение сохранено.');
+      throw new AiServiceError(
+        'ai_provider_unavailable',
+        503,
+        'Поток ответа прервался. Сообщение сохранено.',
+      );
     } finally {
       this.activeStreams.delete(operationKey);
     }
