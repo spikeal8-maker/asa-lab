@@ -1,0 +1,769 @@
+/* Scoped learner overview: a compact educational dashboard, not another nested list. */
+.learner-achievements {
+  display: grid;
+  gap: 16px;
+  width: 100%;
+  max-width: 1180px;
+  min-width: 0;
+  margin: 0 auto;
+  padding-bottom: 32px;
+  color: var(--ink, #1b3142);
+}
+.learner-achievements *,
+.learner-hub * {
+  box-sizing: border-box;
+}
+.learner-achievements h2,
+.learner-achievements h3,
+.learner-achievements h4,
+.learner-achievements p {
+  margin: 0;
+}
+.learner-achievements-hero {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  overflow: hidden;
+  min-width: 0;
+  border: 1px solid #c8e0f2;
+  border-radius: 17px;
+  padding: clamp(16px, 2.5vw, 26px);
+  background: linear-gradient(116deg, #f0f8ff 0%, #e7f4ff 69%, #f5f9ff 100%);
+}
+.learner-achievements-hero::after {
+  content: '';
+  position: absolute;
+  right: -42px;
+  top: -80px;
+  width: 280px;
+  height: 280px;
+  border: 1px solid #cbe7ff;
+  border-radius: 50%;
+  pointer-events: none;
+}
+.learner-achievements-hero-content {
+  display: grid;
+  gap: 8px;
+  max-width: 670px;
+  min-width: 0;
+  position: relative;
+  z-index: 1;
+}
+.learner-achievements-eyebrow {
+  color: #2c6999;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.learner-achievements-hero h2 {
+  font-size: clamp(23px, 2.3vw, 30px);
+  line-height: 1.15;
+  letter-spacing: -0.026em;
+  color: #123b5a;
+}
+.learner-achievements-hero p {
+  max-width: 550px;
+  font-size: 13px;
+  line-height: 1.52;
+  color: #416176;
+}
+.learner-achievements-hero-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 9px;
+  margin-top: 3px;
+}
+.learner-achievements-hero-actions > button,
+.learner-achievements-hero-actions > a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 36px;
+  border-radius: 9px;
+  padding: 7px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none;
+}
+.learner-achievements-hero-actions > button {
+  border: 1px solid #146da6;
+  background: #126da8;
+  color: #fff;
+  cursor: pointer;
+}
+.learner-achievements-emblem {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  flex: 0 0 90px;
+  place-items: center;
+  width: 90px;
+  height: 90px;
+  border-radius: 24px;
+  border: 1px solid #bad8ef;
+  background: #fff9;
+  box-shadow: 0 10px 26px #216a9a1a;
+  color: #478dbb;
+  font-size: 46px;
+  line-height: 1;
+}
+.learner-achievements-emblem img {
+  width: 82%;
+  height: 82%;
+  object-fit: contain;
+}
+.learner-achievements-section-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 1px 0 4px;
+}
+.learner-achievements-section-head h2 {
+  font-size: clamp(20px, 2vw, 25px);
+  letter-spacing: -0.022em;
+}
+.learner-achievements-section-head p {
+  color: var(--ink-muted, #637885);
+  font-size: 13px;
+  margin-top: 3px;
+}
+.learner-achievements-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+.learner-stat {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+  padding: 14px 16px;
+  border: 1px solid var(--border, #dae6ec);
+  border-radius: 12px;
+  background: var(--surface, #fff);
+}
+.learner-stat > span {
+  color: #526777;
+  font-size: 12px;
+  font-weight: 650;
+}
+.learner-stat strong {
+  font-size: clamp(24px, 2.5vw, 31px);
+  line-height: 1.1;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: #214d71;
+}
+.learner-stat small {
+  color: #6a7b88;
+  font-size: 11px;
+}
+.learner-achievements-panel {
+  display: grid;
+  min-width: 0;
+  gap: 13px;
+  border: 1px solid var(--border, #dce6ed);
+  border-radius: 15px;
+  background: var(--surface, #fff);
+  padding: clamp(12px, 1.6vw, 19px);
+}
+.learner-achievements-panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+.learner-achievements-panel-head h3 {
+  color: #20394c;
+  font-size: clamp(16px, 1.5vw, 18px);
+  font-weight: 800;
+}
+.learner-achievements-panel-head h4 {
+  font-size: 14px;
+  color: #28475e;
+}
+.learner-achievements-panel-head p {
+  max-width: 750px;
+  color: var(--ink-muted, #657786);
+  font-size: 12px;
+  line-height: 1.46;
+  margin-top: 3px;
+}
+.learner-achievements-classes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  min-width: 0;
+}
+.learner-class-item {
+  min-width: 0;
+}
+.learner-class-card {
+  display: grid;
+  gap: 9px;
+  width: 100%;
+  height: 100%;
+  min-height: 142px;
+  min-width: 0;
+  border: 1px solid #dfebf1;
+  border-radius: 12px;
+  padding: 13px 14px;
+  background: #f9fcff;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+.learner-class-card:hover {
+  border-color: #a9c8dc;
+}
+.learner-class-card.is-selected {
+  border-color: #5f9cc8;
+  box-shadow: inset 0 0 0 1px #5f9cc8;
+  background: #f2f9ff;
+}
+.learner-class-card-top,
+.learner-class-scoreline,
+.learner-class-foot {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 7px;
+  min-width: 0;
+}
+.learner-class-name {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+.learner-class-name strong {
+  overflow-wrap: anywhere;
+  font-size: 14px;
+  color: #203c54;
+}
+.learner-class-name small {
+  color: #657d8d;
+  font-size: 11px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.learner-class-rank {
+  display: grid;
+  justify-items: end;
+  flex: 0 0 auto;
+}
+.learner-class-rank b {
+  color: #1d6598;
+  font-size: 25px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.learner-class-rank small {
+  font-size: 10px;
+  color: #5d7486;
+}
+.learner-class-scoreline {
+  align-items: end;
+  color: #557082;
+  font-size: 11px;
+}
+.learner-class-scoreline strong {
+  color: #194e75;
+  white-space: nowrap;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.learner-class-track,
+.learner-factor-track {
+  display: block;
+  height: 6px;
+  width: 100%;
+  overflow: hidden;
+  background: #dceaf5;
+  border-radius: 99px;
+}
+.learner-class-track > span,
+.learner-factor-track > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #46a1e0, #1a71ae);
+}
+.learner-class-foot {
+  flex-wrap: wrap;
+  color: #667e8c;
+  font-size: 10px;
+}
+.learner-class-loading,
+.learner-class-error {
+  color: #6b7d89;
+  font-size: 12px;
+}
+.learner-class-error {
+  color: #a44440;
+}
+.learner-achievements-factors {
+  border-top: 1px solid #ecf0f2;
+  padding-top: 12px;
+}
+.learner-achievements-factor-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px 16px;
+  margin-top: 12px;
+}
+.learner-factor {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px;
+  font-size: 11px;
+  color: #5c7180;
+}
+.learner-factor strong {
+  font-variant-numeric: tabular-nums;
+  color: #2c5e83;
+}
+.learner-factor-track {
+  grid-column: 1 / -1;
+  height: 5px;
+}
+.learner-achievements-footnote {
+  border-top: 1px solid #edf1f4;
+  padding-top: 10px;
+  color: #6c7b87;
+  font-size: 11px;
+  line-height: 1.45;
+}
+.learner-achievements-muted,
+.learner-achievements-empty {
+  padding: 14px;
+  border: 1px dashed #d5e3ec;
+  border-radius: 10px;
+  background: #fafcfe;
+  color: #5c7384;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.learner-achievements-alert {
+  padding: 10px 12px;
+  border-radius: 9px;
+  border: 1px solid #f3c6be;
+  background: #fff6f4;
+  color: #8e3b2b;
+  font-size: 12px;
+}
+.learner-achievements-alert button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.learner-text-button {
+  border: 0;
+  background: transparent;
+  color: #176d9f;
+  padding: 2px 0;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+.learner-text-button:hover {
+  text-decoration: underline;
+}
+.learner-achievements-grade-list {
+  display: grid;
+  gap: 0;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.learner-grade-row {
+  display: grid;
+  grid-template-columns: minmax(55px, 76px) minmax(0, 1fr) auto;
+  gap: 11px;
+  align-items: start;
+  min-width: 0;
+  padding: 12px 0;
+  border-bottom: 1px solid #edf1f4;
+}
+.learner-grade-row:first-child {
+  padding-top: 3px;
+}
+.learner-grade-row:last-child {
+  border-bottom: 0;
+}
+.learner-grade-mark {
+  display: grid;
+  place-items: center;
+  min-height: 43px;
+  padding: 5px 7px;
+  border: 1px solid #c3e4d1;
+  border-radius: 10px;
+  background: #f0faf3;
+  font-size: 20px;
+  font-weight: 800;
+  color: #257046;
+  text-align: center;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+.learner-grade-mark.is-result {
+  background: #f0f6ff;
+  border-color: #c9dcf5;
+  color: #2867a0;
+}
+.learner-grade-info {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+.learner-grade-info strong {
+  font-size: 13px;
+  color: #223e50;
+  overflow-wrap: anywhere;
+}
+.learner-grade-info > span,
+.learner-grade-info > small {
+  font-size: 11px;
+  line-height: 1.4;
+  color: #6b7c88;
+  overflow-wrap: anywhere;
+}
+.learner-grade-info p {
+  margin-top: 3px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: #445f70;
+  overflow-wrap: anywhere;
+}
+.learner-grade-kind {
+  border-radius: 6px;
+  background: #eef4f8;
+  padding: 4px 7px;
+  color: #506c80;
+  font-size: 10px;
+  white-space: nowrap;
+}
+.learner-grade-history {
+  display: grid;
+  gap: 8px;
+  margin-top: 7px;
+  border-left: 2px solid #9cc9e8;
+  padding: 6px 9px;
+  background: #f6fbff;
+}
+.learner-grade-history ol {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+  padding-left: 18px;
+  font-size: 11px;
+  color: #506678;
+}
+.learner-achievements-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: end;
+}
+.learner-achievements-filters label,
+.learner-achievements-month,
+.learner-achievements-award-filter {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+  color: #50677b;
+  font-size: 12px;
+  font-weight: 650;
+}
+.learner-achievements-filters select,
+.learner-achievements-award-filter select,
+.learner-achievements-month input {
+  width: 100%;
+  max-width: 400px;
+  min-height: 36px;
+  border: 1px solid #d3e1ec;
+  border-radius: 8px;
+  padding: 6px 9px;
+  background: #fff;
+  color: #274459;
+  font: inherit;
+}
+.learner-achievements-filters label {
+  flex: 1 1 200px;
+}
+.learner-achievements-month > div {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.learner-achievements-month button {
+  min-width: 35px;
+  min-height: 35px;
+  border: 1px solid #d3e1ec;
+  border-radius: 8px;
+  background: #fff;
+  color: #2f6388;
+  cursor: pointer;
+}
+.learner-achievements-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  border-top: 1px solid #edf1f4;
+  padding-top: 12px;
+}
+.learner-achievements-pagination > span {
+  font-size: 11px;
+  color: #6f7e8a;
+}
+.learner-achievements-more {
+  justify-self: start;
+}
+.learner-achievements-bottom-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 38px;
+  padding: 8px 11px;
+  border: 1px solid #cde3ef;
+  border-radius: 9px;
+  background: #f4faff;
+  color: #196c9f;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+.learner-achievements-award-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 9px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.learner-achievements-award-list > li {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 11px;
+  border: 1px solid #f2deab;
+  border-radius: 11px;
+  background: linear-gradient(140deg, #fffdf7, #fff8e9);
+}
+.learner-award-symbol {
+  display: grid;
+  flex: 0 0 42px;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 11px;
+  background: #fff0cb;
+  color: #b47d20;
+  font-size: 24px;
+}
+.learner-achievements-award-list > li > span:last-child {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+.learner-achievements-award-list strong {
+  color: #604b2b;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.learner-achievements-award-list small {
+  color: #837258;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+.learner-achievements-award-list p {
+  color: #67573e;
+  font-size: 11px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+/* Navigation compatible with the shared compact classroom tab treatment. */
+.learner-hub {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+.learner-hub-header,
+.learner-hub-tabs {
+  width: 100%;
+  max-width: 1180px;
+  margin-inline: auto;
+}
+.learner-hub-header h1 {
+  margin: 0;
+  font-size: clamp(21px, 2.2vw, 27px);
+  color: var(--ink, #203848);
+}
+.learner-hub-header p {
+  margin: 4px 0 0;
+  color: var(--ink-muted, #6d7f8a);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.learner-hub-tabs {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 3px;
+  overflow-x: auto;
+  max-width: 1180px;
+  min-width: 0;
+  border: 1px solid #dce5ed;
+  border-radius: 11px;
+  background: #f1f5f8;
+  padding: 4px;
+  scrollbar-width: thin;
+}
+.learner-hub-tabs > button {
+  flex: 1 0 auto;
+  min-height: 36px;
+  min-width: 0;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 7px 15px;
+  background: transparent;
+  color: #566a7a;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.learner-hub-tabs > button[aria-current='page'],
+.learner-hub-tabs > button[aria-selected='true'] {
+  border-color: #bcd8ed;
+  background: #fff;
+  color: #0f5e98;
+  box-shadow: 0 1px 5px #244b6814;
+}
+.learner-hub-tabs > button:focus-visible,
+.learner-class-card:focus-visible,
+.learner-achievements button:focus-visible,
+.learner-achievements a:focus-visible,
+.learner-achievements select:focus-visible,
+.learner-achievements input:focus-visible {
+  outline: 2px solid #1484cb;
+  outline-offset: 2px;
+}
+.learner-hub-learning {
+  display: grid;
+  gap: 18px;
+  max-width: 1180px;
+  width: 100%;
+  margin-inline: auto;
+  min-width: 0;
+}
+.learner-hub-learning .learning-sections {
+  margin: 0;
+}
+@media (max-width: 790px) {
+  .learner-achievements-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .learner-achievements-classes {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 480px) {
+  .learner-achievements {
+    gap: 11px;
+    padding-bottom: 20px;
+  }
+  .learner-hub {
+    gap: 11px;
+  }
+  .learner-hub-tabs > button {
+    flex: 0 0 auto;
+    padding: 7px 13px;
+  }
+  .learner-achievements-hero {
+    align-items: start;
+    padding: 15px;
+    gap: 8px;
+  }
+  .learner-achievements-emblem {
+    width: 45px;
+    height: 45px;
+    flex-basis: 45px;
+    border-radius: 13px;
+    font-size: 24px;
+  }
+  .learner-achievements-hero h2 {
+    font-size: 22px;
+  }
+  .learner-achievements-hero p {
+    font-size: 12px;
+  }
+  .learner-achievements-hero-actions {
+    gap: 6px;
+  }
+  .learner-achievements-hero-actions > button,
+  .learner-achievements-hero-actions > a {
+    min-height: 34px;
+    padding: 6px 8px;
+    font-size: 11px;
+  }
+  .learner-stat {
+    padding: 11px;
+  }
+  .learner-stat strong {
+    font-size: 23px;
+  }
+  .learner-achievements-panel {
+    padding: 12px;
+    gap: 11px;
+  }
+  .learner-grade-row {
+    grid-template-columns: 59px minmax(0, 1fr);
+    gap: 8px;
+  }
+  .learner-grade-mark {
+    min-height: 39px;
+    font-size: 17px;
+  }
+  .learner-grade-kind {
+    display: none;
+  }
+  .learner-achievements-award-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .learner-achievements-filters {
+    align-items: stretch;
+  }
+  .learner-achievements-filters label {
+    flex-basis: 100%;
+  }
+  .learner-achievements-pagination {
+    justify-content: flex-start;
+  }
+  .learner-achievements-pagination > span {
+    order: 2;
+    flex: 1 1 100%;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .learner-class-card {
+    transition: none;
+  }
+}
