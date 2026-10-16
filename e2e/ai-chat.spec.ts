@@ -72,12 +72,31 @@ async function fixture(page: Page) {
     if (path === '/api/class-join/me') return respond(route, { authenticated: false });
     if (path === '/api/ai/status')
       return respond(route, { enabled, provider: 'openai', model: 'gpt-5-mini' });
-    if (path === '/api/ai/threads' && method === 'GET') return respond(route, { items: threads });
+    if (path === '/api/ai/threads' && method === 'GET') {
+      return respond(route, { items: threads, nextCursor: null });
+    }
     if (path === '/api/ai/threads' && method === 'POST') {
       const id = randomUUID();
       threads.unshift({ id, title: 'Новый чат', updatedAt: NOW });
       messages.set(id, []);
       return respond(route, { id }, 201);
+    }
+    const threadAction = /^\/api\/ai\/threads\/([a-f0-9-]+)$/.exec(path);
+    if (threadAction) {
+      const id = threadAction[1]!;
+      const record = threads.find((t) => t.id === id);
+      if (!record)
+        return respond(route, { error: { code: 'ai_thread_not_found', message: 'Диалог не найден' } }, 404);
+      if (method === 'PATCH') {
+        const body = req.postDataJSON() as { title: string };
+        record.title = body.title.trim();
+        return respond(route, record);
+      }
+      if (method === 'DELETE') {
+        threads.splice(threads.indexOf(record), 1);
+        messages.delete(id);
+        return respond(route, { deleted: true });
+      }
     }
     const chat = /^\/api\/ai\/threads\/([a-f0-9-]+)\/messages$/.exec(path);
     if (chat) {
@@ -85,7 +104,7 @@ async function fixture(page: Page) {
       const history = messages.get(id);
       if (!history)
         return respond(route, { error: { code: 'ai_thread_denied', message: 'Not found' } }, 404);
-      if (method === 'GET') return respond(route, { items: history });
+      if (method === 'GET') return respond(route, { items: history, nextCursor: null });
       const payload = req.postDataJSON() as { message: string; requestId: string };
       requests.push(payload.requestId);
       if (!history.some((msg) => msg.role === 'user' && msg.requestId === payload.requestId)) {
@@ -190,4 +209,30 @@ test('Platform admin configures GPT without returning secret in page', async ({ 
   expect(await page.evaluate((value) => document.body.textContent?.includes(value), secret)).toBe(
     false,
   );
+});
+
+test('AI conversation rename and delete update the sidebar without phantom history', async ({ page }) => {
+  await fixture(page);
+  await page.setViewportSize({ width: 390, height: 760 });
+  await page.goto('/#/ai');
+  await page.getByRole('button', { name: 'Открыть историю диалогов' }).click();
+  await page.getByRole('button', { name: 'Новый чат' }).click();
+  await page.getByRole('button', { name: 'Открыть историю диалогов' }).click();
+  const sidebar = page.getByRole('navigation', { name: 'Диалоги' });
+  await expect(sidebar.getByRole('button', { name: 'Новый чат' })).toHaveCount(1);
+  await sidebar.getByRole('button', { name: 'Переименовать: Новый чат' }).click();
+  await sidebar.getByRole('textbox', { name: 'Новое название диалога' }).fill('Робототехника и Arduino');
+  await sidebar.getByRole('button', { name: 'Сохранить' }).click();
+  await expect(sidebar.getByRole('button', { name: 'Робототехника и Arduino' })).toBeVisible();
+  await sidebar.getByRole('button', { name: 'Удалить: Робототехника и Arduino' }).click();
+  await expect(sidebar.getByRole('group', { name: 'Подтверждение удаления' })).toBeVisible();
+  await sidebar.getByRole('button', { name: 'Отмена' }).click();
+  await expect(sidebar.getByRole('button', { name: 'Робототехника и Arduino' })).toBeVisible();
+  await sidebar.getByRole('button', { name: 'Удалить: Робототехника и Arduino' }).click();
+  await sidebar.getByRole('button', { name: 'Удалить', exact: true }).click();
+  await expect(sidebar.getByRole('button', { name: 'Робототехника и Arduino' })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Чем я могу помочь?' })).toBeVisible();
+  await expect
+    .poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
+    .toBe(true);
 });
