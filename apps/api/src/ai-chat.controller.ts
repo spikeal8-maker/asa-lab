@@ -1,17 +1,20 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpException,
   Inject,
   Param,
+  Patch,
   Post,
+  Query,
   Req,
 } from '@nestjs/common';
 import type { FastifyRequest } from 'fastify';
 import type { ActiveContext, ActiveContextUseCase } from '@asa-lab/identity';
-import { AiChatService, AiServiceError } from './ai-chat.service.js';
+import { AiChatService, AiServiceError, type AiCursor } from './ai-chat.service.js';
 import { SESSION_COOKIE, TOKENS } from './tokens.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -69,6 +72,21 @@ export class AiChatController {
     return value;
   }
 
+  private cursor(beforeAt: string | undefined, beforeId: string | undefined): AiCursor | null {
+    if (beforeAt === undefined && beforeId === undefined) return null;
+    const parsed = new Date(beforeAt ?? '');
+    if (
+      !beforeAt ||
+      !beforeId ||
+      !UUID.test(beforeId) ||
+      !Number.isFinite(parsed.getTime()) ||
+      parsed.toISOString() !== beforeAt
+    ) {
+      return reject('ai_cursor_invalid', 'Неверная позиция истории.', 400);
+    }
+    return { at: beforeAt, id: beforeId };
+  }
+
   @Get('status')
   async status(@Req() request: FastifyRequest) {
     await this.requireAccount(request);
@@ -76,9 +94,42 @@ export class AiChatController {
   }
 
   @Get('threads')
-  async threads(@Req() request: FastifyRequest) {
+  async threads(
+    @Req() request: FastifyRequest,
+    @Query('beforeAt') beforeAt?: string,
+    @Query('beforeId') beforeId?: string,
+  ) {
     const account = await this.requireAccount(request);
-    return this.safe(async () => ({ items: await this.ai.threads(account.principalId) }));
+    const cursor = this.cursor(beforeAt, beforeId);
+    return this.safe(() => this.ai.threadPage(account.principalId, cursor));
+  }
+
+  @Patch('threads/:threadId')
+  async rename(
+    @Req() request: FastifyRequest,
+    @Param('threadId') rawId: string,
+    @Body() raw: unknown,
+  ) {
+    this.requireSameOrigin(request);
+    const account = await this.requireAccount(request);
+    const threadId = this.threadId(rawId);
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+      return reject('ai_title_invalid', 'Нужно название диалога.', 400);
+    }
+    const title = (raw as Record<string, unknown>)['title'];
+    if (typeof title !== 'string') {
+      return reject('ai_title_invalid', 'Нужно название диалога.', 400);
+    }
+    return this.safe(() => this.ai.renameThread(account.principalId, threadId, title));
+  }
+
+  @Delete('threads/:threadId')
+  @HttpCode(200)
+  async delete(@Req() request: FastifyRequest, @Param('threadId') rawId: string) {
+    this.requireSameOrigin(request);
+    const account = await this.requireAccount(request);
+    const threadId = this.threadId(rawId);
+    return this.safe(() => this.ai.deleteThread(account.principalId, threadId));
   }
 
   @Post('threads')
@@ -90,12 +141,16 @@ export class AiChatController {
   }
 
   @Get('threads/:threadId/messages')
-  async messages(@Req() request: FastifyRequest, @Param('threadId') rawId: string) {
+  async messages(
+    @Req() request: FastifyRequest,
+    @Param('threadId') rawId: string,
+    @Query('beforeAt') beforeAt?: string,
+    @Query('beforeId') beforeId?: string,
+  ) {
     const account = await this.requireAccount(request);
     const threadId = this.threadId(rawId);
-    return this.safe(async () => ({
-      items: await this.ai.messages(account.principalId, threadId),
-    }));
+    const cursor = this.cursor(beforeAt, beforeId);
+    return this.safe(() => this.ai.messagePage(account.principalId, threadId, cursor));
   }
 
   @Post('threads/:threadId/messages')
