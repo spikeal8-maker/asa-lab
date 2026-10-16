@@ -410,76 +410,7 @@ export function LearnerAchievementsDashboard({
     }
   }
 
-  return (
-    <div className="learner-achievements" data-testid="learner-achievements">
-      {section === 'overview' ? (
-        <section className="learner-achievements-hero" aria-labelledby="learner-achievements-title">
-          <div className="learner-achievements-hero-content">
-            <span className="learner-achievements-eyebrow">Личный учебный профиль</span>
-            <h2 id="learner-achievements-title">Мои достижения</h2>
-            <p>Рейтинги классов, реальные оценки, выполненные работы и награды — в одном месте.</p>
-            <div className="learner-achievements-hero-actions">
-              <a href="#/my-projects" className="btn-secondary">
-                Мои работы <span aria-hidden="true">↗</span>
-              </a>
-              <button type="button" onClick={onLearning}>
-                Продолжить обучение <span aria-hidden="true">→</span>
-              </button>
-            </div>
-          </div>
-          <div className="learner-achievements-emblem" aria-hidden="true">
-            {seat ? (
-              <img src={seatAvatar(seat.student.seatId, seat.student.avatarKey).src} alt="" />
-            ) : (
-              '✦'
-            )}
-          </div>
-        </section>
-      ) : (
-        <div className="learner-achievements-section-head">
-          <div>
-            <h2>{section === 'grades' ? 'Мои оценки' : 'Мои награды'}</h2>
-            <p>
-              {section === 'grades'
-                ? 'По занятиям и заданиям, с историей исправлений.'
-                : 'Награды, выданные преподавателями, по каждому классу.'}
-            </p>
-          </div>
-          <button
-            type="button"
-            className="btn-secondary"
-            onClick={() => setRefresh((current) => current + 1)}
-          >
-            Обновить
-          </button>
-        </div>
-      )}
-
-      {section === 'overview' ? (
-        <div className="learner-achievements-stats" aria-label="Сводные показатели">
-          <div className="learner-stat">
-            <span>Классы</span>
-            <strong>{classLoading ? '…' : classes.length}</strong>
-            <small>В моём обучении</small>
-          </div>
-          <div className="learner-stat">
-            <span>Результаты</span>
-            <strong>{resultsLoading ? '…' : results.length}</strong>
-            <small>Опубликовано</small>
-          </div>
-          <div className="learner-stat">
-            <span>Работы</span>
-            <strong>{focusProfile ? focusProfile.metrics.totalWorks : '—'}</strong>
-            <small>{focusClass ? 'Проекты моего профиля' : 'Выберите класс'}</small>
-          </div>
-          <div className="learner-stat">
-            <span>Награды</span>
-            <strong>{Object.keys(profiles).length === 0 ? '—' : shownAwards.length}</strong>
-            <small>В загруженных классах</small>
-          </div>
-        </div>
-      ) : null}
-
+  const ratingPanel = (
       <section
         className="learner-achievements-panel"
         aria-labelledby="learner-achievements-ratings"
@@ -581,6 +512,79 @@ export function LearnerAchievementsDashboard({
           </p>
         ) : null}
       </section>
+  );
+
+  return (
+    <div className="learner-achievements" data-testid="learner-achievements">
+      {section === 'overview' ? (
+        <section className="learner-achievements-hero" aria-labelledby="learner-achievements-title">
+          <div className="learner-achievements-hero-content">
+            <span className="learner-achievements-eyebrow">Личный учебный профиль</span>
+            <h2 id="learner-achievements-title">Мои достижения</h2>
+            <p>Рейтинги классов, реальные оценки, выполненные работы и награды — в одном месте.</p>
+            <div className="learner-achievements-hero-actions">
+              <a href="#/my-projects" className="btn-secondary">
+                Мои работы <span aria-hidden="true">↗</span>
+              </a>
+              <button type="button" onClick={onLearning}>
+                Продолжить обучение <span aria-hidden="true">→</span>
+              </button>
+            </div>
+          </div>
+          <div className="learner-achievements-emblem" aria-hidden="true">
+            {seat ? (
+              <img src={seatAvatar(seat.student.seatId, seat.student.avatarKey).src} alt="" />
+            ) : (
+              '✦'
+            )}
+          </div>
+        </section>
+      ) : (
+        <div className="learner-achievements-section-head">
+          <div>
+            <h2>{section === 'grades' ? 'Мои оценки' : 'Мои награды'}</h2>
+            <p>
+              {section === 'grades'
+                ? 'По занятиям и заданиям, с историей исправлений.'
+                : 'Награды, выданные преподавателями, по каждому классу.'}
+            </p>
+          </div>
+          <button
+            type="button"
+            className="btn-secondary"
+            onClick={() => setRefresh((current) => current + 1)}
+          >
+            Обновить
+          </button>
+        </div>
+      )}
+
+      {section === 'overview' ? (
+        <div className="learner-achievements-stats" aria-label="Сводные показатели">
+          <div className="learner-stat">
+            <span>Классы</span>
+            <strong>{classLoading ? '…' : classes.length}</strong>
+            <small>В моём обучении</small>
+          </div>
+          <div className="learner-stat">
+            <span>Результаты</span>
+            <strong>{resultsLoading ? '…' : results.length}</strong>
+            <small>Опубликовано</small>
+          </div>
+          <div className="learner-stat">
+            <span>Работы</span>
+            <strong>{focusProfile ? focusProfile.metrics.totalWorks : '—'}</strong>
+            <small>{focusClass ? 'Проекты моего профиля' : 'Выберите класс'}</small>
+          </div>
+          <div className="learner-stat">
+            <span>Награды</span>
+            <strong>{Object.keys(profiles).length === 0 ? '—' : shownAwards.length}</strong>
+            <small>В загруженных классах</small>
+          </div>
+        </div>
+      ) : null}
+
+      {section === 'overview' ? ratingPanel : null}
 
       {section !== 'awards' ? (
         <section
@@ -859,6 +863,7 @@ export function LearnerAchievementsDashboard({
           )}
         </section>
       ) : null}
+      {section !== 'overview' ? ratingPanel : null}
     </div>
   );
 }
