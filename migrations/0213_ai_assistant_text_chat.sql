@@ -34,6 +34,7 @@ CREATE TABLE ai_assistant_threads (
     account_id uuid NOT NULL REFERENCES accounts(id),
     title varchar(120) NOT NULL DEFAULT 'Новый чат',
     busy_until timestamptz,
+    active_request_id uuid,
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NOT NULL DEFAULT now()
 );
@@ -46,6 +47,8 @@ CREATE TABLE ai_assistant_messages (
     account_id uuid NOT NULL REFERENCES accounts(id),
     request_id uuid NOT NULL,
     role varchar(16) NOT NULL CHECK (role IN ('user', 'assistant')),
+    state varchar(16) NOT NULL DEFAULT 'complete'
+        CHECK (state IN ('complete', 'stopped')),
     content varchar(8192) NOT NULL CHECK (char_length(content) BETWEEN 1 AND 8192),
     created_at timestamptz NOT NULL DEFAULT now(),
     UNIQUE (thread_id, role, request_id)
@@ -193,11 +196,14 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
 $$;
 
 CREATE FUNCTION ai_chat_messages(p_principal uuid, p_thread uuid)
-RETURNS TABLE (id uuid, role varchar, content varchar, created_at timestamptz, request_id uuid)
-LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
-    SELECT m.id, m.role, m.content, m.created_at, m.request_id
+RETURNS TABLE (
+    id uuid, role varchar, content varchar, created_at timestamptz,
+    request_id uuid, state varchar
+)
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $
+    SELECT m.id, m.role, m.content, m.created_at, m.request_id, m.state
       FROM (
-          SELECT msg.id, msg.role, msg.content, msg.created_at, msg.request_id
+          SELECT msg.id, msg.role, msg.content, msg.created_at, msg.request_id, msg.state
             FROM public.ai_assistant_messages msg
             JOIN public.ai_assistant_threads t ON t.id = msg.thread_id
             JOIN public.principals p ON p.account_id = t.account_id
@@ -244,6 +250,7 @@ BEGIN
     v_title := left(regexp_replace(trim(p_text), E'[\r\n]+', ' ', 'g'), 110);
     UPDATE public.ai_assistant_threads t SET
         busy_until = clock_timestamp() + interval '85 seconds',
+        active_request_id = p_request,
         title = CASE WHEN t.title = 'Новый чат' THEN v_title ELSE t.title END,
         updated_at = clock_timestamp()
       WHERE t.id = p_thread AND t.account_id = v_account
@@ -259,20 +266,25 @@ END;
 $$;
 
 CREATE FUNCTION ai_chat_finish(
-    p_principal uuid, p_thread uuid, p_request uuid, p_answer varchar
+    p_principal uuid, p_thread uuid, p_request uuid, p_answer varchar,
+    p_state varchar DEFAULT 'complete'
 ) RETURNS boolean
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
 DECLARE v_account uuid; v_inserted uuid;
 BEGIN
-    IF char_length(p_answer) NOT BETWEEN 1 AND 8192 THEN
+    IF p_state NOT IN ('complete', 'stopped') OR
+       char_length(p_answer) NOT BETWEEN 1 AND 8192 THEN
         RAISE EXCEPTION 'AI_RESPONSE_INVALID' USING ERRCODE = '22023';
     END IF;
     SELECT p.account_id INTO v_account FROM public.principals p
      WHERE p.id = p_principal AND p.kind = 'account';
-    IF v_account IS NULL OR NOT EXISTS (
-        SELECT 1 FROM public.ai_assistant_threads t
-         WHERE t.id = p_thread AND t.account_id = v_account
-    ) OR NOT EXISTS (
+    -- Serialise finish with the admission row. Expired workers cannot clear
+    -- a newer in-flight request or attach an old answer to its thread.
+    PERFORM 1 FROM public.ai_assistant_threads t
+     WHERE t.id = p_thread AND t.account_id = v_account
+       AND t.active_request_id = p_request
+     FOR UPDATE;
+    IF v_account IS NULL OR NOT FOUND OR NOT EXISTS (
         SELECT 1 FROM public.ai_assistant_messages m
          WHERE m.thread_id = p_thread AND m.account_id = v_account
            AND m.request_id = p_request AND m.role = 'user'
@@ -280,13 +292,14 @@ BEGIN
         RAISE EXCEPTION 'AI_THREAD_DENIED' USING ERRCODE = '42501';
     END IF;
     INSERT INTO public.ai_assistant_messages
-        (thread_id, account_id, request_id, role, content)
-      VALUES (p_thread, v_account, p_request, 'assistant', p_answer)
+        (thread_id, account_id, request_id, role, content, state)
+      VALUES (p_thread, v_account, p_request, 'assistant', p_answer, p_state)
       ON CONFLICT (thread_id, role, request_id) DO NOTHING
       RETURNING id INTO v_inserted;
     UPDATE public.ai_assistant_threads
-       SET busy_until = NULL, updated_at = clock_timestamp()
-     WHERE id = p_thread AND account_id = v_account;
+       SET busy_until = NULL, active_request_id = NULL, updated_at = clock_timestamp()
+     WHERE id = p_thread AND account_id = v_account
+       AND active_request_id = p_request;
     RETURN v_inserted IS NOT NULL;
 END;
 $$;
@@ -294,8 +307,9 @@ $$;
 CREATE FUNCTION ai_chat_abort(p_principal uuid, p_thread uuid, p_request uuid)
 RETURNS void
 LANGUAGE sql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
-    UPDATE public.ai_assistant_threads t SET busy_until = NULL
-     WHERE t.id = p_thread AND EXISTS (
+    UPDATE public.ai_assistant_threads t
+       SET busy_until = NULL, active_request_id = NULL
+     WHERE t.id = p_thread AND t.active_request_id = p_request AND EXISTS (
          SELECT 1 FROM public.principals p
           WHERE p.id = p_principal AND p.kind = 'account'
             AND p.account_id = t.account_id
@@ -359,12 +373,13 @@ CREATE FUNCTION ai_chat_messages_page(
     p_before_at timestamptz, p_before_id uuid, p_limit integer
 )
 RETURNS TABLE (
-    id uuid, role varchar, content varchar, created_at timestamptz, request_id uuid
+    id uuid, role varchar, content varchar, created_at timestamptz,
+    request_id uuid, state varchar
 )
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $
-    SELECT m.id, m.role, m.content, m.created_at, m.request_id
+    SELECT m.id, m.role, m.content, m.created_at, m.request_id, m.state
       FROM (
-        SELECT msg.id, msg.role, msg.content, msg.created_at, msg.request_id
+        SELECT msg.id, msg.role, msg.content, msg.created_at, msg.request_id, msg.state
           FROM public.ai_assistant_messages msg
           JOIN public.ai_assistant_threads t ON t.id = msg.thread_id
           JOIN public.principals p ON p.account_id = t.account_id
@@ -396,7 +411,7 @@ REVOKE ALL ON FUNCTION ai_chat_create(uuid) FROM PUBLIC;
 REVOKE ALL ON FUNCTION ai_chat_list(uuid) FROM PUBLIC;
 REVOKE ALL ON FUNCTION ai_chat_messages(uuid, uuid) FROM PUBLIC;
 REVOKE ALL ON FUNCTION ai_chat_begin(uuid, uuid, uuid, varchar) FROM PUBLIC;
-REVOKE ALL ON FUNCTION ai_chat_finish(uuid, uuid, uuid, varchar) FROM PUBLIC;
+REVOKE ALL ON FUNCTION ai_chat_finish(uuid, uuid, uuid, varchar, varchar) FROM PUBLIC;
 REVOKE ALL ON FUNCTION ai_chat_abort(uuid, uuid, uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION ai_admin_get_config(uuid) TO asalab_app;
 GRANT EXECUTE ON FUNCTION ai_admin_set_config(
@@ -407,5 +422,5 @@ GRANT EXECUTE ON FUNCTION ai_chat_create(uuid) TO asalab_app;
 GRANT EXECUTE ON FUNCTION ai_chat_list(uuid) TO asalab_app;
 GRANT EXECUTE ON FUNCTION ai_chat_messages(uuid, uuid) TO asalab_app;
 GRANT EXECUTE ON FUNCTION ai_chat_begin(uuid, uuid, uuid, varchar) TO asalab_app;
-GRANT EXECUTE ON FUNCTION ai_chat_finish(uuid, uuid, uuid, varchar) TO asalab_app;
+GRANT EXECUTE ON FUNCTION ai_chat_finish(uuid, uuid, uuid, varchar, varchar) TO asalab_app;
 GRANT EXECUTE ON FUNCTION ai_chat_abort(uuid, uuid, uuid) TO asalab_app;
