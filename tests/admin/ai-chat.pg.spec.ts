@@ -332,4 +332,88 @@ describe('AI Chat PostgreSQL access and request replay', () => {
       else process.env['ASA_SETTINGS_ENCRYPTION_KEY'] = previousEncryptionKey;
     }
   }, 30000);
+
+  it('restricts rename/delete by owner and retains only owned conversation lists', async () => {
+    const thread = await service.createThread(owner.principalId);
+    const label = 'История — Arduino';
+    await expect(service.renameThread(stranger.principalId, thread.id, 'Чужой')).rejects.toMatchObject({
+      code: 'ai_thread_not_found',
+      status: 404,
+    });
+    await expect(service.renameThread(owner.principalId, thread.id, '  ')).rejects.toMatchObject({
+      code: 'ai_title_invalid',
+      status: 400,
+    });
+    const renamed = await service.renameThread(owner.principalId, thread.id, label);
+    expect(renamed.title).toBe(label);
+    expect((await service.threadPage(owner.principalId)).items).toContainEqual(
+      expect.objectContaining({ id: thread.id, title: label }),
+    );
+    expect((await service.threadPage(stranger.principalId)).items).not.toContainEqual(
+      expect.objectContaining({ id: thread.id }),
+    );
+    await expect(service.deleteThread(stranger.principalId, thread.id)).rejects.toMatchObject({
+      code: 'ai_thread_not_available',
+      status: 409,
+    });
+    expect(await service.deleteThread(owner.principalId, thread.id)).toEqual({ deleted: true });
+    expect((await service.threadPage(owner.principalId)).items).not.toContainEqual(
+      expect.objectContaining({ id: thread.id }),
+    );
+    await expect(service.deleteThread(owner.principalId, thread.id)).rejects.toMatchObject({
+      code: 'ai_thread_not_available',
+    });
+  });
+
+  it('paginates 57 conversations and 107 messages without duplication or cross-account leakage', async () => {
+    await admin.query(
+      `INSERT INTO ai_assistant_threads (account_id, title, updated_at)
+       SELECT $1, 'paged-' || n, now() - n * interval '2 minutes'
+         FROM generate_series(1,57) n`,
+      [owner.accountId],
+    );
+    let cursor: { at: string; id: string } | null = null;
+    const allIds = new Set<string>();
+    let pageCount = 0;
+    do {
+      const page = await service.threadPage(owner.principalId, cursor);
+      expect(page.items.length).toBeLessThanOrEqual(50);
+      for (const thread of page.items) {
+        expect(allIds.has(thread.id)).toBe(false);
+        allIds.add(thread.id);
+      }
+      cursor = page.nextCursor;
+      pageCount += 1;
+    } while (cursor !== null && pageCount < 10);
+    expect(allIds.size).toBeGreaterThanOrEqual(57);
+    expect(pageCount).toBeGreaterThanOrEqual(2);
+    expect((await service.threadPage(stranger.principalId)).items.length).toBe(0);
+
+    const thread = await service.createThread(owner.principalId);
+    await admin.query(
+      `INSERT INTO ai_assistant_messages
+       (thread_id, account_id, request_id, role, content, created_at)
+       SELECT $1, $2, gen_random_uuid(),
+         CASE WHEN n % 2 = 0 THEN 'assistant' ELSE 'user' END,
+         'Сообщение ' || n, now() - (108 - n) * interval '1 minute'
+         FROM generate_series(1,107) n`,
+      [thread.id, owner.accountId],
+    );
+    let messageCursor: { at: string; id: string } | null = null;
+    const contents: string[] = [];
+    let count = 0;
+    do {
+      const page = await service.messagePage(owner.principalId, thread.id, messageCursor);
+      expect(page.items.length).toBeLessThanOrEqual(50);
+      expect(page.items.length).toBeGreaterThan(0);
+      for (const message of page.items) contents.push(message.content);
+      messageCursor = page.nextCursor;
+      count += 1;
+    } while (messageCursor !== null && count < 10);
+    expect(contents).toHaveLength(107);
+    expect(new Set(contents).size).toBe(107);
+    expect(contents[0]).toBe('Сообщение 107');
+    expect(contents.at(-1)).toBe('Сообщение 1');
+    expect((await service.messagePage(stranger.principalId, thread.id)).items).toEqual([]);
+  });
 });
