@@ -169,6 +169,48 @@ describe('Arduino instruction-us-v1 execution clock (scheduler foundation)', () 
     expect(result.state.outputVoltages).toEqual({});
   });
 
+  it('retains pull-up transitions and finite PWM values across repeated writes', () => {
+    const source = `void setup(){digitalWrite(13,HIGH);digitalWrite(13,HIGH);
+      digitalWrite(13,LOW);analogWrite(3,128);analogWrite(3,128);analogWrite(3,0);}
+      void loop(){delay(1);}`;
+    const high = through(source, 0.001);
+    expect(high.state.pinModes.d13).toBe('INPUT_PULLUP');
+    expect(high.state.outputVoltages.d13).toBe(5);
+    expect(high.events.filter((event) => event.atMicroseconds === 1)).toEqual([]);
+    const pwm = through(source, 0.004, JSON.parse(JSON.stringify(high.state)));
+    expect(pwm.state.pinModes).toMatchObject({ d13: 'INPUT', d3: 'OUTPUT' });
+    expect(pwm.state.outputVoltages).toMatchObject({ d13: 0, d3: (5 * 128) / 255 });
+    expect(Number.isFinite(pwm.state.outputVoltages.d3)).toBe(true);
+    expect(pwm.events.filter((event) => event.atMicroseconds === 4)).toEqual([]);
+    const zero = through(source, 0.005, JSON.parse(JSON.stringify(pwm.state)));
+    expect(zero.state.outputVoltages.d3).toBe(0);
+    expect(zero.events).toEqual([
+      { kind: 'output-change', terminal: 'd3', voltage: 0, atMicroseconds: 5, sequence: 7 },
+    ]);
+    expect(zero.state).toStrictEqual(through(source, 0.005).state);
+  });
+
+  it.each(['negative-zero', 'missing'] as const)(
+    'preserves LOW assignment for a %s stored output without skipping the instruction',
+    (kind) => {
+      const source = 'void setup(){pinMode(13,OUTPUT);digitalWrite(13,LOW);}void loop(){delay(1);}';
+      const seeded = through(source, 0).state;
+      const previous = {
+        ...seeded,
+        outputVoltages: kind === 'negative-zero' ? { d13: -0 } : {},
+      };
+      const result = advanceClockedArduinoRuntime(source, {}, 0.001, previous);
+      expect(result.executionStatus).toBe('ready');
+      expect(Object.is(result.state.outputVoltages.d13, 0)).toBe(true);
+      expect(result.state.programCounter).toBe(seeded.programCounter + 1);
+      expect(result.state.resumeAtMs).toBe(0.002);
+      expect(result.setupActions).toEqual([{ kind: 'write', terminal: 'd13', targetVoltage: 0 }]);
+      expect(result.events).toHaveLength(kind === 'negative-zero' ? 0 : 1);
+      if (kind === 'negative-zero') expect(Object.is(previous.outputVoltages.d13, -0)).toBe(true);
+      else expect(previous.outputVoltages).toEqual({});
+    },
+  );
+
   it('finishes millis busy-wait instead of treating it as an infinite program', () => {
     const source = `void setup(){pinMode(13,OUTPUT);while(millis()<10){}
       digitalWrite(13,HIGH);}void loop(){delay(100);}`;

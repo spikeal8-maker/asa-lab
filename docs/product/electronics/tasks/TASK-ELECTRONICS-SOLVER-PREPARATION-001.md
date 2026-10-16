@@ -248,6 +248,14 @@ H0 excluded:77 ready,compute1949.7ms,request durations2138.5ms,gaps16ms. Early l
 
 One implementer may remove redundant write/lookups only after preserving mode handling, action ordering, existing event condition, signed-zero/absent-entry behavior, all instructions/time/budgets and rollback. One short paired saved-horizon comparison must establish a measurable improvement with full return equality before heavy CI. No special pupil-sketch path, skipped instructions, wider physical steps, clock rebasing, relaxed timeouts or repeated profile. If benefit is absent, stop this candidate without a blind browser rerun. New exact source/math reviews and unchanged real-browser scenarios remain required. High-frequency per-LED rendering and open Blockly remain unproved same-goal followups. No integration/deployment/owner acceptance claimed.
 
+### R17 bounded author evidence
+
+Only the write branch in applyRuntimeAction changes: read the previous voltage after original mode handling, retain the original !== event condition, and omit Map.set only when Object.is says the stored value is identical. Missing entries and signed-zero assignments retain their prior result; every instruction/action/time/budget still executes. No special source pattern or runtime cache is added.
+
+One finite unprofiled Node ABBA comparison replays the actual77 horizons from directed38831817911: before1051.1845/1019.9349ms, after1025.0433/890.2964ms. All77 complete public returns remain identical in every pass. Both pair directions improve, but the26.1ms cold versus129.6ms warm difference limits confidence; about7.5% mean reduction is local evidence only, not a promise of browser acceptance. The106.29ms prior sampled cost belongs to the whole function, not Map.set alone. No repeated benchmark/profile or blind CI run is performed.
+
+Targeted clock44 tests pass, including new repeated pull-up/PWM, signed-zero/missing output and instruction-preservation regressions.114 complete before/after runtime comparisons cover budgets1/7/256, JSON continuation, finite PWM/zero, input reads, shadowing, arithmetic rollback and tone interaction. Types/lint pass; saved engine input hashes bind before to1eff and after to the final candidate. Artifacts remain under r17-runtime-write-cost. New independent exact source/math review and unchanged browser evidence are still required; no integration, capacity, deployment or owner acceptance claim.
+
 ## R16 native Worker cost: actual no-delay browser failure
 
 Preserve exact3d159c656f9ee040b766697e87436baa5e135237. Its source and independent mathematics are approved; required product review REQUEST_CHANGES. Focused38827436547 passes721 domain/486 web tests and70 fresh Nx tasks; unchanged delay2000 is1786ms under the original5000ms limit. General38827431197 Governance/Code pass; Data/Access pending at selection. No foreign repair is authorized.

@@ -503,13 +503,15 @@ function applyRuntimeAction(
         emit,
       );
     }
-    if (outputVoltages.get(action.terminal) !== action.targetVoltage) {
+    const previousVoltage = outputVoltages.get(action.terminal);
+    if (previousVoltage !== action.targetVoltage) {
       emit(
         { kind: 'output-change', terminal: action.terminal, voltage: action.targetVoltage },
         executionTimeMs,
       );
     }
-    outputVoltages.set(action.terminal, action.targetVoltage);
+    if (!Object.is(previousVoltage, action.targetVoltage))
+      outputVoltages.set(action.terminal, action.targetVoltage);
   } else if (action.kind === 'tone') {
     if (pinModes.get(action.terminal) !== 'OUTPUT')
       applyRuntimeAction(
