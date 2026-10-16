@@ -39,7 +39,7 @@ interface Message {
   requestId: string;
 }
 
-async function fixture(page: Page) {
+async function fixture(page: Page, answer = 'Arduino — это платформа для электроники.') {
   const threads: { id: string; title: string; updatedAt: string }[] = [];
   const messages = new Map<string, Message[]>();
   const requests: string[] = [];
@@ -127,7 +127,7 @@ async function fixture(page: Page) {
         history.push({
           id: randomUUID(),
           role: 'assistant',
-          content: 'Arduino — это платформа для электроники.',
+          content: answer,
           createdAt: NOW,
           requestId: payload.requestId,
         });
@@ -254,4 +254,39 @@ test('AI conversation rename and delete update the sidebar without phantom histo
   await expect
     .poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
     .toBe(true);
+});
+
+test('AI renders GFM tables, code and safe links without injecting HTML', async ({ page }) => {
+  const markdown = [
+    '# Объяснение',
+    '',
+    '- **Arduino** — платформа',
+    '- `digitalWrite` управляет пином',
+    '',
+    '| Пин | Режим |',
+    '| --- | --- |',
+    '| 13 | OUTPUT |',
+    '',
+    '```cpp',
+    'digitalWrite(13, HIGH);',
+    '```',
+    '',
+    '[Документация](https://example.com/arduino)',
+    '',
+    '<script>window.hacked = true</script>',
+  ].join('\\n');
+  const fake = await fixture(page, markdown);
+  await page.goto('/#/ai');
+  await page.getByRole('textbox', { name: 'Сообщение ИИ' }).fill('Поясни мне Arduino');
+  await page.getByRole('button', { name: 'Отправить сообщение' }).click();
+  fake.release();
+  await expect(page.getByRole('heading', { name: 'Объяснение' })).toBeVisible();
+  await expect(page.locator('.asa-ai-rich-text strong').filter({ hasText: 'Arduino' })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Таблица ответа' }).getByText('OUTPUT')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Копировать код' })).toBeVisible();
+  const link = page.getByRole('link', { name: 'Документация' });
+  await expect(link).toHaveAttribute('href', 'https://example.com/arduino');
+  await expect(link).toHaveAttribute('rel', /noopener/);
+  expect(await page.evaluate(() => (window as Window & { hacked?: boolean }).hacked)).toBeUndefined();
+  await expect(page.locator('.asa-ai-rich-text script')).toHaveCount(0);
 });
