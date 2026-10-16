@@ -4748,18 +4748,20 @@ for (const seat of [false, true])
           },
         });
       });
-      await page.route(`**/api/projects/${startupProjectId}/blocks/runtime-session`, (route) =>
-        route.fulfill({
+      await page.route(`**/api/projects/${startupProjectId}/blocks/runtime-session`, (route) => {
+        const serverNow = new Date();
+        return route.fulfill({
+          headers: { date: serverNow.toUTCString() },
           json: {
             runtimeOrigin: 'http://127.0.0.1:4612',
             runtimeToken: 'fixture.payload.signature',
-            expiresAt: Math.floor(Date.now() / 1000) + 3600,
+            expiresAt: Math.floor(serverNow.getTime() / 1000) + 3600,
             draftRevision: 7,
             projectJson,
             assets: [],
           },
-        }),
-      );
+        });
+      });
       // GUI is a protocol fixture, not a second Scratch runtime. The compiled ASA
       // host, Blocks adapter, actor props and real bridge execute unchanged.
       await page.route(
@@ -5101,7 +5103,7 @@ test('R2 short admin drawer scrolls navigation independently while profile, clos
   await page.goto('/#/admin');
   await page.getByRole('button', { name: 'Открыть меню', exact: true }).click();
   const sidebar = page.locator('#portal-sidebar');
-  // The extra AI settings entry must remain keyboard/scroll reachable.
+  // The AI configuration entry must remain scrollable on small screens.
   await expect(sidebar.locator('.portal-admin-subnav-item')).toHaveCount(9);
   await expect(sidebar.getByRole('button', { name: 'Закрыть меню', exact: true })).toBeInViewport();
   await expect(sidebar.getByRole('button', { name: 'Выбрать аватар в меню' })).toBeInViewport();

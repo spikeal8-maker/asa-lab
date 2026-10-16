@@ -14,7 +14,7 @@ name: ASA AI Chat Focused
       - 'apps/web/src/admin/admin-navigation.ts'
       - 'apps/web/src/App.tsx'
       - 'e2e/ai-chat.spec.ts'
-      - 'migrations/0213_ai_assistant_text_chat.sql'
+      - 'migrations/0214_ai_assistant_text_chat.sql'
       - 'tests/admin/ai-chat.pg.spec.ts'
       - 'playwright.ai-chat.config.ts'
       - '.github/workflows/ai-chat-focused.yml'

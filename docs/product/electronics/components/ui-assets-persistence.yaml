@@ -115,6 +115,7 @@ components:
     - apps/web/src/electronics/ArduinoCodePanel.tsx
     - apps/web/src/electronics/electronics-document-merge.ts
     - apps/web/src/electronics/workbench-autosave.ts
+    - apps/web/src/electronics/electronics-project-recovery.ts
     - apps/web/src/electronics/workbench-document.ts
     - apps/api/src/validation.ts
     - apps/web/src/modules/project-local-draft.ts
@@ -124,6 +125,7 @@ components:
     - apps/web/src/electronics/testing/arduino-code-contract.spec.ts
     - apps/web/src/electronics/testing/arduino-code-panel-persistence.spec.ts
     - apps/web/src/electronics/testing/workbench-autosave.spec.ts
+    - apps/web/src/electronics/testing/electronics-project-recovery.spec.ts
     - apps/web/src/electronics/testing/workbench-document.spec.ts
     - apps/api/src/electronics-save-validation.spec.ts
     - apps/web/src/electronics/testing/electronics-document-merge.spec.ts

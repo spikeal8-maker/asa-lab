@@ -85,14 +85,11 @@ describe('Course Builder structure forward upgrade', () => {
         '0210', // Bind history content checks to class candidates; preserve data and caller settings.
         '0211', // Canonical manual material delivery.
         '0212', // Exact published catalogue copy.
+        '0213', // Read-only canonical class rating summary; preserves all historical data.
+        '0214', // Account-scoped AI Assistant settings, messages and stream status.
       ];
       const pre153 = plan.filter((item) => Number(item.version) <= 152);
-      // This historical Course Builder fixture ends at the current published
-      // Learning/Portal schema 0212; AI migration 0213 is separately verified.
-      const upgradePlan = plan.filter((item) => {
-        const version = Number(item.version);
-        return version > 152 && version <= 212;
-      });
+      const upgradePlan = plan.filter((item) => Number(item.version) > 152);
       expect(upgradePlan.map((item) => item.version)).toEqual(expectedUpgradeVersions);
       const bootstrap = await pool.connect();
       try {
@@ -331,17 +328,14 @@ describe('Course Builder structure forward upgrade', () => {
           ),
         ).toBe(expectedUpgradeVersions.length - post191Versions.length);
         const post210Versions = expectedUpgradeVersions.filter((version) => Number(version) > 210);
-        expect(post210Versions).toEqual(['0211', '0212']);
+        expect(post210Versions).toEqual(['0211', '0212', '0213', '0214']);
         expect(
           await applyIsolatedTestPlan(
             upgrade,
             plan.filter((item) => Number(item.version) <= 210),
           ),
         ).toBe(post191Versions.length - post210Versions.length);
-        // Future product migrations (such as AI 0213) are additive; the
-        // Course Builder fixture is intentionally pinned through 0212.
-        const remaining = plan.filter((item) => Number(item.version) > 210);
-        expect(await applyIsolatedTestPlan(upgrade, plan)).toBe(remaining.length);
+        expect(await applyIsolatedTestPlan(upgrade, plan)).toBe(post210Versions.length);
         expect(await applyIsolatedTestPlan(upgrade, plan)).toBe(0);
       } finally {
         upgrade.release();
