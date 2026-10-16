@@ -105,16 +105,16 @@ export function AttendedClassesPage({
   return (
     <main id="main-content" className="portal-content attended-classes" tabIndex={-1}>
       {!hideHeading ? (
-      <header className="attended-heading">
-        <div>
-          <h1>{mode === 'learning' ? 'Моё обучение' : 'Я учусь'}</h1>
-          <p>
-            {mode === 'learning'
-              ? 'Здесь собраны выданные вам материалы и задания. Чтобы получить маршрут, войдите в класс по коду преподавателя.'
-              : 'Классы, в которые вы вошли по коду. Работы остаются вашими и лежат в ваших проектах.'}
-          </p>
-        </div>
-      </header>
+        <header className="attended-heading">
+          <div>
+            <h1>{mode === 'learning' ? 'Моё обучение' : 'Я учусь'}</h1>
+            <p>
+              {mode === 'learning'
+                ? 'Здесь собраны выданные вам материалы и задания. Чтобы получить маршрут, войдите в класс по коду преподавателя.'
+                : 'Классы, в которые вы вошли по коду. Работы остаются вашими и лежат в ваших проектах.'}
+            </p>
+          </div>
+        </header>
       ) : null}
 
       {loadError ? (
@@ -181,24 +181,24 @@ export function AttendedClassesPage({
                     <span>Преподаватель: {entry.teacherDisplayName}</span>
                     {mode === 'classes' ? (
                       <>
-                    <button
-                      type="button"
-                      className="btn-secondary"
-                      aria-expanded={participantSeatId === entry.seatId}
-                      onClick={() =>
-                        setParticipantSeatId((current) =>
-                          current === entry.seatId ? null : entry.seatId,
-                        )
-                      }
-                    >
-                      Мой рейтинг и заслуги
-                    </button>
-                    {participantSeatId === entry.seatId ? (
-                      <StudentParticipantSummary
-                        key={entry.seatId}
-                        accountSeat={{ classroomId: entry.classroomId, seatId: entry.seatId }}
-                      />
-                    ) : null}
+                        <button
+                          type="button"
+                          className="btn-secondary"
+                          aria-expanded={participantSeatId === entry.seatId}
+                          onClick={() =>
+                            setParticipantSeatId((current) =>
+                              current === entry.seatId ? null : entry.seatId,
+                            )
+                          }
+                        >
+                          Мой рейтинг и заслуги
+                        </button>
+                        {participantSeatId === entry.seatId ? (
+                          <StudentParticipantSummary
+                            key={entry.seatId}
+                            accountSeat={{ classroomId: entry.classroomId, seatId: entry.seatId }}
+                          />
+                        ) : null}
                       </>
                     ) : null}
                     <details>
