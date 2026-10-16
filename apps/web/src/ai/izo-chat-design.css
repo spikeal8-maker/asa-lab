@@ -1749,3 +1749,28 @@
 .asa-ai-table-scroll th {
   background: color-mix(in srgb, var(--color-text) 5%, transparent);
 }
+
+.asa-ai-chat .asa-ai-model-picker {
+  max-width: 150px;
+  min-width: 0;
+  padding: 6px 9px;
+  border-radius: 9px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 12px;
+  cursor: pointer;
+}
+.asa-ai-chat .asa-ai-model-picker:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+@media (max-width: 640px) {
+  .asa-ai-chat .asa-ai-model-picker {
+    max-width: min(42vw, 150px);
+  }
+  .asa-ai-chat .asa-ai-provider-label {
+    gap: 7px;
+    margin-left: 6px;
+  }
+}
