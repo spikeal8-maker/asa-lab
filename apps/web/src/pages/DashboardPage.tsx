@@ -24,7 +24,7 @@ const CLASSROOM_ROLE_TABS: ReadonlyArray<{
   label: string;
   compactLabel: string;
 }> = [
-  { id: 'teaching', label: 'Преподавание', compactLabel: 'Преподавание' },
+  { id: 'teaching', label: 'Преподавание', compactLabel: 'Преподаю' },
   { id: 'archived', label: 'В архиве', compactLabel: 'Архив' },
   { id: 'coteaching', label: 'Совместное преподавание', compactLabel: 'Совместно' },
   { id: 'enrolled', label: 'Зарегистрированные', compactLabel: 'Учусь' },

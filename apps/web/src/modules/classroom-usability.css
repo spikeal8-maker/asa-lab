@@ -2600,11 +2600,14 @@
   .classroom-owner-list .classroom-row-select {
     grid-area: 1 / 1 / 2 / 2;
   }
-  .classroom-owner-list .classroom-row-title {
+  .classroom-owner-list .classroom-list-row .classroom-row-title {
     grid-area: 1 / 2 / 2 / 4;
-    font-size: 12px;
-    line-height: 1.12;
+    min-width: 0;
+    font-size: 11px;
+    line-height: 1.15;
+    white-space: normal;
     overflow-wrap: anywhere;
+    word-break: break-word;
   }
   .classroom-owner-list .classroom-row-menu {
     grid-area: 1 / 4 / 2 / 5;

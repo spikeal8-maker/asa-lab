@@ -551,7 +551,7 @@ test.describe('Owner mobile classroom: usable register', () => {
       await page.screenshot({ path: `${output}/classroom-${width}.png` });
       expect(geometry.documentWidth).toBeLessThanOrEqual(width);
       expect(geometry.mainScrollWidth).toBeLessThanOrEqual(geometry.mainWidth + 1);
-      expect(geometry.nameSize).toBe('16px');
+      expect(geometry.nameSize).toBe(width <= 600 ? '13px' : '16px');
       if (width <= 600) {
         const protection = page
           .locator('.classroom-roster-row')
