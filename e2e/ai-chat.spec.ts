@@ -203,7 +203,7 @@ for (const width of [1440, 1024, 390, 320]) {
     if (width < 1120) {
       await page.getByRole('button', { name: 'Открыть историю диалогов' }).click();
     }
-    await page.getByRole('button', { name: 'Что такое Arduino?' }).click();
+    await page.getByRole('button', { name: 'Что такое Arduino?', exact: true }).click();
     await expect(page.getByText('Arduino — это платформа для электроники.')).toBeVisible();
     expect(fake.requests).toHaveLength(1);
   });
@@ -242,14 +242,14 @@ test('AI conversation rename and delete update the sidebar without phantom histo
     .getByRole('textbox', { name: 'Новое название диалога' })
     .fill('Робототехника и Arduino');
   await sidebar.getByRole('button', { name: 'Сохранить' }).click();
-  await expect(sidebar.getByRole('button', { name: 'Робототехника и Arduino' })).toBeVisible();
+  await expect(sidebar.getByRole('button', { name: 'Робототехника и Arduino', exact: true })).toBeVisible();
   await sidebar.getByRole('button', { name: 'Удалить: Робототехника и Arduino' }).click();
   await expect(sidebar.getByRole('group', { name: 'Подтверждение удаления' })).toBeVisible();
   await sidebar.getByRole('button', { name: 'Отмена' }).click();
-  await expect(sidebar.getByRole('button', { name: 'Робототехника и Arduino' })).toBeVisible();
+  await expect(sidebar.getByRole('button', { name: 'Робототехника и Arduino', exact: true })).toBeVisible();
   await sidebar.getByRole('button', { name: 'Удалить: Робототехника и Arduino' }).click();
   await sidebar.getByRole('button', { name: 'Удалить', exact: true }).click();
-  await expect(sidebar.getByRole('button', { name: 'Робототехника и Arduino' })).toHaveCount(0);
+  await expect(sidebar.getByRole('button', { name: 'Робототехника и Arduino', exact: true })).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'Чем я могу помочь?' })).toBeVisible();
   await expect
     .poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
