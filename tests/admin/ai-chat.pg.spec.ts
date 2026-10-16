@@ -20,7 +20,6 @@ let stranger: Identity;
 let platformAdmin: Identity;
 let providerCalls = 0;
 
-
 async function makeIdentity(name: string, elevated: boolean): Promise<Identity> {
   const id = randomUUID();
   const account = await admin.query<{ id: string }>(
