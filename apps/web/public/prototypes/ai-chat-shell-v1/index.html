@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Изолированный прототип полноэкранного ИИ-чата ASA Lab." />
+    <title>ASA Lab — ИИ</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="ai-shell" data-sidebar-open="true">
+      <aside class="ai-sidebar" aria-label="История диалогов">
+        <div class="sidebar-head">
+          <a class="brand" href="#" aria-label="ASA Lab">
+            <span class="brand-mark">A</span>
+            <span class="brand-copy">
+              <strong>ASA Lab</strong>
+              <small>ИИ-помощник</small>
+            </span>
+          </a>
+          <button
+            class="icon-button"
+            id="collapseSidebar"
+            type="button"
+            aria-label="Свернуть панель"
+          >
+            <span aria-hidden="true">‹</span>
+          </button>
+        </div>
+
+        <div class="sidebar-actions">
+          <button class="primary-action" id="newChat" type="button">
+            <span aria-hidden="true">＋</span>
+            <span>Новый чат</span>
+          </button>
+          <label class="search-box">
+            <span class="sr-only">Поиск по чатам</span>
+            <span aria-hidden="true">⌕</span>
+            <input
+              id="historySearch"
+              type="search"
+              placeholder="Поиск по чатам"
+              autocomplete="off"
+            />
+          </label>
+        </div>
+
+        <div class="history-section">
+          <div class="section-label">Недавние</div>
+          <div class="history-list" id="historyList"></div>
+        </div>
+
+        <div class="sidebar-bottom">
+          <div class="profile-card">
+            <div class="avatar" aria-hidden="true">А</div>
+            <div class="profile-copy">
+              <strong>Ученик ASA Lab</strong>
+              <span>Учебный помощник</span>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <button
+        class="drawer-backdrop"
+        id="drawerBackdrop"
+        type="button"
+        aria-label="Закрыть меню"
+      ></button>
+
+      <section class="ai-main" aria-label="Чат">
+        <header class="chat-toolbar">
+          <button
+            class="icon-button open-sidebar"
+            id="openSidebar"
+            type="button"
+            aria-label="Открыть панель"
+          >
+            <span aria-hidden="true">☰</span>
+          </button>
+          <div class="toolbar-title">
+            <strong>ИИ</strong>
+            <span class="prototype-badge">Прототип · без модели</span>
+          </div>
+          <button class="icon-button" id="themeToggle" type="button" aria-label="Сменить тему">
+            <span aria-hidden="true">◐</span>
+          </button>
+        </header>
+
+        <div class="chat-scroll" id="chatScroll" aria-live="polite">
+          <div class="chat-column">
+            <section class="start-state" id="startState">
+              <div class="hero-orb" aria-hidden="true">A</div>
+              <div>
+                <h1>Чем я могу помочь?</h1>
+                <p>
+                  Спроси про проект, электронику, программирование или учебную тему. На первом срезе
+                  это только интерфейс — реальная ИИ-модель ещё не подключена.
+                </p>
+              </div>
+              <div class="prompt-grid" aria-label="Примеры вопросов">
+                <button type="button" data-prompt="Объясни, почему светодиоду нужен резистор.">
+                  <strong>Электроника</strong>
+                  <span>Почему светодиоду нужен резистор?</span>
+                </button>
+                <button type="button" data-prompt="Помоги придумать проект на Arduino для школы.">
+                  <strong>Проект</strong>
+                  <span>Придумать идею на Arduino</span>
+                </button>
+                <button type="button" data-prompt="Объясни цикл for на простом примере.">
+                  <strong>Программирование</strong>
+                  <span>Разобрать цикл for</span>
+                </button>
+                <button
+                  type="button"
+                  data-prompt="Составь план изучения 3D-моделирования на неделю."
+                >
+                  <strong>Обучение</strong>
+                  <span>План по 3D-моделированию</span>
+                </button>
+              </div>
+            </section>
+
+            <div class="messages" id="messages"></div>
+          </div>
+        </div>
+
+        <div class="composer-dock">
+          <form class="composer" id="composer">
+            <button
+              class="round-button"
+              type="button"
+              aria-label="Прикрепить файл"
+              title="Будет подключено позже"
+            >
+              <span aria-hidden="true">＋</span>
+            </button>
+            <textarea
+              id="promptInput"
+              rows="1"
+              placeholder="Спросите что-нибудь…"
+              aria-label="Сообщение"
+            ></textarea>
+            <button class="send-button" id="sendButton" type="submit" aria-label="Отправить">
+              <span aria-hidden="true">↑</span>
+            </button>
+          </form>
+          <p class="composer-note">
+            Сейчас работает только UI-прототип. Ответы модели появятся в следующем срезе.
+          </p>
+        </div>
+      </section>
+    </main>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
