@@ -216,8 +216,15 @@
     grid-area: public;
     display: flex;
     gap: 0;
-    justify-content: stretch;
+    justify-content: flex-start;
     min-width: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+  }
+  .portal-header .portal-global-nav::-webkit-scrollbar {
+    display: none;
   }
   .portal-header .portal-global-nav a {
     flex: 0 0 44px;
@@ -425,6 +432,10 @@
   .portal-shell .portal-header {
     grid-template-columns: 44px minmax(0, 1fr) 88px 44px 44px;
     column-gap: 3px;
+  }
+  .portal-shell .portal-header .portal-brand {
+    min-width: 44px;
+    min-height: 44px;
   }
   .portal-header .portal-header-create {
     box-sizing: border-box;

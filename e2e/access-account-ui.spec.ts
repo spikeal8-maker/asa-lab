@@ -2201,6 +2201,7 @@ async function assertShellGeometry(page: Page, width: number) {
       const r = element.getBoundingClientRect();
       return { x: r.x, y: r.y, right: r.right, bottom: r.bottom, width: r.width, height: r.height };
     };
+    const navBox = header.querySelector('.portal-global-nav')!.getBoundingClientRect();
     const selectors = [
       '.portal-menu-toggle',
       '.portal-brand',
@@ -2214,6 +2215,12 @@ async function assertShellGeometry(page: Page, width: number) {
       controls: selectors.flatMap((selector) =>
         [...header.querySelectorAll(selector)]
           .filter((element) => element.checkVisibility())
+          .filter((element) => {
+            if (!element.closest('.portal-global-nav')) return true;
+            const r = element.getBoundingClientRect();
+            // Navigation clips offscreen links until the user scrolls that row.
+            return r.left >= navBox.left - 1 && r.right <= navBox.right + 1;
+          })
           .map((element) => ({
             label: element.getAttribute('aria-label') ?? element.textContent,
             ...bounds(element),
@@ -2251,8 +2258,8 @@ async function assertShellGeometry(page: Page, width: number) {
   }
   for (const link of metrics.links) expect(link.height).toBeGreaterThanOrEqual(44);
   if (width <= 1023) {
-    expect(metrics.header.height).toBeGreaterThanOrEqual(100);
-    for (const link of metrics.links) expect(link.y).toBeGreaterThanOrEqual(metrics.header.y + 56);
+    expect(metrics.header.height).toBeLessThanOrEqual(60);
+    // The main screen stays below the single row, not an obsolete 100px header.
     // A hidden desktop sidebar must not leave its 264px content offset behind.
     expect(metrics.main.x).toBeLessThanOrEqual(24);
     expect(metrics.main.right).toBeLessThanOrEqual(width);
@@ -2289,6 +2296,23 @@ for (const width of [1440, 1024, 390, 320, 349, 350, 600, 601, 820, 821, 1022, 1
     });
     await assertShellGeometry(page, width);
     await page.screenshot({ path: `${shellEvidence}/third-link-fixture-${width}.png` });
+    if (width <= 1023) {
+      const futureLink = publicNav.locator('[data-layout-fixture]');
+      const navigationScrollable = await publicNav.evaluate(
+        (nav) => nav.scrollWidth > nav.clientWidth,
+      );
+      expect(navigationScrollable, 'third public link must remain reachable').toBe(true);
+      await futureLink.scrollIntoViewIfNeeded();
+      await expect(futureLink).toBeVisible();
+      const withinNav = await publicNav.evaluate((nav) => {
+        const link = nav.querySelector('[data-layout-fixture]')!;
+        const clip = nav.getBoundingClientRect();
+        const r = link.getBoundingClientRect();
+        return r.left >= clip.left - 1 && r.right <= clip.right + 1;
+      });
+      expect(withinNav, 'third link visible after local nav scroll').toBe(true);
+      await assertShellGeometry(page, width);
+    }
     await publicNav.locator('[data-layout-fixture]').evaluate((element) => element.remove());
     const sidebar = page.locator('#portal-sidebar');
     const settings = sidebar.getByRole('link', {
