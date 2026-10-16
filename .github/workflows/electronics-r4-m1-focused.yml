@@ -1,34 +1,6 @@
-name: Electronics R4-M1 Focused
+name: Electronics R16 Exact Native Worker Cost Diagnostic
 
 on:
-  pull_request:
-    paths:
-      - 'compose.test.yaml'
-      - '.github/compose.registry-ci.yaml'
-      - 'apps/api/src/origin-policy.ts'
-      - 'apps/api/src/app.factory.ts'
-      - 'AGENTS.md'
-      - 'contexts/electronics/**'
-      - 'apps/web/src/electronics/**'
-      - 'apps/web/src/pages/SchematicEditor.tsx'
-      - 'apps/web/vite.config.ts'
-      - 'apps/web/tsconfig.json'
-      - 'e2e/electronics-simulation.spec.ts'
-      - 'e2e/electronics-simulation-time.spec.ts'
-      - 'e2e/electronics-interactions.spec.ts'
-      - 'e2e/electronics-piezo-clock.spec.ts'
-      - 'e2e/electronics-native-wheel.spec.ts'
-      - 'e2e/electronics-ready-cadence.spec.ts'
-      - 'tests/electronics/**'
-      - 'tools/run-electronics-benchmark.mjs'
-      - 'tools/run-electronics-browser-benchmark.mjs'
-      - 'tools/run-electronics-load-benchmark.mjs'
-      - 'tools/run-electronics-memory-benchmark.mjs'
-      - 'tools/update-electronics-benchmark-golden.mjs'
-      - 'docs/delivery/evidence/electronics-opt0/**'
-      - 'package.json'
-      - 'pnpm-lock.yaml'
-      - '.github/workflows/electronics-r4-m1-focused.yml'
   workflow_dispatch:
 
 permissions:
@@ -38,103 +10,18 @@ env:
   NX_SKIP_NX_CACHE: 'true'
 
 concurrency:
-  group: electronics-r4-m1-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  group: electronics-r16-native-worker-cost-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
-  focused:
-    name: Shared solver, editor contracts and build
-    runs-on: ubuntu-24.04
-    timeout-minutes: 25
-    env:
-      CI: 'true'
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          persist-credentials: false
-          fetch-depth: 0
-
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9.15.9
-          run_install: false
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-
-      - name: Install exact dependencies
-        run: pnpm install --frozen-lockfile
-
-      # One gate per result: the same command a local agent and an owner
-      # evidence run invoke. Do not inline its steps here.
-      - name: Focused Electronics M1 gate
-        run: pnpm gate:electronics-m1
-
-  benchmark:
-    name: Electronics E-OPT benchmark integrity
-    needs: focused
-    runs-on: ubuntu-24.04
-    timeout-minutes: 25
-    env:
-      CI: 'true'
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          persist-credentials: false
-          fetch-depth: 0
-
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9.15.9
-          run_install: false
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-
-      - name: Install exact dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Install Chromium for benchmark probes
-        run: pnpm exec playwright install --with-deps chromium
-
-      # Performance timings are evidence only at E-OPT-0. This gate fails on
-      # execution errors, status drift, golden-result drift or nondeterminism;
-      # it deliberately has no millisecond threshold yet.
-      - name: Electronics E-OPT quick benchmark suite
-        run: pnpm benchmark:electronics:ci
-
-      - name: Upload E-OPT benchmark evidence
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: electronics-e-opt-${{ github.run_id }}
-          path: |
-            reports/electronics-opt0-*.json
-            reports/electronics-opt0-*.md
-          if-no-files-found: ignore
-          retention-days: 14
-
   browser:
-    name: Actual editor live simulation journey
-    needs: focused
+    name: One unchanged no-delay case with native Worker CPU sampling
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     env:
       CI: 'true'
-      ASA_BUILD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
-      ASA_IMAGE_TAG: ${{ github.event.pull_request.head.sha || github.sha }}
+      ASA_BUILD_REVISION: 3d159c656f9ee040b766697e87436baa5e135237
+      ASA_IMAGE_TAG: 3d159c656f9ee040b766697e87436baa5e135237
       COMPOSE_PROJECT_NAME: asa-lab-electronics-${{ github.run_id }}
       ASA_TEST_UID: '1000'
       ASA_TEST_GID: '1000'
@@ -142,7 +29,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: 3d159c656f9ee040b766697e87436baa5e135237
           persist-credentials: false
           fetch-depth: 0
 
@@ -151,38 +38,79 @@ jobs:
           mkdir -p e2e/artifacts/electronics-simulation reports
           chmod -R 0777 e2e/artifacts reports
 
+      - name: Verify pinned PostgreSQL identity and prepare CI-only transport
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -c "from pathlib import Path; assert 'public.ecr.aws/docker/library/postgres@sha256:e9243ab06e47223dedeb3c129fa9ece8d37f506bdc6ee943afb9335f98bb4854' in Path('.github/compose.registry-ci.yaml').read_text()"
+          printf 'services:\n  postgres:\n    image: docker.io/library/postgres@sha256:e9243ab06e47223dedeb3c129fa9ece8d37f506bdc6ee943afb9335f98bb4854\n' > "$RUNNER_TEMP/electronics-postgres-transport.yaml"
+
       - name: Build isolated Electronics browser images
         run: >-
-          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml --profile test
-          build --build-arg NODE_IMAGE=public.ecr.aws/docker/library/node@sha256:43aeff40f4afc22e83f7589a2f37e111cff5ca84529571f1c8415bcc5fcc21b2 --build-arg CADDY_IMAGE=public.ecr.aws/docker/library/caddy@sha256:d8c17a862962def15cde69863a3a463f25a2664942eafd7bdbf050e9c3116b83 --build-arg BUILDKIT_SYNTAX=mirror.gcr.io/docker/dockerfile@sha256:b5f3b260a9678e1d83d2fce86eeddf79420b79147eaba2a25986f47133d73720 migration api web test-runner
+          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/electronics-postgres-transport.yaml" --profile test
+          build --build-arg NODE_IMAGE=docker.io/library/node@sha256:43aeff40f4afc22e83f7589a2f37e111cff5ca84529571f1c8415bcc5fcc21b2 --build-arg CADDY_IMAGE=docker.io/library/caddy@sha256:d8c17a862962def15cde69863a3a463f25a2664942eafd7bdbf050e9c3116b83 --build-arg BUILDKIT_SYNTAX=mirror.gcr.io/docker/dockerfile@sha256:b5f3b260a9678e1d83d2fce86eeddf79420b79147eaba2a25986f47133d73720 migration api web test-runner
 
       - name: Start isolated PostgreSQL
         run: >-
-          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml --profile test
+          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/electronics-postgres-transport.yaml" --profile test
           up -d --wait --wait-timeout 120 postgres
 
       - name: Apply isolated migrations
         run: >-
-          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml --profile test
+          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/electronics-postgres-transport.yaml" --profile test
           run --rm --no-deps migration
 
       - name: Start Electronics API and Web without unrelated media services
         run: >-
-          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml --profile test
+          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/electronics-postgres-transport.yaml" --profile test
           up -d --wait --wait-timeout 240 --no-deps api web
 
-      # Identical to the command registered in docs/testing/active-task-tests.yaml.
-      # Named as its own gate because `gate:electronics-m1` deliberately does not
-      # include it: that gate needs no browser stack, this one does.
-      - name: Electronics M1 browser gate
+      - name: Verify actual candidate checkout and built Web revision
+        run: |
+          test "$(git rev-parse HEAD)" = "$ASA_BUILD_REVISION"
+          curl --fail --silent http://127.0.0.1:4612/build-metadata.json > reports/owner-arduino-timing-build-metadata.json
+          python3 -c "import json,os; assert json.load(open('reports/owner-arduino-timing-build-metadata.json'))['revision'] == os.environ['ASA_BUILD_REVISION']"
+          git rev-parse HEAD > reports/owner-arduino-timing-source-sha.txt
+          sha256sum pnpm-lock.yaml compose.yaml compose.test.yaml .github/compose.registry-ci.yaml > reports/owner-arduino-timing-inputs.sha256
+
+      - name: Prepare external diagnostic hooks after exact production build
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import base64, hashlib, json, os
+          from pathlib import Path
+          p = json.loads('{"productSha":"3d159c656f9ee040b766697e87436baa5e135237","originalSha256":"74e45a784a4880a90834a92bda1034086721bf190f0f04179427544e4b8030e5","helperSha256":"295dbd8ef59be2f2fa5032fb80411129ef40c73b43845da52f4171b728e50dc2","instrumentedSha256":"b290be834a4f9282bf4fb07131d5b06b2ec866f5e33b37403082293bf666331b","helperBase64":"J3VzZSBzdHJpY3QnOwoKLy8gRXh0ZXJuYWwgZGlhZ25vc3RpYyBob29rcy4gTm8gcmVwbGFjZW1lbnQgV29ya2VyLCBlbmdpbmUsIGZpeHR1cmUgb3IgYXNzZXJ0aW9uLgpjb25zdCB7IGNyZWF0ZUhhc2ggfSA9IHJlcXVpcmUoJ25vZGU6Y3J5cHRvJyk7CmNvbnN0IHsgbWtkaXJTeW5jLCB3cml0ZUZpbGVTeW5jIH0gPSByZXF1aXJlKCdub2RlOmZzJyk7CmNvbnN0IHsgcmVzb2x2ZSB9ID0gcmVxdWlyZSgnbm9kZTpwYXRoJyk7CmNvbnN0IFBST0RVQ1RfU0hBID0gJzNkMTU5YzY1NmY5ZWUwNDBiNzY2Njk3ZTg3NDM2YmFhNWUxMzUyMzcnOwpjb25zdCBUSVRMRSA9ICdPd25lciBBcmR1aW5vIGV4ZWN1dGlvbjogbm8tZGVsYXkgcmVhbHRpbWUsIHByb2R1Y3Rpb24gZnJhbWVzIGFuZCBwYWludGVkIExFRHMnOwpjb25zdCBzaGEyNTYgPSAoYnl0ZXMpID0+IGNyZWF0ZUhhc2goJ3NoYTI1NicpLnVwZGF0ZShieXRlcykuZGlnZXN0KCdoZXgnKTsKCmZ1bmN0aW9uIGluc3RhbGxXb3JrZXJQcm9maWxlKHRlc3QpIHsKICBjb25zdCBydW5zID0gbmV3IFdlYWtNYXAoKTsKICB0ZXN0LmJlZm9yZUVhY2goYXN5bmMgKHsgcGFnZSwgYnJvd3NlciwgYnJvd3Nlck5hbWUgfSwgaW5mbykgPT4gewogICAgaWYgKGluZm8udGl0bGUgIT09IFRJVExFKSB0aHJvdyBuZXcgRXJyb3IoJ1IxNiBkaWFnbm9zdGljIHBlcm1pdHMgb25seSB0aGUgZnJvemVuIG5vLWRlbGF5IGNhc2UnKTsKICAgIGlmIChicm93c2VyTmFtZSAhPT0gJ2Nocm9taXVtJykgdGhyb3cgbmV3IEVycm9yKCdSMTYgcmVxdWlyZXMgbmF0aXZlIENocm9taXVtJyk7CiAgICBjb25zdCBkaXJlY3RvcnkgPSByZXNvbHZlKCdlMmUvYXJ0aWZhY3RzL2VsZWN0cm9uaWNzLXNpbXVsYXRpb24vcjE2LW5hdGl2ZS13b3JrZXItY29zdCcpOwogICAgbWtkaXJTeW5jKGRpcmVjdG9yeSwgeyByZWN1cnNpdmU6IHRydWUgfSk7CiAgICBjb25zdCBjZHAgPSBhd2FpdCBwYWdlLmNvbnRleHQoKS5uZXdDRFBTZXNzaW9uKHBhZ2UpOwogICAgY29uc3Qgc2Vzc2lvbnMgPSBuZXcgTWFwKCk7CiAgICBjb25zdCBwZW5kaW5nID0gbmV3IE1hcCgpOwogICAgY29uc3Qgc3RhcnRzID0gW107CiAgICBjb25zdCBmYWlsdXJlcyA9IFtdOwogICAgbGV0IHNlcXVlbmNlID0gMDsKICAgIGNvbnN0IHJlcG9ydCA9IHsKICAgICAgcHJvZHVjdFNoYTogUFJPRFVDVF9TSEEsCiAgICAgIHRpdGxlOiBpbmZvLnRpdGxlLAogICAgICBjaHJvbWl1bVZlcnNpb246IGJyb3dzZXIudmVyc2lvbigpLAogICAgICBzYW1wbGluZ0ludGVydmFsTWljcm9zZWNvbmRzOiAxMDAwLAogICAgICBpbnRlcnByZXRhdGlvbjogJ0RpYWdub3N0aWMgc2FtcGxlZCBhdHRyaWJ1dGlvbiBvbmx5OyBwcm9maWxlciBlbGFwc2VkIHRpbWUgaXMgbm90IGFjY2VwdGFuY2Ugb3IgdGhyZWFkIENQVSBhY2NvdW50aW5nLicsCiAgICAgIHN0YXJ0ZWRBdDogbmV3IERhdGUoKS50b0lTT1N0cmluZygpLAogICAgICB3b3JrZXJzOiBbXSwKICAgICAgZmFpbHVyZXMsCiAgICB9OwogICAgY29uc3Qgc2F2ZVJlcG9ydCA9ICgpID0+IHdyaXRlRmlsZVN5bmMocmVzb2x2ZShkaXJlY3RvcnksICdwcm9maWxlLXJlY2VpcHQuanNvbicpLCBKU09OLnN0cmluZ2lmeShyZXBvcnQsIG51bGwsIDIpICsgJ1xuJyk7CiAgICBjb25zdCByZWNvcmRFcnJvciA9IChvcGVyYXRpb24sIGVycm9yKSA9PiB7CiAgICAgIGZhaWx1cmVzLnB1c2goeyBvcGVyYXRpb24sIG1lc3NhZ2U6IGVycm9yIGluc3RhbmNlb2YgRXJyb3IgPyBlcnJvci5tZXNzYWdlIDogU3RyaW5nKGVycm9yKSB9KTsKICAgICAgc2F2ZVJlcG9ydCgpOwogICAgfTsKICAgIC8vIE5vbi1mbGF0dGVuZWQgY2hpbGQgbWVzc2FnZXMgbmVlZCB0aGVpciBvd24gaWQvc2Vzc2lvbiBjb3JyZWxhdGlvbi4KICAgIGZ1bmN0aW9uIHNlbmRDaGlsZChzZXNzaW9uSWQsIG1ldGhvZCwgcGFyYW1zID0ge30pIHsKICAgICAgY29uc3QgaWQgPSArK3NlcXVlbmNlOwogICAgICByZXR1cm4gbmV3IFByb21pc2UoKHJlc29sdmVDb21tYW5kLCByZWplY3QpID0+IHsKICAgICAgICBjb25zdCBrZXkgPSBgJHtzZXNzaW9uSWR9OiR7aWR9YDsKICAgICAgICBjb25zdCB0aW1lciA9IHNldFRpbWVvdXQoKCkgPT4gewogICAgICAgICAgcGVuZGluZy5kZWxldGUoa2V5KTsKICAgICAgICAgIHJlamVjdChuZXcgRXJyb3IoYENEUCBkaWFnbm9zdGljIGNvbW1hbmQgdGltZWQgb3V0OiAke21ldGhvZH1gKSk7CiAgICAgICAgfSwgNTAwMCk7CiAgICAgICAgcGVuZGluZy5zZXQoa2V5LCB7IHJlc29sdmU6IHJlc29sdmVDb21tYW5kLCByZWplY3QsIHRpbWVyIH0pOwogICAgICAgIGNkcC5zZW5kKCdUYXJnZXQuc2VuZE1lc3NhZ2VUb1RhcmdldCcsIHsKICAgICAgICAgIHNlc3Npb25JZCwKICAgICAgICAgIG1lc3NhZ2U6IEpTT04uc3RyaW5naWZ5KHsgaWQsIG1ldGhvZCwgcGFyYW1zIH0pLAogICAgICAgIH0pLmNhdGNoKChlcnJvcikgPT4gewogICAgICAgICAgY2xlYXJUaW1lb3V0KHRpbWVyKTsKICAgICAgICAgIHBlbmRpbmcuZGVsZXRlKGtleSk7CiAgICAgICAgICByZWplY3QoZXJyb3IpOwogICAgICAgIH0pOwogICAgICB9KTsKICAgIH0KICAgIGNkcC5vbignVGFyZ2V0LnJlY2VpdmVkTWVzc2FnZUZyb21UYXJnZXQnLCAoeyBzZXNzaW9uSWQsIG1lc3NhZ2UgfSkgPT4gewogICAgICBjb25zdCBldmVudCA9IEpTT04ucGFyc2UobWVzc2FnZSk7CiAgICAgIGlmIChldmVudC5pZCAhPT0gdW5kZWZpbmVkKSB7CiAgICAgICAgY29uc3Qga2V5ID0gYCR7c2Vzc2lvbklkfToke2V2ZW50LmlkfWA7CiAgICAgICAgY29uc3QgY29tbWFuZCA9IHBlbmRpbmcuZ2V0KGtleSk7CiAgICAgICAgaWYgKCFjb21tYW5kKSByZXR1cm47CiAgICAgICAgY2xlYXJUaW1lb3V0KGNvbW1hbmQudGltZXIpOwogICAgICAgIHBlbmRpbmcuZGVsZXRlKGtleSk7CiAgICAgICAgaWYgKGV2ZW50LmVycm9yKSBjb21tYW5kLnJlamVjdChuZXcgRXJyb3IoSlNPTi5zdHJpbmdpZnkoZXZlbnQuZXJyb3IpKSk7CiAgICAgICAgZWxzZSBjb21tYW5kLnJlc29sdmUoZXZlbnQucmVzdWx0KTsKICAgICAgfSBlbHNlIGlmIChldmVudC5tZXRob2QgPT09ICdEZWJ1Z2dlci5zY3JpcHRQYXJzZWQnKSB7CiAgICAgICAgc2Vzc2lvbnMuZ2V0KHNlc3Npb25JZCk/LnNjcmlwdHMuc2V0KGV2ZW50LnBhcmFtcy5zY3JpcHRJZCwgZXZlbnQucGFyYW1zKTsKICAgICAgfQogICAgfSk7CiAgICBjZHAub24oJ1RhcmdldC5kZXRhY2hlZEZyb21UYXJnZXQnLCAoeyBzZXNzaW9uSWQgfSkgPT4gewogICAgICBjb25zdCB3b3JrZXIgPSBzZXNzaW9ucy5nZXQoc2Vzc2lvbklkKTsKICAgICAgaWYgKHdvcmtlcikgewogICAgICAgIHdvcmtlci5yZWNlaXB0LmRldGFjaGVkQXQgPSBuZXcgRGF0ZSgpLnRvSVNPU3RyaW5nKCk7CiAgICAgICAgaWYgKHdvcmtlci5zdGFydGVkICYmICF3b3JrZXIuc3RvcHBlZCkgcmVjb3JkRXJyb3IoJ3dvcmtlci1kZXRhY2hlZC1iZWZvcmUtcHJvZmlsZS1zdG9wJywgc2Vzc2lvbklkKTsKICAgICAgfQogICAgICBmb3IgKGNvbnN0IFtrZXksIGNvbW1hbmRdIG9mIHBlbmRpbmcpIHsKICAgICAgICBpZiAoIWtleS5zdGFydHNXaXRoKGAke3Nlc3Npb25JZH06YCkpIGNvbnRpbnVlOwogICAgICAgIGNsZWFyVGltZW91dChjb21tYW5kLnRpbWVyKTsKICAgICAgICBwZW5kaW5nLmRlbGV0ZShrZXkpOwogICAgICAgIGNvbW1hbmQucmVqZWN0KG5ldyBFcnJvcignV29ya2VyIGRldGFjaGVkIHdoaWxlIGRpYWdub3N0aWMgY29tbWFuZCB3YXMgcGVuZGluZycpKTsKICAgICAgfQogICAgfSk7CiAgICBjZHAub24oJ1RhcmdldC5hdHRhY2hlZFRvVGFyZ2V0JywgKGV2ZW50KSA9PiB7CiAgICAgIGNvbnN0IHJlY2VpcHQgPSB7CiAgICAgICAgaW5kZXg6IHNlc3Npb25zLnNpemUgKyAxLAogICAgICAgIHNlc3Npb25JZDogZXZlbnQuc2Vzc2lvbklkLAogICAgICAgIHRhcmdldEluZm86IGV2ZW50LnRhcmdldEluZm8sCiAgICAgICAgd2FpdGluZ0ZvckRlYnVnZ2VyOiBldmVudC53YWl0aW5nRm9yRGVidWdnZXIsCiAgICAgICAgYXR0YWNoZWRBdDogbmV3IERhdGUoKS50b0lTT1N0cmluZygpLAogICAgICB9OwogICAgICBjb25zdCB3b3JrZXIgPSB7IHJlY2VpcHQsIHNjcmlwdHM6IG5ldyBNYXAoKSwgc3RhcnRlZDogZmFsc2UsIHN0b3BwZWQ6IGZhbHNlIH07CiAgICAgIHNlc3Npb25zLnNldChldmVudC5zZXNzaW9uSWQsIHdvcmtlcik7CiAgICAgIHJlcG9ydC53b3JrZXJzLnB1c2gocmVjZWlwdCk7CiAgICAgIHNhdmVSZXBvcnQoKTsKICAgICAgc3RhcnRzLnB1c2goKGFzeW5jICgpID0+IHsKICAgICAgICB0cnkgewogICAgICAgICAgaWYgKGV2ZW50LnRhcmdldEluZm8udHlwZSAhPT0gJ3dvcmtlcicgfHwgIWV2ZW50LndhaXRpbmdGb3JEZWJ1Z2dlcikKICAgICAgICAgICAgdGhyb3cgbmV3IEVycm9yKCdFeHBlY3RlZCBhIGRlZGljYXRlZCBXb3JrZXIgcGF1c2VkIGJlZm9yZSBzdGFydHVwJyk7CiAgICAgICAgICBhd2FpdCBzZW5kQ2hpbGQoZXZlbnQuc2Vzc2lvbklkLCAnUHJvZmlsZXIuZW5hYmxlJyk7CiAgICAgICAgICBhd2FpdCBzZW5kQ2hpbGQoZXZlbnQuc2Vzc2lvbklkLCAnUHJvZmlsZXIuc2V0U2FtcGxpbmdJbnRlcnZhbCcsIHsgaW50ZXJ2YWw6IDEwMDAgfSk7CiAgICAgICAgICBhd2FpdCBzZW5kQ2hpbGQoZXZlbnQuc2Vzc2lvbklkLCAnUHJvZmlsZXIuc3RhcnQnKTsKICAgICAgICAgIHdvcmtlci5zdGFydGVkID0gdHJ1ZTsKICAgICAgICAgIHJlY2VpcHQucHJvZmlsZVN0YXJ0ZWRBdCA9IG5ldyBEYXRlKCkudG9JU09TdHJpbmcoKTsKICAgICAgICB9IGNhdGNoIChlcnJvcikgewogICAgICAgICAgcmVjb3JkRXJyb3IoJ3N0YXJ0LXByb2ZpbGUnLCBlcnJvcik7CiAgICAgICAgfSBmaW5hbGx5IHsKICAgICAgICAgIHRyeSB7CiAgICAgICAgICAgIGF3YWl0IHNlbmRDaGlsZChldmVudC5zZXNzaW9uSWQsICdSdW50aW1lLnJ1bklmV2FpdGluZ0ZvckRlYnVnZ2VyJyk7CiAgICAgICAgICAgIHJlY2VpcHQucmVzdW1lZEF0ID0gbmV3IERhdGUoKS50b0lTT1N0cmluZygpOwogICAgICAgICAgfSBjYXRjaCAoZXJyb3IpIHsKICAgICAgICAgICAgcmVjb3JkRXJyb3IoJ3Jlc3VtZS13b3JrZXInLCBlcnJvcik7CiAgICAgICAgICB9CiAgICAgICAgICBzYXZlUmVwb3J0KCk7CiAgICAgICAgfQogICAgICB9KSgpKTsKICAgIH0pOwogICAgYXN5bmMgZnVuY3Rpb24gc3RvcFByb2ZpbGVzKHJlYXNvbikgewogICAgICBhd2FpdCBQcm9taXNlLmFsbChzdGFydHMpOwogICAgICBmb3IgKGNvbnN0IFtzZXNzaW9uSWQsIHdvcmtlcl0gb2Ygc2Vzc2lvbnMpIHsKICAgICAgICBpZiAoIXdvcmtlci5zdGFydGVkIHx8IHdvcmtlci5zdG9wcGVkKSBjb250aW51ZTsKICAgICAgICB0cnkgewogICAgICAgICAgY29uc3QgeyBwcm9maWxlIH0gPSBhd2FpdCBzZW5kQ2hpbGQoc2Vzc2lvbklkLCAnUHJvZmlsZXIuc3RvcCcpOwogICAgICAgICAgd29ya2VyLnN0b3BwZWQgPSB0cnVlOwogICAgICAgICAgd29ya2VyLnJlY2VpcHQucHJvZmlsZVN0b3BwZWRBdCA9IG5ldyBEYXRlKCkudG9JU09TdHJpbmcoKTsKICAgICAgICAgIHdvcmtlci5yZWNlaXB0LnN0b3BSZWFzb24gPSByZWFzb247CiAgICAgICAgICBjb25zdCBmaWxlbmFtZSA9IGB3b3JrZXItJHt3b3JrZXIucmVjZWlwdC5pbmRleH0uY3B1cHJvZmlsZWA7CiAgICAgICAgICBjb25zdCBieXRlcyA9IEJ1ZmZlci5mcm9tKEpTT04uc3RyaW5naWZ5KHByb2ZpbGUpICsgJ1xuJyk7CiAgICAgICAgICAvLyBTYXZlIHRoZSBwcm9maWxlIGJlZm9yZSBzbG93ZXIgc291cmNlIHJldHJpZXZhbCwgYWxzbyBvbiBhc3NlcnRpb24gZmFpbHVyZS4KICAgICAgICAgIHdyaXRlRmlsZVN5bmMocmVzb2x2ZShkaXJlY3RvcnksIGZpbGVuYW1lKSwgYnl0ZXMpOwogICAgICAgICAgd29ya2VyLnJlY2VpcHQucHJvZmlsZSA9IHsgZmlsZW5hbWUsIHNoYTI1Njogc2hhMjU2KGJ5dGVzKSwgYnl0ZXM6IGJ5dGVzLmxlbmd0aCwgc2FtcGxlczogcHJvZmlsZS5zYW1wbGVzPy5sZW5ndGggPz8gMCwgdGltZURlbHRhczogcHJvZmlsZS50aW1lRGVsdGFzPy5sZW5ndGggPz8gMCB9OwogICAgICAgICAgc2F2ZVJlcG9ydCgpOwogICAgICAgICAgaWYgKCFwcm9maWxlLnNhbXBsZXM/Lmxlbmd0aCB8fCBwcm9maWxlLnNhbXBsZXMubGVuZ3RoICE9PSBwcm9maWxlLnRpbWVEZWx0YXM/Lmxlbmd0aCkKICAgICAgICAgICAgdGhyb3cgbmV3IEVycm9yKCdDUFUgcHJvZmlsZSBsYWNrcyBjb21wbGV0ZSBzYW1wbGVzL3RpbWVEZWx0YXMnKTsKICAgICAgICAgIC8vIEVuYWJsaW5nIERlYnVnZ2VyIGVtaXRzIHNjcmlwdFBhcnNlZCBmb3Iga25vd24gdW5jb2xsZWN0ZWQgc2NyaXB0cy4KICAgICAgICAgIC8vIEtlZXAgaXQgZGlzYWJsZWQgdGhyb3VnaG91dCBzYW1wbGluZyB0byBhdm9pZCBkZWJ1Zy1tb2RlIHBlcnR1cmJhdGlvbi4KICAgICAgICAgIGF3YWl0IHNlbmRDaGlsZChzZXNzaW9uSWQsICdEZWJ1Z2dlci5lbmFibGUnKTsKICAgICAgICAgIHdvcmtlci5yZWNlaXB0LmRlYnVnZ2VyRW5hYmxlZEFmdGVyUHJvZmlsZVN0b3BBdCA9IG5ldyBEYXRlKCkudG9JU09TdHJpbmcoKTsKICAgICAgICAgIGNvbnN0IHNhbXBsZWRJZHMgPSBuZXcgU2V0KHByb2ZpbGUubm9kZXMubWFwKChub2RlKSA9PiBub2RlLmNhbGxGcmFtZS5zY3JpcHRJZCkuZmlsdGVyKChpZCkgPT4gaWQgIT09ICcwJykpOwogICAgICAgICAgY29uc3Qgc291cmNlcyA9IFtdOwogICAgICAgICAgd29ya2VyLnJlY2VpcHQuc291cmNlcyA9IHNvdXJjZXM7CiAgICAgICAgICBmb3IgKGNvbnN0IFtzY3JpcHRJZCwgcGFyc2VkXSBvZiB3b3JrZXIuc2NyaXB0cykgewogICAgICAgICAgICBjb25zdCB7IHNjcmlwdFNvdXJjZSB9ID0gYXdhaXQgc2VuZENoaWxkKHNlc3Npb25JZCwgJ0RlYnVnZ2VyLmdldFNjcmlwdFNvdXJjZScsIHsgc2NyaXB0SWQgfSk7CiAgICAgICAgICAgIGNvbnN0IHNvdXJjZUJ5dGVzID0gQnVmZmVyLmZyb20oc2NyaXB0U291cmNlLCAndXRmOCcpOwogICAgICAgICAgICBjb25zdCBzb3VyY2VGaWxlID0gYHdvcmtlci0ke3dvcmtlci5yZWNlaXB0LmluZGV4fS1zY3JpcHQtJHtzY3JpcHRJZH0uanNgOwogICAgICAgICAgICB3cml0ZUZpbGVTeW5jKHJlc29sdmUoZGlyZWN0b3J5LCBzb3VyY2VGaWxlKSwgc291cmNlQnl0ZXMpOwogICAgICAgICAgICBzb3VyY2VzLnB1c2goeyBzY3JpcHRJZCwgLi4ucGFyc2VkLCBmaWxlbmFtZTogc291cmNlRmlsZSwgc2hhMjU2OiBzaGEyNTYoc291cmNlQnl0ZXMpLCBieXRlczogc291cmNlQnl0ZXMubGVuZ3RoLCBzYW1wbGVkOiBzYW1wbGVkSWRzLmhhcyhzY3JpcHRJZCksIGVuY29kaW5nOiAnRGVidWdnZXIuZ2V0U2NyaXB0U291cmNlIGVuY29kZWQgYXMgVVRGLTgsIG5vdCByZWNvbXBpbGVkIHNvdXJjZScgfSk7CiAgICAgICAgICAgIHNhbXBsZWRJZHMuZGVsZXRlKHNjcmlwdElkKTsKICAgICAgICAgICAgc2F2ZVJlcG9ydCgpOwogICAgICAgICAgfQogICAgICAgICAgaWYgKHNhbXBsZWRJZHMuc2l6ZSkgdGhyb3cgbmV3IEVycm9yKGBVbmJvdW5kIHNhbXBsZWQgc2NyaXB0IGlkczogJHtbLi4uc2FtcGxlZElkc10uam9pbignLCcpfWApOwogICAgICAgICAgYXdhaXQgc2VuZENoaWxkKHNlc3Npb25JZCwgJ1Byb2ZpbGVyLmRpc2FibGUnKTsKICAgICAgICAgIGF3YWl0IHNlbmRDaGlsZChzZXNzaW9uSWQsICdEZWJ1Z2dlci5kaXNhYmxlJyk7CiAgICAgICAgfSBjYXRjaCAoZXJyb3IpIHsKICAgICAgICAgIHJlY29yZEVycm9yKCdzdG9wLXByb2ZpbGUtb3ItYmluZC1zb3VyY2VzJywgZXJyb3IpOwogICAgICAgIH0KICAgICAgfQogICAgfQogICAgLy8gVGhlIG9yaWdpbmFsIHN1Y2Nlc3NmdWwgY2FzZSBzdG9wcyB0aGUgV29ya2VyIGJlZm9yZSBhZnRlckVhY2guIE9ubHkgdGhpcwogICAgLy8gZXhhY3QgZmluYWwgbG9jYXRvciBpcyB3cmFwcGVkOyBhbGwgYXNzZXJ0aW9ucyBoYXZlIGFscmVhZHkgcnVuIGJ5IHRoZW4uCiAgICBjb25zdCBvcmlnaW5hbEdldEJ5Um9sZSA9IHBhZ2UuZ2V0QnlSb2xlOwogICAgcGFnZS5nZXRCeVJvbGUgPSBmdW5jdGlvbiAoLi4uYXJncykgewogICAgICBjb25zdCBsb2NhdG9yID0gb3JpZ2luYWxHZXRCeVJvbGUuYXBwbHkodGhpcywgYXJncyk7CiAgICAgIGlmIChhcmdzWzBdID09PSAnYnV0dG9uJyAmJiBhcmdzWzFdPy5uYW1lID09PSAn0J7RgdGC0LDQvdC+0LLQuNGC0Ywg0LzQvtC00LXQu9C40YDQvtCy0LDQvdC40LUnICYmIGFyZ3NbMV0/LmV4YWN0ID09PSB0cnVlKSB7CiAgICAgICAgY29uc3Qgb3JpZ2luYWxDbGljayA9IGxvY2F0b3IuY2xpY2s7CiAgICAgICAgbG9jYXRvci5jbGljayA9IGFzeW5jIGZ1bmN0aW9uICguLi5jbGlja0FyZ3MpIHsKICAgICAgICAgIHJlcG9ydC5zdG9wQ2xpY2tXcmFwcGVyID0geyBpbnZva2VkQXQ6IG5ldyBEYXRlKCkudG9JU09TdHJpbmcoKSwgY2xpY2tBcmdzIH07CiAgICAgICAgICBhd2FpdCBzdG9wUHJvZmlsZXMoJ2JlZm9yZS1vcmlnaW5hbC1uYXRpdmUtU3RvcC1jbGljaycpOwogICAgICAgICAgcmVwb3J0LnN0b3BDbGlja1dyYXBwZXIuZGVsZWdhdGVkQXQgPSBuZXcgRGF0ZSgpLnRvSVNPU3RyaW5nKCk7CiAgICAgICAgICBzYXZlUmVwb3J0KCk7CiAgICAgICAgICByZXR1cm4gb3JpZ2luYWxDbGljay5hcHBseSh0aGlzLCBjbGlja0FyZ3MpOwogICAgICAgIH07CiAgICAgIH0KICAgICAgcmV0dXJuIGxvY2F0b3I7CiAgICB9OwogICAgcnVucy5zZXQocGFnZSwgeyBjZHAsIHJlcG9ydCwgZmFpbHVyZXMsIHNhdmVSZXBvcnQsIHN0b3BQcm9maWxlcywgcmVjb3JkRXJyb3IsIG9yaWdpbmFsR2V0QnlSb2xlIH0pOwogICAgc2F2ZVJlcG9ydCgpOwogICAgYXdhaXQgY2RwLnNlbmQoJ1RhcmdldC5zZXRBdXRvQXR0YWNoJywgewogICAgICBhdXRvQXR0YWNoOiB0cnVlLAogICAgICB3YWl0Rm9yRGVidWdnZXJPblN0YXJ0OiB0cnVlLAogICAgICBmbGF0dGVuOiBmYWxzZSwKICAgICAgZmlsdGVyOiBbeyB0eXBlOiAnd29ya2VyJywgZXhjbHVkZTogZmFsc2UgfSwgeyBleGNsdWRlOiB0cnVlIH1dLAogICAgfSk7CiAgfSk7CiAgdGVzdC5hZnRlckVhY2goYXN5bmMgKHsgcGFnZSB9LCBpbmZvKSA9PiB7CiAgICBjb25zdCBydW4gPSBydW5zLmdldChwYWdlKTsKICAgIGlmICghcnVuKSByZXR1cm47CiAgICB0cnkgewogICAgICBydW4ucmVwb3J0LmFmdGVyRWFjaEludm9rZWRBdCA9IG5ldyBEYXRlKCkudG9JU09TdHJpbmcoKTsKICAgICAgYXdhaXQgcnVuLnN0b3BQcm9maWxlcygnYWZ0ZXJFYWNoLWJlZm9yZS1wYWdlLXRlYXJkb3duJyk7CiAgICB9IGZpbmFsbHkgewogICAgICBwYWdlLmdldEJ5Um9sZSA9IHJ1bi5vcmlnaW5hbEdldEJ5Um9sZTsKICAgICAgcnVuLnJlcG9ydC50ZXN0U3RhdHVzID0gaW5mby5zdGF0dXM7CiAgICAgIHJ1bi5yZXBvcnQudGVzdEVycm9ycyA9IGluZm8uZXJyb3JzOwogICAgICBydW4ucmVwb3J0LmZpbmlzaGVkQXQgPSBuZXcgRGF0ZSgpLnRvSVNPU3RyaW5nKCk7CiAgICAgIGF3YWl0IHJ1bi5jZHAuc2VuZCgnVGFyZ2V0LnNldEF1dG9BdHRhY2gnLCB7IGF1dG9BdHRhY2g6IGZhbHNlLCB3YWl0Rm9yRGVidWdnZXJPblN0YXJ0OiBmYWxzZSwgZmxhdHRlbjogZmFsc2UgfSkuY2F0Y2goKGVycm9yKSA9PiBydW4ucmVjb3JkRXJyb3IoJ2RldGFjaC1hdXRvYXR0YWNoJywgZXJyb3IpKTsKICAgICAgYXdhaXQgcnVuLmNkcC5kZXRhY2goKS5jYXRjaCgoZXJyb3IpID0+IHJ1bi5yZWNvcmRFcnJvcignZGV0YWNoLXBhZ2Utc2Vzc2lvbicsIGVycm9yKSk7CiAgICAgIHJ1bi5yZXBvcnQuZGlhZ25vc3RpY0NvbXBsZXRlID0gcnVuLmZhaWx1cmVzLmxlbmd0aCA9PT0gMCAmJiBydW4ucmVwb3J0LndvcmtlcnMubGVuZ3RoID09PSAxICYmIHJ1bi5yZXBvcnQud29ya2Vycy5ldmVyeSgod29ya2VyKSA9PiB3b3JrZXIucHJvZmlsZT8uc2FtcGxlcyA+IDAgJiYgd29ya2VyLnNvdXJjZXM/Lmxlbmd0aCA+IDApOwogICAgICBydW4uc2F2ZVJlcG9ydCgpOwogICAgfQogICAgaWYgKCFydW4ucmVwb3J0LmRpYWdub3N0aWNDb21wbGV0ZSkgdGhyb3cgbmV3IEVycm9yKCdSMTYgV29ya2VyIHByb2ZpbGUgaW5jb21wbGV0ZTogaW5zcGVjdCBwcm9maWxlLXJlY2VpcHQuanNvbjsgb3JpZ2luYWwgdGVzdCBzdGF0dXMvZXJyb3JzIHJldGFpbmVkLicpOwogIH0pOwp9Cgptb2R1bGUuZXhwb3J0cyA9IHsgaW5zdGFsbFdvcmtlclByb2ZpbGUgfTsK","suffixBase64":"Ci8vIFIxNiBleHRlcm5hbCBkaWFnbm9zdGljIHJlZ2lzdHJhdGlvbjsgb3JpZ2luYWwgZmlsZSBhYm92ZSBpcyBieXRlLWZvci1ieXRlIGludGFjdC4KaW1wb3J0IHsgaW5zdGFsbFdvcmtlclByb2ZpbGUgYXMgaW5zdGFsbFIxNldvcmtlclByb2ZpbGUgfSBmcm9tICcuL3IxNi1uYXRpdmUtd29ya2VyLXByb2ZpbGUuY2pzJzsKaW5zdGFsbFIxNldvcmtlclByb2ZpbGUodGVzdCk7Cg=="}')
+          root = Path(os.environ['RUNNER_TEMP']) / 'r16-native-worker-cost'
+          root.mkdir(parents=True, exist_ok=True)
+          original = Path('e2e/electronics-ready-cadence.spec.ts').read_bytes()
+          helper = base64.b64decode(p.pop('helperBase64'))
+          suffix = base64.b64decode(p.pop('suffixBase64'))
+          instrumented = original + suffix
+          h = lambda b: hashlib.sha256(b).hexdigest()
+          assert h(original) == p['originalSha256']
+          assert h(helper) == p['helperSha256']
+          assert h(instrumented) == p['instrumentedSha256']
+          assert instrumented[:len(original)] == original
+          (root / 'r16-native-worker-profile.cjs').write_bytes(helper)
+          (root / 'instrumented.spec.ts').write_bytes(instrumented)
+          p.update(originalBytes=len(original), suffixBytes=len(suffix), instrumentedBytes=len(instrumented), productionBuild='completed before diagnostic mounts; original checkout remains unchanged', originalPrefixExact=True)
+          Path('reports/r16-instrumentation-manifest.json').write_text(json.dumps(p, indent=2) + '\n')
+          PY
+      - name: One no-delay CPU diagnostic NOT product acceptance
         run: >-
-          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml --profile test
-          run --rm --no-deps test-runner
-          pnpm gate:electronics-m1:browser
+          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/electronics-postgres-transport.yaml" --profile test
+          run --rm --no-deps
+          --volume "$RUNNER_TEMP/r16-native-worker-cost/instrumented.spec.ts:/workspace/e2e/electronics-ready-cadence.spec.ts:ro"
+          --volume "$RUNNER_TEMP/r16-native-worker-cost/r16-native-worker-profile.cjs:/workspace/e2e/r16-native-worker-profile.cjs:ro"
+          test-runner pnpm exec playwright test e2e/electronics-ready-cadence.spec.ts
+          --workers=1 --grep 'no-delay realtime'
 
       - name: Show isolated stack state
         if: always()
-        run: docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml --profile test ps -a
+        run: |
+          cp "$RUNNER_TEMP/electronics-postgres-transport.yaml" reports/compose.postgres-transport.yaml
+          sha256sum reports/compose.postgres-transport.yaml > reports/compose.postgres-transport.sha256
+          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/electronics-postgres-transport.yaml" --profile test ps -a
 
       - name: Upload browser evidence
         if: always()
@@ -198,53 +126,5 @@ jobs:
       - name: Remove isolated test stack
         if: always()
         run: >-
-          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml --profile test
+          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/electronics-postgres-transport.yaml" --profile test
           down -v --remove-orphans
-
-  review-images:
-    name: Package exact-head review images
-    needs: [focused, benchmark, browser]
-    runs-on: ubuntu-24.04
-    timeout-minutes: 35
-    env:
-      ASA_BUILD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
-      ASA_IMAGE_TAG: ${{ github.event.pull_request.head.sha || github.sha }}
-    steps:
-      - name: Checkout exact candidate
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          persist-credentials: false
-
-      - name: Build exact API and Web review images
-        run: docker compose -f compose.yaml -f .github/compose.registry-ci.yaml build --build-arg NODE_IMAGE=public.ecr.aws/docker/library/node@sha256:43aeff40f4afc22e83f7589a2f37e111cff5ca84529571f1c8415bcc5fcc21b2 --build-arg CADDY_IMAGE=public.ecr.aws/docker/library/caddy@sha256:d8c17a862962def15cde69863a3a463f25a2664942eafd7bdbf050e9c3116b83 --build-arg BUILDKIT_SYNTAX=mirror.gcr.io/docker/dockerfile@sha256:b5f3b260a9678e1d83d2fce86eeddf79420b79147eaba2a25986f47133d73720 api web
-
-      - name: Verify exact revision labels
-        shell: bash
-        run: |
-          set -euo pipefail
-          api_revision="$(docker image inspect --format='{{ index .Config.Labels "org.opencontainers.image.revision" }}' "asa-lab-api:${ASA_IMAGE_TAG}")"
-          web_revision="$(docker image inspect --format='{{ index .Config.Labels "org.opencontainers.image.revision" }}' "asa-lab-web:${ASA_IMAGE_TAG}")"
-          test "$api_revision" = "$ASA_BUILD_REVISION"
-          test "$web_revision" = "$ASA_BUILD_REVISION"
-
-      - name: Export ready-to-load review images
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p review-images
-          docker save "asa-lab-api:${ASA_IMAGE_TAG}" | gzip -1 > "review-images/asa-lab-api-${ASA_IMAGE_TAG}.tar.gz"
-          docker save "asa-lab-web:${ASA_IMAGE_TAG}" | gzip -1 > "review-images/asa-lab-web-${ASA_IMAGE_TAG}.tar.gz"
-          printf 'revision=%s\napi=%s\nweb=%s\n' \
-            "$ASA_BUILD_REVISION" \
-            "asa-lab-api:${ASA_IMAGE_TAG}" \
-            "asa-lab-web:${ASA_IMAGE_TAG}" > review-images/MANIFEST.txt
-          sha256sum review-images/*.tar.gz > review-images/SHA256SUMS
-
-      - name: Upload exact-head review images
-        uses: actions/upload-artifact@v4
-        with:
-          name: electronics-review-images-${{ github.run_id }}
-          path: review-images
-          if-no-files-found: error
-          retention-days: 14
