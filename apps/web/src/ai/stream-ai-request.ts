@@ -36,7 +36,7 @@ export async function streamAiRequest<T>(
   if (!response.ok) {
     let problem: { error?: { code?: string; message?: string } } | null = null;
     try {
-      problem = (await response.json()) as typeof problem;
+      problem = (await response.json()) as { error?: { code?: string; message?: string } };
     } catch {
       /* Proxy and network errors must not surface raw response bodies. */
     }

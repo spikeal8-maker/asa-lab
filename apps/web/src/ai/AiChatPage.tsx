@@ -349,6 +349,7 @@ export function AiChatPage(): JSX.Element {
           controller.signal,
         );
         if (version !== selectedVersion.current) return;
+        setStreamedText('');
         setMessages(result.messages);
         const completed = result.messages.some(
           (message) => message.requestId === requestId && message.role === 'assistant',
@@ -648,7 +649,11 @@ export function AiChatPage(): JSX.Element {
                       <div className="chat-user-bubble">{pendingMessage.text}</div>
                     </article>
                   ) : null}
-                  {streamedText ? (
+                  {streamedText &&
+                  !messages.some(
+                    (item) =>
+                      item.role === 'assistant' && item.requestId === pendingMessage?.requestId,
+                  ) ? (
                     <article
                       className="chat-turn chat-turn-assistant"
                       data-testid="ai-streaming-answer"

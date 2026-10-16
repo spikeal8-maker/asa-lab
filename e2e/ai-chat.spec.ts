@@ -236,7 +236,7 @@ test('AI conversation rename and delete update the sidebar without phantom histo
   await page.getByRole('button', { name: 'Новый чат' }).click();
   await page.getByRole('button', { name: 'Открыть историю диалогов' }).click();
   const sidebar = page.getByRole('navigation', { name: 'Диалоги' });
-  await expect(sidebar.getByRole('button', { name: 'Новый чат' })).toHaveCount(1);
+  await expect(sidebar.getByRole('button', { name: 'Новый чат', exact: true })).toHaveCount(1);
   await sidebar.getByRole('button', { name: 'Переименовать: Новый чат' }).click();
   await sidebar
     .getByRole('textbox', { name: 'Новое название диалога' })
