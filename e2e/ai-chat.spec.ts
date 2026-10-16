@@ -43,6 +43,7 @@ async function fixture(page: Page, answer = 'Arduino — это платформ
   const threads: { id: string; title: string; updatedAt: string }[] = [];
   const messages = new Map<string, Message[]>();
   const requests: string[] = [];
+  const models: string[] = [];
   let releaseAnswer: (() => void) | null = null;
   let enabled = true;
   let hasKey = false;
@@ -71,7 +72,12 @@ async function fixture(page: Page, answer = 'Arduino — это платформ
     if (path === '/api/auth/max/config') return respond(route, { enabled: false, launchUrl: null });
     if (path === '/api/class-join/me') return respond(route, { authenticated: false });
     if (path === '/api/ai/status')
-      return respond(route, { enabled, provider: 'openai', model: 'gpt-5-mini' });
+      return respond(route, {
+        enabled,
+        provider: 'openai',
+        model: 'gpt-5-mini',
+        availableModels: ['gpt-5-mini', 'gpt-4.1-mini'],
+      });
     if (path === '/api/ai/threads' && method === 'GET') {
       return respond(route, { items: threads, nextCursor: null });
     }
@@ -112,8 +118,9 @@ async function fixture(page: Page, answer = 'Arduino — это платформ
       const streamed = path.endsWith('/stream');
       const sse = (kind: string, value: unknown) =>
         'event: ' + kind + '\n' + 'data: ' + JSON.stringify(value) + '\n\n';
-      const payload = req.postDataJSON() as { message: string; requestId: string };
+      const payload = req.postDataJSON() as { message: string; requestId: string; model?: string };
       requests.push(payload.requestId);
+      models.push(payload.model ?? '');
       if (!history.some((msg) => msg.role === 'user' && msg.requestId === payload.requestId)) {
         history.push({
           id: randomUUID(),
@@ -174,6 +181,7 @@ async function fixture(page: Page, answer = 'Arduino — это платформ
       releaseAnswer?.();
     },
     requests,
+    models,
     submittedKey: () => keyWasSubmitted,
   };
 }
@@ -301,4 +309,19 @@ test('AI renders GFM tables, code and safe links without injecting HTML', async 
     await page.evaluate(() => (window as Window & { hacked?: boolean }).hacked),
   ).toBeUndefined();
   await expect(page.locator('.asa-ai-rich-text script')).toHaveCount(0);
+});
+
+test('AI model picker uses only admin-allowed OpenAI models', async ({ page }) => {
+  const fake = await fixture(page);
+  await page.goto('/#/ai');
+  const picker = page.getByRole('combobox', { name: 'Модель ИИ' });
+  await expect(picker).toBeVisible();
+  await expect(picker.getByRole('option')).toHaveCount(2);
+  await picker.selectOption('gpt-4.1-mini');
+  await page.getByRole('textbox', { name: 'Сообщение ИИ' }).fill('Выбранная модель');
+  await page.getByRole('button', { name: 'Отправить сообщение' }).click();
+  fake.release();
+  await expect(page.getByText('Arduino — это платформа для электроники.')).toBeVisible();
+  expect(fake.requests).toHaveLength(1);
+  expect(fake.models).toEqual(['gpt-4.1-mini']);
 });
