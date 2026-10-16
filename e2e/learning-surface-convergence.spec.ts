@@ -288,7 +288,7 @@ test('legacy, revision and selected-result semantics stay equal across learner a
   const learnerResult = student
     .locator('.learner-grade-row')
     .filter({ hasText: 'Canonical project' });
-  await expect(learnerResult).toContainText('80 / 100');
+  await expect(learnerResult).toContainText('80/100');
   await expect(learnerResult).toContainText('В работе');
   await learnerResult.screenshot({ path: `${evidenceDir}/regression-c-learner-result.png` });
   await page.reload();
