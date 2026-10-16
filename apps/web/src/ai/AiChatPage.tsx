@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 'react';
 import { call } from '../api-call';
+import { AiStreamClientError, streamAiRequest } from './stream-ai-request';
 import './izo-chat-design.css';
 
 interface AiThread {
@@ -14,6 +15,7 @@ interface AiMessage {
   readonly content: string;
   readonly createdAt: string;
   readonly requestId: string;
+  readonly state?: 'complete' | 'stopped';
 }
 
 interface AiCursor {
@@ -91,6 +93,12 @@ export function AiChatPage(): JSX.Element {
   const [desktop, setDesktop] = useState(() => window.matchMedia('(min-width: 1120px)').matches);
   const selectedVersion = useRef(0);
   const pendingRequest = useRef<{ threadId: string; requestId: string; text: string } | null>(null);
+  const [streamedText, setStreamedText] = useState('');
+  const activeStream = useRef<{
+    threadId: string;
+    requestId: string;
+    controller: AbortController;
+  } | null>(null);
   const [pendingMessage, setPendingMessage] = useState<{ requestId: string; text: string } | null>(
     null,
   );
@@ -125,6 +133,7 @@ export function AiChatPage(): JSX.Element {
     return () => {
       active = false;
       selectedVersion.current += 1;
+      activeStream.current?.controller.abort();
     };
   }, []);
 
@@ -138,7 +147,7 @@ export function AiChatPage(): JSX.Element {
     } else {
       node.scrollTo({ top: node.scrollHeight });
     }
-  }, [messages, busy]);
+  }, [messages, busy, streamedText]);
 
   async function refreshThreads(): Promise<void> {
     const result = await call<AiPage<AiThread>>('/api/ai/threads');
@@ -279,19 +288,31 @@ export function AiChatPage(): JSX.Element {
     return result.data.id;
   }
 
+
+  async function stop(): Promise<void> {
+    const current = activeStream.current;
+    if (!current) return;
+    const result = await call<{ stopped: boolean }>(
+      '/api/ai/threads/' + encodeURIComponent(current.threadId) +
+        '/requests/' + encodeURIComponent(current.requestId) + '/stop',
+      { method: 'POST', body: JSON.stringify({}) },
+    );
+    // If another server worker owns the stream, aborting this connection
+    // still cancels its own upstream call and preserves available text.
+    if (!result.ok || !result.data.stopped) current.controller.abort();
+  }
+
   async function send(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     const text = draft.trim();
     if (!text || text.length > 3000 || !status?.enabled || busy) return;
-
-    // A repeated click after a network-unknown outcome must use exactly the
-    // original billable admission ID rather than silently paying twice.
     const previous = pendingRequest.current;
     const requestId =
       previous?.threadId === currentId && previous.text === text
         ? previous.requestId
         : crypto.randomUUID();
     setPendingMessage({ requestId, text });
+    setStreamedText('');
     setBusy(true);
     setError(null);
     const version = ++selectedVersion.current;
@@ -309,39 +330,46 @@ export function AiChatPage(): JSX.Element {
         id = created.data.id;
         setCurrentId(id);
         setMessages([]);
+        setMessageCursor(null);
         if (!desktop) setSideOpen(false);
       }
       pendingRequest.current = { threadId: id, requestId, text };
-      const result = await call<{ messages: AiMessage[]; replayed: boolean }>(
-        '/api/ai/threads/' + encodeURIComponent(id) + '/messages',
-        {
-          method: 'POST',
-          body: JSON.stringify({ message: text, requestId }),
-        },
-      );
-      if (version !== selectedVersion.current) return;
-      if (result.ok) {
-        setMessages(result.data.messages);
-        const completed = result.data.messages.some(
+      const controller = new AbortController();
+      activeStream.current = { threadId: id, requestId, controller };
+      try {
+        const result = await streamAiRequest<AiMessage>(
+          id,
+          text,
+          requestId,
+          (piece) => {
+            if (version === selectedVersion.current) setStreamedText((value) => value + piece);
+          },
+          controller.signal,
+        );
+        if (version !== selectedVersion.current) return;
+        setMessages(result.messages);
+        const completed = result.messages.some(
           (message) => message.requestId === requestId && message.role === 'assistant',
         );
-        if (!result.data.replayed || completed) {
+        if (!result.replayed || completed) {
           setDraft('');
           pendingRequest.current = null;
         } else {
-          setError(
-            'Запрос уже был принят. Повторная отправка модели не выполнялась. Обновите историю, чтобы проверить ответ.',
-          );
+          setError('Запрос уже был принят. Повторная платная генерация не выполнялась.');
         }
-      } else {
-        setError(result.error.message);
-        // A lost response may still have committed the user turn. Load it by
-        // the stable request ID, not by matching arbitrary previous text.
-        const history = await call<{ items: AiMessage[] }>(
+      } catch (problem) {
+        if (version !== selectedVersion.current) return;
+        setError(
+          problem instanceof AiStreamClientError
+            ? problem.message
+            : 'Не удалось завершить ответ. Проверьте историю диалога.',
+        );
+        const history = await call<AiPage<AiMessage>>(
           '/api/ai/threads/' + encodeURIComponent(id) + '/messages',
         );
         if (history.ok && version === selectedVersion.current) {
           setMessages(history.data.items);
+          setMessageCursor(history.data.nextCursor ?? null);
           if (
             history.data.items.some(
               (message) => message.role === 'user' && message.requestId === requestId,
@@ -358,11 +386,14 @@ export function AiChatPage(): JSX.Element {
             setError(null);
           }
         }
+      } finally {
+        activeStream.current = null;
       }
       await refreshThreads();
     } finally {
       if (version === selectedVersion.current) {
         setPendingMessage(null);
+        setStreamedText('');
         setBusy(false);
       }
     }
@@ -371,7 +402,7 @@ export function AiChatPage(): JSX.Element {
   const visible = threads.filter((thread) =>
     thread.title.toLocaleLowerCase('ru-RU').includes(search.trim().toLocaleLowerCase('ru-RU')),
   );
-  const empty = messages.length === 0 && pendingMessage === null;
+  const empty = messages.length === 0 && pendingMessage === null && !streamedText;
 
   return (
     <main id="main-content" className="asa-ai-layout" tabIndex={-1}>
@@ -585,6 +616,11 @@ export function AiChatPage(): JSX.Element {
                       ) : (
                         <div className="chat-assistant-message">
                           <Content content={message.content} />
+                          {message.state === 'stopped' ? (
+                            <span className="chat-runtime-note" role="status">
+                              Ответ остановлен.
+                            </span>
+                          ) : null}
                           <div className="chat-message-actions">
                             <button
                               type="button"
@@ -608,6 +644,18 @@ export function AiChatPage(): JSX.Element {
                   ) ? (
                     <article className="chat-turn chat-turn-user" data-testid="ai-pending-message">
                       <div className="chat-user-bubble">{pendingMessage.text}</div>
+                    </article>
+                  ) : null}
+                  {streamedText ? (
+                    <article
+                      className="chat-turn chat-turn-assistant"
+                      data-testid="ai-streaming-answer"
+                      aria-live="polite"
+                      aria-atomic="false"
+                    >
+                      <div className="chat-assistant-message">
+                        <Content content={streamedText} />
+                      </div>
                     </article>
                   ) : null}
                   {busy ? (
@@ -664,12 +712,13 @@ export function AiChatPage(): JSX.Element {
                   {status?.model ?? 'GPT'}
                 </span>
                 <button
-                  type="submit"
+                  type={busy ? 'button' : 'submit'}
                   className="chat-send-button"
-                  disabled={!status?.enabled || busy || !draft.trim()}
-                  aria-label="Отправить сообщение"
+                  disabled={!status?.enabled || (!busy && !draft.trim())}
+                  onClick={busy ? () => void stop() : undefined}
+                  aria-label={busy ? 'Остановить генерацию' : 'Отправить сообщение'}
                 >
-                  ↑
+                  {busy ? '■' : '↑'}
                 </button>
               </form>
               <p className="chat-composer-note">
