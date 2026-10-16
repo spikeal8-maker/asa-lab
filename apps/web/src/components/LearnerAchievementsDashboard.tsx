@@ -108,7 +108,7 @@ function LearnerClassCard({
             <small>Преподаватель: {entry.teacherDisplayName}</small>
           </span>
           <span className="learner-class-rank">
-            <b>{learnerRankLabel(profile)}</b>
+            <b>{learnerRankLabel(profile ?? undefined)}</b>
             <small>место</small>
           </span>
         </span>
@@ -118,7 +118,10 @@ function LearnerClassCard({
           <>
             <span className="learner-class-scoreline">
               <span>{score === null ? 'Рейтинг не включён' : 'Рейтинг класса'}</span>
-              <strong>{learnerScoreLabel(profile)}{score === null ? '' : ' / 100'}</strong>
+              <strong>
+                {learnerScoreLabel(profile)}
+                {score === null ? '' : ' / 100'}
+              </strong>
             </span>
             <span
               className="learner-class-track"
@@ -127,17 +130,23 @@ function LearnerClassCard({
               aria-valuemin={0}
               aria-valuemax={100}
               aria-valuenow={score === null ? undefined : score}
-              aria-valuetext={score === null ? 'Рейтинг отключён' : learnerScoreLabel(profile) + ' из 100'}
+              aria-valuetext={
+                score === null ? 'Рейтинг отключён' : learnerScoreLabel(profile) + ' из 100'
+              }
             >
               <span style={{ width: String(Math.max(0, Math.min(score ?? 0, 100))) + '%' }} />
             </span>
             <span className="learner-class-foot">
               <span>За {profile.settings.periodDays} дней</span>
-              <span>Сдано: {profile.submittedCount} · На проверке: {profile.awaitingReview}</span>
+              <span>
+                Сдано: {profile.submittedCount} · На проверке: {profile.awaitingReview}
+              </span>
             </span>
           </>
         ) : (
-          <span className="learner-class-loading" role="status">Загрузка рейтинга…</span>
+          <span className="learner-class-loading" role="status">
+            Загрузка рейтинга…
+          </span>
         )}
       </button>
     </li>
@@ -204,13 +213,15 @@ export function LearnerAchievementsDashboard({
     const load = async () => {
       if (seat) {
         if (active) {
-          setClasses([{
-            classroomId: seat.classroom.id,
-            seatId: seat.student.seatId,
-            classroomTitle: seat.classroom.title,
-            teacherDisplayName: seat.classroom.teacherDisplayName,
-            unfinishedCount: null,
-          }]);
+          setClasses([
+            {
+              classroomId: seat.classroom.id,
+              seatId: seat.student.seatId,
+              classroomTitle: seat.classroom.title,
+              teacherDisplayName: seat.classroom.teacherDisplayName,
+              unfinishedCount: null,
+            },
+          ]);
           setClassLoading(false);
         }
         return;
@@ -222,13 +233,15 @@ export function LearnerAchievementsDashboard({
         setClassesError(result.error.message);
         return;
       }
-      setClasses(result.data.items.map((entry: AttendedClass) => ({
-        classroomId: entry.classroomId,
-        seatId: entry.seatId,
-        classroomTitle: entry.classroomTitle,
-        teacherDisplayName: entry.teacherDisplayName,
-        unfinishedCount: entry.unfinishedCount,
-      })));
+      setClasses(
+        result.data.items.map((entry: AttendedClass) => ({
+          classroomId: entry.classroomId,
+          seatId: entry.seatId,
+          classroomTitle: entry.classroomTitle,
+          teacherDisplayName: entry.teacherDisplayName,
+          unfinishedCount: entry.unfinishedCount,
+        })),
+      );
     };
     void load().catch(() => {
       if (active) {
@@ -254,16 +267,18 @@ export function LearnerAchievementsDashboard({
     setResultsError('');
     setResults([]);
     const read = seat ? api.seatResults() : api.accountResults();
-    void read.then((result) => {
-      if (!active) return;
-      setResultsLoading(false);
-      if (result.ok) setResults(result.data.items);
-      else setResultsError(result.error.message);
-    }).catch(() => {
-      if (!active) return;
-      setResultsLoading(false);
-      setResultsError('Не удалось загрузить результаты заданий.');
-    });
+    void read
+      .then((result) => {
+        if (!active) return;
+        setResultsLoading(false);
+        if (result.ok) setResults(result.data.items);
+        else setResultsError(result.error.message);
+      })
+      .catch(() => {
+        if (!active) return;
+        setResultsLoading(false);
+        setResultsError('Не удалось загрузить результаты заданий.');
+      });
     const unsubscribe = onSessionLoggedOut(() => {
       active = false;
       setResults([]);
@@ -279,19 +294,22 @@ export function LearnerAchievementsDashboard({
     setJournal(null);
     setJournalError('');
     setJournalLoading(true);
-    void journalApi.results(seat ? 'seat' : 'account', {
-      ...(month ? journalMonthRange(month) : {}),
-      offset,
-    }).then((result) => {
-      if (!active) return;
-      setJournalLoading(false);
-      if (result.ok) setJournal(result.data);
-      else setJournalError(result.error.message);
-    }).catch(() => {
-      if (!active) return;
-      setJournalLoading(false);
-      setJournalError('Не удалось загрузить оценки журнала.');
-    });
+    void journalApi
+      .results(seat ? 'seat' : 'account', {
+        ...(month ? journalMonthRange(month) : {}),
+        offset,
+      })
+      .then((result) => {
+        if (!active) return;
+        setJournalLoading(false);
+        if (result.ok) setJournal(result.data);
+        else setJournalError(result.error.message);
+      })
+      .catch(() => {
+        if (!active) return;
+        setJournalLoading(false);
+        setJournalError('Не удалось загрузить оценки журнала.');
+      });
     const unsubscribe = onSessionLoggedOut(() => {
       active = false;
       setJournal(null);
@@ -318,7 +336,8 @@ export function LearnerAchievementsDashboard({
     // filter it by title: two schools may have same-named classes.
     if (selectedClassId === null || seat !== null) {
       for (const item of results) {
-        if (section === 'grades' && shownMonth && !item.publishedAt.startsWith(shownMonth)) continue;
+        if (section === 'grades' && shownMonth && !item.publishedAt.startsWith(shownMonth))
+          continue;
         entries.push({
           kind: 'result',
           id: 'result:' + item.assignmentId,
@@ -328,7 +347,8 @@ export function LearnerAchievementsDashboard({
       }
     }
     return entries.sort(
-      (left, right) => right.sortDate.localeCompare(left.sortDate) || left.id.localeCompare(right.id),
+      (left, right) =>
+        right.sortDate.localeCompare(left.sortDate) || left.id.localeCompare(right.id),
     );
   }, [filteredJournal, results, section, selectedClassId, seat, shownMonth]);
   const shownTimeline = section === 'overview' ? timeline.slice(0, 4) : timeline;
@@ -371,7 +391,12 @@ export function LearnerAchievementsDashboard({
         error: result.ok ? '' : result.error.message,
       });
     } catch {
-      setHistory({ id: item.id, revisions: [], preset: item.preset, error: 'Не удалось загрузить историю.' });
+      setHistory({
+        id: item.id,
+        revisions: [],
+        preset: item.preset,
+        error: 'Не удалось загрузить историю.',
+      });
     } finally {
       setHistoryBusy(false);
     }
@@ -386,44 +411,107 @@ export function LearnerAchievementsDashboard({
             <h2 id="learner-achievements-title">Мои достижения</h2>
             <p>Рейтинги классов, реальные оценки, выполненные работы и награды — в одном месте.</p>
             <div className="learner-achievements-hero-actions">
-              <a href="#/my-projects" className="btn-secondary">Мои работы <span aria-hidden="true">↗</span></a>
-              <button type="button" onClick={onLearning}>Продолжить обучение <span aria-hidden="true">→</span></button>
+              <a href="#/my-projects" className="btn-secondary">
+                Мои работы <span aria-hidden="true">↗</span>
+              </a>
+              <button type="button" onClick={onLearning}>
+                Продолжить обучение <span aria-hidden="true">→</span>
+              </button>
             </div>
           </div>
           <div className="learner-achievements-emblem" aria-hidden="true">
-            {seat ? <img src={seatAvatar(seat.student.seatId, seat.student.avatarKey).src} alt="" /> : '✦'}
+            {seat ? (
+              <img src={seatAvatar(seat.student.seatId, seat.student.avatarKey).src} alt="" />
+            ) : (
+              '✦'
+            )}
           </div>
         </section>
       ) : (
         <div className="learner-achievements-section-head">
           <div>
             <h2>{section === 'grades' ? 'Мои оценки' : 'Мои награды'}</h2>
-            <p>{section === 'grades' ? 'По занятиям и заданиям, с историей исправлений.' : 'Награды, выданные преподавателями, по каждому классу.'}</p>
+            <p>
+              {section === 'grades'
+                ? 'По занятиям и заданиям, с историей исправлений.'
+                : 'Награды, выданные преподавателями, по каждому классу.'}
+            </p>
           </div>
-          <button type="button" className="btn-secondary" onClick={() => setRefresh((current) => current + 1)}>Обновить</button>
+          <button
+            type="button"
+            className="btn-secondary"
+            onClick={() => setRefresh((current) => current + 1)}
+          >
+            Обновить
+          </button>
         </div>
       )}
 
       {section === 'overview' ? (
         <div className="learner-achievements-stats" aria-label="Сводные показатели">
-          <div className="learner-stat"><span>Классы</span><strong>{classLoading ? '…' : classes.length}</strong><small>В моём обучении</small></div>
-          <div className="learner-stat"><span>Результаты</span><strong>{resultsLoading ? '…' : results.length}</strong><small>Опубликовано</small></div>
-          <div className="learner-stat"><span>Работы</span><strong>{focusProfile ? focusProfile.metrics.totalWorks : '—'}</strong><small>{focusClass ? 'Проекты моего профиля' : 'Выберите класс'}</small></div>
-          <div className="learner-stat"><span>Награды</span><strong>{Object.keys(profiles).length === 0 ? '—' : shownAwards.length}</strong><small>В загруженных классах</small></div>
+          <div className="learner-stat">
+            <span>Классы</span>
+            <strong>{classLoading ? '…' : classes.length}</strong>
+            <small>В моём обучении</small>
+          </div>
+          <div className="learner-stat">
+            <span>Результаты</span>
+            <strong>{resultsLoading ? '…' : results.length}</strong>
+            <small>Опубликовано</small>
+          </div>
+          <div className="learner-stat">
+            <span>Работы</span>
+            <strong>{focusProfile ? focusProfile.metrics.totalWorks : '—'}</strong>
+            <small>{focusClass ? 'Проекты моего профиля' : 'Выберите класс'}</small>
+          </div>
+          <div className="learner-stat">
+            <span>Награды</span>
+            <strong>{Object.keys(profiles).length === 0 ? '—' : shownAwards.length}</strong>
+            <small>В загруженных классах</small>
+          </div>
         </div>
       ) : null}
 
-      <section className="learner-achievements-panel" aria-labelledby="learner-achievements-ratings">
+      <section
+        className="learner-achievements-panel"
+        aria-labelledby="learner-achievements-ratings"
+      >
         <div className="learner-achievements-panel-head">
           <div>
             <h3 id="learner-achievements-ratings">Рейтинг по классам</h3>
-            <p>У каждого класса собственные правила и период. Баллы между классами не суммируются.</p>
+            <p>
+              У каждого класса собственные правила и период. Баллы между классами не суммируются.
+            </p>
           </div>
-          {section === 'overview' ? <button type="button" className="learner-text-button" onClick={() => setRefresh((current) => current + 1)}>Обновить</button> : null}
+          {section === 'overview' ? (
+            <button
+              type="button"
+              className="learner-text-button"
+              onClick={() => setRefresh((current) => current + 1)}
+            >
+              Обновить
+            </button>
+          ) : null}
         </div>
-        {classesError ? <p className="learner-achievements-alert" role="alert">{classesError} <button type="button" onClick={() => setRefresh((current) => current + 1)}>Повторить</button></p> : null}
-        {classLoading ? <p role="status" className="learner-achievements-muted">Загружаем ваши классы…</p> : null}
-        {!classLoading && !classesError && classes.length === 0 ? <p className="learner-achievements-empty">Вы пока не состоите в учебных классах. Присоединитесь к классу преподавателя, чтобы увидеть результаты.</p> : null}
+        {classesError ? (
+          <p className="learner-achievements-alert" role="alert">
+            {classesError}{' '}
+            <button type="button" onClick={() => setRefresh((current) => current + 1)}>
+              Повторить
+            </button>
+          </p>
+        ) : null}
+        {classLoading ? (
+          <p role="status" className="learner-achievements-muted">
+            Загружаем ваши классы…
+          </p>
+        ) : null}
+        {!classLoading && !classesError && classes.length === 0 ? (
+          <p className="learner-achievements-empty">
+            Вы пока не состоите в учебных классах. Присоединитесь к классу преподавателя, чтобы
+            увидеть результаты.
+          </p>
+        ) : null}
         {classes.length ? (
           <ul className="learner-achievements-classes">
             {visibleClasses.map((entry) => (
@@ -440,126 +528,296 @@ export function LearnerAchievementsDashboard({
           </ul>
         ) : null}
         {classLimit < classes.length ? (
-          <button type="button" className="btn-secondary learner-achievements-more" onClick={() => setClassLimit((current) => current + 6)}>
+          <button
+            type="button"
+            className="btn-secondary learner-achievements-more"
+            onClick={() => setClassLimit((current) => current + 6)}
+          >
             Показать ещё классы ({classes.length - classLimit})
           </button>
         ) : null}
         {focusProfile && section === 'overview' && focusProfile.metrics.score !== null ? (
           <div className="learner-achievements-factors">
             <div className="learner-achievements-panel-head">
-              <div><h4>Из чего складываются баллы</h4><p>{focusClass.classroomTitle} · {focusProfile.settings.periodDays} дней</p></div>
+              <div>
+                <h4>Из чего складываются баллы</h4>
+                <p>
+                  {focusClass.classroomTitle} · {focusProfile.settings.periodDays} дней
+                </p>
+              </div>
             </div>
             <div className="learner-achievements-factor-grid">
-              {PARTICIPANT_FACTORS.filter((key) => focusProfile.settings.factors[key]).map((key) => (
-                <div className="learner-factor" key={key}>
-                  <span>{FACTOR_NAMES[key]}</span>
-                  <strong>{Math.round(focusProfile.metrics.factors[key] * 10) / 10} / 100</strong>
-                  <span className="learner-factor-track"><span style={{ width: Math.max(0, Math.min(focusProfile.metrics.factors[key], 100)) + '%' }} /></span>
-                </div>
-              ))}
+              {PARTICIPANT_FACTORS.filter((key) => focusProfile.settings.factors[key]).map(
+                (key) => (
+                  <div className="learner-factor" key={key}>
+                    <span>{FACTOR_NAMES[key]}</span>
+                    <strong>{Math.round(focusProfile.metrics.factors[key] * 10) / 10} / 100</strong>
+                    <span className="learner-factor-track">
+                      <span
+                        style={{
+                          width:
+                            Math.max(0, Math.min(focusProfile.metrics.factors[key], 100)) + '%',
+                        }}
+                      />
+                    </span>
+                  </div>
+                ),
+              )}
             </div>
           </div>
         ) : null}
-        {section === 'overview' ? <p className="learner-achievements-footnote">Общешкольное место пока не рассчитывается: для него нужна единая методика рейтинга и разрешённая школьная область сравнения.</p> : null}
+        {section === 'overview' ? (
+          <p className="learner-achievements-footnote">
+            Общешкольное место пока не рассчитывается: для него нужна единая методика рейтинга и
+            разрешённая школьная область сравнения.
+          </p>
+        ) : null}
       </section>
 
       {section !== 'awards' ? (
-        <section className="learner-achievements-panel" aria-labelledby="learner-achievements-marks">
+        <section
+          className="learner-achievements-panel"
+          aria-labelledby="learner-achievements-marks"
+        >
           <div className="learner-achievements-panel-head">
             <div>
-              <h3 id="learner-achievements-marks">{section === 'overview' ? 'Последние оценки' : 'История оценок'}</h3>
+              <h3 id="learner-achievements-marks">
+                {section === 'overview' ? 'Последние оценки' : 'История оценок'}
+              </h3>
               <p>Оценки журнала и опубликованные результаты заданий.</p>
             </div>
-            {section === 'overview' ? <button type="button" className="learner-text-button" onClick={onGrades}>Все оценки →</button> : null}
+            {section === 'overview' ? (
+              <button type="button" className="learner-text-button" onClick={onGrades}>
+                Все оценки →
+              </button>
+            ) : null}
           </div>
           {section === 'grades' ? (
             <div className="learner-achievements-filters">
-              <label>Класс
-                <select value={selectedClassId ?? ''} onChange={(event) => { setSelectedClassId(event.target.value || null); setHistory(null); }}>
+              <label>
+                Класс
+                <select
+                  value={selectedClassId ?? ''}
+                  onChange={(event) => {
+                    setSelectedClassId(event.target.value || null);
+                    setHistory(null);
+                  }}
+                >
                   <option value="">Все мои классы</option>
-                  {classes.map((entry) => <option key={entry.seatId} value={entry.classroomId}>{entry.classroomTitle} — {entry.teacherDisplayName}</option>)}
+                  {classes.map((entry) => (
+                    <option key={entry.seatId} value={entry.classroomId}>
+                      {entry.classroomTitle} — {entry.teacherDisplayName}
+                    </option>
+                  ))}
                 </select>
               </label>
               <div className="learner-achievements-month">
                 <span>Месяц</span>
                 <div>
-                  <button type="button" aria-label="Предыдущий месяц" disabled={!shownMonth || journalLoading} onClick={() => { setMonth(journalShiftMonth(shownMonth, -1)); setOffset(0); }}>‹</button>
-                  <input type="month" aria-label="Месяц оценок" min="2000-01" max="2100-12" value={shownMonth} onChange={(event) => { if (/^(20\d{2}|2100)-(0[1-9]|1[0-2])$/.test(event.target.value)) { setMonth(event.target.value); setOffset(0); } }} />
-                  <button type="button" aria-label="Следующий месяц" disabled={!shownMonth || journalLoading} onClick={() => { setMonth(journalShiftMonth(shownMonth, 1)); setOffset(0); }}>›</button>
+                  <button
+                    type="button"
+                    aria-label="Предыдущий месяц"
+                    disabled={!shownMonth || journalLoading}
+                    onClick={() => {
+                      setMonth(journalShiftMonth(shownMonth, -1));
+                      setOffset(0);
+                    }}
+                  >
+                    ‹
+                  </button>
+                  <input
+                    type="month"
+                    aria-label="Месяц оценок"
+                    min="2000-01"
+                    max="2100-12"
+                    value={shownMonth}
+                    onChange={(event) => {
+                      if (/^(20\d{2}|2100)-(0[1-9]|1[0-2])$/.test(event.target.value)) {
+                        setMonth(event.target.value);
+                        setOffset(0);
+                      }
+                    }}
+                  />
+                  <button
+                    type="button"
+                    aria-label="Следующий месяц"
+                    disabled={!shownMonth || journalLoading}
+                    onClick={() => {
+                      setMonth(journalShiftMonth(shownMonth, 1));
+                      setOffset(0);
+                    }}
+                  >
+                    ›
+                  </button>
                 </div>
               </div>
             </div>
           ) : null}
-          {resultsError ? <p className="learner-achievements-alert" role="alert">{resultsError}</p> : null}
-          {journalError ? <p className="learner-achievements-alert" role="alert">{journalError}</p> : null}
-          {journalLoading || resultsLoading ? <p className="learner-achievements-muted" role="status">Загружаем оценки…</p> : null}
-          {!journalLoading && !resultsLoading && timeline.length === 0 && !journalError && !resultsError ? <p className="learner-achievements-empty">За выбранный период опубликованных оценок нет. Можно выбрать другой месяц.</p> : null}
+          {resultsError ? (
+            <p className="learner-achievements-alert" role="alert">
+              {resultsError}
+            </p>
+          ) : null}
+          {journalError ? (
+            <p className="learner-achievements-alert" role="alert">
+              {journalError}
+            </p>
+          ) : null}
+          {journalLoading || resultsLoading ? (
+            <p className="learner-achievements-muted" role="status">
+              Загружаем оценки…
+            </p>
+          ) : null}
+          {!journalLoading &&
+          !resultsLoading &&
+          timeline.length === 0 &&
+          !journalError &&
+          !resultsError ? (
+            <p className="learner-achievements-empty">
+              За выбранный период опубликованных оценок нет. Можно выбрать другой месяц.
+            </p>
+          ) : null}
           {shownTimeline.length ? (
             <ol className="learner-achievements-grade-list">
-              {shownTimeline.map((entry) => entry.kind === 'journal' ? (
-                <li key={entry.id} className="learner-grade-row">
-                  <span className="learner-grade-mark">{journalRevisionLabel(entry.item.preset, entry.item.value)}</span>
-                  <div className="learner-grade-info">
-                    <strong>{entry.item.category}</strong>
-                    <span>{entry.item.classroomTitle} · {entry.item.date.split('-').reverse().join('.')}</span>
-                    <small>{entry.item.authorName} · {entry.item.revision > 1 ? 'Оценка исправлена' : 'Оценка журнала'}</small>
-                    {entry.item.reason ? <p>{entry.item.reason}</p> : null}
-                    {entry.item.revision > 1 ? (
-                      <button type="button" className="learner-text-button" disabled={historyBusy} onClick={() => void showHistory(entry.item)}>История изменений</button>
-                    ) : null}
-                    {history?.id === entry.item.id ? (
-                      <div className="learner-grade-history">
-                        {history.error ? <p role="alert">{history.error}</p> : (
-                          <ol>{history.revisions.map((revision) => <li key={revision.id}>Версия {revision.revision}: {journalRevisionLabel(history.preset, revision.value)}{revision.reason ? ' · ' + revision.reason : ''}</li>)}</ol>
-                        )}
-                        <button type="button" className="learner-text-button" onClick={() => setHistory(null)}>Свернуть</button>
-                      </div>
-                    ) : null}
-                  </div>
-                  <span className="learner-grade-kind">Журнал</span>
-                </li>
-              ) : (
-                <li key={entry.id} className="learner-grade-row">
-                  <span className="learner-grade-mark is-result">{learnerResultLabel(entry.item)}</span>
-                  <div className="learner-grade-info">
-                    <strong>{entry.item.assignmentTitle}</strong>
-                    <span>{entry.item.classroomTitle} · {time.date(entry.item.publishedAt)}</span>
-                    <small>Результат задания · попытка {entry.item.attemptNumber}</small>
-                    {entry.item.feedback ? <p>{entry.item.feedback}</p> : null}
-                  </div>
-                  <span className="learner-grade-kind">Задание</span>
-                </li>
-              ))}
+              {shownTimeline.map((entry) =>
+                entry.kind === 'journal' ? (
+                  <li key={entry.id} className="learner-grade-row">
+                    <span className="learner-grade-mark">
+                      {journalRevisionLabel(entry.item.preset, entry.item.value)}
+                    </span>
+                    <div className="learner-grade-info">
+                      <strong>{entry.item.category}</strong>
+                      <span>
+                        {entry.item.classroomTitle} ·{' '}
+                        {entry.item.date.split('-').reverse().join('.')}
+                      </span>
+                      <small>
+                        {entry.item.authorName} ·{' '}
+                        {entry.item.revision > 1 ? 'Оценка исправлена' : 'Оценка журнала'}
+                      </small>
+                      {entry.item.reason ? <p>{entry.item.reason}</p> : null}
+                      {entry.item.revision > 1 ? (
+                        <button
+                          type="button"
+                          className="learner-text-button"
+                          disabled={historyBusy}
+                          onClick={() => void showHistory(entry.item)}
+                        >
+                          История изменений
+                        </button>
+                      ) : null}
+                      {history?.id === entry.item.id ? (
+                        <div className="learner-grade-history">
+                          {history.error ? (
+                            <p role="alert">{history.error}</p>
+                          ) : (
+                            <ol>
+                              {history.revisions.map((revision) => (
+                                <li key={revision.id}>
+                                  Версия {revision.revision}:{' '}
+                                  {journalRevisionLabel(history.preset, revision.value)}
+                                  {revision.reason ? ' · ' + revision.reason : ''}
+                                </li>
+                              ))}
+                            </ol>
+                          )}
+                          <button
+                            type="button"
+                            className="learner-text-button"
+                            onClick={() => setHistory(null)}
+                          >
+                            Свернуть
+                          </button>
+                        </div>
+                      ) : null}
+                    </div>
+                    <span className="learner-grade-kind">Журнал</span>
+                  </li>
+                ) : (
+                  <li key={entry.id} className="learner-grade-row">
+                    <span className="learner-grade-mark is-result">
+                      {learnerResultLabel(entry.item)}
+                    </span>
+                    <div className="learner-grade-info">
+                      <strong>{entry.item.assignmentTitle}</strong>
+                      <span>
+                        {entry.item.classroomTitle} · {time.date(entry.item.publishedAt)}
+                      </span>
+                      <small>Результат задания · попытка {entry.item.attemptNumber}</small>
+                      {entry.item.feedback ? <p>{entry.item.feedback}</p> : null}
+                    </div>
+                    <span className="learner-grade-kind">Задание</span>
+                  </li>
+                ),
+              )}
             </ol>
           ) : null}
-          {section === 'grades' && selectedClassId && seat === null ? <p className="learner-achievements-footnote">Фильтр класса применяется к журналу по точному ID. Результаты заданий без ID класса не смешиваются с другим классом и здесь не показываются.</p> : null}
+          {section === 'grades' && selectedClassId && seat === null ? (
+            <p className="learner-achievements-footnote">
+              Фильтр класса применяется к журналу по точному ID. Результаты заданий без ID класса не
+              смешиваются с другим классом и здесь не показываются.
+            </p>
+          ) : null}
           {section === 'grades' && journal ? (
             <div className="learner-achievements-pagination">
-              <button type="button" className="btn-secondary" disabled={offset === 0 || journalLoading} onClick={() => setOffset(Math.max(0, offset - 20))}>Предыдущие 20</button>
+              <button
+                type="button"
+                className="btn-secondary"
+                disabled={offset === 0 || journalLoading}
+                onClick={() => setOffset(Math.max(0, offset - 20))}
+              >
+                Предыдущие 20
+              </button>
               <span>Страница {Math.floor(offset / 20) + 1} журнала</span>
-              <button type="button" className="btn-secondary" disabled={journal.nextOffset === null || journalLoading} onClick={() => { if (journal.nextOffset !== null) setOffset(journal.nextOffset); }}>Следующие 20</button>
+              <button
+                type="button"
+                className="btn-secondary"
+                disabled={journal.nextOffset === null || journalLoading}
+                onClick={() => {
+                  if (journal.nextOffset !== null) setOffset(journal.nextOffset);
+                }}
+              >
+                Следующие 20
+              </button>
             </div>
           ) : null}
           {section === 'overview' ? (
-            <button type="button" className="learner-achievements-bottom-action" onClick={onGrades}>Посмотреть все оценки и изменения <span aria-hidden="true">→</span></button>
+            <button type="button" className="learner-achievements-bottom-action" onClick={onGrades}>
+              Посмотреть все оценки и изменения <span aria-hidden="true">→</span>
+            </button>
           ) : null}
         </section>
       ) : null}
 
       {section !== 'grades' ? (
-        <section className="learner-achievements-panel" aria-labelledby="learner-achievements-awards">
+        <section
+          className="learner-achievements-panel"
+          aria-labelledby="learner-achievements-awards"
+        >
           <div className="learner-achievements-panel-head">
             <div>
               <h3 id="learner-achievements-awards">Мои награды</h3>
               <p>За идеи, точность, помощь другим и выполненные работы.</p>
             </div>
-            {section === 'overview' ? <button type="button" className="learner-text-button" onClick={onAwards}>Все награды →</button> : null}
+            {section === 'overview' ? (
+              <button type="button" className="learner-text-button" onClick={onAwards}>
+                Все награды →
+              </button>
+            ) : null}
           </div>
           {section === 'awards' && classes.length > 1 ? (
-            <label className="learner-achievements-award-filter">Класс
-              <select value={selectedClassId ?? ''} onChange={(event) => setSelectedClassId(event.target.value || null)}>
+            <label className="learner-achievements-award-filter">
+              Класс
+              <select
+                value={selectedClassId ?? ''}
+                onChange={(event) => setSelectedClassId(event.target.value || null)}
+              >
                 <option value="">Все классы</option>
-                {classes.map((entry) => <option key={entry.seatId} value={entry.classroomId}>{entry.classroomTitle} — {entry.teacherDisplayName}</option>)}
+                {classes.map((entry) => (
+                  <option key={entry.seatId} value={entry.classroomId}>
+                    {entry.classroomTitle} — {entry.teacherDisplayName}
+                  </option>
+                ))}
               </select>
             </label>
           ) : null}
@@ -567,12 +825,23 @@ export function LearnerAchievementsDashboard({
             <ul className="learner-achievements-award-list">
               {(section === 'overview' ? shownAwards.slice(0, 4) : shownAwards).map((award) => (
                 <li key={award.id}>
-                  <span className="learner-award-symbol" aria-hidden="true">{award.symbol}</span>
-                  <span><strong>{award.title}</strong><small>{award.source}</small>{award.description ? <p>{award.description}</p> : null}{award.awardedBy ? <small>Выдал: {award.awardedBy}</small> : null}</span>
+                  <span className="learner-award-symbol" aria-hidden="true">
+                    {award.symbol}
+                  </span>
+                  <span>
+                    <strong>{award.title}</strong>
+                    <small>{award.source}</small>
+                    {award.description ? <p>{award.description}</p> : null}
+                    {award.awardedBy ? <small>Выдал: {award.awardedBy}</small> : null}
+                  </span>
                 </li>
               ))}
             </ul>
-          ) : <p className="learner-achievements-empty">Полученных значков пока нет. Они появятся здесь после выдачи преподавателем.</p>}
+          ) : (
+            <p className="learner-achievements-empty">
+              Полученных значков пока нет. Они появятся здесь после выдачи преподавателем.
+            </p>
+          )}
         </section>
       ) : null}
     </div>
