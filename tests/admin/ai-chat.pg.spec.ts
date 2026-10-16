@@ -336,7 +336,9 @@ describe('AI Chat PostgreSQL access and request replay', () => {
   it('restricts rename/delete by owner and retains only owned conversation lists', async () => {
     const thread = await service.createThread(owner.principalId);
     const label = 'История — Arduino';
-    await expect(service.renameThread(stranger.principalId, thread.id, 'Чужой')).rejects.toMatchObject({
+    await expect(
+      service.renameThread(stranger.principalId, thread.id, 'Чужой'),
+    ).rejects.toMatchObject({
       code: 'ai_thread_not_found',
       status: 404,
     });

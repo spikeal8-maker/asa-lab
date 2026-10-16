@@ -241,10 +241,7 @@ export class AiChatService {
     }));
   }
 
-  async threadPage(
-    principalId: string,
-    cursor: AiCursor | null = null,
-  ): Promise<AiPage<AiThread>> {
+  async threadPage(principalId: string, cursor: AiCursor | null = null): Promise<AiPage<AiThread>> {
     const result = await this.pool.query<{
       id: string;
       title: string;
@@ -270,7 +267,11 @@ export class AiChatService {
   async renameThread(principalId: string, threadId: string, title: string): Promise<AiThread> {
     const trimmed = title.trim();
     if (trimmed.length < 1 || trimmed.length > 120) {
-      throw new AiServiceError('ai_title_invalid', 400, 'Название должно быть от 1 до 120 символов.');
+      throw new AiServiceError(
+        'ai_title_invalid',
+        400,
+        'Название должно быть от 1 до 120 символов.',
+      );
     }
     const result = await this.pool.query<{
       id: string;
@@ -288,7 +289,11 @@ export class AiChatService {
       [principalId, threadId],
     );
     if (result.rows[0]?.deleted !== true) {
-      throw new AiServiceError('ai_thread_not_available', 409, 'Диалог не найден или запрос ещё выполняется.');
+      throw new AiServiceError(
+        'ai_thread_not_available',
+        409,
+        'Диалог не найден или запрос ещё выполняется.',
+      );
     }
     return { deleted: true };
   }

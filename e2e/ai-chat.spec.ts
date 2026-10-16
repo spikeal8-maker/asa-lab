@@ -86,7 +86,11 @@ async function fixture(page: Page) {
       const id = threadAction[1]!;
       const record = threads.find((t) => t.id === id);
       if (!record)
-        return respond(route, { error: { code: 'ai_thread_not_found', message: 'Диалог не найден' } }, 404);
+        return respond(
+          route,
+          { error: { code: 'ai_thread_not_found', message: 'Диалог не найден' } },
+          404,
+        );
       if (method === 'PATCH') {
         const body = req.postDataJSON() as { title: string };
         record.title = body.title.trim();
@@ -211,7 +215,9 @@ test('Platform admin configures GPT without returning secret in page', async ({ 
   );
 });
 
-test('AI conversation rename and delete update the sidebar without phantom history', async ({ page }) => {
+test('AI conversation rename and delete update the sidebar without phantom history', async ({
+  page,
+}) => {
   await fixture(page);
   await page.setViewportSize({ width: 390, height: 760 });
   await page.goto('/#/ai');
@@ -221,7 +227,9 @@ test('AI conversation rename and delete update the sidebar without phantom histo
   const sidebar = page.getByRole('navigation', { name: 'Диалоги' });
   await expect(sidebar.getByRole('button', { name: 'Новый чат' })).toHaveCount(1);
   await sidebar.getByRole('button', { name: 'Переименовать: Новый чат' }).click();
-  await sidebar.getByRole('textbox', { name: 'Новое название диалога' }).fill('Робототехника и Arduino');
+  await sidebar
+    .getByRole('textbox', { name: 'Новое название диалога' })
+    .fill('Робототехника и Arduino');
   await sidebar.getByRole('button', { name: 'Сохранить' }).click();
   await expect(sidebar.getByRole('button', { name: 'Робототехника и Arduino' })).toBeVisible();
   await sidebar.getByRole('button', { name: 'Удалить: Робототехника и Arduino' }).click();

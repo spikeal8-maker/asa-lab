@@ -109,10 +109,7 @@ export function AiChatPage(): JSX.Element {
 
   useEffect(() => {
     let active = true;
-    void Promise.all([
-      call<AiStatus>('/api/ai/status'),
-      call<AiPage<AiThread>>('/api/ai/threads'),
-    ])
+    void Promise.all([call<AiStatus>('/api/ai/status'), call<AiPage<AiThread>>('/api/ai/threads')])
       .then(([model, history]) => {
         if (!active) return;
         if (model.ok) setStatus(model.data);
@@ -208,9 +205,7 @@ export function AiChatPage(): JSX.Element {
       body: JSON.stringify({ title }),
     });
     if (result.ok) {
-      setThreads((previous) =>
-        previous.map((thread) => (thread.id === id ? result.data : thread)),
-      );
+      setThreads((previous) => previous.map((thread) => (thread.id === id ? result.data : thread)));
       setEditingId(null);
       setError(null);
     } else setError(result.error.message);
@@ -443,7 +438,11 @@ export function AiChatPage(): JSX.Element {
                     </button>
                   </form>
                 ) : confirmDeleteId === thread.id ? (
-                  <div className="asa-ai-thread-edit" role="group" aria-label="Подтверждение удаления">
+                  <div
+                    className="asa-ai-thread-edit"
+                    role="group"
+                    aria-label="Подтверждение удаления"
+                  >
                     <span>Удалить диалог?</span>
                     <button
                       type="button"
