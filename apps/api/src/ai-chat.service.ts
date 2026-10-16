@@ -1,5 +1,6 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
 import type pg from 'pg';
+import { ProviderStreamError, streamProviderText } from './ai-provider-stream.js';
 
 export type AiProvider = 'openai' | 'deepseek';
 export type AiModel = 'gpt-5-mini' | 'gpt-4.1-mini' | 'deepseek-chat';
@@ -35,6 +36,7 @@ export interface AiMessage {
   readonly content: string;
   readonly createdAt: string;
   readonly requestId: string;
+  readonly state: 'complete' | 'stopped';
 }
 
 export interface AiCursor {
@@ -123,6 +125,10 @@ function extractOpenAiText(value: unknown): string {
 export class AiChatService {
   private readonly key: Buffer | null;
   private readonly fetchImpl: typeof fetch;
+  private readonly activeStreams = new Map<
+    string,
+    { principalId: string; threadId: string; abort: AbortController }
+  >();
 
   constructor(
     private readonly pool: pg.Pool,
@@ -314,6 +320,7 @@ export class AiChatService {
       content: string;
       created_at: Date | string;
       request_id: string;
+      state?: 'complete' | 'stopped';
     }>('SELECT * FROM ai_chat_messages($1,$2)', [principalId, threadId]);
     return result.rows.map((row) => ({
       id: row.id,
@@ -321,6 +328,7 @@ export class AiChatService {
       content: row.content,
       createdAt: new Date(row.created_at).toISOString(),
       requestId: row.request_id,
+      state: row.state ?? 'complete',
     }));
   }
 
@@ -335,6 +343,7 @@ export class AiChatService {
       content: string;
       request_id: string;
       created_at: Date | string;
+      state?: 'complete' | 'stopped';
     }>('SELECT * FROM ai_chat_messages_page($1,$2,$3::timestamptz,$4::uuid,$5)', [
       principalId,
       threadId,
@@ -349,6 +358,7 @@ export class AiChatService {
       content: row.content,
       requestId: row.request_id,
       createdAt: new Date(row.created_at).toISOString(),
+      state: row.state ?? 'complete',
     }));
     const first = items[0];
     return {
@@ -438,6 +448,129 @@ export class AiChatService {
         'ИИ временно недоступен. Сообщение сохранено.',
       );
     }
+  }
+
+
+  /**
+   * A single paid upstream invocation feeds an SSE browser connection.
+   * The existing JSON endpoint stays intact for older clients.
+   * Neither a replay nor a lost response can trigger another upstream POST.
+   */
+  async sendStream(
+    principalId: string,
+    threadId: string,
+    text: string,
+    requestId: string,
+    onDelta: (delta: string) => void,
+    clientSignal: AbortSignal,
+  ): Promise<{
+    readonly messages: readonly AiMessage[];
+    readonly replayed: boolean;
+    readonly stopped: boolean;
+  }> {
+    const prompt = text.trim();
+    if (prompt.length < 1 || prompt.length > 3000) {
+      throw new AiServiceError('ai_input_invalid', 400, 'Сообщение должно содержать от 1 до 3000 символов.');
+    }
+    const runtime = await this.runtime();
+    const apiKey = this.decrypt(runtime);
+    if (!runtime.enabled || !apiKey) {
+      throw new AiServiceError('ai_disabled', 503, 'ИИ не подключён. Настройте провайдера в админке.');
+    }
+
+    let admitted: boolean;
+    try {
+      const result = await this.pool.query<{ admitted: boolean }>(
+        'SELECT ai_chat_begin($1,$2,$3,$4::varchar) AS admitted',
+        [principalId, threadId, requestId, prompt],
+      );
+      admitted = result.rows[0]?.admitted === true;
+    } catch (problem) {
+      const code = (problem as { code?: string }).code;
+      const message = (problem as Error).message;
+      if (code === '42501') {
+        throw new AiServiceError('ai_access_denied', 403, 'Доступ к диалогу запрещён.');
+      }
+      if (code === '22023') {
+        throw new AiServiceError('ai_input_invalid', 400, 'Неверный запрос или его идентификатор.');
+      }
+      if (message.includes('AI_RATE_LIMIT')) {
+        throw new AiServiceError('ai_rate_limit', 429, 'Лимит: 30 сообщений в час на аккаунт.');
+      }
+      if (message.includes('AI_THREAD_BUSY_OR_MISSING')) {
+        throw new AiServiceError('ai_thread_busy', 409, 'Диалог недоступен или запрос уже выполняется.');
+      }
+      throw problem;
+    }
+
+    if (!admitted) {
+      return {
+        replayed: true,
+        stopped: false,
+        messages: await this.messages(principalId, threadId),
+      };
+    }
+
+    const abort = new AbortController();
+    const operationKey = principalId + ':' + requestId;
+    const combined = AbortSignal.any([clientSignal, abort.signal]);
+    this.activeStreams.set(operationKey, { principalId, threadId, abort });
+    try {
+      const history = await this.messages(principalId, threadId);
+      const context = history.slice(-16).map((message) => ({
+        role: message.role,
+        content: message.content.slice(0, 3000),
+      }));
+      const result = await streamProviderText({
+        fetchImpl: this.fetchImpl,
+        provider: runtime.provider,
+        model: runtime.model,
+        apiKey,
+        context,
+        instructions:
+          'Ты учебный помощник ASA Lab. Отвечай на русском, если пользователь не выбрал другой язык. ' +
+          'Объясняй решения и не выдавай неподтверждённые результаты за факты.',
+        signal: combined,
+        onDelta,
+      });
+
+      if (result.text.trim()) {
+        await this.pool.query('SELECT ai_chat_finish($1,$2,$3,$4::varchar,$5::varchar)', [
+          principalId,
+          threadId,
+          requestId,
+          result.text.slice(0, 8192),
+          result.stopped ? 'stopped' : 'complete',
+        ]);
+      } else {
+        await this.pool.query('SELECT ai_chat_abort($1,$2,$3)', [principalId, threadId, requestId]);
+      }
+      return {
+        messages: await this.messages(principalId, threadId),
+        replayed: false,
+        stopped: result.stopped,
+      };
+    } catch (problem) {
+      await this.pool
+        .query('SELECT ai_chat_abort($1,$2,$3)', [principalId, threadId, requestId])
+        .catch(() => undefined);
+      if (problem instanceof ProviderStreamError) {
+        throw new AiServiceError(problem.code, problem.status, problem.message);
+      }
+      if (problem instanceof AiServiceError) throw problem;
+      throw new AiServiceError('ai_provider_unavailable', 503, 'Поток ответа прервался. Сообщение сохранено.');
+    } finally {
+      this.activeStreams.delete(operationKey);
+    }
+  }
+
+  stopStream(principalId: string, threadId: string, requestId: string): { stopped: boolean } {
+    const operation = this.activeStreams.get(principalId + ':' + requestId);
+    if (!operation || operation.threadId !== threadId || operation.principalId !== principalId) {
+      return { stopped: false };
+    }
+    operation.abort.abort();
+    return { stopped: true };
   }
 
   private async runtime(): Promise<RuntimeRow> {
