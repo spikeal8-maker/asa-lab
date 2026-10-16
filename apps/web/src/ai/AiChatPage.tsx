@@ -631,7 +631,23 @@ export function AiChatPage(): JSX.Element {
             ) : null}
             <div className="asa-ai-provider-label">
               <strong>ИИ-помощник</strong>
-              <span>{status?.enabled ? status.model : 'Модель не подключена'}</span>
+              {(status?.availableModels?.length ?? 0) > 1 ? (
+                <select
+                  className="asa-ai-model-picker"
+                  aria-label="Модель ИИ"
+                  value={selectedModel || status?.model}
+                  onChange={(event) => setSelectedModel(event.target.value)}
+                  disabled={busy || !status?.enabled}
+                >
+                  {status?.availableModels?.map((name) => (
+                    <option key={name} value={name}>
+                      {name}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <span>{status?.enabled ? status.model : 'Модель не подключена'}</span>
+              )}
             </div>
           </header>
 
@@ -773,25 +789,9 @@ export function AiChatPage(): JSX.Element {
                   disabled={!status?.enabled || busy}
                   aria-label="Сообщение ИИ"
                 />
-                {(status?.availableModels?.length ?? 0) > 1 ? (
-                  <select
-                    className="chat-model-selector"
-                    aria-label="Модель ИИ"
-                    value={selectedModel || status?.model}
-                    onChange={(event) => setSelectedModel(event.target.value)}
-                    disabled={busy}
-                  >
-                    {status?.availableModels?.map((name) => (
-                      <option key={name} value={name}>
-                        {name}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <span className="chat-model-selector" aria-label="Текущая модель">
-                    {status?.model ?? 'GPT'}
-                  </span>
-                )}
+                <span className="chat-model-selector" aria-label="Текущая модель">
+                  {selectedModel || status?.model || 'GPT'}
+                </span>
                 <button
                   type={busy ? 'button' : 'submit'}
                   className="chat-send-button"
