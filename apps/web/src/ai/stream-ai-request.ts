@@ -23,13 +23,14 @@ export async function streamAiRequest<T>(
   requestId: string,
   onDelta: (piece: string) => void,
   signal: AbortSignal,
+  model?: string,
 ): Promise<AiStreamResponse<T>> {
   const response = await fetchWithSessionRefresh(
     '/api/ai/threads/' + encodeURIComponent(threadId) + '/messages/stream',
     {
       method: 'POST',
       headers: { 'content-type': 'application/json', accept: 'text/event-stream' },
-      body: JSON.stringify({ message: text, requestId }),
+      body: JSON.stringify({ message: text, requestId, ...(model ? { model } : {}) }),
       signal,
     },
   );
