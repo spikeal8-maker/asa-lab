@@ -6,6 +6,7 @@ export type CreatorPortalSection =
   | 'projects'
   | 'games'
   | 'learning'
+  | 'achievements'
   | 'knowledge'
   | 'collections'
   | 'gallery'
@@ -67,6 +68,7 @@ export type CreatorPortalView =
   | ProjectListView
   | { kind: 'games' }
   | { kind: 'learning' }
+  | { kind: 'achievements' }
   | { kind: 'knowledge' }
   | { kind: 'knowledge-course'; courseId: string }
   | { kind: 'collections' }
@@ -91,6 +93,7 @@ export type CreatorPortalView =
         | ProjectListView
         | { kind: 'games' }
         | { kind: 'learning' }
+        | { kind: 'achievements' }
         | { kind: 'classroom'; classroomId: string; classroomTitle: string; seatId?: string }
         | { kind: 'classroom-projects'; classroomId: string; classroomTitle: string };
     };
@@ -118,6 +121,7 @@ const PORTAL_ROUTES: ReadonlyArray<{
   { path: '/projects', view: { kind: 'my-projects' } },
   { path: '/games', view: { kind: 'games' } },
   { path: '/learning', view: { kind: 'learning' } },
+  { path: '/achievements', view: { kind: 'achievements' } },
   { path: '/knowledge', view: { kind: 'knowledge' } },
   { path: '/collections', view: { kind: 'collections' } },
   { path: '/gallery', view: { kind: 'gallery' } },
@@ -151,6 +155,7 @@ export function portalNavigation(
     return [
       { section: 'home', label: 'Главная' },
       { section: 'learning', label: 'Моё обучение' },
+      { section: 'achievements', label: 'Мои достижения' },
       { section: 'projects', label: 'Мои учебные работы' },
       { section: 'help', label: 'Помощь' },
       { section: 'account', label: 'Настройки учебного профиля' },
@@ -166,6 +171,7 @@ export function portalNavigation(
     // the teacher-only destination below, so the two labels describe different
     // actions instead of competing for the same meaning.
     { section: 'learning', label: 'Моё обучение' },
+    { section: 'achievements', label: 'Мои достижения' },
     ...(options.contentAuthoring
       ? ([{ section: 'challenges', label: 'Курсы и задания' }] as const)
       : []),
@@ -189,6 +195,7 @@ export function sectionForView(view: CreatorPortalView, canTeach: boolean): Crea
   if (view.kind === 'games' || (view.kind === 'editor' && isGameModule(view.moduleKey)))
     return 'games';
   if (view.kind === 'learning') return 'learning';
+  if (view.kind === 'achievements') return 'achievements';
   if (view.kind === 'knowledge' || view.kind === 'knowledge-course') return 'knowledge';
   if (view.kind === 'collections') return 'collections';
   if (view.kind === 'gallery' || view.kind === 'gallery-work') return 'gallery';
@@ -240,7 +247,9 @@ export function creatorViewToHash(view: CreatorPortalView): string {
       ? 'home'
       : view.returnTo.kind === 'learning'
         ? 'learning'
-        : 'projects';
+        : view.returnTo.kind === 'achievements'
+          ? 'achievements'
+          : 'projects';
   const moduleQuery = view.moduleKey ? `?module=${encodeURIComponent(view.moduleKey)}` : '';
   const filterQuery =
     view.returnTo.kind === 'my-projects' && projectListQuery(view.returnTo)
@@ -279,6 +288,7 @@ function threeDReturnView(query: string | undefined): CreatorPortalReturnView {
     return projectListView(returnTo.split('?')[1]);
   }
   if (returnTo === '/learning') return { kind: 'learning' };
+  if (returnTo === '/achievements') return { kind: 'achievements' };
   const [path, nestedQuery] = (returnTo ?? '').split('?');
   const classroom = /^\/classrooms\/([^/]+)\/projects$/.exec(path ?? '');
   if (classroom) {
@@ -301,6 +311,7 @@ function electronicsReturnView(search: string): CreatorPortalReturnView {
     parsed.kind === 'home' ||
     parsed.kind === 'my-projects' ||
     parsed.kind === 'learning' ||
+    parsed.kind === 'achievements' ||
     parsed.kind === 'classroom-projects'
   ) {
     return parsed;
