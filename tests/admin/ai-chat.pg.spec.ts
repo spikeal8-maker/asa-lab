@@ -431,7 +431,7 @@ describe('AI Chat PostgreSQL access and request replay', () => {
        (thread_id, account_id, request_id, role, content, created_at)
        SELECT $1, $2, gen_random_uuid(),
          CASE WHEN n % 2 = 0 THEN 'assistant' ELSE 'user' END,
-         'Сообщение ' || n, now() - (108 - n) * interval '1 minute'
+         'Сообщение ' || n, now() - interval '2 days' - (108 - n) * interval '1 minute'
          FROM generate_series(1,107) n`,
       [thread.id, owner.accountId],
     );
