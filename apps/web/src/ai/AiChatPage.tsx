@@ -47,6 +47,7 @@ interface AiStatus {
   readonly enabled: boolean;
   readonly provider: 'openai' | 'deepseek';
   readonly model: string;
+  readonly availableModels?: readonly string[];
 }
 
 function flattenText(node: ReactNode): string {
@@ -124,6 +125,7 @@ function Content({ content }: { readonly content: string }): JSX.Element {
 
 export function AiChatPage(): JSX.Element {
   const [status, setStatus] = useState<AiStatus | null>(null);
+  const [selectedModel, setSelectedModel] = useState('');
   const [threads, setThreads] = useState<readonly AiThread[]>([]);
   const [threadCursor, setThreadCursor] = useState<AiCursor | null>(null);
   const [loadingMoreThreads, setLoadingMoreThreads] = useState(false);
@@ -171,8 +173,12 @@ export function AiChatPage(): JSX.Element {
     void Promise.all([call<AiStatus>('/api/ai/status'), call<AiPage<AiThread>>('/api/ai/threads')])
       .then(([model, history]) => {
         if (!active) return;
-        if (model.ok) setStatus(model.data);
-        else setError(model.error.message);
+        if (model.ok) {
+          setStatus(model.data);
+          setSelectedModel((previous) =>
+            model.data.availableModels?.includes(previous) ? previous : model.data.model,
+          );
+        } else setError(model.error.message);
         if (history.ok) {
           setThreads(history.data.items);
           setThreadCursor(history.data.nextCursor ?? null);
@@ -398,6 +404,7 @@ export function AiChatPage(): JSX.Element {
             if (version === selectedVersion.current) setStreamedText((value) => value + piece);
           },
           controller.signal,
+          selectedModel || status.model,
         );
         if (version !== selectedVersion.current) return;
         setStreamedText('');
@@ -766,9 +773,25 @@ export function AiChatPage(): JSX.Element {
                   disabled={!status?.enabled || busy}
                   aria-label="Сообщение ИИ"
                 />
-                <span className="chat-model-selector" aria-label="Текущая модель">
-                  {status?.model ?? 'GPT'}
-                </span>
+                {(status?.availableModels?.length ?? 0) > 1 ? (
+                  <select
+                    className="chat-model-selector"
+                    aria-label="Модель ИИ"
+                    value={selectedModel || status?.model}
+                    onChange={(event) => setSelectedModel(event.target.value)}
+                    disabled={busy}
+                  >
+                    {status?.availableModels?.map((name) => (
+                      <option key={name} value={name}>
+                        {name}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <span className="chat-model-selector" aria-label="Текущая модель">
+                    {status?.model ?? 'GPT'}
+                  </span>
+                )}
                 <button
                   type={busy ? 'button' : 'submit'}
                   className="chat-send-button"
