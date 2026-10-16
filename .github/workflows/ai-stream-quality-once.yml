@@ -1,0 +1,89 @@
+name: AI streaming one-time quality repair
+"on":
+  push:
+    branches:
+      - feature/ai-chat-gpt-integration-20261014
+    paths:
+      - .github/workflows/ai-stream-quality-once.yml
+permissions:
+  contents: write
+jobs:
+  quality:
+    if: github.repository == 'spikeal8-maker/asa-lab'
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/ai-chat-gpt-integration-20261014
+          persist-credentials: true
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Restore valid SQL dollar quotes in new unmerged migration
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("migrations/0213_ai_assistant_text_chat.sql")
+          content = p.read_text(encoding="utf-8")
+          dollar = chr(36)
+          bad_start = "AS " + dollar + "\n"
+          good_start = "AS " + dollar * 2 + "\n"
+          bad_end = "\n" + dollar + ";\n"
+          good_end = "\n" + dollar * 2 + ";\n"
+          assert content.count(bad_start) == 5, content.count(bad_start)
+          assert content.count(bad_end) == 4, content.count(bad_end)
+          content = content.replace(bad_start, good_start).replace(bad_end, good_end)
+          assert content.count(dollar * 2) == 26, content.count(dollar * 2)
+          assert content.count(bad_start) == 0
+          assert content.count(bad_end) == 0
+          p.write_text(content, encoding="utf-8")
+          PY
+      - name: Canonical formatter
+        run: |
+          set -euo pipefail
+          pnpm exec prettier --write \
+            apps/api/src/ai-provider-stream.ts \
+            apps/api/src/ai-provider-stream.spec.ts \
+            apps/api/src/ai-chat.service.ts \
+            apps/api/src/ai-chat.controller.ts \
+            apps/web/src/ai/stream-ai-request.ts \
+            apps/web/src/ai/AiChatPage.tsx \
+            apps/web/src/ai/izo-chat-design.css \
+            tests/admin/ai-chat.pg.spec.ts \
+            e2e/ai-chat.spec.ts
+          pnpm exec prettier --check \
+            apps/api/src/ai-provider-stream.ts \
+            apps/api/src/ai-provider-stream.spec.ts \
+            apps/api/src/ai-chat.service.ts \
+            apps/api/src/ai-chat.controller.ts \
+            apps/web/src/ai/stream-ai-request.ts \
+            apps/web/src/ai/AiChatPage.tsx \
+            apps/web/src/ai/izo-chat-design.css \
+            tests/admin/ai-chat.pg.spec.ts \
+            e2e/ai-chat.spec.ts
+          git diff --check
+          git add -- \
+            migrations/0213_ai_assistant_text_chat.sql \
+            apps/api/src/ai-provider-stream.ts \
+            apps/api/src/ai-provider-stream.spec.ts \
+            apps/api/src/ai-chat.service.ts \
+            apps/api/src/ai-chat.controller.ts \
+            apps/web/src/ai/stream-ai-request.ts \
+            apps/web/src/ai/AiChatPage.tsx \
+            apps/web/src/ai/izo-chat-design.css \
+            tests/admin/ai-chat.pg.spec.ts \
+            e2e/ai-chat.spec.ts
+          if ! git diff --cached --quiet; then
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git commit -m 'fix(ai): SQL stream lifecycle and canonical formatting'
+            git push origin HEAD:refs/heads/feature/ai-chat-gpt-integration-20261014
+          fi
