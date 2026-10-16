@@ -15,7 +15,7 @@ import {
 } from '@nestjs/common';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { ActiveContext, ActiveContextUseCase } from '@asa-lab/identity';
-import { AiChatService, AiServiceError, type AiCursor } from './ai-chat.service.js';
+import { AiChatService, AiServiceError, type AiCursor, type AiModel } from './ai-chat.service.js';
 import { SESSION_COOKIE, TOKENS } from './tokens.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -194,6 +194,15 @@ export class AiChatController {
     }
     const message = body['message'] as string;
     const requestId = body['requestId'] as string;
+    const model = body['model'];
+    if (
+      model !== undefined &&
+      model !== 'gpt-5-mini' &&
+      model !== 'gpt-4.1-mini' &&
+      model !== 'deepseek-chat'
+    ) {
+      return reject('ai_model_invalid', 'Выберите поддерживаемую модель.', 400);
+    }
 
     reply.hijack();
     reply.raw.writeHead(200, {
@@ -218,6 +227,7 @@ export class AiChatController {
         requestId,
         (delta) => event('delta', { text: delta }),
         canceled.signal,
+        model as AiModel | undefined,
       );
       event('done', result);
     } catch (problem) {
