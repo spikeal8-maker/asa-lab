@@ -60,6 +60,7 @@ export async function streamProviderText({
   signal,
   onDelta,
 }: StreamArgs): Promise<ProviderStreamResult> {
+  if (signal.aborted) return { text: '', stopped: true };
   const timeout = AbortSignal.timeout(65000);
   const combined = AbortSignal.any([signal, timeout]);
   let response: Response;
@@ -124,7 +125,7 @@ export async function streamProviderText({
   let finished = false;
 
   function handle(frame: string): void {
-    if (finished) return;
+    if (finished || combined.aborted) return;
     const lines = frame.split(/\r?\n/);
     const event = lines.find((line) => line.startsWith('event:'))?.slice(6).trim() ?? '';
     const data = lines
