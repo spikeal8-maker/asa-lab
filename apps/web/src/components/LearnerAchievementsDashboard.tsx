@@ -566,7 +566,7 @@ export function LearnerAchievementsDashboard({
         <section className="learner-achievements-hero" aria-labelledby="learner-achievements-title">
           <div className="learner-achievements-hero-content">
             <span className="learner-achievements-eyebrow">Личный учебный профиль</span>
-            <h2 id="learner-achievements-title">Мои достижения</h2>
+            <h2 id="learner-achievements-title">Мои результаты</h2>
             <p>Рейтинги классов, реальные оценки, выполненные работы и награды — в одном месте.</p>
             <div className="learner-achievements-hero-actions">
               <a href="#/projects" className="btn-secondary">
