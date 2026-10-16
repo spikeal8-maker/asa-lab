@@ -25,6 +25,7 @@ import {
   UserIcon,
 } from '../electronics/workbench-icons';
 import {
+  AchievementsGlyph,
   ChallengesGlyph,
   ClassesGlyph,
   CollectionsGlyph,
@@ -50,6 +51,7 @@ function sectionIcon(section: PortalSection): JSX.Element {
   if (section === 'collections') return <CollectionsGlyph />;
   if (section === 'gallery') return <GalleryGlyph />;
   if (section === 'learning') return <LearningGlyph />;
+  if (section === 'achievements') return <AchievementsGlyph />;
   if (section === 'knowledge') return <LearningGlyph />;
   if (section === 'challenges') return <ChallengesGlyph />;
   return <HelpGlyph />;
