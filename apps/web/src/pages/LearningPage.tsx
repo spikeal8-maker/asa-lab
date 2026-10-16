@@ -99,6 +99,7 @@ export function LearningPage({
             setTab('learning');
             setMode('teacher');
           }}
+          onOpenProject={onOpenProject}
         />
       </main>
     );
