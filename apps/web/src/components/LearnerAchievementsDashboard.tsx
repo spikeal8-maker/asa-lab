@@ -54,6 +54,7 @@ function LearnerClassCard({
   refresh,
   onSelect,
   onLoaded,
+  onFailed,
 }: {
   entry: LearnerClass;
   seatSession: boolean;
@@ -61,6 +62,7 @@ function LearnerClassCard({
   refresh: number;
   onSelect: () => void;
   onLoaded: (seatId: string, profile: ParticipantProfile) => void;
+  onFailed: (seatId: string, error: string) => void;
 }) {
   const [profile, setProfile] = useState<ParticipantProfile | null>(null);
   const [error, setError] = useState('');
@@ -76,13 +78,17 @@ function LearnerClassCard({
         if (!active) return;
         if (!result.ok) {
           setError(result.error.message);
+          onFailed(entry.seatId, result.error.message);
           return;
         }
         setProfile(result.data);
         onLoaded(entry.seatId, result.data);
       })
       .catch(() => {
-        if (active) setError('Не удалось загрузить рейтинг.');
+        if (active) {
+          setError('Не удалось загрузить рейтинг.');
+          onFailed(entry.seatId, 'Не удалось загрузить рейтинг.');
+        }
       });
     const unsubscribe = onSessionLoggedOut(() => {
       active = false;
@@ -93,7 +99,7 @@ function LearnerClassCard({
       active = false;
       unsubscribe();
     };
-  }, [entry.classroomId, entry.seatId, onLoaded, refresh, seatSession]);
+  }, [entry.classroomId, entry.seatId, onLoaded, onFailed, refresh, seatSession]);
 
   const score = profile?.metrics.score;
   return (
@@ -180,6 +186,7 @@ export function LearnerAchievementsDashboard({
   const [classLoading, setClassLoading] = useState(true);
   const [classesError, setClassesError] = useState('');
   const [profiles, setProfiles] = useState<Record<string, ParticipantProfile>>({});
+  const [profileErrors, setProfileErrors] = useState<Record<string, string>>({});
   const [classLimit, setClassLimit] = useState(6);
   const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
   const [recentProjects, setRecentProjects] = useState<Project[] | null>(null);
@@ -204,11 +211,20 @@ export function LearnerAchievementsDashboard({
 
   const loadedProfile = useCallback((seatId: string, profile: ParticipantProfile) => {
     setProfiles((old) => ({ ...old, [seatId]: profile }));
+    setProfileErrors((old) => {
+      const next = { ...old };
+      delete next[seatId];
+      return next;
+    });
+  }, []);
+  const failedProfile = useCallback((seatId: string, message: string) => {
+    setProfileErrors((old) => ({ ...old, [seatId]: message }));
   }, []);
 
   useEffect(() => {
     let active = true;
     setProfiles({});
+    setProfileErrors({});
     setClassLimit(6);
     setSelectedClassId(null);
     setMonth('');
@@ -352,7 +368,9 @@ export function LearnerAchievementsDashboard({
   }, [identity, month, offset, refresh, seat !== null]);
 
   const shownMonth = month || journal?.range.from.slice(0, 7) || '';
-  const visibleClasses = classes.slice(0, classLimit);
+  const visibleClasses = section === 'awards' && selectedClassId !== null
+    ? classes.filter((entry) => entry.classroomId === selectedClassId)
+    : classes.slice(0, classLimit);
   const focusClass = classes.find((entry) => entry.classroomId === selectedClassId) ?? classes[0];
   const focusProfile = focusClass ? profiles[focusClass.seatId] : undefined;
   const filteredJournal = learnerJournalItems(
@@ -386,6 +404,12 @@ export function LearnerAchievementsDashboard({
     );
   }, [filteredJournal, results, section, selectedClassId, seat, shownMonth]);
   const shownTimeline = section === 'overview' ? timeline.slice(0, 4) : timeline;
+  const profileLoading = classLoading || visibleClasses.some(
+    (entry) => !profiles[entry.seatId] && !profileErrors[entry.seatId],
+  );
+  const profileUnavailable = Boolean(classesError) || visibleClasses.some(
+    (entry) => Boolean(profileErrors[entry.seatId]),
+  );
   const shownAwards = visibleClasses.flatMap((entry) => {
     if (section === 'awards' && selectedClassId && selectedClassId !== entry.classroomId) return [];
     const profile = profiles[entry.seatId];
@@ -486,6 +510,7 @@ export function LearnerAchievementsDashboard({
               refresh={refresh}
               onSelect={() => setSelectedClassId(entry.classroomId)}
               onLoaded={loadedProfile}
+              onFailed={failedProfile}
             />
           ))}
         </ul>
@@ -952,6 +977,17 @@ export function LearnerAchievementsDashboard({
                 </li>
               ))}
             </ul>
+          ) : profileLoading ? (
+            <p className="learner-achievements-muted" role="status">
+              Загружаем достижения ваших классов…
+            </p>
+          ) : profileUnavailable ? (
+            <p className="learner-achievements-alert" role="alert">
+              Не удалось загрузить достижения одного или нескольких классов.{' '}
+              <button type="button" onClick={() => setRefresh((current) => current + 1)}>
+                Повторить
+              </button>
+            </p>
           ) : (
             <p className="learner-achievements-empty">
               Полученных значков пока нет. Они появятся здесь после выдачи преподавателем.
