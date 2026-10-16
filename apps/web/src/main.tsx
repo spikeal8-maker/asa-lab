@@ -4,6 +4,8 @@ import { App } from './App';
 import { AppErrorBoundary } from './AppErrorBoundary';
 import { installClientDiagnostics } from './client-diagnostics';
 import './styles.css';
+import './components/system-tabs.css';
+import { SystemToastViewport } from './components/SystemToastViewport';
 import './accessibility.css';
 import './pages/PublicEntryHeroV2.css';
 
@@ -20,6 +22,7 @@ createRoot(container).render(
   <React.StrictMode>
     <AppErrorBoundary>
       <App />
+      <SystemToastViewport />
     </AppErrorBoundary>
   </React.StrictMode>,
 );

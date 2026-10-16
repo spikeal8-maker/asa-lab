@@ -542,13 +542,16 @@ test.describe('Owner mobile classroom: usable register', () => {
           nameSize: getComputedStyle(rows[0]!.querySelector('.classroom-student-name')!).fontSize,
           statisticsHeight: document.querySelector('.classroom-metrics')!.getBoundingClientRect()
             .height,
+          tabsWidth: document.querySelector<HTMLElement>('.classroom-workspace-tabs')!.clientWidth,
+          tabsScrollWidth: document.querySelector<HTMLElement>('.classroom-workspace-tabs')!
+            .scrollWidth,
         };
       });
       writeFileSync(`${output}/geometry-${width}.json`, JSON.stringify(geometry, null, 2));
       await page.screenshot({ path: `${output}/classroom-${width}.png` });
       expect(geometry.documentWidth).toBeLessThanOrEqual(width);
       expect(geometry.mainScrollWidth).toBeLessThanOrEqual(geometry.mainWidth + 1);
-      expect(geometry.nameSize).toBe('16px');
+      expect(geometry.nameSize).toBe(width <= 600 ? '13px' : '16px');
       if (width <= 600) {
         const protection = page
           .locator('.classroom-roster-row')
@@ -567,6 +570,9 @@ test.describe('Owner mobile classroom: usable register', () => {
         const target = await protection.locator('input').boundingBox();
         expect(target!.width).toBeGreaterThanOrEqual(44);
         expect(target!.height).toBeGreaterThanOrEqual(44);
+      }
+      if (width === 1024) {
+        expect(geometry.tabsScrollWidth).toBeLessThanOrEqual(geometry.tabsWidth + 1);
       }
       if (width <= 1100) {
         expect(geometry.maxRowHeight).toBeLessThanOrEqual(110);

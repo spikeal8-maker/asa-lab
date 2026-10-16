@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { systemFeedback } from '../components/system-feedback';
 import {
   api,
   type AssignmentClassroom,
@@ -173,6 +174,9 @@ export function AssignmentLibraryPage({
   const [yearFilter, setYearFilter] = useState('');
   const [sort, setSort] = useState<SortKey>('new');
   const [notice, setNotice] = useState<string | null>(null);
+  useEffect(() => {
+    if (notice) systemFeedback.success(notice);
+  }, [notice]);
   const [error, setError] = useState<string | null>(null);
   /** Курсы — основной рабочий экран; банк заданий остаётся строительным материалом. */
   const [tab, setTab] = useState<'materials' | 'bank' | 'courses' | 'catalogue'>('materials');
@@ -330,7 +334,7 @@ export function AssignmentLibraryPage({
 
       {/* Три ответа на три разных вопроса: что у меня есть, в каком порядке я
           это даю и что есть у коллег. */}
-      <nav className="library-tabs" aria-label="Разделы курсов и заданий">
+      <nav className="library-tabs asa-system-tabs" aria-label="Разделы курсов и заданий">
         <button
           type="button"
           className={tab === 'materials' ? 'is-active' : undefined}
@@ -359,11 +363,6 @@ export function AssignmentLibraryPage({
         ) : null}
       </nav>
 
-      {notice ? (
-        <p className="notice-success" role="status">
-          {notice}
-        </p>
-      ) : null}
       {error ? (
         <p className="form-error" role="alert">
           {error}
@@ -771,9 +770,9 @@ export function AssignmentLibraryPage({
           folders={folders}
           defaultFolderId={scope.kind === 'folder' ? scope.id : null}
           onClose={() => setEditing(null)}
-          onSaved={async (_id, draft) => {
+          onSaved={async () => {
             setEditing(null);
-            setNotice(`Задание «${draft.title}» сохранено.`);
+            setNotice('Задание сохранено.');
             await reload();
             return null;
           }}

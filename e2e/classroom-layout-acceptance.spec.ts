@@ -419,6 +419,51 @@ test('classroom name search filters cards without changing the teacher totals', 
   await expect(totalClasses).toHaveText('23');
 });
 
+test('portal header stays a single row at 125% Windows scale and on small screens', async ({
+  page,
+}) => {
+  await seedPresentation(page, true);
+  for (const width of [320, 390, 820, 1023, 1280, 1536]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto('/#/classrooms');
+    await expect(page.locator('.portal-header')).toBeVisible();
+    const geometry = await page.locator('.portal-header').evaluate((header) => {
+      const bar = header.getBoundingClientRect();
+      const targets = [
+        '.portal-brand',
+        '.portal-global-nav',
+        '.portal-quick-create',
+        '.portal-account',
+      ]
+        .map((selector) => header.querySelector<HTMLElement>(selector))
+        .filter((item): item is HTMLElement => Boolean(item))
+        .filter((item) => getComputedStyle(item).display !== 'none')
+        .map((item) => item.getBoundingClientRect());
+      const centers = targets.map((rect) => rect.top + rect.height / 2);
+      return {
+        height: bar.height,
+        overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        verticalSpread: Math.max(...centers) - Math.min(...centers),
+        outOfBar: targets.some((rect) => rect.top < bar.top - 1 || rect.bottom > bar.bottom + 1),
+      };
+    });
+    expect(geometry.height, `One-row header at ${width}px`).toBeLessThanOrEqual(60);
+    expect(geometry.verticalSpread, `Aligned header actions at ${width}px`).toBeLessThanOrEqual(12);
+    expect(geometry.outOfBar, `Contained header actions at ${width}px`).toBe(false);
+    expect(geometry.overflow, `No page-wide horizontal scroll at ${width}px`).toBeLessThanOrEqual(
+      1,
+    );
+    if (width === 390) {
+      const row = await page.getByTestId('classroom-card').first().boundingBox();
+      expect(row?.height ?? Infinity, 'Compact mobile class line').toBeLessThanOrEqual(140);
+      await page.screenshot({ path: `${out}/390-compact-class-list.png`, fullPage: true });
+    }
+    if (width === 1536) {
+      await page.screenshot({ path: `${out}/1536-header-125pct.png`, fullPage: false });
+    }
+  }
+});
+
 for (const width of [320, 390, 1024, 1440]) {
   for (const populated of [false, true]) {
     test(`all classroom screens ${width}px ${populated ? 'populated' : 'empty'}`, async ({

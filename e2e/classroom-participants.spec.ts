@@ -99,7 +99,9 @@ test('real participant works, persisted rating, merits, avatars and mixed-cookie
       await rating.getByLabel(factor, { exact: true }).uncheck();
     await rating.getByLabel('Проекты', { exact: true }).check();
     await rating.getByRole('button', { name: 'Сохранить рейтинг' }).click();
-    await expect(rating.getByText('Рейтинг сохранён')).toBeVisible();
+    await expect(
+      page.locator('.asa-toast-viewport .asa-toast--success').getByText('Рейтинг сохранён'),
+    ).toBeVisible();
     await page.reload();
     await expect(row.getByLabel('Рейтинг: Анна Участница')).toContainText('20');
     await page.getByRole('button', { name: 'Настройки', exact: true }).click();

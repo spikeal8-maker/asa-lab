@@ -1,3 +1,5 @@
+import { SystemTabs } from '../components/SystemTabs';
+import { systemFeedback } from '../components/system-feedback';
 import '../modules/classroom-owner-layout.css';
 import '../modules/classroom-mobile.css';
 import '../modules/classroom-usability.css';
@@ -22,7 +24,7 @@ const CLASSROOM_ROLE_TABS: ReadonlyArray<{
   label: string;
   compactLabel: string;
 }> = [
-  { id: 'teaching', label: 'Преподавание', compactLabel: 'Преподавание' },
+  { id: 'teaching', label: 'Преподавание', compactLabel: 'Преподаю' },
   { id: 'archived', label: 'В архиве', compactLabel: 'Архив' },
   { id: 'coteaching', label: 'Совместное преподавание', compactLabel: 'Совместно' },
   { id: 'enrolled', label: 'Зарегистрированные', compactLabel: 'Учусь' },
@@ -89,7 +91,6 @@ export function DashboardPage({
 }): JSX.Element {
   const [list, setList] = useState<ListState>({ kind: 'loading' });
   const [modalOpen, setModalOpen] = useState(false);
-  const [notice, setNotice] = useState<string | null>(null);
   const [roleView, setRoleView] = useState<ClassroomRoleView>('teaching');
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [sort, setSort] = useState<SortKey>('created-desc');
@@ -119,7 +120,6 @@ export function DashboardPage({
    */
   function openModal(event: { currentTarget: HTMLButtonElement }): void {
     openerRef.current = event.currentTarget;
-    setNotice(null);
     setModalOpen(true);
   }
 
@@ -213,7 +213,7 @@ export function DashboardPage({
     const failed = targets.length - changed;
     const verb =
       status === 'archived' ? 'В архиве' : status === 'active' ? 'Возвращено из архива' : 'Удалено';
-    setNotice(
+    systemFeedback.success(
       changed === 0
         ? 'Ничего не изменилось.'
         : `${verb}: ${changed}${failed > 0 ? `. Не удалось: ${failed}.` : '.'}`,
@@ -260,35 +260,17 @@ export function DashboardPage({
         <button type="button" className="classroom-attend-link" onClick={onAttendClasses}>
           Я учусь в классе →
         </button>
-        <nav className="classroom-role-tabs" aria-label="Роли в классах">
-          {CLASSROOM_ROLE_TABS.map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              className={roleView === tab.id ? 'active' : undefined}
-              aria-label={tab.label}
-              aria-current={roleView === tab.id ? 'page' : undefined}
-              onClick={() => {
-                setRoleView(tab.id);
-                setSelected(new Set());
-              }}
-            >
-              <span className="classroom-role-label-full" aria-hidden="true">
-                {tab.label}
-              </span>
-              <span className="classroom-role-label-compact" aria-hidden="true">
-                {tab.compactLabel}
-              </span>
-            </button>
-          ))}
-        </nav>
+        <SystemTabs
+          items={CLASSROOM_ROLE_TABS}
+          active={roleView}
+          onChange={(next) => {
+            setRoleView(next);
+            setSelected(new Set());
+          }}
+          label="Роли в классах"
+          className="classroom-role-tabs"
+        />
       </section>
-
-      {notice ? (
-        <p className="notice-success" role="status" aria-live="polite">
-          {notice}
-        </p>
-      ) : null}
 
       <section className="classroom-hub-toolbar" aria-label="Действия с классами">
         <label className="classroom-select-all">
@@ -304,9 +286,14 @@ export function DashboardPage({
           ref={createButtonRef}
           type="button"
           className="portal-create-button"
+          aria-label="Создать класс"
           onClick={openModal}
         >
-          <PlusIcon /> Создать класс
+          <PlusIcon />
+          <span className="classroom-create-label-full">Создать класс</span>
+          <span className="classroom-create-label-compact" aria-hidden="true">
+            Класс
+          </span>
         </button>
         {/* The actions apply to what is ticked. With nothing ticked the menu
             says so instead of being a dead button that gives no reason. */}
@@ -386,8 +373,13 @@ export function DashboardPage({
           ariaLabel="Порядок классов"
           label={
             <>
-              {sortLabel}
-              <span aria-hidden="true">▾</span>
+              <span className="classroom-sort-label-full">{sortLabel}</span>
+              <span className="classroom-sort-label-compact" aria-hidden="true">
+                Сорт.
+              </span>
+              <span className="classroom-sort-caret" aria-hidden="true">
+                ▾
+              </span>
             </>
           }
         >
@@ -548,7 +540,10 @@ export function DashboardPage({
                       ⓘ
                     </abbr>
                   </span>
-                  <span className="classroom-stat-label">Средний рейтинг</span>
+                  <span className="classroom-stat-label">
+                    <span className="classroom-rating-label-full">Средний рейтинг</span>
+                    <span className="classroom-rating-label-compact">Рейт.</span>
+                  </span>
                 </span>
                 <span className="classroom-row-date">
                   {/* Подпись нужна только архиву: у остальных её говорит колонка. */}
@@ -644,7 +639,7 @@ export function DashboardPage({
           onClose={() => setEditing(null)}
           onSaved={(classroom) => {
             setEditing(null);
-            setNotice(`Класс «${classroom.title}» обновлён.`);
+            systemFeedback.success(`Класс «${classroom.title}» обновлён.`);
             void reload();
           }}
         />
@@ -655,7 +650,7 @@ export function DashboardPage({
           onClose={closeModal}
           onCreated={(classroom, created) => {
             setModalOpen(false);
-            setNotice(
+            systemFeedback.success(
               created
                 ? `Класс «${classroom.title}» создан.`
                 : `Класс «${classroom.title}» уже существует.`,

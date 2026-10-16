@@ -1,0 +1,185 @@
+/*
+ * ASA Lab tab navigation v1 — evolved from the compact Classroom section tabs.
+ * Use SystemTabs for navigation panels. Native ARIA tablists retain their
+ * keyboard semantics, but share these presentation rules via asa-system-tabs.
+ */
+.asa-system-tabs {
+  --asa-tabs-accent: #0878a4;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 3px;
+  width: max-content;
+  max-width: 100%;
+  min-width: 0;
+  margin: 0 0 8px;
+  padding: 2px;
+  border: 1px solid #dde8ef;
+  border-radius: 9px;
+  background: #f4f8fa;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  box-shadow: none;
+}
+
+.asa-system-tabs > button {
+  position: relative;
+  flex: 0 1 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: 44px;
+  padding: 6px 11px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  box-shadow: none;
+  color: #344c5e;
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.25;
+  text-align: center;
+  text-decoration: none;
+  white-space: nowrap;
+  overflow-wrap: normal;
+  word-break: normal;
+  cursor: pointer;
+}
+
+.asa-system-tabs > button:hover:not(:disabled) {
+  background: #e4f0f6;
+  color: #075f85;
+}
+
+.asa-system-tabs
+  > button:is(
+    .active,
+    .is-active,
+    [aria-current='page'],
+    [aria-selected='true'],
+    [aria-pressed='true']
+  ) {
+  border-color: #b7d7e6;
+  background: #fff;
+  color: #075f85;
+  box-shadow:
+    inset 0 -2px 0 var(--asa-tabs-accent),
+    0 1px 3px rgba(11, 53, 88, 0.07);
+  font-weight: 750;
+}
+
+.asa-system-tabs
+  > button:is(
+    .active,
+    .is-active,
+    [aria-current='page'],
+    [aria-selected='true'],
+    [aria-pressed='true']
+  )::after {
+  display: none;
+}
+
+.asa-system-tabs > button:focus-visible {
+  outline: 2px solid var(--asa-tabs-accent);
+  outline-offset: 2px;
+  z-index: 1;
+}
+
+.asa-system-tabs > button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.asa-system-tabs--vertical {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  width: 100%;
+  overflow: visible;
+}
+
+.asa-system-tabs--vertical > button {
+  justify-content: flex-start;
+  text-align: left;
+}
+
+/* Filter groups may share the same active indication without claiming to be tabs. */
+.asa-system-tabs[role='group'] > button {
+  min-height: 44px;
+}
+
+@media (max-width: 600px) {
+  .asa-system-tabs {
+    gap: 4px;
+    padding: 3px;
+    border-radius: 10px;
+  }
+  .asa-system-tabs > button {
+    min-height: 44px;
+    padding: 6px 9px;
+    font-size: 12px;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .asa-system-tabs > button {
+    transition:
+      background-color 120ms ease,
+      color 120ms ease,
+      border-color 120ms ease;
+  }
+}
+
+@media (forced-colors: active) {
+  .asa-system-tabs {
+    border-color: CanvasText;
+  }
+  .asa-system-tabs
+    > button:is(
+      .active,
+      .is-active,
+      [aria-current='page'],
+      [aria-selected='true'],
+      [aria-pressed='true']
+    ) {
+    border: 2px solid Highlight;
+  }
+}
+
+/*
+ * The eight Classroom sections must remain in one compact row at intermediate
+ * desktop container widths. An extra line pushed the register below the
+ * fourth visible pupil at a 1024px viewport; keep the existing 44px targets
+ * while reclaiming horizontal padding, not font readability.
+ */
+@media (min-width: 601px) and (max-width: 1100px) {
+  .classroom-owner-workspace.classroom-workspace .classroom-workspace-tabs.asa-system-tabs {
+    width: 100%;
+    flex-wrap: nowrap;
+    gap: 2px;
+    padding: 2px;
+    margin-bottom: 8px;
+    overflow-x: auto;
+  }
+
+  .classroom-owner-workspace .classroom-workspace-tabs.asa-system-tabs > button {
+    flex: 0 1 auto;
+    min-height: 44px;
+    padding: 6px 4px;
+    font-size: 13px;
+  }
+}
+
+.asa-system-tab-compact {
+  display: none;
+}
+@media (max-width: 600px) {
+  .asa-system-tabs:not(.asa-system-tabs--vertical) .asa-system-tab-full {
+    display: none;
+  }
+  .asa-system-tabs:not(.asa-system-tabs--vertical) .asa-system-tab-compact {
+    display: inline;
+  }
+}

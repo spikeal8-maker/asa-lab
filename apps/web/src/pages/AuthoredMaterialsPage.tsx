@@ -1,5 +1,6 @@
 import { AuthorVersionHistory } from '../components/AuthorVersionHistory';
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
+import { systemFeedback } from '../components/system-feedback';
 import {
   api,
   type AuthoredActivityDraft,
@@ -373,6 +374,9 @@ export function AuthoredMaterialsPage({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  useEffect(() => {
+    if (notice) systemFeedback.success(notice);
+  }, [notice]);
   const [draft, setDraft] = useState<AuthoredActivityDraft>(initial);
   const [inheritedGoal, setInheritedGoal] = useState<string | null>(null);
   const [opened, setOpened] = useState<{ id: string; revision: number } | null>(null);
@@ -1032,7 +1036,7 @@ export function AuthoredMaterialsPage({
             </label>
 
             <div
-              className="authored-assignment-filter-group"
+              className="authored-assignment-filter-group asa-system-tabs"
               role="group"
               aria-label="Фильтр по статусу"
             >
@@ -1235,11 +1239,6 @@ export function AuthoredMaterialsPage({
           {error ? (
             <div className="assignment-document-message is-error" role="alert">
               {error}
-            </div>
-          ) : null}
-          {notice ? (
-            <div className="assignment-document-message is-success" role="status">
-              {notice}
             </div>
           ) : null}
 
@@ -1678,11 +1677,6 @@ export function AuthoredMaterialsPage({
           >
             Повторить чтение
           </button>
-        </p>
-      ) : null}
-      {notice ? (
-        <p className="notice-success" role="status">
-          {notice}
         </p>
       ) : null}
       <div className={`course-editor-grid${embedded ? ' authored-editor-single' : ''}`}>

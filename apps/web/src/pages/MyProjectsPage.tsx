@@ -299,7 +299,7 @@ export function MyProjectsPage({
         </div>
       </section>
 
-      <div className="project-work-kind-tabs" role="group" aria-label="Тип работы">
+      <div className="project-work-kind-tabs asa-system-tabs" role="group" aria-label="Тип работы">
         {(
           [
             ['all', 'Все'],
@@ -320,7 +320,11 @@ export function MyProjectsPage({
       </div>
 
       {workKind === 'learning' ? (
-        <div className="project-learning-collection-tabs" role="group" aria-label="Учебные работы">
+        <div
+          className="project-learning-collection-tabs asa-system-tabs"
+          role="group"
+          aria-label="Учебные работы"
+        >
           {(
             [
               ['active', 'Активные'],
@@ -348,7 +352,11 @@ export function MyProjectsPage({
         right with the controls that change how the same set is displayed.
       */}
       <section className="project-toolbar" aria-label="Фильтры проектов">
-        <div className="project-kind-tabs" role="tablist" aria-label="Среда проекта">
+        <div
+          className="project-kind-tabs asa-system-tabs"
+          role="tablist"
+          aria-label="Среда проекта"
+        >
           <button
             type="button"
             role="tab"

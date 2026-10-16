@@ -382,7 +382,7 @@ export function ClassroomStudentPage({
           </button>
         </p>
       ) : null}
-      <nav className="participant-tabs" aria-label="Разделы профиля">
+      <nav className="participant-tabs asa-system-tabs" aria-label="Разделы профиля">
         {TABS.map((item) => (
           <button
             type="button"

@@ -1,5 +1,6 @@
 import { openAssignmentWork, submitSavedAssignment } from '../learning/submit-saved-assignment';
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
+import { systemFeedback } from '../components/system-feedback';
 import { api, type AttendedClass, type SeatAssignment } from '../api';
 import { AssignmentView } from '../components/AssignmentView';
 import { SeatCourses } from '../components/SeatCourses';
@@ -44,6 +45,9 @@ export function AttendedClassesPage({
   const starter = useRef(new AtomicLearningStarter());
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  useEffect(() => {
+    if (notice) systemFeedback.success(notice);
+  }, [notice]);
   const [openId, setOpenId] = useState<string | null>(null);
   const [participantSeatId, setParticipantSeatId] = useState<string | null>(null);
   const destination = useLearningDestination();
@@ -148,11 +152,6 @@ export function AttendedClassesPage({
             {error ? (
               <p className="form-error" role="alert">
                 {error}
-              </p>
-            ) : null}
-            {notice ? (
-              <p className="notice-success" role="status">
-                {notice}
               </p>
             ) : null}
           </form>

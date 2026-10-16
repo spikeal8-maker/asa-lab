@@ -1,0 +1,127 @@
+/*
+ * One action-feedback system across all pages.
+ * Desktop: top-right below the global header. Small screen: bottom-center,
+ * above the safe area, without obscuring the section switcher.
+ */
+.asa-toast-viewport {
+  position: fixed;
+  top: calc(66px + env(safe-area-inset-top, 0px));
+  right: max(16px, env(safe-area-inset-right, 0px));
+  z-index: 200;
+  display: grid;
+  gap: 8px;
+  width: min(390px, calc(100vw - 32px));
+  max-height: calc(100dvh - 88px);
+  overflow-y: auto;
+  pointer-events: none;
+}
+
+.asa-toast {
+  --asa-toast-accent: #0878a4;
+  --asa-toast-tint: #eaf5f9;
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) 44px;
+  align-items: center;
+  gap: 10px;
+  min-height: 52px;
+  padding: 6px 4px 6px 12px;
+  border: 1px solid #d8e3ea;
+  border-left: 4px solid var(--asa-toast-accent);
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 9px 24px rgba(11, 53, 88, 0.14);
+  color: #233744;
+  font-size: 14px;
+  line-height: 1.4;
+  pointer-events: auto;
+}
+
+.asa-toast--success {
+  --asa-toast-accent: #18744b;
+  --asa-toast-tint: #e7f6ec;
+}
+
+.asa-toast--error {
+  --asa-toast-accent: #bd342d;
+  --asa-toast-tint: #fff0ed;
+}
+
+.asa-toast--warning {
+  --asa-toast-accent: #98620a;
+  --asa-toast-tint: #fff5df;
+}
+
+.asa-toast-symbol {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--asa-toast-tint);
+  color: var(--asa-toast-accent);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.asa-toast-message {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.asa-toast-dismiss {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #526577;
+  font-size: 22px;
+}
+
+.asa-toast-dismiss:hover {
+  background: #f0f4f8;
+  color: #152c3d;
+}
+
+.asa-toast-dismiss:focus-visible {
+  outline: 2px solid var(--asa-toast-accent);
+  outline-offset: -2px;
+}
+
+@media (max-width: 600px) {
+  .asa-toast-viewport {
+    top: auto;
+    right: max(12px, env(safe-area-inset-right, 0px));
+    bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    left: max(12px, env(safe-area-inset-left, 0px));
+    width: auto;
+    max-height: min(55dvh, 400px);
+  }
+}
+
+@media (forced-colors: active) {
+  .asa-toast {
+    border: 2px solid CanvasText;
+    border-left: 4px solid Highlight;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .asa-toast {
+    animation: asa-toast-appear 160ms ease-out both;
+  }
+  @keyframes asa-toast-appear {
+    from {
+      opacity: 0;
+      transform: translateY(-6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
