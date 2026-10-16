@@ -30,12 +30,10 @@ export function AttendedClassesPage({
   onOpenProject,
   mode = 'classes',
   completedOnly = false,
-  hideHeading = false,
 }: {
   readonly onOpenProject: (projectId: string, moduleKey: string) => void;
   readonly mode?: 'classes' | 'learning';
   readonly completedOnly?: boolean;
-  readonly hideHeading?: boolean;
 }): JSX.Element {
   const [classes, setClasses] = useState<readonly AttendedClass[] | null>(null);
   const [assignments, setAssignments] = useState<
@@ -104,18 +102,16 @@ export function AttendedClassesPage({
 
   return (
     <main id="main-content" className="portal-content attended-classes" tabIndex={-1}>
-      {!hideHeading ? (
-        <header className="attended-heading">
-          <div>
-            <h1>{mode === 'learning' ? 'Моё обучение' : 'Я учусь'}</h1>
-            <p>
-              {mode === 'learning'
-                ? 'Здесь собраны выданные вам материалы и задания. Чтобы получить маршрут, войдите в класс по коду преподавателя.'
-                : 'Классы, в которые вы вошли по коду. Работы остаются вашими и лежат в ваших проектах.'}
-            </p>
-          </div>
-        </header>
-      ) : null}
+      <header className="attended-heading">
+        <div>
+          <h1>{mode === 'learning' ? 'Моё обучение' : 'Я учусь'}</h1>
+          <p>
+            {mode === 'learning'
+              ? 'Здесь собраны выданные вам материалы и задания. Чтобы получить маршрут, войдите в класс по коду преподавателя.'
+              : 'Классы, в которые вы вошли по коду. Работы остаются вашими и лежат в ваших проектах.'}
+          </p>
+        </div>
+      </header>
 
       {loadError ? (
         <p role="alert">
@@ -125,7 +121,7 @@ export function AttendedClassesPage({
           </button>
         </p>
       ) : null}
-      {mode === 'classes' ? <StudentJournalResults scope="account" /> : null}
+      <StudentJournalResults scope="account" />
       {!completedOnly ? (
         <>
           <form className="attended-join" onSubmit={(event) => void join(event)}>
@@ -179,27 +175,23 @@ export function AttendedClassesPage({
                   <div>
                     <strong>{entry.classroomTitle}</strong>
                     <span>Преподаватель: {entry.teacherDisplayName}</span>
-                    {mode === 'classes' ? (
-                      <>
-                        <button
-                          type="button"
-                          className="btn-secondary"
-                          aria-expanded={participantSeatId === entry.seatId}
-                          onClick={() =>
-                            setParticipantSeatId((current) =>
-                              current === entry.seatId ? null : entry.seatId,
-                            )
-                          }
-                        >
-                          Мой рейтинг и заслуги
-                        </button>
-                        {participantSeatId === entry.seatId ? (
-                          <StudentParticipantSummary
-                            key={entry.seatId}
-                            accountSeat={{ classroomId: entry.classroomId, seatId: entry.seatId }}
-                          />
-                        ) : null}
-                      </>
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      aria-expanded={participantSeatId === entry.seatId}
+                      onClick={() =>
+                        setParticipantSeatId((current) =>
+                          current === entry.seatId ? null : entry.seatId,
+                        )
+                      }
+                    >
+                      Мой рейтинг и заслуги
+                    </button>
+                    {participantSeatId === entry.seatId ? (
+                      <StudentParticipantSummary
+                        key={entry.seatId}
+                        accountSeat={{ classroomId: entry.classroomId, seatId: entry.seatId }}
+                      />
                     ) : null}
                     <details>
                       <summary>Мои оповещения об этом классе</summary>
