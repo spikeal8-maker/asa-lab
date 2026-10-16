@@ -272,7 +272,8 @@ export function LearnerAchievementsDashboard({
     let active = true;
     setRecentProjects(null);
     setRecentProjectsError('');
-    void api.listProjects({ scope: 'personal', status: 'active', sort: 'recent', limit: 4 })
+    void api
+      .listProjects({ scope: 'personal', status: 'active', sort: 'recent', limit: 4 })
       .then((result) => {
         if (!active) return;
         if (result.ok) setRecentProjects(result.data.items.slice(0, 4));
@@ -439,107 +440,99 @@ export function LearnerAchievementsDashboard({
   }
 
   const ratingPanel = (
-      <section
-        className="learner-achievements-panel"
-        aria-labelledby="learner-achievements-ratings"
-      >
-        <div className="learner-achievements-panel-head">
-          <div>
-            <h3 id="learner-achievements-ratings">Рейтинг по классам</h3>
-            <p>
-              У каждого класса собственные правила и период. Баллы между классами не суммируются.
-            </p>
-          </div>
-          {section === 'overview' ? (
-            <button
-              type="button"
-              className="learner-text-button"
-              onClick={() => setRefresh((current) => current + 1)}
-            >
-              Обновить
-            </button>
-          ) : null}
+    <section className="learner-achievements-panel" aria-labelledby="learner-achievements-ratings">
+      <div className="learner-achievements-panel-head">
+        <div>
+          <h3 id="learner-achievements-ratings">Рейтинг по классам</h3>
+          <p>У каждого класса собственные правила и период. Баллы между классами не суммируются.</p>
         </div>
-        {classesError ? (
-          <p className="learner-achievements-alert" role="alert">
-            {classesError}{' '}
-            <button type="button" onClick={() => setRefresh((current) => current + 1)}>
-              Повторить
-            </button>
-          </p>
-        ) : null}
-        {classLoading ? (
-          <p role="status" className="learner-achievements-muted">
-            Загружаем ваши классы…
-          </p>
-        ) : null}
-        {!classLoading && !classesError && classes.length === 0 ? (
-          <p className="learner-achievements-empty">
-            Вы пока не состоите в учебных классах. Присоединитесь к классу преподавателя, чтобы
-            увидеть результаты.
-          </p>
-        ) : null}
-        {classes.length ? (
-          <ul className="learner-achievements-classes">
-            {visibleClasses.map((entry) => (
-              <LearnerClassCard
-                key={entry.seatId}
-                entry={entry}
-                seatSession={seat !== null}
-                selected={focusClass?.seatId === entry.seatId}
-                refresh={refresh}
-                onSelect={() => setSelectedClassId(entry.classroomId)}
-                onLoaded={loadedProfile}
-              />
-            ))}
-          </ul>
-        ) : null}
-        {classLimit < classes.length ? (
+        {section === 'overview' ? (
           <button
             type="button"
-            className="btn-secondary learner-achievements-more"
-            onClick={() => setClassLimit((current) => current + 6)}
+            className="learner-text-button"
+            onClick={() => setRefresh((current) => current + 1)}
           >
-            Показать ещё классы ({classes.length - classLimit})
+            Обновить
           </button>
         ) : null}
-        {focusProfile && section === 'overview' && focusProfile.metrics.score !== null ? (
-          <div className="learner-achievements-factors">
-            <div className="learner-achievements-panel-head">
-              <div>
-                <h4>Из чего складываются баллы</h4>
-                <p>
-                  {focusClass.classroomTitle} · {focusProfile.settings.periodDays} дней
-                </p>
-              </div>
-            </div>
-            <div className="learner-achievements-factor-grid">
-              {PARTICIPANT_FACTORS.filter((key) => focusProfile.settings.factors[key]).map(
-                (key) => (
-                  <div className="learner-factor" key={key}>
-                    <span>{FACTOR_NAMES[key]}</span>
-                    <strong>{Math.round(focusProfile.metrics.factors[key] * 10) / 10} / 100</strong>
-                    <span className="learner-factor-track">
-                      <span
-                        style={{
-                          width:
-                            Math.max(0, Math.min(focusProfile.metrics.factors[key], 100)) + '%',
-                        }}
-                      />
-                    </span>
-                  </div>
-                ),
-              )}
+      </div>
+      {classesError ? (
+        <p className="learner-achievements-alert" role="alert">
+          {classesError}{' '}
+          <button type="button" onClick={() => setRefresh((current) => current + 1)}>
+            Повторить
+          </button>
+        </p>
+      ) : null}
+      {classLoading ? (
+        <p role="status" className="learner-achievements-muted">
+          Загружаем ваши классы…
+        </p>
+      ) : null}
+      {!classLoading && !classesError && classes.length === 0 ? (
+        <p className="learner-achievements-empty">
+          Вы пока не состоите в учебных классах. Присоединитесь к классу преподавателя, чтобы
+          увидеть результаты.
+        </p>
+      ) : null}
+      {classes.length ? (
+        <ul className="learner-achievements-classes">
+          {visibleClasses.map((entry) => (
+            <LearnerClassCard
+              key={entry.seatId}
+              entry={entry}
+              seatSession={seat !== null}
+              selected={focusClass?.seatId === entry.seatId}
+              refresh={refresh}
+              onSelect={() => setSelectedClassId(entry.classroomId)}
+              onLoaded={loadedProfile}
+            />
+          ))}
+        </ul>
+      ) : null}
+      {classLimit < classes.length ? (
+        <button
+          type="button"
+          className="btn-secondary learner-achievements-more"
+          onClick={() => setClassLimit((current) => current + 6)}
+        >
+          Показать ещё классы ({classes.length - classLimit})
+        </button>
+      ) : null}
+      {focusProfile && section === 'overview' && focusProfile.metrics.score !== null ? (
+        <div className="learner-achievements-factors">
+          <div className="learner-achievements-panel-head">
+            <div>
+              <h4>Из чего складываются баллы</h4>
+              <p>
+                {focusClass.classroomTitle} · {focusProfile.settings.periodDays} дней
+              </p>
             </div>
           </div>
-        ) : null}
-        {section === 'overview' ? (
-          <p className="learner-achievements-footnote">
-            Общешкольное место пока не рассчитывается: для него нужна единая методика рейтинга и
-            разрешённая школьная область сравнения.
-          </p>
-        ) : null}
-      </section>
+          <div className="learner-achievements-factor-grid">
+            {PARTICIPANT_FACTORS.filter((key) => focusProfile.settings.factors[key]).map((key) => (
+              <div className="learner-factor" key={key}>
+                <span>{FACTOR_NAMES[key]}</span>
+                <strong>{Math.round(focusProfile.metrics.factors[key] * 10) / 10} / 100</strong>
+                <span className="learner-factor-track">
+                  <span
+                    style={{
+                      width: Math.max(0, Math.min(focusProfile.metrics.factors[key], 100)) + '%',
+                    }}
+                  />
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+      {section === 'overview' ? (
+        <p className="learner-achievements-footnote">
+          Общешкольное место пока не рассчитывается: для него нужна единая методика рейтинга и
+          разрешённая школьная область сравнения.
+        </p>
+      ) : null}
+    </section>
   );
 
   return (
@@ -837,27 +830,39 @@ export function LearnerAchievementsDashboard({
       ) : null}
 
       {section === 'overview' ? (
-        <section className="learner-achievements-panel" aria-labelledby="learner-achievements-works">
+        <section
+          className="learner-achievements-panel"
+          aria-labelledby="learner-achievements-works"
+        >
           <div className="learner-achievements-panel-head">
             <div>
               <h3 id="learner-achievements-works">Последние работы</h3>
               <p>Настоящие сохранённые проекты с их превью и учебным контекстом.</p>
             </div>
-            <a className="learner-text-button" href="#/projects">Все работы →</a>
+            <a className="learner-text-button" href="#/projects">
+              Все работы →
+            </a>
           </div>
           {recentProjectsError ? (
             <p role="alert" className="learner-achievements-alert">
               {recentProjectsError}{' '}
-              <button type="button" onClick={() => setRefresh((value) => value + 1)}>Повторить</button>
+              <button type="button" onClick={() => setRefresh((value) => value + 1)}>
+                Повторить
+              </button>
             </p>
           ) : recentProjects === null ? (
-            <p role="status" className="learner-achievements-muted">Загружаем последние работы…</p>
+            <p role="status" className="learner-achievements-muted">
+              Загружаем последние работы…
+            </p>
           ) : recentProjects.length === 0 ? (
-            <p className="learner-achievements-empty">Пока нет сохранённых проектов. Начните работу в редакторе — она появится здесь.</p>
+            <p className="learner-achievements-empty">
+              Пока нет сохранённых проектов. Начните работу в редакторе — она появится здесь.
+            </p>
           ) : (
             <ul className="learner-achievements-works">
               {recentProjects.map((project) => {
-                const allowed = !project.learningWork ||
+                const allowed =
+                  !project.learningWork ||
                   project.learningWork.allowedActions.open ||
                   project.learningWork.allowedActions.continue;
                 return (
@@ -865,15 +870,24 @@ export function LearnerAchievementsDashboard({
                     <div className="learner-work-thumbnail">
                       <ProjectPreview
                         project={project}
-                        fallback={<span className="learner-work-fallback" aria-hidden="true">✦</span>}
+                        fallback={
+                          <span className="learner-work-fallback" aria-hidden="true">
+                            ✦
+                          </span>
+                        }
                       />
                     </div>
                     <strong>{project.title}</strong>
-                    <small>{project.learningWork?.classroomTitle || (
-                      project.moduleKey === 'electronics' ? 'Электроника' :
-                      project.moduleKey === 'three-d' ? '3D-моделирование' :
-                      project.moduleKey === 'blocks' ? 'Scratch' : 'Мой проект'
-                    )}</small>
+                    <small>
+                      {project.learningWork?.classroomTitle ||
+                        (project.moduleKey === 'electronics'
+                          ? 'Электроника'
+                          : project.moduleKey === 'three-d'
+                            ? '3D-моделирование'
+                            : project.moduleKey === 'blocks'
+                              ? 'Scratch'
+                              : 'Мой проект')}
+                    </small>
                     <button
                       type="button"
                       className="learner-work-open"
