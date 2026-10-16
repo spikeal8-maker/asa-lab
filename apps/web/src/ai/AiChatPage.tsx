@@ -1,4 +1,14 @@
-import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 'react';
+import {
+  isValidElement,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { call } from '../api-call';
 import { AiStreamClientError, streamAiRequest } from './stream-ai-request';
 import './izo-chat-design.css';
@@ -39,34 +49,75 @@ interface AiStatus {
   readonly model: string;
 }
 
+function flattenText(node: ReactNode): string {
+  if (typeof node === 'string' || typeof node === 'number') return String(node);
+  if (Array.isArray(node)) return node.map(flattenText).join('');
+  if (isValidElement<{ children?: ReactNode }>(node)) return flattenText(node.props.children);
+  return '';
+}
+
+function safeLink(href?: string): { href: string; external: boolean } | null {
+  if (!href) return null;
+  try {
+    const url = new URL(href, window.location.origin);
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') return null;
+    return { href, external: url.origin !== window.location.origin };
+  } catch {
+    return null;
+  }
+}
+
 function Content({ content }: { readonly content: string }): JSX.Element {
-  const pieces = content.split(/(\x60{3}[\s\S]*?\x60{3})/g);
   return (
     <div className="asa-ai-rich-text">
-      {pieces.map((part, index) => {
-        if (part.startsWith('\x60\x60\x60')) {
-          const source = part.replace(/^\x60{3}[^\n]*\n?/, '').replace(/\x60{3}$/, '');
-          return (
-            <div className="asa-ai-code-block" key={index}>
-              <button
-                type="button"
-                onClick={() => void navigator.clipboard.writeText(source).catch(() => undefined)}
-                aria-label="Копировать код"
+      <ReactMarkdown
+        skipHtml
+        remarkPlugins={[remarkGfm]}
+        components={{
+          a: ({ href, children }) => {
+            const safe = safeLink(href);
+            return safe ? (
+              <a
+                href={safe.href}
+                target={safe.external ? '_blank' : undefined}
+                rel={safe.external ? 'noreferrer noopener' : undefined}
               >
-                Копировать код
-              </button>
-              <pre>
-                <code>{source}</code>
-              </pre>
+                {children}
+              </a>
+            ) : (
+              <span>{children}</span>
+            );
+          },
+          pre: ({ children }) => {
+            const code = flattenText(children).replace(/\n$/, '');
+            return (
+              <div className="asa-ai-code-block">
+                <button
+                  type="button"
+                  onClick={() => void navigator.clipboard.writeText(code).catch(() => undefined)}
+                  aria-label="Копировать код"
+                >
+                  Копировать код
+                </button>
+                <pre>{children}</pre>
+              </div>
+            );
+          },
+          table: ({ children }) => (
+            <div
+              className="asa-ai-table-scroll"
+              role="region"
+              aria-label="Таблица ответа"
+              tabIndex={0}
+            >
+              <table>{children}</table>
             </div>
-          );
-        }
-        return (
-          <p className="asa-ai-paragraph" key={index}>
-            {part}
-          </p>
-        );
-      })}
+          ),
+          img: ({ alt }) => <span>{alt || 'Изображение в ответе недоступно'}</span>,
+        }}
+      >
+        {content}
+      </ReactMarkdown>
     </div>
   );
 }
