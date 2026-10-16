@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { AttendedClass, ClassroomStudentSession, LearnerResult } from '../api';
 import { api } from '../api';
 import {
@@ -22,6 +22,7 @@ import {
   learnerScoreLabel,
 } from '../learning/learner-achievements-model';
 import { onSessionLoggedOut } from '../session-fetch';
+import { canonicalLearningLabel } from '../learning/canonical-learning-presentation';
 import { seatAvatar } from '../creator-portal/default-avatars';
 import { awardOf } from './SeatAwards';
 import { useSchoolTime } from './school-time';
@@ -194,6 +195,7 @@ export function LearnerAchievementsDashboard({
     error: string;
   } | null>(null);
   const [historyBusy, setHistoryBusy] = useState(false);
+  const historyGeneration = useRef(0);
 
   const loadedProfile = useCallback((seatId: string, profile: ParticipantProfile) => {
     setProfiles((old) => ({ ...old, [seatId]: profile }));
@@ -324,7 +326,10 @@ export function LearnerAchievementsDashboard({
   const visibleClasses = classes.slice(0, classLimit);
   const focusClass = classes.find((entry) => entry.classroomId === selectedClassId) ?? classes[0];
   const focusProfile = focusClass ? profiles[focusClass.seatId] : undefined;
-  const filteredJournal = learnerJournalItems(journal?.items ?? [], selectedClassId);
+  const filteredJournal = learnerJournalItems(
+    journal?.items ?? [],
+    section === 'overview' ? null : selectedClassId,
+  );
   const timeline = useMemo<TimelineItem[]>(() => {
     const entries: TimelineItem[] = filteredJournal.map((item) => ({
       kind: 'journal',
@@ -334,7 +339,7 @@ export function LearnerAchievementsDashboard({
     }));
     // Legacy result DTO has the class title but no immutable class ID. Never
     // filter it by title: two schools may have same-named classes.
-    if (selectedClassId === null || seat !== null) {
+    if (section !== 'grades' || selectedClassId === null || seat !== null) {
       for (const item of results) {
         if (section === 'grades' && shownMonth && !item.publishedAt.startsWith(shownMonth))
           continue;
@@ -353,7 +358,7 @@ export function LearnerAchievementsDashboard({
   }, [filteredJournal, results, section, selectedClassId, seat, shownMonth]);
   const shownTimeline = section === 'overview' ? timeline.slice(0, 4) : timeline;
   const shownAwards = visibleClasses.flatMap((entry) => {
-    if (selectedClassId && selectedClassId !== entry.classroomId) return [];
+    if (section === 'awards' && selectedClassId && selectedClassId !== entry.classroomId) return [];
     const profile = profiles[entry.seatId];
     if (!profile) return [];
     return [
@@ -377,6 +382,7 @@ export function LearnerAchievementsDashboard({
   });
 
   async function showHistory(item: JournalResult): Promise<void> {
+    const request = ++historyGeneration.current;
     setHistory(null);
     setHistoryBusy(true);
     const read = seat
@@ -384,6 +390,7 @@ export function LearnerAchievementsDashboard({
       : participantsApi.history(item.classroomId, item.seatId, item.columnId);
     try {
       const result = await read;
+      if (request !== historyGeneration.current) return;
       setHistory({
         id: item.id,
         revisions: result.ok ? result.data.items : [],
@@ -391,6 +398,7 @@ export function LearnerAchievementsDashboard({
         error: result.ok ? '' : result.error.message,
       });
     } catch {
+      if (request !== historyGeneration.current) return;
       setHistory({
         id: item.id,
         revisions: [],
@@ -398,7 +406,7 @@ export function LearnerAchievementsDashboard({
         error: 'Не удалось загрузить историю.',
       });
     } finally {
-      setHistoryBusy(false);
+      if (request === historyGeneration.current) setHistoryBusy(false);
     }
   }
 
@@ -600,6 +608,8 @@ export function LearnerAchievementsDashboard({
                   value={selectedClassId ?? ''}
                   onChange={(event) => {
                     setSelectedClassId(event.target.value || null);
+                    historyGeneration.current++;
+                    setHistoryBusy(false);
                     setHistory(null);
                   }}
                 >
@@ -743,7 +753,12 @@ export function LearnerAchievementsDashboard({
                       <span>
                         {entry.item.classroomTitle} · {time.date(entry.item.publishedAt)}
                       </span>
-                      <small>Результат задания · попытка {entry.item.attemptNumber}</small>
+                      <small>
+                        Результат задания · попытка {entry.item.attemptNumber}
+                        {entry.item.canonicalState
+                          ? ' · ' + canonicalLearningLabel(entry.item.canonicalState)
+                          : ''}
+                      </small>
                       {entry.item.feedback ? <p>{entry.item.feedback}</p> : null}
                     </div>
                     <span className="learner-grade-kind">Задание</span>
