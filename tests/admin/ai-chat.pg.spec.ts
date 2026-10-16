@@ -329,7 +329,11 @@ describe('AI Chat PostgreSQL access and request replay', () => {
         url: msgUrl + '/stream',
         headers: { host, 'content-type': 'application/json', accept: 'text/event-stream' },
         cookies: { asa_session: ownerToken },
-        payload: { message: 'Потоковый запрос', requestId: streamedRequestId, model: 'gpt-4.1-mini' },
+        payload: {
+          message: 'Потоковый запрос',
+          requestId: streamedRequestId,
+          model: 'gpt-4.1-mini',
+        },
       });
       expect(streamedReply.statusCode).toBe(200);
       expect(streamedReply.headers['content-type']).toContain('text/event-stream');
