@@ -329,13 +329,30 @@ describe('AI Chat PostgreSQL access and request replay', () => {
         url: msgUrl + '/stream',
         headers: { host, 'content-type': 'application/json', accept: 'text/event-stream' },
         cookies: { asa_session: ownerToken },
-        payload: { message: 'Потоковый запрос', requestId: streamedRequestId },
+        payload: { message: 'Потоковый запрос', requestId: streamedRequestId, model: 'gpt-4.1-mini' },
       });
       expect(streamedReply.statusCode).toBe(200);
       expect(streamedReply.headers['content-type']).toContain('text/event-stream');
       expect(streamedReply.body).toContain('event: delta');
       expect(streamedReply.body).toContain('Потоковый ответ GPT');
       expect(streamedReply.body).toContain('event: done');
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+      const [, selectedOptions] = mockFetch.mock.calls[1]!;
+      const selectedInput = JSON.parse(String(selectedOptions?.body)) as { model: string };
+      expect(selectedInput.model).toBe('gpt-4.1-mini');
+      const invalidModel = await inject(app, {
+        method: 'POST',
+        url: msgUrl + '/stream',
+        headers: { host, 'content-type': 'application/json', accept: 'text/event-stream' },
+        cookies: { asa_session: ownerToken },
+        payload: {
+          message: 'Неподдерживаемый DeepSeek',
+          requestId: randomUUID(),
+          model: 'deepseek-chat',
+        },
+      });
+      expect(invalidModel.statusCode).toBe(200);
+      expect(invalidModel.body).toContain('ai_model_invalid');
       expect(mockFetch).toHaveBeenCalledTimes(2);
       const streamedHistory = await service.messages(owner.principalId, threadId);
       expect(streamedHistory).toContainEqual(
