@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { AttendedClass, ClassroomStudentSession, LearnerResult } from '../api';
+import type { AttendedClass, ClassroomStudentSession, LearnerResult, Project } from '../api';
 import { api } from '../api';
 import {
   journalApi,
@@ -24,6 +24,7 @@ import {
 import { onSessionLoggedOut } from '../session-fetch';
 import { canonicalLearningLabel } from '../learning/canonical-learning-presentation';
 import { seatAvatar } from '../creator-portal/default-avatars';
+import { ProjectPreview } from '../modules/ProjectPreviewFigure';
 import { awardOf } from './SeatAwards';
 import { useSchoolTime } from './school-time';
 import './learner-achievements.css';
@@ -164,12 +165,14 @@ export function LearnerAchievementsDashboard({
   onGrades,
   onAwards,
   onLearning,
+  onOpenProject,
 }: {
   seat: ClassroomStudentSession | null;
   section: AchievementSection;
   onGrades: () => void;
   onAwards: () => void;
   onLearning: () => void;
+  onOpenProject: (projectId: string, moduleKey: string) => void;
 }): JSX.Element {
   const time = useSchoolTime();
   const identity = seat ? 'seat:' + seat.student.seatId + ':' + seat.expiresAt : 'account';
@@ -179,6 +182,8 @@ export function LearnerAchievementsDashboard({
   const [profiles, setProfiles] = useState<Record<string, ParticipantProfile>>({});
   const [classLimit, setClassLimit] = useState(6);
   const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
+  const [recentProjects, setRecentProjects] = useState<Project[] | null>(null);
+  const [recentProjectsError, setRecentProjectsError] = useState('');
   const [results, setResults] = useState<LearnerResult[]>([]);
   const [resultsLoading, setResultsLoading] = useState(true);
   const [resultsError, setResultsError] = useState('');
@@ -256,6 +261,29 @@ export function LearnerAchievementsDashboard({
       setClasses([]);
       setProfiles({});
       setClassesError('Учебный сеанс завершён. Войдите снова.');
+    });
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, [identity, refresh]);
+
+  useEffect(() => {
+    let active = true;
+    setRecentProjects(null);
+    setRecentProjectsError('');
+    void api.listProjects({ scope: 'personal', status: 'active', sort: 'recent', limit: 4 })
+      .then((result) => {
+        if (!active) return;
+        if (result.ok) setRecentProjects(result.data.items.slice(0, 4));
+        else setRecentProjectsError('Не удалось загрузить последние работы.');
+      })
+      .catch(() => {
+        if (active) setRecentProjectsError('Не удалось загрузить последние работы.');
+      });
+    const unsubscribe = onSessionLoggedOut(() => {
+      active = false;
+      setRecentProjects(null);
     });
     return () => {
       active = false;
@@ -523,7 +551,7 @@ export function LearnerAchievementsDashboard({
             <h2 id="learner-achievements-title">Мои достижения</h2>
             <p>Рейтинги классов, реальные оценки, выполненные работы и награды — в одном месте.</p>
             <div className="learner-achievements-hero-actions">
-              <a href="#/my-projects" className="btn-secondary">
+              <a href="#/projects" className="btn-secondary">
                 Мои работы <span aria-hidden="true">↗</span>
               </a>
               <button type="button" onClick={onLearning}>
@@ -805,6 +833,60 @@ export function LearnerAchievementsDashboard({
               Посмотреть все оценки и изменения <span aria-hidden="true">→</span>
             </button>
           ) : null}
+        </section>
+      ) : null}
+
+      {section === 'overview' ? (
+        <section className="learner-achievements-panel" aria-labelledby="learner-achievements-works">
+          <div className="learner-achievements-panel-head">
+            <div>
+              <h3 id="learner-achievements-works">Последние работы</h3>
+              <p>Настоящие сохранённые проекты с их превью и учебным контекстом.</p>
+            </div>
+            <a className="learner-text-button" href="#/projects">Все работы →</a>
+          </div>
+          {recentProjectsError ? (
+            <p role="alert" className="learner-achievements-alert">
+              {recentProjectsError}{' '}
+              <button type="button" onClick={() => setRefresh((value) => value + 1)}>Повторить</button>
+            </p>
+          ) : recentProjects === null ? (
+            <p role="status" className="learner-achievements-muted">Загружаем последние работы…</p>
+          ) : recentProjects.length === 0 ? (
+            <p className="learner-achievements-empty">Пока нет сохранённых проектов. Начните работу в редакторе — она появится здесь.</p>
+          ) : (
+            <ul className="learner-achievements-works">
+              {recentProjects.map((project) => {
+                const allowed = !project.learningWork ||
+                  project.learningWork.allowedActions.open ||
+                  project.learningWork.allowedActions.continue;
+                return (
+                  <li key={project.id}>
+                    <div className="learner-work-thumbnail">
+                      <ProjectPreview
+                        project={project}
+                        fallback={<span className="learner-work-fallback" aria-hidden="true">✦</span>}
+                      />
+                    </div>
+                    <strong>{project.title}</strong>
+                    <small>{project.learningWork?.classroomTitle || (
+                      project.moduleKey === 'electronics' ? 'Электроника' :
+                      project.moduleKey === 'three-d' ? '3D-моделирование' :
+                      project.moduleKey === 'blocks' ? 'Scratch' : 'Мой проект'
+                    )}</small>
+                    <button
+                      type="button"
+                      className="learner-work-open"
+                      onClick={() => onOpenProject(project.id, project.moduleKey)}
+                      disabled={!allowed}
+                    >
+                      {allowed ? 'Открыть работу →' : 'Открытие недоступно'}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
         </section>
       ) : null}
 
