@@ -242,14 +242,20 @@ test('AI conversation rename and delete update the sidebar without phantom histo
     .getByRole('textbox', { name: 'Новое название диалога' })
     .fill('Робототехника и Arduino');
   await sidebar.getByRole('button', { name: 'Сохранить' }).click();
-  await expect(sidebar.getByRole('button', { name: 'Робототехника и Arduino', exact: true })).toBeVisible();
+  await expect(
+    sidebar.getByRole('button', { name: 'Робототехника и Arduino', exact: true }),
+  ).toBeVisible();
   await sidebar.getByRole('button', { name: 'Удалить: Робототехника и Arduino' }).click();
   await expect(sidebar.getByRole('group', { name: 'Подтверждение удаления' })).toBeVisible();
   await sidebar.getByRole('button', { name: 'Отмена' }).click();
-  await expect(sidebar.getByRole('button', { name: 'Робототехника и Arduino', exact: true })).toBeVisible();
+  await expect(
+    sidebar.getByRole('button', { name: 'Робототехника и Arduino', exact: true }),
+  ).toBeVisible();
   await sidebar.getByRole('button', { name: 'Удалить: Робототехника и Arduino' }).click();
   await sidebar.getByRole('button', { name: 'Удалить', exact: true }).click();
-  await expect(sidebar.getByRole('button', { name: 'Робототехника и Arduino', exact: true })).toHaveCount(0);
+  await expect(
+    sidebar.getByRole('button', { name: 'Робототехника и Arduino', exact: true }),
+  ).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'Чем я могу помочь?' })).toBeVisible();
   await expect
     .poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
@@ -281,12 +287,18 @@ test('AI renders GFM tables, code and safe links without injecting HTML', async 
   await page.getByRole('button', { name: 'Отправить сообщение' }).click();
   fake.release();
   await expect(page.getByRole('heading', { name: 'Объяснение' })).toBeVisible();
-  await expect(page.locator('.asa-ai-rich-text strong').filter({ hasText: 'Arduino' })).toBeVisible();
-  await expect(page.getByRole('region', { name: 'Таблица ответа' }).getByText('OUTPUT')).toBeVisible();
+  await expect(
+    page.locator('.asa-ai-rich-text strong').filter({ hasText: 'Arduino' }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('region', { name: 'Таблица ответа' }).getByText('OUTPUT'),
+  ).toBeVisible();
   await expect(page.getByRole('button', { name: 'Копировать код' })).toBeVisible();
   const link = page.getByRole('link', { name: 'Документация' });
   await expect(link).toHaveAttribute('href', 'https://example.com/arduino');
   await expect(link).toHaveAttribute('rel', /noopener/);
-  expect(await page.evaluate(() => (window as Window & { hacked?: boolean }).hacked)).toBeUndefined();
+  expect(
+    await page.evaluate(() => (window as Window & { hacked?: boolean }).hacked),
+  ).toBeUndefined();
   await expect(page.locator('.asa-ai-rich-text script')).toHaveCount(0);
 });
