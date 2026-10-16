@@ -1,0 +1,68 @@
+name: Learning origin list diagnostic
+
+on:
+  pull_request:
+    paths:
+      - 'tests/courses/activity-participations.pg.spec.ts'
+      - '.github/workflows/learning-origin-list-diagnostic.yml'
+
+permissions:
+  contents: read
+
+env:
+  CI: 'true'
+  NX_SKIP_NX_CACHE: 'true'
+  NX_DAEMON: 'false'
+
+jobs:
+  origin-list-plan:
+    name: Account list plan (${{ matrix.workers }} Vitest worker)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        workers: [1, 2]
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: asa_origin_list_diagnostic_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: origin-list-ci-isolated-test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d asa_origin_list_diagnostic_test"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    env:
+      TEST_DATABASE_URL: postgresql://postgres:origin-list-ci-isolated-test@127.0.0.1:5432/asa_origin_list_diagnostic_test
+      APP_TEST_DATABASE_URL: postgresql://asalab_app:origin-list-ci-isolated-test@127.0.0.1:5432/asa_origin_list_diagnostic_test
+      MIGRATION_DATABASE_URL: postgresql://postgres:origin-list-ci-isolated-test@127.0.0.1:5432/asa_origin_list_diagnostic_test
+      MIGRATION_EXPECT_DATABASE: asa_origin_list_diagnostic_test
+      MIGRATION_CONFIRM: APPLY:asa_origin_list_diagnostic_test
+      VITEST_MAX_THREADS: ${{ matrix.workers }}
+      VITEST_MIN_THREADS: ${{ matrix.workers }}
+      VITEST_MAX_FORKS: ${{ matrix.workers }}
+      VITEST_MIN_FORKS: ${{ matrix.workers }}
+      ASA_ORIGIN_LIST_PLAN_DIAGNOSTIC: 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - name: Migrate synthetic database and provision restricted runtime
+        run: |
+          pnpm db:migrate
+          psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -c "ALTER ROLE asalab_app WITH LOGIN PASSWORD 'origin-list-ci-isolated-test'"
+      - name: Diagnostic Access A suite with Account EXPLAIN ANALYZE
+        run: pnpm test:access-a
