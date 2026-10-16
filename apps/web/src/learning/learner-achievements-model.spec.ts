@@ -34,7 +34,11 @@ function grade(id: string, classroomId: string, date: string): JournalResult {
 
 describe('student achievements presentation', () => {
   it('separates same-named classes using exact IDs and orders journal dates', () => {
-    const input = [grade('a', 'class-1', '2026-10-10'), grade('b', 'class-2', '2026-10-15'), grade('c', 'class-1', '2026-10-16')];
+    const input = [
+      grade('a', 'class-1', '2026-10-10'),
+      grade('b', 'class-2', '2026-10-15'),
+      grade('c', 'class-1', '2026-10-16'),
+    ];
     expect(learnerJournalItems(input, 'class-1').map((item) => item.id)).toEqual(['c', 'a']);
     expect(learnerJournalItems(input, null).map((item) => item.id)).toEqual(['c', 'b', 'a']);
   });
@@ -49,8 +53,20 @@ describe('student achievements presentation', () => {
       },
     } as LearnerResult;
     expect(learnerResultLabel(result)).toBe('5');
-    expect(learnerResultLabel({ ...result, canonicalState: { selectedResult: { displayGrade: null, rawPoints: 0, maxPoints: 10 } } } as LearnerResult)).toBe('0 / 10');
-    expect(learnerResultLabel({ ...result, canonicalState: { selectedResult: { displayGrade: null, rawPoints: null, maxPoints: null } } } as LearnerResult)).toBe('Без балла');
+    expect(
+      learnerResultLabel({
+        ...result,
+        canonicalState: { selectedResult: { displayGrade: null, rawPoints: 0, maxPoints: 10 } },
+      } as LearnerResult),
+    ).toBe('0 / 10');
+    expect(
+      learnerResultLabel({
+        ...result,
+        canonicalState: {
+          selectedResult: { displayGrade: null, rawPoints: null, maxPoints: null },
+        },
+      } as LearnerResult),
+    ).toBe('Без балла');
   });
 
   it('never invents disabled ratings and only displays granted merits', () => {
