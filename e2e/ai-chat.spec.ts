@@ -102,13 +102,16 @@ async function fixture(page: Page) {
         return respond(route, { deleted: true });
       }
     }
-    const chat = /^\/api\/ai\/threads\/([a-f0-9-]+)\/messages$/.exec(path);
+    const chat = /^\/api\/ai\/threads\/([a-f0-9-]+)\/messages(?:\/stream)?$/.exec(path);
     if (chat) {
       const id = chat[1]!;
       const history = messages.get(id);
       if (!history)
         return respond(route, { error: { code: 'ai_thread_denied', message: 'Not found' } }, 404);
       if (method === 'GET') return respond(route, { items: history, nextCursor: null });
+      const streamed = path.endsWith('/stream');
+      const sse = (kind: string, value: unknown) =>
+        'event: ' + kind + '\\n' + 'data: ' + JSON.stringify(value) + '\\n\\n';
       const payload = req.postDataJSON() as { message: string; requestId: string };
       requests.push(payload.requestId);
       if (!history.some((msg) => msg.role === 'user' && msg.requestId === payload.requestId)) {
@@ -129,7 +132,15 @@ async function fixture(page: Page) {
           requestId: payload.requestId,
         });
       }
-      return respond(route, { messages: history, replayed: requests.length > 1 });
+      const result = { messages: history, replayed: requests.length > 1, stopped: false };
+      if (streamed) {
+        return route.fulfill({
+          status: 200,
+          contentType: 'text/event-stream; charset=utf-8',
+          body: sse('delta', { text: history.at(-1)?.content ?? '' }) + sse('done', result),
+        });
+      }
+      return respond(route, result);
     }
     if (path === '/api/admin/v1/ai') {
       if (method === 'PUT') {
