@@ -76,7 +76,10 @@ export function LearningPage({
       <h1>{pageTitle}</h1>
       <p>
         {seat
-          ? 'Класс «' + seat.classroom.title + '» · преподаватель ' + seat.classroom.teacherDisplayName
+          ? 'Класс «' +
+            seat.classroom.title +
+            '» · преподаватель ' +
+            seat.classroom.teacherDisplayName
           : 'Ваши занятия, оценки и достижения в доступных учебных классах.'}
       </p>
     </header>
@@ -92,7 +95,10 @@ export function LearningPage({
           section={tab}
           onGrades={() => setTab('grades')}
           onAwards={() => setTab('awards')}
-          onLearning={() => { setTab('learning'); setMode('teacher'); }}
+          onLearning={() => {
+            setTab('learning');
+            setMode('teacher');
+          }}
         />
       </main>
     );
@@ -126,10 +132,12 @@ export function LearningPage({
           <section className="learner-achievements-panel">
             <h2>Самостоятельное обучение</h2>
             <p>
-              Открытые материалы доступны в «Знаниях». Отдельный личный прогресс
-              самостоятельных курсов пока не поддерживается.
+              Открытые материалы доступны в «Знаниях». Отдельный личный прогресс самостоятельных
+              курсов пока не поддерживается.
             </p>
-            <a className="btn-secondary" href="#/knowledge">Открыть знания</a>
+            <a className="btn-secondary" href="#/knowledge">
+              Открыть знания
+            </a>
           </section>
         ) : (
           <>
