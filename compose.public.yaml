@@ -1,0 +1,20 @@
+# An optional HTTPS transport for the existing ASA Lab project.
+# Only selected by the manager after the public origin has been configured.
+name: ${COMPOSE_PROJECT_NAME:-asa-lab-production}
+
+services:
+  web:
+    environment:
+      ASA_PUBLIC_DOMAIN: ${ASA_PUBLIC_DOMAIN:?Set the public hostname through the installation manager}
+      XDG_DATA_HOME: /var/lib/asa-caddy
+    ports:
+      - '0.0.0.0:80:80'
+      - '0.0.0.0:443:443'
+    # Allows non-root Caddy to bind low ports without Linux capabilities.
+    sysctls:
+      net.ipv4.ip_unprivileged_port_start: '0'
+    volumes:
+      - caddy-data:/var/lib/asa-caddy
+
+volumes:
+  caddy-data:

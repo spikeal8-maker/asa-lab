@@ -9,6 +9,9 @@ real application readiness endpoint.
 
 Operator references:
 
+- [`PUBLIC_HTTPS_OPERATIONS.md`](PUBLIC_HTTPS_OPERATIONS.md) — единственный публичный HTTPS-домен ASA Lab, встроенный Caddy, сетевые правила, перенос и приёмка;
+
+
 - [`../delivery/AGENT_CHANGE_WORKFLOW.md`](../delivery/AGENT_CHANGE_WORKFLOW.md) —
   agent path from a focused change through GitHub, CI and an explicitly requested deploy;
 - [`LINUX_DOCKER_DEPLOYMENT.md`](LINUX_DOCKER_DEPLOYMENT.md) — Linux production,

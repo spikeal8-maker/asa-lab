@@ -11,8 +11,8 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from deployment.contracts import (Blocked, DEFAULT_WINDOW, REGISTRY, SERVICES, atomic_json,
                                   attest_database_targets, attest_embedded_editor, attest_proxy_policy, exact_origin, in_window, inventory_files, read_env, safe_member,
-                                  validate_release, verify_backup, verify_embedded_entry_http)
-from deployment.backup import recovery_configuration
+                                  validate_public_domain, validate_release, verify_backup, verify_embedded_entry_http)
+from deployment.backup import attest_backup_mounts, recovery_configuration
 from deployment.system import Installation, operation_lock, run
 from deployment.releases import assert_ci, validate_resolved_images
 import asa_manager
@@ -141,6 +141,64 @@ class EmbeddedEntryTests(unittest.TestCase):
             verify_embedded_entry_http(origin, revision, responses.__getitem__)
         self.assertEqual(problem.exception.code, 'EDITOR_ENTRY')
 
+
+class PublicHttpsInstallationTests(unittest.TestCase):
+    def test_fresh_production_public_install_uses_existing_web_and_exact_origin(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            asa_manager.first_environment(root, "production", "asa-lab.ru")
+            env = read_env(root / ".env")
+            self.assertEqual(env["COMPOSE_PROJECT_NAME"], "asa-lab-production")
+            self.assertEqual(env["ASA_SEED_DEV"], "false")
+            self.assertEqual(env["ASA_PUBLIC_DOMAIN"], "asa-lab.ru")
+            for key in ("ASA_BLOCKS_PARENT_ORIGIN", "ASA_BLOCKS_RUNTIME_ORIGIN",
+                        "ASA_UPDATE_ENTRY_ORIGIN", "ASA_PUBLIC_WEB_ORIGINS"):
+                self.assertEqual(env[key], "https://asa-lab.ru")
+            install = Installation(root, "production")
+            self.assertEqual(install.files, ["compose.yaml", "compose.production.yaml", "compose.public.yaml"])
+            self.assertEqual(install.project, "asa-lab-production")
+
+    def test_dev_compose_does_not_reenable_seed_for_a_restored_database(self):
+        compose = Path(__file__).resolve().parents[2] / "compose.dev.yaml"
+        self.assertIn("ASA_SEED_DEV: '${ASA_SEED_DEV:-true}'", compose.read_text(encoding="utf-8"))
+
+    def test_first_local_install_remains_available_without_public_certificate(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            asa_manager.first_environment(root, "dev")
+            install = Installation(root, "dev")
+            self.assertNotIn("ASA_PUBLIC_DOMAIN", install.env)
+            self.assertEqual(install.files, ["compose.yaml", "compose.dev.yaml"])
+
+    def test_bad_public_domain_and_wrong_profile_are_rejected(self):
+        for domain in ("https://asa-lab.ru", "ASA-LAB.ru", "127.0.0.1",
+                       "asa-lab.ru:443", "asa-lab.ru/evil", "localhost",
+                       "evil.ru\n:8080 { reverse_proxy target }", "a..ru"):
+            with self.subTest(domain=domain), self.assertRaises(Blocked):
+                validate_public_domain(domain)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with self.assertRaises(Blocked):
+                asa_manager.first_environment(root, "dev", "asa-lab.ru")
+            self.assertFalse((root / ".env").exists())
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            asa_manager.first_environment(root, "production", "asa-lab.ru")
+            with self.assertRaises(Blocked):
+                Installation(root, "dev")
+            (root / "compose.frp.yaml").write_text("services: {}\n")
+            with self.assertRaises(Blocked):
+                Installation(root, "production")
+
+    def test_cert_volume_is_regenerable_and_not_in_private_data_backup(self):
+        config = compose_config()
+        config["services"]["web"] = {"volumes": [
+            {"type": "volume", "target": "/var/lib/asa-caddy", "source": "caddy-data"}]}
+        with tempfile.TemporaryDirectory() as directory:
+            self.assertFalse(attest_backup_mounts(directory, config))
+            config["services"]["web"]["volumes"][0]["source"] = "postgres-data"
+            with self.assertRaises(Blocked):
+                attest_backup_mounts(directory, config)
 
 class WindowTests(unittest.TestCase):
     def test_exact_moscow_boundaries_independent_of_host_timezone(self):
