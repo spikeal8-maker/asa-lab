@@ -207,7 +207,7 @@ export class AiChatController {
     reply.raw.once('close', () => canceled.abort());
     const event = (type: string, data: unknown): void => {
       if (!reply.raw.writableEnded && !reply.raw.destroyed) {
-        reply.raw.write('event: ' + type + '\\n' + 'data: ' + JSON.stringify(data) + '\\n\\n');
+        reply.raw.write('event: ' + type + '\n' + 'data: ' + JSON.stringify(data) + '\n\n');
       }
     };
     try {

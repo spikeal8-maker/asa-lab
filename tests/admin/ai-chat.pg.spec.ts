@@ -226,10 +226,10 @@ describe('AI Chat PostgreSQL access and request replay', () => {
       const input = JSON.parse(String(options?.body)) as { stream?: boolean };
       if (input.stream) {
         const data =
-          'event: response.output_text.delta\\ndata: ' +
+          'event: response.output_text.delta\ndata: ' +
           JSON.stringify({ type: 'response.output_text.delta', delta: 'Потоковый ответ GPT' }) +
-          '\\n\\n' +
-          'event: response.completed\\ndata: {"type":"response.completed"}\\n\\n';
+          '\n\n' +
+          'event: response.completed\ndata: {"type":"response.completed"}\n\n';
         return new Response(data, {
           status: 200,
           headers: { 'content-type': 'text/event-stream' },

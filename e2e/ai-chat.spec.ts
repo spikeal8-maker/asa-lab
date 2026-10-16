@@ -111,7 +111,7 @@ async function fixture(page: Page) {
       if (method === 'GET') return respond(route, { items: history, nextCursor: null });
       const streamed = path.endsWith('/stream');
       const sse = (kind: string, value: unknown) =>
-        'event: ' + kind + '\\n' + 'data: ' + JSON.stringify(value) + '\\n\\n';
+        'event: ' + kind + '\n' + 'data: ' + JSON.stringify(value) + '\n\n';
       const payload = req.postDataJSON() as { message: string; requestId: string };
       requests.push(payload.requestId);
       if (!history.some((msg) => msg.role === 'user' && msg.requestId === payload.requestId)) {
