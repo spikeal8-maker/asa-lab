@@ -40,13 +40,6 @@ export async function openPortalSection(page: Page, label: string): Promise<void
   await portalSection(page, label).click();
 }
 
-/** Open the assigned-work workspace behind the learner's new overview tabs. */
-export async function openLearnerLessons(page: Page): Promise<void> {
-  await openPortalSection(page, 'Моё обучение');
-  const tabs = page.getByRole('navigation', { name: 'Разделы учебного кабинета' });
-  await tabs.getByRole('button', { name: 'Занятия', exact: true }).click();
-}
-
 /**
  * Account actions live in a disclosure that closes on navigation, and workspace
  * switching sits in a nested group inside it. Both have to be reopened every
