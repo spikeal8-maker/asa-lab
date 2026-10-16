@@ -11,8 +11,9 @@ import {
   Post,
   Query,
   Req,
+  Res,
 } from '@nestjs/common';
-import type { FastifyRequest } from 'fastify';
+import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { ActiveContext, ActiveContextUseCase } from '@asa-lab/identity';
 import { AiChatService, AiServiceError, type AiCursor } from './ai-chat.service.js';
 import { SESSION_COOKIE, TOKENS } from './tokens.js';
@@ -151,6 +152,84 @@ export class AiChatController {
     const threadId = this.threadId(rawId);
     const cursor = this.cursor(beforeAt, beforeId);
     return this.safe(() => this.ai.messagePage(account.principalId, threadId, cursor));
+  }
+
+
+  @Post('threads/:threadId/requests/:requestId/stop')
+  @HttpCode(200)
+  async stop(
+    @Req() request: FastifyRequest,
+    @Param('threadId') rawThreadId: string,
+    @Param('requestId') rawRequestId: string,
+  ) {
+    this.requireSameOrigin(request);
+    const account = await this.requireAccount(request);
+    const threadId = this.threadId(rawThreadId);
+    if (!UUID.test(rawRequestId)) {
+      return reject('ai_request_id_invalid', 'Неверный идентификатор запроса.', 400);
+    }
+    return this.ai.stopStream(account.principalId, threadId, rawRequestId);
+  }
+
+  @Post('threads/:threadId/messages/stream')
+  @HttpCode(200)
+  async sendStream(
+    @Req() request: FastifyRequest,
+    @Res() reply: FastifyReply,
+    @Param('threadId') rawId: string,
+    @Body() raw: unknown,
+  ): Promise<void> {
+    this.requireSameOrigin(request);
+    const account = await this.requireAccount(request);
+    const threadId = this.threadId(rawId);
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+      return reject('ai_input_invalid', 'Нужен текст сообщения.', 400);
+    }
+    const body = raw as Record<string, unknown>;
+    if (
+      typeof body['message'] !== 'string' ||
+      typeof body['requestId'] !== 'string' ||
+      !UUID.test(body['requestId'])
+    ) {
+      return reject('ai_input_invalid', 'Нужен текст сообщения и уникальный идентификатор.', 400);
+    }
+    const message = body['message'] as string;
+    const requestId = body['requestId'] as string;
+
+    reply.hijack();
+    reply.raw.writeHead(200, {
+      'Content-Type': 'text/event-stream; charset=utf-8',
+      'Cache-Control': 'no-cache, no-transform',
+      'X-Accel-Buffering': 'no',
+      'Connection': 'keep-alive',
+      'X-Content-Type-Options': 'nosniff',
+    });
+    const canceled = new AbortController();
+    reply.raw.once('close', () => canceled.abort());
+    const event = (type: string, data: unknown): void => {
+      if (!reply.raw.writableEnded && !reply.raw.destroyed) {
+        reply.raw.write('event: ' + type + '\\n' + 'data: ' + JSON.stringify(data) + '\\n\\n');
+      }
+    };
+    try {
+      const result = await this.ai.sendStream(
+        account.principalId,
+        threadId,
+        message,
+        requestId,
+        (delta) => event('delta', { text: delta }),
+        canceled.signal,
+      );
+      event('done', result);
+    } catch (problem) {
+      const code = problem instanceof AiServiceError ? problem.code : 'ai_provider_unavailable';
+      const message = problem instanceof AiServiceError
+        ? problem.message
+        : 'Не удалось получить ответ модели. Сообщение сохранено.';
+      event('error', { code, message });
+    } finally {
+      reply.raw.end();
+    }
   }
 
   @Post('threads/:threadId/messages')
