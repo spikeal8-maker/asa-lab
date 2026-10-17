@@ -223,6 +223,20 @@
 }
 
 @container classroom (max-width: 550px) {
+  /* Secondary teacher tabs must wrap rather than hide actions off-screen. */
+  .classroom-owner-workspace .classroom-learning-tabs,
+  .classroom-owner-workspace .manual-journal-modes {
+    display: flex;
+    flex-wrap: wrap;
+    width: 100%;
+    overflow: visible;
+  }
+  .classroom-owner-workspace .classroom-learning-tabs > button,
+  .classroom-owner-workspace .manual-journal-modes > button {
+    flex: 0 1 auto;
+    white-space: normal;
+    overflow-wrap: break-word;
+  }
   /* PR #577 compact composition with a legible, non-microscopic text floor. */
   .classroom-owner-list .classroom-hub-heading {
     margin-bottom: 8px;
