@@ -335,9 +335,10 @@ def source_install(args):
         doctor(args)
         # Repair the owned diagnostic collector after a previous manager-
         # unavailable error without touching the running application volumes.
-        run("python3", "tools/deployment/collector.py", "reconcile",
+        # collector.py uses package-relative imports and must run as a module.
+        run("python3", "-m", "deployment.collector", "reconcile",
             "--root", str(path), "--profile", args.profile,
-            as_user=args.operator, cwd=path)
+            as_user=args.operator, cwd=path / "tools")
         record("COLLECTOR_RECONCILED")
         return
     require(not (path / ".asa/maintenance.json").exists(), "An incomplete deployment already exists")
