@@ -4,6 +4,7 @@ import '../modules/classroom-usability.css';
 import '../modules/classroom-teacher-density.css';
 import '../modules/classroom-teacher-dashboard.css';
 import '../modules/classroom-teacher-dashboard-responsive.css';
+import '../modules/classroom-teacher-ultrawide.css';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, type Classroom, type ClassroomStatus } from '../api';
 import { CreateClassroomModal } from '../components/CreateClassroomModal';
