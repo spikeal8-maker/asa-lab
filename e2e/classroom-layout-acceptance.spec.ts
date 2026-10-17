@@ -359,7 +359,9 @@ async function photograph(page: Page, file: string, expectedPanel: string) {
         .filter((el) => {
           const box = el.getBoundingClientRect();
           const parent = main.getBoundingClientRect();
-          return el.checkVisibility() && (box.right > parent.right + 0.5 || box.left < parent.left - 0.5);
+          return (
+            el.checkVisibility() && (box.right > parent.right + 0.5 || box.left < parent.left - 0.5)
+          );
         })
         .slice(0, 12)
         .map((el) => ({
