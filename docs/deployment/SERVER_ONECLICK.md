@@ -141,6 +141,25 @@ python3 tools/asa_manager.py restore-check --profile staging \
     --database asalab_snapshot_test
 ```
 
+**Проверяемая доставка через SSH без сохранения plaintext на Windows:** при заранее
+настроенном входе на сервер по SSH-ключу и закреплённом ключе сервера
+в `known_hosts` можно использовать:
+
+```powershell
+py .\asa-lab\tools\bootstrap\transfer-backup-ssh.py --host 192.168.1.115 `
+  --user admins --expected-hostname admins-MS-7D22 `
+  --ssh-key "$env:USERPROFILE\.ssh\asa-test-key" `
+  --remote-dir /srv/asa-test-restore
+```
+
+На Ubuntu должен заранее существовать закрытый каталог назначения `0700`
+текущего пользователя. Скрипт проверяет последний архив Яндекс Диска,
+передаёт расшифрованный tar **потоком только по SSH**, проверяет SHA-256 и
+не перемещает ключ `age` с флешки. Он **не восстанавливает рабочую БД**:
+полученный tar нужно безопасно извлечь, затем выполнить
+`verify-backup` и `restore-check` перед отдельным cutover.
+Никаких исключений `StrictHostKeyChecking=no` нет.
+
 Путь `<snapshot>` замените фактической папкой внутри архивного комплекта.
 **Это строго проверочное восстановление** в новую базу `*_test`. Менеджер
 преднамеренно не заменяет активную БД. Перенос живых школьных данных на
