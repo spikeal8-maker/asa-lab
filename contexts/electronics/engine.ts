@@ -1,5 +1,6 @@
 import {
   advanceArduinoCircuitClock,
+  createArduinoCircuitClockExecutor,
   type ArduinoCircuitClockAdvance,
   type ArduinoCircuitClockState,
   type ArduinoCircuitInputEvent,
@@ -13,10 +14,12 @@ import {
 import {
   analyseCircuit,
   compileCircuit,
+  simulationModelSetDigest,
   type SimulationQuality,
   type SimulationResult,
   type SimulationStatus,
 } from './domain/simulation.js';
+import { simulationInputDigest } from './domain/simulation-input-digest.js';
 import type { ComponentResult, Diagnostic, NodeResult } from './domain/solver.js';
 
 export const ELECTRONICS_ENGINE_CONTRACT_VERSION = 1 as const;
@@ -347,6 +350,28 @@ export function advanceElectronicsToHorizon(
   document: ElectronicsEngineDocument,
   request: ElectronicsTimedAdvanceRequest,
 ): ElectronicsTimedAdvanceResult {
+  return advanceElectronicsRequest(document, request, false).next().value!;
+}
+
+/** Each next() performs at most maxEvents canonical MCU/barrier work; null means pending. */
+export function createElectronicsAdvanceSession(
+  document: ElectronicsEngineDocument,
+  request: ElectronicsTimedAdvanceRequest,
+) {
+  // The caller can change its document/state while the Worker yields; own this request snapshot.
+  const iterator = advanceElectronicsRequest(
+    structuredClone(document),
+    structuredClone(request),
+    true,
+  );
+  return { step: () => iterator.next().value! };
+}
+
+function* advanceElectronicsRequest(
+  document: ElectronicsEngineDocument,
+  request: ElectronicsTimedAdvanceRequest,
+  internalBatches: boolean,
+): Generator<null, ElectronicsTimedAdvanceResult, void> {
   const state = request.state ?? resetElectronicsTimedState();
   const previousContinuation = state.continuation;
   const previousCommitted = previousContinuation?.committedHorizonMicroseconds ?? 0;
@@ -363,7 +388,11 @@ export function advanceElectronicsToHorizon(
     };
   }
 
-  const modelSetDigest = analyseCircuit(document).modelSetDigest;
+  // Preserve the old structural validation and exception priority before continuation guards.
+  // The registry identity itself does not require a separate numerical solve/quality check.
+  compileCircuit(document);
+  simulationInputDigest(document, 0);
+  const modelSetDigest = simulationModelSetDigest();
   let previous: ArduinoCircuitClockState | undefined;
   if (previousContinuation) {
     const decoded = decodeTimedContinuation(previousContinuation, modelSetDigest);
@@ -407,15 +436,23 @@ export function advanceElectronicsToHorizon(
   }
 
   const inputs = [...(previous?.inputs ?? []), ...appendedInputs];
-  const advanced = advanceArduinoCircuitClock(
-    document,
-    request.requestedHorizonMicroseconds,
-    previous,
-    {
+  const executor = internalBatches
+    ? createArduinoCircuitClockExecutor(document)
+    : (
+        horizon: number,
+        previous: ArduinoCircuitClockState | undefined,
+        options: { inputs: readonly ArduinoCircuitInputEvent[]; maxClockEvents?: number },
+      ) => advanceArduinoCircuitClock(document, horizon, previous, options);
+  let advanced: ArduinoCircuitClockAdvance;
+  do {
+    advanced = executor(request.requestedHorizonMicroseconds, previous, {
       inputs,
       ...(request.maxEvents === undefined ? {} : { maxClockEvents: request.maxEvents }),
-    },
-  );
+    });
+    if (!internalBatches || advanced.executionStatus !== 'yielded') break;
+    previous = advanced.state ?? undefined;
+    yield null;
+  } while (true);
 
   if (advanced.executionStatus === 'fault' || !advanced.state) {
     return {

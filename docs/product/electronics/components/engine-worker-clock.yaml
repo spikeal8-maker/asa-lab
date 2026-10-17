@@ -69,6 +69,7 @@ components:
     tests:
     - contexts/electronics/testing/solver.spec.ts
     - contexts/electronics/testing/benchmark-corpus.spec.ts
+    - contexts/electronics/testing/linear-system.spec.ts
     dependencies:
     - electronics.engine.netlist
     - electronics.engine.device-model
@@ -125,11 +126,14 @@ components:
     - docs/product/electronics/ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md#5-e-opt-2--dedicated-electronics-worker
     sources:
     - apps/web/src/electronics/live-simulation-worker-controller.ts
+    - apps/web/src/electronics/load-simulation-worker-controller.ts
     - apps/web/src/electronics/use-electronics-workbench.ts
     - apps/web/src/electronics/use-workbench-project-state.ts
     tests:
     - apps/web/src/electronics/testing/live-simulation-worker-controller.spec.ts
+    - apps/web/src/electronics/testing/use-electronics-workbench-clock.spec.ts
     - e2e/electronics-simulation.spec.ts
+    - e2e/electronics-ready-cadence.spec.ts
     dependencies:
     - electronics.worker.protocol
     symbols:

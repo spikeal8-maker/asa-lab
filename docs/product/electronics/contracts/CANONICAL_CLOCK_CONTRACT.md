@@ -192,3 +192,33 @@ Later E-OPT-3 implementation is conformant only if it proves all of the followin
 7. reset creates a clean time-zero generation;
 8. direct and Worker execution use the same canonical semantics;
 9. the version-1 public timed API introduced by E-OPT-3B remains compatible with this accepted contract; incompatible change requires a versioned contract/API revision.
+
+
+## Electrothermal event execution profile v2
+
+`electrothermal-events-v2` applies only to one installed Arduino Uno R3, axial
+resistors and ordinary red LEDs with supported model/profile version 1. The
+existing instruction-us-v1 evaluator still executes every instruction and return
+at its exact microsecond. Pure instructions and unchanged output writes do not
+advance unrelated electrical physics. Actual GPIO/mode transitions, electrical
+reads, external inputs, waveform boundaries, integer 1000-us physical barriers
+and the first failed integer microsecond remain causal electrical barriers.
+Unproved component models and multiple boards retain the original profiles.
+
+Within v2, each thermal component carries a constant-load epoch (integer origin,
+initial temperature/damage and load). The existing exponential temperature and
+linear damage equations are evaluated from this origin, so UI partitions cannot
+accumulate floating recurrence drift. The old load reaches an event first; the
+new load starts at that exact event from the committed physical state. Failure
+search verifies integer neighbours using the same equations. A UI observation
+tail never changes epochs or the physical checkpoint. Old-profile continuations
+are rejected and require Reset; saved schematic and source formats are unchanged.
+
+`createElectronicsAdvanceSession` owns cloned request/document inputs for one
+request. Each `step()` executes at most the unchanged canonical event budget
+(default 256, counting every executed MCU instruction). `null` is private pending
+work, never an electrical observation. Completion returns the original timed
+result shape; a fault restores the original external request state. Inputs are
+appended once. The Worker yields its event loop after a bounded 8-ms CPU slice
+between engine batches and discards stale/cancelled sessions. Only complete
+ready C=H frames are published. CPU yield duration never advances canonical time.

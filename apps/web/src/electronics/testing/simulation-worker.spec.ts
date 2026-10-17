@@ -10,7 +10,10 @@ import {
   ElectronicsSimulationWorkerClient,
   type ElectronicsSimulationWorkerLike,
 } from '../simulation-worker-client';
-import { evaluateSimulationWorkerRequest } from '../simulation-worker-evaluator';
+import {
+  evaluateSimulationWorkerRequest,
+  evaluateSimulationWorkerRequestBatched,
+} from '../simulation-worker-evaluator';
 import {
   ELECTRONICS_SIMULATION_ENGINE_REVISION,
   ELECTRONICS_SIMULATION_WORKER_PROTOCOL,
@@ -562,6 +565,49 @@ describe('ASA Electronics Worker module message loop', () => {
     });
   });
 
+  it('cancels an in-flight batched execution while its event loop yields', async () => {
+    vi.useFakeTimers();
+    let clock = 0;
+    const timer = vi.spyOn(performance, 'now').mockImplementation(() => (clock += 4));
+    const posted: ElectronicsSimulationWorkerResponse[] = [];
+    const scope = {
+      onmessage: null as ((event: MessageEvent<ElectronicsSimulationWorkerRequest>) => void) | null,
+      postMessage: (message: ElectronicsSimulationWorkerResponse) => posted.push(message),
+    };
+    vi.stubGlobal('self', scope);
+    try {
+      await import('../simulation.worker');
+      scope.onmessage?.({
+        data: {
+          ...preflightRequest('pending', 3),
+          kind: 'advance',
+          document: {
+            ...arduinoCircuit,
+            components: arduinoCircuit.components.map((c) => ({
+              ...c,
+              stateProperties: { arduinoSource: 'void loop(){}' },
+            })),
+          },
+          state: resetElectronicsTimedState(),
+          requestedHorizonMicroseconds: 50000,
+        },
+      } as MessageEvent);
+      expect(posted).toHaveLength(0);
+      expect(vi.getTimerCount()).toBeGreaterThan(0);
+      scope.onmessage?.({
+        data: { ...preflightRequest('cancel', 3), kind: 'cancel-generation' },
+      } as MessageEvent);
+      await vi.runAllTimersAsync();
+      expect(posted).toHaveLength(0);
+      scope.onmessage?.({ data: preflightRequest('next', 4) } as MessageEvent);
+      expect(posted).toHaveLength(1);
+      expect(posted[0]).toMatchObject({ requestId: 'next', generationId: 4, ok: true });
+    } finally {
+      timer.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
   it('drops a cancelled generation and accepts the next one', async () => {
     const posted: ElectronicsSimulationWorkerResponse[] = [];
     const scope: {
@@ -594,5 +640,101 @@ describe('ASA Electronics Worker module message loop', () => {
       requestId: 'runtime-next',
       generationId: 3,
     });
+  });
+});
+
+describe('bounded private Worker execution', () => {
+  const request = () => ({
+    ...preflightRequest('batched'),
+    kind: 'advance' as const,
+    document: {
+      ...arduinoCircuit,
+      components: arduinoCircuit.components.map((c) => ({
+        ...c,
+        stateProperties: {
+          arduinoSource: 'void setup(){pinMode(13,OUTPUT);}void loop(){digitalWrite(13,HIGH);}',
+        },
+      })),
+    },
+    state: resetElectronicsTimedState(),
+    requestedHorizonMicroseconds: 4000,
+  });
+  it('publishes only ready C=H after multiple canonical batches and accounts preparation CPU', async () => {
+    const input = request();
+    let clock = 0,
+      yields = 0;
+    const timer = vi.spyOn(performance, 'now').mockImplementation(() => (clock += 4));
+    try {
+      const response = await evaluateSimulationWorkerRequestBatched(
+        input,
+        () => true,
+        async () => {
+          yields++;
+        },
+      );
+      expect(yields).toBeGreaterThan(0);
+      expect(response).toMatchObject({
+        ok: true,
+        kind: 'advance',
+        advance: {
+          executionStatus: 'ready',
+          committedHorizonMicroseconds: 4000,
+          requestedHorizonMicroseconds: 4000,
+        },
+      });
+      if (!response?.ok || response.kind !== 'advance')
+        throw new Error('Expected complete Worker frame');
+      expect(response.advance.result?.quality?.passed).toBe(true);
+      expect(response.metrics.computeMs).toBeGreaterThan(0);
+      expect(
+        JSON.parse(response.advance.state.continuation!.serializedState).boards[0].runtime
+          .outputVoltages.d13,
+      ).toBe(5);
+    } finally {
+      timer.mockRestore();
+    }
+  });
+  it('discards all pending progress on cancellation at an actual CPU yield', async () => {
+    let active = true,
+      clock = 0,
+      yields = 0;
+    const timer = vi.spyOn(performance, 'now').mockImplementation(() => (clock += 4));
+    try {
+      const response = await evaluateSimulationWorkerRequestBatched(
+        request(),
+        () => active,
+        async () => {
+          yields++;
+          active = false;
+        },
+      );
+      expect(yields).toBe(1);
+      expect(response).toBeNull();
+    } finally {
+      timer.mockRestore();
+    }
+  });
+  it('owns the projected document while its caller mutates a request during yield', async () => {
+    const input = request();
+    let clock = 0;
+    const timer = vi.spyOn(performance, 'now').mockImplementation(() => (clock += 4));
+    try {
+      const expected = analyseElectronicsSnapshot(input.document).topologySignature;
+      const response = await evaluateSimulationWorkerRequestBatched(
+        input,
+        () => true,
+        async () => {
+          Object.assign(input.document, { components: [] });
+          input.requestedHorizonMicroseconds = 0;
+        },
+      );
+      expect(response).toMatchObject({
+        ok: true,
+        kind: 'advance',
+        advance: { requestedHorizonMicroseconds: 4000, result: { topologySignature: expected } },
+      });
+    } finally {
+      timer.mockRestore();
+    }
   });
 });

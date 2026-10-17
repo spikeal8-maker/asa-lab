@@ -1,4 +1,7 @@
-import { evaluateSimulationWorkerRequest } from './simulation-worker-evaluator';
+import {
+  evaluateSimulationWorkerRequest,
+  evaluateSimulationWorkerRequestBatched,
+} from './simulation-worker-evaluator';
 import {
   ELECTRONICS_SIMULATION_ENGINE_REVISION,
   ELECTRONICS_SIMULATION_WORKER_PROTOCOL,
@@ -13,6 +16,7 @@ interface ElectronicsSimulationWorkerScope {
 
 const scope = self as unknown as ElectronicsSimulationWorkerScope;
 let activeGeneration = 0;
+let activeRequest = 0;
 
 scope.onmessage = (event): void => {
   const request = event.data;
@@ -31,9 +35,18 @@ scope.onmessage = (event): void => {
     }
     if (request.generationId < activeGeneration) return;
     activeGeneration = Math.max(activeGeneration, request.generationId);
-    const response = evaluateSimulationWorkerRequest(request);
-    if (request.generationId < activeGeneration) return;
-    scope.postMessage(response);
+    const token = ++activeRequest;
+    if (request.kind === 'preflight') {
+      scope.postMessage(evaluateSimulationWorkerRequest(request));
+      return;
+    }
+    void evaluateSimulationWorkerRequestBatched(
+      request,
+      () => request.generationId >= activeGeneration && token === activeRequest,
+    ).then((response) => {
+      if (response && request.generationId >= activeGeneration && token === activeRequest)
+        scope.postMessage(response);
+    });
   } catch (error) {
     if (request.kind === 'cancel-generation') return;
     scope.postMessage({
