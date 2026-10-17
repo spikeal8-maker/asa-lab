@@ -65,7 +65,9 @@
   border-color: #b7d7e6;
   background: #fff;
   color: #075f85;
-  box-shadow: inset 0 -2px 0 #0878a4, 0 1px 3px rgb(11 53 88 / 7%);
+  box-shadow:
+    inset 0 -2px 0 #0878a4,
+    0 1px 3px rgb(11 53 88 / 7%);
   font-weight: 750;
 }
 
@@ -354,7 +356,9 @@
   .classroom-owner-list .classroom-list-row {
     display: grid;
     grid-template-columns: 44px repeat(4, minmax(0, 1fr)) 44px;
-    grid-template-rows: minmax(44px, auto) minmax(24px, auto) minmax(24px, auto) auto;
+    grid-template-rows:
+      minmax(44px, auto) minmax(24px, auto) minmax(24px, auto)
+      auto;
     gap: 2px 4px;
     min-height: 0;
     padding: 5px 6px;
@@ -480,7 +484,11 @@
   .classroom-owner-workspace.classroom-workspace .classroom-head-compact .classroom-metrics strong {
     font-size: 14px;
   }
-  .classroom-owner-workspace.classroom-workspace .classroom-head-compact .classroom-metrics span > span {
+  .classroom-owner-workspace.classroom-workspace
+    .classroom-head-compact
+    .classroom-metrics
+    span
+    > span {
     font-size: 11px;
   }
   .classroom-owner-workspace.classroom-workspace .classroom-workspace-tabs {
@@ -531,8 +539,7 @@
     :is(.classroom-roster-progress, .participant-roster-numbers) {
     font-size: 13px;
   }
-  .classroom-owner-workspace.classroom-workspace
-    :is(.classroom-tab-panel, .classroom-observation) {
+  .classroom-owner-workspace.classroom-workspace :is(.classroom-tab-panel, .classroom-observation) {
     padding: 10px;
   }
   .classroom-owner-workspace.classroom-workspace .classroom-settings-columns {
@@ -584,7 +591,9 @@
    */
   .classroom-owner-list .classroom-list-row {
     grid-template-columns: 44px minmax(0, 1fr) minmax(0, 1fr) 44px;
-    grid-template-rows: minmax(44px, auto) minmax(44px, auto) repeat(3, minmax(24px, auto)) auto;
+    grid-template-rows:
+      minmax(44px, auto) minmax(44px, auto) repeat(3, minmax(24px, auto))
+      auto;
   }
   .classroom-owner-list .classroom-row-select {
     grid-area: 1 / 1 / 2 / 2;
