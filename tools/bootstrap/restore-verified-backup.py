@@ -96,10 +96,33 @@ def migrate(inst,test_database):
     for action in ("--plan","--apply","--plan"):
         output=exec_cmd(command+[action],env=env,cwd=inst.root)
         print("MIGRATION",action,output[-150:],flush=True)
+def validate_population(accounts: int, seats: int, active: int,
+                        min_seats: int, min_active: int) -> None:
+    need(accounts > 0, "Restored snapshot contains no ordinary accounts")
+    need(0 <= active <= seats, "Invalid classroom seat counters")
+    need(min_seats >= 0 and min_active >= 0, "Population minima must be nonnegative")
+    need(seats >= min_seats, f"Only {seats} classroom seats; expected at least {min_seats}")
+    need(active >= min_active, f"Only {active} active students; expected at least {min_active}")
+
+
+def validate_snapshot_age(snapshot_id: str, max_age_hours: int) -> None:
+    need(max_age_hours >= 0, "Snapshot freshness must be a nonnegative duration")
+    need(re.fullmatch(r"\d{8}T\d{6}Z-[a-f0-9]{8}", snapshot_id),
+         "Invalid snapshot identifier")
+    if max_age_hours:
+        stamp = dt.datetime.strptime(snapshot_id.split("-")[0], "%Y%m%dT%H%M%SZ").replace(
+            tzinfo=dt.timezone.utc)
+        delta = dt.datetime.now(dt.timezone.utc) - stamp
+        need(-dt.timedelta(minutes=10) <= delta <= dt.timedelta(hours=max_age_hours),
+             f"Snapshot outside allowed freshness window: {max_age_hours} hours")
+
+
 def restore(args):
     inst,manifest,source,release,objects,volume=preflight(args)
     sid=manifest["createdAt"]
-    need(re.fullmatch(r"\d{8}T\d{6}Z-[a-f0-9]{8}",sid),"Invalid snapshot identifier")
+    validate_snapshot_age(sid,args.max_snapshot_age_hours)
+    need(args.min_seats>=0 and args.min_active_students>=0,
+         "Population thresholds must be nonnegative")
     if not args.apply:
         print("DRY_RUN_PASS live_database_unchanged",flush=True);return
     need(args.confirm=="RESTORE:"+sid,"Explicit RESTORE:snapshot-id is required")
@@ -121,10 +144,15 @@ def restore(args):
         checkpoint(backup_dir,"TRIAL_RESTORE_VALIDATED")
         migrate(inst,trial_database)
         source_accounts=int(pg(inst,trial_database,"select count(*) from accounts"))
-        need(source_accounts>0,"Snapshot has no accounts; refusing to activate")
+        source_seats=int(pg(inst,trial_database,"select count(*) from classroom_student_seats"))
+        source_active=int(pg(inst,trial_database,
+                             "select count(*) from classroom_student_seats where status='active'"))
+        validate_population(source_accounts,source_seats,source_active,
+                            args.min_seats,args.min_active_students)
         need(pg(inst,trial_database,"select max(version) from schema_migrations")==f"{release['schema']:04d}",
              "Restored schema is not the deployed release schema")
-        checkpoint(backup_dir,"TRIAL_MIGRATED",accounts=source_accounts)
+        checkpoint(backup_dir,"TRIAL_MIGRATED",accounts=source_accounts,
+                   student_seats=source_seats,active_students=source_active)
         print("STOP_APPLICATION_WRITERS",flush=True)
         inst.compose("stop","web","api","scratch","minio")
         stopped=True
@@ -168,12 +196,21 @@ def restore(args):
         running.compose("up","-d","--no-build")
         running.readiness()
         final_count=int(pg(running,"asalab","select count(*) from accounts"))
-        need(final_count==source_accounts,"Active account count is wrong")
+        final_seats=int(pg(running,"asalab","select count(*) from classroom_student_seats"))
+        final_active=int(pg(running,"asalab",
+                            "select count(*) from classroom_student_seats where status='active'"))
+        need((final_count,final_seats,final_active)==
+             (source_accounts,source_seats,source_active),
+             "Active user/student counters differ from verified snapshot")
         objects_visible=int(exec_cmd(["docker","exec",f"{running.project}-minio-1",
             "sh","-ec","export MC_CONFIG_DIR=/tmp/asa-mc-restore; mc alias set s3 http://127.0.0.1:9000 \"$MINIO_ROOT_USER\" \"$MINIO_ROOT_PASSWORD\" >/dev/null; mc ls --recursive s3/asa-blocks | wc -l"]))
         need(objects_visible>0,"Active MinIO has no visible objects")
-        checkpoint(backup_dir,"RESTORE_SUCCESS",accounts=final_count,s3_objects=objects_visible)
-        print("RESTORE_LIVE_PASS",sid,"ACCOUNTS",final_count,"S3_OBJECTS",objects_visible,flush=True)
+        checkpoint(backup_dir,"RESTORE_SUCCESS",accounts=final_count,
+                   student_seats=final_seats,active_students=final_active,
+                   s3_objects=objects_visible)
+        print("RESTORE_LIVE_PASS",sid,"ACCOUNTS",final_count,
+              "ACTIVE_STUDENTS",final_active,"STUDENT_SEATS",final_seats,
+              "S3_OBJECTS",objects_visible,flush=True)
         print("BACKUP_ROLLBACK_AT",backup_dir,flush=True)
     except BaseException:
         if stopped:
@@ -211,6 +248,12 @@ def main():
     p.add_argument("--root",type=Path,required=True)
     p.add_argument("--backup",type=Path,required=True)
     p.add_argument("--profile",required=True,choices=("staging","production"))
+    p.add_argument("--max-snapshot-age-hours",type=int,default=0,
+                   help="Reject stale archives; 0 disables freshness check")
+    p.add_argument("--min-active-students",type=int,default=0,
+                   help="Minimum active classroom_student_seats records")
+    p.add_argument("--min-seats",type=int,default=0,
+                   help="Minimum total classroom_student_seats records")
     p.add_argument("--apply",action="store_true")
     p.add_argument("--confirm")
     a=p.parse_args()
