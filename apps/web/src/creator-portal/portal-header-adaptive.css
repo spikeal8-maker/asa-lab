@@ -251,6 +251,12 @@
 
   .portal-shell .portal-header .portal-brand {
     justify-content: center;
+    /* A visual mark is 35px, but the navigation button must keep a 44px
+       tap target on the real pupil profile at 320px. */
+    box-sizing: border-box;
+    width: 44px;
+    min-width: 44px;
+    min-height: 44px;
   }
 }
 

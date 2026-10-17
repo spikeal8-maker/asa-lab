@@ -521,16 +521,27 @@ function ColumnEditor({
     </dialog>
   );
 }
+type ManualClassroomJournalProps = {
+  classroomId: string;
+  modeControl?: ReactNode;
+  onOpenStudent?: ((seatId: string) => void) | undefined;
+};
+
 export function ManualClassroomJournal({
   classroomId,
   modeControl,
-}: {
-  classroomId: string;
-  modeControl?: ReactNode;
-}) {
-  return <Journal key={classroomId} classroomId={classroomId} modeControl={modeControl} />;
+  onOpenStudent,
+}: ManualClassroomJournalProps) {
+  return (
+    <Journal
+      key={classroomId}
+      classroomId={classroomId}
+      modeControl={modeControl}
+      onOpenStudent={onOpenStudent}
+    />
+  );
 }
-function Journal({ classroomId, modeControl }: { classroomId: string; modeControl?: ReactNode }) {
+function Journal({ classroomId, modeControl, onOpenStudent }: ManualClassroomJournalProps) {
   const destination = useJournalDestination();
   const [month, setMonth] = useState(destination.month),
     [offset, setOffset] = useState(0),
@@ -900,7 +911,18 @@ function Journal({ classroomId, modeControl }: { classroomId: string; modeContro
                       <span className="manual-journal-roster-number" aria-hidden="true">
                         {roster.indexOf(s) + 1}
                       </span>
-                      {s.name}
+                      {onOpenStudent ? (
+                        <button
+                          type="button"
+                          className="classroom-journal-student-link"
+                          onClick={() => onOpenStudent(s.id)}
+                          aria-label={'Открыть профиль ученика: ' + s.name}
+                        >
+                          {s.name}
+                        </button>
+                      ) : (
+                        s.name
+                      )}
                       {!['issued', 'active'].includes(s.status) ? (
                         <small>Доступ закрыт</small>
                       ) : null}

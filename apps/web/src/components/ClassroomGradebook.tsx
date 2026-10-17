@@ -340,11 +340,19 @@ function ReviewDetail({
   );
 }
 
-export function ClassroomGradebook({ classroomId }: { classroomId: string }): JSX.Element {
-  return <JournalModes key={classroomId} classroomId={classroomId} />;
+type GradebookStudentNavigation = {
+  classroomId: string;
+  onOpenStudent?: ((seatId: string) => void) | undefined;
+};
+
+export function ClassroomGradebook({
+  classroomId,
+  onOpenStudent,
+}: GradebookStudentNavigation): JSX.Element {
+  return <JournalModes key={classroomId} classroomId={classroomId} onOpenStudent={onOpenStudent} />;
 }
 
-function JournalModes({ classroomId }: { classroomId: string }): JSX.Element {
+function JournalModes({ classroomId, onOpenStudent }: GradebookStudentNavigation): JSX.Element {
   const destination = useLearningDestination();
   const [mode, setMode] = useState<'manual' | 'assignments'>(() =>
     destination.assignment ? 'assignments' : 'manual',
@@ -374,15 +382,22 @@ function JournalModes({ classroomId }: { classroomId: string }): JSX.Element {
     <div className="classroom-tab-panel">
       {mode === 'assignments' ? controls : null}
       {mode === 'manual' ? (
-        <ManualClassroomJournal classroomId={classroomId} modeControl={controls} />
+        <ManualClassroomJournal
+          classroomId={classroomId}
+          modeControl={controls}
+          onOpenStudent={onOpenStudent}
+        />
       ) : (
-        <AssignedClassroomGradebook classroomId={classroomId} />
+        <AssignedClassroomGradebook classroomId={classroomId} onOpenStudent={onOpenStudent} />
       )}
     </div>
   );
 }
 
-function AssignedClassroomGradebook({ classroomId }: { classroomId: string }): JSX.Element {
+function AssignedClassroomGradebook({
+  classroomId,
+  onOpenStudent,
+}: GradebookStudentNavigation): JSX.Element {
   const [items, setItems] = useState<GradebookEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [opened, setOpened] = useState<GradebookEntry | null>(null);
@@ -516,7 +531,20 @@ function AssignedClassroomGradebook({ classroomId }: { classroomId: string }): J
             <tbody>
               {rows.map(([seat, label]) => (
                 <tr key={seat}>
-                  <th scope="row">{label}</th>
+                  <th scope="row">
+                    {onOpenStudent ? (
+                      <button
+                        type="button"
+                        className="classroom-journal-student-link"
+                        onClick={() => onOpenStudent(seat)}
+                        aria-label={'Открыть профиль ученика: ' + label}
+                      >
+                        {label}
+                      </button>
+                    ) : (
+                      label
+                    )}
+                  </th>
                   {columns.map(([assignment, title]) => {
                     const item = cells.get(`${seat}:${assignment}`);
                     return (
