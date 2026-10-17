@@ -177,7 +177,10 @@ async function seedPresentation(page: Page, populated: boolean) {
     if (path.startsWith('/api/class-join/requests')) {
       if (request.method() === 'POST' && path.endsWith('/decision')) {
         const id = path.split('/').at(-2),
-          body = request.postDataJSON() as { decision: string; reason?: string };
+          body = request.postDataJSON() as {
+            decision: string;
+            reason?: string;
+          };
         requests = requests.map((item) =>
           item.id === id ? { ...item, status: body.decision, reason: body.reason ?? null } : item,
         );
@@ -229,7 +232,11 @@ async function seedPresentation(page: Page, populated: boolean) {
         status: 'active',
         timeZone: 'Europe/Moscow',
         scale: { preset: 'five', version: 1 },
-        students: students.map((s) => ({ id: s.id, name: s.displayLabel, status: s.status })),
+        students: students.map((s) => ({
+          id: s.id,
+          name: s.displayLabel,
+          status: s.status,
+        })),
         columns,
         grades,
         offset: 0,
@@ -309,14 +316,15 @@ async function photograph(page: Page, file: string, expectedPanel: string) {
   await expect(page.locator(expectedPanel).first()).toBeVisible();
   await expect
     .poll(async () =>
-      page
-        .locator('[aria-busy=true]')
-        .evaluateAll(
-          (nodes) =>
-            nodes.filter((el) =>
-              (el as HTMLElement).checkVisibility({ checkVisibilityCSS: true, checkOpacity: true }),
-            ).length,
-        ),
+      page.locator('[aria-busy=true]').evaluateAll(
+        (nodes) =>
+          nodes.filter((el) =>
+            (el as HTMLElement).checkVisibility({
+              checkVisibilityCSS: true,
+              checkOpacity: true,
+            }),
+          ).length,
+      ),
     )
     .toBe(0);
   await page.evaluate(() => document.fonts.ready);
@@ -402,7 +410,9 @@ test('classroom name search filters cards without changing the teacher totals', 
   await page.setViewportSize({ width: 390, height: 900 });
   await seedPresentation(page, true);
   await page.goto('/#/classrooms');
-  const search = page.getByRole('searchbox', { name: 'Поиск класса по названию' });
+  const search = page.getByRole('searchbox', {
+    name: 'Поиск класса по названию',
+  });
   const classes = page.getByTestId('classroom-card');
   const totalClasses = page.locator('.classroom-title-row .classroom-metrics strong').first();
   await expect(classes).toHaveCount(23);
@@ -547,14 +557,13 @@ test('teacher compact class list remains readable with sidebar and on phones', a
       };
     });
     const maxHeight = width >= 1440 ? 65 : width >= 768 ? 135 : 150;
-    expect(measure.height, 'Class card should be dense at ' + width + 'px').toBeLessThan(
-      maxHeight,
-    );
+    expect(measure.height, 'Class card should be dense at ' + width + 'px').toBeLessThan(maxHeight);
     if (width < 960) {
       expect(measure.smallestLabel, 'Class metric captions at ' + width + 'px').not.toBeNull();
-      expect(measure.smallestLabel!, 'Class metric captions at ' + width + 'px').toBeGreaterThanOrEqual(
-        11,
-      );
+      expect(
+        measure.smallestLabel!,
+        'Class metric captions at ' + width + 'px',
+      ).toBeGreaterThanOrEqual(11);
       expect(
         measure.smallestNumber!,
         'Class metric values at ' + width + 'px',
@@ -570,9 +579,10 @@ test('teacher compact class list remains readable with sidebar and on phones', a
   const actions = await page.locator('.classroom-head-compact .classroom-head-code').boundingBox();
   expect(back).not.toBeNull();
   expect(actions).not.toBeNull();
-  expect(back!.y + back!.height, '320px class navigation must not overlap the join code').toBeLessThanOrEqual(
-    actions!.y + 1,
-  );
+  expect(
+    back!.y + back!.height,
+    '320px class navigation must not overlap the join code',
+  ).toBeLessThanOrEqual(actions!.y + 1);
   const sectionSwitch = page.getByRole('combobox', { name: 'Раздел класса' });
   await expect(sectionSwitch).toBeVisible();
   await expect(sectionSwitch.locator('option')).toHaveCount(8);
