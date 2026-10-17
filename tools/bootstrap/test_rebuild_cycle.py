@@ -62,6 +62,34 @@ class SnapshotSafety(unittest.TestCase):
         self.assertIn("XDG_RUNTIME_DIR=/run/user/{uid}",content)
         self.assertIn('"-m", "deployment.collector"',content)
 
+    def test_verified_yandex_school_size(self):
+        restore.validate_population(accounts=89, seats=418, active=327,
+                                    min_seats=400, min_active=300)
+
+    def test_reject_wrong_small_student_population(self):
+        with self.assertRaises(restore.Refused):
+            restore.validate_population(accounts=89, seats=418, active=299,
+                                        min_seats=400, min_active=300)
+
+    def test_reject_wrong_seat_count(self):
+        with self.assertRaises(restore.Refused):
+            restore.validate_population(accounts=89, seats=399, active=327,
+                                        min_seats=400, min_active=300)
+
+    def test_freshness_rejects_stale_backup(self):
+        with self.assertRaises(restore.Refused):
+            restore.validate_snapshot_age("20261001T231505Z-7b457013",48)
+
+    def test_freshness_allows_explicit_no_age_limit(self):
+        restore.validate_snapshot_age("20261001T231505Z-7b457013",0)
+
+    def test_installer_requires_source_for_fresh_production(self):
+        source=(BASE/"install-ubuntu-1panel.py").read_text()
+        self.assertIn("--require-restore",source)
+        self.assertIn("--fresh-empty",source)
+        self.assertIn("--min-active-students",source)
+        self.assertIn("--min-seats",source)
+
     def test_manager_installer_wires_restore(self):
         content=(BASE/"install-ubuntu-1panel.py").read_text()
         self.assertIn("restore-verified-backup.py",content)
