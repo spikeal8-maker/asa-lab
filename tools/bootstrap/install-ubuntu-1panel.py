@@ -50,7 +50,11 @@ def require(condition: bool, message: str) -> None:
 def run(*parts: str, check=True, as_user: str | None = None, capture=False, cwd: Path | None = None):
     argv = [str(p) for p in parts]
     if as_user and os.geteuid() == 0:
-        argv = ["runuser", "-u", as_user, "--", *argv]
+        # runuser does not reliably inherit the operator's user-systemd bus.
+        # XDG_RUNTIME_DIR is required by the owned log collector.
+        uid = pwd.getpwnam(as_user).pw_uid
+        argv = ["runuser", "-u", as_user, "--", "env",
+                f"XDG_RUNTIME_DIR=/run/user/{uid}", *argv]
     response = subprocess.run(argv, check=False, cwd=cwd, text=True,
                               stdout=subprocess.PIPE if capture else None,
                               stderr=subprocess.PIPE if capture else None)
@@ -108,6 +112,16 @@ def preflight(args):
         # Do not modify an existing Docker installation without an explicit operator fix.
         raise Blocked("Existing Docker lacks Compose v2; configure Compose without replacing Docker")
     run("systemctl", "enable", "--now", "docker")
+    # The collector is a user systemd service and must run after logout.
+    # Ensure the user-manager is available before launching the ASA manager.
+    run("loginctl", "enable-linger", args.operator)
+    uid = pwd.getpwnam(args.operator).pw_uid
+    for attempt in range(12):
+        if run("systemctl", "is-active", f"user@{uid}.service", capture=True, check=False) == "active":
+            break
+        time.sleep(1)
+    else:
+        raise Blocked("The operator user systemd manager did not become ready")
     require(run("docker", "info", check=False, capture=False) == 0, "Docker daemon is not running")
     require(run("docker", "info", as_user=args.operator, check=False) == 0,
             "Operator must have Docker access (group docker); log in again after adding the group")
