@@ -26,6 +26,7 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import time
 import urllib.request
 
 REPO = "https://github.com/spikeal8-maker/asa-lab.git"
@@ -215,6 +216,27 @@ def harden_panel_firewall(args):
     require(shutil.which("ufw") is not None, "UFW required for this hardening profile")
     assert_subnet_for_host(args.admin_cidr)
     dbfile = Path("/opt/1panel/db/agent.db")
+    # On a first, clean installation 1Panel's agent creates its default
+    # FirewallPortWhiteList asynchronously *after* the installer returns.
+    # Do not fail the installation or guess a permissive default while its
+    # managed settings are still being initialized.
+    deadline = time.monotonic() + 90
+    while True:
+        try:
+            with sqlite3.connect(f"file:{dbfile}?mode=ro", uri=True, timeout=3) as db:
+                row = db.execute(
+                    "SELECT value FROM settings WHERE key = ?", ("FirewallPortWhiteList",)
+                ).fetchone()
+            if row is not None:
+                require(isinstance(json.loads(row[0]), list),
+                        "Invalid initialized firewall allowlist")
+                break
+        except (sqlite3.Error, OSError):
+            pass
+        if time.monotonic() >= deadline:
+            raise Blocked("1Panel firewall policy did not initialize within 90 seconds")
+        time.sleep(2)
+    record("PANEL_FIREWALL_POLICY_READY")
     backup_dir = Path("/var/backups/asa-panel-firewall")
     backup_dir.mkdir(parents=True, mode=0o700, exist_ok=True)
     stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
