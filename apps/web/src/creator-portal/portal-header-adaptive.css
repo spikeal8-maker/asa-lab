@@ -1,0 +1,326 @@
+/*
+ * ASA Lab portal header: one continuous row from 320px CSS viewports to 4K.
+ *
+ * Only the authenticated PortalShell header is affected: its routes, account,
+ * quick-create and menu components retain their existing behavior and ARIA.
+ * Viewport widths are CSS pixels, so 175% Chrome/Windows zoom naturally enters
+ * the compact layout without a second magnification pass.
+ */
+.portal-shell {
+  --portal-header-height: 56px;
+}
+
+.portal-shell .portal-header {
+  display: grid;
+  grid-template-areas: 'brand public create account';
+  grid-template-columns: minmax(145px, 220px) minmax(0, 1fr) max-content 44px;
+  grid-template-rows: var(--portal-header-height);
+  align-items: center;
+  column-gap: clamp(6px, 0.8vw, 12px);
+  row-gap: 0;
+  box-sizing: border-box;
+  width: 100%;
+  height: var(--portal-header-height);
+  min-height: var(--portal-header-height);
+  max-height: var(--portal-header-height);
+  padding: 0 clamp(10px, 1vw, 20px);
+  overflow: visible;
+}
+
+.portal-shell .portal-header .portal-brand {
+  grid-area: brand;
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  min-width: 0;
+  min-height: 44px;
+}
+
+.portal-shell .portal-header .portal-global-nav {
+  grid-area: public;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  align-self: stretch;
+  gap: 4px;
+  width: 100%;
+  min-width: 0;
+  overflow: visible;
+}
+
+.portal-shell .portal-header .portal-global-nav a {
+  display: inline-flex;
+  flex: 0 1 auto;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 clamp(5px, 0.6vw, 13px);
+  gap: 7px;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.portal-shell .portal-header .portal-global-nav a svg {
+  flex: 0 0 auto;
+}
+
+.portal-shell .portal-header .portal-global-nav a span {
+  position: static;
+  display: inline;
+  flex: 0 0 auto;
+  width: auto;
+  height: auto;
+  margin: 0;
+  padding: 0;
+  clip: auto;
+  clip-path: none;
+  overflow: visible;
+  white-space: nowrap;
+}
+
+.portal-shell .portal-header .portal-quick-create {
+  grid-area: create;
+  justify-self: end;
+  align-self: center;
+  min-width: 0;
+}
+
+.portal-shell .portal-header .portal-account {
+  grid-area: account;
+  display: block;
+  justify-self: end;
+  align-self: center;
+  min-width: 44px;
+  max-width: 44px;
+}
+
+.portal-shell .portal-header .portal-menu-toggle {
+  display: none;
+}
+
+/* At 1023px the former shell jumped to a 100px two-row header.
+   Keep the drawer trigger but place every public control on the same row. */
+@media (max-width: 1023px) {
+  .portal-shell {
+    --portal-header-height: 56px;
+  }
+
+  .portal-shell .portal-header {
+    grid-template-areas: 'menu brand public create account';
+    grid-template-columns: 44px minmax(135px, 1fr) max-content max-content 44px;
+    grid-template-rows: var(--portal-header-height);
+    gap: 6px;
+    padding: 0 10px;
+  }
+
+  .portal-shell .portal-header .portal-menu-toggle {
+    grid-area: menu;
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    min-height: 44px;
+    padding: 0;
+    justify-self: start;
+  }
+
+  .portal-shell .portal-header .portal-global-nav {
+    justify-content: center;
+    min-width: 0;
+  }
+
+  .portal-shell .portal-header .portal-global-nav a {
+    flex: 0 0 auto;
+    gap: 6px;
+    min-height: 44px;
+    padding: 0 6px;
+  }
+
+  .portal-shell .portal-header .portal-header-create-label {
+    display: inline;
+  }
+
+  .portal-shell .portal-header .portal-header-create {
+    width: auto;
+    min-height: 44px;
+    padding: 0 10px;
+  }
+
+  .portal-shell .portal-sidebar,
+  .portal-shell .portal-sidebar.collapsed {
+    /* The drawer still opens at the same width, below the fixed mobile state
+       when closed and as the existing full-height overlay when opened. */
+    max-width: 100vw;
+  }
+}
+
+/* At the actual point where four labels no longer fit, keep both links as
+   full 44px accessible icon controls, not a second row or scrolling strip.
+   The public navigation also remains in the mobile drawer. */
+@media (max-width: 600px) {
+  .portal-shell .portal-header {
+    grid-template-columns: 44px minmax(0, 1fr) 88px auto 44px;
+    column-gap: 4px;
+    padding: 0 8px;
+  }
+
+  .portal-shell .portal-header .portal-global-nav {
+    justify-content: flex-start;
+    flex: 0 0 88px;
+    width: 88px;
+    gap: 0;
+    overflow: hidden;
+    scrollbar-width: none;
+  }
+
+  .portal-shell .portal-header .portal-global-nav a {
+    display: flex;
+    flex: 0 0 44px;
+    width: 44px;
+    min-width: 44px;
+    max-width: 44px;
+    padding: 0;
+    gap: 0;
+  }
+
+  .portal-shell .portal-header .portal-global-nav a span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    padding: 0;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .portal-shell .portal-header .portal-global-nav::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@media (max-width: 560px) {
+  .portal-shell .portal-header {
+    grid-template-columns: 44px minmax(0, 1fr) 88px 44px 44px;
+    column-gap: 3px;
+  }
+
+  .portal-shell .portal-header .portal-brand {
+    min-width: 0;
+  }
+
+  .portal-shell .portal-header .portal-header-create {
+    box-sizing: border-box;
+    width: 44px;
+    min-width: 44px;
+    max-width: 44px;
+    height: 44px;
+    min-height: 44px;
+    padding: 0;
+    justify-content: center;
+  }
+
+  .portal-shell .portal-header .portal-header-create-label {
+    display: none;
+  }
+
+  /* Base portal CSS hid "+" below 390px, while the compact shell hid its text.
+     This left a blank outlined button. Preserve a visible create affordance. */
+  .portal-shell .portal-header .portal-header-create > span:first-child {
+    display: inline;
+    font-size: 22px;
+    line-height: 1;
+  }
+
+  /* The popup belongs to the viewport, not to a 44px trigger close to its
+     right edge. Keep the full menu inside narrow screens. */
+  .portal-shell .portal-header .portal-create-options {
+    position: fixed;
+    top: calc(var(--portal-header-height) - 1px);
+    right: 8px;
+    left: auto;
+    width: min(310px, calc(100vw - 16px));
+    max-width: calc(100vw - 16px);
+  }
+}
+
+@media (max-width: 379px) {
+  .portal-shell .portal-header .asa-brand-copy {
+    display: none;
+  }
+
+  .portal-shell .portal-header .portal-brand {
+    justify-content: center;
+  }
+}
+
+/* 4K CSS viewports get progressively larger typography and controls.
+   Full HD, split screens, and physical 4K monitors with high OS zoom retain
+   their approved compact sizes. */
+@media (min-width: 1921px) {
+  .portal-shell {
+    --portal-header-height: clamp(56px, calc(40px + 0.833333vw), 72px);
+  }
+
+  .portal-shell .portal-header {
+    grid-template-columns: minmax(210px, 280px) minmax(0, 1fr) max-content clamp(
+        44px,
+        calc(28px + 0.833333vw),
+        60px
+      );
+    padding-inline: clamp(20px, calc(8px + 0.625vw), 32px);
+    column-gap: clamp(12px, calc(8px + 0.208333vw), 16px);
+  }
+
+  .portal-shell .portal-header .asa-brand-copy strong {
+    font-size: clamp(22px, calc(18px + 0.208333vw), 26px);
+  }
+
+  .portal-shell .portal-header .asa-brand-mark {
+    width: clamp(30px, calc(22px + 0.416667vw), 38px);
+    height: clamp(30px, calc(22px + 0.416667vw), 38px);
+  }
+
+  .portal-shell .portal-header .portal-global-nav a {
+    font-size: clamp(16px, calc(12px + 0.208333vw), 20px);
+    min-height: clamp(44px, calc(32px + 0.625vw), 56px);
+    padding-inline: clamp(13px, calc(7px + 0.3125vw), 19px);
+  }
+
+  .portal-shell .portal-header .portal-global-nav a svg {
+    width: clamp(20px, calc(14px + 0.3125vw), 26px);
+    height: clamp(20px, calc(14px + 0.3125vw), 26px);
+  }
+
+  .portal-shell .portal-header .portal-quick-create > .portal-header-create {
+    min-height: clamp(44px, calc(32px + 0.625vw), 56px);
+    font-size: clamp(14px, calc(10px + 0.208333vw), 18px);
+    padding-inline: clamp(13px, calc(7px + 0.3125vw), 19px);
+  }
+
+  .portal-shell .portal-header .portal-account {
+    min-width: clamp(44px, calc(28px + 0.833333vw), 60px);
+    max-width: clamp(44px, calc(28px + 0.833333vw), 60px);
+  }
+
+  .portal-shell .portal-header .portal-account > summary {
+    min-width: clamp(44px, calc(28px + 0.833333vw), 60px);
+    min-height: clamp(44px, calc(28px + 0.833333vw), 60px);
+  }
+
+  .portal-shell .portal-header .portal-user-avatar {
+    width: clamp(34px, calc(22px + 0.625vw), 46px);
+    height: clamp(34px, calc(22px + 0.625vw), 46px);
+    font-size: clamp(13px, calc(9px + 0.208333vw), 17px);
+  }
+}
+
+/* Do not paint a viewport scrollbar alongside the pinned portal header.
+   Wheel, touch, keyboard and document scrolling remain enabled. */
+html:has(.portal-shell) {
+  scrollbar-width: none;
+}
+
+html:has(.portal-shell)::-webkit-scrollbar {
+  display: none;
+}
