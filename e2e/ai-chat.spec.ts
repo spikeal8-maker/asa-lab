@@ -255,7 +255,7 @@ for (const scenario of ['empty', 'existing', 'server-error', 'network-error'] as
       expect(createPosts).toBe(1);
       expect(fake.requests).toHaveLength(0);
       if (scenario.endsWith('error')) {
-        await expect(page.getByRole('alert')).toBeVisible();
+        await expect(page.getByRole('alert').and(page.locator('.asa-ai-error'))).toBeVisible();
         await newChat.click();
         await expect(newChat).toBeEnabled();
         expect(createPosts).toBe(2);
