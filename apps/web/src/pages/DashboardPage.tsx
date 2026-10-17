@@ -1,6 +1,7 @@
 import '../modules/classroom-owner-layout.css';
 import '../modules/classroom-mobile.css';
 import '../modules/classroom-usability.css';
+import '../modules/classroom-teacher-density.css';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, type Classroom, type ClassroomStatus } from '../api';
 import { CreateClassroomModal } from '../components/CreateClassroomModal';
@@ -22,7 +23,7 @@ const CLASSROOM_ROLE_TABS: ReadonlyArray<{
   label: string;
   compactLabel: string;
 }> = [
-  { id: 'teaching', label: 'Преподавание', compactLabel: 'Преподавание' },
+  { id: 'teaching', label: 'Преподавание', compactLabel: 'Преподаю' },
   { id: 'archived', label: 'В архиве', compactLabel: 'Архив' },
   { id: 'coteaching', label: 'Совместное преподавание', compactLabel: 'Совместно' },
   { id: 'enrolled', label: 'Зарегистрированные', compactLabel: 'Учусь' },
@@ -304,9 +305,12 @@ export function DashboardPage({
           ref={createButtonRef}
           type="button"
           className="portal-create-button"
+          aria-label="Создать класс"
           onClick={openModal}
         >
-          <PlusIcon /> Создать класс
+          <PlusIcon />
+          <span className="classroom-create-label-full">Создать класс</span>
+          <span className="classroom-create-label-compact" aria-hidden="true">Класс</span>
         </button>
         {/* The actions apply to what is ticked. With nothing ticked the menu
             says so instead of being a dead button that gives no reason. */}
@@ -386,7 +390,8 @@ export function DashboardPage({
           ariaLabel="Порядок классов"
           label={
             <>
-              {sortLabel}
+              <span className="classroom-sort-label-full">{sortLabel}</span>
+              <span className="classroom-sort-label-compact" aria-hidden="true">Сорт.</span>
               <span aria-hidden="true">▾</span>
             </>
           }
@@ -548,7 +553,10 @@ export function DashboardPage({
                       ⓘ
                     </abbr>
                   </span>
-                  <span className="classroom-stat-label">Средний рейтинг</span>
+                  <span className="classroom-stat-label">
+                    <span className="classroom-rating-label-full">Средний рейтинг</span>
+                    <span className="classroom-rating-label-compact">Рейт.</span>
+                  </span>
                 </span>
                 <span className="classroom-row-date">
                   {/* Подпись нужна только архиву: у остальных её говорит колонка. */}
