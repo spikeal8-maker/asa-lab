@@ -333,6 +333,12 @@ def source_install(args):
     if (path / ".asa/installed-release.json").is_file():
         record("ASA_ALREADY_INSTALLED", root=str(path))
         doctor(args)
+        # Repair the owned diagnostic collector after a previous manager-
+        # unavailable error without touching the running application volumes.
+        run("python3", "tools/deployment/collector.py", "reconcile",
+            "--root", str(path), "--profile", args.profile,
+            as_user=args.operator, cwd=path)
+        record("COLLECTOR_RECONCILED")
         return
     require(not (path / ".asa/maintenance.json").exists(), "An incomplete deployment already exists")
     run("python3", "tools/asa_manager.py", "install", "--profile", args.profile,
