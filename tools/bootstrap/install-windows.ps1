@@ -60,6 +60,19 @@ try {
     }
     $Root = [System.IO.Path]::GetFullPath($Root)
     $script:Python = @(Resolve-Python)
+    # The canonical manager checks out a pinned stable release that may predate
+    # this bootstrap package. Keep the operator entry point OUTSIDE that checkout
+    # before installation, so disaster recovery does not depend on checkout HEAD.
+    $persistent = Join-Path $env:LOCALAPPDATA 'ASA-Lab\bootstrap'
+    New-Item -ItemType Directory -Path $persistent -Force | Out-Null
+    foreach ($name in @('install-windows.ps1','prepare-age-backup.py','transfer-backup-ssh.py')) {
+        $from = Join-Path $PSScriptRoot $name
+        $to = Join-Path $persistent $name
+        if ((Test-Path -LiteralPath $from) -and
+            ([System.IO.Path]::GetFullPath($from) -ne [System.IO.Path]::GetFullPath($to))) {
+            Copy-Item -LiteralPath $from -Destination $to -Force
+        }
+    }
     if ($Action -eq 'Install' -and -not (Test-Path (Join-Path $Root '.git'))) {
         $git = Get-Command 'git.exe' -ErrorAction SilentlyContinue
         Assert ($null -ne $git) 'Install Git for Windows or clone ASA Lab manually'
