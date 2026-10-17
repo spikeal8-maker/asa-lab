@@ -165,6 +165,12 @@ jobs:
           pnpm exec playwright test --config playwright.settings-ui.config.ts
           e2e/classroom-layout-acceptance.spec.ts e2e/classroom-usability-ui.spec.ts
           e2e/classroom-owner-ui.spec.ts --reporter=list,json
+      - name: Compact teacher class list, sorting and selection
+        env:
+          ASA_E2E_EXTERNAL: 'true'
+        run: >-
+          pnpm exec playwright test --config playwright.config.ts
+          e2e/classroom-teacher-dashboard-redesign.spec.ts --workers=1 --reporter=list
       - name: Preserve all-screen visual evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -172,6 +178,7 @@ jobs:
           name: classroom-layout-${{ github.event.pull_request.head.sha || github.sha }}-${{ github.run_attempt }}
           path: |
             e2e/artifacts/owner-preview/classroom-layout-final
+            e2e/artifacts/owner-preview/teacher-dashboard-redesign
             reports/playwright/classroom-layout-summary.json
             reports/playwright/classroom-mobile-20261009
             apps/web/dist/build-metadata.json

@@ -568,6 +568,7 @@ test('teacher compact class list remains readable with sidebar and on phones', a
       );
       return {
         height: row.getBoundingClientRect().height,
+        containerWidth: row.closest<HTMLElement>('main')?.clientWidth ?? innerWidth,
         smallestLabel: labels.length
           ? Math.min(...labels.map((item) => parseFloat(getComputedStyle(item).fontSize)))
           : null,
@@ -578,7 +579,7 @@ test('teacher compact class list remains readable with sidebar and on phones', a
     });
     const maxHeight = width >= 1440 ? 65 : width >= 768 ? 135 : 150;
     expect(measure.height, 'Class card should be dense at ' + width + 'px').toBeLessThan(maxHeight);
-    if (width < 960) {
+    if (measure.containerWidth < 680) {
       expect(measure.smallestLabel, 'Class metric captions at ' + width + 'px').not.toBeNull();
       expect(
         measure.smallestLabel!,
@@ -588,6 +589,11 @@ test('teacher compact class list remains readable with sidebar and on phones', a
         measure.smallestNumber!,
         'Class metric values at ' + width + 'px',
       ).toBeGreaterThanOrEqual(13);
+    } else {
+      expect(measure.smallestLabel).toBeNull();
+      await expect(
+        page.getByRole('button', { name: 'Сортировать по колонке «Ученики»' }),
+      ).toBeVisible();
     }
   }
 

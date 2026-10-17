@@ -1,0 +1,345 @@
+/* Responsive table and compact cards for the teacher class register. */
+/* Sortable column headers appear only when the actual register can fit. */
+@container classroom (min-width: 680px) {
+  .classroom-owner-list .classroom-sort-menu {
+    display: none;
+  }
+  .classroom-owner-list .classroom-list-head,
+  .classroom-owner-list .classroom-list-row {
+    display: grid;
+    grid-template-columns:
+      minmax(170px, 2.2fr) repeat(6, minmax(45px, 0.66fr)) minmax(92px, 0.96fr)
+      34px;
+    grid-template-rows: minmax(34px, auto);
+    gap: 4px;
+    align-items: center;
+    padding: 1px 6px;
+    min-height: 38px;
+  }
+  .classroom-owner-list.is-selecting .classroom-list-head,
+  .classroom-owner-list.is-selecting .classroom-list-row {
+    grid-template-columns:
+      35px minmax(145px, 2.1fr) repeat(6, minmax(45px, 0.66fr)) minmax(92px, 0.96fr)
+      34px;
+  }
+  .classroom-owner-list .classroom-list-head {
+    min-height: 32px;
+    padding: 0 6px;
+    background: transparent;
+    border: 0;
+  }
+  .classroom-owner-list .classroom-list-head > span {
+    min-width: 0;
+  }
+  .classroom-owner-list .classroom-column-sort {
+    display: inline-flex;
+    width: 100%;
+    min-width: 0;
+    min-height: 27px;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 2px;
+    padding: 2px 0;
+    border: 0;
+    border-radius: 3px;
+    background: transparent;
+    color: #40596b;
+    text-align: left;
+    font: inherit;
+    font-size: 11px;
+    font-weight: 650;
+    line-height: 1.1;
+    letter-spacing: normal;
+    text-transform: none;
+    cursor: pointer;
+  }
+  .classroom-owner-list .classroom-column-sort:hover,
+  .classroom-owner-list .classroom-column-sort:focus-visible,
+  .classroom-owner-list .classroom-column-sort.active {
+    color: #086d9a;
+  }
+  .classroom-owner-list .classroom-column-sort:focus-visible {
+    outline: 2px solid #0878ab;
+    outline-offset: 1px;
+  }
+  .classroom-owner-list .classroom-column-arrow {
+    font-size: 11px;
+    opacity: 0.32;
+  }
+  .classroom-owner-list .classroom-column-sort:hover .classroom-column-arrow,
+  .classroom-owner-list .classroom-column-sort.active .classroom-column-arrow {
+    opacity: 1;
+  }
+  .classroom-owner-list .classroom-row-select,
+  .classroom-owner-list .classroom-row-title,
+  .classroom-owner-list .classroom-row-menu,
+  .classroom-owner-list .classroom-row-date,
+  .classroom-owner-list .classroom-list-row > span[data-label] {
+    grid-area: auto;
+  }
+  .classroom-owner-list .classroom-row-title {
+    min-height: 32px;
+    padding: 0;
+    font-size: 16px;
+    line-height: 1.18;
+    flex-wrap: nowrap;
+  }
+  .classroom-owner-list .classroom-row-title-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .classroom-owner-list .classroom-list-row > span[data-label] {
+    display: inline-flex;
+    flex-direction: row;
+    justify-content: flex-start;
+    align-items: center;
+    min-height: 0;
+    gap: 2px;
+    padding: 0;
+    font-size: 13px;
+    white-space: nowrap;
+    text-align: left;
+  }
+  .classroom-owner-list .classroom-list-row .classroom-stat-label {
+    display: none;
+  }
+  .classroom-owner-list .classroom-list-row .classroom-stat-number {
+    font-size: 13px;
+    line-height: 1.2;
+  }
+  .classroom-owner-list .classroom-row-date {
+    display: flex;
+    align-items: center;
+    justify-self: start;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+    font-size: 11px;
+    white-space: nowrap;
+    text-align: left;
+  }
+  .classroom-owner-list .classroom-row-menu > summary {
+    width: 32px;
+    min-height: 34px;
+    height: 34px;
+  }
+  .classroom-owner-list .classroom-rating-help {
+    font-size: 11px;
+  }
+}
+@container classroom (max-width: 679px) {
+  .classroom-owner-list .classroom-list-head {
+    display: none;
+  }
+  .classroom-owner-list .classroom-sort-menu {
+    display: block;
+  }
+  .classroom-owner-list:not(.is-selecting) .classroom-row-title {
+    grid-area: 1 / 1 / 2 / 12;
+  }
+  .classroom-owner-list .classroom-title-row .classroom-metrics {
+    flex: 0 1 100%;
+    justify-content: flex-start;
+    gap: 6px 10px;
+  }
+}
+@container classroom (min-width: 281px) and (max-width: 550px) {
+  .classroom-owner-list:not(.is-selecting) .classroom-row-title {
+    grid-area: 1 / 1 / 2 / 6;
+  }
+  .classroom-owner-list .classroom-list-row {
+    grid-template-rows: minmax(38px, auto) minmax(21px, auto) minmax(21px, auto) minmax(14px, auto);
+    gap: 1px 4px;
+    padding: 4px 6px;
+  }
+}
+@container classroom (max-width: 550px) {
+  .classroom-owner-list .classroom-title-row {
+    gap: 6px;
+    margin-bottom: 6px;
+  }
+  .classroom-owner-list .classroom-title-and-link {
+    gap: 4px 8px;
+  }
+  .classroom-owner-list .classroom-title-row h1 {
+    font-size: 21px;
+  }
+  .classroom-owner-list .classroom-attend-link {
+    font-size: 11px;
+    min-height: 32px;
+    padding: 3px 5px;
+  }
+  .classroom-owner-list .classroom-title-row .classroom-metrics {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 3px 6px;
+    width: 100%;
+    max-width: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: visible;
+  }
+  .classroom-owner-list .classroom-title-row .classroom-metrics > span {
+    display: inline-flex;
+    justify-content: flex-start;
+    align-items: baseline;
+    gap: 3px;
+    min-width: 0;
+  }
+  .classroom-owner-list .classroom-title-row .classroom-metrics strong {
+    font-size: 13px;
+  }
+  .classroom-owner-list .classroom-title-row .classroom-metrics span > span {
+    font-size: 11px;
+  }
+  .classroom-owner-list .classroom-hub-control-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 5px;
+  }
+  .classroom-owner-list .classroom-role-tabs {
+    width: 100%;
+    min-height: 40px;
+    margin: 0;
+  }
+  .classroom-owner-list .classroom-role-tabs > button {
+    min-height: 36px;
+    padding-inline: 7px;
+    font-size: 12px;
+  }
+  .classroom-owner-list .classroom-hub-toolbar {
+    display: grid;
+    grid-template-columns: 78px minmax(75px, 1fr) 83px 59px;
+    grid-template-rows: 40px;
+    width: 100%;
+    min-width: 0;
+    gap: 4px;
+    margin: 0;
+  }
+  .classroom-owner-list .classroom-hub-toolbar > .portal-create-button {
+    grid-area: 1 / 1 / 2 / 2;
+    width: 100%;
+    min-height: 40px;
+    padding: 3px;
+    font-size: 12px;
+  }
+  .classroom-owner-list .classroom-hub-search {
+    grid-area: 1 / 2 / 2 / 3;
+    min-width: 0;
+    max-width: 100%;
+    width: 100%;
+  }
+  .classroom-owner-list .classroom-hub-search input {
+    min-height: 40px;
+    padding: 4px 6px;
+    font-size: 12px;
+  }
+  .classroom-owner-list .classroom-bulk-menu {
+    grid-area: 1 / 3 / 2 / 4;
+  }
+  .classroom-owner-list .classroom-bulk-menu > summary {
+    width: 100%;
+    min-height: 40px;
+    padding: 4px 3px;
+    font-size: 11px;
+  }
+  .classroom-owner-list .classroom-sort-menu {
+    grid-area: 1 / 4 / 2 / 5;
+    min-width: 0;
+    justify-self: stretch;
+  }
+  .classroom-owner-list .classroom-sort-menu > summary {
+    width: 100%;
+    min-height: 40px;
+    padding: 3px 2px;
+    gap: 1px;
+    font-size: 11px;
+  }
+  .classroom-owner-list.is-selecting .classroom-hub-toolbar {
+    grid-template-columns: 35px 74px minmax(48px, 1fr) 80px 57px;
+  }
+  .classroom-owner-list.is-selecting .classroom-select-all {
+    grid-area: 1 / 1 / 2 / 2;
+  }
+  .classroom-owner-list.is-selecting .classroom-hub-toolbar > .portal-create-button {
+    grid-area: 1 / 2 / 2 / 3;
+  }
+  .classroom-owner-list.is-selecting .classroom-hub-search {
+    grid-area: 1 / 3 / 2 / 4;
+  }
+  .classroom-owner-list.is-selecting .classroom-bulk-menu {
+    grid-area: 1 / 4 / 2 / 5;
+  }
+  .classroom-owner-list.is-selecting .classroom-sort-menu {
+    grid-area: 1 / 5 / 2 / 6;
+  }
+}
+@container classroom (max-width: 359px) {
+  .classroom-owner-list .classroom-hub-toolbar,
+  .classroom-owner-list.is-selecting .classroom-hub-toolbar {
+    grid-template-columns: 36px minmax(0, 1fr) 85px 63px;
+    grid-template-rows: 37px 40px;
+    gap: 3px;
+  }
+  .classroom-owner-list .classroom-hub-search,
+  .classroom-owner-list.is-selecting .classroom-hub-search {
+    grid-area: 1 / 1 / 2 / -1;
+  }
+  .classroom-owner-list .classroom-hub-toolbar > .portal-create-button,
+  .classroom-owner-list.is-selecting .classroom-hub-toolbar > .portal-create-button {
+    grid-area: 2 / 1 / 3 / 3;
+  }
+  .classroom-owner-list .classroom-bulk-menu,
+  .classroom-owner-list.is-selecting .classroom-bulk-menu {
+    grid-area: 2 / 3 / 3 / 4;
+  }
+  .classroom-owner-list .classroom-sort-menu,
+  .classroom-owner-list.is-selecting .classroom-sort-menu {
+    grid-area: 2 / 4 / 3 / 5;
+  }
+  .classroom-owner-list.is-selecting .classroom-hub-toolbar {
+    grid-template-columns: 36px minmax(0, 1fr) 85px 63px;
+  }
+  .classroom-owner-list.is-selecting .classroom-select-all {
+    grid-area: 2 / 1 / 3 / 2;
+  }
+  .classroom-owner-list.is-selecting .classroom-hub-toolbar > .portal-create-button {
+    grid-area: 2 / 2 / 3 / 3;
+  }
+}
+
+/* Extreme browser zoom: respect the original second-row title fallback. */
+@container classroom (max-width: 280px) {
+  .classroom-owner-list .classroom-title-row .classroom-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 5px 7px;
+  }
+  .classroom-owner-list:not(.is-selecting) .classroom-row-title {
+    grid-area: 2 / 1 / 3 / 5;
+  }
+  .classroom-owner-list .classroom-hub-toolbar,
+  .classroom-owner-list.is-selecting .classroom-hub-toolbar {
+    grid-template-columns: 36px minmax(0, 1fr) 75px;
+    grid-template-rows: 38px 40px 40px;
+  }
+  .classroom-owner-list .classroom-hub-search,
+  .classroom-owner-list.is-selecting .classroom-hub-search {
+    grid-area: 1 / 1 / 2 / -1;
+  }
+  .classroom-owner-list .classroom-hub-toolbar > .portal-create-button,
+  .classroom-owner-list.is-selecting .classroom-hub-toolbar > .portal-create-button {
+    grid-area: 2 / 1 / 3 / 3;
+  }
+  .classroom-owner-list .classroom-bulk-menu,
+  .classroom-owner-list.is-selecting .classroom-bulk-menu {
+    grid-area: 2 / 3 / 3 / 4;
+  }
+  .classroom-owner-list .classroom-sort-menu,
+  .classroom-owner-list.is-selecting .classroom-sort-menu {
+    grid-area: 3 / 3 / 4 / 4;
+  }
+  .classroom-owner-list.is-selecting .classroom-select-all {
+    grid-area: 3 / 1 / 4 / 2;
+  }
+}

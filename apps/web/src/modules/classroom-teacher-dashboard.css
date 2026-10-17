@@ -1,0 +1,254 @@
+/*
+ * Teacher-only "Мои классы" composition. The workspace/profile pages keep
+ * classroom-teacher-density.css unchanged. Layout depends on container width,
+ * not viewport width, so a docked sidebar or split-screen gets a real fallback.
+ */
+.classroom-owner-list .classroom-hub-heading {
+  margin-bottom: 7px;
+}
+.classroom-owner-list .classroom-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 7px 16px;
+  margin-bottom: 7px;
+}
+.classroom-owner-list .classroom-title-and-link {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  min-width: 0;
+}
+.classroom-owner-list .classroom-title-row h1 {
+  margin: 0;
+  font-size: clamp(22px, 2.1vw, 28px);
+  line-height: 1.22;
+  white-space: nowrap;
+}
+.classroom-owner-list .classroom-attend-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  margin: 0;
+  padding: 4px 7px;
+  color: #176487;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  box-shadow: none;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.classroom-owner-list .classroom-attend-link:hover,
+.classroom-owner-list .classroom-attend-link:focus-visible {
+  border-color: #b5d9e9;
+  background: #edf7fb;
+}
+.classroom-owner-list .classroom-title-row .classroom-metrics {
+  display: flex;
+  flex: 0 1 auto;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 6px 11px;
+  width: auto;
+  margin: 0;
+  min-width: 0;
+}
+.classroom-owner-list .classroom-title-row .classroom-metrics > span {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+.classroom-owner-list .classroom-title-row .classroom-metrics strong {
+  font-size: 15px;
+  line-height: 1.2;
+}
+.classroom-owner-list .classroom-title-row .classroom-metrics span > span {
+  font-size: 11px;
+  line-height: 1.2;
+}
+.classroom-owner-list .classroom-hub-control-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px 9px;
+  margin-bottom: 7px;
+  min-width: 0;
+}
+.classroom-owner-list .classroom-role-tabs {
+  display: flex;
+  flex: 0 1 auto;
+  align-items: center;
+  flex-wrap: nowrap;
+  width: max-content;
+  max-width: 100%;
+  min-width: 0;
+  min-height: 40px;
+  margin: 0;
+  gap: 2px;
+  padding: 2px;
+  overflow-x: auto;
+}
+.classroom-owner-list .classroom-role-tabs > button {
+  flex: 0 0 auto;
+  min-height: 36px;
+  padding: 5px 8px;
+  font-size: 12px;
+}
+.classroom-owner-list .classroom-hub-toolbar {
+  display: flex;
+  flex: 1 1 295px;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: nowrap;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  gap: 5px;
+}
+.classroom-owner-list .classroom-select-all,
+.classroom-owner-list:not(.is-selecting) .classroom-row-select {
+  display: none;
+}
+.classroom-owner-list.is-selecting .classroom-select-all,
+.classroom-owner-list.is-selecting .classroom-row-select {
+  display: grid;
+  min-width: 32px;
+  place-items: center;
+}
+.classroom-owner-list .classroom-hub-toolbar > .portal-create-button {
+  display: inline-flex;
+  flex: 0 0 auto;
+  justify-content: center;
+  align-items: center;
+  min-height: 38px;
+  min-width: 0;
+  padding: 6px 9px;
+  gap: 4px;
+  font-size: 12px;
+  white-space: nowrap;
+  border-radius: 7px;
+}
+.classroom-owner-list .classroom-hub-toolbar > .portal-create-button svg {
+  width: 15px;
+  height: 15px;
+}
+.classroom-owner-list .classroom-hub-search {
+  flex: 1 1 90px;
+  min-width: 76px;
+  width: auto;
+  max-width: 170px;
+  order: 0;
+  margin: 0;
+}
+.classroom-owner-list .classroom-hub-search input {
+  min-height: 38px;
+  padding: 5px 9px;
+  font-size: 13px;
+  border-radius: 7px;
+}
+.classroom-owner-list .classroom-bulk-menu {
+  flex: 0 0 auto;
+  min-width: 0;
+}
+.classroom-owner-list .classroom-bulk-menu > summary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+  min-height: 38px;
+  padding: 5px 7px;
+  gap: 4px;
+  font-size: 12px;
+  border: 1px solid #d9e4e9;
+  border-radius: 7px;
+  background: #fff;
+  color: #345166;
+  white-space: nowrap;
+}
+.classroom-owner-list .classroom-sort-menu {
+  justify-self: auto;
+  flex: 0 0 auto;
+  max-width: 100%;
+  margin: 0;
+}
+.classroom-owner-list .classroom-sort-menu > summary {
+  display: flex;
+  min-height: 38px;
+  width: auto;
+  padding: 5px 4px;
+  gap: 3px;
+  border: 1px solid transparent;
+  background: transparent;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.classroom-owner-list .classroom-sort-menu .dropdown-menu {
+  max-height: min(64vh, 450px);
+  overflow-y: auto;
+}
+.classroom-owner-list .classroom-list {
+  gap: 3px;
+}
+.classroom-owner-list .classroom-list-row {
+  box-sizing: border-box;
+  min-width: 0;
+}
+.classroom-owner-list .classroom-row-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  text-align: left;
+}
+.classroom-owner-list .classroom-row-index {
+  flex: 0 0 auto;
+  color: #7b92a1;
+  font-weight: 550;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.classroom-owner-list .classroom-row-title-text {
+  display: block;
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+.classroom-owner-list .classroom-row-menu > summary {
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  width: 35px;
+  height: 38px;
+  min-height: 38px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: #637b8b;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  box-shadow: none;
+  opacity: 0.72;
+}
+.classroom-owner-list .classroom-list-row:hover .classroom-row-menu > summary,
+.classroom-owner-list .classroom-row-menu > summary:hover,
+.classroom-owner-list .classroom-row-menu[open] > summary,
+.classroom-owner-list .classroom-row-menu > summary:focus-visible {
+  opacity: 1;
+  border-color: #d8e6ec;
+  background: #f1f7fa;
+  color: #0878ab;
+}
+.classroom-owner-list .classroom-row-menu > summary:focus-visible {
+  outline: 2px solid #0878ab;
+  outline-offset: 1px;
+}
