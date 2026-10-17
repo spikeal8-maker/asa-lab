@@ -275,6 +275,19 @@ def source_install(args):
         doctor(args)
         return
     require(not (path / ".asa/maintenance.json").exists(), "An incomplete deployment already exists")
+    # The pinned stable release may precede this bootstrap commit and the
+    # canonical manager intentionally detaches the operational checkout.
+    # Preserve this recovery launcher OUTSIDE replaceable source files first.
+    persistent = Path("/var/lib/asa-server-rebuild")
+    persistent.mkdir(mode=0o755, parents=True, exist_ok=True)
+    for filename in ("install-ubuntu-1panel.py", "prepare-age-backup.py", "transfer-backup-ssh.py"):
+        source = Path(__file__).resolve().parent / filename
+        if source.is_file():
+            target = persistent / filename
+            if source.resolve() != target.resolve():
+                shutil.copyfile(source, target)
+                os.chmod(target, 0o755)
+    record("BOOTSTRAP_PERSISTED", directory=str(persistent))
     run("python3", "tools/asa_manager.py", "install", "--profile", args.profile,
         as_user=args.operator, cwd=path)
     record("ASA_INSTALLED", root=str(path), profile=args.profile)
