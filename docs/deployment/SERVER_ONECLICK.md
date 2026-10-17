@@ -65,6 +65,70 @@ CIDR, опасное изменение UFW блокируется, чтобы �
 управления Docker, ресурсами, файлами и журналами; **обновление ASA Lab идёт
 только через штатный менеджер** в единственном каталоге Compose.
 
+## Полный сброс приложений без удаления Ubuntu
+
+**Разрушительная операция только для указанного сервера.** Сохраняет
+Ubuntu, системный systemd, SSH, Tailscale, настройки сети, учётные записи,
+UFW с разрешениями SSH. Удаляет приложения ASA Lab, 1Panel, Docker Engine,
+контейнеры/образы/volumes, созданные служебные systemd units и локальные
+резервные копии. На главном сервере и в школе не запускать.
+
+**Обязательно:** свежий зашифрованный полный backup проверен и присутствует
+**вне очищаемого компьютера**, например в Яндекс Диске Windows; имеется
+age identity на отдельной флешке; полный SHA-256 идентифицирован.
+Ни архив, ни флешку нельзя очищать вместе с Ubuntu.
+
+Первые две команды запускаются на целевом Ubuntu и требуют явного
+hostname, SHA256 и подтверждения действия. Путь к скрипту должен указывать
+на скопированный из GitHub файл.
+
+~~~bash
+sudo python3 /tmp/asa-full-rebuild/reset-managed-host.py \
+  --hostname ИМЯ_СЕРВЕРА --snapshot-sha256 64_HEX_АРХИВА \
+  --offhost-copy-verified
+# После успешного dry-run и только после подтверждения off-host архива:
+sudo python3 /tmp/asa-full-rebuild/reset-managed-host.py \
+  --hostname ИМЯ_СЕРВЕРА --snapshot-sha256 64_HEX_АРХИВА \
+  --offhost-copy-verified --execute --confirm ERASE:ИМЯ_СЕРВЕРА
+~~~
+
+После сброса убедитесь, что SSH и Tailscale остаются доступными, Docker,
+1Panel и прежний checkout/volumes отсутствуют. Не удаляйте Ubuntu или
+сетевые настройки.
+
+### Полная установка из чистой Ubuntu с восстановлением данных
+
+Получите скрипты install-ubuntu-1panel.py и restore-verified-backup.py
+**одной и той же проверенной GitHub-ревизии** в /tmp/asa-full-rebuild/.
+Подготовьте свежий распакованный ASA backup в приватном каталоге
+/srv/asa-restore/<snapshot>. age identity должна оставаться на Windows;
+зашифрованный снимок можно передать с помощью
+prepare-age-backup.py и transfer-backup-ssh.py.
+
+Если официальный CDN 1Panel медленно загружается, опционально положите
+на сервер подписанный установочный tar.gz; SHA-256 будет проверен скриптом.
+
+~~~bash
+sudo python3 /tmp/asa-full-rebuild/install-ubuntu-1panel.py install \
+  --operator admins --root /srv/asa-lab --profile production \
+  --panel-port 19192 --admin-cidr 192.168.1.0/24 \
+  --panel-archive /var/tmp/asa-verified-1panel-v2.3.2.tar.gz \
+  --restore-backup /srv/asa-restore/<snapshot> \
+  --target-hostname ИМЯ_СЕРВЕРА --restore-snapshot <snapshot>
+~~~
+
+Скрипт должен установить Docker/Compose, затем 1Panel OSS, затем
+синхронизированный выпуск ASA Lab и **сразу восстановить** PostgreSQL,
+MinIO и нужные ключи из проверенного снимка. Создаётся checkpoint
+в /var/backups/asa-restore-rehearsal/; при обычной ошибке выполняется
+попытка автоматического отката. После аварийного отключения питания
+оператор обязан сверить checkpoint, не запускайте повторную очистку вслепую.
+
+**HTTPS и авторизация:** Production-система остаётся закрытой в localhost
+до явной настройки общего безопасного HTTPS browser origin для API и Scratch.
+Без него открытый LAN HTTP не гарантирует вход пользователей. Нельзя
+отключать origin policy, CSRF или выставлять PostgreSQL/MinIO наружу.
+
 ## Windows: быстрый запуск без установки Linux-панели
 
 ```powershell
