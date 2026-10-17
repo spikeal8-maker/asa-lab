@@ -5103,7 +5103,8 @@ test('R2 short admin drawer scrolls navigation independently while profile, clos
   await page.goto('/#/admin');
   await page.getByRole('button', { name: 'Открыть меню', exact: true }).click();
   const sidebar = page.locator('#portal-sidebar');
-  await expect(sidebar.locator('.portal-admin-subnav-item')).toHaveCount(8);
+  // The AI configuration entry must remain scrollable on small screens.
+  await expect(sidebar.locator('.portal-admin-subnav-item')).toHaveCount(9);
   await expect(sidebar.getByRole('button', { name: 'Закрыть меню', exact: true })).toBeInViewport();
   await expect(sidebar.getByRole('button', { name: 'Выбрать аватар в меню' })).toBeInViewport();
   const nav = sidebar.locator('.portal-nav');

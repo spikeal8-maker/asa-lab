@@ -1,7 +1,9 @@
 # ASA Lab — Product Documentation
 
 Цель продукта описывают [`PRODUCT_BLUEPRINT.md`](PRODUCT_BLUEPRINT.md) и
-[`CAPABILITY_MAP.yaml`](CAPABILITY_MAP.yaml). Долговременные контракты модулей
+[`CAPABILITY_MAP.yaml`](CAPABILITY_MAP.yaml).
+
+ИИ-чат: [`ASA_AI_ASSISTANT_SPEC.md`](ASA_AI_ASSISTANT_SPEC.md) — продуктовый контракт встроенного помощника. Долговременные контракты модулей
 расположены в их поддиректориях.
 
 Эта страница не хранит активную задачу. Получить точное состояние и документы

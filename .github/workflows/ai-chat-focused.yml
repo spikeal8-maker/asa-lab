@@ -1,0 +1,131 @@
+name: ASA AI Chat Focused
+
+"on":
+  push:
+    branches:
+      - feature/ai-chat-gpt-integration-20261014
+  pull_request:
+    paths:
+      - 'apps/api/src/ai-*'
+      - 'apps/api/src/app.module.ts'
+      - 'apps/api/src/tokens.ts'
+      - 'apps/web/src/ai/**'
+      - 'apps/web/src/admin/AdminAiPage.tsx'
+      - 'apps/web/src/admin/admin-navigation.ts'
+      - 'apps/web/src/App.tsx'
+      - 'e2e/ai-chat.spec.ts'
+      - 'migrations/0214_ai_assistant_text_chat.sql'
+      - 'tests/admin/ai-chat.pg.spec.ts'
+      - 'playwright.ai-chat.config.ts'
+      - '.github/workflows/ai-chat-focused.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: asa-ai-chat-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  focused:
+    name: AI unit and API/Web types
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: AI Chat unit regression
+        run: pnpm exec vitest run apps/api/src/ai-chat.service.spec.ts apps/api/src/ai-provider-stream.spec.ts
+      - name: No unformatted files
+        run: pnpm exec prettier --check apps/api/src/ai-* apps/web/src/ai e2e/ai-chat.spec.ts tests/admin/ai-chat.pg.spec.ts
+      - name: API TypeScript
+        run: pnpm exec nx run api:typecheck --skip-nx-cache
+      - name: Web TypeScript
+        run: pnpm exec nx run web:typecheck --skip-nx-cache
+
+  database:
+    name: AI real PostgreSQL isolation
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: docker.io/library/postgres@sha256:75adc2a65806c96bc0e59030230bfe3f1c1b0d6d8f8181a8913e2b8b53bdc166
+        env:
+          POSTGRES_DB: asa_ai_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ai-focused-ci-test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d asa_ai_test"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    env:
+      CI: 'true'
+      NX_SKIP_NX_CACHE: 'true'
+      TEST_DATABASE_URL: postgresql://postgres:ai-focused-ci-test@127.0.0.1:5432/asa_ai_test
+      APP_TEST_DATABASE_URL: postgresql://asalab_app:ai-focused-ci-test@127.0.0.1:5432/asa_ai_test
+      MIGRATION_DATABASE_URL: postgresql://postgres:ai-focused-ci-test@127.0.0.1:5432/asa_ai_test
+      MIGRATION_EXPECT_DATABASE: asa_ai_test
+      MIGRATION_CONFIRM: APPLY:asa_ai_test
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Apply all migrations to disposable database
+        run: pnpm db:migrate
+      - name: Provision only isolated runtime role
+        run: psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -c "ALTER ROLE asalab_app WITH LOGIN PASSWORD 'ai-focused-ci-test'"
+      - name: Build API identity contracts
+        run: pnpm exec nx run-many -t build -p identity api --skip-nx-cache
+      - name: AI cross-account security and provider persistence
+        run: pnpm exec vitest run tests/admin/ai-chat.pg.spec.ts
+
+  browser:
+    name: AI desktop and mobile browser
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Install Chromium dependencies
+        run: pnpm exec playwright install --with-deps chromium
+      - name: AI browser journeys without provider credentials
+        run: pnpm exec playwright test --config playwright.ai-chat.config.ts
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-chat-browser-${{ github.sha }}
+          path: reports/playwright/ai-chat/
+          if-no-files-found: ignore

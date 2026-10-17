@@ -2,6 +2,7 @@ import type { AdminProfile, AdminScope } from './admin-api';
 
 export type AdminSection =
   | 'overview'
+  | 'ai'
   | 'accounts'
   | 'organizations'
   | 'security'
@@ -22,6 +23,7 @@ const ADMIN_SECTIONS: readonly {
   readonly path: string;
 }[] = [
   { id: 'overview', label: 'Обзор', path: '/admin' },
+  { id: 'ai', label: 'ИИ', path: '/admin/ai' },
   { id: 'accounts', label: 'Пользователи', path: '/admin/users' },
   { id: 'organizations', label: 'Организации', path: '/admin/organizations' },
   { id: 'security', label: 'Безопасность', path: '/admin/security' },
@@ -59,6 +61,7 @@ export function isAdminLocation(location: { readonly hash: string }): boolean {
 
 export function scopeSupportsAdminSection(scope: AdminScope, section: AdminSection): boolean {
   if (section === 'overview') return true;
+  if (section === 'ai') return scope.kind === 'platform' && scope.role === 'platform_admin';
   if (section === 'accounts') return scope.permissions.includes('administration.accounts.read');
   if (section === 'organizations') {
     return scope.permissions.includes('administration.organizations.read');
