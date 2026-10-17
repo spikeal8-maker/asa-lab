@@ -51,6 +51,17 @@ class SnapshotSafety(unittest.TestCase):
         script=(BASE/"restore-verified-backup.py").read_text()
         self.assertNotIn("asa-cloud-age-identity.txt",script)
         self.assertNotIn("tailscale down",script)
+    def test_first_install_waits_for_1panel_initial_firewall_policy(self):
+        content=(BASE/"install-ubuntu-1panel.py").read_text()
+        self.assertIn("PANEL_FIREWALL_POLICY_READY",content)
+        self.assertIn("time.monotonic() + 90",content)
+
+    def test_operator_collector_has_user_systemd_manager(self):
+        content=(BASE/"install-ubuntu-1panel.py").read_text()
+        self.assertIn('run("loginctl", "enable-linger", args.operator)',content)
+        self.assertIn("XDG_RUNTIME_DIR=/run/user/{uid}",content)
+        self.assertIn('"-m", "deployment.collector"',content)
+
     def test_manager_installer_wires_restore(self):
         content=(BASE/"install-ubuntu-1panel.py").read_text()
         self.assertIn("restore-verified-backup.py",content)
