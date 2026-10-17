@@ -190,6 +190,13 @@
   font-size: 12px;
   white-space: nowrap;
 }
+.classroom-owner-list :is(.classroom-bulk-menu, .classroom-sort-menu) .dropdown-menu {
+  right: 0;
+  left: auto;
+  box-sizing: border-box;
+  min-width: min(216px, calc(100cqi - 24px));
+  max-width: calc(100cqi - 24px);
+}
 .classroom-owner-list .classroom-sort-menu .dropdown-menu {
   max-height: min(64vh, 450px);
   overflow-y: auto;

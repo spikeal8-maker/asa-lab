@@ -103,6 +103,16 @@ for (const width of [320, 390, 540, 768, 1024, 1440]) {
     }
     await expect(page.locator('.classroom-row-select input').first()).toBeHidden();
     await page.screenshot({ path: out + '/teacher-classes-' + width + '.png', fullPage: true });
+    await page.getByRole('button', { name: 'Действия с классами', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Выбрать классы', exact: true })).toBeVisible();
+    const menu = await page.locator('.classroom-bulk-menu .dropdown-menu').boundingBox();
+    expect(menu).not.toBeNull();
+    expect(menu!.x).toBeGreaterThanOrEqual(0);
+    expect(menu!.x + menu!.width).toBeLessThanOrEqual(width + 1);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+      width + 1,
+    );
+    await page.keyboard.press('Escape');
     expect(state.errors).toEqual([]);
     expect(state.mutations).toEqual([]);
   });
