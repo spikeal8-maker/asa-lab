@@ -516,3 +516,65 @@ for (const width of [360, 430, 768]) {
     expect(state.errors).toEqual([]);
   });
 }
+
+test('teacher compact class list remains readable with sidebar and on phones', async ({ page }) => {
+  const state = await seedPresentation(page, true);
+  for (const width of [320, 390, 768, 1024, 1440]) {
+    await page.setViewportSize({ width, height: 1000 });
+    await page.goto('/#/classrooms');
+    const cards = page.getByTestId('classroom-card');
+    await expect(cards).toHaveCount(23);
+    await expect(
+      page.locator('.classroom-row-students .classroom-stat-number').first(),
+    ).not.toHaveText('—');
+
+    const measure = await cards.first().evaluate((element) => {
+      const row = element as HTMLElement;
+      const labels = [...row.querySelectorAll<HTMLElement>('.classroom-stat-label')].filter(
+        (item) => item.checkVisibility(),
+      );
+      const numbers = [...row.querySelectorAll<HTMLElement>('.classroom-stat-number')].filter(
+        (item) => item.checkVisibility(),
+      );
+      return {
+        height: row.getBoundingClientRect().height,
+        smallestLabel: labels.length
+          ? Math.min(...labels.map((item) => parseFloat(getComputedStyle(item).fontSize)))
+          : null,
+        smallestNumber: numbers.length
+          ? Math.min(...numbers.map((item) => parseFloat(getComputedStyle(item).fontSize)))
+          : null,
+      };
+    });
+    const maxHeight = width >= 1440 ? 65 : width >= 768 ? 135 : 150;
+    expect(measure.height, 'Class card should be dense at ' + width + 'px').toBeLessThan(
+      maxHeight,
+    );
+    if (width < 960) {
+      expect(measure.smallestLabel, 'Class metric captions at ' + width + 'px').not.toBeNull();
+      expect(measure.smallestLabel!, 'Class metric captions at ' + width + 'px').toBeGreaterThanOrEqual(
+        11,
+      );
+      expect(
+        measure.smallestNumber!,
+        'Class metric values at ' + width + 'px',
+      ).toBeGreaterThanOrEqual(13);
+    }
+  }
+
+  // A 320px code chip must never squeeze "← Мои классы" under it.
+  await page.setViewportSize({ width: 320, height: 1000 });
+  await page.goto('/#/classrooms/' + classId);
+  await expect(page.getByRole('button', { name: '← Мои классы' })).toBeVisible();
+  const back = await page.locator('.classroom-head-compact .classroom-back').boundingBox();
+  const actions = await page.locator('.classroom-head-compact .classroom-head-code').boundingBox();
+  expect(back).not.toBeNull();
+  expect(actions).not.toBeNull();
+  expect(back!.y + back!.height, '320px class navigation must not overlap the join code').toBeLessThanOrEqual(
+    actions!.y + 1,
+  );
+  const sectionSwitch = page.getByRole('combobox', { name: 'Раздел класса' });
+  await expect(sectionSwitch).toBeVisible();
+  await expect(sectionSwitch.locator('option')).toHaveCount(8);
+  expect(state.errors).toEqual([]);
+});
