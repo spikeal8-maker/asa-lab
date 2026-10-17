@@ -275,7 +275,7 @@ def source_install(args):
     # Preserve this recovery launcher OUTSIDE replaceable source files first.
     persistent = Path("/var/lib/asa-server-rebuild")
     persistent.mkdir(mode=0o755, parents=True, exist_ok=True)
-    for filename in ("install-ubuntu-1panel.py", "prepare-age-backup.py", "transfer-backup-ssh.py"):
+    for filename in ("install-ubuntu-1panel.py", "prepare-age-backup.py", "transfer-backup-ssh.py", "restore-verified-backup.py"):
         source = Path(__file__).resolve().parent / filename
         if source.is_file():
             target = persistent / filename
@@ -367,6 +367,9 @@ def main():
                         help="Required for install/panel/harden-panel: CIDR containing your SSH client, e.g. 192.168.1.0/24 or public-IP/32")
     parser.add_argument("--backup-dir", type=Path)
     parser.add_argument("--database", default="asalab_rehearsal_test")
+    parser.add_argument("--restore-backup", type=Path, help="Verified extracted snapshot for full install+restore")
+    parser.add_argument("--target-hostname", help="Required exact host name for full recovery")
+    parser.add_argument("--restore-snapshot", help="Required exact backup snapshot ID for full recovery")
     args = parser.parse_args()
     try:
         with exclusive():
@@ -383,6 +386,18 @@ def main():
                     harden_panel_firewall(args)
                 if args.action == "install":
                     source_install(args)
+                    if args.restore_backup is not None:
+                        require(bool(args.target_hostname) and bool(args.restore_snapshot),
+                                "--target-hostname and --restore-snapshot must accompany --restore-backup")
+                        script = Path(__file__).resolve().parent / "restore-verified-backup.py"
+                        if not script.is_file():
+                            script = Path("/var/lib/asa-server-rebuild/restore-verified-backup.py")
+                        require(script.is_file(), "Recovery helper missing; do not leave an untracked partial restore")
+                        run("python3", str(script), "--root", str(args.root.resolve()),
+                            "--backup", str(args.restore_backup.resolve()), "--profile", args.profile,
+                            "--hostname", args.target_hostname, "--apply",
+                            "--confirm", "RESTORE:" + args.restore_snapshot)
+                        doctor(args)
             else:
                 require(os.geteuid() == 0, "Run with sudo/root")
                 if args.action == "doctor": doctor(args)
