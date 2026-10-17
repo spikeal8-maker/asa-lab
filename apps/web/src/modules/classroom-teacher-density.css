@@ -86,7 +86,8 @@
 }
 
 /* The width of a teacher register is inclusive of its borders and paddings. */
-.classroom-owner-list :is(.classroom-hub-heading, .classroom-hub-toolbar, .classroom-list, .classroom-list-row) {
+.classroom-owner-list
+  :is(.classroom-hub-heading, .classroom-hub-toolbar, .classroom-list, .classroom-list-row) {
   box-sizing: border-box;
   max-width: 100%;
   min-width: 0;
