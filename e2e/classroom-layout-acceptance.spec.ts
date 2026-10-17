@@ -355,6 +355,22 @@ async function photograph(page: Page, file: string, expectedPanel: string) {
       documentWidth: document.documentElement.scrollWidth,
       mainWidth: main.clientWidth,
       mainScrollWidth: main.scrollWidth,
+      overflowCandidates: [...main.querySelectorAll<HTMLElement>('*')]
+        .filter((el) => {
+          const box = el.getBoundingClientRect();
+          const parent = main.getBoundingClientRect();
+          return el.checkVisibility() && (box.right > parent.right + 0.5 || box.left < parent.left - 0.5);
+        })
+        .slice(0, 12)
+        .map((el) => ({
+          element: el.tagName.toLowerCase(),
+          className: typeof el.className === 'string' ? el.className.slice(0, 100) : '',
+          content: el.textContent?.trim().slice(0, 40),
+          left: el.getBoundingClientRect().left,
+          right: el.getBoundingClientRect().right,
+          scrollWidth: el.scrollWidth,
+          clientWidth: el.clientWidth,
+        })),
       outside,
       clippedClassDates: [
         ...main.querySelectorAll<HTMLElement>('.classroom-list-row .classroom-row-date'),
@@ -394,7 +410,9 @@ async function photograph(page: Page, file: string, expectedPanel: string) {
   expect.soft(textDefects, `Actual caption/value/checkbox collisions: ${file}`).toEqual([]);
   writeFileSync(`${out}/${file}.json`, JSON.stringify(measure, null, 2));
   expect.soft(measure.documentWidth, file).toBeLessThanOrEqual(measure.width + 1);
-  expect.soft(measure.mainScrollWidth, file).toBeLessThanOrEqual(measure.mainWidth + 1);
+  expect
+    .soft(measure.mainScrollWidth, file + JSON.stringify(measure.overflowCandidates))
+    .toBeLessThanOrEqual(measure.mainWidth + 1);
   expect.soft(measure.outside, file).toEqual([]);
   expect
     .soft(measure.clippedClassDates, 'Dates must fit as one readable line: ' + file)
