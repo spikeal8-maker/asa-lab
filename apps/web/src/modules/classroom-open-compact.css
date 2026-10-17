@@ -1582,3 +1582,62 @@
     min-width: 0;
   }
 }
+
+/* The existing real PostgreSQL journal at 1366px requires one filter row.
+   Flex wrapping at every width made Linux fonts push the sixth control to a
+   second line even when the 1066px class canvas had sufficient room. Narrow
+   school/mobile screens still use the original wrapping composition. */
+@container classroom (min-width: 900px) {
+  .teacher-open-compact.classroom-owner-workspace.classroom-workspace
+    .manual-journal
+    .manual-journal-filters {
+    display: flex;
+    flex-flow: row nowrap;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+  }
+
+  .teacher-open-compact.classroom-owner-workspace.classroom-workspace
+    .manual-journal
+    .manual-journal-modes {
+    flex: 0 0 auto;
+    flex-wrap: nowrap;
+    width: auto;
+  }
+
+  .teacher-open-compact.classroom-owner-workspace.classroom-workspace
+    .manual-journal
+    .manual-journal-monthbar {
+    flex: 0 1 188px;
+    width: auto;
+    min-width: 150px;
+  }
+
+  .teacher-open-compact.classroom-owner-workspace.classroom-workspace
+    .manual-journal
+    .manual-journal-filters
+    > :is(input, select) {
+    flex: 1 1 100px;
+    width: auto;
+    min-width: 65px;
+  }
+
+  .teacher-open-compact.classroom-owner-workspace.classroom-workspace
+    .manual-journal
+    .manual-journal-filters
+    > button {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+  /* All six date-journal controls share a top edge and 44px hit region.
+     Without this, Linux sees two different top coordinates (217/221px). */
+  .teacher-open-compact.classroom-owner-workspace.classroom-workspace
+    .manual-journal
+    .manual-journal-filters
+    > :is(input, select, button) {
+    box-sizing: border-box;
+    min-height: 44px;
+    height: 44px;
+  }
+}

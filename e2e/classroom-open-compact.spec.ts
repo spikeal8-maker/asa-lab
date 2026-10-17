@@ -136,6 +136,14 @@ test('open teacher class uses compact controls without losing pupils', async ({ 
       width > 1920 ? 60 : bounds.mainContentWidth >= 680 ? 40 : 110,
     );
     expect(bounds.pupilName.width, width + ': clickable pupil name').toBeGreaterThanOrEqual(80);
+    if (width === 320) {
+      // Real profile header retains a 44px keyboard/touch target even when
+      // only the ASA mark remains after hiding brand text at this width.
+      const brand = await page.locator('.portal-header .portal-brand').boundingBox();
+      expect(brand).not.toBeNull();
+      expect(brand!.width).toBeGreaterThanOrEqual(44);
+      expect(brand!.height).toBeGreaterThanOrEqual(44);
+    }
     if (width === 3840) {
       const font = await page
         .locator('.classroom-student-name strong')
@@ -177,12 +185,22 @@ test('teacher can open participant from journal without editing a grade', async 
   await expect(page.getByRole('heading', { name: label, exact: false })).toBeVisible();
   await page.getByRole('button', { name: '← К классу' }).click();
   await expect(page.locator('.manual-journal tbody tr')).toHaveCount(15);
-  for (const width of [390, 1024]) {
+  for (const width of [390, 1024, 1366]) {
     await page.setViewportSize({ width, height: 900 });
     await page.evaluate(
       () =>
         new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
     );
+    if (width === 1366) {
+      const filterRows = await page
+        .locator('.manual-journal-filters')
+        .evaluate(
+          (root) =>
+            new Set([...root.children].map((item) => Math.round(item.getBoundingClientRect().top)))
+              .size,
+        );
+      expect(filterRows, 'Real journal toolbar must stay one row at Full HD').toBe(1);
+    }
     const dimensions = await page.evaluate(() => {
       const shell = document.querySelector<HTMLElement>('main.teacher-open-compact')!;
       const matrix = document.querySelector<HTMLElement>('.manual-journal-scroll')!;
