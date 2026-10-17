@@ -430,8 +430,34 @@ def main():
     parser.add_argument("--restore-backup", type=Path, help="Verified extracted snapshot for full install+restore")
     parser.add_argument("--target-hostname", help="Required exact host name for full recovery")
     parser.add_argument("--restore-snapshot", help="Required exact backup snapshot ID for full recovery")
+    parser.add_argument("--require-restore", action="store_true",
+                        help="Fail closed before installation if no complete snapshot is supplied")
+    parser.add_argument("--fresh-empty", action="store_true",
+                        help="Explicitly initialize an intentionally empty NEW production install")
+    parser.add_argument("--max-snapshot-age-hours", type=int, default=0,
+                        help="Enforce freshness of restored full archive in hours")
+    parser.add_argument("--min-active-students", type=int, default=0)
+    parser.add_argument("--min-seats", type=int, default=0)
     args = parser.parse_args()
     try:
+        if args.action == "install" and args.profile == "production":
+            existing_release = (args.root.resolve() / ".asa/installed-release.json").is_file()
+            require(not (args.require_restore and args.fresh_empty),
+                    "A required backup and explicit empty installation are mutually exclusive")
+            require(args.restore_backup is not None or args.fresh_empty or existing_release,
+                    "Production install needs --restore-backup or an explicit --fresh-empty")
+            require(not args.require_restore or args.restore_backup is not None,
+                    "Required Yandex backup missing; refuse to install an empty production clone")
+        if args.restore_backup is not None:
+            require(args.restore_backup.is_dir(),
+                    "The verified, extracted snapshot directory does not exist")
+            require(bool(args.target_hostname) and bool(args.restore_snapshot),
+                    "--target-hostname and --restore-snapshot are required before installation")
+            require((args.restore_backup / "manifest.json").is_file(),
+                    "Source does not contain a backup manifest; refuse partial installation")
+        if args.fresh_empty:
+            require(args.action == "install" and args.profile == "production",
+                    "--fresh-empty is only for an intentional new production installation")
         lan_flags = (args.lan_preview_ip, args.lan_preview_cidr, args.lan_preview_interface)
         if any(lan_flags):
             require(args.action == "install" and all(lan_flags),
@@ -465,7 +491,11 @@ def main():
                         require(script.is_file(), "Recovery helper missing; do not leave an untracked partial restore")
                         run("python3", str(script), "--root", str(args.root.resolve()),
                             "--backup", str(args.restore_backup.resolve()), "--profile", args.profile,
-                            "--hostname", args.target_hostname, "--apply",
+                            "--hostname", args.target_hostname,
+                            "--max-snapshot-age-hours", str(args.max_snapshot_age_hours),
+                            "--min-active-students", str(args.min_active_students),
+                            "--min-seats", str(args.min_seats),
+                            "--apply",
                             "--confirm", "RESTORE:" + args.restore_snapshot)
                         doctor(args)
                     if args.lan_preview_ip:
