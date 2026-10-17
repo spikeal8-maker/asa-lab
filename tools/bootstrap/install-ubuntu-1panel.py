@@ -322,7 +322,7 @@ def source_install(args):
     # Preserve this recovery launcher OUTSIDE replaceable source files first.
     persistent = Path("/var/lib/asa-server-rebuild")
     persistent.mkdir(mode=0o755, parents=True, exist_ok=True)
-    for filename in ("install-ubuntu-1panel.py", "prepare-age-backup.py", "transfer-backup-ssh.py", "restore-verified-backup.py"):
+    for filename in ("install-ubuntu-1panel.py", "prepare-age-backup.py", "transfer-backup-ssh.py", "restore-verified-backup.py", "lan-preview-ubuntu.py"):
         source = Path(__file__).resolve().parent / filename
         if source.is_file():
             target = persistent / filename
@@ -422,11 +422,26 @@ def main():
                         help="Required for install/panel/harden-panel: CIDR containing your SSH client, e.g. 192.168.1.0/24 or public-IP/32")
     parser.add_argument("--backup-dir", type=Path)
     parser.add_argument("--database", default="asalab_rehearsal_test")
+    parser.add_argument("--lan-preview-ip", help="Explicit private IPv4 for optional LAN-only HTTP preview")
+    parser.add_argument("--lan-preview-cidr", help="Strict private LAN subnet, no broader than /16")
+    parser.add_argument("--lan-preview-interface", help="Physical interface for preview, e.g. eno1")
+    parser.add_argument("--ack-production-http-preview", action="store_true",
+                        help="Explicit acknowledgement: LAN HTTP is view-only; real logins require HTTPS")
     parser.add_argument("--restore-backup", type=Path, help="Verified extracted snapshot for full install+restore")
     parser.add_argument("--target-hostname", help="Required exact host name for full recovery")
     parser.add_argument("--restore-snapshot", help="Required exact backup snapshot ID for full recovery")
     args = parser.parse_args()
     try:
+        lan_flags = (args.lan_preview_ip, args.lan_preview_cidr, args.lan_preview_interface)
+        if any(lan_flags):
+            require(args.action == "install" and all(lan_flags),
+                    "Provide all three LAN preview fields only with install")
+            if args.profile == "production":
+                require(args.ack_production_http_preview,
+                        "Production HTTP preview must be explicitly acknowledged")
+        else:
+            require(not args.ack_production_http_preview,
+                    "--ack-production-http-preview requires LAN preview IP/CIDR/interface")
         with exclusive():
             if args.action in ("install", "panel", "harden-panel"):
                 require(bool(args.admin_cidr),
@@ -453,6 +468,21 @@ def main():
                             "--hostname", args.target_hostname, "--apply",
                             "--confirm", "RESTORE:" + args.restore_snapshot)
                         doctor(args)
+                    if args.lan_preview_ip:
+                        preview = Path(__file__).resolve().parent / "lan-preview-ubuntu.py"
+                        if not preview.is_file():
+                            preview = Path("/var/lib/asa-server-rebuild/lan-preview-ubuntu.py")
+                        require(preview.is_file(), "LAN ingress helper missing")
+                        argv = ["python3", str(preview), "install",
+                                "--root", str(args.root.resolve()),
+                                "--lan-ip", args.lan_preview_ip,
+                                "--cidr", args.lan_preview_cidr,
+                                "--interface", args.lan_preview_interface]
+                        if args.ack_production_http_preview:
+                            argv.append("--ack-production-http-preview")
+                        run(*argv)
+                        record("LAN_HTTP_PREVIEW_READY", host=args.lan_preview_ip,
+                               port=4610, security="view-only; HTTPS required for login")
             else:
                 require(os.geteuid() == 0, "Run with sudo/root")
                 if args.action == "doctor": doctor(args)
