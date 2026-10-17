@@ -25,7 +25,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Compile host bootstrap
-        run: python3 -m py_compile tools/bootstrap/install-ubuntu-1panel.py tools/bootstrap/prepare-age-backup.py
+        run: python3 -m py_compile tools/bootstrap/install-ubuntu-1panel.py tools/bootstrap/prepare-age-backup.py tools/bootstrap/transfer-backup-ssh.py
       - name: Fail-closed unit tests
         run: python3 tools/bootstrap/test_bootstrap.py
 
