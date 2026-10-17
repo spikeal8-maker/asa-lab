@@ -470,8 +470,13 @@ function ClassroomPageContent({
     );
     setRosterSort(key);
   }
-  function sortMark(key: ClassroomRosterSort): string {
-    return key === rosterSort ? (sortDirection === 'asc' ? ' ▴' : ' ▾') : ' ▹';
+  function sortMark(key: ClassroomRosterSort): JSX.Element {
+    const mark = key === rosterSort ? (sortDirection === 'asc' ? '▴' : '▾') : '▹';
+    return (
+      <span className="classroom-roster-sort-mark" aria-hidden="true">
+        {mark}
+      </span>
+    );
   }
   const [sharing, setSharing] = useState(false);
   const [search, setSearch] = useState('');
@@ -1083,7 +1088,9 @@ function ClassroomPageContent({
                   </button>
                   <button
                     type="button"
-                    className="classroom-roster-sort"
+                    className={
+                      'classroom-roster-sort' + (rosterSort === 'safe' ? ' is-active' : '')
+                    }
                     onClick={() => selectRosterSort('safe')}
                   >
                     Защита{sortMark('safe')}
@@ -1091,14 +1098,20 @@ function ClassroomPageContent({
                   <span className="sr-only">Действия</span>
                   <button
                     type="button"
-                    className="classroom-roster-sort participant-column"
+                    className={
+                      'classroom-roster-sort participant-column' +
+                      (rosterSort === 'works' ? ' is-active' : '')
+                    }
                     onClick={() => selectRosterSort('works')}
                   >
                     Работы{sortMark('works')}
                   </button>
                   <button
                     type="button"
-                    className="classroom-roster-sort participant-column"
+                    className={
+                      'classroom-roster-sort participant-column' +
+                      (rosterSort === 'rating' ? ' is-active' : '')
+                    }
                     onClick={() => selectRosterSort('rating')}
                   >
                     Рейтинг{sortMark('rating')}
@@ -1209,7 +1222,13 @@ function ClassroomPageContent({
                           {student.submittedCount ?? 0}/{student.assignedCount ?? 0}
                         </span>
                         {(student.awaitingReview ?? 0) > 0 ? (
-                          <em title="Ожидают проверки">Ждут: {student.awaitingReview}</em>
+                          <em
+                            title="Ожидают проверки"
+                            aria-label={'Ждут проверки: ' + student.awaitingReview}
+                          >
+                            <span className="classroom-awaiting-label">Ждут: </span>
+                            {student.awaitingReview}
+                          </em>
                         ) : null}
                       </span>
                       <span className="classroom-roster-seen">

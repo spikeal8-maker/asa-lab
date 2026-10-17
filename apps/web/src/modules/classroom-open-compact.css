@@ -378,6 +378,33 @@
   padding: 2px 0;
   font-size: 12px;
   color: #365267;
+  display: inline-flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 2px;
+  white-space: nowrap;
+  flex-wrap: nowrap;
+  text-align: left;
+}
+
+.teacher-open-compact.classroom-owner-workspace.classroom-workspace
+  .classroom-roster-head
+  .classroom-roster-sort-mark {
+  display: inline-block;
+  font-size: 10px;
+  line-height: 1;
+  flex: 0 0 auto;
+  visibility: hidden;
+  white-space: nowrap;
+}
+
+.teacher-open-compact.classroom-owner-workspace.classroom-workspace
+  .classroom-roster-head
+  .classroom-roster-sort:is(.is-active, :hover, :focus-visible)
+  .classroom-roster-sort-mark {
+  visibility: visible;
 }
 
 .teacher-open-compact.classroom-owner-workspace.classroom-workspace
@@ -755,12 +782,21 @@
     .classroom-roster-table
     .classroom-roster-progress
     em {
-    display: inline;
+    display: inline-flex;
+    flex: 0 0 auto;
     font-size: 11px;
-    line-height: 1.2;
+    line-height: 1.4;
     white-space: nowrap;
     margin: 0;
     padding: 0;
+  }
+
+  /* The header already says submitted / awaiting. Show only numeric count
+     in the dense register; the full meaning remains in aria-label. */
+  .teacher-open-compact.classroom-owner-workspace.classroom-workspace
+    .classroom-roster-table
+    .classroom-awaiting-label {
+    display: none;
   }
 
   /* A tablet-width register is still a table: 44px switch targets belong to
