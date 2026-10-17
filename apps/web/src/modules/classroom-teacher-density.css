@@ -210,8 +210,13 @@
   }
   .classroom-owner-workspace.classroom-workspace .classroom-workspace-tabs {
     width: 100%;
-    flex-wrap: nowrap;
-    overflow-x: auto;
+    flex-wrap: wrap;
+    overflow: visible;
+    gap: 2px;
+  }
+  .classroom-owner-workspace.classroom-workspace .classroom-workspace-tabs > button {
+    padding-inline: 5px;
+    font-size: 12px;
   }
 }
 
@@ -509,7 +514,7 @@
   }
   .classroom-owner-workspace.classroom-workspace .classroom-student-name {
     gap: 4px;
-    font-size: 14px;
+    font-size: 16px;
     line-height: 1.2;
   }
   .classroom-owner-workspace.classroom-workspace .classroom-seen-mobile {
@@ -573,39 +578,48 @@
     grid-template-columns: 44px minmax(0, 1fr) 74px 62px;
     grid-template-rows: 40px 44px;
   }
+  /*
+   * At effective zoom widths below 281px, keep the title on its own row.
+   * A long real class name must not enter the 44px actions/menu column.
+   */
   .classroom-owner-list .classroom-list-row {
     grid-template-columns: 44px minmax(0, 1fr) minmax(0, 1fr) 44px;
-    grid-template-rows: minmax(44px, auto) repeat(3, minmax(24px, auto)) auto;
+    grid-template-rows: minmax(44px, auto) minmax(44px, auto) repeat(3, minmax(24px, auto)) auto;
   }
   .classroom-owner-list .classroom-row-select {
     grid-area: 1 / 1 / 2 / 2;
   }
-  .classroom-owner-list .classroom-row-title {
-    grid-area: 1 / 2 / 2 / 4;
-  }
   .classroom-owner-list .classroom-row-menu {
     grid-area: 1 / 4 / 2 / 5;
   }
+  .classroom-owner-list .classroom-row-title {
+    grid-area: 2 / 1 / 3 / 5;
+    min-height: 44px;
+    padding: 0;
+    font-size: 14px;
+    white-space: normal;
+    overflow-wrap: break-word;
+  }
   .classroom-owner-list .classroom-row-students {
-    grid-area: 2 / 1 / 3 / 3;
-  }
-  .classroom-owner-list .classroom-row-works {
-    grid-area: 2 / 3 / 3 / 5;
-  }
-  .classroom-owner-list .classroom-row-progress {
     grid-area: 3 / 1 / 4 / 3;
   }
-  .classroom-owner-list .classroom-row-awaiting {
+  .classroom-owner-list .classroom-row-works {
     grid-area: 3 / 3 / 4 / 5;
   }
-  .classroom-owner-list .classroom-row-behind {
+  .classroom-owner-list .classroom-row-progress {
     grid-area: 4 / 1 / 5 / 3;
   }
-  .classroom-owner-list .classroom-row-rating {
+  .classroom-owner-list .classroom-row-awaiting {
     grid-area: 4 / 3 / 5 / 5;
   }
+  .classroom-owner-list .classroom-row-behind {
+    grid-area: 5 / 1 / 6 / 3;
+  }
+  .classroom-owner-list .classroom-row-rating {
+    grid-area: 5 / 3 / 6 / 5;
+  }
   .classroom-owner-list .classroom-row-date {
-    grid-area: 5 / 1 / 6 / -1;
+    grid-area: 6 / 1 / 7 / -1;
   }
 }
 
