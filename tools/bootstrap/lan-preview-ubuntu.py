@@ -94,15 +94,18 @@ def command(*args: str, capture: bool = False, env=None) -> str:
     return run.stdout.strip() if capture else ""
 
 
+def validate_profile(profile: str, acknowledge_production: bool) -> None:
+    require(profile in ("staging", "dev") or (profile == "production" and acknowledge_production),
+            "Production HTTP preview requires --ack-production-http-preview; "
+            "use HTTPS for login and private student data")
+
+
 def assert_baseline(root: Path, ip: str, interface: str, acknowledge_production: bool = False) -> None:
     require(sys.platform.startswith("linux"), "Linux is required")
     require(os.geteuid() == 0, "Run as root (sudo)")
     require(root.joinpath(".asa/installation.json").is_file(), "ASA installation state not found")
     settings = json.loads(root.joinpath(".asa/installation.json").read_text(encoding="utf-8"))
-    profile = settings.get("profile")
-    require(profile in ("staging", "dev") or (profile == "production" and acknowledge_production),
-            "Production HTTP preview requires --ack-production-http-preview; "
-            "use HTTPS for login and private student data")
+    validate_profile(settings.get("profile"), acknowledge_production)
     require(Path(PROXY_BINARY).is_file(), "systemd-socket-proxyd not installed")
     addresses = command("ip", "-4", "-o", "addr", "show", "dev", interface, capture=True)
     require(any(line.split()[3].split("/")[0] == ip for line in addresses.splitlines()),
