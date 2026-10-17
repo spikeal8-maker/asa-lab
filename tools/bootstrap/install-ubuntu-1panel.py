@@ -148,6 +148,17 @@ def panel_install(args):
     require(args.panel_port not in (22, 80, 443, 4610, 4611, 4613), "Panel port conflicts with reserved ASA ports")
     require(not Path("/opt/1panel").exists(), "A partial 1Panel installation exists; inspect it first")
     path = Path("/var/cache/asa-server-rebuild") / PANEL_ARCHIVE_NAME
+    if args.panel_archive is not None:
+        media = args.panel_archive.resolve()
+        require(media.is_file() and media.stat().st_size > 60_000_000,
+                "Offline 1Panel installation media missing or incomplete")
+        require(hashlib.sha256(media.read_bytes()).hexdigest() == PANEL_SHA256,
+                "Offline 1Panel archive does not match official pinned SHA-256")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if media != path:
+            shutil.copyfile(media, path)
+            os.chmod(path, 0o600)
+        record("OFFLINE_PANEL_MEDIA_VERIFIED", sha256=PANEL_SHA256)
     download_verified_panel(path)
     with tempfile.TemporaryDirectory(prefix="asa-1panel-") as tmpstr:
         temp = Path(tmpstr)
@@ -363,6 +374,7 @@ def main():
     parser.add_argument("--operator", default=os.environ.get("SUDO_USER") or "admins")
     parser.add_argument("--profile", choices=("staging", "production", "dev"), default="staging")
     parser.add_argument("--panel-port", type=int, default=19192)
+    parser.add_argument("--panel-archive", type=Path, help="Trusted offline 1Panel tar.gz; pinned SHA-256 required")
     parser.add_argument("--admin-cidr", required=False,
                         help="Required for install/panel/harden-panel: CIDR containing your SSH client, e.g. 192.168.1.0/24 or public-IP/32")
     parser.add_argument("--backup-dir", type=Path)
