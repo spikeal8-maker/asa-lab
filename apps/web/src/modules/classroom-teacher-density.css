@@ -185,6 +185,15 @@
     grid-column: auto;
     justify-self: stretch;
   }
+  /* The compact "Сорт." control must fit inside its 75px grid track. */
+  .classroom-owner-list .classroom-sort-menu > summary {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    padding-inline: 4px;
+    gap: 2px;
+  }
   .classroom-owner-list .classroom-create-label-full,
   .classroom-owner-list .classroom-sort-label-full,
   .classroom-owner-list .classroom-rating-label-full {
