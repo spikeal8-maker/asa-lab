@@ -8,7 +8,7 @@
   .classroom-owner-list .classroom-list-row {
     display: grid;
     grid-template-columns:
-      minmax(170px, 2.2fr) repeat(6, minmax(45px, 0.66fr)) minmax(92px, 0.96fr)
+      minmax(170px, 2.2fr) repeat(6, minmax(45px, 0.66fr)) minmax(112px, 1fr)
       34px;
     grid-template-rows: minmax(34px, auto);
     gap: 4px;
@@ -19,7 +19,7 @@
   .classroom-owner-list.is-selecting .classroom-list-head,
   .classroom-owner-list.is-selecting .classroom-list-row {
     grid-template-columns:
-      35px minmax(145px, 2.1fr) repeat(6, minmax(45px, 0.66fr)) minmax(92px, 0.96fr)
+      35px minmax(145px, 2.1fr) repeat(6, minmax(45px, 0.66fr)) minmax(112px, 1fr)
       34px;
   }
   .classroom-owner-list .classroom-list-head {
@@ -85,9 +85,11 @@
     flex-wrap: nowrap;
   }
   .classroom-owner-list .classroom-row-title-text {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    flex: 1 1 0;
+    min-width: 0;
+    overflow: visible;
+    white-space: normal;
+    overflow-wrap: anywhere;
   }
   .classroom-owner-list .classroom-list-row > span[data-label] {
     display: inline-flex;
@@ -108,14 +110,14 @@
     font-size: 13px;
     line-height: 1.2;
   }
-  .classroom-owner-list .classroom-row-date {
+  .classroom-owner-list .classroom-list-row .classroom-row-date {
     display: flex;
     align-items: center;
     justify-self: start;
     min-height: 0;
     margin: 0;
     padding: 0;
-    font-size: 11px;
+    font-size: 12px;
     white-space: nowrap;
     text-align: left;
   }
@@ -126,6 +128,22 @@
   }
   .classroom-owner-list .classroom-rating-help {
     font-size: 11px;
+  }
+}
+@container classroom (min-width: 551px) and (max-width: 1050px) {
+  .classroom-owner-list .classroom-role-label-full {
+    display: none;
+  }
+  .classroom-owner-list .classroom-role-label-compact {
+    display: inline;
+  }
+  .classroom-owner-list .classroom-hub-toolbar {
+    flex-basis: 270px;
+  }
+}
+@container classroom (min-width: 680px) and (max-width: 959px) {
+  .classroom-owner-list .classroom-list-row .classroom-row-title {
+    font-size: 14px;
   }
 }
 @container classroom (max-width: 679px) {
@@ -184,7 +202,10 @@
     display: inline-flex;
     justify-content: flex-start;
     align-items: baseline;
-    gap: 3px;
+    align-content: start;
+    flex-wrap: wrap;
+    white-space: normal;
+    gap: 1px 3px;
     min-width: 0;
   }
   .classroom-owner-list .classroom-title-row .classroom-metrics strong {
