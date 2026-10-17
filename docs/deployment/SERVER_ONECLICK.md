@@ -130,6 +130,54 @@ powershell -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\ASA-Lab\bootstrap\in
 существующую `.env`, операция останавливается для разбирательства. Порт
 `19192` — зафиксированный выбор этого сценария; другой порт задаётся один раз.
 
+## Доступ к тестовой ASA Lab по LAN (необязательный HTTP-preview)
+
+Стандартная установка публикует Web только на `127.0.0.1:4610`, поэтому адрес
+`http://192.168.1.115:4610/` **сам по себе не должен работать**. Не меняйте
+Docker `ports` на `0.0.0.0` и не публикуйте API/MinIO/PostgreSQL. Для
+**локального ознакомления без рабочих паролей** предусмотрен отдельный
+ограниченный сетевой ingress: штатный `systemd-socket-proxyd` слушает
+**только выбранный LAN IPv4** и пересылает TCP на `127.0.0.1:4610`.
+
+После установки менеджер закрепляет Git checkout на SHA выпуска; если
+`tools/bootstrap/lan-preview-ubuntu.py` отсутствует в закреплённом checkout,
+получите его отдельно из GitHub (просмотрите файл перед запуском):
+
+```bash
+curl -fsSL --max-time 30 \
+  https://raw.githubusercontent.com/spikeal8-maker/asa-lab/main/tools/bootstrap/lan-preview-ubuntu.py \
+  -o /tmp/asa-lan-preview-ubuntu.py
+sudo python3 /tmp/asa-lan-preview-ubuntu.py install \
+  --root /srv/asa-lab-test \
+  --lan-ip 192.168.1.115 --cidr 192.168.1.0/24 --interface eno1
+sudo python3 /tmp/asa-lan-preview-ubuntu.py check \
+  --root /srv/asa-lab-test \
+  --lan-ip 192.168.1.115 --cidr 192.168.1.0/24 --interface eno1
+```
+
+Замените `--root`, `--lan-ip`, `--cidr`, `--interface` на **собственные**
+значения. Это явный выбор оператора, а не автоугадывание IP. На МТС
+сначала закрепите адрес сервера по MAC в DHCP. Инструмент блокирует
+публичные IP, чрезмерно широкие CIDR, VPN/Docker-интерфейсы,
+production-профиль, неработающий локальный Web, отключённый UFW и чужие
+systemd unit-файлы. Повторный `install` не пересоздаёт Docker и тома.
+
+**Это строго HTTP-preview, а не безопасный сайт для работы учеников.**
+`runtime-config.js` и встроенный Scratch в текущем опубликованном
+выпуске сохраняют исходный `http://127.0.0.1:4610`, и браузер,
+входящий по LAN IP, видит несовпадение origin. Заголовки безопасности,
+проверки capability, CSRF и origin отключать нельзя; HTTP-страница
+не служит доказательством сохранения Scratch-проекта. Для полной работы
+с настоящими школьными аккаунтами нужен собственный HTTPS ingress
+с точным единым browser origin, совпадающим с конфигурацией
+публикуемого выпуска и принятым в API/Scratch, и отдельный браузерный тест.
+
+Контрольный реальный прогон (17.10.2026): Chrome `192.168.1.115:4610`
+HTTP 200, `/health/ready` ready, `/internal/blocks/healthz` 200,
+пять контейнеров healthy, после рестарта `1panel-agent` и
+`asa-lab-lan-4610.socket` ограниченное UFW-правило сохраняется.
+Это **не** подтверждение пользовательских сценариев или публичного HTTPS.
+
 ## Актуальная копия ASA Lab из Яндекс Диска
 
 На Windows с авторизованным приложением *Яндекс Диск 4* и доступной флешкой:
