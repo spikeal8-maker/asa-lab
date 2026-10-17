@@ -18,6 +18,7 @@
   margin-bottom: 8px;
   padding: 2px;
   border: 1px solid #dde8ef;
+  box-sizing: border-box;
   border-radius: 9px;
   background: #f4f8fa;
   overflow-x: auto;
@@ -82,6 +83,13 @@
 .classroom-owner-list .classroom-role-tabs > button::after,
 .classroom-owner-workspace.classroom-workspace .classroom-workspace-tabs > button::after {
   display: none;
+}
+
+/* The width of a teacher register is inclusive of its borders and paddings. */
+.classroom-owner-list :is(.classroom-hub-heading, .classroom-hub-toolbar, .classroom-list, .classroom-list-row) {
+  box-sizing: border-box;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .classroom-owner-list .classroom-create-label-compact,
