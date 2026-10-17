@@ -140,6 +140,10 @@ export function AiChatPage(): JSX.Element {
   const [draft, setDraft] = useState('');
   const [search, setSearch] = useState('');
   const [busy, setBusy] = useState(false);
+  const [creatingChat, setCreatingChat] = useState(false);
+  // Serialize creation and sending before React renders disabled controls.
+  const requestBusy = useRef(false);
+  const interactionBusy = busy || creatingChat;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sideOpen, setSideOpen] = useState(() => window.matchMedia('(min-width: 1120px)').matches);
@@ -237,7 +241,7 @@ export function AiChatPage(): JSX.Element {
   async function loadOlderMessages(): Promise<void> {
     const cursor = messageCursor;
     const threadId = currentId;
-    if (!cursor || !threadId || loadingOlder || busy) return;
+    if (!cursor || !threadId || loadingOlder || requestBusy.current) return;
     const version = selectedVersion.current;
     setLoadingOlder(true);
     const node = chatScroll.current;
@@ -264,7 +268,7 @@ export function AiChatPage(): JSX.Element {
 
   async function renameThread(id: string): Promise<void> {
     const title = editingTitle.trim();
-    if (!title || title.length > 120 || busy || threadActionBusy) return;
+    if (!title || title.length > 120 || requestBusy.current || threadActionBusy) return;
     setThreadActionBusy(true);
     const result = await call<AiThread>('/api/ai/threads/' + encodeURIComponent(id), {
       method: 'PATCH',
@@ -279,7 +283,7 @@ export function AiChatPage(): JSX.Element {
   }
 
   async function deleteThread(id: string): Promise<void> {
-    if (busy || threadActionBusy) return;
+    if (requestBusy.current || threadActionBusy) return;
     setThreadActionBusy(true);
     const result = await call<{ deleted: true }>('/api/ai/threads/' + encodeURIComponent(id), {
       method: 'DELETE',
@@ -301,7 +305,7 @@ export function AiChatPage(): JSX.Element {
   }
 
   async function selectThread(id: string): Promise<void> {
-    if (busy) return;
+    if (requestBusy.current) return;
     const version = ++selectedVersion.current;
     pendingRequest.current = null;
     setPendingMessage(null);
@@ -324,25 +328,35 @@ export function AiChatPage(): JSX.Element {
   }
 
   async function newChat(): Promise<string | null> {
-    if (busy) return null;
+    if (requestBusy.current) return null;
+    requestBusy.current = true;
+    setCreatingChat(true);
     setError(null);
-    const result = await call<{ id: string }>('/api/ai/threads', {
-      method: 'POST',
-      body: JSON.stringify({}),
-    });
-    if (!result.ok) {
-      setError(result.error.message);
+    try {
+      const result = await call<{ id: string }>('/api/ai/threads', {
+        method: 'POST',
+        body: JSON.stringify({}),
+      });
+      if (!result.ok) {
+        setError(result.error.message);
+        return null;
+      }
+      selectedVersion.current += 1;
+      pendingRequest.current = null;
+      setPendingMessage(null);
+      setCurrentId(result.data.id);
+      setMessages([]);
+      setMessageCursor(null);
+      if (!desktop) setSideOpen(false);
+      await refreshThreads();
+      return result.data.id;
+    } catch {
+      setError('Не удалось создать чат. Попробуйте ещё раз.');
       return null;
+    } finally {
+      requestBusy.current = false;
+      setCreatingChat(false);
     }
-    selectedVersion.current += 1;
-    pendingRequest.current = null;
-    setPendingMessage(null);
-    setCurrentId(result.data.id);
-    setMessages([]);
-    setMessageCursor(null);
-    if (!desktop) setSideOpen(false);
-    await refreshThreads();
-    return result.data.id;
   }
 
   async function stop(): Promise<void> {
@@ -364,12 +378,13 @@ export function AiChatPage(): JSX.Element {
   async function send(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     const text = draft.trim();
-    if (!text || text.length > 3000 || !status?.enabled || busy) return;
+    if (!text || text.length > 3000 || !status?.enabled || requestBusy.current) return;
     const previous = pendingRequest.current;
     const requestId =
       previous?.threadId === currentId && previous.text === text
         ? previous.requestId
         : crypto.randomUUID();
+    requestBusy.current = true;
     setPendingMessage({ requestId, text });
     setStreamedText('');
     setBusy(true);
@@ -452,11 +467,10 @@ export function AiChatPage(): JSX.Element {
       }
       await refreshThreads();
     } finally {
-      if (version === selectedVersion.current) {
-        setPendingMessage(null);
-        setStreamedText('');
-        setBusy(false);
-      }
+      requestBusy.current = false;
+      setPendingMessage(null);
+      setStreamedText('');
+      setBusy(false);
     }
   }
 
@@ -488,7 +502,11 @@ export function AiChatPage(): JSX.Element {
             </div>
           </header>
           <div className="chat-sidebar-actions">
-            <button type="button" disabled={busy || loading} onClick={() => void newChat()}>
+            <button
+              type="button"
+              disabled={interactionBusy || loading}
+              onClick={() => void newChat()}
+            >
               <span aria-hidden="true">＋</span>
               <span>Новый чат</span>
             </button>
@@ -522,7 +540,10 @@ export function AiChatPage(): JSX.Element {
                       onChange={(event) => setEditingTitle(event.target.value)}
                       autoFocus
                     />
-                    <button type="submit" disabled={threadActionBusy || !editingTitle.trim()}>
+                    <button
+                      type="submit"
+                      disabled={interactionBusy || threadActionBusy || !editingTitle.trim()}
+                    >
                       Сохранить
                     </button>
                     <button type="button" onClick={() => setEditingId(null)}>
@@ -538,7 +559,7 @@ export function AiChatPage(): JSX.Element {
                     <span>Удалить диалог?</span>
                     <button
                       type="button"
-                      disabled={threadActionBusy}
+                      disabled={interactionBusy || threadActionBusy}
                       onClick={() => void deleteThread(thread.id)}
                     >
                       Удалить
@@ -551,7 +572,7 @@ export function AiChatPage(): JSX.Element {
                   <>
                     <button
                       type="button"
-                      disabled={busy || threadActionBusy}
+                      disabled={interactionBusy || threadActionBusy}
                       className={'chat-history-item' + (currentId === thread.id ? ' active' : '')}
                       aria-current={currentId === thread.id ? 'page' : undefined}
                       onClick={() => void selectThread(thread.id)}
@@ -561,7 +582,7 @@ export function AiChatPage(): JSX.Element {
                     <button
                       className="asa-ai-thread-action"
                       type="button"
-                      disabled={busy || threadActionBusy}
+                      disabled={interactionBusy || threadActionBusy}
                       aria-label={'Переименовать: ' + thread.title}
                       title="Переименовать"
                       onClick={() => {
@@ -575,7 +596,7 @@ export function AiChatPage(): JSX.Element {
                     <button
                       className="asa-ai-thread-action"
                       type="button"
-                      disabled={busy || threadActionBusy}
+                      disabled={interactionBusy || threadActionBusy}
                       aria-label={'Удалить: ' + thread.title}
                       title="Удалить"
                       onClick={() => {
@@ -637,7 +658,7 @@ export function AiChatPage(): JSX.Element {
                   aria-label="Модель ИИ"
                   value={selectedModel || status?.model}
                   onChange={(event) => setSelectedModel(event.target.value)}
-                  disabled={busy || !status?.enabled}
+                  disabled={interactionBusy || !status?.enabled}
                 >
                   {status?.availableModels?.map((name) => (
                     <option key={name} value={name}>
@@ -674,7 +695,7 @@ export function AiChatPage(): JSX.Element {
                     <button
                       type="button"
                       className="chat-load-older"
-                      disabled={loadingOlder || busy}
+                      disabled={loadingOlder || interactionBusy}
                       onClick={() => void loadOlderMessages()}
                     >
                       {loadingOlder ? 'Загрузка…' : 'Загрузить предыдущие сообщения'}
@@ -751,7 +772,7 @@ export function AiChatPage(): JSX.Element {
           {error ? (
             <div className="asa-ai-error" role="alert">
               {error}
-              {currentId && !busy ? (
+              {currentId && !interactionBusy ? (
                 <button
                   className="btn-secondary"
                   type="button"
@@ -786,7 +807,7 @@ export function AiChatPage(): JSX.Element {
                   }}
                   rows={2}
                   placeholder={status?.enabled ? 'Напишите сообщение…' : 'ИИ пока не подключён'}
-                  disabled={!status?.enabled || busy}
+                  disabled={!status?.enabled || interactionBusy}
                   aria-label="Сообщение ИИ"
                 />
                 <span className="chat-model-selector" aria-label="Текущая модель">
@@ -795,7 +816,7 @@ export function AiChatPage(): JSX.Element {
                 <button
                   type={busy ? 'button' : 'submit'}
                   className="chat-send-button"
-                  disabled={!status?.enabled || (!busy && !draft.trim())}
+                  disabled={!status?.enabled || creatingChat || (!busy && !draft.trim())}
                   onClick={busy ? () => void stop() : undefined}
                   aria-label={busy ? 'Остановить генерацию' : 'Отправить сообщение'}
                 >

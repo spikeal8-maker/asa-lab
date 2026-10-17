@@ -55,11 +55,22 @@ CREATE TABLE ai_assistant_messages (
 );
 CREATE INDEX ai_assistant_messages_thread_idx
     ON ai_assistant_messages (thread_id, created_at DESC, id DESC);
-CREATE INDEX ai_assistant_messages_quota_idx
-    ON ai_assistant_messages (account_id, created_at DESC)
-    WHERE role = 'user';
 CREATE UNIQUE INDEX ai_assistant_user_request_once_idx
     ON ai_assistant_messages (account_id, request_id) WHERE role = 'user';
+
+-- Append-only admission ledger: deleting a conversation must neither refund
+-- quota nor allow its request identifiers to trigger another paid operation.
+-- No thread/message foreign key and no runtime table privileges or RLS policies.
+CREATE TABLE ai_assistant_request_quota (
+    account_id uuid NOT NULL REFERENCES accounts(id),
+    request_id uuid NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (account_id, request_id)
+);
+CREATE INDEX ai_assistant_request_quota_account_idx
+    ON ai_assistant_request_quota (account_id, created_at DESC);
+ALTER TABLE ai_assistant_request_quota ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON ai_assistant_request_quota FROM PUBLIC, asalab_app;
 ALTER TABLE ai_assistant_threads ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ai_assistant_messages ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON ai_assistant_threads FROM PUBLIC, asalab_app;
@@ -242,9 +253,15 @@ BEGIN
         END IF;
         RETURN false;
     END IF;
-    IF (SELECT count(*) FROM public.ai_assistant_messages m
-         WHERE m.account_id = v_account AND m.role = 'user'
-           AND m.created_at > now() - interval '1 hour') >= 30 THEN
+    IF EXISTS (
+        SELECT 1 FROM public.ai_assistant_request_quota q
+         WHERE q.account_id = v_account AND q.request_id = p_request
+    ) THEN
+        RAISE EXCEPTION 'AI_REQUEST_ID_REUSED' USING ERRCODE = '22023';
+    END IF;
+    IF (SELECT count(*) FROM public.ai_assistant_request_quota q
+         WHERE q.account_id = v_account
+           AND q.created_at > now() - interval '1 hour') >= 30 THEN
         RAISE EXCEPTION 'AI_RATE_LIMIT' USING ERRCODE = 'P0001';
     END IF;
     v_title := left(regexp_replace(trim(p_text), E'[\r\n]+', ' ', 'g'), 110);
@@ -261,6 +278,8 @@ BEGIN
     INSERT INTO public.ai_assistant_messages
         (thread_id, account_id, request_id, role, content)
       VALUES (p_thread, v_account, p_request, 'user', trim(p_text));
+    INSERT INTO public.ai_assistant_request_quota (account_id, request_id)
+      VALUES (v_account, p_request);
     RETURN true;
 END;
 $$;

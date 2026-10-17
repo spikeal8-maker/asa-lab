@@ -44,6 +44,19 @@ async function makeIdentity(name: string, elevated: boolean): Promise<Identity> 
 }
 
 beforeAll(async () => {
+  // Fail before opening a connection unless both roles target the same isolated test DB.
+  const urls = ['TEST_DATABASE_URL', 'APP_TEST_DATABASE_URL'].map((name) => {
+    const value = process.env[name];
+    if (!value) throw new Error(`${name} must explicitly name an isolated _test database`);
+    const url = new URL(value);
+    if (!decodeURIComponent(url.pathname).endsWith('_test')) {
+      throw new Error(`${name} must name an isolated _test database`);
+    }
+    return url;
+  });
+  if (urls[0]!.host !== urls[1]!.host || urls[0]!.pathname !== urls[1]!.pathname) {
+    throw new Error('AI tests require admin and runtime roles on the same isolated database');
+  }
   admin = testAdminPool();
   runtime = testAppPool();
   owner = await makeIdentity('owner', false);
@@ -81,11 +94,29 @@ afterAll(async () => {
 
 describe('AI Chat PostgreSQL access and request replay', () => {
   it('denies direct runtime table reads and unprivileged admin configuration', async () => {
-    for (const table of ['ai_assistant_config', 'ai_assistant_threads', 'ai_assistant_messages']) {
+    for (const table of [
+      'ai_assistant_config',
+      'ai_assistant_threads',
+      'ai_assistant_messages',
+      'ai_assistant_request_quota',
+    ]) {
       await expect(runtime.query(`SELECT * FROM public.${table}`)).rejects.toMatchObject({
         code: '42501',
       });
     }
+    const permissions = await runtime.query<{ allowed: boolean }>(
+      `SELECT has_table_privilege(current_user, 'public.ai_assistant_request_quota', privilege)
+         AS allowed
+       FROM unnest(ARRAY['SELECT','INSERT','UPDATE','DELETE','TRUNCATE','REFERENCES','TRIGGER'])
+         AS privileges(privilege)`,
+    );
+    expect(permissions.rows.every((row) => !row.allowed)).toBe(true);
+    const ledgerRls = await admin.query<{ enabled: boolean; policies: number }>(
+      `SELECT c.relrowsecurity AS enabled,
+              (SELECT count(*)::integer FROM pg_policy WHERE polrelid = c.oid) AS policies
+         FROM pg_class c WHERE c.oid = 'public.ai_assistant_request_quota'::regclass`,
+    );
+    expect(ledgerRls.rows).toEqual([{ enabled: true, policies: 0 }]);
     await expect(service.adminConfig(owner.principalId)).rejects.toMatchObject({
       code: '42501',
     });
@@ -186,6 +217,86 @@ describe('AI Chat PostgreSQL access and request replay', () => {
       ]),
     ).rejects.toMatchObject({ code: '22023' });
   });
+
+  it('retains the hourly quota through repeated chat deletion and concurrent admission', async () => {
+    const actor = await makeIdentity('quota', false);
+    const upstream = vi.fn<typeof fetch>(
+      async () =>
+        new Response(
+          JSON.stringify({
+            output: [{ content: [{ type: 'output_text', text: 'Тестовый ответ' }] }],
+          }),
+          { status: 200 },
+        ),
+    );
+    const adapter = new AiChatService(runtime, { encryptionKey: requestKey, fetchImpl: upstream });
+    const text = 'Проверка квоты';
+    const deletedRequest = randomUUID();
+    // Failed admission must roll back without consuming quota.
+    await expect(
+      runtime.query('SELECT ai_chat_begin($1,$2,$3,$4::varchar)', [
+        actor.principalId,
+        randomUUID(),
+        randomUUID(),
+        text,
+      ]),
+    ).rejects.toMatchObject({ message: 'AI_THREAD_BUSY_OR_MISSING' });
+    for (let n = 0; n < 29; n += 1) {
+      const thread = await adapter.createThread(actor.principalId);
+      const response = await adapter.send(
+        actor.principalId,
+        thread.id,
+        text,
+        n === 0 ? deletedRequest : randomUUID(),
+      );
+      expect(response.replayed).toBe(false);
+      expect(await adapter.deleteThread(actor.principalId, thread.id)).toEqual({ deleted: true });
+      expect(await adapter.messages(actor.principalId, thread.id)).toEqual([]);
+    }
+    // With one slot left, two different chats must not both reach the provider.
+    const candidates = await Promise.all(
+      [0, 1].map(async () => ({
+        thread: await adapter.createThread(actor.principalId),
+        request: randomUUID(),
+      })),
+    );
+    const outcomes = await Promise.allSettled(
+      candidates.map(({ thread, request }) =>
+        adapter.send(actor.principalId, thread.id, text, request),
+      ),
+    );
+    expect(outcomes.filter((outcome) => outcome.status === 'fulfilled')).toHaveLength(1);
+    expect(outcomes.filter((outcome) => outcome.status === 'rejected')).toHaveLength(1);
+    for (const [index, outcome] of outcomes.entries()) {
+      const { thread, request } = candidates[index]!;
+      if (outcome.status === 'fulfilled') {
+        expect(outcome.value.replayed).toBe(false);
+        // Replays still work at the quota boundary and do not add ledger entries.
+        expect((await adapter.send(actor.principalId, thread.id, text, request)).replayed).toBe(
+          true,
+        );
+      } else {
+        expect(outcome.reason).toMatchObject({ code: 'ai_rate_limit', status: 429 });
+      }
+      await adapter.deleteThread(actor.principalId, thread.id);
+    }
+    const fresh = await adapter.createThread(actor.principalId);
+    await expect(
+      adapter.send(actor.principalId, fresh.id, text, deletedRequest),
+    ).rejects.toMatchObject({ code: 'ai_input_invalid', status: 400 });
+    await expect(
+      adapter.send(actor.principalId, fresh.id, text, randomUUID()),
+    ).rejects.toMatchObject({ code: 'ai_rate_limit', status: 429 });
+    expect(upstream).toHaveBeenCalledTimes(30);
+    const counts = await admin.query<{ requests: number; messages: number }>(
+      `SELECT (SELECT count(*)::integer FROM ai_assistant_request_quota WHERE account_id = $1)
+                AS requests,
+              (SELECT count(*)::integer FROM ai_assistant_messages WHERE account_id = $1)
+                AS messages`,
+      [actor.accountId],
+    );
+    expect(counts.rows).toEqual([{ requests: 30, messages: 0 }]);
+  }, 30000);
 
   it('wires real Nest HTTP sessions, admin permissions, tenant ownership and paid idempotency', async () => {
     async function createSession(actor: Identity, label: string): Promise<string> {

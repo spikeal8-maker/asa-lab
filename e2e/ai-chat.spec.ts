@@ -43,6 +43,7 @@ async function fixture(page: Page, answer = 'Arduino — это платформ
   const threads: { id: string; title: string; updatedAt: string }[] = [];
   const messages = new Map<string, Message[]>();
   const requests: string[] = [];
+  const requestThreads: string[] = [];
   const models: string[] = [];
   let releaseAnswer: (() => void) | null = null;
   let enabled = true;
@@ -120,6 +121,7 @@ async function fixture(page: Page, answer = 'Arduino — это платформ
         'event: ' + kind + '\n' + 'data: ' + JSON.stringify(value) + '\n\n';
       const payload = req.postDataJSON() as { message: string; requestId: string; model?: string };
       requests.push(payload.requestId);
+      requestThreads.push(id);
       models.push(payload.model ?? '');
       if (!history.some((msg) => msg.role === 'user' && msg.requestId === payload.requestId)) {
         history.push({
@@ -181,9 +183,97 @@ async function fixture(page: Page, answer = 'Arduino — это платформ
       releaseAnswer?.();
     },
     requests,
+    requestThreads,
+    threads,
     models,
     submittedKey: () => keyWasSubmitted,
   };
+}
+
+for (const scenario of ['empty', 'existing', 'server-error', 'network-error'] as const) {
+  test(`AI pending new-chat blocks duplicate creation and send: ${scenario}`, async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 750 });
+    const fake = await fixture(page);
+    await page.goto('/#/ai');
+    const newChat = page
+      .locator('.chat-sidebar-actions')
+      .getByRole('button', { name: 'Новый чат', exact: true });
+    const composer = page.getByRole('textbox', { name: 'Сообщение ИИ' });
+    const send = page.getByRole('button', { name: 'Отправить сообщение' });
+    await expect(newChat).toBeEnabled();
+    if (scenario === 'existing') {
+      await newChat.click();
+      await expect(
+        page
+          .getByRole('navigation', { name: 'Диалоги' })
+          .getByRole('button', { name: 'Новый чат', exact: true }),
+      ).toHaveCount(1);
+      await expect(newChat).toBeEnabled();
+    }
+    await composer.fill('Черновик до создания чата');
+    let releaseCreate = (): void => undefined;
+    const pendingCreate = new Promise<void>((resolve) => {
+      releaseCreate = resolve;
+    });
+    let createPosts = 0;
+    await page.route('**/api/ai/threads', async (route) => {
+      if (route.request().method() !== 'POST') return route.fallback();
+      createPosts += 1;
+      if (createPosts === 1) {
+        await pendingCreate;
+        if (scenario === 'network-error') return route.abort('failed');
+        if (scenario === 'server-error') {
+          return route.fulfill({
+            status: 503,
+            json: { error: { code: 'unavailable', message: 'Создание чата недоступно' } },
+          });
+        }
+      }
+      return route.fallback();
+    });
+    try {
+      // One browser task also exercises the synchronous guard before React can
+      // render disabled controls. requestSubmit bypasses the disabled send button.
+      await newChat.evaluate((button: HTMLButtonElement) => {
+        button.click();
+        button.click();
+        document.querySelector<HTMLFormElement>('.chat-composer')!.requestSubmit();
+      });
+      await expect(newChat).toBeDisabled();
+      await expect(composer).toBeDisabled();
+      await expect(send).toBeDisabled();
+      await expect.poll(() => createPosts).toBe(1);
+      expect(fake.requests).toHaveLength(0);
+      await expect(page.getByTestId('ai-pending-message')).toHaveCount(0);
+      // A later submit while POST is still pending must also do nothing.
+      await composer.evaluate((input: HTMLTextAreaElement) => input.form!.requestSubmit());
+      releaseCreate();
+      await expect(newChat).toBeEnabled();
+      await expect(composer).toBeEnabled();
+      await expect(send).toBeEnabled();
+      await expect(composer).toHaveValue('Черновик до создания чата');
+      expect(createPosts).toBe(1);
+      expect(fake.requests).toHaveLength(0);
+      if (scenario.endsWith('error')) {
+        await expect(page.getByRole('alert')).toBeVisible();
+        await newChat.click();
+        await expect(newChat).toBeEnabled();
+        expect(createPosts).toBe(2);
+      }
+      const createdId = fake.threads[0]!.id;
+      fake.release();
+      await send.click();
+      await expect(page.getByText('Arduino — это платформа для электроники.')).toBeVisible();
+      await expect(composer).toBeEnabled();
+      await expect(composer).toHaveValue('');
+      await expect(newChat).toBeEnabled();
+      expect(fake.requestThreads).toEqual([createdId]);
+      expect(createPosts).toBe(scenario.endsWith('error') ? 2 : 1);
+    } finally {
+      releaseCreate();
+      fake.release();
+    }
+  });
 }
 
 for (const width of [1440, 1024, 390, 320]) {
