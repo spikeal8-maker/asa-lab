@@ -90,6 +90,31 @@ class SnapshotSafety(unittest.TestCase):
         self.assertIn("--min-active-students",source)
         self.assertIn("--min-seats",source)
 
+    def test_restore_uses_bounded_service_readiness_on_cutover_and_rollback(self):
+        code=(BASE/"restore-verified-backup.py").read_text()
+        expected='wait_ready(release["revision"],release["schema"])'
+        self.assertEqual(code.count(expected),2)
+        self.assertIn('CHECKPOINT', (BASE/"restore-verified-backup.py").read_text().upper())
+        self.assertIn('ROLLBACK_DATA_RETURNED',code)
+        self.assertIn('ROLLBACK_DATA_DONE_HEALTH_PENDING',code)
+
+    def test_canonical_wait_ready_recovers_from_transient_reset(self):
+        import sys
+        from unittest.mock import patch
+        sys.path.insert(0,str(BASE.parent))
+        from deployment.system import Installation
+        class FlakyProbe:
+            def __init__(self): self.calls=0
+            def readiness(self,revision,schema):
+                self.calls+=1
+                if self.calls<3:raise ConnectionResetError("transient startup")
+                return {"revision":revision,"schema":schema}
+        probe=FlakyProbe()
+        with patch("deployment.system.time.sleep",lambda sec: None):
+            outcome=Installation.wait_ready(probe,"released_sha",213)
+        self.assertEqual(probe.calls,3)
+        self.assertEqual(outcome["schema"],213)
+
     def test_manager_installer_wires_restore(self):
         content=(BASE/"install-ubuntu-1panel.py").read_text()
         self.assertIn("restore-verified-backup.py",content)
