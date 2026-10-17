@@ -97,6 +97,29 @@ sudo python3 tools/bootstrap/install-ubuntu-1panel.py backup --operator "$(id -u
 sudo python3 tools/bootstrap/install-ubuntu-1panel.py update --operator "$(id -un)" --root "$PWD" --profile staging
 ```
 
+**Важно для повторного запуска после первого релиза:** штатный менеджер
+переводит рабочий Git checkout в проверенный выпуск (detached HEAD).
+Этот выпуск может быть старше самого установочного скрипта. Перед первым
+запуском Linux-обёртка сохраняется вне заменяемого checkout в
+`/var/lib/asa-server-rebuild/install-ubuntu-1panel.py`; для проверки и
+обновлений используйте именно эту копию, указывая `--root`:
+```bash
+sudo python3 /var/lib/asa-server-rebuild/install-ubuntu-1panel.py doctor \
+  --operator "$(id -un)" --root /srv/asa-lab-test --profile staging
+```
+
+На Windows обёртка сохраняется в
+`$env:LOCALAPPDATA\ASA-Lab\bootstrap\install-windows.ps1`:
+```powershell
+powershell -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\ASA-Lab\bootstrap\install-windows.ps1" `
+  -Action Doctor -Root .\asa-lab -Profile staging
+```
+
+Повторяйте установку из исходного checkout лишь при первичной инициализации;
+постоянная обёртка независимо доступна, даже если checkout закреплён на
+старом проверенном SHA. Для получения **новой** версии bootstrap скачивайте
+её из GitHub отдельно и проверяйте перед заменой.
+
 `update` выполняйте в согласованное окно. Backup состоит из PostgreSQL, MinIO,
 конфигурации и метаданных образов; проверка восстановления обязательна. Папка
 `backups` и `.env` содержат конфиденциальную информацию. На обычном обновлении
