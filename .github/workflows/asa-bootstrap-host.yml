@@ -25,11 +25,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Compile host bootstrap
-        run: python3 -m py_compile tools/bootstrap/install-ubuntu-1panel.py tools/bootstrap/lan-preview-ubuntu.py tools/bootstrap/prepare-age-backup.py tools/bootstrap/transfer-backup-ssh.py
+        run: python3 -m py_compile tools/bootstrap/install-ubuntu-1panel.py tools/bootstrap/lan-preview-ubuntu.py tools/bootstrap/prepare-age-backup.py tools/bootstrap/transfer-backup-ssh.py tools/bootstrap/reset-managed-host.py tools/bootstrap/restore-verified-backup.py
       - name: Fail-closed unit tests
         run: |
           python3 tools/bootstrap/test_bootstrap.py
           python3 tools/bootstrap/test_lan_preview.py
+          python3 tools/bootstrap/test_rebuild_cycle.py
 
   windows-bootstrap:
     name: Windows installer syntax
