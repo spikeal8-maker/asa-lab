@@ -181,10 +181,33 @@ test('teacher can open participant from journal without editing a grade', async 
   const nameButton = page.locator('.manual-journal .classroom-journal-student-link').first();
   await expect(nameButton).toBeVisible();
   const label = (await nameButton.innerText()).trim();
+  const search = page.getByRole('searchbox', { name: 'Поиск ученика' });
+  const month = page.locator('.manual-journal-monthbar input[aria-label="Месяц журнала"]');
+  const category = page.getByRole('combobox', { name: 'Категория' });
+  const savedMonth = await month.inputValue();
+  // Searching and selecting a journal category must survive a profile visit.
+  const query = label.slice(0, 5);
+  await search.fill(query);
+  const options = await category.locator('option').count();
+  if (options > 1) await category.selectOption({ index: 1 });
+  const savedCategory = await category.inputValue();
+  await expect(nameButton).toBeVisible();
   await nameButton.click();
   await expect(page.getByRole('heading', { name: label, exact: false })).toBeVisible();
+  await expect(page.locator('main.teacher-open-compact')).toHaveCSS('display', 'none');
   await page.getByRole('button', { name: '← К классу' }).click();
   await expect(page.locator('.manual-journal tbody tr')).toHaveCount(15);
+  await expect(page.getByRole('button', { name: 'По датам' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await expect(search).toHaveValue(query);
+  await expect(month).toHaveValue(savedMonth);
+  await expect(category).toHaveValue(savedCategory);
+  // The selected category intentionally reduces columns, so it may fit without
+  // scrolling. Restore the complete matrix before testing its local scroll.
+  await search.clear();
+  await category.selectOption('');
   for (const width of [390, 1024, 1366]) {
     await page.setViewportSize({ width, height: 900 });
     await page.evaluate(
@@ -269,8 +292,36 @@ test('assigned journal learner names navigate to the teacher profile', async ({ 
   await expect(
     page.getByRole('heading', { name: student.displayLabel, exact: false }),
   ).toBeVisible();
+  await expect(page.locator('main.teacher-open-compact')).toHaveCSS('display', 'none');
   await page.getByRole('button', { name: '← К классу' }).click();
   await expect(page.getByRole('button', { name: 'Журнал', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Задания', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await expect(page.locator('.gradebook-matrix')).toBeVisible();
+  expect(state.errors).toEqual([]);
+  expect(state.mutations).toEqual([]);
+});
+
+test('roster sorting announces both the active column and its direction', async ({ page }) => {
+  const state = await fixture(page, 15, { classes: 23, sidebar: 'expanded' });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/#/classrooms/' + classId);
+  const pupil = page
+    .locator('.classroom-roster-head .classroom-roster-sort')
+    .filter({ hasText: 'Ученик' });
+  const works = page
+    .locator('.classroom-roster-head .classroom-roster-sort')
+    .filter({ hasText: 'Работы' });
+  await expect(pupil).toHaveAttribute('aria-pressed', 'true');
+  await expect(pupil).toHaveAttribute('aria-description', 'Текущая сортировка по возрастанию');
+  await pupil.click();
+  await expect(pupil).toHaveAttribute('aria-description', 'Текущая сортировка по убыванию');
+  await works.click();
+  await expect(works).toHaveAttribute('aria-pressed', 'true');
+  await expect(works).toHaveAttribute('aria-description', 'Текущая сортировка по убыванию');
+  await expect(pupil).toHaveAttribute('aria-pressed', 'false');
   expect(state.errors).toEqual([]);
   expect(state.mutations).toEqual([]);
 });
