@@ -30,6 +30,7 @@ import '../modules/classroom-owner-layout.css';
 import '../modules/classroom-mobile.css';
 import '../modules/classroom-usability.css';
 import '../modules/classroom-teacher-density.css';
+import '../modules/classroom-open-compact.css';
 import { SeatAvatarPicker } from '../components/SeatAvatarPicker';
 import { SeatAwardRow } from '../components/SeatAwards';
 import { useSchoolTime } from '../components/school-time';
@@ -616,7 +617,7 @@ function ClassroomPageContent({
     return (
       <main
         id="main-content"
-        className="portal-content classroom-workspace classroom-owner-workspace"
+        className="portal-content classroom-workspace classroom-owner-workspace teacher-open-compact"
         role="status"
       >
         Загрузка класса…
@@ -626,7 +627,7 @@ function ClassroomPageContent({
     return (
       <main
         id="main-content"
-        className="portal-content classroom-workspace classroom-owner-workspace"
+        className="portal-content classroom-workspace classroom-owner-workspace teacher-open-compact"
       >
         <button type="button" className="btn-ghost" onClick={onBack}>
           ← Мои классы
@@ -698,73 +699,79 @@ function ClassroomPageContent({
   return (
     <main
       id="main-content"
-      className="portal-content classroom-workspace classroom-owner-workspace"
+      className="portal-content classroom-workspace classroom-owner-workspace teacher-open-compact"
       tabIndex={-1}
     >
       {/* Возврат и то, чей это класс, — одной строкой: раньше это были три
           строки одна над другой, и две из них ничего не решали. */}
       <header className="classroom-head classroom-head-compact">
-        <button type="button" className="classroom-back" onClick={onBack}>
-          ← Мои классы
-        </button>
-        <div className="classroom-head-title">
-          <h1>{classroom.title}</h1>
+        <div className="teacher-class-identity">
+          <button type="button" className="classroom-back" onClick={onBack}>
+            ← Мои классы
+          </button>
+          <div className="classroom-head-title">
+            <h1>{classroom.title}</h1>
+          </div>
         </div>
-        <ClassroomMetrics data={summary.data?.totals ?? null} />
-        {/* The code is a chip and a button, not a panel. It is needed twice a
+        <div className="teacher-class-status">
+          <ClassroomMetrics data={summary.data?.totals ?? null} />
+          {/* The code is a chip and a button, not a panel. It is needed twice a
             lesson and read from across a room, so the place it is read properly
             is the full screen behind "Поделиться" — not a block that competes
             with the register for the top of every visit. An archived class has
             no code to give out; what it has is a way back into service. */}
-        <div className="classroom-head-code">
-          {archived ? (
-            <button
-              type="button"
-              className="portal-create-button"
-              disabled={busy === 'status'}
-              onClick={async () => {
-                await action('status', 'Не удалось вернуть класс из архива.', async () => {
-                  const result = confirmedClassroomResult(
-                    await api.setClassroomStatus(classroomId, 'active'),
-                    'Не удалось вернуть класс из архива.',
-                  );
-                  if (result.classroom) confirmClassroom(result.classroom);
-                  setNotice(
-                    'Класс вернулся из архива. Выдайте новый код, чтобы впустить учеников.',
-                  );
-                  await reload();
-                });
-              }}
-            >
-              Вернуть из архива
-            </button>
-          ) : (
-            <>
-              {classroom.joinCode ? (
-                <StudentCodeButton
-                  code={classroom.joinCode}
-                  label="код класса"
-                  className="classroom-code-chip"
-                  showAll={true}
-                  epoch={codeEpoch}
-                  onCopied={() => setNotice('Код класса скопирован.')}
-                  onDenied={() =>
-                    setActionError('Не удалось скопировать код. Выделите и скопируйте его вручную.')
-                  }
-                />
-              ) : (
-                <span className="classroom-code-chip is-closed">Вход закрыт</span>
-              )}
+          <div className="classroom-head-code">
+            {archived ? (
               <button
                 type="button"
                 className="portal-create-button"
-                onClick={() => setSharing(true)}
-                aria-label="Поделиться классом"
+                disabled={busy === 'status'}
+                onClick={async () => {
+                  await action('status', 'Не удалось вернуть класс из архива.', async () => {
+                    const result = confirmedClassroomResult(
+                      await api.setClassroomStatus(classroomId, 'active'),
+                      'Не удалось вернуть класс из архива.',
+                    );
+                    if (result.classroom) confirmClassroom(result.classroom);
+                    setNotice(
+                      'Класс вернулся из архива. Выдайте новый код, чтобы впустить учеников.',
+                    );
+                    await reload();
+                  });
+                }}
               >
-                <span>Поделиться</span>
+                Вернуть из архива
               </button>
-            </>
-          )}
+            ) : (
+              <>
+                {classroom.joinCode ? (
+                  <StudentCodeButton
+                    code={classroom.joinCode}
+                    label="код класса"
+                    className="classroom-code-chip"
+                    showAll={true}
+                    epoch={codeEpoch}
+                    onCopied={() => setNotice('Код класса скопирован.')}
+                    onDenied={() =>
+                      setActionError(
+                        'Не удалось скопировать код. Выделите и скопируйте его вручную.',
+                      )
+                    }
+                  />
+                ) : (
+                  <span className="classroom-code-chip is-closed">Вход закрыт</span>
+                )}
+                <button
+                  type="button"
+                  className="portal-create-button"
+                  onClick={() => setSharing(true)}
+                  aria-label="Поделиться классом"
+                >
+                  <span>Поделиться</span>
+                </button>
+              </>
+            )}
+          </div>
         </div>
       </header>
 
@@ -818,6 +825,87 @@ function ClassroomPageContent({
             </button>
           ))}
         </nav>
+        {tab === 'students' ? (
+          <div className="classroom-roster-toolbar">
+            <div className="classroom-roster-actions">
+              <button
+                type="button"
+                className="portal-create-button"
+                disabled={archived}
+                onClick={() => setDialog('single')}
+                aria-label="Добавить ученика"
+              >
+                <PlusIcon />
+                <span className="classroom-desktop-label">Добавить ученика</span>
+                <span className="classroom-mobile-label">Ученик</span>
+              </button>
+              <button
+                type="button"
+                className="btn-secondary"
+                disabled={archived}
+                onClick={() => setDialog('batch')}
+                aria-label="Добавить списком"
+              >
+                <span className="classroom-desktop-label">Добавить списком</span>
+                <span className="classroom-mobile-label">Списком</span>
+              </button>
+              <button
+                type="button"
+                className="btn-secondary"
+                disabled={students.length === 0 || !classroom.joinCode}
+                onClick={() => setAccessCardIds([])}
+                aria-label="Карточки доступа"
+              >
+                <span className="classroom-desktop-label">Карточки доступа</span>
+                <span className="classroom-mobile-label">Карточки</span>
+              </button>
+            </div>
+            <button
+              type="button"
+              className="btn-secondary classroom-mobile-code-toggle"
+              aria-label={showAllCodes ? 'Скрыть все коды учеников' : 'Показать все коды учеников'}
+              aria-pressed={showAllCodes}
+              title={showAllCodes ? 'Скрыть все коды учеников' : 'Показать все коды учеников'}
+              onClick={() => {
+                setShowAllCodes((value) => !value);
+                setCodeEpoch((value) => value + 1);
+              }}
+            >
+              Коды
+            </button>
+            <label className="classroom-roster-search">
+              <span className="sr-only">Поиск учащихся</span>
+              <input
+                type="search"
+                placeholder="Поиск учащихся"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+              />
+            </label>
+            <label className="classroom-mobile-sort">
+              <span className="sr-only">Сортировка учащихся</span>
+              <select
+                aria-label="Сортировка учащихся"
+                value={rosterSort + ':' + sortDirection}
+                onChange={(event) => {
+                  const option = MOBILE_ROSTER_SORTS.find(
+                    (item) => item.value === event.currentTarget.value,
+                  );
+                  if (option) {
+                    setRosterSort(option.key);
+                    setSortDirection(option.direction);
+                  }
+                }}
+              >
+                {MOBILE_ROSTER_SORTS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+        ) : null}
       </div>
 
       {notice ? (
@@ -934,85 +1022,6 @@ function ClassroomPageContent({
           ) : null}
           {/* Actions on the left, finding on the right: the two things a
               teacher does to a register, in the order they do them. */}
-          <div className="classroom-roster-toolbar">
-            <div className="classroom-roster-actions">
-              <button
-                type="button"
-                className="portal-create-button"
-                disabled={archived}
-                onClick={() => setDialog('single')}
-                aria-label="Добавить ученика"
-              >
-                <PlusIcon />
-                <span className="classroom-desktop-label">Добавить ученика</span>
-                <span className="classroom-mobile-label">Ученик</span>
-              </button>
-              <button
-                type="button"
-                className="btn-secondary"
-                disabled={archived}
-                onClick={() => setDialog('batch')}
-                aria-label="Добавить списком"
-              >
-                <span className="classroom-desktop-label">Добавить списком</span>
-                <span className="classroom-mobile-label">Списком</span>
-              </button>
-              <button
-                type="button"
-                className="btn-secondary"
-                disabled={students.length === 0 || !classroom.joinCode}
-                onClick={() => setAccessCardIds([])}
-                aria-label="Карточки доступа"
-              >
-                <span className="classroom-desktop-label">Карточки доступа</span>
-                <span className="classroom-mobile-label">Карточки</span>
-              </button>
-            </div>
-            <button
-              type="button"
-              className="btn-secondary classroom-mobile-code-toggle"
-              aria-label={showAllCodes ? 'Скрыть все коды учеников' : 'Показать все коды учеников'}
-              aria-pressed={showAllCodes}
-              title={showAllCodes ? 'Скрыть все коды учеников' : 'Показать все коды учеников'}
-              onClick={() => {
-                setShowAllCodes((value) => !value);
-                setCodeEpoch((value) => value + 1);
-              }}
-            >
-              Коды
-            </button>
-            <label className="classroom-roster-search">
-              <span className="sr-only">Поиск учащихся</span>
-              <input
-                type="search"
-                placeholder="Поиск учащихся"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-              />
-            </label>
-            <label className="classroom-mobile-sort">
-              <span className="sr-only">Сортировка учащихся</span>
-              <select
-                aria-label="Сортировка учащихся"
-                value={rosterSort + ':' + sortDirection}
-                onChange={(event) => {
-                  const option = MOBILE_ROSTER_SORTS.find(
-                    (item) => item.value === event.currentTarget.value,
-                  );
-                  if (option) {
-                    setRosterSort(option.key);
-                    setSortDirection(option.direction);
-                  }
-                }}
-              >
-                {MOBILE_ROSTER_SORTS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
           {students.length === 0 ? (
             <div className="classroom-roster-empty">
               <span>
@@ -1338,7 +1347,9 @@ function ClassroomPageContent({
           onOpenProject={(projectId, moduleKey) => onOpenProject(projectId, moduleKey)}
         />
       ) : null}
-      {tab === 'gradebook' ? <ClassroomGradebook classroomId={classroomId} /> : null}
+      {tab === 'gradebook' ? (
+        <ClassroomGradebook classroomId={classroomId} onOpenStudent={setOpenStudent} />
+      ) : null}
       {tab === 'moderation' ? <ClassroomStudentHistory classroomId={classroomId} /> : null}
       {tab === 'teachers' ? (
         <section className="classroom-tab-panel classroom-teacher-panel">
