@@ -29,6 +29,7 @@ import { classroomStudentNavigation } from '../components/classroom-student-navi
 import '../modules/classroom-owner-layout.css';
 import '../modules/classroom-mobile.css';
 import '../modules/classroom-usability.css';
+import '../modules/classroom-teacher-density.css';
 import { SeatAvatarPicker } from '../components/SeatAvatarPicker';
 import { SeatAwardRow } from '../components/SeatAwards';
 import { useSchoolTime } from '../components/school-time';
