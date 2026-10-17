@@ -14,7 +14,9 @@ import { ClassroomMetrics, useClassroomMetrics } from '../components/ClassroomMe
 import { classroomAverageRatingPresentation } from '../components/classroom-average-rating';
 
 type ListState =
-  { kind: 'loading' } | { kind: 'error'; message: string } | { kind: 'ready'; items: Classroom[] };
+  | { kind: 'loading' }
+  | { kind: 'error'; message: string }
+  | { kind: 'ready'; items: Classroom[] };
 
 type ClassroomRoleView = 'teaching' | 'archived' | 'coteaching' | 'enrolled';
 
@@ -25,7 +27,11 @@ const CLASSROOM_ROLE_TABS: ReadonlyArray<{
 }> = [
   { id: 'teaching', label: 'Преподавание', compactLabel: 'Преподаю' },
   { id: 'archived', label: 'В архиве', compactLabel: 'Архив' },
-  { id: 'coteaching', label: 'Совместное преподавание', compactLabel: 'Совместно' },
+  {
+    id: 'coteaching',
+    label: 'Совместное преподавание',
+    compactLabel: 'Совместно',
+  },
   { id: 'enrolled', label: 'Зарегистрированные', compactLabel: 'Учусь' },
 ];
 
@@ -58,7 +64,10 @@ const SORTS: ReadonlyArray<{ id: SortKey; label: string }> = [
   { id: 'behind-desc', label: 'Больше отстающих' },
 ];
 
-const collator = new Intl.Collator('ru-RU', { sensitivity: 'base', numeric: true });
+const collator = new Intl.Collator('ru-RU', {
+  sensitivity: 'base',
+  numeric: true,
+});
 
 function sortClassrooms(items: readonly Classroom[], sort: SortKey): Classroom[] {
   const sorted = [...items];
@@ -105,7 +114,10 @@ export function DashboardPage({
     const result = await api.listClassrooms();
     if (result.ok) setList({ kind: 'ready', items: result.data.items });
     else if (result.status === 0)
-      setList({ kind: 'error', message: 'Сервер недоступен. Проверьте соединение.' });
+      setList({
+        kind: 'error',
+        message: 'Сервер недоступен. Проверьте соединение.',
+      });
     else setList({ kind: 'error', message: 'Не удалось загрузить классы.' });
   }, []);
 
@@ -310,7 +322,9 @@ export function DashboardPage({
         >
           <PlusIcon />
           <span className="classroom-create-label-full">Создать класс</span>
-          <span className="classroom-create-label-compact" aria-hidden="true">Класс</span>
+          <span className="classroom-create-label-compact" aria-hidden="true">
+            Класс
+          </span>
         </button>
         {/* The actions apply to what is ticked. With nothing ticked the menu
             says so instead of being a dead button that gives no reason. */}
@@ -391,7 +405,9 @@ export function DashboardPage({
           label={
             <>
               <span className="classroom-sort-label-full">{sortLabel}</span>
-              <span className="classroom-sort-label-compact" aria-hidden="true">Сорт.</span>
+              <span className="classroom-sort-label-compact" aria-hidden="true">
+                Сорт.
+              </span>
               <span aria-hidden="true">▾</span>
             </>
           }
