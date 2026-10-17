@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Expose an existing loopback-only ASA Lab staging Web through a LAN-only socket.
+"""Expose an existing loopback-only ASA Lab Web through a LAN-only socket.
 
 This is an HTTP *preview*, not a public/production ingress. The service forwards
 TCP without modifying Docker or the ASA origin/security configuration.
@@ -94,13 +94,15 @@ def command(*args: str, capture: bool = False, env=None) -> str:
     return run.stdout.strip() if capture else ""
 
 
-def assert_baseline(root: Path, ip: str, interface: str) -> None:
+def assert_baseline(root: Path, ip: str, interface: str, acknowledge_production: bool = False) -> None:
     require(sys.platform.startswith("linux"), "Linux is required")
     require(os.geteuid() == 0, "Run as root (sudo)")
     require(root.joinpath(".asa/installation.json").is_file(), "ASA installation state not found")
     settings = json.loads(root.joinpath(".asa/installation.json").read_text(encoding="utf-8"))
-    require(settings.get("profile") in ("staging", "dev"),
-            "HTTP LAN preview is forbidden for a production ASA installation")
+    profile = settings.get("profile")
+    require(profile in ("staging", "dev") or (profile == "production" and acknowledge_production),
+            "Production HTTP preview requires --ack-production-http-preview; "
+            "use HTTPS for login and private student data")
     require(Path(PROXY_BINARY).is_file(), "systemd-socket-proxyd not installed")
     addresses = command("ip", "-4", "-o", "addr", "show", "dev", interface, capture=True)
     require(any(line.split()[3].split("/")[0] == ip for line in addresses.splitlines()),
@@ -132,9 +134,9 @@ def check_site(ip: str) -> None:
                 "LAN ingress did not serve a ready ASA Lab")
 
 
-def install(root: Path, ip: str, cidr: str, interface: str) -> None:
+def install(root: Path, ip: str, cidr: str, interface: str, acknowledge_production: bool = False) -> None:
     validate_address(ip, cidr, interface)
-    assert_baseline(root, ip, interface)
+    assert_baseline(root, ip, interface, acknowledge_production)
     found = assert_units_match(ip)
     if not found:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
@@ -165,12 +167,16 @@ def main() -> int:
     parser.add_argument("--lan-ip", required=True)
     parser.add_argument("--cidr", required=True)
     parser.add_argument("--interface", required=True)
+    parser.add_argument("--ack-production-http-preview", action="store_true",
+                        help="Explicit production LAN HTTP viewing only; credentials require HTTPS")
     opts = parser.parse_args()
     try:
         validate_address(opts.lan_ip, opts.cidr, opts.interface)
-        assert_baseline(opts.root.resolve(), opts.lan_ip, opts.interface)
+        assert_baseline(opts.root.resolve(), opts.lan_ip, opts.interface,
+                        opts.ack_production_http_preview)
         if opts.action == "install":
-            install(opts.root.resolve(), opts.lan_ip, opts.cidr, opts.interface)
+            install(opts.root.resolve(), opts.lan_ip, opts.cidr, opts.interface,
+                    opts.ack_production_http_preview)
         else:
             require(assert_units_match(opts.lan_ip), "LAN ingress not installed")
             require(command("systemctl", "is-active", UNIT, capture=True) == "active",
