@@ -49,6 +49,9 @@ import {
 import type { RegisteredModule } from '@asa-lab/module-sdk';
 import { AuthController } from './auth.controller.js';
 import { AdminController } from './admin.controller.js';
+import { AiChatController } from './ai-chat.controller.js';
+import { AiAdminController } from './ai-admin.controller.js';
+import { AiChatService } from './ai-chat.service.js';
 import { AdminLogsController } from './admin-logs.controller.js';
 import { AdminLogsService } from './admin-logs.service.js';
 import { ClientDiagnosticsController } from './client-diagnostics.controller.js';
@@ -115,6 +118,7 @@ export class AppModule {
     const requirePool = (): pg.Pool => pool ?? unavailablePool;
     const runtimeMetrics = options.runtimeMetrics ?? createRuntimeMetrics();
     const maxAuthService = new MaxAuthService(requirePool());
+    const aiChatService = new AiChatService(requirePool());
     const productAnalytics = options.productAnalytics ?? new ProductAnalyticsService(pool);
     const projectRepository = (): PgProjectRepository => new PgProjectRepository(requirePool());
     const moduleRegistry = createApiModuleRegistry();
@@ -160,6 +164,8 @@ export class AppModule {
         HealthController,
         AuthController,
         AdminController,
+        AiChatController,
+        AiAdminController,
         AdminLogsController,
         ClientDiagnosticsController,
         AccountC1Controller,
@@ -202,6 +208,7 @@ export class AppModule {
         { provide: TOKENS.runtimeMetrics, useValue: runtimeMetrics },
         { provide: TOKENS.botChallengeService, useFactory: () => new BotChallengeService() },
         { provide: TOKENS.maxAuthService, useValue: maxAuthService },
+        { provide: TOKENS.aiChatService, useValue: aiChatService },
         { provide: TOKENS.productAnalytics, useValue: productAnalytics },
         {
           provide: TOKENS.refreshSessionService,

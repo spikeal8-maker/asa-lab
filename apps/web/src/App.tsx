@@ -30,6 +30,9 @@ const DashboardPage = lazy(() =>
 const MyProjectsPage = lazy(() =>
   import('./pages/MyProjectsPage').then((module) => ({ default: module.MyProjectsPage })),
 );
+const AiChatPage = lazy(() =>
+  import('./ai/AiChatPage').then((module) => ({ default: module.AiChatPage })),
+);
 const GamesPage = lazy(() =>
   import('./pages/GamesPage').then((module) => ({ default: module.GamesPage })),
 );
@@ -828,6 +831,7 @@ export function App(): JSX.Element {
     if (section === 'home') setView({ kind: 'home' });
     else if (section === 'projects') setView({ kind: 'my-projects' });
     else if (section === 'games') setView({ kind: 'games' });
+    else if (section === 'ai') setView({ kind: 'ai' });
     else if (section === 'learning') setView({ kind: 'learning' });
     else if (section === 'knowledge') setView({ kind: 'knowledge' });
     else if (section === 'collections') setView({ kind: 'collections' });
@@ -1052,6 +1056,16 @@ export function App(): JSX.Element {
                   <CollectionsPage
                     onOpenWork={(projectId) => setView({ kind: 'gallery-work', projectId })}
                   />
+                ) : null}
+                {view.kind === 'ai' && session.kind === 'authenticated' ? <AiChatPage /> : null}
+                {view.kind === 'ai' && session.kind === 'student' ? (
+                  <main id="main-content" className="portal-content" tabIndex={-1}>
+                    <h1>ИИ-помощник</h1>
+                    <p>
+                      ИИ пока доступен пользователям с личным аккаунтом. Подключение учебных мест
+                      требует отдельной настройки политики доступа.
+                    </p>
+                  </main>
                 ) : null}
                 {view.kind === 'learning' ? (
                   <LearningPage

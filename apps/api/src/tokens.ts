@@ -33,6 +33,7 @@ export const TOKENS = {
   projectFeedbackService: 'PROJECT_FEEDBACK_SERVICE',
   botChallengeService: 'BOT_CHALLENGE_SERVICE',
   maxAuthService: 'MAX_AUTH_SERVICE',
+  aiChatService: 'AI_CHAT_SERVICE',
   refreshSessionService: 'REFRESH_SESSION_SERVICE',
   adminControlPlane: 'ADMIN_CONTROL_PLANE',
   productAnalytics: 'PRODUCT_ANALYTICS',

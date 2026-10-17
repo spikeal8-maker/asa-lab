@@ -5,6 +5,7 @@ export type CreatorPortalSection =
   | 'home'
   | 'projects'
   | 'games'
+  | 'ai'
   | 'learning'
   | 'knowledge'
   | 'collections'
@@ -66,6 +67,7 @@ export type CreatorPortalView =
   | { kind: 'home' }
   | ProjectListView
   | { kind: 'games' }
+  | { kind: 'ai' }
   | { kind: 'learning' }
   | { kind: 'knowledge' }
   | { kind: 'knowledge-course'; courseId: string }
@@ -117,6 +119,7 @@ const PORTAL_ROUTES: ReadonlyArray<{
   { path: '/home', view: { kind: 'home' } },
   { path: '/projects', view: { kind: 'my-projects' } },
   { path: '/games', view: { kind: 'games' } },
+  { path: '/ai', view: { kind: 'ai' } },
   { path: '/learning', view: { kind: 'learning' } },
   { path: '/knowledge', view: { kind: 'knowledge' } },
   { path: '/collections', view: { kind: 'collections' } },
@@ -161,6 +164,7 @@ export function portalNavigation(
     ...(classes ? ([{ section: 'classes', label: 'Классы' }] as const) : []),
     { section: 'projects', label: 'Мои проекты' },
     { section: 'games', label: 'Игры' },
+    { section: 'ai', label: 'ИИ' },
     { section: 'collections', label: 'Сохранённое' },
     // Learning is the place where a person studies. Course authoring lives in
     // the teacher-only destination below, so the two labels describe different
@@ -185,6 +189,7 @@ export function canUseClasses(
 export function sectionForView(view: CreatorPortalView, canTeach: boolean): CreatorPortalSection {
   void canTeach;
   if (view.kind === 'account') return 'account';
+  if (view.kind === 'ai') return 'ai';
   if (view.kind === 'home') return 'home';
   if (view.kind === 'games' || (view.kind === 'editor' && isGameModule(view.moduleKey)))
     return 'games';
