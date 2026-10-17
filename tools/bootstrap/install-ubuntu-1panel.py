@@ -270,11 +270,6 @@ def source_install(args):
     if not (path / ".asa/installed-release.json").is_file():
         require(not (path / ".env").exists(),
                 "An unconfirmed .env exists without installed release; inspect recovery before re-installing")
-    if (path / ".asa/installed-release.json").is_file():
-        record("ASA_ALREADY_INSTALLED", root=str(path))
-        doctor(args)
-        return
-    require(not (path / ".asa/maintenance.json").exists(), "An incomplete deployment already exists")
     # The pinned stable release may precede this bootstrap commit and the
     # canonical manager intentionally detaches the operational checkout.
     # Preserve this recovery launcher OUTSIDE replaceable source files first.
@@ -288,6 +283,11 @@ def source_install(args):
                 shutil.copyfile(source, target)
                 os.chmod(target, 0o755)
     record("BOOTSTRAP_PERSISTED", directory=str(persistent))
+    if (path / ".asa/installed-release.json").is_file():
+        record("ASA_ALREADY_INSTALLED", root=str(path))
+        doctor(args)
+        return
+    require(not (path / ".asa/maintenance.json").exists(), "An incomplete deployment already exists")
     run("python3", "tools/asa_manager.py", "install", "--profile", args.profile,
         as_user=args.operator, cwd=path)
     record("ASA_INSTALLED", root=str(path), profile=args.profile)
