@@ -14,9 +14,7 @@ import { ClassroomMetrics, useClassroomMetrics } from '../components/ClassroomMe
 import { classroomAverageRatingPresentation } from '../components/classroom-average-rating';
 
 type ListState =
-  | { kind: 'loading' }
-  | { kind: 'error'; message: string }
-  | { kind: 'ready'; items: Classroom[] };
+  { kind: 'loading' } | { kind: 'error'; message: string } | { kind: 'ready'; items: Classroom[] };
 
 type ClassroomRoleView = 'teaching' | 'archived' | 'coteaching' | 'enrolled';
 
