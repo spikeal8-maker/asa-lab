@@ -129,6 +129,7 @@ import {
 import './creator-portal/creator-portal.css';
 import './creator-portal/portal-workspace.css';
 import './creator-portal/home-workspace.css';
+import './creator-portal/portal-header-adaptive.css';
 
 const AdminPage = lazy(() =>
   import('./admin/AdminPage').then((module) => ({ default: module.AdminPage })),
