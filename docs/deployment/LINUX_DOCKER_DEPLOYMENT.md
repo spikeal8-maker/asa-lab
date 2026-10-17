@@ -48,6 +48,50 @@ chmod 600 .env
 For a local single-computer installation, use [`QUICK_START.md`](QUICK_START.md)
 instead; its helper generates consistent private credentials automatically.
 
+## Частный HTTPS-вход для staging (например, Tailscale Serve)
+
+С момента появления отдельного HTTPS-адреса **его недостаточно просто проксировать
+на Web 4610**: API отвергает запросы на изменение данных с неизвестным Origin
+(`403 origin_forbidden`). Встроенному Scratch требуется тот же точный origin
+для родительской страницы и runtime. В `compose.staging.yaml` явный
+`ASA_PUBLIC_WEB_ORIGINS` передаётся в API; пустое значение не разрешает
+дополнительных браузерных входов. Допускаются **только HTTPS origins** без пути.
+
+Уточните проверенный DNS-адрес сервера, например
+`https://asa-test-ubuntu.<ваш-tailnet>.ts.net`, затем настройте
+приватную конфигурацию установки с *одним* выбранным браузерным origin:
+
+```text
+ASA_PUBLIC_WEB_ORIGINS=https://asa-test-ubuntu.<ваш-tailnet>.ts.net
+ASA_BLOCKS_PARENT_ORIGIN=https://asa-test-ubuntu.<ваш-tailnet>.ts.net
+ASA_BLOCKS_RUNTIME_ORIGIN=https://asa-test-ubuntu.<ваш-tailnet>.ts.net
+ASA_UPDATE_ENTRY_ORIGIN=https://asa-test-ubuntu.<ваш-tailnet>.ts.net
+```
+
+В `ASA_PUBLIC_WEB_ORIGINS` допускается до восьми явно утверждённых HTTPS
+адресов; не добавляйте LAN HTTP, wildcard, localhost или произвольный IP.
+`ASA_WEB_ORIGIN` остаётся внутренним каноническим
+`http://127.0.0.1:4610`. Не меняйте его и не отключайте CSRF.
+
+Для Tailscale Serve потребуется включить эту возможность в своём tailnet
+через администратора Tailscale. Затем на **выбранном тестовом сервере**
+`tailscale serve --bg http://127.0.0.1:4610`. Это не Funnel и не
+публикация в интернет. Не пробрасывайте административные порты на
+маршрутизаторе.
+
+После изменения приватной `.env` требуется контролируемо пересоздать
+API, Web и Scratch с уже проверенными digest образов, не пересоздавая
+тома данных. Используйте штатный механизм `asa_manager.py` для image
+resolution и проверяйте `runtime-config.js` и
+`/internal/blocks/` (мета `asa-parent-origin`) на точное совпадение
+с новым origin. Проверяйте не только healthy: реальный HTTPS login,
+вход/выход, сохранение/повторное открытие проекта, Scratch iframe и
+MinIO-проекты. До успешного browser acceptance система остаётся staging.
+
+**Прямой переход на `/sign-in`** должен обрабатываться Web как SPA;
+если сервер отдаёт HTTP 404, это отдельный дефект маршрута, а не отказ
+пароля или БД — не обходите его ослаблением политики origin.
+
 ## Production environment
 
 Use the tracked `compose.production.yaml` overlay. In the private `.env`, set a
