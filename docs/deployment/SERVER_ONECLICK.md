@@ -194,53 +194,66 @@ powershell -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\ASA-Lab\bootstrap\in
 существующую `.env`, операция останавливается для разбирательства. Порт
 `19192` — зафиксированный выбор этого сценария; другой порт задаётся один раз.
 
-## Доступ к тестовой ASA Lab по LAN (необязательный HTTP-preview)
+## Доступ к ASA Lab по локальной сети: порт 4610
 
-Стандартная установка публикует Web только на `127.0.0.1:4610`, поэтому адрес
-`http://192.168.1.115:4610/` **сам по себе не должен работать**. Не меняйте
-Docker `ports` на `0.0.0.0` и не публикуйте API/MinIO/PostgreSQL. Для
-**локального ознакомления без рабочих паролей** предусмотрен отдельный
-ограниченный сетевой ingress: штатный `systemd-socket-proxyd` слушает
-**только выбранный LAN IPv4** и пересылает TCP на `127.0.0.1:4610`.
+Штатная публикация ASA Lab использует только 127.0.0.1:4610,
+поэтому после чистой установки страница http://LAN-IP:4610/ не открывается
+на соседнем Windows-компьютере. Это не ошибка МТС и не отказ Docker.
 
-После установки менеджер закрепляет Git checkout на SHA выпуска; если
-`tools/bootstrap/lan-preview-ubuntu.py` отсутствует в закреплённом checkout,
-получите его отдельно из GitHub (просмотрите файл перед запуском):
+Опциональный GitHub-скрипт lan-preview-ubuntu.py создаёт локальный
+systemd socket TCP proxy LAN-IP:4610 -> 127.0.0.1:4610; в UFW разрешается
+только выбранная частная подсеть и физический LAN-интерфейс.
+Нельзя открывать порт для всех адресов или менять Compose на 0.0.0.0.
 
-```bash
-curl -fsSL --max-time 30 \
-  https://raw.githubusercontent.com/spikeal8-maker/asa-lab/main/tools/bootstrap/lan-preview-ubuntu.py \
-  -o /tmp/asa-lan-preview-ubuntu.py
-sudo python3 /tmp/asa-lan-preview-ubuntu.py install \
-  --root /srv/asa-lab-test \
-  --lan-ip 192.168.1.115 --cidr 192.168.1.0/24 --interface eno1
-sudo python3 /tmp/asa-lan-preview-ubuntu.py check \
-  --root /srv/asa-lab-test \
-  --lan-ip 192.168.1.115 --cidr 192.168.1.0/24 --interface eno1
-```
+### Автоматический режим установщика
 
-Замените `--root`, `--lan-ip`, `--cidr`, `--interface` на **собственные**
-значения. Это явный выбор оператора, а не автоугадывание IP. На МТС
-сначала закрепите адрес сервера по MAC в DHCP. Инструмент блокирует
-публичные IP, чрезмерно широкие CIDR, VPN/Docker-интерфейсы,
-production-профиль, неработающий локальный Web, отключённый UFW и чужие
-systemd unit-файлы. Повторный `install` не пересоздаёт Docker и тома.
+При первой установке или повторном запуске GitHub-установщика Ubuntu
+к обычным опциям команды install добавьте:
 
-**Это строго HTTP-preview, а не безопасный сайт для работы учеников.**
-`runtime-config.js` и встроенный Scratch в текущем опубликованном
-выпуске сохраняют исходный `http://127.0.0.1:4610`, и браузер,
-входящий по LAN IP, видит несовпадение origin. Заголовки безопасности,
-проверки capability, CSRF и origin отключать нельзя; HTTP-страница
-не служит доказательством сохранения Scratch-проекта. Для полной работы
-с настоящими школьными аккаунтами нужен собственный HTTPS ingress
-с точным единым browser origin, совпадающим с конфигурацией
-публикуемого выпуска и принятым в API/Scratch, и отдельный браузерный тест.
+~~~text
+--lan-preview-ip 192.168.1.115
+--lan-preview-cidr 192.168.1.0/24
+--lan-preview-interface eno1
+--ack-production-http-preview
+~~~
 
-Контрольный реальный прогон (17.10.2026): Chrome `192.168.1.115:4610`
-HTTP 200, `/health/ready` ready, `/internal/blocks/healthz` 200,
-пять контейнеров healthy, после рестарта `1panel-agent` и
-`asa-lab-lan-4610.socket` ограниченное UFW-правило сохраняется.
-Это **не** подтверждение пользовательских сценариев или публичного HTTPS.
+Адрес IP, подсеть и физический интерфейс должны соответствовать
+конкретному серверу. Все три опции обязательны одновременно;
+для production-профиля также нужно явное подтверждение.
+Порт 4610 не открывается в интернет или Tailscale.
+Действующая БД, Docker volumes, образы и конфигурация приложения
+не меняются; повторный install проверен как идемпотентный.
+
+После штатной установки возможен и отдельный запуск скрипта
+lan-preview-ubuntu.py из ТОЙ ЖЕ проверенной GitHub-ревизии:
+
+~~~bash
+sudo python3 /tmp/asa-full-rebuild/lan-preview-ubuntu.py install \
+  --root /srv/asa-lab --lan-ip 192.168.1.115 \
+  --cidr 192.168.1.0/24 --interface eno1 \
+  --ack-production-http-preview
+sudo python3 /tmp/asa-full-rebuild/lan-preview-ubuntu.py check \
+  --root /srv/asa-lab --lan-ip 192.168.1.115 \
+  --cidr 192.168.1.0/24 --interface eno1 \
+  --ack-production-http-preview
+~~~
+
+**Ограничение безопасности:** это только локальный HTTP-просмотр
+страницы, а не способ работать с настоящими школьными паролями.
+API для HTTP LAN origin отвечает 403 origin_forbidden; Scratch
+использует исходный канонический origin localhost.
+Для полноценного входа и сохранения работ нужен один подтверждённый
+HTTPS origin, согласованный с API и Scratch. Не отключайте CSRF,
+антибота или проверки origin ради HTTP-просмотра.
+
+Реальная проверка: 17.10.2026, на Ubuntu admins-MS-7D22 с
+профилем production после очистки и чистой установки GitHub.
+14/14 тестов ingress прошли, GitHub installer install с явными
+LAN флагами PASS, по Windows D2-R2: HTTP 200 главной, ready API,
+Scratch health HTTP 200, браузер Chrome без JavaScript-ошибок,
+доступен только LAN 192.168.1.0/24. БД с историческими аккаунтами
+после последней очистки ещё не восстановлена. HTTP не является
+прохождением пользовательской приёмки.
 
 ## Актуальная копия ASA Lab из Яндекс Диска
 
