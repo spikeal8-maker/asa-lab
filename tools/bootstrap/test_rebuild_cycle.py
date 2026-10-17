@@ -101,7 +101,10 @@ class SnapshotSafety(unittest.TestCase):
     def test_canonical_wait_ready_recovers_from_transient_reset(self):
         import sys
         from unittest.mock import patch
-        sys.path.insert(0,str(BASE.parent))
+        tools_dir=next((p for p in (BASE.parent,Path.cwd()/"tools")
+                        if (p/"deployment/system.py").is_file()),None)
+        self.assertIsNotNone(tools_dir,"Canonical deployment tools are required")
+        sys.path.insert(0,str(tools_dir))
         from deployment.system import Installation
         class FlakyProbe:
             def __init__(self): self.calls=0
