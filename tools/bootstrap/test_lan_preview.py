@@ -42,6 +42,17 @@ class IngressSafety(unittest.TestCase):
         with self.assertRaises(mod.Blocked):
             mod.validate_address("192.168.1.115", "192.168.1.0/24", "br-example")
 
+    def test_production_denied_without_explicit_preview_ack(self):
+        with self.assertRaises(mod.Blocked):
+            mod.validate_profile("production", False)
+
+    def test_production_preview_allowed_only_with_explicit_ack(self):
+        mod.validate_profile("production", True)
+
+    def test_invalid_profile_still_denied(self):
+        with self.assertRaises(mod.Blocked):
+            mod.validate_profile("testing-other", True)
+
     def test_no_wildcard_bind(self):
         value = mod.socket_unit("192.168.1.115")
         self.assertIn("ListenStream=192.168.1.115:4610", value)
