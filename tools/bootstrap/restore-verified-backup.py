@@ -132,6 +132,8 @@ def restore(args):
     backup_dir.mkdir(parents=True,mode=0o700)
     old_database="asalab_before_"+stamp
     trial_database="asalab_"+stamp+"_test"
+    need(len(old_database)<63 and len(trial_database)<63,
+         "Generated PostgreSQL database identifiers too long")
     originals_saved=False;config_switched=False;db_switched=False;stopped=False
     checkpoint(backup_dir,"STARTED",snapshot=sid,old_database=old_database,trial_database=trial_database)
     try:
@@ -194,7 +196,12 @@ def restore(args):
         running=Installation(inst.root,inst.profile)
         validate_resolved_images(running,release)
         running.compose("up","-d","--no-build")
-        running.readiness()
+        # Docker Compose healthy != immediately open TCP socket; Web may reset
+        # initial connections as Caddy and the API initialize. Use the
+        # canonical bounded readiness poll (up to 5 minutes).
+        print("WAIT_FOR_DEPLOYMENT_READY",flush=True)
+        running.wait_ready(release["revision"],release["schema"])
+        checkpoint(backup_dir,"LIVE_APP_READY")
         final_count=int(pg(running,"asalab","select count(*) from accounts"))
         final_seats=int(pg(running,"asalab","select count(*) from classroom_student_seats"))
         final_active=int(pg(running,"asalab",
@@ -236,11 +243,18 @@ def restore(args):
                     shutil.copy2(backup_dir/"original.env",inst.root/".env")
                     os.chmod(inst.root/".env",0o600)
                 original=Installation(inst.root,inst.profile)
+                checkpoint(backup_dir,"ROLLBACK_DATA_RETURNED")
                 original.compose("up","-d","--no-build")
-                original.readiness()
+                print("WAIT_FOR_ROLLBACK_SERVICE_READY",flush=True)
+                original.wait_ready(release["revision"],release["schema"])
                 checkpoint(backup_dir,"AUTO_ROLLBACK_PASS")
             except BaseException as rollback_exc:
-                checkpoint(backup_dir,"MANUAL_ROLLBACK_REQUIRED",error=type(rollback_exc).__name__)
+                # Record whether databases/objects were returned independently
+                # of a transient socket failure during Web startup.
+                last=json.loads((backup_dir/"state.json").read_text()).get("phase")
+                status=("ROLLBACK_DATA_DONE_HEALTH_PENDING" if last=="ROLLBACK_DATA_RETURNED"
+                        else "MANUAL_ROLLBACK_REQUIRED")
+                checkpoint(backup_dir,status,error=type(rollback_exc).__name__)
         raise
 def main():
     p=argparse.ArgumentParser(description=__doc__)
