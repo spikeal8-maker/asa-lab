@@ -22,6 +22,7 @@ def import_script(path, name):
 
 rebuild = import_script('install-ubuntu-1panel.py', 'install_ubuntu')
 age = import_script('prepare-age-backup.py', 'prepare_age')
+transfer = import_script('transfer-backup-ssh.py', 'transfer_backup')
 
 
 class ArchiveSecurity(unittest.TestCase):
@@ -105,6 +106,24 @@ class LinuxInstallerSecurity(unittest.TestCase):
                 return Response()
             with mock.patch.object(rebuild,'run'), mock.patch.object(rebuild.urllib.request,'urlopen',side_effect=fake_url):
                 with self.assertRaises(rebuild.Blocked):rebuild.doctor(args)
+
+
+
+class SSHTransferSafety(unittest.TestCase):
+    def test_rejects_shell_characters_in_path(self):
+        with self.assertRaises(ValueError):
+            transfer.validate_remote('admins', '192.168.1.115', '/srv/backup;rm')
+
+    def test_rejects_parent_traversal(self):
+        with self.assertRaises(ValueError):
+            transfer.validate_remote('admins', '192.168.1.115', '/srv/a/../../root')
+
+    def test_rejects_unsafe_username(self):
+        with self.assertRaises(ValueError):
+            transfer.validate_remote('admins;id', '192.168.1.115', '/srv/recovery')
+
+    def test_accepts_private_staging_dir(self):
+        self.assertEqual(str(transfer.validate_remote('admins', '192.168.1.115', '/srv/asa-test-restore')), '/srv/asa-test-restore')
 
 
 if __name__ == '__main__':unittest.main(verbosity=2)
