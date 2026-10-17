@@ -368,6 +368,43 @@ describe('AI Chat PostgreSQL access and request replay', () => {
         }),
       );
 
+      // Connection verification never runs implicitly or for a non-admin.
+      const configurationVersion = (allowedAdmin.json() as { configurationVersion: number })
+        .configurationVersion;
+      const noConfirmation = await inject(app, {
+        method: 'POST',
+        url: '/api/admin/v1/ai/test',
+        headers: { host, 'content-type': 'application/json' },
+        cookies: { asa_session: adminToken },
+        payload: { configurationVersion },
+      });
+      expect(noConfirmation.statusCode).toBe(400);
+      const unauthorizedTest = await inject(app, {
+        method: 'POST',
+        url: '/api/admin/v1/ai/test',
+        headers: { host, 'content-type': 'application/json' },
+        cookies: { asa_session: ownerToken },
+        payload: { configurationVersion, acknowledgePaidRequest: true },
+      });
+      expect(unauthorizedTest.statusCode).toBe(403);
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+      const verification = await inject(app, {
+        method: 'POST',
+        url: '/api/admin/v1/ai/test',
+        headers: { host, 'content-type': 'application/json' },
+        cookies: { asa_session: adminToken },
+        payload: { configurationVersion, acknowledgePaidRequest: true },
+      });
+      expect(verification.statusCode).toBe(200);
+      expect(verification.json()).toMatchObject({
+        provider: 'openai',
+        model: 'gpt-5-mini',
+        configurationVersion,
+      });
+      expect(verification.body).not.toContain('sk-ai-private-integration-key-001');
+      expect(mockFetch).toHaveBeenCalledTimes(3);
+      expect(await service.messages(owner.principalId, threadId)).toEqual(streamedHistory);
+
       const wrongOrigin = await inject(app, {
         method: 'POST',
         url: '/api/ai/threads',

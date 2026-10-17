@@ -109,4 +109,43 @@ describe('provider SSE adapter', () => {
     } satisfies Partial<ProviderStreamError>);
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
+
+  for (const terminal of ['eof', 'response.failed', 'response.incomplete', 'wrong-done']) {
+    it(`never labels partial ${terminal} as a completed OpenAI response`, async () => {
+      const delta = 'event: response.output_text.delta\ndata: {"delta":"Часть ответа"}\n\n';
+      const end =
+        terminal === 'eof'
+          ? ''
+          : terminal === 'wrong-done'
+            ? 'data: [DONE]\n\n'
+            : `event: ${terminal}\ndata: ${JSON.stringify({ type: terminal })}\n\n`;
+      const fetchImpl = vi.fn<typeof fetch>(async () => fakeSse(delta + end));
+      await expect(
+        streamProviderText({
+          ...input,
+          fetchImpl,
+          signal: new AbortController().signal,
+          onDelta: () => undefined,
+        }),
+      ).rejects.toMatchObject({ partialText: 'Часть ответа', status: 503 });
+      expect(fetchImpl).toHaveBeenCalledTimes(1);
+    });
+  }
+
+  it('preserves a DeepSeek length-truncated reply as stopped, not complete', async () => {
+    const fetchImpl = vi.fn<typeof fetch>(async () =>
+      fakeSse(
+        'data: {"choices":[{"delta":{"content":"Часть"},"finish_reason":"length"}]}\n\n' +
+          'data: [DONE]\n\n',
+      ),
+    );
+    const result = await streamProviderText({
+      ...input,
+      provider: 'deepseek',
+      fetchImpl,
+      signal: new AbortController().signal,
+      onDelta: () => undefined,
+    });
+    expect(result).toEqual({ text: 'Часть', stopped: true });
+  });
 });

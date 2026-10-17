@@ -29,6 +29,15 @@ export function AiAdminPage({
   const [clearKey, setClearKey] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [acknowledgeTest, setAcknowledgeTest] = useState(false);
+  const [connectionTest, setConnectionTest] = useState<{
+    provider: Provider;
+    model: Model;
+    elapsedMs: number;
+    testedAt: string;
+    configurationVersion: number;
+  } | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -58,6 +67,8 @@ export function AiAdminPage({
   async function save(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     setSaving(true);
+    setConnectionTest(null);
+    setAcknowledgeTest(false);
     setMessage(null);
     setError(null);
     try {
@@ -89,6 +100,41 @@ export function AiAdminPage({
   }
 
   const switched = config !== null && provider !== config.provider;
+  const unsaved =
+    !config ||
+    provider !== config.provider ||
+    model !== config.model ||
+    enabled !== config.enabled ||
+    Boolean(apiKey.trim()) ||
+    clearKey;
+
+  async function testConnection(): Promise<void> {
+    if (!config || unsaved || !acknowledgeTest || testing || saving) return;
+    setTesting(true);
+    setConnectionTest(null);
+    setError(null);
+    setMessage(null);
+    try {
+      const result = await call<NonNullable<typeof connectionTest>>('/api/admin/v1/ai/test', {
+        method: 'POST',
+        body: JSON.stringify({
+          acknowledgePaidRequest: true,
+          configurationVersion: config.configurationVersion,
+        }),
+      });
+      if (result.ok) setConnectionTest(result.data);
+      else if (result.status === 401 || result.status === 403) onAccessDenied();
+      else setError(result.error.message);
+    } finally {
+      setTesting(false);
+      setAcknowledgeTest(false);
+    }
+  }
+
+  useEffect(() => {
+    setConnectionTest(null);
+    setAcknowledgeTest(false);
+  }, [provider, model, enabled, apiKey, clearKey]);
   return (
     <section className="asa-ai-admin" aria-labelledby="asa-ai-admin-title">
       <div className="admin-section-heading">
@@ -115,7 +161,7 @@ export function AiAdminPage({
         <form onSubmit={(event) => void save(event)} className="asa-ai-admin-form">
           <div className="asa-ai-admin-status">
             <div>
-              <span>Состояние ИИ</span>
+              <span>Доступ по настройкам</span>
               <strong>{config.enabled ? 'Включён' : 'Выключен'}</strong>
             </div>
             <div>
@@ -130,7 +176,9 @@ export function AiAdminPage({
           <label>
             <span>Провайдер</span>
             <select
+              aria-label="Провайдер"
               value={provider}
+              disabled={saving || testing}
               onChange={(event) => {
                 const next = event.target.value as Provider;
                 setProvider(next);
@@ -145,7 +193,12 @@ export function AiAdminPage({
           </label>
           <label>
             <span>Модель</span>
-            <select value={model} onChange={(event) => setModel(event.target.value as Model)}>
+            <select
+              aria-label="Модель"
+              value={model}
+              disabled={saving || testing}
+              onChange={(event) => setModel(event.target.value as Model)}
+            >
               {provider === 'openai' ? (
                 <>
                   <option value="gpt-5-mini">GPT-5 mini</option>
@@ -162,6 +215,7 @@ export function AiAdminPage({
             </span>
             <input
               type="password"
+              disabled={saving || testing}
               value={apiKey}
               onChange={(event) => {
                 setApiKey(event.target.value);
@@ -193,7 +247,7 @@ export function AiAdminPage({
                   setEnabled(false);
                 }
               }}
-              disabled={!config.apiKeyConfigured}
+              disabled={saving || testing || !config.apiKeyConfigured}
             />
             <span>Удалить сохранённый API-ключ</span>
           </label>
@@ -202,7 +256,7 @@ export function AiAdminPage({
               type="checkbox"
               checked={enabled}
               onChange={(event) => setEnabled(event.target.checked)}
-              disabled={clearKey || !config.encryptionReady}
+              disabled={saving || testing || clearKey || !config.encryptionReady}
             />
             <span>Разрешить ИИ-запросы для вошедших в аккаунт пользователей</span>
           </label>
@@ -212,11 +266,54 @@ export function AiAdminPage({
               нельзя безопасно сохранять без серверного ключа шифрования.
             </p>
           ) : null}
+          <section aria-label="Проверка соединения с моделью">
+            <p>
+              Сохранение ключа не проверяет доступ к модели. Проверка ниже отправляет один платный
+              запрос и не включает ИИ для пользователей.
+            </p>
+            <label className="asa-ai-admin-check">
+              <input
+                type="checkbox"
+                checked={acknowledgeTest}
+                disabled={
+                  saving ||
+                  testing ||
+                  unsaved ||
+                  !config.apiKeyConfigured ||
+                  !config.encryptionReady
+                }
+                onChange={(event) => setAcknowledgeTest(event.target.checked)}
+              />
+              <span>Подтверждаю один платный проверочный запрос</span>
+            </label>
+            <button
+              type="button"
+              className="btn-secondary"
+              disabled={
+                saving ||
+                testing ||
+                unsaved ||
+                !acknowledgeTest ||
+                !config.apiKeyConfigured ||
+                !config.encryptionReady
+              }
+              onClick={() => void testConnection()}
+            >
+              {testing ? 'Проверяем модель…' : 'Проверить подключение'}
+            </button>
+            {connectionTest ? (
+              <p role="status" className="asa-ai-admin-success">
+                Модель {connectionTest.model} ответила. Проверка заняла{' '}
+                {(connectionTest.elapsedMs / 1000).toFixed(1)} с.
+              </p>
+            ) : null}
+            {unsaved ? <p>Сначала сохраните настройки для проверки.</p> : null}
+          </section>
           <div className="asa-ai-admin-actions">
             <button
               type="submit"
               className="btn-primary"
-              disabled={saving || loading || (switched && !apiKey.trim())}
+              disabled={saving || testing || loading || (switched && !apiKey.trim())}
             >
               {saving ? 'Сохраняем…' : 'Сохранить настройки'}
             </button>

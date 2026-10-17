@@ -225,6 +225,71 @@ export class AiChatService {
     return this.adminConfig(principalId);
   }
 
+  async testConnection(
+    principalId: string,
+    expectedVersion: number,
+  ): Promise<{
+    provider: AiProvider;
+    model: AiModel;
+    testedAt: string;
+    elapsedMs: number;
+    configurationVersion: number;
+  }> {
+    const config = await this.adminConfig(principalId);
+    if (config.configurationVersion !== expectedVersion) {
+      throw new AiServiceError(
+        'ai_config_changed',
+        409,
+        'Настройки изменились. Перезагрузите страницу.',
+      );
+    }
+    const runtime = await this.runtime();
+    const key = this.decrypt(runtime);
+    if (!key) {
+      throw new AiServiceError(
+        'ai_key_unavailable',
+        503,
+        'Сохранённый ключ отсутствует или не расшифровывается.',
+      );
+    }
+    const started = Date.now();
+    try {
+      const result = await streamProviderText({
+        fetchImpl: this.fetchImpl,
+        provider: runtime.provider,
+        model: runtime.model,
+        apiKey: key,
+        context: [{ role: 'user', content: 'Reply with the single word OK.' }],
+        instructions: 'This is a connection test. Reply briefly.',
+        signal: new AbortController().signal,
+        onDelta: () => undefined,
+      });
+      if (result.stopped || !result.text.trim()) {
+        throw new AiServiceError(
+          'ai_test_incomplete',
+          503,
+          'Модель не завершила проверочный ответ.',
+        );
+      }
+    } catch (problem) {
+      if (problem instanceof ProviderStreamError) {
+        throw new AiServiceError(problem.code, problem.status, problem.message);
+      }
+      throw problem;
+    }
+    const after = await this.adminConfig(principalId);
+    if (after.configurationVersion !== expectedVersion) {
+      throw new AiServiceError('ai_config_changed', 409, 'Во время проверки настройки изменились.');
+    }
+    return {
+      provider: config.provider,
+      model: config.model,
+      testedAt: new Date().toISOString(),
+      elapsedMs: Date.now() - started,
+      configurationVersion: expectedVersion,
+    };
+  }
+
   async status(): Promise<{
     enabled: boolean;
     provider: AiProvider;
@@ -233,7 +298,7 @@ export class AiChatService {
   }> {
     const config = await this.runtime();
     return {
-      enabled: config.enabled && this.key !== null && config.api_key_ciphertext !== null,
+      enabled: config.enabled && this.decrypt(config) !== null,
       provider: config.provider,
       model: config.model,
       availableModels:
@@ -578,9 +643,20 @@ export class AiChatService {
         stopped: result.stopped,
       };
     } catch (problem) {
-      await this.pool
-        .query('SELECT ai_chat_abort($1,$2,$3)', [principalId, threadId, requestId])
-        .catch(() => undefined);
+      if (problem instanceof ProviderStreamError && problem.partialText.trim()) {
+        // Preserve a visible partial answer before releasing this request's SQL lease.
+        await this.pool.query('SELECT ai_chat_finish($1,$2,$3,$4::varchar,$5::varchar)', [
+          principalId,
+          threadId,
+          requestId,
+          problem.partialText.slice(0, 8192),
+          'stopped',
+        ]);
+      } else {
+        await this.pool
+          .query('SELECT ai_chat_abort($1,$2,$3)', [principalId, threadId, requestId])
+          .catch(() => undefined);
+      }
       if (problem instanceof ProviderStreamError) {
         throw new AiServiceError(problem.code, problem.status, problem.message);
       }

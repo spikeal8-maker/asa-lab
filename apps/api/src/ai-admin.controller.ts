@@ -1,4 +1,14 @@
-import { Body, Controller, Get, HttpCode, HttpException, Inject, Put, Req } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpException,
+  Inject,
+  Post,
+  Put,
+  Req,
+} from '@nestjs/common';
 import type { FastifyRequest } from 'fastify';
 import type { ActiveContextUseCase } from '@asa-lab/identity';
 import { AiChatService, AiServiceError, type AiProvider, type AiModel } from './ai-chat.service.js';
@@ -65,6 +75,27 @@ export class AiAdminController {
   async get(@Req() request: FastifyRequest) {
     const principalId = await this.requirePlatformAdmin(request);
     return this.safe(() => this.ai.adminConfig(principalId));
+  }
+
+  @Post('test')
+  @HttpCode(200)
+  async test(@Req() request: FastifyRequest, @Body() raw: unknown) {
+    this.requireSameOrigin(request);
+    const principalId = await this.requirePlatformAdmin(request);
+    const body = raw as { acknowledgePaidRequest?: unknown; configurationVersion?: unknown } | null;
+    if (
+      !body ||
+      body.acknowledgePaidRequest !== true ||
+      !Number.isSafeInteger(body.configurationVersion) ||
+      Number(body.configurationVersion) < 1
+    ) {
+      return reject(
+        'ai_test_confirmation_required',
+        'Подтвердите один платный запрос к сохранённой модели.',
+        400,
+      );
+    }
+    return this.safe(() => this.ai.testConnection(principalId, Number(body.configurationVersion)));
   }
 
   @Put()

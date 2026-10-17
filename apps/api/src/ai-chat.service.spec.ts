@@ -211,4 +211,113 @@ describe('ASA native AI Chat', () => {
     expect(result.messages).toHaveLength(1);
     expect(fetchImpl).not.toHaveBeenCalled();
   });
+
+  it('persists interrupted streamed text before releasing its active SQL request', async () => {
+    const calls: Array<{ sql: string; params: unknown[] }> = [];
+    const query = vi.fn(async (sql: string, params: unknown[] = []) => {
+      calls.push({ sql, params });
+      if (sql.includes('ai_runtime_config')) return { rows: [secureRuntime()] };
+      if (sql.includes('ai_chat_begin')) return { rows: [{ admitted: true }] };
+      if (sql.includes('ai_chat_messages')) return { rows: [] };
+      return { rows: [{ ai_chat_finish: true }] };
+    });
+    const fetchImpl = vi.fn<typeof fetch>(
+      async () =>
+        new Response('event: response.output_text.delta\ndata: {"delta":"Не потерять"}\n\n', {
+          headers: { 'content-type': 'text/event-stream' },
+        }),
+    );
+    const service = new AiChatService({ query } as unknown as pg.Pool, {
+      encryptionKey: ROOT,
+      fetchImpl,
+    });
+    await expect(
+      service.sendStream(
+        PRINCIPAL,
+        THREAD,
+        'Вопрос',
+        REQUEST,
+        () => undefined,
+        new AbortController().signal,
+      ),
+    ).rejects.toMatchObject({ code: 'ai_stream_interrupted' });
+    const finish = calls.find(({ sql }) => sql.includes('ai_chat_finish'));
+    expect(finish?.params).toEqual([PRINCIPAL, THREAD, REQUEST, 'Не потерять', 'stopped']);
+    expect(calls.some(({ sql }) => sql.includes('ai_chat_abort'))).toBe(false);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it('explicit admin connection test verifies one response without enabling chat or storing a thread', async () => {
+    const query = vi.fn(async (sql: string) => {
+      if (sql.includes('ai_admin_get_config'))
+        return {
+          rows: [
+            {
+              enabled: false,
+              provider: 'openai',
+              model: 'gpt-5-mini',
+              api_key_configured: true,
+              key_fingerprint: 'test-hash',
+              configuration_version: 7,
+              updated_at: null,
+            },
+          ],
+        };
+      if (sql.includes('ai_runtime_config'))
+        return { rows: [{ ...secureRuntime(), enabled: false }] };
+      throw new Error('Connection test must not mutate config or history');
+    });
+    const fetchImpl = vi.fn<typeof fetch>(
+      async () =>
+        new Response(
+          'event: response.output_text.delta\ndata: {"delta":"OK"}\n\n' +
+            'event: response.completed\ndata: {"type":"response.completed"}\n\n',
+        ),
+    );
+    const service = new AiChatService({ query } as unknown as pg.Pool, {
+      encryptionKey: ROOT,
+      fetchImpl,
+    });
+    const result = await service.testConnection(PRINCIPAL, 7);
+    expect(result).toMatchObject({
+      provider: 'openai',
+      model: 'gpt-5-mini',
+      configurationVersion: 7,
+    });
+    expect(JSON.stringify(result)).not.toContain('sk-test-private-key');
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    await expect(service.testConnection(PRINCIPAL, 6)).rejects.toMatchObject({
+      code: 'ai_config_changed',
+    });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it('blocks a status and connection test when a saved API key cannot be decrypted', async () => {
+    const query = vi.fn(async (sql: string) =>
+      sql.includes('ai_admin_get_config')
+        ? {
+            rows: [
+              {
+                enabled: true,
+                provider: 'openai',
+                model: 'gpt-5-mini',
+                api_key_configured: true,
+                configuration_version: 2,
+                updated_at: null,
+              },
+            ],
+          }
+        : { rows: [secureRuntime()] },
+    );
+    const fetchImpl = vi.fn<typeof fetch>();
+    const service = new AiChatService({ query } as unknown as pg.Pool, {
+      encryptionKey: 'ab'.repeat(32),
+      fetchImpl,
+    });
+    expect((await service.status()).enabled).toBe(false);
+    await expect(service.testConnection(PRINCIPAL, 2)).rejects.toMatchObject({
+      code: 'ai_key_unavailable',
+    });
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
 });

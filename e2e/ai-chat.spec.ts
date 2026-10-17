@@ -325,3 +325,48 @@ test('AI model picker uses only admin-allowed OpenAI models', async ({ page }) =
   expect(fake.requests).toHaveLength(1);
   expect(fake.models).toEqual(['gpt-4.1-mini']);
 });
+
+for (const width of [1440, 390, 320]) {
+  test(`Admin tests the saved provider only with explicit paid consent at ${width}px`, async ({
+    page,
+  }) => {
+    await fixture(page);
+    await page.setViewportSize({ width, height: 800 });
+    const tests: unknown[] = [];
+    await page.route('**/api/admin/v1/ai/test', async (route) => {
+      tests.push(route.request().postDataJSON());
+      return route.fulfill({
+        json: {
+          provider: 'openai',
+          model: 'gpt-5-mini',
+          elapsedMs: 120,
+          testedAt: NOW,
+          configurationVersion: 2,
+        },
+      });
+    });
+    await page.goto('/#/admin/ai');
+    const verify = page.getByRole('button', { name: 'Проверить подключение', exact: true });
+    await expect(verify).toBeDisabled();
+    await page.getByLabel(/Новый API-ключ/).fill('sk-safe-test-value-not-real-key');
+    await page.getByRole('button', { name: 'Сохранить настройки', exact: true }).click();
+    await expect(page.getByText('Настроен', { exact: true })).toBeVisible();
+    expect(tests).toHaveLength(0);
+    await expect(verify).toBeDisabled();
+    await page.getByLabel('Подтверждаю один платный проверочный запрос').check();
+    await verify.click();
+    await expect(page.getByText(/Модель gpt-5-mini ответила/)).toBeVisible();
+    expect(tests).toEqual([{ acknowledgePaidRequest: true, configurationVersion: 2 }]);
+    await expect(verify).toBeDisabled();
+    await page.getByLabel('Модель', { exact: true }).selectOption('gpt-4.1-mini');
+    await expect(page.getByText(/Модель gpt-5-mini ответила/)).toHaveCount(0);
+    await expect(verify).toBeDisabled();
+    await expect
+      .poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
+      .toBe(true);
+    await page.screenshot({
+      path: test.info().outputPath(`ai-admin-connection-${width}.png`),
+      fullPage: true,
+    });
+  });
+}

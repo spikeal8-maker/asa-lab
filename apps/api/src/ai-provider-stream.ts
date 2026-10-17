@@ -7,6 +7,7 @@ export class ProviderStreamError extends Error {
     readonly code: string,
     readonly status: number,
     message: string,
+    readonly partialText: string = '',
   ) {
     super(message);
     this.name = 'ProviderStreamError';
@@ -128,6 +129,7 @@ export async function streamProviderText({
   let buffer = '';
   let content = '';
   let finished = false;
+  let providerTruncated = false;
 
   function handle(frame: string): void {
     if (finished || combined.aborted) return;
@@ -143,7 +145,7 @@ export async function streamProviderText({
       .join('\n');
     if (!data) return;
     if (data === '[DONE]') {
-      finished = true;
+      if (provider === 'deepseek') finished = true;
       return;
     }
     let payload: unknown;
@@ -152,12 +154,33 @@ export async function streamProviderText({
     } catch {
       throw new ProviderStreamError('ai_stream_invalid', 503, 'Повреждён ответ модели.');
     }
-    if (event === 'error' || (payload as { type?: string }).type === 'error') {
+    const packetType =
+      payload && typeof payload === 'object' ? (payload as { type?: unknown }).type : null;
+    if (
+      event === 'error' ||
+      packetType === 'error' ||
+      event === 'response.failed' ||
+      packetType === 'response.failed'
+    ) {
       throw new ProviderStreamError('ai_provider_error', 503, 'Провайдер прервал генерацию.');
     }
     if (
-      event === 'response.completed' ||
-      (payload as { type?: string }).type === 'response.completed'
+      provider === 'openai' &&
+      (event === 'response.incomplete' || packetType === 'response.incomplete')
+    ) {
+      throw new ProviderStreamError('ai_response_incomplete', 503, 'Модель не завершила ответ.');
+    }
+    if (provider === 'deepseek' && payload && typeof payload === 'object') {
+      const reason = (payload as { choices?: Array<{ finish_reason?: string | null }> })
+        .choices?.[0]?.finish_reason;
+      if (reason === 'length') providerTruncated = true;
+      else if (reason && reason !== 'stop') {
+        throw new ProviderStreamError('ai_response_incomplete', 503, 'Модель не завершила ответ.');
+      }
+    }
+    if (
+      provider === 'openai' &&
+      (event === 'response.completed' || packetType === 'response.completed')
     ) {
       finished = true;
       return;
@@ -192,24 +215,40 @@ export async function streamProviderText({
     }
   } catch (error) {
     if (signal.aborted) return { text: content, stopped: true };
-    if (error instanceof ProviderStreamError) throw error;
+    if (error instanceof ProviderStreamError) {
+      throw new ProviderStreamError(error.code, error.status, error.message, content);
+    }
     throw new ProviderStreamError(
       timeout.aborted ? 'ai_provider_timeout' : 'ai_stream_interrupted',
       timeout.aborted ? 504 : 503,
       timeout.aborted ? 'Время ожидания модели истекло.' : 'Поток модели был прерван.',
+      content,
     );
   } finally {
     await reader.cancel().catch(() => undefined);
     reader.releaseLock();
   }
   if (timeout.aborted && !signal.aborted) {
-    throw new ProviderStreamError('ai_provider_timeout', 504, 'Время ожидания модели истекло.');
+    throw new ProviderStreamError(
+      'ai_provider_timeout',
+      504,
+      'Время ожидания модели истекло.',
+      content,
+    );
+  }
+  if (!finished && !signal.aborted && content.length < MAX_RESULT_CHARS) {
+    throw new ProviderStreamError(
+      'ai_stream_interrupted',
+      503,
+      'Соединение закрыто до завершения ответа модели.',
+      content,
+    );
   }
   if (!content.trim() && !signal.aborted) {
     throw new ProviderStreamError('ai_response_empty', 503, 'Модель не вернула текст ответа.');
   }
   return {
     text: content,
-    stopped: signal.aborted || content.length >= MAX_RESULT_CHARS,
+    stopped: signal.aborted || providerTruncated || content.length >= MAX_RESULT_CHARS,
   };
 }
