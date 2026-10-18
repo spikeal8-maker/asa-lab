@@ -5,6 +5,8 @@ on:
     paths:
       - 'compose.test.yaml'
       - '.github/compose.registry-ci.yaml'
+      - 'tools/test_ci_image_transport.py'
+      - 'docs/product/electronics/evidence/ci-image-transport-429-receipt.json'
       - 'apps/api/src/origin-policy.ts'
       - 'apps/api/src/app.factory.ts'
       - 'AGENTS.md'
@@ -153,7 +155,10 @@ jobs:
       - name: Build isolated Electronics browser images
         run: >-
           docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml --profile test
-          build --build-arg NODE_IMAGE=public.ecr.aws/docker/library/node@sha256:43aeff40f4afc22e83f7589a2f37e111cff5ca84529571f1c8415bcc5fcc21b2 --build-arg CADDY_IMAGE=public.ecr.aws/docker/library/caddy@sha256:d8c17a862962def15cde69863a3a463f25a2664942eafd7bdbf050e9c3116b83 --build-arg BUILDKIT_SYNTAX=mirror.gcr.io/docker/dockerfile@sha256:b5f3b260a9678e1d83d2fce86eeddf79420b79147eaba2a25986f47133d73720 migration api web test-runner
+          build --build-arg NODE_IMAGE=mirror.gcr.io/library/node@sha256:43aeff40f4afc22e83f7589a2f37e111cff5ca84529571f1c8415bcc5fcc21b2 --build-arg CADDY_IMAGE=mirror.gcr.io/library/caddy@sha256:d8c17a862962def15cde69863a3a463f25a2664942eafd7bdbf050e9c3116b83 --build-arg BUILDKIT_SYNTAX=mirror.gcr.io/docker/dockerfile@sha256:b5f3b260a9678e1d83d2fce86eeddf79420b79147eaba2a25986f47133d73720 migration api web test-runner
+
+      - name: Verify Electronics built image identity
+        run: python3 tools/test_ci_image_transport.py --electronics-built-images
 
       - name: Start isolated PostgreSQL
         run: >-
@@ -216,7 +221,7 @@ jobs:
           persist-credentials: false
 
       - name: Build exact API and Web review images
-        run: docker compose -f compose.yaml -f .github/compose.registry-ci.yaml build --build-arg NODE_IMAGE=public.ecr.aws/docker/library/node@sha256:43aeff40f4afc22e83f7589a2f37e111cff5ca84529571f1c8415bcc5fcc21b2 --build-arg CADDY_IMAGE=public.ecr.aws/docker/library/caddy@sha256:d8c17a862962def15cde69863a3a463f25a2664942eafd7bdbf050e9c3116b83 --build-arg BUILDKIT_SYNTAX=mirror.gcr.io/docker/dockerfile@sha256:b5f3b260a9678e1d83d2fce86eeddf79420b79147eaba2a25986f47133d73720 api web
+        run: docker compose -f compose.yaml -f .github/compose.registry-ci.yaml build --build-arg NODE_IMAGE=mirror.gcr.io/library/node@sha256:43aeff40f4afc22e83f7589a2f37e111cff5ca84529571f1c8415bcc5fcc21b2 --build-arg CADDY_IMAGE=mirror.gcr.io/library/caddy@sha256:d8c17a862962def15cde69863a3a463f25a2664942eafd7bdbf050e9c3116b83 --build-arg BUILDKIT_SYNTAX=mirror.gcr.io/docker/dockerfile@sha256:b5f3b260a9678e1d83d2fce86eeddf79420b79147eaba2a25986f47133d73720 api web
 
       - name: Verify exact revision labels
         shell: bash

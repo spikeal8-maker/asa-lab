@@ -14,6 +14,7 @@ import os
 from pathlib import Path
 import platform
 import re
+import shlex
 import subprocess
 
 
@@ -21,7 +22,10 @@ ROOT = Path(__file__).resolve().parents[1]
 RECEIPT = ROOT / "docs/product/electronics/evidence/ci-image-transport-545-receipt.json"
 OVERLAY = ".github/compose.registry-ci.yaml"
 GENERAL = ".github/workflows/spec-validation.yml"
-TRANSPORT = "docs/product/projects/evidence/ci-node-transport-429-receipt.json"
+FOCUSED = ".github/workflows/electronics-r4-m1-focused.yml"
+ELECTRONICS_TRANSPORT = "docs/product/electronics/evidence/ci-image-transport-429-receipt.json"
+ELECTRONICS_PROOF = {"run": "python3 tools/test_ci_image_transport.py --electronics-built-images"}
+GENERAL_TRANSPORT = "docs/product/projects/evidence/ci-node-transport-429-receipt.json"
 ORIGINAL_RECEIPT_SHA256 = "9b3b516e257aa31d3feb4a64c9dc8bfe7c33c9ad7d1be448245d8df044f7f273"
 
 
@@ -48,7 +52,7 @@ def build_args(receipt):
 
 def general_node_receipt(receipt):
     """Reuse the reviewed Node metadata for the General data job only."""
-    override = json.loads(read(TRANSPORT))
+    override = json.loads(read(GENERAL_TRANSPORT))
     require(hashlib.sha256(RECEIPT.read_bytes()).hexdigest() == ORIGINAL_RECEIPT_SHA256
             and override["original_receipt_sha256"] == ORIGINAL_RECEIPT_SHA256,
             "Original 545 receipt identity changed")
@@ -95,6 +99,51 @@ def general_node_contract(contract, original, effective):
             step["run"] = step["run"].replace(build_args(original), build_args(effective))
             changed += 1
     require(changed == 1, "General transport must change exactly one required build")
+    return contract
+
+
+def electronics_receipt(receipt):
+    """Only the reviewed Node/Caddy transport changes; identity never changes."""
+    override = json.loads(read(ELECTRONICS_TRANSPORT))
+    require(hashlib.sha256(RECEIPT.read_bytes()).hexdigest() == ORIGINAL_RECEIPT_SHA256
+            and override["original_receipt_sha256"] == ORIGINAL_RECEIPT_SHA256,
+            "Original 545 receipt identity changed")
+    require(override["workflow"] == FOCUSED and set(override["images"]) == {"node", "caddy"},
+            "Transport override must affect only Electronics Node/Caddy")
+    require(override["platform"] == receipt["platform"]
+            == {"os": "linux", "architecture": "amd64"}, "Transport platform mismatch")
+    require(override["host_probe"]["probe_receipt_sha256"]
+            == "c1264a738e5a0ed29de2b25626ce9642f1a4d561f3f86282f4a1ca9ebdddd989",
+            "Unreviewed host metadata provenance")
+    result = deepcopy(receipt)
+    for name, image in override["images"].items():
+        original = receipt["images"][name]
+        require(image["reference"] == "mirror.gcr.io/library/" + name + "@"
+                + original["manifest_digest"], "Unapproved transport reference: " + name)
+        for key in ["manifest_digest", "source_identity", "transport_identity", "config",
+                    "layers", "rootfs_diff_ids"]:
+            require(image[key] == original[key], "Immutable identity changed: " + name + ":" + key)
+        captures = image["raw_provenance"]
+        require(set(captures) == {"source", "mirror"}, "Missing raw image provenance: " + name)
+        for capture in captures.values():
+            require(capture["manifest_sha256"] == original["manifest_digest"].removeprefix("sha256:")
+                    and capture["config_sha256"] == original["config"]["digest"].removeprefix("sha256:")
+                    and capture["manifest_bytes"] > 0
+                    and capture["config_bytes"] == original["config"]["size"],
+                    "Raw provenance does not identify original manifest/config: " + name)
+        result["images"][name]["reference"] = image["reference"]
+    return result
+
+def electronics_contract(contract, original, effective):
+    contract = deepcopy(contract)
+    for job_id in ["browser", "review-images"]:
+        steps = contract["jobs"][job_id]["required_steps"]
+        for index, step in enumerate(steps):
+            if build_args(original) in step.get("run", ""):
+                step["run"] = step["run"].replace(build_args(original), build_args(effective))
+                if job_id == "browser":
+                    steps.insert(index + 1, ELECTRONICS_PROOF)
+                break
     return contract
 
 
@@ -167,7 +216,7 @@ def covers_required_triggers(actual, required):
     return True
 
 
-def check_workflow(path, contract, receipt, general_node):
+def check_workflow(path, contract, receipt, general_node, electronics):
     workflow = parse_yaml(read(path))
     require(covers_required_triggers(workflow.get("on"), contract["required_triggers"]),
             "Missing or narrowed mandatory workflow trigger: " + path)
@@ -192,7 +241,11 @@ def check_workflow(path, contract, receipt, general_node):
     # Check every Compose operation, including newly added ones. Parse folded
     # YAML commands first; checking just the first physical line misses flags.
     for job_id, job in workflow.get("jobs", {}).items():
-        effective = general_node if path == GENERAL and job_id == "postgres-tests" else receipt
+        effective = receipt
+        if path == GENERAL and job_id == "postgres-tests":
+            effective = general_node
+        elif path == FOCUSED and job_id in {"browser", "review-images"}:
+            effective = electronics
         arguments = build_args(effective)
         for step in job.get("steps", []):
             command = step.get("run", "")
@@ -202,6 +255,24 @@ def check_workflow(path, contract, receipt, general_node):
                 if re.search(r"\bbuild\b", operation):
                     require(arguments in operation,
                             "Build missing exact immutable arguments: " + job_id)
+                    tokens = shlex.split(operation)
+                    selected = []
+                    expected_images = [("NODE_IMAGE", "node"), ("CADDY_IMAGE", "caddy"),
+                                       ("BUILDKIT_SYNTAX", "frontend")]
+                    for index, token in enumerate(tokens):
+                        if token == "--build-arg":
+                            require(index + 1 < len(tokens), "Incomplete build argument")
+                            argument = tokens[index + 1]
+                        elif token.startswith("--build-arg="):
+                            argument = token.removeprefix("--build-arg=")
+                        else:
+                            continue
+                        name, _, value = argument.partition("=")
+                        if name in dict(expected_images):
+                            selected.append((name, value))
+                    require(selected == [(name, effective["images"][image]["reference"])
+                                         for name, image in expected_images],
+                            "Duplicate or overridden scoped image argument: " + job_id)
 
 
 def check_offline(receipt):
@@ -222,11 +293,14 @@ def check_offline(receipt):
     for name, expected in contract["gate_scripts"].items():
         require(package.get("scripts", {}).get(name) == expected,
                 "Required gate definition changed: " + name)
-    effective = general_node_receipt(receipt)
+    general_node = general_node_receipt(receipt)
+    electronics = electronics_receipt(receipt)
     for path, expected in contract["workflows"].items():
         if path == GENERAL:
-            expected = general_node_contract(expected, receipt, effective)
-        check_workflow(path, expected, receipt, effective)
+            expected = general_node_contract(expected, receipt, general_node)
+        elif path == FOCUSED:
+            expected = electronics_contract(expected, receipt, electronics)
+        check_workflow(path, expected, receipt, general_node, electronics)
     print("CI image transport semantic guard: PASS (5 immutable mappings; required gates/security/defaults)")
 
 
@@ -332,13 +406,30 @@ def check_pulled_postgres(receipt):
 
 
 
+def check_electronics_built_images(receipt):
+    """Read-only post-build proof; no Node, YAML dependency or new image pull."""
+    require_ci_amd64()
+    effective = electronics_receipt(receipt)
+    check_built_images(effective)
+    revision = os.environ["ASA_BUILD_REVISION"]
+    reference = "asa-lab-web:" + revision
+    image = inspect_image(reference)
+    layers = effective["images"]["caddy"]["rootfs_diff_ids"]
+    require(image["RootFS"]["Layers"][:len(layers)] == layers,
+            "Built Web image does not use the exact original Caddy base")
+    require(image["Config"].get("Labels", {}).get("org.opencontainers.image.revision") == revision,
+            "Web revision label differs from candidate SHA")
+    print(json.dumps({"built_image": reference, "config_digest": image["Id"],
+                      "caddy_base_diff_ids": layers, "source_revision": revision}))
+
+
 def check_challenges(receipt):
     """Exercise real checkers with in-memory inputs, without Docker or writes."""
     from contextlib import redirect_stdout
     from io import StringIO
     from unittest.mock import patch
 
-    source = {path: read(path) for path in [OVERLAY, TRANSPORT, "compose.yaml", "package.json",
+    source = {path: read(path) for path in [OVERLAY, GENERAL_TRANSPORT, ELECTRONICS_TRANSPORT, "compose.yaml", "package.json",
               *receipt["semantic_contract"]["dockerfile_defaults"],
               *receipt["semantic_contract"]["workflows"]]}
     general = ".github/workflows/spec-validation.yml"
@@ -346,6 +437,8 @@ def check_challenges(receipt):
     outcomes = []
 
     def challenge(name, replacements, passes):
+        require(passes or any(source[path] != changed for path, changed in replacements.items()),
+                "Negative challenge did not mutate an input: " + name)
         contents = {**source, **replacements}
         error = None
         with patch(__name__ + ".read", side_effect=contents.__getitem__):
@@ -435,7 +528,7 @@ def check_challenges(receipt):
     challenge("General original registry is no longer selected", {general: source[general].replace(
               build_args(effective), build_args(receipt))}, False)
     challenge("Electronics Node transport is outside scope", {focused: source[focused].replace(
-              build_args(receipt), build_args(effective))}, False)
+              build_args(electronics_receipt(receipt)), build_args(effective))}, False)
     other_job = parse_yaml(source[general])
     other_job["jobs"]["code"]["steps"].append({"run": "docker compose -f compose.yaml -f "
         + OVERLAY + " build " + build_args(effective) + " migration test-runner"})
@@ -452,7 +545,7 @@ def check_challenges(receipt):
               "          python3 tools/test_ci_image_transport.py --built-images\n", "")}, False)
     challenge("missing existing PostgreSQL proof", {general: source[general].replace(
               "          python3 tools/test_ci_image_transport.py --pulled-postgres\n", "")}, False)
-    override = json.loads(source[TRANSPORT])
+    override = json.loads(source[GENERAL_TRANSPORT])
     for name, path, value in [
         ("wrong transport workflow", ["workflow"], focused),
         ("wrong transport job", ["job"], "code"),
@@ -477,7 +570,62 @@ def check_challenges(receipt):
         for key in path[:-1]:
             parent = parent[key]
         parent[path[-1]] = value
-        challenge(name, {TRANSPORT: json.dumps(changed)}, False)
+        challenge(name, {GENERAL_TRANSPORT: json.dumps(changed)}, False)
+    override = json.loads(source[ELECTRONICS_TRANSPORT])
+    for name, path, value in [
+        ("wrong transport scope", ["workflow"], general),
+        ("wrong transport platform", ["platform", "architecture"], "arm64"),
+        ("mutable transport tag", ["images", "node", "reference"], "mirror.gcr.io/library/node:latest"),
+        ("wrong transport manifest", ["images", "node", "manifest_digest"], "sha256:" + "0" * 64),
+        ("wrong transport config", ["images", "node", "config", "digest"], "sha256:" + "0" * 64),
+        ("wrong transport layers", ["images", "caddy", "layers"], []),
+        ("wrong transport rootfs", ["images", "node", "rootfs_diff_ids"], []),
+        ("missing image provenance", ["images", "caddy", "raw_provenance"], {}),
+        ("unreviewed host provenance", ["host_probe", "probe_receipt_sha256"], "0" * 64),
+    ]:
+        changed = deepcopy(override)
+        parent = changed
+        for key in path[:-1]:
+            parent = parent[key]
+        parent[path[-1]] = value
+        challenge("Electronics " + name, {ELECTRONICS_TRANSPORT: json.dumps(changed)}, False)
+    effective = electronics_receipt(receipt)
+    challenge("General transport override", {general: source[general].replace(
+              build_args(general_node_receipt(receipt)), build_args(effective))}, False)
+    challenge("missing post-build identity proof", {focused: source[focused].replace(
+              "      - name: Verify Electronics built image identity\n"
+              "        run: " + ELECTRONICS_PROOF["run"] + "\n\n", "")}, False)
+    challenge("focused browser gate weakening", {focused: source[focused].replace(
+              "pnpm gate:electronics-m1:browser", "pnpm gate:electronics-m1:browser || true")}, False)
+    challenge("General receipt cannot replace Electronics receipt",
+              {ELECTRONICS_TRANSPORT: source[GENERAL_TRANSPORT]}, False)
+    challenge("Electronics receipt cannot replace General receipt",
+              {GENERAL_TRANSPORT: source[ELECTRONICS_TRANSPORT]}, False)
+    other_focused_job = parse_yaml(source[focused])
+    other_focused_job["jobs"]["outside-scope"] = {"steps": [{"run":
+        "docker compose -f compose.yaml -f " + OVERLAY + " build " + build_args(effective)
+        + " migration test-runner"}]}
+    challenge("Extra Electronics job cannot reuse scoped mirror mapping",
+              {focused: json.dumps(other_focused_job)}, False)
+    for argument in ["NODE_IMAGE", "CADDY_IMAGE", "BUILDKIT_SYNTAX"]:
+        for form in ["--build-arg " + argument + "=other.example/override@sha256:" + "0" * 64,
+                     "--build-arg='" + argument + "=other.example/override@sha256:" + "0" * 64 + "'",
+                     "--build-arg " + argument]:
+            duplicate_job = parse_yaml(source[general])
+            duplicate_job["jobs"]["code"]["steps"].append({"run":
+                "docker compose -f compose.yaml -f " + OVERLAY + " build " + build_args(receipt)
+                + " " + form + " migration test-runner"})
+            challenge("Extra job cannot override " + argument + " after baseline arguments: " + form,
+                      {general: json.dumps(duplicate_job)}, False)
+    try:
+        challenge("unmodified negative probe", {focused: source[focused]}, False)
+    except ValueError as failure:
+        require("Negative challenge did not mutate an input" in str(failure),
+                "No-op protection must reject before invoking the source checker")
+        outcomes.append({"challenge": "negative mutation no-op protection",
+                         "result": "PASS", "rejection": str(failure)})
+    else:
+        raise ValueError("Unmodified negative probe was not rejected")
     original = {"services": {"postgres": {"image": "postgres:17.7-bookworm"},
                              "test-runner": {"command": "pnpm gate:data"}}}
     for changed_service in (False, True):
@@ -498,6 +646,55 @@ def check_challenges(receipt):
     print(json.dumps({"semantic_challenges": outcomes}, indent=2))
 
 
+def check_electronics_proof_challenges(receipt):
+    """Challenge the real runtime checker using Docker inspect JSON, never Docker."""
+    from contextlib import redirect_stdout
+    from io import StringIO
+    from unittest.mock import patch
+
+    revision = "1" * 40
+    def built(base):
+        return {"Architecture": "amd64", "Os": "linux", "Id": "sha256:" + "2" * 64,
+                "RootFS": {"Layers": receipt["images"][base]["rootfs_diff_ids"] + ["application"]},
+                "Config": {"Labels": {"org.opencontainers.image.revision": revision}}}
+    original = {"api": built("node"), "test": built("node"), "web": built("caddy")}
+    cases = [("identical built images", None, None, None)]
+    for service in original:
+        cases += [(service + " wrong rootfs", service, "rootfs", []),
+                  (service + " wrong platform", service, "platform", "arm64"),
+                  (service + " wrong OS", service, "os", "windows")]
+    for service in ["api", "web"]:
+        cases += [(service + " wrong revision", service, "revision", "3" * 40),
+                  (service + " missing revision", service, "revision", None)]
+    for name, service, field, value in cases:
+        images = deepcopy(original)
+        if field == "rootfs":
+            images[service]["RootFS"]["Layers"] = value
+        elif field == "platform":
+            images[service]["Architecture"] = value
+        elif field == "os":
+            images[service]["Os"] = value
+        elif field == "revision":
+            labels = images[service]["Config"]["Labels"]
+            if value is None:
+                del labels["org.opencontainers.image.revision"]
+            else:
+                labels["org.opencontainers.image.revision"] = value
+        error = None
+        with patch.dict(os.environ, {"GITHUB_ACTIONS": "true", "ASA_BUILD_REVISION": revision,
+                                    "ASA_IMAGE_TAG": revision}), \
+                patch(__name__ + ".platform.system", return_value="Linux"), \
+                patch(__name__ + ".platform.machine", return_value="x86_64"), \
+                patch(__name__ + ".docker_json", side_effect=lambda args: [images[args[-1].split(":")[0].removeprefix("asa-lab-")]]):
+            try:
+                with redirect_stdout(StringIO()):
+                    check_electronics_built_images(receipt)
+            except (ValueError, KeyError) as failure:
+                error = str(failure)
+        require((error is None) == (service is None), "Built identity challenge failed: " + name)
+        print(json.dumps({"built_identity_challenge": name, "result": "PASS", "rejection": error}))
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--self-test", action="store_true")
@@ -506,11 +703,19 @@ def main():
     parser.add_argument("--compose-model-check", action="store_true")
     parser.add_argument("--built-images", action="store_true")
     parser.add_argument("--pulled-postgres", action="store_true")
+    parser.add_argument("--electronics-built-images", action="store_true",
+                        help="JSON/stdlib-only post-build proof on disposable Electronics CI")
     options = parser.parse_args()
     receipt = json.loads(RECEIPT.read_text(encoding="utf-8"))
+    if options.electronics_built_images:
+        require(not any([options.self_test, options.baseline_proof, options.compose_model_check,
+                         options.built_images, options.pulled_postgres]), "Use one explicit proof mode")
+        check_electronics_built_images(receipt)
+        return
     check_offline(receipt)
     if options.self_test:
         check_challenges(receipt)
+        check_electronics_proof_challenges(receipt)
     if options.baseline_proof:
         check_original_baseline(receipt)
     if options.compose_model_check or options.built_images or options.pulled_postgres:
