@@ -42,3 +42,40 @@ is separate exact-SHA CI. Required independent read-only final SHA challenge;
 author tests are not independent review. No DOM/CSS/text changes: layout none.
 
 NEXT_ALLOWED_TASK: STOP after point 5 and the complete owner report.
+
+## Author self-review
+
+POST_STEP_REVIEW / CHALLENGE_REVIEW: L3_CRITICAL; layout impact none.
+Only existing refresh handling, cookies on failure and confirmed client
+invalidation are changed. Identity endpoints and original Account-first priority
+remain authoritative; telemetry continuity only suppresses stale side effects.
+No new auth store, grants, SQL, TTL, save semantics or visible UI changes.
+Active Seat with stale Account refresh is refused without rotation. Failed
+refresh no longer sends any cookie deletion; explicit logout still revokes both.
+Automatic cross-tab messages require fresh proof and ignore disposal/context
+changes. Distinct reason/outcome/session-kind logs contain no credential values.
+
+Initial focused 121 tests and uncached API/web dependency graph (17 tasks) pass.
+Additional timeout/new-context-flight regressions, final convergence validation,
+independent final SHA review and exact CI are recorded in issue #602 and the
+owner report. A test fixture initially retained diagnostic mock history across
+cases; test cleanup fixed, product assertions preserved. PostgreSQL/browser/load
+and production collection are separate evidence, not established by port mocks.
+
+### Bounded independent-review repair R1
+
+Review of candidate552c3267 returned FAIL: proof continuity was checked in the
+helper continuation, allowing a queued context change before its caller applied
+automatic logout. Repair only the two automatic effect sites: synchronously
+recheck the initiating continuity immediately before invalidation, with focused
+regressions for the post-proof/pre-effect gap. No new feature or task. Fresh
+independent final-SHA review is required after this bounded repair.
+
+### Bounded independent-review repair R2
+
+Fresh review of a5ba8e05 accepted R1 but found that separate local subscribers
+could race: the first automatic callback changed continuity and prevented other
+listeners from seeing logout. R2 only dispatches the existing local logout event
+after one confirmed automatic proof, notifying every subscriber once. Preserve
+the synchronous context fence. Regression uses two subscribers with ready=true;
+fresh independent final-SHA review remains required.

@@ -2,9 +2,57 @@ const REFRESH_PATH = '/api/auth/refresh';
 const SESSION_CHANNEL = 'asa-lab-session';
 const LOCAL_LOGOUT_EVENT = 'asa-session-logout';
 
-let refreshInFlight: Promise<boolean> | null = null;
+let refreshInFlight: { continuity: number; promise: Promise<boolean> } | null = null;
+
+// The counter only fences asynchronous effects. Authentication is proved by
+// the existing server identity endpoints, never by telemetry or a client role.
+const continuity = () => telemetryContext().continuity;
+
+async function identityAbsent(path: string): Promise<boolean> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 5000);
+  try {
+    const response = await fetch(path, {
+      credentials: 'same-origin',
+      cache: 'no-store',
+      signal: controller.signal,
+      headers: { accept: 'application/json' },
+    });
+    if (response.status === 401) return true;
+    if (!response.ok) return false;
+    const body: unknown = await response.json();
+    return (
+      body !== null &&
+      typeof body === 'object' &&
+      !Array.isArray(body) &&
+      (body as { authenticated?: unknown }).authenticated === false
+    );
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function confirmSessionAbsent(expected: number): Promise<boolean> {
+  if (continuity() !== expected) return false;
+  const absent = await Promise.all([
+    identityAbsent('/api/auth/me'),
+    identityAbsent('/api/class-join/me'),
+  ]);
+  return absent.every(Boolean) && continuity() === expected;
+}
+
+async function responseCode(response: Response): Promise<string | undefined> {
+  try {
+    return (await response.clone().json())?.error?.code;
+  } catch {
+    return undefined;
+  }
+}
 
 function canRefresh(path: string): boolean {
+  path = path.split('?')[0]!;
   // Observability is best-effort and cannot rotate credentials or log out the
   // user, including a StudentSeat without an Account refresh credential.
   if (isTelemetryPath(path)) return false;
@@ -21,9 +69,10 @@ function canRefresh(path: string): boolean {
   ].includes(path);
 }
 
-async function refreshSession(): Promise<boolean> {
-  if (refreshInFlight) return refreshInFlight;
-  refreshInFlight = (async () => {
+async function refreshSession(expected: number): Promise<boolean> {
+  if (refreshInFlight?.continuity === expected) return refreshInFlight.promise;
+  const flight = { continuity: expected, promise: Promise.resolve(false) };
+  flight.promise = (async () => {
     const attempt = async (): Promise<Response | null> => {
       try {
         return await fetch(REFRESH_PATH, {
@@ -37,10 +86,17 @@ async function refreshSession(): Promise<boolean> {
       }
     };
     let response = await attempt();
-    if (response?.status === 409) {
+    const code = response?.status === 409 ? await responseCode(response) : undefined;
+    // A valid Seat cannot use Account rotation. This is a deliberate skip,
+    // recorded by the server, not a failed Account recovery or logout signal.
+    if (code === 'refresh_not_applicable') return false;
+    if (code === 'refresh_stale') {
+      if (continuity() !== expected) return false;
       await new Promise((resolve) => window.setTimeout(resolve, 150));
+      if (continuity() !== expected) return false;
       response = await attempt();
     }
+    if (continuity() !== expected) return false;
     if (response?.ok) return true;
     reportClientDiagnostic('session_refresh_failed', 'auth', {
       phase: 'refresh',
@@ -51,12 +107,22 @@ async function refreshSession(): Promise<boolean> {
           }
         : {}),
     });
-    if (response?.status === 401) notifySessionLoggedOut();
+    if (
+      response?.status === 401 &&
+      (await confirmSessionAbsent(expected)) &&
+      continuity() === expected
+    ) {
+      applySessionLoggedOut();
+      // Automatic invalidation is a hint to other tabs, which must obtain
+      // their own fresh proof. Explicit user logout keeps its existing event.
+      broadcastSessionEvent('session-unavailable');
+    }
     return false;
   })().finally(() => {
-    refreshInFlight = null;
+    if (refreshInFlight === flight) refreshInFlight = null;
   });
-  return refreshInFlight;
+  refreshInFlight = flight;
+  return flight.promise;
 }
 
 export async function fetchWithSessionRefresh(
@@ -64,24 +130,37 @@ export async function fetchWithSessionRefresh(
   init: RequestInit = {},
 ): Promise<Response> {
   const telemetryBeforeRequest = telemetryContext();
+  const expected = continuity();
   const request = (): Promise<Response> =>
     fetch(path, { credentials: 'same-origin', ...init, cache: 'no-store' });
   const response = await request();
-  if (response.status !== 401 || !canRefresh(path)) return response;
-  if (!(await refreshSession())) return response;
+  if (response.status !== 401 || !canRefresh(path) || continuity() !== expected) return response;
+  if (!(await refreshSession(expected)) || continuity() !== expected) return response;
   const retried = await request();
   if (retried.ok) confirmTelemetryProductSession(telemetryBeforeRequest);
   return retried;
 }
 
-export function notifySessionLoggedOut(): void {
+function applySessionLoggedOut(): void {
   setTelemetryContext(null, false, telemetryContext().route);
   clearProtectedSessionCache();
   if (typeof window !== 'undefined') window.dispatchEvent(new Event(LOCAL_LOGOUT_EVENT));
+}
+
+function broadcastSessionEvent(type: 'logged-out' | 'session-unavailable'): void {
   if (typeof BroadcastChannel === 'undefined') return;
-  const channel = new BroadcastChannel(SESSION_CHANNEL);
-  channel.postMessage({ type: 'logged-out' });
-  channel.close();
+  try {
+    const channel = new BroadcastChannel(SESSION_CHANNEL);
+    channel.postMessage({ type });
+    channel.close();
+  } catch {
+    /* Another tab being unavailable cannot break the original request. */
+  }
+}
+
+export function notifySessionLoggedOut(): void {
+  applySessionLoggedOut();
+  broadcastSessionEvent('logged-out');
 }
 
 export function onSessionLoggedOut(listener: () => void): () => void {
@@ -92,14 +171,31 @@ export function onSessionLoggedOut(listener: () => void): () => void {
       : () => window.removeEventListener(LOCAL_LOGOUT_EVENT, listener);
   }
   const channel = new BroadcastChannel(SESSION_CHANNEL);
+  let closed = false;
+  let checking = false;
   channel.onmessage = (event) => {
-    if ((event.data as { type?: unknown } | null)?.type === 'logged-out') {
+    const type = (event.data as { type?: unknown } | null)?.type;
+    const acceptLogout = () => {
       setTelemetryContext(null, false, telemetryContext().route);
       clearProtectedSessionCache();
       listener();
+    };
+    if (type === 'logged-out') acceptLogout();
+    else if (type === 'session-unavailable' && !checking) {
+      checking = true;
+      const expected = continuity();
+      void confirmSessionAbsent(expected)
+        .then((absent) => {
+          if (absent && !closed && continuity() === expected) applySessionLoggedOut();
+        })
+        .catch(() => undefined)
+        .finally(() => {
+          checking = false;
+        });
     }
   };
   return () => {
+    closed = true;
     if (typeof window !== 'undefined') window.removeEventListener(LOCAL_LOGOUT_EVENT, listener);
     channel.close();
   };

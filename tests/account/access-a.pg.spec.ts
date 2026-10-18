@@ -398,6 +398,35 @@ describe('Result A: real Account and independent Classroom API', () => {
     const active = await signIn('Ab7k');
     expect(active.statusCode, active.body).toBe(200);
     const idleCookie = `asa_student_session=${active.cookies.find((c) => c.name === 'asa_student_session')!.value}`;
+    // A resource401 must not let a stale Account credential replace this Seat.
+    const unrelatedAccount = await account();
+    const guardedRefresh = await inject(app, {
+      method: 'POST',
+      url: '/api/auth/refresh',
+      headers: { cookie: `${idleCookie}; asa_refresh=${unrelatedAccount.refresh}` },
+    });
+    expect(guardedRefresh.statusCode, guardedRefresh.body).toBe(409);
+    expect(guardedRefresh.json().error.code).toBe('refresh_not_applicable');
+    expect(guardedRefresh.cookies).toHaveLength(0);
+    const stillSignedIn = await inject(app, {
+      method: 'GET',
+      url: '/api/class-join/me',
+      headers: { cookie: idleCookie },
+    });
+    expect(stillSignedIn.json().authenticated).toBe(true);
+    const accountRefresh = await inject(app, {
+      method: 'POST',
+      url: '/api/auth/refresh',
+      headers: { cookie: `asa_refresh=${unrelatedAccount.refresh}` },
+    });
+    expect(accountRefresh.statusCode, accountRefresh.body).toBe(200);
+    const missingRefresh = await inject(app, {
+      method: 'POST',
+      url: '/api/auth/refresh',
+      headers: { cookie: unrelatedAccount.cookie },
+    });
+    expect(missingRefresh.statusCode, missingRefresh.body).toBe(401);
+    expect(missingRefresh.cookies).toHaveLength(0);
     await admin.query(
       "UPDATE classroom_student_sessions SET last_seen_at=now()-interval '61 minutes' WHERE seat_id=$1 AND revoked_at IS NULL",
       [first.id],
