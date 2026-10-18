@@ -17,6 +17,7 @@ function secureRuntime() {
   ]);
   return {
     enabled: true,
+    configuration_version: 1,
     provider: 'openai' as const,
     model: 'gpt-5-mini' as const,
     api_key_ciphertext: ciphertext.toString('base64url'),
@@ -265,6 +266,7 @@ describe('ASA native AI Chat', () => {
         };
       if (sql.includes('ai_runtime_config'))
         return { rows: [{ ...secureRuntime(), enabled: false }] };
+      if (sql.includes('ai_admin_test_begin')) return { rows: [{ admitted: true }] };
       throw new Error('Connection test must not mutate config or history');
     });
     const fetchImpl = vi.fn<typeof fetch>(
