@@ -116,7 +116,9 @@ test('real participant works, persisted rating, merits, avatars and mixed-cookie
       await page.screenshot({ path: `${evidence}/roster-${width}.png`, fullPage: true });
     }
     await row.locator('.classroom-student-name').click();
-    await expect(page.getByRole('heading', { name: 'Анна Участница', exact: true })).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: 'Выбрать ученика: Анна Участница', exact: true }),
+    ).toBeVisible();
     // The redundant "1 of 1 accessible" sentence is intentionally hidden.
     // The one accessible project and the cross-module filters remain asserted.
     await expect(page.getByTestId('project-card')).toHaveCount(1);
