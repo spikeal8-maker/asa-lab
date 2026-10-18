@@ -385,6 +385,83 @@ def harden_panel_firewall(args):
     record("FIREWALL_HARDENED", admin_cidr=args.admin_cidr, backup=str(backup))
 
 
+def manager_handoff_resume_ready(args, path: Path) -> bool:
+    """Recognize ONLY the safe first-install checkout handoff, without guessing.
+
+    The published stable manager switches git HEAD and exits RETRY_NEW_MANAGER
+    before creating containers. The private .env must be reused verbatim.
+    An unrelated partial installation or active database is NEVER auto-resumed.
+    """
+    state = path / ".asa"
+    private = path / ".env"
+    receipt = state / "installation.json"
+    if not private.is_file() or private.is_symlink() or not receipt.is_file():
+        return False
+    if any((state / name).exists() for name in
+           ("installed-release.json", "maintenance.json", "failed-switch.json")):
+        return False
+    owner = pwd.getpwnam(args.operator)
+    mode = private.stat()
+    if mode.st_uid != owner.pw_uid or mode.st_mode & 0o077:
+        return False
+    try:
+        info = json.loads(receipt.read_text(encoding="utf-8"))
+        env = dict(line.split("=", 1) for line in
+                   private.read_text(encoding="utf-8").splitlines()
+                   if "=" in line and not line.lstrip().startswith("#"))
+    except (OSError, ValueError):
+        return False
+    if (info.get("format") != "asa-installation-v1" or
+            info.get("profile") != args.profile or
+            info.get("project") != "asa-lab-dev" or
+            env.get("COMPOSE_PROJECT_NAME") != "asa-lab-dev" or
+            env.get("POSTGRES_DB") != "asalab" or
+            env.get("ASA_SEED_DEV") != ("true" if args.profile == "dev" else "false")):
+        return False
+    if run("git", "remote", "get-url", "origin", capture=True,
+           as_user=args.operator, cwd=path) not in (REPO, REPO.removesuffix(".git")):
+        return False
+    if run("git", "branch", "--show-current", capture=True,
+           as_user=args.operator, cwd=path):
+        return False
+    if run("git", "status", "--porcelain", capture=True,
+           as_user=args.operator, cwd=path):
+        return False
+    if run("git", "rev-parse", "--is-shallow-repository", capture=True,
+           as_user=args.operator, cwd=path) != "false":
+        return False
+    if run("git", "merge-base", "--is-ancestor", "HEAD", "origin/main",
+           check=False, as_user=args.operator, cwd=path) != 0:
+        return False
+    if run("docker", "ps", "-aq", "--filter",
+           "label=com.docker.compose.project=asa-lab-dev", capture=True):
+        return False
+    volumes = run("docker", "volume", "ls", "--format", "{{.Name}}", capture=True)
+    if any(name.startswith("asa-lab-dev_") for name in volumes.splitlines()):
+        return False
+    return True
+
+
+def install_manager_with_bounded_handoff(args, path: Path) -> None:
+    """Retry exactly once when the stable manager intentionally changes its code."""
+    before = run("git", "rev-parse", "HEAD", capture=True,
+                 as_user=args.operator, cwd=path)
+    manager = ("python3", "tools/asa_manager.py", "install", "--profile", args.profile)
+    result = run(*manager, as_user=args.operator, cwd=path, check=False)
+    if result != 0:
+        after = run("git", "rev-parse", "HEAD", capture=True,
+                    as_user=args.operator, cwd=path)
+        require(result == 2 and before != after and
+                manager_handoff_resume_ready(args, path),
+                "Canonical installation failed outside a safe RETRY_NEW_MANAGER handoff; "
+                "inspect the checkpoint and preserve all data")
+        record("MANAGER_CODE_HANDOFF", original_revision=before,
+               published_revision=after, action="bounded-one-time-retry")
+        # The selected published release contains a new canonical manager.
+        # Re-run its install action once with preserved .env; never reset data.
+        run(*manager, as_user=args.operator, cwd=path)
+
+
 def source_install(args):
     path = args.root.resolve()
     if not (path / ".git").exists():
@@ -403,9 +480,10 @@ def source_install(args):
         owner = pwd.getpwnam(args.operator)
         run("chown", "-R", f"{owner.pw_uid}:{owner.pw_gid}", str(path))
     require((path / "tools/asa_manager.py").exists(), "ASA manager missing")
-    if not (path / ".asa/installed-release.json").is_file():
-        require(not (path / ".env").exists(),
-                "An unconfirmed .env exists without installed release; inspect recovery before re-installing")
+    if not (path / ".asa/installed-release.json").is_file() and (path / ".env").exists():
+        require(manager_handoff_resume_ready(args, path),
+                "Unconfirmed .env exists and is not a verified first-install manager handoff; "
+                "inspect recovery before re-installing")
     # The pinned stable release may precede this bootstrap commit and the
     # canonical manager intentionally detaches the operational checkout.
     # Preserve this recovery launcher OUTSIDE replaceable source files first.
@@ -435,8 +513,7 @@ def source_install(args):
         record("COLLECTOR_RECONCILED")
         return
     require(not (path / ".asa/maintenance.json").exists(), "An incomplete deployment already exists")
-    run("python3", "tools/asa_manager.py", "install", "--profile", args.profile,
-        as_user=args.operator, cwd=path)
+    install_manager_with_bounded_handoff(args, path)
     record("ASA_INSTALLED", root=str(path), profile=args.profile)
     doctor(args)
 

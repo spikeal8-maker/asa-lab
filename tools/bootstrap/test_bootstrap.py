@@ -289,6 +289,108 @@ class ExtractedBackupPreflight(unittest.TestCase):
                 panel.assert_not_called()
 
 
+class StableManagerCodeHandoffTests(unittest.TestCase):
+    """Regression for the observed RETRY_NEW_MANAGER on a freshly wiped host."""
+
+    @staticmethod
+    def checkout(path):
+        (path / ".asa").mkdir()
+        (path / ".git").mkdir()
+        private = path / ".env"
+        private.write_text("COMPOSE_PROJECT_NAME=asa-lab-dev\nPOSTGRES_DB=asalab\n"
+                           "ASA_SEED_DEV=false\n")
+        private.chmod(0o600)
+        (path / ".asa/installation.json").write_text(json.dumps({
+            "format": "asa-installation-v1",
+            "profile": "production",
+            "project": "asa-lab-dev",
+        }))
+        return types.SimpleNamespace(operator="root", profile="production", root=path)
+
+    @staticmethod
+    def read_only_git_and_docker(*argv, **kwargs):
+        if argv[:4] == ("git", "remote", "get-url", "origin"):
+            return rebuild.REPO
+        if argv[:3] in (("git", "branch", "--show-current"),
+                        ("git", "status", "--porcelain")):
+            return ""
+        if argv[:3] == ("git", "rev-parse", "--is-shallow-repository"):
+            return "false"
+        if argv[:3] == ("git", "merge-base", "--is-ancestor"):
+            return 0
+        if argv[:2] == ("docker", "ps"):
+            return ""
+        if argv[:3] == ("docker", "volume", "ls"):
+            return "1panel_persistent_data"
+        raise AssertionError(f"unexpected test command: {argv}")
+
+    def test_exact_detached_clean_handoff_reuses_private_env(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory)
+            args = self.checkout(path)
+            with mock.patch.object(rebuild, "run",
+                                   side_effect=self.read_only_git_and_docker):
+                self.assertTrue(rebuild.manager_handoff_resume_ready(args, path))
+
+    def test_handoff_rejected_if_database_switch_in_progress(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory)
+            args = self.checkout(path)
+            (path / ".asa/maintenance.json").write_text("{}")
+            with mock.patch.object(rebuild, "run") as run:
+                self.assertFalse(rebuild.manager_handoff_resume_ready(args, path))
+                run.assert_not_called()
+
+    def test_handoff_rejected_if_private_env_permissions_weak(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory)
+            args = self.checkout(path)
+            (path / ".env").chmod(0o644)
+            with mock.patch.object(rebuild, "run") as run:
+                self.assertFalse(rebuild.manager_handoff_resume_ready(args, path))
+                run.assert_not_called()
+
+    def test_manager_exit_two_on_exact_checkout_switch_retries_once(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory)
+            args = self.checkout(path)
+            attempts = []
+            old_sha, new_sha = "a" * 40, "b" * 40
+
+            def installer(*argv, **kwargs):
+                if argv[:3] == ("git", "rev-parse", "HEAD"):
+                    return old_sha if not attempts else new_sha
+                if argv[:2] == ("python3", "tools/asa_manager.py"):
+                    attempts.append(argv)
+                    return 2 if len(attempts) == 1 else 0
+                return self.read_only_git_and_docker(*argv, **kwargs)
+
+            with mock.patch.object(rebuild, "run", side_effect=installer), \
+                 mock.patch.object(rebuild, "record") as record:
+                rebuild.install_manager_with_bounded_handoff(args, path)
+                self.assertEqual(len(attempts), 2)
+                record.assert_called_once()
+
+    def test_manager_unrelated_failure_never_retries(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory)
+            args = self.checkout(path)
+            calls = []
+
+            def failure(*argv, **kwargs):
+                if argv[:3] == ("git", "rev-parse", "HEAD"):
+                    return "b" * 40
+                if argv[:2] == ("python3", "tools/asa_manager.py"):
+                    calls.append(argv)
+                    return 2
+                raise AssertionError("must stop before any recovery attempt")
+
+            with mock.patch.object(rebuild, "run", side_effect=failure):
+                with self.assertRaises(rebuild.Blocked):
+                    rebuild.install_manager_with_bounded_handoff(args, path)
+            self.assertEqual(len(calls), 1)
+
+
 class LinuxInstallerSecurity(unittest.TestCase):
     def test_occupied_web_port_blocks_without_creating_installation(self):
         class Occupied:
