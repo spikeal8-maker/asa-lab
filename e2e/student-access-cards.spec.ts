@@ -1,8 +1,7 @@
 import { expect, test, type Browser, type Locator, type Page } from '@playwright/test';
 import { mkdirSync, writeFileSync } from 'node:fs';
-import jsQR from 'jsqr';
 import { PNG } from 'pngjs';
-import { normalizePrintQrRaster } from './fixtures/qr-print-raster';
+import { decodeQrRaster } from './fixtures/qr-print-raster';
 import { e2eAdminPool } from './seed';
 import { registerAccountSetup } from './registration-setup';
 
@@ -46,32 +45,13 @@ async function decodeRenderedQr(
   }
   expect(quietZoneIntact, 'rendered QR quiet zone must not be cropped').toBe(true);
 
-  // Normalize only print decoder input, after checking the unmodified screenshot.
-  // The live SVG, its print size and all screen decoding remain unchanged.
-  const original = { data: rgba, width: png.width, height: png.height };
-  const raster = media === 'print' ? normalizePrintQrRaster(original) : original;
-  const decoded = jsQR(raster.data, raster.width, raster.height, {
-    inversionAttempts: 'dontInvert',
-  });
+  // Raw first; only a null print decode may select one 2x copy of this same PNG.
+  // Monochrome uses that selected raster without another fallback.
+  const { decoded, monochromeDecoded } = decodeQrRaster(
+    { data: rgba, width: png.width, height: png.height },
+    media,
+  );
   expect(decoded, 'rendered QR must decode independently from qrcode-generator').not.toBeNull();
-
-  // Print acceptance is monochrome. Threshold the rendered pixels to strict
-  // black/white and independently decode again.
-  const monochrome = new Uint8ClampedArray(raster.data.length);
-  for (let offset = 0; offset < raster.data.length; offset += 4) {
-    const luminance =
-      raster.data[offset]! * 0.2126 +
-      raster.data[offset + 1]! * 0.7152 +
-      raster.data[offset + 2]! * 0.0722;
-    const value = luminance < 160 ? 0 : 255;
-    monochrome[offset] = value;
-    monochrome[offset + 1] = value;
-    monochrome[offset + 2] = value;
-    monochrome[offset + 3] = 255;
-  }
-  const monochromeDecoded = jsQR(monochrome, raster.width, raster.height, {
-    inversionAttempts: 'dontInvert',
-  });
   expect(monochromeDecoded?.data, 'monochrome rendered QR must remain decodable').toBe(
     decoded!.data,
   );

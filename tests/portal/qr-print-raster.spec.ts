@@ -2,7 +2,11 @@ import { createHash } from 'node:crypto';
 import jsQR from 'jsqr';
 import { PNG } from 'pngjs';
 import { describe, expect, it } from 'vitest';
-import { normalizePrintQrRaster, type QrRaster } from '../../e2e/fixtures/qr-print-raster';
+import {
+  decodeQrRaster,
+  normalizePrintQrRaster,
+  type QrRaster,
+} from '../../e2e/fixtures/qr-print-raster';
 
 // Frozen DOM/CSS/SVG replay of Classroom run 39154885479 / job 117755945105,
 // source 662c8af4fbffead0f71b2fb95a4e9768d0c4b9fb, artifact 12146839286 SHA256
@@ -28,8 +32,31 @@ const failingPrintPng = Buffer.from(
 );
 const expectedUrl = 'http://127.0.0.1:4612/#/join-class?code=6SY%20DBR%203CE';
 
-function capturedRaster(): QrRaster {
-  const png = PNG.sync.read(failingPrintPng);
+// Actual original attachment from Classroom run 39163873957 / job 117782652334,
+// source b1387d32db98e70d635b9843016fee2f81b83cf7, artifact 12150460280.
+// This 20mm, 76x77 PNG decodes raw but fails if 2x is forced: category A regression.
+const rawSuccessPrintPng = Buffer.from(
+  [
+    'iVBORw0KGgoAAAANSUhEUgAAAEwAAABNCAIAAACDqRXZAAAClUlEQVR4nOxaW5LDMAgjM73/lbPdZLb1',
+    'GCRkT37WRl9tg58YkNy8zvO01fGyDVCLXAW1yFVQi1wF8SKP4zABd40Njf0jX5DfT7lZaJDOx2P740rI',
+    'kN/adsvfn9Hed7+LLmqHULrtUInnAnIab+Jj6eNkPhAPY5uaT3lSQxeN6NGN0GwoMidQntTgnfOJyRuo',
+    '1n3MULXs+plGefJCupckJnlGJQFMGk74li1SzAfthDoy4NffJSG0QeFxnc5PWxzXZyL7293fZnMffgZN',
+    'S/8j2F5qDcVDF1E8JklvofP9TMKyVFILIKzO5iLKZ0XDhA49JUMrBjyet8+uRNSQwDAnmlExDMvg0JVK',
+    'aOBR2XVEQ3XNU4OhPslZMAEztE6p+KJ+5+TWjxj2mS5148SjpA3DfkgvVMlwHVBmQr+EKD3pkCqpG6HB',
+    'BB07LhhONiKnL6l1W+AiTlg4cY5RqUUMWhCN7rF9dhXFbvuIbG1K69AETK66CCW1svKFlJTJO41iiSTh',
+    'iUE39qRCr/WGISXyX8W2YaY4Jv6fJHzNNILGU05aabpORLWBsP1xbREesNY4vf4Jf+elyCjfMPlE1M2A',
+    'iyL01agiQ2bhI9R/NzfUMERJLQye7tI7HpFLnhcMR2Pb0IoMSAiz2TFyMUu8IRZSLqAfWOS/Rk7Qw0SK',
+    'iFgYHsQbqSLzvhKlXwuVDIglJASZaFp4OJ1IU86Net81wwSDTy8QwpTGuy0y8IvH3ncNnU+EolFiPRRy',
+    'lrm6yMCFIUKcRtRoAeDZoaTWF48tciiKQuPQyQhD6bc8qYGrKpNdFJJERMeHaHp58kIaHmGT9AJlaDgk',
+    '3ETkf6enE+KynfR54td90oGGUH/CroJKPKugFrkKapGrYItF/gAAAP//Zpg01gAAAAZJREFUAwBZ1Owp',
+    'Op6SJgAAAABJRU5ErkJggg==',
+  ].join(''),
+  'base64',
+);
+const rawSuccessUrl = 'http://127.0.0.1:4612/#/join-class?code=4KT%203WE%20KCX';
+
+function capturedRaster(bytes = failingPrintPng): QrRaster {
+  const png = PNG.sync.read(bytes);
   return { data: new Uint8ClampedArray(png.data), width: png.width, height: png.height };
 }
 
@@ -49,8 +76,8 @@ function independentDecode(raster: QrRaster, monochrome = false): string | null 
   return jsQR(data, raster.width, raster.height, { inversionAttempts: 'dontInvert' })?.data ?? null;
 }
 
-describe('print QR raster normalization', () => {
-  it('decodes the frozen failing print screenshot without generating or changing QR pixels', () => {
+describe('captured QR decode selection', () => {
+  it('uses one 2x print fallback for the frozen raw-failing screenshot', () => {
     expect(createHash('sha256').update(failingPrintPng).digest('hex')).toBe(
       'fd04abbc6d259f1ba915e9edac039a2a56998cd74e61ccbc30eef8db2077ef9d',
     );
@@ -60,10 +87,61 @@ describe('print QR raster normalization', () => {
     expect(independentDecode(original)).toBeNull();
     expect(independentDecode(original, true)).toBeNull();
 
-    const normalized = normalizePrintQrRaster(original);
-    expect([normalized.width, normalized.height]).toEqual([124, 122]);
-    expect(independentDecode(normalized)).toBe(expectedUrl);
-    expect(independentDecode(normalized, true)).toBe(expectedUrl);
+    const result = decodeQrRaster(original, 'print');
+    expect([result.raster.width, result.raster.height]).toEqual([124, 122]);
+    expect(result.raster).not.toBe(original);
+    expect(result.decoded?.data).toBe(expectedUrl);
+    expect(result.monochromeDecoded?.data).toBe(expectedUrl);
+    expect(original.data).toEqual(before);
+  });
+
+  it('preserves the actual raw print success that forced 2x makes undecodable', () => {
+    expect(createHash('sha256').update(rawSuccessPrintPng).digest('hex')).toBe(
+      '901fd673efcc13f1cae57d481dc5d2d096dc4ce6aadcca9889758f886f213bcb',
+    );
+    const original = capturedRaster(rawSuccessPrintPng);
+    const before = new Uint8ClampedArray(original.data);
+    expect([original.width, original.height]).toEqual([76, 77]);
+    expect(independentDecode(original)).toBe(rawSuccessUrl);
+    expect(independentDecode(original, true)).toBe(rawSuccessUrl);
+    expect(independentDecode(normalizePrintQrRaster(original))).toBeNull();
+    expect(independentDecode(normalizePrintQrRaster(original), true)).toBeNull();
+
+    const result = decodeQrRaster(original, 'print');
+    expect(result.raster).toBe(original);
+    expect(result.decoded?.data).toBe(rawSuccessUrl);
+    expect(result.monochromeDecoded?.data).toBe(rawSuccessUrl);
+    expect(original.data).toEqual(before);
+  });
+
+  it('never gives a raw-failing screen screenshot the print fallback', () => {
+    const original = capturedRaster();
+    const before = new Uint8ClampedArray(original.data);
+    expect(independentDecode(normalizePrintQrRaster(original))).toBe(expectedUrl);
+    const result = decodeQrRaster(original, 'screen');
+    expect(result.raster).toBe(original);
+    expect(result.decoded).toBeNull();
+    expect(result.monochromeDecoded).toBeNull();
+    expect(original.data).toEqual(before);
+  });
+
+  it('leaves a monochrome failure on the selected raw raster without another fallback', () => {
+    const original = capturedRaster(rawSuccessPrintPng);
+    // Keep the original white border; darken only the interior white background.
+    // Adaptive raw decoding succeeds, but the fixed monochrome threshold loses it.
+    for (let y = 4; y < original.height - 4; y += 1) {
+      for (let x = 4; x < original.width - 4; x += 1) {
+        const offset = (y * original.width + x) * 4;
+        if (original.data[offset] === 255) {
+          original.data[offset] = original.data[offset + 1] = original.data[offset + 2] = 150;
+        }
+      }
+    }
+    const before = new Uint8ClampedArray(original.data);
+    const result = decodeQrRaster(original, 'print');
+    expect(result.raster).toBe(original);
+    expect(result.decoded?.data).toBe(rawSuccessUrl);
+    expect(result.monochromeDecoded).toBeNull();
     expect(original.data).toEqual(before);
   });
 
@@ -74,6 +152,11 @@ describe('print QR raster normalization', () => {
       expect(independentDecode(raster)).toBeNull();
       expect(independentDecode(raster, true)).toBeNull();
     }
+    const before = new Uint8ClampedArray(original.data);
+    const result = decodeQrRaster(original, 'print');
+    expect(result.decoded).toBeNull();
+    expect(result.monochromeDecoded).toBeNull();
+    expect(original.data).toEqual(before);
   });
 
   it('does not repair a screenshot with its three finder patterns erased', () => {
@@ -97,6 +180,11 @@ describe('print QR raster normalization', () => {
       expect(independentDecode(raster)).toBeNull();
       expect(independentDecode(raster, true)).toBeNull();
     }
+    const before = new Uint8ClampedArray(original.data);
+    const result = decodeQrRaster(original, 'print');
+    expect(result.decoded).toBeNull();
+    expect(result.monochromeDecoded).toBeNull();
+    expect(original.data).toEqual(before);
   });
 
   it('replicates all RGBA channels exactly without mutating or aliasing a buffer view', () => {
