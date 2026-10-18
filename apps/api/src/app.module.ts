@@ -2,6 +2,7 @@ import { PgPresentationPreferences, PresentationPreferencesUseCase } from '@asa-
 import { PresentationPreferencesController } from './presentation-preferences.controller.js';
 import { Module, type DynamicModule } from '@nestjs/common';
 import type pg from 'pg';
+import { runSessionContextQuery } from './session-database-diagnostics.js';
 import {
   AccountLoginUseCase,
   AccountManagementUseCase,
@@ -116,6 +117,10 @@ export class AppModule {
       },
     });
     const requirePool = (): pg.Pool => pool ?? unavailablePool;
+    // Minimal test ports keep the original query-only adapter; actual runtime
+    // pools provide connect and use the supported measured context runner.
+    const contextQuery =
+      pool && typeof pool.connect === 'function' ? runSessionContextQuery : undefined;
     const runtimeMetrics = options.runtimeMetrics ?? createRuntimeMetrics();
     const maxAuthService = new MaxAuthService(requirePool());
     const aiChatService = new AiChatService(requirePool());
@@ -233,7 +238,7 @@ export class AppModule {
             new LoginUseCase(
               new PgTenantLocator(requirePool()),
               new PgAccountDirectory(requirePool()),
-              new PgSessionV2Store(requirePool()),
+              new PgSessionV2Store(requirePool(), contextQuery),
             ),
         },
         {
@@ -248,7 +253,7 @@ export class AppModule {
           provide: TOKENS.activeContextUseCase,
           useFactory: () =>
             new ActiveContextUseCase(
-              new PgSessionV2Store(requirePool()),
+              new PgSessionV2Store(requirePool(), contextQuery),
               new PgSessionStore(requirePool()),
               new PgAccountDirectory(requirePool()),
             ),
@@ -262,7 +267,7 @@ export class AppModule {
           useFactory: () =>
             new AccountLoginUseCase(
               new PgAccountDirectory(requirePool()),
-              new PgSessionV2Store(requirePool()),
+              new PgSessionV2Store(requirePool(), contextQuery),
             ),
         },
         {
@@ -270,7 +275,7 @@ export class AppModule {
           useFactory: () =>
             new AccountManagementUseCase(
               new PgAccountDirectory(requirePool()),
-              new PgSessionV2Store(requirePool()),
+              new PgSessionV2Store(requirePool(), contextQuery),
             ),
         },
         {
