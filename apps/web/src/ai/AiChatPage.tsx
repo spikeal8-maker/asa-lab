@@ -33,6 +33,15 @@ interface AiCursor {
   readonly id: string;
 }
 
+function mergeMessages(
+  previous: readonly AiMessage[],
+  incoming: readonly AiMessage[],
+): readonly AiMessage[] {
+  const messages = new Map(previous.map((message) => [message.id, message]));
+  for (const message of incoming) messages.set(message.id, message);
+  return [...messages.values()];
+}
+
 interface AiPage<T> {
   readonly items: readonly T[];
   readonly nextCursor?: AiCursor | null;
@@ -143,6 +152,8 @@ export function AiChatPage(): JSX.Element {
   const [creatingChat, setCreatingChat] = useState(false);
   // Serialize creation and sending before React renders disabled controls.
   const requestBusy = useRef(false);
+  const selectedHistoryReady = useRef(true);
+  const [historyReady, setHistoryReady] = useState(true);
   const interactionBusy = busy || creatingChat;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -294,6 +305,8 @@ export function AiChatPage(): JSX.Element {
       setConfirmDeleteId(null);
       if (currentId === id) {
         selectedVersion.current += 1;
+        selectedHistoryReady.current = true;
+        setHistoryReady(true);
         setCurrentId(null);
         setMessages([]);
         setMessageCursor(null);
@@ -307,6 +320,9 @@ export function AiChatPage(): JSX.Element {
   async function selectThread(id: string): Promise<void> {
     if (requestBusy.current) return;
     const version = ++selectedVersion.current;
+    // Guard synchronously, including Enter before disabled controls render.
+    selectedHistoryReady.current = false;
+    setHistoryReady(false);
     pendingRequest.current = null;
     setPendingMessage(null);
     setCurrentId(id);
@@ -315,16 +331,27 @@ export function AiChatPage(): JSX.Element {
     restoreScroll.current = null;
     setError(null);
     if (!desktop) setSideOpen(false);
-    const result = await call<AiPage<AiMessage>>(
-      '/api/ai/threads/' + encodeURIComponent(id) + '/messages',
-    );
-    if (version !== selectedVersion.current) return;
-    if (!result.ok) {
-      setError(result.error.message);
-      return;
+    try {
+      const result = await call<AiPage<AiMessage>>(
+        '/api/ai/threads/' + encodeURIComponent(id) + '/messages',
+      );
+      if (version !== selectedVersion.current) return;
+      if (!result.ok) {
+        setError(result.error.message);
+        return;
+      }
+      setMessages(result.data.items);
+      setMessageCursor(result.data.nextCursor ?? null);
+      selectedHistoryReady.current = true;
+    } catch {
+      if (version === selectedVersion.current) {
+        setError('Не удалось загрузить переписку. Попробуйте ещё раз.');
+      }
+    } finally {
+      // An older GET must never unlock a newer selection. Failed loads stay
+      // guarded until retry succeeds or the user selects/creates another chat.
+      if (version === selectedVersion.current) setHistoryReady(selectedHistoryReady.current);
     }
-    setMessages(result.data.items);
-    setMessageCursor(result.data.nextCursor ?? null);
   }
 
   async function newChat(): Promise<string | null> {
@@ -342,6 +369,8 @@ export function AiChatPage(): JSX.Element {
         return null;
       }
       selectedVersion.current += 1;
+      selectedHistoryReady.current = true;
+      setHistoryReady(true);
       pendingRequest.current = null;
       setPendingMessage(null);
       setCurrentId(result.data.id);
@@ -378,7 +407,15 @@ export function AiChatPage(): JSX.Element {
   async function send(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     const text = draft.trim();
-    if (!text || text.length > 3000 || !status?.enabled || requestBusy.current) return;
+    if (
+      !text ||
+      text.length > 3000 ||
+      !status?.enabled ||
+      requestBusy.current ||
+      !selectedHistoryReady.current
+    ) {
+      return;
+    }
     const previous = pendingRequest.current;
     const requestId =
       previous?.threadId === currentId && previous.text === text
@@ -423,7 +460,10 @@ export function AiChatPage(): JSX.Element {
         );
         if (version !== selectedVersion.current) return;
         setStreamedText('');
-        setMessages(result.messages);
+        // Older servers include their last 80 messages; only this request is
+        // acknowledged here. Keep the loaded history and its pagination cursor.
+        const acknowledged = result.messages.filter((message) => message.requestId === requestId);
+        setMessages((previous) => mergeMessages(previous, acknowledged));
         const completed = result.messages.some(
           (message) => message.requestId === requestId && message.role === 'assistant',
         );
@@ -444,8 +484,8 @@ export function AiChatPage(): JSX.Element {
           '/api/ai/threads/' + encodeURIComponent(id) + '/messages',
         );
         if (history.ok && version === selectedVersion.current) {
-          setMessages(history.data.items);
-          setMessageCursor(history.data.nextCursor ?? null);
+          // Recovery returns the newest page, not all previously loaded pages.
+          setMessages((previous) => mergeMessages(previous, history.data.items));
           if (
             history.data.items.some(
               (message) => message.role === 'user' && message.requestId === requestId,
@@ -816,7 +856,9 @@ export function AiChatPage(): JSX.Element {
                 <button
                   type={busy ? 'button' : 'submit'}
                   className="chat-send-button"
-                  disabled={!status?.enabled || creatingChat || (!busy && !draft.trim())}
+                  disabled={
+                    !status?.enabled || creatingChat || (!busy && (!historyReady || !draft.trim()))
+                  }
                   onClick={busy ? () => void stop() : undefined}
                   aria-label={busy ? 'Остановить генерацию' : 'Отправить сообщение'}
                 >
