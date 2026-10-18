@@ -268,6 +268,196 @@ describe('actual browser joint provenance oracle counterexamples', () => {
 });
 
 describe('accepted per-LED temporal presentation', () => {
+  it('recovers only counted constant joint hold time and keeps a later edge at its actual cursor', () => {
+    const presentation = new LedTemporalPresentation();
+    const receive = (from: number, to: number, wall: number, edge?: number) => {
+      const observation = window(from, to, [
+        channel('first', [
+          point(from, 80),
+          ...(edge !== undefined ? [point(edge, 0)] : []),
+          ...(to !== from ? [point(to, edge === undefined ? 80 : 0)] : []),
+        ]),
+        channel('other', [point(from, 60), ...(to !== from ? [point(to, 60)] : [])]),
+      ]);
+      return presentation.accept(electrical(observation), observation, wall);
+    };
+    receive(0, 0, 0);
+    receive(0, 5000, 30_000);
+    presentation.sample(50_000);
+    expect([...receive(5000, 25_000, 60_000).values()]).toEqual([80, 60]);
+    expect(presentation.heldRecoveryCount).toBe(1);
+    expect(presentation.heldRecoveredMicroseconds).toBe(10_000);
+    // The next complete window contains a real edge. The desired clock cannot
+    // pull it forward through the unchanged prefix at cursor25.002ms.
+    expect(receive(25_000, 50_000, 60_002, 30_000).get('first')).toBe(80);
+    expect(presentation.sample(64_999).get('first')).toBe(80);
+    expect(presentation.heldRecoveryCount).toBe(1);
+    expect(presentation.heldRecoveredMicroseconds).toBe(10_000);
+    expect(presentation.sample(65_000).get('first')).toBe(0);
+    // After ordinary1x pacing crosses the real front, the new constant LOW
+    // interval may recover its own held time. The front itself was not skipped.
+    expect(presentation.heldRecoveryCount).toBe(2);
+    expect(presentation.heldRecoveredMicroseconds).toBe(20_000);
+    expect(presentation.reanchorCount).toBe(0);
+  });
+
+  it.each(['neighbour edge', 'reverted edge', 'current only', 'truncated', 'missing prefix'])(
+    'cannot recover clamp debt across a %s even when final brightness matches',
+    (reason) => {
+      const presentation = new LedTemporalPresentation();
+      let from = 0;
+      const receive = (to: number, wall: number) => {
+        let other = channel('other', [
+          point(from, 80),
+          ...(from === 5000 && reason === 'neighbour edge' ? [point(20_000, 0)] : []),
+          ...(from === 5000 && reason === 'reverted edge'
+            ? [point(20_000, 0), point(21_000, 80)]
+            : []),
+          ...(to !== from
+            ? [point(to, reason === 'neighbour edge' && from === 5000 ? 0 : 80)]
+            : []),
+        ]);
+        if (from === 5000 && reason === 'current only')
+          other = channel('other', [
+            point(from, 80),
+            { ...point(20_000, 80), current: 0.011 },
+            { ...point(to, 80), current: 0.011 },
+          ]);
+        if (from === 5000 && reason === 'truncated') other = { ...other, truncated: true };
+        if (from === 5000 && reason === 'missing prefix')
+          other = {
+            ...other,
+            truncated: true,
+            samples: [point(20_000, 80), point(to, 80)],
+          };
+        const observation = window(from, to, [
+          channel('first', [point(from, 60), ...(to !== from ? [point(to, 60)] : [])]),
+          other,
+        ]);
+        presentation.accept(electrical(observation), observation, wall);
+        from = to;
+      };
+      receive(0, 0);
+      receive(5000, 30_000);
+      presentation.sample(50_000);
+      receive(25_000, 60_000);
+      expect(presentation.heldRecoveryCount).toBe(0);
+      expect(presentation.heldRecoveredMicroseconds).toBe(0);
+      expect(presentation.reanchorCount).toBe(reason === 'missing prefix' ? 1 : 0);
+    },
+  );
+
+  it.each(['reset', 'quality', 'generation'])(
+    'clears the desired epoch and coverage on %s without hiding lifetime recovery accounting',
+    (reason) => {
+      const presentation = new LedTemporalPresentation();
+      const receive = (from: number, to: number, wall: number) => {
+        const observation = window(from, to, [
+          channel('led', [point(from, 80), ...(to !== from ? [point(to, 80)] : [])]),
+        ]);
+        presentation.accept(electrical(observation), observation, wall);
+      };
+      receive(0, 0, 0);
+      receive(0, 5000, 30_000);
+      presentation.sample(50_000);
+      receive(5000, 25_000, 60_000);
+      expect(presentation.heldRecoveredMicroseconds).toBe(10_000);
+      if (reason === 'reset') presentation.reset();
+      if (reason === 'quality') {
+        const invalid = window(25_000, 25_000, [channel('led', [point(25_000, 80)])]);
+        const result = electrical(invalid);
+        result.quality!.passed = false;
+        presentation.accept(result, invalid, 70_000);
+      }
+      const seed = window(0, 0, [channel('led', [point(0, 0)])]);
+      presentation.accept(electrical(seed), seed, 1_000_000);
+      const partial = window(0, 5000, [
+        channel('led', [point(0, 0), point(4000, 80), point(5000, 80)]),
+      ]);
+      expect(presentation.accept(electrical(partial), partial, 1_001_000).get('led')).toBe(0);
+      expect(presentation.sample(1_004_000).get('led')).toBe(80);
+      expect(presentation.heldRecoveryCount).toBe(1);
+      expect(presentation.heldRecoveredMicroseconds).toBe(10_000);
+      expect(presentation.reanchorCount).toBe(0);
+    },
+  );
+
+  it('replays original ed14 100ms startup debt and the first three real fronts without a reanchor', () => {
+    // Original owner-blink-100 raw, relative to its actual H0 receipt2670.4ms.
+    // Preserve every ready/RAF through the failed receipt3021.1ms; the original
+    // expiry mark3021.3ms follows callback bookkeeping by0.2ms.
+    const ready = [
+      [0, 0],
+      [31_100, 11_500],
+      [50_800, 27_700],
+      [76_900, 49_800],
+      [91_200, 62_100],
+      [113_100, 80_600],
+      [133_200, 100_400],
+      [154_100, 125_400],
+      [165_800, 147_700],
+      [179_400, 160_000],
+      [193_000, 174_500],
+      [204_700, 179_500],
+      [216_100, 199_000],
+      [225_500, 208_900],
+      [233_500, 224_900],
+      [248_700, 230_000],
+      [264_000, 252_900],
+      [270_300, 261_600],
+      [278_600, 270_100],
+      [290_600, 277_700],
+      [299_500, 290_600],
+      [307_500, 297_800],
+      [317_000, 309_700],
+      [329_100, 322_800],
+      [332_800, 327_700],
+      [350_700, 340_300],
+    ];
+    const raf = [
+      7800, 19_200, 42_000, 53_400, 79_700, 88_900, 110_300, 123_200, 140_600, 152_300, 173_000,
+      190_500, 202_700, 223_000, 245_200, 256_000, 269_000, 287_700, 306_100, 319_100, 338_300,
+    ];
+    const presentation = new LedTemporalPresentation();
+    const events = [
+      ...ready.map(([at, to]) => ({ at: at!, to })),
+      ...raf.map((at) => ({ at, to: undefined })),
+    ].sort((left, right) => left.at - right.at);
+    let from = 0;
+    const states: boolean[] = [];
+    for (const event of events) {
+      let display: ReadonlyMap<string, number>;
+      if (event.to !== undefined) {
+        const observation = window(from, event.to, [
+          ...[0, 1, 2].map((index) => {
+            const edges = [4, 100_008, 200_013, 300_017].map((at) => at + index);
+            const at = (time: number) => {
+              const brightness = edges.filter((edge) => edge <= time).length % 2 ? 70.02 : 0;
+              return { atMicroseconds: time, brightness, current: brightness ? 0.009058135491 : 0 };
+            };
+            return channel(`led${index}`, [
+              at(from),
+              ...edges.filter((edge) => edge > from && edge < event.to!).map(at),
+              ...(event.to !== from ? [at(event.to)] : []),
+            ]);
+          }),
+          channel('led3', [
+            point(from, 70.91),
+            ...(event.to !== from ? [point(event.to, 70.91)] : []),
+          ]),
+        ]);
+        display = presentation.accept(electrical(observation), observation, event.at);
+        from = event.to;
+      } else display = presentation.sample(event.at);
+      const lit = display.get('led0')! > 0;
+      if (!states.length || states.at(-1) !== lit) states.push(lit);
+      expect(presentation.reanchorCount).toBe(0);
+    }
+    expect(states).toEqual([false, true, false, true, false]);
+    expect(presentation.heldRecoveryCount).toBeGreaterThan(0);
+    expect(presentation.heldRecoveredMicroseconds).toBeGreaterThan(0);
+  });
+
   it.each([
     {
       name: 'no-delay9.6ms',

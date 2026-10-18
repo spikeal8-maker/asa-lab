@@ -174,8 +174,10 @@ function containsJointState(
 export class LedTemporalPresentation {
   private committed: number | null = null;
   private histories = new Map<string, readonly ElectronicsLedTemporalSample[]>();
+  private completeSince = new Map<string, number>();
   private cursor: number | null = null;
   private sampledAt: number | null = null;
+  private desiredEpoch: { at: number; cursor: number; lookahead: number } | null = null;
   private buffered = false;
   private warming = true;
   private receipts: Array<{
@@ -184,17 +186,30 @@ export class LedTemporalPresentation {
     size: number;
   }> = [];
   private reanchors = 0;
+  private heldRecoveries = 0;
+  private heldMicroseconds = 0;
 
   /** A discontinuity is observable evidence, never successful phase preservation. */
   get reanchorCount(): number {
     return this.reanchors;
   }
 
+  /** Lifetime accounting, separate from genuine optical discontinuities. */
+  get heldRecoveryCount(): number {
+    return this.heldRecoveries;
+  }
+
+  get heldRecoveredMicroseconds(): number {
+    return this.heldMicroseconds;
+  }
+
   reset(): void {
     this.committed = null;
     this.histories.clear();
+    this.completeSince.clear();
     this.cursor = null;
     this.sampledAt = null;
+    this.desiredEpoch = null;
     this.buffered = false;
     this.warming = true;
     this.receipts = [];
@@ -235,8 +250,19 @@ export class LedTemporalPresentation {
     if (wallMicroseconds !== undefined && this.cursor === null) {
       this.cursor = observation.fromMicroseconds;
       this.sampledAt = wallMicroseconds;
+      this.desiredEpoch = {
+        at: wallMicroseconds,
+        cursor: observation.fromMicroseconds,
+        // A caller may begin with an already complete window rather than H0.
+        lookahead: Math.max(
+          0,
+          LED_PRESENTATION_PHASE_LIMIT_MICROSECONDS -
+            (observation.toMicroseconds - observation.fromMicroseconds),
+        ),
+      };
     }
     const next = new Map<string, readonly ElectronicsLedTemporalSample[]>();
+    const nextCompleteSince = new Map<string, number>();
     for (const component of observation.components) {
       const electrical = result.components.find(
         (entry) => entry.componentId === component.componentId,
@@ -252,8 +278,23 @@ export class LedTemporalPresentation {
         electrical.damageState === 'failed'
       )
         continue;
+      const previous = this.histories.get(component.componentId);
+      const previousEnd = previous?.at(-1);
+      const first = component.samples[0]!;
+      const continuous =
+        previousEnd !== undefined &&
+        previousEnd.atMicroseconds === first.atMicroseconds &&
+        sameState(previousEnd, first);
+      nextCompleteSince.set(
+        component.componentId,
+        component.truncated
+          ? observation.toMicroseconds
+          : continuous
+            ? (this.completeSince.get(component.componentId) ?? observation.fromMicroseconds)
+            : observation.fromMicroseconds,
+      );
       const samples = recentSamples(
-        this.histories.get(component.componentId),
+        previous,
         component,
         observation.toMicroseconds,
         this.cursor ?? observation.toMicroseconds,
@@ -264,6 +305,7 @@ export class LedTemporalPresentation {
     }
     this.committed = observation.toMicroseconds;
     this.histories = next;
+    this.completeSince = nextCompleteSince;
     if (wallMicroseconds === undefined) return brightness;
     this.receipts.push({
       at: wallMicroseconds,
@@ -307,6 +349,12 @@ export class LedTemporalPresentation {
       // at 1x, clamped to ready, rather than holding a superseded H0 vector.
       this.cursor = Math.min(this.committed, this.cursor + elapsed);
     }
+    if (!this.desiredEpoch && this.buffered) {
+      // An actual reanchor starts a new segment only after the original rebuffer
+      // hold. It cannot borrow elapsed time from the discarded segment.
+      this.desiredEpoch = { at: wallMicroseconds, cursor: this.cursor, lookahead: 0 };
+    }
+    this.recoverHeldTime(wallMicroseconds);
 
     let brightness = this.atCursor();
     // A cycle mean keeps its existing policy; provenance refers to the actual
@@ -331,10 +379,39 @@ export class LedTemporalPresentation {
       // Discard this playout segment and resume from actual complete-ready data.
       this.cursor = this.committed;
       this.buffered = false;
+      this.desiredEpoch = null;
       this.reanchors++;
       brightness = this.atCursor();
     }
     return brightness;
+  }
+
+  private recoverHeldTime(wallMicroseconds: number): void {
+    const epoch = this.desiredEpoch;
+    if (!epoch || (!this.warming && !this.buffered) || !this.histories.size) return;
+    const desired = epoch.cursor + Math.max(0, wallMicroseconds - epoch.at - epoch.lookahead);
+    const target = Math.min(this.committed!, desired);
+    if (target <= this.cursor!) return;
+    // Recover only time spent in one proved joint hold. A matching final value
+    // cannot hide an intervening edge, a current change or truncated coverage.
+    for (const [id, samples] of this.histories) {
+      if (
+        (this.completeSince.get(id) ?? Infinity) > this.cursor! ||
+        samples[0]!.atMicroseconds > this.cursor! ||
+        samples.at(-1)!.atMicroseconds < target
+      )
+        return;
+      let held: ElectronicsLedTemporalSample | undefined;
+      for (const sample of samples) {
+        if (sample.atMicroseconds <= this.cursor!) held = sample;
+        else if (sample.atMicroseconds > target) break;
+        else if (!held || !sameState(held, sample)) return;
+      }
+      if (!held) return;
+    }
+    this.heldMicroseconds += target - this.cursor!;
+    this.heldRecoveries++;
+    this.cursor = target;
   }
 
   private throughCursor(samples: readonly ElectronicsLedTemporalSample[]) {
