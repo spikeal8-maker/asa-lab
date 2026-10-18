@@ -302,9 +302,12 @@ not a defect in the product encoder or print CSS.
 - `e2e/fixtures/qr-print-raster.ts`.
 - `tests/portal/qr-print-raster.spec.ts`.
 
-Keep the real Locator screenshot and inspect its original quiet zone. Normalize
-only print input with a bounded integer nearest-neighbor replication, preserving
-every original pixel and channel; do not smooth, crop, regenerate modules or read
+Keep one real Locator screenshot and inspect its original quiet zone. First
+decode the original pixels, preserving every raw success. Only a null raw print
+decode may select one fixed nearest-neighbor2x fallback from that same PNG;
+screen decoding never takes the fallback. Decode monochrome on the same selected
+raster with no further fallback. Preserve every original pixel and channel;
+do not smooth, crop, regenerate modules or read
 the expected URL from DOM/React/encoder state. Retain raw screen decoding,
 independent jsQR, monochrome decoding, full expected URL comparison, privacy,
 layout, roster, credential and no-mutation assertions. Preserve original PNG
@@ -317,6 +320,24 @@ review of the final SHA; and actual changed-source Classroom/Access browser CI.
 Synthetic replay and source approval alone do not establish the full classroom
 journey. This repair is independent of analytics PR628, the final publication
 shell source7db13b9 and the single-owner GC1 shared-guard work.
+
+### Actual b138 runtime finding and bounded correction
+
+PR629 source `b1387d32db98e70d635b9843016fee2f81b83cf7` passed focused/source
+checks but actual Classroom `39163873957` found a new category A regression.
+The attached original 20mm print PNG is 76x77 and decodes the exact URL raw;
+forced nearest-neighbor2x produces 152x154 and jsQR null. Three/fourfold inputs
+also decode, but selecting an arbitrary new mandatory scale does not preserve
+the previous raw-success contract. The serial mixed16mm journey was skipped.
+
+Review5564865973 therefore rejects acceptance of b138. Correct the pipeline as
+specified above: raw first, at most one print-only pixel fallback from the same
+original PNG, no recapture/delay/rerun and no expected-URL-dependent selection.
+Wrong decoded URLs and monochrome failures must still fail. Add the new actual
+raw-success PNG beside the existing raw-failing62x61 fixture, testing the shared
+decode-selection implementation itself. Preserve all negative controls and
+original evidence. A different independent reviewer and new changed-SHA real
+Classroom/Access CI are required; existing unrelated failures remain open.
 
 ## Separate evidence — identify the remaining Learning mutation traffic
 

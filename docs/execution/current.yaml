@@ -4136,8 +4136,10 @@ parallel_lanes:
           and Electronics specs. No QR author overlap was found in current PR/control
           inspection; coordination is recorded in PR613/comment6254582754.
         acceptance: >-
-          Normalize only print screenshots by bounded integer nearest-neighbor pixel
-          replication, never by reading the QR encoder/DOM payload. Retain raw-screen
+          Decode the original raster first. Preserve every successful raw decode; only
+          a null raw print decode may select one fixed nearest-neighbor2x fallback from
+          the same PNG, never a new screenshot or the QR encoder/DOM payload. Check
+          monochrome on that same selected raster with no further fallback. Retain raw-screen
           decoding, original-raster quiet-zone checks, independent jsQR and monochrome
           decoding, exact full URL and all privacy/no-mutation/layout assertions.
           Reproduce the original failing raster, reject blank/corrupt finder controls,
@@ -4145,6 +4147,13 @@ parallel_lanes:
           timeout/rate-limit/viewport/DPR/product CSS or SVG change. Require focused
           regression, independent exact-source review and real Classroom/Access CI
           on the changed SHA. Original artifact12146839286 SHA256205457c8e4e5ccd34fe462818d1998716fee906c19e93ab47ecaab1e60bd5991.
+        runtime_refinement: >-
+          PR629 b1387d32 actual Classroom39163873957 has a new category A regression:
+          original20mm76x77 print PNG decodes raw but forced2x returns null. Do not accept
+          that source or count the serial-skipped mixed16mm journey as run. Preserve raw
+          success and regress BOTH exact real PNGs through the actual decode-selection
+          pipeline. Review5564865973 supersedes prior source-only acceptance; require a
+          different independent reviewer and new changed-SHA real CI after author repair.
       - id: TASK-PROJ-PUBLICATION-LEARNING-MUTATION-EVIDENCE-001
         status: in_progress
         branch: codex/projects-learning-mutation-evidence
