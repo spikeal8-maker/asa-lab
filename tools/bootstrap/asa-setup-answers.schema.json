@@ -3,10 +3,7 @@
   "title": "ASA Lab Ubuntu Setup Assistant answers",
   "description": "Deployment decisions only. Never place passwords, OAuth tokens, age identity contents, private keys or secrets in this JSON.",
   "type": "object",
-  "required": [
-    "schema_version",
-    "action"
-  ],
+  "required": ["schema_version", "action"],
   "additionalProperties": false,
   "properties": {
     "schema_version": {
@@ -35,11 +32,7 @@
     },
     "profile": {
       "type": "string",
-      "enum": [
-        "production",
-        "staging",
-        "dev"
-      ]
+      "enum": ["production", "staging", "dev"]
     },
     "admin_cidr": {
       "type": "string",
@@ -62,11 +55,7 @@
     },
     "data_mode": {
       "type": "string",
-      "enum": [
-        "empty",
-        "restore",
-        "encrypted"
-      ]
+      "enum": ["empty", "restore", "encrypted"]
     },
     "restore_backup": {
       "type": "string",
