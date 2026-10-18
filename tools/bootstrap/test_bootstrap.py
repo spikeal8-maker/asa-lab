@@ -4,6 +4,7 @@ import importlib.util
 from contextlib import nullcontext
 import io
 import json
+import hashlib
 import sys
 from pathlib import Path
 import tarfile
@@ -70,6 +71,99 @@ class ArchiveSecurity(unittest.TestCase):
     def test_expected_filename_contract(self):
         self.assertTrue(age.SNAPSHOT.fullmatch('asa-lab-20261016T231505Z-7b457013.tar.age'))
         self.assertFalse(age.SNAPSHOT.fullmatch('asa-lab-SOME.tar.age'))
+
+
+class EncryptedRestoreLayout(unittest.TestCase):
+    """End-to-end manifest and extracted-layout proof, without real secrets."""
+
+    @staticmethod
+    def make_archive(*, different_root=False, duplicate=False):
+        payloads = {
+            "database.dump": b"verified-postgresql-dump",
+            "private.env": b"verified-private-config",
+            "objects/asa-blocks/folder/blob": b"verified-minio-object",
+        }
+        manifest = {
+            "format": "asa-backup-v1", "complete": True,
+            "createdAt": "20261017T231505Z-65b68074",
+            "runtime": {"schema": 212},
+            "files": {key: {"sha256": hashlib.sha256(data).hexdigest(),
+                            "bytes": len(data)} for key, data in payloads.items()},
+        }
+        raw = io.BytesIO()
+        with tarfile.open(fileobj=raw, mode="w") as stream:
+            for directory in ("snapshot", "snapshot/objects", "snapshot/objects/asa-blocks",
+                              "snapshot/objects/asa-blocks/folder"):
+                member = tarfile.TarInfo(directory)
+                member.type = tarfile.DIRTYPE
+                member.mode = 0o700
+                stream.addfile(member)
+            for key, value in {"manifest.json": json.dumps(manifest).encode(),
+                               **payloads}.items():
+                prefix = "another-root" if different_root and key == "private.env" else "snapshot"
+                member = tarfile.TarInfo(prefix + "/" + key)
+                member.size = len(value)
+                stream.addfile(member, io.BytesIO(value))
+                if duplicate and key == "database.dump":
+                    stream.addfile(member, io.BytesIO(value))
+        return raw.getvalue()
+
+    def extract(self, payload: bytes, *, extracting: bool):
+        with tempfile.TemporaryDirectory() as d:
+            directory = Path(d)
+            source = directory / "asa-lab-20261017T231505Z-65b68074.tar.age"
+            binary, identity = directory / "age", directory / "identity"
+            for path in (source, binary, identity):
+                path.write_bytes(b"test")
+            extracted = directory / "recovered"
+            args = types.SimpleNamespace(archive=source, age=binary, identity=identity,
+                                         yandex_folder=None, extract=extracting,
+                                         output=extracted)
+            process = mock.Mock()
+            process.stdout = io.BytesIO(payload)
+            process.wait.return_value = 0
+            process.poll.return_value = 0
+            with mock.patch.object(age.subprocess, "Popen", return_value=process):
+                if payload == self.make_archive():
+                    result = age.verify_or_extract(args)
+                    self.assertEqual(result["files_verified"], 3)
+                    if extracting:
+                        self.assertTrue((extracted / "manifest.json").is_file())
+                        self.assertTrue((extracted / "database.dump").is_file())
+                        self.assertTrue((extracted / "private.env").is_file())
+                        self.assertEqual((extracted / "objects/asa-blocks/folder/blob").read_bytes(),
+                                         b"verified-minio-object")
+                        self.assertFalse((extracted / "snapshot").exists())
+                    else:
+                        self.assertFalse(extracted.exists())
+                else:
+                    with self.assertRaises(ValueError):
+                        age.verify_or_extract(args)
+                    self.assertFalse(extracted.exists())
+
+    def test_archive_root_is_stripped_to_restore_contract(self):
+        self.extract(self.make_archive(), extracting=True)
+
+    def test_verify_only_uses_same_checks_without_writing_files(self):
+        self.extract(self.make_archive(), extracting=False)
+
+    def test_mixed_archive_roots_are_rejected(self):
+        self.extract(self.make_archive(different_root=True), extracting=True)
+
+    def test_duplicate_files_are_rejected(self):
+        self.extract(self.make_archive(duplicate=True), extracting=True)
+
+    def test_top_level_file_is_not_a_valid_backup_member(self):
+        with tempfile.TemporaryDirectory() as d:
+            with self.assertRaises(ValueError):
+                age.safe_destination(Path(d), tarfile.TarInfo("manifest.json"))
+
+    def test_archive_root_directory_is_allowed(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            header = tarfile.TarInfo("snapshot/")
+            header.type = tarfile.DIRTYPE
+            self.assertEqual(age.safe_destination(root, header), root)
 
 
 class LinuxInstallerSecurity(unittest.TestCase):

@@ -54,4 +54,7 @@ jobs:
           if ($errors.Count -ne 0) { $errors | Out-String | Write-Error; exit 1 }
       - name: Validate Windows backup helper
         shell: pwsh
-        run: py -3 -m py_compile tools/bootstrap/prepare-age-backup.py
+        run: py -3 -m py_compile tools/bootstrap/prepare-age-backup.py tools/bootstrap/test_prepare_age_windows.py
+      - name: Windows long-path restore regression
+        shell: pwsh
+        run: py -3 -B tools/bootstrap/test_prepare_age_windows.py

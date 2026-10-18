@@ -432,6 +432,11 @@ def execute(plan: dict, *, graphical: bool = False) -> int:
                 raise SetupBlocked("Root permission required for protected backup extraction")
         if subprocess.run(stage, check=False).returncode != 0:
             raise SetupBlocked("Encrypted backup verification/extraction failed; install not started")
+        # The canonical restore accepts the CONTENTS of a backup directory,
+        # never a nested tar wrapper. Stop before installing an empty database
+        # if the verified extractor didn't produce the expected root manifest.
+        if not (Path(details["output"]) / "manifest.json").is_file():
+            raise SetupBlocked("Verified extraction has no root manifest.json; install not started")
     if os.geteuid() != 0:
         if graphical:
             if not shutil.which("pkexec"):

@@ -288,15 +288,43 @@ class SetupExecutionTests(unittest.TestCase):
                              encrypted_archive=str(archive))
             with mock.patch.dict(setup.os.environ, {"ASA_AGE_IDENTITY_FILE":str(private)}):
                 plan=setup.build_plan(config, facts=FACTS, files=False)
+                # Disposable fixture stands in for a verified extractor output.
+                recovered = Path(d) / "extracted"
+                plan["preparation"]["output"] = str(recovered)
+                plan["command"][plan["command"].index("--restore-backup") + 1] = str(recovered)
+                def fake_run(argv, **kwargs):
+                    if "prepare-age-backup.py" in " ".join(argv):
+                        recovered.mkdir()
+                        (recovered / "manifest.json").write_text("{}")
+                    return mock.Mock(returncode=0)
                 with mock.patch.object(setup.os, "geteuid", return_value=0), \
                      mock.patch.object(setup.shutil,"which",return_value="/usr/bin/age"), \
-                     mock.patch.object(setup.subprocess,"run",return_value=
-                                       mock.Mock(returncode=0)) as run:
+                     mock.patch.object(setup.subprocess,"run",side_effect=fake_run) as run:
                     self.assertEqual(setup.execute(plan),0)
                     self.assertEqual(run.call_count,2)
                     self.assertIn("prepare-age-backup.py"," ".join(run.call_args_list[0].args[0]))
                     self.assertIn("install-ubuntu-1panel.py"," ".join(run.call_args_list[1].args[0]))
                     self.assertNotIn(str(private)," ".join(run.call_args_list[1].args[0]))
+
+    def test_age_helper_false_success_stops_before_bootstrap(self):
+        with tempfile.TemporaryDirectory() as d:
+            archive = Path(d)/"asa-lab-20261017T231505Z-65b68074.tar.age"
+            archive.write_bytes(b"sample")
+            private = Path(d)/"identity.age"
+            private.write_text("example-only")
+            config = answers(data_mode="encrypted", fresh_empty_confirmed=False,
+                             encrypted_archive=str(archive))
+            with mock.patch.dict(setup.os.environ, {"ASA_AGE_IDENTITY_FILE":str(private)}):
+                plan = setup.build_plan(config, facts=FACTS, files=False)
+                plan["preparation"]["output"] = str(Path(d)/"missing-extraction")
+                with mock.patch.object(setup.os,"geteuid",return_value=0), \
+                     mock.patch.object(setup.shutil,"which",return_value="/usr/bin/age"), \
+                     mock.patch.object(setup.subprocess,"run",
+                                       return_value=mock.Mock(returncode=0)) as run:
+                    with self.assertRaisesRegex(setup.SetupBlocked,"no root manifest.json"):
+                        setup.execute(plan)
+                    self.assertEqual(run.call_count,1)
+                    self.assertIn("prepare-age-backup.py"," ".join(run.call_args.args[0]))
 
     def test_invalid_json_never_executes(self):
         with tempfile.TemporaryDirectory() as d:

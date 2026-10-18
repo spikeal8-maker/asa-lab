@@ -43,17 +43,49 @@ def find_latest(folder: Path) -> Path:
     return sorted(archives, key=lambda p: (SNAPSHOT.fullmatch(p.name).group(1), p.name))[-1]
 
 
+def host_path(path: Path) -> Path:
+    """Use Win32 extended-length paths for deeply nested MinIO objects.
+
+    This affects local filesystem operations only. Neither archive paths nor
+    destination roots are taken from the extended-path namespace directly.
+    """
+    if sys.platform != 'win32':
+        return path
+    native = str(path)
+    if native.startswith('\\\\?\\'):
+        return path
+    if native.startswith('\\\\'):
+        return Path('\\\\?\\UNC\\' + native[2:])
+    return Path('\\\\?\\' + native)
+
+
 def safe_destination(root: Path, member: tarfile.TarInfo) -> Path:
+    """Extract the archive's ONE wrapper directory into the selected backup root.
+
+    Archive member `snapshot/manifest.json` must become `root/manifest.json`,
+    because verify_backup() and restore-verified-backup.py consume exactly root.
+    Keeping the wrapper makes a verified encrypted archive unusable for restore.
+    """
     name = member.name.replace('\\', '/')
+    if member.isdir():
+        name = name.rstrip('/')
     parts = name.split('/')
-    if (not name or name.startswith('/') or '..' in parts or any(x == '' for x in parts)
+    if (not name or name.startswith('/') or any(x in ('', '.', '..') for x in parts)
             or ':' in name or member.issym() or member.islnk() or member.isdev()
             or not (member.isfile() or member.isdir())):
         raise ValueError('Unsafe archive path or file type')
-    candidate = (root / name).resolve()
-    if not candidate.is_relative_to(root.resolve()):
+    base = root.resolve()
+    if len(parts) == 1:
+        if not member.isdir():
+            raise ValueError('Archive files require exactly one common directory wrapper')
+        candidate = base
+    else:
+        # Every component is validated above; no need to resolve this deep
+        # path before creation (Win32 otherwise rejects paths over MAX_PATH).
+        candidate = base.joinpath(*parts[1:])
+    if not candidate.is_relative_to(base):
         raise ValueError('Archive entry escapes destination')
-    return candidate
+    return host_path(candidate)
 
 
 def verify_or_extract(args) -> dict:
@@ -83,12 +115,19 @@ def verify_or_extract(args) -> dict:
     count = 0
     total = 0
     manifest = None
+    archive_prefix = None
     try:
         with tarfile.open(fileobj=process.stdout, mode='r|*') as stream:
             for member in stream:
                 count += 1
                 if count > 1_000_000 or member.size > MAX_FILE_BYTES:
                     raise ValueError('Archive exceeds size or entry limits')
+                # The source must be one self-contained backup, never mixed roots.
+                prefix = member.name.replace('\\', '/').split('/')[0]
+                if archive_prefix is None:
+                    archive_prefix = prefix
+                elif prefix != archive_prefix:
+                    raise ValueError('Archive mixes multiple top-level backup roots')
                 # Use synthetic destination for verify-only mode to validate every path.
                 target = safe_destination(root or Path.home(), member)
                 if member.isdir():
@@ -99,8 +138,10 @@ def verify_or_extract(args) -> dict:
                 if total > MAX_ARCHIVE_BYTES:
                     raise ValueError('Uncompressed archive exceeds safety limit')
                 relative = '/'.join(member.name.replace('\\', '/').split('/')[1:])
+                if relative in digests:
+                    raise ValueError('Duplicate archive file: ' + relative)
                 sha = hashlib.sha256()
-                captured = bytearray() if member.name.endswith('/manifest.json') and member.size < 1024 * 1024 else None
+                captured = bytearray() if relative == 'manifest.json' and member.size < 1024 * 1024 else None
                 output = None
                 try:
                     if root:
@@ -128,6 +169,8 @@ def verify_or_extract(args) -> dict:
         if not isinstance(manifest, dict) or manifest.get('format') != 'asa-backup-v1' or manifest.get('complete') is not True:
             raise ValueError('Backup manifest is missing or incomplete')
         expected = manifest.get('files')
+        if 'manifest.json' not in digests:
+            raise ValueError('Backup manifest must be directly inside its archive wrapper')
         if not isinstance(expected, dict) or not expected:
             raise ValueError('Backup inventory is absent')
         for rel, meta in expected.items():
@@ -152,7 +195,7 @@ def verify_or_extract(args) -> dict:
             process.stdout.close()
         process.wait(timeout=10)
         if root and root.exists():
-            shutil.rmtree(root)
+            shutil.rmtree(host_path(root))
         raise
 
 
