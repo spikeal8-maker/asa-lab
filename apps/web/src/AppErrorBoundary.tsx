@@ -1,5 +1,5 @@
-import { Component, type ErrorInfo, type ReactNode } from 'react';
-import { reportClientDiagnostic } from './client-diagnostics';
+import { Component, type ReactNode } from 'react';
+import { reportRenderDiagnostic } from './client-diagnostics';
 
 interface AppErrorBoundaryState {
   readonly failed: boolean;
@@ -15,14 +15,12 @@ export class AppErrorBoundary extends Component<
     return { failed: true };
   }
 
-  override componentDidCatch(error: unknown, info: ErrorInfo): void {
-    reportClientDiagnostic('render_failed', 'portal');
+  override componentDidCatch(error: unknown): void {
+    reportRenderDiagnostic(error, 'app_boundary');
     // Technical diagnostics only: never include the current account, project
     // document, URL query or browser storage.
     console.error('application render failed', {
       revision: __ASA_BUILD_REVISION__,
-      errorName: error instanceof Error ? error.name : 'unknown',
-      component: info.componentStack?.trim().split('\n', 1)[0] ?? null,
     });
   }
 

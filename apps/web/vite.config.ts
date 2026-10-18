@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
+import { privateSymbols } from '../../tools/web-private-symbols.mjs';
 
 const root = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(root, '../..');
@@ -69,6 +70,12 @@ export default defineConfig(({ command }) => {
     root,
     plugins: [
       react(),
+      privateSymbols({
+        revision: buildRevision,
+        repositoryRoot,
+        output: resolve(root, 'private-symbols'),
+        publicKey: readFileSync(resolve(repositoryRoot, 'tools/web-symbols-public.pem'), 'utf8'),
+      }),
       {
         name: 'asa-lab-build-metadata',
         generateBundle() {
@@ -125,6 +132,7 @@ export default defineConfig(({ command }) => {
       __ASA_BLOCKS_RUNTIME_ORIGIN__: JSON.stringify(blocksRuntimeOrigin),
     },
     build: {
+      sourcemap: 'hidden',
       manifest: true,
       outDir: 'dist',
       emptyOutDir: true,

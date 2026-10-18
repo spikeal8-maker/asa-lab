@@ -1,6 +1,7 @@
 import { Body, Controller, HttpCode, HttpException, Post, Req } from '@nestjs/common';
 import type { FastifyRequest } from 'fastify';
 import { clientAddress } from './client-address.js';
+import { validClientException } from './client-error-details.js';
 
 const CODES = new Set([
   'render_failed',
@@ -80,6 +81,7 @@ export class ClientDiagnosticsController {
             'script',
             'line',
             'column',
+            'exception',
           ].includes(key),
       ) ||
       ['instanceId', 'relatedRequestId', 'eventId'].some(
@@ -92,6 +94,8 @@ export class ClientDiagnosticsController {
           (value['occurredAt'] as number) < 0 ||
           (value['occurredAt'] as number) > 8_640_000_000_000_000)) ||
       (value['category'] !== undefined && !CATEGORIES.includes(value['category'] as string)) ||
+      (value['exception'] !== undefined &&
+        !validClientException(value['exception'], value['code'])) ||
       (value['failureCode'] !== undefined && !FAILURES.includes(value['failureCode'] as string)) ||
       (['scratch-save-asset', 'scratch-save-draft', 'scratch-save-prepare'].includes(
         value['failureCode'] as string,
@@ -101,7 +105,7 @@ export class ClientDiagnosticsController {
           value['phase'] !== 'save')) ||
       (value['script'] !== undefined &&
         (typeof value['script'] !== 'string' ||
-          !/^\/assets\/[A-Za-z0-9_-]{1,160}\.js$/.test(value['script']))) ||
+          !/^\/assets\/[A-Za-z0-9_.-]{1,160}\.js$/.test(value['script']))) ||
       ['line', 'column'].some(
         (k) =>
           value[k] !== undefined &&

@@ -1,5 +1,6 @@
 import { diagnosticQuality, type TelemetryQuality } from './telemetry-quality';
 import { record, sendTelemetry } from './telemetry-contract';
+import { validClientException, exceptionMatchesCode } from './client-error-details';
 // Only this fixed vocabulary may cross the browser diagnostics boundary.
 export const DIAGNOSTIC_CODES = [
   'render_failed',
@@ -47,7 +48,7 @@ export const FAILURE_CODES = [
   'timed_advance_failed',
 ] as const;
 const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
-export const ASSET_SCRIPT = /^\/assets\/[A-Za-z0-9_-]{1,160}\.js$/;
+export const ASSET_SCRIPT = /^\/assets\/[A-Za-z0-9_.-]{1,160}\.js$/;
 const KEY = 'asa:diagnostics:v1';
 const TTL = 15 * 60_000;
 const MAX = 50;
@@ -76,6 +77,7 @@ function valid(value: unknown, now: number): value is Envelope {
         'script',
         'line',
         'column',
+        'exception',
       ].includes(k),
     ) &&
     typeof v.eventId === 'string' &&
@@ -110,6 +112,8 @@ function valid(value: unknown, now: number): value is Envelope {
     ) ||
       (v.code === 'autosave_failed' && v.module === 'scratch' && v.phase === 'save')) &&
     (v.script === undefined || (typeof v.script === 'string' && ASSET_SCRIPT.test(v.script))) &&
+    (v.exception === undefined ||
+      (validClientException(v.exception) && exceptionMatchesCode(v.exception, v.code))) &&
     ['line', 'column'].every(
       (k) =>
         v[k] === undefined ||
