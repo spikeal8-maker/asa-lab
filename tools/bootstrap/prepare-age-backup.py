@@ -101,9 +101,20 @@ def verify_or_extract(args) -> dict:
         root = (args.output or (Path.home() / 'Downloads' / f'ASA-Restore-{source.stem.removesuffix(".tar")}')).resolve()
         if root.exists():
             raise FileExistsError('Destination exists; refusing to mix recovery sets')
-        # Never create a decrypted backup *inside* the synchronized cloud tree.
-        yandex = args.yandex_folder
-        if yandex and root.is_relative_to(yandex.resolve().parent):
+        # Never put decrypted files into a recognized cloud sync tree, even
+        # when --archive names a specific file instead of using discovery.
+        # Offline archives in /srv/asa-restore may legitimately extract into a
+        # sibling folder; being near the source is not by itself unsafe.
+        cloud_root = args.yandex_folder.resolve().parent if args.yandex_folder else None
+        if cloud_root is None and sys.platform == 'win32':
+            try:
+                cloud_root = yandex_sync_directory().resolve().parent
+            except (OSError, ValueError):
+                # A standalone archive may not be in a configured sync tree.
+                pass
+        if cloud_root is None and source.parent.name.casefold() == 'asa-backups':
+            cloud_root = source.parent
+        if cloud_root and root.is_relative_to(cloud_root):
             raise ValueError('Decrypted data must not be placed in Yandex Disk')
         if shutil.disk_usage(root.parent if root.parent.exists() else Path.home()).free < max(source.stat().st_size * 2, 512 * 1024**2):
             raise ValueError('Insufficient disk space for extracted backup')

@@ -73,6 +73,44 @@ class ArchiveSecurity(unittest.TestCase):
         self.assertFalse(age.SNAPSHOT.fullmatch('asa-lab-SOME.tar.age'))
 
 
+class PrivateExtractionBoundary(unittest.TestCase):
+    """Private plaintext must never be written into a cloud sync directory."""
+
+    def test_explicit_archive_cannot_extract_into_recognized_cloud_folder(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            archives = root / "ASA-Backups"
+            archives.mkdir()
+            source = archives / "asa-lab-20261017T231505Z-65b68074.tar.age"
+            binary = root / "age"
+            identity = root / "identity"
+            for path in (source, binary, identity):
+                path.write_bytes(b"test")
+            dest = archives / "plaintext-restore"
+            args = types.SimpleNamespace(archive=source, age=binary,
+                identity=identity, yandex_folder=None, extract=True, output=dest)
+            with self.assertRaisesRegex(ValueError, "Yandex Disk"):
+                age.verify_or_extract(args)
+            self.assertFalse(dest.exists())
+
+    def test_explicit_archive_cannot_extract_elsewhere_in_yandex_sync_root(self):
+        with tempfile.TemporaryDirectory() as d:
+            sync = Path(d) / "Yandex.Disk"
+            archives = sync / "ASA-Backups"
+            archives.mkdir(parents=True)
+            source = archives / "asa-lab-20261017T231505Z-65b68074.tar.age"
+            binary = Path(d) / "age"
+            identity = Path(d) / "identity"
+            for path in (source, binary, identity):
+                path.write_bytes(b"test")
+            dest = sync / "private-plaintext"
+            args = types.SimpleNamespace(archive=source, age=binary,
+                identity=identity, yandex_folder=archives, extract=True, output=dest)
+            with self.assertRaisesRegex(ValueError, "Yandex Disk"):
+                age.verify_or_extract(args)
+            self.assertFalse(dest.exists())
+
+
 class EncryptedRestoreLayout(unittest.TestCase):
     """End-to-end manifest and extracted-layout proof, without real secrets."""
 
