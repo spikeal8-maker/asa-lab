@@ -317,3 +317,62 @@ review of the final SHA; and actual changed-source Classroom/Access browser CI.
 Synthetic replay and source approval alone do not establish the full classroom
 journey. This repair is independent of analytics PR628, the final publication
 shell source7db13b9 and the single-owner GC1 shared-guard work.
+
+## Separate evidence — identify the remaining Learning mutation traffic
+
+TASK-PROJ-PUBLICATION-LEARNING-MUTATION-EVIDENCE-001.
+Author branch: `codex/projects-learning-mutation-evidence`.
+
+Analytics source `4343b88b788f02a279fd18df3789582994cb6b9e` passed General
+`39160885774`, including the real delivery PG regression (14/14), and Classroom
+`39160885775`. Learning `39160885790` completed with 18 browser passes and five
+fresh login HTTP429 failures. The second browser command after `&&` did not run.
+The five failing traces have no session cookies and a shared Retry-After reset;
+a preceding diagnostics429 contains `too_many_requests`. Exact source identifies
+the common MutationAbuseProtection before AuthController. Its address budget is
+also consumed by authenticated requests, but the earlier passing request stream
+and API stdout were not saved. The traffic that exhausted the window remains
+unknown. This selection gathers evidence; it does not alter or accept a repair.
+
+### Four new paths only
+
+- `.github/workflows/learning-mutation-budget-diagnostic.yml`.
+- `tools/learning-mutation-diagnostic/runner.mjs`.
+- `tools/learning-mutation-diagnostic/reporter.mjs`.
+- `tools/learning-mutation-diagnostic/harness.spec.mjs`.
+
+Use two independent exact checkouts: `source/` contains tested product SHA
+`4343b88b788f02a279fd18df3789582994cb6b9e`; `diagnostic/` contains the reviewed
+diagnostic head. Verify both actual revisions and record `testedProductSha` and
+`diagnosticSha` separately. Reuse original Learning Node22, pnpm9.15.9, frozen
+lockfile, build, PostgreSQL16, restricted application role, migrations, focused
+Learning tests and Scratch host preparation on the disposable GitHub runner.
+The new workflow may start from its own candidate PR only after independent
+source review; it uses a separate concurrency group. A manual trigger may also
+be provided. Existing workflows and their results remain unchanged.
+
+Run the complete first batch in its original order: `learning-author-preview`,
+`learning-course-01`, `courses-sharing` (23 cases), using the existing source
+Playwright config, one worker, zero retries and every existing assertion. The
+second batch is explicitly NOT_RUN in this diagnostic. Do not use `--debug` or
+`PWDEBUG`. Set `ASA_HTTP_LOG=1` and `DEBUG=pw:webserver`; ensure VITEST is absent
+from the browser child. The verified Playwright1.55.1 WebServer plugin forwards
+API stdout to the custom reporter. Runner pipes capture both stdout/stderr;
+neither a normal list reporter nor raw debug output may bypass sanitization.
+
+Persist HTTP JSONL with exactly `method`, `routecategory`, `status`, `timestamp`
+and `requestId`. Route categories are fixed, never raw paths/query or dynamic
+identifiers. Persist only separately allowlisted revision, stage and test-matrix
+metadata; do not store request bodies, headers, cookies/tokens, raw process
+output, trace ZIPs or raw test errors. `--trace=off` changes only this diagnostic
+capture mode. Handle ANSI, split chunks and incomplete/malformed streams with
+bounded buffers and explicit capture failure. Preserve observed test counts,
+actual child exit status and failed CI conclusion; upload sanitized artifacts
+with `if: always()` and no failure-to-success conversion.
+
+Acceptance requires meaningful privacy/chunking/matrix/capture-failure/exit-code
+tests, a new independent review of the frozen source before its real diagnostic
+workflow starts, and actual isolated CI with both exact identities. HTTP counts
+are observed traffic, not reads of the internal byAddress counter. If429 does
+not recur, report NOT_REPRODUCED and keep the cause unresolved. Existing Learning
+PR622 files, runtime/config/server, analytics11, QR629 and GC1 are outside scope.

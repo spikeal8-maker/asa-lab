@@ -4145,6 +4145,39 @@ parallel_lanes:
           timeout/rate-limit/viewport/DPR/product CSS or SVG change. Require focused
           regression, independent exact-source review and real Classroom/Access CI
           on the changed SHA. Original artifact12146839286 SHA256205457c8e4e5ccd34fe462818d1998716fee906c19e93ab47ecaab1e60bd5991.
+      - id: TASK-PROJ-PUBLICATION-LEARNING-MUTATION-EVIDENCE-001
+        status: in_progress
+        branch: codex/projects-learning-mutation-evidence
+        scope:
+          - .github/workflows/learning-mutation-budget-diagnostic.yml
+          - tools/learning-mutation-diagnostic/runner.mjs
+          - tools/learning-mutation-diagnostic/reporter.mjs
+          - tools/learning-mutation-diagnostic/harness.spec.mjs
+        selection: >-
+          Separate bounded read-only runtime evidence after analytics source 4343b88b
+          passed General Data, real delivery PG14/14 and Classroom. Learning run39160885790
+          still has18 browser passes and5 fresh no-cookie login429 failures. Existing
+          failed traces identify the common mutation guard before AuthController, but
+          omit the prior successful request stream. Capture the whole original first
+          23-case batch without changing auth limits, retries or product behavior.
+        author_coordination: >-
+          One diagnostic author owns only these four new paths. Keep existing Learning
+          workflow/config/server, PR622 journey files, Analytics11 paths, QR629 and GC1
+          unchanged. Use a separate concurrency group and reviewed candidate PR trigger;
+          no production, owner-computer application stack or working database action.
+        acceptance: >-
+          Two exact checkouts: tested product 4343b88b788f02a279fd18df3789582994cb6b9e and
+          the diagnostic head, both independently recorded and verified. Reuse original
+          Node22/pnpm9.15.9/frozen lockfile/build/PG16 restricted-role setup and all first
+          batch assertions, one worker and zero retries. ASA_HTTP_LOG and DEBUG=pw:webserver
+          feed bounded private pipes through a strict custom reporter; never use PWDEBUG.
+          Persist only method, routecategory, status, timestamp and requestId, plus safe
+          stage/identity/matrix metadata. No raw paths/query, bodies, headers, tokens,
+          stdout/stderr or trace artifacts; trace-off is diagnostic capture only. Require
+          split-chunk/ANSI/privacy/capture-failure and exit-status negative tests, new
+          independent source review before starting this workflow, and actual isolated
+          CI with exact identities and preserved failure status. Counts are observed HTTP
+          traffic, not internal limiter state; no429 is NOT_REPRODUCED, never a repair PASS.
     accepted_foundation:
       accepted_r7_01b_merge_sha: 65316c50873e28a5effd7b6e603b5289e37e2fac
       accepted_r3_merge_sha: 5fa616045b16d2720418eb7945f7bef968dd9389
