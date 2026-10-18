@@ -1,0 +1,72 @@
+schema_version: 1.0.0
+contract_id: TSP-DOMAIN
+domain: teacher-student-profile-ui
+registry_document_id: TEACHER-STUDENT-PROFILE-UI-DOMAIN-CONTRACT
+master_documents:
+  - LEARNING-MASTER-V22
+  - PRODUCT-INTEGRATED-V15
+  - ADR-LEARNER-IDENTITY-001
+  - IDENTITY-ACCESS-V22
+
+invariants:
+  - id: TSP-IDENTITY-001
+    statement: The teacher profile resolves the exact classroom and StudentSeat through verified server lineage; linking preserves school-scoped learner history and never guesses identity from a name, email or login principal.
+    master_refs:
+      - document: ADR-LEARNER-IDENTITY-001
+        section: Stable learner key
+      - document: IDENTITY-ACCESS-V22
+        section: INV-07 / INV-11
+    applies_to: [classroom_student_profile, student_seat, account_link, learner_history]
+    forbid: [merge_by_name, merge_by_email_guess, client_claimed_learner, duplicate_history_on_link]
+
+  - id: TSP-AUTH-001
+    statement: Profile reads and sensitive role, rating settings, merit, award and avatar operations require current server authorization for the authenticated actor and exact resource; detail access, UI visibility and client IDs grant no mutation rights. Mapping these operations does not authorize changing them in a UI-only task.
+    master_refs:
+      - document: IDENTITY-ACCESS-V22
+        section: INV-11 / INV-12
+      - document: LEARNING-MASTER-V22
+        section: ARCH-010
+    applies_to: [profile_read, participant_role, rating_settings, merit, builtin_award, avatar]
+    forbid: [hidden_button_as_authorization, client_claimed_role, detail_implies_mutation, ui_task_expands_mutation_scope]
+
+  - id: TSP-CONTEXT-001
+    statement: Profile navigation uses the currently authorized classroom and seat; delayed responses, pagination and cached panels from a previous classroom or learner must not populate the newly selected context.
+    master_refs:
+      - document: IDENTITY-ACCESS-V22
+        section: §31
+    applies_to: [classroom_navigation, learner_navigation, profile_load, grade_paging, works_paging]
+    forbid: [stale_context_response, cross_class_cache_reuse, previous_seat_panel_data]
+
+  - id: TSP-GRADES-001
+    statement: The profile reads existing server-selected results and journal history without becoming a grade store or selecting a different result locally; submissions and published result revisions remain immutable and corrections append a new revision.
+    master_refs:
+      - document: LEARNING-MASTER-V22
+        section: ASM-SEL-007 / ASM-006 / ATT-101
+      - document: PRODUCT-INTEGRATED-V15
+        section: §4.11 / §4.12
+      - document: IDENTITY-ACCESS-V22
+        section: INV-10
+    applies_to: [participant_grades, journal_history, result_history, submission, selected_result]
+    forbid: [profile_grade_store, client_selects_official_result, in_place_result_edit, rewrite_submission]
+
+  - id: TSP-FEEDBACK-001
+    statement: Project feedback, merits, builtin awards and participant rating are distinct from official academic grades; their presentation or grant must not write a grade or invent a result.
+    master_refs:
+      - document: LEARNING-MASTER-V22
+        section: ASM-EVD-004
+      - document: PRODUCT-INTEGRATED-V15
+        section: §4.11
+    applies_to: [project_feedback, participant_merit, builtin_award, participant_rating, official_grade]
+    forbid: [merit_as_grade, feedback_badge_as_grade, rating_as_official_result]
+
+  - id: TSP-LIFECYCLE-001
+    statement: Archived classrooms preserve academic history while disallowing participant edits; revoked access cannot survive through stale sessions or UI state, and restore does not reopen closed runs or withdrawn participation.
+    master_refs:
+      - document: PRODUCT-INTEGRATED-V15
+        section: §4.7
+      - document: LEARNING-MASTER-V22
+        section: RUN-001 / RUN-004 / AUD-003
+      - document: IDENTITY-ACCESS-V22
+        section: INV-08 / INV-11
+    applies_to: [archived_classroom, participant_mutation, access_revocation, academic_history, restore]
+    forbid: [archive_deletes_history, archived_participant_edit, stale_ui_bypasses_revocation, restore_reopens_closed_run]

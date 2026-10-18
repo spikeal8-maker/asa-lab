@@ -88,6 +88,16 @@ documents:
       - host_migration
       - new_self_hosted_project
 
+  - id: TEACHER-STUDENT-PROFILE-UI-DOMAIN-CONTRACT
+    path: docs/agent/contracts/teacher-student-profile-ui.yaml
+    scope: teacher-student-profile-ui
+    lanes: [teacher-student-profile-ui]
+    kind: domain_contract
+    status: canonical
+    authority: teacher_student_profile_ui_invariants
+    context_role: compact
+    read_when: [teacher_student_profile_ui]
+
   - id: TEACHER-STUDENT-PROFILE-UI-589
     path: docs/product/ASA_TEACHER_STUDENT_PROFILE_UI_589.md
     scope: teacher-student-profile-ui
