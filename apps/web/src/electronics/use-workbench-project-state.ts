@@ -26,6 +26,7 @@ import {
 } from './electronics-document-merge';
 import type { EditorPersistenceIssue } from '../components/editor-chrome/EditorPersistenceIndicator';
 import { createElectronicsProjectRecovery } from './electronics-project-recovery';
+import { repairElectronicsDocumentIdentifiers } from './electronics-document-repair';
 
 export type SimulationRuntimeStatus =
   'stopped' | 'validating' | 'starting' | 'running' | 'stopping';
@@ -236,17 +237,25 @@ export function useWorkbenchProjectState(projectId: string, userId: string, seat
       projectId,
       userId,
       identityKind,
-      (source, confirmed) => {
-        const local = normalizeLoadedDocument(source.document);
+      (source, confirmed, preserveOriginal) => {
+        const original = normalizeLoadedDocument(source.document);
+        const repair = repairElectronicsDocumentIdentifiers(original);
+        if (repair.status === 'blocked') return false;
+        const repaired = repair.document;
+        const local = repaired ?? original;
         const remote = normalizeLoadedDocument(confirmed);
-        if (electronicsDocumentsEqual(local, remote)) return true;
+        if (electronicsDocumentsEqual(local, remote)) return !repaired || preserveOriginal();
         if (!source.baseDocument) return false;
-        const merged = mergeElectronicsDocuments(
-          normalizeLoadedDocument(source.baseDocument),
-          local,
-          remote,
+        const originalBase = normalizeLoadedDocument(source.baseDocument);
+        const baseRepair = repairElectronicsDocumentIdentifiers(originalBase);
+        if (baseRepair.status === 'blocked') return false;
+        const repairedBase = baseRepair.document;
+        const merged = mergeElectronicsDocuments(repairedBase ?? originalBase, local, remote);
+        return (
+          merged.ok &&
+          electronicsDocumentsEqual(merged.document, remote) &&
+          (!(repaired || repairedBase) || preserveOriginal())
         );
-        return merged.ok && electronicsDocumentsEqual(merged.document, remote);
       },
     );
   }, [projectId, userId, identityKind]);
@@ -370,31 +379,64 @@ export function useWorkbenchProjectState(projectId: string, userId: string, seat
     setProject(response.data.project);
     setProjectTitle(response.data.project.title);
     const serverDocument = normalizeLoadedDocument(response.data.draft.document);
-    const migrated = !electronicsDocumentPayloadsEqual(
-      serverDocument,
-      response.data.draft.document,
-    );
     const local = recovery.read();
-    const localDocument =
+    const originalLocal =
       local && isLocalSchematicDocument(local.document)
         ? normalizeLoadedDocument(local.document)
         : null;
-    const localBaseDocument =
+    const originalLocalBase =
       local?.baseDocument && isLocalSchematicDocument(local.baseDocument)
         ? normalizeLoadedDocument(local.baseDocument)
         : null;
+    const serverRepair = repairElectronicsDocumentIdentifiers(serverDocument);
+    const localRepair = originalLocal && repairElectronicsDocumentIdentifiers(originalLocal);
+    const baseRepair = originalLocalBase && repairElectronicsDocumentIdentifiers(originalLocalBase);
+    if ([serverRepair, localRepair, baseRepair].some((repair) => repair?.status === 'blocked')) {
+      // Ambiguous identities or unrelated corruption must not rewrite the source slot.
+      loadedScopeRef.current = scope;
+      setStatus('error');
+      return;
+    }
+    const repairedServer = serverRepair.document;
+    const repairedLocal = localRepair?.document;
+    const repairedBase = baseRepair?.document;
+    if (
+      (local && !recovery.preserveOriginal(local, Boolean(repairedLocal || repairedBase))) ||
+      (repairedServer &&
+        !recovery.preserveOriginal({
+          schemaVersion: 3,
+          projectId,
+          userId,
+          identityKind,
+          moduleKey: 'electronics',
+          baseRevision: response.data.draft.revision,
+          document: response.data.draft.document,
+          updatedAt: response.data.draft.updatedAt,
+        }))
+    ) {
+      // Never rewrite a recovery slot until the full original has verified storage.
+      loadedScopeRef.current = scope;
+      setStatus('error');
+      return;
+    }
+    const localDocument = repairedLocal ?? originalLocal;
+    const localBaseDocument = repairedBase ?? originalLocalBase;
+    const projectedServer = repairedServer ?? serverDocument;
+    const migrated =
+      repairedServer !== null ||
+      !electronicsDocumentPayloadsEqual(serverDocument, response.data.draft.document);
     const localMatchesServer =
       localDocument !== null && electronicsDocumentsEqual(localDocument, serverDocument);
     const restored = localDocument !== null && !localMatchesServer;
     let revisionConflict = false;
     let mergedLocalDraft = false;
-    let nextDocument = restored ? (localDocument as SchematicDocument) : serverDocument;
+    let nextDocument = restored ? (localDocument as SchematicDocument) : projectedServer;
     serverDocumentRef.current = serverDocument;
     serverRevisionRef.current = response.data.draft.revision;
     scope.confirmed = { revision: response.data.draft.revision, document: serverDocument };
     if (restored && local && local.baseRevision !== response.data.draft.revision) {
       const merged = localBaseDocument
-        ? mergeElectronicsDocuments(localBaseDocument, nextDocument, serverDocument)
+        ? mergeElectronicsDocuments(localBaseDocument, nextDocument, projectedServer)
         : null;
       if (merged?.ok) {
         nextDocument = merged.document;
@@ -405,7 +447,7 @@ export function useWorkbenchProjectState(projectId: string, userId: string, seat
         // overwrite the newer server document. A later save will retry the
         // same safe merge or return the actionable conflict again.
         serverRevisionRef.current = local.baseRevision;
-        serverDocumentRef.current = localBaseDocument;
+        serverDocumentRef.current = originalLocalBase;
       }
     }
     documentRef.current = nextDocument;

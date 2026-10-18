@@ -57,3 +57,36 @@ all components, wires, breadboard references, sketches and the original draft.
 No schema/API relaxation, server bulk migration, Scratch, UI redesign, deployment
 or unrelated cleanup. Narrow edits in the existing large controller; no decomposition.
 `NEXT_ALLOWED_TASK: STOP / OWNER REVIEW`.
+
+## Implementation evidence, 2026-10-18
+
+- Load repairs unique empty/overlong IDs deterministically, together with wire
+  endpoints and breadboard bindings. Valid IDs, geometry, properties and sketches
+  remain intact; generated overlong copy labels keep the existing 120-character limit.
+- Full original scoped records are backed up and read back before repair is applied.
+  Content-addressed backup keys are outside the pending-draft namespace. Storage
+  failure and ambiguous component/wire IDs stop opening without rewriting the source.
+- Repaired views remain dirty until the existing save protocol confirms them.
+  Acknowledgements recognize the repaired original only after preserving its bytes;
+  the mounted test confirms later deletions do not resurrect that branch.
+- Conflict recovery retains the actual original base snapshot and revision, including
+  invalid legacy bases; no validation or compare-and-swap contract is weakened.
+- Final repair/storage and mounted lifecycle suites: 72 PASS. Affected existing
+  recovery/merge/autosave regressions: 23 PASS. Total relevant cases: 95 PASS.
+  These are local fixtures with a mocked API, not real browser/PostgreSQL evidence.
+- Changed-file ESLint, web TypeScript and formatting: PASS. Routing validation: PASS.
+- Web build: PASS, six tasks executed with Nx cache skipped. Bundle budgets: PASS;
+  Electronics editor 208465/209000 bytes; initial JS/CSS graph 471403/600000 bytes.
+  An initial chunk split pulled shared CommonJS interop into the recovery bundle;
+  isolating that shared runtime/storage fixed eager engine loading without raising budgets.
+- SELF_REVIEW: PASS. Four production files, two focused test files, mapped metadata;
+  no DOM/CSS, permission, schema, server/database, solver, production or Scratch change.
+- Initial independent review found deletion/modification before the first save could
+  leave the consumed original pending. Fixed within this slice: exact scoped source
+  fingerprints persist with the Electronics recovery slot across reloads. Confirmed
+  descendants retire only those exact bytes, preserving concurrent replacements and
+  keeping the descendant slot when acknowledgement storage fails. Additional tests
+  cover both edits/deletions before first confirmation, with/without reload, identical
+  mirrors, foreign/missing receipts and storage failure. Final review remains required.
+- The final source SHA, independent review and exact-SHA general CI outcome are
+  recorded in issue #596 and the owner report after they actually complete.
