@@ -31,6 +31,8 @@ and Scratch storage adapter; preserve storage/CAS/replay/local recovery and auth
 - Focused regressions: `tools/blocks/save-semantics.test.mjs`, runtime-protocol
   tests, existing client diagnostics/outbox/controller tests, and
   `tests/blocks/save-diagnostics.spec.ts` for cross-boundary delivery.
+  `infra/scratch-editor/tests/editor-autosave.test.mjs` verifies the necessary
+  editor callback wiring and disposal boundary.
 - Existing cumulative gate, mapped host card and D0-001 exact protocol section;
   this task card and its selected execution lane.
 
@@ -67,3 +69,37 @@ browser/PostgreSQL or server diagnostic as a proven pupil loss.
 
 No upstream patch, save scheduling/CAS redesign, auth, deployment, live data,
 Electronics or unrelated CI repair. `NEXT_ALLOWED_TASK: STOP`.
+
+## Implementation evidence, 2026-10-18
+
+- Storage publishes finite terminal asset/draft/initial-preparation failures through
+  the existing editor/main/status wiring. A failed fallback upload produces one
+  logical report; no report is emitted for successful token renewal/retry. Observer
+  errors preserve the real save rejection and unchanged confirmed revision.
+- Parent checks exact frame/origin/project/nonce, exact allowed payload keys,
+  three fixed codes and bounded metadata. Existing diagnostic outbox/intake enforce
+  Scratch/autosave/save context; no exception text, URLs, media/code or tokens.
+- Scratch-specific dedup retains distinct stages while coalescing same-stage and
+  following generic-exit duplicates. Quotas/retention/retries are unchanged.
+- Focused Vitest: protocol 10, client diagnostics 9, outbox 19, API intake 6,
+  cross-boundary source/storage → reporter → mounted BlocksEditor → outbox → real
+  intake/structured stdout 3; existing parent lifecycle 37 and teardown 2: 86 PASS.
+- Node storage semantics 18 and editor callback/disposal 6: 24 PASS. Total 110
+  distinct relevant cases. Ports/HTTP/VM/DOM are test fixtures, not real Scratch GUI,
+  database, browser or school-load evidence. Initial cross-boundary fixture lacked
+  the normal bootstrap projectJson; corrected the fixture, without weakening checks.
+- Changed-source/test ESLint passes with actual browser globals for host JS.
+  API+web strict builds share one uncached Nx dependency graph: 17 tasks PASS.
+  Bundle budgets PASS; initial graph 471811/600000, Electronics208465/209000 bytes.
+- Local protocol browser smoke did not reach product assertions: its configured
+  runtime did not expose the empty parent-origin meta required by the fixture.
+  Classified local target/fixture mismatch, not PASS; no rerun/new local stack or
+  fixture weakening. Browser evidence remains for isolated exact-SHA CI.
+- SELF_REVIEW / POST_STEP_REVIEW: PASS; L3_CRITICAL telemetry trust boundary;
+  layout impact none, viewports/visual evidence n/a. No auth, save schedule, CAS,
+  replay, upstream dependency/patch, UI text/DOM/CSS, live data or deployment change.
+- Asset FetchTool failures expose only the final HTTP status; no request UUID is
+  invented. Draft responses retain their validated server request UUID. Errors
+  before the adapter is invoked are outside this observer's scope.
+- Exact final source, required independent review and CI are recorded in issue #601
+  and the owner report. Stop after point4; no full-release/owner acceptance claim.

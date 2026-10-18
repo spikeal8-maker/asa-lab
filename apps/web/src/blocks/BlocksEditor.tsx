@@ -256,6 +256,20 @@ export function BlocksEditor({
       if (!bridge?.acceptChildMessage(event)) return;
       const payload = event.data as Record<string, unknown>;
       if (payload['messageType'] === 'ASA_BLOCKS_USER_ACTIVITY') activity.input();
+      if (payload['messageType'] === 'ASA_BLOCKS_STATUS' && payload['status'] === 'save-failed') {
+        reportClientDiagnostic('autosave_failed', 'scratch', {
+          phase: 'save',
+          category: 'technical',
+          failureCode: payload['failureCode'] as string,
+          durationMs: payload['durationMs'] as number,
+          ...(typeof payload['httpStatus'] === 'number'
+            ? { httpStatus: payload['httpStatus'] }
+            : {}),
+          ...(typeof payload['relatedRequestId'] === 'string'
+            ? { relatedRequestId: payload['relatedRequestId'] }
+            : {}),
+        });
+      }
       if (
         payload['messageType'] === 'ASA_BLOCKS_STATUS' &&
         payload['status'] === 'request-failed'

@@ -230,6 +230,37 @@ export class BlocksRuntimeBridge {
     if (message['messageType'] === 'ASA_BLOCKS_STATUS') {
       const status = message['status'];
       if (typeof status !== 'string' || status.length === 0) return false;
+      if (status === 'save-failed') {
+        const keys = new Set([
+          'protocolVersion',
+          'projectId',
+          'sessionNonce',
+          'messageType',
+          'status',
+          'failureCode',
+          'durationMs',
+          'httpStatus',
+          'relatedRequestId',
+        ]);
+        if (
+          Object.keys(message).some((key) => !keys.has(key)) ||
+          !['scratch-save-asset', 'scratch-save-draft', 'scratch-save-prepare'].includes(
+            message['failureCode'] as string,
+          ) ||
+          !isNonNegativeSafeInteger(message['durationMs']) ||
+          (message['durationMs'] as number) > 600_000 ||
+          (message['httpStatus'] !== undefined &&
+            (!Number.isInteger(message['httpStatus']) ||
+              (message['httpStatus'] as number) < 100 ||
+              (message['httpStatus'] as number) > 599)) ||
+          (message['relatedRequestId'] !== undefined &&
+            (typeof message['relatedRequestId'] !== 'string' ||
+              !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(
+                message['relatedRequestId'],
+              )))
+        )
+          return false;
+      }
       if (status === 'project-dirty') {
         if (!isNonNegativeSafeInteger(message['generation'])) return false;
       } else if (typeof message['generation'] !== 'undefined') {

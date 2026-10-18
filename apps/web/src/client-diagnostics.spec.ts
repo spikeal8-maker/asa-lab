@@ -5,6 +5,43 @@ afterEach(() => {
   vi.useRealTimers();
 });
 describe('client diagnostics isolation', () => {
+  it('retains distinct Scratch save stages while coalescing duplicate stage and generic exit failures', async () => {
+    vi.resetModules();
+    vi.useFakeTimers();
+    vi.setSystemTime(1_000_000);
+    const transport = vi.fn<typeof fetch>(
+      async () => new Response(JSON.stringify({ accepted: true }), { status: 202 }),
+    );
+    vi.stubGlobal('window', {
+      fetch: transport,
+      sessionStorage: { getItem: () => null, setItem() {} },
+    });
+    vi.stubGlobal('fetch', transport);
+    const { reportClientDiagnostic } = await import('./client-diagnostics');
+    reportClientDiagnostic('autosave_failed', 'scratch', {
+      phase: 'save',
+      failureCode: 'scratch-save-asset',
+    });
+    reportClientDiagnostic('autosave_failed', 'scratch', {
+      phase: 'save',
+      failureCode: 'scratch-save-asset',
+    });
+    reportClientDiagnostic('autosave_failed', 'scratch', {
+      phase: 'save',
+      failureCode: 'scratch-save-draft',
+    });
+    reportClientDiagnostic('autosave_failed', 'scratch');
+    await vi.advanceTimersByTimeAsync(0);
+    const bodies = transport.mock.calls
+      .filter(([path]) => path === '/api/diagnostics/client')
+      .map(([, init]) => JSON.parse(init!.body as string));
+    expect(bodies.map((body) => body.failureCode)).toEqual([
+      'scratch-save-asset',
+      'scratch-save-draft',
+    ]);
+    const { diagnosticQuality } = await import('./telemetry-quality');
+    expect(diagnosticQuality().read().counters.deduplicated).toBe(2);
+  });
   it('OBS007 resumes anonymous quality and retries original diagnostics only once per cached return', async () => {
     vi.resetModules();
     vi.useFakeTimers();

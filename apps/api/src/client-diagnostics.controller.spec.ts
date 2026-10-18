@@ -11,6 +11,49 @@ function reportRequest(address = '203.0.113.1'): FastifyRequest {
   } as unknown as FastifyRequest;
 }
 describe('bounded client diagnostics', () => {
+  it('records only finite Scratch save stages with request correlation and rejects mismatched contexts', () => {
+    const controller = new ClientDiagnosticsController();
+    const request = reportRequest();
+    const out = vi.spyOn(process.stdout, 'write').mockReturnValue(true);
+    try {
+      for (const failureCode of [
+        'scratch-save-asset',
+        'scratch-save-draft',
+        'scratch-save-prepare',
+      ]) {
+        const body = {
+          code: 'autosave_failed',
+          module: 'scratch',
+          phase: 'save',
+          revision: 'abcdef0',
+          failureCode,
+          durationMs: 42,
+          httpStatus: 400,
+          relatedRequestId: request.id,
+        };
+        expect(controller.report(request, body)).toEqual({ accepted: true });
+        for (const extra of [
+          { module: 'portal' },
+          { phase: 'runtime' },
+          { code: 'editor_heartbeat' },
+          { message: 'secret' },
+          { failureCode: 'raw-secret' },
+        ])
+          expect(() => controller.report(request, { ...body, ...extra })).toThrow();
+      }
+      expect(out).toHaveBeenCalledTimes(3);
+      for (const call of out.mock.calls)
+        expect(JSON.parse(String(call[0]))).toMatchObject({
+          code: 'autosave_failed',
+          phase: 'save',
+          level: 'error',
+          untrustedClientReport: true,
+          relatedRequestId: request.id,
+        });
+    } finally {
+      out.mockRestore();
+    }
+  });
   afterEach(() => {
     delete process.env.ASA_TRUSTED_PROXY_CIDRS;
   });

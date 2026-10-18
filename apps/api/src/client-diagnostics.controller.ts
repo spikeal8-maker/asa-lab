@@ -30,6 +30,9 @@ const CATEGORIES = [
   'technical',
 ];
 const FAILURES = [
+  'scratch-save-asset',
+  'scratch-save-draft',
+  'scratch-save-prepare',
   'worker-start',
   'worker-runtime',
   'worker-message',
@@ -90,6 +93,12 @@ export class ClientDiagnosticsController {
           (value['occurredAt'] as number) > 8_640_000_000_000_000)) ||
       (value['category'] !== undefined && !CATEGORIES.includes(value['category'] as string)) ||
       (value['failureCode'] !== undefined && !FAILURES.includes(value['failureCode'] as string)) ||
+      (['scratch-save-asset', 'scratch-save-draft', 'scratch-save-prepare'].includes(
+        value['failureCode'] as string,
+      ) &&
+        (value['code'] !== 'autosave_failed' ||
+          value['module'] !== 'scratch' ||
+          value['phase'] !== 'save')) ||
       (value['script'] !== undefined &&
         (typeof value['script'] !== 'string' ||
           !/^\/assets\/[A-Za-z0-9_-]{1,160}\.js$/.test(value['script']))) ||

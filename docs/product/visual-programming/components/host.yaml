@@ -144,6 +144,7 @@ components:
         symbols: [protocolApi, expectedParentOrigin, reportFatal]
     tests:
       - apps/web/src/blocks/testing/runtime-protocol.spec.ts
+      - tests/blocks/save-diagnostics.spec.ts
       - apps/web/src/blocks/testing/module-activity.spec.ts
       - infra/scratch-editor/tests/editor-autosave.test.mjs
       - e2e/classroom-scratch-time.spec.ts
