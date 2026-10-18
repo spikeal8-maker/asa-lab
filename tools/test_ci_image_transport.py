@@ -17,7 +17,11 @@ import subprocess
 
 
 ROOT = Path(__file__).resolve().parents[1]
-RECEIPT = ROOT / "docs/product/electronics/evidence/ci-image-transport-545-receipt.json"
+ORIGINAL_RECEIPT = "docs/product/electronics/evidence/ci-image-transport-545-receipt.json"
+RECEIPT = ROOT / ORIGINAL_RECEIPT
+NODE_TRANSPORT_RECEIPT = "docs/product/projects/evidence/ci-node-transport-429-receipt.json"
+GENERAL_WORKFLOW = ".github/workflows/spec-validation.yml"
+GENERAL_DATA_JOB = "postgres-tests"
 OVERLAY = ".github/compose.registry-ci.yaml"
 
 
@@ -34,12 +38,48 @@ def read(path):
     return (ROOT / path).read_text(encoding="utf-8")
 
 
-def build_args(receipt):
+def original_receipt_digest():
+    return hashlib.sha256(RECEIPT.read_bytes()).hexdigest()
+
+
+def build_args(receipt, node_reference=None):
     return " ".join(
-        "--build-arg " + key + "=" + receipt["images"][image]["reference"]
+        "--build-arg " + key + "=" + (
+            node_reference if image == "node" and node_reference is not None
+            else receipt["images"][image]["reference"])
         for key, image in [("NODE_IMAGE", "node"), ("CADDY_IMAGE", "caddy"),
                            ("BUILDKIT_SYNTAX", "frontend")]
     )
+
+
+def check_general_node_transport(receipt):
+    """One selected reference substitution; the original 545 evidence is immutable."""
+    transport = json.loads(read(NODE_TRANSPORT_RECEIPT))
+    original_sha = "9b3b516e257aa31d3feb4a64c9dc8bfe7c33c9ad7d1be448245d8df044f7f273"
+    require(original_receipt_digest() == original_sha
+            and transport["original_receipt_sha256"] == original_sha,
+            "Original 545 receipt changed")
+    require(transport["schema_version"] == 1
+            and transport["task"] == "TASK-PROJ-PUBLICATION-DATA-TRANSPORT-001"
+            and transport["workflow"] == GENERAL_WORKFLOW
+            and transport["job"] == GENERAL_DATA_JOB
+            and transport["platform"] == receipt["platform"]
+            and set(transport["images"]) == {"node"},
+            "Node transport exceeds the selected General data-job scope")
+    original = receipt["images"]["node"]
+    node = transport["images"]["node"]
+    require(node["reference"] == "mirror.gcr.io/library/node@" + original["manifest_digest"],
+            "Unapproved General Node registry or digest")
+    for field in ["manifest_digest", "source_identity", "transport_identity", "config",
+                  "layers", "rootfs_diff_ids"]:
+        require(node[field] == original[field], "General Node identity drift: " + field)
+    for origin in ["source", "mirror"]:
+        raw = node["raw_provenance"][origin]
+        require(raw["manifest_sha256"] == original["manifest_digest"].removeprefix("sha256:")
+                and raw["config_sha256"] == original["config"]["digest"].removeprefix("sha256:")
+                and raw["config_bytes"] == original["config"]["size"],
+                "Reused Node metadata provenance disagrees: " + origin)
+    return node["reference"]
 
 
 def check_identities(receipt):
@@ -111,7 +151,7 @@ def covers_required_triggers(actual, required):
     return True
 
 
-def check_workflow(path, contract, receipt):
+def check_workflow(path, contract, receipt, node_reference):
     workflow = parse_yaml(read(path))
     require(covers_required_triggers(workflow.get("on"), contract["required_triggers"]),
             "Missing or narrowed mandatory workflow trigger: " + path)
@@ -128,6 +168,12 @@ def check_workflow(path, contract, receipt):
         actual = [semantic_step(step) for step in job.get("steps", [])]
         cursor = 0
         for required in expected["required_steps"]:
+            if path == GENERAL_WORKFLOW and job_id == GENERAL_DATA_JOB and "run" in required:
+                # Project only the selected Node reference into the original
+                # required command. Preserve its targets, proof, env and controls.
+                required = {**required, "run": required["run"].replace(
+                    "--build-arg NODE_IMAGE=" + receipt["images"]["node"]["reference"],
+                    "--build-arg NODE_IMAGE=" + node_reference)}
             while cursor < len(actual) and actual[cursor] != required:
                 cursor += 1
             require(cursor < len(actual), "Missing/changed required step: " + job_id
@@ -135,8 +181,10 @@ def check_workflow(path, contract, receipt):
             cursor += 1
     # Check every Compose operation, including newly added ones. Parse folded
     # YAML commands first; checking just the first physical line misses flags.
-    arguments = build_args(receipt)
     for job_id, job in workflow.get("jobs", {}).items():
+        scoped_reference = (node_reference if path == GENERAL_WORKFLOW
+                            and job_id == GENERAL_DATA_JOB else None)
+        arguments = build_args(receipt, scoped_reference)
         for step in job.get("steps", []):
             command = step.get("run", "")
             for operation in re.findall(r"docker compose[^\n]*", command):
@@ -145,10 +193,14 @@ def check_workflow(path, contract, receipt):
                 if re.search(r"\bbuild\b", operation):
                     require(arguments in operation,
                             "Build missing exact immutable arguments: " + job_id)
+                    require(re.findall(r"--build-arg(?:\s+|=)([^\s]+)", operation)
+                            == re.findall(r"--build-arg\s+([^\s]+)", arguments),
+                            "Build has extra or overriding arguments: " + job_id)
 
 
 def check_offline(receipt):
     check_identities(receipt)
+    node_reference = check_general_node_transport(receipt)
     contract = receipt["semantic_contract"]
     # Check only original image defaults, not entire Dockerfiles/Compose source.
     for path, arguments in contract["dockerfile_defaults"].items():
@@ -166,8 +218,8 @@ def check_offline(receipt):
         require(package.get("scripts", {}).get(name) == expected,
                 "Required gate definition changed: " + name)
     for path, expected in contract["workflows"].items():
-        check_workflow(path, expected, receipt)
-    print("CI image transport semantic guard: PASS (5 immutable mappings; required gates/security/defaults)")
+        check_workflow(path, expected, receipt, node_reference)
+    print("CI image transport semantic guard: PASS (5 immutable identities; General Node transport; required gates/security/defaults)")
 
 
 def check_original_baseline(receipt):
@@ -279,17 +331,20 @@ def check_challenges(receipt):
     from io import StringIO
     from unittest.mock import patch
 
-    source = {path: read(path) for path in [OVERLAY, "compose.yaml", "package.json",
+    source = {path: read(path) for path in [ORIGINAL_RECEIPT, NODE_TRANSPORT_RECEIPT,
+              OVERLAY, "compose.yaml", "package.json",
               *receipt["semantic_contract"]["dockerfile_defaults"],
               *receipt["semantic_contract"]["workflows"]]}
-    general = ".github/workflows/spec-validation.yml"
+    general = GENERAL_WORKFLOW
     focused = ".github/workflows/electronics-r4-m1-focused.yml"
     outcomes = []
 
     def challenge(name, replacements, passes):
         contents = {**source, **replacements}
         error = None
-        with patch(__name__ + ".read", side_effect=contents.__getitem__):
+        with patch(__name__ + ".read", side_effect=contents.__getitem__), \
+                patch(__name__ + ".original_receipt_digest",
+                      return_value=digest(contents[ORIGINAL_RECEIPT])):
             try:
                 with redirect_stdout(StringIO()):
                     check_offline(receipt)
@@ -351,7 +406,7 @@ def check_challenges(receipt):
     challenge("extra overlay service property", {OVERLAY: source[OVERLAY]
               + "    privileged: true\n"}, False)
     challenge("missing Node build argument", {general: source[general].replace(
-              "--build-arg NODE_IMAGE=" + receipt["images"]["node"]["reference"] + " ", "")}, False)
+              "--build-arg NODE_IMAGE=" + check_general_node_transport(receipt) + " ", "")}, False)
     challenge("missing Compose overlay", {focused: source[focused].replace(
               " -f " + OVERLAY, "", 1)}, False)
     challenge("changed required gate", {general: source[general].replace(
@@ -371,6 +426,65 @@ def check_challenges(receipt):
     challenge("changed package gate definition", {"package.json": json.dumps(weakened_package)}, False)
     challenge("mutable production default", {"Dockerfile.web": source["Dockerfile.web"].replace(
               "ARG CADDY_IMAGE=caddy:2.10.2-alpine", "ARG CADDY_IMAGE=caddy:latest")}, False)
+
+    transport = json.loads(source[NODE_TRANSPORT_RECEIPT])
+    old_node = receipt["images"]["node"]["reference"]
+    new_node = transport["images"]["node"]["reference"]
+    challenge("selected General Node reference", {general: source[general]}, True)
+    challenge("General reverted to failing Node transport", {general: source[general].replace(
+              new_node, old_node)}, False)
+    challenge("General Node changed manifest", {general: source[general].replace(
+              new_node, "mirror.gcr.io/library/node@sha256:" + "0" * 64)}, False)
+    challenge("unselected General Caddy transport", {general: source[general].replace(
+              "public.ecr.aws/docker/library/caddy@", "mirror.gcr.io/library/caddy@")}, False)
+    challenge("unselected General BuildKit transport", {general: source[general].replace(
+              "mirror.gcr.io/docker/dockerfile@", "docker.io/docker/dockerfile@")}, False)
+    challenge("unselected Electronics Node transport", {focused: source[focused].replace(
+              old_node, new_node)}, False)
+
+    # Added builds are inspected too; a matching required step cannot hide an
+    # unselected job or a later duplicate flag overriding the verified image.
+    extra_build = parse_yaml(source[general])
+    command = ("docker compose -f compose.yaml -f compose.test.yaml -f " + OVERLAY
+               + " --profile test build " + build_args(receipt) + " migration test-runner")
+    extra_build["jobs"]["unselected-build"] = {
+        "runs-on": "ubuntu-latest", "steps": [{"run": command}]}
+    challenge("unselected job retains original images", {general: json.dumps(extra_build)}, True)
+    extra_build["jobs"]["unselected-build"]["steps"][0]["run"] = command.replace(old_node, new_node)
+    challenge("General Node transport leaked to another job", {general: json.dumps(extra_build)}, False)
+    extra_build["jobs"]["unselected-build"]["steps"][0]["run"] = (
+        command + " --build-arg=NODE_IMAGE=node:latest")
+    challenge("duplicate Node override after valid build args", {general: json.dumps(extra_build)}, False)
+
+    challenge("original 545 receipt must remain byte-identical",
+              {ORIGINAL_RECEIPT: source[ORIGINAL_RECEIPT] + "\n"}, False)
+    challenge("original 545 receipt line endings are immutable",
+              {ORIGINAL_RECEIPT: source[ORIGINAL_RECEIPT].replace("\n", "\r\n")}, False)
+    for field, replacement in [("workflow", focused), ("job", "code")]:
+        altered = deepcopy(transport)
+        altered[field] = replacement
+        challenge("transport receipt changes " + field,
+                  {NODE_TRANSPORT_RECEIPT: json.dumps(altered)}, False)
+    altered = deepcopy(transport)
+    altered["images"]["caddy"] = receipt["images"]["caddy"]
+    challenge("transport receipt authorizes another image",
+              {NODE_TRANSPORT_RECEIPT: json.dumps(altered)}, False)
+    for field in ["source_identity", "transport_identity", "config", "layers", "rootfs_diff_ids"]:
+        altered = deepcopy(transport)
+        node = altered["images"]["node"]
+        if field in ["source_identity", "transport_identity"]:
+            node[field]["config"] = "sha256:" + "0" * 64
+        elif field == "config":
+            node[field]["digest"] = "sha256:" + "0" * 64
+        else:
+            node[field] = list(reversed(node[field]))
+        challenge("transport receipt changes Node " + field,
+                  {NODE_TRANSPORT_RECEIPT: json.dumps(altered)}, False)
+    altered = deepcopy(transport)
+    altered["images"]["node"]["raw_provenance"]["mirror"]["config_sha256"] = "0" * 64
+    challenge("reused raw Node proof mismatch",
+              {NODE_TRANSPORT_RECEIPT: json.dumps(altered)}, False)
+
     original = {"services": {"postgres": {"image": "postgres:17.7-bookworm"},
                              "test-runner": {"command": "pnpm gate:data"}}}
     for changed_service in (False, True):
