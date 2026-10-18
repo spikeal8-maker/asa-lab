@@ -8,11 +8,14 @@ import type {
 import {
   analyseCircuit,
   compileCircuit,
+  createArduinoQualityTraversal,
   simulationModelSetDigest,
   verifyCircuitQuality,
 } from '../domain/simulation';
 
 import * as solver from '../domain/solver';
+import { arduinoSnapshotFromState } from '../domain/arduino-model';
+import { advanceArduinoRuntime } from '../domain/arduino-program-runtime';
 
 function component(
   id: string,
@@ -495,5 +498,519 @@ describe('R4-M1 simulation implementation contract', () => {
       expect(solved?.branchBrightness?.[segment], segment).toBeGreaterThan(0);
     }
     expect(solved?.lit).toBe(true);
+  });
+});
+
+describe('request-owned current quality traversal', () => {
+  const source = 'void setup(){pinMode(13,OUTPUT);digitalWrite(13,HIGH);}void loop(){delay(1);}';
+  const fixture = () =>
+    document(
+      [
+        component('uno', 'visual', 5, {
+          componentTypeId: 'arduino-uno',
+          pinIds: ['d13', 'power-5v', 'power-3v3', 'power-gnd-1'],
+          stateProperties: { arduinoSource: source },
+        }),
+        component('r', 'resistor', 330, {
+          componentTypeId: 'resistor-axial',
+          pinIds: ['lead-1', 'lead-2'],
+        }),
+        component('led', 'led', 2, { componentTypeId: 'led-5mm', pinIds: ['anode', 'cathode'] }),
+      ],
+      [
+        connect('a', 'uno', 'd13', 'r', 'lead-1'),
+        connect('b', 'r', 'lead-2', 'led', 'anode'),
+        connect('c', 'led', 'cathode', 'uno', 'power-gnd-1'),
+      ],
+    );
+  const harness = (doc = fixture()) => {
+    const compiled = compileCircuit(doc);
+    const reuse = solver.createArduinoOperatingPointReuse();
+    const layout = solver.createArduinoQualityLayoutOwner(reuse);
+    const prepared = createArduinoQualityTraversal(doc, compiled, layout.owner);
+    const runtime = advanceArduinoRuntime(source).state;
+    const solve = (time = 1, state = runtime) =>
+      solver.solveCircuitWithHeldArduino(
+        doc,
+        time,
+        new Map([['uno', arduinoSnapshotFromState(state)]]),
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        reuse,
+      );
+    return {
+      doc,
+      compiled,
+      reuse,
+      layout,
+      prepared,
+      runtime,
+      solve,
+      compare(frame: solver.SolveResult, time = 1) {
+        const expected = verifyCircuitQuality(doc, compiled, frame, { simulationTimeMs: time });
+        const actual = prepared.verify(frame, { simulationTimeMs: time });
+        expect(actual).toStrictEqual(expected);
+        return actual;
+      },
+      dispose() {
+        prepared.dispose();
+        layout.dispose();
+      },
+    };
+  };
+
+  it('checks every live scalar and retained dictionary again, without changing retained frames', () => {
+    const h = harness();
+    const layouts = vi.spyOn(solver, 'arduinoQualityDictionaryKeys');
+    try {
+      const first = h.solve();
+      const saved = JSON.stringify(first);
+      expect(h.compare(first).passed).toBe(true);
+      expect(layouts).toHaveBeenCalled();
+      for (const value of [NaN, Infinity, -Infinity, -0, 0, 0.125]) {
+        const frame = h.solve(2, { ...h.runtime, variables: { value }, locals: { local: -0 } });
+        const actual = h.compare(frame, 2);
+        expect(actual.finite).toBe(Number.isFinite(value));
+      }
+      const changed = h.solve(3);
+      Reflect.set(changed.components[0]!, 'voltageConstraintResidual', 1);
+      expect(h.compare(changed, 3).passed).toBe(false);
+      expect(JSON.stringify(first)).toBe(saved);
+      expect(h.compare(h.solve(4), 4).passed).toBe(true);
+    } finally {
+      layouts.mockRestore();
+      h.dispose();
+    }
+  });
+
+  it.each(['current', 'iterations', 'numericalResidual', 'numericalTolerance'] as const)(
+    'reads fresh root %s, including signed zero and all nonfinite values',
+    (field) => {
+      const h = harness();
+      try {
+        for (const value of [-0, 0, NaN, Infinity, -Infinity]) {
+          const frame = h.solve();
+          Reflect.set(frame, field, value);
+          expect(h.compare(frame).finite).toBe(Number.isFinite(value));
+        }
+      } finally {
+        h.dispose();
+      }
+    },
+  );
+
+  it('reads every current component numeric category and current node voltages', () => {
+    const h = harness();
+    const fields = [
+      'voltageDrop',
+      'current',
+      'power',
+      'internalResistanceOhm',
+      'internalPower',
+      'voltageSag',
+      'voltageSetpointVolt',
+      'currentLimitAmp',
+      'brightness',
+      'baseCurrent',
+      'collectorCurrent',
+      'emitterCurrent',
+      'currentGain',
+      'frequencyHz',
+      'soundLevel',
+      'motorRpm',
+      'outputRpm',
+      'motorAngularPhaseRadian',
+      'electromagneticTorqueNewtonMeter',
+      'outputTorqueNewtonMeter',
+      'outputLoadTorqueNewtonMeter',
+      'transmissionEfficiency',
+      'copperLossWatt',
+      'motorMechanicalPowerWatt',
+      'outputMechanicalPowerWatt',
+      'capacitanceFarad',
+      'chargeCoulomb',
+      'storedEnergyJoule',
+      'voltageRatingVolt',
+      'temperatureCelsius',
+      'sensorTemperatureCelsius',
+      'sensorMoisturePercent',
+      'sensorResistanceOhm',
+      'sensorOutputVoltageVolt',
+      'sensorSupplyVoltageVolt',
+      'sensorOutputCurrentAmp',
+      'thermalLoadPercent',
+      'accumulatedDamagePercent',
+      'voltageConstraintResidual',
+    ];
+    try {
+      const initial = h.solve();
+      Reflect.set(initial.nodes[0]!, 'voltage', NaN);
+      expect(h.compare(initial).finite).toBe(false);
+      for (const field of fields) {
+        const frame = h.solve();
+        Reflect.set(frame.components[0]!, field, NaN);
+        expect(h.compare(frame).finite, field).toBe(false);
+      }
+    } finally {
+      h.dispose();
+    }
+  });
+
+  it.each(['terminalVoltages', 'terminalCurrents', 'branchCurrents', 'branchBrightness'] as const)(
+    'uses current %s replacements and preserves enumeration/getter/throw priority',
+    (field) => {
+      const h = harness();
+      const reads: string[] = [];
+      try {
+        const frame = h.solve();
+        const dictionary = { '10': -0, '2': undefined, extra: NaN };
+        Object.defineProperty(dictionary, 'later', {
+          enumerable: true,
+          get() {
+            reads.push('later');
+            return Infinity;
+          },
+        });
+        Reflect.set(frame.components[0]!, field, dictionary);
+        const expected = verifyCircuitQuality(h.doc, h.compiled, frame, {});
+        const expectedReads = [...reads];
+        reads.length = 0;
+        expect(h.prepared.verify(frame, {})).toStrictEqual(expected);
+        expect(reads).toStrictEqual(expectedReads);
+        // An exception after an earlier nonfinite value is still observed.
+        const next = h.solve();
+        Reflect.set(next.components[0]!, field, {
+          bad: NaN,
+          get later() {
+            throw new Error('later wins');
+          },
+        });
+        expect(() => h.prepared.verify(next, {})).toThrow('later wins');
+        expect(h.compare(h.solve()).passed).toBe(true);
+      } finally {
+        h.dispose();
+      }
+    },
+  );
+
+  it('keeps original values/entries observations for fresh producer dictionaries without retained layouts', () => {
+    const h = harness(simpleOhmLaw());
+    const reads: string[] = [];
+    const prepare = () => {
+      const frame = h.solve();
+      const values = frame.components[0]!.terminalCurrents!;
+      const [first, second] = Object.keys(values);
+      Object.defineProperty(values, first!, {
+        configurable: true,
+        enumerable: true,
+        get() {
+          reads.push(first!);
+          Object.defineProperty(values, second!, {
+            configurable: true,
+            enumerable: false,
+            value: 0,
+          });
+          return 0;
+        },
+      });
+      return frame;
+    };
+    try {
+      const expected = verifyCircuitQuality(h.doc, h.compiled, prepare(), {});
+      const expectedReads = [...reads];
+      reads.length = 0;
+      const frame = prepare();
+      const keys = vi.spyOn(solver, 'arduinoQualityDictionaryKeys');
+      try {
+        expect(h.prepared.verify(frame, {})).toStrictEqual(expected);
+        expect(reads).toStrictEqual(expectedReads);
+        expect(keys).toHaveBeenCalled();
+      } finally {
+        keys.mockRestore();
+      }
+    } finally {
+      h.dispose();
+    }
+  });
+
+  it('checks current controller, transient, damage and analysis numeric categories independently', () => {
+    const h = harness();
+    const physical = () =>
+      solver.solveRcCircuitWithHeldArduino(
+        h.doc,
+        0,
+        new Map([['uno', arduinoSnapshotFromState(h.runtime)]]),
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        h.reuse,
+      );
+    const mutate: ((frame: solver.SolveResult) => void)[] = [
+      (frame) => Reflect.set(frame.transientState!, 'simulationTimeMs', NaN),
+      ...['temperatureCelsius', 'loadRatio', 'accumulatedDamage'].map(
+        (field) => (frame: solver.SolveResult) => {
+          Reflect.set(frame.transientState!.thermal[0]!, field, NaN);
+        },
+      ),
+      ...['capacitanceFarad', 'initialVoltageVolt', 'voltageRatingVolt', 'voltageVolt'].map(
+        (field) => (frame: solver.SolveResult) => {
+          Reflect.set(frame.transientState!, 'capacitors', [
+            {
+              capacitanceFarad: 0,
+              initialVoltageVolt: 0,
+              voltageRatingVolt: 0,
+              voltageVolt: 0,
+              [field]: NaN,
+            },
+          ]);
+        },
+      ),
+      ...[
+        'simulationTimeSeconds',
+        'currentAmp',
+        'motorAngularVelocityRadPerSecond',
+        'motorAngularPhaseRadian',
+        'temperatureCelsius',
+        'accumulatedDamage',
+      ].map((field) => (frame: solver.SolveResult) => {
+        Reflect.set(frame.transientState!, 'motors', [
+          {
+            simulationTimeSeconds: 0,
+            currentAmp: 0,
+            motorAngularVelocityRadPerSecond: 0,
+            motorAngularPhaseRadian: 0,
+            temperatureCelsius: 0,
+            accumulatedDamage: 0,
+            [field]: NaN,
+          },
+        ]);
+      }),
+      (frame) =>
+        Reflect.set(frame.transientState!, 'multimeterFuses', [
+          { accumulatedI2tAmpSquaredSecond: NaN },
+        ]),
+      ...['acceptedSteps', 'rejectedSteps', 'minStepMs', 'maxStepMs'].map(
+        (field) => (frame: solver.SolveResult) => {
+          Reflect.set(frame.transientAnalysis!, field, NaN);
+        },
+      ),
+      (frame) => Reflect.set(frame.controllerState!, 'simulationTimeMs', NaN),
+      ...['virtualTimeMs', 'resumeAtMs', 'programCounter', 'loopStartedAtMs', 'loopIterations'].map(
+        (field) => (frame: solver.SolveResult) => {
+          Reflect.set(frame.controllerState!.boards[0]!.runtime, field, NaN);
+        },
+      ),
+      (frame) => Reflect.set(frame.controllerState!.boards[0]!.runtime, 'variables', { bad: NaN }),
+      (frame) => Reflect.set(frame.controllerState!.boards[0]!.runtime, 'locals', { bad: NaN }),
+      (frame) =>
+        Reflect.set(frame.controllerState!.boards[0]!.runtime, 'outputVoltages', {
+          bad: NaN,
+          absent: undefined,
+        }),
+      (frame) =>
+        Reflect.set(frame.controllerState!.boards[0]!.runtime, 'tones', {
+          bad: { frequencyHz: NaN },
+        }),
+      (frame) =>
+        Reflect.set(frame.controllerState!.boards[0]!.runtime, 'tones', {
+          bad: { frequencyHz: 1, expiresAtMs: NaN },
+        }),
+    ];
+    const keys = vi.spyOn(solver, 'arduinoQualityDictionaryKeys');
+    try {
+      for (const change of mutate) {
+        const frame = physical();
+        keys.mockClear();
+        change(frame);
+        const expected = verifyCircuitQuality(h.doc, h.compiled, frame, { simulationTimeMs: 0 });
+        expect(h.prepared.verify(frame, { simulationTimeMs: 0 })).toStrictEqual(expected);
+        expect(expected.finite).toBe(false);
+        expect(keys).toHaveBeenCalled();
+      }
+    } finally {
+      keys.mockRestore();
+      h.dispose();
+    }
+  });
+
+  it('rejects a getter substituted for an absent dictionary without probing it', () => {
+    const h = harness();
+    const reads: string[] = [];
+    const frame = h.solve();
+    const component = frame.components.find((entry) => entry.branchBrightness === undefined)!;
+    Object.defineProperty(component, 'branchBrightness', {
+      enumerable: true,
+      configurable: true,
+      get() {
+        reads.push('brightness');
+        return { value: 0 };
+      },
+    });
+    const expected = verifyCircuitQuality(h.doc, h.compiled, frame, {});
+    const expectedReads = [...reads];
+    reads.length = 0;
+    const keys = vi.spyOn(solver, 'arduinoQualityDictionaryKeys');
+    try {
+      expect(h.prepared.verify(frame, {})).toStrictEqual(expected);
+      expect(reads).toStrictEqual(expectedReads);
+      expect(keys).not.toHaveBeenCalled();
+    } finally {
+      keys.mockRestore();
+      h.dispose();
+    }
+  });
+
+  it('does not inspect an unknown outer Proxy before the original verifier', () => {
+    const h = harness();
+    try {
+      const frame = h.solve();
+      const observations: string[] = [];
+      const proxy = new Proxy(frame, {
+        get(target, key, receiver) {
+          observations.push(String(key));
+          return Reflect.get(target, key, receiver);
+        },
+        getOwnPropertyDescriptor() {
+          throw new Error('unexpected receipt probe');
+        },
+      });
+      const expected = verifyCircuitQuality(h.doc, h.compiled, proxy, {});
+      const expectedReads = [...observations];
+      observations.length = 0;
+      expect(h.prepared.verify(proxy, {})).toStrictEqual(expected);
+      expect(observations).toStrictEqual(expectedReads);
+    } finally {
+      h.dispose();
+    }
+  });
+
+  it('consumes one exact-result receipt, rejects replaced components and ignores frozen claims', () => {
+    const h = harness();
+    const layouts = vi.spyOn(solver, 'arduinoQualityDictionaryKeys');
+    try {
+      const frame = h.solve();
+      h.compare(frame);
+      expect(layouts).toHaveBeenCalled();
+      layouts.mockClear();
+      h.compare(frame);
+      expect(layouts).not.toHaveBeenCalled();
+      const next = h.solve();
+      Reflect.set(
+        next,
+        'components',
+        next.components.map((entry) => Object.freeze({ ...entry })),
+      );
+      h.compare(next);
+      expect(layouts).not.toHaveBeenCalled();
+      const unknown = createArduinoQualityTraversal(h.doc, h.compiled, Object.freeze({}));
+      expect(unknown.verify(h.solve(), {})).toStrictEqual(
+        verifyCircuitQuality(h.doc, h.compiled, h.solve(), {}),
+      );
+      expect(layouts).not.toHaveBeenCalled();
+      unknown.dispose();
+    } finally {
+      layouts.mockRestore();
+      h.dispose();
+    }
+  });
+
+  it('preserves last duplicate result ID and the original grouped power additions', () => {
+    const h = harness();
+    try {
+      const frame = h.solve();
+      Reflect.set(frame.components[0]!, 'componentId', frame.components[1]!.componentId);
+      expect(h.compare(frame)).toStrictEqual(verifyCircuitQuality(h.doc, h.compiled, frame, {}));
+      const grouped = simpleOhmLaw();
+      const g = harness(grouped);
+      try {
+        const result = g.solve();
+        for (let index = 0; index < result.components.length; index++) {
+          const entry = result.components[index]!;
+          expect(entry.terminalCurrents).toBeDefined();
+          for (const key of Object.keys(entry.terminalCurrents!))
+            Reflect.deleteProperty(entry.terminalCurrents!, key);
+          for (const key of Object.keys(entry.terminalVoltages))
+            Reflect.deleteProperty(entry.terminalVoltages, key);
+          Object.assign(entry.terminalCurrents!, { '10': 1, '2': 1, tail: 1, absent: undefined });
+          Object.assign(
+            entry.terminalVoltages,
+            index === 0 ? { '10': 0, '2': 1e16, tail: -0 } : { '10': 1, '2': -1e16, tail: 0 },
+          );
+        }
+        const layouts = vi.spyOn(solver, 'arduinoQualityDictionaryKeys');
+        try {
+          expect(g.compare(result).powerBalanceResidualWatt).toBe(0);
+          expect(layouts).toHaveBeenCalled();
+        } finally {
+          layouts.mockRestore();
+        }
+      } finally {
+        g.dispose();
+      }
+    } finally {
+      h.dispose();
+    }
+  });
+
+  it('keeps generic supplied Maps, species callbacks, reentry and callback errors unchanged', () => {
+    const h = harness();
+    const events: string[] = [];
+    try {
+      const frame = h.solve();
+      const components = [...frame.components];
+      Object.defineProperty(components, 'constructor', {
+        get() {
+          events.push('species');
+          return { [Symbol.species]: Array };
+        },
+      });
+      const publicFrame = { ...frame, components };
+      const compiled = compileCircuit(h.doc);
+      const get = compiled.netlist.nodeOf.get.bind(compiled.netlist.nodeOf);
+      Reflect.set(compiled.netlist.nodeOf, 'get', (key: string) => {
+        events.push(key);
+        return get(key);
+      });
+      verifyCircuitQuality(h.doc, compiled, publicFrame, {});
+      const expected = [...events];
+      events.length = 0;
+      // A substituted outer frame uses public mutable Maps and Array semantics.
+      const traversal = createArduinoQualityTraversal(h.doc, compiled, {});
+      traversal.verify(publicFrame, {});
+      expect(events).toStrictEqual(expected);
+      traversal.dispose();
+      let nested = false;
+      const reenter = vi.spyOn(solver, 'arduinoQualityDictionaryKeys').mockImplementation(() => {
+        if (!nested) {
+          nested = true;
+          const inner = h.solve(2);
+          expect(h.prepared.verify(inner, {})).toStrictEqual(
+            verifyCircuitQuality(h.doc, h.compiled, inner, {}),
+          );
+        }
+        return undefined;
+      });
+      try {
+        h.compare(h.solve());
+        expect(nested).toBe(true);
+      } finally {
+        reenter.mockRestore();
+      }
+      const throws = vi.spyOn(solver, 'arduinoQualityDictionaryKeys').mockImplementationOnce(() => {
+        throw new Error('quality throw');
+      });
+      try {
+        expect(() => h.prepared.verify(h.solve(), {})).toThrow('quality throw');
+      } finally {
+        throws.mockRestore();
+      }
+      expect(h.compare(h.solve()).passed).toBe(true);
+    } finally {
+      h.dispose();
+    }
   });
 });

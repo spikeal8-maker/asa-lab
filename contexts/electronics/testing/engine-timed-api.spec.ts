@@ -692,6 +692,142 @@ describe('event execution request ownership and physical barriers', () => {
     }
     throw new Error('bounded reference did not finish');
   };
+  it('enables prepared quality only after the real owned AST and preserves every quality call', () => {
+    const document = eventCircuit(
+      'void setup(){pinMode(13,OUTPUT);}void loop(){digitalWrite(13,HIGH);delay(1);digitalWrite(13,LOW);delay(1);}',
+    );
+    const order: string[] = [];
+    const createRuntime = arduinoRuntime.createOwnedClockedArduinoRuntime;
+    const createTraversal = simulation.createArduinoQualityTraversal;
+    const publicVerify = simulation.verifyCircuitQuality;
+    const runtime = vi
+      .spyOn(arduinoRuntime, 'createOwnedClockedArduinoRuntime')
+      .mockImplementation((...args) => {
+        const result = createRuntime(...args);
+        if (result) order.push('runtime');
+        return result;
+      });
+    let preparedCalls = 0;
+    const quality = vi
+      .spyOn(simulation, 'createArduinoQualityTraversal')
+      .mockImplementation((...args) => {
+        order.push('factory');
+        const result = createTraversal(...args);
+        return {
+          ...result,
+          verify(...parameters) {
+            preparedCalls++;
+            return result.verify(...parameters);
+          },
+        };
+      });
+    const generic = vi.spyOn(simulation, 'verifyCircuitQuality').mockImplementation((...args) => {
+      order.push('generic');
+      return publicVerify(...args);
+    });
+    const keys = vi.spyOn(solver, 'arduinoQualityDictionaryKeys');
+    try {
+      const actual = finish(document, { requestedHorizonMicroseconds: 4008, maxEvents: 7 }).result;
+      expect(actual.executionStatus).toBe('ready');
+      expect(order[0]).toBe('generic');
+      expect(order.indexOf('runtime')).toBeLessThan(order.indexOf('factory'));
+      expect(quality).toHaveBeenCalledTimes(1);
+      expect(keys).toHaveBeenCalled();
+      expect(preparedCalls).toBeGreaterThan(0);
+      const calls = preparedCalls + generic.mock.calls.length;
+      generic.mockClear();
+      quality.mockImplementation((...args) => {
+        const result = createTraversal(...args);
+        return {
+          ...result,
+          verify(frame, options) {
+            return simulation.verifyCircuitQuality(args[0], args[1], frame, options);
+          },
+        };
+      });
+      expect(actual).toStrictEqual(
+        finish(document, { requestedHorizonMicroseconds: 4008, maxEvents: 7 }).result,
+      );
+      expect(generic).toHaveBeenCalledTimes(calls);
+    } finally {
+      keys.mockRestore();
+      generic.mockRestore();
+      quality.mockRestore();
+      runtime.mockRestore();
+    }
+  });
+
+  it.each([
+    'int value=0;void setup(){pinMode(13,OUTPUT);}void loop(){value=digitalRead(13);delay(1);}',
+    'void setup(){Serial.begin(9600);}void loop(){Serial.println(1);delay(1);}',
+  ])('keeps unproved runtime AST quality generic for %s', (source) => {
+    const quality = vi.spyOn(simulation, 'createArduinoQualityTraversal');
+    try {
+      const document = eventCircuit(source);
+      expect(
+        finish(document, { requestedHorizonMicroseconds: 1010, maxEvents: 7 }).result,
+      ).toStrictEqual(reference(document, 1010, 7));
+      expect(quality).not.toHaveBeenCalled();
+    } finally {
+      quality.mockRestore();
+    }
+  });
+
+  it('revokes quality before a foreign model callback and never promotes after restoration', () => {
+    const document = eventCircuit(
+      'int count=0;void setup(){pinMode(13,OUTPUT);}void loop(){count++;digitalWrite(13,count%2);}',
+    );
+    const observe = Object.getOwnPropertyDescriptor(RESISTOR_DEVICE_MODEL, 'observe')!;
+    const create = simulation.createArduinoQualityTraversal;
+    let revoked = false;
+    let callbacks = 0;
+    const quality = vi
+      .spyOn(simulation, 'createArduinoQualityTraversal')
+      .mockImplementation((...args) => {
+        const result = create(...args);
+        return {
+          ...result,
+          dispose() {
+            revoked = true;
+            result.dispose();
+          },
+        };
+      });
+    const keys = vi.spyOn(solver, 'arduinoQualityDictionaryKeys');
+    const session = createElectronicsAdvanceSession(document, {
+      requestedHorizonMicroseconds: 2010,
+      maxEvents: 7,
+    });
+    try {
+      let actual = session.step();
+      while (!actual && quality.mock.calls.length === 0) actual = session.step();
+      expect(actual).toBeNull();
+      expect(quality).toHaveBeenCalledTimes(1);
+      Object.defineProperty(RESISTOR_DEVICE_MODEL, 'observe', {
+        ...observe,
+        value: (...args: Parameters<NonNullable<typeof RESISTOR_DEVICE_MODEL.observe>>) => {
+          expect(revoked).toBe(true);
+          callbacks++;
+          return observe.value(...args);
+        },
+      });
+      keys.mockClear();
+      actual = session.step();
+      while (!actual && callbacks === 0) actual = session.step();
+      expect(callbacks).toBeGreaterThan(0);
+      Object.defineProperty(RESISTOR_DEVICE_MODEL, 'observe', observe);
+      while (!actual) actual = session.step();
+      expect(keys).not.toHaveBeenCalled();
+      expect(quality).toHaveBeenCalledTimes(1);
+      expect(actual).toStrictEqual(reference(document, 2010, 7));
+    } finally {
+      Object.defineProperty(RESISTOR_DEVICE_MODEL, 'observe', observe);
+      session.dispose();
+      keys.mockRestore();
+      quality.mockRestore();
+    }
+  });
+
   it.each([1, 7, 256, 1024])(
     'detaches every owned runtime view and preserves null boundaries, budget %i',
     (budget) => {

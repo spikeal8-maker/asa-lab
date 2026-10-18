@@ -27,12 +27,21 @@ import {
 import {
   prepareCircuitSolve,
   createArduinoOperatingPointReuse,
+  createArduinoQualityLayoutOwner,
+  takeArduinoQualityReceipt,
+  arduinoQualityDictionaryKeys,
+  releaseArduinoQualityReceipt,
   solveCircuit,
   solveCircuitWithHeldArduino,
   solveRcCircuitWithHeldArduino,
 } from '../domain/solver';
 import { arduinoSnapshotFromState } from '../domain/arduino-model';
 import { advanceArduinoRuntime } from '../domain/arduino-program-runtime';
+import {
+  compileCircuit,
+  createArduinoQualityTraversal,
+  verifyCircuitQuality,
+} from '../domain/simulation';
 import type { ArduinoRuntimeState } from '../domain/arduino-program-runtime';
 import {
   canonicalPhotoresistorProfileRegistry,
@@ -384,6 +393,122 @@ describe('advance-local Arduino algebraic operating point', () => {
               : entry
           : entry,
     );
+
+  it('binds a one-use quality receipt to the final physical overlay and exact document', () => {
+    const document = fixture();
+    const reuse = createArduinoOperatingPointReuse();
+    const layout = createArduinoQualityLayoutOwner(reuse);
+    const state = snapshots(advanceArduinoRuntime(source).state);
+    const solve = () =>
+      solveRcCircuitWithHeldArduino(
+        document,
+        0,
+        state,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        reuse,
+      );
+    try {
+      const frame = solve();
+      expect(frame.transientState).toBeDefined();
+      expect(takeArduinoQualityReceipt(layout.owner, frame, { ...document })).toBeUndefined();
+      expect(takeArduinoQualityReceipt(layout.owner, frame, document)).toBeUndefined();
+      const current = solve();
+      const receipt = takeArduinoQualityReceipt(layout.owner, current, document);
+      expect(receipt).toBeDefined();
+      expect(takeArduinoQualityReceipt(layout.owner, current, document)).toBeUndefined();
+      const record = current.components.find(
+        (entry) => entry.componentId === 'led',
+      )!.terminalVoltages;
+      expect(arduinoQualityDictionaryKeys(receipt!, record)).toStrictEqual(Object.keys(record));
+      releaseArduinoQualityReceipt(receipt!);
+      expect(arduinoQualityDictionaryKeys(receipt!, record)).toBeUndefined();
+    } finally {
+      layout.dispose();
+    }
+  });
+
+  it('checks fresh thermal-open records instead of borrowing the closed template layout', () => {
+    const document = fixture();
+    const compiled = compileCircuit(document);
+    const reuse = createArduinoOperatingPointReuse();
+    const layout = createArduinoQualityLayoutOwner(reuse);
+    const quality = createArduinoQualityTraversal(document, compiled, layout.owner);
+    const state = snapshots(advanceArduinoRuntime(source).state);
+    const solve = (time: number, physical?: Parameters<typeof solveRcCircuitWithHeldArduino>[3]) =>
+      solveRcCircuitWithHeldArduino(
+        document,
+        time,
+        state,
+        physical,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        reuse,
+      );
+    try {
+      const first = solve(0);
+      quality.verify(first, {});
+      const saved = encode(first);
+      const failedState = {
+        ...first.transientState!,
+        thermal: first.transientState!.thermal.map((entry) =>
+          entry.componentId === 'led'
+            ? { ...entry, failureMode: 'open' as const, accumulatedDamage: 1 }
+            : entry,
+        ),
+      };
+      const open = solve(1, failedState);
+      const led = open.components.find((entry) => entry.componentId === 'led')!;
+      expect(led.current).toBe(0);
+      expect(led.terminalCurrents).not.toBe(
+        first.components.find((entry) => entry.componentId === 'led')!.terminalCurrents,
+      );
+      expect(quality.verify(open, { simulationTimeMs: 1 })).toStrictEqual(
+        verifyCircuitQuality(document, compiled, open, { simulationTimeMs: 1 }),
+      );
+      expect(encode(first)).toBe(saved);
+      const next = solve(2, open.transientState);
+      expect(quality.verify(next, { simulationTimeMs: 2 })).toStrictEqual(
+        verifyCircuitQuality(document, compiled, next, { simulationTimeMs: 2 }),
+      );
+      expect(next.components.find((entry) => entry.componentId === 'led')!.current).toBe(0);
+    } finally {
+      quality.dispose();
+      layout.dispose();
+    }
+  });
+
+  it('releases pending receipt references on disposal without a solve or replay', () => {
+    const document = fixture();
+    const reuse = createArduinoOperatingPointReuse();
+    const layout = createArduinoQualityLayoutOwner(reuse);
+    const frame = solveCircuitWithHeldArduino(
+      document,
+      1,
+      snapshots(advanceArduinoRuntime(source).state),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      reuse,
+    );
+    const saved = encode(frame);
+    const solve = vi.spyOn(linearSystem, 'solveLinear');
+    try {
+      layout.dispose();
+      layout.dispose();
+      expect(takeArduinoQualityReceipt(layout.owner, frame, document)).toBeUndefined();
+      expect(solve).not.toHaveBeenCalled();
+      expect(encode(frame)).toBe(saved);
+    } finally {
+      solve.mockRestore();
+    }
+  });
 
   it('reuses numerical work while rebuilding current controller and independent result objects', () => {
     const document = fixture();

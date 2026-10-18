@@ -56,10 +56,16 @@ import {
   createLedTemporalObservation,
   type LedElectricalObserver,
 } from './led-temporal-observation.js';
-import { compileCircuit, verifyCircuitQuality, type SimulationQuality } from './simulation.js';
+import {
+  compileCircuit,
+  verifyCircuitQuality,
+  createArduinoQualityTraversal,
+  type SimulationQuality,
+} from './simulation.js';
 import {
   prepareCircuitSolve,
   createArduinoOperatingPointReuse,
+  createArduinoQualityLayoutOwner,
   clockedRcStateIsCompatible,
   clockedPhysicalStateIsCompatible,
   solveCircuitWithHeldArduino,
@@ -434,7 +440,19 @@ type OwnedClockRequest = {
   runtime?: ReturnType<typeof createOwnedClockedArduinoRuntime>;
   source?: string;
   continued: boolean;
+  quality?: {
+    readonly document: ElectronicsDocument;
+    readonly circuit: ReturnType<typeof compileCircuit>;
+    readonly layout: ReturnType<typeof createArduinoQualityLayoutOwner>;
+    readonly traversal: ReturnType<typeof createArduinoQualityTraversal>;
+  };
 };
+
+function clearOwnedQuality(ownership: OwnedClockRequest): void {
+  ownership.quality?.traversal.dispose();
+  ownership.quality?.layout.dispose();
+  delete ownership.quality;
+}
 const ownedClockRequests = new WeakMap<ClockPreparation, OwnedClockRequest>();
 
 function ordinaryOwnedGraph(value: unknown, visited = new Set<object>()): boolean {
@@ -628,6 +646,7 @@ function createArduinoCircuitClockRequest(
     step() {
       if (disposed || !data) return undefined;
       if (!stillOwned()) {
+        clearOwnedQuality(ownership);
         ownership.runtime?.dispose();
         ownership.runtime = null;
         if (preparation) ownedClockRequests.delete(preparation);
@@ -652,6 +671,7 @@ function createArduinoCircuitClockRequest(
     dispose() {
       if (disposed) return;
       disposed = true;
+      clearOwnedQuality(ownership);
       ownership.runtime?.dispose();
       ownership.runtime = null;
       if (preparation) ownedClockRequests.delete(preparation);
@@ -1086,6 +1106,7 @@ export function advanceArduinoCircuitClock(
     // Compilation depends only on the immutable active document, never on a frame.
     // Each applied input replaces that document; every frame is still independently verified.
     if (qualityDocument !== activeDocument || !qualityCircuit) {
+      if (ownership) clearOwnedQuality(ownership);
       qualityCircuit = compileCircuit(activeDocument);
       qualityDocument = activeDocument;
       if (ownedPreparation) {
@@ -1093,11 +1114,28 @@ export function advanceArduinoCircuitClock(
         ownedPreparation.qualityCircuit = qualityCircuit;
       }
     }
+    if (
+      ownership?.runtime &&
+      ownership.source === executionSources.get(boards[0]!.id) &&
+      (!ownership.quality ||
+        ownership.quality.document !== activeDocument ||
+        ownership.quality.circuit !== qualityCircuit)
+    ) {
+      clearOwnedQuality(ownership);
+      const layout = createArduinoQualityLayoutOwner(operatingPointReuse);
+      ownership.quality = {
+        document: activeDocument,
+        circuit: qualityCircuit,
+        layout,
+        traversal: createArduinoQualityTraversal(activeDocument, qualityCircuit, layout.owner),
+      };
+    }
+    const qualityOptions = { simulationTimeMs: time / 1000 };
     return {
       ...frame,
-      quality: verifyCircuitQuality(activeDocument, qualityCircuit, frame, {
-        simulationTimeMs: time / 1000,
-      }),
+      quality: ownership?.quality
+        ? ownership.quality.traversal.verify(frame, qualityOptions)
+        : verifyCircuitQuality(activeDocument, qualityCircuit, frame, qualityOptions),
     };
   };
   let solveDocument = ownedPreparation?.solveDocument;
