@@ -39,6 +39,7 @@ jobs:
     timeout-minutes: 12
     env:
       NX_SKIP_NX_CACHE: 'true'
+      ASA_COVERAGE_POSTGRES_PROBE: '1'
       TEST_DATABASE_URL: postgresql://postgres:coverage-ci-only@127.0.0.1:5432/asa_coverage_test
       APP_TEST_DATABASE_URL: postgresql://asalab_app:coverage-ci-only@127.0.0.1:5432/asa_coverage_test
       MIGRATION_DATABASE_URL: postgresql://postgres:coverage-ci-only@127.0.0.1:5432/asa_coverage_test

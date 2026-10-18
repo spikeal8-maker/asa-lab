@@ -65,3 +65,13 @@ process recreation/upgrade, actual finite admin names and already ended streams.
 R1 Python8 and terminal6 PASS; initial broader suite160 PASS/4 platform SKIPPED,
 with five added cases now165 distinct local PASS. Final convergence focused gate
 and a new independent exact-SHA HIGH review are required before publication.
+
+## Bounded R2: focused host-probe isolation
+
+Second independent review closed R1 but found the new PG spec would run host
+Docker/configuration assertions in ordinary containerized data/access suites.
+The actual provenance/authorization/aggregate tests remain generic. Only the
+Compose settings/host-log canary test is explicitly opted in with
+ASA_COVERAGE_POSTGRES_PROBE=1 by Coverage Diagnostics; ordinary suites skip that
+probe and do not require Docker access or special PostgreSQL logging settings.
+No product-code change. Final independent review and isolated CI remain required.

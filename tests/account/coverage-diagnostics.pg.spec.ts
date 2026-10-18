@@ -85,7 +85,7 @@ describe('actual diagnostic provenance and PostgreSQL coverage', () => {
       ]),
     ).rejects.toMatchObject({ code: '42501' });
   });
-  it('records actual blocked waits and safe server logs without statement/bind canary', async () => {
+  it('records actual blocked waits without exposing statement/bind values', async () => {
     await admin.query('CREATE TABLE coverage_wait_fixture(id integer PRIMARY KEY,value text)');
     await admin.query("INSERT INTO coverage_wait_fixture VALUES(1,'synthetic')");
     const locker = await admin.connect(),
@@ -118,42 +118,49 @@ describe('actual diagnostic provenance and PostgreSQL coverage', () => {
       locker.release();
       waiter.release();
     }
-    await expect(
-      admin.query('SELECT 1/(length($1)-length($1))', ['PRIVATE_COVERAGE_CANARY']),
-    ).rejects.toMatchObject({ code: '22012' });
-    const config = (
-      await admin.query('SELECT name,setting FROM pg_settings WHERE name=ANY($1::text[])', [
-        [
-          'log_lock_waits',
-          'log_error_verbosity',
-          'log_min_error_statement',
-          'log_statement',
-          'log_parameter_max_length',
-          'log_parameter_max_length_on_error',
-        ],
-      ])
-    ).rows;
-    expect(Object.fromEntries(config.map((row) => [row.name, row.setting]))).toEqual({
-      log_lock_waits: 'on',
-      log_error_verbosity: 'terse',
-      log_min_error_statement: 'panic',
-      log_statement: 'none',
-      log_parameter_max_length: '0',
-      log_parameter_max_length_on_error: '0',
-    });
-    const logs = spawnSync('docker', ['logs', `asa-coverage-${process.env.GITHUB_RUN_ID}`], {
-      encoding: 'utf8',
-    });
-    expect(logs.status).toBe(0);
-    const text = logs.stdout + logs.stderr;
-    expect(text).toMatch(/still waiting for|acquired .* after/);
-    expect(text).not.toMatch(/PRIVATE_COVERAGE_CANARY|STATEMENT:|CONTEXT:|DETAIL:/);
-    console.info(
-      JSON.stringify({
-        blockedWaitObserved: true,
-        lockLogObserved: true,
-        statementOrBindCanaryLeaked: false,
-      }),
-    );
+    console.info(JSON.stringify({ blockedWaitObserved: true }));
   });
+  it.skipIf(process.env.ASA_COVERAGE_POSTGRES_PROBE !== '1')(
+    'checks actual Compose settings and host logs only in the explicit disposable harness',
+    async () => {
+      // Host Docker access is not available to ordinary PG/access/data suites.
+      // This probe is opt-in only in Coverage Diagnostics, never inferred from CI.
+      await expect(
+        admin.query('SELECT 1/(length($1)-length($1))', ['PRIVATE_COVERAGE_CANARY']),
+      ).rejects.toMatchObject({ code: '22012' });
+      const config = (
+        await admin.query('SELECT name,setting FROM pg_settings WHERE name=ANY($1::text[])', [
+          [
+            'log_lock_waits',
+            'log_error_verbosity',
+            'log_min_error_statement',
+            'log_statement',
+            'log_parameter_max_length',
+            'log_parameter_max_length_on_error',
+          ],
+        ])
+      ).rows;
+      expect(Object.fromEntries(config.map((row) => [row.name, row.setting]))).toEqual({
+        log_lock_waits: 'on',
+        log_error_verbosity: 'terse',
+        log_min_error_statement: 'panic',
+        log_statement: 'none',
+        log_parameter_max_length: '0',
+        log_parameter_max_length_on_error: '0',
+      });
+      const logs = spawnSync('docker', ['logs', `asa-coverage-${process.env.GITHUB_RUN_ID}`], {
+        encoding: 'utf8',
+      });
+      expect(logs.status).toBe(0);
+      const text = logs.stdout + logs.stderr;
+      expect(text).toMatch(/still waiting for|acquired .* after/);
+      expect(text).not.toMatch(/PRIVATE_COVERAGE_CANARY|STATEMENT:|CONTEXT:|DETAIL:/);
+      console.info(
+        JSON.stringify({
+          lockLogObserved: true,
+          statementOrBindCanaryLeaked: false,
+        }),
+      );
+    },
+  );
 });
