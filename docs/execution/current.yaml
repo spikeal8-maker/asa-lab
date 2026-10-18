@@ -228,11 +228,13 @@ parallel_lanes:
       pr: null
       status: in_progress
       kind: repair
-      checkpoint: ui_candidate_reviewed_browser_infrastructure_blocked
+      checkpoint: ci_image_transport_repair_selected
       owner_acceptance: pending
       owner_authorization: >-
         Owner selected phone component adding and connecting, implementation through subagents
         with controller checks and independent review; "делай так чтобы вы не мешали друг другу и не портили результат".
+        Owner explicitly instructed continued subagent work through the429 diagnosis to verified mobile
+        results, preserving the other core author. This selects one bounded same-content CI transport repair.
       scoped_handoff_exception: >-
         Owner permits this clean isolated mobile checkout despite recorded unrelated Classroom
         .github/workflows/classroom-owner.yml shared-path WAITING_HANDOFF. Preserve guard output,
@@ -241,14 +243,12 @@ parallel_lanes:
       context_hints:
         - docs/product/electronics/tasks/TASK-ELECTRONICS-MOBILE-ADD-CONNECT-001.md
         - docs/product/electronics/components/ui-assets-persistence.yaml
+        - docs/product/electronics/evidence/ci-image-transport-545-receipt.json
       repair_scope: >-
-        FIRST tests-only additive native touch cases in existing registered electronics-simulation
-        real auth/CAS/cookies journey plus original280 tap-select then canvas-tap count4to5;
-        two-componentflow or existing upward-drag4to5 alone cannot close280. Existing cases/helpers
-        byte-exact. After independently
-        challenged source and one actual built BEFORE proves missing active-placement cue, ONLY
-        Stage and CSS reuse catalogPlacement keyboard mode and existing cancelFamilyPlacement.
-        Wire/hook defects require exact evidence and handoff, no concurrent hook repair.
+        Supporting infrastructure only for the SAME280/452 mobile result: Electronics Node/Caddy
+        transport from public ECR to pinned same-content Google mirror, scoped receipt/guard and ONE
+        additive post-build read-only image identity proof. Preserve original545 receipt and every
+        immutable image identity. No General/Postgres/Compose/default or mobile/core/test changes.
       supporting_generated_path_decision: >-
         Controller permits the canonical generator to update only generatedFrom.browserEvidenceSha256
         in docs/product/electronics/generated/component-coverage.json for the changed registered
@@ -260,41 +260,52 @@ parallel_lanes:
         sha: 6184f331d0add84f5cdca32da545080cc6caad65
         tree: 7907eafe04eedaeca42980cff67e553b242eba22
         observation_note: Published source candidate only; not integrated or accepted. Fetch exact refs and CI before action.
+      supporting_ci_transport_budget:
+        node: mirror.gcr.io/library/node@sha256:43aeff40f4afc22e83f7589a2f37e111cff5ca84529571f1c8415bcc5fcc21b2
+        caddy: mirror.gcr.io/library/caddy@sha256:d8c17a862962def15cde69863a3a463f25a2664942eafd7bdbf050e9c3116b83
+        original_545_receipt_sha256: 9b3b516e257aa31d3feb4a64c9dc8bfe7c33c9ad7d1be448245d8df044f7f273
+        host_probe_receipt_sha256: c1264a738e5a0ed29de2b25626ce9642f1a4d561f3f86282f4a1ca9ebdddd989
+        host_proof_limit: Same manifest/config bytes and ordered layer descriptors/rootfs diff_ids are preparation only; actual GitHub pull/build and revision proof are required.
       expected_write_paths:
-        - e2e/electronics-simulation.spec.ts
-        - apps/web/src/electronics/WorkbenchStage.tsx
-        - apps/web/src/electronics/workbench.css
-        - docs/product/electronics/generated/component-coverage.json
+        - .github/workflows/electronics-r4-m1-focused.yml
+        - tools/test_ci_image_transport.py
+        - docs/product/electronics/evidence/ci-image-transport-429-receipt.json
       path_coordination: >-
-        owned_paths lists the exclusive card only for compatibility; exact bounded source/test
-        budget above is advisory, not an overlap bypass. Check all dirty worktrees before each
-        target write. No existing interactions/helper changes, Sidebars without proven need,
-        hook/LED/core/workflow/package/dependency/artwork/schema edits or school operations.
+        Check actual dirty target paths before each write; no overlap bypass. Workflow permission is
+        ONLY the card's three-path supporting exception: two transport identities in browser/review-images,
+        ONE scoped read-only identity step and, if needed, two additive guard/receipt path triggers.
+        No General/Postgres/Compose/Dockerfiles/defaults/package/lock/security/gates/timing/cleanup changes.
+        No mobile source/specs, old546 cases, hook/LED/core or school operations. New boundaries return a proposal.
       next_action: >-
-        Preserve the source-reviewed candidate and wait for demonstrated registry recovery. The
-        controller may then authorize ONE justified corrected BEFORE and identical AFTER on exact
-        source revisions, required browser/repository gates and NEW independent runtime/visual review.
-        No unchanged hopeful rerun, integration, close280, release claim or deployment. Do not start
-        another product slice while this selected result lacks its required evidence.
+        ONE bounded infra author implements the exact three-path budget, performs self-review and STOP;
+        a NEW independent reviewer checks that source. The controller canonically selects corrected BEFORE
+        composition from latest main, followed by separate composition review of the added spec/hash paths.
+        ONE justified combined Actions build/identity proof and real corrected BEFORE may then run in the
+        existing workflow; no separate full browser run solely for transport and no gate weakening. Run AFTER
+        with identical corrected93c mobile tests, reviewed6184 UI and all accepted foreign work preserved,
+        required full gates and NEW runtime/visual review of actual native full journeys. The infra author
+        cannot edit spec/UI before that selection. No automatic rerun, integration, close280, release or
+        deployment. No old546/core/hook/LED or Course/Portal repair; new Postgres429/paths require a proposal.
       deployment: not_requested
       database_actions: isolated_CI_fixture_only_no_local_live_owner_operations
       ci_database_scope: >-
         Existing unchanged registered isolated browser workflow may use its disposable fixture DB
         and real API Save/CAS/cookies reopen. No local Docker, local/live/owner DB, network, backup
-        or deployment operations; no workflow/configuration changes.
+        or deployment operations. Only the explicit supporting CI transport exception may change its
+        three declared files; all other workflow/configuration and database behaviour stays unchanged.
     revisions:
       kind: observed_snapshot
       convergence_baseline_sha: 63a72f874cf382961220a3ae99426297a60cb597
       head_sha: null
-      observed_at: '2026-10-18T14:24:08Z'
+      observed_at: '2026-10-18T14:57:19Z'
       main:
         branch: main
-        sha: 63a72f874cf382961220a3ae99426297a60cb597
+        sha: 1b40caada0cd0d7b4ceb0a2429fbd2cf125945ed
       observation_note: >-
-        Dated remote main observation, not a live HEAD claim; fetch main and the observed candidate
-        before writes and recover exact Git/CI. Candidate/source evidence is recorded in this task's
-        observed_candidate and immutable evidence file. Classroom workflow WAITING_HANDOFF retains
-        the explicit narrow owner exception; no SAFE claim, integration or product acceptance.
+        Dated main observation for supporting CI transport selection, not a live HEAD claim. Fetch main,
+        candidate refs and exact CI before writes. The6184 candidate and historical14:24 evidence remain
+        unchanged; neither is product acceptance. Classroom workflow WAITING_HANDOFF retains the explicit
+        narrow owner exception; no SAFE claim or permission for actual source overlap.
     execution_lease:
       executor_id: electronics-mobile-add-connect
       holder: unassigned
@@ -6697,10 +6708,14 @@ blocking:
     allows:
     - documentation_update
     - independent_source_review
-    reason: Reviewed6184 source has no actionable finding, but exact ordinary Electronics browser39135058226
-      failed before tests on pinned public ECR Node/Caddy HTTP429 (infrastructure D). Corrected full native
-      BEFORE/AFTER, held-wire Save/CAS/cookies-only reopen and NEW independent runtime/visual review remain
-      unproved. Focused/benchmark/code PASS cannot replace the missing journey or repository evidence.
+    - bounded_ci_image_transport_repair
+    - scoped_ci_image_identity_verification
+    - focused_verification
+    reason: Reviewed6184 source remains unaccepted; exact Electronics browser39135058226 failed before
+      tests on public ECR Node/Caddy HTTP429 (D). The owner now authorizes the card's bounded same-content
+      Electronics-only transport repair and strict CI identity proof; this does not lift any closure block.
+      Corrected native BEFORE/AFTER and held-wire Save/CAS/cookies reopen remain unproved. General6184
+      subsequently finished FAIL with foreign migration-list/Portal findings (C), not mobile repair scope.
     unblock_requires: Actual required exact-SHA gates plus complete native/visual and whole-document
       Save/CAS/reopen evidence and NEW independent runtime/visual approval; text changes alone cannot close this blocker.
     evidence: docs/product/electronics/evidence/mobile-add-connect-6184f331-review.md
