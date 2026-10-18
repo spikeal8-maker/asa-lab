@@ -208,10 +208,11 @@ export async function evaluateSimulationWorkerRequestBatched(
     request.requestedHorizonMicroseconds < 0
   )
     return isCurrent() ? evaluateSimulationWorkerRequest(request) : null;
+  let session: ReturnType<typeof createElectronicsAdvanceSession> | undefined;
   try {
     const prepareStarted = globalThis.performance.now();
     const owned = structuredClone(request);
-    const session = createElectronicsAdvanceSession(
+    session = createElectronicsAdvanceSession(
       owned.document,
       {
         requestedHorizonMicroseconds: owned.requestedHorizonMicroseconds,
@@ -243,5 +244,7 @@ export async function evaluateSimulationWorkerRequestBatched(
           error instanceof Error ? error.message : 'Electronics execution failed.',
         )
       : null;
+  } finally {
+    session?.dispose();
   }
 }

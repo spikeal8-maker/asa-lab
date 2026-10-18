@@ -2126,6 +2126,80 @@ export function advanceClockedArduinoRuntime(
   );
 }
 
+interface OwnedRuntimeMemory {
+  readonly compilation: ArduinoProgramCompilation;
+  scopes?: ArduinoScope[];
+  pinModes?: Map<Terminal, ArduinoPinMode>;
+  outputVoltages?: Map<Terminal, number>;
+  tones?: Map<Terminal, ArduinoTimedWaveformState>;
+}
+
+/** Package internal: only the cloned clock request constructs this working context. */
+export function createOwnedClockedArduinoRuntime(source: string, initial?: ArduinoRuntimeState) {
+  const compilation = compileArduinoProgram(source);
+  const safe = (node: ExpressionSyntax): boolean =>
+    node.kind === 'literal' ||
+    node.kind === 'binding' ||
+    (node.kind === 'unary' && safe(node.operand)) ||
+    (node.kind === 'binary' && safe(node.left) && safe(node.right)) ||
+    (node.kind === 'call' && ['millis', 'micros'].includes(node.name) && node.args.every(safe));
+  // These routes have no reader, member/peripheral effect or importer normalization.
+  // Other supported programmes keep the public interpreter's original importer.
+  if (
+    compilation.diagnostics.length ||
+    compilation.servoDeclarations.length ||
+    (initial &&
+      (initial.serial ||
+        initial.servo ||
+        initial.pulseWait ||
+        initial.ultrasonicAdapter ||
+        Object.keys(initial.tones).length ||
+        initial.scopes.some((scope) =>
+          Object.values(scope).some((binding) =>
+            Object.keys(binding).some((key) => !['type', 'constant', 'value'].includes(key)),
+          ),
+        ))) ||
+    Object.values(compilation.expressions).some(
+      (expression) => !expression.syntax || !safe(expression.syntax),
+    ) ||
+    [...compilation.setupInstructions, ...compilation.loopInstructions].some(
+      (instruction) =>
+        instruction.kind === 'simple' &&
+        (instruction.prepared?.member ||
+          (instruction.prepared?.call &&
+            !['pinMode', 'digitalWrite', 'analogWrite', 'delay', 'delayMicroseconds'].includes(
+              instruction.prepared.call[1]!,
+            ))),
+    )
+  )
+    return null;
+  let memory: OwnedRuntimeMemory | undefined = { compilation };
+  let previous = initial;
+  return {
+    advance(time: number, instructionBudget: number, stopAtElectricalBoundary = false) {
+      if (!memory) throw new Error('Disposed Arduino request.');
+      const advanced = advanceRuntime(
+        source,
+        {},
+        time,
+        previous,
+        undefined,
+        'instruction-us-v1',
+        instructionBudget,
+        false,
+        stopAtElectricalBoundary,
+        memory,
+      );
+      previous = advanced.state;
+      return advanced;
+    },
+    dispose() {
+      memory = undefined;
+      previous = undefined;
+    },
+  };
+}
+
 function advanceRuntime(
   source: string,
   inputs: ArduinoTerminalVoltages,
@@ -2136,9 +2210,10 @@ function advanceRuntime(
   instructionBudget = MAX_ADVANCE_STATEMENTS,
   pulseInputSample = false,
   stopAtElectricalBoundary = false,
+  owned?: OwnedRuntimeMemory,
 ): ArduinoRuntimeAdvance {
   const clocked = clockProfile === 'instruction-us-v1';
-  const compilation = compileArduinoProgram(source);
+  const compilation = owned?.compilation ?? compileArduinoProgram(source);
   const { setupInstructions, loopInstructions, declarations, servoDeclarations, fingerprint } =
     compilation;
   const invalidClockTime =
@@ -2196,7 +2271,7 @@ function advanceRuntime(
   }
   const compatible =
     previous !== undefined &&
-    arduinoRuntimeStateMatchesProgram(source, previous) &&
+    (owned?.scopes !== undefined || arduinoRuntimeStateMatchesProgram(source, previous)) &&
     previous.clockProfile === clockProfile &&
     previous.virtualTimeMs <= targetTimeMs;
   if (
@@ -2222,26 +2297,29 @@ function advanceRuntime(
       diagnostics: previous.faults,
     };
   }
-  const scopes: ArduinoScope[] = compatible
-    ? previous.scopes.map((scope) => new Map(Object.entries(scope)))
-    : [new Map()];
-  const pinModes = compatible
-    ? terminalMap(previous.pinModes)
-    : new Map<Terminal, ArduinoPinMode>();
-  const outputVoltages = compatible
-    ? terminalMap(previous.outputVoltages)
-    : new Map<Terminal, number>();
-  const tones = compatible
-    ? new Map(
-        [...terminalMap(previous.tones)].flatMap(([terminal, tone]) => {
-          const canonical = canonicalToneState(
-            tone,
-            microsecondsFromMilliseconds(previous.virtualTimeMs),
-          );
-          return canonical ? ([[terminal, canonical]] as const) : [];
-        }),
-      )
-    : new Map<Terminal, ArduinoTimedWaveformState>();
+  const scopes: ArduinoScope[] =
+    owned?.scopes ??
+    (compatible ? previous.scopes.map((scope) => new Map(Object.entries(scope))) : [new Map()]);
+  const pinModes =
+    owned?.pinModes ??
+    (compatible ? terminalMap(previous.pinModes) : new Map<Terminal, ArduinoPinMode>());
+  const outputVoltages =
+    owned?.outputVoltages ??
+    (compatible ? terminalMap(previous.outputVoltages) : new Map<Terminal, number>());
+  const tones =
+    owned?.tones ??
+    (compatible
+      ? new Map(
+          [...terminalMap(previous.tones)].flatMap(([terminal, tone]) => {
+            const canonical = canonicalToneState(
+              tone,
+              microsecondsFromMilliseconds(previous.virtualTimeMs),
+            );
+            return canonical ? ([[terminal, canonical]] as const) : [];
+          }),
+        )
+      : new Map<Terminal, ArduinoTimedWaveformState>());
+  if (owned) Object.assign(owned, { scopes, pinModes, outputVoltages, tones });
   const diagnostics: ArduinoRuntimeDiagnostic[] = [];
   const setupActions: ArduinoProgramAction[] = [];
   const loopActions: ArduinoProgramAction[] = [];
@@ -2592,7 +2670,11 @@ function advanceRuntime(
     servo = initialArduinoServoRuntimeState(servoDeclarations);
     resumeAtMs = Math.max(resumeAtMs, targetTimeMs);
   }
-  return {
+  // Binding writes replace leaves. Capturing each scope's entries therefore
+  // detaches this private wire view while keeping its projections demand driven.
+  // No callback can reach these leaves on the admitted route.
+  const snapshotScopes = owned ? scopes.map((scope) => new Map(scope)) : scopes;
+  const advanced: ArduinoRuntimeAdvance = {
     executionStatus: diagnostics.length > 0 ? 'fault' : yielded ? 'yielded' : 'ready',
     ...(stopAtElectricalBoundary ? { executedInstructions } : {}),
     setupActions,
@@ -2610,14 +2692,14 @@ function advanceRuntime(
       loopStartedAtMs,
       loopIterations,
       nextEventSequence,
-      eventQueue,
+      eventQueue: owned ? [...eventQueue] : eventQueue,
       ...(pulseWait ? { pulseWait } : {}),
       ...(ultrasonicAdapter ? { ultrasonicAdapter } : {}),
       ...(serial ? { serial } : {}),
       ...(servoDeclarations.length > 0 ? { servo } : {}),
-      variables: scopeNumbers(scopes.slice(0, 1)),
-      locals: scopeNumbers(scopes.slice(1)),
-      scopes: serializeScopes(scopes),
+      variables: owned ? {} : scopeNumbers(scopes.slice(0, 1)),
+      locals: owned ? {} : scopeNumbers(scopes.slice(1)),
+      scopes: owned ? [] : serializeScopes(scopes),
       faults: diagnostics,
       pinModes: sortedRecord(pinModes),
       outputVoltages: sortedRecord(outputVoltages),
@@ -2625,6 +2707,34 @@ function advanceRuntime(
     },
     diagnostics,
   };
+  if (owned) {
+    const projection = (key: 'variables' | 'locals' | 'scopes', materialize: () => unknown) => ({
+      enumerable: true,
+      configurable: true,
+      get() {
+        const value = materialize();
+        Object.defineProperty(advanced.state, key, {
+          value,
+          enumerable: true,
+          configurable: true,
+          writable: true,
+        });
+        return value;
+      },
+    });
+    Object.defineProperties(advanced.state, {
+      variables: projection('variables', () => scopeNumbers(snapshotScopes.slice(0, 1))),
+      locals: projection('locals', () => scopeNumbers(snapshotScopes.slice(1))),
+      scopes: projection('scopes', () =>
+        serializeScopes(
+          snapshotScopes.map(
+            (scope) => new Map([...scope].map(([name, binding]) => [name, { ...binding }])),
+          ),
+        ),
+      ),
+    });
+  }
+  return advanced;
 }
 
 export function resetArduinoRuntime(

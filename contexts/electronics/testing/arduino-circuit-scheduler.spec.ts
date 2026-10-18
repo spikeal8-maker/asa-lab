@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createHash } from 'node:crypto';
 import {
   advanceArduinoCircuitClock,
+  createArduinoCircuitClockExecutor,
   type ArduinoCircuitClockAdvance,
   type ArduinoCircuitClockState,
   type ArduinoCircuitInputEvent,
@@ -118,6 +119,21 @@ function through(
   throw new Error('Scheduler did not reach target');
 }
 describe('Arduino operating-point reuse mathematical timing', () => {
+  it('keeps the public factory borrowed and invokes its external observer', () => {
+    const doc = circuit([
+      board('uno', 'void setup(){pinMode(13,OUTPUT);digitalWrite(13,HIGH);}void loop(){delay(1);}'),
+    ]);
+    const observations: number[] = [];
+    const execute = createArduinoCircuitClockExecutor(doc, (time) => observations.push(time));
+    (doc.components[0]!.stateProperties as Record<string, unknown>).arduinoSource =
+      'void setup(){pinMode(13,OUTPUT);digitalWrite(13,LOW);}void loop(){delay(1);}';
+    const actual = execute(50);
+    const expected = advanceArduinoCircuitClock(doc, 50);
+    expect(actual).toStrictEqual(expected);
+    expect(actual.state!.boards[0]!.runtime.outputVoltages.d13).toBe(0);
+    expect(observations.length).toBeGreaterThan(0);
+  });
+
   const ownerCircuit = (delay: number | null) => {
     const pins = [13, 12, 11];
     const source = `void setup(){${pins.map((pin) => `pinMode(${pin},OUTPUT);`).join('')}}

@@ -1,6 +1,6 @@
 import {
   advanceArduinoCircuitClock,
-  createArduinoCircuitClockExecutor,
+  createOwnedArduinoCircuitClockRequest,
   type ArduinoCircuitClockAdvance,
   type ArduinoCircuitClockState,
   type ArduinoCircuitInputEvent,
@@ -21,10 +21,7 @@ import {
 } from './domain/simulation.js';
 import { simulationInputDigest } from './domain/simulation-input-digest.js';
 import type { ComponentResult, Diagnostic, NodeResult } from './domain/solver.js';
-import {
-  createLedTemporalObservation,
-  type ElectronicsLedTemporalObservation,
-} from './domain/led-temporal-observation.js';
+import { type ElectronicsLedTemporalObservation } from './domain/led-temporal-observation.js';
 export type {
   ElectronicsLedTemporalObservation,
   ElectronicsLedTemporalComponent,
@@ -370,13 +367,26 @@ export function createElectronicsAdvanceSession(
   options: { readonly observeLedTemporal?: boolean } = {},
 ) {
   // The caller can change its document/state while the Worker yields; own this request snapshot.
+  const ownedDocument = structuredClone(document);
+  const ownedRequest = structuredClone(request);
+  const ownership = createOwnedArduinoCircuitClockRequest(ownedDocument, ownedRequest);
   const iterator = advanceElectronicsRequest(
-    structuredClone(document),
-    structuredClone(request),
+    ownedDocument,
+    ownedRequest,
     true,
     options.observeLedTemporal === true,
+    ownership,
   );
-  return { step: () => iterator.next().value! };
+  let disposed = false;
+  const dispose = () => {
+    if (disposed) return;
+    disposed = true;
+    iterator.return(undefined as never);
+  };
+  return {
+    step: () => (disposed ? undefined : iterator.next().value!),
+    dispose,
+  };
 }
 
 function* advanceElectronicsRequest(
@@ -384,7 +394,10 @@ function* advanceElectronicsRequest(
   request: ElectronicsTimedAdvanceRequest,
   internalBatches: boolean,
   observeLedTemporal = false,
+  ownership?: ReturnType<typeof createOwnedArduinoCircuitClockRequest>,
 ): Generator<null, ElectronicsTimedAdvanceResult, void> {
+  // Recheck before even the initial structural/model guards can call a producer.
+  ownership?.check();
   const state = request.state ?? resetElectronicsTimedState();
   const previousContinuation = state.continuation;
   const previousCommitted = previousContinuation?.committedHorizonMicroseconds ?? 0;
@@ -449,29 +462,41 @@ function* advanceElectronicsRequest(
   }
 
   const inputs = [...(previous?.inputs ?? []), ...appendedInputs];
-  const ledTemporal = observeLedTemporal
-    ? createLedTemporalObservation(
-        document.components.filter((component) => component.kind === 'led').map((c) => c.id),
-        previousCommitted,
-      )
-    : null;
-  const executor = internalBatches
-    ? createArduinoCircuitClockExecutor(document, ledTemporal?.observe)
-    : (
-        horizon: number,
-        previous: ArduinoCircuitClockState | undefined,
-        options: { inputs: readonly ArduinoCircuitInputEvent[]; maxClockEvents?: number },
-      ) => advanceArduinoCircuitClock(document, horizon, previous, options);
+  const options = {
+    inputs,
+    ...(request.maxEvents === undefined ? {} : { maxClockEvents: request.maxEvents }),
+  };
+  const driver =
+    internalBatches && ownership
+      ? ownership.create(
+          request.requestedHorizonMicroseconds,
+          previous,
+          options,
+          observeLedTemporal,
+        )
+      : null;
+  let opticalObservation: ElectronicsLedTemporalObservation | null | undefined;
   let advanced: ArduinoCircuitClockAdvance;
-  do {
-    advanced = executor(request.requestedHorizonMicroseconds, previous, {
-      inputs,
-      ...(request.maxEvents === undefined ? {} : { maxClockEvents: request.maxEvents }),
-    });
-    if (!internalBatches || advanced.executionStatus !== 'yielded') break;
-    previous = advanced.state ?? undefined;
-    yield null;
-  } while (true);
+  try {
+    do {
+      if (driver) {
+        const next = driver.step()!;
+        advanced = next.advanced;
+        opticalObservation = next.ledTemporal;
+      } else
+        advanced = advanceArduinoCircuitClock(
+          document,
+          request.requestedHorizonMicroseconds,
+          previous,
+          options,
+        );
+      if (!internalBatches || advanced.executionStatus !== 'yielded') break;
+      previous = advanced.state ?? undefined;
+      yield null;
+    } while (true);
+  } finally {
+    driver?.dispose();
+  }
 
   if (advanced.executionStatus === 'fault' || !advanced.state) {
     return {
@@ -517,7 +542,6 @@ function* advanceElectronicsRequest(
     };
   }
 
-  const opticalObservation = ledTemporal?.finish(advanced.state.reachedMicroseconds);
   return {
     executionStatus: 'ready',
     requestedHorizonMicroseconds: request.requestedHorizonMicroseconds,

@@ -12,6 +12,17 @@ import {
 
 import * as simulation from '../domain/simulation';
 import * as solver from '../domain/solver';
+import * as arduinoRuntime from '../domain/arduino-program-runtime';
+import { ARDUINO_GROUND_TERMINALS } from '../domain/arduino-model';
+import { ARDUINO_NUMERIC_TYPES } from '../domain/arduino-values';
+import { electricalModelFor } from '../domain/model-registry';
+import { resolveElectricalModelIdentity } from '../domain/model-identity';
+import { ORDINARY_LED_PROFILES } from '../domain/led-model';
+import { RESISTOR_DEVICE_MODEL, SOURCE_DEVICE_MODEL } from '../domain/models/linear-dc-models';
+import { thermalProfileFor } from '../domain/models/thermal-transient-model';
+import { NPN_DEVICE_MODEL } from '../domain/models/npn-dc-model';
+import { PNP_DEVICE_MODEL } from '../domain/models/pnp-dc-model';
+import { ARDUINO_TEXT_COMMAND_SUPPORT } from '../domain/arduino-capabilities';
 
 function circuit(source: string): ElectronicsEngineDocument {
   const parsed = parseElectronicsEngineDocument({
@@ -681,7 +692,620 @@ describe('event execution request ownership and physical barriers', () => {
     }
     throw new Error('bounded reference did not finish');
   };
-  it.each([1, 7, 256])(
+  it.each([1, 7, 256, 1024])(
+    'detaches every owned runtime view and preserves null boundaries, budget %i',
+    (budget) => {
+      const source = `int z=0;unsigned long a=0;float zero=-0.0;
+      void setup(){pinMode(13,OUTPUT);}void loop(){int pending;byte local=255;
+      if(z<2000){int a=3;local++;z+=a;}a++;digitalWrite(13,z%2);}`;
+      const document = eventCircuit(source);
+      const saved: { state: arduinoRuntime.ArduinoRuntimeState; bytes: string }[] = [];
+      let last: arduinoRuntime.ArduinoRuntimeState | undefined;
+      let contexts = 0;
+      const originalCreate = arduinoRuntime.createOwnedClockedArduinoRuntime;
+      const originalAdvance = arduinoRuntime.advanceClockedArduinoRuntime;
+      const create = vi
+        .spyOn(arduinoRuntime, 'createOwnedClockedArduinoRuntime')
+        .mockImplementation((...args) => {
+          const context = originalCreate(...args);
+          if (!context) return context;
+          contexts++;
+          return {
+            ...context,
+            advance(...parameters) {
+              const advanced = context.advance(...parameters);
+              expect(arduinoRuntime.arduinoRuntimeStateMatchesProgram(source, advanced.state)).toBe(
+                true,
+              );
+              last = advanced.state;
+              saved.push({ state: advanced.state, bytes: JSON.stringify(advanced.state) });
+              return advanced;
+            },
+          };
+        });
+      const advance = vi
+        .spyOn(arduinoRuntime, 'advanceClockedArduinoRuntime')
+        .mockImplementation((...args) => {
+          const advanced = originalAdvance(...args);
+          if (args[0] === source) last = advanced.state;
+          return advanced;
+        });
+      try {
+        const session = createElectronicsAdvanceSession(document, {
+          requestedHorizonMicroseconds: 2050,
+          maxEvents: budget,
+        });
+        const actualBoundaries: string[] = [];
+        let result;
+        do {
+          result = session.step();
+          if (result === null) actualBoundaries.push(JSON.stringify(last));
+        } while (!result);
+        session.dispose();
+        session.dispose();
+        const expectedBoundaries: string[] = [];
+        let state;
+        let expected;
+        do {
+          expected = advanceElectronicsToHorizon(document, {
+            requestedHorizonMicroseconds: 2050,
+            maxEvents: budget,
+            state,
+          });
+          state = expected.state;
+          if (expected.executionStatus === 'yielded')
+            expectedBoundaries.push(
+              JSON.stringify(JSON.parse(state.continuation!.serializedState).boards[0].runtime),
+            );
+        } while (expected.executionStatus === 'yielded');
+        expect(contexts).toBe(1);
+        expect(actualBoundaries).toEqual(expectedBoundaries);
+        expect(result).toStrictEqual(expected);
+        expect(JSON.stringify(result)).toBe(JSON.stringify(expected));
+        expect(saved.length).toBeGreaterThan(1);
+        for (const snapshot of saved) {
+          expect(JSON.stringify(snapshot.state)).toBe(snapshot.bytes);
+          for (const key of ['variables', 'locals', 'scopes'] as const) {
+            expect(snapshot.state[key]).toBe(snapshot.state[key]);
+            expect(Object.getOwnPropertyDescriptor(snapshot.state, key)).toMatchObject({
+              writable: true,
+              enumerable: true,
+              configurable: true,
+            });
+          }
+        }
+        expect(
+          saved.some(({ state }) => state.scopes.some((scope) => scope.pending?.value === null)),
+        ).toBe(true);
+        const first = saved[0]!.state;
+        const later = saved.slice(1).map(({ state }) => JSON.stringify(state));
+        Object.assign(first.variables, { zero: 123 });
+        Object.assign(first.scopes[0]!.zero!, { value: 123 });
+        expect(first.variables).toBe(first.variables);
+        expect(first.scopes).toBe(first.scopes);
+        expect(saved.slice(1).map(({ state }) => JSON.stringify(state))).toEqual(later);
+      } finally {
+        create.mockRestore();
+        advance.mockRestore();
+      }
+    },
+  );
+
+  it.each([
+    'ground',
+    'terminals',
+    'identity',
+    'thermal',
+    'numeric',
+    'resistor',
+    'linear-selector',
+    'led',
+    'npn',
+    'pnp',
+  ] as const)('keeps a customized %s producer generic without an admission getter read', (kind) => {
+    const document = eventCircuit(
+      'int count=0;void setup(){pinMode(13,OUTPUT);}void loop(){digitalWrite(13,HIGH);delay(1);}',
+    );
+    const target: readonly [object, PropertyKey] =
+      kind === 'ground'
+        ? [ARDUINO_GROUND_TERMINALS, 'filter']
+        : kind === 'terminals'
+          ? [electricalModelFor(document.components[0]!).requiredTerminals, 'filter']
+          : kind === 'identity'
+            ? [resolveElectricalModelIdentity(document.components[0]!), 'electricalModelId']
+            : kind === 'thermal'
+              ? [thermalProfileFor(document.components[1]!)!, 'id']
+              : kind === 'numeric'
+                ? [ARDUINO_NUMERIC_TYPES, 'includes']
+                : kind === 'resistor'
+                  ? [RESISTOR_DEVICE_MODEL, 'observe']
+                  : kind === 'linear-selector'
+                    ? [SOURCE_DEVICE_MODEL, 'id']
+                    : kind === 'led'
+                      ? [ORDINARY_LED_PROFILES.red.linearSegments, 'entries']
+                      : kind === 'npn'
+                        ? [NPN_DEVICE_MODEL, 'id']
+                        : [PNP_DEVICE_MODEL, 'id'];
+    const [object, key] = target;
+    const descriptor = Object.getOwnPropertyDescriptor(object, key);
+    const original = Reflect.get(object, key);
+    let reads = 0;
+    Object.defineProperty(object, key, {
+      configurable: true,
+      enumerable: descriptor?.enumerable ?? false,
+      get() {
+        reads++;
+        return original;
+      },
+    });
+    const create = vi.spyOn(arduinoRuntime, 'createOwnedClockedArduinoRuntime');
+    try {
+      const session = createElectronicsAdvanceSession(document, {
+        requestedHorizonMicroseconds: 1005,
+        maxEvents: 7,
+      });
+      expect(reads).toBe(0);
+      let actual;
+      do {
+        actual = session.step();
+      } while (!actual);
+      session.dispose();
+      expect(actual).toStrictEqual(reference(document, 1005, 7));
+      expect(create).not.toHaveBeenCalled();
+      // LED is absent in this fixture, but its definition still blocks admission.
+      if (kind !== 'led') expect(reads).toBeGreaterThan(0);
+    } finally {
+      if (descriptor) Object.defineProperty(object, key, descriptor);
+      else Reflect.deleteProperty(object, key);
+      create.mockRestore();
+    }
+  });
+
+  it.each([1, 7, 256, 1024])(
+    'transfers the exact completed batch once on origin loss, budget %i',
+    (budget) => {
+      const source =
+        'int count=0;void setup(){pinMode(13,OUTPUT);}void loop(){count++;digitalWrite(13,count%2);}';
+      const document = eventCircuit(source);
+      const originalCreate = arduinoRuntime.createOwnedClockedArduinoRuntime;
+      const originalAdvance = arduinoRuntime.advanceClockedArduinoRuntime;
+      const observe = Object.getOwnPropertyDescriptor(RESISTOR_DEVICE_MODEL, 'observe')!;
+      let last: arduinoRuntime.ArduinoRuntimeState | undefined;
+      let contexts = 0;
+      let ownedAdvances = 0;
+      let replacements = 0;
+      const create = vi
+        .spyOn(arduinoRuntime, 'createOwnedClockedArduinoRuntime')
+        .mockImplementation((...args) => {
+          const context = originalCreate(...args);
+          if (!context) return context;
+          contexts++;
+          return {
+            ...context,
+            advance(...parameters) {
+              ownedAdvances++;
+              const result = context.advance(...parameters);
+              last = result.state;
+              return result;
+            },
+          };
+        });
+      const advance = vi
+        .spyOn(arduinoRuntime, 'advanceClockedArduinoRuntime')
+        .mockImplementation((...args) => {
+          const result = originalAdvance(...args);
+          if (args[0] === source) last = result.state;
+          return result;
+        });
+      try {
+        const session = createElectronicsAdvanceSession(document, {
+          requestedHorizonMicroseconds: 2050,
+          maxEvents: budget,
+        });
+        expect(session.step()).toBeNull();
+        const boundaries = [JSON.stringify(last)];
+        const ownedBeforeLoss = ownedAdvances;
+        Object.defineProperty(RESISTOR_DEVICE_MODEL, 'observe', {
+          ...observe,
+          value: (...args: Parameters<NonNullable<typeof RESISTOR_DEVICE_MODEL.observe>>) => {
+            replacements++;
+            return observe.value(...args);
+          },
+        });
+        let actual = session.step();
+        if (actual === null) boundaries.push(JSON.stringify(last));
+        let restored = false;
+        while (!actual) {
+          if (replacements > 0 && !restored) {
+            Object.defineProperty(RESISTOR_DEVICE_MODEL, 'observe', observe);
+            restored = true;
+          }
+          actual = session.step();
+          if (actual === null) boundaries.push(JSON.stringify(last));
+        }
+        session.dispose();
+        expect(contexts).toBe(1);
+        expect(ownedAdvances).toBe(ownedBeforeLoss);
+        expect(replacements).toBeGreaterThan(0);
+        expect(restored).toBe(true);
+        Object.defineProperty(RESISTOR_DEVICE_MODEL, 'observe', observe);
+        const expectedBoundaries: string[] = [];
+        let expected;
+        let state;
+        do {
+          expected = advanceElectronicsToHorizon(document, {
+            requestedHorizonMicroseconds: 2050,
+            state,
+            maxEvents: budget,
+          });
+          state = expected.state;
+          if (expected.executionStatus === 'yielded')
+            expectedBoundaries.push(
+              JSON.stringify(JSON.parse(state.continuation!.serializedState).boards[0].runtime),
+            );
+        } while (expected.executionStatus === 'yielded');
+        expect(boundaries).toEqual(expectedBoundaries);
+        expect(JSON.stringify(actual)).toBe(JSON.stringify(expected));
+      } finally {
+        Object.defineProperty(RESISTOR_DEVICE_MODEL, 'observe', observe);
+        create.mockRestore();
+        advance.mockRestore();
+      }
+    },
+  );
+
+  it('never promotes a clone after an initial customized callback captured it', () => {
+    const document = eventCircuit(
+      'void setup(){pinMode(13,OUTPUT);}void loop(){digitalWrite(13,HIGH);delay(1);}',
+    );
+    const descriptor = Object.getOwnPropertyDescriptor(RESISTOR_DEVICE_MODEL, 'observe')!;
+    let captured: object | undefined;
+    Object.defineProperty(RESISTOR_DEVICE_MODEL, 'observe', {
+      ...descriptor,
+      value: (...args: Parameters<NonNullable<typeof RESISTOR_DEVICE_MODEL.observe>>) => {
+        captured = args[0].component;
+        return descriptor.value(...args);
+      },
+    });
+    const create = vi.spyOn(arduinoRuntime, 'createOwnedClockedArduinoRuntime');
+    const session = createElectronicsAdvanceSession(document, {
+      requestedHorizonMicroseconds: 2050,
+      maxEvents: 7,
+    });
+    try {
+      expect(session.step()).toBeNull();
+      expect(captured).toBeDefined();
+      expect(captured).not.toBe(document.components[1]);
+      Object.defineProperty(RESISTOR_DEVICE_MODEL, 'observe', descriptor);
+      Object.assign(captured!, { name: 'captured generic component' });
+      while (!session.step()) {
+        /* complete the existing generic request */
+      }
+      expect(create).not.toHaveBeenCalled();
+    } finally {
+      session.dispose();
+      Object.defineProperty(RESISTOR_DEVICE_MODEL, 'observe', descriptor);
+      create.mockRestore();
+    }
+  });
+
+  it('rechecks origins before the first step after session construction', () => {
+    const document = eventCircuit('void setup(){pinMode(13,OUTPUT);}void loop(){delay(1);}');
+    const session = createElectronicsAdvanceSession(document, {
+      requestedHorizonMicroseconds: 1005,
+      maxEvents: 1,
+    });
+    const descriptor = Object.getOwnPropertyDescriptor(RESISTOR_DEVICE_MODEL, 'observe')!;
+    const create = vi.spyOn(arduinoRuntime, 'createOwnedClockedArduinoRuntime');
+    let reads = 0;
+    Object.defineProperty(RESISTOR_DEVICE_MODEL, 'observe', {
+      configurable: true,
+      enumerable: true,
+      get() {
+        reads++;
+        return descriptor.value;
+      },
+    });
+    try {
+      expect(reads).toBe(0);
+      expect(session.step()).toBeNull();
+      expect(reads).toBeGreaterThan(0);
+      Object.defineProperty(RESISTOR_DEVICE_MODEL, 'observe', descriptor);
+      let actual;
+      do {
+        actual = session.step();
+      } while (!actual);
+      expect(actual).toStrictEqual(reference(document, 1005, 1));
+      expect(create).not.toHaveBeenCalled();
+    } finally {
+      session.dispose();
+      Object.defineProperty(RESISTOR_DEVICE_MODEL, 'observe', descriptor);
+      create.mockRestore();
+    }
+  });
+
+  it('keeps accepted imported binding extensions on the generic importer', () => {
+    const document = eventCircuit(
+      'int count=0;void setup(){pinMode(13,OUTPUT);}void loop(){count++;}',
+    );
+    const state = structuredClone(
+      advanceElectronicsToHorizon(document, { requestedHorizonMicroseconds: 10 }).state,
+    );
+    const decoded = JSON.parse(state.continuation!.serializedState);
+    decoded.boards[0].runtime.scopes[0].count.extension = { callerData: 7 };
+    Object.assign(state.continuation!, { serializedState: JSON.stringify(decoded) });
+    const create = vi.spyOn(arduinoRuntime, 'createOwnedClockedArduinoRuntime');
+    try {
+      const actual = finish(document, {
+        requestedHorizonMicroseconds: 1005,
+        state,
+        maxEvents: 7,
+      }).result;
+      let expected;
+      let prior = state;
+      do {
+        expected = advanceElectronicsToHorizon(document, {
+          requestedHorizonMicroseconds: 1005,
+          state: prior,
+          maxEvents: 7,
+        });
+        prior = expected.state;
+      } while (expected.executionStatus === 'yielded');
+      expect(actual).toStrictEqual(expected);
+      for (const result of create.mock.results) expect(result.value).toBeNull();
+    } finally {
+      create.mockRestore();
+    }
+  });
+
+  it.each([undefined, 'red', 'orange', 'yellow', 'green', 'blue', 'white', 'ultraviolet'])(
+    'admits only the six ordinary own LED colours or absent red: %s',
+    (colour) => {
+      const base = eventCircuit(
+        'void setup(){pinMode(13,OUTPUT);}void loop(){digitalWrite(13,HIGH);delay(1);}',
+      );
+      const parsed = parseElectronicsEngineDocument({
+        ...base,
+        components: [
+          ...base.components,
+          {
+            id: 'led',
+            kind: 'led',
+            value: 2,
+            position: { x: 150, y: 0 },
+            componentTypeId: 'led-5mm',
+            pinIds: ['anode', 'cathode'],
+            stateProperties: colour === undefined ? {} : { ledColour: colour },
+          },
+        ],
+        connections: [
+          base.connections[0],
+          {
+            id: 'w1',
+            from: { componentId: 'r', terminal: 'lead-2' },
+            to: { componentId: 'led', terminal: 'anode' },
+          },
+          {
+            id: 'w2',
+            from: { componentId: 'led', terminal: 'cathode' },
+            to: { componentId: 'uno', terminal: 'power-gnd-1' },
+          },
+        ],
+      });
+      if (!parsed.ok) throw new Error(parsed.message);
+      const create = vi.spyOn(arduinoRuntime, 'createOwnedClockedArduinoRuntime');
+      try {
+        const actual = finish(parsed.document, {
+          requestedHorizonMicroseconds: 1005,
+          maxEvents: 7,
+        }).result;
+        const admitted = create.mock.results.some((result) => result.value !== null);
+        expect(admitted).toBe(colour !== 'ultraviolet');
+        expect(actual).toStrictEqual(reference(parsed.document, 1005, 7));
+      } finally {
+        create.mockRestore();
+      }
+    },
+  );
+
+  it.each([
+    '#include <Servo.h>\nServo motor;void setup(){motor.attach(13);}void loop(){delay(1);}',
+    'void setup(){Serial.begin(9600);Serial.println(7);}void loop(){delay(1);}',
+    '#define OUTPUT_PIN 13\nvoid loop(){digitalWrite(OUTPUT_PIN,HIGH);}',
+  ])('excludes source support-table routes before any support getter: %s', (source) => {
+    const document = eventCircuit(source);
+    const support = source.includes('Servo')
+      ? ARDUINO_TEXT_COMMAND_SUPPORT['Servo.h']
+      : ARDUINO_TEXT_COMMAND_SUPPORT['Serial.println'];
+    const descriptor = Object.getOwnPropertyDescriptor(support, 'summary')!;
+    let reads = 0;
+    Object.defineProperty(support, 'summary', {
+      configurable: true,
+      enumerable: true,
+      get() {
+        reads++;
+        return descriptor.value;
+      },
+    });
+    const create = vi.spyOn(arduinoRuntime, 'createOwnedClockedArduinoRuntime');
+    try {
+      const session = createElectronicsAdvanceSession(document, {
+        requestedHorizonMicroseconds: 1005,
+        maxEvents: 7,
+      });
+      expect(reads).toBe(0);
+      let actual;
+      do {
+        actual = session.step();
+      } while (!actual);
+      session.dispose();
+      expect(actual).toStrictEqual(reference(document, 1005, 7));
+      expect(create).not.toHaveBeenCalled();
+      if (!source.includes('#define')) expect(reads).toBeGreaterThan(0);
+    } finally {
+      Object.defineProperty(support, 'summary', descriptor);
+      create.mockRestore();
+    }
+  });
+
+  it.each(['uninitialized', 'overflow', 'nonfinite'] as const)(
+    'keeps owned %s faults at the original instruction and rolls back',
+    (kind) => {
+      const body =
+        kind === 'uninitialized'
+          ? 'int pending;int result=pending;'
+          : kind === 'overflow'
+            ? 'int value=32767;value++;'
+            : 'float value=3e38;value*=3e38;';
+      const document = eventCircuit(
+        `void setup(){pinMode(13,OUTPUT);}void loop(){digitalWrite(13,HIGH);${body}}`,
+      );
+      const initial = advanceElectronicsToHorizon(document, { requestedHorizonMicroseconds: 0 });
+      const before = JSON.stringify(initial.state);
+      const expected = advanceElectronicsToHorizon(document, {
+        requestedHorizonMicroseconds: 1000,
+        state: initial.state,
+        maxEvents: 1024,
+      });
+      for (const budget of [1, 7, 256, 1024]) {
+        const actual = finish(document, {
+          requestedHorizonMicroseconds: 1000,
+          state: initial.state,
+          maxEvents: budget,
+        }).result;
+        expect(actual).toStrictEqual(expected);
+        expect(actual).toMatchObject({
+          executionStatus: 'fault',
+          observation: null,
+          state: initial.state,
+          committedHorizonMicroseconds: 0,
+        });
+        expect(actual.diagnostics[0]!.code).toBe('arduino_execution_failed');
+      }
+      expect(JSON.stringify(initial.state)).toBe(before);
+    },
+  );
+
+  it('falls back for shared/exotic clone graphs and terminates ordinary cyclic admission', () => {
+    const source = 'int count=0;void setup(){pinMode(13,OUTPUT);}void loop(){count++;}';
+    const create = vi.spyOn(arduinoRuntime, 'createOwnedClockedArduinoRuntime');
+    const cycle: Record<string, unknown> = {};
+    cycle.self = cycle;
+    const shared = new SharedArrayBuffer(8);
+    try {
+      for (const [probe, admitted] of [
+        [new Date(0), false],
+        [new Map(), false],
+        [shared, false],
+        [new Uint8Array(shared), false],
+        [cycle, true],
+      ] as const) {
+        create.mockClear();
+        const document = Object.assign(eventCircuit(source), { requestProbe: probe });
+        const actual = finish(document, {
+          requestedHorizonMicroseconds: 1005,
+          maxEvents: 7,
+        }).result;
+        expect(actual).toStrictEqual(reference(document, 1005, 7));
+        expect(create.mock.calls.length > 0).toBe(admitted);
+      }
+    } finally {
+      create.mockRestore();
+    }
+  });
+
+  it('rejects malformed imported scopes and counters before constructing an owned context', () => {
+    const document = eventCircuit(
+      'int count=0;void setup(){pinMode(13,OUTPUT);}void loop(){count++;}',
+    );
+    const initial = advanceElectronicsToHorizon(document, { requestedHorizonMicroseconds: 0 });
+    const create = vi.spyOn(arduinoRuntime, 'createOwnedClockedArduinoRuntime');
+    const changes = [
+      (runtime: arduinoRuntime.ArduinoRuntimeState) => {
+        Object.assign(runtime, { programCounter: 10000 });
+      },
+      (runtime: arduinoRuntime.ArduinoRuntimeState) => {
+        Object.assign(runtime, { scopes: [...runtime.scopes, {}] });
+      },
+      (runtime: arduinoRuntime.ArduinoRuntimeState) => {
+        Object.assign(runtime.scopes[0]!, { count: { type: 'byte', constant: false, value: 256 } });
+      },
+      (runtime: arduinoRuntime.ArduinoRuntimeState) => {
+        Object.assign(runtime.scopes[0]!, { count: { type: 'int', constant: true, value: null } });
+      },
+      (runtime: arduinoRuntime.ArduinoRuntimeState) => {
+        Object.assign(runtime, { nextEventSequence: -1 });
+      },
+    ];
+    try {
+      for (const change of changes) {
+        const state = structuredClone(initial.state);
+        const decoded = JSON.parse(state.continuation!.serializedState);
+        change(decoded.boards[0].runtime);
+        Object.assign(state.continuation!, { serializedState: JSON.stringify(decoded) });
+        const before = JSON.stringify(state);
+        const expected = advanceElectronicsToHorizon(document, {
+          requestedHorizonMicroseconds: 1000,
+          state,
+        });
+        const actual = finish(document, { requestedHorizonMicroseconds: 1000, state }).result;
+        expect(actual).toStrictEqual(expected);
+        expect(actual).toMatchObject({
+          executionStatus: 'fault',
+          diagnostics: [{ code: 'invalid_clock_continuation' }],
+        });
+        expect(JSON.stringify(state)).toBe(before);
+      }
+      expect(create).not.toHaveBeenCalled();
+    } finally {
+      create.mockRestore();
+    }
+  });
+
+  it.each([
+    'void setup(){pinMode(13,OUTPUT);tone(13,1000);}void loop(){delay(1);}',
+    'void setup(){Serial.begin(9600);Serial.println(7);pinMode(13,OUTPUT);}void loop(){delay(1);}',
+    'int seen=0;void setup(){pinMode(13,OUTPUT);digitalWrite(13,HIGH);seen=digitalRead(13);}void loop(){delay(1);}',
+  ])('keeps the first peripheral/read action on the generic importer: %s', (source) => {
+    const document = eventCircuit(source);
+    const create = vi.spyOn(arduinoRuntime, 'createOwnedClockedArduinoRuntime');
+    try {
+      for (const budget of [1, 7, 256, 1024]) {
+        const actual = finish(document, {
+          requestedHorizonMicroseconds: 1251,
+          maxEvents: budget,
+        }).result;
+        expect(actual).toStrictEqual(reference(document, 1251, budget));
+        expect(actual.executionStatus).toBe('ready');
+      }
+      for (const result of create.mock.results) expect(result.value).toBeNull();
+    } finally {
+      create.mockRestore();
+    }
+  });
+
+  it('disposes a pending session without another interpreter or physical step', () => {
+    const document = eventCircuit(
+      'void setup(){pinMode(13,OUTPUT);}void loop(){digitalWrite(13,HIGH);}',
+    );
+    const solve = vi.spyOn(solver, 'solveRcCircuitWithHeldArduino');
+    const session = createElectronicsAdvanceSession(document, {
+      requestedHorizonMicroseconds: 5000,
+      maxEvents: 7,
+    });
+    try {
+      expect(session.step()).toBeNull();
+      const calls = solve.mock.calls.length;
+      session.dispose();
+      session.dispose();
+      expect(session.step()).toBeUndefined();
+      expect(solve.mock.calls).toHaveLength(calls);
+    } finally {
+      session.dispose();
+      solve.mockRestore();
+    }
+  });
+  it.each([1, 7, 256, 1024])(
     'preserves every instruction and full public result with budget %i',
     (budget) => {
       const doc = eventCircuit(
@@ -695,7 +1319,7 @@ describe('event execution request ownership and physical barriers', () => {
       expect(doc).toStrictEqual(before);
     },
   );
-  it.each([1, 7, 256])(
+  it.each([1, 7, 256, 1024])(
     'samples a wake/read and delivers input exactly on a physics barrier with budget %i',
     (budget) => {
       const cases = [
@@ -746,7 +1370,7 @@ describe('event execution request ownership and physical barriers', () => {
     },
   );
 
-  it.each([1, 7, 256])(
+  it.each([1, 7, 256, 1024])(
     'preserves changed and unchanged output at a physical boundary before the next read, budget %i',
     (budget) => {
       for (const level of ['LOW', 'HIGH']) {

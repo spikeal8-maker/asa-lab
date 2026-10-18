@@ -5,6 +5,7 @@ import {
   resetElectronicsTimedState,
 } from '@asa-lab/electronics/engine';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import * as electronicsEngine from '@asa-lab/electronics/engine';
 import type { SchematicDocument } from '../../api';
 import { calculateSimulationPreflight } from '../live-simulation';
 import {
@@ -738,6 +739,80 @@ describe('bounded private Worker execution', () => {
       timer.mockRestore();
     }
   });
+});
+
+describe('Worker owned-session disposal', () => {
+  it.each(['ready', 'cancel', 'yield-throw', 'current-throw'] as const)(
+    'releases the session on %s without masking the original outcome',
+    async (scenario) => {
+      const request = {
+        ...preflightRequest('dispose'),
+        kind: 'advance' as const,
+        document: {
+          ...arduinoCircuit,
+          components: arduinoCircuit.components.map((component) => ({
+            ...component,
+            stateProperties: {
+              arduinoSource: 'void setup(){pinMode(13,OUTPUT);}void loop(){digitalWrite(13,HIGH);}',
+            },
+          })),
+        },
+        state: resetElectronicsTimedState(),
+        requestedHorizonMicroseconds: 4000,
+      };
+      const original = electronicsEngine.createElectronicsAdvanceSession;
+      let disposed = 0,
+        clock = 0,
+        current = true,
+        yields = 0;
+      const timer = vi.spyOn(performance, 'now').mockImplementation(() => (clock += 4));
+      const create = vi
+        .spyOn(electronicsEngine, 'createElectronicsAdvanceSession')
+        .mockImplementation((...args) => {
+          const session = original(...args);
+          return {
+            ...session,
+            dispose() {
+              disposed++;
+              session.dispose();
+            },
+          };
+        });
+      try {
+        const operation = evaluateSimulationWorkerRequestBatched(
+          request,
+          () => {
+            if (scenario === 'current-throw') throw new Error('current failure');
+            return current;
+          },
+          async () => {
+            yields++;
+            if (scenario === 'cancel') current = false;
+            if (scenario === 'yield-throw') throw new Error('yield failure');
+          },
+        );
+        if (scenario === 'current-throw')
+          await expect(operation).rejects.toThrow('current failure');
+        else {
+          const result = await operation;
+          if (scenario === 'cancel') expect(result).toBeNull();
+          else if (scenario === 'yield-throw')
+            expect(result).toMatchObject({ ok: false, code: 'internal', message: 'yield failure' });
+          else
+            expect(result).toMatchObject({
+              ok: true,
+              advance: { executionStatus: 'ready', committedHorizonMicroseconds: 4000 },
+            });
+          expect(yields).toBeGreaterThan(0);
+        }
+        expect(disposed).toBe(1);
+        expect(request.state.continuation).toBeNull();
+      } finally {
+        timer.mockRestore();
+        create.mockRestore();
+      }
+    },
+  );
 });
 
 describe('actual LED optical observation through the production Worker evaluator', () => {

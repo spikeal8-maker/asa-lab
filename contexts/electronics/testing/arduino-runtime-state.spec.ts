@@ -1,8 +1,32 @@
 import { describe, expect, it } from 'vitest';
-import { advanceArduinoRuntime, resetArduinoRuntime } from '../domain/arduino-program-runtime.js';
+import {
+  advanceArduinoRuntime,
+  advanceClockedArduinoRuntime,
+  resetArduinoRuntime,
+} from '../domain/arduino-program-runtime.js';
 import { isArduinoTimedWaveformState } from '../domain/arduino-waveform-runtime.js';
 
 describe('Arduino persistent runtime state', () => {
+  it('preserves borrowed binding and live electrical Map mutations in a public reader', () => {
+    const source = `int value=1;int first=0;int second=0;
+      void setup(){pinMode(13,OUTPUT);delayMicroseconds(10);first=value;second=analogRead(A0)+value;}
+      void loop(){delay(100);}`;
+    const initial = advanceClockedArduinoRuntime(source, {}, 0);
+    let reads = 0;
+    const result = advanceClockedArduinoRuntime(source, {}, 0.02, initial.state, (electrical) => {
+      reads++;
+      Object.assign(initial.state.scopes[0]!.value!, { value: 7 });
+      (electrical.outputVoltages as Map<string, number>).set('d13', 3);
+      return { a0: 0 };
+    });
+    expect(reads).toBe(1);
+    expect(result.diagnostics).toEqual([]);
+    expect(result.state.variables).toMatchObject({ first: 1, second: 7, value: 7 });
+    expect(result.state.outputVoltages.d13).toBe(3);
+    expect(initial.state.scopes[0]!.value!.value).toBe(7);
+    expect(initial.state.outputVoltages.d13).toBe(0);
+  });
+
   it('keeps nested typed bindings and const across a serialized delay', () => {
     const source = `int value=1; int observed=0; void setup(){
       const int step=2;
