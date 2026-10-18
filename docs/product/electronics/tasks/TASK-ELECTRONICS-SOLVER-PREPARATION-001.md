@@ -13,7 +13,19 @@ review: independent
 
 # Reuse immutable solve preparation without skipping physical work
 
-## Current R19: exact reuse of recurring eligible operating points
+## Current R20: reuse only exact pure electrical projection
+
+Continue the same owner Arduino/LED repair and Issue546. Preserve R19 `a4ac7ade070ac41d33a718c1d3949a08c36c1858` (independent SOURCE/MATH APPROVE, PRODUCT NOT ACCEPTED). The saved22-horizon paired replay, observer ON, improved elapsed989.290 to783.903ms for506.8ms model, with complete855946-byte ordinary/special JSON equality. Local focused is FAIL (749 domain PASS,539 web PASS, one protected-asset hashing timeout; types/build not reached); exact General39127206701 is pending. No acceptance or integration is granted.
+
+A single exact candidate-only sample profile finished all22 horizons:1627samples, solver840self, component projection150self/201inclusive, solveCircuitStep283self, quality63self/255inclusive, linear15self. Inclusive samples overlap; profiler duration is not CPU time. Profile SHA256 `b4ec37a9b24a32be45a53316765512b732841de37126084bb58b596a80c0fdfb`. Actual compiled identity was verified against45/45 TypeScript sources. This proves the remaining solver projection cost, not a guaranteed speedup for the next change.
+
+ONE NEW author implements only `solver.ts` exact eligible pure electrical projection reuse inside existing advance-owned32 Object.is-key slots, plus meaningful existing solver tests (existing scheduler/engine specs only for canonical full-state parity). Retain immutable pure voltage/current/power/terminal/branch/node numerical data. Keep original calculation and own-field insertion order, undefined and signed zero. Return fresh nested objects/arrays so caller mutation cannot corrupt later hits. Use original model functions and original raw electrical inputs to recompute stress/health preview; do not duplicate or relax formulas/thresholds. Bypass projection reuse for failed components and any noneligible case; generic cold/fallback behavior remains intact.
+
+NEVER retain a complete ComponentResult/frame or runtime/controller/time/continuation/thermal/damage/failure/diagnostic/quality/LED temporal history. Every electrical event, original thermal epoch, damage transition, independent quality check, residual and current diagnostics still runs. No changed equations, instruction/clock/quantum/budget/precision, approximate waveform/state reuse, scheduler/runtime/observer/UI/public API/workflow/dependency/artwork changes, test weakening or third-party source.
+
+Prove whole byte/Object.is result and state parity plus mutation isolation, independent port revisits, pin/highZ/tone/document changes, reverse/overload/failure/fallback and existing partition/yield/reset behavior. One bounded saved-input R19-versus-candidate replay with observer ON determines absolute benefit; no repeated timings without new cause. If unsafe or not useful, report the concrete result and STOP this hypothesis. Fresh focused gate, bounded self-review and ONE exact candidate commit; NEW independent exact source/math review. Required built browser2000/100/50/1ms, three no-delay LEDs, independent millis, Reset/Save/reopen, final exact gates and NEW product review remain mandatory before integration. All owner network/data/deployment prohibitions and the recorded narrow isolated-work handoff exception remain in force.
+
+## Preserved R19: exact reuse of recurring eligible operating points
 
 Controller selection on main, 2026-10-18, continues the same owner Arduino/LED problem and Issue546. Preserve actual R18 candidate `9bc659a780a02dfc99af789cef53ed8feb956146` and directed39108267782 (focused PASS, browser5PASS6FAIL); this is not accepted or integrated. Saved production-engine paired replay of22 actual delay1 horizons shows506.8ms model time requiring669.0–698.6ms elapsed execution with optical observation disabled. The profile is solver dominated; turning off LED observation is insufficient. Full original ZIP/raw, independent reviews and all accepted/suspended work remain intact.
 
