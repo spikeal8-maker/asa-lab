@@ -2,6 +2,12 @@ import { newClientId } from './client-id';
 import { diagnosticQuality } from './telemetry-quality';
 import { isTelemetryPath } from './telemetry-contract';
 import {
+  clientException,
+  validClientException,
+  exceptionMatchesCode,
+  type ClientException,
+} from './client-error-details';
+import {
   ASSET_SCRIPT,
   DiagnosticOutbox,
   FAILURE_CATEGORIES,
@@ -26,6 +32,7 @@ export type DiagnosticCode =
   | 'editor_recovered';
 export type DiagnosticModule = 'portal' | 'scratch' | 'electronics' | 'auth';
 export interface DiagnosticDetail {
+  readonly exception?: ClientException;
   readonly category?: string;
   readonly failureCode?: string;
   readonly script?: string;
@@ -88,7 +95,16 @@ export function reportClientDiagnostic(
       ['scratch-save-asset', 'scratch-save-draft', 'scratch-save-prepare'].includes(
         detail.failureCode ?? '',
       );
-    const key = scratchSave ? `${baseKey}:${detail.failureCode}` : baseKey;
+    const exception =
+      validClientException(detail.exception) && exceptionMatchesCode(detail.exception, code)
+        ? detail.exception
+        : undefined;
+    const frame = exception?.frames[0];
+    const key = scratchSave
+      ? `${baseKey}:${detail.failureCode}`
+      : exception
+        ? `${baseKey}:${exception.kind}:${exception.capture}:${frame?.script}:${frame?.line}:${frame?.column}`
+        : baseKey;
     if (!health && count >= 12) {
       quality.increment('suppressed');
       return;
@@ -107,6 +123,18 @@ export function reportClientDiagnostic(
         ? __ASA_BUILD_REVISION__
         : 'unknown';
     const safe = {
+      ...(exception
+        ? {
+            exception: {
+              ...exception,
+              frames: exception.frames.map((f) => ({
+                script: f.script,
+                line: f.line,
+                column: f.column,
+              })),
+            },
+          }
+        : {}),
       ...(FAILURE_CATEGORIES.includes(detail.category as (typeof FAILURE_CATEGORIES)[number])
         ? { category: detail.category }
         : {}),
@@ -155,6 +183,24 @@ export function reportClientDiagnostic(
   }
 }
 
+export function reportRenderDiagnostic(
+  error: unknown,
+  capture: 'app_boundary' | 'editor_boundary',
+): void {
+  try {
+    reportClientDiagnostic(
+      'render_failed',
+      capture === 'app_boundary' ? 'portal' : context.module,
+      {
+        phase: 'runtime',
+        exception: clientException(error, capture, window.location.origin),
+      },
+    );
+  } catch {
+    /* Error reporting must never break the boundary fallback. */
+  }
+}
+
 export function installClientDiagnostics(): void {
   if (installed) return;
   installed = true;
@@ -186,11 +232,20 @@ export function installClientDiagnostics(): void {
     }
     reportClientDiagnostic('window_error', context.module, {
       phase: 'runtime',
+      exception: clientException(
+        event.error,
+        'window',
+        window.location.origin,
+        script ? { script, line: event.lineno, column: event.colno } : undefined,
+      ),
       ...(script ? { script, line: event.lineno, column: event.colno } : {}),
     });
   });
-  window.addEventListener('unhandledrejection', () =>
-    reportClientDiagnostic('unhandled_rejection', context.module),
+  window.addEventListener('unhandledrejection', (event) =>
+    reportClientDiagnostic('unhandled_rejection', context.module, {
+      phase: 'runtime',
+      exception: clientException(event.reason, 'rejection', window.location.origin),
+    }),
   );
   const original = window.fetch.bind(window);
   window.fetch = async (input, init) => {

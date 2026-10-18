@@ -7,7 +7,16 @@
   "targets": {
     "build": {
       "command": "vite build -c apps/web/vite.config.ts",
-      "outputs": ["{workspaceRoot}/apps/web/dist"]
+      "inputs": [
+        "production",
+        "^production",
+        "{workspaceRoot}/tools/web-private-symbols.mjs",
+        "{workspaceRoot}/tools/browser-error-symbols.mjs",
+        "{workspaceRoot}/tools/web-symbols-public.pem",
+        { "env": "VITE_ASA_BUILD_REVISION" },
+        { "env": "VITE_ASA_BUILT_AT" }
+      ],
+      "outputs": ["{workspaceRoot}/apps/web/dist", "{workspaceRoot}/apps/web/private-symbols"]
     },
     "typecheck": {
       "command": "tsc -p apps/web/tsconfig.json --noEmit"

@@ -13,7 +13,7 @@ by applying a new build's maps. Publish main, report and STOP; no deployment.
 - Existing API client-diagnostics intake validates nested keys/types/bounds;
   existing collector/admin JSON retains the safe structured fields.
 - Vite private-symbol plugin writes encrypted revision/digest-bound maps outside
-  public dist. Docker exports the same build's encrypted symbols; release retains
+  public dist. Docker retains them outside /srv and exports the same build's encrypted symbols; release retains
   encrypted artifact only. Public repo must never receive plaintext maps or key.
 - Offline lookup verifies exact revision and generated JS digest before resolving
   source coordinates. Unknown frames/revision/hash fail closed. Built Chromium
@@ -33,3 +33,20 @@ stack is retained. Source maps identify a location, not automatically a root
 cause. Missing historical build maps remain unavailable. Owner key must be kept
 outside Git and retained to read future encrypted artifacts. Scope excludes
 metrics/IP and5000-user capacity. NEXT_ALLOWED_TASK: STOP after point7 report.
+
+## Author self-review
+
+HIGH / L3 privacy and release artifact boundary. No DOM/CSS/text changes.
+Same existing bounded outbox, rate/retry/retention/ACK and client request ID.
+No event message/reason/String(error), Error serialization or componentStack in
+payload. Finite kind/capture/handling and max5 hashed asset frames, positive
+bounded coordinates; unknown keys rejected both after storage reload and API.
+Error names/getters and cross-origin/query/fragment frames cannot introduce raw
+values. Window errors and boundary fallback remain distinct from actual recovery.
+Private maps never become /srv files; only encrypted archive plus digest list
+leaves the build. No credentials committed. Owner private key stays outside Git
+and Docker, protected by owner/System Windows ACL. Public key enables builds on
+other systems. Exact SHA and JS-digest checks fail closed; unknown development
+builds can run but do not claim source localization. No historical root cause or
+capacity claim. Independent final-SHA review and isolated browser/Docker evidence
+are required separately and recorded in issue606/owner report.

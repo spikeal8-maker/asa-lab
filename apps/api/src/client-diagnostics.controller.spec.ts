@@ -11,6 +11,68 @@ function reportRequest(address = '203.0.113.1'): FastifyRequest {
   } as unknown as FastifyRequest;
 }
 describe('bounded client diagnostics', () => {
+  it.each([
+    [{ script: '/assets/index-1234abcd.js?secret=x', line: 1, column: 1 }],
+    [{ script: '/assets/index-1234abcd.js', line: 0, column: 1 }],
+    [null],
+    Array(6).fill({ script: '/assets/index-1234abcd.js', line: 1, column: 1 }),
+  ])('rejects invalid/oversized exception frames before logging: %j', (...frames) => {
+    const controller = new ClientDiagnosticsController();
+    const out = vi.spyOn(process.stdout, 'write').mockReturnValue(true);
+    try {
+      expect(() =>
+        controller.report(reportRequest(), {
+          code: 'window_error',
+          module: 'electronics',
+          revision: 'a'.repeat(40),
+          exception: { kind: 'TypeError', capture: 'window', handling: 'unhandled', frames },
+        }),
+      ).toThrow();
+      expect(out).not.toHaveBeenCalled();
+    } finally {
+      out.mockRestore();
+    }
+  });
+  it('logs bounded untrusted exception coordinates and rejects private fields or false recovery', () => {
+    const controller = new ClientDiagnosticsController();
+    const exception = {
+      kind: 'TypeError',
+      capture: 'window',
+      handling: 'unhandled',
+      frames: [{ script: '/assets/ArduinoCodePanel-1234abcd.js', line: 7, column: 2 }],
+    };
+    const body = {
+      code: 'window_error',
+      module: 'electronics',
+      revision: 'a'.repeat(40),
+      exception,
+    };
+    const out = vi.spyOn(process.stdout, 'write').mockReturnValue(true);
+    try {
+      expect(controller.report(reportRequest(), body)).toEqual({ accepted: true });
+      expect(JSON.parse(String(out.mock.calls[0]![0]))).toMatchObject({
+        ...body,
+        kind: 'client_diagnostic',
+        level: 'error',
+        untrustedClientReport: true,
+      });
+      for (const extra of [
+        { message: 'PRIVATE' },
+        { handling: 'recovered' },
+        { frames: [{ ...exception.frames[0], source: 'PRIVATE' }] },
+        { kind: 'PRIVATE' },
+      ])
+        expect(() =>
+          controller.report(reportRequest(), { ...body, exception: { ...exception, ...extra } }),
+        ).toThrow();
+      expect(() =>
+        controller.report(reportRequest(), { ...body, code: 'editor_recovered' }),
+      ).toThrow();
+      expect(out).toHaveBeenCalledTimes(1);
+    } finally {
+      out.mockRestore();
+    }
+  });
   it('records only finite Scratch save stages with request correlation and rejects mismatched contexts', () => {
     const controller = new ClientDiagnosticsController();
     const request = reportRequest();
