@@ -349,10 +349,21 @@ async function assertLayout(page: Page, width: number, file: string) {
     const rect = await header.boundingBox();
     expect(rect!.y).toBe(0);
     expect(rect!.height).toBe(56);
+    const globalLinks = header.locator('.portal-global-nav a');
+    const expectedLinks = [
+      ['Проекты', '/#/gallery'],
+      ['Знания', '/#/knowledge'],
+      ['ИИ', '/#/ai'],
+    ] as const;
+    await expect(globalLinks).toHaveCount(expectedLinks.length);
+    for (const [index, [name, href]] of expectedLinks.entries()) {
+      await expect(globalLinks.nth(index)).toHaveAccessibleName(name);
+      await expect(globalLinks.nth(index)).toHaveAttribute('href', href);
+    }
     const headerControls = header.locator(
       '.portal-menu-toggle, .portal-brand, .portal-global-nav a, .portal-header-create, .portal-account > summary',
     );
-    await expect(headerControls).toHaveCount(6);
+    await expect(headerControls).toHaveCount(7);
     let previousRight = 0;
     for (const control of await headerControls.all()) {
       await expect(control).toBeVisible();

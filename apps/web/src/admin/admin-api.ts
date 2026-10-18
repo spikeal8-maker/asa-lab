@@ -1,4 +1,6 @@
 import { fetchWithSessionRefresh } from '../session-fetch';
+import { notifyAccountVerificationRequired } from '../auth-verification';
+import type { AuthProviderAvailabilityReason, SocialAuthProvider } from '../api';
 
 export type AdminPermission =
   | 'administration.open'
@@ -176,6 +178,23 @@ export interface AdminMaxConfiguration {
   readonly webhookUrl: string | null;
   readonly webhookVerifiedAt: string | null;
   readonly webhookLastError: string | null;
+  readonly available?: boolean;
+  readonly availabilityReason?: AuthProviderAvailabilityReason;
+  readonly healthCheckedAt?: string | null;
+}
+
+export interface AdminVerificationPolicy {
+  readonly enabled: boolean;
+  readonly activatedAt: string | null;
+  readonly graceHours: 24;
+}
+
+export interface AdminAuthProviderInput {
+  readonly enabled: boolean;
+  readonly botUsername: string;
+  readonly miniAppUrl: string;
+  readonly botToken?: string;
+  readonly clearToken?: boolean;
 }
 
 export interface AdminOrganization {
@@ -389,6 +408,9 @@ export async function call<T>(path: string, init: RequestInit = {}): Promise<Adm
     code: 'server_error',
     message: 'Не удалось выполнить административный запрос.',
   };
+  if (response.status === 403 && error.code === 'account_verification_required') {
+    notifyAccountVerificationRequired();
+  }
   return { ok: false, status: response.status, error };
 }
 
@@ -415,6 +437,19 @@ function list<T>(path: string, input: AdminListInput): Promise<AdminApiResult<Ad
 }
 
 export const adminApi = {
+  verificationPolicy: () => call<AdminVerificationPolicy>('/api/admin/v1/auth/verification-policy'),
+  updateVerificationPolicy: (enabled: boolean) =>
+    call<AdminVerificationPolicy>('/api/admin/v1/auth/verification-policy', {
+      method: 'POST',
+      body: JSON.stringify({ enabled }),
+    }),
+  authProviderConfiguration: (provider: SocialAuthProvider) =>
+    call<AdminMaxConfiguration>(`/api/admin/v1/integrations/${provider}`),
+  updateAuthProviderConfiguration: (provider: SocialAuthProvider, input: AdminAuthProviderInput) =>
+    call<AdminMaxConfiguration>(`/api/admin/v1/integrations/${provider}`, {
+      method: 'PUT',
+      body: JSON.stringify(input),
+    }),
   me: () => call<AdminProfile>('/api/admin/v1/me'),
   dashboard: (input: {
     readonly scope: Pick<AdminScope, 'kind' | 'id'>;
