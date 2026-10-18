@@ -99,6 +99,9 @@ parallel_lanes:
       status: in_progress
       checkpoint: selected_bounded_ui_main_acceptance_required_before_product_edits
       owner_acceptance: pending
+      normative_refs:
+        - document: TEACHER-STUDENT-PROFILE-UI-589
+          revision: '1.0'
       owner_authorization: Explicit owner request of 2026-10-18 for Issue 589 teacher classroom learner profile compact redesign; no deployment.
       context_hints:
         - https://github.com/spikeal8-maker/asa-lab/issues/589
@@ -150,6 +153,11 @@ parallel_lanes:
         commands:
           - pnpm gate:code
           - pnpm test apps/web/src/components/testing/classroom-student-navigation.spec.ts
+      browser:
+        # Planned workflow/test: product author must implement and run them before acceptance.
+        workflow: Teacher Student Profile UI
+        commands:
+          - pnpm e2e:access-a e2e/classroom-student-profile.spec.ts --config=playwright.config.ts --workers=1 --reporter=list
       general:
         workflow: ASA Lab Governance and Code Gates
         commands:
