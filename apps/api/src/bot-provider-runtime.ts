@@ -286,7 +286,7 @@ export class BotProviderRuntime extends BotProviderTransport {
         launchUrl: null,
       };
     }
-    const token = this.runtimeToken(runtime);
+    const token = this.runtimeToken(runtime) ?? '';
     const base = (reason: AuthProviderAvailabilityReason): AuthProviderAvailability => ({
       id: this.provider,
       available: reason === 'ready',
@@ -294,11 +294,26 @@ export class BotProviderRuntime extends BotProviderTransport {
       checkedAt: new Date(this.now()).toISOString(),
       launchUrl: reason === 'ready' ? this.launchUrl(runtime) : null,
     });
-    if (!runtime.enabled) return base('disabled');
-    if (!token || !this.launchUrl(runtime) || !this.webhookUrl(runtime) || !this.key) {
-      return base('not_configured');
-    }
     const key = `${version(runtime)}:${runtime.token_fingerprint ?? ''}`;
+    const localFailure = !runtime.enabled
+      ? 'disabled'
+      : !token || !this.launchUrl(runtime) || !this.webhookUrl(runtime) || !this.key
+        ? 'not_configured'
+        : null;
+    if (localFailure) {
+      if (
+        !force &&
+        this.healthCache?.key === key &&
+        this.healthCache.until > this.now() &&
+        this.healthCache.value.reason === localFailure
+      )
+        return this.healthCache.value;
+      const result = base(localFailure);
+      this.healthCache = { key, until: this.now() + HEALTH_CACHE_MS, value: result };
+      // Clear the SQL last-method projection even when no network probe can run.
+      await this.saveHealth(runtime, result);
+      return result;
+    }
     if (!force && this.healthCache?.key === key && this.healthCache.until > this.now()) {
       return this.healthCache.value;
     }
@@ -337,6 +352,21 @@ export class BotProviderRuntime extends BotProviderTransport {
   async config(): Promise<{ enabled: boolean; launchUrl: string | null }> {
     const readiness = await this.availability();
     return { enabled: readiness.available, launchUrl: readiness.launchUrl ?? null };
+  }
+
+  /** A destructive unlink must not rely on the public availability cache. */
+  async availableConfigurationVersion(): Promise<number | null> {
+    const before = await this.runtime();
+    if (!(await this.availability(true)).available) return null;
+    const after = await this.runtime();
+    const generation = Number(before.configuration_version);
+    return after.enabled &&
+      Number.isSafeInteger(generation) &&
+      generation > 0 &&
+      generation === Number(after.configuration_version) &&
+      before.token_fingerprint === after.token_fingerprint
+      ? generation
+      : null;
   }
 
   async adminConfig(actorPrincipalId?: string): Promise<ProviderAdminConfig> {
@@ -485,24 +515,5 @@ export class BotProviderRuntime extends BotProviderTransport {
     } finally {
       this.healthCache = null;
     }
-  }
-
-  async markUnavailable(
-    runtime: RuntimeRow,
-    reason: AuthProviderAvailabilityReason,
-  ): Promise<void> {
-    const value: AuthProviderAvailability = {
-      id: this.provider,
-      available: false,
-      reason,
-      checkedAt: new Date(this.now()).toISOString(),
-      launchUrl: null,
-    };
-    this.healthCache = {
-      key: `${version(runtime)}:${runtime.token_fingerprint ?? ''}`,
-      until: this.now() + HEALTH_CACHE_MS,
-      value,
-    };
-    await this.saveHealth(runtime, value);
   }
 }

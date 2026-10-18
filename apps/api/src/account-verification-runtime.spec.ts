@@ -11,19 +11,17 @@ const assetFile = '0123456789abcdef0123456789abcdef.png';
 
 function harness(authorizationAllowed = true, verificationAllowed = false) {
   const runtime = {
-    authorize: vi
-      .fn()
-      .mockResolvedValue(
-        authorizationAllowed
-          ? {
-              ok: true,
-              value: {
-                actor: { principalId: 'account-principal', userId: null },
-                grant: { mode: 'editor' },
-              },
-            }
-          : { ok: false, code: 'authority_denied' },
-      ),
+    authorize: vi.fn().mockResolvedValue(
+      authorizationAllowed
+        ? {
+            ok: true,
+            value: {
+              actor: { principalId: 'account-principal', userId: null },
+              grant: { mode: 'editor' },
+            },
+          }
+        : { ok: false, code: 'authority_denied' },
+    ),
     consumeRequest: vi.fn().mockReturnValue({ allowed: true }),
     uploadAsset: vi.fn().mockResolvedValue({}),
     readAsset: vi.fn(),

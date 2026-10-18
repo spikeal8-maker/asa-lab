@@ -252,7 +252,7 @@ $$;
 
 CREATE FUNCTION auth_provider_link(
     p_provider varchar, p_account uuid, p_subject varchar, p_assertion varchar,
-    p_auth_date bigint, p_username varchar, p_display_name varchar
+    p_auth_date bigint, p_username varchar, p_display_name varchar, p_configuration_version bigint
 ) RETURNS varchar
 LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
 DECLARE
@@ -267,6 +267,11 @@ BEGIN
        OR p_assertion IS NULL OR length(p_assertion) NOT BETWEEN 1 AND 255
        OR p_auth_date IS NULL OR p_auth_date <= 0 THEN RETURN 'unavailable'; END IF;
     PERFORM pg_advisory_xact_lock(hashtextextended('auth-provider:' || p_provider, 0));
+    -- The caller captured this generation when verifying the provider proof.
+    -- Settings updates take the same lock; no proof survives disable/rotation.
+    IF NOT EXISTS (SELECT 1 FROM public.auth_provider_settings s
+        WHERE s.provider = p_provider AND s.enabled
+          AND s.configuration_version = p_configuration_version) THEN RETURN 'unavailable'; END IF;
     SELECT a.status INTO v_status FROM public.accounts a WHERE a.id = p_account FOR UPDATE;
     IF v_status IS DISTINCT FROM 'active' THEN RETURN 'account_suspended'; END IF;
     SELECT * INTO v_identity FROM public.account_external_identities i
@@ -341,14 +346,15 @@ $$;
 CREATE FUNCTION auth_provider_login(
     p_provider varchar, p_subject varchar, p_assertion varchar, p_auth_date bigint,
     p_username varchar, p_display_name varchar, p_session_hash text,
-    p_ttl_hours integer, p_user_agent varchar
+    p_ttl_hours integer, p_user_agent varchar, p_configuration_version bigint
 ) RETURNS TABLE (result varchar, account_id uuid)
 LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
 DECLARE v_account uuid; v_link varchar;
 BEGIN
     PERFORM pg_advisory_xact_lock(hashtextextended('auth-provider:' || p_provider, 0));
     IF NOT EXISTS (SELECT 1 FROM public.auth_provider_settings s
-        WHERE s.provider = p_provider AND s.enabled) THEN
+        WHERE s.provider = p_provider AND s.enabled
+          AND s.configuration_version = p_configuration_version) THEN
         RETURN QUERY SELECT 'unavailable'::varchar, NULL::uuid; RETURN;
     END IF;
     v_account := public.auth_provider_identity_account(p_provider, p_subject);
@@ -356,7 +362,8 @@ BEGIN
         RETURN QUERY SELECT 'link_required'::varchar, NULL::uuid; RETURN;
     END IF;
     v_link := public.auth_provider_link(
-        p_provider, v_account, p_subject, p_assertion, p_auth_date, p_username, p_display_name
+        p_provider, v_account, p_subject, p_assertion, p_auth_date, p_username, p_display_name,
+        p_configuration_version
     );
     IF v_link NOT IN ('linked', 'already_linked') THEN
         RETURN QUERY SELECT v_link, NULL::uuid; RETURN;
@@ -373,7 +380,7 @@ CREATE FUNCTION auth_provider_register(
     p_provider_username varchar, p_provider_name varchar, p_email varchar,
     p_password_hash text, p_display_name varchar, p_username varchar,
     p_birth_date date, p_country varchar, p_policy_version varchar,
-    p_session_hash text, p_ttl_hours integer
+    p_session_hash text, p_ttl_hours integer, p_configuration_version bigint
 ) RETURNS TABLE (result varchar, account_id uuid)
 LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
 DECLARE v_account uuid; v_identity uuid;
@@ -401,7 +408,8 @@ BEGIN
     END IF;
     PERFORM pg_advisory_xact_lock(hashtextextended('auth-provider:' || p_provider, 0));
     IF NOT EXISTS (SELECT 1 FROM public.auth_provider_settings s
-        WHERE s.provider = p_provider AND s.enabled) THEN
+        WHERE s.provider = p_provider AND s.enabled
+          AND s.configuration_version = p_configuration_version) THEN
         RETURN QUERY SELECT 'unavailable'::varchar, NULL::uuid; RETURN;
     END IF;
     IF EXISTS (SELECT 1 FROM public.account_external_identities i
@@ -475,7 +483,7 @@ $$;
 
 CREATE FUNCTION auth_provider_pairing_approve(
     p_provider varchar, p_token_hash text, p_subject varchar, p_assertion varchar,
-    p_auth_date bigint, p_username varchar, p_display_name varchar
+    p_auth_date bigint, p_username varchar, p_display_name varchar, p_configuration_version bigint
 ) RETURNS varchar
 LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
 DECLARE v_pair public.auth_provider_pairings%ROWTYPE; v_version bigint;
@@ -485,7 +493,8 @@ BEGIN
        OR p_auth_date IS NULL OR p_auth_date <= 0 THEN RETURN 'invalid'; END IF;
     PERFORM pg_advisory_xact_lock(hashtextextended('auth-provider:' || p_provider, 0));
     SELECT s.configuration_version INTO v_version FROM public.auth_provider_settings s
-     WHERE s.provider = p_provider AND s.enabled;
+     WHERE s.provider = p_provider AND s.enabled
+       AND s.configuration_version = p_configuration_version;
     SELECT * INTO v_pair FROM public.auth_provider_pairings p
      WHERE p.provider = p_provider AND p.token_hash = p_token_hash FOR UPDATE;
     IF v_pair.id IS NULL OR v_version IS NULL OR v_pair.configuration_version <> v_version
@@ -548,7 +557,8 @@ BEGIN
     IF v_pair.purpose = 'link' THEN
         v_link := public.auth_provider_link(
             p_provider, v_pair.requested_account_id, v_pair.provider_subject,
-            v_pair.assertion_id, v_pair.auth_date, v_pair.provider_username, v_pair.provider_display_name
+            v_pair.assertion_id, v_pair.auth_date, v_pair.provider_username, v_pair.provider_display_name,
+            v_pair.configuration_version
         );
         IF v_link NOT IN ('linked', 'already_linked') THEN
             RETURN QUERY SELECT v_link, NULL::uuid, NULL::varchar, NULL::varchar; RETURN;
@@ -603,7 +613,7 @@ BEGIN
         p_provider, v_pair.provider_subject, v_pair.assertion_id, v_pair.auth_date,
         v_pair.provider_username, v_pair.provider_display_name, p_email,
         p_password_hash, p_display_name, p_username, p_birth_date, p_country,
-        p_policy_version, p_session_hash, p_ttl_hours
+        p_policy_version, p_session_hash, p_ttl_hours, v_pair.configuration_version
       ) registered;
     IF v_result = 'authenticated' THEN
         UPDATE public.auth_provider_pairings SET consumed_at = now() WHERE id = v_pair.id;
@@ -642,7 +652,7 @@ $$;
 
 CREATE FUNCTION auth_provider_revoke(
     p_provider varchar, p_account uuid, p_actor uuid, p_kind varchar,
-    p_reason varchar, p_request_id varchar
+    p_reason varchar, p_request_id varchar, p_alternative_configuration_version bigint DEFAULT NULL
 ) RETURNS varchar
 LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
 DECLARE v_identity uuid; v_subject varchar; v_actor_account uuid; v_password boolean;
@@ -664,7 +674,14 @@ BEGIN
             RAISE EXCEPTION 'provider self-service identity mismatch' USING ERRCODE = '42501';
         END IF;
     END IF;
-    PERFORM pg_advisory_xact_lock(hashtextextended('auth-provider:' || p_provider, 0));
+    IF p_kind = 'self' THEN
+        -- A last-method decision and a concurrent configuration update must be
+        -- serialized for both providers. Use a fixed order for concurrent unlinks.
+        PERFORM pg_advisory_xact_lock(hashtextextended('auth-provider:max', 0));
+        PERFORM pg_advisory_xact_lock(hashtextextended('auth-provider:telegram', 0));
+    ELSE
+        PERFORM pg_advisory_xact_lock(hashtextextended('auth-provider:' || p_provider, 0));
+    END IF;
     SELECT a.password_configured INTO v_password FROM public.accounts a
      WHERE a.id = p_account FOR UPDATE;
     SELECT i.id, i.subject INTO v_identity, v_subject FROM public.account_external_identities i
@@ -675,6 +692,7 @@ BEGIN
         SELECT 1 FROM public.account_external_identities i
         JOIN public.auth_provider_settings s ON s.provider = i.provider
          AND s.enabled AND s.health_available AND s.health_checked_at > now() - interval '1 minute'
+         AND s.configuration_version = p_alternative_configuration_version
         WHERE i.account_id = p_account AND i.provider <> p_provider AND i.revoked_at IS NULL
           AND i.verified_at IS NOT NULL
     ) THEN RETURN 'last_sign_in_method'; END IF;
@@ -772,8 +790,7 @@ CREATE OR REPLACE FUNCTION auth_max_link(
     p_auth_date bigint, p_username varchar, p_display_name varchar
 ) RETURNS TABLE (result varchar)
 LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
-    SELECT public.auth_provider_link('max', p_account_id, p_subject, p_query_id,
-        p_auth_date, p_username, p_display_name)
+    SELECT 'unavailable'::varchar
 $$;
 CREATE OR REPLACE FUNCTION auth_max_unlink_self(p_account_id uuid, p_actor_principal_id uuid)
 RETURNS boolean
@@ -806,6 +823,26 @@ CREATE OR REPLACE FUNCTION auth_max_pairing_consume(
 LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
     SELECT 'invalid'::varchar, NULL::uuid
 $$;
+
+-- Retire every old MAX proof writer. These entrypoints have no captured
+-- configuration generation or independent browser nonce. Their public HTTP
+-- methods now use auth_provider_*; leaving EXECUTE here would bypass that
+-- lifecycle through legacy SECURITY DEFINER entrypoints.
+REVOKE ALL ON FUNCTION auth_max_login(varchar, varchar, bigint, varchar, varchar,
+    text, integer, varchar) FROM PUBLIC, asalab_app;
+REVOKE ALL ON FUNCTION auth_max_register_account(varchar, varchar, bigint, varchar,
+    varchar, varchar, text, varchar, varchar, date, varchar, varchar, text, integer)
+    FROM PUBLIC, asalab_app;
+REVOKE ALL ON FUNCTION auth_max_link(uuid, varchar, varchar, bigint, varchar, varchar)
+    FROM PUBLIC, asalab_app;
+REVOKE ALL ON FUNCTION auth_max_pairing_start(text, integer) FROM PUBLIC, asalab_app;
+REVOKE ALL ON FUNCTION auth_max_pairing_start(text, integer, uuid) FROM PUBLIC, asalab_app;
+REVOKE ALL ON FUNCTION auth_max_pairing_approve(text, uuid) FROM PUBLIC, asalab_app;
+REVOKE ALL ON FUNCTION auth_max_pairing_target(text) FROM PUBLIC, asalab_app;
+REVOKE ALL ON FUNCTION auth_max_pairing_consume(text, text, integer, varchar) FROM PUBLIC, asalab_app;
+-- A stale process must not mark a new webhook secret as verified.
+REVOKE ALL ON FUNCTION auth_max_webhook_status_set(varchar, boolean, varchar)
+    FROM PUBLIC, asalab_app;
 
 CREATE OR REPLACE FUNCTION session_refresh_attach(
     p_access_hash text, p_refresh_hash text, p_source varchar, p_ttl_days integer
@@ -840,21 +877,21 @@ REVOKE ALL ON FUNCTION admin_set_auth_provider_config(uuid, varchar, boolean, va
 REVOKE ALL ON FUNCTION auth_provider_health_set(varchar, bigint, boolean, varchar) FROM PUBLIC;
 REVOKE ALL ON FUNCTION auth_provider_webhook_status_set(varchar, bigint, varchar, boolean, varchar) FROM PUBLIC;
 REVOKE ALL ON FUNCTION auth_provider_identity_account(varchar, varchar) FROM PUBLIC;
-REVOKE ALL ON FUNCTION auth_provider_link(varchar, uuid, varchar, varchar, bigint, varchar, varchar) FROM PUBLIC;
+REVOKE ALL ON FUNCTION auth_provider_link(varchar, uuid, varchar, varchar, bigint, varchar, varchar, bigint) FROM PUBLIC;
 REVOKE ALL ON FUNCTION auth_provider_session_create(varchar, uuid, text, integer, varchar) FROM PUBLIC;
 REVOKE ALL ON FUNCTION auth_provider_login(varchar, varchar, varchar, bigint, varchar, varchar,
-    text, integer, varchar) FROM PUBLIC;
+    text, integer, varchar, bigint) FROM PUBLIC;
 REVOKE ALL ON FUNCTION auth_provider_register(varchar, varchar, varchar, bigint, varchar, varchar,
-    varchar, text, varchar, varchar, date, varchar, varchar, text, integer) FROM PUBLIC;
+    varchar, text, varchar, varchar, date, varchar, varchar, text, integer, bigint) FROM PUBLIC;
 REVOKE ALL ON FUNCTION auth_provider_pairing_start(varchar, text, text, integer, uuid, varchar) FROM PUBLIC;
 REVOKE ALL ON FUNCTION auth_provider_pairing_approve(varchar, text, varchar, varchar,
-    bigint, varchar, varchar) FROM PUBLIC;
+    bigint, varchar, varchar, bigint) FROM PUBLIC;
 REVOKE ALL ON FUNCTION auth_provider_pairing_consume(varchar, text, text, text,
     integer, varchar, uuid) FROM PUBLIC;
 REVOKE ALL ON FUNCTION auth_provider_pairing_register(varchar, text, text, varchar, text,
     varchar, varchar, date, varchar, varchar, text, integer) FROM PUBLIC;
 REVOKE ALL ON FUNCTION auth_provider_status(varchar, uuid) FROM PUBLIC;
-REVOKE ALL ON FUNCTION auth_provider_revoke(varchar, uuid, uuid, varchar, varchar, varchar) FROM PUBLIC;
+REVOKE ALL ON FUNCTION auth_provider_revoke(varchar, uuid, uuid, varchar, varchar, varchar, bigint) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION auth_provider_runtime_config(varchar) TO asalab_app;
 GRANT EXECUTE ON FUNCTION admin_get_auth_provider_config(uuid, varchar) TO asalab_app;
 GRANT EXECUTE ON FUNCTION admin_set_auth_provider_config(uuid, varchar, boolean, varchar, varchar,
@@ -862,20 +899,20 @@ GRANT EXECUTE ON FUNCTION admin_set_auth_provider_config(uuid, varchar, boolean,
 GRANT EXECUTE ON FUNCTION auth_provider_health_set(varchar, bigint, boolean, varchar) TO asalab_app;
 GRANT EXECUTE ON FUNCTION auth_provider_webhook_status_set(varchar, bigint, varchar, boolean, varchar) TO asalab_app;
 GRANT EXECUTE ON FUNCTION auth_provider_identity_account(varchar, varchar) TO asalab_app;
-GRANT EXECUTE ON FUNCTION auth_provider_link(varchar, uuid, varchar, varchar, bigint, varchar, varchar) TO asalab_app;
+GRANT EXECUTE ON FUNCTION auth_provider_link(varchar, uuid, varchar, varchar, bigint, varchar, varchar, bigint) TO asalab_app;
 GRANT EXECUTE ON FUNCTION auth_provider_login(varchar, varchar, varchar, bigint, varchar, varchar,
-    text, integer, varchar) TO asalab_app;
+    text, integer, varchar, bigint) TO asalab_app;
 GRANT EXECUTE ON FUNCTION auth_provider_register(varchar, varchar, varchar, bigint, varchar, varchar,
-    varchar, text, varchar, varchar, date, varchar, varchar, text, integer) TO asalab_app;
+    varchar, text, varchar, varchar, date, varchar, varchar, text, integer, bigint) TO asalab_app;
 GRANT EXECUTE ON FUNCTION auth_provider_pairing_start(varchar, text, text, integer, uuid, varchar) TO asalab_app;
 GRANT EXECUTE ON FUNCTION auth_provider_pairing_approve(varchar, text, varchar, varchar,
-    bigint, varchar, varchar) TO asalab_app;
+    bigint, varchar, varchar, bigint) TO asalab_app;
 GRANT EXECUTE ON FUNCTION auth_provider_pairing_consume(varchar, text, text, text,
     integer, varchar, uuid) TO asalab_app;
 GRANT EXECUTE ON FUNCTION auth_provider_pairing_register(varchar, text, text, varchar, text,
     varchar, varchar, date, varchar, varchar, text, integer) TO asalab_app;
 GRANT EXECUTE ON FUNCTION auth_provider_status(varchar, uuid) TO asalab_app;
-GRANT EXECUTE ON FUNCTION auth_provider_revoke(varchar, uuid, uuid, varchar, varchar, varchar) TO asalab_app;
+GRANT EXECUTE ON FUNCTION auth_provider_revoke(varchar, uuid, uuid, varchar, varchar, varchar, bigint) TO asalab_app;
 
 -- Release only a failed delivery receipt so the provider may retry the event.
 -- Session and identity mutations remain single-use in the pairing functions.
@@ -919,6 +956,10 @@ BEGIN
     updated := replace(definition, $old$'auth.login','auth.register','auth.max'$old$,
         $new$'auth.login','auth.register','auth.max','auth.telegram'$new$);
     IF updated = definition THEN RAISE EXCEPTION 'analytics v2 authentication baseline changed'; END IF;
+    definition := updated;
+    updated := replace(definition, $old$'password','organization','max','class_code'$old$,
+        $new$'password','organization','max','telegram','class_code'$new$);
+    IF updated = definition THEN RAISE EXCEPTION 'analytics v2 authentication method baseline changed'; END IF;
     EXECUTE updated;
 END;
 $migration$;

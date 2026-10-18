@@ -37,6 +37,28 @@ function healthyTelegram(url: string | URL | Request): Response {
   });
 }
 
+function encryptedRuntime(): RuntimeRow {
+  const iv = Buffer.alloc(12, 4);
+  const cipher = createCipheriv('aes-256-gcm', KEY, iv);
+  return {
+    enabled: true,
+    bot_username: 'asa_test_bot',
+    mini_app_url: 'https://asa.example/sign-in',
+    token_ciphertext: Buffer.concat([cipher.update(TOKEN), cipher.final()]).toString('base64url'),
+    token_iv: iv.toString('base64url'),
+    token_auth_tag: cipher.getAuthTag().toString('base64url'),
+    token_fingerprint: createHash('sha256').update(TOKEN).digest('hex').slice(0, 12),
+    verified_bot_id: '1001',
+    verified_bot_name: 'ASA Test',
+    token_verified_at: new Date(NOW),
+    configuration_version: 1,
+    updated_at: new Date(NOW),
+    webhook_url: 'https://asa.example/api/auth/telegram/webhook',
+    webhook_verified_at: new Date(NOW),
+    webhook_last_error: null,
+  };
+}
+
 describe('bounded provider runtime availability', () => {
   it('coalesces concurrent token/delivery probes and rechecks after the bounded cache expires', async () => {
     let now = NOW;
@@ -149,25 +171,7 @@ describe('bounded provider runtime availability', () => {
   });
 
   it('re-reads the configuration generation before returning a cached healthy result', async () => {
-    const iv = Buffer.alloc(12, 4);
-    const cipher = createCipheriv('aes-256-gcm', KEY, iv);
-    let row: RuntimeRow = {
-      enabled: true,
-      bot_username: 'asa_test_bot',
-      mini_app_url: 'https://asa.example/sign-in',
-      token_ciphertext: Buffer.concat([cipher.update(TOKEN), cipher.final()]).toString('base64url'),
-      token_iv: iv.toString('base64url'),
-      token_auth_tag: cipher.getAuthTag().toString('base64url'),
-      token_fingerprint: createHash('sha256').update(TOKEN).digest('hex').slice(0, 12),
-      verified_bot_id: '1001',
-      verified_bot_name: 'ASA Test',
-      token_verified_at: new Date(NOW),
-      configuration_version: 1,
-      updated_at: new Date(NOW),
-      webhook_url: 'https://asa.example/api/auth/telegram/webhook',
-      webhook_verified_at: new Date(NOW),
-      webhook_last_error: null,
-    };
+    let row = encryptedRuntime();
     const query = vi.fn(async (sql: string) => ({
       rows: sql.includes('runtime_config') ? [row] : [],
     }));
@@ -184,6 +188,69 @@ describe('bounded provider runtime availability', () => {
       reason: 'disabled',
     });
     expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(query).toHaveBeenLastCalledWith('SELECT auth_provider_health_set($1,$2,$3,$4)', [
+      'telegram',
+      2,
+      false,
+      'disabled',
+    ]);
+  });
+
+  it.each(['missing', 'wrong'] as const)(
+    'persists negative health before returning an unavailable result with a %s encryption key',
+    async (problem) => {
+      const row = encryptedRuntime();
+      const query = vi.fn(async (sql: string) => ({
+        rows: sql.includes('runtime_config') ? [row] : [],
+      }));
+      const fetchImpl = vi.fn();
+      const runtime = new BotProviderRuntime({ query } as unknown as pg.Pool, 'telegram', {
+        encryptionKey: problem === 'missing' ? '' : Buffer.alloc(32, 8).toString('base64url'),
+        fetchImpl,
+        now: () => NOW,
+      });
+      await expect(runtime.availableConfigurationVersion()).resolves.toBeNull();
+      expect(query).toHaveBeenLastCalledWith('SELECT auth_provider_health_set($1,$2,$3,$4)', [
+        'telegram',
+        1,
+        false,
+        'not_configured',
+      ]);
+      await expect(runtime.availability()).resolves.toMatchObject({
+        available: false,
+        reason: 'not_configured',
+        launchUrl: null,
+      });
+      expect(fetchImpl).not.toHaveBeenCalled();
+    },
+  );
+
+  it('never certifies an unavailable alternative even if saving its negative health fails', async () => {
+    const row = encryptedRuntime();
+    const query = vi.fn(async (sql: string) => {
+      if (sql.includes('health_set')) throw new Error('synthetic persistence failure');
+      return { rows: [row] };
+    });
+    const runtime = new BotProviderRuntime({ query } as unknown as pg.Pool, 'telegram', {
+      encryptionKey: '',
+      fetchImpl: vi.fn(),
+      now: () => NOW,
+    });
+    await expect(runtime.availableConfigurationVersion()).resolves.toBeNull();
+  });
+
+  it('does not certify availability from a generation changed during the forced probe', async () => {
+    let row = encryptedRuntime();
+    const query = vi.fn(async (sql: string) => {
+      if (sql.includes('health_set')) row = { ...row, configuration_version: 2 };
+      return { rows: sql.includes('runtime_config') ? [row] : [] };
+    });
+    const runtime = new BotProviderRuntime({ query } as unknown as pg.Pool, 'telegram', {
+      encryptionKey: KEY.toString('base64url'),
+      fetchImpl: vi.fn(async (url) => healthyTelegram(url)),
+      now: () => NOW,
+    });
+    await expect(runtime.availableConfigurationVersion()).resolves.toBeNull();
   });
 
   it('authorizes admin edits before token checks and sends the current webhook secret on configuration', async () => {
@@ -224,7 +291,7 @@ describe('bounded provider runtime availability', () => {
         row = { ...row, webhook_url: String(args[2]), webhook_verified_at: new Date(NOW) };
       return { rows: [{ ...row, token_configured: row.token_ciphertext !== null }] };
     });
-    const fetchImpl = vi.fn(async (url: string | URL | Request, _options?: RequestInit) => {
+    const fetchImpl = vi.fn<typeof fetch>(async (url) => {
       expect(String(query.mock.calls[0]?.[0])).toContain('admin_get_auth_provider_config');
       return String(url).endsWith('/setWebhook')
         ? body({ ok: true, result: true })

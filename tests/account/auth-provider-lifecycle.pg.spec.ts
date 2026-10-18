@@ -36,6 +36,14 @@ const hash = () => hashSessionToken(randomBytes(32).toString('base64url'));
 const subject = () => BigInt('0x' + randomBytes(12).toString('hex')).toString();
 const assertion = () => `proof:${randomUUID()}`;
 
+async function configurationVersion(provider: Provider): Promise<string> {
+  const result = await runtime.query<{ configuration_version: string }>(
+    'SELECT configuration_version FROM auth_provider_runtime_config($1)',
+    [provider],
+  );
+  return result.rows[0]!.configuration_version;
+}
+
 async function account(passwordConfigured = true): Promise<Account> {
   const unique = randomUUID().replaceAll('-', '');
   const sessionHash = hash();
@@ -67,18 +75,32 @@ async function start(provider: Provider = 'max', target?: Account): Promise<Pair
   return pair;
 }
 
-async function approve(pair: Pairing, identity: string): Promise<string> {
+async function approve(pair: Pairing, identity: string, version?: string): Promise<string> {
   const result = await runtime.query<{ result: string }>(
-    'SELECT auth_provider_pairing_approve($1,$2,$3,$4,extract(epoch FROM now())::bigint,$5,$6) AS result',
-    [pair.provider, pair.tokenHash, identity, assertion(), 'external_user', 'External profile'],
+    'SELECT auth_provider_pairing_approve($1,$2,$3,$4,extract(epoch FROM now())::bigint,$5,$6,$7) AS result',
+    [
+      pair.provider,
+      pair.tokenHash,
+      identity,
+      assertion(),
+      'external_user',
+      'External profile',
+      version ?? (await configurationVersion(pair.provider)),
+    ],
   );
   return result.rows[0]!.result;
 }
 
-async function link(user: Account, provider: Provider, identity: string, proof = assertion()) {
+async function link(
+  user: Account,
+  provider: Provider,
+  identity: string,
+  proof = assertion(),
+  version?: string,
+) {
   const result = await runtime.query<{ result: string }>(
-    'SELECT auth_provider_link($1,$2,$3,$4,extract(epoch FROM now())::bigint,NULL,NULL) AS result',
-    [provider, user.account_id, identity, proof],
+    'SELECT auth_provider_link($1,$2,$3,$4,extract(epoch FROM now())::bigint,NULL,NULL,$5) AS result',
+    [provider, user.account_id, identity, proof, version ?? (await configurationVersion(provider))],
   );
   return result.rows[0]!.result;
 }
@@ -103,9 +125,14 @@ async function consume(
   return { ...result.rows[0]!, sessionHash };
 }
 
-async function revoke(user: Account, provider: Provider, kind: 'self' | 'admin' = 'self') {
+async function revoke(
+  user: Account,
+  provider: Provider,
+  kind: 'self' | 'admin' = 'self',
+  alternativeVersion?: string | null,
+) {
   const result = await runtime.query<{ result: string }>(
-    'SELECT auth_provider_revoke($1,$2,$3,$4,$5,$6) AS result',
+    'SELECT auth_provider_revoke($1,$2,$3,$4,$5,$6,$7) AS result',
     [
       provider,
       user.account_id,
@@ -113,9 +140,67 @@ async function revoke(user: Account, provider: Provider, kind: 'self' | 'admin' 
       kind,
       kind === 'self' ? 'self-service unlink' : 'administrative provider review',
       kind === 'admin' ? randomUUID() : null,
+      alternativeVersion === undefined
+        ? await configurationVersion(provider === 'max' ? 'telegram' : 'max')
+        : alternativeVersion,
     ],
   );
   return result.rows[0]!.result;
+}
+
+async function changeConfiguration(
+  provider: Provider,
+  enabled: boolean,
+  client: pg.Pool | pg.PoolClient = runtime,
+) {
+  const result = await client.query<{ version: string }>(
+    "SELECT admin_set_auth_provider_config($1,$2,$3,'synthetic_test_bot','https://example.test/sign-in','keep',NULL,NULL,NULL,NULL,NULL,NULL,'configuration generation test',$4) AS version",
+    [platformAdmin.principal_id, provider, enabled, randomUUID()],
+  );
+  return result.rows[0]!.version;
+}
+
+async function authorityCounts() {
+  const result = await admin.query(`SELECT
+    (SELECT count(*) FROM accounts) AS accounts,
+    (SELECT count(*) FROM account_external_identities) AS identities,
+    (SELECT count(*) FROM external_auth_assertions) AS assertions,
+    (SELECT count(*) FROM sessions_v2) AS sessions`);
+  return result.rows[0];
+}
+
+async function rawWrites(
+  provider: Provider,
+  target: Account,
+  loginSubject: string,
+  version: string,
+) {
+  const unique = randomUUID().replaceAll('-', '');
+  const results = await Promise.all([
+    link(target, provider, subject(), assertion(), version),
+    runtime
+      .query<{ result: string }>(
+        'SELECT * FROM auth_provider_login($1,$2,$3,extract(epoch FROM now())::bigint,NULL,NULL,$4,24,NULL,$5)',
+        [provider, loginSubject, assertion(), hash(), version],
+      )
+      .then((result) => result.rows[0]!.result),
+    runtime
+      .query<{ result: string }>(
+        "SELECT * FROM auth_provider_register($1,$2,$3,extract(epoch FROM now())::bigint,NULL,NULL,$4,$5,'Synthetic registration',$6,DATE '1990-04-12','RU','provider-test',$7,24,$8)",
+        [
+          provider,
+          subject(),
+          assertion(),
+          `${unique}@provider.test`,
+          passwordHash,
+          `p${unique.slice(0, 28)}`,
+          hash(),
+          version,
+        ],
+      )
+      .then((result) => result.rows[0]!.result),
+  ]);
+  return results;
 }
 
 async function registerPair(
@@ -211,6 +296,147 @@ describe('provider lifecycle PostgreSQL authority and atomicity', () => {
     );
     expect(safe.rows[0].token_configured).toBe(true);
     expect(safe.rows[0]).not.toHaveProperty('token_ciphertext');
+  });
+
+  it('closes all legacy MAX proof writers, including revoked login, passwordless registration and stale webhook status', async () => {
+    const writers = await runtime.query<{ signature: string; allowed: boolean }>(
+      `
+      SELECT p.oid::regprocedure::text AS signature,
+        has_function_privilege('asalab_app',p.oid,'EXECUTE') AS allowed
+      FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+      WHERE n.nspname='public' AND p.proname = ANY($1::text[])`,
+      [
+        [
+          'auth_max_login',
+          'auth_max_register_account',
+          'auth_max_link',
+          'auth_max_pairing_start',
+          'auth_max_pairing_approve',
+          'auth_max_pairing_target',
+          'auth_max_pairing_consume',
+          'auth_max_webhook_status_set',
+        ],
+      ],
+    );
+    expect(writers.rows).toHaveLength(9);
+    expect(writers.rows.filter((row) => row.allowed)).toEqual([]);
+    const user = await account();
+    const identity = subject();
+    expect(await link(user, 'max', identity)).toBe('linked');
+    expect(await revoke(user, 'max', 'admin')).toBe('unlinked');
+    const before = await authorityCounts();
+    await expect(
+      runtime.query(
+        'SELECT * FROM auth_max_login($1,$2,extract(epoch FROM now())::bigint,NULL,NULL,$3,24,NULL)',
+        [identity, assertion(), hash()],
+      ),
+    ).rejects.toMatchObject({ code: '42501' });
+    await changeConfiguration('max', false);
+    const unique = randomUUID().replaceAll('-', '');
+    await expect(
+      runtime.query(
+        "SELECT * FROM auth_max_register_account($1,$2,extract(epoch FROM now())::bigint,NULL,NULL,$3,$4,'Blocked legacy registration',$5,DATE '1990-04-12','RU','provider-test',$6,24)",
+        [
+          subject(),
+          assertion(),
+          `${unique}@provider.test`,
+          passwordHash,
+          `p${unique.slice(0, 28)}`,
+          hash(),
+        ],
+      ),
+    ).rejects.toMatchObject({ code: '42501' });
+    await expect(
+      runtime.query(
+        "SELECT auth_max_webhook_status_set('https://stale.example/webhook',true,NULL)",
+      ),
+    ).rejects.toMatchObject({ code: '42501' });
+    expect(await authorityCounts()).toEqual(before);
+    const webhook = await runtime.query(
+      "SELECT webhook_verified_at FROM auth_provider_runtime_config('max')",
+    );
+    expect(webhook.rows[0].webhook_verified_at).toBeNull();
+  });
+
+  it.each(['max', 'telegram'] as const)(
+    'rejects every raw %s proof writer from a replaced or disabled configuration before mutation',
+    async (provider) => {
+      const user = await account();
+      const target = await account();
+      const identity = subject();
+      expect(await link(user, provider, identity)).toBe('linked');
+      const before = await authorityCounts();
+      const oldVersion = await configurationVersion(provider);
+      const rotatedVersion = await changeConfiguration(provider, true);
+      expect(await rawWrites(provider, target, identity, oldVersion)).toEqual([
+        'unavailable',
+        'unavailable',
+        'unavailable',
+      ]);
+      const disabledVersion = await changeConfiguration(provider, false);
+      for (const version of [rotatedVersion, disabledVersion]) {
+        expect(await rawWrites(provider, target, identity, version)).toEqual([
+          'unavailable',
+          'unavailable',
+          'unavailable',
+        ]);
+      }
+      expect(await authorityCounts()).toEqual(before);
+      const currentVersion = await changeConfiguration(provider, true);
+      expect(await rawWrites(provider, target, identity, currentVersion)).toEqual([
+        'linked',
+        'authenticated',
+        'authenticated',
+      ]);
+    },
+  );
+
+  it('rejects approval signed by an old webhook runtime without consuming the new challenge', async () => {
+    const oldVersion = await configurationVersion('telegram');
+    await changeConfiguration('telegram', true);
+    const pair = await start('telegram');
+    const identity = subject();
+    expect(await approve(pair, identity, oldVersion)).toBe('invalid');
+    expect((await consume(pair)).result).toBe('pending');
+    expect(await approve(pair, identity)).toBe('approved');
+    expect((await consume(pair)).result).toBe('registration_required');
+  });
+
+  it('serializes a raw proof writer behind configuration mutation and rejects its captured old generation', async () => {
+    const user = await account();
+    const oldVersion = await configurationVersion('max');
+    const before = await authorityCounts();
+    const configClient = await admin.connect();
+    const writerClient = await runtime.connect();
+    let mutation: Promise<pg.QueryResult<{ result: string }>> | undefined;
+    try {
+      const configPid = (await configClient.query('SELECT pg_backend_pid() AS pid')).rows[0].pid;
+      const writerPid = (await writerClient.query('SELECT pg_backend_pid() AS pid')).rows[0].pid;
+      await configClient.query('BEGIN');
+      await changeConfiguration('max', true, configClient);
+      mutation = writerClient.query<{ result: string }>(
+        'SELECT auth_provider_link($1,$2,$3,$4,extract(epoch FROM now())::bigint,NULL,NULL,$5) AS result',
+        ['max', user.account_id, subject(), assertion(), oldVersion],
+      );
+      let blocked = false;
+      for (let attempt = 0; attempt < 50; attempt++) {
+        const blockers = await admin.query('SELECT pg_blocking_pids($1) AS pids', [writerPid]);
+        if (blockers.rows[0].pids.includes(configPid)) {
+          blocked = true;
+          break;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+      expect(blocked).toBe(true);
+      await configClient.query('COMMIT');
+      expect((await mutation).rows[0]?.result).toBe('unavailable');
+      expect(await authorityCounts()).toEqual(before);
+    } finally {
+      await configClient.query('ROLLBACK');
+      await mutation?.catch(() => undefined);
+      writerClient.release();
+      configClient.release();
+    }
   });
 
   it('rejects missing/wrong nonces without consuming a valid pending or approved challenge', async () => {
@@ -375,6 +601,36 @@ describe('provider lifecycle PostgreSQL authority and atomicity', () => {
     expect(await revoke(user, 'telegram')).toBe('unlinked');
   });
 
+  it('requires a freshly certified alternative generation even when the persisted health still says ready', async () => {
+    const user = await account(false);
+    await link(user, 'max', subject());
+    await link(user, 'telegram', subject());
+    const oldVersion = await configurationVersion('telegram');
+    expect(await revoke(user, 'max', 'self', null)).toBe('last_sign_in_method');
+    await runtime.query('SELECT auth_provider_health_set($1,$2,false,$3)', [
+      'telegram',
+      oldVersion,
+      'not_configured',
+    ]);
+    // A late response from a previous generation cannot restore stale health.
+    await runtime.query("SELECT auth_provider_health_set($1,$2,true,'ready')", [
+      'telegram',
+      String(BigInt(oldVersion) - 1n),
+    ]);
+    const unhealthy = await admin.query(
+      "SELECT health_available,health_reason FROM auth_provider_settings WHERE provider='telegram'",
+    );
+    expect(unhealthy.rows[0]).toEqual({ health_available: false, health_reason: 'not_configured' });
+    expect(await revoke(user, 'max', 'self', oldVersion)).toBe('last_sign_in_method');
+    const newVersion = await changeConfiguration('telegram', true);
+    await runtime.query("SELECT auth_provider_health_set($1,$2,true,'ready')", [
+      'telegram',
+      newVersion,
+    ]);
+    expect(await revoke(user, 'max', 'self', oldVersion)).toBe('last_sign_in_method');
+    expect(await revoke(user, 'max', 'self', newVersion)).toBe('unlinked');
+  });
+
   it('revokes approved pairings and all provider sessions, including sessions without a refresh family', async () => {
     const user = await account();
     const identity = subject();
@@ -459,5 +715,17 @@ describe('provider lifecycle PostgreSQL authority and atomicity', () => {
         [randomUUID()],
       ),
     ).rejects.toMatchObject({ code: '22023' });
+    for (const semantic of [
+      { outcome: 'failed', authMethod: 'forged-provider' },
+      { outcome: 'forged-outcome', authMethod: 'telegram' },
+      { outcome: 'failed', authMethod: 'telegram', unapprovedProperty: 'forged' },
+    ]) {
+      await expect(
+        runtime.query(
+          "SELECT analytics_ingest_v2($1,'anonymous',NULL,NULL,NULL,NULL,NULL,'auth.telegram',$2::jsonb,'{}'::jsonb,now())",
+          [randomUUID(), JSON.stringify(semantic)],
+        ),
+      ).rejects.toMatchObject({ code: '22023' });
+    }
   });
 });

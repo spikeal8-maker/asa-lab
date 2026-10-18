@@ -67,6 +67,7 @@ const OPERATION_ERRORS = new Set<string>([
 /** Account operations consume provider proof through atomic database functions. */
 export class BotProviderAuthService {
   private readonly runtimeProvider: BotProviderRuntime;
+  private readonly alternativeRuntime: BotProviderRuntime;
   private readonly webhook: BotProviderWebhook;
 
   constructor(
@@ -75,6 +76,15 @@ export class BotProviderAuthService {
     options: BotProviderAuthOptions = {},
   ) {
     this.runtimeProvider = new BotProviderRuntime(pool, provider, options);
+    this.alternativeRuntime = new BotProviderRuntime(
+      pool,
+      provider === 'max' ? 'telegram' : 'max',
+      {
+        encryptionKey: options.encryptionKey ?? process.env['ASA_SETTINGS_ENCRYPTION_KEY'] ?? '',
+        fetchImpl: options.fetchImpl ?? fetch,
+        now: options.now ?? Date.now,
+      },
+    );
     this.webhook = new BotProviderWebhook(pool, this.runtimeProvider);
   }
 
@@ -106,21 +116,33 @@ export class BotProviderAuthService {
     return this.webhook.handleWebhook(suppliedSecret, body);
   }
 
-  private async identity(rawInitData: unknown): Promise<ValidatedProviderIdentity> {
+  private async identity(
+    rawInitData: unknown,
+  ): Promise<ValidatedProviderIdentity & { readonly configurationVersion: number }> {
     const readiness = await this.availability();
     const runtime = await this.runtimeProvider.runtime();
     const token = this.runtimeProvider.runtimeToken(runtime);
-    if (!readiness.available || !runtime.enabled || !token) {
+    const configurationVersion = Number(runtime.configuration_version);
+    if (
+      !readiness.available ||
+      !runtime.enabled ||
+      !token ||
+      !Number.isSafeInteger(configurationVersion) ||
+      configurationVersion < 1
+    ) {
       throw new ProviderInitDataError(`${this.provider}_auth_disabled`);
     }
-    return validateProviderInitData(rawInitData, token, this.provider, this.runtimeProvider.now());
+    return {
+      ...validateProviderInitData(rawInitData, token, this.provider, this.runtimeProvider.now()),
+      configurationVersion,
+    };
   }
 
   async signIn(rawInitData: unknown, userAgentSummary?: string): Promise<ProviderSignInResult> {
     const identity = await this.identity(rawInitData);
     const token = createSessionToken();
     const response = await this.pool.query(
-      'SELECT result, account_id FROM auth_provider_login($1,$2,$3,$4,$5,$6,$7,$8,$9)',
+      'SELECT result, account_id FROM auth_provider_login($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',
       [
         this.provider,
         identity.subject,
@@ -131,6 +153,7 @@ export class BotProviderAuthService {
         hashSessionToken(token),
         SESSION_TTL_HOURS,
         userAgentSummary ?? null,
+        identity.configurationVersion,
       ],
     );
     const status = String(
@@ -145,7 +168,7 @@ export class BotProviderAuthService {
   async link(accountId: string, rawInitData: unknown): Promise<ProviderLinkResult> {
     const identity = await this.identity(rawInitData);
     const response = await this.pool.query<{ result: ProviderLinkResult['status'] }>(
-      'SELECT auth_provider_link($1,$2,$3,$4,$5,$6,$7) AS result',
+      'SELECT auth_provider_link($1,$2,$3,$4,$5,$6,$7,$8) AS result',
       [
         this.provider,
         accountId,
@@ -154,6 +177,7 @@ export class BotProviderAuthService {
         identity.authDate,
         identity.username,
         identity.displayName,
+        identity.configurationVersion,
       ],
     );
     return { status: response.rows[0]?.result ?? 'unavailable' };
@@ -223,7 +247,7 @@ export class BotProviderAuthService {
     const token = createSessionToken();
     try {
       const result = await this.pool.query(
-        'SELECT result, account_id FROM auth_provider_register($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::date,$12,$13,$14,$15)',
+        'SELECT result, account_id FROM auth_provider_register($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::date,$12,$13,$14,$15,$16)',
         [
           this.provider,
           identity.subject,
@@ -240,6 +264,7 @@ export class BotProviderAuthService {
           AGE_POLICY_VERSION,
           hashSessionToken(token),
           SESSION_TTL_HOURS,
+          identity.configurationVersion,
         ],
       );
       const status = String(
@@ -338,11 +363,16 @@ export class BotProviderAuthService {
     };
   }
 
+  registerPairing(
+    pairingToken: unknown,
+    browserNonce: string | undefined,
+    input: ProviderRegistrationInput,
+    userAgentSummary?: string,
+  ): Promise<ProviderRegisterResult>;
   async registerPairing(
     pairingToken: unknown,
     browserNonce: string | undefined,
     input: ProviderRegistrationInput,
-    _userAgentSummary?: string,
   ): Promise<ProviderRegisterResult> {
     if (
       typeof pairingToken !== 'string' ||
@@ -414,9 +444,10 @@ export class BotProviderAuthService {
   }
 
   async unlink(accountId: string, actorPrincipalId: string): Promise<boolean> {
+    const alternativeVersion = await this.alternativeRuntime.availableConfigurationVersion();
     const result = await this.pool.query<{ result: string }>(
-      "SELECT auth_provider_revoke($1,$2,$3,'self','self-service unlink',NULL) AS result",
-      [this.provider, accountId, actorPrincipalId],
+      "SELECT auth_provider_revoke($1,$2,$3,'self','self-service unlink',NULL,$4) AS result",
+      [this.provider, accountId, actorPrincipalId, alternativeVersion],
     );
     const status = result.rows[0]?.result;
     if (status && OPERATION_ERRORS.has(status))

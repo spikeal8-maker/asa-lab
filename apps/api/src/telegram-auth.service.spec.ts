@@ -54,9 +54,8 @@ describe('Telegram provider proof and real bot routes', () => {
     const query = vi.fn(async (sql: string) => ({
       rows: [sql.includes('event_claim') ? { claimed: true } : { result: 'approved' }],
     }));
-    const fetchImpl = vi.fn(
-      async (_url: string | URL | Request, _options?: RequestInit) =>
-        new Response(JSON.stringify({ ok: true, result: true }), { status: 200 }),
+    const fetchImpl = vi.fn<typeof fetch>(
+      async () => new Response(JSON.stringify({ ok: true, result: true }), { status: 200 }),
     );
     const service = new TelegramAuthService({ query } as unknown as pg.Pool, {
       botToken: TOKEN,
@@ -91,6 +90,7 @@ describe('Telegram provider proof and real bot routes', () => {
       NOW,
       null,
       'Елена',
+      1,
     ]);
     expect(fetchImpl).toHaveBeenCalledWith(
       `https://api.telegram.org/bot${TOKEN}/answerCallbackQuery`,
@@ -103,9 +103,8 @@ describe('Telegram provider proof and real bot routes', () => {
 
   it('uses an inline button on /start and does not equate start with approval', async () => {
     const query = vi.fn(async () => ({ rows: [{ claimed: true }] }));
-    const fetchImpl = vi.fn(
-      async (_url: string | URL | Request, _options?: RequestInit) =>
-        new Response(JSON.stringify({ ok: true, result: true }), { status: 200 }),
+    const fetchImpl = vi.fn<typeof fetch>(
+      async () => new Response(JSON.stringify({ ok: true, result: true }), { status: 200 }),
     );
     const service = new TelegramAuthService({ query } as unknown as pg.Pool, {
       botToken: TOKEN,
@@ -138,7 +137,7 @@ describe('Telegram provider proof and real bot routes', () => {
     expect(query).toHaveBeenCalledWith(expect.stringContaining('event_claim'), expect.any(Array));
   });
 
-  it('releases delivery receipts on a provider failure and immediately reports the channel unavailable', async () => {
+  it('releases retryable receipts and confirms a network outage through independent probes', async () => {
     const query = vi.fn(async () => ({ rows: [{ claimed: true }] }));
     const fetchImpl = vi.fn(async () => {
       throw new Error(`failure URL contains ${TOKEN}`);
@@ -163,9 +162,116 @@ describe('Telegram provider proof and real bot routes', () => {
     expect(query).toHaveBeenCalledWith(expect.stringContaining('event_release'), expect.any(Array));
     await expect(service.availability()).resolves.toMatchObject({
       available: false,
-      reason: 'delivery_unavailable',
+      reason: 'unavailable',
       launchUrl: null,
     });
-    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(fetchImpl).toHaveBeenCalledTimes(3);
+  });
+
+  it.each([
+    { method: 'sendMessage', status: 403 },
+    { method: 'answerCallbackQuery', status: 400 },
+  ])(
+    'keeps healthy verification available after local $method HTTP $status',
+    async ({ method, status }) => {
+      const query = vi.fn(async (sql: string) => ({
+        rows: [sql.includes('event_claim') ? { claimed: true } : { result: 'approved' }],
+      }));
+      const fetchImpl = vi.fn(async (url: string | URL | Request) => {
+        if (String(url).endsWith('/' + method)) {
+          return new Response(JSON.stringify({ ok: false, error_code: status }), { status });
+        }
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            result: String(url).endsWith('/getMe')
+              ? { id: 1001, username: 'asa_test_bot', is_bot: true }
+              : {
+                  url: 'https://asa.example/api/auth/telegram/webhook',
+                  allowed_updates: ['message', 'callback_query'],
+                },
+          }),
+          { status: 200 },
+        );
+      });
+      const service = new TelegramAuthService({ query } as unknown as pg.Pool, {
+        botToken: TOKEN,
+        botUsername: 'asa_test_bot',
+        miniAppUrl: 'https://asa.example/telegram-login',
+        encryptionKey: KEY.toString('base64url'),
+        enabled: true,
+        fetchImpl,
+      });
+      const secret = createHmac('sha256', KEY)
+        .update('telegram-webhook:asa_test_bot:1')
+        .digest('base64url');
+      const update =
+        method === 'sendMessage'
+          ? { update_id: 4, message: { text: `/start pair_${PAIRING}`, from: { id: 123 } } }
+          : {
+              update_id: 5,
+              callback_query: {
+                id: 'expired-callback',
+                from: { id: 123 },
+                data: `approve:pair_${PAIRING}`,
+              },
+            };
+      await expect(service.availability()).resolves.toMatchObject({
+        available: true,
+        reason: 'ready',
+      });
+      await expect(service.handleWebhook(secret, update)).resolves.toBe('accepted');
+      await expect(service.availability()).resolves.toMatchObject({
+        available: true,
+        reason: 'ready',
+      });
+      expect(
+        fetchImpl.mock.calls.filter((call) => String(call[0]).endsWith('/getMe')),
+      ).toHaveLength(2);
+      expect(
+        fetchImpl.mock.calls.filter((call) => String(call[0]).endsWith('/getWebhookInfo')),
+      ).toHaveLength(2);
+      expect(query.mock.calls.some((call) => String(call[0]).includes('event_release'))).toBe(
+        false,
+      );
+    },
+  );
+
+  it('reports a global invalid token only when an independent getMe confirms it', async () => {
+    const query = vi.fn(async () => ({ rows: [{ claimed: true }] }));
+    const fetchImpl = vi.fn(async (url: string | URL | Request) => {
+      if (String(url).endsWith('/getMe')) return new Response('{}', { status: 401 });
+      if (String(url).endsWith('/sendMessage')) return new Response('{}', { status: 403 });
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          result: {
+            url: 'https://asa.example/api/auth/telegram/webhook',
+            allowed_updates: ['message', 'callback_query'],
+          },
+        }),
+        { status: 200 },
+      );
+    });
+    const service = new TelegramAuthService({ query } as unknown as pg.Pool, {
+      botToken: TOKEN,
+      botUsername: 'asa_test_bot',
+      miniAppUrl: 'https://asa.example/telegram-login',
+      encryptionKey: KEY.toString('base64url'),
+      enabled: true,
+      fetchImpl,
+    });
+    const secret = createHmac('sha256', KEY)
+      .update('telegram-webhook:asa_test_bot:1')
+      .digest('base64url');
+    await service.handleWebhook(secret, {
+      update_id: 6,
+      message: { text: `/start pair_${PAIRING}`, from: { id: 123 } },
+    });
+    await expect(service.availability()).resolves.toMatchObject({
+      available: false,
+      reason: 'invalid_token',
+    });
+    expect(fetchImpl.mock.calls.some((call) => String(call[0]).endsWith('/getMe'))).toBe(true);
   });
 });

@@ -2,6 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 import type {
   AccountVerificationState,
   AuthProviderAvailability,
+  LearningNotificationPreferences,
   SocialAuthProvider,
 } from '../apps/web/src/api';
 import { telemetryReceipt } from './fixtures/telemetry-receipts';
@@ -87,6 +88,23 @@ async function fixture(
     },
   };
   const pairings = new Map<string, { provider: SocialAuthProvider; purpose: string }>();
+  // Account settings keeps its notification editor mounted across sections.
+  // Even the security journey needs the complete public preferences contract.
+  const notificationPreferences: LearningNotificationPreferences = {
+    revision: 0,
+    masterEnabled: true,
+    categories: {
+      NC01: true,
+      NC02: true,
+      NC03: true,
+      NC04: true,
+      NC05: true,
+      NC06: true,
+      NC08: true,
+    },
+    classOverrides: {},
+    classes: [],
+  };
   const workspaces = [
     { workspaceId: WORKSPACE_ID, kind: 'personal', title: 'Личное пространство', role: 'owner' },
   ];
@@ -161,11 +179,17 @@ async function fixture(
 
   await page.context().route('**/*', (route) => {
     const url = new URL(route.request().url());
-    return url.origin === 'http://127.0.0.1:4612' ? route.fallback() : route.abort();
+    // An API request must never fall through to the static server, including
+    // unload/keepalive requests after the initiating page has been closed.
+    return url.origin === 'http://127.0.0.1:4612' && !url.pathname.startsWith('/api/')
+      ? route.fallback()
+      : route.abort();
   });
-  await page.route('**/api/**', async (route) => {
+  await page.context().route('**/api/**', async (route) => {
     const request = route.request();
-    const path = new URL(request.url()).pathname;
+    const url = new URL(request.url());
+    if (url.origin !== 'http://127.0.0.1:4612') return route.abort();
+    const path = url.pathname;
     const method = request.method();
     const body = (request.postData() ? request.postDataJSON() : {}) as Record<string, unknown>;
     const reply = (json: unknown, status = 200) => route.fulfill({ status, json });
@@ -174,6 +198,9 @@ async function fixture(
     const receipt = telemetryReceipt(request);
     if (receipt) return route.fulfill(receipt);
     state.requests.push({ path, method, body });
+    if (path === '/api/diagnostics/client' && method === 'POST') {
+      return reply({ accepted: true }, 202);
+    }
     if (path === '/api/auth/me')
       return reply(state.signedIn ? session() : { authenticated: false });
     if (path === '/api/class-join/me') return reply({ authenticated: false });
@@ -342,6 +369,9 @@ async function fixture(
     if (path === '/api/classrooms/awaiting-review') return reply({ total: 0 });
     if (path === '/api/learning/notifications')
       return reply({ items: [], snapshot: '2026-10-18T09:00:00Z', unread: 0 });
+    if (path === '/api/learning/notifications/preferences' && method === 'GET') {
+      return reply(notificationPreferences);
+    }
     if (method === 'GET') return reply({ items: [], meta: { total: 0 } });
     return error('unexpected_mutation', path, 400);
   });
@@ -631,7 +661,16 @@ test('a restricted platform administrator can turn off the policy without dashbo
     exact: true,
   });
   await expect(toggle).toBeChecked();
-  await toggle.uncheck();
+  const savedPolicy = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === '/api/admin/v1/auth/verification-policy' &&
+      response.request().method() === 'POST',
+  );
+  // This controlled checkbox reflects the acknowledged server value. Native
+  // uncheck() checks synchronously, before that request can settle.
+  await toggle.click();
+  expect((await savedPolicy).ok()).toBe(true);
+  await expect.poll(() => state.policyEnabled).toBe(false);
   await expect(toggle).not.toBeChecked();
   await expect(page.locator('.auth-admin-recovery')).toHaveCount(0);
   expect(

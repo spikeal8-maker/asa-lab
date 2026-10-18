@@ -8,6 +8,14 @@ export interface VerifiedBot {
   readonly name: string | null;
 }
 
+/** Recipient permissions and expired callbacks say nothing about other users. */
+export class ProviderDeliveryError extends Error {
+  constructor(readonly scope: 'recipient' | 'callback') {
+    super('provider_delivery_unavailable');
+    this.name = 'ProviderDeliveryError';
+  }
+}
+
 export function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object' && !Array.isArray(value)
     ? (value as Record<string, unknown>)
@@ -35,6 +43,23 @@ export class BotProviderTransport {
       | 'service_unavailable',
   ): ProviderConfigurationError {
     return new ProviderConfigurationError(`${this.provider}_${suffix}`);
+  }
+
+  private requestFailure(method: string, status: number): Error {
+    const operation = method.split('?')[0];
+    if ([400, 403].includes(status)) {
+      if (operation === 'sendMessage' || operation === 'messages') {
+        return new ProviderDeliveryError('recipient');
+      }
+      if (operation === 'answerCallbackQuery' || operation === 'answers') {
+        return new ProviderDeliveryError('callback');
+      }
+    }
+    return this.failure(
+      [401, 403].includes(status) || (this.provider === 'telegram' && status === 404)
+        ? 'token_invalid'
+        : 'service_unavailable',
+    );
   }
 
   async request(
@@ -66,12 +91,7 @@ export class BotProviderTransport {
       // Do not propagate fetch messages: Telegram carries its token in the URL.
       throw this.failure('service_unavailable');
     }
-    if (
-      [401, 403].includes(response.status) ||
-      (this.provider === 'telegram' && response.status === 404)
-    )
-      throw this.failure('token_invalid');
-    if (!response.ok) throw this.failure('service_unavailable');
+    if (!response.ok) throw this.requestFailure(method, response.status);
     let value: unknown;
     try {
       value = await response.json();
@@ -81,9 +101,7 @@ export class BotProviderTransport {
     if (this.provider === 'telegram') {
       const envelope = asRecord(value);
       if (envelope?.['ok'] !== true) {
-        if ([401, 403, 404].includes(Number(envelope?.['error_code'])))
-          throw this.failure('token_invalid');
-        throw this.failure('service_unavailable');
+        throw this.requestFailure(method, Number(envelope?.['error_code']));
       }
       return envelope['result'];
     }

@@ -409,6 +409,14 @@
   line-height: 1.4;
 }
 
+/* The regular admin breadcrumb is one flex row. In the compact recovery
+   surface its title must wrap rather than impose a wider minimum page size. */
+.auth-admin-recovery .admin-title-line,
+.auth-admin-recovery .admin-title-line h1 {
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
 .account-sign-in-methods {
   min-width: 0;
   margin: 1.25rem 0;

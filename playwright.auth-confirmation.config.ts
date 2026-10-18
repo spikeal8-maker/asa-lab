@@ -18,8 +18,10 @@ export default defineConfig({
     serviceWorkers: 'block',
   },
   webServer: {
+    // Serve the existing build without inheriting the development API proxy.
+    // BrowserContext routes supply all synthetic APIs, including keepalive.
     command:
-      'node node_modules/vite/bin/vite.js preview --config apps/web/vite.config.ts --host 127.0.0.1 --port 4612 --strictPort',
+      "node --input-type=module -e \"import { preview } from 'vite'; await preview({ configFile: false, root: 'apps/web', preview: { host: '127.0.0.1', port: 4612, strictPort: true, proxy: {} } });\"",
     url: 'http://127.0.0.1:4612',
     reuseExistingServer: false,
     timeout: 30_000,

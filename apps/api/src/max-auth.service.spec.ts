@@ -1,7 +1,7 @@
 import { createHmac } from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
 import type pg from 'pg';
-import { verifyPasswordAsync } from '@asa-lab/identity';
+import { SESSION_TTL_HOURS, verifyPasswordAsync } from '@asa-lab/identity';
 import { MaxAuthService, MaxInitDataError, validateMaxInitData } from './max-auth.service.js';
 import { ProviderOperationError } from './auth-provider-availability.js';
 
@@ -47,11 +47,13 @@ function signedInitData(
 }
 
 function readyService(
-  query = vi.fn(async (_sql: string, _args?: unknown[]) => ({
-    rows: [] as Record<string, unknown>[],
-  })),
+  query = vi.fn<(sql: string, args?: unknown[]) => Promise<{ rows: Record<string, unknown>[] }>>(
+    async () => ({
+      rows: [] as Record<string, unknown>[],
+    }),
+  ),
 ) {
-  const fetchImpl = vi.fn(async (url: string | URL | Request, _options?: RequestInit) => {
+  const fetchImpl = vi.fn<typeof fetch>(async (url) => {
     const path = String(url);
     const body = path.endsWith('/me')
       ? { user_id: 1001, username: BOT_NAME, is_bot: true, name: 'ASA Test' }
@@ -154,6 +156,41 @@ describe('MAX WebApp authentication boundary', () => {
       configurationVersion: 1,
     });
     expect(JSON.stringify({ config, admin })).not.toContain(BOT_TOKEN);
+  });
+
+  it('passes the server runtime generation to both raw proof writers, ignoring profile fields', async () => {
+    const { service, query } = readyService(
+      vi.fn(async (sql: string) => ({
+        rows: [{ result: sql.includes('auth_provider_login') ? 'link_required' : 'linked' }],
+      })),
+    );
+    const proof = signedInitData({
+      user: { id: 123, first_name: 'Test', configurationVersion: 9999 },
+    });
+    await service.signIn(proof);
+    expect(query).toHaveBeenLastCalledWith(expect.stringContaining('auth_provider_login'), [
+      'max',
+      '123',
+      'max-query-1',
+      NOW_SECONDS,
+      null,
+      'Test',
+      expect.stringMatching(/^[a-f0-9]{64}$/),
+      SESSION_TTL_HOURS,
+      null,
+      1,
+    ]);
+    await service.link('account-1', proof);
+    expect(query).toHaveBeenLastCalledWith(expect.stringContaining('auth_provider_link'), [
+      'max',
+      'account-1',
+      '123',
+      'max-query-1',
+      NOW_SECONDS,
+      null,
+      'Test',
+      1,
+    ]);
   });
 
   it('keeps disabled or invalid-address configurations unavailable without network calls', async () => {
@@ -267,6 +304,7 @@ describe('MAX browser capability and account lifecycle', () => {
     expect(args?.[6]).toBe(profile.email);
     expect(args?.[10]).toBe(profile.birthDate);
     expect(args?.[11]).toBe('RU');
+    expect(args?.[15]).toBe(1);
     expect(args?.[7]).not.toBe(profile.password);
     await expect(verifyPasswordAsync(profile.password, String(args?.[7]))).resolves.toBe(true);
     expect(JSON.stringify(query.mock.calls)).not.toContain(profile.password);
@@ -321,6 +359,7 @@ describe('MAX browser capability and account lifecycle', () => {
       NOW_SECONDS,
       null,
       'Человек',
+      1,
     ]);
     expect(
       query.mock.calls.some((call) =>

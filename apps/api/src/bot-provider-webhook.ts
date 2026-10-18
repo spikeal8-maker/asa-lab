@@ -1,13 +1,9 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
 import type pg from 'pg';
 import { hashSessionToken } from '@asa-lab/identity';
-import {
-  ProviderConfigurationError,
-  type AuthProviderAvailabilityReason,
-  type BotAuthProvider,
-} from './auth-provider-availability.js';
+import { type BotAuthProvider } from './auth-provider-availability.js';
 import { providerText, providerUserId } from './provider-init-data.js';
-import { asRecord } from './bot-provider-transport.js';
+import { asRecord, ProviderDeliveryError } from './bot-provider-transport.js';
 import { BotProviderRuntime } from './bot-provider-runtime.js';
 
 interface BotUpdate {
@@ -166,7 +162,7 @@ export class BotProviderWebhook {
         );
       } else {
         const approval = await this.pool.query<{ result: string }>(
-          'SELECT auth_provider_pairing_approve($1,$2,$3,$4,$5,$6,$7) AS result',
+          'SELECT auth_provider_pairing_approve($1,$2,$3,$4,$5,$6,$7,$8) AS result',
           [
             this.runtimeProvider.provider,
             hashSessionToken(pairing),
@@ -175,6 +171,7 @@ export class BotProviderWebhook {
             Math.floor(this.runtimeProvider.now() / 1000),
             update.username,
             update.displayName,
+            Number(runtime.configuration_version),
           ],
         );
         const accepted = approval.rows[0]?.result === 'approved';
@@ -197,11 +194,11 @@ export class BotProviderWebhook {
       }
       return 'accepted';
     } catch (failure) {
-      const reason: AuthProviderAvailabilityReason =
-        failure instanceof ProviderConfigurationError && failure.code.endsWith('_token_invalid')
-          ? 'invalid_token'
-          : 'delivery_unavailable';
-      await this.runtimeProvider.markUnavailable(runtime, reason);
+      // Only independent token/webhook probes may change global availability.
+      // A blocked recipient or stale callback must never disable verification
+      // for other Accounts. These terminal local errors are acknowledged.
+      await this.runtimeProvider.availability(true);
+      if (failure instanceof ProviderDeliveryError) return 'accepted';
       await this.pool
         .query('SELECT auth_provider_webhook_event_release($1)', [eventHash])
         .catch(() => undefined);
