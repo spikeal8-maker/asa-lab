@@ -171,8 +171,17 @@ it.each(['journal', 'results'])(
             [60, 0],
             [90, 0],
             [90, 30],
+            [0, 30],
+            [30, 30],
+            [60, 30],
             [90, 60],
+            [0, 60],
+            [30, 60],
+            [60, 60],
             [90, 90],
+            [0, 90],
+            [30, 90],
+            [60, 90],
           ]
         : [
             [0, 0],
@@ -203,6 +212,7 @@ it('does not rewind pagination when focus or another stream is requested during 
     .mockResolvedValueOnce(ok(page()))
     .mockResolvedValueOnce(ok(page(100, 100, 30, 0)))
     .mockReturnValueOnce(pending.promise)
+    .mockResolvedValueOnce(ok(page(100, 100, 0, 30)))
     .mockResolvedValueOnce(ok(page(100, 100, 60, 30)));
   await render();
   await click('Ещё ручные оценки');
@@ -311,6 +321,235 @@ it.each([false, true])(
     expect(host.querySelectorAll('.participant-history ol li')).toHaveLength(2);
     expect(host.querySelector('.participant-history')?.textContent).toContain('5');
     expect(host.querySelector('.participant-history')?.textContent).toContain('Отозвана');
+  },
+);
+
+it.each([30, 100])(
+  'reconciles companion retractions across %i loaded manual columns without advancing their pages',
+  async (count) => {
+    let retracted = false;
+    const original = { ...page(1, 0).journal.grades[0]!, value: 5 };
+    const latest = { ...original, id: 'rev2', revision: 2, value: null };
+    const read = vi
+      .spyOn(participantsApi, 'grades')
+      .mockImplementation(async (_c, _s, o = 0, r = 0) => {
+        const data = page(count === 100 ? 100 : 130, 100, o, r);
+        data.journal.grades = data.journal.grades.map((g) =>
+          g.columnId === 'c0' ? (retracted ? latest : original) : g,
+        );
+        // A shifted companion page may contain an as-yet unrequested column.
+        if (retracted) {
+          data.journal.columns.push({
+            id: 'unrequested',
+            date: '2026-01-01',
+            category: 'NEW',
+            preset: 'five',
+          });
+          data.journal.grades.push({ ...latest, columnId: 'unrequested', id: 'new' });
+        }
+        return ok(data);
+      });
+    vi.spyOn(participantsApi, 'history').mockResolvedValue(
+      ok({ preset: 'five', items: [latest, original], nextBeforeRevision: null }),
+    );
+    await render();
+    for (let o = 30; o < count; o += 30) await click('Ещё ручные оценки');
+    const loaded = count;
+    const manualOffset = count === 100 ? 90 : 0;
+    const column = () => [...manualRows()].filter((r) => r.textContent?.includes('Урок 0'));
+    expect(column()[0]!.querySelector('strong')?.textContent).toBe('5');
+    const before = read.mock.calls.length;
+    retracted = true;
+    await click('Ещё результаты');
+    expect(column()).toHaveLength(1);
+    expect(column()[0]!.querySelector('strong')?.textContent).toBe('Отозвана');
+    expect(manualRows()).toHaveLength(loaded);
+    expect(host.textContent).not.toContain('NEW');
+    expect([...manualRows()].some((r) => r.querySelector('strong')?.textContent === '0')).toBe(
+      true,
+    );
+    expect(resultRows()).toHaveLength(60);
+    expect(read.mock.calls.slice(before).map((c) => c.slice(2))).toEqual(
+      count === 100
+        ? [
+            [90, 30],
+            [0, 30],
+            [30, 30],
+            [60, 30],
+          ]
+        : [[0, 30]],
+    );
+    await act(async () => column()[0]!.querySelector<HTMLButtonElement>('button')!.click());
+    expect(host.querySelectorAll('.participant-history ol li')).toHaveLength(2);
+    expect(host.querySelector('.participant-history')?.textContent).toContain('5');
+    if (count === 30) {
+      await click('Ещё ручные оценки');
+      expect(read.mock.calls.at(-1)?.slice(2)).toEqual([manualOffset + 30, 30]);
+    } else expect(host.textContent).not.toContain('Ещё ручные оценки');
+    const beforeRefresh = read.mock.calls.length;
+    await act(async () => window.dispatchEvent(new Event('focus')));
+    expect(read.mock.calls.slice(beforeRefresh).map((c) => c.slice(2))).toEqual(
+      count === 100
+        ? [
+            [0, 0],
+            [30, 30],
+            [60, 0],
+            [90, 0],
+          ]
+        : [
+            [0, 0],
+            [30, 30],
+          ],
+    );
+    await click('Ещё результаты');
+    expect(read.mock.calls.at(-(count === 100 ? 4 : 2))?.slice(2)).toEqual([
+      count === 100 ? 90 : 30,
+      60,
+    ]);
+  },
+);
+
+it.each([false, true])(
+  'keeps the newest whole result through paging and stale focus refresh (newerFirst=%s)',
+  async (newerFirst) => {
+    const old = { ...page(0, 1).results[0]!, display_grade: '5', raw_points: 5, feedback: 'OLD' };
+    const latest = {
+      ...old,
+      published_at: '2026-02-01T00:00:00.000002Z',
+      display_grade: null,
+      raw_points: null,
+      max_points: null,
+      feedback: 'CURRENT RETRACTION',
+    };
+    let staleRefresh = false;
+    const read = vi
+      .spyOn(participantsApi, 'grades')
+      .mockImplementation(async (_c, _s, o = 0, r = 0) => {
+        const data = page(100, 100, o, r);
+        data.results[0] = staleRefresh ? old : (r === 0) === newerFirst ? latest : old;
+        return ok(data);
+      });
+    await render('seat-a', false);
+    await click('Ещё результаты');
+    const row = () => [...resultRows()].filter((r) => r.textContent?.includes('Задание 0'));
+    expect(row()).toHaveLength(1);
+    expect(row()[0]!.querySelector('strong')?.textContent).toBe('Без балла');
+    expect(row()[0]!.textContent).toContain('CURRENT RETRACTION');
+    expect(row()[0]!.textContent).not.toContain('OLD');
+    staleRefresh = true;
+    await act(async () => window.dispatchEvent(new Event('focus')));
+    expect(row()[0]!.querySelector('strong')?.textContent).toBe('Без балла');
+    expect(row()[0]!.textContent).toContain('CURRENT RETRACTION');
+    expect(manualRows()).toHaveLength(30);
+    await click('Ещё ручные оценки');
+    expect(read.mock.calls.at(-1)?.slice(2)).toEqual([30, 30]);
+    await click('Ещё результаты');
+    expect(read.mock.calls.slice(-2).map((c) => c.slice(2))).toEqual([
+      [30, 60],
+      [0, 60],
+    ]);
+    expect(row()[0]!.querySelector('strong')?.textContent).toBe('Без балла');
+  },
+);
+
+it.each([false, true])(
+  'fails closed for conflicting equal publication instants and retries canonical pages (reverse=%s)',
+  async (reverse) => {
+    const old = {
+      ...page(0, 1).results[0]!,
+      published_at: '2026-02-01T00:00:00.000001Z',
+      display_grade: '5',
+    };
+    const conflicting = {
+      ...old,
+      published_at: '2026-02-01T03:00:00.000001+03:00',
+      display_grade: null,
+      raw_points: null,
+    };
+    const first = page(30, 100);
+    first.results[0] = reverse ? conflicting : old;
+    const second = page(30, 100, 0, 30);
+    second.results[0] = reverse ? old : conflicting;
+    const read = vi
+      .spyOn(participantsApi, 'grades')
+      .mockResolvedValueOnce(ok(first))
+      .mockResolvedValueOnce(ok(second));
+    await render();
+    await click('Ещё результаты');
+    expect(host.querySelector('[role="alert"]')?.textContent).toContain(
+      'Не удалось определить актуальный результат',
+    );
+    expect(resultRows()).toHaveLength(0);
+    const canonical = page(30, 100);
+    canonical.results[0] = conflicting;
+    read.mockResolvedValueOnce(ok(canonical));
+    await click('Повторить');
+    expect(read.mock.calls.at(-1)?.slice(2)).toEqual([0, 0]);
+    expect(resultRows()).toHaveLength(30);
+    expect(host.querySelector('[role="alert"]')).toBeNull();
+  },
+);
+
+it.each([false, true])(
+  'orders submillisecond publications and equivalent timestamp spellings (reverse=%s)',
+  async (reverse) => {
+    const old = {
+      ...page(0, 1).results[0]!,
+      published_at: '2026-02-01T00:00:00.000001Z',
+      display_grade: '5',
+    };
+    const latest = {
+      ...old,
+      published_at: '2026-02-01T00:00:00.000002Z',
+      display_grade: null,
+      raw_points: null,
+    };
+    const data = page(1, 1);
+    data.results = [latest, old, { ...latest, published_at: '2026-02-01T03:00:00.000002+03:00' }];
+    if (reverse) data.results.reverse();
+    vi.spyOn(participantsApi, 'grades').mockResolvedValue(ok(data));
+    await render();
+    expect(resultRows()).toHaveLength(1);
+    expect(resultRows()[0]!.querySelector('strong')?.textContent).toBe('Без балла');
+    expect(host.querySelector('[role="alert"]')).toBeNull();
+  },
+);
+
+it.each(['switch', 'logout', 'denied'])(
+  'guards every additional loaded-journal read during result paging (%s)',
+  async (action) => {
+    const pending = deferred<ApiResult<ParticipantGrades>>();
+    const read = vi
+      .spyOn(participantsApi, 'grades')
+      .mockResolvedValueOnce(ok(page()))
+      .mockResolvedValueOnce(ok(page(100, 100, 30, 0)))
+      .mockResolvedValueOnce(ok(page(100, 100, 30, 30)))
+      .mockReturnValueOnce(pending.promise);
+    await render();
+    await click('Ещё ручные оценки');
+    await act(async () => button('Ещё результаты').click());
+    expect(read).toHaveBeenCalledTimes(4);
+    expect(read.mock.calls.at(-1)?.slice(2)).toEqual([0, 30]);
+    if (action === 'switch') {
+      read.mockResolvedValueOnce(ok(page(1, 1)));
+      await render('seat-b');
+    } else if (action === 'logout') await act(async () => notifySessionLoggedOut());
+    await act(async () =>
+      pending.resolve(action === 'denied' ? fail(403) : ok(page(100, 100, 0, 30))),
+    );
+    expect(manualRows()).toHaveLength(action === 'switch' ? 1 : 0);
+    expect(resultRows()).toHaveLength(action === 'switch' ? 1 : 0);
+    const before = read.mock.calls.length;
+    if (action === 'logout') {
+      await act(async () => window.dispatchEvent(new Event('focus')));
+      expect(read).toHaveBeenCalledTimes(before);
+    }
+    if (action === 'denied') {
+      read.mockResolvedValueOnce(ok(page(1, 1)));
+      await click('Повторить');
+      expect(read.mock.calls.at(-1)?.slice(2)).toEqual([0, 0]);
+      expect(manualRows()).toHaveLength(1);
+    }
   },
 );
 

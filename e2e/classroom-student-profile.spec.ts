@@ -713,6 +713,231 @@ test('manual retraction supersedes earlier revisions across pages, focus refresh
   expect(state.errors).toEqual([]);
 });
 
+for (const count of [30, 100]) {
+  test(`result paging refreshes retracted companions in ${count} loaded manual columns without cursor drift`, async ({
+    page,
+  }) => {
+    const state = await setup(page, { manual: count, results: 100 });
+    const calls: number[][] = [];
+    let retracted = false;
+    const original = { ...grades(1, 0, 0, 0).journal.grades[0]!, value: 5 };
+    const latest = {
+      ...original,
+      id: 'rev2',
+      revision: 2,
+      value: null,
+      publishedAt: '2026-02-01T00:00:00Z',
+    };
+    await page.route(`**/api/classrooms/${classId}/participants/*/grades*`, async (route) => {
+      const url = new URL(route.request().url());
+      const offset = Number(url.searchParams.get('offset'));
+      const resultOffset = Number(url.searchParams.get('resultOffset'));
+      calls.push([offset, resultOffset]);
+      const data = grades(count, 100, offset, resultOffset);
+      // Match SQL 0209: each column is in one date-ordered page; only its
+      // latest revision is returned. c0 cannot appear in the offset=90 page.
+      data.journal.columns.forEach((column, i) => {
+        column.date = new Date(Date.UTC(2026, 0, 100 - offset - i)).toISOString().slice(0, 10);
+      });
+      data.journal.grades = data.journal.grades.map((g) =>
+        g.columnId === 'c0' ? (retracted ? latest : original) : g,
+      );
+      return route.fulfill({ json: data });
+    });
+    await page.route(`**/api/classrooms/${classId}/participants/*/history/c0*`, (route) =>
+      route.fulfill({
+        json: { preset: 'five', items: [latest, original], nextBeforeRevision: null },
+      }),
+    );
+    await state.open();
+    const summary = page.getByRole('region', { name: 'Оценки этого класса', exact: true });
+    const manual = summary.getByRole('list', { name: 'Ручные оценки', exact: true }).locator('li');
+    const column = manual.filter({ hasText: 'Урок 0' });
+    await expect(column.locator('strong')).toHaveText('5');
+    for (let o = 30; o < count; o += 30) {
+      await summary.getByRole('button', { name: 'Ещё ручные оценки', exact: true }).click();
+      await expect(manual).toHaveCount(Math.min(o + 30, count));
+    }
+    const before = calls.length;
+    retracted = true;
+    await summary.getByRole('button', { name: 'Ещё результаты', exact: true }).click();
+    await expect(column.locator('strong')).toHaveText('Отозвана');
+    await expect(column).toHaveCount(1);
+    await expect(manual).toHaveCount(count);
+    expect(calls.slice(before)).toEqual(
+      count === 100
+        ? [
+            [90, 30],
+            [0, 30],
+            [30, 30],
+            [60, 30],
+          ]
+        : [[0, 30]],
+    );
+    await expect(
+      summary.getByRole('button', { name: 'Ещё ручные оценки', exact: true }),
+    ).toHaveCount(0);
+    await expect(manual.locator('strong').filter({ hasText: /^0$/ }).first()).toBeVisible();
+    await column.getByRole('button', { name: 'История', exact: true }).click();
+    await expect(summary.locator('.participant-history ol li')).toHaveCount(2);
+    await expect(summary.locator('.participant-history')).toContainText('Версия 1: 5');
+    await expect(summary.locator('.participant-history')).toContainText('Версия 2: Отозвана');
+    const beforeFocus = calls.length;
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+    await expect(summary.getByRole('status')).toHaveCount(0);
+    expect(calls.slice(beforeFocus)).toEqual(
+      count === 100
+        ? [
+            [0, 0],
+            [30, 30],
+            [60, 0],
+            [90, 0],
+          ]
+        : [
+            [0, 0],
+            [0, 30],
+          ],
+    );
+    await summary.getByRole('button', { name: 'Ещё результаты', exact: true }).click();
+    await expect(summary.getByRole('status')).toHaveCount(0);
+    expect(calls.at(-(count === 100 ? 4 : 1))).toEqual([count === 100 ? 90 : 0, 60]);
+    await expect(manual).toHaveCount(count);
+    await expect(column.locator('strong')).toHaveText('Отозвана');
+    await noOverflow(page);
+    await shot(page, `repair-companion-retraction-${count}`);
+    expect(state.errors).toEqual([]);
+  });
+}
+
+for (const newerFirst of [true, false]) {
+  test(`newest nullable result survives repeated pages and stale focus (newerFirst=${newerFirst})`, async ({
+    page,
+  }) => {
+    const state = await setup(page, { manual: 100, results: 100 });
+    const old = {
+      ...grades(0, 1, 0, 0).results[0]!,
+      display_grade: '5',
+      raw_points: 5,
+      feedback: 'OLD',
+    };
+    const latest = {
+      ...old,
+      display_grade: null,
+      raw_points: null,
+      max_points: null,
+      feedback: 'Снятый текущий результат',
+      published_at: '2026-02-01T00:00:00.000002Z',
+    };
+    let staleRefresh = false;
+    const calls: number[][] = [];
+    await page.route(`**/api/classrooms/${classId}/participants/*/grades*`, (route) => {
+      const url = new URL(route.request().url());
+      const offset = Number(url.searchParams.get('offset'));
+      const resultOffset = Number(url.searchParams.get('resultOffset'));
+      calls.push([offset, resultOffset]);
+      const data = grades(100, 100, offset, resultOffset);
+      data.results[0] = staleRefresh ? old : (resultOffset === 0) === newerFirst ? latest : old;
+      return route.fulfill({ json: data });
+    });
+    await page.route(`**/api/classrooms/${classId}/participants/*/result-history/a0*`, (route) =>
+      route.fulfill({
+        json: {
+          offset: 0,
+          hasMore: false,
+          items: [
+            {
+              id: 'r2',
+              revision: 2,
+              attempt_number: 1,
+              raw_points: null,
+              max_points: null,
+              feedback: latest.feedback,
+              reason: 'Отозвано',
+              author: 'Преподаватель',
+              published_at: latest.published_at,
+            },
+            {
+              id: 'r1',
+              revision: 1,
+              attempt_number: 1,
+              raw_points: 5,
+              max_points: 10,
+              feedback: old.feedback,
+              reason: null,
+              author: 'Преподаватель',
+              published_at: old.published_at,
+            },
+          ],
+        },
+      }),
+    );
+    await state.open();
+    const summary = page.getByRole('region', { name: 'Оценки этого класса', exact: true });
+    const result = summary
+      .getByRole('list', { name: 'Результаты заданий', exact: true })
+      .locator('li')
+      .filter({ hasText: 'Исследование 0' });
+    await summary.getByRole('button', { name: 'Ещё результаты', exact: true }).click();
+    await expect(result).toHaveCount(1);
+    await expect(result.locator('strong')).toHaveText('Без балла');
+    staleRefresh = true;
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+    await expect(summary.getByRole('status')).toHaveCount(0);
+    await expect(result.locator('strong')).toHaveText('Без балла');
+    await summary.getByRole('button', { name: 'Ещё ручные оценки', exact: true }).click();
+    await expect(summary.getByRole('status')).toHaveCount(0);
+    expect(calls.at(-1)).toEqual([30, 30]);
+    await summary.getByRole('button', { name: 'Ещё результаты', exact: true }).click();
+    await expect(summary.getByRole('status')).toHaveCount(0);
+    expect(calls.slice(-2)).toEqual([
+      [30, 60],
+      [0, 60],
+    ]);
+    await expect(result).toHaveCount(1);
+    await expect(result.locator('strong')).toHaveText('Без балла');
+    await result.getByRole('button', { name: 'История результата', exact: true }).click();
+    await expect(summary.locator('.participant-history ol li')).toHaveCount(2);
+    await expect(summary.locator('.participant-history')).toContainText(latest.feedback);
+    await expect(summary.locator('.participant-history')).toContainText('5 / 10');
+    await noOverflow(page);
+    await shot(page, `repair-result-retraction-${newerFirst}`);
+    expect(state.errors).toEqual([]);
+  });
+}
+
+test('equal-time conflicting result copies fail closed until canonical retry', async ({ page }) => {
+  const state = await setup(page, { manual: 30, results: 100 });
+  let canonical = false;
+  await page.route(`**/api/classrooms/${classId}/participants/*/grades*`, (route) => {
+    const url = new URL(route.request().url());
+    const offset = Number(url.searchParams.get('offset'));
+    const resultOffset = Number(url.searchParams.get('resultOffset'));
+    const data = grades(30, 100, offset, resultOffset);
+    data.results[0] = {
+      ...grades(0, 1, 0, 0).results[0]!,
+      display_grade: canonical || resultOffset ? null : '5',
+      raw_points: null,
+    };
+    return route.fulfill({ json: data });
+  });
+  await state.open();
+  const summary = page.getByRole('region', { name: 'Оценки этого класса', exact: true });
+  await summary.getByRole('button', { name: 'Ещё результаты', exact: true }).click();
+  await expect(summary.getByRole('alert')).toContainText(
+    'Не удалось определить актуальный результат',
+  );
+  await expect(summary.locator('.participant-grade-row')).toHaveCount(0);
+  canonical = true;
+  await summary.getByRole('button', { name: 'Повторить', exact: true }).click();
+  await expect(summary.getByRole('alert')).toHaveCount(0);
+  await expect(
+    summary.getByRole('list', { name: 'Результаты заданий', exact: true }).locator('li'),
+  ).toHaveCount(30);
+  await noOverflow(page);
+  await shot(page, 'repair-result-conflict-retry');
+  expect(state.errors).toEqual([]);
+});
+
 test('mobile work filters share a row and one card fills the grid while multiple cards remain readable', async ({
   page,
 }) => {

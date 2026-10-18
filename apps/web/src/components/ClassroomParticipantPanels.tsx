@@ -653,6 +653,49 @@ function ParticipantHistoryNote({ text }: { text: string }): JSX.Element {
   );
 }
 
+type ProfileResult = ParticipantGrades['results'][number];
+
+/** Reconcile copies of the server projection, never synthesize grade fields. */
+function latestProfileResults(items: readonly ProfileResult[]): ProfileResult[] | null {
+  const groups = new Map<string, ProfileResult[]>();
+  for (const item of items) {
+    if (!Number.isFinite(Date.parse(item.published_at))) return null;
+    const group = groups.get(item.assignment_id) ?? [];
+    group.push(item);
+    groups.set(item.assignment_id, group);
+  }
+  const compareTime = (a: ProfileResult, b: ProfileResult): number => {
+    const milliseconds = Date.parse(a.published_at) - Date.parse(b.published_at);
+    if (milliseconds) return milliseconds;
+    // PostgreSQL timestamps retain microseconds; Date.parse truncates them.
+    // Trailing-zero-free fractional tails compare lexically at the same ms.
+    const tail = (r: ProfileResult) =>
+      (r.published_at.match(/\.(\d+)(?:Z|[+-]\d{2}:\d{2})$/)?.[1]?.slice(3) ?? '').replace(
+        /0+$/,
+        '',
+      );
+    return tail(a) < tail(b) ? -1 : tail(a) > tail(b) ? 1 : 0;
+  };
+  const payload = (r: ProfileResult) =>
+    JSON.stringify([r.assignment_title, r.raw_points, r.max_points, r.display_grade, r.feedback]);
+  const selected: ProfileResult[] = [];
+  for (const group of groups.values()) {
+    group.sort(
+      (a, b) =>
+        compareTime(a, b) ||
+        (a.published_at < b.published_at ? -1 : a.published_at > b.published_at ? 1 : 0),
+    );
+    const latest = group[group.length - 1]!;
+    // Equal instants with identical fields coalesce using a stable timestamp
+    // spelling. Conflicting fields have no authoritative ordering (no revision
+    // in this projection): fail closed and let explicit retry reread the pages.
+    if (group.some((r) => compareTime(r, latest) === 0 && payload(r) !== payload(latest)))
+      return null;
+    selected.push(latest);
+  }
+  return selected;
+}
+
 export function ParticipantGradeHistory({
   classroomId,
   seatId,
@@ -774,8 +817,10 @@ export function ParticipantGradeHistory({
       if (teacherProfile) {
         paging.current = true;
         // Refresh only the explicitly loaded pages, never chase next cursors.
-        // Companion responses are ignored on one-stream requests: the API has
-        // two cursors, so its repeated first page must not rewind the other one.
+        // SQL 0209 projects only the journal page at offset, not every changed
+        // column. A results click refreshes the other already loaded journal
+        // pages once each. These companions update loaded IDs only; neither
+        // their columns/cursors nor their result pages expand the loaded set.
         const requests =
           stream === 'refresh'
             ? Array.from(
@@ -794,6 +839,16 @@ export function ParticipantGradeHistory({
                   journal: stream === 'journal',
                   results: stream === 'results',
                 },
+                ...(stream === 'results'
+                  ? pages.current.journal
+                      .filter((loadedOffset) => loadedOffset !== offset)
+                      .map((loadedOffset) => ({
+                        offset: loadedOffset,
+                        resultOffset,
+                        journal: false,
+                        results: false,
+                      }))
+                  : []),
               ];
         let merged = stream === 'refresh' ? null : currentData.current;
         const unique = <T,>(items: readonly T[], key: (item: T) => string): T[] => [
@@ -806,7 +861,12 @@ export function ParticipantGradeHistory({
             request.offset,
             request.resultOffset,
           );
-          if (token !== gradeGeneration.current || identity !== currentIdentity.current) return;
+          if (
+            token !== gradeGeneration.current ||
+            identity !== currentIdentity.current ||
+            loggedOut.current
+          )
+            return;
           if (!result.ok) {
             paging.current = false;
             setLoading(false);
@@ -819,39 +879,68 @@ export function ParticipantGradeHistory({
           }
           const incoming = result.data;
           const previous: ParticipantGrades | null = merged;
+          const journalColumns = request.journal
+            ? unique(
+                [...(previous?.journal.columns ?? []), ...incoming.journal.columns],
+                (c) => c.id,
+              )
+            : previous!.journal.columns;
+          const loadedColumns = new Set(journalColumns.map((c) => c.id));
+          const journalGrades = [
+            ...new Map(
+              [
+                ...(previous?.journal.grades ?? []),
+                ...(currentData.current?.journal.grades ?? []),
+                ...incoming.journal.grades,
+              ]
+                .filter((g) => loadedColumns.has(g.columnId))
+                .sort(
+                  (a, b) =>
+                    a.revision - b.revision ||
+                    Date.parse(a.publishedAt) - Date.parse(b.publishedAt) ||
+                    (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
+                )
+                .map((grade) => [grade.columnId, grade] as const),
+            ).values(),
+          ];
+          const incomingIds = new Set(incoming.results.map((r) => r.assignment_id));
+          const results = request.results
+            ? latestProfileResults([
+                ...(previous?.results ?? []),
+                // A stale focus page cannot roll back a newer loaded projection.
+                // Retain only IDs seen on the explicitly refreshed result pages.
+                ...(currentData.current?.results.filter((r) => incomingIds.has(r.assignment_id)) ??
+                  []),
+                ...incoming.results,
+              ])
+            : previous!.results;
+          if (results === null) {
+            currentData.current = null;
+            setData(null);
+            historyGeneration.current++;
+            setHistory(null);
+            setResultHistory(null);
+            setHistoryLoading(false);
+            failedPage.current = { offset: 0, resultOffset: 0, stream: 'refresh' };
+            paging.current = false;
+            setLoading(false);
+            setLoadedIdentity(identity);
+            setError('Не удалось определить актуальный результат. Повторите загрузку оценок.');
+            return;
+          }
           merged = {
-            journal: request.journal
-              ? {
-                  ...incoming.journal,
-                  columns: unique(
-                    [...(previous?.journal.columns ?? []), ...incoming.journal.columns],
-                    (c) => c.id,
-                  ),
-                  // Grade IDs identify immutable revisions. A column has one
-                  // current grade for this learner, including a null retraction.
-                  // Choose by authoritative revision first, independent of page
-                  // order; publication instant and ID make equal revisions stable.
-                  grades: [
-                    ...new Map(
-                      [...(previous?.journal.grades ?? []), ...incoming.journal.grades]
-                        .sort(
-                          (a, b) =>
-                            a.revision - b.revision ||
-                            Date.parse(a.publishedAt) - Date.parse(b.publishedAt) ||
-                            (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
-                        )
-                        .map((grade) => [grade.columnId, grade] as const),
-                    ).values(),
-                  ],
-                }
-              : previous!.journal,
+            journal: {
+              ...(request.journal ? incoming.journal : previous!.journal),
+              columns: journalColumns,
+              // Immutable IDs identify revisions; columnId identifies the one
+              // current grade, including null. Companions cannot add columns.
+              grades: journalGrades,
+            },
             resultOffset: request.results ? incoming.resultOffset : previous!.resultOffset,
             nextResultOffset: request.results
               ? incoming.nextResultOffset
               : previous!.nextResultOffset,
-            results: request.results
-              ? unique([...(previous?.results ?? []), ...incoming.results], (r) => r.assignment_id)
-              : previous!.results,
+            results,
           };
         }
         if (stream === 'journal')
