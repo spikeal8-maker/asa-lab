@@ -1,4 +1,10 @@
 import type pg from 'pg';
+
+export type SessionContextQuery = (
+  pool: pg.Pool,
+  text: string,
+  values: unknown[],
+) => Promise<pg.QueryResult>;
 import type {
   AccountSessionRef,
   ActiveContext,
@@ -10,7 +16,10 @@ function iso(value: unknown): string {
 }
 
 export class PgSessionV2Store implements SessionV2StorePort {
-  constructor(private readonly pool: pg.Pool) {}
+  constructor(
+    private readonly pool: pg.Pool,
+    private readonly contextQuery?: SessionContextQuery,
+  ) {}
 
   async create(
     principalId: string,
@@ -29,7 +38,11 @@ export class PgSessionV2Store implements SessionV2StorePort {
   }
 
   async resolve(tokenHash: string): Promise<ActiveContext | null> {
-    const result = await this.pool.query(
+    const query =
+      this.contextQuery ??
+      ((pool: pg.Pool, text: string, values: unknown[]) => pool.query(text, values));
+    const result = await query(
+      this.pool,
       `SELECT principal_id, account_id, workspace_id, tenant_id, workspace_kind,
               user_id, email, display_name, school_id
          FROM session_v2_context($1)`,

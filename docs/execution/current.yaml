@@ -96,8 +96,8 @@ parallel_lanes:
       base_branch: main
       pr: null
       pr_draft: false
-      status: in_progress
-      checkpoint: point6_selected_context_wait_diagnostics_and_heartbeat
+      status: in_review
+      checkpoint: point6_r1_handoff_fixed_final_review_and_pg_ci_pending
       owner_acceptance: pending
       owner_authorization: Owner selected audit point6 only; publish main, report and STOP. No deployment or working database actions.
       context_hints:
@@ -111,7 +111,7 @@ parallel_lanes:
       main:
         branch: main
         sha: 1dda9dddaaf6da55625344b18d2fa4f6df2e16f0
-      observation_note: Clean point6 selection. Fetch main before writes; actual final checks and independent review recorded in issue604. No deployment authority.
+      observation_note: Point6 focused48 and uncached API16-task build passed. Fetch main before writes; exact final review and isolated PostgreSQL evidence recorded in issue604. No deployment authority.
     execution_lease:
       executor_id: session-database-point6-604
       holder: unassigned
@@ -120,9 +120,13 @@ parallel_lanes:
       reviewer_role_requires_lease: false
     gates:
       focused:
-        workflow: ASA Lab Governance and Code Gates
+        workflow: Session Context Database
         commands:
-          - pnpm test:access-a
+          - pnpm test:session-database
+      data:
+        workflow: Session Context Database
+        commands:
+          - pnpm test:session-database:pg
       general:
         workflow: ASA Lab Governance and Code Gates
         commands:
