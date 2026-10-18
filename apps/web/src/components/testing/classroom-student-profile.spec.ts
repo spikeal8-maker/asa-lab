@@ -452,9 +452,11 @@ it.each([false, true])(
   },
 );
 
-it.each([false, true])(
-  'fails closed for conflicting equal publication instants and retries canonical pages (reverse=%s)',
-  async (reverse) => {
+it.each(
+  ['+0300', '+03:00'].flatMap((offset) => [false, true].map((reverse) => ({ offset, reverse }))),
+)(
+  'fails closed for conflicting equal publication instants and retries canonical pages ($offset, reverse=$reverse)',
+  async ({ offset, reverse }) => {
     const old = {
       ...page(0, 1).results[0]!,
       published_at: '2026-02-01T00:00:00.000001Z',
@@ -462,7 +464,7 @@ it.each([false, true])(
     };
     const conflicting = {
       ...old,
-      published_at: '2026-02-01T03:00:00.000001+03:00',
+      published_at: `2026-02-01T03:00:00.000001${offset}`,
       display_grade: null,
       raw_points: null,
     };
@@ -490,9 +492,17 @@ it.each([false, true])(
   },
 );
 
-it.each([false, true])(
-  'orders submillisecond publications and equivalent timestamp spellings (reverse=%s)',
-  async (reverse) => {
+it.each(
+  [
+    '2026-02-01T00:00:00.000002Z',
+    '2026-02-01T03:00:00.000002+0300',
+    '2026-02-01T03:00:00.000002+03:00',
+    '2026-01-31T19:00:00.000002-0500',
+    '2026-01-31T18:30:00.000002-05:30',
+  ].flatMap((published_at) => [false, true].map((reverse) => ({ published_at, reverse }))),
+)(
+  'orders submillisecond publications and equivalent timestamp spellings ($published_at, reverse=$reverse)',
+  async ({ published_at, reverse }) => {
     const old = {
       ...page(0, 1).results[0]!,
       published_at: '2026-02-01T00:00:00.000001Z',
@@ -500,17 +510,97 @@ it.each([false, true])(
     };
     const latest = {
       ...old,
-      published_at: '2026-02-01T00:00:00.000002Z',
+      published_at,
       display_grade: null,
       raw_points: null,
     };
     const data = page(1, 1);
-    data.results = [latest, old, { ...latest, published_at: '2026-02-01T03:00:00.000002+03:00' }];
+    data.results = [latest, old];
     if (reverse) data.results.reverse();
     vi.spyOn(participantsApi, 'grades').mockResolvedValue(ok(data));
     await render();
     expect(resultRows()).toHaveLength(1);
     expect(resultRows()[0]!.querySelector('strong')?.textContent).toBe('Без балла');
+    expect(host.querySelector('[role="alert"]')).toBeNull();
+  },
+);
+
+it.each([
+  '2026-02-30T00:00:00Z',
+  '2026-02-29T00:00:00Z',
+  '1900-02-29T00:00:00Z',
+  '2026-04-31T00:00:00Z',
+  '2026-00-01T00:00:00Z',
+  '2026-13-01T00:00:00Z',
+  '2026-02-00T00:00:00Z',
+  '2026-02-01T24:00:00Z',
+  '2026-02-01T00:60:00Z',
+  '2026-02-01T00:00:60Z',
+  '2026-02-01T00:00:00+2400',
+  '2026-02-01T00:00:00-24:00',
+  '2026-02-01T00:00:00+03:60',
+  '2026-02-01T00:00:00+0360',
+  '2026-02-01T00:00:00',
+  '2026-02-01',
+  '2026-02-01T00:00Z',
+  '2026-02-01T00:00:00.Z',
+  '2026-02-01T00:00:00.0000001Z',
+  '2026-02-01T00:00:00.12xZ',
+  '2026-02-01T00:00:00Zjunk',
+  '2026-02-01T00:00:00Z\n',
+])(
+  'rejects invalid publication %s without retaining grades and permits retry',
+  async (published_at) => {
+    const data = page(1, 1);
+    data.results[0] = { ...data.results[0]!, published_at, display_grade: '5' };
+    const read = vi.spyOn(participantsApi, 'grades').mockResolvedValueOnce(ok(data));
+    await render();
+    expect(host.querySelector('[role="alert"]')?.textContent).toContain(
+      'Не удалось определить актуальный результат',
+    );
+    expect(resultRows()).toHaveLength(0);
+    expect(manualRows()).toHaveLength(0);
+    read.mockResolvedValueOnce(ok(page(1, 1)));
+    await click('Повторить');
+    expect(host.querySelector('[role="alert"]')).toBeNull();
+    expect(resultRows()).toHaveLength(1);
+  },
+);
+
+it.each([
+  '2000-02-29T23:59:59Z',
+  '2024-02-29T00:00:00.1+0300',
+  '2026-01-31T23:59:59.123456-05:30',
+  '2026-02-01T00:00:00.000000Z',
+  '2026-02-01T00:00:00.12Z',
+  '2026-02-01T00:00:00.123Z',
+  '2026-02-01T00:00:00.1234Z',
+  '2026-02-01T00:00:00.12345Z',
+])('accepts valid calendar and fractional publication %s', async (published_at) => {
+  const data = page(0, 1);
+  data.results[0] = { ...data.results[0]!, published_at };
+  vi.spyOn(participantsApi, 'grades').mockResolvedValue(ok(data));
+  await render();
+  expect(host.querySelector('[role="alert"]')).toBeNull();
+  expect(resultRows()).toHaveLength(1);
+});
+
+it.each([false, true])(
+  'coalesces equivalent UTC instants and fractional padding (reverse=%s)',
+  async (reverse) => {
+    const data = page(0, 1);
+    const result = data.results[0]!;
+    data.results = [
+      '2026-02-01T00:00:00.1Z',
+      '2026-02-01T03:00:00.100000+0300',
+      '2026-02-01T03:00:00.100+03:00',
+      '2026-01-31T19:00:00.100000-0500',
+      '2026-01-31T18:30:00.100000-05:30',
+    ].map((published_at) => ({ ...result, published_at }));
+    if (reverse) data.results.reverse();
+    vi.spyOn(participantsApi, 'grades').mockResolvedValue(ok(data));
+    await render();
+    expect(resultRows()).toHaveLength(1);
     expect(host.querySelector('[role="alert"]')).toBeNull();
   },
 );

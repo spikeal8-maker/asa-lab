@@ -655,26 +655,59 @@ function ParticipantHistoryNote({ text }: { text: string }): JSX.Element {
 
 type ProfileResult = ParticipantGrades['results'][number];
 
+/** Strict ISO publication instant, with PostgreSQL's full microsecond precision. */
+function profilePublicationTime(value: string): readonly [number, number] | null {
+  const match =
+    /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,6}))?(Z|([+-])(\d{2}):?(\d{2}))$/.exec(
+      value,
+    );
+  if (!match || match[0] !== value) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const hour = Number(match[4]);
+  const minute = Number(match[5]);
+  const second = Number(match[6]);
+  const offsetHour = Number(match[10] ?? 0);
+  const offsetMinute = Number(match[11] ?? 0);
+  const leap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  const days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  if (
+    month < 1 ||
+    month > 12 ||
+    day < 1 ||
+    day > days[month - 1]! ||
+    hour > 23 ||
+    minute > 59 ||
+    second > 59 ||
+    offsetHour > 23 ||
+    offsetMinute > 59
+  )
+    return null;
+  // Set the year explicitly: Date.UTC treats years 00..99 as 1900..1999.
+  const date = new Date(0);
+  date.setUTCFullYear(year, month - 1, day);
+  date.setUTCHours(hour, minute, second, 0);
+  const offset = (offsetHour * 60 + offsetMinute) * (match[9] === '-' ? -1 : 1);
+  return [date.getTime() - offset * 60_000, Number((match[7] ?? '').padEnd(6, '0'))];
+}
+
 /** Reconcile copies of the server projection, never synthesize grade fields. */
 function latestProfileResults(items: readonly ProfileResult[]): ProfileResult[] | null {
   const groups = new Map<string, ProfileResult[]>();
+  const times = new Map<string, readonly [number, number]>();
   for (const item of items) {
-    if (!Number.isFinite(Date.parse(item.published_at))) return null;
+    const time = profilePublicationTime(item.published_at);
+    if (!time) return null;
+    times.set(item.published_at, time);
     const group = groups.get(item.assignment_id) ?? [];
     group.push(item);
     groups.set(item.assignment_id, group);
   }
   const compareTime = (a: ProfileResult, b: ProfileResult): number => {
-    const milliseconds = Date.parse(a.published_at) - Date.parse(b.published_at);
-    if (milliseconds) return milliseconds;
-    // PostgreSQL timestamps retain microseconds; Date.parse truncates them.
-    // Trailing-zero-free fractional tails compare lexically at the same ms.
-    const tail = (r: ProfileResult) =>
-      (r.published_at.match(/\.(\d+)(?:Z|[+-]\d{2}:\d{2})$/)?.[1]?.slice(3) ?? '').replace(
-        /0+$/,
-        '',
-      );
-    return tail(a) < tail(b) ? -1 : tail(a) > tail(b) ? 1 : 0;
+    const left = times.get(a.published_at)!;
+    const right = times.get(b.published_at)!;
+    return left[0] - right[0] || left[1] - right[1];
   };
   const payload = (r: ProfileResult) =>
     JSON.stringify([r.assignment_title, r.raw_points, r.max_points, r.display_grade, r.feedback]);

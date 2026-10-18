@@ -826,7 +826,7 @@ for (const newerFirst of [true, false]) {
       raw_points: null,
       max_points: null,
       feedback: 'Снятый текущий результат',
-      published_at: '2026-02-01T00:00:00.000002Z',
+      published_at: '2026-02-01T03:00:00.000002+0300',
     };
     let staleRefresh = false;
     const calls: number[][] = [];
@@ -917,6 +917,9 @@ test('equal-time conflicting result copies fail closed until canonical retry', a
       ...grades(0, 1, 0, 0).results[0]!,
       display_grade: canonical || resultOffset ? null : '5',
       raw_points: null,
+      published_at: resultOffset
+        ? '2026-02-01T03:00:00.000001+0300'
+        : '2026-02-01T00:00:00.000001Z',
     };
     return route.fulfill({ json: data });
   });
@@ -937,6 +940,32 @@ test('equal-time conflicting result copies fail closed until canonical retry', a
   await shot(page, 'repair-result-conflict-retry');
   expect(state.errors).toEqual([]);
 });
+
+for (const invalid of ['2026-02-30T00:00:00Z', '2026-02-01T00:00:00+03:60']) {
+  test(`invalid publication ${invalid} hides grades until canonical retry`, async ({ page }) => {
+    const state = await setup(page, { manual: 1, results: 1 });
+    let canonical = false;
+    await page.route(`**/api/classrooms/${classId}/participants/*/grades*`, (route) => {
+      const data = grades(1, 1, 0, 0);
+      if (!canonical) data.results[0]!.published_at = invalid;
+      return route.fulfill({ json: data });
+    });
+    await state.open();
+    const summary = page.getByRole('region', { name: 'Оценки этого класса', exact: true });
+    await expect(summary.getByRole('alert')).toContainText(
+      'Не удалось определить актуальный результат',
+    );
+    await expect(summary.locator('.participant-grade-row')).toHaveCount(0);
+    canonical = true;
+    await summary.getByRole('button', { name: 'Повторить', exact: true }).click();
+    await expect(summary.getByRole('alert')).toHaveCount(0);
+    await expect(
+      summary.getByRole('list', { name: 'Результаты заданий', exact: true }).locator('li'),
+    ).toHaveCount(1);
+    await noOverflow(page);
+    expect(state.errors).toEqual([]);
+  });
+}
 
 test('mobile work filters share a row and one card fills the grid while multiple cards remain readable', async ({
   page,
