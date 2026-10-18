@@ -81,6 +81,70 @@ primary_lane:
     - docs/architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md
 
 parallel_lanes:
+  - id: student-game-admission
+    parent_lane: games
+    worktree_id: student-games-access-scope-618
+    owned_paths:
+      - docs/product/student-game-admission/STUDENT_GAME_ADMISSION.md
+      - apps/api/src/games-access.ts
+      - apps/api/src/games-access.controller.ts
+      - apps/api/src/games-access.spec.ts
+      - apps/api/src/games-access.controller.spec.ts
+      - tests/games-admission/**
+      - apps/web/src/pages/GamesPage.tsx
+      - apps/web/src/games/open-game.ts
+      - apps/web/src/games/game-access-api.ts
+      - migrations/0222_classroom_games_policy.sql
+    task:
+      id: TASK-STUDENT-GAME-ADMISSION-001
+      issue: 618
+      branch: main
+      base_branch: main
+      pr: null
+      pr_draft: true
+      status: ready
+      checkpoint: governance_scope_proposed_product_mapping_review_required
+      owner_acceptance: pending
+      change_class: L3_CRITICAL
+      owner_authorization: >-
+        Owner Issue618 selects phase1 server-issued class/Seat admission for educational
+        offline Chess/Checkers, additive policy storage, enforcement and real teacher/Seat UI.
+        This branch authors only the task doc and additive lane proposal; canonical main
+        acceptance and fresh preflight are required before product work. Shared coordinated_paths
+        are informational in the selected task document, not owned or self-authorized.
+        Controller integration requires explicit owner-handoff and independent L3 review by
+        the existing lane; no product integration until that boundary and mapping are resolved.
+        No merge, Docker, live SQL, deployment or canonical authoring changes authorized.
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: ccb97048d8b846798978c85eb8b544a04ffe057c
+      head_sha: null
+      observed_at: '2026-10-18T18:18:37Z'
+      main:
+        branch: main
+        sha: ccb97048d8b846798978c85eb8b544a04ffe057c
+      observation_note: Dated baseline only; fresh fetch main and exact refs/CI required before edits. No product implementation or acceptance evidence.
+    execution_lease:
+      executor_id: student-games-access-scope-618
+      holder: unassigned
+      acquired_at: null
+      expires_at: null
+      reviewer_role_requires_lease: false
+    gates:
+      focused:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:governance
+          - pnpm test tests/games-admission
+          - pnpm test:games
+      browser:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm e2e:games
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
   - id: release-stabilization
     parent_lane: draft-save
     worktree_id: essential-release-620
