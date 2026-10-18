@@ -1,5 +1,9 @@
 import { fetchWithSessionRefresh } from '../session-fetch';
 
+// Also accept older servers' last-80-message completions: even JSON escaping
+// 80 persisted 8192-character messages fits within this bounded character cap.
+const MAX_EVENT_CHARACTERS = 4 * 1024 * 1024;
+
 /** Native ASA Lab SSE transport. Each POST has a stable client request ID. */
 export interface AiStreamResponse<T> {
   readonly messages: readonly T[];
@@ -53,6 +57,11 @@ export async function streamAiRequest<T>(
   const decoder = new TextDecoder();
   let buffer = '';
   let result: AiStreamResponse<T> | null = null;
+  function checkSize(size: number): void {
+    if (size > MAX_EVENT_CHARACTERS) {
+      throw new AiStreamClientError('ai_stream_invalid', 'Превышен размер события сервера.');
+    }
+  }
   function process(frame: string): void {
     const lines = frame.split(/\r?\n/);
     const kind = lines
@@ -87,15 +96,16 @@ export async function streamAiRequest<T>(
       const chunk = await reader.read();
       if (chunk.done) break;
       buffer += decoder.decode(chunk.value, { stream: true });
-      if (buffer.length > 128 * 1024) {
-        throw new AiStreamClientError('ai_stream_invalid', 'Превышен размер события сервера.');
-      }
       let delimiter = /\r?\n\r?\n/.exec(buffer);
       while (delimiter) {
+        checkSize(delimiter.index);
         process(buffer.slice(0, delimiter.index));
         buffer = buffer.slice(delimiter.index + delimiter[0].length);
         delimiter = /\r?\n\r?\n/.exec(buffer);
       }
+      // A network chunk can contain many complete events. Bound each event,
+      // then only the unfinished remainder, independently of chunk boundaries.
+      checkSize(buffer.length);
     }
   } finally {
     reader.releaseLock();

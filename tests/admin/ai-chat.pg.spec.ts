@@ -612,6 +612,11 @@ describe('AI Chat PostgreSQL access and request replay', () => {
          FROM generate_series(1,107) n`,
       [thread.id, owner.accountId],
     );
+    // The legacy completion source is a bounded suffix, not the whole history.
+    const latest = await service.messages(owner.principalId, thread.id);
+    expect(latest).toHaveLength(80);
+    expect(latest[0]?.content).toBe('Сообщение 28');
+    expect(latest.at(-1)?.content).toBe('Сообщение 107');
     let messageCursor: { at: string; id: string } | null = null;
     const contents: string[] = [];
     let count = 0;
@@ -627,6 +632,7 @@ describe('AI Chat PostgreSQL access and request replay', () => {
     expect(new Set(contents).size).toBe(107);
     expect(contents).toContain('Сообщение 107');
     expect(contents).toContain('Сообщение 1');
+    expect(count).toBe(3);
     expect((await service.messagePage(stranger.principalId, thread.id)).items).toEqual([]);
   });
 
@@ -680,6 +686,11 @@ describe('AI Chat PostgreSQL access and request replay', () => {
       new AbortController().signal,
     );
     expect(again.replayed).toBe(true);
+    // Replay acknowledges stored state; it is not another live stop operation.
+    expect(again.stopped).toBe(false);
+    expect(again.messages).toContainEqual(
+      expect.objectContaining({ requestId: request, role: 'assistant', state: 'stopped' }),
+    );
     expect(upstream).toHaveBeenCalledTimes(1);
   });
 });

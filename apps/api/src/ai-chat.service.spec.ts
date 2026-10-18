@@ -1,6 +1,9 @@
 import { createCipheriv, randomBytes } from 'node:crypto';
 import type pg from 'pg';
+import type { FastifyReply, FastifyRequest } from 'fastify';
+import type { ActiveContextUseCase } from '@asa-lab/identity';
 import { describe, expect, it, vi } from 'vitest';
+import { AiChatController } from './ai-chat.controller';
 import { AiChatService, AiServiceError } from './ai-chat.service';
 
 const PRINCIPAL = '11111111-1111-4111-8111-111111111111';
@@ -27,6 +30,73 @@ function secureRuntime() {
 }
 
 describe('ASA native AI Chat', () => {
+  for (const outcome of [
+    'complete',
+    'stopped',
+    'replayed',
+    'pending-replay',
+    'uppercase',
+  ] as const) {
+    it(`emits only this request's messages in done: ${outcome}`, async () => {
+      const requestId = outcome === 'uppercase' ? 'abcdefab-cdef-4abc-8abc-abcdefabcdef' : REQUEST;
+      const history = Array.from({ length: 78 }, (_, index) => ({
+        id: `old-${index}`,
+        role: 'assistant' as const,
+        content: 'История'.repeat(1000),
+        createdAt: new Date(index).toISOString(),
+        requestId: 'other-request',
+        state: 'complete' as const,
+      }));
+      const current = [
+        { ...history[0]!, id: 'current-user', role: 'user' as const, requestId },
+        ...(outcome === 'pending-replay'
+          ? []
+          : [
+              {
+                ...history[0]!,
+                id: 'current-answer',
+                requestId,
+                state: outcome === 'stopped' ? ('stopped' as const) : ('complete' as const),
+              },
+            ]),
+      ];
+      const result = {
+        messages: [...history, ...current],
+        replayed: outcome.includes('replay'),
+        stopped: outcome === 'stopped',
+      };
+      const ai = { sendStream: vi.fn(async () => result) };
+      const controller = new AiChatController(
+        {
+          resolve: vi.fn(async () => ({ principalId: PRINCIPAL, accountId: PRINCIPAL })),
+        } as unknown as ActiveContextUseCase,
+        ai as unknown as AiChatService,
+      );
+      const write = vi.fn();
+      const raw = { writeHead: vi.fn(), once: vi.fn(), write, end: vi.fn() };
+      await controller.sendStream(
+        {
+          cookies: {},
+          headers: {
+            origin: 'http://localhost',
+            host: 'localhost',
+            'content-type': 'application/json',
+          },
+        } as unknown as FastifyRequest,
+        { hijack: vi.fn(), raw } as unknown as FastifyReply,
+        THREAD,
+        {
+          message: 'Вопрос',
+          requestId: outcome === 'uppercase' ? requestId.toUpperCase() : requestId,
+        },
+      );
+      expect(write).toHaveBeenCalledTimes(1);
+      expect(write).toHaveBeenCalledWith(
+        'event: done\ndata: ' + JSON.stringify({ ...result, messages: current }) + '\n\n',
+      );
+    });
+  }
+
   it('never returns the credential to the admin read surface', async () => {
     const query = vi.fn(async () => ({
       rows: [

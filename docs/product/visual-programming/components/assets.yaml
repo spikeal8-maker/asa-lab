@@ -61,6 +61,7 @@ components:
         symbols: [BlocksRuntimePersistenceService]
     tests:
       - apps/api/src/blocks-asset-upload.spec.ts
+      - tests/blocks/library-svg-roundtrip.spec.ts
       - apps/api/src/blocks-runtime.controller.spec.ts
       - apps/api/src/blocks-runtime-cors.spec.ts
 

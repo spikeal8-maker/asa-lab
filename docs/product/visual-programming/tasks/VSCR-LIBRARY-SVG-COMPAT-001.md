@@ -40,6 +40,8 @@ Independent security design review is required before implementing the exception
 - `tests/blocks/library-svg-roundtrip.spec.ts`: real upload/save/open/read composition
   with in-memory ports; not a real browser/database claim.
 - `tools/blocks/gate.mjs`: register the cross-boundary regression in the existing gate.
+- `.prettierignore` / `.gitattributes`: preserve only this exact hash-addressed
+  fixture's bytes during formatting and Windows/Linux checkout.
 - D0-003 section 9.1: the intentional reviewed compatibility exception, not blanket
   disabling of validation; `components/assets.yaml`: test mapping; this card/lane.
 
@@ -72,3 +74,34 @@ are separate evidence; no readiness claim from mocks. Record exact test evidence
 
 Do not begin point 4 save-failure diagnostics, auth, Electronics, unrelated CI repair,
 upstream changes, Docker/site deployment or live data operations. `NEXT_ALLOWED_TASK: STOP`.
+
+## Implementation evidence, 2026-10-18
+
+- Independent compatibility/security design review: PASS before the exception was
+  implemented. Installed Saxes behavior inspected: declaration callback is inert,
+  contains internal subsets verbatim and does not resolve external resources.
+- Reproduced the exact 586-byte asset failure in the existing capture pipeline;
+  after repair it retains the original bytes, MD5 and SHA-256. Strict callback
+  allowlist uses XML whitespace, matching quotes, exact identifiers and full-string
+  equality, including rejection of trailing Unicode line separators.
+- Upload suite: 68 PASS, including exact fixture, 3 safe declaration variants,
+  20 forbidden DTD forms, 10 active/XML/external-content cases with allowed DTD,
+  and existing format/size/hash/storage/immutability/budget regressions.
+- Actual upload/save/open/asset-read composition with in-memory adapters: 1 PASS;
+  repeated upload stays idempotent, all document/code/media survive, missing metadata
+  prevents revision advance, and another tenant cannot open/read the project.
+- Existing reader 10 PASS, runtime controller 7 PASS and CORS 3 PASS. Total: 89
+  distinct relevant passing cases. No browser, PostgreSQL or S3 proof is claimed.
+- Changed-file ESLint/Prettier, routing and diff hygiene: PASS. Strict API build and
+  fifteen dependencies: PASS, 16 tasks executed with Nx cache skipped. No frontend
+  or pinned upstream rebuild was needed for the local backend check.
+- POST_STEP_REVIEW: PASS; CHANGE_CLASS: L3_CRITICAL (upload trust boundary);
+  USER_RESULT: safe library SVG can retain identity through guarded save/open;
+  INVARIANTS_TOUCHED: D0-003 reviewed declaration exception only;
+  LAYOUT_IMPACT: none; VIEWPORTS: n/a; VISUAL_EVIDENCE: n/a;
+  NEGATIVE_CHECKS: DTD/entities/active content/hash/limits/tenant/storage failure;
+  DOC_DRIFT: D0-003 section 9.1 intentionally amended with the reviewed exception;
+  UNVERIFIED: real browser/database/classroom load and exact-SHA general CI.
+- CHALLENGE_REVIEW and published exact-SHA CI are recorded in issue #599 / owner
+  report when complete. Existing baseline General CI failed only the unrelated
+  journal width check (200px versus >=210px); no journal repair or rerun in this point.
