@@ -104,6 +104,7 @@ class SetupPlanningTests(unittest.TestCase):
             with mock.patch.dict(setup.os.environ, {"ASA_AGE_IDENTITY_FILE":str(private)}):
                 plan = setup.build_plan(data, facts=FACTS, files=False)
             self.assertTrue(plan["ready"])
+            self.assertTrue(plan["will_modify_live_data"])
             output = json.dumps(plan)
             self.assertNotIn(str(private), output)
             self.assertNotIn("private-identity-never-printed", output)

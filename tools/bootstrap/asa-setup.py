@@ -292,7 +292,7 @@ def build_plan(config: dict, *, facts: dict | None = None, files: bool = True) -
         "ready": not missing, "required_input": missing, "stages": stages,
         "command": argv, "will_modify_live_data": bool(
             action == "install" and not installed and profile == "production"
-            and data_mode == "restore"),
+            and data_mode in ("restore", "encrypted")),
         "needs_windows_ca_trust": bool(https),
         "cloud_oauth_ready": False, "preparation": preparation,
         "acceptance": "Browser login and project save/reopen still require real acceptance",
