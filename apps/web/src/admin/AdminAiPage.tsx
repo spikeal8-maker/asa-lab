@@ -7,6 +7,7 @@ type Model = 'gpt-5-mini' | 'gpt-4.1-mini' | 'deepseek-chat';
 
 interface AiAdminConfig {
   readonly enabled: boolean;
+  readonly paidOperationsPerHour: number;
   readonly provider: Provider;
   readonly model: Model;
   readonly apiKeyConfigured: boolean;
@@ -25,6 +26,7 @@ export function AiAdminPage({
   const [provider, setProvider] = useState<Provider>('openai');
   const [model, setModel] = useState<Model>('gpt-5-mini');
   const [enabled, setEnabled] = useState(false);
+  const [paidOperationsPerHour, setPaidOperationsPerHour] = useState('0');
   const [apiKey, setApiKey] = useState('');
   const [clearKey, setClearKey] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -55,6 +57,7 @@ export function AiAdminPage({
         setProvider(result.data.provider);
         setModel(result.data.model);
         setEnabled(result.data.enabled);
+        setPaidOperationsPerHour(String(result.data.paidOperationsPerHour ?? 0));
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -76,6 +79,7 @@ export function AiAdminPage({
         method: 'PUT',
         body: JSON.stringify({
           enabled,
+          paidOperationsPerHour: Number(paidOperationsPerHour),
           provider,
           model,
           ...(apiKey.trim() ? { apiKey: apiKey.trim() } : {}),
@@ -91,6 +95,7 @@ export function AiAdminPage({
       setProvider(result.data.provider);
       setModel(result.data.model);
       setEnabled(result.data.enabled);
+      setPaidOperationsPerHour(String(result.data.paidOperationsPerHour));
       setApiKey('');
       setClearKey(false);
       setMessage('Настройки сохранены. Новый API-ключ не возвращается в браузер.');
@@ -105,6 +110,7 @@ export function AiAdminPage({
     provider !== config.provider ||
     model !== config.model ||
     enabled !== config.enabled ||
+    Number(paidOperationsPerHour) !== config.paidOperationsPerHour ||
     Boolean(apiKey.trim()) ||
     clearKey;
 
@@ -134,7 +140,7 @@ export function AiAdminPage({
   useEffect(() => {
     setConnectionTest(null);
     setAcknowledgeTest(false);
-  }, [provider, model, enabled, apiKey, clearKey]);
+  }, [provider, model, enabled, paidOperationsPerHour, apiKey, clearKey]);
   return (
     <section className="asa-ai-admin" aria-labelledby="asa-ai-admin-title">
       <div className="admin-section-heading">
@@ -236,6 +242,26 @@ export function AiAdminPage({
               Отпечаток сохранённого ключа: {config.keyFingerprint}
             </p>
           ) : null}
+          <label>
+            <span>Общий лимит платных ИИ-операций за час</span>
+            <input
+              type="number"
+              min={0}
+              max={2147483647}
+              step={1}
+              required
+              value={paidOperationsPerHour}
+              disabled={saving || testing}
+              onChange={(event) => setPaidOperationsPerHour(event.target.value)}
+              aria-describedby="ai-paid-operation-limit-help"
+            />
+          </label>
+          <p id="ai-paid-operation-limit-help">
+            По умолчанию 0: платные вызовы запрещены. Положительное целое число разрешает указанное
+            количество операций за последние 60 минут для всей платформы, включая проверку
+            подключения. Это количество операций, а не денежный бюджет. Ошибки и остановленные
+            запросы расходуют лимит; повтор принятого сообщения — нет.
+          </p>
           <label className="asa-ai-admin-check">
             <input
               type="checkbox"
@@ -279,6 +305,7 @@ export function AiAdminPage({
                   saving ||
                   testing ||
                   unsaved ||
+                  config.paidOperationsPerHour === 0 ||
                   !config.apiKeyConfigured ||
                   !config.encryptionReady
                 }
@@ -293,6 +320,7 @@ export function AiAdminPage({
                 saving ||
                 testing ||
                 unsaved ||
+                config.paidOperationsPerHour === 0 ||
                 !acknowledgeTest ||
                 !config.apiKeyConfigured ||
                 !config.encryptionReady

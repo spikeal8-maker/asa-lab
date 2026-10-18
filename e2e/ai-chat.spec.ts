@@ -199,6 +199,7 @@ async function fixture(page: Page, answer = 'Arduino — это платформ
         provider: 'openai',
         model: 'gpt-5-mini',
         apiKeyConfigured: hasKey,
+        paidOperationsPerHour: 1000,
         encryptionReady: true,
         keyFingerprint: hasKey ? 'abcdef123456' : null,
         configurationVersion: hasKey ? 2 : 1,
