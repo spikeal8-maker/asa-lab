@@ -3850,6 +3850,20 @@ parallel_lanes:
           9e12e981e4b7ece388cc226bf8cd878908a5aed3, preserving its branch and the accepted
           single-row56px header with44px controls. No PR609 package or unrelated changes.
           Independent combined-source review, actual Access/header CI and general gate required.
+      - id: TASK-PROJ-PUBLICATION-DATA-TRANSPORT-001
+        status: in_progress
+        branch: codex/projects-data-transport
+        scope:
+          - .github/workflows/spec-validation.yml
+          - tools/test_ci_image_transport.py
+          - docs/product/projects/evidence/ci-node-transport-429-receipt.json
+        selection: >-
+          Separate D dependency: exact4db817619 data job117736631518 failed before PostgreSQL
+          on the pinned Node manifest's public.ecr.aws HTTP429. Change only this isolated
+          General job's Node transport to mirror.gcr.io with identical digest/config/layers.
+          Preserve original receipt, all other images/defaults/gates/security and image proof;
+          bound the semantic guard to that exact substitution. No Electronics workflow edit.
+          Independent final-source review and actual full combined CI remain required.
     accepted_foundation:
       accepted_r7_01b_merge_sha: 65316c50873e28a5effd7b6e603b5289e37e2fac
       accepted_r3_merge_sha: 5fa616045b16d2720418eb7945f7bef968dd9389

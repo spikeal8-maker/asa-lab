@@ -86,6 +86,38 @@ Account UI and Portal Header Responsive CI, plus the complete general gate.
 
 ## Integration
 
+### Isolated data-job Node transport
+
+TASK-PROJ-PUBLICATION-DATA-TRANSPORT-001 is a separate bounded D dependency.
+Exact combined candidate `4db817619772480f7a126ab8b761052e19c19b9e` passed source
+review, the code gate, Scratch contracts/types and Header Responsive. Its general
+run39147961045/job117736631518 failed at Build migration and test images before
+PostgreSQL startup: the pinned Node manifest on public.ecr.aws returned HTTP429
+Data limit exceeded at2026-10-18T17:10:30Z. No data tests ran.
+
+Selected author branch: `codex/projects-data-transport`. Owned paths are only
+`.github/workflows/spec-validation.yml`, `tools/test_ci_image_transport.py` and
+`docs/product/projects/evidence/ci-node-transport-429-receipt.json`.
+Change only the General disposable data job's Node registry reference to the
+same immutable manifest on mirror.gcr.io. The prepared, completed Electronics
+transport source `02ae08a82eb8ad65eda52a47c2100ef7830e45d5` provides identity
+evidence for that same Node image, not authority to import its workflow or alter
+its active mobile task. No active unfinished writer was found on these paths.
+
+Keep Node manifest43aeff40, configc72861c6, every ordered layer/rootfs identity,
+the original545 receipt, Dockerfile/Compose/production defaults, Caddy/PostgreSQL
+and BuildKit references, workflow security/triggers/gates and existing runtime
+image proof unchanged. The semantic guard may represent only this explicitly
+selected General/Node reference substitution and must still reject all other
+unapproved drift. Add focused positive/negative proof for its exact scope.
+Do not import the separate Electronics workflow, retry a red run unchanged,
+substitute an image version or turn off a required check.
+
+Acceptance requires independent exact-source review and one justified new
+combined CI run with actual image pull/build, existing rootfs/revision proof,
+real PostgreSQL migration/data/RLS checks and the full required general gate.
+Registry metadata alone is preparation, not this evidence.
+
 The existing independently reviewed ESLint prerequisite remains separately
 selected in `PROJ-PUBLICATION-BUILD-BASELINE.md`. The controller may assemble
 these finished bounded sources into a new verification integration candidate,
