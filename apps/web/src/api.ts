@@ -123,6 +123,60 @@ export interface SessionPayload {
   navigation: { classes: boolean; classroomManagement: boolean; contentAuthoring?: boolean };
   /** The teacher's own zone; every classroom date is read in it. */
   timeZone: string | null;
+  verification?: AccountVerificationState;
+}
+
+export type AuthProviderId = 'max' | 'telegram' | 'email';
+export type SocialAuthProvider = 'max' | 'telegram';
+export type AuthProviderAvailabilityReason =
+  | 'ready'
+  | 'disabled'
+  | 'not_configured'
+  | 'invalid_token'
+  | 'delivery_unavailable'
+  | 'unavailable';
+
+export interface AuthProviderAvailability {
+  id: AuthProviderId;
+  available: boolean;
+  reason: AuthProviderAvailabilityReason;
+  checkedAt: string | null;
+  launchUrl?: string | null;
+}
+
+export interface AccountVerificationState {
+  policyEnabled: boolean;
+  required: boolean;
+  reason:
+    'disabled' | 'verified' | 'grace_period' | 'providers_unavailable' | 'verification_required';
+  dueAt: string | null;
+  verifiedProvider: AuthProviderId | null;
+  providers: AuthProviderAvailability[];
+}
+
+export interface SocialPairing {
+  pairingToken: string;
+  launchUrl: string;
+  expiresAt: string;
+}
+
+export type SocialPairingResult =
+  | { status: 'pending' | 'expired' | 'invalid' | 'consumed' | 'unavailable' }
+  | { status: 'authenticated'; session: SessionPayload }
+  | { status: 'linked'; linked: true }
+  | {
+      status: 'registration_required';
+      profile: { displayName: string | null; username: string | null };
+    };
+
+export interface SocialRegistrationInput {
+  pairingToken: string;
+  email: string;
+  username: string;
+  displayName: string;
+  birthDate: string;
+  country: string;
+  password: string;
 }
 
 export interface MaxAuthConfig {
@@ -141,6 +195,7 @@ export interface MaxAccountStatus {
   promptDue: boolean;
   promptDismissedUntil: string | null;
   available: boolean;
+  canUnlink?: boolean;
 }
 
 export interface AccountPasswordStatus {
@@ -1752,6 +1807,27 @@ export const api = {
       { method: 'POST', body: JSON.stringify(input) },
     ),
   me: () => call<SessionPayload | { authenticated: false }>('/api/auth/me'),
+  authProviders: () => call<{ providers: AuthProviderAvailability[] }>('/api/auth/providers'),
+  accountVerification: () => call<AccountVerificationState>('/api/auth/verification'),
+  socialStatus: (provider: SocialAuthProvider) =>
+    call<MaxAccountStatus>(`/api/auth/${provider}/status`),
+  unlinkSocial: (provider: SocialAuthProvider) =>
+    call<{ unlinked: boolean }>(`/api/auth/${provider}/unlink`, { method: 'POST' }),
+  startSocialPairing: (provider: SocialAuthProvider, purpose: 'login' | 'register' | 'link') =>
+    call<SocialPairing>(`/api/auth/${provider}/pairing/start`, {
+      method: 'POST',
+      body: JSON.stringify({ purpose }),
+    }),
+  completeSocialPairing: (provider: SocialAuthProvider, pairingToken: string) =>
+    call<SocialPairingResult>(`/api/auth/${provider}/pairing/complete`, {
+      method: 'POST',
+      body: JSON.stringify({ pairingToken }),
+    }),
+  registerSocialPairing: (provider: SocialAuthProvider, input: SocialRegistrationInput) =>
+    call<SessionPayload>(`/api/auth/${provider}/pairing/register`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
   localPreviewConfig: () => call<LocalPreviewAuthConfig>('/api/auth/local-preview/config'),
   localPreviewSession: () =>
     call<SessionPayload>('/api/auth/local-preview/session', { method: 'POST' }),
@@ -1785,6 +1861,7 @@ export const api = {
     displayName: string;
     birthDate: string;
     country: string;
+    password: string;
   }) =>
     call<SessionPayload>('/api/auth/max/register', {
       method: 'POST',

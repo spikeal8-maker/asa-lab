@@ -16,6 +16,7 @@ import { setTelemetryContext, telemetryActor, telemetryRoute } from './telemetry
 import { api, type ClassroomStudentSession, type SessionPayload } from './api';
 import { LoginPage } from './pages/LoginPage';
 import { MaxLinkPage } from './pages/MaxLinkPage';
+import { AccountConfirmationPage } from './pages/AccountConfirmationPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { OrganizationLoginPage } from './pages/OrganizationLoginPage';
 import { JoinClassPage } from './pages/JoinClassPage';
@@ -111,6 +112,8 @@ import { AppBootShell } from './components/AppBootShell';
 import { PageDeliveryBoundary } from './components/PageDeliveryBoundary';
 import { isMaxLaunchLocation, leaveMaxLaunch, readMaxInitData } from './max-auth';
 import { onSessionLoggedOut } from './session-fetch';
+import { onAccountVerificationRequired } from './auth-verification';
+import './auth-verification.css';
 import {
   canUseClasses,
   creatorViewFromLocation,
@@ -181,6 +184,72 @@ export function App(): JSX.Element {
     session.kind === 'student' ? session.session.expiresAt : undefined,
   );
   const [publicView, setPublicViewState] = useState<PublicView>(() => publicViewFromHash());
+  const accountIdentity = session.kind === 'authenticated' ? session.session.account.id : null;
+  const accountIdentityRef = useRef(accountIdentity);
+  accountIdentityRef.current = accountIdentity;
+  const verificationFlight = useRef<{ accountId: string; promise: Promise<void> } | null>(null);
+  const acceptAccountSession = useCallback((payload: SessionPayload): void => {
+    setSession({ kind: 'authenticated', session: payload });
+  }, []);
+  const showSignIn = useCallback((): void => {
+    setSession({ kind: 'anonymous' });
+    setPublicViewState({ kind: 'sign-in' });
+  }, []);
+  const refreshAccountVerification = useCallback(async (): Promise<void> => {
+    const expectedAccount = accountIdentityRef.current;
+    if (!expectedAccount) return;
+    if (verificationFlight.current?.accountId === expectedAccount) {
+      return verificationFlight.current.promise;
+    }
+    const flight = { accountId: expectedAccount, promise: Promise.resolve() };
+    flight.promise = (async () => {
+      const identity = await api.me();
+      if (accountIdentityRef.current !== expectedAccount) return;
+      if (identity.ok && identity.data.authenticated) {
+        acceptAccountSession(identity.data);
+      } else if (identity.ok || identity.status === 401) {
+        showSignIn();
+      }
+    })().finally(() => {
+      if (verificationFlight.current === flight) verificationFlight.current = null;
+    });
+    verificationFlight.current = flight;
+    return flight.promise;
+  }, [acceptAccountSession, showSignIn]);
+
+  useEffect(
+    () => onAccountVerificationRequired(() => void refreshAccountVerification()),
+    [refreshAccountVerification],
+  );
+
+  const verificationDueAt =
+    session.kind === 'authenticated' ? session.session.verification?.dueAt : null;
+  const verificationReason =
+    session.kind === 'authenticated' ? session.session.verification?.reason : null;
+  useEffect(() => {
+    if (!accountIdentity) return;
+    const checkVisible = () => {
+      if (document.visibilityState !== 'hidden') void refreshAccountVerification();
+    };
+    window.addEventListener('focus', checkVisible);
+    document.addEventListener('visibilitychange', checkVisible);
+    let timer: number | undefined;
+    if (verificationReason === 'grace_period' && verificationDueAt) {
+      const delay = Date.parse(verificationDueAt) - Date.now();
+      if (Number.isFinite(delay)) {
+        timer = window.setTimeout(
+          checkVisible,
+          Math.min(Math.max(delay + 100, 100), 2_147_000_000),
+        );
+      }
+    }
+    return () => {
+      if (timer !== undefined) window.clearTimeout(timer);
+      window.removeEventListener('focus', checkVisible);
+      document.removeEventListener('visibilitychange', checkVisible);
+    };
+  }, [accountIdentity, refreshAccountVerification, verificationDueAt, verificationReason]);
+
   /**
    * Сколько работ ждёт ответа во всех классах — цифра рядом с «Классами».
    *
@@ -203,7 +272,9 @@ export function App(): JSX.Element {
         ? `student:${actor.seatId}:${actor.classId}`
         : '';
   const telemetryBinding = useMemo(() => actor, [actorIdentity]);
-  const telemetryReady = ['authenticated', 'student', 'anonymous'].includes(session.kind);
+  const telemetryReady =
+    ['authenticated', 'student', 'anonymous'].includes(session.kind) &&
+    !(session.kind === 'authenticated' && session.session.verification?.required);
   const telemetryEntry = telemetryRoute(view, window.location.pathname.startsWith('/admin'));
   useLayoutEffect(() => {
     setTelemetryContext(telemetryBinding, telemetryReady, telemetryEntry);
@@ -398,7 +469,11 @@ export function App(): JSX.Element {
   );
 
   useEffect(() => {
-    if (session.kind !== 'authenticated') {
+    if (
+      session.kind !== 'authenticated' ||
+      !session.session.verification?.policyEnabled ||
+      session.session.verification.required
+    ) {
       setMaxVerificationDue(false);
       return;
     }
@@ -413,20 +488,27 @@ export function App(): JSX.Element {
     };
   }, [session]);
 
+  const platformAdminCapability =
+    session.kind === 'authenticated' &&
+    session.session.capabilities.some(
+      (entry) => entry.capability === 'platform_admin' && entry.state === 'verified',
+    );
+  const verificationRequired =
+    session.kind === 'authenticated' && session.session.verification?.required === true;
+  const sessionKind = session.kind;
   const loadAdminAccess = useCallback(async (): Promise<void> => {
     const request = ++adminAccessRequest.current;
-    if (session.kind === 'student') {
+    if (sessionKind === 'student') {
       setAdminAccess({ kind: 'denied' });
       return;
     }
-    if (session.kind !== 'authenticated') {
+    if (sessionKind !== 'authenticated') {
       setAdminAccess({ kind: 'idle' });
       return;
     }
-    const hasPlatformAdminCapability = session.session.capabilities.some(
-      (entry) => entry.capability === 'platform_admin' && entry.state === 'verified',
-    );
-    if (!hasPlatformAdminCapability) {
+    // The restricted payload deliberately has no product capabilities. A real
+    // admin response is needed to offer the policy recovery action on the gate.
+    if (!platformAdminCapability && !verificationRequired) {
       setAdminAccess({ kind: 'denied' });
       return;
     }
@@ -450,7 +532,7 @@ export function App(): JSX.Element {
             : 'Сервер не смог подтвердить административные права.',
       });
     }
-  }, [session]);
+  }, [accountIdentity, adminSection, platformAdminCapability, sessionKind, verificationRequired]);
 
   useEffect(() => {
     void loadAdminAccess();
@@ -502,6 +584,7 @@ export function App(): JSX.Element {
       });
     } else if (
       session.kind === 'authenticated' &&
+      !session.session.verification?.required &&
       !session.session.navigation.classroomManagement
     ) {
       void api.attendedAssignments().then((result) => {
@@ -525,7 +608,7 @@ export function App(): JSX.Element {
    */
   useEffect(() => {
     let current = true;
-    if (session.kind !== 'authenticated') return;
+    if (session.kind !== 'authenticated' || session.session.verification?.required) return;
     if (!session.session.navigation.classroomManagement) {
       setAwaitingReview(0);
       return;
@@ -540,7 +623,12 @@ export function App(): JSX.Element {
 
   const zoneReported = useRef(false);
   useEffect(() => {
-    if (session.kind !== 'authenticated' || session.session.timeZone !== null) return;
+    if (
+      session.kind !== 'authenticated' ||
+      session.session.verification?.required ||
+      session.session.timeZone !== null
+    )
+      return;
     if (zoneReported.current) return;
     zoneReported.current = true;
     void api.setAccountTimeZone(deviceTimeZone(), true).then((result) => {
@@ -592,6 +680,53 @@ export function App(): JSX.Element {
       </main>
     );
   }
+  if (session.kind === 'authenticated' && session.session.verification?.required) {
+    if (adminSection === 'confirmations') {
+      return (
+        <div className="auth-admin-recovery">
+          <header>
+            <h1>Настройки подтверждения входа</h1>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => setView({ kind: 'home' })}
+            >
+              К подтверждению аккаунта
+            </button>
+          </header>
+          <Suspense fallback={<AppBootShell label="Открываем настройки подтверждения" />}>
+            <AdminPage
+              access={adminAccess}
+              section="confirmations"
+              onNavigate={openAdminSection}
+              onRetry={() => void loadAdminAccess()}
+              onBack={() => setView({ kind: 'home' })}
+              onAccessDenied={() => setAdminAccess({ kind: 'denied' })}
+            />
+          </Suspense>
+        </div>
+      );
+    }
+    if (!pendingMaxLink) {
+      return (
+        <AccountConfirmationPage
+          session={session.session}
+          verification={session.session.verification}
+          onSessionChanged={acceptAccountSession}
+          onSignedOut={showSignIn}
+          {...(adminAccess.kind === 'granted' &&
+          adminAccess.profile.scopes.some(
+            (scope) =>
+              scope.kind === 'platform' &&
+              scope.role === 'platform_admin' &&
+              scope.permissions.includes('administration.operations.read'),
+          )
+            ? { onAdminSettings: () => openAdminSection('confirmations') }
+            : {})}
+        />
+      );
+    }
+  }
   if (session.kind === 'authenticated' && pendingMaxLink) {
     return (
       <MaxLinkPage
@@ -601,6 +736,7 @@ export function App(): JSX.Element {
           setPendingMaxLink(null);
           maxLaunchData.current = null;
           leaveMaxLaunch();
+          void refreshAccountVerification();
           setView({ kind: 'home' });
         }}
         onCancel={() => {

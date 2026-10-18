@@ -1,3 +1,5 @@
+import type { AccountVerificationService } from './account-verification.service.js';
+import type { TelegramAuthService } from './telegram-auth.service.js';
 import { describe, expect, it, vi } from 'vitest';
 import type { FastifyRequest } from 'fastify';
 import type { ActiveContext, ActiveContextUseCase } from '@asa-lab/identity';
@@ -99,7 +101,13 @@ function controller(options: {
     })),
   } as unknown as MaxAuthService;
   return {
-    value: new AdminController(activeContext, controlPlane, maxAuth),
+    value: new AdminController(
+      activeContext,
+      controlPlane,
+      maxAuth,
+      {} as TelegramAuthService,
+      {} as AccountVerificationService,
+    ),
     activeContext,
     controlPlane,
     maxAuth,

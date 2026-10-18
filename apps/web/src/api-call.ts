@@ -1,4 +1,5 @@
 import { fetchWithSessionRefresh } from './session-fetch';
+import { notifyAccountVerificationRequired } from './auth-verification';
 
 export interface ApiError {
   code: string;
@@ -36,5 +37,8 @@ export async function call<T>(path: string, init?: RequestInit): Promise<ApiResu
   const error =
     (body as { error?: ApiError } | null)?.error ??
     ({ code: 'server_error', message: 'ошибка сервера' } satisfies ApiError);
+  if (response.status === 403 && error.code === 'account_verification_required') {
+    notifyAccountVerificationRequired();
+  }
   return { ok: false, status: response.status, error };
 }
