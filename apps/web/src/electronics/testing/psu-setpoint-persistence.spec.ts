@@ -236,7 +236,8 @@ async function toggle() {
     await c().toggleSimulation();
   });
   await act(async () => {
-    for (let index = 0; index < 20; index++) await Promise.resolve();
+    // Start now loads the real controller module before its Worker can reply.
+    await vi.dynamicImportSettled();
   });
   if (c().simulationRunning) expect(c().simulationStatus).toBe('running');
 }

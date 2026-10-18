@@ -1,6 +1,7 @@
 import {
   advanceElectronicsToHorizon,
   analyseElectronicsSnapshot,
+  createElectronicsAdvanceSession,
   resetElectronicsTimedState,
 } from '@asa-lab/electronics/engine';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -10,7 +11,10 @@ import {
   ElectronicsSimulationWorkerClient,
   type ElectronicsSimulationWorkerLike,
 } from '../simulation-worker-client';
-import { evaluateSimulationWorkerRequest } from '../simulation-worker-evaluator';
+import {
+  evaluateSimulationWorkerRequest,
+  evaluateSimulationWorkerRequestBatched,
+} from '../simulation-worker-evaluator';
 import {
   ELECTRONICS_SIMULATION_ENGINE_REVISION,
   ELECTRONICS_SIMULATION_WORKER_PROTOCOL,
@@ -562,6 +566,49 @@ describe('ASA Electronics Worker module message loop', () => {
     });
   });
 
+  it('cancels an in-flight batched execution while its event loop yields', async () => {
+    vi.useFakeTimers();
+    let clock = 0;
+    const timer = vi.spyOn(performance, 'now').mockImplementation(() => (clock += 4));
+    const posted: ElectronicsSimulationWorkerResponse[] = [];
+    const scope = {
+      onmessage: null as ((event: MessageEvent<ElectronicsSimulationWorkerRequest>) => void) | null,
+      postMessage: (message: ElectronicsSimulationWorkerResponse) => posted.push(message),
+    };
+    vi.stubGlobal('self', scope);
+    try {
+      await import('../simulation.worker');
+      scope.onmessage?.({
+        data: {
+          ...preflightRequest('pending', 3),
+          kind: 'advance',
+          document: {
+            ...arduinoCircuit,
+            components: arduinoCircuit.components.map((c) => ({
+              ...c,
+              stateProperties: { arduinoSource: 'void loop(){}' },
+            })),
+          },
+          state: resetElectronicsTimedState(),
+          requestedHorizonMicroseconds: 50000,
+        },
+      } as MessageEvent);
+      expect(posted).toHaveLength(0);
+      expect(vi.getTimerCount()).toBeGreaterThan(0);
+      scope.onmessage?.({
+        data: { ...preflightRequest('cancel', 3), kind: 'cancel-generation' },
+      } as MessageEvent);
+      await vi.runAllTimersAsync();
+      expect(posted).toHaveLength(0);
+      scope.onmessage?.({ data: preflightRequest('next', 4) } as MessageEvent);
+      expect(posted).toHaveLength(1);
+      expect(posted[0]).toMatchObject({ requestId: 'next', generationId: 4, ok: true });
+    } finally {
+      timer.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
   it('drops a cancelled generation and accepts the next one', async () => {
     const posted: ElectronicsSimulationWorkerResponse[] = [];
     const scope: {
@@ -594,5 +641,213 @@ describe('ASA Electronics Worker module message loop', () => {
       requestId: 'runtime-next',
       generationId: 3,
     });
+  });
+});
+
+describe('bounded private Worker execution', () => {
+  const request = () => ({
+    ...preflightRequest('batched'),
+    kind: 'advance' as const,
+    document: {
+      ...arduinoCircuit,
+      components: arduinoCircuit.components.map((c) => ({
+        ...c,
+        stateProperties: {
+          arduinoSource: 'void setup(){pinMode(13,OUTPUT);}void loop(){digitalWrite(13,HIGH);}',
+        },
+      })),
+    },
+    state: resetElectronicsTimedState(),
+    requestedHorizonMicroseconds: 4000,
+  });
+  it('publishes only ready C=H after multiple canonical batches and accounts preparation CPU', async () => {
+    const input = request();
+    let clock = 0,
+      yields = 0;
+    const timer = vi.spyOn(performance, 'now').mockImplementation(() => (clock += 4));
+    try {
+      const response = await evaluateSimulationWorkerRequestBatched(
+        input,
+        () => true,
+        async () => {
+          yields++;
+        },
+      );
+      expect(yields).toBeGreaterThan(0);
+      expect(response).toMatchObject({
+        ok: true,
+        kind: 'advance',
+        advance: {
+          executionStatus: 'ready',
+          committedHorizonMicroseconds: 4000,
+          requestedHorizonMicroseconds: 4000,
+        },
+      });
+      if (!response?.ok || response.kind !== 'advance')
+        throw new Error('Expected complete Worker frame');
+      expect(response.advance.result?.quality?.passed).toBe(true);
+      expect(response.metrics.computeMs).toBeGreaterThan(0);
+      expect(
+        JSON.parse(response.advance.state.continuation!.serializedState).boards[0].runtime
+          .outputVoltages.d13,
+      ).toBe(5);
+    } finally {
+      timer.mockRestore();
+    }
+  });
+  it('discards all pending progress on cancellation at an actual CPU yield', async () => {
+    let active = true,
+      clock = 0,
+      yields = 0;
+    const timer = vi.spyOn(performance, 'now').mockImplementation(() => (clock += 4));
+    try {
+      const response = await evaluateSimulationWorkerRequestBatched(
+        request(),
+        () => active,
+        async () => {
+          yields++;
+          active = false;
+        },
+      );
+      expect(yields).toBe(1);
+      expect(response).toBeNull();
+    } finally {
+      timer.mockRestore();
+    }
+  });
+  it('owns the projected document while its caller mutates a request during yield', async () => {
+    const input = request();
+    let clock = 0;
+    const timer = vi.spyOn(performance, 'now').mockImplementation(() => (clock += 4));
+    try {
+      const expected = analyseElectronicsSnapshot(input.document).topologySignature;
+      const response = await evaluateSimulationWorkerRequestBatched(
+        input,
+        () => true,
+        async () => {
+          Object.assign(input.document, { components: [] });
+          input.requestedHorizonMicroseconds = 0;
+        },
+      );
+      expect(response).toMatchObject({
+        ok: true,
+        kind: 'advance',
+        advance: { requestedHorizonMicroseconds: 4000, result: { topologySignature: expected } },
+      });
+    } finally {
+      timer.mockRestore();
+    }
+  });
+});
+
+describe('actual LED optical observation through the production Worker evaluator', () => {
+  function ledRequest(source: string) {
+    const document: SchematicDocument = {
+      ...arduinoCircuit,
+      components: [
+        { ...arduinoCircuit.components[0]!, stateProperties: { arduinoSource: source } },
+        {
+          id: 'r',
+          kind: 'resistor',
+          componentTypeId: 'resistor-axial',
+          pinIds: ['lead-1', 'lead-2'],
+          value: 330,
+          position: { x: 50, y: 0 },
+        },
+        {
+          id: 'led',
+          kind: 'led',
+          componentTypeId: 'led-5mm',
+          pinIds: ['anode', 'cathode'],
+          value: 2,
+          position: { x: 100, y: 0 },
+        },
+      ],
+      connections: [
+        {
+          id: 'drive',
+          from: { componentId: 'uno', terminal: 'd13' },
+          to: { componentId: 'r', terminal: 'lead-1' },
+        },
+        {
+          id: 'series',
+          from: { componentId: 'r', terminal: 'lead-2' },
+          to: { componentId: 'led', terminal: 'anode' },
+        },
+        {
+          id: 'ground',
+          from: { componentId: 'led', terminal: 'cathode' },
+          to: { componentId: 'uno', terminal: 'power-gnd-1' },
+        },
+      ],
+    };
+    return {
+      ...preflightRequest('led-temporal'),
+      kind: 'advance' as const,
+      document,
+      state: resetElectronicsTimedState(),
+      requestedHorizonMicroseconds: 100_123,
+    };
+  }
+
+  it('publishes complete optical history beside the unchanged actual electrical result', async () => {
+    const request = ledRequest(
+      'void setup(){pinMode(13,OUTPUT);}void loop(){digitalWrite(13,HIGH);delay(1);digitalWrite(13,LOW);delay(1);}',
+    );
+    const response = await evaluateSimulationWorkerRequestBatched(request, () => true);
+    expect(response).toMatchObject({
+      ok: true,
+      kind: 'advance',
+      advance: {
+        executionStatus: 'ready',
+        committedHorizonMicroseconds: 100_123,
+        ledTemporal: {
+          fromMicroseconds: 0,
+          toMicroseconds: 100_123,
+          profile: 'ordinary-led-held-v1',
+        },
+      },
+    });
+    if (!response?.ok || response.kind !== 'advance')
+      throw new Error('missing ready optical frame');
+    const session = createElectronicsAdvanceSession(request.document, {
+      requestedHorizonMicroseconds: request.requestedHorizonMicroseconds,
+      state: request.state,
+    });
+    let direct;
+    do {
+      direct = session.step();
+    } while (!direct);
+    expect(response.advance.state).toStrictEqual(direct.state);
+    expect(response.advance.result!.components).toStrictEqual(direct.observation!.components);
+    const led = response.advance.ledTemporal!.components[0]!;
+    expect(led.componentId).toBe('led');
+    expect(led.transitionCount).toBeGreaterThan(90);
+    expect(led.samples.some((sample) => sample.brightness > 0 && sample.current > 0)).toBe(true);
+    expect(led.samples.some((sample) => sample.brightness === 0)).toBe(true);
+    expect(led.litDurationMicroseconds / 100_123).toBeCloseTo(0.5, 2);
+    expect(request.state.continuation).toBeNull();
+  });
+
+  it('discards observed light if the current generation is cancelled during a private CPU yield', async () => {
+    const request = ledRequest(
+      'void setup(){pinMode(13,OUTPUT);}void loop(){digitalWrite(13,HIGH);}',
+    );
+    let clock = 0;
+    let current = true;
+    const timer = vi.spyOn(performance, 'now').mockImplementation(() => (clock += 4));
+    try {
+      const response = await evaluateSimulationWorkerRequestBatched(
+        request,
+        () => current,
+        async () => {
+          current = false;
+        },
+      );
+      expect(response).toBeNull();
+      expect(request.state.continuation).toBeNull();
+    } finally {
+      timer.mockRestore();
+    }
   });
 });
