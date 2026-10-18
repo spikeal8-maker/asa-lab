@@ -310,7 +310,13 @@ def source_install(args):
         path.parent.mkdir(parents=True, exist_ok=True)
         if path.exists():
             path.rmdir()
-        run("git", "clone", "--depth", "1", "--single-branch", "--branch", "main", REPO, str(path))
+        # The published stable release may be several commits behind main.
+        # A shallow depth-1 clone cannot prove its ancestry: the canonical
+        # manager runs git merge-base before finalizing installation, and a
+        # missing release commit leaves an untracked production .env behind.
+        # Fetch the full commit graph, but lazily obtain blobs to limit transfer.
+        run("git", "clone", "--filter=blob:none", "--single-branch", "--branch", "main",
+            REPO, str(path))
         owner = pwd.getpwnam(args.operator)
         run("chown", "-R", f"{owner.pw_uid}:{owner.pw_gid}", str(path))
     require((path / "tools/asa_manager.py").exists(), "ASA manager missing")

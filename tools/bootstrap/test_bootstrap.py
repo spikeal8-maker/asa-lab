@@ -115,7 +115,7 @@ class EncryptedRestoreLayout(unittest.TestCase):
     """End-to-end manifest and extracted-layout proof, without real secrets."""
 
     @staticmethod
-    def make_archive(*, different_root=False, duplicate=False):
+    def make_archive(*, different_root=False, duplicate=False, manifest_id=None):
         payloads = {
             "database.dump": b"verified-postgresql-dump",
             "private.env": b"verified-private-config",
@@ -123,7 +123,7 @@ class EncryptedRestoreLayout(unittest.TestCase):
         }
         manifest = {
             "format": "asa-backup-v1", "complete": True,
-            "createdAt": "20261017T231505Z-65b68074",
+            "createdAt": manifest_id or "20261017T231505Z-65b68074",
             "runtime": {"schema": 212},
             "files": {key: {"sha256": hashlib.sha256(data).hexdigest(),
                             "bytes": len(data)} for key, data in payloads.items()},
@@ -191,6 +191,12 @@ class EncryptedRestoreLayout(unittest.TestCase):
     def test_duplicate_files_are_rejected(self):
         self.extract(self.make_archive(duplicate=True), extracting=True)
 
+    def test_renamed_archive_cannot_pass_manifest_identity_check(self):
+        self.extract(
+            self.make_archive(manifest_id="20261016T231505Z-7b457013"),
+            extracting=True
+        )
+
     def test_top_level_file_is_not_a_valid_backup_member(self):
         with tempfile.TemporaryDirectory() as d:
             with self.assertRaises(ValueError):
@@ -205,6 +211,11 @@ class EncryptedRestoreLayout(unittest.TestCase):
 
 
 class LinuxInstallerSecurity(unittest.TestCase):
+    def test_fresh_git_checkout_includes_stable_release_history(self):
+        source = (BASE / "install-ubuntu-1panel.py").read_text()
+        self.assertIn('"clone", "--filter=blob:none", "--single-branch"', source)
+        self.assertNotIn('"clone", "--depth", "1"', source)
+
     def test_require_blocks(self):
         with self.assertRaises(rebuild.Blocked):rebuild.require(False,'fail closed')
 

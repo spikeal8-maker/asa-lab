@@ -39,6 +39,61 @@ class HostResetSafety(unittest.TestCase):
             self.assertGreaterEqual(len(p.parts),3)
     def test_archive_is_external_to_app_checkout(self):
         self.assertFalse(clean.ARCHIVE.is_relative_to(clean.EXPECTED_ROOT))
+class AmbiguousPostgresRenameRollback(unittest.TestCase):
+    """Simulate lost PostgreSQL replies AFTER an ALTER DATABASE was committed."""
+
+    def emulate(self, initial: set[str]) -> set[str]:
+        state = set(initial)
+        old = "asalab_before_20261018t131500z"
+        stamp = "20261018t131500z"
+
+        def fake_pg(_inst, db, sql):
+            self.assertEqual(db, "postgres")
+            if sql.startswith("select count(*)"):
+                name = sql.split("datname='", 1)[1].split("'", 1)[0]
+                return "1" if name in state else "0"
+            import re
+            match = re.fullmatch(r"ALTER DATABASE (\w+) RENAME TO (\w+)", sql)
+            if not match:
+                raise AssertionError("Unexpected SQL: " + sql)
+            source, destination = match.groups()
+            self.assertIn(source, state)
+            self.assertNotIn(destination, state)
+            state.remove(source)
+            state.add(destination)
+            return ""
+
+        with mock.patch.object(restore, "pg", side_effect=fake_pg):
+            if not state:
+                with self.assertRaises(restore.Refused):
+                    restore.rollback_original_database(None, old, stamp)
+            else:
+                restore.rollback_original_database(None, old, stamp)
+        return state
+
+    def test_first_rename_committed_but_client_lost_response(self):
+        self.assertEqual(
+            self.emulate({"asalab_before_20261018t131500z"}), {"asalab"})
+
+    def test_second_rename_committed_but_client_lost_response(self):
+        self.assertEqual(
+            self.emulate({"asalab_before_20261018t131500z", "asalab"}),
+            {"asalab", "asalab_failed_20261018t131500z"})
+
+    def test_first_rename_never_committed(self):
+        self.assertEqual(self.emulate({"asalab"}), {"asalab"})
+
+    def test_both_database_names_missing_must_not_claim_rollback(self):
+        self.assertEqual(self.emulate(set()), set())
+
+    def test_rollback_intent_armed_before_initial_database_rename(self):
+        source = (BASE / "restore-verified-backup.py").read_text()
+        self.assertLess(
+            source.index('db_switched=True'),
+            source.index('pg(inst,"postgres",f"ALTER DATABASE asalab RENAME TO {old_database}")')
+        )
+
+
 class InterruptedMinIORollback(unittest.TestCase):
     def test_interrupted_archive_preserves_unmoved_objects(self):
         with tempfile.TemporaryDirectory() as d:

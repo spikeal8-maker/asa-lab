@@ -117,6 +117,25 @@ def validate_snapshot_age(snapshot_id: str, max_age_hours: int) -> None:
              f"Snapshot outside allowed freshness window: {max_age_hours} hours")
 
 
+def rollback_original_database(inst, old_database: str, stamp: str) -> None:
+    """Handle the case where PostgreSQL committed a rename but the client timed out."""
+    was_renamed = pg(
+        inst, "postgres",
+        f"select count(*) from pg_database where datname='{old_database}'"
+    ) == "1"
+    current_exists = pg(
+        inst, "postgres",
+        "select count(*) from pg_database where datname='asalab'"
+    ) == "1"
+    if was_renamed:
+        if current_exists:
+            pg(inst, "postgres", f"ALTER DATABASE asalab RENAME TO asalab_failed_{stamp}")
+        pg(inst, "postgres", f"ALTER DATABASE {old_database} RENAME TO asalab")
+    else:
+        need(current_exists,
+             "Both original and active PostgreSQL databases are missing; manual rollback required")
+
+
 def rollback_original_objects(volume: Path, archived: Path, *, old_complete: bool) -> None:
     """Return saved MinIO objects without deleting survivors of an interrupted move.
 
@@ -218,8 +237,12 @@ def restore(args):
                 need(not f.is_symlink(),"Link in object data")
                 os.chown(f,1000,1000)
         checkpoint(backup_dir,"OBJECTS_INSTALLED",file_count=len(copied_files))
-        pg(inst,"postgres",f"ALTER DATABASE asalab RENAME TO {old_database}")
+        # Mark rollback intent BEFORE the first SQL rename. PostgreSQL can
+        # commit the rename while the client loses its reply; on a timeout
+        # the old database then exists under old_database without asalab.
         db_switched=True
+        checkpoint(backup_dir,"POSTGRES_SWITCH_STARTED")
+        pg(inst,"postgres",f"ALTER DATABASE asalab RENAME TO {old_database}")
         pg(inst,"postgres",f"ALTER DATABASE {trial_database} RENAME TO asalab")
         checkpoint(backup_dir,"POSTGRES_SWITCHED")
         merge_keys(inst.root/".env",args.backup.resolve()/"private.env",backup_dir)
@@ -261,12 +284,7 @@ def restore(args):
                 current=Installation(inst.root,inst.profile)
                 current.compose("stop","web","api","scratch","minio")
                 if db_switched:
-                    existed=pg(inst,"postgres",f"select count(*) from pg_database where datname='{old_database}'")
-                    if existed=="1":
-                        live=pg(inst,"postgres","select count(*) from pg_database where datname='asalab'")
-                        if live=="1":
-                            pg(inst,"postgres",f"ALTER DATABASE asalab RENAME TO asalab_failed_{stamp}")
-                        pg(inst,"postgres",f"ALTER DATABASE {old_database} RENAME TO asalab")
+                    rollback_original_database(inst, old_database, stamp)
                 if objects_archival_started:
                     rollback_original_objects(
                         volume, backup_dir/"old-objects", old_complete=originals_saved)

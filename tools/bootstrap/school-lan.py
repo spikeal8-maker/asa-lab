@@ -156,6 +156,17 @@ def verify_data_unchanged(before, after):
              f'{service} container or persistent data identity unexpectedly changed')
 
 
+def rollback_ingress_firewall(old, endpoint, *, old_delete_started: bool,
+                              new_rule_added: bool) -> None:
+    """Restore old connectivity before removing the new ingress rule."""
+    if old_delete_started:
+        # A failed delete can already have removed the rule. Re-adding the
+        # exact old CIDR+port is safe and idempotent.
+        firewall(old)
+    if new_rule_added:
+        firewall(endpoint, remove=True)
+
+
 def reconcile(policy, helper, endpoint):
     root = Path(policy['root'])
     sys.path.insert(0, str(root/'tools'))
@@ -185,11 +196,13 @@ def reconcile(policy, helper, endpoint):
         shutil.copy2(root/'.env', archive/'before.env')
         (archive/'before.env').chmod(0o600)
         shutil.copy2(PREFIX/'Caddyfile', archive/'before.Caddyfile')
+        original_env_owner = (root/'.env').stat()
         original = read_env(root/'.env')
         original_protected = {k:v for k,v in original.items() if k not in helper.PUBLIC_KEYS}
         state['phase'] = 'NETWORK_SWITCHING'
         save_json(STATE, state)
         new_rule = False
+        old_rule_delete_started = False
         env_switched = False
         try:
             firewall(endpoint)
@@ -220,6 +233,9 @@ def reconcile(policy, helper, endpoint):
             need(helper.cert_digest(helper.ROOT_CERT) == state['ca_sha256'],
                  'IP change must not rotate the school CA')
             # Remove only the exact former ingress rule, never SSH/VPN/other entries.
+            # Set rollback intent before deletion: UFW can change the rule and
+            # still report an error or a following checkpoint can fail.
+            old_rule_delete_started = True
             firewall(old, remove=True)
             state.update(phase='READY', origin=endpoint.origin)
             save_json(STATE, state)
@@ -235,15 +251,15 @@ def reconcile(policy, helper, endpoint):
             if env_switched:
                 source = archive/'before.env'
                 shutil.copy2(source, root/'.env')
-                stat = source.stat()
-                os.chown(root/'.env', stat.st_uid, stat.st_gid)
+                os.chown(root/'.env', original_env_owner.st_uid, original_env_owner.st_gid)
                 reverted = Installation(root, 'production')
                 reverted.compose('up', '-d', '--no-deps', '--no-build', '--pull', 'never',
                                  'api', 'scratch', 'web')
             call('systemctl', 'start', helper.SERVICE, check=False)
-            if new_rule:
-                firewall(endpoint, remove=True)
-            state['phase'] = 'NETWORK_ROLLBACK_REVIEW'
+            rollback_ingress_firewall(old, endpoint,
+                                      old_delete_started=old_rule_delete_started,
+                                      new_rule_added=new_rule)
+            state.update(phase='NETWORK_ROLLBACK_REVIEW', origin=old.origin)
             save_json(STATE, state)
             raise
 

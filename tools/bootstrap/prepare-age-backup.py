@@ -179,6 +179,12 @@ def verify_or_extract(args) -> dict:
             raise ValueError('Age archive decryption or authentication failed')
         if not isinstance(manifest, dict) or manifest.get('format') != 'asa-backup-v1' or manifest.get('complete') is not True:
             raise ValueError('Backup manifest is missing or incomplete')
+        # A renamed valid snapshot must fail BEFORE the installer provisions
+        # an empty production database or attempts a recovery cutover.
+        name_match = SNAPSHOT.fullmatch(source.name)
+        name_snapshot = f"{name_match.group(1)}-{name_match.group(2)}"
+        if manifest.get('createdAt') != name_snapshot:
+            raise ValueError('Archive filename and backup manifest snapshot ID differ')
         expected = manifest.get('files')
         if 'manifest.json' not in digests:
             raise ValueError('Backup manifest must be directly inside its archive wrapper')

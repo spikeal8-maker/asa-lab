@@ -157,6 +157,35 @@ class ReconciliationTests(unittest.TestCase):
         self.assertTrue(any('10.42.3.0/24' in a and 'ufw'==a[0] for a in calls))
         self.assertTrue(any('delete' in a and '192.168.1.115' in a for a in calls))
         self.assertFalse(any('5432' in a or '19192' in a or '22' in a for a in calls))
+    def test_rollback_restores_old_firewall_after_checkpoint_failure(self):
+        original_save = m.save_json
+        events = []
+
+        def fail_after_old_rule_deleted(path, data):
+            if path == self.state_file and data.get('phase') == 'READY' and \
+                    data.get('origin') == self.new.origin:
+                raise OSError('simulated lost state write after old rule removal')
+            return original_save(path, data)
+
+        def track_rule(endpoint, remove=False):
+            events.append((endpoint.address, remove))
+
+        with patch.object(m, 'save_json', side_effect=fail_after_old_rule_deleted), \
+             patch.object(m, 'firewall', side_effect=track_rule), \
+             patch.object(m, 'call'), \
+             self.assertRaisesRegex(OSError, 'lost state write'):
+            m.reconcile(self.policy, self.helper, self.new)
+
+        self.assertIn((self.old.address, True), events)
+        self.assertIn((self.old.address, False), events)
+        self.assertIn((self.new.address, True), events)
+        self.assertLess(events.index((self.old.address, False)),
+                        events.index((self.new.address, True)))
+        self.assertEqual(json.loads(self.state_file.read_text())['phase'],
+                         'NETWORK_ROLLBACK_REVIEW')
+        self.assertEqual((self.prefix / 'Caddyfile').read_text(), 'old-config')
+        self.assertIn(self.old.origin, (self.root / '.env').read_text())
+
     def test_foreign_ca_is_blocked_before_modification(self):
         self.helper.cert_digest=lambda p:'different-ca'
         with patch.object(m,'call') as c,self.assertRaises(m.Refused):
