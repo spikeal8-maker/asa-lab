@@ -147,13 +147,20 @@ test('shared portal header stays on one row with useful labels and 4K scaling', 
 test('header remains pinned on scroll and on other portal routes', async ({ page }) => {
   test.setTimeout(100_000);
   const state = await fixture(page, 15, { classes: 23 });
-  for (const route of ['/#/classrooms', '/#/gallery', '/#/knowledge']) {
+  const header = page.getByRole('banner');
+  const navigation = header.getByRole('navigation', { name: 'Разделы ASA Lab', exact: true });
+  const projectsLink = navigation.getByRole('link', { name: 'Проекты', exact: true });
+  for (const route of ['/#/classrooms', '/#/explore', '/#/gallery', '/#/knowledge']) {
     await page.setViewportSize({ width: 768, height: 650 });
     await page.goto(route);
-    await expect(page.locator('.portal-header')).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Проекты' })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Знания' })).toBeVisible();
-    await expect(page.locator('.portal-header')).toHaveCSS('height', '56px');
+    await expect(header).toBeVisible();
+    await expect(projectsLink).toBeVisible();
+    await expect(projectsLink).toHaveAttribute('href', '/#/explore');
+    await expect(navigation.getByRole('link', { name: 'Знания', exact: true })).toBeVisible();
+    await expect(header).toHaveCSS('height', '56px');
+    if (route === '/#/explore' || route === '/#/gallery') {
+      await expect(page).toHaveURL(/#\/explore$/);
+    }
   }
   await page.setViewportSize({ width: 390, height: 650 });
   await page.goto('/#/classrooms');

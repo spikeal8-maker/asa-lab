@@ -27,6 +27,17 @@ ALTER TABLE public.project_publication_revisions
 CREATE INDEX project_publication_state_project_lookup_idx
     ON public.project_publication_state(project_id);
 
+-- A custom GUC is reset to an empty string after SET LOCAL/COMMIT on a pooled
+-- connection. Treat it like the original absent context, which matches no
+-- tenant, instead of raising 22P02 during RLS planning before the ACL denial.
+-- The existing tenant boundary, FORCE RLS and table grants remain unchanged.
+ALTER POLICY project_publication_state_tenant ON public.project_publication_state
+    USING (tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid)
+    WITH CHECK (tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid);
+ALTER POLICY project_publication_revisions_tenant ON public.project_publication_revisions
+    USING (tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid)
+    WITH CHECK (tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid);
+
 -- This is the single eligibility policy used by every public/compatibility
 -- read and by publishing. Snapshot freshness is deliberately NOT part of it:
 -- saving Working Draft V2 must not hide the already published V1.
@@ -146,11 +157,12 @@ BEGIN
         WHERE actor.id = p_principal_id AND actor.kind = 'account'
     ) THEN RAISE EXCEPTION 'publication_forbidden' USING ERRCODE = 'P5P01'; END IF;
 
-    -- NO KEY UPDATE serializes status/ownership/origin changes without blocking
-    -- the FK KEY SHARE lock taken by a concurrent immutable checkpoint.
+    -- Generic editor transactions acquire Project FOR UPDATE before Draft.
+    -- Keep that same order and strength, including the Project lock taken by
+    -- Learning's version/draft/snapshot triggers, then freeze Draft + Snapshot.
     SELECT * INTO v_project FROM public.projects project
      WHERE project.id = p_project_id AND project.owner_principal_id = p_principal_id
-     FOR NO KEY UPDATE;
+     FOR UPDATE;
     IF NOT FOUND THEN RAISE EXCEPTION 'not_available' USING ERRCODE = 'P5P04'; END IF;
     v_reason := public.project_publication_policy_reason(p_project_id);
     IF v_reason = 'learning_work_protected' THEN
@@ -350,10 +362,45 @@ $$;
 
 -- All old mutation names converge on the same policy/writer. The unprotected
 -- 0141 implementation remains inaccessible to both PUBLIC and the runtime.
+-- Preserve the old *denial* contract for a protected learner original: its
+-- owner or scoped teacher receives P5L01 even without a preview or after the
+-- legacy work row was removed. This confers no right to publish; all successful
+-- writes still require the Account owner through project_publication_publish.
+CREATE FUNCTION public.project_publication_legacy_learning_guard(
+    p_principal_id uuid, p_project_id uuid
+)
+RETURNS void
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
+BEGIN
+    IF public.project_publication_policy_reason(p_project_id) = 'learning_work_protected'
+       AND EXISTS (
+        SELECT 1 FROM public.projects project
+        WHERE project.id = p_project_id
+          AND (project.owner_principal_id = p_principal_id OR EXISTS (
+            SELECT 1 FROM public.principals author
+            JOIN public.classroom_student_seats seat ON seat.id = author.seat_id
+            JOIN public.classroom_memberships membership
+              ON membership.classroom_id = seat.classroom_id
+             AND membership.tenant_id = seat.tenant_id
+            JOIN public.principals teacher ON teacher.account_id = membership.account_id
+            JOIN public.accounts account ON account.id = teacher.account_id
+            WHERE author.id = project.owner_principal_id
+              AND seat.status <> 'removed'
+              AND membership.member_role IN ('owner', 'co_teacher')
+              AND teacher.id = p_principal_id AND teacher.kind = 'account'
+              AND account.status = 'active'
+          ))
+       ) THEN
+        RAISE EXCEPTION 'learning_work_protected' USING ERRCODE = 'P5L01';
+    END IF;
+END;
+$$;
+
 CREATE OR REPLACE FUNCTION public.gallery_publish(p_principal_id uuid, p_project_id uuid)
 RETURNS boolean
 LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
 BEGIN
+    PERFORM public.project_publication_legacy_learning_guard(p_principal_id, p_project_id);
     PERFORM public.project_publication_publish(p_principal_id, p_project_id, '{}'::jsonb);
     RETURN true;
 EXCEPTION WHEN SQLSTATE 'P5P02' OR SQLSTATE 'P5P04' THEN
@@ -377,6 +424,7 @@ BEGIN
     IF p_visibility = 'private' THEN
         RETURN public.project_publication_revoke(p_principal_id, p_project_id);
     END IF;
+    PERFORM public.project_publication_legacy_learning_guard(p_principal_id, p_project_id);
     IF NOT EXISTS (
         SELECT 1 FROM public.principals actor
         JOIN public.accounts account ON account.id = actor.account_id AND account.status = 'active'
@@ -551,6 +599,7 @@ $$;
 
 REVOKE ALL ON FUNCTION public.project_publication_policy_reason(uuid) FROM PUBLIC, asalab_app;
 REVOKE ALL ON FUNCTION public.project_publication_readable(uuid) FROM PUBLIC, asalab_app;
+REVOKE ALL ON FUNCTION public.project_publication_legacy_learning_guard(uuid,uuid) FROM PUBLIC, asalab_app;
 REVOKE ALL ON FUNCTION public.gallery_publish_unprotected(uuid,uuid) FROM PUBLIC, asalab_app;
 REVOKE ALL ON FUNCTION public.project_publication_status(uuid,uuid) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.project_publication_publish(uuid,uuid,jsonb) FROM PUBLIC;

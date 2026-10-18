@@ -191,6 +191,74 @@ async function protectedSeat(source: Fixture, classroomId: string, accountId: st
   return principal.rows[0].id as string;
 }
 
+function signal() {
+  let release!: () => void;
+  const promise = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  return { promise, release };
+}
+
+interface Observed<T> {
+  outcome: Promise<{ ok: true; value: T } | { ok: false; error: unknown }>;
+  finished: () => boolean;
+}
+
+type CheckpointResult = Awaited<ReturnType<PgProjectRepository['createCheckpoint']>>;
+
+function observe<T>(operation: Promise<T>): Observed<T> {
+  let finished = false;
+  const outcome = operation.then(
+    (value) => {
+      finished = true;
+      return { ok: true as const, value };
+    },
+    (error: unknown) => {
+      finished = true;
+      return { ok: false as const, error };
+    },
+  );
+  return { outcome, finished: () => finished };
+}
+
+/** All SQL and results go through this real runtime connection. The optional
+ * boundary only lets a test hold a completed repository query before its next
+ * statement; it does not replace queries, simulate row locks or retry writes. */
+function repositoryOn(client: pg.PoolClient, afterQuery?: (sql: string) => Promise<void>) {
+  const query = async (sql: string, values?: unknown[]) => {
+    const result = await client.query(sql, values);
+    await afterQuery?.(sql);
+    return result;
+  };
+  const leasedClient = { query, release: () => undefined } as unknown as pg.PoolClient;
+  return new PgProjectRepository({
+    query,
+    connect: async () => leasedClient,
+  } as unknown as pg.Pool);
+}
+
+async function waitForBlock(waiter: number, blocker: number, finished: () => boolean) {
+  const deadline = Date.now() + 5_000;
+  let last: { blocking_pids: number[]; wait_event_type: string | null } | undefined;
+  while (Date.now() < deadline) {
+    const state = await admin.query<{
+      blocking_pids: number[];
+      wait_event_type: string | null;
+    }>(
+      `SELECT pg_blocking_pids(pid) AS blocking_pids,wait_event_type
+         FROM pg_stat_activity WHERE pid=$1`,
+      [waiter],
+    );
+    last = state.rows[0];
+    if (last?.wait_event_type === 'Lock' && last.blocking_pids.includes(blocker)) return;
+    if (finished()) break;
+  }
+  // Observed PostgreSQL lock ownership is the barrier. Elapsed time, an
+  // unfinished Promise, and an arbitrary sleep are never proof of contention.
+  expect(last?.wait_event_type).toBe('Lock');
+  expect(last?.blocking_pids).toContain(blocker);
+}
+
 describe('explicit Public Projects on real PostgreSQL', () => {
   it('freezes an exact version, metadata and raster until explicit republish, then deduplicates retries', async () => {
     const source = await fixture('frozen');
@@ -320,6 +388,131 @@ describe('explicit Public Projects on real PostgreSQL', () => {
     expect(retry).toEqual(first);
     expect(await counts(source)).toMatchObject({ versions: 1, revisions: 1, states: 1 });
   });
+
+  it('serializes a pending real checkpoint before publication without the Draft-to-Project trigger deadlock', async () => {
+    const source = await fixture('checkpoint-first');
+    const checkpointClient = await runtime.connect();
+    const publicationClient = await runtime.connect();
+    const draftLocked = signal();
+    const continueCheckpoint = signal();
+    let checkpoint: Observed<CheckpointResult> | undefined;
+    let publication: Observed<pg.QueryResult<{ result: OwnerPublicationStatus }>> | undefined;
+    try {
+      await checkpointClient.query("SET statement_timeout='10s'");
+      await publicationClient.query('BEGIN');
+      await publicationClient.query("SET LOCAL statement_timeout='10s'");
+      const checkpointPid = (await checkpointClient.query('SELECT pg_backend_pid() AS pid')).rows[0]
+        .pid as number;
+      const publicationPid = (await publicationClient.query('SELECT pg_backend_pid() AS pid'))
+        .rows[0].pid as number;
+      const checkpointRepo = repositoryOn(checkpointClient, async (sql) => {
+        if (sql.includes('FOR UPDATE OF d')) {
+          draftLocked.release();
+          await continueCheckpoint.promise;
+        }
+      });
+      checkpoint = observe(
+        checkpointRepo.createCheckpoint(
+          source.input.tenantId,
+          source.projectId,
+          source.input.actor,
+          'Concurrent checkpoint',
+        ),
+      );
+      await Promise.race([
+        draftLocked.promise,
+        checkpoint.outcome.then((outcome) => {
+          if (!outcome.ok) throw outcome.error;
+          throw new Error('checkpoint completed without reaching its real Draft lock');
+        }),
+      ]);
+      publication = observe(
+        publicationClient.query<{ result: OwnerPublicationStatus }>(
+          'SELECT project_publication_publish($1,$2) AS result',
+          [source.principalId, source.projectId],
+        ),
+      );
+      await waitForBlock(publicationPid, checkpointPid, publication.finished);
+      // Before the fix this releases a checkpoint holding Draft into a version
+      // INSERT whose Learning trigger waits for the publisher's Project lock:
+      // the two real transactions deadlock with 40P01. No retry masks it here.
+      continueCheckpoint.release();
+      const checkpointResult = await checkpoint.outcome;
+      if (!checkpointResult.ok) throw checkpointResult.error;
+      expect(checkpointResult.value).not.toBeNull();
+      const publicationResult = await publication.outcome;
+      if (!publicationResult.ok) throw publicationResult.error;
+      await publicationClient.query('COMMIT');
+      const published = publicationResult.value.rows[0].result.publication;
+      if (!published) throw new Error('publication did not return its immutable revision');
+      expect(published.versionNo).toBe(checkpointResult.value?.versionNo);
+      expect(published.revisionNo).toBe(1);
+      expect(await counts(source)).toEqual({ versions: 1, revisions: 1, states: 1 });
+      expect(
+        (await publicImage(published.publicationId, published.revisionId)).rows[0].image,
+      ).toEqual(Buffer.alloc(64, 17));
+    } finally {
+      continueCheckpoint.release();
+      // The deadline is a watchdog for a broken test, never a successful
+      // concurrency outcome. Roll back only these two owned test sessions.
+      await publicationClient.query('ROLLBACK');
+      if (publication) await publication.outcome;
+      if (checkpoint) await checkpoint.outcome;
+      await checkpointClient.query('ROLLBACK');
+      checkpointClient.release(true);
+      publicationClient.release(true);
+    }
+  }, 20_000);
+
+  it('serializes a real checkpoint behind an uncommitted publication and preserves the published version', async () => {
+    const source = await fixture('publication-first');
+    const publicationClient = await runtime.connect();
+    const checkpointClient = await runtime.connect();
+    let checkpoint: Observed<CheckpointResult> | undefined;
+    try {
+      await publicationClient.query('BEGIN');
+      await publicationClient.query("SET LOCAL statement_timeout='10s'");
+      await checkpointClient.query("SET statement_timeout='10s'");
+      const publicationPid = (await publicationClient.query('SELECT pg_backend_pid() AS pid'))
+        .rows[0].pid as number;
+      const checkpointPid = (await checkpointClient.query('SELECT pg_backend_pid() AS pid')).rows[0]
+        .pid as number;
+      const result = await publicationClient.query<{ result: OwnerPublicationStatus }>(
+        'SELECT project_publication_publish($1,$2) AS result',
+        [source.principalId, source.projectId],
+      );
+      const published = result.rows[0].result.publication;
+      if (!published) throw new Error('publication did not return its immutable revision');
+      checkpoint = observe(
+        repositoryOn(checkpointClient).createCheckpoint(
+          source.input.tenantId,
+          source.projectId,
+          source.input.actor,
+          'After public version',
+        ),
+      );
+      await waitForBlock(checkpointPid, publicationPid, checkpoint.finished);
+      await publicationClient.query('COMMIT');
+      const checkpointResult = await checkpoint.outcome;
+      if (!checkpointResult.ok) throw checkpointResult.error;
+      expect(checkpointResult.value?.versionNo).toBe(2);
+      expect(await counts(source)).toEqual({ versions: 2, revisions: 1, states: 1 });
+      expect((await publicRead(published.publicationId)).rows[0]).toMatchObject({
+        revision_id: published.revisionId,
+        version_no: 1,
+        revision_no: 1,
+      });
+      expect(
+        (await publicImage(published.publicationId, published.revisionId)).rows[0].image,
+      ).toEqual(Buffer.alloc(64, 17));
+    } finally {
+      await publicationClient.query('ROLLBACK');
+      if (checkpoint) await checkpoint.outcome;
+      await checkpointClient.query('ROLLBACK');
+      publicationClient.release(true);
+      checkpointClient.release(true);
+    }
+  }, 20_000);
 
   it('paginates and searches frozen public metadata with the module filter', async () => {
     const first = await fixture('discovery-first');
@@ -742,6 +935,69 @@ describe('explicit Public Projects on real PostgreSQL', () => {
     ).toBe(true);
   });
 
+  it('retains the scoped teacher Learning denial for both legacy publication commands after the source work is gone', async () => {
+    const teacher = await fixture('legacy-learning-denial', false);
+    const outsider = await fixture('legacy-learning-outsider', false);
+    const classroomId = await protectedClass(teacher);
+    const learnerPrincipal = await protectedSeat(teacher, classroomId, null);
+    await admin.query('UPDATE projects SET owner_principal_id=$2 WHERE id=$1', [
+      teacher.projectId,
+      learnerPrincipal,
+    ]);
+    // Persisted evidence intentionally has no live classroom_assignment_work
+    // row, as after a withdrawn/deleted handout. Preview is absent as well.
+    await admin.query(
+      `INSERT INTO learning_legacy_project_origins
+         (project_id,project_tenant_id,school_tenant_id,source_work_id,claimed_at)
+       VALUES ($1,$2,$2,$3,now())`,
+      [teacher.projectId, teacher.input.tenantId, crypto.randomUUID()],
+    );
+    await expect(
+      runtime.query('SELECT gallery_publish($1,$2)', [teacher.principalId, teacher.projectId]),
+    ).rejects.toMatchObject({ code: 'P5L01' });
+    for (const visibility of ['public', 'link']) {
+      await expect(
+        runtime.query('SELECT project_visibility_set($1,$2,$3)', [
+          teacher.principalId,
+          teacher.projectId,
+          visibility,
+        ]),
+      ).rejects.toMatchObject({ code: 'P5L01' });
+      expect(
+        (
+          await runtime.query('SELECT project_visibility_set($1,$2,$3) AS ok', [
+            outsider.principalId,
+            teacher.projectId,
+            visibility,
+          ])
+        ).rows[0].ok,
+      ).toBe(false);
+    }
+    expect(
+      (
+        await runtime.query('SELECT gallery_publish($1,$2) AS ok', [
+          outsider.principalId,
+          teacher.projectId,
+        ])
+      ).rows[0].ok,
+    ).toBe(false);
+    // The new owner API does not inherit teacher diagnostics or publication
+    // privileges: foreign Projects still map P5P04 to the same unavailable404.
+    await expect(
+      runtime.query('SELECT project_publication_publish($1,$2)', [
+        teacher.principalId,
+        teacher.projectId,
+      ]),
+    ).rejects.toMatchObject({ code: 'P5P04' });
+    await expect(
+      runtime.query('SELECT project_publication_publish($1,$2)', [
+        learnerPrincipal,
+        teacher.projectId,
+      ]),
+    ).rejects.toMatchObject({ code: 'P5P01' });
+    expect(await counts(teacher)).toEqual({ versions: 0, revisions: 0, states: 0 });
+  });
+
   it('freezes only a public profile label and never uses a private display name or login fallback', async () => {
     const source = await fixture('safe-label');
     await admin.query(
@@ -773,6 +1029,7 @@ describe('explicit Public Projects on real PostgreSQL', () => {
          has_table_privilege('asalab_app','public.project_publication_revisions','SELECT') AS revision_read,
          has_function_privilege('asalab_app','public.project_publication_policy_reason(uuid)','EXECUTE') AS policy_execute,
          has_function_privilege('asalab_app','public.project_publication_readable(uuid)','EXECUTE') AS readable_execute,
+         has_function_privilege('asalab_app','public.project_publication_legacy_learning_guard(uuid,uuid)','EXECUTE') AS legacy_guard_execute,
          has_function_privilege('asalab_app','public.gallery_publish_unprotected(uuid,uuid)','EXECUTE') AS unprotected_execute`,
     );
     expect(privileges.rows[0]).toEqual({
@@ -780,11 +1037,56 @@ describe('explicit Public Projects on real PostgreSQL', () => {
       revision_read: false,
       policy_execute: false,
       readable_execute: false,
+      legacy_guard_execute: false,
       unprotected_execute: false,
     });
     await expect(
       runtime.query('SELECT * FROM project_publication_revisions'),
     ).rejects.toMatchObject({ code: '42501' });
+    // Use a genuinely fresh physical backend for the unset custom GUC, then
+    // keep that exact backend through SET LOCAL/COMMIT and both tenant values.
+    // A pooled SET LOCAL context becomes an empty string after COMMIT; that
+    // must still produce the ACL refusal, never a UUID cast error or a row.
+    const directPool = testAppPool();
+    const directClient = await directPool.connect();
+    try {
+      const backendPid = (await directClient.query('SELECT pg_backend_pid() AS pid')).rows[0]
+        .pid as number;
+      const assertStorageDenied = async (context: string | null) => {
+        expect(
+          (
+            await directClient.query(
+              "SELECT pg_backend_pid() AS pid,current_setting('app.tenant_id',true) AS context",
+            )
+          ).rows[0],
+        ).toEqual({ pid: backendPid, context });
+        for (const relation of ['project_publication_state', 'project_publication_revisions']) {
+          await expect(directClient.query(`SELECT * FROM ${relation}`)).rejects.toMatchObject({
+            code: '42501',
+          });
+        }
+      };
+      await assertStorageDenied(null);
+      await directClient.query('BEGIN');
+      await directClient.query("SELECT set_config('app.tenant_id',$1,true)", [
+        source.input.tenantId,
+      ]);
+      await directClient.query('COMMIT');
+      await assertStorageDenied('');
+      await directClient.query("SELECT set_config('app.tenant_id',$1,false)", [
+        source.input.tenantId,
+      ]);
+      await assertStorageDenied(source.input.tenantId);
+      const foreignTenant = crypto.randomUUID();
+      await directClient.query("SELECT set_config('app.tenant_id',$1,false)", [foreignTenant]);
+      await assertStorageDenied(foreignTenant);
+      await directClient.query('RESET app.tenant_id');
+      await assertStorageDenied('');
+    } finally {
+      await directClient.query('ROLLBACK');
+      directClient.release(true);
+      await directPool.end();
+    }
     await expect(
       runtime.query('SELECT gallery_publish_unprotected($1,$2)', [
         source.principalId,
