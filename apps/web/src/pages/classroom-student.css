@@ -512,8 +512,54 @@
   margin: 0;
 }
 .classroom-student-safety {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  margin: 0;
   color: #346851;
   font-size: 12px;
+}
+.classroom-student-safety input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: #267050;
+}
+.classroom-student-settings,
+.classroom-student-actions > summary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 4px 10px;
+  border: 1px solid #d8e2e8;
+  border-radius: 8px;
+  background: #fff;
+  color: #345367;
+  cursor: pointer;
+}
+.classroom-student-settings:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.classroom-student-actions {
+  position: relative;
+}
+.classroom-student-actions .dropdown-menu {
+  right: 0;
+  left: auto;
+  max-width: min(280px, calc(100vw - 32px));
+}
+.classroom-student-actions .dropdown-menu button {
+  min-height: 44px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.classroom-student [aria-label='Аватары класса']:focus-visible {
+  outline: 2px solid #2676a2;
+  outline-offset: 4px;
 }
 .classroom-student .participant-tabs {
   display: flex;

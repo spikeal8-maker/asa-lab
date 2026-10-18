@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, createElement } from 'react';
+import { act, createElement, type ComponentProps } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { ApiResult } from '../../api-call';
@@ -891,6 +891,175 @@ const profile = (): ParticipantProfile => ({
   avatars: [],
 });
 
+type SeatActions = NonNullable<ComponentProps<typeof ClassroomStudentPage>['seatActions']>;
+function profileActions(overrides: Partial<SeatActions> = {}): SeatActions {
+  return {
+    busy: false,
+    readOnly: false,
+    studentCode: true,
+    canOpenCard: true,
+    error: null,
+    onSettings: vi.fn(),
+    onCode: vi.fn(),
+    onAccessCard: vi.fn(),
+    onSuspend: vi.fn(),
+    onSafeMode: vi.fn(async () => null),
+    ...overrides,
+  };
+}
+function mockProfilePage(
+  read = async (_class: string, seat: string) => {
+    const data = profile();
+    data.student.id = seat;
+    data.student.displayLabel = seat;
+    data.metrics.seatId = seat;
+    return ok(data);
+  },
+) {
+  vi.spyOn(api, 'listProjectModules').mockResolvedValue(ok({ items: [] }));
+  vi.spyOn(participantsApi, 'grades').mockResolvedValue(ok(page(0, 0)));
+  vi.spyOn(participantsApi, 'works').mockResolvedValue(
+    ok({
+      items: [],
+      totalWorks: 0,
+      visibleWorks: 0,
+      filteredWorks: 0,
+      offset: 0,
+      hasMore: false,
+    }),
+  );
+  return vi.spyOn(participantsApi, 'profile').mockImplementation(read);
+}
+async function renderProfileActions(actions: SeatActions, seatId = 'seat-a', revision = 0) {
+  await act(async () =>
+    root.render(
+      createElement(ClassroomStudentPage, {
+        classroomId: 'class',
+        classroomTitle: 'Класс',
+        seatId,
+        navigation: null,
+        onNavigateStudent: vi.fn(),
+        onBack: vi.fn(),
+        onOpenProject: vi.fn(),
+        seatActions: actions,
+        profileRevision: revision,
+      }),
+    ),
+  );
+}
+
+it('keeps protection at the confirmed value until save and profile refresh complete', async () => {
+  let safeMode = false;
+  const read = mockProfilePage(async () => {
+    const data = profile();
+    data.student.displayLabel = 'seat-a';
+    data.student.safeMode = safeMode;
+    return ok(data);
+  });
+  const saved = deferred<string | null>();
+  const actions = profileActions({ onSafeMode: vi.fn(() => saved.promise) });
+  await renderProfileActions(actions);
+  const protection = host.querySelector<HTMLInputElement>('[aria-label="Защита: seat-a"]')!;
+  await act(async () => protection.click());
+  expect(actions.onSafeMode).toHaveBeenCalledWith(true);
+  expect(protection.checked).toBe(false);
+  expect(protection.disabled).toBe(true);
+  safeMode = true;
+  await act(async () => saved.resolve(null));
+  expect(protection.checked).toBe(true);
+  expect(protection.disabled).toBe(false);
+  expect(read).toHaveBeenCalledTimes(2);
+});
+
+it.each(['switch', 'logout'] as const)(
+  'ignores a pending protection failure after %s',
+  async (boundary) => {
+    const read = mockProfilePage();
+    const saved = deferred<string | null>();
+    const actions = profileActions({ onSafeMode: vi.fn(() => saved.promise) });
+    await renderProfileActions(actions);
+    await act(async () =>
+      host.querySelector<HTMLInputElement>('[aria-label="Защита: seat-a"]')!.click(),
+    );
+    if (boundary === 'switch') await renderProfileActions(actions, 'seat-b');
+    else await act(async () => notifySessionLoggedOut());
+    const calls = read.mock.calls.length;
+    await act(async () => saved.resolve('STALE FORBIDDEN'));
+    expect(host.textContent).not.toContain('STALE FORBIDDEN');
+    expect(read).toHaveBeenCalledTimes(calls);
+    if (boundary === 'switch') {
+      expect(host.querySelector('.classroom-student-picker-name')?.textContent).toBe('seat-b');
+      expect(host.querySelector<HTMLInputElement>('[aria-label="Защита: seat-b"]')!.checked).toBe(
+        false,
+      );
+    } else expect(host.querySelector('.classroom-student-safety')).toBeNull();
+  },
+);
+
+it('refreshes the saved name on revision without losing the selected profile tab', async () => {
+  let name = 'До сохранения';
+  mockProfilePage(async () => {
+    const data = profile();
+    data.student.displayLabel = name;
+    return ok(data);
+  });
+  const actions = profileActions();
+  await renderProfileActions(actions);
+  await click('Активность');
+  name = 'После сохранения';
+  await renderProfileActions(actions, 'seat-a', 1);
+  expect(host.querySelector('.classroom-student-picker-name')?.textContent).toBe(name);
+  expect(button('Активность').getAttribute('aria-pressed')).toBe('true');
+});
+
+it('wires settings, credentials, access cards, suspension and the real class avatar panel', async () => {
+  mockProfilePage();
+  const actions = profileActions();
+  await renderProfileActions(actions);
+  await click('Настройки ученика: seat-a');
+  await click('Изменить код');
+  await click('Карточка доступа');
+  await click('Приостановить доступ');
+  expect(actions.onSettings).toHaveBeenCalledTimes(1);
+  expect(actions.onCode).toHaveBeenCalledTimes(1);
+  expect(actions.onAccessCard).toHaveBeenCalledTimes(1);
+  expect(actions.onSuspend).toHaveBeenCalledTimes(1);
+  await click('Аватары класса');
+  const section = host.querySelector<HTMLElement>('section[aria-label="Аватары класса"]')!;
+  expect(section).not.toBeNull();
+  expect(section.contains(host.querySelector('.participant-recognition'))).toBe(true);
+  expect(document.activeElement).toBe(section);
+});
+
+it.each(['archive', 'suspended', 'pending'] as const)(
+  'disables mutation controls for %s',
+  async (mode) => {
+    mockProfilePage(async () => {
+      const data = profile();
+      data.student.displayLabel = 'seat-a';
+      if (mode === 'suspended') data.student.status = 'suspended';
+      return ok(data);
+    });
+    const actions = profileActions({
+      readOnly: mode === 'archive',
+      busy: mode === 'pending',
+      studentCode: false,
+    });
+    await renderProfileActions(actions);
+    expect(host.querySelector<HTMLInputElement>('[aria-label="Защита: seat-a"]')!.disabled).toBe(
+      true,
+    );
+    expect(button('Настройки ученика: seat-a').disabled).toBe(true);
+    expect(button('Карточка доступа').disabled).toBe(true);
+    expect(host.textContent).not.toContain('Изменить код');
+    if (mode === 'suspended') {
+      expect(button('Вернуть доступ').disabled).toBe(false);
+      await click('Вернуть доступ');
+      expect(actions.onSuspend).toHaveBeenCalledTimes(1);
+    } else expect(button('Приостановить доступ').disabled).toBe(true);
+  },
+);
+
 it.each(['switch', 'logout'] as const)(
   'ignores a pending role mutation after %s',
   async (boundary) => {
@@ -918,6 +1087,7 @@ it.each(['switch', 'logout'] as const)(
       ok({
         items: ['seat-a', 'seat-b'].map((id) => ({
           ...profile().student,
+          status: 'active' as const,
           id,
           displayLabel: id,
           studentCode: 'PRIVATE-CODE',
@@ -997,6 +1167,7 @@ it.each(['api error', 'rejection'] as const)(
         items: [
           {
             ...profile().student,
+            status: 'active' as const,
             studentCode: 'PRIVATE-CODE',
             loginMethod: 'student_code' as const,
             loginHandle: 'PRIVATE-HANDLE',
@@ -1088,7 +1259,12 @@ it('renders one navigation row, truthful safety, all eight keyboard-reachable se
       ?.getAttribute('title'),
   ).toBe('Иванов Иван Петрович');
   expect(host.querySelectorAll('.classroom-student-navrow button:disabled')).toHaveLength(2);
-  expect(host.textContent).toContain('Защита выключена');
+  const protection = host.querySelector<HTMLInputElement>(
+    `input[type="checkbox"][aria-label="Защита: ${profile().student.displayLabel}"]`,
+  );
+  expect(protection).not.toBeNull();
+  expect(protection!.checked).toBe(false);
+  expect(protection!.disabled).toBe(true);
   expect(host.textContent).toContain('39.05');
   const tabs = host.querySelectorAll<HTMLButtonElement>('.participant-tabs button');
   expect(tabs).toHaveLength(8);

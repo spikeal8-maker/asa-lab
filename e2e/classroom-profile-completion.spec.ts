@@ -14,6 +14,7 @@ import type {
   ParticipantAssignments,
   ParticipantGrades,
   ParticipantManualHistory,
+  ParticipantProfile,
 } from '../apps/web/src/classroom-participants-api';
 
 // Production browser bundle + real API + isolated *_test PostgreSQL. No mocks.
@@ -149,7 +150,7 @@ async function openProfile(page: Page, classId: string, name: string) {
   // API fixture setup does not refresh an already-mounted same-hash classroom.
   await page.reload();
   await page.getByRole('row').filter({ hasText: name }).locator('.classroom-student-name').click();
-  await expect(page.getByRole('heading', { name, exact: true })).toBeVisible();
+  await expect(page.locator('.classroom-student-picker-name')).toHaveText(name);
 }
 async function assertLayout(page: Page, width: number, file: string) {
   await page.setViewportSize({ width, height: 900 });
@@ -369,6 +370,53 @@ async function assertLayout(page: Page, width: number, file: string) {
   await page.screenshot({ path: `${screenshots}/${file}-${width}.png`, fullPage: true });
 }
 
+test('teacher saves real pupil settings from the profile and keeps the learner selected', async ({
+  page,
+}) => {
+  const classroom = await createClass(page);
+  const pupil = await addPupil(page, classroom.id, 'Настройки первого ученика');
+  await addPupil(page, classroom.id, 'Настройки второго ученика');
+  await openProfile(page, classroom.id, pupil.name);
+  const main = page.locator('main.classroom-student');
+  const profilePath = `/api/classrooms/${classroom.id}/participants/${pupil.id}/profile`;
+  const protection = main.getByRole('checkbox', { name: `Защита: ${pupil.name}`, exact: true });
+  await expect(protection).toBeChecked();
+  const saved = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'PATCH' &&
+      new URL(response.url()).pathname === `/api/classrooms/${classroom.id}/seats/${pupil.id}`,
+  );
+  await protection.click();
+  expect((await saved).ok()).toBe(true);
+  await expect(protection).not.toBeChecked();
+  expect((await get<ParticipantProfile>(page, profilePath)).student.safeMode).toBe(false);
+  const newName = 'Сохранённый профиль ученика';
+  for (const width of [1440, 390, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    await main.getByRole('button', { name: /^Настройки ученика:/ }).click();
+    const dialog = page.getByRole('dialog', { name: /^Настройки ученика:/ });
+    await expect(dialog).toBeVisible();
+    await expect(page.locator('main.classroom-owner-workspace')).toBeHidden();
+    await dialog.getByLabel('Имя в списке класса').fill(newName);
+    await dialog.getByRole('button', { name: 'Сохранить', exact: true }).click();
+    await expect(dialog).toBeHidden();
+    await expect(main.locator('.classroom-student-picker-name')).toHaveText(newName);
+    expect((await get<ParticipantProfile>(page, profilePath)).student.displayLabel).toBe(newName);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+  }
+  await main.getByRole('button', { name: /^Следующий ученик:/ }).click();
+  await expect(main.locator('.classroom-student-picker-name')).toHaveText(
+    'Настройки второго ученика',
+  );
+  await main.getByRole('button', { name: /^Предыдущий ученик:/ }).click();
+  await expect(main.locator('.classroom-student-picker-name')).toHaveText(newName);
+  await expect(
+    main.getByRole('checkbox', { name: `Защита: ${newName}`, exact: true }),
+  ).not.toBeChecked();
+});
+
 test('assigned without a project stays one row through start, submission and review; theory, exclusion, helper and real mobile profile', async ({
   page,
   browser,
@@ -439,11 +487,11 @@ test('assigned without a project stays one row through start, submission and rev
   const neighbors = page.getByRole('navigation', { name: 'Переход по ученикам' });
   await expect(neighbors.getByText('1/2', { exact: true })).toBeVisible();
   await neighbors.getByRole('button', { name: 'Предыдущий ученик: ' + b.name }).click();
-  await expect(page.getByRole('heading', { name: b.name, exact: true })).toBeVisible();
+  await expect(page.locator('.classroom-student-picker-name')).toHaveText(b.name);
   await expect(neighbors.getByText('2/2', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Задания', exact: true }).click();
   await neighbors.getByRole('button', { name: 'Следующий ученик: ' + a.name }).click();
-  await expect(page.getByRole('heading', { name: a.name, exact: true })).toBeVisible();
+  await expect(page.locator('.classroom-student-picker-name')).toHaveText(a.name);
   await expect(
     page
       .getByRole('navigation', { name: 'Разделы профиля' })

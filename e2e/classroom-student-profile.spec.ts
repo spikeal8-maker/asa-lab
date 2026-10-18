@@ -156,6 +156,10 @@ async function setup(
     }),
   );
   if (options.long !== false) state.students()[0]!.displayLabel = longName;
+  for (const student of state.students()) {
+    student.safeMode = options.safe ?? true;
+    student.status = options.suspended ? 'suspended' : 'active';
+  }
   if (options.named) {
     state.students()[1]!.displayLabel = 'Иванов Иван Петрович';
     state.students()[2]!.displayLabel = 'Петрова Анна Сергеевна';
@@ -211,8 +215,6 @@ async function setup(
         status: options.archived ? 'archived' : 'active',
         student: {
           ...student,
-          status: options.suspended ? 'suspended' : 'active',
-          safeMode: options.safe ?? true,
         },
         settings: {
           revision: 0,
@@ -389,7 +391,7 @@ async function setup(
       .locator('.classroom-student-name')
       .filter({ hasText: options.long === false ? 'Ученик 01' : longName })
       .click();
-    await expect(page.locator('.classroom-student-identity h1')).toHaveText(
+    await expect(page.locator('.classroom-student-picker-name')).toHaveText(
       options.long === false ? 'Ученик 01' : longName,
     );
     return acceptedTabs;
@@ -436,6 +438,206 @@ async function assertPupilHistory(page: Page) {
   await details.getByRole('button', { name: 'История результата', exact: true }).first().click();
   await expect(details.locator('.participant-history')).toContainText('Полный подробный отзыв');
 }
+
+for (const width of [1440, 390, 320]) {
+  test(`profile settings and confirmed seat actions stay usable at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 900 });
+    const state = await setup(page, { long: false, manual: 0, results: 0 });
+    await state.open();
+    const main = page.locator('main.classroom-student');
+    const protection = main.getByRole('checkbox', { name: 'Защита: Ученик 01', exact: true });
+    const hiddenRoster = page.locator('main.classroom-owner-workspace');
+    await expect(hiddenRoster).toBeHidden();
+    let releaseSave!: () => void;
+    const held = new Promise<void>((resolve) => {
+      releaseSave = resolve;
+    });
+    let patchSeen = false;
+    await page.route(`**/api/classrooms/${classId}/seats/seat-0`, async (route) => {
+      if (route.request().method() !== 'PATCH') return route.fallback();
+      patchSeen = true;
+      expect(route.request().postDataJSON()).toMatchObject({
+        safeMode: false,
+        displayLabel: 'Ученик 01',
+      });
+      await held;
+      await route.fallback();
+    });
+    await protection.click();
+    await expect.poll(() => patchSeen).toBe(true);
+    await expect(protection).toBeChecked();
+    await expect(protection).toBeDisabled();
+    releaseSave();
+    await expect(protection).not.toBeChecked();
+    await expect(protection).toBeEnabled();
+    await page.unroute(`**/api/classrooms/${classId}/seats/seat-0`);
+
+    await main.getByRole('button', { name: 'Настройки ученика: Ученик 01', exact: true }).click();
+    const dialog = page.getByRole('dialog', { name: 'Настройки ученика: Ученик 01', exact: true });
+    await expect(dialog).toBeVisible();
+    await expect(hiddenRoster).toBeHidden();
+    expect(await dialog.evaluate((node) => node.closest('main[aria-hidden="true"]'))).toBeNull();
+    await expect(dialog.getByLabel('Имя в списке класса')).toBeFocused();
+    await dialog.getByLabel('Имя в списке класса').fill('Сохранённый ученик');
+    await dialog.getByRole('button', { name: 'Выбрать аватар ученика', exact: true }).click();
+    await dialog
+      .getByRole('button', { name: /^Выбрать: / })
+      .first()
+      .click();
+    await dialog.getByRole('button', { name: 'Использовать', exact: true }).click();
+    await dialog.getByRole('button', { name: 'Сохранить', exact: true }).click();
+    await expect(dialog).toBeHidden();
+    await expect(main.locator('.classroom-student-picker-name')).toHaveText('Сохранённый ученик');
+    expect(state.students()[0]!.avatarKey).not.toBeNull();
+    expect(state.mutations.filter((mutation) => mutation.path.endsWith('/seats/seat-0'))).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          body: expect.objectContaining({
+            displayLabel: 'Сохранённый ученик',
+            safeMode: false,
+            avatarKey: expect.any(String),
+          }),
+        }),
+      ]),
+    );
+    await noOverflow(page);
+
+    const actions = () =>
+      main.getByRole('button', { name: 'Действия: Сохранённый ученик', exact: true });
+    await actions().click();
+    await main.getByRole('button', { name: 'Аватары класса', exact: true }).click();
+    const avatars = main.getByRole('region', { name: 'Аватары класса', exact: true });
+    await expect(avatars).toBeFocused();
+    await expect(avatars.locator('.participant-recognition')).toBeVisible();
+    await expect(avatars).toContainText('Стандартный аватар выбирается в настройках ученика');
+    await main.getByRole('button', { name: 'Все работы', exact: true }).click();
+
+    await page.route(`**/api/classrooms/${classId}/seats/seat-0/code`, async (route) => {
+      expect(route.request().method()).toBe('POST');
+      expect(route.request().postDataJSON()).toMatchObject({
+        studentCode: 'NewCode7',
+        requestId: expect.any(String),
+      });
+      Object.assign(state.students()[0]!, { studentCode: 'NewCode7', loginHandle: 'NewCode7' });
+      await route.fulfill({ json: { studentCode: 'NewCode7', version: 2, reused: false } });
+    });
+    expect(await main.textContent()).not.toContain('Aa0000');
+    await actions().click();
+    await main.getByRole('button', { name: 'Изменить код', exact: true }).click();
+    const code = page.locator('.student-code-dialog');
+    await expect(code).toBeVisible();
+    await code.getByLabel('Код ученика', { exact: true }).fill('NewCode7');
+    await code.getByRole('button', { name: 'Сохранить код', exact: true }).click();
+    await expect(code).toBeHidden();
+    await expect(main.locator('.classroom-student-picker-name')).toHaveText('Сохранённый ученик');
+    expect(await main.textContent()).not.toContain('NewCode7');
+    await actions().click();
+    await main.getByRole('button', { name: 'Карточка доступа', exact: true }).click();
+    const cards = page.getByRole('dialog', { name: 'Карточки доступа', exact: true });
+    await expect(cards).toBeVisible();
+    await expect(cards).toContainText('NewCode7');
+    await cards.getByRole('button', { name: 'Закрыть', exact: true }).first().click();
+
+    await actions().click();
+    await main.getByRole('button', { name: 'Приостановить доступ', exact: true }).click();
+    await expect(main.getByText('Доступ приостановлен', { exact: true })).toBeVisible();
+    await expect(
+      main.getByRole('checkbox', { name: 'Защита: Сохранённый ученик', exact: true }),
+    ).toBeDisabled();
+    await actions().click();
+    await main.getByRole('button', { name: 'Вернуть доступ', exact: true }).click();
+    await expect(main.getByText('Доступ приостановлен', { exact: true })).toHaveCount(0);
+    await expect(
+      main.getByRole('checkbox', { name: 'Защита: Сохранённый ученик', exact: true }),
+    ).toBeEnabled();
+
+    await main.getByRole('button', { name: /Следующий ученик:/ }).click();
+    await expect(main.locator('.classroom-student-picker-name')).not.toHaveText(
+      'Сохранённый ученик',
+    );
+    await main.getByRole('button', { name: /^Выбрать ученика:/ }).click();
+    await page
+      .getByRole('dialog', { name: 'Ученики класса', exact: true })
+      .getByRole('button', { name: 'Сохранённый ученик', exact: true })
+      .click();
+    await expect(main.locator('.classroom-student-picker-name')).toHaveText('Сохранённый ученик');
+    await main.getByRole('button', { name: '← К классу', exact: true }).click();
+    await expect(hiddenRoster).toBeVisible();
+    await expect(
+      page.locator('.classroom-student-name').filter({ hasText: 'Сохранённый ученик' }),
+    ).toBeVisible();
+    expect(state.errors).toEqual([]);
+  });
+}
+
+test('account seats have no code editor and archived profiles expose no enabled mutations', async ({
+  page,
+}) => {
+  const state = await setup(page, { long: false, archived: true, manual: 0, results: 0 });
+  Object.assign(state.students()[0]!, {
+    loginMethod: 'account',
+    studentCode: null,
+    loginHandle: null,
+  });
+  await state.open();
+  const main = page.locator('main.classroom-student');
+  await expect(
+    main.getByRole('checkbox', { name: 'Защита: Ученик 01', exact: true }),
+  ).toBeDisabled();
+  await expect(
+    main.getByRole('button', { name: 'Настройки ученика: Ученик 01', exact: true }),
+  ).toBeDisabled();
+  await main.getByRole('button', { name: 'Действия: Ученик 01', exact: true }).click();
+  await expect(main.getByRole('button', { name: 'Изменить код', exact: true })).toHaveCount(0);
+  for (const name of ['Имя и аватар', 'Карточка доступа', 'Приостановить доступ', 'Аватары класса'])
+    await expect(main.getByRole('button', { name, exact: true })).toBeDisabled();
+  expect(state.mutations).toEqual([]);
+});
+
+test('a pending seat reply cannot change the next pupil and forbidden saves mask the profile', async ({
+  page,
+}) => {
+  const state = await setup(page, { long: false, manual: 0, results: 0 });
+  await state.open();
+  let release!: () => void;
+  const pending = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let seen = false;
+  await page.route(`**/api/classrooms/${classId}/seats/seat-0`, async (route) => {
+    if (route.request().method() !== 'PATCH') return route.fallback();
+    seen = true;
+    await pending;
+    await route.fulfill({
+      status: 403,
+      json: { error: { code: 'forbidden', message: 'OLD SEAT ERROR' } },
+    });
+  });
+  await page.getByRole('checkbox', { name: 'Защита: Ученик 01', exact: true }).click();
+  await expect.poll(() => seen).toBe(true);
+  await page.getByRole('button', { name: /Следующий ученик:/ }).click();
+  await expect(page.locator('.classroom-student-picker-name')).toHaveText('Ученик 02');
+  release();
+  await expect(
+    page.getByRole('checkbox', { name: 'Защита: Ученик 02', exact: true }),
+  ).toBeEnabled();
+  await expect(page.getByText(/OLD SEAT ERROR/)).toHaveCount(0);
+  await page.route(`**/api/classrooms/${classId}/seats/seat-1`, (route) =>
+    route.fulfill({
+      status: 403,
+      json: { error: { code: 'forbidden', message: 'Доступ запрещён' } },
+    }),
+  );
+  await page.getByRole('checkbox', { name: 'Защита: Ученик 02', exact: true }).click();
+  await expect(page.getByText('Доступ к классу закрыт.', { exact: true })).toBeVisible();
+  await expect(page.locator('main.classroom-student')).toHaveCount(0);
+  await expect(page.locator('.student-code-dialog')).toHaveCount(0);
+  expect(state.students()[0]!.safeMode).toBe(true);
+  expect(state.students()[1]!.safeMode).toBe(true);
+  expect(state.errors).toEqual([]);
+});
 
 test('production profile stays compact with long Russian identity on desktop, split-screen, phones and CSS reflow', async ({
   page,
@@ -558,14 +760,14 @@ test('production profile stays compact with long Russian identity on desktop, sp
       document.documentElement.style.zoom = String(value);
     }, zoom);
     await noOverflow(page);
-    await expect(page.locator('.classroom-student-identity h1')).toHaveText(longName);
+    await expect(page.locator('.classroom-student-picker-name')).toHaveText(longName);
     await shot(page, `profile-zoom-${zoom}`);
   }
   await page.evaluate(() => {
     document.documentElement.style.zoom = '1';
   });
   await page.getByRole('button', { name: /Следующий ученик:/ }).click();
-  await expect(page.locator('.classroom-student-identity h1')).toHaveText('Иванов Иван Петрович');
+  await expect(page.locator('.classroom-student-picker-name')).toHaveText('Иванов Иван Петрович');
   for (const width of [1440, 1024, 390, 320]) {
     await page.setViewportSize({ width, height: 900 });
     const previous = page.getByRole('button', { name: `Предыдущий ученик: ${longName}` });
@@ -650,7 +852,9 @@ test('all eight sections, honest loaded-only filtering, private works, archive a
     populated: true,
   });
   await state.open();
-  await expect(page.getByText('Защита выключена', { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole('checkbox', { name: `Защита: ${longName}`, exact: true }),
+  ).not.toBeChecked();
   await expect(page.getByText('Доступ приостановлен', { exact: true })).toBeVisible();
   await expect(page.getByRole('combobox', { name: 'Роль в классе' })).toHaveValue('helper');
   const tabs = page.getByRole('navigation', { name: 'Разделы профиля' });
@@ -735,7 +939,9 @@ test('single learner is disabled, archived is read-only, profile loading/error/r
   await page.getByRole('button', { name: 'Повторить', exact: true }).click();
   await expect(page.locator('.classroom-student-navigation button:disabled')).toHaveCount(2);
   await expect(page.getByRole('combobox', { name: 'Роль в классе' })).toBeDisabled();
-  await expect(page.getByText('Защита включена', { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole('checkbox', { name: `Защита: ${longName}`, exact: true }),
+  ).toBeChecked();
   await expect(
     page.getByText('Класс в архиве. Изменения недоступны.', { exact: true }),
   ).toBeVisible();
@@ -764,10 +970,10 @@ test('previous/next wrap and return to the exact journal context including month
     .click();
   await expect(page.locator('.classroom-student-navigation-position')).toHaveText('1/3');
   await page.getByRole('button', { name: /Предыдущий ученик:/ }).click();
-  await expect(page.locator('.classroom-student-identity h1')).toHaveText('Ученик 03');
+  await expect(page.locator('.classroom-student-picker-name')).toHaveText('Ученик 03');
   await expect(page.locator('.classroom-student-navigation-position')).toHaveText('3/3');
   await page.getByRole('button', { name: /Следующий ученик:/ }).click();
-  await expect(page.locator('.classroom-student-identity h1')).toHaveText('Ученик 01');
+  await expect(page.locator('.classroom-student-picker-name')).toHaveText('Ученик 01');
   await page.getByRole('button', { name: '← К классу', exact: true }).click();
   await expect(month).toHaveValue('2025-10');
   await expect(search).toHaveValue('Ученик 01');
@@ -790,7 +996,7 @@ test('a delayed previous learner grade page cannot populate the next learner', a
     .poll(() => state.requests.some((r) => r.kind === 'grades' && r.offset === 30))
     .toBe(true);
   await page.getByRole('button', { name: /Следующий ученик:/ }).click();
-  await expect(page.locator('.classroom-student-identity h1')).toHaveText('Ученик 02');
+  await expect(page.locator('.classroom-student-picker-name')).toHaveText('Ученик 02');
   await expect(summary.locator('[data-grade-source="journal"]')).toHaveCount(30);
   state.control.holdGrade = false;
   state.control.releaseGrade();
@@ -1165,7 +1371,7 @@ test('pending role mutations cannot repopulate another learner or a logged-out p
   await expect.poll(() => roles.length).toBe(1);
   await expect(page.getByRole('button', { name: /История/ })).toHaveCount(0);
   await page.getByRole('button', { name: /Следующий ученик:/ }).click();
-  await expect(page.locator('.classroom-student-identity h1')).toHaveText('Ученик 02');
+  await expect(page.locator('.classroom-student-picker-name')).toHaveText('Ученик 02');
   await expect(page.getByRole('combobox', { name: 'Роль в классе' })).toHaveValue('student');
   const beforeOldReply = state.requests.filter((request) => request.kind === 'profile').length;
   const oldReply = page.waitForResponse((response) =>

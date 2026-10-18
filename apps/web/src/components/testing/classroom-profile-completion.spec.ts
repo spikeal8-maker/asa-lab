@@ -858,6 +858,7 @@ describe('participant completion DOM behavior', () => {
     const entries = ['Иванова Анна Сергеевна', 'Петров Борис Александрович'].map(
       (displayLabel, index) => ({
         ...profile('student', index ? 'seat-b' : 'seat-a').student,
+        status: 'active' as const,
         displayLabel,
         studentCode: 'PRIVATE-CODE',
         loginMethod: 'student_code' as const,
