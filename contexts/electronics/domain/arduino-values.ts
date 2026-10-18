@@ -17,14 +17,24 @@ export type ArduinoScopeSnapshot = Readonly<Record<string, ArduinoBinding>>;
 
 export class ArduinoArithmeticError extends Error {}
 
-const integers = {
-  bool: { bits: 1, signed: false },
-  byte: { bits: 8, signed: false },
-  int: { bits: 16, signed: true },
-  'unsigned int': { bits: 16, signed: false },
-  long: { bits: 32, signed: true },
-  'unsigned long': { bits: 32, signed: false },
-} as const;
+const integerProfile = (bits: number, signed: boolean) => {
+  const range = 2 ** bits;
+  return Object.freeze({
+    bits,
+    signed,
+    range,
+    minimum: signed ? -range / 2 : 0,
+    maximum: signed ? range / 2 - 1 : range - 1,
+  });
+};
+const integers = Object.freeze({
+  bool: integerProfile(1, false),
+  byte: integerProfile(8, false),
+  int: integerProfile(16, true),
+  'unsigned int': integerProfile(16, false),
+  long: integerProfile(32, true),
+  'unsigned long': integerProfile(32, false),
+});
 export const ARDUINO_NUMERIC_TYPES: readonly ArduinoNumericType[] = [
   ...(Object.keys(integers) as Array<keyof typeof integers>),
   'float',
@@ -33,11 +43,39 @@ export const ARDUINO_NUMERIC_TYPES: readonly ArduinoNumericType[] = [
 const floating = (type: ArduinoNumericType): boolean => type === 'float' || type === 'double';
 export const zeroValue = (type: ArduinoNumericType = 'int'): ArduinoValue => ({ type, value: 0 });
 
-export function numericValue(type: ArduinoNumericType, value: number): ArduinoValue {
+function numericNumber(type: ArduinoNumericType, value: number): number {
   const result = floating(type) ? Math.fround(value) : value;
   if (!Number.isFinite(result))
     throw new ArduinoArithmeticError('Результат вычисления не является конечным числом.');
-  return { type, value: Object.is(result, -0) ? 0 : result };
+  return Object.is(result, -0) ? 0 : result;
+}
+
+export function numericValue(type: ArduinoNumericType, value: number): ArduinoValue {
+  return { type, value: numericNumber(type, value) };
+}
+
+function convertedNumber(value: ArduinoValue, type: ArduinoNumericType): number {
+  if (type === 'bool') return numericNumber(type, Number(value.value !== 0));
+  if (floating(type)) return numericNumber(type, value.value);
+  const {
+    bits,
+    signed,
+    range = 2 ** bits,
+    minimum = signed ? -range / 2 : 0,
+    maximum = signed ? range / 2 - 1 : range - 1,
+  } = integers[type as keyof typeof integers];
+  const result = Math.trunc(value.value);
+  // Float-to-integer out of range is not the well-defined unsigned integer conversion.
+  if (floating(value.type) && (result < minimum || result > maximum))
+    throw new ArduinoArithmeticError(
+      `Число вне диапазона ${type} при преобразовании из ${value.type}.`,
+    );
+  // Every in-range truncated integer (at most 32 bits) is already exactly the
+  // original modulo/sign-wrapped result. All other inputs keep that fallback.
+  if (result >= minimum && result <= maximum) return numericNumber(type, result);
+  const wrapped = ((result % range) + range) % range;
+  // AVR GCC's implementation-defined signed narrowing uses the low bits.
+  return numericNumber(type, signed && wrapped >= range / 2 ? wrapped - range : wrapped);
 }
 
 export function convertValue(
@@ -46,21 +84,7 @@ export function convertValue(
   validateOnly = false,
 ): ArduinoValue {
   if (validateOnly) return zeroValue(type);
-  if (type === 'bool') return numericValue(type, Number(value.value !== 0));
-  if (floating(type)) return numericValue(type, value.value);
-  const { bits, signed } = integers[type as keyof typeof integers];
-  const range = 2 ** bits;
-  const result = Math.trunc(value.value);
-  // Float-to-integer out of range is not the well-defined unsigned integer conversion.
-  const minimum = signed ? -range / 2 : 0;
-  const maximum = signed ? range / 2 - 1 : range - 1;
-  if (floating(value.type) && (result < minimum || result > maximum))
-    throw new ArduinoArithmeticError(
-      `Число вне диапазона ${type} при преобразовании из ${value.type}.`,
-    );
-  const wrapped = ((result % range) + range) % range;
-  // AVR GCC's implementation-defined signed narrowing uses the low bits.
-  return numericValue(type, signed && wrapped >= range / 2 ? wrapped - range : wrapped);
+  return { type, value: convertedNumber(value, type) };
 }
 
 export function promotedType(type: ArduinoNumericType): ArduinoNumericType {
@@ -101,8 +125,8 @@ export function binaryValue(
   if (operator === '%' && floating(type))
     throw new SyntaxError('Остаток % требует целочисленных операндов.');
   if (validateOnly) return zeroValue(comparison ? 'bool' : type);
-  const left = convertValue(a, type).value,
-    right = convertValue(b, type).value;
+  const left = convertedNumber(a, type),
+    right = convertedNumber(b, type);
   if (comparison) {
     const result =
       operator === '=='

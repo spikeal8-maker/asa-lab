@@ -2,6 +2,11 @@ import { describe, expect, it, vi } from 'vitest';
 import type { SchematicComponent } from '../domain/document';
 import type { DcStampContext } from '../domain/models/device-model';
 import {
+  ORDINARY_LED_PROFILES,
+  ordinaryLedProfile,
+  ordinaryLedProfilesHaveOriginalDefinition,
+} from '../domain/led-model';
+import {
   createLinearDcDevice,
   isMultimeterDcCurrentDevice,
   isMultimeterResistanceDevice,
@@ -15,6 +20,7 @@ import {
   MULTIMETER_RESISTANCE_DEVICE_MODEL,
   MULTIMETER_RESISTANCE_MAX_RANGE_OHM,
   RESISTOR_DEVICE_MODEL,
+  resistorDeviceModelHasOriginalDefinition,
   SOURCE_DEVICE_MODEL,
 } from '../domain/models/linear-dc-models';
 
@@ -235,5 +241,274 @@ describe('MATH-1 linear DC device models', () => {
       modelProfileVersion: 2,
     });
     expect(createLinearDcDevice(incompatible)).toBeNull();
+  });
+});
+
+describe('definition-time origin of the request-owned resistor/ordinary LED route', () => {
+  function temporarilyChange(target: object, change: () => void, check: () => void): void {
+    const descriptors = Object.getOwnPropertyDescriptors(target);
+    const prototype = Object.getPrototypeOf(target);
+    try {
+      change();
+      check();
+    } finally {
+      Object.setPrototypeOf(target, prototype);
+      for (const key of Reflect.ownKeys(target)) {
+        if (Object.getOwnPropertyDescriptor(target, key)?.configurable)
+          Reflect.deleteProperty(target, key);
+      }
+      Object.defineProperties(target, descriptors);
+    }
+  }
+
+  it('admits the unmodified definitions without freezing the public models', () => {
+    expect(resistorDeviceModelHasOriginalDefinition()).toBe(true);
+    expect(ordinaryLedProfilesHaveOriginalDefinition()).toBe(true);
+    expect(Object.isFrozen(RESISTOR_DEVICE_MODEL)).toBe(false);
+    expect(Object.isFrozen(ORDINARY_LED_PROFILES.red.linearSegments)).toBe(false);
+    expect(ordinaryLedProfile('red')).toBe(ORDINARY_LED_PROFILES.red);
+  });
+
+  it.each(['validate', 'normalize', 'stampDc', 'observe'] as const)(
+    'rejects a substituted %s before any callback is invoked, then accepts restoration',
+    (method) => {
+      const replacement = vi.fn(() => {
+        throw new Error('must not execute in admission');
+      });
+      temporarilyChange(
+        RESISTOR_DEVICE_MODEL,
+        () => Object.defineProperty(RESISTOR_DEVICE_MODEL, method, { value: replacement }),
+        () => {
+          expect(resistorDeviceModelHasOriginalDefinition()).toBe(false);
+          expect(replacement).not.toHaveBeenCalled();
+        },
+      );
+      expect(resistorDeviceModelHasOriginalDefinition()).toBe(true);
+    },
+  );
+
+  it('detects model identity, own keys, descriptors and prototypes without inspecting substitutes', () => {
+    const trap = vi.fn(() => {
+      throw new Error('unknown proxy must not be inspected');
+    });
+    const proxy = new Proxy({}, { get: trap, ownKeys: trap, getPrototypeOf: trap });
+    const changes = [
+      () => Object.defineProperty(RESISTOR_DEVICE_MODEL, 'id', { value: 'custom-resistor' }),
+      () => Object.defineProperty(RESISTOR_DEVICE_MODEL, 'version', { value: 2 }),
+      () => Object.defineProperty(RESISTOR_DEVICE_MODEL, 'normalize', { enumerable: false }),
+      () => Reflect.deleteProperty(RESISTOR_DEVICE_MODEL, 'normalize'),
+      () =>
+        Object.defineProperty(RESISTOR_DEVICE_MODEL, Symbol('custom'), {
+          value: proxy,
+          configurable: true,
+        }),
+      () => Object.setPrototypeOf(RESISTOR_DEVICE_MODEL, proxy),
+      () => Object.defineProperty(RESISTOR_DEVICE_MODEL, 'analyses', { value: proxy }),
+    ];
+    for (const change of changes) {
+      temporarilyChange(RESISTOR_DEVICE_MODEL, change, () => {
+        expect(resistorDeviceModelHasOriginalDefinition()).toBe(false);
+        expect(trap).not.toHaveBeenCalled();
+      });
+      expect(resistorDeviceModelHasOriginalDefinition()).toBe(true);
+    }
+  });
+
+  it('detects original method metadata and analyses-array mutations', () => {
+    temporarilyChange(
+      RESISTOR_DEVICE_MODEL.normalize,
+      () => Object.defineProperty(RESISTOR_DEVICE_MODEL.normalize, 'name', { value: 'custom' }),
+      () => expect(resistorDeviceModelHasOriginalDefinition()).toBe(false),
+    );
+    temporarilyChange(
+      RESISTOR_DEVICE_MODEL.analyses,
+      () => Object.defineProperty(RESISTOR_DEVICE_MODEL.analyses, '0', { value: 'ac' }),
+      () => expect(resistorDeviceModelHasOriginalDefinition()).toBe(false),
+    );
+    expect(resistorDeviceModelHasOriginalDefinition()).toBe(true);
+  });
+
+  it('rejects even a revoked substituted callable without probing it', () => {
+    const replacement = Proxy.revocable(() => undefined, {});
+    replacement.revoke();
+    temporarilyChange(
+      RESISTOR_DEVICE_MODEL,
+      () =>
+        Object.defineProperty(RESISTOR_DEVICE_MODEL, 'normalize', {
+          value: replacement.proxy,
+        }),
+      () => expect(resistorDeviceModelHasOriginalDefinition()).toBe(false),
+    );
+    expect(resistorDeviceModelHasOriginalDefinition()).toBe(true);
+  });
+
+  it('does not read substituted accessors and preserves generic getter/throw dispatch', () => {
+    const error = new Error('custom normalize');
+    const getter = vi.fn(() => {
+      throw error;
+    });
+    temporarilyChange(
+      RESISTOR_DEVICE_MODEL,
+      () => Object.defineProperty(RESISTOR_DEVICE_MODEL, 'normalize', { get: getter }),
+      () => {
+        expect(resistorDeviceModelHasOriginalDefinition()).toBe(false);
+        expect(getter).not.toHaveBeenCalled();
+        expect(() => createLinearDcDevice(component('r1', 'resistor', 220))).toThrow(error);
+        expect(getter).toHaveBeenCalledTimes(1);
+      },
+    );
+    expect(resistorDeviceModelHasOriginalDefinition()).toBe(true);
+  });
+
+  it('preserves generic custom-normalizer dispatch and the original component alias', () => {
+    const input = component('r1', 'resistor', 220);
+    const original = RESISTOR_DEVICE_MODEL.normalize;
+    const normalize = vi.fn((value: SchematicComponent) => original(value));
+    temporarilyChange(
+      RESISTOR_DEVICE_MODEL,
+      () => Object.defineProperty(RESISTOR_DEVICE_MODEL, 'normalize', { value: normalize }),
+      () => {
+        expect(resistorDeviceModelHasOriginalDefinition()).toBe(false);
+        const device = createLinearDcDevice(input);
+        expect(normalize).toHaveBeenCalledExactlyOnceWith(input);
+        expect(device?.instance.component).toBe(input);
+      },
+    );
+  });
+
+  it('captures both authorities before a later solver consumer imports them', async () => {
+    vi.resetModules();
+    const producer = await import('../domain/models/linear-dc-models');
+    const ledProducer = await import('../domain/led-model');
+    const original = producer.RESISTOR_DEVICE_MODEL.normalize;
+    const red = ledProducer.ORDINARY_LED_PROFILES.red;
+    try {
+      Object.defineProperty(producer.RESISTOR_DEVICE_MODEL, 'normalize', {
+        value: (value: SchematicComponent) => original(value),
+      });
+      Object.defineProperty(ledProducer.ORDINARY_LED_PROFILES, 'red', { value: { ...red } });
+      await import('../domain/solver');
+      expect(producer.resistorDeviceModelHasOriginalDefinition()).toBe(false);
+      expect(ledProducer.ordinaryLedProfilesHaveOriginalDefinition()).toBe(false);
+    } finally {
+      Object.defineProperty(producer.RESISTOR_DEVICE_MODEL, 'normalize', { value: original });
+      Object.defineProperty(ledProducer.ORDINARY_LED_PROFILES, 'red', { value: red });
+    }
+    expect(producer.resistorDeviceModelHasOriginalDefinition()).toBe(true);
+    expect(ledProducer.ordinaryLedProfilesHaveOriginalDefinition()).toBe(true);
+  });
+
+  it('rejects copied profiles, arrays and segment records even when all values match', () => {
+    const red = ORDINARY_LED_PROFILES.red;
+    const segments = red.linearSegments!;
+    const segment = segments[0]!;
+    const cases: [object, () => void][] = [
+      [
+        ORDINARY_LED_PROFILES,
+        () => Object.defineProperty(ORDINARY_LED_PROFILES, 'red', { value: { ...red } }),
+      ],
+      [red, () => Object.defineProperty(red, 'linearSegments', { value: [...segments] })],
+      [segments, () => Object.defineProperty(segments, '0', { value: { ...segment } })],
+    ];
+    for (const [target, change] of cases) {
+      temporarilyChange(target, change, () =>
+        expect(ordinaryLedProfilesHaveOriginalDefinition()).toBe(false),
+      );
+      expect(ordinaryLedProfilesHaveOriginalDefinition()).toBe(true);
+    }
+  });
+
+  it('checks every colour and segment field, array keys/length/prototype and restoration', () => {
+    for (const profile of Object.values(ORDINARY_LED_PROFILES)) {
+      for (const key of Object.keys(profile).filter((key) => key !== 'linearSegments')) {
+        temporarilyChange(
+          profile,
+          () => Object.defineProperty(profile, key, { value: null }),
+          () => {
+            expect(ordinaryLedProfilesHaveOriginalDefinition()).toBe(false);
+          },
+        );
+      }
+      for (const segment of profile.linearSegments!) {
+        for (const key of Object.keys(segment)) {
+          temporarilyChange(
+            segment,
+            () => Object.defineProperty(segment, key, { value: -1 }),
+            () => {
+              expect(ordinaryLedProfilesHaveOriginalDefinition()).toBe(false);
+            },
+          );
+        }
+      }
+    }
+    const segments = ORDINARY_LED_PROFILES.red.linearSegments!;
+    const changes = [
+      () => Reflect.deleteProperty(segments, '0'),
+      () => Object.defineProperty(segments, 'length', { value: 1 }),
+      () =>
+        Object.defineProperty(segments, Symbol.iterator, {
+          value: () => [][Symbol.iterator](),
+          configurable: true,
+        }),
+      () => Object.setPrototypeOf(segments, null),
+    ];
+    for (const change of changes) {
+      temporarilyChange(segments, change, () =>
+        expect(ordinaryLedProfilesHaveOriginalDefinition()).toBe(false),
+      );
+      expect(ordinaryLedProfilesHaveOriginalDefinition()).toBe(true);
+    }
+  });
+
+  it('rejects nested getters and proxies without any admission-time callback or proxy trap', () => {
+    const trap = vi.fn(() => {
+      throw new Error('unexpected reflection or callback');
+    });
+    const proxy = new Proxy(
+      {},
+      {
+        get: trap,
+        ownKeys: trap,
+        getOwnPropertyDescriptor: trap,
+        getPrototypeOf: trap,
+      },
+    );
+    const red = ORDINARY_LED_PROFILES.red;
+    const segments = red.linearSegments!;
+    const cases: [object, string, PropertyDescriptor][] = [
+      [ORDINARY_LED_PROFILES, 'red', { value: proxy }],
+      [red, 'linearSegments', { value: proxy }],
+      [segments, '0', { value: proxy }],
+      [segments[0]!, 'kneeVoltage', { get: trap }],
+      [red, 'nominalCurrentAmp', { get: trap }],
+    ];
+    for (const [target, key, descriptor] of cases) {
+      temporarilyChange(
+        target,
+        () => Object.defineProperty(target, key, descriptor),
+        () => {
+          expect(ordinaryLedProfilesHaveOriginalDefinition()).toBe(false);
+          expect(trap).not.toHaveBeenCalled();
+        },
+      );
+      expect(ordinaryLedProfilesHaveOriginalDefinition()).toBe(true);
+    }
+  });
+
+  it('preserves live ordinary-profile lookup and its generic getter error exactly once', () => {
+    const error = new Error('custom red lookup');
+    const getter = vi.fn(() => {
+      throw error;
+    });
+    temporarilyChange(
+      ORDINARY_LED_PROFILES,
+      () => Object.defineProperty(ORDINARY_LED_PROFILES, 'red', { get: getter }),
+      () => {
+        expect(ordinaryLedProfilesHaveOriginalDefinition()).toBe(false);
+        expect(getter).not.toHaveBeenCalled();
+        expect(() => ordinaryLedProfile('red')).toThrow(error);
+        expect(getter).toHaveBeenCalledTimes(1);
+      },
+    );
   });
 });

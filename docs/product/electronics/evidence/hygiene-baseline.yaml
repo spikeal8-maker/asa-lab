@@ -12,6 +12,10 @@ checkpoint_policy:
     - repair:production-source-change
 
 large_sources:
+  - path: contexts/electronics/domain/arduino-circuit-scheduler.ts
+    class: decomposition-candidate
+    reviewed_bytes: 56913
+    rationale: Canonical coupled-clock orchestration now includes event-driven electrothermal barriers and request-owned preparation. Eligibility, continuation validation, pre-event physics, simultaneous board updates and failure rollback remain one ordered responsibility; future extraction needs full-return and event-order parity, not a size-only split. Bounded responsibility evidence is recorded in TASK-ELECTRONICS-SOLVER-PREPARATION-001.
   - path: contexts/electronics/domain/solver.ts
     class: decomposition-candidate
     reviewed_bytes: 179752
