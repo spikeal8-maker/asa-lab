@@ -500,8 +500,8 @@
   font-size: 12px;
 }
 .classroom-student .participant-role select {
-  min-height: 30px;
-  height: 30px;
+  min-height: 44px;
+  height: 44px;
   width: auto;
   padding: 4px 7px;
   font-size: 13px;
@@ -586,15 +586,15 @@
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
-  min-height: 34px;
-  height: 34px;
+  min-height: 44px;
+  height: 44px;
   margin: 0;
   padding: 4px 7px;
   border: 1px solid transparent;
   border-radius: 6px;
   background: transparent;
   color: #365267;
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1.2;
   font-weight: 650;
   box-shadow: none;
@@ -766,19 +766,19 @@
   white-space: nowrap;
 }
 .classroom-student .teacher-profile-grades button {
-  min-width: 32px;
-  min-height: 28px;
+  min-width: 44px;
+  min-height: 44px;
   margin: 0;
   padding: 3px 6px;
   border: 1px solid var(--student-line);
   border-radius: 6px;
   background: #fff;
   color: #365267;
-  font-size: 11px;
+  font-size: 12px;
   line-height: 16px;
 }
 .classroom-student .teacher-profile-grade-strip > button {
-  flex: 0 0 32px;
+  flex: 0 0 44px;
   min-height: 44px;
   font-size: 16px;
 }
@@ -802,10 +802,6 @@
     padding: 4px 2px;
     font-size: 12px;
     white-space: nowrap;
-  }
-  .classroom-student .participant-tabs button {
-    min-height: 40px;
-    height: 40px;
   }
   .classroom-student .teacher-profile-grades {
     grid-template-columns: minmax(0, 1fr);

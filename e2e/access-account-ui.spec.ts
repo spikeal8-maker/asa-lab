@@ -2195,7 +2195,7 @@ async function assertCollapseAnchor(page: Page) {
 }
 const shellEvidence = `${r2Evidence}/shell`;
 
-async function assertShellGeometry(page: Page, width: number) {
+async function assertShellGeometry(page: Page, width: number, wideText = false) {
   const metrics = await page.locator('.portal-header').evaluate((header) => {
     const bounds = (element: Element) => {
       const r = element.getBoundingClientRect();
@@ -2219,17 +2219,56 @@ async function assertShellGeometry(page: Page, width: number) {
             ...bounds(element),
           })),
       ),
-      links: [...header.querySelectorAll('.portal-global-nav a')].map(bounds),
+      links: [...header.querySelectorAll('.portal-global-nav a')].map((link) => ({
+        ...bounds(link),
+        label: link.getAttribute('aria-label'),
+        textClip: getComputedStyle(link.querySelector('span')!).clipPath,
+      })),
+      text: [
+        ...header.querySelectorAll(
+          [
+            '.asa-brand-copy strong',
+            '.asa-brand-copy > span',
+            '.portal-global-nav a span',
+            '.portal-header-create-label',
+          ].join(', '),
+        ),
+      ]
+        .filter((element) => element.checkVisibility())
+        .map((element) => ({
+          ...bounds(element),
+          label: element.textContent,
+          clipped: getComputedStyle(element).clipPath === 'inset(50%)',
+          overflow: getComputedStyle(element).overflowX,
+          textOverflow: getComputedStyle(element).textOverflow,
+          scrollWidth: element.scrollWidth,
+          clientWidth: element.clientWidth,
+          owner: bounds(element.closest('a, button, summary')!),
+        })),
+      brandCopyVisible: header.querySelector('.asa-brand-copy')!.checkVisibility(),
+      brand: bounds(header.querySelector('.portal-brand')!),
+      brandMark: bounds(header.querySelector('.asa-brand-mark')!),
+      create: bounds(header.querySelector('.portal-quick-create > summary')!),
+      createLabelVisible: header.querySelector('.portal-header-create-label')!.checkVisibility(),
+      createPlusVisible: header
+        .querySelector('.portal-header-create > span:first-child')!
+        .checkVisibility(),
       main: bounds(document.querySelector('.portal-shell > main')!),
       overflow: document.documentElement.scrollWidth > innerWidth,
     };
   });
   expect(metrics.overflow, `${width}px page overflow`).toBe(false);
+  expect(metrics.header.x).toBe(0);
+  expect(metrics.header.width).toBe(width);
+  expect(metrics.header.height, `${width}px approved single-row header`).toBe(56);
   for (const control of metrics.controls) {
     expect(control.height, `${width}px ${control.label} touch height`).toBeGreaterThanOrEqual(44);
     expect(control.width, `${width}px ${control.label} touch width`).toBeGreaterThanOrEqual(44);
     expect(control.x, `${width}px ${control.label} left`).toBeGreaterThanOrEqual(0);
     expect(control.right, `${width}px ${control.label} right`).toBeLessThanOrEqual(width);
+    expect(control.y, `${width}px ${control.label} above header`).toBeGreaterThanOrEqual(
+      metrics.header.y,
+    );
     expect(control.bottom, `${width}px ${control.label} below header`).toBeLessThanOrEqual(
       metrics.header.bottom + 1,
     );
@@ -2249,20 +2288,52 @@ async function assertShellGeometry(page: Page, width: number) {
     const account = metrics.controls.find((control) => control.label?.startsWith('Меню аккаунта'))!;
     expect(account.right, 'mobile avatar follows the Header right inset').toBe(width - 8);
   }
-  for (const link of metrics.links) expect(link.height).toBeGreaterThanOrEqual(44);
+  expect(metrics.links.map((link) => link.label)).toEqual(['Проекты', 'Знания']);
+  for (const link of metrics.links) {
+    expect(link.height).toBeGreaterThanOrEqual(44);
+    expect(link.textClip, `${width}px public label mode`).toBe(
+      width <= 600 ? 'inset(50%)' : 'none',
+    );
+    if (width <= 600) expect(link.width).toBe(44);
+  }
+  expect(metrics.brandCopyVisible, `${width}px brand text mode`).toBe(width >= 380);
+  expect(metrics.brandMark.width, `${width}px brand mark remains visible`).toBeGreaterThanOrEqual(
+    23,
+  );
+  expect(metrics.brandMark.height).toBeGreaterThanOrEqual(23);
+  expect(metrics.brandMark.x).toBeGreaterThanOrEqual(metrics.brand.x);
+  expect(metrics.brandMark.right).toBeLessThanOrEqual(metrics.brand.right);
+  expect(metrics.createLabelVisible, `${width}px Create label mode`).toBe(width > 560);
+  if (width <= 560) {
+    expect(metrics.create.width, `${width}px compact Create target`).toBe(44);
+    expect(metrics.createPlusVisible, `${width}px visible Create plus`).toBe(true);
+  }
+  for (const text of metrics.text.filter((item) => !item.clipped)) {
+    expect(text.width, `${width}px ${text.label} retains visible space`).toBeGreaterThan(0);
+    expect(text.x, `${width}px ${text.label} left within control`).toBeGreaterThanOrEqual(
+      text.owner.x,
+    );
+    expect(text.right, `${width}px ${text.label} right within control`).toBeLessThanOrEqual(
+      text.owner.right + 1,
+    );
+    if (wideText && width <= 1023 && text.scrollWidth > text.clientWidth + 1) {
+      expect(text.overflow, `${width}px ${text.label} contained stress text`).toBe('hidden');
+      expect(text.textOverflow, `${width}px ${text.label} stress affordance`).toBe('ellipsis');
+    } else if (text.clientWidth > 0) {
+      expect(text.scrollWidth, `${width}px ${text.label} fully readable`).toBeLessThanOrEqual(
+        text.clientWidth + 1,
+      );
+    }
+  }
   if (width <= 1023) {
-    expect(metrics.header.height).toBeGreaterThanOrEqual(100);
-    for (const link of metrics.links) expect(link.y).toBeGreaterThanOrEqual(metrics.header.y + 56);
     // A hidden desktop sidebar must not leave its 264px content offset behind.
     expect(metrics.main.x).toBeLessThanOrEqual(24);
     expect(metrics.main.right).toBeLessThanOrEqual(width);
-  } else expect(metrics.header.height).toBeLessThan(60);
+  }
 }
 
-for (const width of [1440, 1024, 390, 320, 349, 350, 600, 601, 820, 821, 1022, 1023])
-  test(`portal shell has distinct non-overlapping slots and room for a third public link at ${width}px`, async ({
-    page,
-  }) => {
+for (const width of [1440, 1024, 390, 320, 349, 350, 540, 600, 601, 820, 821, 1022, 1023])
+  test(`portal shell keeps public controls in distinct slots at ${width}px`, async ({ page }) => {
     mkdirSync(shellEvidence, { recursive: true });
     const state = await fixture(page, {
       educator: true,
@@ -2277,19 +2348,6 @@ for (const width of [1440, 1024, 390, 320, 349, 350, 600, 601, 820, 821, 1022, 1
     await expect(publicNav.getByRole('link', { name: 'ИИ', exact: true })).toHaveCount(0);
     await assertShellGeometry(page, width);
     await page.screenshot({ path: `${shellEvidence}/shell-${width}.png` });
-    // Layout-only fixture: the real product exposes no placeholder AI feature.
-    await publicNav.evaluate((nav) => {
-      const third = nav.querySelector('a')!.cloneNode(true) as HTMLAnchorElement;
-      third.href = '/#/ai-fixture';
-      third.dataset.layoutFixture = 'future-ai';
-      third.removeAttribute('aria-current');
-      third.setAttribute('aria-label', 'ИИ');
-      third.querySelector('span')!.textContent = 'ИИ';
-      nav.append(third);
-    });
-    await assertShellGeometry(page, width);
-    await page.screenshot({ path: `${shellEvidence}/third-link-fixture-${width}.png` });
-    await publicNav.locator('[data-layout-fixture]').evaluate((element) => element.remove());
     const sidebar = page.locator('#portal-sidebar');
     const settings = sidebar.getByRole('link', {
       name: 'Настройки',
@@ -2368,8 +2426,8 @@ for (const width of [1440, 1024, 390, 320, 349, 350, 600, 601, 820, 821, 1022, 1
     }
   });
 
-for (const width of [1440, 1024, 1023, 1022, 821, 820, 601, 600, 390, 350, 349, 320])
-  test(`portal shell reserves intrinsic brand and Create width under wide text metrics at ${width}px`, async ({
+for (const width of [1440, 1024, 1023, 1022, 821, 820, 601, 600, 540, 390, 350, 349, 320])
+  test(`portal shell contains its controls under wide text metrics at ${width}px`, async ({
     page,
   }) => {
     mkdirSync(shellEvidence, { recursive: true });
@@ -2378,8 +2436,8 @@ for (const width of [1440, 1024, 1023, 1022, 821, 820, 601, 600, 390, 350, 349, 
     await page.goto('/#/account/interface');
     await expect(page.getByLabel('Анимация', { exact: false })).toBeEnabled();
     await expect(page.locator('.learning-inbox-button')).toHaveCount(0);
-    // A deterministic wider font plus text-spacing stress exposes the brand's
-    // old 120px minimum on Windows too, instead of depending on Linux fonts.
+    // Exercise the approved two public links with deterministic wider fonts
+    // and text spacing, including both sides of the responsive boundaries.
     await page.addStyleTag({
       content: `
         .portal-header, .portal-header * {
@@ -2391,18 +2449,21 @@ for (const width of [1440, 1024, 1023, 1022, 821, 820, 601, 600, 390, 350, 349, 
         }
       `,
     });
-    await assertShellGeometry(page, width);
-    const nav = page.getByLabel('Разделы ASA Lab');
-    await nav.evaluate((element) => {
-      const third = element.querySelector('a')!.cloneNode(true) as HTMLAnchorElement;
-      third.href = '/#/ai-fixture';
-      third.removeAttribute('aria-current');
-      third.setAttribute('aria-label', 'ИИ');
-      third.querySelector('span')!.textContent = 'ИИ';
-      element.append(third);
-    });
-    await assertShellGeometry(page, width);
-    await page.screenshot({ path: `${shellEvidence}/wide-text-third-link-${width}.png` });
+    await assertShellGeometry(page, width, true);
+    await page.screenshot({ path: `${shellEvidence}/wide-text-${width}.png` });
+    if (width <= 560) {
+      const create = page.locator('.portal-header .portal-quick-create > summary');
+      await create.click();
+      const popup = page.locator('.portal-header .portal-create-options');
+      await expect(popup).toBeVisible();
+      const box = (await popup.boundingBox())!;
+      expect(box.x).toBeGreaterThanOrEqual(0);
+      expect(box.x + box.width).toBeLessThanOrEqual(width);
+      await page.keyboard.press('Escape');
+      await expect(popup).toBeHidden();
+      await expect(create).toBeFocused();
+      await assertShellGeometry(page, width, true);
+    }
   });
 
 for (const role of ['account', 'seat', 'teacher', 'author', 'admin'] as const)
