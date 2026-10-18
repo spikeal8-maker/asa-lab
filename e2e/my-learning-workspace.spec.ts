@@ -355,7 +355,7 @@ async function fixture(page: Page, identity: 'seat' | 'account', count: number) 
     if (path.startsWith('/api/analytics/')) return json(route, { accepted: true });
     return json(route, { items: [], total: 0 });
   });
-  return Object.assign(state, { assignments, courses });
+  return Object.assign(state, { assignments, courses, results });
 }
 
 async function layout(page: Page) {
@@ -782,6 +782,94 @@ for (const status of [403, 503]) {
         (path) => !path.startsWith('/api/analytics/') && !path.startsWith('/api/diagnostics/'),
       ),
     ).toEqual([]);
+  });
+}
+
+for (const kind of ['standalone', 'course', 'nested', 'quiz'] as const) {
+  test(`Seat: completed ${kind} opens its exact work after journal and course navigation`, async ({
+    page,
+  }) => {
+    const state = await fixture(page, 'seat', 2);
+    const course = kind === 'course' || kind === 'nested';
+    const assignmentId = kind === 'quiz' ? 'quiz-1' : course ? 'course-work' : 'work-1';
+    const title = `Завершённая работа — ${kind}`;
+    Object.assign(state.results[1], { assignmentId, assignmentTitle: title });
+    if (kind === 'standalone') state.assignments[1].title = title;
+    if (course) {
+      const lesson = state.courses[1].sections[0].lessons[0];
+      Object.assign(lesson, {
+        title: 'Точный урок завершённой работы',
+        ...(kind === 'course'
+          ? {
+              kind: 'assignment',
+              classroomAssignmentId: assignmentId,
+              assignmentTitle: title,
+              canonicalState: state.results[1].canonicalState,
+            }
+          : {
+              blocks: [
+                { id: 'practice', type: 'activity', learningActivityVersionId: 'activity-version' },
+              ],
+              activityOccurrences: [
+                {
+                  id: 'occurrence',
+                  blockId: 'practice',
+                  classroomAssignmentId: assignmentId,
+                  title,
+                  moduleKey: 'electronics',
+                  blocks: [],
+                  projectId: null,
+                  submittedAt: null,
+                  canonicalState: state.results[1].canonicalState,
+                },
+              ],
+            }),
+      });
+    }
+    await page.goto(
+      '/#/learning?view=completed&journalColumn=old-column&journalMonth=2026-10&courseRun=old-course&lesson=old-lesson&joinRequest=old-request&learner=seat-1',
+    );
+    const nav = page.getByRole('navigation', { name: 'Разделы моего обучения' });
+    const completed = nav.getByRole('link', { name: 'Завершённое', exact: true });
+    await expect(completed).toHaveAttribute('aria-current', 'page');
+    const link = page
+      .getByRole('region', { name: 'Завершённые задания', exact: true })
+      .getByRole('link', { name: title, exact: true });
+    const destination = `#/learning?learner=seat-1&assignment=${assignmentId}`;
+    await expect(link).toHaveAttribute('href', destination);
+    await link.click();
+    await expect(page).toHaveURL(new RegExp(`assignment=${assignmentId}$`));
+    const active = nav.getByRole('link', { name: course ? 'Курсы' : 'Задания', exact: true });
+    await expect(active).toHaveAttribute('aria-current', 'page');
+    if (course)
+      await expect(
+        page.getByTestId('seat-course-player').locator('.seat-course-lesson h3'),
+      ).toHaveText('Точный урок завершённой работы');
+    else
+      await expect(
+        page.getByRole('button', { name: kind === 'quiz' ? /Проверка знаний/ : title }),
+      ).toHaveAttribute('aria-expanded', 'true');
+    mkdirSync(evidence, { recursive: true });
+    for (const width of [1440, 1024, 390, 320]) {
+      await page.setViewportSize({ width, height: 960 });
+      await layout(page);
+      await page.screenshot({
+        path: `${evidence}/seat-completed-${kind}-${width}.png`,
+        fullPage: true,
+      });
+    }
+    await page.goBack();
+    await expect(completed).toHaveAttribute('aria-current', 'page');
+    await expect(link).toBeVisible();
+    await page.goForward();
+    await expect(active).toHaveAttribute('aria-current', 'page');
+    expect(new URL(page.url()).hash).toBe(destination);
+    expect(
+      state.writes.filter(
+        (path) => !path.startsWith('/api/analytics/') && !path.startsWith('/api/diagnostics/'),
+      ),
+    ).toEqual([]);
+    expect(state.errors).toEqual([]);
   });
 }
 

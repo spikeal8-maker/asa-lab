@@ -3,6 +3,7 @@ import { api, type LearnerQuiz } from '../api';
 import { useSchoolTime } from './school-time';
 import './seat-quizzes.css';
 import { canonicalLearningLabel } from '../learning/canonical-learning-presentation';
+import { useLearningDestination } from '../learning/use-learning-destination';
 
 type AnswerState = Record<string, string | string[] | boolean>;
 
@@ -23,6 +24,10 @@ export function SeatQuizzes({
 } = {}): JSX.Element | null {
   const [items, setItems] = useState<LearnerQuiz[] | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
+  const destination = useLearningDestination();
+  useEffect(() => {
+    if (destination.assignment) setOpenId(destination.assignment);
+  }, [destination.assignment]);
   const [answers, setAnswers] = useState<AnswerState>({});
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);

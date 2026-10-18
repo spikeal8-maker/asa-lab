@@ -52,12 +52,29 @@ export function learningSection(hash: string): LearningSection {
   return 'overview';
 }
 
-function sectionHref(section: LearningSection, assignment?: string): string {
+function sectionHref(section: LearningSection): string {
   const query = new URLSearchParams(window.location.hash.split('?')[1] ?? '');
   // A section choice starts at that section, without the previous work's focus.
   for (const key of ['assignment', 'attempt', 'courseRun', 'lesson']) query.delete(key);
   query.set('view', section);
-  if (assignment) query.set('assignment', assignment);
+  return `#/learning?${query}`;
+}
+
+/** An entity link resolves its actual course, standalone task or quiz destination. */
+function assignmentHref(assignment: string): string {
+  const query = new URLSearchParams(window.location.hash.split('?')[1] ?? '');
+  for (const key of [
+    'view',
+    'assignment',
+    'attempt',
+    'courseRun',
+    'lesson',
+    'joinRequest',
+    'journalColumn',
+    'journalMonth',
+  ])
+    query.delete(key);
+  query.set('assignment', assignment);
   return `#/learning?${query}`;
 }
 
@@ -291,7 +308,7 @@ function LearningOverview({ seat }: { readonly seat: boolean }): JSX.Element {
           <ul>
             {data?.assignments?.slice(0, 3).map((item) => (
               <li key={item.id}>
-                <a href={sectionHref('assignments', item.id)}>{item.title}</a>
+                <a href={assignmentHref(item.id)}>{item.title}</a>
                 {'classroomTitle' in item ? <small>{String(item.classroomTitle)}</small> : null}
                 <span>
                   {canonicalLearningLabel(item.canonicalState) ??
@@ -418,7 +435,7 @@ function CompletedSeatResults(): JSX.Element {
         <ul>
           {items.map((item) => (
             <li key={item.assignmentId}>
-              <a href={sectionHref('assignments', item.assignmentId)}>{item.assignmentTitle}</a>
+              <a href={assignmentHref(item.assignmentId)}>{item.assignmentTitle}</a>
               <small>
                 {item.classroomTitle} · попытка {item.attemptNumber}
               </small>

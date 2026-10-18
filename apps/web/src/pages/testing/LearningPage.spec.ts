@@ -11,6 +11,7 @@ import {
   type ClassroomStudentSession,
   type SeatAssignment,
   type LearnerQuiz,
+  type LearnerResult,
 } from '../../api';
 import { setTelemetryContext } from '../../telemetry-context';
 import { AttendedClassesPage } from '../AttendedClassesPage';
@@ -277,6 +278,121 @@ it('retires pending target reads on hashchange, identity change and unmount', as
 });
 
 describe('learning workspace destinations', () => {
+  it.each(['standalone', 'course lesson', 'nested practice', 'quiz'] as const)(
+    'opens a completed %s in its exact destination without stale section hints',
+    async (kind) => {
+      reactTestGlobal.IS_REACT_ACT_ENVIRONMENT = true;
+      const container = document.createElement('div');
+      const root = createRoot(container);
+      const assignmentId = 'completed-work';
+      const course = kind === 'course lesson' || kind === 'nested practice';
+      const runs = course
+        ? ([
+            {
+              id: 'target-course',
+              title: 'Нужный курс',
+              status: 'open',
+              sections: [
+                {
+                  id: 'target-section',
+                  title: 'Раздел',
+                  lessons: [
+                    {
+                      id: 'target-lesson',
+                      title: 'Нужный урок',
+                      kind: 'material',
+                      content: 'Материал',
+                      blocks: [],
+                      completedAt: null,
+                      classroomAssignmentId: kind === 'course lesson' ? assignmentId : null,
+                      activityOccurrences:
+                        kind === 'nested practice' ? [{ classroomAssignmentId: assignmentId }] : [],
+                    },
+                  ],
+                },
+              ],
+            },
+          ] as unknown as SeatCourseRun[])
+        : [];
+      vi.spyOn(api, 'seatCourseRuns').mockResolvedValue({
+        ok: true,
+        status: 200,
+        data: { items: runs },
+      });
+      vi.spyOn(api, 'seatResults').mockResolvedValue({
+        ok: true,
+        status: 200,
+        data: {
+          items: [
+            {
+              assignmentId,
+              assignmentTitle: 'Завершённая работа',
+              classroomTitle: 'Класс 2',
+              attemptNumber: 1,
+              canonicalState: {
+                workflowState: 'completed',
+                selectedResult: { displayGrade: '5' },
+              },
+            } as LearnerResult,
+          ],
+        },
+      });
+      vi.spyOn(api, 'seatAssignments').mockResolvedValue({
+        ok: true,
+        status: 200,
+        data: { items: kind === 'standalone' ? [{ ...retryWork, id: assignmentId }] : [] },
+      });
+      vi.spyOn(api, 'seatQuizzes').mockResolvedValue({
+        ok: true,
+        status: 200,
+        data: { items: kind === 'quiz' ? [{ ...retryQuiz, assignmentId }] : [] },
+      });
+      const submit = vi.spyOn(api, 'submitSeatQuiz');
+      const start = vi.spyOn(api, 'startLearningWork');
+      const completedHash =
+        '#/learning?view=completed&journalColumn=old-column&journalMonth=2026-10&courseRun=old-course&lesson=old-lesson&joinRequest=old-request&learner=seat-2';
+      const navigate = (hash: string) =>
+        act(async () => {
+          window.history.replaceState(null, '', hash);
+          window.dispatchEvent(new Event('hashchange'));
+        });
+      try {
+        window.history.replaceState(null, '', completedHash);
+        await act(async () =>
+          root.render(createElement(LearningPage, { seat: retrySeat, onOpenProject: vi.fn() })),
+        );
+        const link = container.querySelector(
+          '[aria-labelledby="learning-completed-results"] li a',
+        ) as HTMLAnchorElement;
+        expect(link.textContent).toBe('Завершённая работа');
+        const href = '#/learning?learner=seat-2&assignment=completed-work';
+        expect(link.getAttribute('href')).toBe(href);
+        await navigate(href);
+        expect(container.querySelector('[aria-current="page"]')?.textContent).toBe(
+          course ? 'Курсы' : 'Задания',
+        );
+        if (course)
+          expect(
+            container.querySelector('[data-testid="seat-course-player"]')?.textContent,
+          ).toContain('Нужный урок');
+        else
+          expect(
+            container
+              .querySelector(kind === 'quiz' ? '.seat-quiz-summary' : '.seat-assignment-open')
+              ?.getAttribute('aria-expanded'),
+          ).toBe('true');
+        await navigate(completedHash);
+        expect(container.querySelector('[aria-current="page"]')?.textContent).toBe('Завершённое');
+        expect(container.textContent).toContain('Завершённая работа');
+        expect(start).not.toHaveBeenCalled();
+        expect(submit).not.toHaveBeenCalled();
+      } finally {
+        await act(async () => root.unmount());
+        reactTestGlobal.IS_REACT_ACT_ENVIRONMENT = false;
+      }
+    },
+  );
+
   for (const identity of ['seat', 'account'] as const) {
     it.each([false, true])(
       `${identity}: explicit sections override a resolved %s nested assignment destination`,
