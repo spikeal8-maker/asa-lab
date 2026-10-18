@@ -39,6 +39,59 @@ surfaces:
     - TST-LRN-COURSE-E1-E2E-001
     commands:
     - read_teacher_home_attention
+- id: SURF-TEACHER-CLASSROOM-STUDENT
+  routes:
+  - '#/classrooms/:classroomId'
+  # ClassroomPage renders this learner view inside the existing class route.
+  # Keep one canonical learning mapping for these files. For school-profile
+  # rights, role and safe-mode constraints also read contracts/identity.yaml;
+  # L1 presentation work does not authorize changing those policies or mutations.
+  implementation:
+    files:
+    - apps/web/src/pages/ClassroomStudentPage.tsx
+    - apps/web/src/pages/classroom-student.css
+    - apps/web/src/classroom-participants-api.ts
+    - apps/web/src/components/ClassroomParticipantPanels.tsx
+  invariants:
+  - LRN-IDN-001
+  - LRN-AUTH-001
+  - LRN-SUB-001
+  - LRN-ASM-001
+  - LRN-SEL-001
+  - LRN-GRD-001
+  - LRN-FBK-001
+  - LRN-LIFE-001
+  tests:
+  - TST-ASA-ACCESS-A-CORE-001
+  - TST-ASA-ACCESS-A-E2E-001
+  - TST-LRN-COURSE-E1-CORE-001
+  - TST-LRN-COURSE-E1-E2E-001
+  controls:
+  - id: CTRL-TEACHER-CLASSROOM-STUDENT-COMPACT-VIEW
+    label: Compact student view, class learner navigation, tabs and work filters with read-only grade paging through the existing API
+    change_class: L1_UI_BEHAVIOR
+    files:
+    - apps/web/src/pages/ClassroomStudentPage.tsx
+    - apps/web/src/pages/classroom-student.css
+    - apps/web/src/classroom-participants-api.ts
+    - apps/web/src/components/ClassroomParticipantPanels.tsx
+    # Existing journal.nextOffset and nextResultOffset remain server-owned;
+    # this control grants no cross-class reads or grade/identity mutations.
+    commands: []
+    invariants:
+    - LRN-IDN-001
+    - LRN-AUTH-001
+    - LRN-SUB-001
+    - LRN-ASM-001
+    - LRN-SEL-001
+    - LRN-GRD-001
+    - LRN-FBK-001
+    - LRN-LIFE-001
+    tests:
+    - TST-ASA-ACCESS-A-CORE-001
+    - TST-ASA-ACCESS-A-E2E-001
+    - TST-LRN-COURSE-E1-CORE-001
+    - TST-LRN-COURSE-E1-E2E-001
 - id: SURF-CLASSROOM-GRADEBOOK
   routes:
   - '#/classrooms/:classroomId'
