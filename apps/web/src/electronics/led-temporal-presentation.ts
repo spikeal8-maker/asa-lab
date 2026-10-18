@@ -11,6 +11,8 @@ export const LED_PRESENTATION_PHASE_LIMIT_MICROSECONDS = 25_000;
 // Two complete cycles plus the current phase, including near the cadence limit.
 const HISTORY_MICROSECONDS = 5 * LED_PRESENTATION_PHASE_LIMIT_MICROSECONDS;
 const MAX_HISTORY_SAMPLES = 513;
+// Leave one 60 Hz paint handoff inside the existing 50 ms publication allowance.
+const MAX_SUPERSEDED_MICROSECONDS = 50_000 - 1_000_000 / 60;
 
 function sameState(left: ElectronicsLedTemporalSample, right: ElectronicsLedTemporalSample) {
   return left.brightness === right.brightness && left.current === right.current;
@@ -80,6 +82,7 @@ function recentSamples(
   previous: readonly ElectronicsLedTemporalSample[] | undefined,
   component: ElectronicsLedTemporalComponent,
   to: number,
+  cursor = to,
 ): readonly ElectronicsLedTemporalSample[] {
   const first = component.samples[0]!;
   const previousEnd = previous?.at(-1);
@@ -98,7 +101,7 @@ function recentSamples(
     samples.push(sample);
   }
   const firstRecent = samples.findIndex(
-    (sample) => sample.atMicroseconds >= to - HISTORY_MICROSECONDS,
+    (sample) => sample.atMicroseconds >= cursor - HISTORY_MICROSECONDS,
   );
   return samples.slice(Math.max(0, firstRecent - 1, samples.length - MAX_HISTORY_SAMPLES));
 }
@@ -134,15 +137,30 @@ function fastCycleBrightness(samples: readonly ElectronicsLedTemporalSample[], t
 export class LedTemporalPresentation {
   private committed: number | null = null;
   private histories = new Map<string, readonly ElectronicsLedTemporalSample[]>();
+  private cursor: number | null = null;
+  private sampledAt: number | null = null;
+  private buffered = false;
+  private receipts: Array<{ at: number; brightness: ReadonlyMap<string, number> }> = [];
+  private reanchors = 0;
+
+  /** A discontinuity is observable evidence, never successful phase preservation. */
+  get reanchorCount(): number {
+    return this.reanchors;
+  }
 
   reset(): void {
     this.committed = null;
     this.histories.clear();
+    this.cursor = null;
+    this.sampledAt = null;
+    this.buffered = false;
+    this.receipts = [];
   }
 
   accept(
     result: SolveResult,
     observation?: ElectronicsLedTemporalObservation,
+    wallMicroseconds?: number,
   ): ReadonlyMap<string, number> {
     const brightness = new Map<string, number>();
     if (
@@ -171,6 +189,10 @@ export class LedTemporalPresentation {
       ids.add(component.componentId);
     }
     if (this.committed !== observation.fromMicroseconds) this.reset();
+    if (wallMicroseconds !== undefined && this.cursor === null) {
+      this.cursor = observation.fromMicroseconds;
+      this.sampledAt = wallMicroseconds;
+    }
     const next = new Map<string, readonly ElectronicsLedTemporalSample[]>();
     for (const component of observation.components) {
       const electrical = result.components.find(
@@ -191,6 +213,7 @@ export class LedTemporalPresentation {
         this.histories.get(component.componentId),
         component,
         observation.toMicroseconds,
+        this.cursor ?? observation.toMicroseconds,
       );
       next.set(component.componentId, samples);
       const mean = fastCycleBrightness(samples, observation.toMicroseconds);
@@ -198,6 +221,77 @@ export class LedTemporalPresentation {
     }
     this.committed = observation.toMicroseconds;
     this.histories = next;
+    if (wallMicroseconds === undefined) return brightness;
+    this.receipts.push({
+      at: wallMicroseconds,
+      brightness: new Map(
+        observation.components
+          .filter((component) => next.has(component.componentId))
+          .map((component) => [component.componentId, component.samples.at(-1)!.brightness]),
+      ),
+    });
+    this.receipts = this.receipts
+      .filter(
+        (_, index, all) =>
+          index === all.length - 1 || all[index + 1]!.at >= wallMicroseconds - 50_000,
+      )
+      .slice(-MAX_HISTORY_SAMPLES);
+    return this.sample(wallMicroseconds);
+  }
+
+  /** Advance only the optical cursor; no host tick becomes a physical frame. */
+  sample(wallMicroseconds: number): ReadonlyMap<string, number> {
+    if (this.cursor === null || this.committed === null || this.sampledAt === null)
+      return new Map();
+    const elapsed = Math.max(0, wallMicroseconds - this.sampledAt);
+    this.sampledAt = wallMicroseconds;
+    if (this.buffered) this.cursor = Math.min(this.committed, this.cursor + elapsed);
+    else if (this.committed - this.cursor >= LED_PRESENTATION_PHASE_LIMIT_MICROSECONDS)
+      this.buffered = true;
+
+    let brightness = this.atCursor();
+    const expired = [...brightness].some(([id, value]) => {
+      // Cycle means have their own existing optical policy. A visible held
+      // phase needs an actual, still timely complete-ready electrical witness.
+      const samples = this.histories.get(id)!;
+      if (fastCycleBrightness(this.throughCursor(samples), this.cursor!) !== undefined)
+        return false;
+      let matching = this.receipts.length - 1;
+      while (matching >= 0 && this.receipts[matching]!.brightness.get(id) !== value) matching--;
+      const supersededAt = matching < 0 ? this.receipts[0]?.at : this.receipts[matching + 1]?.at;
+      return (
+        supersededAt !== undefined && wallMicroseconds - supersededAt >= MAX_SUPERSEDED_MICROSECONDS
+      );
+    });
+    if (brightness.size !== this.histories.size || expired) {
+      // Starvation cannot be repaired by accelerating or stretching a waveform.
+      // Discard this playout segment and resume from actual complete-ready data.
+      this.cursor = this.committed;
+      this.buffered = false;
+      this.reanchors++;
+      brightness = this.atCursor();
+    }
+    return brightness;
+  }
+
+  private throughCursor(samples: readonly ElectronicsLedTemporalSample[]) {
+    let end = samples.length - 1;
+    while (end >= 0 && samples[end]!.atMicroseconds > this.cursor!) end--;
+    if (end < 0) return [];
+    const prefix = samples.slice(0, end + 1);
+    const last = prefix.at(-1)!;
+    if (last.atMicroseconds < this.cursor!) prefix.push({ ...last, atMicroseconds: this.cursor! });
+    return prefix;
+  }
+
+  private atCursor(): ReadonlyMap<string, number> {
+    const brightness = new Map<string, number>();
+    for (const [id, samples] of this.histories) {
+      const prefix = this.throughCursor(samples);
+      const last = prefix.at(-1);
+      if (!last) continue;
+      brightness.set(id, fastCycleBrightness(prefix, this.cursor!) ?? last.brightness);
+    }
     return brightness;
   }
 }

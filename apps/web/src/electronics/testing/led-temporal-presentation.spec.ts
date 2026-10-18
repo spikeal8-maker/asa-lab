@@ -92,6 +92,61 @@ function electrical(observation: ElectronicsLedTemporalObservation): SolveResult
 }
 
 describe('accepted per-LED temporal presentation', () => {
+  it.each([15_000, 17_000])(
+    'paces 50ms phases with a %i us burst gap or reports the bounded discontinuity',
+    (gap) => {
+      const presentation = new LedTemporalPresentation();
+      // A window for the independent neighbour must describe its exact edge.
+      const receiveWindow = (from: number, to: number, wall: number) => {
+        const observation = window(from, to, [
+          square(from, to, 50_000, 80, 'first'),
+          square(from, to, 100_000, 60, 'other'),
+        ]);
+        return presentation.accept(electrical(observation), observation, wall);
+      };
+      // The saved ready gap is17ms (the DOM gap was15.9ms). A15ms ready gap
+      // instead leaves35ms debt, exceeding the33.333ms pre-RAF allowance.
+      expect(receiveWindow(0, 25_000, 25_000).get('first')).toBe(80);
+      receiveWindow(25_000, 50_000, 50_000);
+      expect(receiveWindow(50_000, 75_000, 75_000).get('first')).toBe(0);
+      expect(receiveWindow(75_000, 100_000, 75_000 + gap).get('first')).toBe(0);
+      receiveWindow(100_000, 125_000, 115_000);
+      expect(presentation.sample(124_999).get('first')).toBe(gap === 17_000 ? 0 : 80);
+      expect([...presentation.sample(125_000)]).toEqual([
+        ['first', 80],
+        ['other', 0],
+      ]);
+      expect(presentation.reanchorCount).toBe(gap === 17_000 ? 0 : 1);
+    },
+  );
+
+  it('holds computed data on underrun and reports an optical discontinuity before stale replay', () => {
+    const presentation = new LedTemporalPresentation();
+    const first = window(0, 25_000, [square(0, 25_000, 50_000)]);
+    presentation.accept(electrical(first), first, 0);
+    expect(presentation.sample(80_000).get('led')).toBe(80);
+    for (let from = 25_000; from < 150_000; from += 25_000) {
+      const observation = window(from, from + 25_000, [square(from, from + 25_000, 50_000)]);
+      presentation.accept(electrical(observation), observation, 80_000);
+    }
+    expect(presentation.sample(80_001).get('led')).toBe(80);
+    expect(presentation.sample(113_334).get('led')).toBe(0);
+    expect(presentation.sample(155_000).get('led')).toBe(0);
+    expect(presentation.reanchorCount).toBe(1);
+    presentation.reset();
+    expect(presentation.sample(114_000).size).toBe(0);
+  });
+
+  it('never samples a future edge and preserves the existing fast-cycle mean at the cursor', () => {
+    const presentation = new LedTemporalPresentation();
+    const observation = window(0, 25_000);
+    presentation.accept(electrical(observation), observation, 0);
+    expect(presentation.sample(999).get('led')).toBe(80);
+    expect(presentation.sample(1000).get('led')).toBe(0);
+    expect(presentation.sample(5000).get('led')).toBe(40);
+    expect(presentation.reanchorCount).toBe(0);
+  });
+
   it('keeps a real 1ms neighbour visible before, at and after another LED thermally fails', () => {
     const parsed = parseElectronicsEngineDocument({
       schemaVersion: 4,

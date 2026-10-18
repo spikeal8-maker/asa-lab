@@ -408,6 +408,36 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
     const session = committedHostSessionRef.current;
     let active = true;
     const currentSession = () => active && committedHostSessionRef.current === session;
+    let presentedBrightness: ReadonlyMap<string, number> = new Map();
+    let animationFrame: number | null = null;
+    let recordedReanchors = ledTemporalPresentationRef.current.reanchorCount;
+    const observeReanchor = () => {
+      const count = ledTemporalPresentationRef.current.reanchorCount;
+      if (count === recordedReanchors) return;
+      recordedReanchors = count;
+      const name = 'asa-electronics-led-playout-reanchor';
+      window.performance.clearMarks?.(name);
+      window.performance.mark?.(name, { detail: { count } });
+    };
+    const presentLeds = () => {
+      if (!currentSession()) return;
+      animationFrame = window.requestAnimationFrame(presentLeds);
+      if (!session?.active) return;
+      const brightness = ledTemporalPresentationRef.current.sample(
+        Math.round(window.performance.now() * 1000),
+      );
+      observeReanchor();
+      if (
+        presentedBrightness.size === brightness.size &&
+        [...brightness].every(([id, value]) => presentedBrightness.get(id) === value)
+      )
+        return;
+      presentedBrightness = brightness;
+      setLiveObservation((current) =>
+        current ? { ...current, ledBrightness: brightness } : current,
+      );
+    };
+    animationFrame = window.requestAnimationFrame(presentLeds);
     // Only committed document updates and explicit user commands enter this
     // queue. Host ticks remain idle until the complete initial ready frame.
     const pendingCommands: Array<(worker: ElectronicsLiveSimulationWorkerController) => void> = [];
@@ -446,6 +476,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
           setGenerationPending(true);
           setCommittedHorizonMicroseconds(0);
           ledTemporalPresentationRef.current.reset();
+          presentedBrightness = new Map();
           setLiveObservation(null);
           setSimulationMessage(null);
         },
@@ -458,10 +489,16 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
         onResult: (nextResult, ledTemporal) => {
           if (!currentSession()) return;
           setGenerationPending(false);
+          presentedBrightness = ledTemporalPresentationRef.current.accept(
+            nextResult,
+            ledTemporal,
+            Math.round(window.performance.now() * 1000),
+          );
           setLiveObservation({
             result: nextResult,
-            ledBrightness: ledTemporalPresentationRef.current.accept(nextResult, ledTemporal),
+            ledBrightness: presentedBrightness,
           });
+          observeReanchor();
           setSimulationMessage(circuitStateMessage(nextResult));
           confirmSimulationStarted();
         },
@@ -498,6 +535,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
     }
     return () => {
       active = false;
+      if (animationFrame !== null) window.cancelAnimationFrame(animationFrame);
       pendingCommands.length = 0;
       ledTemporalPresentationRef.current.reset();
       if (simulationCommandRef.current === dispatch) simulationCommandRef.current = null;
@@ -2900,8 +2938,11 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
       return runtimePresentationResultByComponent.get(component.id)?.lit ? 'lit' : 'off';
     }
     const state = ordinaryLedVisualState(componentResult);
-    return state === 'off' && (liveObservation?.ledBrightness.get(component.id) ?? 0) > 0
-      ? 'lit'
+    const optical = liveObservation?.ledBrightness.get(component.id);
+    return optical !== undefined && (state === 'off' || state === 'lit')
+      ? optical > 0
+        ? 'lit'
+        : 'off'
       : state;
   }
 

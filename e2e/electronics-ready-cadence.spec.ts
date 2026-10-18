@@ -83,6 +83,7 @@ type ProbeWindow = Window & {
   __bitwiseUi?: UiReceipt[];
   __ownerPaint?: PaintReceipt[];
   __ownerStartClicks?: Array<{ at: number; trusted: boolean }>;
+  __ledPlayoutReanchors?: Array<{ at: number; count: number }>;
 };
 
 function fixture(): SchematicDocument {
@@ -165,6 +166,18 @@ async function observeRealWorkerAndUi(page: Page, ledCount = 8): Promise<void> {
     const ui: UiReceipt[] = [];
     probe.__bitwiseWorker = workers;
     probe.__bitwiseUi = ui;
+    const reanchors: NonNullable<ProbeWindow['__ledPlayoutReanchors']> = [];
+    probe.__ledPlayoutReanchors = reanchors;
+    new PerformanceObserver((list) => {
+      for (const entry of list.getEntries()) {
+        if (entry.name !== 'asa-electronics-led-playout-reanchor') continue;
+        reanchors.push({
+          at: entry.startTime,
+          count: Number((entry as PerformanceMark).detail?.count),
+        });
+        if (reanchors.length > 128) reanchors.shift();
+      }
+    }).observe({ type: 'mark', buffered: true });
     let workerId = 0;
     window.Worker = new Proxy(window.Worker, {
       construct(target, args, newTarget) {
@@ -392,6 +405,7 @@ async function observation(page: Page) {
     ui: (window as ProbeWindow).__bitwiseUi ?? [],
     paint: (window as ProbeWindow).__ownerPaint ?? [],
     startClicks: (window as ProbeWindow).__ownerStartClicks ?? [],
+    reanchors: (window as ProbeWindow).__ledPlayoutReanchors ?? [],
   }));
 }
 // Keep polling beside the full receipts: transporting their canonical state on
@@ -967,6 +981,7 @@ for (const delayMs of [null, 100, 50] as const) {
       (row) => row.requestSource === source && row.advance.executionStatus === 'ready',
     );
     expect(raw!.startClicks).toHaveLength(1);
+    expect(raw!.reanchors.filter((row) => row.at >= startAt)).toEqual([]);
     expect(raw!.startClicks[0]!.trusted).toBe(true);
     expect(ready.some((row) => row.advance.committedHorizonMicroseconds === 0)).toBe(true);
     for (const row of ready) {
@@ -1383,6 +1398,7 @@ for (const mode of ['no-delay realtime', 'independent ports'] as const) {
     const ready = raw.worker.filter(
       (row) => row.requestSource === source && row.advance.executionStatus === 'ready',
     );
+    expect(raw.reanchors.filter((row) => row.at >= startAt)).toEqual([]);
     expect(ready.length).toBeGreaterThanOrEqual(8);
     for (const frame of ready) {
       expect(frame.advance.committedHorizonMicroseconds).toBe(
@@ -1497,6 +1513,7 @@ type TemporalProbe = {
   paintFrames: Array<{ at: number; brightness: number[]; imagesReady: boolean }>;
   resetClicks: Array<{ at: number; trusted: boolean }>;
   errors: Array<{ at: number; code: string; requestId: string }>;
+  reanchors: NonNullable<ProbeWindow['__ledPlayoutReanchors']>;
 };
 type TemporalWindow = ProbeWindow & { __ownerTemporal?: TemporalProbe };
 
@@ -1510,6 +1527,7 @@ async function observeOwnerTemporal(page: Page): Promise<void> {
       paintFrames: [],
       resetClicks: [],
       errors: [],
+      reanchors: probe.__ledPlayoutReanchors!,
     };
     probe.__ownerTemporal = captured;
     // Capture compact, actual response envelopes on delivery, before the old
@@ -1717,6 +1735,7 @@ async function openOwnerTemporalSketch(
     temporal.paintFrames.length = 0;
     temporal.resetClicks.length = 0;
     temporal.errors.length = 0;
+    temporal.reanchors.length = 0;
     return performance.now();
   });
   return { source, name, before, saved, startAt, read, failures };
@@ -1769,19 +1788,230 @@ async function waitForTemporalHorizon(page: Page, source: string, horizon: numbe
   // slow case observes two successive four-second cycles, within the unchanged
   // default 30-second case budget; it does not lengthen an old case or timeout.
   await expect
-    .poll(() =>
-      page.evaluate(
-        ({ source, horizon }) =>
-          ((window as TemporalWindow).__ownerTemporal?.frames
-            .filter((row) => row.source === source && row.executionStatus === 'ready')
-            .at(-1)?.committedHorizonMicroseconds ?? 0) >= horizon,
-        { source, horizon },
-      ),
+    .poll(
+      () =>
+        page.evaluate(
+          ({ source, horizon }) =>
+            ((window as TemporalWindow).__ownerTemporal?.frames
+              .filter((row) => row.source === source && row.executionStatus === 'ready')
+              .at(-1)?.committedHorizonMicroseconds ?? 0) >= horizon,
+          { source, horizon },
+        ),
+      { intervals: [100] },
     )
     .toBe(true);
 }
 
+test('Owner Arduino Blockly: visible default wait edits 100/50/1 ms, real light and cookies-only reopen', async ({
+  page,
+  browser,
+}) => {
+  await page.setViewportSize({ width: 1600, height: 1000 });
+  await observeOwnerTemporal(page);
+  const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
+  await loginWithOrganization(page, teacher);
+  const origin = new URL(page.url()).origin;
+  const created = await page.context().request.post('/api/projects', {
+    headers: { origin, 'idempotency-key': crypto.randomUUID() },
+    data: {
+      scope: 'personal',
+      classroomId: null,
+      module: 'electronics',
+      title: 'Arduino Blockly optical timing',
+    },
+  });
+  expect(created.status()).toBe(201);
+  const id = ((await created.json()) as { project: { id: string } }).project.id;
+  const endpoint = `/api/projects/${id}`;
+  const read = async () => {
+    const response = await page.context().request.get(endpoint, { headers: { origin } });
+    expect(response.status()).toBe(200);
+    return response.json() as Promise<{ draft: { revision: number; document: SchematicDocument } }>;
+  };
+  const initial = await read();
+  // Seed only the existing electrical fixture. The pupil's programme is created
+  // by the production mode switch/default blocks and edited through visible fields.
+  const circuit = threeLedFixture();
+  expect(
+    circuit.components.find((row) => row.id === 'uno')!.stateProperties!['arduinoWorkspace'],
+  ).toBe('');
+  const seeded = await page.context().request.put(`${endpoint}/draft`, {
+    headers: { origin },
+    data: {
+      document: circuit,
+      baseRevision: initial.draft.revision,
+      mutationId: crypto.randomUUID(),
+    },
+  });
+  expect(seeded.status()).toBe(200);
+  await page.goto(`/#/home/${id}`);
+  await expect(page.locator('.workbench-stage')).toBeVisible();
+  await page.getByRole('button', { name: 'Открыть редактор кода', exact: true }).click();
+  await page.locator('.arduino-mode-menu summary').click();
+  await page.getByRole('button', { name: 'Блоки с текстом', exact: true }).click();
+  await page
+    .getByRole('dialog', { name: 'Продолжить?', exact: true })
+    .getByRole('button', { name: 'Продолжить', exact: true })
+    .click();
+  const workspace = page.getByTestId('arduino-block-workspace');
+  const canvas = workspace.locator(
+    ':scope > .injectionDiv > svg.blocklySvg > .blocklyWorkspace > .blocklyBlockCanvas',
+  );
+  const waits = await canvas
+    .locator('text.blocklyText')
+    .filter({ hasText: /^ожидать$/ })
+    .evaluateAll((nodes) =>
+      nodes.map((node) => node.closest('[data-id]')!.getAttribute('data-id')!),
+    );
+  expect(waits).toHaveLength(2);
+  const generated = page.getByRole('textbox', { name: 'Сгенерированный код Arduino', exact: true });
+  await expect(generated).toHaveAttribute('readonly');
+  const receipts: unknown[] = [];
+  for (const half of [100, 50, 1]) {
+    if (half !== 100)
+      await page.getByRole('button', { name: 'Открыть редактор кода', exact: true }).click();
+    for (const blockId of waits) {
+      const block = canvas.locator(`[data-id="${blockId}"]`);
+      await block.locator('.blocklyEditableText').first().dblclick();
+      const input = page.locator('input.blocklyHtmlInput');
+      await expect(input).toBeVisible();
+      await input.fill(String(half));
+      await input.press('Enter');
+      if (half === 100) {
+        await block.locator('.blocklyEditableText').nth(1).click();
+        await page
+          .locator('.blocklyDropDownDiv, .blocklyWidgetDiv')
+          .getByText('мс', { exact: true })
+          .click();
+      }
+    }
+    await expect
+      .poll(
+        async () =>
+          (await generated.inputValue()).match(new RegExp(`delay\\(${half}\\);`, 'g'))?.length ?? 0,
+        { intervals: [100] },
+      )
+      .toBe(2);
+    const source = await generated.inputValue();
+    expect(source).toContain('digitalWrite(LED_BUILTIN, HIGH);');
+    expect(source).toContain('digitalWrite(LED_BUILTIN, LOW);');
+    const before = await read();
+    const saving = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === `${endpoint}/draft` &&
+        response.request().method() === 'PUT',
+    );
+    await page.getByRole('button', { name: 'Сохранить проект', exact: true }).click();
+    expect((await saving).status()).toBe(200);
+    const saved = await read();
+    const properties = saved.draft.document.components.find(
+      (row) => row.id === 'uno',
+    )!.stateProperties!;
+    expect(properties['arduinoSource']).toBe(source);
+    expect(properties['arduinoCodeMode']).toBe('blocks-text');
+    const workspaceJson = String(properties['arduinoWorkspace']);
+    const waitFields: Array<{ TIME: unknown; UNIT: unknown }> = [];
+    const inspect = (value: unknown): void => {
+      if (!value || typeof value !== 'object') return;
+      const row = value as Record<string, unknown>;
+      if (row['type'] === 'asa_wait')
+        waitFields.push(row['fields'] as { TIME: unknown; UNIT: unknown });
+      Object.values(row).forEach(inspect);
+    };
+    inspect(JSON.parse(workspaceJson));
+    expect(waitFields.map((fields) => [Number(fields.TIME), fields.UNIT])).toEqual([
+      [half, 'MILLISECONDS'],
+      [half, 'MILLISECONDS'],
+    ]);
+    expect(saved.draft.revision).toBeGreaterThanOrEqual(before.draft.revision);
+    await page.getByRole('button', { name: 'Закрыть редактор кода', exact: true }).click();
+    const startAt = await page.evaluate(() => {
+      const temporal = (window as TemporalWindow).__ownerTemporal!;
+      for (const rows of Object.values(temporal)) rows.length = 0;
+      return performance.now();
+    });
+    let raw: TemporalProbe | undefined;
+    try {
+      await page.getByRole('button', { name: 'Начать моделирование', exact: true }).click();
+      await waitForTemporalHorizon(page, source, 1_000_000);
+      raw = await temporalObservation(page);
+      const ready = assertTemporalFrames(raw, source);
+      assertTemporalWallClock(ready, 1000);
+      const edges = opticalEdges(ready, 'led0');
+      const paint = validTemporalPaint(raw, startAt);
+      expect(paint.length).toBeGreaterThan(0);
+      expect(
+        raw.paintFrames.filter((row) => row.at >= startAt).every((row) => row.imagesReady),
+      ).toBe(true);
+      if (half > 1) {
+        const model = blinkWallMetrics(edges, half);
+        const visible = blinkWallMetrics(paintEdges(paint, 0), half);
+        expect(model.cycles).toBeGreaterThanOrEqual(4);
+        expect(visible.cycles).toBeGreaterThanOrEqual(4);
+        expect(visible.halfBoundsPassed).toBe(true);
+        expect(visible.duty).toBeGreaterThanOrEqual(0.45);
+        expect(visible.duty).toBeLessThanOrEqual(0.55);
+        expect(
+          temporalPaintCausality(raw, source, ready[0]!.generationId!, startAt).violations,
+        ).toEqual([]);
+      } else {
+        const first = edges.findIndex((row) => row.level === 1 && row.at >= 100);
+        const last = edges.findLastIndex((row) => row.level === 1);
+        const energy = opticalIntegral(ready, 'led0', edges[first]!.at, edges[last]!.at);
+        const mean = energy.integral / energy.durationMicroseconds;
+        expect((last - first) / 2).toBeGreaterThanOrEqual(400);
+        const settledAt = ready.find((row) => row.committedHorizonMicroseconds >= 100_000)!.at;
+        const rendered = raw.paintFrames.filter((row) => row.at >= settledAt);
+        expect(rendered.length).toBeGreaterThanOrEqual(30);
+        expect(rendered.every((row) => Math.abs(row.brightness[0]! - Math.round(mean)) <= 1)).toBe(
+          true,
+        );
+      }
+    } finally {
+      raw ??= await temporalObservation(page);
+      receipts.push({ half, source, before, saved, startAt, raw });
+      writeFileSync(
+        resolve(artifactRoot, 'owner-blockly-wait-edits-raw.json'),
+        JSON.stringify(receipts, null, 2) + '\n',
+      );
+      await page.screenshot({ path: resolve(artifactRoot, `owner-blockly-${half}ms-frame.png`) });
+    }
+    await page.getByRole('button', { name: 'Остановить моделирование', exact: true }).click();
+    expect((await read()).draft).toEqual(saved.draft);
+    const context = await browser.newContext({ viewport: { width: 1600, height: 1000 } });
+    try {
+      await context.addCookies(await page.context().cookies());
+      const reopened = await context.newPage();
+      await reopened.goto(`${origin}/#/home/${id}`);
+      await expect(reopened.locator('.workbench-stage')).toBeVisible();
+      await reopened.getByRole('button', { name: 'Открыть редактор кода', exact: true }).click();
+      await expect(
+        reopened.getByRole('textbox', { name: 'Сгенерированный код Arduino', exact: true }),
+      ).toHaveValue(source);
+      for (const blockId of waits) {
+        await expect(
+          reopened
+            .getByTestId('arduino-block-workspace')
+            .locator(`[data-id="${blockId}"] .blocklyEditableText`)
+            .first(),
+        ).toHaveText(String(half));
+        await expect(
+          reopened
+            .getByTestId('arduino-block-workspace')
+            .locator(`[data-id="${blockId}"] .blocklyEditableText`)
+            .nth(1),
+        ).toHaveText('мс');
+      }
+      expect((await read()).draft).toEqual(saved.draft);
+    } finally {
+      await context.close();
+    }
+  }
+  failures.assertEmpty();
+});
+
 function assertTemporalFrames(raw: TemporalProbe, source: string, generationId?: number) {
+  expect(raw.reanchors).toEqual([]);
   const frames = raw.frames.filter(
     (row) =>
       row.source === source && (generationId === undefined || row.generationId === generationId),

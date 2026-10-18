@@ -141,6 +141,10 @@ beforeEach(() => {
   vi.setSystemTime(0);
   vi.spyOn(window.performance, 'now').mockImplementation(() => Date.now());
   vi.spyOn(window, 'setInterval');
+  vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) =>
+    window.setTimeout(() => callback(window.performance.now()), 16),
+  );
+  vi.stubGlobal('cancelAnimationFrame', (id: number) => window.clearTimeout(id));
   localStorage.clear();
   transport.instances.length = 0;
   transport.autoReady = true;
@@ -184,6 +188,7 @@ afterEach(async () => {
   await act(async () => root.unmount());
   host.remove();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
   vi.useRealTimers();
 });
 describe('mounted workbench host demand clock', () => {
@@ -733,14 +738,15 @@ describe('mounted workbench LED temporal display', () => {
     pinIds: ['anode', 'cathode'],
   };
 
-  function opticalReady(toMicroseconds: number) {
+  function opticalReady(toMicroseconds: number, fromMicroseconds = 0, half = 1000) {
     const point = (atMicroseconds: number) => ({
       atMicroseconds,
-      brightness: Math.floor(atMicroseconds / 1000) % 2 === 0 ? 80 : 0,
-      current: Math.floor(atMicroseconds / 1000) % 2 === 0 ? 0.01 : 0,
+      brightness: Math.floor(atMicroseconds / half) % 2 === 0 ? 80 : 0,
+      current: Math.floor(atMicroseconds / half) % 2 === 0 ? 0.01 : 0,
     });
-    const samples = [point(0)];
-    for (let at = 1000; at < toMicroseconds; at += 1000) samples.push(point(at));
+    const samples = [point(fromMicroseconds)];
+    for (let at = (Math.floor(fromMicroseconds / half) + 1) * half; at < toMicroseconds; at += half)
+      samples.push(point(at));
     samples.push(point(toMicroseconds));
     let brightnessIntegral = 0;
     let litDurationMicroseconds = 0;
@@ -768,7 +774,7 @@ describe('mounted workbench LED temporal display', () => {
     } as SolveResult;
     const observation: ElectronicsLedTemporalObservation = {
       profile: 'ordinary-led-held-v1',
-      fromMicroseconds: 0,
+      fromMicroseconds,
       toMicroseconds,
       components: [
         {
@@ -784,16 +790,51 @@ describe('mounted workbench LED temporal display', () => {
     return { result, observation };
   }
 
+  it('commits the current result immediately while RAF independently presents explicit HIGH and LOW', async () => {
+    openedDocument = { ...initial, components: [...initial.components, led] };
+    await mount();
+    await act(async () => workbench.toggleSimulation());
+    const publish = async (from: number, to: number) => {
+      const frame = opticalReady(to, from, 50_000);
+      await act(async () => {
+        worker().callbacks!.onCommittedHorizon!(to);
+        worker().callbacks!.onResult(frame.result, frame.observation);
+      });
+      expect(workbench.result).toBe(frame.result);
+      expect(workbench.committedSimulationTimeMs).toBe(to / 1000);
+      return frame;
+    };
+    await publish(0, 25_000);
+    await tick(25);
+    const low = await publish(25_000, 50_000);
+    expect(low.result.components[0]!.brightness).toBe(0);
+    expect(workbench.componentLedBrightness(led)).toBe(80);
+    expect(workbench.componentVisualState(led)).toBe('lit');
+    await tick(41);
+    expect(workbench.componentLedBrightness(led)).toBe(0);
+    expect(workbench.componentVisualState(led)).toBe('off');
+    await publish(50_000, 75_000);
+    const high = await publish(75_000, 100_000);
+    expect(high.result.components[0]!.brightness).toBe(80);
+    expect(workbench.componentLedBrightness(led)).toBe(0);
+    expect(workbench.componentVisualState(led)).toBe('off');
+    await tick(50);
+    expect(workbench.componentLedBrightness(led)).toBe(80);
+    expect(workbench.componentVisualState(led)).toBe('lit');
+    expect(workbench.result).toBe(high.result);
+  });
+
   it('pairs the accepted mean with the actual result and clears it on Reset and Stop', async () => {
     openedDocument = { ...initial, components: [...initial.components, led] };
     await mount();
     await act(async () => workbench.toggleSimulation());
-    const fast = opticalReady(11_000);
+    const fast = opticalReady(25_000);
     const oldCallbacks = worker().callbacks!;
     await act(async () => {
-      oldCallbacks.onCommittedHorizon!(11_000);
+      oldCallbacks.onCommittedHorizon!(25_000);
       oldCallbacks.onResult(fast.result, fast.observation);
     });
+    await tick(16);
     expect(workbench.result).toBe(fast.result);
     expect(workbench.result!.components[0]!.brightness).toBe(0);
     expect(workbench.componentLedBrightness(led)).toBe(40);
