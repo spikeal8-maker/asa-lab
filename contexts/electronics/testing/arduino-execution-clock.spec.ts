@@ -1,7 +1,9 @@
-import { describe, expect, it } from 'vitest';
+import assert from 'node:assert/strict';
+import { describe, expect, it, vi } from 'vitest';
 import {
   advanceArduinoRuntime,
   advanceClockedArduinoRuntime,
+  analyseArduinoProgramSyntax,
   type ArduinoInputReader,
   type ArduinoRuntimeEvent,
   type ArduinoRuntimeState,
@@ -56,6 +58,265 @@ function pulseThrough(
 }
 
 describe('Arduino instruction-us-v1 execution clock (scheduler foundation)', () => {
+  it('resolves prepared syntax against current scopes, types and ordered input reads', () => {
+    const source = `unsigned int value=65535U;int constructor=3;int __proto__=4;
+      int outside=0;int inside=0;int ordered=0;int skipped=0;unsigned long observed=0;
+      void setup(){outside=value<1U;{long value=-1;inside=value<1U;}
+        ordered=digitalRead(2)*10+digitalRead(3);
+        skipped=(true||digitalRead(4))+(false&&(1/0));
+        observed=micros()+micros()*10;constructor+=__proto__;}
+      void loop(){delay(1);}`;
+    const execute = (budget: number) => {
+      const reads: number[] = [];
+      const result = through(
+        source,
+        0.05,
+        undefined,
+        (state) => {
+          reads.push(state.simulationTimeMs);
+          return { d2: reads.length === 1 ? 5 : 0, d3: reads.length === 2 ? 0 : 5 };
+        },
+        budget,
+      );
+      expect(result.diagnostics).toEqual([]);
+      expect(reads).toEqual([0.005, 0.005]);
+      expect(result.state.variables).toMatchObject({
+        outside: 0,
+        inside: 1,
+        ordered: 10,
+        skipped: 1,
+        observed: 77,
+        constructor: 7,
+        __proto__: 4,
+      });
+      return { state: result.state, events: result.events };
+    };
+    const whole = execute(16_384);
+    // These legal Arduino names are own data keys, including "constructor".
+    assert.deepStrictEqual(execute(1), whole);
+    assert.deepStrictEqual(execute(7), whole);
+    expect(JSON.stringify(execute(1))).toBe(JSON.stringify(whole));
+  });
+
+  it('retains macro repeated reads and member-call fallback across cached syntax and JSON yields', () => {
+    const source = `#include <Servo.h>
+      Servo motor;int value=0;int available=0;int position=0;
+      void setup(){Serial.begin(9600);motor.attach(9);motor.write(31);
+        value=min(digitalRead(2),2)+constrain(-1,0,1/0);
+        available=(true||Serial.read())+Serial.available();
+        position=motor.read()+1;Serial.println(value+position);}
+      void loop(){delay(1);}`;
+    const execute = (budget: number) => {
+      let reads = 0;
+      const result = through(
+        source,
+        0.05,
+        undefined,
+        () => {
+          reads++;
+          return { d2: 5 };
+        },
+        budget,
+      );
+      expect(result.diagnostics).toEqual([]);
+      expect(reads).toBe(2);
+      expect(result.state.variables).toMatchObject({ value: 1, available: 1, position: 32 });
+      expect(result.state.serial?.tx.map((entry) => entry.text)).toEqual(['33\n']);
+      return { state: result.state, events: result.events };
+    };
+    expect(execute(1)).toStrictEqual(execute(16_384));
+  });
+
+  it('keeps long flat expressions executable through the original token fallback', () => {
+    const expression = Array.from({ length: 600 }, () => '1').join('+');
+    const source = `long value=0;void setup(){value=${expression};}void loop(){delay(1);}`;
+    const whole = through(source, 0.01);
+    expect(whole.diagnostics).toEqual([]);
+    expect(whole.state.variables.value).toBe(600);
+    expect(through(source, 0.01, undefined, undefined, 1).state).toStrictEqual(whole.state);
+  });
+
+  it('keeps prepared assignment arithmetic faults at their original instruction after typed reads', () => {
+    const source = `int value=0;void setup(){pinMode(13,OUTPUT);
+      digitalWrite(13,HIGH);
+      value=10/analogRead(A0);
+      digitalWrite(13,LOW);}void loop(){delay(1);}`;
+    const before = through(source, 0.001, undefined, () => ({ a0: 0 }));
+    expect(before.state.outputVoltages.d13).toBe(5);
+    expect(before.diagnostics).toEqual([]);
+    const failed = through(
+      source,
+      0.01,
+      JSON.parse(JSON.stringify(before.state)),
+      () => ({ a0: 0 }),
+      1,
+    );
+    expect(failed.executionStatus).toBe('fault');
+    expect(failed.diagnostics).toEqual([
+      expect.objectContaining({ code: 'arithmetic_error', line: 3 }),
+    ]);
+    expect(failed.events).toEqual([]);
+    expect(failed.state.outputVoltages).toEqual({});
+    const reset = through(source, 0.01, undefined, () => ({ a0: 5 }), 1);
+    expect(reset.diagnostics).toEqual([]);
+    expect(reset.state.variables.value).toBe(0);
+    expect(reset.state.outputVoltages.d13).toBe(0);
+  });
+
+  it('reuses only compilation across cold/hot execution, source edits and bounded eviction', async () => {
+    vi.resetModules();
+    const coldRuntime = await import('../domain/arduino-program-runtime.js');
+    const source = `unsigned long count=0;void setup(){pinMode(13,OUTPUT);Serial.begin(9600);}
+      void loop(){count++;digitalWrite(13,count%2);Serial.println(count);delayMicroseconds(10);}`;
+    const drain = (run: typeof advanceClockedArduinoRuntime, quantum: number) => {
+      let state: ArduinoRuntimeState | undefined;
+      const events: ArduinoRuntimeEvent[] = [];
+      for (let batch = 0; batch < 1000; batch++) {
+        const actual = run(source, {}, 0.3, state, undefined, { instructionBudget: quantum });
+        events.push(...actual.events);
+        expect(actual.diagnostics).toEqual([]);
+        if (actual.executionStatus === 'ready') return { state: actual.state, events };
+        expect(actual.executionStatus).toBe('yielded');
+        state = JSON.parse(JSON.stringify(actual.state));
+      }
+      throw new Error('Canonical test horizon not reached');
+    };
+    const cold = drain(coldRuntime.advanceClockedArduinoRuntime, 1024);
+    expect(drain(coldRuntime.advanceClockedArduinoRuntime, 1)).toEqual(cold);
+    expect(drain(coldRuntime.advanceClockedArduinoRuntime, 7)).toEqual(cold);
+    const edited = source.replace('count++;', 'count+=2;');
+    const changed = coldRuntime.advanceClockedArduinoRuntime(edited, {}, 0.3);
+    expect(changed.state.programFingerprint).not.toBe(cold.state.programFingerprint);
+    expect(changed.state.variables.count).not.toBe(cold.state.variables.count);
+    expect(coldRuntime.advanceClockedArduinoRuntime(edited, {}, 0.3).state).toEqual(changed.state);
+    // Exercise both entry-count pressure and byte pressure with exact-source keys.
+    for (let index = 0; index < 40; index++) {
+      const distinct = `/*${index}:${'x'.repeat(40_000)}*/${source}`;
+      expect(coldRuntime.advanceClockedArduinoRuntime(distinct, {}, 0.3).diagnostics).toEqual([]);
+    }
+    expect(drain(coldRuntime.advanceClockedArduinoRuntime, 3)).toEqual(cold);
+    const oversized = `/*${'x'.repeat(1_050_000)}*/${source}`;
+    const large = coldRuntime.advanceClockedArduinoRuntime(oversized, {}, 0.3);
+    expect(coldRuntime.advanceClockedArduinoRuntime(oversized, {}, 0.3)).toEqual(large);
+    expect(drain(coldRuntime.advanceClockedArduinoRuntime, 1024)).toEqual(cold);
+  });
+
+  it('isolates mutable diagnostics and runtime results from compiled code reuse', () => {
+    const source = 'int count=0;void setup(){pinMode(13,OUTPUT);count=3;}void loop(){delay(1);}';
+    const expected = structuredClone(advanceClockedArduinoRuntime(source, {}, 0.1));
+    const exposed = advanceClockedArduinoRuntime(source, {}, 0.1);
+    (exposed.state.variables as Record<string, number>).count = 999;
+    (exposed.state.outputVoltages as Record<string, number>).d13 = 12;
+    (analyseArduinoProgramSyntax(source) as unknown[]).push({ code: 'injected' });
+    expect(advanceClockedArduinoRuntime(source, {}, 0.1)).toEqual(expected);
+    const invalid = 'void setup(){unsupportedCall();}void loop(){}';
+    const original = structuredClone(analyseArduinoProgramSyntax(invalid));
+    const leaked = analyseArduinoProgramSyntax(invalid) as { message: string }[];
+    leaked[0]!.message = 'modified by consumer';
+    leaked.length = 0;
+    expect(analyseArduinoProgramSyntax(invalid)).toEqual(original);
+    const fault = advanceClockedArduinoRuntime(invalid, {}, 0.1);
+    expect(fault.executionStatus).toBe('fault');
+    expect(fault.events).toEqual([]);
+    expect(fault.state.outputVoltages).toEqual({});
+  });
+  it('reinitializes loop bindings between prepared writes with exact fronts across JSON quanta', () => {
+    const source = `int count=0;void setup(){pinMode(13,OUTPUT);}void loop(){
+      int temporary=7;digitalWrite(13,HIGH);delayMicroseconds(2);
+      count+=temporary;digitalWrite(13,LOW);delayMicroseconds(1);}`;
+    const whole = through(source, 0.04);
+    expect(whole.state.variables).toEqual({ count: 28 });
+    expect(whole.state.locals).toEqual({ temporary: 7 });
+    expect(whole.state.loopIterations).toBe(4);
+    expect(
+      whole.events
+        .filter((event) => event.kind === 'output-change')
+        .map((event) => [event.atMicroseconds, event.voltage]),
+    ).toEqual([
+      [0, 0],
+      [3, 5],
+      [8, 0],
+      [13, 5],
+      [18, 0],
+      [23, 5],
+      [28, 0],
+      [33, 5],
+      [38, 0],
+    ]);
+    for (const budget of [1, 7, 256]) {
+      const resumed = through(source, 0.04, undefined, undefined, budget);
+      expect(resumed.state).toStrictEqual(whole.state);
+      expect(resumed.events).toStrictEqual(whole.events);
+    }
+  });
+
+  it('evaluates cached global declaration initializers against each new input and source', () => {
+    const source = `int observed=digitalRead(2);void setup(){pinMode(13,OUTPUT);
+      digitalWrite(13,HIGH);}void loop(){delay(1);}`;
+    for (const voltage of [0, 5, 0]) {
+      const actual = advanceClockedArduinoRuntime(source, { d2: voltage }, 0.01);
+      expect(actual.state.variables.observed).toBe(voltage === 0 ? 0 : 1);
+      expect(actual.state.outputVoltages.d13).toBe(5);
+    }
+    const changed = advanceClockedArduinoRuntime(source.replace('digitalRead(2)', '9'), {}, 0.01);
+    expect(changed.state.variables.observed).toBe(9);
+  });
+
+  it('discards prepared GPIO actions when a later expression faults in the same batch', () => {
+    const source = `int value=32767;void setup(){pinMode(13,OUTPUT);
+      digitalWrite(13,HIGH);value++;}void loop(){delay(1);}`;
+    const result = advanceClockedArduinoRuntime(source, {}, 0.01);
+    expect(result.executionStatus).toBe('fault');
+    expect(result.diagnostics[0]?.code).toBe('arithmetic_error');
+    expect(result.setupActions).toEqual([]);
+    expect(result.loopActions).toEqual([]);
+    expect(result.events).toEqual([]);
+    expect(result.state.eventQueue).toEqual([]);
+    expect(result.state.outputVoltages).toEqual({});
+  });
+
+  it('retains pull-up transitions and finite PWM values across repeated writes', () => {
+    const source = `void setup(){digitalWrite(13,HIGH);digitalWrite(13,HIGH);
+      digitalWrite(13,LOW);analogWrite(3,128);analogWrite(3,128);analogWrite(3,0);}
+      void loop(){delay(1);}`;
+    const high = through(source, 0.001);
+    expect(high.state.pinModes.d13).toBe('INPUT_PULLUP');
+    expect(high.state.outputVoltages.d13).toBe(5);
+    expect(high.events.filter((event) => event.atMicroseconds === 1)).toEqual([]);
+    const pwm = through(source, 0.004, JSON.parse(JSON.stringify(high.state)));
+    expect(pwm.state.pinModes).toMatchObject({ d13: 'INPUT', d3: 'OUTPUT' });
+    expect(pwm.state.outputVoltages).toMatchObject({ d13: 0, d3: (5 * 128) / 255 });
+    expect(Number.isFinite(pwm.state.outputVoltages.d3)).toBe(true);
+    expect(pwm.events.filter((event) => event.atMicroseconds === 4)).toEqual([]);
+    const zero = through(source, 0.005, JSON.parse(JSON.stringify(pwm.state)));
+    expect(zero.state.outputVoltages.d3).toBe(0);
+    expect(zero.events).toEqual([
+      { kind: 'output-change', terminal: 'd3', voltage: 0, atMicroseconds: 5, sequence: 7 },
+    ]);
+    expect(zero.state).toStrictEqual(through(source, 0.005).state);
+  });
+
+  it.each(['negative-zero', 'missing'] as const)(
+    'preserves LOW assignment for a %s stored output without skipping the instruction',
+    (kind) => {
+      const source = 'void setup(){pinMode(13,OUTPUT);digitalWrite(13,LOW);}void loop(){delay(1);}';
+      const seeded = through(source, 0).state;
+      const previous = {
+        ...seeded,
+        outputVoltages: kind === 'negative-zero' ? { d13: -0 } : {},
+      };
+      const result = advanceClockedArduinoRuntime(source, {}, 0.001, previous);
+      expect(result.executionStatus).toBe('ready');
+      expect(Object.is(result.state.outputVoltages.d13, 0)).toBe(true);
+      expect(result.state.programCounter).toBe(seeded.programCounter + 1);
+      expect(result.state.resumeAtMs).toBe(0.002);
+      expect(result.setupActions).toEqual([{ kind: 'write', terminal: 'd13', targetVoltage: 0 }]);
+      expect(result.events).toHaveLength(kind === 'negative-zero' ? 0 : 1);
+      if (kind === 'negative-zero') expect(Object.is(previous.outputVoltages.d13, -0)).toBe(true);
+      else expect(previous.outputVoltages).toEqual({});
+    },
+  );
+
   it('finishes millis busy-wait instead of treating it as an infinite program', () => {
     const source = `void setup(){pinMode(13,OUTPUT);while(millis()<10){}
       digitalWrite(13,HIGH);}void loop(){delay(100);}`;

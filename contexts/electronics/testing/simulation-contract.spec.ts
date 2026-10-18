@@ -1,11 +1,18 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type {
   ComponentKind,
   ElectronicsDocument,
   SchematicComponent,
   Terminal,
 } from '../domain/document';
-import { analyseCircuit, compileCircuit } from '../domain/simulation';
+import {
+  analyseCircuit,
+  compileCircuit,
+  simulationModelSetDigest,
+  verifyCircuitQuality,
+} from '../domain/simulation';
+
+import * as solver from '../domain/solver';
 
 function component(
   id: string,
@@ -57,6 +64,38 @@ function simpleOhmLaw(vertices: readonly { x: number; y: number }[] = []): Elect
 }
 
 describe('R4-M1 simulation implementation contract', () => {
+  it('uses one registry identity for supported, unsupported and rejected-quality analysis', () => {
+    const supported = simpleOhmLaw();
+    const unsupported = document([component('unknown', 'visual', 0)], []);
+    const expected = simulationModelSetDigest();
+    expect(expected).toMatch(/^sha256:[0-9a-f]{64}$/);
+    expect(analyseCircuit(supported)).toMatchObject({ status: 'solved', modelSetDigest: expected });
+    expect(analyseCircuit(unsupported)).toMatchObject({
+      status: 'unsupported',
+      modelSetDigest: expected,
+      solved: false,
+    });
+    const frame = solver.solveCircuit(supported);
+    const corrupt = vi.spyOn(solver, 'solveCircuit').mockReturnValue({
+      ...frame,
+      components: frame.components.map((entry) => ({
+        ...entry,
+        terminalCurrents: Object.fromEntries(
+          Object.keys(entry.terminalCurrents ?? {}).map((key) => [key, 1]),
+        ),
+      })),
+    });
+    try {
+      expect(analyseCircuit(supported)).toMatchObject({
+        status: 'nonconvergent',
+        modelSetDigest: expected,
+        solved: false,
+        quality: { passed: false },
+      });
+    } finally {
+      corrupt.mockRestore();
+    }
+  });
   it('compiles a deterministic electrical topology independent of wire geometry', () => {
     const straight = compileCircuit(simpleOhmLaw());
     const bent = compileCircuit(
@@ -113,6 +152,91 @@ describe('R4-M1 simulation implementation contract', () => {
     expect(result.status).toBe('solved');
     expect(result.current).toBeCloseTo(0.03, 6);
     expect(result.quality.passed).toBe(true);
+  });
+
+  it.each([NaN, Infinity, -Infinity])(
+    'rejects nonfinite component observations after earlier finite components: %s',
+    (invalid) => {
+      const circuit = simpleOhmLaw();
+      const compiled = compileCircuit(circuit);
+      const solved = analyseCircuit(circuit);
+      // Dynamic observations remain mandatory even when unrelated to this circuit's load.
+      for (const field of [
+        'internalPower',
+        'voltageSetpointVolt',
+        'sensorOutputCurrentAmp',
+        'temperatureCelsius',
+        'accumulatedDamagePercent',
+        'motorMechanicalPowerWatt',
+        'voltageConstraintResidual',
+      ] as const) {
+        const components = solved.components.map((entry, index) =>
+          index === solved.components.length - 1 ? { ...entry, [field]: invalid } : entry,
+        );
+        expect(
+          verifyCircuitQuality(circuit, compiled, { ...solved, components }, {}),
+        ).toMatchObject({
+          finite: false,
+          passed: false,
+        });
+      }
+    },
+  );
+
+  it.each([NaN, Infinity, -Infinity])(
+    'rejects nonfinite terminal and branch observations without omitting any record: %s',
+    (invalid) => {
+      const circuit = simpleOhmLaw();
+      const compiled = compileCircuit(circuit);
+      const solved = analyseCircuit(circuit);
+      for (const field of [
+        'terminalVoltages',
+        'terminalCurrents',
+        'branchCurrents',
+        'branchBrightness',
+      ] as const) {
+        const components = solved.components.map((entry) => ({
+          ...entry,
+          [field]: { ...entry[field], a: invalid },
+        }));
+        expect(
+          verifyCircuitQuality(circuit, compiled, { ...solved, components }, {}),
+        ).toMatchObject({
+          finite: false,
+          passed: false,
+        });
+      }
+    },
+  );
+
+  it('retains optional terminal filtering while checking every present branch value', () => {
+    const circuit = simpleOhmLaw();
+    const compiled = compileCircuit(circuit);
+    const solved = analyseCircuit(circuit);
+    const components = solved.components.map((entry) => ({
+      ...entry,
+      terminalVoltages: { ...entry.terminalVoltages, wiper: undefined },
+      terminalCurrents: { ...entry.terminalCurrents, wiper: undefined },
+      branchCurrents: { measured: -0 },
+      branchBrightness: { measured: 0 },
+    }));
+    expect(verifyCircuitQuality(circuit, compiled, { ...solved, components }, {}).finite).toBe(
+      true,
+    );
+    expect(
+      verifyCircuitQuality(
+        circuit,
+        compiled,
+        {
+          ...solved,
+          components: components.map((entry) => ({
+            ...entry,
+            branchCurrents: { measured: undefined as unknown as number },
+          })),
+        },
+        {},
+      ).finite,
+    ).toBe(false);
   });
 
   it('fails closed when any component has no electrical model', () => {
