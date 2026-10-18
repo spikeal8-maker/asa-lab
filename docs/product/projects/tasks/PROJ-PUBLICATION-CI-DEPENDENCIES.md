@@ -351,6 +351,63 @@ decode-selection implementation itself. Preserve all negative controls and
 original evidence. A different independent reviewer and new changed-SHA real
 Classroom/Access CI are required; existing unrelated failures remain open.
 
+## Separate evidence — locate the two remaining Scratch save failures
+
+TASK-PROJ-PUBLICATION-SCRATCH-SAVE-EVIDENCE-001.
+Author branch: `codex/projects-scratch-save-evidence`.
+Prepared base: exact analytics `4343b88b788f02a279fd18df3789582994cb6b9e`.
+Only two authored paths: `e2e/blocks-product-integration.spec.ts` and
+`e2e/blocks-recovery.spec.ts`.
+
+Actual Scratch run `39160885787`, job `117773758655`, completed55 browser passes
+and two failures. Artifact `12149940575`, SHA256
+`d5ae4753962d6d9a0e5f3189b849e3a980ec5dff4977cd51bc3f50dd0fd448c8`, confirms
+the exact host/source identity. The two test files and host editor/storage/recovery
+are unchanged from the parent, but the analytics fixture is in the changed source;
+that alone does not establish category C or exclude an introduced interaction.
+
+The default-cached Pop/Abby case expects revision24 and observes23. Existing JSON
+records a checkpoint, editor readiness, one project change and a fired60000ms
+timer, but zero asset requests, draft requests and revision commits. The timer
+observer accepts any55-65s timer without callback identity, so it does not prove
+ProjectSaver began. The clean-Pop sibling saves five protected assets and one
+draft and reopens the exact media. The failure is before the first durable-save
+HTTP request; an asset/SQL rejection has not been established.
+
+The failed-autosave case reaches the error UI and then exceeds150s. Completed
+repair `cc18c540d8a2e717e1961a956c7d6db689b15cd7` is already in4343 and must
+remain. Existing artifacts do not distinguish response headers, the unbounded
+`response.finished()` await, post-failure IndexedDB read, or fixture teardown.
+The finally-block inline attachment is absent from this list-only runner's
+uploaded files. Neither recovery loss nor accepted retention is demonstrated.
+
+Select passive, bounded stage evidence in the two tests, saved as real JSON files
+under the existing uploaded `reports/blocks` tree before blocking awaits and
+during failure/teardown. Distinguish observed timer/callback and exposed upstream
+serialization/save-adapter boundaries without invoking or replacing a save.
+Record non-observed stages explicitly; do not infer execution from an unrelated
+timer. Record response headers/completion, recovery-read entry/exit and teardown
+entry/exit separately. New metadata must exclude tokens, cookies, request bodies
+and raw errors and must remain bounded. Preserve every existing user action,
+clock advance, timeout/retry, exact revision/media/auth/origin/recovery assertion.
+Observers must retain callback this/arguments/return/throw and execution order;
+no forced save, extra click, reschedule, assertion catch or false success.
+
+Fresh canonical and open-PR inspection found no current unfinished author on
+these two E2E files. Issue601/599 completed owners retain their existing unit-test
+and runtime boundaries; coordination was posted in Issue601 comment6254919404.
+No host/bridge/storage, shared fixture, workflow, Analytics11 or GC1 file is
+authored. Start from exact4343 to keep the actual numeric-receipt fixture under
+test without composing unrelated main changes. A diagnostic PR may target that
+frozen analytics source branch for a precise two-file review; it is not selected
+for merging into that author's branch or for publication acceptance.
+
+Require independent final-source review, then one justified changed-source
+Scratch CI with exact build identity and uploaded JSON. A/B/C/D remain unresolved
+until causal evidence is read. Preserve failure exit status; an unreproduced
+failure is NOT_REPRODUCED, not proof of a repair. No product modification or
+second unchanged CI attempt is selected by this evidence task.
+
 ## Separate C — preserve the accepted AI header in publication verification
 
 TASK-PROJ-PUBLICATION-SHELL-AI-COMPATIBILITY-001.

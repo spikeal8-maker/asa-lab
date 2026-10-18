@@ -4257,6 +4257,42 @@ parallel_lanes:
           Source-only compatibility is pending until changed combined Access/header
           browser CI; an isolated companion without the publication runtime is not
           final acceptance. No timeout/retry/fixture-authority or product behavior change.
+      - id: TASK-PROJ-PUBLICATION-SCRATCH-SAVE-EVIDENCE-001
+        status: in_progress
+        branch: codex/projects-scratch-save-evidence
+        prepared_base: 4343b88b788f02a279fd18df3789582994cb6b9e
+        scope:
+          - e2e/blocks-product-integration.spec.ts
+          - e2e/blocks-recovery.spec.ts
+        selection: >-
+          Separate bounded test-evidence task after actual Scratch39160885787 on4343b88b
+          completed55 passes and2 failures. Default-cached Pop/Abby reaches an observed
+          minute timer but no asset or draft request; timer identity is not established.
+          Failed autosave shows the error UI, but response completion, recovery read and
+          teardown cannot be distinguished. Preserve the already-present cc18c540 repair;
+          A/B/C/D causality remains unresolved and no runtime repair is selected.
+        author_coordination: >-
+          One author owns only these two E2E paths. Current canonical scopes and fresh
+          open-PR inspection found no unfinished author on them; completed Issue601/599
+          owners retain their unit-test/runtime lanes. Coordination evidence is in
+          Issue601 comment6254919404. Fork exact completed analytics4343b88b so its eleven
+          unchanged receipt files remain the tested baseline; review the two-file diff
+          against that source. This diagnostic fork is not the final main convergence.
+          Keep all host/bridge/storage/fixture/workflow and GC1-owned paths unchanged.
+        acceptance: >-
+          Persist bounded safe stage JSON under already-uploaded reports/blocks before
+          blocking waits and during failure/teardown. Identify observed timer callback,
+          upstream serialization or save-adapter boundaries where exposed by existing
+          test hooks; label anything not observed honestly. Record failed-save response
+          headers/completion, recovery-read entry/exit and teardown entry/exit separately.
+          Preserve original actions, clock advance, retries/timeouts, all exact revision,
+          media, authentication, origin, recovery and no-mutation assertions. Passive
+          observers must preserve callback this/arguments/return/throw and execution order;
+          no save invocation, extra click, rescheduling, swallowed assertion or fabricated
+          success. Admit only safe bounded metadata, never tokens/cookies/bodies/raw errors.
+          Require independent source review and actual changed-source Scratch CI with
+          exact build identity and durable JSON artifacts. Existing failures remain failures;
+          no reproduction is NOT_REPRODUCED and does not establish an underlying repair.
     accepted_foundation:
       accepted_r7_01b_merge_sha: 65316c50873e28a5effd7b6e603b5289e37e2fac
       accepted_r3_merge_sha: 5fa616045b16d2720418eb7945f7bef968dd9389
