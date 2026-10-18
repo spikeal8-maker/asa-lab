@@ -1006,7 +1006,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: provider_policy_and_ui_implementation
+      checkpoint: account_confirmation_frozen_header_verification_dependency
       owner_acceptance: pending
       normative_refs:
         - document: IDENTITY-ACCESS-V22
@@ -1018,12 +1018,53 @@ parallel_lanes:
       owner_authorization: implement_account_confirmation_with_admin_switch_max_telegram_and_server_verified_outage_fallback
       status: in_progress
       target_revision: '1.0'
-      selected_slice: AUTH-C1-C2-C3
+      selected_slice: AUTH-C4-ACCEPTANCE
       dependency_order: [AUTH-C1-PROVIDERS, AUTH-C2-POLICY, AUTH-C3-UI, AUTH-C4-ACCEPTANCE]
       completed_slices: []
       owner_acceptance: pending
       deployment_authorized: false
       working_database_actions_authorized: false
+    integration_dependencies:
+      - id: TASK-AUTH-HEADER-COMPATIBILITY-001
+        status: in_progress
+        branch: codex/auth-header-ci-baseline-20261018
+        scope:
+          - e2e/classroom-profile-completion.spec.ts
+        observed_source_sha: 74cf0768d04f77149c55b83509fbbfa1566c6e58
+        observed_general_run: 39165774800
+        selection: >-
+          Controller selects a separate bounded category C test repair under AGENTS.md section 7.
+          The account confirmation candidate passed 158 unit, 54 integration, 18 authentication
+          browser and 8 existing Account R3 checks, with independent source and visual review.
+          General Data passed 4560 tests and 16 RLS checks. Two real Access journeys fail because
+          the unchanged mobile header helper expects six targets after accepted main PR 616
+          added the third native AI destination. The authentication feature changes neither
+          PortalHeader nor this helper. This repair does not change provider or policy code.
+        acceptance: >-
+          Require seven exact header controls and three named native destinations while
+          preserving the 56px header, every 44px target, ordering, viewport, overlap and all
+          original real journeys and widths. Do not change runtime, CSS, timeouts, retries,
+          rate limits or fixture authority, and do not weaken assertions. A separate author,
+          new independent review of the final source and successful actual Access and complete
+          General CI are required.
+      - id: TASK-AUTH-ACCESS-AI-COMPATIBILITY-DEPENDENCY-001
+        status: in_progress
+        source_task: TASK-PROJ-PUBLICATION-SHELL-AI-COMPATIBILITY-001
+        prepared_branch: codex/projects-shell-ai-compatibility
+        scope:
+          - e2e/access-account-ui.spec.ts
+        selection: >-
+          The full settings step was skipped after the Access failure. Main e5546bac already
+          selects a separate Projects companion for inherited two-link and responsive boundary
+          expectations in this file. Preserve that active author and its completed handoff;
+          do not create a competing Access-file repair or adopt unpublished publication runtime.
+          Any reuse must isolate compatibility with accepted main PR 616 and retain existing
+          Account, authorization, profile, navigation and geometry checks.
+        acceptance: >-
+          Read and independently review the actual frozen compatible source before integration.
+          Full changed-source settings and required General CI must pass; R3-only success cannot
+          replace the skipped full settings suite. Owner acceptance, deployment and working
+          database actions remain unperformed.
     previous_task:
       id: TASK-PORTAL-SHELL-UX-001
       issue: 520
@@ -4136,8 +4177,10 @@ parallel_lanes:
           and Electronics specs. No QR author overlap was found in current PR/control
           inspection; coordination is recorded in PR613/comment6254582754.
         acceptance: >-
-          Normalize only print screenshots by bounded integer nearest-neighbor pixel
-          replication, never by reading the QR encoder/DOM payload. Retain raw-screen
+          Decode the original raster first. Preserve every successful raw decode; only
+          a null raw print decode may select one fixed nearest-neighbor2x fallback from
+          the same PNG, never a new screenshot or the QR encoder/DOM payload. Check
+          monochrome on that same selected raster with no further fallback. Retain raw-screen
           decoding, original-raster quiet-zone checks, independent jsQR and monochrome
           decoding, exact full URL and all privacy/no-mutation/layout assertions.
           Reproduce the original failing raster, reject blank/corrupt finder controls,
@@ -4145,6 +4188,111 @@ parallel_lanes:
           timeout/rate-limit/viewport/DPR/product CSS or SVG change. Require focused
           regression, independent exact-source review and real Classroom/Access CI
           on the changed SHA. Original artifact12146839286 SHA256205457c8e4e5ccd34fe462818d1998716fee906c19e93ab47ecaab1e60bd5991.
+        runtime_refinement: >-
+          PR629 b1387d32 actual Classroom39163873957 has a new category A regression:
+          original20mm76x77 print PNG decodes raw but forced2x returns null. Do not accept
+          that source or count the serial-skipped mixed16mm journey as run. Preserve raw
+          success and regress BOTH exact real PNGs through the actual decode-selection
+          pipeline. Review5564865973 supersedes prior source-only acceptance; require a
+          different independent reviewer and new changed-SHA real CI after author repair.
+      - id: TASK-PROJ-PUBLICATION-LEARNING-MUTATION-EVIDENCE-001
+        status: in_progress
+        branch: codex/projects-learning-mutation-evidence
+        scope:
+          - .github/workflows/learning-mutation-budget-diagnostic.yml
+          - tools/learning-mutation-diagnostic/runner.mjs
+          - tools/learning-mutation-diagnostic/reporter.mjs
+          - tools/learning-mutation-diagnostic/harness.spec.mjs
+        selection: >-
+          Separate bounded read-only runtime evidence after analytics source 4343b88b
+          passed General Data, real delivery PG14/14 and Classroom. Learning run39160885790
+          still has18 browser passes and5 fresh no-cookie login429 failures. Existing
+          failed traces identify the common mutation guard before AuthController, but
+          omit the prior successful request stream. Capture the whole original first
+          23-case batch without changing auth limits, retries or product behavior.
+        author_coordination: >-
+          One diagnostic author owns only these four new paths. Keep existing Learning
+          workflow/config/server, PR622 journey files, Analytics11 paths, QR629 and GC1
+          unchanged. Use a separate concurrency group and reviewed candidate PR trigger;
+          no production, owner-computer application stack or working database action.
+        acceptance: >-
+          Two exact checkouts: tested product 4343b88b788f02a279fd18df3789582994cb6b9e and
+          the diagnostic head, both independently recorded and verified. Reuse original
+          Node22/pnpm9.15.9/frozen lockfile/build/PG16 restricted-role setup and all first
+          batch assertions, one worker and zero retries. ASA_HTTP_LOG and DEBUG=pw:webserver
+          feed bounded private pipes through a strict custom reporter; never use PWDEBUG.
+          Persist only method, routecategory, status, timestamp and requestId, plus safe
+          stage/identity/matrix metadata. No raw paths/query, bodies, headers, tokens,
+          stdout/stderr or trace artifacts; trace-off is diagnostic capture only. Require
+          split-chunk/ANSI/privacy/capture-failure and exit-status negative tests, new
+          independent source review before starting this workflow, and actual isolated
+          CI with exact identities and preserved failure status. Counts are observed HTTP
+          traffic, not internal limiter state; no429 is NOT_REPRODUCED, never a repair PASS.
+      - id: TASK-PROJ-PUBLICATION-SHELL-AI-COMPATIBILITY-001
+        status: in_progress
+        branch: codex/projects-shell-ai-compatibility
+        scope:
+          - e2e/access-account-ui.spec.ts
+        selection: >-
+          Separate bounded C test companion for the accepted main PR616 AI navigation.
+          Read-only audit on d4dd2115 finds no new textual publication/shell conflicts,
+          but both main and frozen shell7db13b9 still require two global links and no AI.
+          Their geometry also predates the accepted four-pixel inset below360 and the
+          compact Create label between601 and760. Preserve the completed shell7db13b9
+          Explore/legacy-redirect assertions while adapting only these obsolete oracles.
+        author_coordination: >-
+          One new test author owns only this path after the prior shell author supplied
+          frozen7db13b9 handoff. Base the companion on current accepted main and adopt
+          that exact completed Access source before the bounded compatibility edit.
+          Do not author a publication convergence or replace runtime/header/styles,
+          MyProjectsPage, Analytics11, Learning622, QR629 or any GC1-owned file.
+        acceptance: >-
+          Keep three native destinations Projects, Knowledge and AI; strict56px header,
+          every44px target, overflow/overlap, stress-text, role, focus/Escape, dirty
+          navigation and profile/no-mutation guards. Preserve canonical Explore and the
+          actual legacy Gallery redirect. Cover359/360,600/601,760/761,1023/1024 together
+          with1440/1024/390/320. Independently review exact source against both7db and
+          accepted616. Existing AI entry/exit sidebar preference, mobile drawer and Seat
+          locked-view/no-API-access tests remain mandatory in the final composition.
+          Source-only compatibility is pending until changed combined Access/header
+          browser CI; an isolated companion without the publication runtime is not
+          final acceptance. No timeout/retry/fixture-authority or product behavior change.
+      - id: TASK-PROJ-PUBLICATION-SCRATCH-SAVE-EVIDENCE-001
+        status: in_progress
+        branch: codex/projects-scratch-save-evidence
+        prepared_base: 4343b88b788f02a279fd18df3789582994cb6b9e
+        scope:
+          - e2e/blocks-product-integration.spec.ts
+          - e2e/blocks-recovery.spec.ts
+        selection: >-
+          Separate bounded test-evidence task after actual Scratch39160885787 on4343b88b
+          completed55 passes and2 failures. Default-cached Pop/Abby reaches an observed
+          minute timer but no asset or draft request; timer identity is not established.
+          Failed autosave shows the error UI, but response completion, recovery read and
+          teardown cannot be distinguished. Preserve the already-present cc18c540 repair;
+          A/B/C/D causality remains unresolved and no runtime repair is selected.
+        author_coordination: >-
+          One author owns only these two E2E paths. Current canonical scopes and fresh
+          open-PR inspection found no unfinished author on them; completed Issue601/599
+          owners retain their unit-test/runtime lanes. Coordination evidence is in
+          Issue601 comment6254919404. Fork exact completed analytics4343b88b so its eleven
+          unchanged receipt files remain the tested baseline; review the two-file diff
+          against that source. This diagnostic fork is not the final main convergence.
+          Keep all host/bridge/storage/fixture/workflow and GC1-owned paths unchanged.
+        acceptance: >-
+          Persist bounded safe stage JSON under already-uploaded reports/blocks before
+          blocking waits and during failure/teardown. Identify observed timer callback,
+          upstream serialization or save-adapter boundaries where exposed by existing
+          test hooks; label anything not observed honestly. Record failed-save response
+          headers/completion, recovery-read entry/exit and teardown entry/exit separately.
+          Preserve original actions, clock advance, retries/timeouts, all exact revision,
+          media, authentication, origin, recovery and no-mutation assertions. Passive
+          observers must preserve callback this/arguments/return/throw and execution order;
+          no save invocation, extra click, rescheduling, swallowed assertion or fabricated
+          success. Admit only safe bounded metadata, never tokens/cookies/bodies/raw errors.
+          Require independent source review and actual changed-source Scratch CI with
+          exact build identity and durable JSON artifacts. Existing failures remain failures;
+          no reproduction is NOT_REPRODUCED and does not establish an underlying repair.
     accepted_foundation:
       accepted_r7_01b_merge_sha: 65316c50873e28a5effd7b6e603b5289e37e2fac
       accepted_r3_merge_sha: 5fa616045b16d2720418eb7945f7bef968dd9389
