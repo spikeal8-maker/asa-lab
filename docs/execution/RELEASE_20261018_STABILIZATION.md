@@ -34,3 +34,22 @@ School false-logout/heartbeat fixes from points5/6 are included in this release.
 No speculative NAT/security redesign or5000-user acceptance is selected here.
 Programme controller integrates; distinct bounded author and independent reviewer
 roles follow AGENTS.md. Source task selection lives only in current.yaml.
+
+## Selected verification baseline dependency
+
+Scratch run39150828566 on sourcece6f0e87 completed56PASS/1FAIL; contracts and
+fresh-install persistence passed. The failed `failed server autosave retains
+recovery` case recorded local recovery73 but reached no draft PUT, so it never
+exercised the intended503 response. Its fake-clock helper proves only a
+historical timer arm. The exact cause remains unproved; runtime changes are not
+selected by this evidence.
+
+Under programme step3, select one ClassC test baseline repair in
+`e2e/blocks-recovery.spec.ts`: this case alone uses the real-clock path already
+proved by the adjacent successful-save case. Require an actual503 response,
+exactly one authenticated draft PUT with baseRevision23 and edited value73,
+unchanged server revision23 and retained recovery73. Preserve the successful200
+opposite outcome, every other case, the shared timer helper and all runtime
+bytes. Keep passive failure evidence bounded. Independent HIGH review and one
+new exact-source Scratch Focused run are required; no unchanged heavy retry or
+claim that a product defect has already been established.
