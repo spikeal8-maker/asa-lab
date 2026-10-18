@@ -259,8 +259,16 @@ async function assertLayout(page: Page, width: number, file: string) {
       // Chromium rounds local scroll offsets to pixels; keep the same 1px
       // geometry tolerance as the rest of this layout contract.
       await expect(button).toBeInViewport();
-      const box = (await button.boundingBox())!;
-      const rail = (await sections.boundingBox())!;
+      // Focus can scroll the document. Measure both rectangles in the same
+      // browser frame so document movement cannot look like local clipping.
+      const { box, rail } = await button.evaluate((element) => {
+        const box = element.getBoundingClientRect();
+        const rail = element.closest('.participant-tabs')!.getBoundingClientRect();
+        return {
+          box: { x: box.x, y: box.y, width: box.width, height: box.height },
+          rail: { x: rail.x, y: rail.y, width: rail.width, height: rail.height },
+        };
+      });
       expect(box.x).toBeGreaterThanOrEqual(rail.x - 1);
       expect(box.x + box.width).toBeLessThanOrEqual(rail.x + rail.width + 1);
       expect(box.y).toBeGreaterThanOrEqual(rail.y - 1);

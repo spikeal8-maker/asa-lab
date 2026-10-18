@@ -409,8 +409,14 @@ test('production profile stays compact with long Russian identity on desktop, sp
     for (const tab of await tabs.locator('button').all()) {
       await tab.focus();
       await expect(tab).toBeInViewport();
-      const box = (await tab.boundingBox())!;
-      const rail = (await tabs.boundingBox())!;
+      const { box, rail } = await tab.evaluate((element) => {
+        const box = element.getBoundingClientRect();
+        const rail = element.closest('.participant-tabs')!.getBoundingClientRect();
+        return {
+          box: { x: box.x, y: box.y, width: box.width, height: box.height },
+          rail: { x: rail.x, y: rail.y, width: rail.width, height: rail.height },
+        };
+      });
       expect(box.x).toBeGreaterThanOrEqual(rail.x - 1);
       expect(box.x + box.width).toBeLessThanOrEqual(rail.x + rail.width + 1);
       expect(box.y).toBeGreaterThanOrEqual(rail.y - 1);
