@@ -228,7 +228,7 @@ parallel_lanes:
       pr: null
       status: in_progress
       kind: repair
-      checkpoint: ci_image_transport_repair_selected
+      checkpoint: corrected_before_composition_selected
       owner_acceptance: pending
       owner_authorization: >-
         Owner selected phone component adding and connecting, implementation through subagents
@@ -245,10 +245,10 @@ parallel_lanes:
         - docs/product/electronics/components/ui-assets-persistence.yaml
         - docs/product/electronics/evidence/ci-image-transport-545-receipt.json
       repair_scope: >-
-        Supporting infrastructure only for the SAME280/452 mobile result: Electronics Node/Caddy
-        transport from public ECR to pinned same-content Google mirror, scoped receipt/guard and ONE
-        additive post-build read-only image identity proof. Preserve original545 receipt and every
-        immutable image identity. No General/Postgres/Compose/default or mobile/core/test changes.
+        Test-only corrected BEFORE composition for the SAME280/452 mobile result. Inherit the exact
+        reviewed three-file transport candidate unchanged together with latest accepted main; append ONLY
+        exact631-line corrected93c mobile test suffix to the preserved accepted simulation prefix and
+        canonically recompute only the coverage browserEvidenceSha256. No UI/infra/core changes.
       supporting_generated_path_decision: >-
         Controller permits the canonical generator to update only generatedFrom.browserEvidenceSha256
         in docs/product/electronics/generated/component-coverage.json for the changed registered
@@ -266,26 +266,46 @@ parallel_lanes:
         original_545_receipt_sha256: 9b3b516e257aa31d3feb4a64c9dc8bfe7c33c9ad7d1be448245d8df044f7f273
         host_probe_receipt_sha256: c1264a738e5a0ed29de2b25626ce9642f1a4d561f3f86282f4a1ca9ebdddd989
         host_proof_limit: Same manifest/config bytes and ordered layer descriptors/rootfs diff_ids are preparation only; actual GitHub pull/build and revision proof are required.
+      observed_supporting_infra_result:
+        observed_at: '2026-10-18T15:19:35Z'
+        branch: codex/electronics-mobile-ci-transport-429
+        sha: 02ae08a82eb8ad65eda52a47c2100ef7830e45d5
+        tree: 3b2686d36f7f8fb2efe3c0dd320a8f79a510190b
+        source_review: SOURCE_APPROVE
+        reviewer: mobile_transport_review
+        evidence_note: >-
+          Published remote ref verified at this observation; controller supplied source review.
+          Author offline guard,45 semantic and14 mocked identity challenges plus governance PASS;
+          reviewer independently repeated those and27 additional adversarial challenges PASS.
+          These are source-only results. Actual Actions mirror pull/build/image identity NOT_RUN;
+          General39139917902 was in_progress with no conclusion, not a gate PASS.
+      corrected_before_composition_contract:
+        preserved_mobile_test_source: 93c8d0308cedd74454e4553ca9ee17e75ef66575
+        appended_suffix_lines: 631
+        appended_suffix_bytes: 25341
+        appended_suffix_sha256: 5272d3b08d52eb77b544fa121ef4c34272076d49435d570b7c5167c18997e2b4
+        accepted_prefix: Latest accepted main bytes including any newly integrated546 test repair; no unintegrated546 refs or old whole-file replacement.
+        before_after_tests: Complete simulation test file must be byte-identical between the selected BEFORE and AFTER.
       expected_write_paths:
-        - .github/workflows/electronics-r4-m1-focused.yml
-        - tools/test_ci_image_transport.py
-        - docs/product/electronics/evidence/ci-image-transport-429-receipt.json
+        - e2e/electronics-simulation.spec.ts
+        - docs/product/electronics/generated/component-coverage.json
       path_coordination: >-
-        Check actual dirty target paths before each write; no overlap bypass. Workflow permission is
-        ONLY the card's three-path supporting exception: two transport identities in browser/review-images,
-        ONE scoped read-only identity step and, if needed, two additive guard/receipt path triggers.
-        No General/Postgres/Compose/Dockerfiles/defaults/package/lock/security/gates/timing/cleanup changes.
-        No mobile source/specs, old546 cases, hook/LED/core or school operations. New boundaries return a proposal.
+        Check all actual dirty target paths before writing. The composition author inherits reviewedinfra
+        three blobs unchanged and latest accepted main foreign bytes. Preserve the complete accepted prefix,
+        old cases/helpers and interactions; if546 test repair becomes accepted main, retain that new prefix.
+        Do not import unintegrated546 fcf refs. Append exact93c suffix only; generated metadata change only.
+        No workflow/receipt/guard/UI/Stage/CSS/core/hook/LED or Course/Portal edits. Any overlap returns a handoff.
       next_action: >-
-        ONE bounded infra author implements the exact three-path budget, performs self-review and STOP;
-        a NEW independent reviewer checks that source. The controller canonically selects corrected BEFORE
-        composition from latest main, followed by separate composition review of the added spec/hash paths.
-        ONE justified combined Actions build/identity proof and real corrected BEFORE may then run in the
-        existing workflow; no separate full browser run solely for transport and no gate weakening. Run AFTER
-        with identical corrected93c mobile tests, reviewed6184 UI and all accepted foreign work preserved,
-        required full gates and NEW runtime/visual review of actual native full journeys. The infra author
-        cannot edit spec/UI before that selection. No automatic rerun, integration, close280, release or
-        deployment. No old546/core/hook/LED or Course/Portal repair; new Postgres429/paths require a proposal.
+        ONE bounded test-composition author inherits reviewedinfra02ae plus latest accepted main unchanged,
+        appends the exact corrected93c suffix and regenerates only the browser evidence hash; narrow checks,
+        self-review, ONE unpublished candidate then STOP. A NEW independent composition reviewer checks it.
+        Then ONE justified combined Actions actual image proof plus corrected BEFORE: six full native placement/
+        connection journeys must complete their respective strict document and Save/CAS/cookies-reopen oracles
+        through expected soft cue failures; five strict Cancel/desktop missing-cue cases remain causal expected
+        failures, never acceptance PASS. A NEW independent reviewer examines actual BEFORE raw/visual evidence
+        before the controller selects AFTER with ONLY reviewed6184 Stage/CSS diff and identical whole test file.
+        Require full exact gates and NEW final runtime/visual review. No retry, closure, integration/release/deploy,
+        old546/core/hook/LED or foreign Course/Portal repair; extra paths or new infrastructure cause need proposal.
       deployment: not_requested
       database_actions: isolated_CI_fixture_only_no_local_live_owner_operations
       ci_database_scope: >-
@@ -297,15 +317,15 @@ parallel_lanes:
       kind: observed_snapshot
       convergence_baseline_sha: 63a72f874cf382961220a3ae99426297a60cb597
       head_sha: null
-      observed_at: '2026-10-18T14:57:19Z'
+      observed_at: '2026-10-18T15:19:35Z'
       main:
         branch: main
-        sha: 1b40caada0cd0d7b4ceb0a2429fbd2cf125945ed
+        sha: 913f70e2d38d5e155d203f08384478a128f9e57e
       observation_note: >-
-        Dated main observation for supporting CI transport selection, not a live HEAD claim. Fetch main,
-        candidate refs and exact CI before writes. The6184 candidate and historical14:24 evidence remain
-        unchanged; neither is product acceptance. Classroom workflow WAITING_HANDOFF retains the explicit
-        narrow owner exception; no SAFE claim or permission for actual source overlap.
+        Dated main/remote infra observation for corrected BEFORE selection, not a live HEAD claim.
+        Fetch main, candidate refs and exact CI before writes;02ae is source-approved only, actual mirror proof NOT_RUN.
+        The6184 candidate/historical receipt and all closure restrictions remain unchanged. Known Classroom
+        WAITING_HANDOFF retains its narrow owner exception, never a SAFE claim or actual-overlap permission.
     execution_lease:
       executor_id: electronics-mobile-add-connect
       holder: unassigned
@@ -6711,11 +6731,15 @@ blocking:
     - bounded_ci_image_transport_repair
     - scoped_ci_image_identity_verification
     - focused_verification
-    reason: Reviewed6184 source remains unaccepted; exact Electronics browser39135058226 failed before
-      tests on public ECR Node/Caddy HTTP429 (D). The owner now authorizes the card's bounded same-content
-      Electronics-only transport repair and strict CI identity proof; this does not lift any closure block.
-      Corrected native BEFORE/AFTER and held-wire Save/CAS/cookies reopen remain unproved. General6184
-      subsequently finished FAIL with foreign migration-list/Portal findings (C), not mobile repair scope.
+    - bounded_corrected_before_composition
+    - isolated_ci_fixture_validation
+    - independent_runtime_evidence_review
+    reason: Reviewed6184 mobile UI remains unaccepted; exact prior browser failed before tests on Node/Caddy
+      HTTP429 (D). Supporting02ae transport has NEW source approval only, actual Actions identity NOT_RUN.
+      The owner now selects bounded corrected BEFORE composition and isolated CI fixture validation with
+      unchanged reviewed infrastructure. This does not lift closure blocks; actual complete native BEFORE/
+      AFTER, Save/CAS/cookies reopen, required exact gates and NEW runtime/visual review remain unproved.
+      Historical General6184 foreign migration/Portal failures (C) are not this composition's repair scope.
     unblock_requires: Actual required exact-SHA gates plus complete native/visual and whole-document
       Save/CAS/reopen evidence and NEW independent runtime/visual approval; text changes alone cannot close this blocker.
     evidence: docs/product/electronics/evidence/mobile-add-connect-6184f331-review.md
