@@ -11,6 +11,7 @@ on:
       - 'tests/migration/**'
       - 'e2e/auth-confirmation-ui.spec.ts'
       - 'e2e/access-account-ui.spec.ts'
+      - 'e2e/classroom-owner-ui.spec.ts'
       - 'playwright.auth-confirmation.config.ts'
       - 'playwright.settings-ui.config.ts'
       - 'schemas/openapi.yaml'
@@ -26,6 +27,7 @@ on:
       - 'tests/migration/**'
       - 'e2e/auth-confirmation-ui.spec.ts'
       - 'e2e/access-account-ui.spec.ts'
+      - 'e2e/classroom-owner-ui.spec.ts'
       - 'playwright.auth-confirmation.config.ts'
       - 'playwright.settings-ui.config.ts'
       - 'schemas/openapi.yaml'
@@ -126,6 +128,10 @@ jobs:
         run: pnpm e2e:auth-confirmation
       - name: Existing Account security and settings composition
         run: pnpm e2e:settings-ui --grep 'R3 Account compact composition'
+      - name: Existing classroom mobile header and drawer
+        run: >-
+          pnpm e2e:settings-ui e2e/classroom-owner-ui.spec.ts
+          --grep 'single header keeps all global actions and a working drawer$'
       - name: Preserve screenshots, traces and build identity
         if: always()
         uses: actions/upload-artifact@v4
