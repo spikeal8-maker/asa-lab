@@ -84,6 +84,25 @@ def exclusive():
         yield
 
 
+def assert_fresh_host_ports_available():
+    """Fail before provisioning Docker/1Panel if ASA loopback ports are owned.
+
+    The school ingress standard uses :4610 and Scratch uses :4613. On WSL2
+    these ports can also be forwarded from Windows Docker Desktop; proceeding
+    would leave a partial database and failed-switch recovery markers.
+    """
+    for port in (4610, 4613):
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+                probe.bind(("127.0.0.1", port))
+        except OSError as exc:
+            raise Blocked(
+                f"New ASA installation blocked: 127.0.0.1:{port} is already in use. "
+                "Free the port or use a separate isolated host before installation; "
+                "no database or 1Panel changes started."
+            ) from exc
+
+
 def preflight(args):
     require(sys.platform == "linux", "Ubuntu Linux is required")
     require(os.geteuid() == 0, "Run with sudo/root; the script handles the operator account")
@@ -521,6 +540,9 @@ def main():
             if args.action in ("install", "panel", "harden-panel"):
                 require(bool(args.admin_cidr),
                         "--admin-cidr is required; do not guess your SSH/admin network")
+                if (args.action == "install" and
+                        not (args.root.resolve() / ".asa/installed-release.json").is_file()):
+                    assert_fresh_host_ports_available()
                 preflight(args)
                 if args.action in ("install", "panel"):
                     panel_install(args)

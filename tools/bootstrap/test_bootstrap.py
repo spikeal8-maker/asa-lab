@@ -211,6 +211,33 @@ class EncryptedRestoreLayout(unittest.TestCase):
 
 
 class LinuxInstallerSecurity(unittest.TestCase):
+    def test_occupied_web_port_blocks_without_creating_installation(self):
+        class Occupied:
+            def __enter__(self): return self
+            def __exit__(self, *unused): return False
+            def bind(self, target):
+                raise OSError("address already in use")
+        with mock.patch.object(rebuild.socket, "socket", return_value=Occupied()):
+            with self.assertRaisesRegex(rebuild.Blocked, "127.0.0.1:4610"):
+                rebuild.assert_fresh_host_ports_available()
+
+    def test_port_preflight_runs_before_host_mutations(self):
+        events = []
+        with tempfile.TemporaryDirectory() as d:
+            argv = ['installer','install','--profile','staging','--root',
+                    str(Path(d)/'fresh'), '--admin-cidr','192.168.1.0/24']
+            with mock.patch.object(sys,'argv',argv), \
+                 mock.patch.object(rebuild,'exclusive',return_value=nullcontext()), \
+                 mock.patch.object(rebuild,'assert_fresh_host_ports_available',
+                                   side_effect=lambda:events.append('ports')), \
+                 mock.patch.object(rebuild,'preflight',
+                                   side_effect=lambda args:events.append('host')), \
+                 mock.patch.object(rebuild,'panel_install'), \
+                 mock.patch.object(rebuild,'harden_panel_firewall'), \
+                 mock.patch.object(rebuild,'source_install'):
+                self.assertEqual(rebuild.main(),0)
+        self.assertEqual(events,['ports','host'])
+
     def test_fresh_git_checkout_includes_stable_release_history(self):
         source = (BASE / "install-ubuntu-1panel.py").read_text()
         self.assertIn('"clone", "--filter=blob:none", "--single-branch"', source)
@@ -263,6 +290,7 @@ class SchoolLanInstallerTests(unittest.TestCase):
         with mock.patch.object(sys, 'argv', argv), \
              mock.patch.object(rebuild, 'exclusive', return_value=nullcontext()), \
              mock.patch.object(rebuild, 'preflight'), \
+             mock.patch.object(rebuild, 'assert_fresh_host_ports_available'), \
              mock.patch.object(rebuild, 'panel_install'), \
              mock.patch.object(rebuild, 'harden_panel_firewall'), \
              mock.patch.object(rebuild, 'source_install', side_effect=lambda _: events.append('install')), \
