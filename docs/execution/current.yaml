@@ -351,7 +351,7 @@ parallel_lanes:
       pr: null
       status: in_progress
       kind: repair
-      checkpoint: corrected_before_composition_selected
+      checkpoint: r3_mobile_reload_oracle_repair_selected
       owner_acceptance: pending
       owner_authorization: >-
         Owner selected phone component adding and connecting, implementation through subagents
@@ -368,15 +368,16 @@ parallel_lanes:
         - docs/product/electronics/components/ui-assets-persistence.yaml
         - docs/product/electronics/evidence/ci-image-transport-545-receipt.json
       repair_scope: >-
-        Test-only corrected BEFORE composition for the SAME280/452 mobile result. Inherit the exact
-        reviewed three-file transport candidate unchanged together with latest accepted main; append ONLY
-        exact631-line corrected93c mobile test suffix to the preserved accepted simulation prefix and
-        canonically recompute only the coverage browserEvidenceSha256. No UI/infra/core changes.
+        ONE test-only R3 oracle repair inside the new mobile block, based on actual b967 BEFORE NEEDS_FIX.
+        Replace only its invalid post-load all-storage-empty oracle with passive pre-app storage sampling
+        and exact scoped saved-session-hint verification. Preserve accepted394151-byte prefix, native gestures,
+        all saved/CAS/reopen oracles and every other corrected93c suffix byte except this precise instrumentation.
+        No product/UI/Save activation, infrastructure, old546/core/hook/LED or foreign-module repair.
       supporting_generated_path_decision: >-
         Controller permits the canonical generator to update only generatedFrom.browserEvidenceSha256
         in docs/product/electronics/generated/component-coverage.json for the changed registered
         simulation spec; every other generated field and byte must remain unchanged.
-      evidence: docs/product/electronics/evidence/mobile-add-connect-6184f331-review.md
+      evidence: docs/product/electronics/evidence/mobile-add-connect-b967697e-before.md
       observed_candidate:
         observed_at: '2026-10-18T14:24:08Z'
         branch: codex/electronics-mobile-add-connect-ui
@@ -403,32 +404,55 @@ parallel_lanes:
           These are source-only results. Actual Actions mirror pull/build/image identity NOT_RUN;
           General39139917902 was in_progress with no conclusion, not a gate PASS.
       corrected_before_composition_contract:
+        version: R2_historical_superseded_only_by_R3_oracle_exception
         preserved_mobile_test_source: 93c8d0308cedd74454e4553ca9ee17e75ef66575
         appended_suffix_lines: 631
         appended_suffix_bytes: 25341
         appended_suffix_sha256: 5272d3b08d52eb77b544fa121ef4c34272076d49435d570b7c5167c18997e2b4
         accepted_prefix: Latest accepted main bytes including any newly integrated546 test repair; no unintegrated546 refs or old whole-file replacement.
         before_after_tests: Complete simulation test file must be byte-identical between the selected BEFORE and AFTER.
+      observed_before_result:
+        observed_at: '2026-10-18T17:25:55Z'
+        sha: b967697e8083e8c3a25d14a1a2f6904f19ce93e8
+        electronics_run: 39146696935
+        browser_job: 117732400870
+        runtime_review: NEEDS_FIX
+        reviewer: mobile_before_runtime_review
+        evidence: docs/product/electronics/evidence/mobile-add-connect-b967697e-before.md
+        observation_note: >-
+          Actual image build/identity, isolated PG migrations and API/Web startup passed; browser142PASS22FAIL.
+          All11 new cases failed; zero of six native journeys reached complete. Three original cases saved
+          once with exact CAS2to3 and fresh GET before the incorrect reload-session oracle. Three wire cases
+          completed local gestures but single visible Save had trusted pointerdown/up without click, PUT0.
+          Five strict missing-cue cases are causal; General failed foreign Vite boundary C, not repair scope.
+      r3_oracle_exception:
+        version: R3
+        supersedes: Only R2 exact631-line suffix requirement for the precise new-block storage oracle/instrumentation; no historical test or receipt rewrite.
+        frozen_baseline: b967697e8083e8c3a25d14a1a2f6904f19ce93e8
+        accepted_prefix_bytes: 394151
+        pre_app: Passive addInitScript on main app origin only; capture local/session entries both empty before app, no application or storage writes.
+        post_load: Local draft entries empty; exact single scoped session pair ["${localKey}:electronics-editor:", saved] with actual value proved in new CI. Expected localKey is computed from the existing fixture formula with identityKind=account, userId and projectId, never from an actually discovered storage key.
+        unchanged: Existing fresh.storageState().origins empty check; full saved/delivered/server/rendered/positions/wires/onePUT/CAS assertions, all native gestures and checkpoints.
+        save_activation: No extra Save activation, keypress, second tap, wait, forced hit or controller/API result substitution.
+        before_after_tests: Freeze NEW complete R3 test blob; selected R3 BEFORE and AFTER test files must be byte-identical.
       expected_write_paths:
         - e2e/electronics-simulation.spec.ts
         - docs/product/electronics/generated/component-coverage.json
       path_coordination: >-
-        Check all actual dirty target paths before writing. The composition author inherits reviewedinfra
-        three blobs unchanged and latest accepted main foreign bytes. Preserve the complete accepted prefix,
-        old cases/helpers and interactions; if546 test repair becomes accepted main, retain that new prefix.
-        Do not import unintegrated546 fcf refs. Append exact93c suffix only; generated metadata change only.
-        No workflow/receipt/guard/UI/Stage/CSS/core/hook/LED or Course/Portal edits. Any overlap returns a handoff.
+        Check actual dirty target paths first. Expected writes remain ONLY registered simulation spec and
+        canonical generated browser hash. Preserve accepted394151-byte prefix, every other suffix byte and
+        all accepted foreign main bytes; no old546 unintegrated refs. Infrastructure and all UI remain read-only.
+        Any new file or oracle/gesture requirement outside the R3 card exception returns a proposal.
       next_action: >-
-        ONE bounded test-composition author inherits reviewedinfra02ae plus latest accepted main unchanged,
-        appends the exact corrected93c suffix and regenerates only the browser evidence hash; narrow checks,
-        self-review, ONE unpublished candidate then STOP. A NEW independent composition reviewer checks it.
-        Then ONE justified combined Actions actual image proof plus corrected BEFORE: six full native placement/
-        connection journeys must complete their respective strict document and Save/CAS/cookies-reopen oracles
-        through expected soft cue failures; five strict Cancel/desktop missing-cue cases remain causal expected
-        failures, never acceptance PASS. A NEW independent reviewer examines actual BEFORE raw/visual evidence
-        before the controller selects AFTER with ONLY reviewed6184 Stage/CSS diff and identical whole test file.
-        Require full exact gates and NEW final runtime/visual review. No retry, closure, integration/release/deploy,
-        old546/core/hook/LED or foreign Course/Portal repair; extra paths or new infrastructure cause need proposal.
+        ONE bounded R3 test-only author repairs only the precise new mobile storage oracle/instrumentation,
+        regenerates browserEvidenceSha256 only, performs narrow checks/self-review and emits ONE unpublished
+        candidate then STOP. NEW independent source review precedes ONE justified R3 corrected BEFORE.
+        All three original placement cases must reach saved/reopened/complete. All three wire cases retain
+        full Save/CAS/reopen expectations; BEFORE may fail only on the observed single-Save no-click/PUT0
+        product behaviour, never a remaining harness failure. NEW actual runtime/raw review is required before
+        any AFTER selection. All six must complete AFTER using identical frozen R3 whole tests. No Stage/CSS/
+        Header/SaveUI edit now; any later Header touchCommand proposal is conditional, not a proven fix.
+        No integration/closure/release/deploy, old546/core/hook/LED or foreign Vite/Course/Portal repair.
       deployment: not_requested
       database_actions: isolated_CI_fixture_only_no_local_live_owner_operations
       ci_database_scope: >-
@@ -440,15 +464,15 @@ parallel_lanes:
       kind: observed_snapshot
       convergence_baseline_sha: 63a72f874cf382961220a3ae99426297a60cb597
       head_sha: null
-      observed_at: '2026-10-18T15:19:35Z'
+      observed_at: '2026-10-18T17:25:55Z'
       main:
         branch: main
-        sha: 913f70e2d38d5e155d203f08384478a128f9e57e
+        sha: cea0d0ae8495b3c3402eccf310adf4b2c3a8f597
       observation_note: >-
-        Dated main/remote infra observation for corrected BEFORE selection, not a live HEAD claim.
-        Fetch main, candidate refs and exact CI before writes;02ae is source-approved only, actual mirror proof NOT_RUN.
-        The6184 candidate/historical receipt and all closure restrictions remain unchanged. Known Classroom
-        WAITING_HANDOFF retains its narrow owner exception, never a SAFE claim or actual-overlap permission.
+        Dated fresh main observation for R3 oracle repair selection, not live HEAD or acceptance.
+        Fetch main, exact candidate refs and CI before writes. b967 runtime review is NEEDS_FIX;
+        historical6184 receipt remains immutable. Known Classroom WAITING_HANDOFF retains its explicit
+        narrow owner exception, never a SAFE claim or actual-overlap permission.
     execution_lease:
       executor_id: electronics-mobile-add-connect
       holder: unassigned
@@ -4137,8 +4161,13 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: "r25_complete_strict_origin_closure_then_runtime_reconnect"
+      checkpoint: "r26_joint_quality_and_instruction_workspace_repair"
       owner_acceptance: pending
+      r25_runtime_source_sha: "32b20074c6c92367c7008690375507dba79f2c67"
+      r25_runtime_independent_source_review: "APPROVE_SOURCE_ONLY; report629b2d204221de0d021e38d75103e21d8719e37adb39e121f0a436fe3eec3b21,148 independent runtime cases and8 Worker lifecycle cases; complete158 artifacts/hashes audited without replay. Not product acceptance."
+      r25_runtime_responsibility_review: "APPROVE_RESPONSIBILITY_ONLY; report4a34e042e04783ee211b68a10f8a58b37d22a0ee636a6a48db165bc15cdc5f91; runtime102998B/scheduler70007B retain decomposition-candidate, narrow reviewed baseline maintenance required."
+      r25_one_pair_result: "ONE sequential coldNode pair observerON,158 requests/version,full returns/null vectors0/8954 identical. Blink1317.2612->1289.7330ms (-2.0898percent);millis2701.9966->2071.2621ms (-23.3433percent);combined4019.2578->3360.9951ms (-16.3777percent). Insufficient native headroom; not realtime/school/browser acceptance. reportadd76daa641ff258f1ffcf61c3b5f970dfddf2cc34367a50e6af261c7b70aca8; original defer then root15percent host-load decision retained."
+      r26_quality_prior_proposal: "Prepared quality traversal38a30ee18076ed74ac7a5043cf3de1dc6d1a74a203750e3988dc1dbfab81cf6b; prior refusal1ce817ae was missing producer authority. NEW bounded architecture review must use actual fecd/32 early complete origin proof, no unbounded callback inventory. Cached verdicts and rejectedc532 finite-only path remain prohibited."
       r25_origin_foundation_sha: "8cc7f8299991f568c299e393c6fae2e9a5fbc055"
       r25_origin_foundation_review: "NEW APPROVE_SOURCE_ONLY report94c9ca0a14923d6f88c55ea24a8bd3bbd603356de27cfeed20521fdca0253b50;23freshVitest4.1.11,254independentoriginnegatives,70parentmodelcomparisonsPASS/0extraGetterProxy. Notwholekernel/runtime/performance/productapproval."
       r25_finite_closure_receipt_sha256: "b92738ff583c9d362546545345fada62eb3da57259a3fdc7445aaa55fa225c50"
@@ -4196,7 +4225,7 @@ parallel_lanes:
         DOM dark phase15.9ms.
       r18_directed_run: 39108267782
       r18_preserved_candidate_sha: 9bc659a780a02dfc99af789cef53ed8feb956146
-      selected_at: "2026-10-18T16:33:45.876921+00:00"
+      selected_at: "2026-10-18T17:23:24.208189+00:00"
       r17_preserved_candidate_sha: "343a6024ded71a883373ed7cc0fcc342a87db785"
       r17_directed_run: 38833934410
       r17_directed_result: "SUCCESS exact343a build; focused and unchanged seven production browser journeys PASS. Independent original ZIP CRC/hash,1135 ready records and13 native PNGs confirmed.100ms electrical4.999775Hz/paint5.099Hz;50ms electrical9.999100Hz/paint10.100Hz; no-delay realtime endpoint lag27.8ms. Earlier272.7ms FAIL belongs to1eff, not343a. Older sustained-HIGH capture has early305ms lag; no universal250ms claim."
@@ -4216,10 +4245,10 @@ parallel_lanes:
       r7_status: not_accepted_directed_failed
       r7_actual_host_tick_ms: 10
       r7_documentation_correction: 'Historical selected20ms retained above/in R7 history; actual controller-authorized source21e uses10ms and ready25000us. R8 does not change these values.'
-      implementation_acceptance: "Finite strictclosure source receipt b92738ff583c9d362546545345fada62eb3da57259a3fdc7445aaa55fa225c50 completes9groups. Beforetrust, noarg defining-module predicates must coverresistoractualmethods+7rejectedlinearidselectors, ordinaryLEDprofiles, groundarray,3requiredterminalarrays,3exactidentityrecords,2thermalprofiles,NUMERIC_TYPES. Reuse reviewed8ccoriginaldescriptor machinery; knownliterals only, nogetter/unknownProxy probes, publicgeneric mutation/read/error behavior unchanged. NPN/PNP selector ID-only DATA-descriptor proofs maylive inalreadyselected scheduler againstknown nonmatching primitiveid; noNPN/PNP source edit. ARDUINO_TEXT_COMMAND_SUPPORT routes excluded upfront: anysourceinclude/directive/member support orotherunprovedroute GENERIC; noarduino-capabilities edit. Admission strictly1canonicalUNOvisual/resistor-axial/led-5mm,ordinaryprimitivecloneddata,6knownowncolours/absentdefaultred,noinputs/timedperipheral/Servo/unprovedcalls. Unknowneligible route staysgeneric notproductreject. Origins checked AFTERexistingclones BEFOREinitialmodelcallbacks, then beforefirststep/everyresume; neverpromoteafterunprovedcallbackmayhaveescapedclone. Keep oldcompile/digest/guard exceptionpriority; puredescriptors addnoexternalreads. Onoriginloss transfer exactcompletedbatch toexistinggenericonce withunchangedremainingbudget/nullpartitions. NEW independent exactremainingoriginreview thenruntimeauthorconnects; NEW runtime/source/math/hygiene review,158parity/ONEpairedelapsed,final12+ordinary+repository+NEWproductreview. AlloriginalR25normalization/old-newGPIO/detachedsnapshot/disposal/1us/1000us/256requirementsremain. AcceptanceblockerOPEN."
-      next_action: "Publishthisfiniteclosure mainFIRST; same separateorigin authorimplements5newowners+smalllinearselectionextension andexistingcoupledmodelspec, onefrozenSHA STOP, NEWindependentreview. No furthergeneralinventory/profile/wholeCI. Thenhandapproveddisjointsource toheldruntimeauthor preserving8dirtyfiles, wire completeoriginaggregation/strictsemanticadmission/exactstickyfallback, finish158correctness/freeze/NEWreview,rootonepairedelapsed beforeactualeditor. Preserve foreignClassroom/capacity/Projects/source/currentstate andallheldnegativeevidence; no school/DB/Docker/network orotherownerproblem."
+      implementation_acceptance: "Each author freezes one SHA and STOP; root checks actual diff/evidence; NEW independent exact source/math review, then combined final return and partition parity with saved full158 observer ON. No replay/profile/benchmark until root GO; only one new paired elapsed for a materially changed approved joint source packet, not retries of32. R25 raw pair and historical native deficits show insufficient headroom; a dev compute/model ratio alone is not acceptance. Only viable final packet proceeds to unchanged built-editor twelve Arduino/Blockly/Reset/Save/reopen journeys, ordinary/repository exact gates and NEW independent product review. Keep all seven R25 ownership/normalization/old-new GPIO/detachment/sticky fallback/disposal conditions,1us instruction/1000us physical quantum/256 budget/8ms host yield and finite/KCL/source/power checks. Acceptance blocker and owner pending remain."
+      next_action: "Finish the two bounded source proposals against32 and existing exact native profile, no repeat inventory/profile. Root approves concrete quality ownership seam and remaining instruction workspace before code; authors work disjoint existing files only. Select necessary responsibility maintenance for existing runtime/scheduler baseline entries: independent32 responsibility evidence4a34e042 identifies102998/70007B beyond20percent; update exact reviewed sizes/class/rationale only after final changed source receives renewed independent responsibility review. No threshold change, automatic bump, size-driven split or unrelated cleanup. Preserve all foreign main/current lanes, unpublished candidates, protected assets and school/DB/Docker/network. Then final convergence once, independent reviews and real editor acceptance; no other Electronics task starts."
       r17_preserved_repair_scope: "Preserve exact1eff and its approved source/math; product still REQUEST_CHANGES. ONE bounded runtime write-action cost repair in arduino-program-runtime.ts: remove only redundant writes/lookups after existing pin-mode handling, retaining every action, instruction, time, budget, event, shadow/error, pullup/PWM and signed-zero/absent-entry semantics. Existing native profile identifies unchanged applyRuntimeAction cost; it does not measure individual Map.set. First verify equivalence and one short paired real-horizon cost comparison; retain only a measured improvement, no heavy CI for an unsupported micro-optimization. No instruction skipping, special sketch detection, clock rebasing, precision/timeout changes or new profiling. Focused regression and NEW exact independent source/math review before unchanged directed browser gate. FastLED/openBlockly remain required same-goal followups; no foreign/school/deployment changes."
-      repair_scope: "R25 same Arduino546 repair, no new programme/task. Preserve held8runtimefiles and reviewedUI19d22; origin8cc SOURCE_ONLY_APPROVE. ONE remaining-origin author may edit previously selected device-model.ts/linear-dc-models.ts/led-model.ts plus FIVE existing owners ONLY: arduino-model.ts (ground array), model-registry.ts (3strictrequiredterminalarrays), model-identity.ts (3exactidentityrecords), models/thermal-transient-model.ts (resistor+junction profiles), arduino-values.ts (NUMERIC_TYPES array); all paths under contexts/electronics/domain. ONEexisting linear-dc-models.spec.ts covers coupled origin wrappers; no newtestfile. Root maps5sources. Runtimeauthor retains original4prod4spec only. Total12production/5existingtests, onecohesive privateorigin/ownedrequest repair. No newmodule, baseline bump, publicfreeze/token/package/index export, physics/maths/quality/numeric-cache/precision/budget/timeout/artwork/deployment changes."
+      repair_scope: "Continue only Arduino/LED546. Preserve source-approved32b20074 and UI19d22/fecd origins; R25 measured gain is insufficient, no heavy CI repeat. Select two disjoint bounded authors: quality traversal only domain/simulation.ts, domain/solver.ts, domain/arduino-circuit-scheduler.ts plus existing simulation-contract.spec.ts/solver.spec.ts/engine-timed-api.spec.ts; remaining instruction workspace only domain/arduino-program-runtime.ts plus existing arduino-runtime-state.spec.ts. All domain/testing paths are under contexts/electronics. Each concrete mechanism requires root source-proposal/architecture check before author edits. Existing finite original-producer authority is reused; no new global inventory/module/model registry/public trust API. Same interpreter, every numerical value/quality check/physical front/instruction/time/budget/error/order remains. No generic callback observation change, special sketch recognition, numeric or quality verdict cache, timeout/precision relaxation or foreign module work."
       r9_candidate_sha: "9df144e48165ee330ea43f547e2d52782964bd54"
       r9_candidate_branch: "codex/electronics-546-r9-host-demand"
       r9_candidate_publication: "pushed_not_integrated_not_deployed"
@@ -6962,12 +6991,12 @@ blocking:
     - bounded_corrected_before_composition
     - isolated_ci_fixture_validation
     - independent_runtime_evidence_review
-    reason: Reviewed6184 mobile UI remains unaccepted; exact prior browser failed before tests on Node/Caddy
-      HTTP429 (D). Supporting02ae transport has NEW source approval only, actual Actions identity NOT_RUN.
-      The owner now selects bounded corrected BEFORE composition and isolated CI fixture validation with
-      unchanged reviewed infrastructure. This does not lift closure blocks; actual complete native BEFORE/
-      AFTER, Save/CAS/cookies reopen, required exact gates and NEW runtime/visual review remain unproved.
-      Historical General6184 foreign migration/Portal failures (C) are not this composition's repair scope.
+    - bounded_r3_mobile_oracle_repair
+    reason: Actual b967 BEFORE runtime review NEEDS_FIX; mirror image identity and isolated startup now passed,
+      but zero of six full journeys completed. Three originals hit a bad post-load session oracle after valid
+      Save/CAS/reload; three wire cases had no click/PUT from their single visible Save tap. Only the precise
+      R3 new-block oracle repair is selected; no UI fix or acceptance yet. Existing strict full journeys and
+      required gates/NEW runtime review remain outstanding. General foreign Vite boundary failure is C.
     unblock_requires: Actual required exact-SHA gates plus complete native/visual and whole-document
       Save/CAS/reopen evidence and NEW independent runtime/visual approval; text changes alone cannot close this blocker.
     evidence: docs/product/electronics/evidence/mobile-add-connect-6184f331-review.md
