@@ -87,6 +87,10 @@ describe('Course Builder structure forward upgrade', () => {
         '0212', // Exact published catalogue copy.
         '0213', // Read-only canonical class rating summary; preserves all historical data.
         '0214', // Account-scoped AI Assistant settings, messages and stream status.
+        '0215', // Platform-wide paid AI operation quota.
+        '0216', // Nonblocking session context heartbeat; preserves expiry and authority checks.
+        '0217', // Future-write diagnostic address provenance; preserves historical observations.
+        '0218', // Immutable Public Projects publication; preserves original projects and learning data.
       ];
       const pre153 = plan.filter((item) => Number(item.version) <= 152);
       const upgradePlan = plan.filter((item) => Number(item.version) > 152);
@@ -328,7 +332,16 @@ describe('Course Builder structure forward upgrade', () => {
           ),
         ).toBe(expectedUpgradeVersions.length - post191Versions.length);
         const post210Versions = expectedUpgradeVersions.filter((version) => Number(version) > 210);
-        expect(post210Versions).toEqual(['0211', '0212', '0213', '0214']);
+        expect(post210Versions).toEqual([
+          '0211',
+          '0212',
+          '0213',
+          '0214',
+          '0215',
+          '0216',
+          '0217',
+          '0218',
+        ]);
         expect(
           await applyIsolatedTestPlan(
             upgrade,

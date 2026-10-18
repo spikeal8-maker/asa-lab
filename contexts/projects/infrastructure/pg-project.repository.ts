@@ -741,6 +741,7 @@ export class PgProjectRepository implements ProjectRepositoryPort {
     tenantId: string,
     projectId: string,
     actor: ProjectActor,
+    options?: { readonly includeVersions: false },
   ): Promise<{ project: Project; draft: ProjectDraft; versions: ProjectVersion[] } | null> {
     const access = await this.projectContext(tenantId, projectId, actor);
     if (access === null) return null;
@@ -755,13 +756,16 @@ export class PgProjectRepository implements ProjectRepositoryPort {
       );
       const row = found.rows[0];
       if (!row) return null;
-      const versions = await client.query(
-        `SELECT id, project_id, version_no, label, created_at
+      const versions =
+        options?.includeVersions === false
+          ? { rows: [] }
+          : await client.query(
+              `SELECT id, project_id, version_no, label, created_at
            FROM project_versions
           WHERE tenant_id=$1 AND project_id=$2
           ORDER BY version_no DESC`,
-        [access.tenantId, projectId],
-      );
+              [access.tenantId, projectId],
+            );
       return {
         project: toProject(row as ProjectRow),
         draft: {

@@ -186,7 +186,33 @@ function StudentDialog({
 
   return (
     <div className="modal-backdrop" role="presentation">
-      <div className="modal classroom-student-dialog" role="dialog" aria-modal="true">
+      <div
+        className="modal classroom-student-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-label={student ? `Настройки ученика: ${student.displayLabel}` : 'Добавить ученика'}
+        onKeyDown={(event) => {
+          if (event.key === 'Escape' && !busy) {
+            event.preventDefault();
+            onClose();
+          }
+          if (event.key !== 'Tab') return;
+          const controls = Array.from(
+            event.currentTarget.querySelectorAll<HTMLElement>(
+              'input:not(:disabled), button:not(:disabled), select:not(:disabled), a[href], [tabindex="0"]',
+            ),
+          ).filter((element) => element.getClientRects().length > 0);
+          const first = controls[0];
+          const last = controls[controls.length - 1];
+          if (
+            !first ||
+            (event.shiftKey ? document.activeElement === first : document.activeElement === last)
+          ) {
+            event.preventDefault();
+            (event.shiftKey ? last : first)?.focus();
+          }
+        }}
+      >
         <h2>{student ? 'Настройки ученика' : 'Добавить ученика'}</h2>
         <p>
           Здесь хранится имя для журнала. Короткий код ученика создаётся отдельно и не зависит от
@@ -205,13 +231,14 @@ function StudentDialog({
           />
           {student ? (
             <>
-              <span className="classroom-seat-avatar-label">Аватар</span>
+              <span className="classroom-seat-avatar-label">Стандартный аватар</span>
               <SeatAvatarPicker
                 seatId={student.id}
                 value={avatarKey}
                 busy={busy}
                 onChange={setAvatarKey}
               />
+              <small>Назначенный аватар класса имеет приоритет над стандартным.</small>
             </>
           ) : null}
           <label className="classroom-safe-mode-field">
@@ -435,6 +462,11 @@ function ClassroomPageContent({
   // Which learner is being looked at. A class page and a learner's page are the
   // same place at two depths, so this is state rather than another route.
   const [openStudent, setOpenStudent] = useState<string | null>(openSeatId ?? null);
+  const [profileRevisions, setProfileRevisions] = useState<Record<string, number>>({});
+  const profileView = useRef({ classroomId, seatId: openStudent });
+  if (profileView.current.classroomId !== classroomId || profileView.current.seatId !== openStudent)
+    profileView.current = { classroomId, seatId: openStudent };
+  const renderedProfileView = profileView.current;
   const destination = useLearningDestination();
   useEffect(() => {
     if (destination.assignment) {
@@ -584,14 +616,17 @@ function ClassroomPageContent({
     fallback: string,
     work: () => Promise<void>,
   ): Promise<string | null> {
+    const view = profileView.current;
     return runClassroomAction(work, fallback, {
       start: () => {
         setBusy(key);
         setActionError(null);
         setNotice(null);
       },
-      fail: setActionError,
-      finish: () => setBusy(null),
+      fail: (error) => {
+        if (profileView.current === view) setActionError(error);
+      },
+      finish: () => setBusy((current) => (current === key ? null : current)),
     });
   }
 
@@ -600,11 +635,18 @@ function ClassroomPageContent({
   }
 
   async function updateStudent(student: ClassroomStudentSeat): Promise<string | null> {
+    if (page.kind !== 'ready' || page.classroom.status !== 'active')
+      return 'Класс недоступен для изменений.';
+    const view = profileView.current;
     return action(`seat:${student.id}`, 'Не удалось сохранить настройки ученика.', async () => {
-      const result = confirmedClassroomResult(
-        await api.updateClassroomSeat(classroomId, student),
-        'Не удалось сохранить настройки ученика.',
-      );
+      const response = await api.updateClassroomSeat(classroomId, student);
+      if (!loadScope.current.active || profileView.current.classroomId !== classroomId) return;
+      if (!response.ok && [401, 403].includes(response.status) && profileView.current === view) {
+        maskCodes();
+        setEditing(null);
+        setPage({ kind: 'error', message: 'Доступ к классу закрыт.' });
+      }
+      const result = confirmedClassroomResult(response, 'Не удалось сохранить настройки ученика.');
       setPage((current) =>
         current.kind === 'ready'
           ? {
@@ -623,8 +665,14 @@ function ClassroomPageContent({
             }
           : current,
       );
-      setEditing(null);
-      setNotice(`Настройки «${result.student.displayLabel}» сохранены.`);
+      setProfileRevisions((current) => ({
+        ...current,
+        [student.id]: (current[student.id] ?? 0) + 1,
+      }));
+      if (profileView.current === view)
+        setEditing((current) => (current?.id === student.id ? null : current));
+      if (profileView.current === view)
+        setNotice(`Настройки «${result.student.displayLabel}» сохранены.`);
       await reload();
     });
   }
@@ -696,6 +744,9 @@ function ClassroomPageContent({
     // Any previously revealed credentials must not remain in the hidden
     // classroom subtree while the teacher is looking at one learner.
     maskCodes();
+    setEditing(null);
+    setActionError(null);
+    setNotice(null);
     setOpenStudent(seatId);
   }
 
@@ -1668,63 +1719,127 @@ function ClassroomPageContent({
             }}
           />
         ) : null}
-        {editing ? (
-          <StudentDialog
-            student={editing}
-            onClose={() => setEditing(null)}
-            onSaved={(input) => updateStudent({ ...editing, ...input })}
-          />
-        ) : null}
-        {accessCardIds !== null ? (
-          <StudentAccessCards
-            classroomTitle={classroom.title}
-            classCode={classroom.joinCode}
-            students={students}
-            initialStudentIds={accessCardIds}
-            onClose={() => setAccessCardIds(null)}
-          />
-        ) : null}
-        {codeEditor ? (
-          <StudentCodeDialog
-            classroomId={classroomId}
-            student={codeEditor}
-            onForbidden={() => {
-              maskCodes();
-              setPage({ kind: 'error', message: 'Доступ к классу закрыт.' });
-            }}
-            onClose={() => setCodeEditor(null)}
-            onSaved={async (studentCode) => {
-              if (!loadScope.current.active) return;
-              const seatId = codeEditor.id;
-              // The confirmed code is authoritative even when the following GET fails.
-              // Preserve Account/Seat admission semantics and all canonical counters.
-              setPage((current) =>
-                current.kind === 'ready' && current.classroom.id === classroomId
-                  ? {
-                      ...current,
-                      students: current.students.map((student) =>
-                        student.id === seatId && student.loginMethod === 'student_code'
-                          ? { ...student, studentCode, loginHandle: studentCode }
-                          : student,
-                      ),
-                    }
-                  : current,
-              );
+      </main>
+      {editing && !archived ? (
+        <StudentDialog
+          key={editing.id}
+          student={editing}
+          onClose={() => setEditing(null)}
+          onSaved={(input) => updateStudent({ ...editing, ...input })}
+        />
+      ) : null}
+      {accessCardIds !== null ? (
+        <StudentAccessCards
+          classroomTitle={classroom.title}
+          classCode={classroom.joinCode}
+          students={students}
+          initialStudentIds={accessCardIds}
+          onClose={() => setAccessCardIds(null)}
+        />
+      ) : null}
+      {codeEditor && !archived && codeEditor.loginMethod === 'student_code' ? (
+        <StudentCodeDialog
+          key={codeEditor.id}
+          classroomId={classroomId}
+          student={codeEditor}
+          onForbidden={() => {
+            if (profileView.current !== renderedProfileView) return;
+            maskCodes();
+            setPage({ kind: 'error', message: 'Доступ к классу закрыт.' });
+          }}
+          onClose={() => setCodeEditor((current) => (current === codeEditor ? null : current))}
+          onSaved={async (studentCode) => {
+            if (!loadScope.current.active || profileView.current.classroomId !== classroomId)
+              return;
+            const seatId = codeEditor.id;
+            // The confirmed code is authoritative even when the following GET fails.
+            // Preserve Account/Seat admission semantics and all canonical counters.
+            setPage((current) =>
+              current.kind === 'ready' && current.classroom.id === classroomId
+                ? {
+                    ...current,
+                    students: current.students.map((student) =>
+                      student.id === seatId && student.loginMethod === 'student_code'
+                        ? { ...student, studentCode, loginHandle: studentCode }
+                        : student,
+                    ),
+                  }
+                : current,
+            );
+            setProfileRevisions((current) => ({
+              ...current,
+              [seatId]: (current[seatId] ?? 0) + 1,
+            }));
+            if (profileView.current === renderedProfileView) {
               maskCodes();
               setNotice('Код ученика изменён. Старый код больше не действует.');
-              await reload();
-            }}
-          />
-        ) : null}
-      </main>
+            }
+            await reload();
+          }}
+        />
+      ) : null}
       {openStudent !== null && studentNavigation !== null ? (
         <ClassroomStudentPage
           classroomId={classroomId}
           classroomTitle={classroom.title}
           seatId={openStudent}
           navigation={studentNavigation}
-          onNavigateStudent={setOpenStudent}
+          profileRevision={profileRevisions[openStudent] ?? 0}
+          seatActions={{
+            busy:
+              Boolean(busy) || editing !== null || codeEditor !== null || accessCardIds !== null,
+            readOnly: archived,
+            studentCode:
+              students.find((student) => student.id === openStudent)?.loginMethod ===
+              'student_code',
+            canOpenCard: Boolean(classroom.joinCode),
+            error: actionError,
+            onSettings: () => {
+              const student = students.find((entry) => entry.id === openStudent);
+              if (student && !archived && !busy && student.status !== 'suspended')
+                setEditing(student);
+            },
+            onCode: () => {
+              const student = students.find((entry) => entry.id === openStudent);
+              if (
+                student?.loginMethod === 'student_code' &&
+                !archived &&
+                !busy &&
+                student.status !== 'suspended'
+              )
+                setCodeEditor(student);
+            },
+            onAccessCard: () => {
+              const student = students.find((entry) => entry.id === openStudent);
+              if (
+                student &&
+                !archived &&
+                !busy &&
+                classroom.joinCode &&
+                student.status !== 'suspended'
+              )
+                setAccessCardIds([student.id]);
+            },
+            onSuspend: () => {
+              const student = students.find((entry) => entry.id === openStudent);
+              if (student && !archived && !busy)
+                void updateStudent({
+                  ...student,
+                  status: student.status === 'suspended' ? 'active' : 'suspended',
+                });
+            },
+            onSafeMode: async (safeMode) => {
+              const student = students.find((entry) => entry.id === openStudent);
+              if (!student || archived || busy || student.status === 'suspended')
+                return 'Изменения недоступны.';
+              return updateStudent({ ...student, safeMode });
+            },
+          }}
+          onNavigateStudent={openStudentProfile}
           onBack={() => {
+            maskCodes();
+            setEditing(null);
+            setActionError(null);
             setOpenStudent(null);
             void reload();
           }}

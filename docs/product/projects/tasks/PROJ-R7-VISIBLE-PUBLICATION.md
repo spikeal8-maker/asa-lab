@@ -89,9 +89,13 @@ Account/session contract определяет допустимый доступ.
 
 StudentSeat не публикует через прямой endpoint, properties/visibility или SQL
 entry point. Educator capability не даёт права публиковать чужую учебную работу.
-Learning originals и запрещённые classroom/assignment origins закрыты. Safe Mode
-проверяется при каждом чтении и изменении, включая ранее опубликованные работы;
-используется действующая семантика class default OR seat flag.
+Learning originals и classroom/assignment origins закрыты. В первом срезе
+публикуются только независимые личные проекты Account: classroom- и Seat-owned
+источники недоступны независимо от Safe Mode. Текущая принадлежность и origin
+проверяются при каждом чтении, включая ранее опубликованные работы. Связанный
+StudentSeat или членство в школе не запрещают публикацию независимого личного
+проекта Account. Для разрешённых будущих classroom-сценариев сохраняется
+действующая семантика Safe Mode: class default OR seat flag.
 
 Скрытый/private/unlisted/revoked/ineligible материал возвращает одинаковое
 not-found состояние. Metadata/image/artifact/copy/Collections не обходят policy.

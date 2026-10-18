@@ -2515,7 +2515,7 @@ describe('A4-1 immutable learning project origin', () => {
         [
           owner.tenantId,
           classroom,
-          `published-${randomUUID()}`,
+          randomUUID().replaceAll('-', ''),
           owner.teacherId,
           publishedOwnerIdentity.account_id,
         ],
