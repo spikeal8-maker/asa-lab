@@ -801,6 +801,7 @@
   .classroom-student .classroom-student-back {
     padding: 4px 2px;
     font-size: 12px;
+    white-space: nowrap;
   }
   .classroom-student .participant-tabs button {
     min-height: 40px;
@@ -814,11 +815,11 @@
     grid-row: 3;
   }
   .classroom-student .classroom-student-navrow {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 0;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 4px;
   }
   .classroom-student-navigation {
-    grid-column: 1;
+    grid-column: 2;
     width: 100%;
   }
   .classroom-student .classroom-student-hero {
@@ -983,13 +984,21 @@
   font-size: 13px;
 }
 @container teacher-profile (max-width: 760px) {
+  /* Supported from a 320px viewport: keep both groups on one 44px row.
+     Names truncate locally; each button retains its full title and aria-label. */
   .classroom-student .classroom-student-navrow {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 0;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 4px;
+  }
+  .classroom-student .classroom-student-back {
+    white-space: nowrap;
   }
   .classroom-student-navigation {
-    grid-column: 1;
+    grid-column: 2;
     width: min(100%, 540px);
+  }
+  .classroom-student-navigation button {
+    min-width: 44px;
   }
 }
 @media (max-width: 350px) {

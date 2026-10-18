@@ -855,7 +855,10 @@ test('all eight sections, honest loaded-only filtering, private works, archive a
   await expect(
     page.getByRole('checkbox', { name: `Защита: ${longName}`, exact: true }),
   ).not.toBeChecked();
-  await expect(page.getByText('Доступ приостановлен', { exact: true })).toBeVisible();
+  const suspended = page.locator('.participant-hero .classroom-student-suspended');
+  await expect(suspended).toHaveCount(1);
+  await expect(suspended).toHaveText('Доступ приостановлен');
+  await expect(suspended).toBeVisible();
   await expect(page.getByRole('combobox', { name: 'Роль в классе' })).toHaveValue('helper');
   const tabs = page.getByRole('navigation', { name: 'Разделы профиля' });
   for (const width of [1440, 1024, 390, 320]) {
