@@ -29,7 +29,7 @@ const receipt = {
   operation: 'visit.observed',
   receivedAt: event.clientOccurredAt,
   persistedAt: event.clientOccurredAt,
-  recordId: id(5),
+  recordId: 51,
 };
 afterEach(() => {
   vi.clearAllTimers();
@@ -95,6 +95,30 @@ describe('actual v2 envelopes and persistence receipts', () => {
   it('accepts actual visit recordId receipt without inventing a visitId echo', () => {
     expect(validEnvelope(event)).toBe(true);
     expect(confirmedAnalytics(receipt, event)).toBe(true);
+  });
+  it.each([1, 51, Number.MAX_SAFE_INTEGER])(
+    'acknowledges a positive safe numeric visit recordId %s',
+    (recordId) => {
+      expect(confirmedAnalytics({ ...receipt, recordId }, event)).toBe(true);
+    },
+  );
+  it.each([
+    undefined,
+    null,
+    id(5),
+    '51',
+    0,
+    -1,
+    1.5,
+    Number.MAX_SAFE_INTEGER + 1,
+    Number.NaN,
+    Number.POSITIVE_INFINITY,
+    Number.NEGATIVE_INFINITY,
+    true,
+    {},
+    [],
+  ])('rejects a non-numeric, non-positive or unsafe visit recordId %j', (recordId) => {
+    expect(confirmedAnalytics({ ...receipt, recordId }, event)).toBe(false);
   });
   it.each([
     null,

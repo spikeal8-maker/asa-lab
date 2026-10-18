@@ -54,7 +54,7 @@ describe('synthetic UI telemetry receipts preserve business mutation checks', ()
         eventId: body.eventId,
         receiptId: body.eventId,
         operation: 'visit.observed',
-        recordId: body.eventId,
+        recordId: 1,
         receivedAt: expect.any(String),
         persistedAt: expect.any(String),
       },
