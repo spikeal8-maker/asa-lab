@@ -7,6 +7,12 @@ import {
 } from '../../../apps/web/src/client-diagnostics';
 installClientDiagnostics();
 beginDiagnosticContext('electronics');
+const worker = new Worker(new URL('./probe.worker.ts', import.meta.url), { type: 'module' });
+worker.onmessage = (event) => {
+  Object.assign(window, { workerReady: event.data === 42 });
+  worker.terminate();
+};
+worker.postMessage('probe');
 function fail() {
   throw new TypeError('PRIVATE-STUDENT-SENTINEL');
 }

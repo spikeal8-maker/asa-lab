@@ -16,7 +16,7 @@ export const EXCEPTION_KINDS = [
   'unknown',
 ] as const;
 export const ERROR_CAPTURES = ['window', 'rejection', 'app_boundary', 'editor_boundary'] as const;
-export const ERROR_ASSET = /^\/assets\/[A-Za-z0-9_-]{1,140}-[A-Za-z0-9_-]{8,16}\.js$/;
+export const ERROR_ASSET = /^\/assets\/[A-Za-z0-9_.-]{1,140}-[A-Za-z0-9_-]{8,16}\.js$/;
 export interface ErrorFrame {
   readonly script: string;
   readonly line: number;

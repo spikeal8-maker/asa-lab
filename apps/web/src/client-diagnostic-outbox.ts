@@ -48,7 +48,7 @@ export const FAILURE_CODES = [
   'timed_advance_failed',
 ] as const;
 const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
-export const ASSET_SCRIPT = /^\/assets\/[A-Za-z0-9_-]{1,160}\.js$/;
+export const ASSET_SCRIPT = /^\/assets\/[A-Za-z0-9_.-]{1,160}\.js$/;
 const KEY = 'asa:diagnostics:v1';
 const TTL = 15 * 60_000;
 const MAX = 50;

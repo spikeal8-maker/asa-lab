@@ -105,7 +105,7 @@ export class ClientDiagnosticsController {
           value['phase'] !== 'save')) ||
       (value['script'] !== undefined &&
         (typeof value['script'] !== 'string' ||
-          !/^\/assets\/[A-Za-z0-9_-]{1,160}\.js$/.test(value['script']))) ||
+          !/^\/assets\/[A-Za-z0-9_.-]{1,160}\.js$/.test(value['script']))) ||
       ['line', 'column'].some(
         (k) =>
           value[k] !== undefined &&

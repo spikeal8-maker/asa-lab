@@ -50,3 +50,15 @@ other systems. Exact SHA and JS-digest checks fail closed; unknown development
 builds can run but do not claim source localization. No historical root cause or
 capacity claim. Independent final-SHA review and isolated browser/Docker evidence
 are required separately and recorded in issue606/owner report.
+
+## Bounded review repair R1
+
+Initial review of30fe8a0 returned FAIL: Vite Worker JS/maps are Rollup assets,
+not chunks. The first plugin skipped them, leaking maps to dist; release verified
+after push. A real Worker fixture reproduced public map presence before repair.
+R1 includes all emitted JS assets and their maps in encryption/digests, accepts
+safe dotted Worker filenames, and verifies the loaded web runtime before push.
+Only web release loading/publishing changes; other services keep original push.
+Same Worker fixture now has zero public maps and the Worker in private archive.
+Browser CI also requires the Worker to execute/answer. New independent final-SHA
+review follows; no first-candidate publication or working runtime operation.

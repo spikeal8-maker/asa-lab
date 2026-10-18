@@ -28,8 +28,9 @@ Docker хранит тот же зашифрованный архив в `/usr/s
 параметры сборки могут изменить JS-хеши.
 
 GitHub `ASA Portable Release` экспортирует архив из того же Docker build,
-сверяет JS-digests с фактически отправленным runtime и хранит зашифрованные файлы
-в артефакте `web-symbols-REVISION`90 дней. Отдельный Browser Error Diagnostics CI
+сверяет JS-digests с собранным runtime до публикации образа и хранит зашифрованные файлы
+в артефакте `web-symbols-REVISION`90 дней. Обрабатываются и обычные Rollup chunks,
+и Worker JS/maps, которые Vite выдаёт как assets. Отдельный Browser Error Diagnostics CI
 тоже проверяет реальный web-образ. Публичный GitHub-артефакт содержит только
 шифротекст и manifest хешей. В `/srv` нет `.map` и sourceMappingURL.
 

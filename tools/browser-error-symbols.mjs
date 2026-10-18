@@ -122,7 +122,7 @@ export function symbolize(archive, event) {
     throw new Error('Missing bounded frames');
   return event.exception.frames.map((frame) => {
     if (
-      !/^\/assets\/[A-Za-z0-9_-]{1,140}-[A-Za-z0-9_-]{8,16}\.js$/.test(frame.script) ||
+      !/^\/assets\/[A-Za-z0-9_.-]{1,140}-[A-Za-z0-9_-]{8,16}\.js$/.test(frame.script) ||
       !Object.hasOwn(archive.assets, frame.script)
     )
       throw new Error('Unknown generated asset');

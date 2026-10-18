@@ -39,7 +39,7 @@ export function validClientException(value: unknown, code: unknown): boolean {
         Object.keys(f).length === 3 &&
         Object.keys(f).every((k) => ['script', 'line', 'column'].includes(k)) &&
         typeof f['script'] === 'string' &&
-        /^\/assets\/[A-Za-z0-9_-]{1,140}-[A-Za-z0-9_-]{8,16}\.js$/.test(f['script']) &&
+        /^\/assets\/[A-Za-z0-9_.-]{1,140}-[A-Za-z0-9_-]{8,16}\.js$/.test(f['script']) &&
         ['line', 'column'].every(
           (k) => Number.isInteger(f[k]) && Number(f[k]) > 0 && Number(f[k]) <= 10_000_000,
         ),

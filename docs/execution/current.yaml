@@ -94,7 +94,7 @@ parallel_lanes:
       base_branch: main
       pr: null
       status: in_progress
-      checkpoint: point7_58_local_checks_typechecks_pass_review_and_isolated_ci_pending
+      checkpoint: point7_r1_worker_maps_60_pass_review_and_isolated_ci_pending
       owner_acceptance: pending
       owner_authorization: Owner selected audit point7 only; publish main, report and STOP. No deployment or live data actions.
       context_hints:
@@ -107,7 +107,7 @@ parallel_lanes:
       main:
         branch: main
         sha: 2c09fdf4b54b411cc7fde059444722c5d86fa156
-      observation_note: Point7 bounded candidate has55 Vitest plus3 symbol tests, lint and API/web typechecks. Independent final-SHA review and exact browser/Docker CI pending; evidence in issue606. Fetch main before writes, no deployment authority.
+      observation_note: Point7 R1 encrypts Worker asset maps and validates web before push.57 Vitest plus3 symbol tests and actual Worker build before-fail/after-pass. Fresh independent final-SHA review and exact browser/Docker CI pending; evidence in issue606. Fetch main before writes, no deployment authority.
     execution_lease:
       executor_id: browser-errors-point7-606
       holder: unassigned

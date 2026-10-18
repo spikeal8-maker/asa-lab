@@ -11,6 +11,24 @@ function reportRequest(address = '203.0.113.1'): FastifyRequest {
   } as unknown as FastifyRequest;
 }
 describe('bounded client diagnostics', () => {
+  it('accepts safe generated Worker asset coordinates as well as ordinary chunks', () => {
+    const controller = new ClientDiagnosticsController();
+    const frame = { script: '/assets/simulation.worker-1234abcd.js', line: 1, column: 20 };
+    const body = {
+      code: 'window_error',
+      module: 'electronics',
+      revision: 'a'.repeat(40),
+      ...frame,
+      exception: { kind: 'unknown', capture: 'window', handling: 'unhandled', frames: [frame] },
+    };
+    const out = vi.spyOn(process.stdout, 'write').mockReturnValue(true);
+    try {
+      controller.report(reportRequest(), body);
+      expect(JSON.parse(String(out.mock.calls[0]![0]))).toMatchObject(body);
+    } finally {
+      out.mockRestore();
+    }
+  });
   it.each([
     [{ script: '/assets/index-1234abcd.js?secret=x', line: 1, column: 1 }],
     [{ script: '/assets/index-1234abcd.js', line: 0, column: 1 }],

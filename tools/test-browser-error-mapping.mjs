@@ -39,6 +39,16 @@ const archive = decryptSymbols(
   JSON.parse(readFileSync(resolve(symbols, `web-symbols-${revision}.json`), 'utf8')),
   keys.privateKey,
 );
+assert.ok(
+  Object.keys(archive.assets).some((script) => script.includes('probe.worker-')),
+  'Worker missing from private archive',
+);
+if (process.argv.includes('--build-only')) {
+  console.info(
+    JSON.stringify({ revision, fixtureBuild: 'PASS', workerMapEncrypted: true, publicMaps: 0 }),
+  );
+  process.exit(0);
+}
 const reports = [];
 const server = createServer(async (request, response) => {
   if (request.url === '/api/diagnostics/client') {
@@ -75,6 +85,7 @@ try {
   const page = await browser.newPage();
   await page.goto('http://127.0.0.1:4612/');
   await page.waitForFunction(() => typeof window.triggerError === 'function');
+  await page.waitForFunction(() => window.workerReady === true);
   const expectedLine =
     readFileSync(resolve(repositoryRoot, 'tools/fixtures/browser-error/entry.tsx'), 'utf8')
       .split('\n')

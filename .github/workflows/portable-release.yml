@@ -84,7 +84,8 @@ jobs:
           file: ${{ matrix.file }}
           target: ${{ matrix.target }}
           platforms: linux/amd64
-          push: true
+          push: ${{ matrix.service != 'web' }}
+          load: ${{ matrix.service == 'web' }}
           tags: ghcr.io/${{ github.repository }}/${{ matrix.service }}:${{ needs.gate.outputs.revision }}
           labels: org.opencontainers.image.source=https://github.com/${{ github.repository }}
           build-args: |
@@ -107,13 +108,12 @@ jobs:
             ASA_BLOCKS_PARENT_ORIGIN=http://127.0.0.1:4610
             ASA_BLOCKS_RUNTIME_ORIGIN=http://localhost:4613
           cache-from: type=gha,scope=portable-web
-      - name: Verify exported symbol digests against the pushed runtime
+      - name: Verify exported symbols before publishing the web image
         if: matrix.service == 'web'
         env:
           WEB_IMAGE: ghcr.io/${{ github.repository }}/web:${{ needs.gate.outputs.revision }}
           REVISION: ${{ needs.gate.outputs.revision }}
         run: |
-          docker pull "$WEB_IMAGE"
           symbolWebId=$(docker create "$WEB_IMAGE")
           docker cp "$symbolWebId:/srv" .asa/web-runtime
           docker rm "$symbolWebId"
@@ -126,6 +126,11 @@ jobs:
           path: .asa/web-symbols/*.json
           if-no-files-found: error
           retention-days: 90
+      - name: Publish verified web image
+        if: matrix.service == 'web'
+        env:
+          WEB_IMAGE: ghcr.io/${{ github.repository }}/web:${{ needs.gate.outputs.revision }}
+        run: docker push "$WEB_IMAGE"
   publish:
     needs: [gate, build]
     permissions:

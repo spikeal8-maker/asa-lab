@@ -8,6 +8,12 @@ import {
 const origin = 'https://asa.invalid';
 const frame = { script: '/assets/ArduinoCodePanel-1234abcd.js', line: 4, column: 20 };
 describe('safe browser exception coordinates', () => {
+  it('keeps a same-origin generated Worker filename with a dot and safe fallback coordinates', () => {
+    const workerFrame = { script: '/assets/simulation.worker-1234abcd.js', line: 1, column: 20 };
+    const result = clientException(null, 'window', origin, workerFrame);
+    expect(result.frames).toEqual([workerFrame]);
+    expect(validClientException(result)).toBe(true);
+  });
   it('keeps Chrome and Firefox generated frames, drops messages, names, foreign URLs and query/fragment', () => {
     const error = {
       name: 'TypeError',

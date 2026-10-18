@@ -14,9 +14,10 @@ export function privateSymbols({ revision, repositoryRoot, output, publicKey }) 
       const assets = {},
         maps = [];
       for (const chunk of Object.values(bundle)) {
-        if (chunk.type !== 'chunk' || !chunk.fileName.endsWith('.js')) continue;
+        // Vite emits Worker JS/maps as Rollup assets, not only chunks.
+        if (!chunk.fileName.endsWith('.js')) continue;
         const script = `/${chunk.fileName}`;
-        if (!/^\/assets\/[A-Za-z0-9_-]{1,140}-[A-Za-z0-9_-]{8,16}\.js$/.test(script))
+        if (!/^\/assets\/[A-Za-z0-9_.-]{1,140}-[A-Za-z0-9_-]{8,16}\.js$/.test(script))
           throw new Error('Unexpected symbol chunk path');
         const generatedPath = resolve(options.dir, chunk.fileName);
         const mapPath = `${generatedPath}.map`;
