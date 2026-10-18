@@ -172,6 +172,118 @@ describe('scoped original backups before identifier recovery', () => {
     document: broken(),
     updatedAt: '2026-10-16T10:00:00Z',
   };
+
+  it('carries exact consumed receipts across reload and retires identical mirrors after a descendant save', () => {
+    const storage = memoryStorage();
+    const base = localProjectDraftKey('p', 'u', 'account');
+    const oldKey = base + ':electronics-editor:old';
+    const raw = JSON.stringify(draft);
+    storage.setItem(oldKey, raw);
+    storage.setItem(base, JSON.stringify({ ...draft, updatedAt: '2026-10-16T10:00:01Z' }));
+    const first = createElectronicsProjectRecovery<SchematicDocument>(
+      () => storage,
+      null,
+      'p',
+      'u',
+      'account',
+    );
+    expect(first.preserveOriginal(first.read()!)).toBe(true);
+    expect(first.write({ baseRevision: 7, document: draft.document })).toBe(true);
+    const resumed = createElectronicsProjectRecovery<SchematicDocument>(
+      () => storage,
+      null,
+      'p',
+      'u',
+      'account',
+    );
+    const pending = resumed.read()!;
+    expect(resumed.preserveOriginal(pending, false)).toBe(true);
+    const deleted = { ...draft.document, components: [], connections: [] };
+    expect(resumed.write({ baseRevision: 7, document: deleted })).toBe(true);
+    resumed.clear(deleted);
+    expect(storage.getItem(oldKey)).toBe(raw);
+    expect(storage.getItem(oldKey + ':ack')).not.toBeNull();
+    const fresh = createElectronicsProjectRecovery<SchematicDocument>(
+      () => storage,
+      null,
+      'p',
+      'u',
+      'account',
+    );
+    expect(fresh.read()).toBeNull();
+  });
+
+  it('never acknowledges a concurrent replacement of the consumed source', () => {
+    const storage = memoryStorage();
+    const key = localProjectDraftKey('p', 'u', 'account') + ':electronics-editor:old';
+    storage.setItem(key, JSON.stringify(draft));
+    const recovery = createElectronicsProjectRecovery<SchematicDocument>(
+      () => storage,
+      null,
+      'p',
+      'u',
+      'account',
+    );
+    expect(recovery.preserveOriginal(recovery.read()!)).toBe(true);
+    const deleted = { ...draft.document, components: [], connections: [] };
+    expect(recovery.write({ baseRevision: 7, document: deleted })).toBe(true);
+    const replacement = JSON.stringify({
+      ...draft,
+      document: { ...draft.document, viewport: { x: 999, y: 0, zoom: 1 } },
+    });
+    storage.setItem(key, replacement);
+    recovery.clear(deleted);
+    expect(storage.getItem(key)).toBe(replacement);
+    expect(storage.getItem(key + ':ack')).toBeNull();
+  });
+
+  it('keeps the descendant recovery slot if retiring its source cannot be verified', () => {
+    const storage = memoryStorage();
+    const key = localProjectDraftKey('p', 'u', 'account') + ':electronics-editor:old';
+    storage.setItem(key, JSON.stringify(draft));
+    const recovery = createElectronicsProjectRecovery<SchematicDocument>(
+      () => storage,
+      null,
+      'p',
+      'u',
+      'account',
+    );
+    expect(recovery.preserveOriginal(recovery.read()!)).toBe(true);
+    const deleted = { ...draft.document, components: [], connections: [] };
+    expect(recovery.write({ baseRevision: 7, document: deleted })).toBe(true);
+    const actual = storage.setItem;
+    vi.spyOn(storage, 'setItem').mockImplementation((name, value) => {
+      if (name.endsWith(':ack')) throw new Error('quota');
+      actual(name, value);
+    });
+    recovery.clear(deleted);
+    expect(recovery.readOwned()!.document).toEqual(deleted);
+    expect(storage.getItem(key + ':ack')).toBeNull();
+  });
+
+  it('rejects foreign or unverifiable inherited receipts without changing their source', () => {
+    for (const receipt of [
+      { key: localProjectDraftKey('other', 'u', 'account'), fingerprint: 'a'.repeat(64) },
+      { key: localProjectDraftKey('p', 'u', 'account'), fingerprint: 'a'.repeat(64) },
+      { key: localProjectDraftKey('p', 'u', 'account'), fingerprint: 'invalid' },
+    ]) {
+      const storage = memoryStorage();
+      const key = localProjectDraftKey('p', 'u', 'account');
+      const raw = JSON.stringify({ ...draft, electronicsIdentifierSources: [receipt] });
+      storage.setItem(key, raw);
+      const recovery = createElectronicsProjectRecovery<SchematicDocument>(
+        () => storage,
+        null,
+        'p',
+        'u',
+        'account',
+      );
+      expect(recovery.preserveOriginal(recovery.read()!, false)).toBe(false);
+      expect(storage.getItem(key)).toBe(raw);
+      expect(storage.getItem(key + ':ack')).toBeNull();
+    }
+  });
+
   it('verifies exact original bytes, deduplicates backups and never restores them as pending drafts', () => {
     const storage = memoryStorage();
     const key = localProjectDraftKey('p', 'u', 'account');

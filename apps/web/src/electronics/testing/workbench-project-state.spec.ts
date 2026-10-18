@@ -272,6 +272,69 @@ describe('Electronics project autosave in the mounted editor hook', () => {
     return { key, raw: window.localStorage.getItem(key)! };
   }
 
+  it.each([
+    ['delete', false],
+    ['edit', false],
+    ['delete', true],
+    ['edit', true],
+  ] as const)(
+    'retires the consumed source after %s before first confirmation (reload=%s)',
+    async (action, reload) => {
+      const save = await mountProject();
+      const { key, raw } = storeOldCopy();
+      await reopenProject();
+      const recovered = state().document!;
+      const changed =
+        action === 'delete'
+          ? { ...recovered, components: [], connections: [] }
+          : {
+              ...recovered,
+              components: recovered.components.map((item) => ({ ...item, value: 1000 })),
+            };
+      act(() => state().setDocument(changed));
+      if (reload) {
+        // Leave without a successful server write; the lineage must survive in storage.
+        save.mockResolvedValue({
+          ok: false,
+          status: 0,
+          error: { code: 'offline', message: 'offline' },
+        } as Awaited<ReturnType<typeof api.saveDraft>>);
+        window.sessionStorage.clear();
+        await reopenProject();
+      }
+      save.mockImplementation(async (_id, document, revision) => {
+        expect(parseElectronicsDocument(document).ok).toBe(true);
+        vi.mocked(api.openProject).mockResolvedValue({
+          ok: true,
+          status: 200,
+          data: {
+            project,
+            draft: { projectId, document, revision: revision + 1, updatedAt: '' },
+            versions: [],
+            result: null,
+          },
+        } as Awaited<ReturnType<typeof api.openProject>>);
+        return {
+          ok: true,
+          status: 200,
+          data: {
+            draft: { projectId, document, revision: revision + 1, updatedAt: '' },
+            result: null,
+          },
+        } as Awaited<ReturnType<typeof api.saveDraft>>;
+      });
+      await act(async () => state().saveNow());
+      expect(state().saveStatus).toBe('saved');
+      expect(window.localStorage.getItem(key)).toBe(raw);
+      expect(window.localStorage.getItem(key + ':ack')).not.toBeNull();
+      window.sessionStorage.clear();
+      await reopenProject();
+      expect(state().document!.components).toEqual(changed.components);
+      expect(state().document!.connections).toEqual(changed.connections);
+      expect(state().saveStatus).toBe('saved');
+    },
+  );
+
   it('repairs an old local copy, confirms a valid save and never resurrects the original branch', async () => {
     const save = await mountProject();
     const { key, raw } = storeOldCopy();

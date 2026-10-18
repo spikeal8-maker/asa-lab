@@ -401,7 +401,7 @@ export function useWorkbenchProjectState(projectId: string, userId: string, seat
     const repairedLocal = localRepair?.document;
     const repairedBase = baseRepair?.document;
     if (
-      (local && (repairedLocal || repairedBase) && !recovery.preserveOriginal(local)) ||
+      (local && !recovery.preserveOriginal(local, Boolean(repairedLocal || repairedBase))) ||
       (repairedServer &&
         !recovery.preserveOriginal({
           schemaVersion: 3,
