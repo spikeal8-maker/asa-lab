@@ -2452,7 +2452,7 @@ for (const width of [1440, 1024, 1023, 1022, 821, 820, 601, 600, 540, 390, 350, 
     await assertShellGeometry(page, width, true);
     await page.screenshot({ path: `${shellEvidence}/wide-text-${width}.png` });
     if (width <= 560) {
-      const create = page.getByRole('button', { name: 'Создать проект', exact: true });
+      const create = page.locator('.portal-header .portal-quick-create > summary');
       await create.click();
       const popup = page.locator('.portal-header .portal-create-options');
       await expect(popup).toBeVisible();
