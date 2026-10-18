@@ -199,7 +199,13 @@ export function ClassroomStudentPage({
               }
             : result.data,
         );
-      else setWorksError(result.error.message);
+      else {
+        if ([401, 403, 404].includes(result.status)) {
+          setWorks(null);
+          workRequest.current = 0;
+        }
+        setWorksError(result.error.message);
+      }
     },
     [classroomId, seatId, module, archive, tab],
   );

@@ -350,7 +350,9 @@ it('renders one navigation row, truthful safety, all eight keyboard-reachable se
     .spyOn(participantsApi, 'works')
     .mockResolvedValueOnce(ok(works))
     .mockResolvedValueOnce(fail())
-    .mockResolvedValueOnce(ok({ ...works, offset: 30, hasMore: false }));
+    .mockResolvedValueOnce(ok({ ...works, offset: 30, hasMore: true }))
+    .mockResolvedValueOnce(fail(403))
+    .mockResolvedValueOnce(ok({ ...works, hasMore: false }));
   const back = vi.fn(),
     navigate = vi.fn();
   await act(async () =>
@@ -390,6 +392,11 @@ it('renders one navigation row, truthful safety, all eight keyboard-reachable se
   await click('Ещё работы');
   await click('Повторить');
   expect(read.mock.calls.map((args) => args[4])).toEqual([0, 30, 30]);
+  await click('Ещё работы');
+  expect(host.textContent).not.toContain('Часть личных работ закрыта');
+  expect(host.textContent).not.toContain('Ещё работы');
+  await click('Повторить');
+  expect(read.mock.calls.map((args) => args[4])).toEqual([0, 30, 30, 60, 0]);
   await click('← К классу');
   expect(back).toHaveBeenCalledOnce();
 });
