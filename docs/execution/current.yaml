@@ -3801,6 +3801,7 @@ parallel_lanes:
         - docs/product/projects/tasks/PROJ-R7-VISIBLE-PUBLICATION.md
         - docs/product/projects/DECISION_LEDGER.md
         - docs/product/projects/tasks/PROJ-PUBLICATION-BUILD-BASELINE.md
+        - docs/product/projects/tasks/PROJ-PUBLICATION-CI-DEPENDENCIES.md
     integration_dependencies:
       - id: TASK-PROJ-PUBLICATION-BUILD-BASELINE-001
         status: in_progress
@@ -3814,6 +3815,29 @@ parallel_lanes:
           import boundary before the publication diff (run 39142129295, job 117718946995).
           Preserve the private-symbol pipeline and all runtime dependency constraints.
           Independent exact-SHA review and CI are required before integration.
+      - id: TASK-PROJ-PUBLICATION-TYPECHECK-BASELINE-001
+        status: in_progress
+        branch: codex/projects-typecheck-baseline
+        scope:
+          - tools/blocks/gate.mjs
+          - tests/blocks/save-diagnostics.spec.ts
+        selection: >-
+          Separate C baseline repair: Scratch gate mixes browser roots into NodeNext without
+          the existing web declarations or JSX (run 39144252514, job 117724748652).
+          Preserve every checked root and strict option; no module or runtime change.
+          Independent final-SHA review and actual Scratch CI are required.
+      - id: TASK-PROJ-PUBLICATION-MIGRATION-BASELINE-001
+        status: in_progress
+        branch: codex/projects-migration-baseline
+        scope:
+          - tests/migration/course-structure-forward-upgrade.pg.spec.ts
+        selection: >-
+          Separate C baseline repair: exact upgrade catalogue still ends at 0214 while main
+          contains 0217 (run 39144252513, job 117725991526: 4364 passed, one failed).
+          Adopt the completed PR 607 test change through 0216, which passed real PostgreSQL
+          on af4d897685238eecb395970cdf2702f21969c654, and explicitly add published 0217.
+          Preserve all exact catalogue, historical data, idempotency and RLS assertions.
+          No migration or Learning runtime change; independent final-SHA review and CI required.
     accepted_foundation:
       accepted_r7_01b_merge_sha: 65316c50873e28a5effd7b6e603b5289e37e2fac
       accepted_r3_merge_sha: 5fa616045b16d2720418eb7945f7bef968dd9389
