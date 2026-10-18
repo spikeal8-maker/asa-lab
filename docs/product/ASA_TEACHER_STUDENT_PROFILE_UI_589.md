@@ -37,8 +37,13 @@ scoped preflight и проверка dirty/intersecting paths всех затр�
 - `apps/web/src/pages/classroom-student.css`;
 - `apps/web/src/components/ClassroomParticipantPanels.tsx`;
 - `apps/web/src/components/testing/classroom-student-navigation.spec.ts`;
+- `apps/web/src/components/testing/classroom-profile-completion.spec.ts` — обновление
+  существующего компонентного regression test, принятого в PR #592;
 - `apps/web/src/components/testing/classroom-student-profile.spec.ts`;
 - `e2e/classroom-student-profile.spec.ts`;
+- `e2e/classroom-profile-completion.spec.ts` — существующий браузерный regression
+  test с реальным PostgreSQL в изолированном CI; сохранить проверки реального API
+  и авторизации, не ослаблять тесты;
 - `docs/product/ASA_TEACHER_STUDENT_PROFILE_UI_589.md`;
 - **координируемый** `apps/web/src/pages/ClassroomStudentPage.tsx`;
 - **координируемый** `.github/workflows/teacher-student-profile-ui.yml`.
@@ -56,10 +61,9 @@ self-review, сообщает результат и STOP. Независимый
 точный финальный SHA, контролёр отдельно принимает решения и интегрирует после
 обязательных проверок. Governance repair не разрешает продуктовые правки.
 
-**Оставшийся preflight по mapping:** отсутствие `ClassroomStudentPage.tsx` в
-Surface Map нельзя считать исправленным этим документом или registry route.
-Нужен отдельно разрешённый canonical mapping/tooling slice, его принятие на main
-и проверка targeted preflight
+**Обязательный preflight по mapping:** mapping `ClassroomStudentPage.tsx` принят
+на main в PR #591; этот документ или registry route не заменяют его подтверждение
+через targeted preflight
 `pnpm agent:preflight --path apps/web/src/pages/ClassroomStudentPage.tsx --check`
 на актуальной базе до продуктовых edits. Этот UI-срез не разрешает менять tooling,
 Surface Map, catalogs, package/lockfile или придумывать рабочий selector.
