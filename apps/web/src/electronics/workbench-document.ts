@@ -6,6 +6,7 @@ import type {
   Terminal,
 } from '../api';
 import { resolveElectricalModelIdentity } from '@asa-lab/electronics/simulation';
+import { newClientId } from '../client-id';
 import {
   catalogEntry,
   componentPointPosition,
@@ -233,7 +234,6 @@ export function updateSelectionVariant(
 export function duplicateComponentInDocument(
   document: SchematicDocument,
   selection: Selection,
-  id: string,
 ): {
   document: SchematicDocument;
   component: SchematicComponent;
@@ -243,12 +243,16 @@ export function duplicateComponentInDocument(
   const selectedIds = new Set(selection.ids);
   const sources = document.components.filter((item) => selectedIds.has(item.id));
   if (sources.length === 0) return null;
+  // Copy identities must not inherit the previous copy's ID: repeated pastes
+  // otherwise exceed the document's 64-character limit.
+  const id = newClientId();
+  const copySuffix = ' — копия';
   const idMap = new Map<string, string>();
   sources.forEach((source, index) => idMap.set(source.id, `${id}-${index + 1}`));
   const components = sources.map((source) => ({
     ...source,
     id: idMap.get(source.id) as string,
-    name: `${source.name ?? source.kind} — копия`,
+    name: `${(source.name ?? source.kind).slice(0, 120 - copySuffix.length)}${copySuffix}`,
     position: { x: source.position.x + 28, y: source.position.y + 28 },
   }));
   const connections = document.connections

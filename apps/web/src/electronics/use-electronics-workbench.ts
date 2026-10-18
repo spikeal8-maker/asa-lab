@@ -910,11 +910,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
     const currentDocument = getCurrentDocument();
     if (!currentDocument || selection?.kind !== 'component') return;
     if (!structuralEditAllowed()) return;
-    const duplicated = duplicateComponentInDocument(
-      currentDocument,
-      selection,
-      nextId(selection.id),
-    );
+    const duplicated = duplicateComponentInDocument(currentDocument, selection);
     if (!duplicated) return;
     commitDocument(duplicated.document, 'Создана копия элемента.');
     const duplicatedIds = duplicated.components.map((component) => component.id);
@@ -935,11 +931,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
     const currentDocument = getCurrentDocument();
     if (!currentDocument || clipboardSelection?.kind !== 'component') return;
     if (!structuralEditAllowed()) return;
-    const duplicated = duplicateComponentInDocument(
-      currentDocument,
-      clipboardSelection,
-      nextId(clipboardSelection.id),
-    );
+    const duplicated = duplicateComponentInDocument(currentDocument, clipboardSelection);
     if (!duplicated) {
       setClipboardSelection(null);
       return;
