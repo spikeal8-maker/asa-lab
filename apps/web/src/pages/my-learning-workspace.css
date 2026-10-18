@@ -31,9 +31,13 @@
 
 .learning-workspace-nav {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  max-width: 100%;
+  width: fit-content;
+  box-sizing: border-box;
   gap: 4px;
-  padding: 4px;
+  padding: 2px;
   border: 1px solid #dce2e8;
   border-radius: 8px;
   background: #fff;
@@ -42,6 +46,8 @@
 
 .learning-workspace-nav a {
   display: flex;
+  flex: 0 0 auto;
+  white-space: nowrap;
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
@@ -265,9 +271,7 @@
   }
 
   .learning-workspace-nav a {
-    flex: 1 1 40%;
-    min-height: 38px;
-    padding-inline: 6px;
+    padding-inline: 12px;
   }
 
   .learning-overview-panel,

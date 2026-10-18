@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 import {
   api,
   type ClassroomStudentSession,
@@ -12,6 +12,8 @@ import { SeatQuizzes } from '../components/SeatQuizzes';
 import { SeatResults } from '../components/SeatResults';
 import { AttendedClassesPage } from './AttendedClassesPage';
 import { canonicalLearningLabel } from '../learning/canonical-learning-presentation';
+import { useLearningDestination } from '../learning/use-learning-destination';
+import { subscribeTelemetry, telemetryContext } from '../telemetry-context';
 import './my-learning-workspace.css';
 
 const sections = [
@@ -24,6 +26,20 @@ const sections = [
   ['self', 'Самостоятельно'],
 ] as const;
 type LearningSection = (typeof sections)[number][0];
+
+export function hasCourseAssignment(runs: SeatCourseRun[], assignment: string): boolean {
+  return runs.some((run) =>
+    run.sections.some((section) =>
+      section.lessons.some(
+        (lesson) =>
+          lesson.classroomAssignmentId === assignment ||
+          lesson.activityOccurrences.some(
+            (occurrence) => occurrence.classroomAssignmentId === assignment,
+          ),
+      ),
+    ),
+  );
+}
 
 export function learningSection(hash: string): LearningSection {
   const query = new URLSearchParams(hash.split('?')[1] ?? '');
@@ -50,12 +66,65 @@ export function LearningPage({
   readonly seat: ClassroomStudentSession | null;
   readonly onOpenProject: (projectId: string, moduleKey: string) => void;
 }): JSX.Element {
-  const [tab, setTab] = useState(() => learningSection(window.location.hash));
+  const [hash, setHash] = useState(() => window.location.hash);
+  // Continuity only fences UI work; the read APIs still prove all access.
+  const continuity = useSyncExternalStore(
+    subscribeTelemetry,
+    () => telemetryContext().continuity,
+    () => 0,
+  );
   useEffect(() => {
-    const sync = () => setTab(learningSection(window.location.hash));
+    const sync = () => setHash(window.location.hash);
     window.addEventListener('hashchange', sync);
     return () => window.removeEventListener('hashchange', sync);
   }, []);
+  // A new destination or Seat lifetime gets fresh reads and retires pending work.
+  return (
+    <LearningWorkspace
+      key={`${continuity}:${seat?.student.seatId ?? 'account'}:${seat?.expiresAt ?? ''}:${hash}`}
+      seat={seat}
+      onOpenProject={onOpenProject}
+    />
+  );
+}
+
+function LearningWorkspace({
+  seat,
+  onOpenProject,
+}: {
+  readonly seat: ClassroomStudentSession | null;
+  readonly onOpenProject: (projectId: string, moduleKey: string) => void;
+}): JSX.Element {
+  const requestedTab = learningSection(window.location.hash);
+  const destination = useLearningDestination();
+  const assignment = requestedTab === 'assignments' ? destination.assignment : null;
+  const [resolved, setResolved] = useState<{ key: string; course: boolean } | null>(null);
+  const [lookupFailed, setLookupFailed] = useState(false);
+  const [lookupRetry, setLookupRetry] = useState(0);
+  const lookupKey = `${seat ? 'seat' : 'account'}:${assignment}`;
+  const resolving = assignment !== null && resolved?.key !== lookupKey;
+  const tab = !resolving && assignment && resolved?.course ? 'courses' : requestedTab;
+  useEffect(() => {
+    if (!assignment) return;
+    let active = true;
+    setLookupFailed(false);
+    void (seat ? api.seatCourseRuns() : api.accountCourseRuns())
+      .then((result) => {
+        if (!active) return;
+        if (result.ok)
+          setResolved({
+            key: lookupKey,
+            course: hasCourseAssignment(result.data.items, assignment),
+          });
+        else setLookupFailed(true);
+      })
+      .catch(() => {
+        if (active) setLookupFailed(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, [assignment, lookupKey, lookupRetry, seat]);
   const navigation = (
     <nav aria-label="Разделы моего обучения" className="learning-workspace-nav">
       {sections.map(([id, title]) => (
@@ -81,7 +150,21 @@ export function LearningPage({
       </header>
       {navigation}
       <div className="learning-workspace-body" key={`${seat ? 'seat' : 'account'}:${tab}`}>
-        {tab === 'overview' ? (
+        {resolving ? (
+          lookupFailed ? (
+            <p role="alert">
+              Не удалось найти задание в курсах.{' '}
+              <button
+                className="btn-secondary"
+                onClick={() => setLookupRetry((value) => value + 1)}
+              >
+                Повторить
+              </button>
+            </p>
+          ) : (
+            <p role="status">Загружаем задание…</p>
+          )
+        ) : tab === 'overview' ? (
           <LearningOverview seat={seat !== null} />
         ) : tab === 'self' ? (
           <section className="learning-empty" aria-label="Самостоятельное обучение">

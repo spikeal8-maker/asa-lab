@@ -347,7 +347,7 @@ async function fixture(page: Page, identity: 'seat' | 'account', count: number) 
     if (path.startsWith('/api/analytics/')) return json(route, { accepted: true });
     return json(route, { items: [], total: 0 });
   });
-  return state;
+  return Object.assign(state, { assignments, courses });
 }
 
 async function layout(page: Page) {
@@ -357,6 +357,111 @@ async function layout(page: Page) {
     page.getByRole('heading', { level: 1, name: 'Моё обучение', exact: true }),
   ).toHaveCount(1);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+}
+
+for (const identity of ['seat', 'account'] as const) {
+  test(`${identity}: mobile tabs stay in one scrollable keyboard-accessible rail`, async ({
+    page,
+  }) => {
+    await fixture(page, identity, 1);
+    await page.goto('/#/learning');
+    const nav = page.getByRole('navigation', { name: 'Разделы моего обучения' });
+    for (const width of [1440, 1024, 390, 320]) {
+      await page.setViewportSize({ width, height: 960 });
+      const rail = await nav.evaluate((el) => ({
+        height: el.getBoundingClientRect().height,
+        width: el.clientWidth,
+        scroll: el.scrollWidth,
+        wrap: getComputedStyle(el).flexWrap,
+        overflow: getComputedStyle(el).overflowX,
+      }));
+      expect(rail.wrap).toBe('nowrap');
+      expect(rail.height).toBeLessThanOrEqual(44);
+      if (width <= 390) {
+        expect(rail.scroll).toBeGreaterThan(rail.width);
+        expect(rail.overflow).toBe('auto');
+      }
+      await nav.locator('a').first().focus();
+      for (let i = 0; i < 6; i++) await page.keyboard.press('Tab');
+      const last = nav.getByRole('link', { name: 'Самостоятельно', exact: true });
+      await expect(last).toBeFocused();
+      expect(
+        await last.evaluate((el) => {
+          const link = el.getBoundingClientRect();
+          const parent = el.parentElement!.getBoundingClientRect();
+          return link.left >= parent.left && link.right <= parent.right;
+        }),
+      ).toBe(true);
+      await layout(page);
+    }
+  });
+
+  for (const nested of [false, true]) {
+    test(`${identity}: assignment-only notification resolves ${nested ? 'nested practice' : 'course lesson'}`, async ({
+      page,
+    }) => {
+      const state = await fixture(page, identity, 2);
+      const lesson = state.courses[1].sections[0].lessons[0];
+      lesson.title = 'Практика курса';
+      state.courses[1].sections[0].lessons.unshift({
+        ...lesson,
+        id: 'unrelated-lesson',
+        title: 'Другой урок',
+        content: 'Посторонний материал',
+      });
+      Object.assign(
+        lesson,
+        nested
+          ? {
+              blocks: [
+                { id: 'practice', type: 'activity', learningActivityVersionId: 'activity-version' },
+              ],
+              activityOccurrences: [
+                {
+                  id: 'occurrence',
+                  blockId: 'practice',
+                  classroomAssignmentId: 'course-work',
+                  title: 'Практика курса',
+                  moduleKey: 'electronics',
+                  blocks: [],
+                  projectId: null,
+                  submittedAt: null,
+                  canonicalState: null,
+                },
+              ],
+            }
+          : {
+              kind: 'assignment',
+              classroomAssignmentId: 'course-work',
+              assignmentTitle: 'Практика курса',
+            },
+      );
+      const url = '/#/learning?assignment=course-work&attempt=attempt-2';
+      await page.goto(url);
+      const nav = page.getByRole('navigation', { name: 'Разделы моего обучения' });
+      const player = page.getByTestId('seat-course-player');
+      await expect(player).toBeVisible();
+      await expect(player).toContainText('Практика курса');
+      await expect(player).toContainText('курс 2');
+      await expect(player.locator('.seat-course-lesson h3')).toHaveText('Практика курса');
+      await expect(player.locator('.seat-course-lesson')).not.toContainText('Посторонний материал');
+      await expect(page.getByTestId('seat-assignments')).toHaveCount(0);
+      await expect(page.getByTestId('attended-assignments')).toHaveCount(0);
+      await page.reload();
+      await expect(player).toContainText('Практика курса');
+      const results = nav.getByRole('link', { name: 'Результаты', exact: true });
+      await results.focus();
+      await page.keyboard.press('Enter');
+      await expect(results).toHaveAttribute('aria-current', 'page');
+      await page.goBack();
+      await expect(player).toContainText('Практика курса');
+      await expect(nav.getByRole('link', { name: 'Курсы', exact: true })).toHaveAttribute(
+        'aria-current',
+        'page',
+      );
+      expect(state.errors).toEqual([]);
+    });
+  }
 }
 
 for (const identity of ['seat', 'account'] as const) {
