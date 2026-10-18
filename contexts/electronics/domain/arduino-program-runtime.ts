@@ -228,6 +228,10 @@ interface RuntimeState {
   statementCount: number;
   readonly expressions?: Readonly<Record<string, PreparedExpression>>;
   readonly prepareExpression?: (expression: string, tokens: readonly Token[]) => void;
+  readonly ownedClockCalls?: {
+    readonly adapters: readonly [ExpressionParser, ExpressionParser];
+    readonly arguments: readonly ArduinoValue[];
+  };
 }
 
 interface SimpleInstruction {
@@ -1193,6 +1197,15 @@ function evaluateSyntax(
   if (node.kind === 'unary')
     return unaryValue(node.operator, evaluateSyntax(node.operand, state, suppressed), validateOnly);
   if (node.kind === 'call') {
+    if (
+      state.ownedClockCalls &&
+      node.args.length === 0 &&
+      (node.name === 'millis' || node.name === 'micros')
+    )
+      return state.ownedClockCalls.adapters[suppressed ? 1 : 0].call(
+        node.name,
+        state.ownedClockCalls.arguments,
+      );
     const args = node.args.map((arg) => evaluateSyntax(arg, state, suppressed));
     return new ExpressionParser([], state, Number(suppressed)).call(node.name, args);
   }
@@ -1840,14 +1853,43 @@ interface ArduinoProgramCompilation {
   readonly diagnostics: readonly ArduinoRuntimeDiagnostic[];
 }
 
-function applyScopeInstruction(instruction: ScopeInstruction, scopes: ArduinoScope[]): void {
+type InactiveScopePool = (ArduinoScope | undefined)[];
+
+function acquireScope(pool: InactiveScopePool | undefined, depth: number): ArduinoScope {
+  const scope = pool?.[depth];
+  if (pool) pool[depth] = undefined;
+  return scope ?? new Map();
+}
+
+function retireScope(pool: InactiveScopePool, depth: number, scope: ArduinoScope): void {
+  scope.clear();
+  pool[depth] = scope;
+}
+
+function resetLocalScopes(scopes: ArduinoScope[], pool?: InactiveScopePool): void {
+  if (!pool) {
+    scopes.splice(1, scopes.length - 1, new Map());
+    return;
+  }
+  const retired = scopes.splice(1);
+  for (const [index, scope] of retired.entries()) retireScope(pool, index + 1, scope);
+  scopes.push(acquireScope(pool, 1));
+}
+
+function applyScopeInstruction(
+  instruction: ScopeInstruction,
+  scopes: ArduinoScope[],
+  pool?: InactiveScopePool,
+): void {
   if (instruction.kind === 'enter-scope') {
     if (scopes.length >= 128)
       throw new SyntaxError('Превышена допустимая вложенность областей Arduino.');
-    scopes.push(new Map());
+    scopes.push(acquireScope(pool, scopes.length));
   } else {
     if (scopes.length <= 2) throw new SyntaxError('Некорректное завершение области Arduino.');
-    scopes.pop();
+    const depth = scopes.length - 1;
+    const scope = scopes.pop()!;
+    if (pool) retireScope(pool, depth, scope);
   }
 }
 
@@ -2128,10 +2170,54 @@ export function advanceClockedArduinoRuntime(
 
 interface OwnedRuntimeMemory {
   readonly compilation: ArduinoProgramCompilation;
+  readonly inactiveScopes: InactiveScopePool;
   scopes?: ArduinoScope[];
   pinModes?: Map<Terminal, ArduinoPinMode>;
   outputVoltages?: Map<Terminal, number>;
   tones?: Map<Terminal, ArduinoTimedWaveformState>;
+  workspace?: {
+    readonly state: RuntimeState;
+    readonly buffers: {
+      actions: ArduinoProgramAction[];
+      diagnostics: ArduinoRuntimeDiagnostic[];
+    };
+  };
+}
+
+function createOwnedInstructionWorkspace(
+  scopes: ArduinoScope[],
+  expressions: ArduinoProgramCompilation['expressions'],
+  servo: ArduinoServoRuntimeState,
+): NonNullable<OwnedRuntimeMemory['workspace']> {
+  const buffers = {
+    actions: [] as ArduinoProgramAction[],
+    diagnostics: [] as ArduinoRuntimeDiagnostic[],
+  };
+  // No admitted expression reads inputs. These stable getters select only this
+  // invocation's fresh arrays, never arrays already published by an older call.
+  const state: RuntimeState = {
+    scopes,
+    expressions,
+    inputs: {},
+    get actions() {
+      return buffers.actions;
+    },
+    get diagnostics() {
+      return buffers.diagnostics;
+    },
+    pulseWait: null,
+    ultrasonicAdapter: null,
+    serial: null,
+    servo,
+    simulationTimeMs: 0,
+    statementCount: 0,
+  };
+  const ownedClockCalls = {
+    adapters: [new ExpressionParser([], state), new ExpressionParser([], state, 1)] as const,
+    arguments: Object.freeze([]) as readonly ArduinoValue[],
+  };
+  Object.defineProperty(state, 'ownedClockCalls', { value: ownedClockCalls });
+  return { state, buffers };
 }
 
 /** Package internal: only the cloned clock request constructs this working context. */
@@ -2173,7 +2259,7 @@ export function createOwnedClockedArduinoRuntime(source: string, initial?: Ardui
     )
   )
     return null;
-  let memory: OwnedRuntimeMemory | undefined = { compilation };
+  let memory: OwnedRuntimeMemory | undefined = { compilation, inactiveScopes: [] };
   let previous = initial;
   return {
     advance(time: number, instructionBudget: number, stopAtElectricalBoundary = false) {
@@ -2410,12 +2496,25 @@ function advanceRuntime(
         break;
       }
     }
-    scopes.push(new Map());
+    scopes.push(acquireScope(owned?.inactiveScopes, scopes.length));
   }
 
   let completedLoops = 0;
   let sampledElectricalInput = false;
-  const instructionState: RuntimeState = {
+  const workspace = owned
+    ? (owned.workspace ??= createOwnedInstructionWorkspace(scopes, compilation.expressions, servo))
+    : undefined;
+  if (workspace) {
+    workspace.buffers.actions = phase === 'setup' ? setupActions : loopActions;
+    workspace.buffers.diagnostics = diagnostics;
+    workspace.state.pulseWait = pulseWait;
+    workspace.state.ultrasonicAdapter = ultrasonicAdapter;
+    workspace.state.serial = serial;
+    workspace.state.servo = servo;
+    workspace.state.simulationTimeMs = resumeAtMs;
+    workspace.state.statementCount = clocked ? 0 : continuousStatementCount;
+  }
+  const instructionState: RuntimeState = workspace?.state ?? {
     scopes,
     expressions: compilation.expressions,
     get inputs() {
@@ -2478,7 +2577,7 @@ function advanceRuntime(
 
     if (phase === 'setup' && programCounter >= instructions.length) {
       if (scopes.length !== 2 || scopes[1]!.size !== 0)
-        scopes.splice(1, scopes.length - 1, new Map());
+        resetLocalScopes(scopes, owned?.inactiveScopes);
       phase = 'loop';
       programCounter = 0;
       loopIterationActive = false;
@@ -2496,7 +2595,7 @@ function advanceRuntime(
 
     if (phase === 'loop' && programCounter >= instructions.length) {
       if (scopes.length !== 2 || scopes[1]!.size !== 0)
-        scopes.splice(1, scopes.length - 1, new Map());
+        resetLocalScopes(scopes, owned?.inactiveScopes);
       programCounter = 0;
       loopIterationActive = false;
       completedLoops += 1;
@@ -2514,7 +2613,7 @@ function advanceRuntime(
       continue;
     }
     if (instruction.kind === 'enter-scope' || instruction.kind === 'exit-scope') {
-      applyScopeInstruction(instruction, scopes);
+      applyScopeInstruction(instruction, scopes, owned?.inactiveScopes);
       programCounter += 1;
       consumeClockInstruction();
       continue;
@@ -2548,6 +2647,7 @@ function advanceRuntime(
       consumeClockInstruction();
       continue;
     }
+    if (workspace) workspace.buffers.actions = actions;
     instructionState.pulseWait = pulseWait;
     instructionState.ultrasonicAdapter = ultrasonicAdapter;
     instructionState.serial = serial;
