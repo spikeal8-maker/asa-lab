@@ -177,6 +177,7 @@ export class LedTemporalPresentation {
   private cursor: number | null = null;
   private sampledAt: number | null = null;
   private buffered = false;
+  private warming = true;
   private receipts: Array<{
     at: number;
     samples: ReadonlyMap<string, readonly ElectronicsLedTemporalSample[]>;
@@ -195,6 +196,7 @@ export class LedTemporalPresentation {
     this.cursor = null;
     this.sampledAt = null;
     this.buffered = false;
+    this.warming = true;
     this.receipts = [];
   }
 
@@ -293,8 +295,18 @@ export class LedTemporalPresentation {
     const elapsed = Math.max(0, wallMicroseconds - this.sampledAt);
     this.sampledAt = wallMicroseconds;
     if (this.buffered) this.cursor = Math.min(this.committed, this.cursor + elapsed);
-    else if (this.committed - this.cursor >= LED_PRESENTATION_PHASE_LIMIT_MICROSECONDS)
+    else if (this.committed - this.cursor >= LED_PRESENTATION_PHASE_LIMIT_MICROSECONDS) {
+      // Preserve the initial full-window lookahead at H0. If partial ready
+      // data already advanced startup, do not discard elapsed time here.
+      if (this.warming && this.cursor > 0)
+        this.cursor = Math.min(this.committed, this.cursor + elapsed);
       this.buffered = true;
+      this.warming = false;
+    } else if (this.warming) {
+      // A partial startup window is already complete physical data. Pace it
+      // at 1x, clamped to ready, rather than holding a superseded H0 vector.
+      this.cursor = Math.min(this.committed, this.cursor + elapsed);
+    }
 
     let brightness = this.atCursor();
     // A cycle mean keeps its existing policy; provenance refers to the actual

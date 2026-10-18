@@ -268,6 +268,193 @@ describe('actual browser joint provenance oracle counterexamples', () => {
 });
 
 describe('accepted per-LED temporal presentation', () => {
+  it.each([
+    {
+      name: 'no-delay9.6ms',
+      edges: [4, 5, 6],
+      ready: [
+        [2898.1, 0],
+        [2948.8, 9600],
+        [3002.5, 34600],
+        [3046.5, 59600],
+        [3114.5, 84600],
+      ],
+      raf: [
+        2904.9, 2921.2, 2937.7, 2958.3, 2975.1, 2987.4, 3021.3, 3028.2, 3049.6, 3070.6, 3077.1,
+        3110.6, 3128,
+      ],
+    },
+    {
+      name: 'millis3.4/21.2ms',
+      edges: [3, null, 5],
+      ready: [
+        [2486.5, 0],
+        [2513.5, 3400],
+        [2589.1, 21200],
+        [2698.4, 46200],
+      ],
+      raf: [
+        2499.5, 2516, 2532.9, 2550.5, 2574.6, 2587.7, 2599.3, 2618.4, 2633.2, 2648.9, 2665.4,
+        2682.3, 2700.8,
+      ],
+    },
+  ])(
+    'paces the saved393 $name startup receipts and RAFs without a reanchor',
+    ({ edges, ready, raf }) => {
+      // Original owner-execution-no-delay-realtime / owner-r18-millis-independent
+      // raw receipts and RAFs, rounded only from browser milliseconds to integer
+      // microseconds. These startup samples contain no later optical transitions.
+      const presentation = new LedTemporalPresentation();
+      const events = [
+        ...ready.map(([at, to]) => ({ at: Math.round(at! * 1000), to })),
+        ...raf.map((at) => ({ at: Math.round(at * 1000), to: undefined })),
+      ].sort((left, right) => left.at - right.at);
+      let from = 0;
+      for (const event of events) {
+        let display: ReadonlyMap<string, number>;
+        if (event.to !== undefined) {
+          const to = event.to;
+          const observation = window(
+            from,
+            to,
+            edges.map((edge, index) => {
+              const at = (time: number) => {
+                const brightness = edge !== null && time >= edge ? 70.02 : 0;
+                return {
+                  atMicroseconds: time,
+                  brightness,
+                  current: brightness > 0 ? 0.009058135491 : 0,
+                };
+              };
+              const samples = [at(from)];
+              if (edge !== null && edge > from && edge < to) samples.push(at(edge));
+              if (to !== from) samples.push(at(to));
+              return channel(`led${index}`, samples);
+            }),
+          );
+          display = presentation.accept(electrical(observation), observation, event.at);
+          from = to;
+        } else display = presentation.sample(event.at);
+        const receivedHigh = event.at >= Math.round(ready[1]![0]! * 1000);
+        expect([...display.values()]).toEqual(
+          edges.map((edge) => (receivedHigh && edge !== null ? 70.02 : 0)),
+        );
+        expect(presentation.reanchorCount).toBe(0);
+      }
+    },
+  );
+
+  it('paces partial completed startup at1x and holds its actual end on underrun', () => {
+    const presentation = new LedTemporalPresentation();
+    const seed = window(0, 0, [channel('led', [point(0, 0)])]);
+    presentation.accept(electrical(seed), seed, 0);
+    const partial = window(0, 3400, [
+      channel('led', [
+        point(0, 0),
+        point(3, 80),
+        point(1000, 60),
+        point(2000, 40),
+        point(3400, 20),
+      ]),
+    ]);
+    // The whole actual trace is available at wall2, but its future edges must
+    // not be painted before the common cursor reaches them at wall1x.
+    expect(presentation.accept(electrical(partial), partial, 2).get('led')).toBe(0);
+    for (const [wall, value] of [
+      [3, 80],
+      [999, 80],
+      [1000, 60],
+      [1999, 60],
+      [2000, 40],
+      [3399, 40],
+      [3400, 20],
+      [20_000, 20],
+    ])
+      expect(presentation.sample(wall!).get('led')).toBe(value);
+    expect(presentation.reanchorCount).toBe(0);
+  });
+
+  it('does not discard elapsed phase time when progressed startup first obtains25ms head', () => {
+    const presentation = new LedTemporalPresentation();
+    const seed = window(0, 0, [channel('led', [point(0, 0)])]);
+    presentation.accept(electrical(seed), seed, 0);
+    const partial = window(0, 10_000, [
+      channel('led', [point(0, 0), point(3, 80), point(10_000, 80)]),
+    ]);
+    expect(presentation.accept(electrical(partial), partial, 10_000).get('led')).toBe(80);
+    const full = window(10_000, 35_000, [
+      channel('led', [point(10_000, 80), point(15_000, 0), point(25_000, 80), point(35_000, 80)]),
+    ]);
+    expect(presentation.accept(electrical(full), full, 20_000).get('led')).toBe(0);
+    expect(presentation.sample(24_999).get('led')).toBe(0);
+    expect(presentation.sample(25_000).get('led')).toBe(80);
+    expect(presentation.reanchorCount).toBe(0);
+  });
+
+  it('keeps independent50/100ms phases at1x after partial startup joins buffered playout', () => {
+    const presentation = new LedTemporalPresentation();
+    const ready = [
+      [0, 0],
+      [10_000, 10_000],
+      [20_000, 35_000],
+    ];
+    for (let to = 60_000; to <= 210_000; to += 25_000) ready.push([to - 15_000, to]);
+    const boundaries = [
+      [49_999, 80, 60],
+      [50_000, 0, 60],
+      [99_999, 0, 60],
+      [100_000, 80, 0],
+      [149_999, 80, 0],
+      [150_000, 0, 0],
+      [199_999, 0, 0],
+      [200_000, 80, 60],
+    ];
+    const events = [
+      ...ready.map(([at, to]) => ({ at: at!, to, expected: undefined })),
+      ...boundaries.map(([at, first, other]) => ({
+        at: at!,
+        to: undefined,
+        expected: [first, other],
+      })),
+    ].sort((left, right) => left.at - right.at);
+    let from = 0;
+    for (const event of events) {
+      if (event.to !== undefined) {
+        const observation = window(from, event.to, [
+          square(from, event.to, 50_000, 80, 'first'),
+          square(from, event.to, 100_000, 60, 'other'),
+        ]);
+        presentation.accept(electrical(observation), observation, event.at);
+        from = event.to;
+      } else {
+        expect([...presentation.sample(event.at).values()]).toEqual(event.expected);
+      }
+      expect(presentation.reanchorCount).toBe(0);
+    }
+  });
+
+  it.each(['reset', 'quality', 'generation'])(
+    'rearms partial startup pacing after %s clears an already primed generation',
+    (reason) => {
+      const presentation = new LedTemporalPresentation();
+      const primed = window(0, 25_000, [square(0, 25_000, 50_000)]);
+      presentation.accept(electrical(primed), primed, 0);
+      if (reason === 'reset') presentation.reset();
+      if (reason === 'quality') {
+        const result = electrical(primed);
+        result.quality!.passed = false;
+        expect(presentation.accept(result, primed, 80_000).size).toBe(0);
+      }
+      const seed = window(0, 0, [channel('led', [point(0, 0)])]);
+      presentation.accept(electrical(seed), seed, 100_000);
+      const partial = window(0, 3400, [
+        channel('led', [point(0, 0), point(3, 80), point(3400, 80)]),
+      ]);
+      expect(presentation.accept(electrical(partial), partial, 127_000).get('led')).toBe(80);
+      expect(presentation.reanchorCount).toBe(0);
+    },
+  );
+
   it.each([15_000, 17_000])(
     'paces 50ms phases with a %i us burst gap or reports the bounded discontinuity',
     (gap) => {
@@ -424,6 +611,34 @@ describe('accepted per-LED temporal presentation', () => {
     expect(presentation.reanchorCount).toBe(1);
     presentation.reset();
     expect(presentation.sample(114_000).size).toBe(0);
+  });
+
+  it('retains the original25ms rebuffer hold after a genuine bounded overrun', () => {
+    const presentation = new LedTemporalPresentation();
+    const first = window(0, 25_000, [square(0, 25_000, 50_000)]);
+    presentation.accept(electrical(first), first, 0);
+    presentation.sample(80_000);
+    for (let from = 25_000; from < 150_000; from += 25_000) {
+      const observation = window(from, from + 25_000, [square(from, from + 25_000, 50_000)]);
+      presentation.accept(electrical(observation), observation, 80_000);
+    }
+    expect(presentation.sample(113_334).get('led')).toBe(0);
+    // This LOW still has a fresh final witness. Continuing to155ms reaches
+    // a superseded HIGH and forces the unchanged bounded reanchor to ready150.
+    expect(presentation.reanchorCount).toBe(0);
+    expect(presentation.sample(155_000).get('led')).toBe(0);
+    expect(presentation.reanchorCount).toBe(1);
+    const partial = window(150_000, 160_000, [
+      channel('led', [point(150_000, 0), point(150_001, 80), point(160_000, 80)]),
+    ]);
+    expect(presentation.accept(electrical(partial), partial, 155_666).get('led')).toBe(0);
+    expect(presentation.sample(161_666).get('led')).toBe(0);
+    const full = window(160_000, 175_000, [
+      channel('led', [point(160_000, 80), point(175_000, 80)]),
+    ]);
+    expect(presentation.accept(electrical(full), full, 162_666).get('led')).toBe(0);
+    expect(presentation.sample(162_667).get('led')).toBe(80);
+    expect(presentation.reanchorCount).toBe(1);
   });
 
   it('never samples a future edge and preserves the existing fast-cycle mean at the cursor', () => {
