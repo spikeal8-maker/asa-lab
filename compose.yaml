@@ -3,6 +3,29 @@ name: ${COMPOSE_PROJECT_NAME:-asa-lab}
 services:
   postgres:
     image: postgres:17.7-bookworm
+    # Lock waits are useful; SQL text, bind values and error context are not logs.
+    command:
+      [
+        'postgres',
+        '-c',
+        'log_lock_waits=on',
+        '-c',
+        'log_error_verbosity=terse',
+        '-c',
+        'log_min_error_statement=panic',
+        '-c',
+        'log_statement=none',
+        '-c',
+        'log_min_duration_statement=-1',
+        '-c',
+        'log_min_duration_sample=-1',
+        '-c',
+        'log_duration=off',
+        '-c',
+        'log_parameter_max_length=0',
+        '-c',
+        'log_parameter_max_length_on_error=0',
+      ]
     user: postgres
     restart: unless-stopped
     environment:

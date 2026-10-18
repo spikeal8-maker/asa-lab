@@ -39,7 +39,7 @@ export interface RuntimeMetricsSnapshot {
 
 export interface RuntimeMetrics {
   requestStarted(): void;
-  requestFinished(statusCode: number, durationMs: number): void;
+  requestFinished(statusCode: number | undefined, durationMs: number): void;
   snapshot(pool: PoolStats | null): RuntimeMetricsSnapshot;
   stop(): void;
 }
@@ -74,10 +74,11 @@ export function createRuntimeMetrics(): RuntimeMetrics {
       inFlight += 1;
     },
 
-    requestFinished(statusCode: number, durationMs: number): void {
+    requestFinished(statusCode: number | undefined, durationMs: number): void {
       inFlight = Math.max(0, inFlight - 1);
       total += 1;
-      const statusClass = `${Math.floor(statusCode / 100)}xx`;
+      const statusClass =
+        statusCode === undefined ? 'aborted' : `${Math.floor(statusCode / 100)}xx`;
       byStatusClass.set(statusClass, (byStatusClass.get(statusClass) ?? 0) + 1);
       durations.push(durationMs);
       if (durations.length > DURATION_WINDOW) durations.shift();

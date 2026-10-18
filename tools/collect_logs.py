@@ -22,6 +22,7 @@ import zlib
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from deployment.paths import atomic_bytes
+from resource_sampling import ResourceSampler
 
 UTC = timezone.utc
 SEGMENT_PATTERN = re.compile(r"seg-\d{16}-\d{16}\.jsonl(?:\.gz)?$")
@@ -36,12 +37,25 @@ DATABASE_NATIVE_KEYS = {table: ('event_hash',) if table == 'max_webhook_events' 
 DATABASE_IDENTITY_LIMIT = 256
 DATABASE_BATCH_ROWS = 128
 DATABASE_BATCH_BYTES = 4 * 1024 * 1024
+DATABASE_METRICS_SQL = """BEGIN READ ONLY; SET LOCAL statement_timeout='5s';
+COPY (SELECT json_build_object(
+ 'connections',(SELECT numbackends FROM pg_stat_database WHERE datname=current_database()),
+ 'waits',(SELECT json_agg(t) FROM (SELECT state,wait_event_type,wait_event,count(*) FROM pg_stat_activity WHERE datname=current_database() GROUP BY state,wait_event_type,wait_event) t),
+ 'blockedSessions',(SELECT count(*) FROM pg_stat_activity WHERE datname=current_database() AND cardinality(pg_blocking_pids(pid))>0),
+ 'longestActiveMs',(SELECT COALESCE(max(GREATEST(0,EXTRACT(epoch FROM clock_timestamp()-query_start)*1000)),0)::bigint FROM pg_stat_activity WHERE datname=current_database() AND state='active' AND pid<>pg_backend_pid()),
+ 'longestTransactionMs',(SELECT COALESCE(max(GREATEST(0,EXTRACT(epoch FROM clock_timestamp()-xact_start)*1000)),0)::bigint FROM pg_stat_activity WHERE datname=current_database() AND pid<>pg_backend_pid()),
+ 'deadlocksTotal',(SELECT deadlocks FROM pg_stat_database WHERE datname=current_database()),
+ 'tempBytesTotal',(SELECT temp_bytes FROM pg_stat_database WHERE datname=current_database())
+ ,'statsResetAt',(SELECT stats_reset FROM pg_stat_database WHERE datname=current_database())
+)) TO STDOUT WITH CSV; ROLLBACK;"""
 
 
 def database_diagnostics(origin, value):
     """Project known DB rows before classification or persistence; fail closed."""
     fields = DATABASE_DIAGNOSTICS['sources'][origin]['fields']
     if not isinstance(value, dict): return {}
+    if origin == 'product_analytics_events' and 'ip_address' in value and 'address_provenance' in value:
+        value = {**value, 'address_provenance': 'server_resolved' if value['ip_address'] is not None else 'server_unresolved'}
     result = {}
     for key, rule in fields.items():
         item = value.get(key)
@@ -583,6 +597,10 @@ class Collector:
             actual = canonical["Config"]["Labels"].get("com.docker.compose.project.working_dir", "")
             if os.path.normcase(os.path.abspath(actual)) != os.path.normcase(str(self.root)):
                 raise RuntimeError("Collector root differs from the canonical installation")
+            if any(c['Config']['Labels'].get('com.docker.compose.project.working_dir') != actual for c in inspected):
+                raise RuntimeError('Mixed installation roots; collection stopped')
+            if getattr(self, 'sampler', None):
+                self.sampler.set_targets(tuple(c['Id'] for c in inspected if c.get('State', {}).get('Running', True)), canonical['Id'])
             self.postgres = canonical["Id"]
             self.containers = {}
             for container in inspected:
@@ -635,6 +653,7 @@ class Collector:
                     self.status(status_source, "ok", "Fresh events" if recent else "History starts at container creation; removed containers cannot be recovered", until.isoformat())
             self.status("docker", "ok")
         except Exception as exc:
+            if getattr(self, 'sampler', None): self.sampler.set_targets((), None)
             self.status("docker", "error", str(exc))
 
     def database_batch(self, table, condition, after=None):
@@ -1299,6 +1318,7 @@ class Collector:
         atomic_bytes(self.store / 'catalog.json', json.dumps(catalog, ensure_ascii=False).encode('utf-8'))
 
     def cycle(self):
+        if getattr(self, 'sampler', None): self.telemetry()
         self.finish_compaction()
         self.docker()
         self.files()
@@ -1310,10 +1330,49 @@ class Collector:
         self.publish()
 
     def telemetry(self):
+        if getattr(self, 'sampler', None):
+            for _ in range(self.sampler.capacity + 1):
+                metrics = self.sampler.acquire()
+                if metrics is None: break
+                metrics['sampling']['publicationLagMs'] = max(0, round((datetime.now(UTC)-datetime.fromisoformat(metrics['sampledAt'].replace('Z','+00:00'))).total_seconds()*1000))
+                try:
+                    self.persist_metrics(metrics)
+                    # The queue reservation survives failures. Commit before ACK
+                    # so a later adapter/publish rollback cannot erase the sample.
+                    self.db.commit()
+                except Exception:
+                    self.db.rollback()
+                    raise
+                self.sampler.acknowledge(metrics['sampling'])
+            return
         if time.time() - self.state("metrics:last", 0) < 60: return
+        previous = self.state('metrics:cpu-state', {'windows': self.state('metrics:cpu'), 'linux': self.state('metrics:cpu-linux')})
+        metrics, previous = self.sample_resources(tuple(getattr(self, 'containers', {})), getattr(self, 'postgres', None), previous)
+        self.persist_metrics(metrics)
+        self.set_state('metrics:cpu-state', previous)
+        self.set_state("metrics:last", time.time())
+
+    def persist_metrics(self, metrics):
+        measured = metrics['sampledAt']
+        sampling = metrics.get('sampling', {})
+        gapped = sampling.get('droppedSamplesTotal', 0) > 0 or sampling.get('missedIntervals', 0) > 0
+        delayed = sampling.get('publicationLagMs', 0) >= 120_000
+        metrics['samplingCoverage'] = 'gapped' if gapped else 'delayed' if delayed else 'observed'
+        if (gapped or delayed) and not metrics.get('incomplete'): metrics['level'] = 'warn'
+        identity = f"{sampling['streamId']}:{sampling['sequence']}" if sampling.get('streamId') else measured
+        self.add(normalize('metrics', json.dumps(metrics), measured, identity))
+        state = 'error' if metrics.get('incomplete') else 'pending' if gapped or delayed else 'ok'
+        self.status('metrics', state, 'Incomplete resource sample' if metrics.get('incomplete') else
+                    'Sampling gaps or late publication; inspect sampling counters' if gapped or delayed else 'Runtime resource sample', measured)
+
+    def sample_resources(self, ids, postgres, previous):
+        # Runs on producer thread: never access state()/db/status()/add().
+        previous = dict(previous)
         measured = now()
-        metrics = dict(kind="runtime_metrics", module="system", sampledAt=measured, host=dict(diskFreeBytes=shutil.disk_usage(self.root).free))
+        metrics = dict(kind="runtime_metrics", module="system", sampledAt=measured, host={},
+                       units=dict(containerCpu='percent_one_core', hostCpu='percent_all_logical_cpus', duration='milliseconds'))
         try:
+            metrics['host']['diskFreeBytes'] = shutil.disk_usage(self.root).free
             if os.name == "nt":
                 import ctypes
                 from ctypes import wintypes
@@ -1327,13 +1386,13 @@ class Collector:
                 if ctypes.windll.kernel32.GetSystemTimes(ctypes.byref(idle), ctypes.byref(kernel), ctypes.byref(user)):
                     value = lambda v: v.dwHighDateTime*2**32+v.dwLowDateTime
                     counters = [value(idle), value(kernel)+value(user)]
-                    previous = self.state("metrics:cpu")
-                    if previous and counters[1] > previous[1]: metrics["host"]["cpuPercent"] = round(100*(1-(counters[0]-previous[0])/(counters[1]-previous[1])), 2)
-                    self.set_state("metrics:cpu", counters)
+                    prior_cpu = previous.get('windows')
+                    if prior_cpu and counters[1] > prior_cpu[1]: metrics["host"]["cpuPercent"] = round(100*(1-(counters[0]-prior_cpu[0])/(counters[1]-prior_cpu[1])), 2)
+                    previous['windows'] = counters
             elif sys.platform.startswith('linux'):
                 try:
-                    sample, counters = linux_resources(previous=self.state('metrics:cpu-linux'))
-                    metrics['host'].update(sample); self.set_state('metrics:cpu-linux', counters)
+                    sample, counters = linux_resources(previous=previous.get('linux'))
+                    metrics['host'].update(sample); previous['linux'] = counters
                 except Exception:
                     metrics.setdefault('failedComponents', []).append('host')
                 metrics["host"]["loadAverage"] = list(os.getloadavg())
@@ -1341,30 +1400,26 @@ class Collector:
                 metrics.setdefault('failedComponents', []).append('host')
             warnings = resource_warnings(metrics['host'])
             if warnings: metrics.update(resourceWarnings=warnings, level='warn')
-            ids = list(getattr(self, "containers", {}))
             if ids:
                 try:
                     output = self.command(["docker", "stats", "--no-stream", "--format", "{{json .}}", *ids], timeout=15)
                     metrics["containers"] = [{k: v for k, v in json.loads(line).items() if k in ("Name", "CPUPerc", "MemUsage", "MemPerc", "PIDs")} for line in output.decode("utf-8").splitlines()]
                 except Exception:
                     metrics.setdefault("failedComponents", []).append("containers")
-            if getattr(self, "postgres", None):
-                sql = '''BEGIN READ ONLY; SET LOCAL statement_timeout='5s'; COPY (SELECT json_build_object('connections',(SELECT numbackends FROM pg_stat_database WHERE datname=current_database()),'waits',(SELECT json_agg(t) FROM (SELECT state,wait_event_type,count(*) FROM pg_stat_activity WHERE datname=current_database() GROUP BY state,wait_event_type) t))) TO STDOUT WITH CSV; ROLLBACK;'''
-                output = self.command(["docker", "exec", "-i", self.postgres, "sh", "-c", 'exec psql -X -q -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"'], sql=sql, timeout=10)
+            if postgres:
+                sql = DATABASE_METRICS_SQL
+                output = self.command(["docker", "exec", "-i", postgres, "sh", "-c", 'exec psql -X -q -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"'], sql=sql, timeout=10)
                 rows = list(csv.reader(io.StringIO(output.decode("utf-8"))))
                 if len(rows) != 1 or len(rows[0]) != 1: raise ValueError("Invalid database metric envelope")
                 sample = json.loads(rows[0][0])
                 if not isinstance(sample, dict) or type(sample.get("connections")) is not int or not isinstance(sample.get("waits"), (list, type(None))): raise ValueError("Invalid database metric sample")
                 metrics["database"] = sample
             if metrics.get("failedComponents"): raise RuntimeError("Some resource metrics are unavailable; available samples retained")
-            self.add(normalize("metrics", json.dumps(metrics), measured, measured))
-            self.status("metrics", "ok", "Runtime resource sample", measured)
-        except Exception as exc:
+        except Exception:
             metrics["incomplete"] = True
             metrics["level"] = "error"
-            self.add(normalize("metrics", json.dumps(metrics), measured, measured))
-            self.status("metrics", "error", str(exc))
-        self.set_state("metrics:last", time.time())
+            metrics.setdefault('failedComponents', []).append('resource_capture')
+        return metrics, previous
 
 
 def write_collector_health(root, state, last_success=None, detail="", duration=None, sources=None):
@@ -1468,23 +1523,46 @@ def main():
         except Exception as exc:
             write_collector_health(args.root, "error", detail=exc)
             raise
-    while True:
-        cycle_start = time.monotonic()
+    collector.sampler = None
+    if not args.once:
+        cpu_state = {}
+        def capture(containers, postgres):
+            nonlocal cpu_state
+            sample, cpu_state = collector.sample_resources(containers, postgres, cpu_state)
+            if not containers or not postgres:
+                sample.update(incomplete=True, level='warn', resourceTargetState='pending')
+            else: sample['resourceTargetState'] = 'verified'
+            return sample
+        collector.sampler = ResourceSampler(capture)
+        collector.sampler.start()
+    try:
+        while True:
+            cycle_start = time.monotonic()
+            try:
+                collector.cycle()
+                sources = [json.loads(row[0]) for row in collector.db.execute('SELECT payload FROM sources')]
+                write_collector_health(args.root, "ok", now(), duration=round((time.monotonic()-cycle_start)*1000), sources=sources)
+            except Exception as exc:
+                collector.db.rollback()
+                write_collector_health(args.root, "error", detail=exc)
+                if sys.stderr: print(clean(f"Collector cycle failed: {exc}"), file=sys.stderr, flush=True)
+                if args.once: raise
+            if args.once: break
+            if Path(__file__).stat().st_mtime_ns != script_version: break
+            time.sleep(max(10, config.get("intervalSeconds", 20)))
+    finally:
+        stop_heartbeat.set()
         try:
-            collector.cycle()
-            sources = [json.loads(row[0]) for row in collector.db.execute('SELECT payload FROM sources')]
-            write_collector_health(args.root, "ok", now(), duration=round((time.monotonic()-cycle_start)*1000), sources=sources)
-        except Exception as exc:
-            collector.db.rollback()
-            write_collector_health(args.root, "error", detail=exc)
-            if sys.stderr: print(clean(f"Collector cycle failed: {exc}"), file=sys.stderr, flush=True)
-            if args.once: raise
-        if args.once: break
-        if Path(__file__).stat().st_mtime_ns != script_version: break
-        time.sleep(max(10, config.get("intervalSeconds", 20)))
-    stop_heartbeat.set()
-    collector.db.close()
-    stream.close()
+            if collector.sampler:
+                stopped = collector.sampler.stop()
+                try:
+                    collector.telemetry(); collector.publish()
+                    if not stopped: write_collector_health(args.root, 'error', detail='Resource sampler shutdown deadline exceeded')
+                except Exception:
+                    write_collector_health(args.root, 'error', detail='Final resource publication failed')
+        finally:
+            collector.db.close()
+            stream.close()
 
 
 if __name__ == "__main__":

@@ -1,0 +1,74 @@
+name: Coverage Diagnostics
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'tools/collect_logs.py'
+      - 'tools/resource_sampling.py'
+      - 'tools/test_coverage_diagnostics.py'
+      - 'tools/coverage-postgres.mjs'
+      - 'tools/deployment/collector.py'
+      - 'tools/deployment/ci_collector_fixture.py'
+      - 'apps/api/src/http-observation*'
+      - 'apps/api/src/client-address*'
+      - 'apps/api/src/app.factory.ts'
+      - 'apps/api/src/database-diagnostic-contract.json'
+      - 'packages/observability/src/runtime-metrics.ts'
+      - 'migrations/0217_diagnostic_address_provenance.sql'
+      - 'tests/account/coverage-*'
+      - 'compose.yaml'
+      - 'package.json'
+      - '.github/workflows/coverage-diagnostics.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows-collector:
+    runs-on: windows-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python tools/test_collect_logs.py
+      - run: python -m unittest discover -s tools -p test_coverage_diagnostics.py
+      - run: python -m unittest tools.deployment.test_collector
+  coverage:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    env:
+      NX_SKIP_NX_CACHE: 'true'
+      ASA_COVERAGE_POSTGRES_PROBE: '1'
+      TEST_DATABASE_URL: postgresql://postgres:coverage-ci-only@127.0.0.1:5432/asa_coverage_test
+      APP_TEST_DATABASE_URL: postgresql://asalab_app:coverage-ci-only@127.0.0.1:5432/asa_coverage_test
+      MIGRATION_DATABASE_URL: postgresql://postgres:coverage-ci-only@127.0.0.1:5432/asa_coverage_test
+      MIGRATION_EXPECT_DATABASE: asa_coverage_test
+      MIGRATION_CONFIRM: APPLY:asa_coverage_test
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec nx build api --skip-nx-cache
+      - run: pnpm test:coverage
+      - name: Start disposable PostgreSQL with actual Compose diagnostic settings
+        run: node tools/coverage-postgres.mjs
+      - name: Migrate disposable database and provision restricted runtime
+        run: |
+          pnpm db:migrate
+          psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -c "ALTER ROLE asalab_app WITH LOGIN PASSWORD 'coverage-ci-only'"
+      - run: pnpm test:coverage:integration
+      - name: Remove this workflow's disposable database
+        if: always()
+        run: node tools/coverage-postgres.mjs stop
