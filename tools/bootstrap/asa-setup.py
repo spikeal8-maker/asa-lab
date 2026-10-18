@@ -336,6 +336,18 @@ class Prompt:
         result = input(f"{label} [{default}]: ").strip()
         return result or default
 
+    def file(self, label: str) -> str:
+        """Select a path to an existing file; never read or echo its contents."""
+        if self.root is not None:
+            result = self.filedialog.askopenfilename(title=label, parent=self.root)
+            if not result:
+                raise SetupBlocked("File selection cancelled by operator")
+            return str(result)
+        result = self.ask(label + " (full path to file)")
+        if not result:
+            raise SetupBlocked("File selection is required")
+        return result
+
     def yes(self, label: str, default: bool = False) -> bool:
         if self.root is not None:
             return bool(self.messagebox.askyesno("ASA Lab", label, parent=self.root))

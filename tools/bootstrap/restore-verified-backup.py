@@ -117,6 +117,35 @@ def validate_snapshot_age(snapshot_id: str, max_age_hours: int) -> None:
              f"Snapshot outside allowed freshness window: {max_age_hours} hours")
 
 
+def rollback_original_objects(volume: Path, archived: Path, *, old_complete: bool) -> None:
+    """Return saved MinIO objects without deleting survivors of an interrupted move.
+
+    During an incomplete old->archive move, some originals remain in the live
+    volume and must NEVER be deleted. Only after all old objects were archived
+    may the partially copied new snapshot be removed before restoring originals.
+    """
+    need(archived.is_dir() and not archived.is_symlink(),
+         "Missing or unsafe original MinIO rollback directory")
+    need(volume.is_dir() and not volume.is_symlink(),
+         "Missing or unsafe live MinIO volume during rollback")
+    old_entries = list(archived.iterdir())
+    for entry in old_entries:
+        need(not entry.is_symlink(), "Symlink in rollback objects")
+        need(old_complete or not (volume / entry.name).exists(),
+             "Original MinIO object collision during interrupted archival; manual rollback required")
+    if old_complete:
+        for path in list(volume.iterdir()):
+            need(not path.is_symlink(), "Symlink in live MinIO volume during rollback")
+            if path.is_dir():
+                shutil.rmtree(path)
+            else:
+                path.unlink()
+    for entry in old_entries:
+        destination = volume / entry.name
+        need(not destination.exists(), "Refusing to overwrite a surviving MinIO object")
+        shutil.move(str(entry), str(destination))
+
+
 def restore(args):
     inst,manifest,source,release,objects,volume=preflight(args)
     sid=manifest["createdAt"]
@@ -134,7 +163,8 @@ def restore(args):
     trial_database="asalab_"+stamp+"_test"
     need(len(old_database)<63 and len(trial_database)<63,
          "Generated PostgreSQL database identifiers too long")
-    originals_saved=False;config_switched=False;db_switched=False;stopped=False
+    objects_archival_started=False;originals_saved=False
+    config_switched=False;db_switched=False;stopped=False
     checkpoint(backup_dir,"STARTED",snapshot=sid,old_database=old_database,trial_database=trial_database)
     try:
         print("BACKUP_CURRENT_INSTALLATION",flush=True)
@@ -163,6 +193,10 @@ def restore(args):
                            f"{inst.project}-{service}-1"])=="false",
                  "Writer is still running: "+service)
         old_objects=backup_dir/"old-objects";old_objects.mkdir(mode=0o700)
+        # Arm rollback BEFORE the first destructive move. A failure halfway
+        # must return archived entries and preserve objects not yet moved.
+        objects_archival_started=True
+        checkpoint(backup_dir,"OLD_OBJECTS_ARCHIVAL_STARTED")
         for path in list(volume.iterdir()):
             need(not path.is_symlink(),"Symlink in live volume")
             shutil.move(str(path),str(old_objects/path.name))
@@ -233,12 +267,9 @@ def restore(args):
                         if live=="1":
                             pg(inst,"postgres",f"ALTER DATABASE asalab RENAME TO asalab_failed_{stamp}")
                         pg(inst,"postgres",f"ALTER DATABASE {old_database} RENAME TO asalab")
-                if originals_saved:
-                    for p in list(volume.iterdir()):
-                        if p.is_dir():shutil.rmtree(p)
-                        else:p.unlink()
-                    for p in (backup_dir/"old-objects").iterdir():
-                        shutil.move(str(p),str(volume/p.name))
+                if objects_archival_started:
+                    rollback_original_objects(
+                        volume, backup_dir/"old-objects", old_complete=originals_saved)
                 if config_switched:
                     shutil.copy2(backup_dir/"original.env",inst.root/".env")
                     os.chmod(inst.root/".env",0o600)

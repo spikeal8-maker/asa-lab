@@ -205,6 +205,33 @@ class SetupPlanningTests(unittest.TestCase):
         self.assertNotIn("token", text.lower())
 
 
+class OperatorFilePickerTests(unittest.TestCase):
+    def test_terminal_picker_prompts_for_path(self):
+        with mock.patch.object(setup.sys.stdin, "isatty", return_value=True), \
+             mock.patch.object(setup.shutil, "which", return_value=None), \
+             mock.patch("builtins.input", return_value="/private/identity.txt"):
+            prompt = setup.Prompt(graphical=False)
+            self.assertEqual(prompt.file("Private identity file"), "/private/identity.txt")
+
+    def test_graphical_picker_returns_selected_path(self):
+        from types import SimpleNamespace
+        prompt = object.__new__(setup.Prompt)
+        prompt.root = object()
+        chooser = mock.Mock(return_value="/srv/snapshots/archive.tar.age")
+        prompt.filedialog = SimpleNamespace(askopenfilename=chooser)
+        self.assertEqual(prompt.file("Select encrypted backup"),
+                         "/srv/snapshots/archive.tar.age")
+        chooser.assert_called_once()
+
+    def test_picker_cancel_is_fail_closed(self):
+        from types import SimpleNamespace
+        prompt = object.__new__(setup.Prompt)
+        prompt.root = object()
+        prompt.filedialog = SimpleNamespace(askopenfilename=mock.Mock(return_value=""))
+        with self.assertRaises(setup.SetupBlocked):
+            prompt.file("Private identity")
+
+
 class SetupExecutionTests(unittest.TestCase):
     def test_missing_approval_prevents_all_writes(self):
         with tempfile.TemporaryDirectory() as d:

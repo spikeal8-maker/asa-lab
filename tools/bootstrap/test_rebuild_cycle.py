@@ -2,7 +2,10 @@
 """Offline guard-rail regression tests for clean reset and data restore."""
 from pathlib import Path
 import importlib.util
+import shutil
+import tempfile
 import unittest
+from unittest import mock
 
 BASE=Path(__file__).resolve().parent
 def load(name,filename):
@@ -36,6 +39,69 @@ class HostResetSafety(unittest.TestCase):
             self.assertGreaterEqual(len(p.parts),3)
     def test_archive_is_external_to_app_checkout(self):
         self.assertFalse(clean.ARCHIVE.is_relative_to(clean.EXPECTED_ROOT))
+class InterruptedMinIORollback(unittest.TestCase):
+    def test_interrupted_archive_preserves_unmoved_objects(self):
+        with tempfile.TemporaryDirectory() as d:
+            base = Path(d)
+            volume, archive = base / "live-volume", base / "rollback" / "old-objects"
+            volume.mkdir()
+            archive.mkdir(parents=True)
+            (volume / "first").write_bytes(b"original-first")
+            (volume / "second").write_bytes(b"original-second")
+            original_move = shutil.move
+            calls = 0
+
+            def flaky_move(source, destination):
+                nonlocal calls
+                calls += 1
+                if calls == 2:
+                    raise OSError("simulated interrupted old-object move")
+                return original_move(source, destination)
+
+            with mock.patch.object(restore.shutil, "move", side_effect=flaky_move):
+                with self.assertRaisesRegex(OSError, "interrupted"):
+                    for entry in list(volume.iterdir()):
+                        restore.shutil.move(str(entry), str(archive / entry.name))
+            # Actual restore uses this same helper as soon as archival began.
+            restore.rollback_original_objects(volume, archive, old_complete=False)
+            self.assertEqual((volume / "first").read_bytes(), b"original-first")
+            self.assertEqual((volume / "second").read_bytes(), b"original-second")
+            self.assertEqual(list(archive.iterdir()), [])
+
+    def test_rollback_after_new_objects_removes_new_then_restores_old(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            volume, archive = root / "live", root / "checkpoint" / "old-objects"
+            volume.mkdir()
+            archive.mkdir(parents=True)
+            (archive / "old").write_bytes(b"original")
+            (volume / "new").write_bytes(b"incomplete-restored-object")
+            restore.rollback_original_objects(volume, archive, old_complete=True)
+            self.assertEqual([x.name for x in volume.iterdir()], ["old"])
+            self.assertEqual((volume / "old").read_bytes(), b"original")
+
+    def test_partial_move_collision_does_not_delete_live_data(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            volume, archive = root / "live", root / "checkpoint" / "old-objects"
+            volume.mkdir()
+            archive.mkdir(parents=True)
+            (archive / "duplicate").write_bytes(b"archived-copy")
+            (volume / "duplicate").write_bytes(b"surviving-source")
+            with self.assertRaises(restore.Refused):
+                restore.rollback_original_objects(volume, archive, old_complete=False)
+            self.assertEqual((volume / "duplicate").read_bytes(), b"surviving-source")
+            self.assertEqual((archive / "duplicate").read_bytes(), b"archived-copy")
+
+    def test_rollback_is_armed_before_first_live_minio_move(self):
+        source = (BASE / "restore-verified-backup.py").read_text()
+        self.assertIn('objects_archival_started=True', source)
+        self.assertIn('rollback_original_objects(', source)
+        move_at = source.index('shutil.move(str(path),str(old_objects/path.name))')
+        armed_at = source.index('objects_archival_started=True')
+        self.assertLess(armed_at, move_at)
+
+
 class SnapshotSafety(unittest.TestCase):
     def test_crypto_keys_only(self):
         self.assertEqual(len(restore.KEYS),4)
