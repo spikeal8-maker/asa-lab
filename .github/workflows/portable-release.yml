@@ -84,7 +84,8 @@ jobs:
           file: ${{ matrix.file }}
           target: ${{ matrix.target }}
           platforms: linux/amd64
-          push: true
+          push: ${{ matrix.service != 'web' }}
+          load: ${{ matrix.service == 'web' }}
           tags: ghcr.io/${{ github.repository }}/${{ matrix.service }}:${{ needs.gate.outputs.revision }}
           labels: org.opencontainers.image.source=https://github.com/${{ github.repository }}
           build-args: |
@@ -93,6 +94,43 @@ jobs:
             ASA_BLOCKS_RUNTIME_ORIGIN=http://localhost:4613
           cache-from: type=gha,scope=portable-${{ matrix.service }}
           cache-to: type=gha,scope=portable-${{ matrix.service }},mode=max
+      - name: Export encrypted symbols from the exact web build
+        if: matrix.service == 'web'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.web
+          target: web-symbols
+          platforms: linux/amd64
+          outputs: type=local,dest=.asa/web-symbols
+          build-args: |
+            ASA_BUILD_REVISION=${{ needs.gate.outputs.revision }}
+            ASA_BLOCKS_PARENT_ORIGIN=http://127.0.0.1:4610
+            ASA_BLOCKS_RUNTIME_ORIGIN=http://localhost:4613
+          cache-from: type=gha,scope=portable-web
+      - name: Verify exported symbols before publishing the web image
+        if: matrix.service == 'web'
+        env:
+          WEB_IMAGE: ghcr.io/${{ github.repository }}/web:${{ needs.gate.outputs.revision }}
+          REVISION: ${{ needs.gate.outputs.revision }}
+        run: |
+          symbolWebId=$(docker create "$WEB_IMAGE")
+          docker cp "$symbolWebId:/srv" .asa/web-runtime
+          docker rm "$symbolWebId"
+          node tools/verify-web-symbols.mjs .asa/web-runtime ".asa/web-symbols/web-symbols-$REVISION.manifest.json" "$REVISION"
+      - name: Retain encrypted maps (no plaintext in public repository artifacts)
+        if: matrix.service == 'web'
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-symbols-${{ needs.gate.outputs.revision }}
+          path: .asa/web-symbols/*.json
+          if-no-files-found: error
+          retention-days: 90
+      - name: Publish verified web image
+        if: matrix.service == 'web'
+        env:
+          WEB_IMAGE: ghcr.io/${{ github.repository }}/web:${{ needs.gate.outputs.revision }}
+        run: docker push "$WEB_IMAGE"
   publish:
     needs: [gate, build]
     permissions:

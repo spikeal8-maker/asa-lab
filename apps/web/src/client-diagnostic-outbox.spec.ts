@@ -29,6 +29,38 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 describe('bounded diagnostics delivery', () => {
+  it('retains a safe exception through outage and reload, and drops private nested extras', async () => {
+    const disk = storage();
+    const exception = {
+      kind: 'TypeError',
+      capture: 'window',
+      handling: 'unhandled',
+      frames: [{ script: '/assets/ArduinoCodePanel-1234abcd.js', line: 5, column: 10 }],
+    };
+    const body = { ...event(), code: 'window_error', exception };
+    let status = 503;
+    const transport = vi.fn<typeof fetch>(
+      async () => new Response('{"accepted":true}', { status }),
+    );
+    vi.stubGlobal('fetch', transport);
+    const first = new DiagnosticOutbox(disk);
+    first.enqueue(body);
+    first.enqueue({
+      ...event(2),
+      code: 'window_error',
+      exception: { ...exception, message: 'PRIVATE' },
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    const original = transport.mock.calls[0]![1]!.body;
+    expect(JSON.parse(String(original)).exception).toEqual(exception);
+    expect(disk.getItem()).not.toContain('PRIVATE');
+    vi.clearAllTimers();
+    status = 202;
+    new DiagnosticOutbox(disk).retryNow();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(transport.mock.calls.at(-1)![1]!.body).toBe(original);
+    expect(JSON.parse(disk.getItem())).toEqual([]);
+  });
   it.each(['scratch-save-asset', 'scratch-save-draft', 'scratch-save-prepare'])(
     'retains %s through a failed delivery and reload with the same event identity',
     async (failureCode) => {
