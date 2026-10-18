@@ -433,6 +433,102 @@ describe('advance-local Arduino algebraic operating point', () => {
     }
   });
 
+  it('reuses recurring independent three-port states with exact fresh-solve results', () => {
+    const original = fixture();
+    const document = {
+      ...original,
+      components: [
+        ...original.components.map((entry) =>
+          entry.id === 'uno' ? { ...entry, pinIds: [...entry.pinIds!, 'd12', 'd11'] } : entry,
+        ),
+        ...[12, 11].flatMap((pin) => [
+          component(`r${pin}`, 'resistor', pin === 12 ? 680 : 1000, {
+            componentTypeId: 'resistor-axial',
+            pinIds: ['lead-1', 'lead-2'],
+          }),
+          component(`led${pin}`, 'led', 2, {
+            componentTypeId: 'led-5mm',
+            pinIds: ['anode', 'cathode'],
+          }),
+        ]),
+      ],
+      connections: [
+        ...original.connections,
+        ...[12, 11].flatMap((pin) => [
+          connect(`a${pin}`, 'uno', `d${pin}`, `r${pin}`, 'lead-1'),
+          connect(`b${pin}`, `r${pin}`, 'lead-2', `led${pin}`, 'anode'),
+          connect(`c${pin}`, `led${pin}`, 'cathode', 'uno', 'power-gnd-1'),
+        ]),
+      ],
+    };
+    const state = advanceArduinoRuntime(source).state;
+    const reuse = createArduinoOperatingPointReuse();
+    const solve = (bits: number, prepared: boolean) =>
+      solveCircuitWithHeldArduino(
+        document,
+        bits,
+        snapshots({
+          ...state,
+          variables: { independentPattern: bits },
+          pinModes: { d13: 'OUTPUT', d12: 'OUTPUT', d11: 'OUTPUT' },
+          outputVoltages: { d13: bits & 1 ? 5 : 0, d12: bits & 2 ? 5 : 0, d11: bits & 4 ? 5 : 0 },
+        }),
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        prepared ? reuse : undefined,
+      );
+    const expected = Array.from({ length: 8 }, (_, bits) => solve(bits, false));
+    for (let bits = 0; bits < 8; bits++) {
+      expect(expected[bits]?.solved).toBe(true);
+      expect(encode(solve(bits, true))).toBe(encode(expected[bits]));
+    }
+    const spy = vi.spyOn(linearSystem, 'solveLinear');
+    try {
+      // Revisit all combinations in reverse, then repeat the original order.
+      for (const bits of [7, 6, 5, 4, 3, 2, 1, 0, 0, 1, 2, 3, 4, 5, 6, 7])
+        expect(encode(solve(bits, true))).toBe(encode(expected[bits]));
+      expect(spy).not.toHaveBeenCalled();
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('bounds recurring numerical points and evicts the least recently used exact state', () => {
+    const document = fixture();
+    const state = advanceArduinoRuntime(source).state;
+    const reuse = createArduinoOperatingPointReuse();
+    const solve = (index: number, prepared: boolean) =>
+      solveCircuitWithHeldArduino(
+        document,
+        10,
+        snapshots({ ...state, outputVoltages: { d13: index / 10 } }),
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        prepared ? reuse : undefined,
+      );
+    const expected = Array.from({ length: 33 }, (_, index) => solve(index, false));
+    for (let index = 0; index < 32; index++)
+      expect(encode(solve(index, true))).toBe(encode(expected[index]));
+    expect(encode(solve(0, true))).toBe(encode(expected[0]));
+    expect(encode(solve(32, true))).toBe(encode(expected[32]));
+    const spy = vi.spyOn(linearSystem, 'solveLinear');
+    try {
+      expect(encode(solve(0, true))).toBe(encode(expected[0]));
+      expect(spy).not.toHaveBeenCalled();
+      expect(encode(solve(1, true))).toBe(encode(expected[1]));
+      expect(spy).toHaveBeenCalled();
+      spy.mockClear();
+      expect(encode(solve(0, true))).toBe(encode(expected[0]));
+      expect(spy).not.toHaveBeenCalled();
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
   it('invalidates GPIO, high impedance, pull-up, signed zero, tone and runtime faults', () => {
     const document = fixture();
     const reuse = createArduinoOperatingPointReuse();
@@ -441,6 +537,7 @@ describe('advance-local Arduino algebraic operating point', () => {
       state,
       { ...state, outputVoltages: { d13: 0 } },
       { ...state, outputVoltages: { d13: -0 } },
+      { ...state, outputVoltages: {} },
       { ...state, pinModes: { d13: 'INPUT' }, outputVoltages: {} },
       { ...state, pinModes: { d13: 'INPUT_PULLUP' }, outputVoltages: {} },
       { ...state, tones: { d13: { frequencyHz: 500 } } },
@@ -449,7 +546,7 @@ describe('advance-local Arduino algebraic operating point', () => {
       { ...state, outputVoltages: { d13: Infinity } },
       state,
     ];
-    for (const [index, current] of variants.entries()) {
+    for (const [index, current] of [...variants, ...[...variants].reverse()].entries()) {
       const expected = solveCircuitWithHeldArduino(document, index, snapshots(current));
       for (let repeat = 0; repeat < 2; repeat++)
         expect(
@@ -466,6 +563,46 @@ describe('advance-local Arduino algebraic operating point', () => {
             ),
           ),
         ).toBe(encode(expected));
+    }
+  });
+
+  it('drops retained points when supplied diagnostics or a changed document', () => {
+    const document = fixture();
+    const state = advanceArduinoRuntime(source).state;
+    const reuse = createArduinoOperatingPointReuse();
+    const solve = (currentDocument = document, current = state) =>
+      solveCircuitWithHeldArduino(
+        currentDocument,
+        10,
+        snapshots(current),
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        reuse,
+      );
+    const expected = solveCircuitWithHeldArduino(document, 10, snapshots(state));
+    const spy = vi.spyOn(linearSystem, 'solveLinear');
+    try {
+      for (const invalidate of [
+        () =>
+          reuse(
+            document,
+            [],
+            snapshots({ ...state, faults: [{ code: 'arithmetic_error', message: 'fault' }] }),
+            new Set(),
+          ),
+        () => solve({ ...document, connections: document.connections.slice(1) }),
+      ]) {
+        solve();
+        solve(document, { ...state, outputVoltages: { d13: 0 } });
+        invalidate();
+        spy.mockClear();
+        expect(encode(solve())).toBe(encode(expected));
+        expect(spy).toHaveBeenCalled();
+      }
+    } finally {
+      spy.mockRestore();
     }
   });
 

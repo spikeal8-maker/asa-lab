@@ -432,8 +432,7 @@ interface ArduinoAlgebraicPoint {
 export function createArduinoOperatingPointReuse() {
   let previousDocument: ElectronicsDocument | undefined;
   let eligible = false;
-  let previousKey: readonly unknown[] | undefined;
-  let slot: { point?: ArduinoAlgebraicPoint } = {};
+  const slots: { readonly key: readonly unknown[]; point?: ArduinoAlgebraicPoint }[] = [];
   return (
     document: ElectronicsDocument,
     branches: readonly (ReturnType<typeof arduinoOutputBranchesFromSnapshot>[number] & {
@@ -444,8 +443,7 @@ export function createArduinoOperatingPointReuse() {
   ): { point?: ArduinoAlgebraicPoint } | undefined => {
     if (previousDocument !== document) {
       previousDocument = document;
-      previousKey = undefined;
-      slot = {};
+      slots.length = 0;
       eligible = document.components.every((component) => {
         const model = electricalModelFor(component);
         return (
@@ -465,8 +463,7 @@ export function createArduinoOperatingPointReuse() {
       });
     }
     if (!eligible || [...snapshots.values()].some((snapshot) => snapshot.diagnostics.length > 0)) {
-      previousKey = undefined;
-      slot = {};
+      slots.length = 0;
       return undefined;
     }
     const key: unknown[] = [failedIds.size, ...failedIds, branches.length];
@@ -487,14 +484,16 @@ export function createArduinoOperatingPointReuse() {
       for (const [terminal, tone] of snapshot.tones)
         key.push(terminal, tone.terminal, tone.frequencyHz, tone.source);
     }
-    if (
-      !previousKey ||
-      key.length !== previousKey.length ||
-      !key.every((value, index) => Object.is(value, previousKey![index]))
-    ) {
-      previousKey = key;
-      slot = {};
-    }
+    const index = slots.findIndex(
+      (entry) =>
+        key.length === entry.key.length &&
+        key.every((value, offset) => Object.is(value, entry.key[offset])),
+    );
+    const slot = index < 0 ? { key } : slots.splice(index, 1)[0]!;
+    // Recurring GPIO combinations may reuse exact algebra only. A fixed bound
+    // also limits memory when independent ports generate many distinct states.
+    slots.unshift(slot);
+    if (slots.length > 32) slots.pop();
     return slot;
   };
 }
