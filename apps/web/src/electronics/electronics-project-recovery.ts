@@ -16,13 +16,15 @@ export function createElectronicsProjectRecovery<TDocument>(
   projectId: string,
   userId: string,
   identityKind: 'account' | 'seat',
-  acknowledged: (draft: LocalProjectDraft<TDocument>, confirmed: TDocument) => boolean = (
-    draft,
-    confirmed,
-  ) => JSON.stringify(draft.document) === JSON.stringify(confirmed),
+  acknowledged: (
+    draft: LocalProjectDraft<TDocument>,
+    confirmed: TDocument,
+    preserveOriginal: () => boolean,
+  ) => boolean = (draft, confirmed) => JSON.stringify(draft.document) === JSON.stringify(confirmed),
 ) {
   const baseKey = localProjectDraftKey(projectId, userId, identityKind);
   const prefix = baseKey + ':electronics-editor:';
+  const originalPrefix = baseKey + ':electronics-identifier-original:';
   // New writer IDs also isolate tabs with copied sessionStorage hints.
   // Opaque 128-bit ID; getRandomValues also works without a secure context.
   const writerId = crypto.getRandomValues(new Uint32Array(4)).join('-');
@@ -48,6 +50,40 @@ export function createElectronicsProjectRecovery<TDocument>(
 
   function readOwned(): LocalProjectDraft<TDocument> | null {
     return readEntryAt(ownKey)?.draft ?? null;
+  }
+
+  function preserveRaw(raw: string): boolean {
+    try {
+      const storage = source();
+      const key = originalPrefix + localProjectDraftFingerprint(raw);
+      const existing = storage.getItem(key);
+      if (existing === null) storage.setItem(key, raw);
+      return storage.getItem(key) === raw;
+    } catch {
+      return false;
+    }
+  }
+
+  function preserveOriginal(draft: LocalProjectDraft<TDocument>): boolean {
+    if (
+      draft.schemaVersion !== 3 ||
+      draft.projectId !== projectId ||
+      draft.userId !== userId ||
+      draft.identityKind !== identityKind ||
+      draft.moduleKey !== 'electronics'
+    )
+      return false;
+    try {
+      const raw = JSON.stringify(draft);
+      // Preserve the exact stored bytes (including formatting), when available.
+      for (const key of keys(source())) {
+        const entry = readEntryAt(key);
+        if (entry && JSON.stringify(entry.draft) === raw) return preserveRaw(entry.raw);
+      }
+      return preserveRaw(raw);
+    } catch {
+      return false;
+    }
   }
 
   function keys(storage: RecoveryStorage): string[] {
@@ -105,7 +141,7 @@ export function createElectronicsProjectRecovery<TDocument>(
       // Acknowledge exact bytes, never delete another writer's key.
       for (const key of keys(storage)) {
         const entry = readEntryAt(key);
-        if (entry && acknowledged(entry.draft, confirmedDocument))
+        if (entry && acknowledged(entry.draft, confirmedDocument, () => preserveRaw(entry.raw)))
           storage.setItem(key + ':ack', localProjectDraftFingerprint(entry.raw));
       }
     } catch {
@@ -118,5 +154,5 @@ export function createElectronicsProjectRecovery<TDocument>(
     }
   }
 
-  return { read, readOwned, write, clear };
+  return { read, readOwned, write, clear, preserveOriginal };
 }
