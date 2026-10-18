@@ -7,10 +7,34 @@ ALTER TABLE account_external_identities
         CHECK (provider IN ('max', 'telegram')),
     ADD COLUMN revocation_kind varchar(16)
         CHECK (revocation_kind IN ('self', 'admin'));
-UPDATE account_external_identities
+-- 0085 uses the same free-text reason and identity event for both revocation
+-- paths. Only self-service requires the actor's Account to match the target;
+-- administration also writes an administrative audit. 0065 may reuse an older
+-- audit for the actor's idempotency key without checking its target/action, so
+-- even unrelated administrative history makes this legacy provenance ambiguous.
+-- Such historical administrator self-unlinks conservatively require explicit
+-- administrative restoration instead of automatically regaining provider proof.
+UPDATE account_external_identities identity
    SET revocation_kind = CASE
-       WHEN revoke_reason = 'self-service unlink' THEN 'self' ELSE 'admin' END
- WHERE revoked_at IS NOT NULL;
+       WHEN identity.revoke_reason = 'self-service unlink'
+         AND EXISTS (
+             SELECT 1 FROM principals actor
+              WHERE actor.id = identity.revoked_by_principal_id
+                AND actor.account_id = identity.account_id
+         )
+         AND EXISTS (
+             SELECT 1 FROM account_external_identity_events event
+              WHERE event.identity_id = identity.id
+                AND event.account_id = identity.account_id AND event.provider = identity.provider
+                AND event.event = 'revoked' AND event.reason = 'self-service unlink'
+                AND event.actor_principal_id = identity.revoked_by_principal_id
+                AND event.occurred_at = identity.revoked_at
+         )
+         AND NOT EXISTS (
+             SELECT 1 FROM administrative_audit_events audit
+              WHERE audit.actor_principal_id = identity.revoked_by_principal_id
+         ) THEN 'self' ELSE 'admin' END
+ WHERE identity.revoked_at IS NOT NULL;
 ALTER TABLE external_auth_assertions
     DROP CONSTRAINT external_auth_assertions_provider_check,
     ADD CONSTRAINT external_auth_assertions_provider_check

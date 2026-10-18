@@ -1,10 +1,10 @@
 # Public Projects: verification baseline dependencies
 
 Parent programme: TASK-PROJ-R7-VISIBLE-PUBLICATION-001, Issue #211.
-The controller selects three separate bounded C repairs under AGENTS.md sections
-2.1 and 7. These support the first visible publication increment. They do not
-authorize another product feature, deployment, working database action, runtime
-change or weakening of a gate.
+The controller selects the separate bounded C repairs and D dependencies below
+under AGENTS.md sections 2.1 and 7. These support the first visible publication
+increment. Each selection authorizes only its stated paths and behavior; no
+deployment, working database action or weakening of a gate is authorized.
 
 ## Scratch type checking
 
@@ -140,3 +140,133 @@ business writers are not rewritten. The potential older canonical submission
 SHARE/Draft inversion is a separate, unconfirmed baseline finding; neither this
 repair nor these verification prerequisites claim general School concurrency
 acceptance.
+
+
+## Successor D — adopt the published General PostgreSQL transport
+
+The Node transport repair reached real image builds. On exact candidate
+`efbaeada18819fff9f76a08a4acc74bfa468d397`, General run `39150123385`,
+job `117743433533`, **Build migration and test images** succeeded; the next
+**Start isolated PostgreSQL** failed with ECR `toomanyrequests: Data limit exceeded`.
+Migrations and the Data gate did not run. This is a separate infrastructure
+dependency, not a product or PostgreSQL assertion failure.
+
+Before a new Projects transport author started, fresh Git inspection found the
+release620 controller's completed source
+`28d1af61107fdee1f4f1a4884a04658bbb16902e`, included in
+`75cbad5bb49fcc06b97d2a489f1e0f0c53dcc8ef`. It supplies a generated General-only
+runner overlay and exact model/pulled-image proof. The controller selects
+independent review of this actual source; no duplicate transport implementation
+or replacement of its receipt is authorized by this selection.
+
+The required General PostgreSQL 17.7-bookworm identity remains:
+
+- manifest `sha256:e9243ab06e47223dedeb3c129fa9ece8d37f506bdc6ee943afb9335f98bb4854`;
+- config `sha256:52d5e34fcf5c882a859c1269963b35bdc7dcc2814ef0a0de6b8b408b2eb09db1`;
+- all 14 layers and rootfs entries in their recorded order.
+
+Access PostgreSQL 16 is a different image and cannot substitute for it. Preserve
+the shared registry overlay, original 545 receipt, all other job mappings,
+Dockerfiles, Compose defaults, revision checks, security and mandatory gates.
+The extended external receipt and its dated host probe are reviewed as recorded
+evidence; they do not replace actual Actions layer pull, startup and full Data.
+
+### Coordination with the active GC1 guard author
+
+Electronics GC1 owns the active shared-guard composition. The Projects controller
+supplied eight independently reproduced duplicate/build-continuation probes in
+issue 280 comment 6253626829. A Projects author does not write competing changes
+to the guard, workflow or receipts. A remaining finding must be composed by the
+agreed single author from the completed current source, preserving both
+General/Electronics contracts and release620's PostgreSQL checks.
+
+Require a frozen handoff, a fresh overlap check, NEW independent final-source
+review and exact-SHA image/model/config/rootfs/revision proof plus full
+Data/required CI before integration. One controlled repeat convergence is justified
+by this real shared infrastructure change; unrelated documentation movement does
+not invalidate focused publication evidence. Canonical selection/status remain in
+`current.yaml`. This scope authorizes no local Docker, working database,
+production cleanup or deployment.
+
+## Separate C — acknowledge the actual persisted visit receipt
+
+TASK-PROJ-PUBLICATION-ANALYTICS-RECEIPT-001.
+Author branch: `codex/projects-analytics-receipt`.
+Selection baseline: `e2677c3735b8a14b99691c59a38b050f685f10b3`.
+
+Learning run `39154885422`, job `117755945106`, on publication candidate
+`662c8af4fbffead0f71b2fb95a4e9768d0c4b9fb` reproduces the same seven failure
+causes as the earlier non-publication baseline `4db817619`. Independent read-only
+triage found a specific existing client/server contract defect:
+
+- Migration0098 defines `product_analytics_events.id` as `bigserial`.
+- Migration0207 emits `recordId` through `jsonb_build_object` from `v_id bigint`.
+- The actual successful HTTP200 wire response contains a JSON number.
+- `confirmedAnalytics` instead requires a UUID for this visit receipt.
+- In one mixed-course trace, four unique visits cause69 sends. One persisted
+  event with `recordId:43` is replayed seven times; after a later context switch
+  it correctly receives `409 context_mismatch`. A separate actual200 probe with
+  `recordId:51` is rejected by the current frontend despite its valid envelope.
+
+Evidence artifact `12146793263` has verified SHA256
+`fd5a2cd5ce1f941952152636e52eed794fb79c1269810610d09848b982442376`.
+The seven trace files were downloaded once and inspected read-only. This
+establishes unnecessary replay; it does not prove every later login failure will
+disappear after the receipt repair.
+
+### One bounded author scope
+
+1. `apps/web/src/telemetry-contract.ts`
+2. `apps/web/src/telemetry-contract.spec.ts`
+3. `apps/web/src/analytics-delivery.spec.ts`
+4. `apps/web/src/analytics-runtime.spec.ts`
+5. `apps/web/src/analytics-auth-recovery.spec.ts`
+6. `apps/web/src/blocks/testing/editor-runtime-session.spec.ts`
+7. `tests/portal/analytics-delivery.pg.spec.ts`
+8. `e2e/fixtures/telemetry-receipts.ts`
+9. `tests/portal/ui-telemetry-receipts.spec.ts`
+10. `tools/blocks/browser/telemetry-fixture.mjs`
+11. `e2e/classroom-scratch-time.spec.ts`
+
+For a visit only, recognize a numeric `recordId` satisfying
+`Number.isSafeInteger(value) && value > 0`. Reject UUIDs, numeric strings, zero,
+negative, fractional, unsafe and absent values. Do not coerce values or redesign
+bigint serialization. Keep every existing accepted/state/schema/event/receipt/
+operation/timestamp check, session interval and actor/context binding, and all
+terminal HTTP-error handling.
+
+The additional fixture changes correct only visit `recordId` to the wire type.
+They retain event/receipt UUID equality, quality receipts, Project/session IDs,
+routes, timers, activity intervals and autosave. Consumers of shared fixtures do
+not require changes. The uppercase-UUID API compatibility test remains intact;
+frontend exact equality is tested with a normal lowercase browser envelope or
+the canonical replay payload, not by weakening equality.
+
+The independent triage and controller searched current source and active PR
+scopes. No unfinished author overlap was found on these11 paths; PR622's Learning
+journey files and the active GC1 guard composition remain outside this repair.
+The controller authors only governance and mechanically integrates completed
+source. A separate author implements; a different reviewer checks frozen bytes.
+
+### Acceptance and unresolved failures
+
+Require meaningful focused numeric-validation and queue tests, including removal
+of the acknowledged visit from memory/storage and no replay on workspace change.
+The PostgreSQL regression must pass a real API200 body through the shipping
+frontend validator and `AnalyticsDelivery`, prove a single durable domain effect,
+an empty queue and no replay. Then require independent exact-source review and
+actual changed-source General/Learning CI. Local smoke or skipped PG is not PG
+acceptance.
+
+Six fresh unauthenticated Learning logins receive429 with a common reset window
+and `Retry-After`; the common mutation hook sets that header while the controller's
+per-identity login limiter does not. Repeated analytics spends this shared budget.
+First fix the proved receipt defect. Any residual429 requires separate diagnosis;
+do not change auth limits, add retry/sleep or ignore browser errors here.
+
+General Access A job `117757301887` separately times out at5011ms in the existing
+ratings journey, while the exact same test passes in Data job `117757301925` at
+1135ms. It does not invoke the publication repository lock wrapper, but the cause
+of the timing difference remains unproved. Keep it unresolved; no timeout or
+parallelism increase is selected. A further failure on the changed candidate
+requires phase/SQL/blocker evidence before a separate repair decision.
