@@ -166,6 +166,51 @@ LED code. Any real source overlap requires a controller handoff. No integration,
 issue closure, release claim, deployment or next product slice follows merely
 from this supporting source change or an infra PASS.
 
+## R3 exception: reload oracle only, before any AFTER selection
+
+Actual b967 runtime review found both a harness oracle error and an unactivated
+single Save tap. This narrow versioned R3 exception supersedes only the earlier
+exact631-line suffix requirement for the precise new-block storage oracle and
+its passive instrumentation. R2 bytes and historical receipts stay historical;
+canonical active phase, revisions and observations remain in `current.yaml`.
+
+The test-only executor may change only the registered simulation spec and the
+canonical generated `browserEvidenceSha256`. Preserve its accepted **394151-byte
+prefix** and every other corrected93c suffix byte. Replace the new mobile block's
+invalid post-load all-storage-empty assertion with:
+
+- Passive `addInitScript` sampling on the main app origin only, before app code:
+  both local/session entries must be exactly empty. No app or storage writes.
+- After load, local draft entries remain empty and session draft entries equal
+  exactly one scoped pair: [`${localKey}:electronics-editor:`, `saved`]. The
+  actual value must be proved by the new real CI journey, not inferred from a key.
+  Compute expected localKey from the existing fixture formula using identityKind
+  (account), userId and projectId; never derive it from a discovered storage key.
+
+Retain `fresh.storageState().origins` equal to `[]`, the complete saved,
+delivered/server/rendered documents, component positions, wires, one PUT and CAS
+assertions. Keep all native gestures/checkpoints, helpers and timeouts unchanged.
+No additional Save activation, keypress, second tap, wait, forced hit or fake
+controller/API/document result. Freeze the NEW complete R3 test blob so R3 BEFORE
+and AFTER use byte-identical tests. The generator may change only the registered
+browser hash; any wider change requires a new proposal.
+
+A NEW source review precedes one justified R3 BEFORE. All three original placement
+cases must reach saved/reopened/complete. The three wire cases retain strict full
+Save/CAS/reopen expectations: BEFORE may fail only on the observed single-Save
+no-click/PUT0 product behaviour, never on a remaining harness failure. Five
+Cancel/desktop cases retain the causal missing-cue failures. A NEW actual BEFORE
+raw/runtime review is required before AFTER is selected. All six journeys must
+fully complete AFTER; no current UI edit is selected by this oracle exception.
+
+Only after that new R3 review and a separate controller selection may the future
+UI budget include `WorkbenchHeader.tsx` alongside the reviewed Stage/CSS diff.
+The bounded Save proposal would reuse the existing `ToolButton` touch command,
+preserving Save class/title/disabled state and keyboard/mouse behaviour. Invoke
+the command exactly once; suppress a subsequent compatibility click if it arrives,
+and never synthesize a click. It must not change hook/core/state/API. This is a source
+mechanism proposal, not a proven fix; actual AFTER evidence remains required.
+
 ## Initial bounded phase: native BEFORE before product changes
 
 Add meaningful cases only to the already registered
