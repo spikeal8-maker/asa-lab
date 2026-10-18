@@ -86,6 +86,18 @@ Account UI and Portal Header Responsive CI, plus the complete general gate.
 
 ## Integration
 
+### Retired verification package
+
+PR619 was closed without merge as SUPERSEDED at unchanged head
+`efbaeada18819fff9f76a08a4acc74bfa468d397`. Independent comparison against main
+`d4dd2115c34415bd8ad0ef4968f02ffaffd62578` found seven of its fourteen blobs
+already byte-identical and seven superseded by newer accepted content. No
+missing ready source remained. Its branch, two source-only commits and earlier
+reviews remain provenance; this is not a claim that every commit was merged.
+See PR619 comment `6255104981`. Historical transport evidence below remains
+valid. GC1's scanner/duplicate finding, release620 and Public Projects combined
+acceptance remain open under their existing ownership.
+
 ### Isolated data-job Node transport
 
 TASK-PROJ-PUBLICATION-DATA-TRANSPORT-001 is a separate bounded D dependency.
@@ -338,6 +350,46 @@ raw-success PNG beside the existing raw-failing62x61 fixture, testing the shared
 decode-selection implementation itself. Preserve all negative controls and
 original evidence. A different independent reviewer and new changed-SHA real
 Classroom/Access CI are required; existing unrelated failures remain open.
+
+## Separate C — preserve the accepted AI header in publication verification
+
+TASK-PROJ-PUBLICATION-SHELL-AI-COMPATIBILITY-001.
+Author branch: `codex/projects-shell-ai-compatibility`.
+Only authored path: `e2e/access-account-ui.spec.ts`.
+
+Main accepted PR616 at `6abacef6eb6a083a72392e4786fb3f5a1e6a9738`, adding the
+third global AI destination and scoped responsive styling. Independent read-only
+audit against `d4dd2115c34415bd8ad0ef4968f02ffaffd62578` found no new text conflict
+with publication662 and frozen shell `7db13b9ecce77139866708353e4f418f37141e3c`.
+However, both the current main Access test and that shell companion still demand
+exactly two top links and no AI. They also require an eight-pixel right inset at
+every mobile width and a visible Create label for every width above560. Those
+oracles contradict the accepted AI stylesheet: four-pixel inset below360 and
+compact Create between601 and760. This is a separate inherited compatibility
+finding, not permission to revert the accepted AI feature.
+
+One author starts from current accepted main, adopts the exact completed Access
+source from7db13b9, and changes only the demonstrated obsolete expectations and
+their boundary coverage. Preserve its canonical Explore/native-link and actual
+legacy Gallery redirect assertions. Keep the strict56px header and every44px
+target, no overflow/overlap, all normal and stress-text checks, role, focus/Escape,
+dirty-navigation, profile and no-mutation guards. Cover359/360,600/601,760/761 and
+1023/1024 as well as1440/1024/390/320. Do not change timeouts/retries, fixture
+authority, runtime, CSS, MyProjectsPage or any other author's files.
+
+The final composition must retain the new AI navigation, stylesheet and tests
+from616 together with publication routing. Existing AI entry/exit must preserve
+the personal sidebar preference, close the mobile drawer, and show a locked Seat
+view without granting AI API access. Those already authored responsive and
+capability tests remain mandatory; this single-file companion does not replace
+them. The final shell footer remains `Приватный`, with protected Learning work
+and feedback semantics intact.
+
+Acceptance requires a new independent exact-source review against both frozen7db
+and accepted616, then real changed combined Access and Portal Header Responsive
+CI on desktop/mobile. A companion branch without publication runtime cannot
+establish the combined journey. The controller retains the single final
+convergence requirement and the exclusive GC1 author.
 
 ## Separate evidence — identify the remaining Learning mutation traffic
 

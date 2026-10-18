@@ -4187,6 +4187,35 @@ parallel_lanes:
           independent source review before starting this workflow, and actual isolated
           CI with exact identities and preserved failure status. Counts are observed HTTP
           traffic, not internal limiter state; no429 is NOT_REPRODUCED, never a repair PASS.
+      - id: TASK-PROJ-PUBLICATION-SHELL-AI-COMPATIBILITY-001
+        status: in_progress
+        branch: codex/projects-shell-ai-compatibility
+        scope:
+          - e2e/access-account-ui.spec.ts
+        selection: >-
+          Separate bounded C test companion for the accepted main PR616 AI navigation.
+          Read-only audit on d4dd2115 finds no new textual publication/shell conflicts,
+          but both main and frozen shell7db13b9 still require two global links and no AI.
+          Their geometry also predates the accepted four-pixel inset below360 and the
+          compact Create label between601 and760. Preserve the completed shell7db13b9
+          Explore/legacy-redirect assertions while adapting only these obsolete oracles.
+        author_coordination: >-
+          One new test author owns only this path after the prior shell author supplied
+          frozen7db13b9 handoff. Base the companion on current accepted main and adopt
+          that exact completed Access source before the bounded compatibility edit.
+          Do not author a publication convergence or replace runtime/header/styles,
+          MyProjectsPage, Analytics11, Learning622, QR629 or any GC1-owned file.
+        acceptance: >-
+          Keep three native destinations Projects, Knowledge and AI; strict56px header,
+          every44px target, overflow/overlap, stress-text, role, focus/Escape, dirty
+          navigation and profile/no-mutation guards. Preserve canonical Explore and the
+          actual legacy Gallery redirect. Cover359/360,600/601,760/761,1023/1024 together
+          with1440/1024/390/320. Independently review exact source against both7db and
+          accepted616. Existing AI entry/exit sidebar preference, mobile drawer and Seat
+          locked-view/no-API-access tests remain mandatory in the final composition.
+          Source-only compatibility is pending until changed combined Access/header
+          browser CI; an isolated companion without the publication runtime is not
+          final acceptance. No timeout/retry/fixture-authority or product behavior change.
     accepted_foundation:
       accepted_r7_01b_merge_sha: 65316c50873e28a5effd7b6e603b5289e37e2fac
       accepted_r3_merge_sha: 5fa616045b16d2720418eb7945f7bef968dd9389
