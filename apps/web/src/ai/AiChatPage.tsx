@@ -10,6 +10,7 @@ import {
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { call } from '../api-call';
+import { AsaLabMark } from '../brand/AsaLabBrand';
 import { AiStreamClientError, streamAiRequest } from './stream-ai-request';
 import './izo-chat-design.css';
 
@@ -171,7 +172,52 @@ export function AiChatPage(): JSX.Element {
     null,
   );
   const chatScroll = useRef<HTMLDivElement>(null);
+  const layout = useRef<HTMLElement>(null);
+  const historyPanel = useRef<HTMLDialogElement>(null);
+  const historyToggle = useRef<HTMLButtonElement>(null);
+  const composer = useRef<HTMLTextAreaElement>(null);
   const restoreScroll = useRef<{ height: number; top: number } | null>(null);
+
+  useLayoutEffect(() => {
+    const panel = historyPanel.current;
+    if (!panel) return;
+    if (panel.open) panel.close();
+    if (sideOpen) {
+      if (desktop) panel.show();
+      else panel.showModal();
+    }
+  }, [desktop, sideOpen]);
+
+  useLayoutEffect(() => {
+    // visualViewport also follows the on-screen keyboard on mobile browsers.
+    // Keep this measurement on the chat root; the portal shell is unaffected.
+    const resize = (): void => {
+      const node = layout.current;
+      if (!node) return;
+      const viewport = window.visualViewport;
+      const bottom = viewport ? viewport.height + viewport.offsetTop : window.innerHeight;
+      node.style.setProperty(
+        '--ai-available-height',
+        `${Math.max(0, bottom - node.getBoundingClientRect().top - 8)}px`,
+      );
+    };
+    resize();
+    window.addEventListener('resize', resize);
+    window.visualViewport?.addEventListener('resize', resize);
+    window.visualViewport?.addEventListener('scroll', resize);
+    return () => {
+      window.removeEventListener('resize', resize);
+      window.visualViewport?.removeEventListener('resize', resize);
+      window.visualViewport?.removeEventListener('scroll', resize);
+    };
+  }, []);
+
+  useLayoutEffect(() => {
+    const node = composer.current;
+    if (!node) return;
+    node.style.height = 'auto';
+    node.style.height = `${Math.min(node.scrollHeight, 160)}px`;
+  }, [draft]);
 
   useEffect(() => {
     const media = window.matchMedia('(min-width: 1120px)');
@@ -518,26 +564,54 @@ export function AiChatPage(): JSX.Element {
     thread.title.toLocaleLowerCase('ru-RU').includes(search.trim().toLocaleLowerCase('ru-RU')),
   );
   const empty = messages.length === 0 && pendingMessage === null && !streamedText;
+  const currentTitle = threads.find((thread) => thread.id === currentId)?.title || 'Новый диалог';
+
+  function closeHistory(): void {
+    setSideOpen(false);
+    requestAnimationFrame(() => historyToggle.current?.focus());
+  }
 
   return (
-    <main id="main-content" className="asa-ai-layout" tabIndex={-1}>
+    <main id="main-content" className="asa-ai-layout" tabIndex={-1} ref={layout}>
       <section
         className={
           'chat-page asa-ai-chat' + (sideOpen ? ' sidebar-open' : '') + (empty ? ' is-empty' : '')
         }
         aria-label="ИИ-помощник ASA Lab"
       >
-        <aside className="chat-sidebar" aria-label="История диалогов">
+        <dialog
+          id="ai-chat-history"
+          className="chat-sidebar"
+          ref={historyPanel}
+          aria-label="История диалогов"
+          onCancel={(event) => {
+            event.preventDefault();
+            closeHistory();
+          }}
+          onClick={(event) => {
+            if (desktop || event.target !== event.currentTarget) return;
+            const bounds = event.currentTarget.getBoundingClientRect();
+            if (
+              event.clientX < bounds.left ||
+              event.clientX > bounds.right ||
+              event.clientY < bounds.top ||
+              event.clientY > bounds.bottom
+            ) {
+              closeHistory();
+            }
+          }}
+        >
           <header className="chat-sidebar-head">
-            <strong className="chat-sidebar-title">ASA Lab · ИИ</strong>
+            <strong className="chat-sidebar-title">История диалогов</strong>
             <div className="chat-sidebar-head-actions">
               <button
                 className="chat-icon-button"
                 type="button"
-                onClick={() => setSideOpen(false)}
-                aria-label="Свернуть историю"
+                onClick={closeHistory}
+                aria-label={desktop ? 'Свернуть историю' : 'Закрыть историю'}
+                title={desktop ? 'Свернуть историю' : 'Закрыть историю'}
               >
-                ☰
+                <span aria-hidden="true">{desktop ? '‹' : '×'}</span>
               </button>
             </div>
           </header>
@@ -661,37 +735,41 @@ export function AiChatPage(): JSX.Element {
               </button>
             ) : null}
             {!loading && visible.length === 0 ? (
-              <p className="asa-ai-empty-list">Диалогов пока нет</p>
+              <p className="asa-ai-empty-list">
+                {search.trim()
+                  ? 'Ничего не найдено в загруженной истории'
+                  : 'Здесь появятся ваши диалоги'}
+              </p>
             ) : null}
           </nav>
           <footer className="chat-sidebar-bottom">
             <span className="asa-ai-privacy">Диалоги доступны только вашему аккаунту.</span>
           </footer>
-        </aside>
-
-        {!desktop && sideOpen ? (
-          <button
-            className="chat-drawer-backdrop"
-            type="button"
-            onClick={() => setSideOpen(false)}
-            aria-label="Закрыть историю"
-          />
-        ) : null}
+        </dialog>
 
         <div className="chat-main">
           <header className="chat-toolbar">
-            {!sideOpen ? (
+            {!sideOpen || !desktop ? (
               <button
+                ref={historyToggle}
                 type="button"
                 className="chat-icon-button chat-sidebar-open"
                 onClick={() => setSideOpen(true)}
                 aria-label="Открыть историю диалогов"
+                aria-controls="ai-chat-history"
+                aria-expanded={sideOpen}
+                title="История диалогов"
               >
-                ☰
+                <span aria-hidden="true">☰</span>
               </button>
             ) : null}
             <div className="asa-ai-provider-label">
               <strong>ИИ-помощник</strong>
+              <span className="asa-ai-current-title" title={currentTitle}>
+                {currentTitle}
+              </span>
+            </div>
+            <div className="asa-ai-model-status">
               {(status?.availableModels?.length ?? 0) > 1 ? (
                 <select
                   className="asa-ai-model-picker"
@@ -707,19 +785,75 @@ export function AiChatPage(): JSX.Element {
                   ))}
                 </select>
               ) : (
-                <span>{status?.enabled ? status.model : 'Модель не подключена'}</span>
+                <span>
+                  {loading ? 'Подключение…' : status?.enabled ? status.model : 'Не подключён'}
+                </span>
               )}
             </div>
+            <button
+              type="button"
+              className="chat-icon-button asa-ai-new-chat"
+              disabled={interactionBusy || loading}
+              onClick={() => void newChat()}
+              aria-label="Создать новый диалог"
+              title="Новый диалог"
+            >
+              <span aria-hidden="true">＋</span>
+            </button>
           </header>
 
-          {empty ? (
+          {!historyReady && !error ? (
+            <div className="chat-start-state" role="status">
+              Загрузка переписки…
+            </div>
+          ) : empty ? (
             <div className="chat-start-state">
               <div className="asa-ai-start-copy">
-                <span className="asa-ai-orb" aria-hidden="true">
-                  A
-                </span>
-                <h1>Чем я могу помочь?</h1>
-                <p>Спросите про программирование, электронику, Arduino, проекты или учёбу.</p>
+                <div className="asa-ai-start-brand">
+                  <AsaLabMark /> ASA Lab · ИИ
+                </div>
+                <h1>От идеи к работающему проекту</h1>
+                <p>
+                  Продумайте замысел, напишите код или разберитесь со схемой — начните с того, что
+                  хотите создать.
+                </p>
+                <div className="asa-ai-starters" aria-label="С чего начать">
+                  {[
+                    {
+                      title: 'Продумать идею',
+                      detail: 'От замысла к плану',
+                      prompt:
+                        'Помоги продумать идею проекта и составить план реализации. Мой замысел: ',
+                    },
+                    {
+                      title: 'Написать код',
+                      detail: 'Решение и логика',
+                      prompt: 'Помоги написать или улучшить код. Я хочу сделать: ',
+                    },
+                    {
+                      title: 'Разобрать схему',
+                      detail: 'Электроника и Arduino',
+                      prompt:
+                        'Помоги разобраться с электронной схемой и подобрать компоненты. Моя задача: ',
+                    },
+                  ].map((starter) => (
+                    <button
+                      key={starter.title}
+                      type="button"
+                      disabled={!status?.enabled || interactionBusy || !historyReady}
+                      onClick={() => {
+                        setDraft(starter.prompt);
+                        composer.current?.focus();
+                      }}
+                    >
+                      <strong>
+                        {starter.title}
+                        <span aria-hidden="true">↗</span>
+                      </strong>
+                      <span>{starter.detail}</span>
+                    </button>
+                  ))}
+                </div>
                 {!status?.enabled && !loading ? (
                   <p className="chat-start-note" role="status">
                     ИИ пока выключен. Администратор должен подключить модель в разделе «Админ → ИИ».
@@ -749,6 +883,9 @@ export function AiChatPage(): JSX.Element {
                       }
                       key={message.id}
                     >
+                      <span className="chat-turn-label">
+                        {message.role === 'user' ? 'Вы' : 'ASA · ИИ'}
+                      </span>
                       {message.role === 'user' ? (
                         <div className="chat-user-bubble">{message.content}</div>
                       ) : (
@@ -781,6 +918,7 @@ export function AiChatPage(): JSX.Element {
                       message.requestId === pendingMessage.requestId && message.role === 'user',
                   ) ? (
                     <article className="chat-turn chat-turn-user" data-testid="ai-pending-message">
+                      <span className="chat-turn-label">Вы</span>
                       <div className="chat-user-bubble">{pendingMessage.text}</div>
                     </article>
                   ) : null}
@@ -795,6 +933,7 @@ export function AiChatPage(): JSX.Element {
                       aria-live="polite"
                       aria-atomic="false"
                     >
+                      <span className="chat-turn-label">ASA · ИИ</span>
                       <div className="chat-assistant-message">
                         <Content content={streamedText} />
                       </div>
@@ -826,33 +965,31 @@ export function AiChatPage(): JSX.Element {
           <div className="chat-composer-dock">
             <div className="chat-composer-wrap">
               <form className="chat-composer" onSubmit={(event) => void send(event)}>
-                <button
-                  className="chat-circle-button chat-composer-plus"
-                  type="button"
-                  disabled
-                  title="Вложения будут подключены на следующем этапе"
-                  aria-label="Прикрепление файлов пока недоступно"
-                >
-                  ＋
-                </button>
                 <textarea
+                  ref={composer}
                   value={draft}
                   maxLength={3000}
                   onChange={(event) => setDraft(event.target.value)}
                   onKeyDown={(event) => {
-                    if (event.key === 'Enter' && !event.shiftKey) {
+                    if (
+                      event.key === 'Enter' &&
+                      !event.shiftKey &&
+                      !event.nativeEvent.isComposing
+                    ) {
                       event.preventDefault();
                       event.currentTarget.form?.requestSubmit();
                     }
                   }}
                   rows={2}
-                  placeholder={status?.enabled ? 'Напишите сообщение…' : 'ИИ пока не подключён'}
+                  placeholder={
+                    status?.enabled ? 'Опишите идею или задачу…' : 'ИИ пока не подключён'
+                  }
                   disabled={!status?.enabled || interactionBusy}
                   aria-label="Сообщение ИИ"
+                  aria-describedby="ai-composer-note"
                 />
-                <span className="chat-model-selector" aria-label="Текущая модель">
-                  {selectedModel || status?.model || 'GPT'}
-                </span>
+                <span className="chat-composer-hint">Shift + Enter — новая строка</span>
+                <span className="chat-character-count">{draft.length} / 3000</span>
                 <button
                   type={busy ? 'button' : 'submit'}
                   className="chat-send-button"
@@ -865,8 +1002,8 @@ export function AiChatPage(): JSX.Element {
                   {busy ? '■' : '↑'}
                 </button>
               </form>
-              <p className="chat-composer-note">
-                Возможны неточности. Не отправляйте в ИИ личные данные учеников.
+              <p className="chat-composer-note" id="ai-composer-note">
+                Проверяйте важные ответы. Не отправляйте пароли и личные данные.
               </p>
             </div>
           </div>

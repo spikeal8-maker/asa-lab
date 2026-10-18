@@ -501,6 +501,324 @@ for (const scenario of ['empty', 'existing', 'server-error', 'network-error'] as
   });
 }
 
+async function expectChatFits(page: Page): Promise<void> {
+  await expect
+    .poll(() =>
+      page.locator('.asa-ai-layout').evaluate((root) => {
+        const main = root.querySelector('.chat-main')!;
+        const conversations = root.querySelectorAll('.chat-scroll, .chat-start-state');
+        const toolbar = root.querySelector('.chat-toolbar')!.getBoundingClientRect();
+        const dock = root.querySelector('.chat-composer-dock')!.getBoundingClientRect();
+        const textarea = root.querySelector('textarea')!.getBoundingClientRect();
+        const body = root.querySelector('.chat-scroll, .chat-start-state')!.getBoundingClientRect();
+        const bounds = root.getBoundingClientRect();
+        const viewportBottom = visualViewport
+          ? visualViewport.offsetTop + visualViewport.height
+          : innerHeight;
+        return (
+          document.documentElement.scrollWidth <= innerWidth &&
+          root.scrollWidth <= root.clientWidth + 1 &&
+          main.scrollWidth <= main.clientWidth + 1 &&
+          [...conversations].every((node) => node.scrollWidth <= node.clientWidth) &&
+          bounds.left >= 0 &&
+          bounds.right <= innerWidth + 1 &&
+          dock.bottom <= viewportBottom + 1 &&
+          body.bottom <= dock.top + 1 &&
+          textarea.top >= toolbar.bottom &&
+          textarea.left >= bounds.left &&
+          textarea.right <= bounds.right &&
+          textarea.bottom <= dock.bottom
+        );
+      }),
+    )
+    .toBe(true);
+}
+
+for (const theme of ['light', 'dark'] as const) {
+  for (const width of [320, 390, 768, 1024, 1120, 1440]) {
+    test(`AI creation workspace fits ${width}px in ${theme} theme`, async ({ page }) => {
+      await page.emulateMedia({ colorScheme: theme });
+      await page.setViewportSize({ width, height: 750 });
+      const fake = await fixture(page);
+      await page.goto('/#/ai');
+      await expect(
+        page.getByRole('heading', { name: 'От идеи к работающему проекту' }),
+      ).toBeVisible();
+      await expect(page.getByRole('combobox', { name: 'Модель ИИ' })).toBeVisible();
+      await expect(page.getByRole('button', { name: /Прикреп/ })).toHaveCount(0);
+      await expect(page.locator('.asa-ai-layout')).toHaveCSS(
+        'background-color',
+        theme === 'dark' ? 'rgb(18, 33, 45)' : 'rgb(255, 255, 255)',
+      );
+      await expectChatFits(page);
+      await page.screenshot({ path: test.info().outputPath(`ai-empty-${theme}-${width}.png`) });
+      await page.getByRole('button', { name: /Написать код/ }).click();
+      const composer = page.getByRole('textbox', { name: 'Сообщение ИИ' });
+      await expect(composer).toBeFocused();
+      await expect(composer).toHaveValue('Помоги написать или улучшить код. Я хочу сделать: ');
+      expect(fake.requests).toHaveLength(0);
+      expect(fake.threads).toHaveLength(0);
+      await composer.fill('Черновик\n' + 'Строка проекта\n'.repeat(14));
+      const inputBounds = await composer.boundingBox();
+      expect(inputBounds!.height).toBeLessThanOrEqual(160);
+      expect(await composer.evaluate((node) => node.scrollHeight > node.clientHeight)).toBe(true);
+      await expectChatFits(page);
+      if (width >= 1120) {
+        const expanded = await page.locator('.chat-main').boundingBox();
+        await page.getByRole('button', { name: 'Свернуть историю', exact: true }).click();
+        const toggle = page.getByRole('button', { name: 'Открыть историю диалогов' });
+        await expect(toggle).toBeFocused();
+        const collapsed = await page.locator('.chat-main').boundingBox();
+        expect(collapsed!.width).toBeGreaterThan(expanded!.width + 250);
+        await expectChatFits(page);
+        await toggle.click();
+        await expect(page.getByRole('button', { name: 'Свернуть историю' })).toBeVisible();
+      }
+    });
+  }
+}
+
+test('AI long draft contracts with the keyboard visual viewport and remains editable', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 750 });
+  const fake = await fixture(page);
+  await page.goto('/#/ai');
+  const composer = page.getByRole('textbox', { name: 'Сообщение ИИ' });
+  const send = page.getByRole('button', { name: 'Отправить сообщение' });
+  const draft = 'Строка проекта\n'.repeat(40);
+  await composer.fill(draft);
+  await expect(composer).toHaveCSS('height', '160px');
+  for (const height of [350, 300]) {
+    // Desktop automation has no OS keyboard. Shrink only visualViewport to
+    // exercise the keyboard listener while the layout viewport stays at 750px.
+    await page.evaluate((height) => {
+      const viewport = window.visualViewport!;
+      Object.defineProperty(viewport, 'height', { configurable: true, value: height });
+      viewport.dispatchEvent(new Event('resize'));
+    }, height);
+    await expectChatFits(page);
+    await expect.poll(() => composer.evaluate((node) => node.clientHeight)).toBeLessThan(160);
+    expect(await composer.evaluate((node) => node.clientHeight)).toBeGreaterThanOrEqual(32);
+    expect(await composer.evaluate((node) => node.scrollHeight > node.clientHeight)).toBe(true);
+    await composer.press('ControlOrMeta+End');
+    await composer.press('x');
+    await expect(composer).toHaveValue(draft + 'x');
+    expect(await composer.evaluate((node) => node.scrollTop)).toBeGreaterThan(0);
+    const button = await send.boundingBox();
+    expect(button!.y + button!.height).toBeLessThanOrEqual(height);
+    expect(button!.y).toBeGreaterThanOrEqual(0);
+    await expect(send).toBeInViewport({ ratio: 1 });
+    await composer.fill(draft);
+  }
+  await page.evaluate(() => {
+    Reflect.deleteProperty(window.visualViewport!, 'height');
+    window.visualViewport!.dispatchEvent(new Event('resize'));
+  });
+  await expect(composer).toHaveCSS('height', '160px');
+  await expectChatFits(page);
+  expect(fake.requests).toHaveLength(0);
+});
+
+test.describe('AI history touch backdrop', () => {
+  test.use({ hasTouch: true });
+
+  test('tap dismisses without activating the send control underneath and allows reopening', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 750 });
+    const fake = await fixture(page);
+    await page.goto('/#/ai');
+    const composer = page.getByRole('textbox', { name: 'Сообщение ИИ' });
+    await composer.fill('Черновик под историей');
+    const send = page.getByRole('button', { name: 'Отправить сообщение' });
+    await expect(send).toBeEnabled();
+    const button = (await send.boundingBox())!;
+    const toggle = page.getByRole('button', { name: 'Открыть историю диалогов' });
+    const dialog = page.getByRole('dialog', { name: 'История диалогов' });
+    await toggle.tap();
+    await expect(dialog).toBeVisible();
+    const drawer = (await dialog.boundingBox())!;
+    const point = { x: button.x + button.width - 4, y: button.y + button.height / 2 };
+    expect(point.x).toBeGreaterThan(drawer.x + drawer.width);
+    // Record any event delivered through the modal to the actual underlying UI.
+    await page.locator('.chat-main').evaluate((main) => {
+      main.setAttribute('data-backdrop-actions', '0');
+      for (const type of ['touchstart', 'pointerdown', 'click', 'submit']) {
+        main.addEventListener(type, () => {
+          main.setAttribute(
+            'data-backdrop-actions',
+            String(Number(main.getAttribute('data-backdrop-actions')) + 1),
+          );
+        });
+      }
+    });
+    await page.touchscreen.tap(point.x, point.y);
+    await expect(dialog).toBeHidden();
+    await expect(toggle).toBeFocused();
+    await expect(page.locator('.chat-main')).toHaveAttribute('data-backdrop-actions', '0');
+    await expect(composer).toHaveValue('Черновик под историей');
+    expect(fake.requests).toHaveLength(0);
+    expect(fake.threads).toHaveLength(0);
+    await toggle.tap();
+    await expect(dialog).toBeVisible();
+    await expect(
+      dialog.getByRole('button', { name: 'Закрыть историю', exact: true }),
+    ).toBeFocused();
+  });
+});
+
+test('AI history drawer traps focus, paginates and closes after selection on narrow screens', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 640 });
+  const fake = await fixture(page);
+  const id = randomUUID();
+  fake.threads.push({ id, title: 'Схема проекта', updatedAt: NOW });
+  fake.messages.set(id, []);
+  const olderId = randomUUID();
+  fake.messages.set(olderId, []);
+  const pages: (string | null)[] = [];
+  await page.route(/\/api\/ai\/threads(?:\?.*)?$/, (route) => {
+    if (route.request().method() !== 'GET') return route.fallback();
+    const cursor = new URL(route.request().url()).searchParams.get('beforeId');
+    pages.push(cursor);
+    return route.fulfill({
+      json: cursor
+        ? { items: [{ id: olderId, title: 'Ранний диалог', updatedAt: NOW }], nextCursor: null }
+        : { items: fake.threads, nextCursor: { at: NOW, id } },
+    });
+  });
+  await page.goto('/#/ai');
+  const toggle = page.getByRole('button', { name: 'Открыть историю диалогов' });
+  const dialog = page.getByRole('dialog', { name: 'История диалогов' });
+  await expect(dialog).toBeHidden();
+  await toggle.click();
+  const close = dialog.getByRole('button', { name: 'Закрыть историю', exact: true });
+  await expect(close).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
+  await expect(dialog.getByRole('button', { name: 'Показать больше диалогов' })).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(close).toBeFocused();
+  await dialog.getByRole('button', { name: 'Показать больше диалогов' }).click();
+  await expect(dialog.getByRole('button', { name: 'Ранний диалог', exact: true })).toBeVisible();
+  expect(pages).toEqual([null, id]);
+  await dialog.getByRole('searchbox', { name: 'Найти диалог' }).fill('Не существует');
+  await expect(dialog.getByText('Ничего не найдено в загруженной истории')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(dialog).toBeHidden();
+  await expect(toggle).toBeFocused();
+  await toggle.click();
+  await dialog.getByRole('searchbox', { name: 'Найти диалог' }).fill('');
+  await page.screenshot({ path: test.info().outputPath('ai-history-drawer-320.png') });
+  await dialog.getByRole('button', { name: 'Схема проекта', exact: true }).click();
+  await expect(dialog).toBeHidden();
+  await expect(page.locator('.asa-ai-current-title')).toHaveText('Схема проекта');
+  await expectChatFits(page);
+  await toggle.click();
+  // A native dialog backdrop receives outside clicks, including the narrow
+  // strip left available on a 320px screen.
+  await page.mouse.click(315, 400);
+  await expect(dialog).toBeHidden();
+  await expect(toggle).toBeFocused();
+});
+
+test('AI stays within the viewport after portal and chat panels collapse and the screen shrinks', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 850 });
+  await fixture(page);
+  await page.goto('/#/ai');
+  await page.locator('.portal-sidebar-collapse').click();
+  await expect(page.locator('.portal-sidebar')).toHaveClass(/collapsed/);
+  await page.getByRole('button', { name: 'Свернуть историю' }).click();
+  for (const viewport of [
+    { width: 1024, height: 750 },
+    { width: 390, height: 640 },
+    { width: 320, height: 480 },
+    { width: 768, height: 400 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await expectChatFits(page);
+    await page
+      .getByRole('textbox', { name: 'Сообщение ИИ' })
+      .fill('Черновик после изменения ширины');
+    await page.getByRole('button', { name: 'Открыть историю диалогов' }).click();
+    await expect(page.getByRole('dialog', { name: 'История диалогов' })).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expectChatFits(page);
+    await page.screenshot({ path: test.info().outputPath(`ai-collapsed-${viewport.width}.png`) });
+  }
+});
+
+test('AI confines long code and tables to message scrollers and copies the original source', async ({
+  page,
+  context,
+}) => {
+  await page.setViewportSize({ width: 320, height: 640 });
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  const source = `const project = "${'x'.repeat(400)}";`;
+  const answer = [
+    '```js',
+    source,
+    '```',
+    '',
+    '| Компонент | ' + 'Название | '.repeat(12),
+    '| --- | ' + '--- | '.repeat(12),
+    '| Arduino | ' + 'Значение | '.repeat(12),
+    '',
+    'https://example.test/' + 'long-path'.repeat(60),
+  ].join('\n');
+  const fake = await fixture(page, answer);
+  fake.release();
+  await page.goto('/#/ai');
+  await page.getByRole('textbox', { name: 'Сообщение ИИ' }).fill('Покажи исходный код');
+  await page.getByRole('button', { name: 'Отправить сообщение' }).click();
+  const copyCode = page.getByRole('button', { name: 'Копировать код' });
+  await expect(copyCode).toBeVisible();
+  await expectChatFits(page);
+  expect(
+    await page
+      .locator('.asa-ai-code-block pre')
+      .evaluate((node) => node.scrollWidth > node.clientWidth),
+  ).toBe(true);
+  expect(
+    await page
+      .locator('.asa-ai-table-scroll')
+      .evaluate((node) => node.scrollWidth > node.clientWidth),
+  ).toBe(true);
+  await copyCode.click();
+  await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(source);
+  await page.getByRole('button', { name: 'Копировать', exact: true }).click();
+  await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(answer);
+  await page.screenshot({ path: test.info().outputPath('ai-long-source-320.png') });
+});
+
+test('AI stop control saves a stopped reply and unlocks the composer', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 640 });
+  const fake = await fixture(page, 'Сохранённая часть ответа');
+  let stopRequests = 0;
+  await page.route('**/requests/*/stop', async (route) => {
+    stopRequests += 1;
+    fake.setCompletion('stopped');
+    fake.release();
+    await route.fulfill({ json: { stopped: true } });
+  });
+  await page.goto('/#/ai');
+  const composer = page.getByRole('textbox', { name: 'Сообщение ИИ' });
+  await composer.fill('Придумай проект');
+  await page.getByRole('button', { name: 'Отправить сообщение' }).click();
+  await expect(page.getByTestId('ai-pending-message')).toBeVisible();
+  await expect.poll(() => fake.requests.length).toBe(1);
+  await expectChatFits(page);
+  await page.getByRole('button', { name: 'Остановить генерацию' }).click();
+  await expect(page.getByText('Ответ остановлен.')).toBeVisible();
+  await expect(composer).toBeEnabled();
+  expect(stopRequests).toBe(1);
+  expect(fake.requests).toHaveLength(1);
+  await expectChatFits(page);
+});
+
 for (const width of [1440, 1024, 390, 320]) {
   test(`AI text chat shows pending, model reply and saved history at ${width}px`, async ({
     page,
@@ -508,7 +826,9 @@ for (const width of [1440, 1024, 390, 320]) {
     await page.setViewportSize({ width, height: 750 });
     const fake = await fixture(page);
     await page.goto('/#/ai');
-    await expect(page.getByRole('heading', { name: 'Чем я могу помочь?' })).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: 'От идеи к работающему проекту' }),
+    ).toBeVisible();
     await page.getByRole('textbox', { name: 'Сообщение ИИ' }).fill('Что такое Arduino?');
     await page.getByRole('button', { name: 'Отправить сообщение' }).click();
     await expect(page.getByTestId('ai-pending-message')).toContainText('Что такое Arduino?');
@@ -579,7 +899,7 @@ test('AI conversation rename and delete update the sidebar without phantom histo
   await expect(
     sidebar.getByRole('button', { name: 'Робототехника и Arduino', exact: true }),
   ).toHaveCount(0);
-  await expect(page.getByRole('heading', { name: 'Чем я могу помочь?' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'От идеи к работающему проекту' })).toBeVisible();
   await expect
     .poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
     .toBe(true);
