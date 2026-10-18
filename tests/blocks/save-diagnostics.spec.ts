@@ -15,7 +15,7 @@ describe('ordinary Scratch save failure to structured diagnostics', () => {
     'delivers a privacy-safe %s failure without an exit or fatal editor transition',
     async (stage) => {
       const testGlobal = globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean };
-      const previousAct = testGlobal.IS_REACT_ACT_ENVIRONMENT;
+      const previousAct = Object.getOwnPropertyDescriptor(testGlobal, 'IS_REACT_ACT_ENVIRONMENT');
       testGlobal.IS_REACT_ACT_ENVIRONMENT = true;
       const logs: Array<Record<string, unknown>> = [];
       const out = vi.spyOn(process.stdout, 'write').mockImplementation((value) => {
@@ -235,7 +235,8 @@ describe('ordinary Scratch save failure to structured diagnostics', () => {
         vi.restoreAllMocks();
         vi.unstubAllGlobals();
         window.sessionStorage.clear();
-        testGlobal.IS_REACT_ACT_ENVIRONMENT = previousAct;
+        if (previousAct) Object.defineProperty(testGlobal, 'IS_REACT_ACT_ENVIRONMENT', previousAct);
+        else delete testGlobal.IS_REACT_ACT_ENVIRONMENT;
       }
     },
   );
