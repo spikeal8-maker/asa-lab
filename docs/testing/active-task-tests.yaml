@@ -135,4 +135,3 @@ tests:
     timeout_seconds: 3600
     owner: observability
     artifacts: [repository-report, ci-candidate-sha]
-
