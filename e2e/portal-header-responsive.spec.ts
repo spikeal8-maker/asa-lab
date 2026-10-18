@@ -88,6 +88,17 @@ test('shared portal header stays on one row with useful labels and 4K scaling', 
     expect(result.create.right, width + ': create vs avatar').toBeLessThanOrEqual(
       result.account.x - 1,
     );
+    for (const target of [result.brand, result.create, result.account]) {
+      expect(target.w, width + ': 44px header target width').toBeGreaterThanOrEqual(44);
+      expect(target.h, width + ': 44px header target height').toBeGreaterThanOrEqual(44);
+    }
+    if (width <= 1023) {
+      expect(result.menu.w, width + ': 44px menu width').toBeGreaterThanOrEqual(44);
+      expect(result.menu.h, width + ': 44px menu height').toBeGreaterThanOrEqual(44);
+    }
+    if (width <= 600) {
+      expect(result.nav.w, width + ': three mobile navigation targets').toBe(132);
+    }
     for (let index = 0; index < result.navLabels.length; index++) {
       const link = result.navLabels[index]!;
       expect(link.box.left, width + ': nav link left').toBeGreaterThanOrEqual(result.nav.x - 1);

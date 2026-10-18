@@ -34,7 +34,32 @@
 
 @media (max-width: 600px) {
   .portal-shell .portal-header.portal-header-ai-navigation {
-    grid-template-columns: 44px minmax(0, 1fr) 132px auto 44px;
+    grid-template-columns: 44px minmax(44px, 1fr) 132px auto 44px;
+  }
+
+  /* The wordmark must shrink with its grid cell when three icons are present.
+     Keep the button and logo usable while the copy yields the remaining space. */
+  .portal-shell .portal-header.portal-header-ai-navigation .portal-brand {
+    box-sizing: border-box;
+    min-width: 44px;
+    max-width: 100%;
+    padding-inline: 0;
+  }
+
+  .portal-shell .portal-header.portal-header-ai-navigation .asa-brand-lockup {
+    max-width: 100%;
+  }
+
+  .portal-shell .portal-header.portal-header-ai-navigation .asa-brand-copy {
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .portal-shell .portal-header.portal-header-ai-navigation .asa-brand-copy strong,
+  .portal-shell .portal-header.portal-header-ai-navigation .asa-brand-copy span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .portal-shell .portal-header.portal-header-ai-navigation .portal-global-nav {
