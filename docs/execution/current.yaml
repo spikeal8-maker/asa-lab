@@ -4051,6 +4051,32 @@ parallel_lanes:
           Preserve original receipt, all other images/defaults/gates/security and image proof;
           bound the semantic guard to that exact substitution. No Electronics workflow edit.
           Independent final-source review and actual full combined CI remain required.
+      - id: TASK-PROJ-PUBLICATION-POSTGRES-TRANSPORT-001
+        status: in_progress
+        prepared_source: 28d1af61107fdee1f4f1a4884a04658bbb16902e
+        scope:
+          - .github/workflows/spec-validation.yml
+          - tools/test_ci_image_transport.py
+          - docs/product/projects/evidence/ci-node-transport-429-receipt.json
+        selection: >-
+          Separate successor D dependency: General39150123385/job117743433533 built Node
+          images but PostgreSQL start failed with ECR toomanyrequests before DB/Data.
+          The release620 controller has now published completed source28d1af611 in main75cbad5bb.
+          Review and adopt that actual General-only same-image transport instead of authoring
+          a duplicate overlay or receipt. General17.7 manifest e9243ab06e47223dedeb3c129fa9ece8d37f506bdc6ee943afb9335f98bb4854,
+          config52d5e34fcf5c882a859c1269963b35bdc7dcc2814ef0a0de6b8b408b2eb09db1 and14ordered layers/rootfs must remain identical.
+          Preserve shared overlay, original545 receipt, other jobs/defaults/runtime/security/gates.
+        author_coordination: >-
+          Electronics GC1 has an active shared-guard composition, coordinated in issue280
+          comment6253626829 and issue620 comment6253177650. No competing Projects author
+          writes the shared guard/workflow/receipts. Any remaining scanner/duplicate finding
+          goes to that author; require actual frozen handoff and preserve release620 PostgreSQL
+          and General/Electronics contracts before the controlled final composition.
+        acceptance: >-
+          NEW independent exact-source review, actual General image/model/config/rootfs/revision
+          proof and full Data/required combined CI are mandatory. Reused metadata and dated
+          external probe are attributed as such. Published source or focused publication PASS
+          does not establish repository acceptance; no deployment or working database action.
     accepted_foundation:
       accepted_r7_01b_merge_sha: 65316c50873e28a5effd7b6e603b5289e37e2fac
       accepted_r3_merge_sha: 5fa616045b16d2720418eb7945f7bef968dd9389

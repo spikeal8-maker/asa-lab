@@ -140,3 +140,50 @@ business writers are not rewritten. The potential older canonical submission
 SHARE/Draft inversion is a separate, unconfirmed baseline finding; neither this
 repair nor these verification prerequisites claim general School concurrency
 acceptance.
+
+
+## Successor D — adopt the published General PostgreSQL transport
+
+The Node transport repair reached real image builds. On exact candidate
+`efbaeada18819fff9f76a08a4acc74bfa468d397`, General run `39150123385`,
+job `117743433533`, **Build migration and test images** succeeded; the next
+**Start isolated PostgreSQL** failed with ECR `toomanyrequests: Data limit exceeded`.
+Migrations and the Data gate did not run. This is a separate infrastructure
+dependency, not a product or PostgreSQL assertion failure.
+
+Before a new Projects transport author started, fresh Git inspection found the
+release620 controller's completed source
+`28d1af61107fdee1f4f1a4884a04658bbb16902e`, included in
+`75cbad5bb49fcc06b97d2a489f1e0f0c53dcc8ef`. It supplies a generated General-only
+runner overlay and exact model/pulled-image proof. The controller selects
+independent review of this actual source; no duplicate transport implementation
+or replacement of its receipt is authorized by this selection.
+
+The required General PostgreSQL 17.7-bookworm identity remains:
+
+- manifest `sha256:e9243ab06e47223dedeb3c129fa9ece8d37f506bdc6ee943afb9335f98bb4854`;
+- config `sha256:52d5e34fcf5c882a859c1269963b35bdc7dcc2814ef0a0de6b8b408b2eb09db1`;
+- all 14 layers and rootfs entries in their recorded order.
+
+Access PostgreSQL 16 is a different image and cannot substitute for it. Preserve
+the shared registry overlay, original 545 receipt, all other job mappings,
+Dockerfiles, Compose defaults, revision checks, security and mandatory gates.
+The extended external receipt and its dated host probe are reviewed as recorded
+evidence; they do not replace actual Actions layer pull, startup and full Data.
+
+### Coordination with the active GC1 guard author
+
+Electronics GC1 owns the active shared-guard composition. The Projects controller
+supplied eight independently reproduced duplicate/build-continuation probes in
+issue 280 comment 6253626829. A Projects author does not write competing changes
+to the guard, workflow or receipts. A remaining finding must be composed by the
+agreed single author from the completed current source, preserving both
+General/Electronics contracts and release620's PostgreSQL checks.
+
+Require a frozen handoff, a fresh overlap check, NEW independent final-source
+review and exact-SHA image/model/config/rootfs/revision proof plus full
+Data/required CI before integration. One controlled repeat convergence is justified
+by this real shared infrastructure change; unrelated documentation movement does
+not invalidate focused publication evidence. Canonical selection/status remain in
+`current.yaml`. This scope authorizes no local Docker, working database,
+production cleanup or deployment.
