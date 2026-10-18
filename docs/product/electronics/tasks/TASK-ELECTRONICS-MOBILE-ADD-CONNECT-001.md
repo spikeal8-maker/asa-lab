@@ -211,6 +211,53 @@ the command exactly once; suppress a subsequent compatibility click if it arrive
 and never synthesize a click. It must not change hook/core/state/API. This is a source
 mechanism proposal, not a proven fix; actual AFTER evidence remains required.
 
+## Supporting guard composition: version GC1
+
+A real shared/security overlap with accepted General Node transport requires a
+separate supporting composition. GC1 supersedes the earlier exact02ae three-file
+infra requirement **only for the shared guard**. It does not alter the R3 oracle
+contract, expand UI authority or rewrite historical receipts. Canonical active
+selection and dated source results remain solely in `current.yaml`.
+
+The executor authors only `tools/test_ci_image_transport.py`. Start from fresh
+accepted main and exactly recompose the four reviewed R3 inherited source blobs:
+Electronics workflow, Electronics 429 receipt, simulation spec and generated
+coverage. The workflow/429 receipt must stay byte-identical to reviewed02ae; the
+R3 spec/generated must stay byte-identical to the source-approved R3 candidate.
+These are frozen composition inputs, not permission to edit them. Never replace
+an old whole tree or blindly resolve a shared/security conflict.
+
+Preserve accepted General `.github/workflows/spec-validation.yml`, projects
+`docs/product/projects/evidence/ci-node-transport-429-receipt.json` and original
+545 receipt byte-for-byte. Compose both scoped receipts/contracts by separating
+conflicting transport constants and effective mappings:
+
+| Scope/job | Node transport | Caddy transport |
+| --- | --- | --- |
+| General/postgres-tests | pinned mirror | preserved ECR |
+| Electronics/browser + review-images | pinned mirror | pinned mirror |
+| Every other job | original545 baseline | original545 baseline |
+
+Retain every immutable identity/security check, General proof mode and stdlib,
+strict CI-only Electronics actual-image mode. Preserve all 33 baseline + 12
+Electronics + 27 General semantic cases and 14 Electronics runtime cases. Adapt
+both cross-scope negative replacements to mutate the actual selected mapping;
+a no-op replacement is not a valid negative challenge. Add receipt swaps, extra
+jobs and explicit no-op mutation protection. No weakening or skipping checks.
+
+Do not change registrations, workflows, receipts, Compose/Docker, package,
+timeouts, security, defaults or registry references. No registry probe or local
+Docker operation. A new boundary needs a precise controller proposal.
+
+One author emits one self-reviewed composition candidate and STOP. A NEW
+independent guard/composition reviewer must approve before one justified R3
+BEFORE run. Freeze the complete reviewed R3 simulation blob for byte-identical
+BEFORE/AFTER. Original3 must reach saved/reopened/complete; wire3 retain genuine
+single-Save full PUT/CAS/reopen expectations and BEFORE may fail only on the
+observed Save no-click/PUT0; cue5 retain causal failures. All six must complete
+AFTER. A NEW actual R3 runtime/raw review and separate UI selection remain
+required; no Header/UI change is selected by GC1 or by source approval.
+
 ## Initial bounded phase: native BEFORE before product changes
 
 Add meaningful cases only to the already registered
