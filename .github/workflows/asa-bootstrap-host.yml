@@ -1,0 +1,57 @@
+name: ASA Bootstrap Host Install Checks
+
+on:
+  pull_request:
+    paths:
+      - "tools/bootstrap/**"
+      - "docs/deployment/SERVER_ONECLICK.md"
+      - ".github/workflows/asa-bootstrap-host.yml"
+  push:
+    branches: [main]
+    paths:
+      - "tools/bootstrap/**"
+      - "docs/deployment/SERVER_ONECLICK.md"
+      - ".github/workflows/asa-bootstrap-host.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ubuntu-bootstrap:
+    name: Ubuntu installer safety
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile host bootstrap
+        run: python3 -m py_compile tools/bootstrap/asa-setup.py tools/bootstrap/install-ubuntu-1panel.py tools/bootstrap/lan-preview-ubuntu.py tools/bootstrap/lan-https-entry.py tools/bootstrap/school-lan.py tools/bootstrap/prepare-age-backup.py tools/bootstrap/transfer-backup-ssh.py tools/bootstrap/reset-managed-host.py tools/bootstrap/restore-verified-backup.py
+      - name: Fail-closed unit tests
+        run: |
+          python3 tools/bootstrap/test_asa_setup.py
+          python3 tools/bootstrap/test_bootstrap.py
+          python3 tools/bootstrap/test_lan_preview.py
+          python3 tools/bootstrap/test_lan_https_entry.py
+          python3 tools/bootstrap/test_school_lan.py
+          python3 tools/bootstrap/test_rebuild_cycle.py
+
+  windows-bootstrap:
+    name: Windows installer syntax
+    runs-on: windows-2022
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Parse PowerShell without executing install
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path tools/bootstrap/install-windows.ps1).Path,
+            [ref]$tokens,
+            [ref]$errors
+          ) | Out-Null
+          if ($errors.Count -ne 0) { $errors | Out-String | Write-Error; exit 1 }
+      - name: Validate Windows backup helper
+        shell: pwsh
+        run: py -3 -m py_compile tools/bootstrap/prepare-age-backup.py

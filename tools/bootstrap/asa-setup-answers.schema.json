@@ -1,0 +1,119 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ASA Lab Ubuntu Setup Assistant answers",
+  "description": "Deployment decisions only. Never place passwords, OAuth tokens, age identity contents, private keys or secrets in this JSON.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "action"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": 1,
+      "description": "Version of human/agent answers contract"
+    },
+    "action": {
+      "type": "string",
+      "enum": [
+        "install",
+        "school-lan",
+        "doctor",
+        "backup",
+        "verify-backup",
+        "restore-check",
+        "update"
+      ]
+    },
+    "root": {
+      "type": "string",
+      "description": "Absolute dedicated ASA installation directory"
+    },
+    "operator": {
+      "type": "string",
+      "pattern": "^[a-z_][a-z0-9_-]{0,31}$"
+    },
+    "profile": {
+      "type": "string",
+      "enum": [
+        "production",
+        "staging",
+        "dev"
+      ]
+    },
+    "admin_cidr": {
+      "type": "string",
+      "description": "Explicitly authorized administrator CIDR. Never infer a broad trust boundary."
+    },
+    "panel_port": {
+      "type": "integer",
+      "minimum": 1024,
+      "maximum": 65535
+    },
+    "school_lan_https": {
+      "type": "boolean"
+    },
+    "school_lan_interface": {
+      "type": "string",
+      "pattern": "^(auto|[A-Za-z0-9_.-]{1,15})$"
+    },
+    "school_lan_follow_interface": {
+      "type": "boolean"
+    },
+    "data_mode": {
+      "type": "string",
+      "enum": [
+        "empty",
+        "restore",
+        "encrypted"
+      ]
+    },
+    "restore_backup": {
+      "type": "string",
+      "description": "Full private extracted source directory with manifest.json"
+    },
+    "encrypted_archive": {
+      "type": "string",
+      "description": "Full path to selected immutable ASA .tar.age on Ubuntu; identity is supplied outside JSON"
+    },
+    "restore_snapshot": {
+      "type": "string",
+      "description": "Exact snapshot identity; may be inferred from encrypted archive basename"
+    },
+    "target_hostname": {
+      "type": "string",
+      "description": "Exact host name to authorize restore"
+    },
+    "fresh_empty_confirmed": {
+      "type": "boolean",
+      "description": "True only after explicit approval to create a new, empty production database"
+    },
+    "max_snapshot_age_hours": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 8760
+    },
+    "min_active_students": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 10000000
+    },
+    "min_seats": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 10000000
+    },
+    "panel_archive": {
+      "type": "string",
+      "description": "Trusted offline 1Panel archive verified by pinned SHA256"
+    },
+    "backup_dir": {
+      "type": "string",
+      "description": "Existing verified extracted backup"
+    },
+    "database": {
+      "type": "string",
+      "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,50}_test$"
+    }
+  }
+}
