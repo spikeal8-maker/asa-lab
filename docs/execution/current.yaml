@@ -3976,7 +3976,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: first_visible_implementation_awaits_pg_browser_review
+      checkpoint: first_visible_pg_browser_source_pass_external_gates_pending
       owner_acceptance: pending
       owner_authorization: >-
         Owner's 2026-10-18 implementation assignment delegates the complete Public Projects
@@ -4077,23 +4077,64 @@ parallel_lanes:
           proof and full Data/required combined CI are mandatory. Reused metadata and dated
           external probe are attributed as such. Published source or focused publication PASS
           does not establish repository acceptance; no deployment or working database action.
+      - id: TASK-PROJ-PUBLICATION-ANALYTICS-RECEIPT-001
+        status: in_progress
+        branch: codex/projects-analytics-receipt
+        scope:
+          - apps/web/src/telemetry-contract.ts
+          - apps/web/src/telemetry-contract.spec.ts
+          - apps/web/src/analytics-delivery.spec.ts
+          - apps/web/src/analytics-runtime.spec.ts
+          - apps/web/src/analytics-auth-recovery.spec.ts
+          - apps/web/src/blocks/testing/editor-runtime-session.spec.ts
+          - tests/portal/analytics-delivery.pg.spec.ts
+          - e2e/fixtures/telemetry-receipts.ts
+          - tests/portal/ui-telemetry-receipts.spec.ts
+          - tools/blocks/browser/telemetry-fixture.mjs
+          - e2e/classroom-scratch-time.spec.ts
+        selection: >-
+          Separate bounded C repair, not a publication feature change. Learning39154885422
+          on662c8af4 reproduces baseline4db failures. Actual HTTP200 visit receipts contain
+          numeric bigserial recordId, while confirmedAnalytics incorrectly requires UUID;
+          a trace has69 requests for4 visits and a persisted event repeats before a later
+          workspace change correctly produces409 context_mismatch. Recognize only positive
+          Number.isSafeInteger recordId for visits, and correct all11 scoped producer/test
+          paths to the actual wire contract. Preserve every event/receipt/operation/time,
+          session/actor/context/terminal-error check. No coercion, bigint protocol redesign,
+          migration, auth/rate-limit change, timeout increase, context-fixture redesign,
+          ignored browser error or unchanged CI rerun is selected.
+        author_coordination: >-
+          One separate analytics author owns these11 paths; independent review and QA follow.
+          Fresh main e2677c373 and active PR622/623/624/626/605 scopes show no actual
+          unfinished overlap on these paths. GC1 guard/workflow/receipts remain untouched.
+        acceptance: >-
+          Focused strict validator and queue tests, real PostgreSQL HTTP200 through the
+          shipping frontend validator and delivery queue with one durable effect and no
+          replay, independent exact-source review, then changed-source Learning/General CI.
+          The six login429 responses are linked to the common mutation guard by headers;
+          residual429 after this repair remain a separate question. Access rating timeout
+          5011ms versus Data1135ms has no proved cause and remains unresolved, not waived.
     accepted_foundation:
       accepted_r7_01b_merge_sha: 65316c50873e28a5effd7b6e603b5289e37e2fac
       accepted_r3_merge_sha: 5fa616045b16d2720418eb7945f7bef968dd9389
       accepted_r7_01a_merge_sha: 92e7926fb4cf51b8fcb5d57741e01c812a26f2dc
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: c91d857a598ad423b938a92a85d6f002b56606a2
+      convergence_baseline_sha: d2b623f3c59b504e60738d24cc8b627dfc7a04d2
       head_sha: null
-      observed_at: '2026-10-18T16:06:25Z'
+      observed_at: '2026-10-18T19:15:00Z'
       main:
         branch: main
-        sha: 651321681ad588ae728156f83ffc334d9a658db0
+        sha: e2677c3735b8a14b99691c59a38b050f685f10b3
       observation_note: >-
-        First visible implementation is authored in the isolated candidate from c91d857;
-        PostgreSQL, built-browser evidence and independent exact-SHA review remain pending.
-        Main baseline CI category C is selected as a separate integration dependency above.
-        Fresh fetch main observed 6513216; preserve its capacity scripts during final convergence.
+        Draft PR613 on codex/projects-visible-publication has exact662c8af4 source review PASS;
+        publication39154885397 passed142 code/real-PG,
+        48portal and8browser checks, with37 exact-revision screenshots independently read.
+        General39154885429 Code/Governance/Data PASS, including4445 Data and16 RLS checks.
+        Access rating timeout and Learning analytics failures remain external blockers.
+        Main e267 has a newer General PG/artifact guard contract under independent review;
+        require fresh fetch main and overlap check, preserve shared GC1 ownership and
+        require one controlled final composition.
     execution_lease:
       executor_id: codex-projects-r7-01
       holder: unassigned
