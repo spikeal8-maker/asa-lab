@@ -935,6 +935,32 @@ parallel_lanes:
       - docs/execution/ADMIN_AUTH_MAX_EXECUTION_PLAN.md
       - docs/execution/ASA_ACCESS_A.md
     task:
+      id: TASK-ACCOUNT-CONFIRMATION-001
+      issue: 135
+      branch: main
+      base_branch: main
+      pr: null
+      pr_draft: false
+      status: in_progress
+      checkpoint: provider_policy_and_ui_implementation
+      owner_acceptance: pending
+      normative_refs:
+        - document: IDENTITY-ACCESS-V22
+          revision: '2.2'
+        - document: ACCOUNT-CONFIRMATION-SPEC
+          revision: '1.0'
+    programme:
+      document: docs/product/ASA_ACCOUNT_CONFIRMATION_SPEC.md
+      owner_authorization: implement_account_confirmation_with_admin_switch_max_telegram_and_server_verified_outage_fallback
+      status: in_progress
+      target_revision: '1.0'
+      selected_slice: AUTH-C1-C2-C3
+      dependency_order: [AUTH-C1-PROVIDERS, AUTH-C2-POLICY, AUTH-C3-UI, AUTH-C4-ACCEPTANCE]
+      completed_slices: []
+      owner_acceptance: pending
+      deployment_authorized: false
+      working_database_actions_authorized: false
+    previous_task:
       id: TASK-PORTAL-SHELL-UX-001
       issue: 520
       branch: main
@@ -949,7 +975,7 @@ parallel_lanes:
           revision: '2.2'
         - document: PORTAL-SHELL-UX-ETZ
           revision: '2.0'
-    programme:
+    previous_programme:
       document: docs/product/ASA_PORTAL_SHELL_AND_AVATAR_ETZ.md
       owner_authorization: revise_avatar_shell_and_settings_to_compact_owner_requirements
       status: technical_accepted
