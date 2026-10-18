@@ -189,6 +189,31 @@ interface Token {
   readonly value: string;
 }
 
+type ExpressionSyntax =
+  | { readonly kind: 'literal'; readonly value: ArduinoValue }
+  | { readonly kind: 'binding'; readonly name: string }
+  | { readonly kind: 'unary'; readonly operator: string; readonly operand: ExpressionSyntax }
+  | {
+      readonly kind: 'binary';
+      readonly operator: string;
+      readonly left: ExpressionSyntax;
+      readonly right: ExpressionSyntax;
+    }
+  | { readonly kind: 'call'; readonly name: string; readonly args: readonly ExpressionSyntax[] };
+interface PreparedExpression {
+  readonly tokens: readonly Token[];
+  readonly syntax?: ExpressionSyntax;
+}
+interface PreparedStatement {
+  readonly compact: string;
+  readonly member: boolean;
+  readonly declaration: GlobalDeclaration | null;
+  readonly assignment: readonly string[] | null;
+  readonly increment: readonly string[] | null;
+  readonly call: readonly string[] | null;
+  readonly arguments: readonly string[];
+}
+
 interface RuntimeState {
   readonly scopes: ArduinoScope[];
   readonly validateOnly?: boolean;
@@ -201,12 +226,15 @@ interface RuntimeState {
   servo: ArduinoServoRuntimeState;
   simulationTimeMs: number;
   statementCount: number;
+  readonly expressions?: Readonly<Record<string, PreparedExpression>>;
+  readonly prepareExpression?: (expression: string, tokens: readonly Token[]) => void;
 }
 
 interface SimpleInstruction {
   readonly kind: 'simple';
   readonly statement: string;
   readonly line: number;
+  prepared?: PreparedStatement;
 }
 
 interface BranchInstruction {
@@ -664,6 +692,110 @@ function tokenize(expression: string): readonly Token[] {
   return tokens;
 }
 
+function lexicalValue(token: Token): ArduinoValue | undefined {
+  if (token.kind === 'number') return parseNumericLiteral(token.value);
+  if (token.value === 'true' || token.value === 'false')
+    return numericValue('bool', Number(token.value === 'true'));
+  const constants: Readonly<Record<string, number>> = {
+    HIGH: 1,
+    LOW: 0,
+    INPUT: 0,
+    OUTPUT: 1,
+    INPUT_PULLUP: 2,
+    LED_BUILTIN: 13,
+  };
+  if (Object.hasOwn(constants, token.value)) return numericValue('int', constants[token.value]!);
+  const analog = /^A([0-5])$/.exec(token.value);
+  if (analog) return numericValue('byte', 14 + Number(analog[1]));
+  const digital = /^D(\d{1,2})$/.exec(token.value);
+  return digital ? numericValue('int', Number(digital[1])) : undefined;
+}
+
+// Syntax only: never retain bindings, input samples, current time or evaluated calls.
+// Conditional Arduino macros and member calls keep the original token evaluator,
+// including its repeated reads, suppression and continuation semantics.
+function prepareExpression(tokens: readonly Token[]): PreparedExpression {
+  if (
+    tokens.some(
+      (token, index) =>
+        token.value === '.' ||
+        (['min', 'max', 'abs', 'constrain'].includes(token.value) &&
+          tokens[index + 1]?.value === '('),
+    )
+  )
+    return { tokens };
+  const precedence: Readonly<Record<string, number>> = {
+    '||': 1,
+    '&&': 2,
+    '==': 3,
+    '!=': 3,
+    '<': 4,
+    '<=': 4,
+    '>': 4,
+    '>=': 4,
+    '+': 5,
+    '-': 5,
+    '*': 6,
+    '/': 6,
+    '%': 6,
+  };
+  let index = 0;
+  let nodes = 0;
+  const countNode = (): void => {
+    // Long flat expressions use the original iterative parser, not a deep AST.
+    if (++nodes > 256) throw new SyntaxError();
+  };
+  const take = (value: string): boolean => {
+    if (tokens[index]?.value !== value) return false;
+    index++;
+    return true;
+  };
+  const primary = (): ExpressionSyntax => {
+    countNode();
+    const token = tokens[index++];
+    if (!token) throw new SyntaxError();
+    if (['!', '-', '+'].includes(token.value))
+      return { kind: 'unary', operator: token.value, operand: primary() };
+    if (token.value === '(') {
+      const node = binary(1);
+      if (!take(')')) throw new SyntaxError();
+      return node;
+    }
+    if (token.kind !== 'number' && token.kind !== 'identifier') throw new SyntaxError();
+    if (token.kind === 'identifier' && take('(')) {
+      const args: ExpressionSyntax[] = [];
+      if (!take(')')) {
+        do {
+          args.push(binary(1));
+        } while (take(','));
+        if (!take(')')) throw new SyntaxError();
+      }
+      return { kind: 'call', name: token.value, args };
+    }
+    const value = lexicalValue(token);
+    return value ? { kind: 'literal', value } : { kind: 'binding', name: token.value };
+  };
+  const binary = (minimum: number): ExpressionSyntax => {
+    let left = primary();
+    while (index < tokens.length) {
+      const operator = tokens[index]!.value;
+      const priority = precedence[operator] ?? 0;
+      if (priority < minimum) break;
+      index++;
+      countNode();
+      left = { kind: 'binary', operator, left, right: binary(priority + 1) };
+    }
+    return left;
+  };
+  try {
+    const syntax = binary(1);
+    return index === tokens.length ? { tokens: [], syntax } : { tokens };
+  } catch {
+    // The original validator alone owns supported syntax and diagnostic priority.
+    return { tokens };
+  }
+}
+
 function digitalTerminalFromPin(pin: number): Terminal | null {
   const rounded = Math.round(pin);
   if (rounded >= 0 && rounded <= 13) return `d${rounded}`;
@@ -705,11 +837,11 @@ export function arduinoDigitalReading(inputs: ArduinoTerminalVoltages, terminal:
 
 class ExpressionParser {
   private index = 0;
-  private suppressed = 0;
 
   constructor(
     private readonly tokens: readonly Token[],
     private readonly state: RuntimeState,
+    private suppressed = 0,
   ) {}
 
   private get validateOnly(): boolean {
@@ -861,22 +993,7 @@ class ExpressionParser {
       if (macro) return this.macro(token.value, argumentsList, argumentTokens);
       return this.call(token.value, argumentsList);
     }
-    if (token.value === 'true' || token.value === 'false')
-      return numericValue('bool', Number(token.value === 'true'));
-    const constants: Readonly<Record<string, number>> = {
-      HIGH: 1,
-      LOW: 0,
-      INPUT: 0,
-      OUTPUT: 1,
-      INPUT_PULLUP: 2,
-      LED_BUILTIN: 13,
-    };
-    if (Object.hasOwn(constants, token.value)) return numericValue('int', constants[token.value]!);
-    const analog = /^A([0-5])$/.exec(token.value);
-    if (analog) return numericValue('byte', 14 + Number(analog[1]));
-    const digital = /^D(\d{1,2})$/.exec(token.value);
-    if (digital) return numericValue('int', Number(digital[1]));
-    return readBinding(this.state.scopes, token.value, this.validateOnly);
+    return lexicalValue(token) ?? readBinding(this.state.scopes, token.value, this.validateOnly);
   }
 
   // Arduino.h defines these as conditional macros, not eager JS functions.
@@ -913,7 +1030,7 @@ class ExpressionParser {
     return convertValue(value, type);
   }
 
-  private call(name: string, argumentsList: readonly ArduinoValue[]): ArduinoValue {
+  call(name: string, argumentsList: readonly ArduinoValue[]): ArduinoValue {
     validateCallArguments(name, argumentsList.length, true);
     if (this.state.scopes.some((scope) => scope.has(name)))
       throw new SyntaxError(`«${name}» — переменная, а не функция.`);
@@ -1058,7 +1175,34 @@ function evaluate(expression: string, state: RuntimeState): number {
 }
 
 function evaluateValue(expression: string, state: RuntimeState): ArduinoValue {
-  return new ExpressionParser(tokenize(expression), state).parse();
+  const prepared = state.expressions?.[expression];
+  if (prepared?.syntax) return evaluateSyntax(prepared.syntax, state);
+  const tokens = prepared?.tokens ?? tokenize(expression);
+  state.prepareExpression?.(expression, tokens);
+  return new ExpressionParser(tokens, state).parse();
+}
+
+function evaluateSyntax(
+  node: ExpressionSyntax,
+  state: RuntimeState,
+  suppressed = false,
+): ArduinoValue {
+  const validateOnly = Boolean(state.validateOnly || suppressed);
+  if (node.kind === 'literal') return node.value;
+  if (node.kind === 'binding') return readBinding(state.scopes, node.name, validateOnly);
+  if (node.kind === 'unary')
+    return unaryValue(node.operator, evaluateSyntax(node.operand, state, suppressed), validateOnly);
+  if (node.kind === 'call') {
+    const args = node.args.map((arg) => evaluateSyntax(arg, state, suppressed));
+    return new ExpressionParser([], state, Number(suppressed)).call(node.name, args);
+  }
+  const left = evaluateSyntax(node.left, state, suppressed);
+  const skip =
+    node.operator === '||' ? left.value !== 0 : node.operator === '&&' && left.value === 0;
+  const right = evaluateSyntax(node.right, state, suppressed || skip);
+  if (node.operator === '||') return numericValue('bool', Number(skip || right.value !== 0));
+  if (node.operator === '&&') return numericValue('bool', Number(!skip && right.value !== 0));
+  return binaryValue(node.operator, left, right, validateOnly);
 }
 
 function validateCallArguments(name: string, count: number, expression = false): void {
@@ -1203,18 +1347,43 @@ function executeServoMemberStatement(statement: string, state: RuntimeState): bo
   return true;
 }
 
-function executeSimpleStatement(statement: string, state: RuntimeState): void {
+function prepareStatement(statement: string): PreparedStatement {
   const compact = statement.trim();
+  // Plain capture arrays retain no RegExp input/groups metadata outside the byte budget.
+  const call = /^([A-Za-z_]\w*)\s*\(([\s\S]*)\)$/.exec(compact)?.slice() ?? null;
+  return {
+    compact,
+    member: /^[A-Za-z_]\w*\s*\./.test(compact),
+    declaration: parseDeclaration(compact),
+    assignment:
+      /^([A-Za-z_]\w*)\s*(=|\+=|-=|\*=|\/=|%=)\s*([\s\S]+)$/.exec(compact)?.slice() ?? null,
+    increment: /^(?:\+\+|--)?([A-Za-z_]\w*)(\+\+|--)?$/.exec(compact)?.slice() ?? null,
+    call,
+    arguments: call ? splitArguments(call[2] ?? '') : [],
+  };
+}
+
+function executeSimpleStatement(
+  statement: string,
+  state: RuntimeState,
+  prepared?: PreparedStatement,
+): void {
+  const compact = prepared ? prepared.compact : statement.trim();
   if (!compact || !consumeStatement(state)) return;
-  if (executeSerialMemberStatement(compact, state) || executeServoMemberStatement(compact, state))
+  if (
+    (!prepared || prepared.member) &&
+    (executeSerialMemberStatement(compact, state) || executeServoMemberStatement(compact, state))
+  )
     return;
 
-  const declaration = parseDeclaration(compact);
+  const declaration = prepared ? prepared.declaration : parseDeclaration(compact);
   if (declaration) {
     declareVariable(declaration, state);
     return;
   }
-  const assignment = /^([A-Za-z_]\w*)\s*(=|\+=|-=|\*=|\/=|%=)\s*([\s\S]+)$/.exec(compact);
+  const assignment = prepared
+    ? prepared.assignment
+    : /^([A-Za-z_]\w*)\s*(=|\+=|-=|\*=|\/=|%=)\s*([\s\S]+)$/.exec(compact);
   if (assignment) {
     const name = assignment[1]!;
     bindingFor(state.scopes, name);
@@ -1231,7 +1400,9 @@ function executeSimpleStatement(statement: string, state: RuntimeState): void {
     assignBinding(state.scopes, name, result, Boolean(state.validateOnly));
     return;
   }
-  const increment = /^(?:\+\+|--)?([A-Za-z_]\w*)(\+\+|--)?$/.exec(compact);
+  const increment = prepared
+    ? prepared.increment
+    : /^(?:\+\+|--)?([A-Za-z_]\w*)(\+\+|--)?$/.exec(compact);
   if (increment && (compact.startsWith('++') || compact.startsWith('--') || increment[2])) {
     const name = increment[1]!;
     const delta = compact.includes('++') ? 1 : -1;
@@ -1249,11 +1420,11 @@ function executeSimpleStatement(statement: string, state: RuntimeState): void {
     return;
   }
 
-  const call = /^([A-Za-z_]\w*)\s*\(([\s\S]*)\)$/.exec(compact);
+  const call = prepared ? prepared.call : /^([A-Za-z_]\w*)\s*\(([\s\S]*)\)$/.exec(compact);
   if (!call)
     throw new SyntaxError('Не удалось разобрать команду. Проверьте синтаксис и точку с запятой.');
   const name = call[1]!.toLowerCase();
-  const argumentsList = splitArguments(call[2] ?? '');
+  const argumentsList = prepared ? prepared.arguments : splitArguments(call[2] ?? '');
   if (argumentsList.some((arg) => arg.length === 0) && call[2]?.trim())
     throw new SyntaxError('Пустой аргумент команды.');
   validateCallArguments(call[1]!, argumentsList.filter((arg) => arg.length > 0).length);
@@ -1665,6 +1836,7 @@ interface ArduinoProgramCompilation {
   readonly servoDeclarations: readonly string[];
   readonly setupInstructions: readonly CompiledInstruction[];
   readonly loopInstructions: readonly CompiledInstruction[];
+  readonly expressions: Readonly<Record<string, PreparedExpression>>;
   readonly diagnostics: readonly ArduinoRuntimeDiagnostic[];
 }
 
@@ -1680,7 +1852,7 @@ function applyScopeInstruction(instruction: ScopeInstruction, scopes: ArduinoSco
 }
 
 // Immutable literal command operands belong to the compiled instruction, not runtime state.
-// Names, reads, side effects and nonliteral expressions always use the original evaluator.
+// Names, reads and side effects are always evaluated against current runtime state.
 const literalCommands = new WeakMap<
   CompiledInstruction,
   { name: string; actions: readonly ArduinoProgramAction[] }
@@ -1749,9 +1921,16 @@ function compileArduinoProgram(source: string): ArduinoProgramCompilation {
   // programmes never enter the cache. Full source, not a hash, is its identity.
   if (compilation.diagnostics.length !== 0) return compilation;
   const bytes = 2 * (source.length + JSON.stringify(compilation).length);
-  if (bytes > COMPILATION_CACHE_BYTES) return compilation;
-  for (const instruction of [...compilation.setupInstructions, ...compilation.loopInstructions])
+  const freezeSyntax = (value: object): void => {
+    for (const child of Object.values(value))
+      if (child && typeof child === 'object' && !Object.isFrozen(child)) freezeSyntax(child);
+    Object.freeze(value);
+  };
+  freezeSyntax(compilation.expressions);
+  for (const instruction of [...compilation.setupInstructions, ...compilation.loopInstructions]) {
+    if (instruction.kind === 'simple' && instruction.prepared) freezeSyntax(instruction.prepared);
     Object.freeze(instruction);
+  }
   for (const declaration of compilation.declarations) Object.freeze(declaration);
   Object.freeze(compilation.declarations);
   Object.freeze(compilation.servoDeclarations);
@@ -1759,6 +1938,7 @@ function compileArduinoProgram(source: string): ArduinoProgramCompilation {
   Object.freeze(compilation.loopInstructions);
   Object.freeze(compilation.diagnostics);
   Object.freeze(compilation);
+  if (bytes > COMPILATION_CACHE_BYTES) return compilation;
   while (
     compilationCache.size >= COMPILATION_CACHE_ENTRIES ||
     compilationCacheBytes + bytes > COMPILATION_CACHE_BYTES
@@ -1803,6 +1983,7 @@ function compileUncachedArduinoProgram(source: string): ArduinoProgramCompilatio
   };
   const setupInstructions = compileStatements(setupBody, [], messages, 'setup', bodyLine('setup'));
   const loopInstructions = compileStatements(loopBody, [], messages, 'loop', bodyLine('loop'));
+  const expressions: Record<string, PreparedExpression> = Object.create(null);
   // Parse every instruction, including unreachable branches, before driving GPIO.
   // This is validation of the bounded language, not execution of the sketch.
   if (messages.length === 0) {
@@ -1818,6 +1999,10 @@ function compileUncachedArduinoProgram(source: string): ArduinoProgramCompilatio
       servo: initialArduinoServoRuntimeState(servoDeclarations),
       simulationTimeMs: 0,
       statementCount: 0,
+      prepareExpression(expression, tokens) {
+        if (!Object.hasOwn(expressions, expression))
+          expressions[expression] = prepareExpression(tokens);
+      },
     };
     try {
       initializeGlobals(declarations, validation);
@@ -1831,6 +2016,7 @@ function compileUncachedArduinoProgram(source: string): ArduinoProgramCompilatio
           if (instruction.kind === 'simple') {
             executeSimpleStatement(instruction.statement, validation);
             prepareLiteralCommand(instruction, validation);
+            instruction.prepared = prepareStatement(instruction.statement);
           }
           if (instruction.kind === 'enter-scope' || instruction.kind === 'exit-scope')
             applyScopeInstruction(instruction, validation.scopes);
@@ -1849,6 +2035,7 @@ function compileUncachedArduinoProgram(source: string): ArduinoProgramCompilatio
     servoDeclarations,
     setupInstructions,
     loopInstructions,
+    expressions,
     diagnostics: messages.map((message) => ({
       code: 'compile_error',
       severity: 'error',
@@ -2106,6 +2293,7 @@ function advanceRuntime(
   if (!compatible) {
     const initializationState: RuntimeState = {
       scopes,
+      expressions: compilation.expressions,
       get inputs() {
         return readInputs
           ? readInputs({ simulationTimeMs: resumeAtMs, pinModes, outputVoltages, tones })
@@ -2151,6 +2339,7 @@ function advanceRuntime(
   let sampledElectricalInput = false;
   const instructionState: RuntimeState = {
     scopes,
+    expressions: compilation.expressions,
     get inputs() {
       sampledElectricalInput = true;
       return readInputs
@@ -2309,7 +2498,8 @@ function advanceRuntime(
             }
             for (const action of literal.actions) actions.push(action);
           }
-        } else executeSimpleStatement(instruction.statement, instructionState);
+        } else
+          executeSimpleStatement(instruction.statement, instructionState, instruction.prepared);
         programCounter += 1;
         commitActions(actions, actionStart, executionTimeMs);
       }

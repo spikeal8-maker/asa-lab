@@ -1,3 +1,4 @@
+import assert from 'node:assert/strict';
 import { describe, expect, it, vi } from 'vitest';
 import {
   advanceArduinoRuntime,
@@ -57,6 +58,111 @@ function pulseThrough(
 }
 
 describe('Arduino instruction-us-v1 execution clock (scheduler foundation)', () => {
+  it('resolves prepared syntax against current scopes, types and ordered input reads', () => {
+    const source = `unsigned int value=65535U;int constructor=3;int __proto__=4;
+      int outside=0;int inside=0;int ordered=0;int skipped=0;unsigned long observed=0;
+      void setup(){outside=value<1U;{long value=-1;inside=value<1U;}
+        ordered=digitalRead(2)*10+digitalRead(3);
+        skipped=(true||digitalRead(4))+(false&&(1/0));
+        observed=micros()+micros()*10;constructor+=__proto__;}
+      void loop(){delay(1);}`;
+    const execute = (budget: number) => {
+      const reads: number[] = [];
+      const result = through(
+        source,
+        0.05,
+        undefined,
+        (state) => {
+          reads.push(state.simulationTimeMs);
+          return { d2: reads.length === 1 ? 5 : 0, d3: reads.length === 2 ? 0 : 5 };
+        },
+        budget,
+      );
+      expect(result.diagnostics).toEqual([]);
+      expect(reads).toEqual([0.005, 0.005]);
+      expect(result.state.variables).toMatchObject({
+        outside: 0,
+        inside: 1,
+        ordered: 10,
+        skipped: 1,
+        observed: 77,
+        constructor: 7,
+        __proto__: 4,
+      });
+      return { state: result.state, events: result.events };
+    };
+    const whole = execute(16_384);
+    // These legal Arduino names are own data keys, including "constructor".
+    assert.deepStrictEqual(execute(1), whole);
+    assert.deepStrictEqual(execute(7), whole);
+    expect(JSON.stringify(execute(1))).toBe(JSON.stringify(whole));
+  });
+
+  it('retains macro repeated reads and member-call fallback across cached syntax and JSON yields', () => {
+    const source = `#include <Servo.h>
+      Servo motor;int value=0;int available=0;int position=0;
+      void setup(){Serial.begin(9600);motor.attach(9);motor.write(31);
+        value=min(digitalRead(2),2)+constrain(-1,0,1/0);
+        available=(true||Serial.read())+Serial.available();
+        position=motor.read()+1;Serial.println(value+position);}
+      void loop(){delay(1);}`;
+    const execute = (budget: number) => {
+      let reads = 0;
+      const result = through(
+        source,
+        0.05,
+        undefined,
+        () => {
+          reads++;
+          return { d2: 5 };
+        },
+        budget,
+      );
+      expect(result.diagnostics).toEqual([]);
+      expect(reads).toBe(2);
+      expect(result.state.variables).toMatchObject({ value: 1, available: 1, position: 32 });
+      expect(result.state.serial?.tx.map((entry) => entry.text)).toEqual(['33\n']);
+      return { state: result.state, events: result.events };
+    };
+    expect(execute(1)).toStrictEqual(execute(16_384));
+  });
+
+  it('keeps long flat expressions executable through the original token fallback', () => {
+    const expression = Array.from({ length: 600 }, () => '1').join('+');
+    const source = `long value=0;void setup(){value=${expression};}void loop(){delay(1);}`;
+    const whole = through(source, 0.01);
+    expect(whole.diagnostics).toEqual([]);
+    expect(whole.state.variables.value).toBe(600);
+    expect(through(source, 0.01, undefined, undefined, 1).state).toStrictEqual(whole.state);
+  });
+
+  it('keeps prepared assignment arithmetic faults at their original instruction after typed reads', () => {
+    const source = `int value=0;void setup(){pinMode(13,OUTPUT);
+      digitalWrite(13,HIGH);
+      value=10/analogRead(A0);
+      digitalWrite(13,LOW);}void loop(){delay(1);}`;
+    const before = through(source, 0.001, undefined, () => ({ a0: 0 }));
+    expect(before.state.outputVoltages.d13).toBe(5);
+    expect(before.diagnostics).toEqual([]);
+    const failed = through(
+      source,
+      0.01,
+      JSON.parse(JSON.stringify(before.state)),
+      () => ({ a0: 0 }),
+      1,
+    );
+    expect(failed.executionStatus).toBe('fault');
+    expect(failed.diagnostics).toEqual([
+      expect.objectContaining({ code: 'arithmetic_error', line: 3 }),
+    ]);
+    expect(failed.events).toEqual([]);
+    expect(failed.state.outputVoltages).toEqual({});
+    const reset = through(source, 0.01, undefined, () => ({ a0: 5 }), 1);
+    expect(reset.diagnostics).toEqual([]);
+    expect(reset.state.variables.value).toBe(0);
+    expect(reset.state.outputVoltages.d13).toBe(0);
+  });
+
   it('reuses only compilation across cold/hot execution, source edits and bounded eviction', async () => {
     vi.resetModules();
     const coldRuntime = await import('../domain/arduino-program-runtime.js');
