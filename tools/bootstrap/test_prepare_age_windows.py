@@ -51,7 +51,7 @@ class WindowsLongPathContract(unittest.TestCase):
             directory = tarfile.TarInfo("snapshot/")
             directory.type = tarfile.DIRTYPE
             resolved = age.safe_destination(root, directory)
-            self.assertEqual(str(resolved).replace("\\\\?\\", ""), str(root))
+            self.assertEqual(resolved, age.host_path(root.resolve()))
             nested = tarfile.TarInfo("snapshot/manifest.json")
             self.assertEqual(age.safe_destination(root, nested).name, "manifest.json")
 
