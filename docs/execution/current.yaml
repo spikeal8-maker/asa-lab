@@ -81,6 +81,47 @@ primary_lane:
     - docs/architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md
 
 parallel_lanes:
+  - id: release-stabilization
+    parent_lane: draft-save
+    worktree_id: essential-release-620
+    owned_paths:
+      - docs/execution/RELEASE_20261018_STABILIZATION.md
+    task:
+      id: TASK-ESSENTIAL-RELEASE-001
+      issue: 620
+      branch: main
+      base_branch: main
+      pr: null
+      status: in_progress
+      checkpoint: essential_release_repairs_and_guarded_update_selected
+      owner_acceptance: pending
+      owner_authorization: Owner explicitly requests essential repairs, main publication, live site update and fresh verified Yandex backup. No large load or point12.
+      context_hints:
+        - docs/execution/RELEASE_20261018_STABILIZATION.md
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: 7613927c053db9e11d323f133e17c2cac33fa081
+      head_sha: null
+      observed_at: '2026-10-18T17:20:46Z'
+      main:
+        branch: main
+        sha: 7613927c053db9e11d323f133e17c2cac33fa081
+      observation_note: Dated programme selection; fetch main before writes. Production314078ba schema0213. Exact source/CI/deploy/cloud evidence in issue620.
+    execution_lease:
+      executor_id: essential-release-620
+      holder: unassigned
+      acquired_at: null
+      expires_at: null
+      reviewer_role_requires_lease: false
+    gates:
+      focused:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm e2e:access-a
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
   - id: draft-save
     parent_lane: capacity
     worktree_id: draft-history-point11-617
