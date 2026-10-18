@@ -1,5 +1,61 @@
 # Student game admission — bounded delivery contract
 
+## Current continuation boundary
+
+The selected task in canonical main authorizes completion of the existing
+foundation through the coordinated controller and teacher UI seams below.
+The former proposal-only restrictions and pending ownership/mapping handoff in
+this document are retained as foundation provenance and are superseded by this
+bounded continuation; they do not relax any authorization, data, review or
+deployment invariant. Execution status and observed revisions remain only in
+current.yaml.
+
+The controller assigns one author for the Games slice. Its coordinated scope is
+limited to the existing ProjectsController admission seams, AppModule DI,
+ModulesController session-scoped game catalogue if necessary, authenticated
+game-access transport, GamesPage/open-game, class and student policy controls,
+and their exact regression tests. The required project transaction boundary is
+limited to `contexts/projects/application/ports.ts`, `contexts/projects/application/project.usecases.ts`,
+`contexts/projects/infrastructure/pg-project.repository.ts` and the bounded type export
+from `contexts/projects/index.ts`: carry only server-resolved Seat
+context and enforce current admission in the same transaction as protected
+reads/writes. The existing `apps/api/src/chess-live.controller.ts` and
+`apps/api/src/checkers-classroom.controller.ts` may receive minimal Seat-first/online-deny
+repairs if direct bypass tests demonstrate the need. New small helpers/components are permitted
+only for this result. Existing rating computation, assignment lifecycle, online
+game authorization and tenant/RLS identity are preserved. The navigation and
+My Learning slices have different authors.
+
+For any shared file, inspect current main and actual pending changes before
+writing; an unresolved overlap still blocks that file. Add precise missing
+surface/control mappings alongside the corresponding implementation, using
+existing identity/learning invariants. A scoped green preflight never replaces
+that mapping, focused tests or independent review. Do not edit execution state
+inside the product branch.
+
+Completion requires real PostgreSQL/runtime-role/RLS and revocation/concurrency
+evidence; direct API bypass tests, both cookies, linked learners and independent
+Account regressions; teacher and learner browser journeys at 1440/1024/390/320;
+and independent L3 review of the exact final SHA. Preserve the complete
+storage/authorization/decision and negative-test requirements below. No game
+navigation may grant playable access before those server checks are active.
+
+The product author does not operate either existing Docker installation.
+The controller may update the explicitly selected review582 test installation
+at 127.0.0.1:4620 only after checking concurrent operation/identity, making a
+verified backup, and verifying rollback/compatibility. Installation4610,
+production databases, DNS, VPN, hosts and firewall are outside this work.
+No release, owner acceptance or completed-game claim follows from foundation
+tests alone. Ordinary merge occurs only after the required exact-SHA evidence
+and independent review.
+
+## Foundation proposal and original handoff record
+
+The remaining proposal-stage wording records why the original foundation was
+kept unregistered. The current continuation boundary above controls the work;
+all substantive safety and verification requirements below remain binding.
+
+
 Execution task, branch, status and evidence live only in
 [`current.yaml`](../../execution/current.yaml). This contract selects no work by
 itself. A selector proposal must be accepted on `main` before the product branch
