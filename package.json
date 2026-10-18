@@ -89,6 +89,8 @@
     "gate:chess-r1:browser": "corepack pnpm e2e:games && corepack pnpm e2e:chess && corepack pnpm e2e:chess-live",
     "test:account-c1": "vitest run contexts/identity/testing/account-c1.spec.ts",
     "test:access-a": "vitest run contexts/identity/testing apps/api/src/presentation-preferences.controller.spec.ts apps/api/src/account-c1.controller.spec.ts apps/api/src/auth.controller.spec.ts apps/api/src/max-auth.service.spec.ts apps/api/src/refresh-session.service.spec.ts apps/api/src/learning-activities.controller.spec.ts apps/api/src/classroom-join.controller.spec.ts apps/web/src/session-fetch.spec.ts tests/account tests/portal tests/courses",
+    "test:capacity": "node --test tools/capacity/contracts.test.mjs && vitest run tests/capacity/documents.spec.ts",
+    "test:capacity:baseline": "node tools/capacity/run-baseline.mjs",
     "test:coverage": "python tools/test_collect_logs.py && python -m unittest discover -s tools -p test_coverage_diagnostics.py && python -m unittest tools.deployment.test_collector && vitest run apps/api/src/http-observation.spec.ts apps/api/src/client-address.spec.ts apps/api/src/app.factory.spec.ts apps/api/src/health.spec.ts apps/api/src/admin-logs.worker.spec.ts",
     "test:coverage:integration": "vitest run tests/account/coverage-diagnostics.pg.spec.ts tests/account/coverage-http.spec.ts",
     "test:browser-errors": "vitest run apps/web/src/client-error-details.spec.ts apps/web/src/client-diagnostics.spec.ts apps/web/src/client-diagnostic-outbox.spec.ts apps/web/src/AppErrorBoundary.spec.ts apps/api/src/client-diagnostics.controller.spec.ts && node --test tools/browser-error-symbols.test.mjs",

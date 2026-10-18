@@ -1,5 +1,11 @@
 # PROJ-R7-01 — Publication Foundation
 
+> Решение владельца от 18 октября 2026 года: обязательная legacy convergence и
+> сохранение старой Gallery отменены DEC-PROJ-114. Первый сквозной cutover
+> определён в `PROJ-R7-VISIBLE-PUBLICATION.md`; этот документ остаётся источником
+> непротиворечащих architectural invariants. Исторические activation/status и
+> legacy AC03/AC14 ниже не являются текущим execution state или blocker.
+
 **Статус:** PREPARED / BLOCKED — coding не активирован  
 **Релиз:** R7 — Visibility, publication, public page, Remix  
 **Parent Issue:** #38  

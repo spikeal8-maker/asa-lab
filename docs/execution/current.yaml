@@ -81,6 +81,88 @@ primary_lane:
     - docs/architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md
 
 parallel_lanes:
+  - id: draft-save
+    parent_lane: capacity
+    worktree_id: save-path-point10-615
+    owned_paths:
+      - docs/execution/CLASSROOM_SAVE_PATH_POINT10.md
+    task:
+      id: TASK-CLASSROOM-SAVE-PATH-010
+      issue: 615
+      branch: main
+      base_branch: main
+      pr: null
+      status: in_progress
+      checkpoint: point10_redundant_post_save_reopen_selected
+      owner_acceptance: pending
+      owner_authorization: Owner selected point10 after point9; publish main, report and STOP. No deployment or live load.
+      context_hints:
+        - docs/execution/CLASSROOM_SAVE_PATH_POINT10.md
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: e1d88f7fffffa27d5d4ecc41cb446eec34057b95
+      head_sha: null
+      observed_at: '2026-10-18T16:20:00Z'
+      main:
+        branch: main
+        sha: e1d88f7fffffa27d5d4ecc41cb446eec34057b95
+      observation_note: Dated point10 selection; fetch main before writes. Exact evidence in issue615. No deployment authority.
+    execution_lease:
+      executor_id: save-path-point10-615
+      holder: unassigned
+      acquired_at: null
+      expires_at: null
+      reviewer_role_requires_lease: false
+    gates:
+      focused:
+        workflow: Classroom Capacity Baseline
+        commands:
+          - pnpm test:capacity
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
+  - id: capacity
+    parent_lane: observability
+    worktree_id: capacity-point9-611
+    owned_paths:
+      - docs/execution/CLASSROOM_CAPACITY_POINT9.md
+    task:
+      id: TASK-CLASSROOM-CAPACITY-009
+      issue: 611
+      branch: main
+      base_branch: main
+      pr: null
+      status: in_progress
+      checkpoint: point9_v2_valid_png_minio_9_unit_pass_new_review_and_actual_ci_pending
+      owner_acceptance: pending
+      owner_authorization: Owner selected audit point9; publish main, report and STOP. No deployment or live load.
+      context_hints:
+        - docs/execution/CLASSROOM_CAPACITY_POINT9.md
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: 90e09831dd3b0dea42fb71cf47bd9f4a57c3aa30
+      head_sha: null
+      observed_at: '2026-10-18T15:40:00Z'
+      main:
+        branch: main
+        sha: 90e09831dd3b0dea42fb71cf47bd9f4a57c3aa30
+      observation_note: Dated point9 selection; fetch main before writes. Actual source/review/CI evidence in issue611. No deployment authority.
+    execution_lease:
+      executor_id: capacity-point9-611
+      holder: unassigned
+      acquired_at: null
+      expires_at: null
+      reviewer_role_requires_lease: false
+    gates:
+      focused:
+        workflow: Classroom Capacity Baseline
+        commands:
+          - pnpm test:capacity
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
   - id: coverage
     parent_lane: observability
     worktree_id: coverage-point8-610
@@ -3675,7 +3757,7 @@ parallel_lanes:
           - pnpm gate:repository
 
   - id: projects
-    worktree_id: projects-r7-01
+    worktree_id: projects-publication
     owned_paths:
       - contexts/projects/**
       - apps/api/src/projects.controller.ts
@@ -3691,28 +3773,64 @@ parallel_lanes:
       - apps/web/src/pages/MyProjectsPage.tsx
       - apps/web/src/pages/ProjectsPage.tsx
       - apps/web/src/styles.css
-      - migrations/0144_project_legacy_publication_convergence.sql
+      - apps/api/src/public-projects.controller.ts
+      - apps/web/src/projects-public/**
+      - migrations/0218_public_projects.sql
       - tests/portal/**
       - e2e/project-hub.spec.ts
       - e2e/artifacts/project-hub/**
       - docs/product/projects/**
       - docs/review/PROJ_R7_01/**
     task:
-      id: TASK-PROJ-R7-01C-001
+      id: TASK-PROJ-R7-VISIBLE-PUBLICATION-001
       issue: 211
-      branch: codex/projects-r7-01c-legacy-convergence
+      branch: main
       base_branch: main
       pr: null
-      pr_draft: true
+      pr_draft: false
       status: in_progress
-      checkpoint: r7_01c_legacy_publication_convergence_selected
+      checkpoint: first_visible_implementation_awaits_pg_browser_review
       owner_acceptance: pending
-    revisions:
-      convergence_baseline_sha: b07203df33d2a3f0d95c719efe9ab8e5ef3541bd
-      head_sha: b07203df33d2a3f0d95c719efe9ab8e5ef3541bd
+      owner_authorization: >-
+        Owner's 2026-10-18 implementation assignment delegates the complete Public Projects
+        replacement programme to a controller and real author/review/QA subagents, including
+        tested integration into main. Legacy Gallery publication retention is superseded;
+        original Projects, drafts, versions, learning data and personal Collections are protected.
+        No production cleanup or deployment is authorized by this selection.
+      context_hints:
+        - docs/product/projects/tasks/PROJ-R7-VISIBLE-PUBLICATION.md
+        - docs/product/projects/DECISION_LEDGER.md
+        - docs/product/projects/tasks/PROJ-PUBLICATION-BUILD-BASELINE.md
+    integration_dependencies:
+      - id: TASK-PROJ-PUBLICATION-BUILD-BASELINE-001
+        status: in_progress
+        branch: codex/projects-build-baseline
+        scope:
+          - eslint.config.mjs
+          - eslint.boundaries.config.mjs
+        selection: >-
+          Controller selects a separate bounded baseline repair under AGENTS.md section 7.
+          Main 15b9b0aa6ad915ebf8d99f27a6ececdfb843e884 fails the existing Vite build-tool
+          import boundary before the publication diff (run 39142129295, job 117718946995).
+          Preserve the private-symbol pipeline and all runtime dependency constraints.
+          Independent exact-SHA review and CI are required before integration.
+    accepted_foundation:
       accepted_r7_01b_merge_sha: 65316c50873e28a5effd7b6e603b5289e37e2fac
       accepted_r3_merge_sha: 5fa616045b16d2720418eb7945f7bef968dd9389
       accepted_r7_01a_merge_sha: 92e7926fb4cf51b8fcb5d57741e01c812a26f2dc
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: c91d857a598ad423b938a92a85d6f002b56606a2
+      head_sha: null
+      observed_at: '2026-10-18T16:06:25Z'
+      main:
+        branch: main
+        sha: 651321681ad588ae728156f83ffc334d9a658db0
+      observation_note: >-
+        First visible implementation is authored in the isolated candidate from c91d857;
+        PostgreSQL, built-browser evidence and independent exact-SHA review remain pending.
+        Main baseline CI category C is selected as a separate integration dependency above.
+        Fresh fetch main observed 6513216; preserve its capacity scripts during final convergence.
     execution_lease:
       executor_id: codex-projects-r7-01
       holder: unassigned
@@ -3928,8 +4046,20 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: "r24_complete_ready_phase_and_finite_scan_repair"
+      checkpoint: "r25_complete_strict_origin_closure_then_runtime_reconnect"
       owner_acceptance: pending
+      r25_origin_foundation_sha: "8cc7f8299991f568c299e393c6fae2e9a5fbc055"
+      r25_origin_foundation_review: "NEW APPROVE_SOURCE_ONLY report94c9ca0a14923d6f88c55ea24a8bd3bbd603356de27cfeed20521fdca0253b50;23freshVitest4.1.11,254independentoriginnegatives,70parentmodelcomparisonsPASS/0extraGetterProxy. Notwholekernel/runtime/performance/productapproval."
+      r25_finite_closure_receipt_sha256: "b92738ff583c9d362546545345fada62eb3da57259a3fdc7445aaa55fa225c50"
+      r25_uncommitted_preserved_patch_sha256: "0808295ee50d30cb7dda86e01ba0326b77691ace2430b148769eb54a938deee4"
+      r25_uncommitted_preserved_receipt_sha256: "827a0dc02ef61200ac13881da4be0eb8217c454d09ce53458d7613de95f09ea8"
+      r25_origin_review_requires_changes: "Resistor mutable moduleexport and nested ordinaryLED profiles are realexternalcallback/aliasroutes. Prior6319db cloneonlySAFE premise withdrawn by87323d supplement. New7productionpaths total includes3originfoundationpaths; existing5testfiles total justified byactualownership boundaries. Nofull158/perf/CI/freeze attempted beforeorigin proof."
+      r24_quality_final: "REJECT c532 afterminimalboundedrepair, rawproof33b3734a208fc1d4939ff7a635388f33f77175a360a969f34595e96731ace3cc / STOPreceipt90bf0812d34d3fd98ebdd213460805ef1e8fbd232bcf36066fcbdd3c56a05eb6. Rootverifiedsimulation.ts byteequaled14 inheld80ac27e0 andc532notancestor. Keep originalpublicverifier. Broaderquality NOTselected."
+      r24_ui_reviewed_sha: "19d22c523bce93f1dbab1e962fe6e6f3de4dce05"
+      r24_ui_review: "APPROVE source/UI ONLY NEW independent report4ee601cbabbf714726ebf91b743428d0a656062803778ae8d20e5d67f7f7539c;70freshVitest4.1.11,18independentprobes,24000intervalchallenges,339rawchannelintervals zero skipped brightness/current states;actual2000/100/Blockly replay0anchors. PortsH0evicted conditionalonly. Builtbrowser/fullgates/productacceptanceNOTRUN."
+      r24_quality_held_sha: "c53265ec055235fdef79e3967731a6df4caff8ec"
+      r24_quality_status: "NOT_READY author found real ArraySpecies/constructor getter discrepancy despite31tests/158ordinaryparity. Do not publish/integrate as accepted. Separate bounded same-two-file repair preserves original observable semantics; no public contract narrowing."
+      r25_architecture_review: "SAFE_TO_PROTOTYPE architectureonly independent6319db979d86afe1ad9bcdc3d987c0cff5a549f62c49d2aeec8861769415ad15 onproposal62ad7bca62c961a032737cd28167f74a0eab81bc0160b28df7b1f7b6ec240a64. Namedboundarycost14.68percentmillis before mandatorychecks does NOT prove42percent necessarygain; one bounded viability prototype nowselected."
       r23_preserved_combined_sha: "ed14f96028d6f8a64b35f2013439be85d155adf1"
       r23_directed_run: 39137622192
       r23_actual_product_result: "FAIL5PASS7FAIL, NEW independent REQUEST_CHANGES reportSHA4ffa7892b110c965028385ea25dd4e7683487d21d25835b8d868b585c050dfc4. SOURCE/math/compositionAPPROVEonly. Scored1ms1552.7model/2642.4wall/2455.3compute; millis2307.8/4514.9/3989.1;Reset1488.9/1980.6/1654.9. Publicationphase100/ports/Blockly100/2000honestreanchors; nofalsejoint/incorrectphysicsclaim. Serial/GPIO Save+cookiesreopen,50ms,threeHIGHnoDelay,noDelayrealtimePASS. Blockly50/1/reopenUNREACHED. Ordinary/repositoryNOTRUNafterownfailure."
@@ -3975,7 +4105,7 @@ parallel_lanes:
         DOM dark phase15.9ms.
       r18_directed_run: 39108267782
       r18_preserved_candidate_sha: 9bc659a780a02dfc99af789cef53ed8feb956146
-      selected_at: "2026-10-18T15:19:37.052737+00:00"
+      selected_at: "2026-10-18T16:33:45.876921+00:00"
       r17_preserved_candidate_sha: "343a6024ded71a883373ed7cc0fcc342a87db785"
       r17_directed_run: 38833934410
       r17_directed_result: "SUCCESS exact343a build; focused and unchanged seven production browser journeys PASS. Independent original ZIP CRC/hash,1135 ready records and13 native PNGs confirmed.100ms electrical4.999775Hz/paint5.099Hz;50ms electrical9.999100Hz/paint10.100Hz; no-delay realtime endpoint lag27.8ms. Earlier272.7ms FAIL belongs to1eff, not343a. Older sustained-HIGH capture has early305ms lag; no universal250ms claim."
@@ -3995,10 +4125,10 @@ parallel_lanes:
       r7_status: not_accepted_directed_failed
       r7_actual_host_tick_ms: 10
       r7_documentation_correction: 'Historical selected20ms retained above/in R7 history; actual controller-authorized source21e uses10ms and ready25000us. R8 does not change these values.'
-      implementation_acceptance: "Each author inherits exacted14 plus THIS canonicalmain conflict-free, checksdirtypaths, writes ONE own slice only, meaningful original/adversarial tests and selfreview, ONE frozencommit thenSTOP. UI replay actual2000/100/Blockly raw against originaljoint samples, no skippededges/currentchanges/truncated/unknown coverage; preserve15msrealanchor/17msnoanchor,190msjoint,partialstartup/Reset/future/failure and honest portsH0evictionlimit. QUALITY exactfullreturns/orderedJSON/currentstate/physicaloptical/quality/privatepartitions/inputimmutability for158new scoredrequests(64blink1+94millis); challenge every numeric field NaN/Infinity/getters/sparsearrays/error/readorder. No perfexperiment perauthor and no wholeCI on knowinglyinsufficient partial repair; root first combines reviewed scopes then coordinates ONE paired actual158replay if useful. NEW independent source/math/UI review on EACH exactSHA. These partial repairs alone do not establish full real time. Significant runtime context boundary requires separate reviewed source proposal and canonical selection. Final actual12, ordinary, requiredrepositorygates and NEW finalproductreview remain mandatory before acceptance/integration/closure."
-      next_action: "Publish R24 selection main FIRST; root assigns separate UI and QUALITY authors on clean isolated trees inheriting preserveded14 andthiscanonicalmain. Preserve allR23source/math approvals andactualFAILoriginals. Runtime author read-only proposes significant request-owned context integration from existingprofile, no newprofile/bench or primarycode until separateGO. Root validates actualdiff/evidence, NEW independent reviewers, then selected remaining significant runtime repair before expensive finalbrowser. Do not hopefulrerun12orfullsuite on a known insufficient partial change. ExactIssue546/acceptanceblockerOPEN. Preserve foreign913mobile CI transport selection/currentstate and all priorforeignsource. No school/network/DB/deployment or otherownerproblem."
+      implementation_acceptance: "Finite strictclosure source receipt b92738ff583c9d362546545345fada62eb3da57259a3fdc7445aaa55fa225c50 completes9groups. Beforetrust, noarg defining-module predicates must coverresistoractualmethods+7rejectedlinearidselectors, ordinaryLEDprofiles, groundarray,3requiredterminalarrays,3exactidentityrecords,2thermalprofiles,NUMERIC_TYPES. Reuse reviewed8ccoriginaldescriptor machinery; knownliterals only, nogetter/unknownProxy probes, publicgeneric mutation/read/error behavior unchanged. NPN/PNP selector ID-only DATA-descriptor proofs maylive inalreadyselected scheduler againstknown nonmatching primitiveid; noNPN/PNP source edit. ARDUINO_TEXT_COMMAND_SUPPORT routes excluded upfront: anysourceinclude/directive/member support orotherunprovedroute GENERIC; noarduino-capabilities edit. Admission strictly1canonicalUNOvisual/resistor-axial/led-5mm,ordinaryprimitivecloneddata,6knownowncolours/absentdefaultred,noinputs/timedperipheral/Servo/unprovedcalls. Unknowneligible route staysgeneric notproductreject. Origins checked AFTERexistingclones BEFOREinitialmodelcallbacks, then beforefirststep/everyresume; neverpromoteafterunprovedcallbackmayhaveescapedclone. Keep oldcompile/digest/guard exceptionpriority; puredescriptors addnoexternalreads. Onoriginloss transfer exactcompletedbatch toexistinggenericonce withunchangedremainingbudget/nullpartitions. NEW independent exactremainingoriginreview thenruntimeauthorconnects; NEW runtime/source/math/hygiene review,158parity/ONEpairedelapsed,final12+ordinary+repository+NEWproductreview. AlloriginalR25normalization/old-newGPIO/detachedsnapshot/disposal/1us/1000us/256requirementsremain. AcceptanceblockerOPEN."
+      next_action: "Publishthisfiniteclosure mainFIRST; same separateorigin authorimplements5newowners+smalllinearselectionextension andexistingcoupledmodelspec, onefrozenSHA STOP, NEWindependentreview. No furthergeneralinventory/profile/wholeCI. Thenhandapproveddisjointsource toheldruntimeauthor preserving8dirtyfiles, wire completeoriginaggregation/strictsemanticadmission/exactstickyfallback, finish158correctness/freeze/NEWreview,rootonepairedelapsed beforeactualeditor. Preserve foreignClassroom/capacity/Projects/source/currentstate andallheldnegativeevidence; no school/DB/Docker/network orotherownerproblem."
       r17_preserved_repair_scope: "Preserve exact1eff and its approved source/math; product still REQUEST_CHANGES. ONE bounded runtime write-action cost repair in arduino-program-runtime.ts: remove only redundant writes/lookups after existing pin-mode handling, retaining every action, instruction, time, budget, event, shadow/error, pullup/PWM and signed-zero/absent-entry semantics. Existing native profile identifies unchanged applyRuntimeAction cost; it does not measure individual Map.set. First verify equivalence and one short paired real-horizon cost comparison; retain only a measured improvement, no heavy CI for an unsupported micro-optimization. No instruction skipping, special sketch detection, clock rebasing, precision/timeout changes or new profiling. Focused regression and NEW exact independent source/math review before unchanged directed browser gate. FastLED/openBlockly remain required same-goal followups; no foreign/school/deployment changes."
-      repair_scope: "R24 TWO disjoint bounded authors for the SAME Arduino546 goal. UI ONLY apps/web/src/electronics/led-temporal-presentation.ts plus existing led-temporal-presentation.spec.ts: retain separate1x desired clock and25ms lookahead; recover accumulated clamp debt ONLY through completely covered identical JOINT brightness AND current hold, never across an edge/current change/missing or truncated history; truthful separate readonly held-recovery metrics, unchanged genuine reanchor/expiry33.333ms/rebuffer/50mspublication. QUALITY ONLY contexts/electronics/domain/simulation.ts private allNumbers finite traversal and its sole callsite plus existing simulation-contract.spec.ts: remove discarded flatMap/filter/spread/numeric arrays, visit EXACTsamefields/defaults/order including sparse/undefined behavior; no early omitted reads or cachedfinite/KCL/source/power verdict. Every quality calculation/value/order remains current. No runtime/solver/scheduler/hook/Worker/browserassertion/timeout/budget/quantum/precision/dependency/artwork edits. Runtime ownership boundary proposal remains READONLY diagnostic, NOT selected for implementation until separate canonical GO."
+      repair_scope: "R25 same Arduino546 repair, no new programme/task. Preserve held8runtimefiles and reviewedUI19d22; origin8cc SOURCE_ONLY_APPROVE. ONE remaining-origin author may edit previously selected device-model.ts/linear-dc-models.ts/led-model.ts plus FIVE existing owners ONLY: arduino-model.ts (ground array), model-registry.ts (3strictrequiredterminalarrays), model-identity.ts (3exactidentityrecords), models/thermal-transient-model.ts (resistor+junction profiles), arduino-values.ts (NUMERIC_TYPES array); all paths under contexts/electronics/domain. ONEexisting linear-dc-models.spec.ts covers coupled origin wrappers; no newtestfile. Root maps5sources. Runtimeauthor retains original4prod4spec only. Total12production/5existingtests, onecohesive privateorigin/ownedrequest repair. No newmodule, baseline bump, publicfreeze/token/package/index export, physics/maths/quality/numeric-cache/precision/budget/timeout/artwork/deployment changes."
       r9_candidate_sha: "9df144e48165ee330ea43f547e2d52782964bd54"
       r9_candidate_branch: "codex/electronics-546-r9-host-demand"
       r9_candidate_publication: "pushed_not_integrated_not_deployed"

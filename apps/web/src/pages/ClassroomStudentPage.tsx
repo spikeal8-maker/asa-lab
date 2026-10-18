@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import {
   api,
+  type ClassroomStudentSeat,
   type ClassroomStudentWork,
   type ModuleSummary,
   type Project,
@@ -13,6 +14,7 @@ import {
 } from '../classroom-participants-api';
 import { ProjectCard } from '../modules/ProjectCard';
 import { WorkPreview } from '../components/WorkPreview';
+import { Dropdown } from '../components/Dropdown';
 import { ClassroomActivityList } from '../components/ClassroomActivityList';
 import { useSchoolTime } from '../components/school-time';
 import { seatAvatar } from '../creator-portal/default-avatars';
@@ -62,7 +64,7 @@ function asProject(work: ClassroomStudentWork): Project {
 }
 const TABS = [
   { key: 'all', label: 'Все работы', module: null },
-  { key: 'grades', label: 'Оценки и история', module: null },
+  { key: 'grades', label: 'Оценки', module: null },
   { key: 'assignments', label: 'Задания', module: null },
   { key: 'three-d', label: '3D', module: 'three-d' },
   { key: 'electronics', label: 'Электроника', module: 'electronics' },
@@ -80,6 +82,8 @@ export function ClassroomStudentPage({
   onNavigateStudent,
   onBack,
   onOpenProject,
+  profileRevision = 0,
+  seatActions,
 }: {
   readonly classroomId: string;
   readonly classroomTitle: string;
@@ -88,6 +92,19 @@ export function ClassroomStudentPage({
   readonly onNavigateStudent: (seatId: string) => void;
   readonly onBack: () => void;
   readonly onOpenProject: (projectId: string, moduleKey: string) => void;
+  readonly profileRevision?: number;
+  readonly seatActions?: {
+    readonly busy: boolean;
+    readonly readOnly: boolean;
+    readonly studentCode: boolean;
+    readonly canOpenCard: boolean;
+    readonly error: string | null;
+    readonly onSettings: () => void;
+    readonly onCode: () => void;
+    readonly onAccessCard: () => void;
+    readonly onSuspend: () => void;
+    readonly onSafeMode: (value: boolean) => Promise<string | null>;
+  };
 }): JSX.Element {
   const [profile, setProfile] = useState<ParticipantProfile | null>(null);
   const [loadedScope, setLoadedScope] = useState('');
@@ -103,6 +120,27 @@ export function ClassroomStudentPage({
   const [onlyAwaiting, setOnlyAwaiting] = useState(false);
   const [awardKeys, setAwardKeys] = useState<readonly string[]>([]);
   const [roleBusy, setRoleBusy] = useState(false);
+  const [safeBusy, setSafeBusy] = useState(false);
+  const safeRequest = useRef(0);
+  const avatarSection = useRef<HTMLElement>(null);
+  const [focusAvatar, setFocusAvatar] = useState(false);
+  const [learnerPickerOpen, setLearnerPickerOpen] = useState(false);
+  const [learnerSearch, setLearnerSearch] = useState('');
+  const [learnerRoster, setLearnerRoster] = useState<{
+    classroomId: string;
+    items: Pick<ClassroomStudentSeat, 'id' | 'displayLabel' | 'avatarKey'>[];
+  } | null>(null);
+  const [learnerRosterError, setLearnerRosterError] = useState<string | null>(null);
+  const [learnerRosterRetry, setLearnerRosterRetry] = useState(0);
+  const rosterRequest = useRef<{
+    classroomId: string;
+    promise: ReturnType<typeof api.listClassroomRoster>;
+  } | null>(null);
+  const learnerPicker = useRef<HTMLDivElement>(null);
+  const learnerOpener = useRef<HTMLButtonElement | null>(null);
+  const learnerSearchInput = useRef<HTMLInputElement>(null);
+  const focusAfterNavigation = useRef<string | null>(null);
+  const learnerPickerId = useId();
   const generation = useRef(0);
   const profileGeneration = useRef(0);
   const sessionEnded = useRef(false);
@@ -112,6 +150,70 @@ export function ClassroomStudentPage({
   const time = useSchoolTime();
   const module = TABS.find((t) => t.key === tab)?.module ?? null;
   const showsWorks = !['assignments', 'merits', 'grades', 'activity'].includes(tab);
+  const closeLearnerPicker = useCallback((restoreFocus = true) => {
+    setLearnerPickerOpen(false);
+    if (restoreFocus) learnerOpener.current?.focus();
+  }, []);
+  useEffect(() => {
+    setLearnerPickerOpen(false);
+    setLearnerSearch('');
+    setSafeBusy(false);
+    safeRequest.current++;
+    setFocusAvatar(false);
+  }, [classroomId, seatId]);
+  useEffect(() => {
+    if (tab !== 'merits' || !focusAvatar) return;
+    avatarSection.current?.focus();
+    avatarSection.current?.scrollIntoView?.({ block: 'start' });
+    setFocusAvatar(false);
+  }, [tab, focusAvatar]);
+  useEffect(() => {
+    if (!learnerPickerOpen || sessionEnded.current) return;
+    let active = true;
+    learnerSearchInput.current?.focus();
+    setLearnerRosterError(null);
+    // Retain the single class request across pupil changes and menu reopenings.
+    if (rosterRequest.current?.classroomId !== classroomId) {
+      rosterRequest.current = { classroomId, promise: api.listClassroomRoster(classroomId) };
+    }
+    const request = rosterRequest.current;
+    void request.promise
+      .then((result) => {
+        if (!result.ok && rosterRequest.current === request) rosterRequest.current = null;
+        if (!active || sessionEnded.current) return;
+        if (result.ok) {
+          setLearnerRoster({
+            classroomId,
+            items: result.data.items.map(({ id, displayLabel, avatarKey }) => ({
+              id,
+              displayLabel,
+              avatarKey,
+            })),
+          });
+        } else setLearnerRosterError(result.error.message);
+      })
+      .catch(() => {
+        if (rosterRequest.current === request) rosterRequest.current = null;
+        if (active && !sessionEnded.current)
+          setLearnerRosterError('Не удалось загрузить список учеников.');
+      });
+    const outside = (event: PointerEvent) => {
+      if (event.target instanceof Node && !learnerPicker.current?.contains(event.target))
+        closeLearnerPicker();
+    };
+    const escape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      closeLearnerPicker();
+    };
+    document.addEventListener('pointerdown', outside);
+    document.addEventListener('keydown', escape);
+    return () => {
+      active = false;
+      document.removeEventListener('pointerdown', outside);
+      document.removeEventListener('keydown', escape);
+    };
+  }, [classroomId, learnerPickerOpen, learnerRosterRetry, closeLearnerPicker]);
   const load = useCallback(async () => {
     if (sessionEnded.current || scope.current !== `${classroomId}:${seatId}`) return;
     const token = ++profileGeneration.current;
@@ -128,6 +230,14 @@ export function ClassroomStudentPage({
       setProfileError(result.error.message);
     }
   }, [classroomId, seatId]);
+  useEffect(() => {
+    if (!profileRevision) return;
+    // Refresh confirmed settings without resetting the current review/tab state.
+    rosterRequest.current = null;
+    setLearnerRoster(null);
+    setLearnerRosterRetry((value) => value + 1);
+    void load();
+  }, [profileRevision, load]);
   const awardsChanged = useCallback(
     (keys: readonly string[]) => {
       setAwardKeys(keys);
@@ -141,6 +251,7 @@ export function ClassroomStudentPage({
     // A different class always resets the context and review filters.
     if (lastClassroomId.current !== classroomId) {
       lastClassroomId.current = classroomId;
+      focusAfterNavigation.current = null;
       setTab('all');
       setArchive(false);
       setOnlyAwaiting(false);
@@ -155,15 +266,20 @@ export function ClassroomStudentPage({
     window.addEventListener('focus', refresh);
     const unsubscribe = onSessionLoggedOut(() => {
       sessionEnded.current = true;
+      safeRequest.current++;
       profileGeneration.current++;
       generation.current++;
       setProfile(null);
       setWorks(null);
       setResponding(null);
       setAwardKeys([]);
+      setLearnerPickerOpen(false);
+      setLearnerRoster(null);
+      rosterRequest.current = null;
       setProfileError('Войдите, чтобы открыть профиль.');
     });
     return () => {
+      safeRequest.current++;
       profileGeneration.current++;
       window.removeEventListener('focus', refresh);
       unsubscribe();
@@ -237,7 +353,9 @@ export function ClassroomStudentPage({
             onClick={() => onNavigateStudent(navigation.previous.id)}
           >
             <span aria-hidden="true">←</span>
-            <span className="student-pager-desktop">Предыдущий</span>
+            <span className="student-pager-name">
+              {navigation.previous.displayLabel.trim().split(/\s+/).slice(0, 2).join(' ')}
+            </span>
           </button>
           <span
             className="classroom-student-navigation-position"
@@ -252,7 +370,9 @@ export function ClassroomStudentPage({
             disabled={navigation.total < 2}
             onClick={() => onNavigateStudent(navigation.next.id)}
           >
-            <span className="student-pager-desktop">Следующий</span>
+            <span className="student-pager-name">
+              {navigation.next.displayLabel.trim().split(/\s+/).slice(0, 2).join(' ')}
+            </span>
             <span aria-hidden="true">→</span>
           </button>
         </nav>
@@ -285,32 +405,166 @@ export function ClassroomStudentPage({
       </main>
     );
   const { student, metrics, settings } = profile;
-  const readOnly = profile.status !== 'active';
+  const readOnly = profile.status !== 'active' || Boolean(seatActions?.readOnly);
+  const settingsLocked = readOnly || student.status === 'suspended';
+  const controlsBusy = roleBusy || safeBusy || Boolean(seatActions?.busy);
   const visible = (works?.items ?? []).filter(
     (work) =>
       !onlyAwaiting ||
       work.canonicalState?.workflowState === 'waiting_review' ||
       (!work.canonicalState && work.awaitingReview),
   );
+  const matchingLearners = (
+    learnerRoster?.classroomId === classroomId ? learnerRoster.items : []
+  ).filter((entry) =>
+    entry.displayLabel.toLocaleLowerCase().includes(learnerSearch.trim().toLocaleLowerCase()),
+  );
   return (
     <main className="portal-content classroom-student" id="main-content" tabIndex={-1}>
       {navigationRow}
       <section className="classroom-student-hero participant-hero" aria-label="Профиль ученика">
         <div className="classroom-student-heading-row">
-          <div className="classroom-student-person">
-            <img
-              className="classroom-student-avatar"
-              src={metrics.avatarUrl ?? seatAvatar(student.id, student.avatarKey).src}
-              alt=""
-              width={48}
-              height={48}
-            />
-            <div className="classroom-student-identity">
-              <h1>{student.displayLabel}</h1>
-              {student.status === 'suspended' ? (
-                <small className="classroom-student-suspended">Доступ приостановлен</small>
-              ) : null}
-            </div>
+          <div
+            className="classroom-student-picker"
+            ref={learnerPicker}
+            onBlur={(event) => {
+              if (!event.currentTarget.contains(event.relatedTarget)) closeLearnerPicker(false);
+            }}
+          >
+            <h1 className="classroom-student-picker-heading">
+              <button
+                type="button"
+                className="classroom-student-person classroom-student-picker-opener"
+                ref={(element) => {
+                  learnerOpener.current = element;
+                  if (element && focusAfterNavigation.current === seatId) {
+                    focusAfterNavigation.current = null;
+                    element.focus();
+                  }
+                }}
+                aria-label={`Выбрать ученика: ${student.displayLabel}`}
+                aria-haspopup="dialog"
+                aria-expanded={learnerPickerOpen}
+                aria-controls={learnerPickerId}
+                onClick={() => {
+                  setLearnerSearch('');
+                  setLearnerPickerOpen((open) => !open);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === 'ArrowDown') {
+                    event.preventDefault();
+                    setLearnerPickerOpen(true);
+                    learnerSearchInput.current?.focus();
+                  }
+                }}
+              >
+                <img
+                  className="classroom-student-avatar"
+                  src={metrics.avatarUrl ?? seatAvatar(student.id, student.avatarKey).src}
+                  alt=""
+                  width={48}
+                  height={48}
+                />
+                <span className="classroom-student-picker-name" title={student.displayLabel}>
+                  {student.displayLabel}
+                </span>
+                <span className="classroom-student-picker-chevron" aria-hidden="true">
+                  ▾
+                </span>
+              </button>
+            </h1>
+            {student.status === 'suspended' ? (
+              <small className="classroom-student-suspended">Доступ приостановлен</small>
+            ) : null}
+            {learnerPickerOpen ? (
+              <div
+                className="classroom-student-picker-popup"
+                id={learnerPickerId}
+                role="dialog"
+                aria-label="Ученики класса"
+                onKeyDown={(event) => {
+                  if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
+                  const controls = Array.from(
+                    event.currentTarget.querySelectorAll<HTMLInputElement | HTMLButtonElement>(
+                      'input, button',
+                    ),
+                  );
+                  const index = controls.indexOf(
+                    event.target as HTMLInputElement | HTMLButtonElement,
+                  );
+                  if (index < 0) return;
+                  // Home/End remain native text-editing keys in the search field.
+                  if (index === 0 && (event.key === 'Home' || event.key === 'End')) return;
+                  event.preventDefault();
+                  const next =
+                    event.key === 'Home'
+                      ? 1
+                      : event.key === 'End'
+                        ? controls.length - 1
+                        : (index + (event.key === 'ArrowDown' ? 1 : -1) + controls.length) %
+                          controls.length;
+                  controls[next]?.focus();
+                  controls[next]?.scrollIntoView?.({ block: 'nearest' });
+                }}
+              >
+                <input
+                  ref={learnerSearchInput}
+                  type="search"
+                  aria-label="Найти ученика по имени или фамилии"
+                  placeholder="Имя или фамилия"
+                  value={learnerSearch}
+                  onChange={(event) => setLearnerSearch(event.target.value)}
+                />
+                {learnerRosterError ? (
+                  <>
+                    <p role="alert">{learnerRosterError}</p>
+                    <button
+                      type="button"
+                      onClick={() => setLearnerRosterRetry((retry) => retry + 1)}
+                    >
+                      Повторить
+                    </button>
+                  </>
+                ) : learnerRoster?.classroomId !== classroomId ? (
+                  <p role="status">Загружаем учеников…</p>
+                ) : (
+                  <>
+                    <ul aria-label="Список учеников">
+                      {matchingLearners.map((entry) => (
+                        <li key={entry.id}>
+                          <button
+                            type="button"
+                            aria-current={entry.id === seatId ? 'page' : undefined}
+                            onClick={() => {
+                              closeLearnerPicker();
+                              focusAfterNavigation.current = entry.id !== seatId ? entry.id : null;
+                              onNavigateStudent(entry.id);
+                            }}
+                          >
+                            <img
+                              src={seatAvatar(entry.id, entry.avatarKey).src}
+                              alt=""
+                              width={28}
+                              height={28}
+                            />
+                            <span>{entry.displayLabel}</span>
+                            {entry.id === seatId ? (
+                              <span
+                                className="classroom-student-picker-active"
+                                aria-label="Текущий ученик"
+                              >
+                                ✓
+                              </span>
+                            ) : null}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                    {matchingLearners.length === 0 ? <p role="status">Ученики не найдены</p> : null}
+                  </>
+                )}
+              </div>
+            ) : null}
           </div>
         </div>
         <div className="classroom-student-meta-row">
@@ -331,11 +585,10 @@ export function ClassroomStudentPage({
           </div>
           <div className="classroom-student-meta-actions">
             <label className="participant-role">
-              <span>Роль</span>
               <select
                 aria-label="Роль в классе"
                 value={metrics.role}
-                disabled={readOnly || roleBusy}
+                disabled={settingsLocked || controlsBusy}
                 onChange={(e) => {
                   const token = profileGeneration.current;
                   setRoleBusy(true);
@@ -358,9 +611,131 @@ export function ClassroomStudentPage({
             </label>
             <div className="classroom-student-badges">
               <SeatAwardRow keys={awardKeys} size="small" />
-              <span className="classroom-student-safety">
-                Защита {student.safeMode ? 'включена' : 'выключена'}
-              </span>
+              <label className="classroom-student-safety">
+                <input
+                  type="checkbox"
+                  checked={student.safeMode}
+                  aria-label={`Защита: ${student.displayLabel}`}
+                  disabled={settingsLocked || controlsBusy || !seatActions}
+                  onChange={(event) => {
+                    if (!seatActions || settingsLocked || controlsBusy) return;
+                    const value = event.target.checked;
+                    const currentScope = scope.current;
+                    const token = ++safeRequest.current;
+                    setSafeBusy(true);
+                    setProfileError(null);
+                    void (async () => {
+                      try {
+                        const error = await seatActions.onSafeMode(value);
+                        if (
+                          scope.current !== currentScope ||
+                          sessionEnded.current ||
+                          safeRequest.current !== token
+                        )
+                          return;
+                        if (error) setProfileError(error);
+                        else await load();
+                      } catch {
+                        if (
+                          scope.current === currentScope &&
+                          !sessionEnded.current &&
+                          safeRequest.current === token
+                        )
+                          setProfileError('Не удалось сохранить защиту ученика.');
+                      } finally {
+                        if (
+                          scope.current === currentScope &&
+                          !sessionEnded.current &&
+                          safeRequest.current === token
+                        )
+                          setSafeBusy(false);
+                      }
+                    })();
+                  }}
+                />
+                Защита
+              </label>
+              {seatActions ? (
+                <>
+                  <button
+                    type="button"
+                    className="classroom-student-settings"
+                    aria-label={`Настройки ученика: ${student.displayLabel}`}
+                    title="Настройки ученика"
+                    disabled={settingsLocked || controlsBusy}
+                    onClick={seatActions.onSettings}
+                  >
+                    <span aria-hidden="true">⚙</span>
+                  </button>
+                  <Dropdown
+                    key={`${classroomId}:${seatId}`}
+                    className="classroom-row-menu classroom-student-actions"
+                    ariaLabel={`Действия: ${student.displayLabel}`}
+                    label="•••"
+                    disabled={controlsBusy}
+                  >
+                    {(close) => (
+                      <>
+                        <button
+                          type="button"
+                          disabled={settingsLocked || controlsBusy}
+                          onClick={() => {
+                            close();
+                            seatActions.onSettings();
+                          }}
+                        >
+                          Имя и аватар
+                        </button>
+                        {seatActions.studentCode ? (
+                          <button
+                            type="button"
+                            disabled={settingsLocked || controlsBusy}
+                            onClick={() => {
+                              close();
+                              seatActions.onCode();
+                            }}
+                          >
+                            Изменить код
+                          </button>
+                        ) : null}
+                        <button
+                          type="button"
+                          disabled={settingsLocked || controlsBusy || !seatActions.canOpenCard}
+                          onClick={() => {
+                            close();
+                            seatActions.onAccessCard();
+                          }}
+                        >
+                          Карточка доступа
+                        </button>
+                        <button
+                          type="button"
+                          disabled={readOnly || controlsBusy}
+                          onClick={() => {
+                            close();
+                            seatActions.onSuspend();
+                          }}
+                        >
+                          {student.status === 'suspended'
+                            ? 'Вернуть доступ'
+                            : 'Приостановить доступ'}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={settingsLocked || controlsBusy}
+                          onClick={() => {
+                            close();
+                            setTab('merits');
+                            setFocusAvatar(true);
+                          }}
+                        >
+                          Аватары класса
+                        </button>
+                      </>
+                    )}
+                  </Dropdown>
+                </>
+              ) : null}
             </div>
           </div>
         </div>
@@ -389,6 +764,9 @@ export function ClassroomStudentPage({
         </section>
       ) : null}
       {readOnly ? <p role="status">Класс в архиве. Изменения недоступны.</p> : null}
+      {seatActions?.error && seatActions.error !== profileError ? (
+        <p role="alert">{seatActions.error}</p>
+      ) : null}
       {profileError ? (
         <p role="alert">
           {profileError}{' '}
@@ -443,14 +821,19 @@ export function ClassroomStudentPage({
               />
               Включая архив
             </label>
-            <button
-              type="button"
-              className="classroom-student-filter"
-              aria-pressed={onlyAwaiting}
-              onClick={() => setOnlyAwaiting(!onlyAwaiting)}
-            >
-              {onlyAwaiting ? 'Все загруженные' : 'Ждут проверки · среди загруженных'}
-            </button>
+            <label className="classroom-student-filter">
+              <span>Статус</span>
+              <select
+                aria-label="Статус работ"
+                aria-describedby="student-filter-scope"
+                value={onlyAwaiting ? 'awaiting' : 'all'}
+                onChange={(e) => setOnlyAwaiting(e.target.value === 'awaiting')}
+              >
+                <option value="all">Все</option>
+                <option value="awaiting">Ждут проверки</option>
+              </select>
+              <small id="student-filter-scope">по загруженным</small>
+            </label>
           </div>
           {works && works.visibleWorks < works.totalWorks ? (
             <p className="participant-visibility-note">
@@ -544,12 +927,19 @@ export function ClassroomStudentPage({
             onChanged={awardsChanged}
             awardApi={participantsApi}
           />
-          <ParticipantMeritsAndAvatars
-            classroomId={classroomId}
-            seatId={seatId}
-            profile={profile}
-            onChanged={load}
-          />
+          <section ref={avatarSection} tabIndex={-1} aria-label="Аватары класса">
+            <h2>Аватары класса</h2>
+            <p>Изображения для этого класса. Стандартный аватар выбирается в настройках ученика.</p>
+            <ParticipantMeritsAndAvatars
+              key={`${classroomId}:${seatId}`}
+              classroomId={classroomId}
+              seatId={seatId}
+              profile={profile}
+              readOnly={readOnly}
+              mutationsDisabled={settingsLocked}
+              onChanged={load}
+            />
+          </section>
         </>
       ) : null}
       {tab === 'grades' ? (

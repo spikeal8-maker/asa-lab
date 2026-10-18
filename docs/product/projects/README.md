@@ -1,6 +1,13 @@
 # Public Projects — execution router
 
-**Документационный статус:** `IMPLEMENTATION-READY / EXECUTION NOT ACTIVATED`.
+**Назначение:** маршрутизация требований Public Projects; состояние исполнения
+читается только из `docs/execution/current.yaml`.
+
+Решение владельца от 18 октября 2026 года отменяет перенос старых публикаций и
+задаёт сквозную замену Gallery с видимым результатом. Сначала читать
+[`tasks/PROJ-R7-VISIBLE-PUBLICATION.md`](tasks/PROJ-R7-VISIBLE-PUBLICATION.md) и
+DEC-PROJ-114/115 в Decision Ledger. Они заменяют historical legacy-retention
+clauses и последовательность первых пользовательских инкрементов ниже.
 
 Этот каталог не хранит и не подменяет активное execution state. Активная задача определяется только `docs/execution/current.yaml` согласно `AGENTS.md`.
 
@@ -74,7 +81,7 @@ Verified AS-IS:
 
 - canonical Project Core / Working Draft / immutable ProjectVersion already exist;
 - Gallery/publication, copy/remix, reactions and Collections already exist and should evolve, not be duplicated;
-- current publication is not bound to exact `project_versions.id`;
+- R7-01A/B already provide canonical immutable revisions and exact `project_versions.id` for new publish; legacy readers still do not use that boundary;
 - current Gallery detail reads mutable `project_drafts.document_json` and exposes it as legacy work document;
 - current copy source is also mutable draft;
 - current Gallery requires a viewer session; target anonymous read must use a new sanitized immutable projection;
@@ -102,9 +109,10 @@ release/owner acceptance → L3
 
 ---
 
-## 6. Current execution blocker
+## 6. Historical execution snapshot
 
-The last verified canonical execution snapshot still had projects lane on unfinished R3 Project Lifecycle with owner acceptance pending. Therefore R7 is prepared but not self-activated.
+The historical preparation snapshot below predates accepted R3 and R7-01A/B.
+It is not a current blocker or execution authorization.
 
 At actual start, **re-read current `docs/execution/current.yaml`**; historical status in documentation is never an authorization source.
 

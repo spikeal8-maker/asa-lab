@@ -258,6 +258,7 @@ export function ParticipantMeritsAndAvatars({
   profile,
   onChanged,
   readOnly = false,
+  mutationsDisabled = false,
   accountLearner = false,
   learnerView = false,
 }: {
@@ -266,6 +267,7 @@ export function ParticipantMeritsAndAvatars({
   profile: ParticipantProfile;
   onChanged: () => Promise<void>;
   readOnly?: boolean;
+  mutationsDisabled?: boolean;
   accountLearner?: boolean;
   learnerView?: boolean;
 }): JSX.Element {
@@ -302,7 +304,7 @@ export function ParticipantMeritsAndAvatars({
     };
   }, [classroomId, seatId]);
   const archived = profile.status !== 'active';
-  const locked = busy || archived;
+  const locked = busy || archived || mutationsDisabled;
   async function mutate(
     action: string,
     input: Record<string, unknown>,
@@ -458,7 +460,9 @@ export function ParticipantMeritsAndAvatars({
                 disabled={locked || !avatar.available}
                 aria-pressed={choice === avatar.id}
                 aria-label={`Выбрать ${avatar.title}`}
-                onClick={() => setChoice(avatar.id)}
+                onClick={() => {
+                  if (!locked) setChoice(avatar.id);
+                }}
               >
                 <img src={avatar.url} alt="" width={64} height={64} />
                 <span>{avatar.title}</span>
@@ -487,13 +491,20 @@ export function ParticipantMeritsAndAvatars({
           ))}
         </div>
         <div className="participant-actions">
-          <button type="button" disabled={locked} onClick={() => setChoice(null)}>
+          <button
+            type="button"
+            disabled={locked}
+            onClick={() => {
+              if (!locked) setChoice(null);
+            }}
+          >
             Обычный аватар
           </button>
           <button
             type="button"
             disabled={locked}
             onClick={() => {
+              if (locked) return;
               if (readOnly) {
                 const token = scope.current;
                 setBusy(true);
@@ -579,6 +590,7 @@ export function ParticipantMeritsAndAvatars({
                 accept="image/png,image/jpeg,image/webp"
                 multiple
                 onChange={(event) => {
+                  if (locked) return;
                   const files = [...(event.target.files ?? [])];
                   event.target.value = '';
                   setError(null);
@@ -743,6 +755,7 @@ export function ParticipantGradeHistory({
   variant?: 'default' | 'teacherProfile';
 }): JSX.Element {
   const teacherProfile = variant === 'teacherProfile';
+  const gradeRail = useRef<HTMLUListElement>(null);
   const time = useSchoolTime();
   const historyTime = useMemo(
     () =>
@@ -1084,24 +1097,146 @@ export function ParticipantGradeHistory({
           )
           .slice(0, 3)
       : (data?.journal.grades ?? []);
+  if (teacherProfile && compact) {
+    // Presentation only: keep both independently paged streams and their current
+    // server-selected revisions. No additional reads or inferred total count.
+    const tokens = [
+      ...displayedGrades.map((grade) => {
+        const column = data?.journal.columns.find((entry) => entry.id === grade.columnId);
+        return {
+          key: `journal:${grade.id}`,
+          source: 'journal',
+          date: column?.date ?? grade.publishedAt,
+          dateLabel: column?.date ? lessonDateLabel(column.date) : momentLabel(grade.publishedAt),
+          title: column?.category ?? 'Ручная оценка',
+          value: journalRevisionLabel(column?.preset, grade.value),
+          detail: grade.authorName,
+        };
+      }),
+      ...(data?.results ?? []).map((result) => ({
+        key: `result:${result.assignment_id}`,
+        source: 'results',
+        date: result.published_at,
+        dateLabel: momentLabel(result.published_at),
+        title: result.assignment_title,
+        value:
+          result.display_grade ??
+          (result.raw_points === null
+            ? 'Без балла'
+            : `${result.raw_points} / ${result.max_points}`),
+        detail: result.feedback,
+      })),
+    ].sort((a, b) => Date.parse(b.date) - Date.parse(a.date) || a.key.localeCompare(b.key));
+    const move = (direction: number) => {
+      const rail = gradeRail.current;
+      rail?.scrollBy({ left: direction * rail.clientWidth, behavior: 'smooth' });
+    };
+    return (
+      <section
+        className="participant-grades teacher-profile-grades"
+        aria-label="Оценки этого класса"
+      >
+        <h2>Оценки этого класса</h2>
+        {error ? (
+          <p role="alert">
+            {error}{' '}
+            <button
+              type="button"
+              disabled={loading}
+              onClick={() => {
+                const failed = failedPage.current;
+                void load(
+                  failed?.offset ?? 0,
+                  failed?.resultOffset ?? 0,
+                  failed?.stream ?? 'refresh',
+                );
+              }}
+            >
+              Повторить
+            </button>
+          </p>
+        ) : null}
+        {loading ? <p role="status">Загружаем оценки…</p> : null}
+        {tokens.length > 0 ? (
+          <div className="teacher-profile-grade-strip">
+            <button type="button" aria-label="Предыдущие оценки" onClick={() => move(-1)}>
+              ←
+            </button>
+            <ul
+              ref={gradeRail}
+              className="participant-grade-list"
+              aria-label="Оценки текущего класса"
+              tabIndex={0}
+              onKeyDown={(event) => {
+                const rail = event.currentTarget;
+                if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+                event.preventDefault();
+                rail.scrollTo({
+                  left:
+                    event.key === 'Home'
+                      ? 0
+                      : event.key === 'End'
+                        ? rail.scrollWidth
+                        : rail.scrollLeft +
+                          (event.key === 'ArrowRight' ? 1 : -1) * rail.clientWidth,
+                });
+              }}
+            >
+              {tokens.map((token) => (
+                <li
+                  key={token.key}
+                  className="participant-grade-row"
+                  data-grade-source={token.source}
+                  title={`${token.source === 'journal' ? 'Ручная оценка' : 'Задание'} · ${token.title} · ${token.dateLabel} · ${token.value}${token.detail ? ` · ${token.detail}` : ''}`}
+                >
+                  <div className="participant-grade-context">
+                    <span>{token.title}</span>
+                    <time dateTime={token.date}>{token.dateLabel}</time>
+                  </div>
+                  <strong className="participant-grade-value">{token.value}</strong>
+                </li>
+              ))}
+            </ul>
+            <button type="button" aria-label="Следующие оценки" onClick={() => move(1)}>
+              →
+            </button>
+          </div>
+        ) : data ? (
+          <p>Оценок пока нет.</p>
+        ) : null}
+        {data?.journal.nextOffset != null || data?.nextResultOffset != null ? (
+          <div className="teacher-profile-grade-paging">
+            {data.journal.nextOffset != null ? (
+              <button
+                type="button"
+                disabled={loading}
+                aria-label="Ещё ручные оценки"
+                onClick={() => void load(data.journal.nextOffset!, data.resultOffset, 'journal')}
+              >
+                Ещё ручные
+              </button>
+            ) : null}
+            {data.nextResultOffset != null ? (
+              <button
+                type="button"
+                disabled={loading}
+                aria-label="Ещё результаты"
+                onClick={() => void load(data.journal.offset, data.nextResultOffset!, 'results')}
+              >
+                Ещё задания
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+      </section>
+    );
+  }
   return (
     <section
-      className={`participant-grades${teacherProfile && compact ? ' teacher-profile-grades' : compact ? ' participant-grade-summary' : ''}`}
-      aria-label={
-        teacherProfile && compact
-          ? 'Оценки этого класса'
-          : compact
-            ? 'Последние оценки'
-            : 'Оценки и история'
-      }
+      className={`participant-grades${compact ? ' participant-grade-summary' : ''}`}
+      aria-label={teacherProfile ? 'Оценки' : compact ? 'Последние оценки' : 'Оценки и история'}
     >
-      <h2>
-        {teacherProfile && compact
-          ? 'Оценки этого класса'
-          : compact
-            ? 'Последние оценки'
-            : 'Оценки и история'}
-      </h2>
+      <h2>{teacherProfile ? 'Оценки' : compact ? 'Последние оценки' : 'Оценки и история'}</h2>
       {error ? (
         <p role="alert">
           {error}
@@ -1125,13 +1260,9 @@ export function ParticipantGradeHistory({
       {loading ? <p role="status">Загружаем оценки…</p> : null}
       {data ? (
         <>
-          {teacherProfile && compact && displayedGrades.length > 0 ? (
-            <h3>Журнал · за все годы</h3>
-          ) : null}
           <ul
             className="participant-grade-list"
             aria-label={teacherProfile ? 'Ручные оценки' : undefined}
-            tabIndex={teacherProfile && compact ? 0 : undefined}
           >
             {displayedGrades.map((grade) => {
               const column = data.journal.columns.find((c) => c.id === grade.columnId);
@@ -1146,7 +1277,7 @@ export function ParticipantGradeHistory({
                   </div>
                   <strong className="participant-grade-value">{value}</strong>
                   <small className="participant-grade-author">{grade.authorName}</small>
-                  {!compact || teacherProfile ? (
+                  {!teacherProfile && !compact ? (
                     <button
                       type="button"
                       className="btn-secondary"
@@ -1160,13 +1291,9 @@ export function ParticipantGradeHistory({
               );
             })}
           </ul>
-          {teacherProfile && compact && data.results.length > 0 ? (
-            <h3>Результаты заданий · за все годы</h3>
-          ) : null}
           <ul
             className="participant-grade-list"
             aria-label={teacherProfile ? 'Результаты заданий' : undefined}
-            tabIndex={teacherProfile && compact ? 0 : undefined}
           >
             {(teacherProfile
               ? [...data.results].sort(
@@ -1192,7 +1319,7 @@ export function ParticipantGradeHistory({
                 {result.feedback && (!teacherProfile || !compact) ? (
                   <p className="participant-grade-feedback">{result.feedback}</p>
                 ) : null}
-                {!compact || teacherProfile ? (
+                {!teacherProfile && !compact ? (
                   <button
                     type="button"
                     className="btn-secondary"
@@ -1228,7 +1355,7 @@ export function ParticipantGradeHistory({
           Ещё результаты
         </button>
       ) : null}
-      {history ? (
+      {!teacherProfile && history ? (
         <div className="participant-history">
           <h3>История ручной оценки</h3>
           <ol>
@@ -1275,8 +1402,8 @@ export function ParticipantGradeHistory({
           </button>
         </div>
       ) : null}
-      {historyLoading ? <p role="status">Загружаем историю…</p> : null}
-      {resultHistory ? (
+      {!teacherProfile && historyLoading ? <p role="status">Загружаем историю…</p> : null}
+      {!teacherProfile && resultHistory ? (
         <div className="participant-history">
           <h3>История результата</h3>
           <ol>
