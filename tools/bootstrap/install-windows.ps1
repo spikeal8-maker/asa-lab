@@ -77,7 +77,10 @@ try {
         $git = Get-Command 'git.exe' -ErrorAction SilentlyContinue
         Assert ($null -ne $git) 'Install Git for Windows or clone ASA Lab manually'
         Assert (-not (Test-Path $Root) -or (@(Get-ChildItem -LiteralPath $Root -Force).Count -eq 0)) 'Installation directory must be new or empty'
-        Run-Checked $git.Source @('clone', '--depth', '1', '--branch', 'main', 'https://github.com/spikeal8-maker/asa-lab.git', $Root)
+        # The stable release can be older than main. A depth-1 checkout lacks
+        # its ancestry and the manager then fails after creating private .env.
+        # Retain complete commit history while fetching blobs on demand.
+        Run-Checked $git.Source @('clone', '--filter=blob:none', '--branch', 'main', 'https://github.com/spikeal8-maker/asa-lab.git', $Root)
     }
     Assert (Test-Path (Join-Path $Root 'tools/asa_manager.py')) 'ASA canonical manager is missing from the checkout'
     $docker = Get-Command 'docker.exe' -ErrorAction SilentlyContinue

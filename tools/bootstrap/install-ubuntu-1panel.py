@@ -15,7 +15,7 @@ import hashlib
 import ipaddress
 import json
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import pwd
 import re
 import secrets
@@ -101,6 +101,70 @@ def assert_fresh_host_ports_available():
                 "Free the port or use a separate isolated host before installation; "
                 "no database or 1Panel changes started."
             ) from exc
+
+
+def verify_extracted_before_host_setup(root: Path, expected_snapshot: str) -> None:
+    """Verify a complete standalone backup BEFORE any Docker/1Panel provisioning.
+
+    This is intentionally independent of the runtime checkout because a fresh
+    host has no installed ASA source yet. The canonical manager verifies the
+    same backup again during the later rehearsal and cutover.
+    """
+    require(root.is_dir() and not root.is_symlink(),
+            "Expected an existing non-symlink extracted backup directory")
+    manifest_file = root / "manifest.json"
+    require(manifest_file.is_file() and not manifest_file.is_symlink() and
+            manifest_file.stat().st_size <= 16 * 1024 * 1024,
+            "Missing or oversized backup manifest")
+    manifest = json.loads(manifest_file.read_text(encoding="utf-8"))
+    require(isinstance(manifest, dict) and
+            manifest.get("format") == "asa-backup-v1" and
+            manifest.get("complete") is True,
+            "Backup manifest is unsupported or incomplete")
+    require(bool(re.fullmatch(r"\d{8}T\d{6}Z-[0-9a-f]{8}", expected_snapshot or "")) and
+            manifest.get("createdAt") == expected_snapshot,
+            "Backup manifest ID differs from the approved snapshot")
+    files = manifest.get("files")
+    require(isinstance(files, dict) and 0 < len(files) <= 1_000_000 and
+            {"database.dump", "globals.sql", "private.env"} <= set(files),
+            "Backup inventory is missing mandatory PostgreSQL or configuration files")
+    for relative, meta in files.items():
+        require(isinstance(relative, str) and relative and
+                not PurePosixPath(relative).is_absolute() and
+                str(PurePosixPath(relative)) == relative and
+                ".." not in PurePosixPath(relative).parts and
+                "\\" not in relative and ":" not in relative and
+                relative != "manifest.json",
+                "Unsafe backup inventory member")
+        require(isinstance(meta, dict) and
+                set(meta) == {"bytes", "sha256"} and
+                type(meta["bytes"]) is int and 0 <= meta["bytes"] <= 20 * 1024**3 and
+                isinstance(meta["sha256"], str) and
+                bool(re.fullmatch(r"[0-9a-f]{64}", meta["sha256"])),
+                "Invalid backup inventory file metadata")
+    actual = set()
+    for path in root.rglob("*"):
+        require(not path.is_symlink(), "A symlink inside the backup is forbidden")
+        if path.is_dir():
+            continue
+        require(path.is_file(), "Unsupported special file inside backup")
+        relative = path.relative_to(root).as_posix()
+        if relative == "manifest.json":
+            continue
+        require(relative in files, "Unexpected file in extracted backup")
+        meta = files[relative]
+        require(path.stat().st_size == meta["bytes"],
+                "Extracted backup file size differs from manifest")
+        digest = hashlib.sha256()
+        with path.open("rb") as stream:
+            for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                digest.update(chunk)
+        require(digest.hexdigest() == meta["sha256"],
+                "Extracted backup file checksum mismatch")
+        actual.add(relative)
+    require(actual == set(files), "Extracted backup is incomplete")
+    print("PREINSTALL_BACKUP_VERIFIED", expected_snapshot,
+          "FILES", len(files), flush=True)
 
 
 def preflight(args):
@@ -508,8 +572,7 @@ def main():
                     "The verified, extracted snapshot directory does not exist")
             require(bool(args.target_hostname) and bool(args.restore_snapshot),
                     "--target-hostname and --restore-snapshot are required before installation")
-            require((args.restore_backup / "manifest.json").is_file(),
-                    "Source does not contain a backup manifest; refuse partial installation")
+            verify_extracted_before_host_setup(args.restore_backup, args.restore_snapshot)
         if args.fresh_empty:
             require(args.action == "install" and args.profile == "production",
                     "--fresh-empty is only for an intentional new production installation")

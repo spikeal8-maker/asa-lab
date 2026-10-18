@@ -210,6 +210,85 @@ class EncryptedRestoreLayout(unittest.TestCase):
             self.assertEqual(age.safe_destination(root, header), root)
 
 
+class ExtractedBackupPreflight(unittest.TestCase):
+    SNAPSHOT = '20261017T231505Z-65b68074'
+
+    @staticmethod
+    def make_valid(directory):
+        root = Path(directory) / 'backup'
+        root.mkdir()
+        data = {
+            'database.dump': b'validated-postgresql-dump',
+            'globals.sql': b'validated-database-roles',
+            'private.env': b'validated-configuration',
+        }
+        for relative, content in data.items():
+            (root / relative).write_bytes(content)
+        manifest = {
+            'format': 'asa-backup-v1', 'complete': True,
+            'createdAt': ExtractedBackupPreflight.SNAPSHOT,
+            'runtime': {'schema': 212},
+            'files': {key: {'bytes': len(value),
+                            'sha256': hashlib.sha256(value).hexdigest()}
+                      for key, value in data.items()},
+        }
+        (root / 'manifest.json').write_text(json.dumps(manifest))
+        return root
+
+    def test_valid_extracted_snapshot_is_verified_readonly(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = self.make_valid(d)
+            rebuild.verify_extracted_before_host_setup(root, self.SNAPSHOT)
+            self.assertEqual((root / 'database.dump').read_bytes(),
+                             b'validated-postgresql-dump')
+
+    def test_snapshot_id_mismatch_is_rejected(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = self.make_valid(d)
+            with self.assertRaisesRegex(rebuild.Blocked, 'manifest ID'):
+                rebuild.verify_extracted_before_host_setup(
+                    root, '20261016T231505Z-7b457013')
+
+    def test_corrupt_file_is_rejected(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = self.make_valid(d)
+            source = (root / 'database.dump').read_bytes()
+            (root / 'database.dump').write_bytes(b'X' + source[1:])
+            with self.assertRaisesRegex(rebuild.Blocked, 'checksum mismatch'):
+                rebuild.verify_extracted_before_host_setup(root, self.SNAPSHOT)
+
+    def test_extra_file_is_rejected(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = self.make_valid(d)
+            (root / 'untracked.txt').write_bytes(b'not in manifest')
+            with self.assertRaisesRegex(rebuild.Blocked, 'Unexpected file'):
+                rebuild.verify_extracted_before_host_setup(root, self.SNAPSHOT)
+
+    def test_backup_symlink_is_rejected(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = self.make_valid(d)
+            (root / 'link').symlink_to(root / 'database.dump')
+            with self.assertRaisesRegex(rebuild.Blocked, 'symlink'):
+                rebuild.verify_extracted_before_host_setup(root, self.SNAPSHOT)
+
+    def test_bad_backup_blocks_before_host_provisioning(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = self.make_valid(d)
+            argv = ['installer','install','--profile','production',
+                    '--root',str(Path(d) / 'brand-new-school'),
+                    '--admin-cidr','192.168.1.0/24',
+                    '--require-restore','--restore-backup',str(root),
+                    '--restore-snapshot','20261016T231505Z-7b457013']
+            with mock.patch.object(sys,'argv',argv), \
+                 mock.patch.object(rebuild,'exclusive') as lock, \
+                 mock.patch.object(rebuild,'preflight') as preflight, \
+                 mock.patch.object(rebuild,'panel_install') as panel:
+                self.assertEqual(rebuild.main(),2)
+                lock.assert_not_called()
+                preflight.assert_not_called()
+                panel.assert_not_called()
+
+
 class LinuxInstallerSecurity(unittest.TestCase):
     def test_occupied_web_port_blocks_without_creating_installation(self):
         class Occupied:
@@ -242,6 +321,11 @@ class LinuxInstallerSecurity(unittest.TestCase):
         source = (BASE / "install-ubuntu-1panel.py").read_text()
         self.assertIn('"clone", "--filter=blob:none", "--single-branch"', source)
         self.assertNotIn('"clone", "--depth", "1"', source)
+
+    def test_windows_checkout_includes_stable_release_history(self):
+        script = (BASE / 'install-windows.ps1').read_text(encoding='utf-8')
+        self.assertIn("'--filter=blob:none'", script)
+        self.assertNotIn("'--depth'", script)
 
     def test_require_blocks(self):
         with self.assertRaises(rebuild.Blocked):rebuild.require(False,'fail closed')
