@@ -1,3 +1,5 @@
+import { captureDeviceModelDefinition } from './models/device-model.js';
+
 /** Uno / ATmega328P, Arduino AVR Boards 1.8.6 (GNU++11, AVR GCC 7.3).
  * Signed overflow and non-finite results are explicit simulation faults, not UB emulation.
  */
@@ -40,6 +42,14 @@ export const ARDUINO_NUMERIC_TYPES: readonly ArduinoNumericType[] = [
   'float',
   'double',
 ];
+
+const numericTypesDefinitionIsOriginal = captureDeviceModelDefinition(ARDUINO_NUMERIC_TYPES);
+
+/** Package-internal admission; the public array and ordinary runtime validation stay live. */
+export function arduinoNumericTypesHaveOriginalDefinition(): boolean {
+  return numericTypesDefinitionIsOriginal();
+}
+
 const floating = (type: ArduinoNumericType): boolean => type === 'float' || type === 'double';
 export const zeroValue = (type: ArduinoNumericType = 'int'): ArduinoValue => ({ type, value: 0 });
 

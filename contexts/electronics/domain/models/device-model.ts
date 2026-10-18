@@ -140,3 +140,21 @@ export function captureDeviceModelDefinition(root: object): () => boolean {
     return true;
   };
 }
+
+/** Capture one original own data selector without traversing unused model hooks. */
+export function captureDeviceModelOwnDataProperty(root: object, key: PropertyKey): () => boolean {
+  const expected = Object.getOwnPropertyDescriptor(root, key);
+  return () => {
+    const actual = Object.getOwnPropertyDescriptor(root, key);
+    return !!(
+      expected &&
+      'value' in expected &&
+      actual &&
+      'value' in actual &&
+      actual.enumerable === expected.enumerable &&
+      actual.configurable === expected.configurable &&
+      actual.writable === expected.writable &&
+      Object.is(actual.value, expected.value)
+    );
+  };
+}

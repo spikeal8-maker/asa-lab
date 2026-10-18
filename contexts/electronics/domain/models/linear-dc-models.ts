@@ -4,7 +4,7 @@ import {
   electricalModelIdentityForComponent,
 } from '../model-identity.js';
 import type { DeviceDiagnostic, DeviceModel, NormalizedDevice } from './device-model.js';
-import { captureDeviceModelDefinition } from './device-model.js';
+import { captureDeviceModelDefinition, captureDeviceModelOwnDataProperty } from './device-model.js';
 import {
   regulatedPowerSupplyModeForOperatingPoint,
   regulatedPowerSupplySettings,
@@ -241,7 +241,9 @@ const resistorDefinitionIsOriginal = captureDeviceModelDefinition(RESISTOR_DEVIC
 
 /** Package-internal admission only; generic live model dispatch remains unchanged. */
 export function resistorDeviceModelHasOriginalDefinition(): boolean {
-  return resistorDefinitionIsOriginal();
+  return (
+    resistorDefinitionIsOriginal() && rejectedLinearSelectorsAreOriginal.every((check) => check())
+  );
 }
 
 export const SOURCE_DEVICE_MODEL: DeviceModel<SourceParameters, LinearDcObservation> = {
@@ -753,6 +755,18 @@ export const MULTIMETER_RESISTANCE_DEVICE_MODEL: DeviceModel<
     };
   },
 };
+
+// These factories read id before rejecting a strict UNO/LED identity. Their
+// unused callbacks remain mutable and are deliberately outside this authority.
+const rejectedLinearSelectorsAreOriginal = [
+  SOURCE_DEVICE_MODEL,
+  REGULATED_POWER_SUPPLY_DEVICE_MODEL,
+  FUNCTION_GENERATOR_DEVICE_MODEL,
+  OSCILLOSCOPE_DEVICE_MODEL,
+  MULTIMETER_DC_VOLTAGE_DEVICE_MODEL,
+  MULTIMETER_DC_CURRENT_DEVICE_MODEL,
+  MULTIMETER_RESISTANCE_DEVICE_MODEL,
+].map((model) => captureDeviceModelOwnDataProperty(model, 'id'));
 
 export interface ResistorDevice {
   readonly model: typeof RESISTOR_DEVICE_MODEL;
