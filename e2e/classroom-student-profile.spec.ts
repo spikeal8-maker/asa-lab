@@ -1,5 +1,5 @@
-import { expect, test, type Page } from '@playwright/test';
-import { mkdirSync } from 'node:fs';
+import { expect, test, type Locator, type Page } from '@playwright/test';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { fixture, classId } from './fixtures/classroom-owner';
 import type {
   ParticipantGrades,
@@ -8,6 +8,35 @@ import type {
 
 const artifacts = 'e2e/artifacts/owner-preview/student-profile';
 const longName = 'Александра Константинопольская-Долгорукова Екатерина Александровна';
+
+async function tabMetrics(rail: Locator) {
+  return rail.evaluate((element) => {
+    const rail = getComputedStyle(element);
+    const button = getComputedStyle(element.querySelector('button')!);
+    return {
+      rail: {
+        minHeight: rail.minHeight,
+        padding: rail.padding,
+        gap: rail.gap,
+        border: rail.border,
+        radius: rail.borderRadius,
+        background: rail.backgroundColor,
+      },
+      button: {
+        height: button.height,
+        padding: button.padding,
+        fontSize: button.fontSize,
+        lineHeight: button.lineHeight,
+        weight: button.fontWeight,
+        color: button.color,
+        background: button.backgroundColor,
+        border: button.border,
+        radius: button.borderRadius,
+        shadow: button.boxShadow,
+      },
+    };
+  });
+}
 test.use({ locale: 'ru-RU', timezoneId: 'Europe/Moscow', trace: 'on' });
 test.setTimeout(90_000);
 
@@ -89,6 +118,8 @@ async function setup(
     long?: boolean;
     account?: boolean;
     populated?: boolean;
+    named?: boolean;
+    moreWorks?: number;
   } = {},
 ) {
   const state = await fixture(page, options.count ?? 3, {
@@ -125,6 +156,10 @@ async function setup(
     }),
   );
   if (options.long !== false) state.students()[0]!.displayLabel = longName;
+  if (options.named) {
+    state.students()[1]!.displayLabel = 'Иванов Иван Петрович';
+    state.students()[2]!.displayLabel = 'Петрова Анна Сергеевна';
+  }
   const requests: Array<{
     kind: string;
     seat: string;
@@ -289,23 +324,21 @@ async function setup(
           filteredWorks: 8,
           offset,
           hasMore: offset === 0,
-          items: [
-            {
-              id: `work-${offset}`,
-              title: offset === 0 ? 'Открытая модель' : 'Ожидает проверки',
-              moduleKey: url.searchParams.get('module') ?? 'three-d',
-              status: url.searchParams.get('archive') === 'true' ? 'archived' : 'active',
-              createdAt: '2026-10-10T10:00:00Z',
-              updatedAt: '2026-10-10T10:00:00Z',
-              preview: null,
-              snapshotRevision: null,
-              submittedAt: null,
-              assignment: null,
-              feedback: null,
-              lastEditedByTeacher: false,
-              awaitingReview: offset > 0,
-            },
-          ],
+          items: Array.from({ length: offset === 0 ? 1 : (options.moreWorks ?? 1) }, (_, i) => ({
+            id: `work-${offset}-${i}`,
+            title: offset === 0 ? 'Открытая модель' : i === 0 ? 'Ожидает проверки' : `Модель ${i}`,
+            moduleKey: url.searchParams.get('module') ?? 'three-d',
+            status: url.searchParams.get('archive') === 'true' ? 'archived' : 'active',
+            createdAt: '2026-10-10T10:00:00Z',
+            updatedAt: '2026-10-10T10:00:00Z',
+            preview: null,
+            snapshotRevision: null,
+            submittedAt: null,
+            assignment: null,
+            feedback: null,
+            lastEditedByTeacher: false,
+            awaitingReview: offset > 0 && i === 0,
+          })),
         },
       });
     }
@@ -350,6 +383,8 @@ async function setup(
   async function open() {
     await page.goto('/#/classrooms/' + classId);
     await expect(page.locator('.classroom-roster-row')).toHaveCount(options.count ?? 3);
+    const acceptedTabs = await tabMetrics(page.locator('.classroom-workspace-tabs'));
+    if (options.named) await shot(page, 'open-class-reference-1440');
     await page
       .locator('.classroom-student-name')
       .filter({ hasText: options.long === false ? 'Ученик 01' : longName })
@@ -357,6 +392,7 @@ async function setup(
     await expect(page.locator('.classroom-student-identity h1')).toHaveText(
       options.long === false ? 'Ученик 01' : longName,
     );
+    return acceptedTabs;
   }
   return { ...state, requests, control, open };
 }
@@ -373,18 +409,43 @@ async function noOverflow(page: Page) {
 }
 async function shot(page: Page, name: string) {
   mkdirSync(artifacts, { recursive: true });
-  await page.screenshot({ path: `${artifacts}/${name}.png`, fullPage: true });
+  // Keyboard checks can leave the viewport at the last card. Reset the capture
+  // position so sticky portal chrome is recorded at the top of full-page evidence.
+  await page.evaluate(() => {
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+    window.scrollTo(0, 0);
+  });
+  await page.mouse.move(0, 0);
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+  await page.screenshot({
+    path: `${artifacts}/${name}.png`,
+    fullPage: true,
+    animations: 'disabled',
+  });
+}
+
+async function assertPupilHistory(page: Page) {
+  const details = page.locator('details').filter({
+    has: page.locator('.participant-grades[aria-label="Оценки и история"]'),
+  });
+  await details.locator(':scope > summary').click();
+  await details.getByRole('button', { name: 'История', exact: true }).first().click();
+  await expect(details.locator('.participant-history')).toContainText(
+    'Исправление с сохранением истории',
+  );
+  await details.getByRole('button', { name: 'История результата', exact: true }).first().click();
+  await expect(details.locator('.participant-history')).toContainText('Полный подробный отзыв');
 }
 
 test('production profile stays compact with long Russian identity on desktop, split-screen, phones and CSS reflow', async ({
   page,
 }) => {
-  const state = await setup(page);
-  await state.open();
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const state = await setup(page, { named: true, manual: 100, results: 100 });
+  const acceptedTabs = await state.open();
+  const measurements: unknown[] = [];
   const summary = page.getByRole('region', { name: 'Оценки этого класса', exact: true });
-  await expect(
-    summary.getByRole('list', { name: 'Ручные оценки', exact: true }).locator('li'),
-  ).toHaveCount(30);
+  await expect(summary.locator('[data-grade-source="journal"]')).toHaveCount(30);
   for (const width of [1440, 1024, 800, 680, 390, 320]) {
     await page.setViewportSize({ width, height: 900 });
     await noOverflow(page);
@@ -402,6 +463,49 @@ test('production profile stays compact with long Russian identity on desktop, sp
       expect(box!.width).toBeGreaterThanOrEqual(44);
     }
     const tabs = page.getByRole('navigation', { name: 'Разделы профиля' });
+    const metrics = await tabMetrics(tabs);
+    expect(metrics.rail).toEqual(acceptedTabs.rail);
+    expect(metrics.button).toEqual({
+      ...acceptedTabs.button,
+      height: width <= 600 ? '40px' : '34px',
+    });
+    const summaryBox = (await summary.boundingBox())!;
+    expect(summaryBox.height, 'dense grade overview including paging').toBeLessThanOrEqual(
+      width <= 600 ? 100 : 84,
+    );
+    await expect(page.getByRole('button', { name: /История/ })).toHaveCount(0);
+    const names = page.locator('.student-pager-name');
+    await expect(names).toHaveText(['Петрова Анна', 'Иванов Иван']);
+    for (const name of await names.all()) {
+      await expect(name).toBeVisible();
+      expect((await name.boundingBox())!.width).toBeGreaterThan(24);
+    }
+    await expect(
+      page.getByRole('button', { name: 'Предыдущий ученик: Петрова Анна Сергеевна' }),
+    ).toHaveAttribute('title', 'Петрова Анна Сергеевна');
+    const token = (await summary.locator('li').first().boundingBox())!;
+    expect(token.height).toBe(44);
+    expect(token.width).toBeLessThanOrEqual(210);
+    const value = (await summary.locator('li').first().locator('strong').boundingBox())!;
+    expect(value.y).toBeGreaterThanOrEqual(token.y);
+    expect(value.y + value.height, 'grade value fits inside its compact token').toBeLessThanOrEqual(
+      token.y + token.height,
+    );
+    expect(value.x).toBeGreaterThanOrEqual(token.x);
+    expect(value.x + value.width).toBeLessThanOrEqual(token.x + token.width);
+    const toolbar = (await page.locator('.classroom-student-works-head').boundingBox())!;
+    expect(toolbar.height).toBeLessThanOrEqual(width <= 600 ? 90 : 44);
+    await expect(page.getByRole('combobox', { name: 'Статус работ' })).toHaveAccessibleDescription(
+      'по загруженным',
+    );
+    measurements.push({
+      width,
+      summaryHeight: summaryBox.height,
+      tokenWidth: token.width,
+      tokenHeight: token.height,
+      toolbarHeight: toolbar.height,
+      tabs: metrics,
+    });
     expect((await tabs.boundingBox())!.height, 'single row, no giant tab grid').toBeLessThanOrEqual(
       70,
     );
@@ -431,6 +535,22 @@ test('production profile stays compact with long Russian identity on desktop, sp
     await expect(tabs.locator('button').first()).toBeInViewport();
     await shot(page, `profile-${width}`);
   }
+  const rail = summary.getByRole('list', { name: 'Оценки текущего класса' });
+  await rail.focus();
+  await page.keyboard.press('End');
+  await expect(summary.locator('li').last()).toBeInViewport();
+  await summary.getByRole('button', { name: 'Предыдущие оценки', exact: true }).click();
+  await expect
+    .poll(() => rail.evaluate((element) => element.scrollLeft))
+    .toBeLessThan(await rail.evaluate((element) => element.scrollWidth - element.clientWidth));
+  await rail.focus();
+  await page.keyboard.press('Home');
+  await expect(summary.locator('li').first()).toBeInViewport();
+  mkdirSync(artifacts, { recursive: true });
+  writeFileSync(
+    `${artifacts}/visual-measurements.json`,
+    JSON.stringify({ acceptedTabs, measurements }, null, 2),
+  );
   // CSS layout reflow only. Actual browser/device zoom is NOT_RUN by this test.
   await page.setViewportSize({ width: 1024, height: 900 });
   for (const zoom of [1.25, 1.5, 1.75]) {
@@ -440,6 +560,22 @@ test('production profile stays compact with long Russian identity on desktop, sp
     await noOverflow(page);
     await expect(page.locator('.classroom-student-identity h1')).toHaveText(longName);
     await shot(page, `profile-zoom-${zoom}`);
+  }
+  await page.evaluate(() => {
+    document.documentElement.style.zoom = '1';
+  });
+  await page.getByRole('button', { name: /Следующий ученик:/ }).click();
+  await expect(page.locator('.classroom-student-identity h1')).toHaveText('Иванов Иван Петрович');
+  for (const width of [1440, 1024, 390, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    const previous = page.getByRole('button', { name: `Предыдущий ученик: ${longName}` });
+    await expect(previous).toHaveAttribute('title', longName);
+    await expect(previous.locator('.student-pager-name')).toHaveText(
+      'Александра Константинопольская-Долгорукова',
+    );
+    await expect(previous.locator('.student-pager-name')).toBeVisible();
+    await noOverflow(page);
+    await shot(page, `long-neighbor-${width}`);
   }
   expect(state.errors).toEqual([]);
   expect(state.mutations).toEqual([]);
@@ -452,9 +588,7 @@ for (const count of [0, 1, 30, 100]) {
     const state = await setup(page, { manual: count, results: count });
     await state.open();
     const summary = page.getByRole('region', { name: 'Оценки этого класса', exact: true });
-    await expect(
-      summary.getByRole('list', { name: 'Ручные оценки', exact: true }).locator('li'),
-    ).toHaveCount(Math.min(count, 30));
+    await expect(summary.locator('[data-grade-source="journal"]')).toHaveCount(Math.min(count, 30));
     expect(state.requests.filter((r) => r.kind === 'grades')).toHaveLength(1);
     if (count === 100) {
       state.control.failGrade = true;
@@ -469,12 +603,8 @@ for (const count of [0, 1, 30, 100]) {
         summary.getByRole('button', { name: 'Ещё результаты', exact: true }),
       ).toHaveCount(0);
     }
-    await expect(
-      summary.getByRole('list', { name: 'Ручные оценки', exact: true }).locator('li'),
-    ).toHaveCount(count);
-    await expect(
-      summary.getByRole('list', { name: 'Результаты заданий', exact: true }).locator('li'),
-    ).toHaveCount(count);
+    await expect(summary.locator('[data-grade-source="journal"]')).toHaveCount(count);
+    await expect(summary.locator('[data-grade-source="results"]')).toHaveCount(count);
     if (count === 100) {
       const reads = state.requests.filter((request) => request.kind === 'grades');
       expect([...new Set(reads.map((request) => request.offset))].sort((a, b) => a - b)).toEqual([
@@ -484,27 +614,26 @@ for (const count of [0, 1, 30, 100]) {
         [...new Set(reads.map((request) => request.resultOffset))].sort((a, b) => a - b),
       ).toEqual([0, 30, 60, 90]);
       for (const label of ['Ручные оценки', 'Результаты заданий']) {
-        const rows = summary.getByRole('list', { name: label, exact: true }).locator('li');
+        const rows = summary.locator(
+          `[data-grade-source="${label === 'Ручные оценки' ? 'journal' : 'results'}"]`,
+        );
         expect(new Set(await rows.allTextContents()).size).toBe(100);
       }
     }
     if (count > 0) {
       await expect(summary.locator('time[datetime="2021-01-01"]').first()).toHaveText('01.01.2021');
-      await summary.getByRole('button', { name: 'История', exact: true }).first().click();
-      await expect(summary).toContainText('Исправление с сохранением истории');
-      await summary
-        .getByRole('button', { name: 'История результата', exact: true })
-        .first()
-        .click();
-      await expect(summary).toContainText('Полный подробный отзыв');
+      await expect(summary.getByRole('button', { name: /История/ })).toHaveCount(0);
       await expect(summary).toContainText('0 / 10');
     } else await expect(summary).toContainText('Оценок пока нет.');
     await page.evaluate(() => window.dispatchEvent(new Event('focus')));
-    await expect(
-      summary.getByRole('list', { name: 'Ручные оценки', exact: true }).locator('li'),
-    ).toHaveCount(count);
+    await expect(summary.locator('[data-grade-source="journal"]')).toHaveCount(count);
     await noOverflow(page);
-    await shot(page, `grades-${count}`);
+    for (const width of [1440, 1024, 390, 320]) {
+      await page.setViewportSize({ width, height: 900 });
+      await noOverflow(page);
+      if (count === 0) expect((await summary.boundingBox())!.height).toBeLessThan(60);
+      await shot(page, `grades-${count}-${width}`);
+    }
     expect(state.errors).toEqual([]);
   });
 }
@@ -528,7 +657,7 @@ test('all eight sections, honest loaded-only filtering, private works, archive a
   for (const width of [1440, 1024, 390, 320]) {
     await page.setViewportSize({ width, height: 900 });
     for (const name of [
-      'Оценки и история',
+      'Оценки',
       'Задания',
       '3D',
       'Электроника',
@@ -542,6 +671,8 @@ test('all eight sections, honest loaded-only filtering, private works, archive a
         'aria-pressed',
         'true',
       );
+      await expect(page.getByRole('button', { name: /История/ })).toHaveCount(0);
+      await expect(page.getByText('Оценки и история', { exact: true })).toHaveCount(0);
       await noOverflow(page);
       if (name === 'Задания')
         await expect(page.getByRole('region', { name: 'Задания участника' })).toContainText(
@@ -553,7 +684,7 @@ test('all eight sections, honest loaded-only filtering, private works, archive a
         await expect(page.getByTestId('classroom-activity')).toContainText(
           'Исследовательская модель',
         );
-      else if (name !== 'Оценки и история')
+      else if (name !== 'Оценки')
         await expect(page.locator('.project-card-grid > li')).toHaveCount(1);
       await shot(page, `tab-${name}-${width}`);
     }
@@ -562,9 +693,7 @@ test('all eight sections, honest loaded-only filtering, private works, archive a
   const works = page
     .locator('.classroom-student-section')
     .filter({ has: page.locator('#student-works') });
-  await works
-    .getByRole('button', { name: 'Ждут проверки · среди загруженных', exact: true })
-    .click();
+  await works.getByRole('combobox', { name: 'Статус работ' }).selectOption('awaiting');
   await expect(works).toContainText(
     'Среди загруженных работ нет ожидающих проверки. Загрузите ещё работы.',
   );
@@ -662,9 +791,7 @@ test('a delayed previous learner grade page cannot populate the next learner', a
     .toBe(true);
   await page.getByRole('button', { name: /Следующий ученик:/ }).click();
   await expect(page.locator('.classroom-student-identity h1')).toHaveText('Ученик 02');
-  await expect(
-    summary.getByRole('list', { name: 'Ручные оценки', exact: true }).locator('li'),
-  ).toHaveCount(30);
+  await expect(summary.locator('[data-grade-source="journal"]')).toHaveCount(30);
   state.control.holdGrade = false;
   state.control.releaseGrade();
   await expect(page.getByText(/УТЕКШАЯ ОЦЕНКА|УТЕКШИЙ РЕЗУЛЬТАТ/)).toHaveCount(0);
@@ -690,7 +817,7 @@ test('manual retraction supersedes earlier revisions across pages, focus refresh
   });
   await state.open();
   const summary = page.getByRole('region', { name: 'Оценки этого класса', exact: true });
-  const manual = summary.getByRole('list', { name: 'Ручные оценки', exact: true }).locator('li');
+  const manual = summary.locator('[data-grade-source="journal"]');
   const column = manual.filter({ hasText: 'Урок 0' });
   await expect(column.locator('strong')).toHaveText('5');
   await summary.getByRole('button', { name: 'Ещё ручные оценки', exact: true }).click();
@@ -699,16 +826,15 @@ test('manual retraction supersedes earlier revisions across pages, focus refresh
   // Results first/last must never reintroduce a repeated rev1 companion page.
   for (let i = 0; i < 3; i++) {
     await summary.getByRole('button', { name: 'Ещё результаты', exact: true }).click();
-    await expect(
-      summary.getByRole('list', { name: 'Результаты заданий', exact: true }).locator('li'),
-    ).toHaveCount(Math.min(60 + i * 30, 100));
+    await expect(summary.locator('[data-grade-source="results"]')).toHaveCount(
+      Math.min(60 + i * 30, 100),
+    );
   }
   await page.evaluate(() => window.dispatchEvent(new Event('focus')));
   await expect(manual).toHaveCount(31);
   await expect(column).toHaveCount(1);
   await expect(column.locator('strong')).toHaveText('Отозвана');
-  await column.getByRole('button', { name: 'История', exact: true }).click();
-  await expect(summary).toContainText('Исправление с сохранением истории');
+  await expect(summary.getByRole('button', { name: /История/ })).toHaveCount(0);
   await noOverflow(page);
   expect(state.errors).toEqual([]);
 });
@@ -751,7 +877,7 @@ for (const count of [30, 100]) {
     );
     await state.open();
     const summary = page.getByRole('region', { name: 'Оценки этого класса', exact: true });
-    const manual = summary.getByRole('list', { name: 'Ручные оценки', exact: true }).locator('li');
+    const manual = summary.locator('[data-grade-source="journal"]');
     const column = manual.filter({ hasText: 'Урок 0' });
     await expect(column.locator('strong')).toHaveText('5');
     for (let o = 30; o < count; o += 30) {
@@ -778,10 +904,7 @@ for (const count of [30, 100]) {
       summary.getByRole('button', { name: 'Ещё ручные оценки', exact: true }),
     ).toHaveCount(0);
     await expect(manual.locator('strong').filter({ hasText: /^0$/ }).first()).toBeVisible();
-    await column.getByRole('button', { name: 'История', exact: true }).click();
-    await expect(summary.locator('.participant-history ol li')).toHaveCount(2);
-    await expect(summary.locator('.participant-history')).toContainText('Версия 1: 5');
-    await expect(summary.locator('.participant-history')).toContainText('Версия 2: Отозвана');
+    await expect(summary.getByRole('button', { name: /История/ })).toHaveCount(0);
     const beforeFocus = calls.length;
     await page.evaluate(() => window.dispatchEvent(new Event('focus')));
     await expect(summary.getByRole('status')).toHaveCount(0);
@@ -874,8 +997,7 @@ for (const newerFirst of [true, false]) {
     await state.open();
     const summary = page.getByRole('region', { name: 'Оценки этого класса', exact: true });
     const result = summary
-      .getByRole('list', { name: 'Результаты заданий', exact: true })
-      .locator('li')
+      .locator('[data-grade-source="results"]')
       .filter({ hasText: 'Исследование 0' });
     await summary.getByRole('button', { name: 'Ещё результаты', exact: true }).click();
     await expect(result).toHaveCount(1);
@@ -895,10 +1017,8 @@ for (const newerFirst of [true, false]) {
     ]);
     await expect(result).toHaveCount(1);
     await expect(result.locator('strong')).toHaveText('Без балла');
-    await result.getByRole('button', { name: 'История результата', exact: true }).click();
-    await expect(summary.locator('.participant-history ol li')).toHaveCount(2);
-    await expect(summary.locator('.participant-history')).toContainText(latest.feedback);
-    await expect(summary.locator('.participant-history')).toContainText('5 / 10');
+    await expect(result).toHaveAttribute('title', new RegExp(latest.feedback));
+    await expect(summary.getByRole('button', { name: /История/ })).toHaveCount(0);
     await noOverflow(page);
     await shot(page, `repair-result-retraction-${newerFirst}`);
     expect(state.errors).toEqual([]);
@@ -933,9 +1053,7 @@ test('equal-time conflicting result copies fail closed until canonical retry', a
   canonical = true;
   await summary.getByRole('button', { name: 'Повторить', exact: true }).click();
   await expect(summary.getByRole('alert')).toHaveCount(0);
-  await expect(
-    summary.getByRole('list', { name: 'Результаты заданий', exact: true }).locator('li'),
-  ).toHaveCount(30);
+  await expect(summary.locator('[data-grade-source="results"]')).toHaveCount(30);
   await noOverflow(page);
   await shot(page, 'repair-result-conflict-retry');
   expect(state.errors).toEqual([]);
@@ -959,9 +1077,7 @@ for (const invalid of ['2026-02-30T00:00:00Z', '2026-02-01T00:00:00+03:60']) {
     canonical = true;
     await summary.getByRole('button', { name: 'Повторить', exact: true }).click();
     await expect(summary.getByRole('alert')).toHaveCount(0);
-    await expect(
-      summary.getByRole('list', { name: 'Результаты заданий', exact: true }).locator('li'),
-    ).toHaveCount(1);
+    await expect(summary.locator('[data-grade-source="results"]')).toHaveCount(1);
     await noOverflow(page);
     expect(state.errors).toEqual([]);
   });
@@ -970,16 +1086,17 @@ for (const invalid of ['2026-02-30T00:00:00Z', '2026-02-01T00:00:00+03:60']) {
 test('mobile work filters share a row and one card fills the grid while multiple cards remain readable', async ({
   page,
 }) => {
-  const state = await setup(page, { manual: 0, results: 0 });
+  const state = await setup(page, { manual: 0, results: 0, moreWorks: 4 });
   await state.open();
   const grid = page.locator('.project-card-grid');
-  for (const width of [390, 320]) {
+  for (const width of [1440, 1024, 390, 320]) {
     await page.setViewportSize({ width, height: 900 });
     const card = (await grid.locator(':scope > li').first().boundingBox())!;
-    expect(card.width).toBeGreaterThanOrEqual((await grid.boundingBox())!.width - 2);
+    if (width <= 600)
+      expect(card.width).toBeGreaterThanOrEqual((await grid.boundingBox())!.width - 2);
     const filters = page.locator('.classroom-student-works-head');
-    const archive = (await filters.locator('label').boundingBox())!;
-    const awaiting = (await filters.getByRole('button').boundingBox())!;
+    const archive = (await filters.locator('label').first().boundingBox())!;
+    const awaiting = (await filters.locator('.classroom-student-filter').boundingBox())!;
     expect(Math.abs(archive.y - awaiting.y)).toBeLessThanOrEqual(1);
     expect(archive.height).toBeGreaterThanOrEqual(44);
     expect(awaiting.height).toBeGreaterThanOrEqual(44);
@@ -988,8 +1105,8 @@ test('mobile work filters share a row and one card fills the grid while multiple
     await shot(page, `work-one-${width}`);
   }
   await page.getByRole('button', { name: 'Ещё работы', exact: true }).click();
-  await expect(grid.locator(':scope > li')).toHaveCount(2);
-  for (const width of [390, 320]) {
+  await expect(grid.locator(':scope > li')).toHaveCount(5);
+  for (const width of [1440, 1024, 390, 320]) {
     await page.setViewportSize({ width, height: 900 });
     const boxes = await Promise.all(
       (await grid.locator(':scope > li').all()).map(async (card) => (await card.boundingBox())!),
@@ -997,7 +1114,8 @@ test('mobile work filters share a row and one card fills the grid while multiple
     if (width === 390) {
       expect(Math.abs(boxes[0]!.y - boxes[1]!.y)).toBeLessThanOrEqual(1);
       expect(boxes[0]!.x + boxes[0]!.width).toBeLessThan(boxes[1]!.x);
-    } else expect(boxes[1]!.y).toBeGreaterThanOrEqual(boxes[0]!.y + boxes[0]!.height);
+    } else if (width === 320)
+      expect(boxes[1]!.y).toBeGreaterThanOrEqual(boxes[0]!.y + boxes[0]!.height);
     // Reveal each card's actions through its real keyboard focus path. Role
     // locators across the whole grid change indices as hover visibility changes.
     for (const card of await grid.locator(':scope > li').all()) {
@@ -1015,9 +1133,7 @@ test('mobile work filters share a row and one card fills the grid while multiple
     await noOverflow(page);
     await shot(page, `work-multiple-${width}`);
   }
-  await page
-    .getByRole('button', { name: 'Ждут проверки · среди загруженных', exact: true })
-    .click();
+  await page.getByRole('combobox', { name: 'Статус работ' }).selectOption('awaiting');
   await expect(grid.locator(':scope > li')).toHaveCount(1);
   expect((await grid.locator(':scope > li').boundingBox())!.width).toBeGreaterThanOrEqual(
     (await grid.boundingBox())!.width - 2,
@@ -1026,7 +1142,7 @@ test('mobile work filters share a row and one card fills the grid while multiple
   expect(state.mutations).toEqual([]);
 });
 
-test('pending role mutations and old result history cannot repopulate another learner or a logged-out profile', async ({
+test('pending role mutations cannot repopulate another learner or a logged-out profile; teacher history is unavailable', async ({
   page,
 }) => {
   const state = await setup(page, { long: false, manual: 1, results: 1 });
@@ -1036,37 +1152,6 @@ test('pending role mutations and old result history cannot repopulate another le
     await new Promise<void>((release) => roles.push({ ...body, release }));
     return route.fulfill({ json: { ok: true } });
   });
-  let releaseHistory!: () => void;
-  const historyGate = new Promise<void>((resolve) => {
-    releaseHistory = resolve;
-  });
-  let historyStarted = false;
-  await page.route(
-    `**/api/classrooms/${classId}/participants/seat-0/result-history/*`,
-    async (route) => {
-      historyStarted = true;
-      await historyGate;
-      return route.fulfill({
-        json: {
-          offset: 0,
-          hasMore: false,
-          items: [
-            {
-              id: 'old-result',
-              revision: 1,
-              attempt_number: 1,
-              raw_points: 99,
-              max_points: 100,
-              reason: null,
-              feedback: 'УТЕКШАЯ ИСТОРИЯ A',
-              author: 'Учитель A',
-              published_at: '2026-01-01T00:00:00Z',
-            },
-          ],
-        },
-      });
-    },
-  );
   let loggedOut = false;
   await page.route('**/api/auth/me', (route) =>
     loggedOut ? route.fulfill({ json: { authenticated: false } }) : route.fallback(),
@@ -1078,25 +1163,16 @@ test('pending role mutations and old result history cannot repopulate another le
   await state.open();
   await page.getByRole('combobox', { name: 'Роль в классе' }).selectOption('helper');
   await expect.poll(() => roles.length).toBe(1);
-  await page
-    .getByRole('region', { name: 'Оценки этого класса', exact: true })
-    .getByRole('button', { name: 'История результата', exact: true })
-    .click();
-  await expect.poll(() => historyStarted).toBe(true);
+  await expect(page.getByRole('button', { name: /История/ })).toHaveCount(0);
   await page.getByRole('button', { name: /Следующий ученик:/ }).click();
   await expect(page.locator('.classroom-student-identity h1')).toHaveText('Ученик 02');
   await expect(page.getByRole('combobox', { name: 'Роль в классе' })).toHaveValue('student');
   const beforeOldReply = state.requests.filter((request) => request.kind === 'profile').length;
-  const oldReplies = Promise.all([
-    page.waitForResponse((response) => response.url().endsWith('/participants/actions/role')),
-    page.waitForResponse((response) =>
-      response.url().includes('/participants/seat-0/result-history/'),
-    ),
-  ]);
+  const oldReply = page.waitForResponse((response) =>
+    response.url().endsWith('/participants/actions/role'),
+  );
   roles[0]!.release();
-  releaseHistory();
-  for (const response of await oldReplies) await response.finished();
-  await expect(page.getByText('УТЕКШАЯ ИСТОРИЯ A')).toHaveCount(0);
+  await (await oldReply).finished();
   await expect(page.getByRole('combobox', { name: 'Роль в классе' })).toHaveValue('student');
   expect(state.requests.filter((request) => request.kind === 'profile')).toHaveLength(
     beforeOldReply,
@@ -1155,6 +1231,8 @@ test('attended Account classes retain the original compact pupil summary', async
     ),
   ).toBe(true);
   await shot(page, 'account-pupil-default-390');
+  await assertPupilHistory(page);
+  await shot(page, 'account-pupil-history-390');
   expect(state.errors).toEqual([]);
   expect(state.mutations).toEqual([]);
 });
@@ -1162,6 +1240,7 @@ test('attended Account classes retain the original compact pupil summary', async
 test('SeatResults keeps the original pupil summary and uses only Seat grade reads', async ({
   page,
 }) => {
+  const pupilSeatId = '40000000-0000-4000-8000-000000000001';
   const state = await fixture(page, 0, { account: true });
   await ownJournal(page);
   await page.route('**/api/auth/me', (route) => route.fulfill({ json: { authenticated: false } }));
@@ -1169,7 +1248,7 @@ test('SeatResults keeps the original pupil summary and uses only Seat grade read
     route.fulfill({
       json: {
         authenticated: true,
-        student: { seatId: 'seat-0', displayName: 'Ученик', safeMode: true, avatarKey: null },
+        student: { seatId: pupilSeatId, displayName: 'Ученик', safeMode: true, avatarKey: null },
         classroom: { id: classId, title: 'Мой класс', teacherDisplayName: 'Преподаватель' },
         expiresAt: '2099-01-01T00:00:00Z',
       },
@@ -1180,7 +1259,7 @@ test('SeatResults keeps the original pupil summary and uses only Seat grade read
       json: {
         status: 'active',
         student: {
-          id: 'seat-0',
+          id: pupilSeatId,
           displayLabel: 'Ученик',
           avatarKey: null,
           status: 'active',
@@ -1193,7 +1272,7 @@ test('SeatResults keeps the original pupil summary and uses only Seat grade read
           factors: { projects: true, logins: true, days: true, time: true, grades: true },
         },
         metrics: {
-          seatId: 'seat-0',
+          seatId: pupilSeatId,
           totalWorks: 0,
           archivedWorks: 0,
           score: 0,
@@ -1221,8 +1300,47 @@ test('SeatResults keeps the original pupil summary and uses only Seat grade read
   });
   await page.route('**/api/class-join/participants/grades*', (route) => {
     seatReads++;
-    return route.fulfill({ json: grades(30, 30, 0, 0) });
+    const data = grades(30, 30, 0, 0);
+    data.journal.grades = data.journal.grades.map((grade) => ({ ...grade, seatId: pupilSeatId }));
+    return route.fulfill({ json: data });
   });
+  await page.route('**/api/class-join/participants/history/*', (route) =>
+    route.fulfill({
+      json: {
+        preset: 'five',
+        nextBeforeRevision: null,
+        items: [
+          {
+            ...grades(1, 0, 0, 0).journal.grades[0],
+            seatId: pupilSeatId,
+            revision: 2,
+            reason: 'Исправление с сохранением истории',
+          },
+        ],
+      },
+    }),
+  );
+  await page.route('**/api/class-join/participants/result-history/*', (route) =>
+    route.fulfill({
+      json: {
+        offset: 0,
+        hasMore: false,
+        items: [
+          {
+            id: 'revision',
+            revision: 2,
+            attempt_number: 1,
+            raw_points: 0,
+            max_points: 10,
+            reason: 'Уточнение',
+            feedback: 'Полный подробный отзыв',
+            author: 'Преподаватель',
+            published_at: '2026-01-01T23:30:00Z',
+          },
+        ],
+      },
+    }),
+  );
   await page.goto('/#/classrooms');
   const summary = page.getByRole('region', { name: 'Последние оценки', exact: true });
   await expect(summary.locator('.participant-grade-row')).toHaveCount(6);
@@ -1237,6 +1355,8 @@ test('SeatResults keeps the original pupil summary and uses only Seat grade read
     ),
   ).toBe(true);
   await shot(page, 'seat-pupil-default-390');
+  await assertPupilHistory(page);
+  await shot(page, 'seat-pupil-history-390');
   expect(state.errors).toEqual([]);
   expect(state.mutations).toEqual([]);
 });

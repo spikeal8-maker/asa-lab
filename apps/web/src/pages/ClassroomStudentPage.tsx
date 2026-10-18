@@ -62,7 +62,7 @@ function asProject(work: ClassroomStudentWork): Project {
 }
 const TABS = [
   { key: 'all', label: 'Все работы', module: null },
-  { key: 'grades', label: 'Оценки и история', module: null },
+  { key: 'grades', label: 'Оценки', module: null },
   { key: 'assignments', label: 'Задания', module: null },
   { key: 'three-d', label: '3D', module: 'three-d' },
   { key: 'electronics', label: 'Электроника', module: 'electronics' },
@@ -237,7 +237,9 @@ export function ClassroomStudentPage({
             onClick={() => onNavigateStudent(navigation.previous.id)}
           >
             <span aria-hidden="true">←</span>
-            <span className="student-pager-desktop">Предыдущий</span>
+            <span className="student-pager-name">
+              {navigation.previous.displayLabel.trim().split(/\s+/).slice(0, 2).join(' ')}
+            </span>
           </button>
           <span
             className="classroom-student-navigation-position"
@@ -252,7 +254,9 @@ export function ClassroomStudentPage({
             disabled={navigation.total < 2}
             onClick={() => onNavigateStudent(navigation.next.id)}
           >
-            <span className="student-pager-desktop">Следующий</span>
+            <span className="student-pager-name">
+              {navigation.next.displayLabel.trim().split(/\s+/).slice(0, 2).join(' ')}
+            </span>
             <span aria-hidden="true">→</span>
           </button>
         </nav>
@@ -443,14 +447,19 @@ export function ClassroomStudentPage({
               />
               Включая архив
             </label>
-            <button
-              type="button"
-              className="classroom-student-filter"
-              aria-pressed={onlyAwaiting}
-              onClick={() => setOnlyAwaiting(!onlyAwaiting)}
-            >
-              {onlyAwaiting ? 'Все загруженные' : 'Ждут проверки · среди загруженных'}
-            </button>
+            <label className="classroom-student-filter">
+              <span>Статус</span>
+              <select
+                aria-label="Статус работ"
+                aria-describedby="student-filter-scope"
+                value={onlyAwaiting ? 'awaiting' : 'all'}
+                onChange={(e) => setOnlyAwaiting(e.target.value === 'awaiting')}
+              >
+                <option value="all">Все</option>
+                <option value="awaiting">Ждут проверки</option>
+              </select>
+              <small id="student-filter-scope">по загруженным</small>
+            </label>
           </div>
           {works && works.visibleWorks < works.totalWorks ? (
             <p className="participant-visibility-note">

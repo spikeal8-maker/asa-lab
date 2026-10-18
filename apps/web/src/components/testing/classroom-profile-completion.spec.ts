@@ -851,7 +851,7 @@ describe('participant completion DOM behavior', () => {
     expect(host.querySelector('[aria-label="Классы помощника"]')).not.toBeNull();
     expect(host.querySelector('.teacher-profile-grades')).not.toBeNull();
     expect(host.querySelector('.participant-role-hint')).toBeNull();
-    await click('Оценки и история');
+    await click('Оценки');
     expect(host.querySelector('.participant-grades')).not.toBeNull();
   });
   it('loads assigned work independently of projects and clears a delayed previous pupil response', async () => {
