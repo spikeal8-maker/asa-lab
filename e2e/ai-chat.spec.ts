@@ -121,8 +121,9 @@ async function fixture(page: Page, answer = 'Arduino — это платформ
       if (method === 'GET') {
         const beforeId = new URL(req.url()).searchParams.get('beforeId');
         historyCursors.push(beforeId);
-        const end =
-          beforeId ? history.findIndex((message) => message.id === beforeId) : history.length;
+        const end = beforeId
+          ? history.findIndex((message) => message.id === beforeId)
+          : history.length;
         const start = Math.max(0, end - 50);
         const items = history.slice(start, end);
         const first = items[0];
@@ -275,8 +276,8 @@ for (const selection of ['single', 'switch', 'switch-error', 'retry'] as const) 
       await page.getByRole('button', { name: 'Диалог 1', exact: true }).click();
       await expect.poll(() => releases.length).toBe(2);
     }
-    const firstResponse = page.waitForResponse(
-      (response) => response.url().endsWith(`/threads/${ids[0]}/messages`),
+    const firstResponse = page.waitForResponse((response) =>
+      response.url().endsWith(`/threads/${ids[0]}/messages`),
     );
     releases[0]!();
     await firstResponse;
