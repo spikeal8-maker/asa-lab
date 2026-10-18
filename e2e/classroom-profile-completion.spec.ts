@@ -175,23 +175,36 @@ async function assertLayout(page: Page, width: number, file: string) {
     expect(rect.x + rect.width).toBeLessThanOrEqual(width + 1);
   }
   expect(previousRect.x + previousRect.width).toBeLessThan(nextRect.x);
-  const pagerText = await studentPager
-    .locator('.classroom-student-navigation-label, .classroom-student-navigation-button small')
-    .evaluateAll((nodes) =>
-      nodes.map((node) => ({
-        available: (node as HTMLElement).clientWidth,
-        needed: (node as HTMLElement).scrollWidth,
-        whiteSpace: getComputedStyle(node).whiteSpace,
-      })),
-    );
-  for (const item of pagerText) {
-    expect(item.whiteSpace).toBe('normal');
-    expect(item.needed).toBeLessThanOrEqual(item.available + 1);
-  }
-  await expect(page.getByRole('region', { name: 'Последние оценки' })).toBeVisible();
-  // No hidden horizontally scrolling rail: all eight profile sections are visible at once.
-  if (width <= 600) {
+  const navRow = page.locator('.classroom-student-navrow');
+  const navBox = (await navRow.boundingBox())!;
+  const classBack = navRow.getByRole('button', { name: '← К классу', exact: true });
+  await expect(classBack).toBeVisible();
+  await expect(studentPager.locator('.classroom-student-navigation-position')).toHaveText(
+    /\d+\/\d+/,
+  );
+  const backBox = (await classBack.boundingBox())!;
+  expect(navBox.height, 'one slim top bar').toBeLessThanOrEqual(46);
+  expect(backBox.height).toBeGreaterThanOrEqual(44);
+  expect(backBox.x + backBox.width).toBeLessThanOrEqual(previousRect.x);
+  expect(Math.abs(backBox.y - previousRect.y)).toBeLessThanOrEqual(1);
+  const hero = (await page.locator('.participant-hero').boundingBox())!;
+  expect(navBox.y + navBox.height).toBeLessThanOrEqual(hero.y);
+  expect(hero.y - navBox.y - navBox.height).toBeLessThanOrEqual(12);
+  await expect(page.getByRole('region', { name: 'Оценки этого класса' })).toBeVisible();
+  // The approved local scroller exposes all eight full labels by focus/keyboard.
+  {
     const sections = page.getByRole('navigation', { name: 'Разделы профиля' });
+    await expect(sections.locator('button')).toHaveText([
+      'Все работы',
+      'Оценки и история',
+      'Задания',
+      '3D',
+      'Электроника',
+      'Scratch',
+      'Заслуги',
+      'Активность',
+    ]);
+    expect((await sections.boundingBox())!.height).toBeLessThanOrEqual(70);
     const layout = await sections.evaluate((nav) => {
       const buttons = [...nav.querySelectorAll<HTMLButtonElement>('button')];
       return {
@@ -240,13 +253,17 @@ async function assertLayout(page: Page, width: number, file: string) {
       return broken;
     });
     expect(layout.buttons).toHaveLength(8);
-    expect(layout.scrollWidth).toBeLessThanOrEqual(layout.clientWidth + 1);
     expect(splitWords, 'Every full Russian tab label must remain readable').toEqual([]);
-    for (const button of layout.buttons) {
-      expect(button.left).toBeGreaterThanOrEqual(0);
-      expect(button.right).toBeLessThanOrEqual(width + 1);
-      expect(button.height).toBeGreaterThanOrEqual(44);
-      expect(button.scrollWidth).toBeLessThanOrEqual(button.clientWidth + 1);
+    for (const button of await sections.locator('button').all()) {
+      await button.focus();
+      await expect(button).toBeInViewport();
+      const box = (await button.boundingBox())!;
+      expect(box.x).toBeGreaterThanOrEqual(0);
+      expect(box.x + box.width).toBeLessThanOrEqual(width + 1);
+      expect(box.height).toBeGreaterThanOrEqual(44);
+      expect(
+        await button.evaluate((element) => element.scrollWidth <= element.clientWidth + 1),
+      ).toBe(true);
     }
     // All eight hit targets must be disjoint, not just fully inside the viewport.
     for (const [index, first] of layout.buttons.entries()) {
@@ -256,11 +273,11 @@ async function assertLayout(page: Page, width: number, file: string) {
         expect(xOverlap > 1 && yOverlap > 1).toBe(false);
       }
     }
-  }
-  // The long learner name and both navigation targets occupy different bands.
-  if (width <= 600) {
-    const heading = (await page.locator('.classroom-student-identity h1').boundingBox())!;
-    expect(heading.y + heading.height).toBeLessThanOrEqual(previousRect.y + 1);
+    await sections.locator('button').first().focus();
+    await page.keyboard.press('End');
+    await expect(sections.locator('button').last()).toBeFocused();
+    await page.keyboard.press('Home');
+    await expect(sections.locator('button').first()).toBeFocused();
   }
 
   const controls = page.locator(
@@ -268,7 +285,11 @@ async function assertLayout(page: Page, width: number, file: string) {
   );
   for (const control of await controls.all()) {
     if (!(await control.isVisible())) continue;
-    if (await control.evaluate((element) => Boolean(element.closest('.participant-tabs')))) {
+    if (
+      await control.evaluate((element) =>
+        Boolean(element.closest('.participant-tabs, .teacher-profile-grades')),
+      )
+    ) {
       await control.scrollIntoViewIfNeeded();
     }
     const rect = await control.boundingBox();
@@ -286,13 +307,19 @@ async function assertLayout(page: Page, width: number, file: string) {
     const compactNavigation = await control.evaluate((element) =>
       element.matches('.participant-tabs button, .participant-role select'),
     );
-    // Compact navigation uses 13px labels; grades and assignment actions remain 16px.
-    const minFontSize = compactNavigation ? 13 : 16;
+    // Approved compact cards use 12px labels with full 44px targets. Expanded
+    // grades/assignments retain 16px; every action must fit its rendered label.
+    const compactGrade = await control.evaluate((element) =>
+      Boolean(element.closest('.teacher-profile-grades')),
+    );
+    const minFontSize = compactNavigation ? 13 : compactGrade ? 12 : 16;
+    expect(
+      await control.evaluate((element) => element.scrollWidth <= element.clientWidth + 1),
+    ).toBe(true);
     expect(
       await control.evaluate((element) => Number.parseFloat(getComputedStyle(element).fontSize)),
     ).toBeGreaterThanOrEqual(minFontSize);
-    // Touch navigation is 44px on phones; the desktop's compact rail is 40px.
-    if (compactNavigation) expect(rect!.height).toBeGreaterThanOrEqual(width <= 600 ? 44 : 40);
+    if (compactNavigation) expect(rect!.height).toBeGreaterThanOrEqual(44);
   }
   // Return the horizontal tab strip to its first tab for the screenshot.
   await page.locator('.participant-tabs').evaluate((element) => {
@@ -407,7 +434,7 @@ test('assigned without a project stays one row through start, submission and rev
   ).toHaveAttribute('aria-pressed', 'true');
   // Work/grade tab selection survives switching pupils; return to works explicitly.
   await page.getByRole('button', { name: 'Все работы', exact: true }).click();
-  await expect(page.getByRole('region', { name: 'Последние оценки' })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Оценки этого класса' })).toBeVisible();
   for (const width of [320, 360, 390, 430, 768, 1024, 1440]) {
     await assertLayout(page, width, 'student-review-navigation');
   }
@@ -537,6 +564,17 @@ test('assigned without a project stays one row through start, submission and rev
     await page.getByRole('button', { name: 'Обновить задания' }).click();
     await expect(row).toHaveCount(1);
     await expect(row).toContainText('Принято');
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+    const summary = page.getByRole('region', { name: 'Оценки этого класса', exact: true });
+    const result = summary
+      .getByRole('list', { name: 'Результаты заданий', exact: true })
+      .locator('li')
+      .filter({ hasText: title });
+    await expect(result).toHaveCount(1);
+    await result.getByRole('button', { name: 'История результата', exact: true }).click();
+    await expect(summary.locator('.participant-history ol li')).toHaveCount(2);
+    await expect(summary.locator('.participant-history')).toContainText('Работа принята');
+    await expect(summary.locator('.participant-history')).toContainText('Добавь деталь');
     expect(
       (
         await get<ParticipantAssignments>(pupil, '/api/class-join/participants/assignments')
@@ -549,13 +587,21 @@ test('assigned without a project stays one row through start, submission and rev
       classroom.title,
     );
     // A helper is still a pupil, and the teacher must see their marks as well.
-    await expect(page.getByRole('region', { name: 'Последние оценки' })).toBeVisible();
+    await expect(page.getByRole('region', { name: 'Оценки этого класса' })).toBeVisible();
     expect((await pupil.request.get(`/api/classrooms/${classroom.id}/participants`)).status()).toBe(
       401,
     );
     expect(
       (
         await pupil.request.get(`/api/classrooms/${classroom.id}/participants/${b.id}/grades`)
+      ).status(),
+    ).toBe(401);
+    // Even the newly promoted helper's Seat session cannot mutate another seat.
+    expect(
+      (
+        await pupil.request.post(`/api/classrooms/${classroom.id}/participants/actions/role`, {
+          data: { seatId: b.id, role: 'helper', requestId: randomUUID() },
+        })
       ).status(),
     ).toBe(401);
     await pupil.goto('/#/learning');
@@ -671,6 +717,33 @@ test('real full Account and Seat manual history preserves zero and all five leve
     }
     expect(
       (
+        await account.request.post(`/api/classrooms/${classroom.id}/participants/actions/role`, {
+          data: { seatId: b.id, role: 'helper', requestId: randomUUID() },
+        })
+      ).status(),
+    ).toBe(403);
+    // Exercise append-only retraction via the supported production journal API.
+    await post(page, `/api/classrooms/${classroom.id}/journal/scale`, {
+      preset: 'five',
+      expectedRevision: revision++,
+      requestId: randomUUID(),
+    });
+    const retractionColumn = await post(page, `/api/classrooms/${classroom.id}/journal/column`, {
+      date: '2026-10-11',
+      category: 'Отзыв оценки',
+      expectedRevision: revision,
+      requestId: randomUUID(),
+    });
+    await post(page, `/api/classrooms/${classroom.id}/journal/grade`, {
+      columnId: retractionColumn.id,
+      seatId: a.id,
+      value: 5,
+      expectedRevision: 0,
+      reason: null,
+      requestId: randomUUID(),
+    });
+    expect(
+      (
         await get<ParticipantGrades>(seat, '/api/class-join/participants/grades')
       ).journal.grades.every((g) => g.seatId === a.id),
     ).toBe(true);
@@ -736,6 +809,42 @@ test('real full Account and Seat manual history preserves zero and all five leve
       }
     }
     await openProfile(page, classroom.id, a.name);
+    const teacherSummary = page.getByRole('region', { name: 'Оценки этого класса', exact: true });
+    const currentGrade = teacherSummary
+      .getByRole('list', { name: 'Ручные оценки', exact: true })
+      .locator('li')
+      .filter({ hasText: 'Отзыв оценки' });
+    await expect(currentGrade).toHaveCount(1);
+    await expect(currentGrade.locator('strong')).toHaveText('5');
+    await post(page, `/api/classrooms/${classroom.id}/journal/grade`, {
+      columnId: retractionColumn.id,
+      seatId: a.id,
+      value: null,
+      expectedRevision: 1,
+      reason: 'Ошибочная отметка отозвана',
+      requestId: randomUUID(),
+    });
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+    await expect(currentGrade).toHaveCount(1);
+    await expect(currentGrade.locator('strong')).toHaveText('Отозвана');
+    await expect(
+      teacherSummary.getByRole('list', { name: 'Ручные оценки', exact: true }).locator('li'),
+    ).toHaveCount(4);
+    await currentGrade.getByRole('button', { name: 'История', exact: true }).click();
+    await expect(teacherSummary.locator('.participant-history ol li')).toHaveCount(2);
+    await expect(teacherSummary.locator('.participant-history ol li').first()).toContainText(
+      'Версия 2: Отозвана',
+    );
+    await expect(teacherSummary.locator('.participant-history ol li').last()).toContainText(
+      'Версия 1:',
+    );
+    const authoritative = await get<ParticipantGrades>(
+      page,
+      `/api/classrooms/${classroom.id}/participants/${a.id}/grades`,
+    );
+    expect(
+      authoritative.journal.grades.filter((grade) => grade.columnId === retractionColumn.id),
+    ).toEqual([expect.objectContaining({ revision: 2, value: null })]);
     await page.getByRole('button', { name: 'Оценки и история', exact: true }).click();
     const gradesRegion = page.getByRole('region', { name: 'Оценки и история' });
     await expect(

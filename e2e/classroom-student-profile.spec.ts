@@ -88,6 +88,7 @@ async function setup(
     suspended?: boolean;
     long?: boolean;
     account?: boolean;
+    populated?: boolean;
   } = {},
 ) {
   const state = await fixture(page, options.count ?? 3, {
@@ -196,9 +197,34 @@ async function setup(
         },
         submittedCount: 0,
         awaitingReview: 0,
-        activity: [],
+        activity: options.populated
+          ? [
+              {
+                id: 'activity',
+                action: 'project.saved',
+                seatId,
+                seatLabel: student.displayLabel,
+                byTeacher: false,
+                projectId: 'work-0',
+                projectTitle: 'Исследовательская модель',
+                count: 2,
+                firstAt: '2026-10-10T09:00:00Z',
+                at: '2026-10-10T10:00:00Z',
+              },
+            ]
+          : [],
         builtinAwards: [],
-        merits: [],
+        merits: options.populated
+          ? [
+              {
+                id: 'merit',
+                title: 'Исследователь',
+                description: 'За аккуратный эксперимент',
+                granted: true,
+                grantedAt: '2026-10-10T10:00:00Z',
+              },
+            ]
+          : [],
         avatars: [],
         helperClasses: [],
       };
@@ -227,7 +253,29 @@ async function setup(
       });
     }
     if (kind === 'assignments')
-      return route.fulfill({ json: { items: [], offset: 0, nextOffset: null } });
+      return route.fulfill({
+        json: {
+          items: options.populated
+            ? [
+                {
+                  id: 'assignment',
+                  title: 'Практическое исследование',
+                  kind: 'project',
+                  moduleKey: 'three-d',
+                  dueAt: null,
+                  assignmentId: 'assignment',
+                  courseRunId: null,
+                  activityRunId: null,
+                  projectId: null,
+                  status: 'not_started',
+                  canonicalState: null,
+                },
+              ]
+            : [],
+          offset: 0,
+          nextOffset: null,
+        },
+      });
     if (kind === 'builtin-awards') return route.fulfill({ json: { items: [] } });
     if (kind === 'works') {
       if (control.failWorks) {
@@ -245,7 +293,7 @@ async function setup(
             {
               id: `work-${offset}`,
               title: offset === 0 ? 'Открытая модель' : 'Ожидает проверки',
-              moduleKey: 'three-d',
+              moduleKey: url.searchParams.get('module') ?? 'three-d',
               status: url.searchParams.get('archive') === 'true' ? 'archived' : 'active',
               createdAt: '2026-10-10T10:00:00Z',
               updatedAt: '2026-10-10T10:00:00Z',
@@ -328,7 +376,7 @@ async function shot(page: Page, name: string) {
   await page.screenshot({ path: `${artifacts}/${name}.png`, fullPage: true });
 }
 
-test('production profile stays compact with long Russian identity on desktop, split-screen, phones and zoom', async ({
+test('production profile stays compact with long Russian identity on desktop, split-screen, phones and CSS reflow', async ({
   page,
 }) => {
   const state = await setup(page);
@@ -369,7 +417,7 @@ test('production profile stays compact with long Russian identity on desktop, sp
     await expect(tabs.locator('button').first()).toBeFocused();
     await shot(page, `profile-${width}`);
   }
-  // CSS zoom exercises real layout reflow, not a raster resize or device scale.
+  // CSS layout reflow only. Actual browser/device zoom is NOT_RUN by this test.
   await page.setViewportSize({ width: 1024, height: 900 });
   for (const zoom of [1.25, 1.5, 1.75]) {
     await page.evaluate((value) => {
@@ -387,7 +435,7 @@ for (const count of [0, 1, 30, 100]) {
   test(`all ${count} manual and assignment grades remain accessible without eager fetching`, async ({
     page,
   }) => {
-    const state = await setup(page, { manual: count, results: count === 100 ? 31 : count });
+    const state = await setup(page, { manual: count, results: count });
     await state.open();
     const summary = page.getByRole('region', { name: 'Оценки этого класса', exact: true });
     await expect(
@@ -401,6 +449,8 @@ for (const count of [0, 1, 30, 100]) {
       await summary.getByRole('button', { name: 'Повторить', exact: true }).click();
       for (let i = 0; i < 3; i++)
         await summary.getByRole('button', { name: 'Ещё ручные оценки', exact: true }).click();
+      for (let i = 0; i < 2; i++)
+        await summary.getByRole('button', { name: 'Ещё результаты', exact: true }).click();
       await expect(
         summary.getByRole('button', { name: 'Ещё результаты', exact: true }),
       ).toHaveCount(0);
@@ -410,7 +460,20 @@ for (const count of [0, 1, 30, 100]) {
     ).toHaveCount(count);
     await expect(
       summary.getByRole('list', { name: 'Результаты заданий', exact: true }).locator('li'),
-    ).toHaveCount(count === 100 ? 31 : count);
+    ).toHaveCount(count);
+    if (count === 100) {
+      const reads = state.requests.filter((request) => request.kind === 'grades');
+      expect([...new Set(reads.map((request) => request.offset))].sort((a, b) => a - b)).toEqual([
+        0, 30, 60, 90,
+      ]);
+      expect(
+        [...new Set(reads.map((request) => request.resultOffset))].sort((a, b) => a - b),
+      ).toEqual([0, 30, 60, 90]);
+      for (const label of ['Ручные оценки', 'Результаты заданий']) {
+        const rows = summary.getByRole('list', { name: label, exact: true }).locator('li');
+        expect(new Set(await rows.allTextContents()).size).toBe(100);
+      }
+    }
     if (count > 0) {
       await expect(summary.locator('time[datetime="2021-01-01"]').first()).toHaveText('01.01.2021');
       await summary.getByRole('button', { name: 'История', exact: true }).first().click();
@@ -441,28 +504,45 @@ test('all eight sections, honest loaded-only filtering, private works, archive a
     suspended: true,
     manual: 1,
     results: 1,
+    populated: true,
   });
   await state.open();
   await expect(page.getByText('Защита выключена', { exact: true })).toBeVisible();
   await expect(page.getByText('Доступ приостановлен', { exact: true })).toBeVisible();
   await expect(page.getByRole('combobox', { name: 'Роль в классе' })).toHaveValue('helper');
   const tabs = page.getByRole('navigation', { name: 'Разделы профиля' });
-  for (const name of [
-    'Оценки и история',
-    'Задания',
-    '3D',
-    'Электроника',
-    'Scratch',
-    'Заслуги',
-    'Активность',
-    'Все работы',
-  ]) {
-    await tabs.getByRole('button', { name, exact: true }).click();
-    await expect(tabs.getByRole('button', { name, exact: true })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    );
-    await noOverflow(page);
+  for (const width of [1440, 1024, 390, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    for (const name of [
+      'Оценки и история',
+      'Задания',
+      '3D',
+      'Электроника',
+      'Scratch',
+      'Заслуги',
+      'Активность',
+      'Все работы',
+    ]) {
+      await tabs.getByRole('button', { name, exact: true }).click();
+      await expect(tabs.getByRole('button', { name, exact: true })).toHaveAttribute(
+        'aria-pressed',
+        'true',
+      );
+      await noOverflow(page);
+      if (name === 'Задания')
+        await expect(page.getByRole('region', { name: 'Задания участника' })).toContainText(
+          'Практическое исследование',
+        );
+      else if (name === 'Заслуги')
+        await expect(page.locator('.participant-merits')).toContainText('Исследователь');
+      else if (name === 'Активность')
+        await expect(page.getByTestId('classroom-activity')).toContainText(
+          'Исследовательская модель',
+        );
+      else if (name !== 'Оценки и история')
+        await expect(page.locator('.project-card-grid > li')).toHaveCount(1);
+      await shot(page, `tab-${name}-${width}`);
+    }
   }
   await expect(page.getByText(/Часть личных работ закрыта/)).toContainText('8 из 10');
   const works = page
@@ -576,6 +656,100 @@ test('a delayed previous learner grade page cannot populate the next learner', a
   await expect(page.getByText(/УТЕКШАЯ ОЦЕНКА|УТЕКШИЙ РЕЗУЛЬТАТ/)).toHaveCount(0);
   await noOverflow(page);
   expect(state.errors).toEqual([]);
+});
+
+test('manual retraction supersedes earlier revisions across pages, focus refresh and a busy companion stream', async ({
+  page,
+}) => {
+  const state = await setup(page, { manual: 31, results: 100 });
+  await page.route(`**/api/classrooms/${classId}/participants/*/grades*`, async (route) => {
+    const url = new URL(route.request().url());
+    const offset = Number(url.searchParams.get('offset'));
+    const resultOffset = Number(url.searchParams.get('resultOffset'));
+    const data = grades(31, 100, offset, resultOffset);
+    const rev1 = { ...grades(1, 0, 0, 0).journal.grades[0]!, value: 5 };
+    data.journal.grades = data.journal.grades.filter((grade) => grade.columnId !== 'c0');
+    data.journal.grades.push(
+      ...(offset ? [{ ...rev1, id: 'rev2', revision: 2, value: null }, rev1] : [rev1]),
+    );
+    return route.fulfill({ json: data });
+  });
+  await state.open();
+  const summary = page.getByRole('region', { name: 'Оценки этого класса', exact: true });
+  const manual = summary.getByRole('list', { name: 'Ручные оценки', exact: true }).locator('li');
+  const column = manual.filter({ hasText: 'Урок 0' });
+  await expect(column.locator('strong')).toHaveText('5');
+  await summary.getByRole('button', { name: 'Ещё ручные оценки', exact: true }).click();
+  await expect(column).toHaveCount(1);
+  await expect(column.locator('strong')).toHaveText('Отозвана');
+  // Results first/last must never reintroduce a repeated rev1 companion page.
+  for (let i = 0; i < 3; i++) {
+    await summary.getByRole('button', { name: 'Ещё результаты', exact: true }).click();
+    await expect(
+      summary.getByRole('list', { name: 'Результаты заданий', exact: true }).locator('li'),
+    ).toHaveCount(Math.min(60 + i * 30, 100));
+  }
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  await expect(manual).toHaveCount(31);
+  await expect(column).toHaveCount(1);
+  await expect(column.locator('strong')).toHaveText('Отозвана');
+  await column.getByRole('button', { name: 'История', exact: true }).click();
+  await expect(summary).toContainText('Исправление с сохранением истории');
+  await noOverflow(page);
+  expect(state.errors).toEqual([]);
+});
+
+test('mobile work filters share a row and one card fills the grid while multiple cards remain readable', async ({
+  page,
+}) => {
+  const state = await setup(page, { manual: 0, results: 0 });
+  await state.open();
+  const grid = page.locator('.project-card-grid');
+  for (const width of [390, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    const card = (await grid.locator(':scope > li').first().boundingBox())!;
+    expect(card.width).toBeGreaterThanOrEqual((await grid.boundingBox())!.width - 2);
+    const filters = page.locator('.classroom-student-works-head');
+    const archive = (await filters.locator('label').boundingBox())!;
+    const awaiting = (await filters.getByRole('button').boundingBox())!;
+    expect(Math.abs(archive.y - awaiting.y)).toBeLessThanOrEqual(1);
+    expect(archive.height).toBeGreaterThanOrEqual(44);
+    expect(awaiting.height).toBeGreaterThanOrEqual(44);
+    expect(archive.x + archive.width).toBeLessThanOrEqual(awaiting.x);
+    await noOverflow(page);
+    await shot(page, `work-one-${width}`);
+  }
+  await page.getByRole('button', { name: 'Ещё работы', exact: true }).click();
+  await expect(grid.locator(':scope > li')).toHaveCount(2);
+  for (const width of [390, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    const boxes = await Promise.all(
+      (await grid.locator(':scope > li').all()).map(async (card) => (await card.boundingBox())!),
+    );
+    if (width === 390) {
+      expect(Math.abs(boxes[0]!.y - boxes[1]!.y)).toBeLessThanOrEqual(1);
+      expect(boxes[0]!.x + boxes[0]!.width).toBeLessThan(boxes[1]!.x);
+    } else expect(boxes[1]!.y).toBeGreaterThanOrEqual(boxes[0]!.y + boxes[0]!.height);
+    for (const link of await grid.getByRole('link', { name: 'Открыть', exact: true }).all()) {
+      const box = (await link.boundingBox())!;
+      expect(box.height).toBeGreaterThanOrEqual(44);
+      expect(box.width).toBeGreaterThanOrEqual(44);
+      expect(await link.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(
+        true,
+      );
+    }
+    await noOverflow(page);
+    await shot(page, `work-multiple-${width}`);
+  }
+  await page
+    .getByRole('button', { name: 'Ждут проверки · среди загруженных', exact: true })
+    .click();
+  await expect(grid.locator(':scope > li')).toHaveCount(1);
+  expect((await grid.locator(':scope > li').boundingBox())!.width).toBeGreaterThanOrEqual(
+    (await grid.boundingBox())!.width - 2,
+  );
+  expect(state.errors).toEqual([]);
+  expect(state.mutations).toEqual([]);
 });
 
 test('attended Account classes retain the original compact pupil summary', async ({ page }) => {

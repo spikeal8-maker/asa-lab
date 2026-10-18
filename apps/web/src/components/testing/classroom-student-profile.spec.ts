@@ -149,6 +149,78 @@ it('keeps the exhausted companion cursor and loaded records when streams finish 
   expect(host.textContent).not.toContain('Ещё результаты');
 });
 
+it.each(['journal', 'results'])(
+  'exhausts 100+100 independent cursors with %s first',
+  async (first) => {
+    const read = vi
+      .spyOn(participantsApi, 'grades')
+      .mockImplementation(async (_c, _s, o = 0, r = 0) => ok(page(100, 100, o, r)));
+    await render();
+    const labels =
+      first === 'journal'
+        ? ['Ещё ручные оценки', 'Ещё результаты']
+        : ['Ещё результаты', 'Ещё ручные оценки'];
+    for (const label of labels) for (let i = 0; i < 3; i++) await click(label);
+    expect(manualRows()).toHaveLength(100);
+    expect(resultRows()).toHaveLength(100);
+    expect(read.mock.calls.map((call) => call.slice(2))).toEqual(
+      first === 'journal'
+        ? [
+            [0, 0],
+            [30, 0],
+            [60, 0],
+            [90, 0],
+            [90, 30],
+            [90, 60],
+            [90, 90],
+          ]
+        : [
+            [0, 0],
+            [0, 30],
+            [0, 60],
+            [0, 90],
+            [30, 90],
+            [60, 90],
+            [90, 90],
+          ],
+    );
+    await act(async () => window.dispatchEvent(new Event('focus')));
+    expect(read.mock.calls.slice(-4).map((call) => call.slice(2))).toEqual([
+      [0, 0],
+      [30, 30],
+      [60, 60],
+      [90, 90],
+    ]);
+    expect(manualRows()).toHaveLength(100);
+    expect(resultRows()).toHaveLength(100);
+  },
+);
+
+it('does not rewind pagination when focus or another stream is requested during a pending result page', async () => {
+  const pending = deferred<ApiResult<ParticipantGrades>>();
+  const read = vi
+    .spyOn(participantsApi, 'grades')
+    .mockResolvedValueOnce(ok(page()))
+    .mockResolvedValueOnce(ok(page(100, 100, 30, 0)))
+    .mockReturnValueOnce(pending.promise)
+    .mockResolvedValueOnce(ok(page(100, 100, 60, 30)));
+  await render();
+  await click('Ещё ручные оценки');
+  await act(async () => {
+    button('Ещё результаты').click();
+    window.dispatchEvent(new Event('focus'));
+    button('Ещё ручные оценки').click();
+  });
+  expect(read).toHaveBeenCalledTimes(3);
+  await act(async () => pending.resolve(ok(page(100, 100, 0, 30))));
+  expect(manualRows()).toHaveLength(60);
+  expect(resultRows()).toHaveLength(60);
+  await click('Ещё ручные оценки');
+  expect(read.mock.calls.at(-1)?.slice(2)).toEqual([60, 30]);
+  expect(manualRows()).toHaveLength(90);
+  expect(resultRows()).toHaveLength(60);
+});
+
 it('locks repeated calls synchronously, deduplicates overlap, retains records and retries the failed page', async () => {
   const pending = deferred<ApiResult<ParticipantGrades>>();
   const read = vi
@@ -188,6 +260,114 @@ it('preserves all loaded pages on failed focus refresh and does not eagerly fetc
   expect(read.mock.calls.some((args) => args[2] === 60 || args[3] === 30)).toBe(false);
 });
 
+it.each([false, true])(
+  'keeps authoritative manual revisions across pages and refresh (reverse=%s)',
+  async (reverse) => {
+    const original = { ...page(1, 0).journal.grades[0]!, value: 5 };
+    const retracted = {
+      ...original,
+      id: 'revision-2',
+      revision: 2,
+      value: null,
+      publishedAt: '2026-02-01T00:00:00Z',
+    };
+    const newerTie = { ...retracted, id: 'revision-2-later', publishedAt: '2026-02-02T00:00:00Z' };
+    const response = (offset: number) => {
+      const data = page(31, 100, offset, 0);
+      data.journal.grades = data.journal.grades.filter((grade) => grade.columnId !== 'c0');
+      data.journal.grades.push(...(offset ? [newerTie, retracted, original] : [original]));
+      if (reverse) data.journal.grades.reverse();
+      return data;
+    };
+    vi.spyOn(participantsApi, 'grades').mockImplementation(
+      async (_c, _s, offset = 0, resultOffset = 0) =>
+        ok({
+          ...response(offset),
+          ...{
+            results: page(0, 100, 0, resultOffset).results,
+            resultOffset,
+            nextResultOffset: resultOffset + 30 < 100 ? resultOffset + 30 : null,
+          },
+        }),
+    );
+    const history = vi
+      .spyOn(participantsApi, 'history')
+      .mockResolvedValue(
+        ok({ preset: 'five', items: [newerTie, original], nextBeforeRevision: null }),
+      );
+    await render();
+    const column = () => [...manualRows()].filter((row) => row.textContent?.includes('Урок 0'));
+    expect(column()).toHaveLength(1);
+    expect(column()[0]!.querySelector('strong')?.textContent).toBe('5');
+    await click('Ещё ручные оценки');
+    for (let i = 0; i < 3; i++) await click('Ещё результаты');
+    await act(async () => window.dispatchEvent(new Event('focus')));
+    expect(manualRows()).toHaveLength(31);
+    expect(resultRows()).toHaveLength(100);
+    expect(column()).toHaveLength(1);
+    expect(column()[0]!.querySelector('strong')?.textContent).toBe('Отозвана');
+    await act(async () => column()[0]!.querySelector<HTMLButtonElement>('button')!.click());
+    expect(history).toHaveBeenCalledWith('class', 'seat-a', 'c0', undefined);
+    expect(host.querySelectorAll('.participant-history ol li')).toHaveLength(2);
+    expect(host.querySelector('.participant-history')?.textContent).toContain('5');
+    expect(host.querySelector('.participant-history')?.textContent).toContain('Отозвана');
+  },
+);
+
+it.each([503, 403])(
+  'shows the new learner error %i and retry while rejecting old grade/history responses and epoch reuse',
+  async (status) => {
+    const staleGrade = deferred<ApiResult<ParticipantGrades>>();
+    const staleHistory =
+      deferred<ApiResult<import('../../classroom-participants-api').ParticipantResultHistory>>();
+    const read = vi
+      .spyOn(participantsApi, 'grades')
+      .mockResolvedValueOnce(ok(page()))
+      .mockReturnValueOnce(staleGrade.promise)
+      .mockResolvedValueOnce(fail(status));
+    vi.spyOn(participantsApi, 'resultHistory').mockReturnValueOnce(staleHistory.promise);
+    await render();
+    await act(async () => button('Ещё ручные оценки').click());
+    await click('История результата');
+    await render('seat-b');
+    expect(host.querySelector('[role="alert"]')?.textContent).toContain('Ошибка страницы');
+    expect(host.querySelector('[role="status"]')).toBeNull();
+    expect(manualRows()).toHaveLength(0);
+    expect(resultRows()).toHaveLength(0);
+    read.mockResolvedValueOnce(ok(page(1, 1)));
+    await click('Повторить');
+    expect(read.mock.calls.at(-1)?.slice(1)).toEqual(['seat-b', 0, 0]);
+    expect(manualRows()).toHaveLength(1);
+    read.mockResolvedValueOnce(ok(page(2, 2)));
+    await render('seat-a');
+    await act(async () => {
+      staleGrade.resolve(ok(page(100, 100, 30)));
+      staleHistory.resolve(
+        ok({
+          offset: 0,
+          hasMore: false,
+          items: [
+            {
+              id: 'stale',
+              revision: 1,
+              attempt_number: 1,
+              raw_points: 99,
+              max_points: 100,
+              reason: null,
+              feedback: 'STALE HISTORY',
+              author: 'A',
+              published_at: '2026-01-01T00:00:00Z',
+            },
+          ],
+        }),
+      );
+    });
+    expect(manualRows()).toHaveLength(2);
+    expect(resultRows()).toHaveLength(2);
+    expect(host.textContent).not.toContain('STALE HISTORY');
+  },
+);
+
 it('rejects delayed previous-seat responses and clears protected data on logout and denied reads', async () => {
   const pending = deferred<ApiResult<ParticipantGrades>>();
   const read = vi
@@ -209,6 +389,29 @@ it('rejects delayed previous-seat responses and clears protected data on logout 
   expect(read).toHaveBeenCalledTimes(calls);
   expect(host.textContent).toContain('Войдите');
 });
+
+it.each([401, 403])(
+  'purges current data and pending result history on grade denial %i',
+  async (status) => {
+    const pending =
+      deferred<ApiResult<import('../../classroom-participants-api').ParticipantResultHistory>>();
+    vi.spyOn(participantsApi, 'grades')
+      .mockResolvedValueOnce(ok(page()))
+      .mockResolvedValueOnce(fail(status))
+      .mockResolvedValueOnce(ok(page(1, 1)));
+    vi.spyOn(participantsApi, 'resultHistory').mockReturnValueOnce(pending.promise);
+    await render();
+    await click('История результата');
+    await act(async () => window.dispatchEvent(new Event('focus')));
+    expect(manualRows()).toHaveLength(0);
+    expect(resultRows()).toHaveLength(0);
+    await act(async () => pending.resolve(ok({ offset: 0, hasMore: false, items: [] })));
+    expect(host.querySelector('.participant-history')).toBeNull();
+    await click('Повторить');
+    expect(manualRows()).toHaveLength(1);
+    expect(resultRows()).toHaveLength(1);
+  },
+);
 
 it('keeps zero, retracted grade, null result, calendar dates and full revision feedback distinct', async () => {
   vi.spyOn(participantsApi, 'grades').mockResolvedValue(ok(page(2, 2)));
@@ -334,6 +537,74 @@ const profile = (): ParticipantProfile => ({
   merits: [],
   avatars: [],
 });
+
+it.each(['switch', 'logout'] as const)(
+  'ignores a pending role mutation after %s',
+  async (boundary) => {
+    vi.spyOn(api, 'listProjectModules').mockResolvedValue(ok({ items: [] }));
+    const read = vi.spyOn(participantsApi, 'profile').mockImplementation(async (_class, seat) => {
+      const data = profile();
+      data.student.id = seat;
+      data.student.displayLabel = seat;
+      data.metrics.seatId = seat;
+      return ok(data);
+    });
+    vi.spyOn(participantsApi, 'grades').mockResolvedValue(ok(page(0, 0)));
+    vi.spyOn(participantsApi, 'works').mockResolvedValue(
+      ok({
+        totalWorks: 0,
+        visibleWorks: 0,
+        filteredWorks: 0,
+        offset: 0,
+        hasMore: false,
+        items: [],
+      }),
+    );
+    const pending = deferred<Awaited<ReturnType<typeof participantsApi.mutate>>>();
+    const mutation = vi.spyOn(participantsApi, 'mutate').mockReturnValueOnce(pending.promise);
+    const props = {
+      classroomId: 'class',
+      classroomTitle: 'Класс',
+      seatId: 'seat-a',
+      onBack: vi.fn(),
+      onOpenProject: vi.fn(),
+      navigation: null,
+      onNavigateStudent: vi.fn(),
+    };
+    await act(async () => root.render(createElement(ClassroomStudentPage, props)));
+    await act(async () => {
+      const select = host.querySelector<HTMLSelectElement>('[aria-label="Роль в классе"]')!;
+      select.value = 'helper';
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    expect(mutation).toHaveBeenCalledWith(
+      'class',
+      'role',
+      { seatId: 'seat-a', role: 'helper' },
+      expect.any(String),
+    );
+    if (boundary === 'switch')
+      await act(async () =>
+        root.render(createElement(ClassroomStudentPage, { ...props, seatId: 'seat-b' })),
+      );
+    else await act(async () => notifySessionLoggedOut());
+    const calls = read.mock.calls.length;
+    await act(async () =>
+      pending.resolve(ok({}) as Awaited<ReturnType<typeof participantsApi.mutate>>),
+    );
+    expect(read).toHaveBeenCalledTimes(calls);
+    if (boundary === 'switch') {
+      expect(host.querySelector('h1')?.textContent).toBe('seat-b');
+      expect(host.querySelector<HTMLSelectElement>('[aria-label="Роль в классе"]')?.value).toBe(
+        'student',
+      );
+    } else {
+      expect(host.querySelector('[aria-label="Роль в классе"]')).toBeNull();
+      expect(host.textContent).toContain('Войдите');
+    }
+  },
+);
+
 it('renders one navigation row, truthful safety, all eight keyboard-reachable sections and works retry offset', async () => {
   vi.spyOn(api, 'listProjectModules').mockResolvedValue(ok({ items: [] }));
   vi.spyOn(participantsApi, 'profile').mockResolvedValue(ok(profile()));

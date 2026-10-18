@@ -810,6 +810,9 @@ export function ParticipantGradeHistory({
           if (!result.ok) {
             paging.current = false;
             setLoading(false);
+            // This response belongs to the current identity, even when its first
+            // read failed. Expose its error/retry without revealing the old seat.
+            setLoadedIdentity(identity);
             failedPage.current = { offset, resultOffset, stream };
             historyError(result.error.message, result.status);
             return;
@@ -824,10 +827,22 @@ export function ParticipantGradeHistory({
                     [...(previous?.journal.columns ?? []), ...incoming.journal.columns],
                     (c) => c.id,
                   ),
-                  grades: unique(
-                    [...(previous?.journal.grades ?? []), ...incoming.journal.grades],
-                    (g) => g.id,
-                  ),
+                  // Grade IDs identify immutable revisions. A column has one
+                  // current grade for this learner, including a null retraction.
+                  // Choose by authoritative revision first, independent of page
+                  // order; publication instant and ID make equal revisions stable.
+                  grades: [
+                    ...new Map(
+                      [...(previous?.journal.grades ?? []), ...incoming.journal.grades]
+                        .sort(
+                          (a, b) =>
+                            a.revision - b.revision ||
+                            Date.parse(a.publishedAt) - Date.parse(b.publishedAt) ||
+                            (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
+                        )
+                        .map((grade) => [grade.columnId, grade] as const),
+                    ).values(),
+                  ],
                 }
               : previous!.journal,
             resultOffset: request.results ? incoming.resultOffset : previous!.resultOffset,
