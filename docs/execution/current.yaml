@@ -3838,6 +3838,18 @@ parallel_lanes:
           on af4d897685238eecb395970cdf2702f21969c654, and explicitly add published 0217.
           Preserve all exact catalogue, historical data, idempotency and RLS assertions.
           No migration or Learning runtime change; independent final-SHA review and CI required.
+      - id: TASK-PROJ-PUBLICATION-HEADER-BASELINE-001
+        status: in_progress
+        prepared_branch: assistant/portal-header-ci-20261018
+        scope:
+          - apps/web/src/creator-portal/portal-header-adaptive.css
+          - e2e/access-account-ui.spec.ts
+        selection: >-
+          Separate C baseline repair: Access Account UI has26 existing geometry/locator failures
+          on a1283b27, run39144252513/job117725991617. Adopt only completed PR603 exact source
+          9e12e981e4b7ece388cc226bf8cd878908a5aed3, preserving its branch and the accepted
+          single-row56px header with44px controls. No PR609 package or unrelated changes.
+          Independent combined-source review, actual Access/header CI and general gate required.
     accepted_foundation:
       accepted_r7_01b_merge_sha: 65316c50873e28a5effd7b6e603b5289e37e2fac
       accepted_r3_merge_sha: 5fa616045b16d2720418eb7945f7bef968dd9389

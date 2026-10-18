@@ -1,7 +1,7 @@
 # Public Projects: verification baseline dependencies
 
 Parent programme: TASK-PROJ-R7-VISIBLE-PUBLICATION-001, Issue #211.
-The controller selects two separate bounded C repairs under AGENTS.md sections
+The controller selects three separate bounded C repairs under AGENTS.md sections
 2.1 and 7. These support the first visible publication increment. They do not
 authorize another product feature, deployment, working database action, runtime
 change or weakening of a gate.
@@ -57,6 +57,33 @@ the publication candidate; a test-only baseline through0217 cannot certify0218.
 Acceptance: formatter/diff checks, exact catalogue audit, independent final-source
 review and real PostgreSQL forward-upgrade plus general data gate.
 
+## Existing compact header verification
+
+TASK-PROJ-PUBLICATION-HEADER-BASELINE-001.
+Prepared source: PR603, `9e12e981e4b7ece388cc226bf8cd878908a5aed3`.
+
+Actual failure: general run39144252513/job117725991617 on the same baseline:
+the Access Account UI step passed381 scenarios and failed26, principally obsolete
+100px/two-row geometry and a button locator for the native Create summary.
+The independently prepared PR603 retains the accepted single-row56px header,
+44px controls and current two public sections; it also constrains wide-text
+intrinsic sizing. Its completed source is compatible with the publication
+candidate's passing Portal Header Responsive run39145854981.
+
+Adopt only its exact two authored blobs:
+`apps/web/src/creator-portal/portal-header-adaptive.css` and
+`e2e/access-account-ui.spec.ts`. Preserve the existing branch and do not adopt
+unrelated PR609/package changes. Retain strict normal/wide-text geometry,
+responsive boundaries, visible content, popup, Escape and focus checks.
+The removed synthetic third public link was outside the current two-section
+contract; any future third section requires its own layout acceptance.
+
+This baseline does not fix the publication guest-header overlap or the observed
+owner-card overflow at360px. Those remain separately diagnosed product findings;
+do not hide them with global overflow clipping or weakened assertions.
+Acceptance: new independent review of the exact combined source, actual Access
+Account UI and Portal Header Responsive CI, plus the complete general gate.
+
 ## Integration
 
 The existing independently reviewed ESLint prerequisite remains separately
@@ -68,5 +95,16 @@ The final combined SHA requires independent review and the relevant actual CI.
 An old cancelled run or a passing isolated check is not combined acceptance.
 
 The first publication candidate remains unaccepted until its lock-order,
-Learning compatibility, PostgreSQL and built-browser checks pass. Its repair
-commit `7745b5f4bc9d52d759562f4ce092ca94c7381ee7` has begun that new CI cycle.
+Learning compatibility, PostgreSQL and built-browser checks pass. Independent
+review of `7745b5f4bc9d52d759562f4ce092ca94c7381ee7` found an introduced HIGH
+generic-checkpoint/legacy-submission lock cycle. Its actual profile passed127
+code/PostgreSQL and48 portal checks, but browser passed6 of8 and Learning had
+three failures. These partial results are not acceptance.
+
+The selected product repair confines the added early Project lock to resources
+without immutable Learning origin, including a fresh post-lock classification
+and savepoint rollback on concurrent origin attachment. Existing Learning
+business writers are not rewritten. The potential older canonical submission
+SHARE/Draft inversion is a separate, unconfirmed baseline finding; neither this
+repair nor these verification prerequisites claim general School concurrency
+acceptance.
