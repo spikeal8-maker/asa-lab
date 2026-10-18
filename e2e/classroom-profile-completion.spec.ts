@@ -352,7 +352,21 @@ async function assertLayout(page: Page, width: number, file: string) {
     const headerControls = header.locator(
       '.portal-menu-toggle, .portal-brand, .portal-global-nav a, .portal-header-create, .portal-account > summary',
     );
-    await expect(headerControls).toHaveCount(6);
+    await expect(headerControls).toHaveCount(7);
+    const publicNavigation = header.getByRole('navigation', {
+      name: 'Разделы ASA Lab',
+      exact: true,
+    });
+    await expect(publicNavigation.locator('a')).toHaveCount(3);
+    for (const [name, href] of [
+      ['Проекты', '/#/gallery'],
+      ['Знания', '/#/knowledge'],
+      ['ИИ', '/#/ai'],
+    ] as const) {
+      const link = publicNavigation.getByRole('link', { name, exact: true });
+      await expect(link).toHaveJSProperty('tagName', 'A');
+      await expect(link).toHaveAttribute('href', href);
+    }
     let previousRight = 0;
     for (const control of await headerControls.all()) {
       await expect(control).toBeVisible();
