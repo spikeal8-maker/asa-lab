@@ -1,3 +1,5 @@
+import { captureDeviceModelDefinition } from './models/device-model.js';
+
 export type OrdinaryLedColour = 'red' | 'orange' | 'yellow' | 'green' | 'blue' | 'white';
 export type RgbLedChannel = 'red' | 'green' | 'blue';
 export type SevenSegmentId = 'a' | 'b' | 'c' | 'd' | 'e' | 'f' | 'g' | 'dp';
@@ -113,6 +115,13 @@ export const ORDINARY_LED_PROFILES: Readonly<Record<OrdinaryLedColour, LedJuncti
   blue: ordinaryProfile(0.9),
   white: ordinaryProfile(1),
 };
+
+const ordinaryLedDefinitionIsOriginal = captureDeviceModelDefinition(ORDINARY_LED_PROFILES);
+
+/** Package-internal origin check of all original ordinary profiles and segments. */
+export function ordinaryLedProfilesHaveOriginalDefinition(): boolean {
+  return ordinaryLedDefinitionIsOriginal();
+}
 
 /** RGB dies use the observed low package resistance and independent junctions. */
 export const RGB_LED_PROFILES: Readonly<Record<RgbLedChannel, LedJunctionProfile>> = {

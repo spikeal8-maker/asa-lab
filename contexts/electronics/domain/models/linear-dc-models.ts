@@ -4,6 +4,7 @@ import {
   electricalModelIdentityForComponent,
 } from '../model-identity.js';
 import type { DeviceDiagnostic, DeviceModel, NormalizedDevice } from './device-model.js';
+import { captureDeviceModelDefinition } from './device-model.js';
 import {
   regulatedPowerSupplyModeForOperatingPoint,
   regulatedPowerSupplySettings,
@@ -234,6 +235,14 @@ export const RESISTOR_DEVICE_MODEL: DeviceModel<ResistorParameters, LinearDcObse
     };
   },
 };
+
+// Capture at definition, never at a later consumer/driver construction boundary.
+const resistorDefinitionIsOriginal = captureDeviceModelDefinition(RESISTOR_DEVICE_MODEL);
+
+/** Package-internal admission only; generic live model dispatch remains unchanged. */
+export function resistorDeviceModelHasOriginalDefinition(): boolean {
+  return resistorDefinitionIsOriginal();
+}
 
 export const SOURCE_DEVICE_MODEL: DeviceModel<SourceParameters, LinearDcObservation> = {
   id: 'ideal-dc-source',
