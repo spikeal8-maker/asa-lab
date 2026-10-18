@@ -914,6 +914,19 @@ it.each(['switch', 'logout'] as const)(
       }),
     );
     const pending = deferred<Awaited<ReturnType<typeof participantsApi.mutate>>>();
+    vi.spyOn(api, 'listClassroomRoster').mockResolvedValue(
+      ok({
+        items: ['seat-a', 'seat-b'].map((id) => ({
+          ...profile().student,
+          id,
+          displayLabel: id,
+          studentCode: 'PRIVATE-CODE',
+          loginMethod: 'student_code' as const,
+          loginHandle: 'PRIVATE-HANDLE',
+          createdAt: '',
+        })),
+      }),
+    );
     const mutation = vi.spyOn(participantsApi, 'mutate').mockReturnValueOnce(pending.promise);
     const props = {
       classroomId: 'class',
@@ -947,14 +960,83 @@ it.each(['switch', 'logout'] as const)(
     );
     expect(read).toHaveBeenCalledTimes(calls);
     if (boundary === 'switch') {
-      expect(host.querySelector('h1')?.textContent).toBe('seat-b');
+      expect(host.querySelector('.classroom-student-picker-name')?.textContent).toBe('seat-b');
       expect(host.querySelector<HTMLSelectElement>('[aria-label="Роль в классе"]')?.value).toBe(
         'student',
       );
+      await click('Выбрать ученика: seat-b');
+      const menu = host.querySelector('[role="dialog"][aria-label="Ученики класса"]')!;
+      expect(menu.querySelectorAll('[aria-current="page"]')).toHaveLength(1);
+      expect(menu.querySelector('[aria-current="page"] > span')?.textContent).toBe('seat-b');
+      expect(menu.textContent).not.toContain('PRIVATE');
     } else {
       expect(host.querySelector('[aria-label="Роль в классе"]')).toBeNull();
       expect(host.textContent).toContain('Войдите');
     }
+  },
+);
+
+it.each(['api error', 'rejection'] as const)(
+  'retries the learner roster after an initial %s and caches the successful read',
+  async (failure) => {
+    vi.spyOn(api, 'listProjectModules').mockResolvedValue(ok({ items: [] }));
+    vi.spyOn(participantsApi, 'profile').mockResolvedValue(ok(profile()));
+    vi.spyOn(participantsApi, 'grades').mockResolvedValue(ok(page(0, 0)));
+    vi.spyOn(participantsApi, 'works').mockResolvedValue(
+      ok({
+        items: [],
+        totalWorks: 0,
+        visibleWorks: 0,
+        filteredWorks: 0,
+        offset: 0,
+        hasMore: false,
+      }),
+    );
+    const roster = vi.spyOn(api, 'listClassroomRoster').mockResolvedValue(
+      ok({
+        items: [
+          {
+            ...profile().student,
+            studentCode: 'PRIVATE-CODE',
+            loginMethod: 'student_code' as const,
+            loginHandle: 'PRIVATE-HANDLE',
+            createdAt: '',
+          },
+        ],
+      }),
+    );
+    if (failure === 'api error') roster.mockResolvedValueOnce(fail());
+    else roster.mockRejectedValueOnce(new Error('Network unavailable'));
+    await act(async () =>
+      root.render(
+        createElement(ClassroomStudentPage, {
+          classroomId: 'class',
+          classroomTitle: 'Класс',
+          seatId: 'seat-a',
+          onBack: vi.fn(),
+          onOpenProject: vi.fn(),
+          navigation: null,
+          onNavigateStudent: vi.fn(),
+        }),
+      ),
+    );
+    const open = `Выбрать ученика: ${profile().student.displayLabel}`;
+    await click(open);
+    expect(roster).toHaveBeenCalledTimes(1);
+    expect(host.querySelector('[role="dialog"] [role="alert"]')).not.toBeNull();
+    await click('Повторить');
+    expect(roster).toHaveBeenCalledTimes(2);
+    expect(roster).toHaveBeenLastCalledWith('class');
+    const menu = host.querySelector('[role="dialog"]')!;
+    expect(menu.querySelector('[role="alert"]')).toBeNull();
+    expect(menu.querySelector('[aria-current="page"] > span')?.textContent).toBe(
+      profile().student.displayLabel,
+    );
+    expect(menu.textContent).not.toContain('PRIVATE');
+    await click(open);
+    await click(open);
+    expect(roster).toHaveBeenCalledTimes(2);
+    expect(host.querySelector('[role="dialog"] [aria-current="page"]')).not.toBeNull();
   },
 );
 

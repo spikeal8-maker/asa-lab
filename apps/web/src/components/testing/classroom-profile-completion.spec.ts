@@ -854,6 +854,94 @@ describe('participant completion DOM behavior', () => {
     await click('Оценки');
     expect(host.querySelector('.participant-grades')).not.toBeNull();
   });
+  it('switches pupils from a searchable class picker, reuses one roster read and restores keyboard focus', async () => {
+    const entries = ['Иванова Анна Сергеевна', 'Петров Борис Александрович'].map(
+      (displayLabel, index) => ({
+        ...profile('student', index ? 'seat-b' : 'seat-a').student,
+        displayLabel,
+        studentCode: 'PRIVATE-CODE',
+        loginMethod: 'student_code' as const,
+        loginHandle: 'PRIVATE-HANDLE',
+        createdAt: '',
+      }),
+    );
+    const readProfile = vi.spyOn(participantsApi, 'profile').mockImplementation(async (_, id) => {
+      const data = profile('student', id);
+      data.student.displayLabel = entries.find((entry) => entry.id === id)!.displayLabel;
+      return ok(data);
+    });
+    const roster = vi.spyOn(api, 'listClassroomRoster').mockResolvedValue(ok({ items: entries }));
+    vi.spyOn(participantsApi, 'grades').mockResolvedValue(ok(grades('five', [])));
+    vi.spyOn(participantsApi, 'works').mockResolvedValue(
+      ok({
+        items: [],
+        totalWorks: 0,
+        visibleWorks: 0,
+        filteredWorks: 0,
+        offset: 0,
+        hasMore: false,
+      }),
+    );
+    vi.spyOn(api, 'listProjectModules').mockResolvedValue(ok({ items: [] }));
+    const props = {
+      classroomId: 'class',
+      classroomTitle: 'Класс',
+      seatId: 'seat-a',
+      navigation: {
+        previous: entries[1]!,
+        next: entries[1]!,
+        position: 1,
+        total: 2,
+      },
+      onNavigateStudent: vi.fn(),
+      onBack: vi.fn(),
+      onOpenProject: vi.fn(),
+    };
+    await render(createElement(ClassroomStudentPage, props));
+    expect(roster).not.toHaveBeenCalled();
+    const opener = () => host.querySelector<HTMLButtonElement>('[aria-haspopup="dialog"]')!;
+    expect(opener().getAttribute('aria-expanded')).toBe('false');
+    expect(host.querySelector('.student-pager-name')?.textContent?.trim()).toBe('Петров Борис');
+    expect(host.querySelector('.classroom-student-navigation button')?.getAttribute('title')).toBe(
+      entries[1]!.displayLabel,
+    );
+    await act(async () => opener().click());
+    const dialog = () => host.querySelector<HTMLElement>('[role="dialog"]')!;
+    expect(dialog().querySelectorAll('li')).toHaveLength(2);
+    expect(dialog().querySelector('[aria-current="page"]')?.textContent).toContain('Иванова Анна');
+    expect(dialog().textContent).not.toContain('PRIVATE');
+    const search = dialog().querySelector<HTMLInputElement>('input')!;
+    expect(document.activeElement).toBe(search);
+    await fill(search, 'петров');
+    expect(dialog().querySelectorAll('li')).toHaveLength(1);
+    await act(async () =>
+      search.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true })),
+    );
+    const option = dialog().querySelector<HTMLButtonElement>('li button')!;
+    expect(document.activeElement).toBe(option);
+    await act(async () => option.click());
+    expect(props.onNavigateStudent).toHaveBeenCalledWith('seat-b');
+    expect(dialog()).toBeNull();
+    expect(document.activeElement).toBe(opener());
+    await render(createElement(ClassroomStudentPage, { ...props, seatId: 'seat-b' }));
+    expect(readProfile).toHaveBeenLastCalledWith('class', 'seat-b');
+    expect(opener().textContent).toContain('Петров Борис Александрович');
+    expect(document.activeElement).toBe(opener());
+    await act(async () => opener().click());
+    expect(dialog().querySelectorAll('li')).toHaveLength(2);
+    expect(dialog().querySelector('[aria-current="page"]')?.textContent).toContain('Петров Борис');
+    await act(async () =>
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })),
+    );
+    expect(dialog()).toBeNull();
+    expect(document.activeElement).toBe(opener());
+    await act(async () => opener().click());
+    await act(async () => document.body.dispatchEvent(new Event('pointerdown', { bubbles: true })));
+    expect(dialog()).toBeNull();
+    expect(document.activeElement).toBe(opener());
+    expect(roster).toHaveBeenCalledOnce();
+    expect(roster).toHaveBeenCalledWith('class');
+  });
   it('loads assigned work independently of projects and clears a delayed previous pupil response', async () => {
     let resolveOld!: (value: ApiResult<ParticipantAssignments>) => void;
     vi.spyOn(participantsApi, 'assignments')

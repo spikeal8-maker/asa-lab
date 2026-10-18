@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import {
   api,
+  type ClassroomStudentSeat,
   type ClassroomStudentWork,
   type ModuleSummary,
   type Project,
@@ -103,6 +104,23 @@ export function ClassroomStudentPage({
   const [onlyAwaiting, setOnlyAwaiting] = useState(false);
   const [awardKeys, setAwardKeys] = useState<readonly string[]>([]);
   const [roleBusy, setRoleBusy] = useState(false);
+  const [learnerPickerOpen, setLearnerPickerOpen] = useState(false);
+  const [learnerSearch, setLearnerSearch] = useState('');
+  const [learnerRoster, setLearnerRoster] = useState<{
+    classroomId: string;
+    items: Pick<ClassroomStudentSeat, 'id' | 'displayLabel' | 'avatarKey'>[];
+  } | null>(null);
+  const [learnerRosterError, setLearnerRosterError] = useState<string | null>(null);
+  const [learnerRosterRetry, setLearnerRosterRetry] = useState(0);
+  const rosterRequest = useRef<{
+    classroomId: string;
+    promise: ReturnType<typeof api.listClassroomRoster>;
+  } | null>(null);
+  const learnerPicker = useRef<HTMLDivElement>(null);
+  const learnerOpener = useRef<HTMLButtonElement | null>(null);
+  const learnerSearchInput = useRef<HTMLInputElement>(null);
+  const focusAfterNavigation = useRef<string | null>(null);
+  const learnerPickerId = useId();
   const generation = useRef(0);
   const profileGeneration = useRef(0);
   const sessionEnded = useRef(false);
@@ -112,6 +130,61 @@ export function ClassroomStudentPage({
   const time = useSchoolTime();
   const module = TABS.find((t) => t.key === tab)?.module ?? null;
   const showsWorks = !['assignments', 'merits', 'grades', 'activity'].includes(tab);
+  const closeLearnerPicker = useCallback((restoreFocus = true) => {
+    setLearnerPickerOpen(false);
+    if (restoreFocus) learnerOpener.current?.focus();
+  }, []);
+  useEffect(() => {
+    setLearnerPickerOpen(false);
+    setLearnerSearch('');
+  }, [classroomId, seatId]);
+  useEffect(() => {
+    if (!learnerPickerOpen || sessionEnded.current) return;
+    let active = true;
+    learnerSearchInput.current?.focus();
+    setLearnerRosterError(null);
+    // Retain the single class request across pupil changes and menu reopenings.
+    if (rosterRequest.current?.classroomId !== classroomId) {
+      rosterRequest.current = { classroomId, promise: api.listClassroomRoster(classroomId) };
+    }
+    const request = rosterRequest.current;
+    void request.promise
+      .then((result) => {
+        if (!result.ok && rosterRequest.current === request) rosterRequest.current = null;
+        if (!active || sessionEnded.current) return;
+        if (result.ok) {
+          setLearnerRoster({
+            classroomId,
+            items: result.data.items.map(({ id, displayLabel, avatarKey }) => ({
+              id,
+              displayLabel,
+              avatarKey,
+            })),
+          });
+        } else setLearnerRosterError(result.error.message);
+      })
+      .catch(() => {
+        if (rosterRequest.current === request) rosterRequest.current = null;
+        if (active && !sessionEnded.current)
+          setLearnerRosterError('Не удалось загрузить список учеников.');
+      });
+    const outside = (event: PointerEvent) => {
+      if (event.target instanceof Node && !learnerPicker.current?.contains(event.target))
+        closeLearnerPicker();
+    };
+    const escape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      closeLearnerPicker();
+    };
+    document.addEventListener('pointerdown', outside);
+    document.addEventListener('keydown', escape);
+    return () => {
+      active = false;
+      document.removeEventListener('pointerdown', outside);
+      document.removeEventListener('keydown', escape);
+    };
+  }, [classroomId, learnerPickerOpen, learnerRosterRetry, closeLearnerPicker]);
   const load = useCallback(async () => {
     if (sessionEnded.current || scope.current !== `${classroomId}:${seatId}`) return;
     const token = ++profileGeneration.current;
@@ -141,6 +214,7 @@ export function ClassroomStudentPage({
     // A different class always resets the context and review filters.
     if (lastClassroomId.current !== classroomId) {
       lastClassroomId.current = classroomId;
+      focusAfterNavigation.current = null;
       setTab('all');
       setArchive(false);
       setOnlyAwaiting(false);
@@ -161,6 +235,9 @@ export function ClassroomStudentPage({
       setWorks(null);
       setResponding(null);
       setAwardKeys([]);
+      setLearnerPickerOpen(false);
+      setLearnerRoster(null);
+      rosterRequest.current = null;
       setProfileError('Войдите, чтобы открыть профиль.');
     });
     return () => {
@@ -296,25 +373,157 @@ export function ClassroomStudentPage({
       work.canonicalState?.workflowState === 'waiting_review' ||
       (!work.canonicalState && work.awaitingReview),
   );
+  const matchingLearners = (
+    learnerRoster?.classroomId === classroomId ? learnerRoster.items : []
+  ).filter((entry) =>
+    entry.displayLabel.toLocaleLowerCase().includes(learnerSearch.trim().toLocaleLowerCase()),
+  );
   return (
     <main className="portal-content classroom-student" id="main-content" tabIndex={-1}>
       {navigationRow}
       <section className="classroom-student-hero participant-hero" aria-label="Профиль ученика">
         <div className="classroom-student-heading-row">
-          <div className="classroom-student-person">
-            <img
-              className="classroom-student-avatar"
-              src={metrics.avatarUrl ?? seatAvatar(student.id, student.avatarKey).src}
-              alt=""
-              width={48}
-              height={48}
-            />
-            <div className="classroom-student-identity">
-              <h1>{student.displayLabel}</h1>
-              {student.status === 'suspended' ? (
-                <small className="classroom-student-suspended">Доступ приостановлен</small>
-              ) : null}
-            </div>
+          <div
+            className="classroom-student-picker"
+            ref={learnerPicker}
+            onBlur={(event) => {
+              if (!event.currentTarget.contains(event.relatedTarget)) closeLearnerPicker(false);
+            }}
+          >
+            <h1 className="classroom-student-picker-heading">
+              <button
+                type="button"
+                className="classroom-student-person classroom-student-picker-opener"
+                ref={(element) => {
+                  learnerOpener.current = element;
+                  if (element && focusAfterNavigation.current === seatId) {
+                    focusAfterNavigation.current = null;
+                    element.focus();
+                  }
+                }}
+                aria-label={`Выбрать ученика: ${student.displayLabel}`}
+                aria-haspopup="dialog"
+                aria-expanded={learnerPickerOpen}
+                aria-controls={learnerPickerId}
+                onClick={() => {
+                  setLearnerSearch('');
+                  setLearnerPickerOpen((open) => !open);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === 'ArrowDown') {
+                    event.preventDefault();
+                    setLearnerPickerOpen(true);
+                    learnerSearchInput.current?.focus();
+                  }
+                }}
+              >
+                <img
+                  className="classroom-student-avatar"
+                  src={metrics.avatarUrl ?? seatAvatar(student.id, student.avatarKey).src}
+                  alt=""
+                  width={48}
+                  height={48}
+                />
+                <span className="classroom-student-picker-name" title={student.displayLabel}>
+                  {student.displayLabel}
+                </span>
+                <span className="classroom-student-picker-chevron" aria-hidden="true">
+                  ▾
+                </span>
+              </button>
+            </h1>
+            {student.status === 'suspended' ? (
+              <small className="classroom-student-suspended">Доступ приостановлен</small>
+            ) : null}
+            {learnerPickerOpen ? (
+              <div
+                className="classroom-student-picker-popup"
+                id={learnerPickerId}
+                role="dialog"
+                aria-label="Ученики класса"
+                onKeyDown={(event) => {
+                  if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
+                  const controls = Array.from(
+                    event.currentTarget.querySelectorAll<HTMLInputElement | HTMLButtonElement>(
+                      'input, button',
+                    ),
+                  );
+                  const index = controls.indexOf(
+                    event.target as HTMLInputElement | HTMLButtonElement,
+                  );
+                  if (index < 0) return;
+                  // Home/End remain native text-editing keys in the search field.
+                  if (index === 0 && (event.key === 'Home' || event.key === 'End')) return;
+                  event.preventDefault();
+                  const next =
+                    event.key === 'Home'
+                      ? 1
+                      : event.key === 'End'
+                        ? controls.length - 1
+                        : (index + (event.key === 'ArrowDown' ? 1 : -1) + controls.length) %
+                          controls.length;
+                  controls[next]?.focus();
+                  controls[next]?.scrollIntoView?.({ block: 'nearest' });
+                }}
+              >
+                <input
+                  ref={learnerSearchInput}
+                  type="search"
+                  aria-label="Найти ученика по имени или фамилии"
+                  placeholder="Имя или фамилия"
+                  value={learnerSearch}
+                  onChange={(event) => setLearnerSearch(event.target.value)}
+                />
+                {learnerRosterError ? (
+                  <>
+                    <p role="alert">{learnerRosterError}</p>
+                    <button
+                      type="button"
+                      onClick={() => setLearnerRosterRetry((retry) => retry + 1)}
+                    >
+                      Повторить
+                    </button>
+                  </>
+                ) : learnerRoster?.classroomId !== classroomId ? (
+                  <p role="status">Загружаем учеников…</p>
+                ) : (
+                  <>
+                    <ul aria-label="Список учеников">
+                      {matchingLearners.map((entry) => (
+                        <li key={entry.id}>
+                          <button
+                            type="button"
+                            aria-current={entry.id === seatId ? 'page' : undefined}
+                            onClick={() => {
+                              closeLearnerPicker();
+                              focusAfterNavigation.current = entry.id !== seatId ? entry.id : null;
+                              onNavigateStudent(entry.id);
+                            }}
+                          >
+                            <img
+                              src={seatAvatar(entry.id, entry.avatarKey).src}
+                              alt=""
+                              width={28}
+                              height={28}
+                            />
+                            <span>{entry.displayLabel}</span>
+                            {entry.id === seatId ? (
+                              <span
+                                className="classroom-student-picker-active"
+                                aria-label="Текущий ученик"
+                              >
+                                ✓
+                              </span>
+                            ) : null}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                    {matchingLearners.length === 0 ? <p role="status">Ученики не найдены</p> : null}
+                  </>
+                )}
+              </div>
+            ) : null}
           </div>
         </div>
         <div className="classroom-student-meta-row">
@@ -335,7 +544,6 @@ export function ClassroomStudentPage({
           </div>
           <div className="classroom-student-meta-actions">
             <label className="participant-role">
-              <span>Роль</span>
               <select
                 aria-label="Роль в классе"
                 value={metrics.role}

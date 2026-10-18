@@ -355,9 +355,9 @@
   line-height: 1.4;
 }
 .classroom-student .classroom-student-navrow {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 540px) minmax(0, 1fr);
   align-items: center;
-  justify-content: space-between;
   gap: 8px;
   margin: 0 0 6px;
 }
@@ -379,7 +379,11 @@
   font-weight: 650;
 }
 .classroom-student-navigation {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  grid-column: 2;
+  width: min(100%, 540px);
+  justify-self: center;
   align-items: center;
   gap: 6px;
   min-width: 0;
@@ -388,6 +392,9 @@
 .classroom-student-navigation button {
   min-width: 0;
   max-width: 250px;
+}
+.classroom-student-navrow > .classroom-student-back {
+  justify-self: start;
 }
 .student-pager-name {
   overflow: hidden;
@@ -493,7 +500,8 @@
   font-size: 12px;
 }
 .classroom-student .participant-role select {
-  min-height: 44px;
+  min-height: 30px;
+  height: 30px;
   width: auto;
   padding: 4px 7px;
   font-size: 13px;
@@ -760,7 +768,12 @@
     grid-row: 3;
   }
   .classroom-student .classroom-student-navrow {
-    gap: 2px;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+  .classroom-student-navigation {
+    grid-column: 1;
+    width: 100%;
   }
   .classroom-student .classroom-student-hero {
     gap: 6px;
@@ -808,6 +821,129 @@
   }
   .classroom-student .project-card-grid > :only-child {
     grid-column: 1 / -1;
+  }
+}
+.classroom-student-picker {
+  position: relative;
+  min-width: 0;
+  max-width: 100%;
+}
+.classroom-student-picker-heading {
+  margin: 0;
+  font-size: clamp(20px, 1.8vw, 26px);
+  line-height: 1.2;
+}
+.classroom-student .classroom-student-picker-opener {
+  width: auto;
+  max-width: 100%;
+  min-height: 48px;
+  margin: 0;
+  padding: 3px 6px 3px 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--student-ink);
+  font: inherit;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+.classroom-student .classroom-student-picker-opener:hover,
+.classroom-student .classroom-student-picker-opener[aria-expanded='true'] {
+  background: #eef7fc;
+}
+.classroom-student-picker-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.classroom-student-picker-chevron {
+  flex-shrink: 0;
+  color: #0a709d;
+  font-size: 16px;
+}
+.classroom-student-picker-popup {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 4px);
+  left: 0;
+  box-sizing: border-box;
+  width: min(360px, 100%);
+  min-width: min(280px, 100%);
+  padding: 8px;
+  border: 1px solid var(--student-line);
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 8px 28px #14354b26;
+}
+.classroom-student .classroom-student-picker-popup input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 40px;
+  margin: 0 0 6px;
+  padding: 8px 10px;
+  border: 1px solid var(--student-line);
+  border-radius: 6px;
+  font-size: 16px;
+}
+.classroom-student-picker-popup input:focus-visible {
+  outline: 2px solid #0878ab;
+  outline-offset: 2px;
+}
+.classroom-student-picker-popup ul {
+  max-height: min(320px, 45dvh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.classroom-student .classroom-student-picker-popup button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 44px;
+  margin: 0;
+  padding: 6px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--student-ink);
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+.classroom-student-picker-popup button > img {
+  flex-shrink: 0;
+  border-radius: 50%;
+}
+.classroom-student-picker-popup button > span {
+  overflow-wrap: anywhere;
+}
+.classroom-student .classroom-student-picker-popup button:hover,
+.classroom-student .classroom-student-picker-popup button[aria-current='page'] {
+  background: #eef7fc;
+}
+.classroom-student-picker-active {
+  margin-left: auto;
+  color: #0a709d;
+  font-weight: 700;
+}
+.classroom-student-picker-popup p {
+  margin: 8px 4px;
+  font-size: 13px;
+}
+@container teacher-profile (max-width: 760px) {
+  .classroom-student .classroom-student-navrow {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+  .classroom-student-navigation {
+    grid-column: 1;
+    width: min(100%, 540px);
   }
 }
 @media (max-width: 350px) {
