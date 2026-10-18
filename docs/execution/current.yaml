@@ -96,8 +96,8 @@ parallel_lanes:
       base_branch: main
       pr: null
       pr_draft: false
-      status: in_progress
-      checkpoint: point5_selected_session_recovery
+      status: in_review
+      checkpoint: point5_r2_local_fanout_fixed_final_review_pending
       owner_acceptance: pending
       owner_authorization: Owner selected audit point5 only; publish to main, report and STOP. No deployment or live data.
       context_hints:
@@ -111,7 +111,7 @@ parallel_lanes:
       main:
         branch: main
         sha: db5a4121af72106a9f84f209309ac7bbc071062c
-      observation_note: Clean authoring snapshot. Fetch main before publication; focused evidence and independent review remain required. No deployment authority.
+      observation_note: Author focused tests and uncached API/web build passed before final convergence. Fetch main before writes; final exact source, independent review and CI are recorded in issue 602. No deployment authority.
     execution_lease:
       executor_id: session-recovery-point5-602
       holder: unassigned

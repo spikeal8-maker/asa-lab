@@ -13,6 +13,10 @@ surfaces:
   implementation:
     files:
     - apps/web/src/App.tsx
+    - apps/web/src/session-fetch.ts
+    - apps/web/src/session-fetch.spec.ts
+    - apps/api/src/auth.controller.ts
+    - apps/api/src/auth.controller.spec.ts
     - apps/web/src/components/PageDeliveryBoundary.tsx
     - apps/web/src/components/page-delivery.css
     - docs/testing/PORTAL_3000_USER_LOAD_PROTOCOL.md

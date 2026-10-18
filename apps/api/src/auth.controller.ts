@@ -22,7 +22,7 @@ import type {
   RegisterAccountUseCase,
 } from '@asa-lab/identity';
 import { REFRESH_COOKIE, SESSION_COOKIE, TOKENS } from './tokens.js';
-import { STUDENT_SESSION_COOKIE } from './seat-context.js';
+import { STUDENT_SESSION_COOKIE, type SeatContextUseCase } from './seat-context.js';
 import { requestReceivedAt } from './request-receipt.js';
 import { checkBodyShape } from './validation.js';
 import { FixedWindowRateLimiter } from './rate-limit.js';
@@ -190,6 +190,8 @@ export class AuthController {
     private readonly refreshSessions: RefreshSessionService,
     @Inject(TOKENS.productAnalytics)
     private readonly analytics: ProductAnalyticsService,
+    @Inject(TOKENS.seatContextUseCase)
+    private readonly seats: SeatContextUseCase,
   ) {}
 
   private setSessionCookie(reply: FastifyReply, token: string): void {
@@ -1000,17 +1002,53 @@ export class AuthController {
     @Req() request: FastifyRequest,
     @Res({ passthrough: true }) reply: FastifyReply,
   ): Promise<{ refreshed: true }> {
+    const observe = (
+      reason: 'seat_active' | 'refresh_required' | 'stale' | 'invalid' | 'reused' | 'rotated',
+    ) => {
+      try {
+        process.stdout.write(
+          `${JSON.stringify({
+            time: new Date().toISOString(),
+            kind: 'auth_session_recovery',
+            subsystem: 'access',
+            module: 'auth',
+            level: reason === 'rotated' || reason === 'seat_active' ? 'info' : 'warn',
+            requestId: request.id,
+            actorKind:
+              reason === 'seat_active' ? 'student' : reason === 'rotated' ? 'account' : 'unknown',
+            sessionKind: reason === 'seat_active' ? 'student' : 'account_refresh',
+            outcome:
+              reason === 'rotated' ? 'succeeded' : reason === 'seat_active' ? 'skipped' : 'failed',
+            reason,
+          })}\n`,
+        );
+      } catch {
+        /* Diagnostics cannot change authentication outcomes. */
+      }
+    };
+    // Resolve the same Account-first priority as product endpoints. A stale
+    // Account refresh cookie cannot replace a currently authenticated Seat.
+    if (
+      request.cookies[STUDENT_SESSION_COOKIE] &&
+      !(await this.activeContext.resolve(request.cookies[SESSION_COOKIE])) &&
+      (await this.seats.resolve(request.cookies[STUDENT_SESSION_COOKIE]))
+    ) {
+      observe('seat_active');
+      throw new HttpException(error('refresh_not_applicable', 'student session is active'), 409);
+    }
     const refreshToken = request.cookies[REFRESH_COOKIE];
     if (!refreshToken) {
-      this.clearSessionCookies(reply);
+      observe('refresh_required');
       throw new HttpException(error('refresh_required', 'no refresh session'), 401);
     }
     const result = await this.refreshSessions.rotate(refreshToken);
+    observe(result.status);
     if (result.status === 'stale') {
       throw new HttpException(error('refresh_stale', 'session was refreshed in another tab'), 409);
     }
     if (result.status !== 'rotated') {
-      this.clearSessionCookies(reply);
+      // A failed refresh is not logout. In particular a delayed response must
+      // never delete cookies established by a newer login in another tab.
       throw new HttpException(
         error(
           result.status === 'reused' ? 'refresh_reused' : 'refresh_invalid',
