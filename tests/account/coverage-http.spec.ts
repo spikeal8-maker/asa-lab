@@ -55,8 +55,11 @@ describe('actual API disconnected delivery', () => {
           ['http_request_ended', 'http_response'].includes(String(event.kind)),
       );
       expect(terminal).toHaveLength(1);
+      // Either raw stream may report this real socket abort first. Both are
+      // terminal cancellations; their event order is not an API guarantee.
+      expect(['connection_closed', 'request_aborted']).toContain(terminal[0].outcome);
       expect(terminal[0]).toMatchObject({
-        outcome: 'connection_closed',
+        delivery: 'disconnected',
         mutationOutcome: 'unknown',
       });
       expect(terminal[0]).not.toHaveProperty('status');
