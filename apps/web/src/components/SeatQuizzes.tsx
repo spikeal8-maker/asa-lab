@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, type LearnerQuiz } from '../api';
 import { useSchoolTime } from './school-time';
 import './seat-quizzes.css';
@@ -13,7 +13,14 @@ function prompt(question: LearnerQuiz['questions'][number]): string {
     .trim();
 }
 
-export function SeatQuizzes(): JSX.Element | null {
+export function SeatQuizzes({
+  reloadSignal = 0,
+  onLoad,
+}: {
+  readonly reloadSignal?: number;
+  /** undefined: pending, null: failed, number: successfully loaded row count. */
+  readonly onLoad?: (count: number | null | undefined) => void;
+} = {}): JSX.Element | null {
   const [items, setItems] = useState<LearnerQuiz[] | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
   const [answers, setAnswers] = useState<AnswerState>({});
@@ -26,15 +33,35 @@ export function SeatQuizzes(): JSX.Element | null {
     >
   >({});
   const time = useSchoolTime();
+  const live = useRef(false);
+  const request = useRef(0);
+  const [loadError, setLoadError] = useState(false);
 
   const reload = useCallback(async () => {
-    const result = await api.seatQuizzes();
-    setItems(result.ok ? result.data.items : []);
-  }, []);
+    if (!live.current) return;
+    const current = ++request.current;
+    onLoad?.(undefined);
+    try {
+      const result = await api.seatQuizzes();
+      if (!live.current || current !== request.current) return;
+      setLoadError(!result.ok);
+      if (result.ok) setItems(result.data.items);
+      onLoad?.(result.ok ? result.data.items.length : null);
+    } catch {
+      if (!live.current || current !== request.current) return;
+      setLoadError(true);
+      onLoad?.(null);
+    }
+  }, [onLoad]);
 
   useEffect(() => {
+    live.current = true;
     void reload();
-  }, [reload]);
+    return () => {
+      live.current = false;
+      request.current++;
+    };
+  }, [reload, reloadSignal]);
 
   async function submit(quiz: LearnerQuiz): Promise<void> {
     const unanswered = quiz.questions.some((question) => answers[question.versionId] === undefined);
@@ -72,10 +99,12 @@ export function SeatQuizzes(): JSX.Element | null {
     await reload();
   }
 
-  if (items === null || items.length === 0) return null;
+  const loadAlert = loadError && !onLoad ? <p role="alert">Не удалось загрузить тесты.</p> : null;
+  if (items === null || items.length === 0) return loadAlert;
 
   return (
     <section className="seat-quizzes" aria-labelledby="seat-quizzes-title">
+      {loadAlert}
       <div className="seat-quizzes-heading">
         <h2 id="seat-quizzes-title">Тесты</h2>
         <span>{items.length}</span>

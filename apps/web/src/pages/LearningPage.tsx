@@ -1,4 +1,4 @@
-import { useEffect, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import {
   api,
   type ClassroomStudentSession,
@@ -324,35 +324,28 @@ function LearningOverview({ seat }: { readonly seat: boolean }): JSX.Element {
   );
 }
 
-/** The unchanged work components return null for both loading and empty lists.
- * Give their section an explicit read/error boundary without changing writers. */
+/** Each work component reports its actual visible read to the shared retry boundary. */
 function SeatWorkSection({
   onOpenProject,
 }: {
   readonly onOpenProject: (projectId: string, moduleKey: string) => void;
 }): JSX.Element {
-  const [counts, setCounts] = useState<readonly [number | null, number | null] | null>(null);
+  const [counts, setCounts] = useState<
+    readonly [number | null | undefined, number | null | undefined]
+  >([undefined, undefined]);
   const [retry, setRetry] = useState(0);
-  useEffect(() => {
-    let active = true;
-    setCounts(null);
-    void Promise.allSettled([api.seatAssignments(), api.seatQuizzes()]).then(([work, quizzes]) => {
-      if (active)
-        setCounts([
-          work.status === 'fulfilled' && work.value.ok ? work.value.data.items.length : null,
-          quizzes.status === 'fulfilled' && quizzes.value.ok
-            ? quizzes.value.data.items.length
-            : null,
-        ]);
-    });
-    return () => {
-      active = false;
-    };
-  }, [retry]);
+  const workLoaded = useCallback((count: number | null | undefined) => {
+    setCounts((current) => [count, current[1]]);
+  }, []);
+  const quizzesLoaded = useCallback((count: number | null | undefined) => {
+    setCounts((current) => [current[0], count]);
+  }, []);
   return (
     <>
-      {!counts ? <p role="status">Загружаем задания и тесты…</p> : null}
-      {counts?.some((count) => count === null) ? (
+      {counts.some((count) => count === undefined) ? (
+        <p role="status">Загружаем задания и тесты…</p>
+      ) : null}
+      {counts.some((count) => count === null) ? (
         <p role="alert">
           Часть заданий недоступна.{' '}
           <button className="btn-secondary" onClick={() => setRetry((value) => value + 1)}>
@@ -360,13 +353,11 @@ function SeatWorkSection({
           </button>
         </p>
       ) : null}
-      {counts?.every((count) => count === 0) ? (
+      {counts.every((count) => count === 0) ? (
         <p>Заданий и тестов пока нет. Преподаватель выдаст их в вашем классе.</p>
       ) : null}
-      {(counts?.[0] ?? 0) > 0 ? (
-        <SeatAssignments key={`work:${retry}`} onOpenProject={onOpenProject} />
-      ) : null}
-      {(counts?.[1] ?? 0) > 0 ? <SeatQuizzes key={`quizzes:${retry}`} /> : null}
+      <SeatAssignments onOpenProject={onOpenProject} reloadSignal={retry} onLoad={workLoaded} />
+      <SeatQuizzes reloadSignal={retry} onLoad={quizzesLoaded} />
     </>
   );
 }

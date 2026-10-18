@@ -43,6 +43,8 @@ async function fixture(page: Page, identity: 'seat' | 'account', count: number) 
     writes: [] as string[],
     reads: [] as string[],
     errors: [] as string[],
+    failedWork: null as 'assignments' | 'quizzes' | null,
+    workStatus: 503,
   };
   page.on('pageerror', (error) => state.errors.push(error.message));
   const assignments = Array.from({ length: count }, (_, i) => ({
@@ -216,6 +218,12 @@ async function fixture(page: Page, identity: 'seat' | 'account', count: number) 
         await new Promise((resolve) => setTimeout(resolve, 30));
       if (state.fail)
         return json(route, { error: { code: 'unavailable', message: 'Временно недоступно' } }, 503);
+      if (state.failedWork && path.endsWith(`/${state.failedWork}`))
+        return json(
+          route,
+          { error: { code: 'unavailable', message: 'Временно недоступно' } },
+          state.workStatus,
+        );
     }
     if (path.includes('/journal/results'))
       return json(route, {
@@ -661,6 +669,58 @@ for (const identity of ['seat', 'account'] as const) {
     ).toBeVisible();
     await layout(page);
     expect(state.errors).toEqual([]);
+  });
+}
+
+for (const failedWork of ['assignments', 'quizzes'] as const) {
+  test(`Seat: retry ${failedWork} preserves visible work and unsent quiz answers`, async ({
+    page,
+  }) => {
+    const state = await fixture(page, 'seat', 1);
+    state.failedWork = failedWork;
+    await page.goto('/#/learning?view=assignments');
+    await expect(page.getByRole('alert').filter({ hasText: 'Часть заданий' })).toBeVisible();
+    await expect(page.getByText('Заданий и тестов пока нет.', { exact: false })).toHaveCount(0);
+    if (failedWork === 'assignments') {
+      await page.getByRole('button', { name: /Проверка знаний/ }).click();
+      await page.getByRole('radio', { name: 'Напряжение' }).check();
+    } else {
+      await expect(page.getByTestId('seat-assignments')).toBeVisible();
+    }
+    state.failedWork = null;
+    await page.getByRole('button', { name: 'Повторить', exact: true }).click();
+    await expect(page.getByTestId('seat-assignments')).toBeVisible();
+    await expect(page.getByRole('button', { name: /Проверка знаний/ })).toBeVisible();
+    await expect(page.getByRole('alert').filter({ hasText: 'Часть заданий' })).toHaveCount(0);
+    if (failedWork === 'assignments')
+      await expect(page.getByRole('radio', { name: 'Напряжение' })).toBeChecked();
+    expect(
+      state.writes.filter(
+        (path) => !path.startsWith('/api/analytics/') && !path.startsWith('/api/diagnostics/'),
+      ),
+    ).toEqual([]);
+    expect(state.errors).toEqual([]);
+  });
+}
+
+for (const status of [403, 503]) {
+  test(`Seat: partial zero with ${status} is an error until both reads succeed`, async ({
+    page,
+  }) => {
+    const state = await fixture(page, 'seat', 0);
+    state.failedWork = 'quizzes';
+    state.workStatus = status;
+    await page.goto('/#/learning?view=assignments');
+    await expect(page.getByRole('alert').filter({ hasText: 'Часть заданий' })).toBeVisible();
+    await expect(page.getByText('Заданий и тестов пока нет.', { exact: false })).toHaveCount(0);
+    state.failedWork = null;
+    await page.getByRole('button', { name: 'Повторить', exact: true }).click();
+    await expect(page.getByText('Заданий и тестов пока нет.', { exact: false })).toBeVisible();
+    expect(
+      state.writes.filter(
+        (path) => !path.startsWith('/api/analytics/') && !path.startsWith('/api/diagnostics/'),
+      ),
+    ).toEqual([]);
   });
 }
 

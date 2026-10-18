@@ -5,11 +5,219 @@ import { createRoot } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { LearningPage, learningSection, hasCourseAssignment } from '../LearningPage';
-import { api, type SeatCourseRun } from '../../api';
+import {
+  api,
+  type SeatCourseRun,
+  type ClassroomStudentSession,
+  type SeatAssignment,
+  type LearnerQuiz,
+} from '../../api';
 import { setTelemetryContext } from '../../telemetry-context';
 import { AttendedClassesPage } from '../AttendedClassesPage';
 
 const reactTestGlobal = globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean };
+
+const retrySeat = {
+  student: { seatId: 'seat-2' },
+  classroom: { title: 'Класс 2' },
+  expiresAt: '2099-01-01',
+} as ClassroomStudentSession;
+const retryWork = {
+  id: 'work',
+  title: 'Доступная работа',
+  moduleKey: 'electronics',
+  status: 'open',
+  projectId: null,
+  submittedAt: null,
+} as SeatAssignment;
+const retryQuiz = {
+  assignmentId: 'quiz',
+  title: 'Настоящий тест',
+  status: 'open',
+  attemptLimit: 2,
+  attemptsUsed: 0,
+  totalPoints: 1,
+  questions: [
+    {
+      versionId: 'question',
+      type: 'single_choice',
+      promptBlocks: [{ text: 'Вопрос' }],
+      responseSchema: { options: [{ id: 'yes', label: 'Ответ' }] },
+      maxPoints: 1,
+    },
+  ],
+} as LearnerQuiz;
+
+describe('Seat work load retry', () => {
+  it.each(['seatAssignments', 'seatQuizzes'] as const)(
+    'retires pending %s on Seat lifetime change and unmount',
+    async (endpoint) => {
+      reactTestGlobal.IS_REACT_ACT_ENVIRONMENT = true;
+      const container = document.createElement('div');
+      const root = createRoot(container);
+      type Result = Awaited<ReturnType<(typeof api)[typeof endpoint]>>;
+      const pending: ((result: Result) => void)[] = [];
+      vi.spyOn(api, 'seatAssignments').mockResolvedValue({
+        ok: true,
+        status: 200,
+        data: { items: [] },
+      });
+      vi.spyOn(api, 'seatQuizzes').mockResolvedValue({
+        ok: true,
+        status: 200,
+        data: { items: [] },
+      });
+      if (endpoint === 'seatAssignments')
+        vi.spyOn(api, 'seatAssignments').mockImplementation(
+          () => new Promise((resolve) => pending.push(resolve as (result: Result) => void)),
+        );
+      else
+        vi.spyOn(api, 'seatQuizzes').mockImplementation(
+          () => new Promise((resolve) => pending.push(resolve as (result: Result) => void)),
+        );
+      const success = {
+        ok: true,
+        status: 200,
+        data: { items: endpoint === 'seatAssignments' ? [retryWork] : [retryQuiz] },
+      } as Result;
+      const title = endpoint === 'seatAssignments' ? retryWork.title : retryQuiz.title;
+      const render = (expiresAt: string) =>
+        root.render(
+          createElement(LearningPage, {
+            seat: { ...retrySeat, expiresAt },
+            onOpenProject: vi.fn(),
+          }),
+        );
+      try {
+        window.history.replaceState(null, '', '#/learning?view=assignments');
+        await act(async () => render('first'));
+        await act(async () => render('second'));
+        expect(pending).toHaveLength(2);
+        await act(async () => pending[0](success));
+        expect(container.textContent).not.toContain(title);
+        expect(container.textContent).toContain('Загружаем задания');
+        await act(async () => pending[1](success));
+        expect(container.textContent).toContain(title);
+        await act(async () => render('third'));
+        await act(async () => root.unmount());
+        await act(async () => pending[2](success));
+        expect(container.textContent).toBe('');
+      } finally {
+        await act(async () => root.unmount());
+        reactTestGlobal.IS_REACT_ACT_ENVIRONMENT = false;
+      }
+    },
+  );
+
+  it.each(['assignments', 'quizzes'] as const)(
+    'recovers %s without losing visible work or quiz answers',
+    async (failed) => {
+      reactTestGlobal.IS_REACT_ACT_ENVIRONMENT = true;
+      const container = document.createElement('div');
+      const root = createRoot(container);
+      let unavailable = true;
+      const failure = {
+        ok: false as const,
+        status: 503,
+        error: { code: 'unavailable', message: 'Retry' },
+      };
+      const assignments = vi
+        .spyOn(api, 'seatAssignments')
+        .mockImplementation(async () =>
+          failed === 'assignments' && unavailable
+            ? failure
+            : { ok: true, status: 200, data: { items: [retryWork] } },
+        );
+      const quizzes = vi
+        .spyOn(api, 'seatQuizzes')
+        .mockImplementation(async () =>
+          failed === 'quizzes' && unavailable
+            ? failure
+            : { ok: true, status: 200, data: { items: [retryQuiz] } },
+        );
+      const submit = vi.spyOn(api, 'submitSeatQuiz');
+      const start = vi.spyOn(api, 'startLearningWork');
+      const open = vi.fn();
+      try {
+        window.history.replaceState(null, '', '#/learning?view=assignments');
+        await act(async () =>
+          root.render(createElement(LearningPage, { seat: retrySeat, onOpenProject: open })),
+        );
+        expect(container.querySelector('[role="alert"]')?.textContent).toContain('Часть заданий');
+        expect(container.textContent).not.toContain('Заданий и тестов пока нет');
+        expect(container.textContent).toContain(
+          failed === 'quizzes' ? retryWork.title : retryQuiz.title,
+        );
+        if (failed === 'assignments') {
+          await act(async () =>
+            (container.querySelector('.seat-quiz-summary') as HTMLButtonElement).click(),
+          );
+          await act(async () =>
+            (container.querySelector('input[type="radio"]') as HTMLInputElement).click(),
+          );
+          // A later GET failure must retain the already loaded quiz and answer.
+          quizzes.mockResolvedValueOnce(failure);
+          await act(async () =>
+            (container.querySelector('[role="alert"] button') as HTMLButtonElement).click(),
+          );
+          expect(container.querySelector('[role="alert"]')).not.toBeNull();
+          expect((container.querySelector('input[type="radio"]') as HTMLInputElement).checked).toBe(
+            true,
+          );
+        }
+        unavailable = false;
+        await act(async () =>
+          (container.querySelector('[role="alert"] button') as HTMLButtonElement).click(),
+        );
+        expect(container.querySelector('[role="alert"]')).toBeNull();
+        expect(container.textContent).toContain(retryWork.title);
+        expect(container.textContent).toContain(retryQuiz.title);
+        if (failed === 'assignments')
+          expect((container.querySelector('input[type="radio"]') as HTMLInputElement).checked).toBe(
+            true,
+          );
+        expect(assignments).toHaveBeenCalledTimes(failed === 'assignments' ? 3 : 2);
+        expect(quizzes).toHaveBeenCalledTimes(failed === 'assignments' ? 3 : 2);
+        expect(submit).not.toHaveBeenCalled();
+        expect(start).not.toHaveBeenCalled();
+        expect(open).not.toHaveBeenCalled();
+      } finally {
+        await act(async () => root.unmount());
+        reactTestGlobal.IS_REACT_ACT_ENVIRONMENT = false;
+      }
+    },
+  );
+
+  it.each([403, 503])('does not label partial empty results as empty on %s', async (status) => {
+    reactTestGlobal.IS_REACT_ACT_ENVIRONMENT = true;
+    const container = document.createElement('div');
+    const root = createRoot(container);
+    vi.spyOn(api, 'seatAssignments').mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { items: [] },
+    });
+    const quizzes = vi
+      .spyOn(api, 'seatQuizzes')
+      .mockResolvedValue({ ok: false, status, error: { code: 'unavailable', message: 'Retry' } });
+    try {
+      window.history.replaceState(null, '', '#/learning?view=assignments');
+      await act(async () =>
+        root.render(createElement(LearningPage, { seat: retrySeat, onOpenProject: vi.fn() })),
+      );
+      expect(container.querySelector('[role="alert"]')).not.toBeNull();
+      expect(container.textContent).not.toContain('Заданий и тестов пока нет');
+      quizzes.mockResolvedValue({ ok: true, status: 200, data: { items: [] } });
+      await act(async () =>
+        (container.querySelector('[role="alert"] button') as HTMLButtonElement).click(),
+      );
+      expect(container.textContent).toContain('Заданий и тестов пока нет');
+    } finally {
+      await act(async () => root.unmount());
+      reactTestGlobal.IS_REACT_ACT_ENVIRONMENT = false;
+    }
+  });
+});
 
 afterEach(() => {
   vi.unstubAllGlobals();
