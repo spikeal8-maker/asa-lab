@@ -87,6 +87,7 @@ parallel_lanes:
       - apps/web/src/pages/classroom-student.css
       - apps/web/src/components/ClassroomParticipantPanels.tsx
       - apps/web/src/components/testing/classroom-student-navigation.spec.ts
+      - apps/web/src/components/testing/classroom-profile-completion.spec.ts
       - apps/web/src/components/testing/classroom-student-profile.spec.ts
       - e2e/classroom-student-profile.spec.ts
       - docs/product/ASA_TEACHER_STUDENT_PROFILE_UI_589.md
