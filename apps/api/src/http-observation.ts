@@ -28,5 +28,7 @@ export function observeHttpTerminal(
   };
   request.raw.once('aborted', aborted);
   reply.raw.once('close', closed);
+  if (request.raw.aborted) aborted();
+  else if (reply.raw.destroyed) closed();
   return finish;
 }

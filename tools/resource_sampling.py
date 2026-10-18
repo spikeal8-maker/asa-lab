@@ -13,6 +13,7 @@ class ResourceSampler:
         self.capacity = capacity
         self.lock = threading.Lock()
         self.queue = deque()
+        self.pending = None
         self.targets = ((), None)
         self.sequence = self.dropped = 0
         self.stream_id = str(uuid.uuid4())
@@ -44,11 +45,24 @@ class ResourceSampler:
         # No catch-up burst after an overrun or sleep; retain the absolute cadence.
         return deadline + (missed + 1) * self.interval
 
-    def drain(self):
+    def acquire(self):
+        """Reserve one sample until its consumer has durably committed it.
+
+        At most capacity queued samples plus one reserved sample are retained.
+        Producer overflow cannot evict the unacknowledged reservation.
+        """
         with self.lock:
-            values = list(self.queue); self.queue.clear()
-            for value in values: value['sampling']['droppedSamplesTotal'] = self.dropped
-        return values
+            if self.pending is None and self.queue: self.pending = self.queue.popleft()
+            if self.pending is None: return None
+            value = deepcopy(self.pending)
+            value['sampling']['droppedSamplesTotal'] = self.dropped
+            return value
+
+    def acknowledge(self, sampling):
+        with self.lock:
+            if self.pending is None or any(self.pending['sampling'][key] != sampling[key] for key in ('streamId', 'sequence')):
+                raise ValueError('Resource sample acknowledgement does not match reservation')
+            self.pending = None
 
     def start(self):
         if self.thread: raise RuntimeError('Resource sampler already started')

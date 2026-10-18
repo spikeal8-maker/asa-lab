@@ -108,7 +108,18 @@
             "administration.security.manage",
             "administration.moderation.read",
             "administration.billing.read",
-            "administration.operations.read"
+            "administration.operations.read",
+            "administration.account.note.add",
+            "administration.account.restore",
+            "administration.account.suspend",
+            "administration.ai_configuration.update",
+            "administration.ip.label.clear",
+            "administration.ip.label.set",
+            "administration.max_configuration.update",
+            "administration.max_identity.revoke",
+            "administration.platform_admin.grant",
+            "administration.platform_admin.revoke",
+            "administration.session.revoke"
           ]
         },
         "reason_code": {

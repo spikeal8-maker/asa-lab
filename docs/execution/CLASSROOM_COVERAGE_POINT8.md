@@ -47,3 +47,21 @@ SKIPPED; API16 tasks uncached PASS. Lint/typecheck/format/control-plane checked.
 Isolated real PostgreSQL settings/lock/canary, ingest denial/idempotency and actual
 HTTP disconnect evidence remain pending CI. Independent final SHA HIGH review
 required; issue610/owner report records actual conclusions. No site update.
+
+## Bounded R1 after independent FAIL
+
+Initial source38e58811 received three P2 findings: missing administrative mutation
+names, --once CPU state regression and destructive queue drain before durable
+handoff. R1 adds the11 actual administrative action literals while preserving
+the closed projection, restores persisted CPU deltas with legacy-state import,
+and reserves each sample until SQLite commit succeeds. Queue overflow cannot
+evict the one pending reservation; capacity8 plus one reservation remains
+bounded. Failed writes roll back and retry the same stream/sequence identity;
+later adapter rollback cannot erase acknowledged samples. No second DB writer.
+An initially aborted/destroyed HTTP stream also settles once and detaches.
+
+New regressions: failed handoff/retry/overflow/later rollback, CPU state across
+process recreation/upgrade, actual finite admin names and already ended streams.
+R1 Python8 and terminal6 PASS; initial broader suite160 PASS/4 platform SKIPPED,
+with five added cases now165 distinct local PASS. Final convergence focused gate
+and a new independent exact-SHA HIGH review are required before publication.

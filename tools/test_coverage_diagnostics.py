@@ -1,5 +1,6 @@
 import gzip
 import json
+import re
 from pathlib import Path
 import tempfile
 import threading
@@ -7,6 +8,14 @@ import unittest
 from unittest.mock import patch
 from collect_logs import Collector, database_diagnostics, now
 from resource_sampling import ResourceSampler
+
+
+def consume(sampler):
+    values = []
+    while (value := sampler.acquire()) is not None:
+        values.append(value)
+        sampler.acknowledge(value['sampling'])
+    return values
 
 
 class CoverageTests(unittest.TestCase):
@@ -17,13 +26,13 @@ class CoverageTests(unittest.TestCase):
         for at in (0, 60, 120, 180):
             clock[0] = at; deadline = sampler.sample(deadline)
         self.assertEqual(deadline, 240)
-        values = sampler.drain()
+        values = consume(sampler)
         self.assertEqual([v['sampling']['sequence'] for v in values], [3, 4])
         self.assertEqual(values[-1]['sampling']['droppedSamplesTotal'], 2)
         self.assertEqual(values[-1]['sampling']['scheduleLagMs'], 0)
         clock[0] = 600
         self.assertEqual(sampler.sample(deadline), 660)
-        self.assertEqual(sampler.drain()[0]['sampling']['missedIntervals'], 6)
+        self.assertEqual(consume(sampler)[0]['sampling']['missedIntervals'], 6)
 
     def test_producer_runs_while_consumer_is_idle_and_targets_are_immutable(self):
         produced = threading.Event(); seen = []
@@ -37,13 +46,13 @@ class CoverageTests(unittest.TestCase):
         self.assertTrue(produced.wait(2))
         self.assertTrue(sampler.stop(2))
         self.assertEqual(seen, [(('verified-container',), 'verified-db')])
-        self.assertEqual(sampler.drain()[0]['sampling']['sequence'], 1)
+        self.assertEqual(consume(sampler)[0]['sampling']['sequence'], 1)
 
     def test_capture_failure_is_fixed_vocabulary_and_does_not_kill_next_sample(self):
         def capture(*_): raise RuntimeError('PRIVATE SQL password=value')
         sampler = ResourceSampler(capture, clock=lambda: 0)
         sampler.sample(0); sampler.sample(60)
-        values = sampler.drain()
+        values = consume(sampler)
         self.assertEqual(len(values), 2)
         self.assertTrue(values[0]['incomplete'])
         self.assertNotIn('PRIVATE', json.dumps(values))
@@ -62,8 +71,70 @@ class CoverageTests(unittest.TestCase):
                 stored = json.loads(json.loads(gzip.decompress(collector.db.execute('SELECT payload FROM events').fetchone()[0]))['message'])
                 self.assertGreaterEqual(stored['sampling']['publicationLagMs'], 0)
                 self.assertEqual(stored['sampling']['sequence'], 1)
-                self.assertEqual(collector.sampler.drain(), [])
+                self.assertIsNone(collector.sampler.acquire())
             finally: collector.db.close()
+
+    def test_handoff_retries_after_insert_failure_and_survives_later_cycle_rollback(self):
+        with tempfile.TemporaryDirectory() as directory:
+            collector = Collector(Path(directory), {})
+            try:
+                collector.sampler = ResourceSampler(lambda *_: {'sampledAt': now()}, capacity=1, clock=lambda: 0)
+                collector.sampler.sample(0)
+                persist = collector.persist_metrics
+                def fail_after_insert(metrics):
+                    persist(metrics)
+                    raise OSError('synthetic failed handoff')
+                with patch.object(collector, 'persist_metrics', side_effect=fail_after_insert):
+                    with self.assertRaises(OSError): collector.telemetry()
+                self.assertEqual(collector.db.execute('SELECT count(*) FROM events').fetchone()[0], 0)
+                # Producer overflow must never evict the unacknowledged sample.
+                collector.sampler.sample(60); collector.sampler.sample(120)
+                self.assertEqual(collector.sampler.acquire()['sampling']['sequence'], 1)
+                collector.telemetry()
+                collector.set_state('later-adapter', 'uncommitted')
+                collector.db.rollback()
+                rows = collector.db.execute('SELECT payload FROM events ORDER BY seq').fetchall()
+                values = [json.loads(json.loads(gzip.decompress(row[0]))['message']) for row in rows]
+                self.assertEqual([v['sampling']['sequence'] for v in values], [1, 3])
+                self.assertTrue(all(v['sampling']['droppedSamplesTotal'] == 1 for v in values))
+                self.assertTrue(all(v['samplingCoverage'] == 'gapped' for v in values))
+                collector.telemetry()
+                self.assertEqual(collector.db.execute('SELECT count(*) FROM events').fetchone()[0], 2)
+                self.assertIsNone(collector.sampler.acquire())
+            finally: collector.db.close()
+
+    def test_once_cpu_state_survives_process_recreation_and_legacy_upgrade(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            collector = Collector(root, {})
+            prior = {'windows': [1, 10], 'linux': [2, 20]}
+            updated = {'windows': [3, 30], 'linux': [4, 40]}
+            try:
+                collector.set_state('metrics:cpu', prior['windows'])
+                collector.set_state('metrics:cpu-linux', prior['linux'])
+                with patch.object(collector, 'sample_resources', return_value=({'sampledAt': now()}, updated)) as capture:
+                    collector.telemetry()
+                    self.assertEqual(capture.call_args.args[2], prior)
+                collector.set_state('metrics:last', 0)
+                collector.db.commit()
+            finally: collector.db.close()
+            collector = Collector(root, {})
+            try:
+                with patch.object(collector, 'sample_resources', return_value=({'sampledAt': now()}, updated)) as capture:
+                    collector.telemetry()
+                    self.assertEqual(capture.call_args.args[2], updated)
+            finally: collector.db.close()
+
+    def test_actual_administrative_mutation_names_have_closed_safe_projection(self):
+        root = Path(__file__).resolve().parent.parent
+        actions = set()
+        for file in (root / 'migrations').glob('*.sql'):
+            for call in re.findall(r'PERFORM public\.admin_append_audit_event\((.*?)\);', file.read_text(encoding='utf-8'), re.S):
+                actions.update(re.findall(r"'(administration\.[a-z_.]+)'", call))
+        self.assertGreaterEqual(len(actions), 10)
+        for action in actions:
+            self.assertEqual(database_diagnostics('administrative_audit_events', {'action': action, 'reason': 'PRIVATE'}), {'action': action})
+        self.assertEqual(database_diagnostics('administrative_audit_events', {'action': 'administration.PRIVATE'}), {})
 
     def test_new_projection_keeps_real_names_metadata_and_no_private_values(self):
         row = {'event_type':'visit.observed','module_key':'blocks','browser_family':'Firefox',

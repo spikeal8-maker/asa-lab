@@ -93,7 +93,7 @@ parallel_lanes:
       base_branch: main
       pr: null
       status: in_review
-      checkpoint: point8_160_local_pass_4_platform_skips_review_and_actual_pg_http_ci_pending
+      checkpoint: point8_r1_165_local_pass_4_platform_skips_final_gate_review_pg_http_ci_pending
       owner_acceptance: pending
       owner_authorization: Owner selected audit point8 only; publish main, report and STOP. No deployment or working database actions.
       context_hints:

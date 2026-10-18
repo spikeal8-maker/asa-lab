@@ -1331,13 +1331,25 @@ class Collector:
 
     def telemetry(self):
         if getattr(self, 'sampler', None):
-            for metrics in self.sampler.drain():
+            for _ in range(self.sampler.capacity + 1):
+                metrics = self.sampler.acquire()
+                if metrics is None: break
                 metrics['sampling']['publicationLagMs'] = max(0, round((datetime.now(UTC)-datetime.fromisoformat(metrics['sampledAt'].replace('Z','+00:00'))).total_seconds()*1000))
-                self.persist_metrics(metrics)
+                try:
+                    self.persist_metrics(metrics)
+                    # The queue reservation survives failures. Commit before ACK
+                    # so a later adapter/publish rollback cannot erase the sample.
+                    self.db.commit()
+                except Exception:
+                    self.db.rollback()
+                    raise
+                self.sampler.acknowledge(metrics['sampling'])
             return
         if time.time() - self.state("metrics:last", 0) < 60: return
-        metrics, _ = self.sample_resources(tuple(getattr(self, 'containers', {})), getattr(self, 'postgres', None), {})
+        previous = self.state('metrics:cpu-state', {'windows': self.state('metrics:cpu'), 'linux': self.state('metrics:cpu-linux')})
+        metrics, previous = self.sample_resources(tuple(getattr(self, 'containers', {})), getattr(self, 'postgres', None), previous)
         self.persist_metrics(metrics)
+        self.set_state('metrics:cpu-state', previous)
         self.set_state("metrics:last", time.time())
 
     def persist_metrics(self, metrics):

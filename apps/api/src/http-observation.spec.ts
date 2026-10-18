@@ -17,6 +17,28 @@ function fixture() {
 }
 describe('HTTP terminal observation', () => {
   it.each(['request_aborted', 'connection_closed'] as const)(
+    'settles an already ended stream as %s',
+    (outcome) => {
+      const incoming = Object.assign(new EventEmitter(), {
+        aborted: outcome === 'request_aborted',
+      });
+      const outgoing = Object.assign(new EventEmitter(), {
+        destroyed: true,
+        writableFinished: false,
+      });
+      const callback = vi.fn();
+      const finish = observeHttpTerminal(
+        { raw: incoming } as FastifyRequest,
+        { raw: outgoing } as FastifyReply,
+        callback,
+      );
+      expect(callback.mock.calls).toEqual([[outcome]]);
+      expect(finish('response')).toBe(false);
+      expect(incoming.listenerCount('aborted')).toBe(0);
+      expect(outgoing.listenerCount('close')).toBe(0);
+    },
+  );
+  it.each(['request_aborted', 'connection_closed'] as const)(
     'records %s once without inventing a response',
     (outcome) => {
       const f = fixture();
