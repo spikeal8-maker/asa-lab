@@ -2,7 +2,6 @@ import { expect, test } from '@playwright/test';
 import { createHash } from 'node:crypto';
 
 let createProtocolFixture: typeof import('../tools/blocks/browser/fixture.mjs').createProtocolFixture;
-let advanceMinuteAutosave: typeof import('../tools/blocks/browser/fixture.mjs').advanceMinuteAutosave;
 let installMinuteAutosaveClock: typeof import('../tools/blocks/browser/fixture.mjs').installMinuteAutosaveClock;
 let parentOrigin: string;
 
@@ -108,7 +107,7 @@ type RecoveryRecord = {
 };
 
 test.beforeAll(async () => {
-  ({ createProtocolFixture, advanceMinuteAutosave, installMinuteAutosaveClock } =
+  ({ createProtocolFixture, installMinuteAutosaveClock } =
     await import('../tools/blocks/browser/fixture.mjs'));
   ({ parentOrigin } = await import('../tools/blocks/browser/protocol.mjs'));
 });
@@ -396,6 +395,8 @@ test('normal upstream autosave clears recovery only after durable save', async (
 });
 
 test('failed server autosave retains recovery', async () => {
+  test.setTimeout(150_000);
+  const { projectId } = await import('../tools/blocks/browser/protocol.mjs');
   const serverProject = recoveryBootstrapFixture();
   const fixture = await createProtocolFixture({
     product: true,
@@ -408,18 +409,85 @@ test('failed server autosave retains recovery', async () => {
     runtimeAssets: serverProject.runtimeAssets,
     draftWriteStatus: 503,
   });
+  let observedDraftStatus: number | null = null;
   try {
-    const page = await minuteClockPage(fixture);
+    // Exercise the real failed-save boundary; minute-deadline behavior has its
+    // own clock-controlled acceptance case in blocks-product-integration.
+    const page = await fixture.context.newPage();
     await page.goto(`${parentOrigin}/product`, { waitUntil: 'domcontentloaded' });
     const frame = page.frameLocator('iframe[title="Scratch runtime"]');
     await waitReady(frame);
-    await setSteps(frame, '10', '73');
-    await expect.poll(async () => recoverySteps((await readRecoveryRecords(frame))[0])).toBe('73');
-    await advanceMinuteAutosave(page);
-    await expect.poll(() => fixture.runtimeDraftEvidence.length, { timeout: 20_000 }).toBe(1);
+    let recoveryReady = false;
+    let recoveryReadyAtResponse = false;
+    const [response] = await Promise.all([
+      page
+        .waitForResponse(
+          (candidate) =>
+            candidate.request().method() === 'PUT' &&
+            candidate.url() === `${parentOrigin}/api/blocks/runtime/projects/${projectId}/draft`,
+          { timeout: 90_000 },
+        )
+        .then((candidate) => {
+          observedDraftStatus = candidate.status();
+          recoveryReadyAtResponse = recoveryReady;
+          return candidate;
+        }),
+      (async () => {
+        await setSteps(frame, '10', '73');
+        await expect
+          .poll(async () => recoverySteps((await readRecoveryRecords(frame))[0]))
+          .toBe('73');
+        recoveryReady = true;
+      })(),
+    ]);
+    await response.finished();
+    expect(recoveryReadyAtResponse).toBe(true);
+    expect(observedDraftStatus).toBe(503);
+    expect(fixture.runtimeDraftEvidence).toHaveLength(1);
+    expect(fixture.runtimeDraftEvidence[0]).toMatchObject({
+      authorizationOk: true,
+      cookiePresent: false,
+      urlHasCapability: false,
+      originOk: true,
+      contentTypeOk: true,
+      serverRevisionBefore: 23,
+      body: { baseRevision: 23 },
+    });
+    expect(fixture.runtimeDraftEvidence[0].body.document.projectJson.targets).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: 'Recovery Sprite',
+          blocks: expect.objectContaining({
+            move: expect.objectContaining({ inputs: { STEPS: [1, [4, '73']] } }),
+          }),
+        }),
+      ]),
+    );
     expect(fixture.getServerRevision()).toBe(23);
-    expect(recoverySteps((await readRecoveryRecords(frame))[0])).toBe('73');
+    const retainedRecovery = await readRecoveryRecords(frame);
+    expect(retainedRecovery).toHaveLength(1);
+    expect(recoverySteps(retainedRecovery[0])).toBe('73');
   } finally {
+    await test
+      .info()
+      .attach('failed-autosave-outcome', {
+        contentType: 'application/json',
+        body: JSON.stringify({
+          observedDraftStatus,
+          serverRevision: fixture.getServerRevision(),
+          draftCount: fixture.runtimeDraftEvidence.length,
+          drafts: fixture.runtimeDraftEvidence.slice(0, 3).map(({ body, ...provenance }) => ({
+            ...provenance,
+            baseRevision: body?.baseRevision,
+          })),
+          errors: fixture.pageErrorEvidence.slice(0, 5).map(({ kind, type, text }) => ({
+            kind,
+            type,
+            text: typeof text === 'string' ? text.slice(0, 500) : undefined,
+          })),
+        }),
+      })
+      .catch(() => undefined);
     await fixture.close();
   }
 });

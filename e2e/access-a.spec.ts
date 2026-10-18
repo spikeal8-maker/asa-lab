@@ -573,7 +573,7 @@ test('H: short Student Code, reusable access cards, profile, logout and learner 
     module: 'electronics',
     title: 'Секретная работа первого',
   });
-  await openPortalSection(page, 'Мои учебные работы');
+  await openPortalSection(page, 'Мои проекты');
   await expect(page.getByText('Секретная работа первого', { exact: true }).first()).toBeVisible();
   await openAccountSettings(page);
   await expect(page.getByText(privateTeacherNote, { exact: true })).toBeVisible();
@@ -602,7 +602,7 @@ test('H: short Student Code, reusable access cards, profile, logout and learner 
     ).status(),
   ).toBe(401);
   await enter(second.student.studentCode, 320);
-  await openPortalSection(page, 'Мои учебные работы');
+  await openPortalSection(page, 'Мои проекты');
   await expect(page.getByText('Секретная работа первого', { exact: true })).toHaveCount(0);
   expect([403, 404]).toContain(
     (await page.request.get(`/api/projects/${work.project.id}`)).status(),

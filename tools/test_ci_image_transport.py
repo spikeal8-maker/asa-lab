@@ -14,6 +14,7 @@ import os
 from pathlib import Path
 import platform
 import re
+import shlex
 import subprocess
 
 
@@ -23,6 +24,8 @@ OVERLAY = ".github/compose.registry-ci.yaml"
 GENERAL = ".github/workflows/spec-validation.yml"
 TRANSPORT = "docs/product/projects/evidence/ci-node-transport-429-receipt.json"
 ORIGINAL_RECEIPT_SHA256 = "9b3b516e257aa31d3feb4a64c9dc8bfe7c33c9ad7d1be448245d8df044f7f273"
+GENERAL_OVERLAY_NAME = "asa-general-postgres.yaml"
+GENERAL_OVERLAY_ARGUMENT = ' -f "$RUNNER_TEMP/' + GENERAL_OVERLAY_NAME + '"'
 
 
 def require(condition, message):
@@ -47,15 +50,15 @@ def build_args(receipt):
 
 
 def general_node_receipt(receipt):
-    """Reuse the reviewed Node metadata for the General data job only."""
+    """Only the selected General Node/PostgreSQL references may change."""
     override = json.loads(read(TRANSPORT))
     require(hashlib.sha256(RECEIPT.read_bytes()).hexdigest() == ORIGINAL_RECEIPT_SHA256
             and override["original_receipt_sha256"] == ORIGINAL_RECEIPT_SHA256,
             "Original 545 receipt identity changed")
     require(override["task"] == "TASK-PROJ-PUBLICATION-DATA-TRANSPORT-001"
             and override["workflow"] == GENERAL and override["job"] == "postgres-tests"
-            and set(override["images"]) == {"node"},
-            "Transport override must affect only General postgres-tests Node")
+            and set(override["images"]) == {"node", "postgres"},
+            "Transport override must affect only General postgres-tests Node/PostgreSQL")
     require(override["platform"] == receipt["platform"]
             == {"os": "linux", "architecture": "amd64"}, "Transport platform mismatch")
     require(override["evidence_source"]["commit"]
@@ -84,6 +87,28 @@ def general_node_receipt(receipt):
                 "Raw provenance does not identify original Node manifest/config")
     result = deepcopy(receipt)
     result["images"]["node"]["reference"] = image["reference"]
+    postgres = override["images"]["postgres"]
+    original_postgres = receipt["images"]["postgres"]
+    require(postgres["reference"] == "mirror.gcr.io/library/postgres@"
+            + original_postgres["manifest_digest"], "Unapproved PostgreSQL transport reference")
+    require({key: value for key, value in postgres.items() if key != "reference"}
+            == {key: value for key, value in original_postgres.items() if key != "reference"},
+            "Immutable PostgreSQL identity/provenance changed")
+    transport = override["postgres_transport"]
+    require(transport["task"] == "TASK-ESSENTIAL-RELEASE-001"
+            and transport["workflow"] == GENERAL and transport["job"] == "postgres-tests"
+            and transport["original_receipt_sha256"] == ORIGINAL_RECEIPT_SHA256,
+            "PostgreSQL transport must affect only selected General data job")
+    probe = transport["probe"]
+    require(probe["reference"] == postgres["reference"]
+            and probe["manifest"] == {"http_status": 200, "bytes": 3640,
+                "sha256": original_postgres["manifest_digest"],
+                "docker_content_digest": original_postgres["manifest_digest"]}
+            and probe["config"] == {"http_status": 200, "bytes": original_postgres["config"]["size"],
+                "sha256": original_postgres["config"]["digest"]}
+            and probe["ordered_layer_count"] == probe["ordered_rootfs_count"] == 14,
+            "PostgreSQL mirror metadata does not prove original identity")
+    result["images"]["postgres"]["reference"] = postgres["reference"]
     return result
 
 
@@ -94,7 +119,24 @@ def general_node_contract(contract, original, effective):
         if build_args(original) in step.get("run", ""):
             step["run"] = step["run"].replace(build_args(original), build_args(effective))
             changed += 1
+        if "docker compose" in step.get("run", ""):
+            step["run"] = step["run"].replace(" -f " + OVERLAY,
+                " -f " + OVERLAY + GENERAL_OVERLAY_ARGUMENT)
+        if "--compose-model-check" in step.get("run", ""):
+            step["run"] = "python3 tools/test_ci_image_transport.py --prepare-general-postgres\n" \
+                + step["run"].replace("--compose-model-check", "--general-compose-model-check")
+        if "--pulled-postgres" in step.get("run", ""):
+            step["run"] = step["run"].replace("--pulled-postgres", "--general-pulled-postgres")
     require(changed == 1, "General transport must change exactly one required build")
+    uploads = [step for step in contract["jobs"]["access-a-browser"]["required_steps"]
+               if step.get("uses") == "actions/upload-artifact@v4"]
+    require(len(uploads) == 1 and uploads[0]["with"]["path"] == (
+        "e2e/artifacts/owner-preview/access-a\nreports/playwright/access-a\n"
+        "reports/playwright/settings-ui\ne2e/artifacts/owner-preview/access-a-ui\n"),
+        "Original General Access artifact scope changed")
+    uploads[0]["with"]["path"] += (
+        "reports/playwright/portal-compact-shell-r2-20261008/\n"
+        "e2e/artifacts/owner-preview/classroom-profile-completion/\n")
     return contract
 
 
@@ -192,13 +234,26 @@ def check_workflow(path, contract, receipt, general_node):
     # Check every Compose operation, including newly added ones. Parse folded
     # YAML commands first; checking just the first physical line misses flags.
     for job_id, job in workflow.get("jobs", {}).items():
-        effective = general_node if path == GENERAL and job_id == "postgres-tests" else receipt
+        selected = path == GENERAL and job_id == "postgres-tests"
+        effective = general_node if selected else receipt
         arguments = build_args(effective)
         for step in job.get("steps", []):
             command = step.get("run", "")
+            if not selected:
+                require(GENERAL_OVERLAY_NAME not in command and "--general-" not in command
+                        and "--prepare-general-postgres" not in command,
+                        "General PostgreSQL transport outside selected job: " + job_id)
             for operation in re.findall(r"docker compose[^\n]*", command):
                 require("-f " + OVERLAY in operation,
                         "Compose operation missing CI overlay: " + operation)
+                if selected:
+                    words = shlex.split(operation)
+                    files = [words[index + 1] for index, word in enumerate(words) if word == "-f"]
+                    require(files == ["compose.yaml", "compose.test.yaml", OVERLAY,
+                                      "$RUNNER_TEMP/" + GENERAL_OVERLAY_NAME]
+                            and all(word == "-f" for word in words
+                                    if word.startswith("-f") or word.startswith("--file")),
+                            "General Compose operation needs only the exact ordered overlays: " + operation)
                 if re.search(r"\bbuild\b", operation):
                     require(arguments in operation,
                             "Build missing exact immutable arguments: " + job_id)
@@ -282,10 +337,40 @@ def require_ci_amd64():
             "Docker proof is restricted to existing disposable GitHub Linux amd64 runners")
 
 
-def check_models(receipt):
+def general_overlay_path():
+    require_ci_amd64()
+    require(os.environ.get("GITHUB_JOB") == "postgres-tests"
+            and ("/" + GENERAL + "@") in os.environ.get("GITHUB_WORKFLOW_REF", ""),
+            "PostgreSQL mirror overlay is restricted to the General data job")
+    runner_temp = Path(os.environ.get("RUNNER_TEMP", ""))
+    require(runner_temp.is_absolute(), "General overlay requires absolute RUNNER_TEMP")
+    return runner_temp / GENERAL_OVERLAY_NAME
+
+
+def general_overlay_text(receipt):
+    return "services:\n  postgres:\n    image: " + receipt["images"]["postgres"]["reference"] + "\n"
+
+
+def prepare_general_postgres(receipt):
+    path = general_overlay_path()
+    path.write_text(general_overlay_text(receipt), encoding="utf-8", newline="\n")
+    print("Prepared General disposable PostgreSQL image-only overlay: " + str(path))
+
+
+def check_general_overlay(receipt):
+    path = general_overlay_path()
+    require(path.read_text(encoding="utf-8") == general_overlay_text(receipt),
+            "General runner overlay must contain only the exact PostgreSQL image")
+    return path
+
+
+def check_models(receipt, general=False):
     base = ["compose", "-f", "compose.yaml", "-f", "compose.test.yaml"]
+    transport = ["-f", OVERLAY]
+    if general:
+        transport += ["-f", str(check_general_overlay(receipt))]
     original = docker_json([*base, "--profile", "test", "config", "--format", "json"])
-    transported = docker_json([*base, "-f", OVERLAY, "--profile", "test", "config", "--format", "json"])
+    transported = docker_json([*base, *transport, "--profile", "test", "config", "--format", "json"])
     expected = receipt["images"]["postgres"]["reference"]
     require(original["services"]["postgres"]["image"] == "postgres:17.7-bookworm",
             "Original PostgreSQL default changed")
@@ -431,7 +516,7 @@ def check_challenges(receipt):
     challenge("changed package gate definition", {"package.json": json.dumps(weakened_package)}, False)
     challenge("mutable production default", {"Dockerfile.web": source["Dockerfile.web"].replace(
               "ARG CADDY_IMAGE=caddy:2.10.2-alpine", "ARG CADDY_IMAGE=caddy:latest")}, False)
-    challenge("exact General data Node transport", {}, True)
+    challenge("exact General data Node/PostgreSQL transport", {}, True)
     challenge("General original registry is no longer selected", {general: source[general].replace(
               build_args(effective), build_args(receipt))}, False)
     challenge("Electronics Node transport is outside scope", {focused: source[focused].replace(
@@ -451,7 +536,47 @@ def check_challenges(receipt):
     challenge("missing existing built image proof", {general: source[general].replace(
               "          python3 tools/test_ci_image_transport.py --built-images\n", "")}, False)
     challenge("missing existing PostgreSQL proof", {general: source[general].replace(
-              "          python3 tools/test_ci_image_transport.py --pulled-postgres\n", "")}, False)
+              "          python3 tools/test_ci_image_transport.py --general-pulled-postgres\n", "")}, False)
+    challenge("missing General runner overlay", {general: source[general].replace(
+              GENERAL_OVERLAY_ARGUMENT, "", 1)}, False)
+    challenge("extra General Compose overlay", {general: source[general].replace(
+              GENERAL_OVERLAY_ARGUMENT, GENERAL_OVERLAY_ARGUMENT + " -f unexpected.yaml", 1)}, False)
+    challenge("missing General overlay preparation", {general: source[general].replace(
+              "          python3 tools/test_ci_image_transport.py --prepare-general-postgres\n", "")}, False)
+    challenge("original model proof cannot replace General model proof", {general: source[general].replace(
+              "--general-compose-model-check", "--compose-model-check")}, False)
+    challenge("original image proof cannot replace General mirror proof", {general: source[general].replace(
+              "--general-pulled-postgres", "--pulled-postgres")}, False)
+    challenge("Electronics runner overlay is outside scope", {focused: source[focused].replace(
+              " -f " + OVERLAY, " -f " + OVERLAY + GENERAL_OVERLAY_ARGUMENT, 1)}, False)
+    outside_proof = parse_yaml(source[general])
+    outside_proof["jobs"]["code"]["steps"].append(
+        {"run": "python3 tools/test_ci_image_transport.py --prepare-general-postgres"})
+    challenge("other job General PostgreSQL mode is outside scope", {general: json.dumps(outside_proof)}, False)
+    challenge("actual approved General Access artifact upload", {}, True)
+    access_workflow = parse_yaml(source[general])
+    access_steps = access_workflow["jobs"]["access-a-browser"]["steps"]
+    upload_index = next(index for index, step in enumerate(access_steps)
+                        if step.get("uses") == "actions/upload-artifact@v4")
+    for artifact_path in access_steps[upload_index]["with"]["path"].splitlines():
+        changed = deepcopy(access_workflow)
+        upload = changed["jobs"]["access-a-browser"]["steps"][upload_index]
+        upload["with"]["path"] = upload["with"]["path"].replace(artifact_path + "\n", "")
+        challenge("removed Access artifact path " + artifact_path, {general: json.dumps(changed)}, False)
+    for name, field, value in [
+        ("changed Access artifact retention", ["with", "retention-days"], 1),
+        ("changed Access artifact condition", ["if"], "failure()"),
+        ("changed Access artifact name", ["with", "name"], "other-artifacts"),
+        ("changed Access artifact action", ["uses"], "actions/upload-artifact@v3"),
+        ("unapproved Access artifact directory", ["with", "path"],
+            access_steps[upload_index]["with"]["path"] + "unapproved/directory/\n"),
+    ]:
+        changed = deepcopy(access_workflow)
+        parent = changed["jobs"]["access-a-browser"]["steps"][upload_index]
+        for key in field[:-1]:
+            parent = parent[key]
+        parent[field[-1]] = value
+        challenge(name, {general: json.dumps(changed)}, False)
     override = json.loads(source[TRANSPORT])
     for name, path, value in [
         ("wrong transport workflow", ["workflow"], focused),
@@ -471,6 +596,19 @@ def check_challenges(receipt):
         ("unreviewed host provenance", ["host_probe", "probe_receipt_sha256"], "0" * 64),
         ("wrong original receipt", ["original_receipt_sha256"], "0" * 64),
         ("extra image transport", ["images", "caddy"], receipt["images"]["caddy"]),
+        ("wrong PostgreSQL transport job", ["postgres_transport", "job"], "code"),
+        ("wrong PostgreSQL transport workflow", ["postgres_transport", "workflow"], focused),
+        ("wrong PostgreSQL original receipt", ["postgres_transport", "original_receipt_sha256"], "0" * 64),
+        ("mutable PostgreSQL transport", ["images", "postgres", "reference"], "mirror.gcr.io/library/postgres:latest"),
+        ("wrong PostgreSQL registry", ["images", "postgres", "reference"], "other.example/postgres@" + receipt["images"]["postgres"]["manifest_digest"]),
+        ("wrong PostgreSQL config", ["images", "postgres", "config", "digest"], "sha256:" + "0" * 64),
+        ("wrong PostgreSQL manifest", ["images", "postgres", "manifest_digest"], "sha256:" + "0" * 64),
+        ("wrong PostgreSQL ordered layers", ["images", "postgres", "layers"], list(reversed(receipt["images"]["postgres"]["layers"]))),
+        ("wrong PostgreSQL ordered rootfs", ["images", "postgres", "rootfs_diff_ids"], list(reversed(receipt["images"]["postgres"]["rootfs_diff_ids"]))),
+        ("lost PostgreSQL original provenance", ["images", "postgres", "raw_source_prefix"], "other"),
+        ("wrong PostgreSQL manifest probe", ["postgres_transport", "probe", "manifest", "sha256"], "sha256:" + "0" * 64),
+        ("wrong PostgreSQL config probe", ["postgres_transport", "probe", "config", "sha256"], "sha256:" + "0" * 64),
+        ("wrong PostgreSQL probe byte count", ["postgres_transport", "probe", "config", "bytes"], 1),
     ]:
         changed = deepcopy(override)
         parent = changed
@@ -495,6 +633,74 @@ def check_challenges(receipt):
         require((error is not None) == changed_service, "Parsed model equivalence challenge failed")
         outcomes.append({"challenge": "effective model " + ("changed service" if changed_service else "image only"),
                          "result": "PASS", "rejection": error})
+    general_context = {"GITHUB_ACTIONS": "true", "GITHUB_JOB": "postgres-tests",
+        "GITHUB_WORKFLOW_REF": "spikeal8-maker/asa-lab/" + general + "@refs/heads/main",
+        "RUNNER_TEMP": str(ROOT)}
+
+    def runtime_challenge(name, check, passes, environment=None, system="Linux", architecture="x86_64",
+                          overlay=None, docker=None):
+        error = None
+        with patch.dict(os.environ, {**general_context, **(environment or {})}, clear=True), \
+                patch(__name__ + ".platform.system", return_value=system), \
+                patch(__name__ + ".platform.machine", return_value=architecture), \
+                patch.object(Path, "read_text", return_value=general_overlay_text(effective) if overlay is None else overlay), \
+                patch.object(Path, "write_text", autospec=True) as write_overlay, \
+                patch(__name__ + ".docker_json", side_effect=docker) as docker_call:
+            try:
+                with redirect_stdout(StringIO()):
+                    check()
+            except ValueError as failure:
+                error = str(failure)
+            require((error is None) == passes, "Runtime challenge failed: " + name + ":" + str(error))
+            if write_overlay.called:
+                require(passes and write_overlay.call_count == 1
+                        and write_overlay.call_args.args == (ROOT / GENERAL_OVERLAY_NAME, general_overlay_text(effective)),
+                        "Overlay writer escaped exact runner path/content")
+            if docker_call.called and "pulled" in name:
+                require(docker_call.call_args.args[0] == ["image", "inspect", effective["images"]["postgres"]["reference"]],
+                        "General proof inspected the wrong PostgreSQL registry")
+        outcomes.append({"challenge": name, "expected_pass": passes, "result": "PASS", "rejection": error})
+
+    runtime_challenge("prepare exact General image-only overlay", lambda: prepare_general_postgres(effective), True)
+    for name, environment, system, architecture in [
+        ("non-Actions host", {"GITHUB_ACTIONS": "false"}, "Linux", "x86_64"),
+        ("wrong job", {"GITHUB_JOB": "code"}, "Linux", "x86_64"),
+        ("wrong workflow", {"GITHUB_WORKFLOW_REF": "repo/" + focused + "@refs/heads/main"}, "Linux", "x86_64"),
+        ("relative runner path", {"RUNNER_TEMP": "relative"}, "Linux", "x86_64"),
+        ("wrong runner OS", {}, "Windows", "x86_64"),
+        ("wrong runner architecture", {}, "Linux", "arm64"),
+    ]:
+        runtime_challenge(name, lambda: prepare_general_postgres(effective), False, environment, system, architecture)
+    runtime_challenge("extra runtime overlay property", lambda: check_general_overlay(effective), False,
+                      overlay=general_overlay_text(effective) + "    privileged: true\n")
+    runtime_challenge("wrong runtime overlay image", lambda: check_general_overlay(effective), False,
+                      overlay=general_overlay_text(receipt))
+    for changed_service in (False, True):
+        transported = deepcopy(original)
+        transported["services"]["postgres"]["image"] = effective["images"]["postgres"]["reference"]
+        if changed_service:
+            transported["services"]["test-runner"]["command"] = "true"
+        runtime_challenge("General model " + ("changed service" if changed_service else "image only"),
+            lambda: check_models(effective, general=True), not changed_service,
+            docker=[deepcopy(original), transported])
+    postgres_image = {"Architecture": "amd64", "Os": "linux",
+        "Id": effective["images"]["postgres"]["config"]["digest"],
+        "RootFS": {"Layers": effective["images"]["postgres"]["rootfs_diff_ids"]}}
+    for name, field, value in [
+        ("exact pulled PostgreSQL config/rootfs", None, None),
+        ("pulled PostgreSQL wrong config", ["Id"], "sha256:" + "0" * 64),
+        ("pulled PostgreSQL wrong layer order", ["RootFS", "Layers"], list(reversed(postgres_image["RootFS"]["Layers"]))),
+        ("pulled PostgreSQL wrong architecture", ["Architecture"], "arm64"),
+        ("pulled PostgreSQL wrong OS", ["Os"], "windows"),
+    ]:
+        inspected = deepcopy(postgres_image)
+        if field:
+            parent = inspected
+            for key in field[:-1]:
+                parent = parent[key]
+            parent[field[-1]] = value
+        runtime_challenge(name, lambda: (check_general_overlay(effective), check_pulled_postgres(effective)),
+                          field is None, docker=[[inspected]])
     print(json.dumps({"semantic_challenges": outcomes}, indent=2))
 
 
@@ -506,9 +712,23 @@ def main():
     parser.add_argument("--compose-model-check", action="store_true")
     parser.add_argument("--built-images", action="store_true")
     parser.add_argument("--pulled-postgres", action="store_true")
+    parser.add_argument("--prepare-general-postgres", action="store_true")
+    parser.add_argument("--general-compose-model-check", action="store_true")
+    parser.add_argument("--general-pulled-postgres", action="store_true")
     options = parser.parse_args()
     receipt = json.loads(RECEIPT.read_text(encoding="utf-8"))
     check_offline(receipt)
+    if options.prepare_general_postgres or options.general_compose_model_check or options.general_pulled_postgres:
+        require(sum(vars(options).values()) == 1, "Use one explicit General PostgreSQL proof mode")
+        effective = general_node_receipt(receipt)
+        if options.prepare_general_postgres:
+            prepare_general_postgres(effective)
+        elif options.general_compose_model_check:
+            check_models(effective, general=True)
+        else:
+            check_general_overlay(effective)
+            check_pulled_postgres(effective)
+        return
     if options.self_test:
         check_challenges(receipt)
     if options.baseline_proof:

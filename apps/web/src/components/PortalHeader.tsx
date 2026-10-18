@@ -1,4 +1,5 @@
 import { usePresentation } from './PresentationPreferences';
+import './portal-ai-navigation.css';
 import { hasSettingsDraft } from './settings-navigation';
 import { useEffect, useRef, useState } from 'react';
 import { requestSettingsNavigation } from './settings-navigation';
@@ -146,11 +147,17 @@ export function PortalHeader({
     sync();
     return () => window.removeEventListener('settings-draft-state', sync);
   }, []);
-  const sidebarCollapsed = presentation.draft.sidebar === 'collapsed';
+  // AI owns the available workspace without saving a new preference for the
+  // other sections. Administrative routes retain their normal navigation.
+  const aiLayout = active === 'ai' && !adminNavigation?.active;
+  const sidebarCollapsed = aiLayout || presentation.draft.sidebar === 'collapsed';
   const accountMenu = useRef<HTMLDetailsElement>(null);
   const sidebar = useRef<HTMLElement>(null);
   const menuButton = useRef<HTMLButtonElement>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [active, adminNavigation?.active]);
   const attention = classAttention(unfinishedCount, classroomBadge ?? 0);
   const go = (section: PortalSection): void => {
     setMobileOpen(false);
@@ -228,7 +235,7 @@ export function PortalHeader({
     seat: seatLearner,
   });
   const primaryNavigation = navigationItems.filter(
-    (item) => item.section !== 'help' && item.section !== 'account',
+    (item) => item.section !== 'help' && item.section !== 'account' && item.section !== 'ai',
   );
   const settingsNavigation = navigationItems.find((item) => item.section === 'account');
   const helpNavigation = navigationItems.find((item) => item.section === 'help');
@@ -386,7 +393,7 @@ export function PortalHeader({
 
   return (
     <>
-      <header className="portal-header">
+      <header className="portal-header portal-header-ai-navigation">
         <button
           ref={menuButton}
           type="button"
@@ -429,6 +436,17 @@ export function PortalHeader({
           >
             <LearningGlyph />
             <span>Знания</span>
+          </PortalLink>
+          <PortalLink
+            href={sectionHref('ai')}
+            aria-label="ИИ"
+            aria-current={aiLayout ? 'page' : undefined}
+            onNavigate={() => go('ai')}
+          >
+            <b className="portal-ai-glyph" aria-hidden="true">
+              ✦
+            </b>
+            <span>ИИ</span>
           </PortalLink>
         </nav>
         <QuickCreateMenu />
@@ -673,7 +691,7 @@ export function PortalHeader({
             </PortalLink>
           ))}
           <div className="portal-mobile-public">
-            {(['gallery', 'knowledge'] as const).map((section) => (
+            {(['gallery', 'knowledge', 'ai'] as const).map((section) => (
               <PortalLink
                 key={section}
                 href={sectionHref(section)}
@@ -685,7 +703,7 @@ export function PortalHeader({
                   {sectionIcon(section)}
                 </span>
                 <span className="portal-nav-label">
-                  {section === 'gallery' ? 'Проекты' : 'Знания'}
+                  {section === 'gallery' ? 'Проекты' : section === 'knowledge' ? 'Знания' : 'ИИ'}
                 </span>
               </PortalLink>
             ))}
@@ -770,7 +788,7 @@ export function PortalHeader({
             <span className="portal-nav-label">Выход</span>
           </button>
         </div>
-        {!seatLearner ? (
+        {!seatLearner && !aiLayout ? (
           <button
             type="button"
             className="portal-sidebar-collapse"
