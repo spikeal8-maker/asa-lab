@@ -5,7 +5,8 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { availableParallelism, totalmem } from 'node:os';
 import { monitorEventLoopDelay } from 'node:perf_hooks';
 import pg from 'pg';
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+import { OpenProjectUseCase, PgProjectRepository } from '../../contexts/projects/dist/index.js';
 import {
   createApiApp,
   poolSettings,
@@ -70,6 +71,9 @@ describe.skipIf(process.env.ASA_CAPACITY_BASELINE !== '1')(
         ...analyticsPoolSettings(),
       });
       const loop = monitorEventLoopDelay({ resolution: 20 });
+      // Observe the actual API reader; all repository/permission/SQL work still executes.
+      const opened = vi.spyOn(OpenProjectUseCase.prototype, 'execute');
+      const projectLoads = vi.spyOn(PgProjectRepository.prototype, 'load');
       let app: Awaited<ReturnType<typeof createApiApp>> | undefined;
       const records: Observation[] = [];
       const samples: {
@@ -456,6 +460,14 @@ describe.skipIf(process.env.ASA_CAPACITY_BASELINE !== '1')(
         expect(mediaReads).toBe(b.blocks);
         expect(identityChecks).toBe(b.sessions * (b.identityProbeSeconds.length + 1));
         expect(records.filter((r) => r.phase !== 'setup' && !r.ok)).toHaveLength(0);
+        expect(opened).toHaveBeenCalledTimes(
+          records.filter(
+            (r) => r.operation === 'project_read' || r.operation === 'expected_ownership_denial',
+          ).length,
+        );
+        expect(
+          projectLoads.mock.calls.filter((call) => call[3]?.includeVersions === false),
+        ).toHaveLength(acknowledged + retriedReceipts + conflicts * 2);
         success = true;
       } finally {
         const steadyEnded = now();
@@ -541,6 +553,26 @@ describe.skipIf(process.env.ASA_CAPACITY_BASELINE !== '1')(
             staleWritesRejected: conflicts,
             ownershipReadsDenied: denied,
           },
+          fullProjectReads: {
+            explicitRequests: records.filter(
+              (r) => r.operation === 'project_read' || r.operation === 'expected_ownership_denial',
+            ).length,
+            actualOpens: opened.mock.calls.length,
+            // Includes setup reads; zero means no extra full reopen was caused by a save.
+            extraOpens:
+              opened.mock.calls.length -
+              records.filter(
+                (r) =>
+                  r.operation === 'project_read' || r.operation === 'expected_ownership_denial',
+              ).length,
+          },
+          draftReads: {
+            // The two stale attempts each require an initial read and a conflict fallback.
+            expectedWithoutHistory: acknowledged + retriedReceipts + conflicts * 2,
+            actualWithoutHistory: projectLoads.mock.calls.filter(
+              (call) => call[3]?.includeVersions === false,
+            ).length,
+          },
           observedSlo,
           targetSlo: p.slo,
           groups,
@@ -567,6 +599,8 @@ describe.skipIf(process.env.ASA_CAPACITY_BASELINE !== '1')(
           mkdirSync('reports/capacity', { recursive: true });
           writeFileSync('reports/capacity/backend30.json', JSON.stringify(report, null, 2));
         } finally {
+          opened.mockRestore();
+          projectLoads.mockRestore();
           if (app) await app.close();
           else {
             await runtime.end();

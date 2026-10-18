@@ -144,6 +144,22 @@ never copy an old whole spec/YAML tree over them. Require actual dirty-path
 checks, source/composition review and complete native journeys with the existing
 strict Save/CAS/cookies-only reopen/gate contracts and NEW runtime/visual review.
 
+For the separately selected corrected BEFORE composition, the executor may write
+only the existing simulation spec and its generated coverage browser-evidence
+hash. Inherit the three source-approved infra blobs unchanged. Append the exact
+corrected93c suffix: **631 lines / 25341 bytes**, SHA-256
+`5272d3b08d52eb77b544fa121ef4c34272076d49435d570b7c5167c18997e2b4`.
+Preserve the latest accepted main prefix byte-for-byte, including any accepted
+#546 test repair; never import unintegrated #546 refs or replace an old whole
+spec. Keep old cases/helpers/interactions, assertions and timeouts unchanged.
+Six native placement/connection journeys must finish their respective strict
+document and Save/CAS/cookies-reopen oracles despite expected soft cue failures;
+five strict Cancel/desktop missing-cue cases retain their causal expected failures.
+A NEW independent reviewer must inspect actual BEFORE raw/visual evidence before
+the controller selects the exact6184 Stage/CSS-only AFTER. Complete BEFORE/AFTER
+simulation test bytes must match. No mobile/source/infra repair is implied by
+composition authority.
+
 Transport proof is not mobile acceptance and does not remove the blocker.
 Subsequent mobile/test/product authors must not fix old #546 specs, core, hook or
 LED code. Any real source overlap requires a controller handoff. No integration,

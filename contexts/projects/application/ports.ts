@@ -150,6 +150,8 @@ export interface ProjectRepositoryPort {
     tenantId: string,
     projectId: string,
     actor: ProjectActor,
+    /** Internal projection: return versions:[] without querying history; default is full history. */
+    options?: { readonly includeVersions: false },
   ): Promise<{ project: Project; draft: ProjectDraft; versions: ProjectVersion[] } | null>;
   rename(
     tenantId: string,
