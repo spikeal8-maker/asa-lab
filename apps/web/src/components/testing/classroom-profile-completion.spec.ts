@@ -839,17 +839,17 @@ describe('participant completion DOM behavior', () => {
     await render(createElement(ClassroomStudentPage, props));
     expect(
       host.querySelector('.participant-hero')?.nextElementSibling?.getAttribute('aria-label'),
-    ).toBe('Последние оценки');
-    expect(host.querySelector('.participant-grade-summary strong')?.textContent).toBe('0');
+    ).toBe('Оценки этого класса');
+    expect(host.querySelector('.teacher-profile-grades strong')?.textContent).toBe('0');
     expect(host.querySelector('.participant-role-hint')).toBeNull();
     vi.mocked(participantsApi.profile).mockResolvedValue(ok(profile('helper', 'seat-b')));
     await render(createElement(ClassroomStudentPage, { ...props, seatId: 'seat-b' }));
     expect(
       host.querySelector('.participant-hero')?.nextElementSibling?.getAttribute('aria-label'),
-    ).toBe('Последние оценки');
+    ).toBe('Оценки этого класса');
     expect(host.textContent).toContain('Доступный класс помощника');
     expect(host.querySelector('[aria-label="Классы помощника"]')).not.toBeNull();
-    expect(host.querySelector('.participant-grade-summary')).not.toBeNull();
+    expect(host.querySelector('.teacher-profile-grades')).not.toBeNull();
     expect(host.querySelector('.participant-role-hint')).toBeNull();
     await click('Оценки и история');
     expect(host.querySelector('.participant-grades')).not.toBeNull();

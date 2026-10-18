@@ -653,17 +653,96 @@ function ParticipantHistoryNote({ text }: { text: string }): JSX.Element {
   );
 }
 
+type ProfileResult = ParticipantGrades['results'][number];
+
+/** Strict ISO publication instant, with PostgreSQL's full microsecond precision. */
+function profilePublicationTime(value: string): readonly [number, number] | null {
+  const match =
+    /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,6}))?(Z|([+-])(\d{2}):?(\d{2}))$/.exec(
+      value,
+    );
+  if (!match || match[0] !== value) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const hour = Number(match[4]);
+  const minute = Number(match[5]);
+  const second = Number(match[6]);
+  const offsetHour = Number(match[10] ?? 0);
+  const offsetMinute = Number(match[11] ?? 0);
+  const leap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  const days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  if (
+    month < 1 ||
+    month > 12 ||
+    day < 1 ||
+    day > days[month - 1]! ||
+    hour > 23 ||
+    minute > 59 ||
+    second > 59 ||
+    offsetHour > 23 ||
+    offsetMinute > 59
+  )
+    return null;
+  // Set the year explicitly: Date.UTC treats years 00..99 as 1900..1999.
+  const date = new Date(0);
+  date.setUTCFullYear(year, month - 1, day);
+  date.setUTCHours(hour, minute, second, 0);
+  const offset = (offsetHour * 60 + offsetMinute) * (match[9] === '-' ? -1 : 1);
+  return [date.getTime() - offset * 60_000, Number((match[7] ?? '').padEnd(6, '0'))];
+}
+
+/** Reconcile copies of the server projection, never synthesize grade fields. */
+function latestProfileResults(items: readonly ProfileResult[]): ProfileResult[] | null {
+  const groups = new Map<string, ProfileResult[]>();
+  const times = new Map<string, readonly [number, number]>();
+  for (const item of items) {
+    const time = profilePublicationTime(item.published_at);
+    if (!time) return null;
+    times.set(item.published_at, time);
+    const group = groups.get(item.assignment_id) ?? [];
+    group.push(item);
+    groups.set(item.assignment_id, group);
+  }
+  const compareTime = (a: ProfileResult, b: ProfileResult): number => {
+    const left = times.get(a.published_at)!;
+    const right = times.get(b.published_at)!;
+    return left[0] - right[0] || left[1] - right[1];
+  };
+  const payload = (r: ProfileResult) =>
+    JSON.stringify([r.assignment_title, r.raw_points, r.max_points, r.display_grade, r.feedback]);
+  const selected: ProfileResult[] = [];
+  for (const group of groups.values()) {
+    group.sort(
+      (a, b) =>
+        compareTime(a, b) ||
+        (a.published_at < b.published_at ? -1 : a.published_at > b.published_at ? 1 : 0),
+    );
+    const latest = group[group.length - 1]!;
+    // Equal instants with identical fields coalesce using a stable timestamp
+    // spelling. Conflicting fields have no authoritative ordering (no revision
+    // in this projection): fail closed and let explicit retry reread the pages.
+    if (group.some((r) => compareTime(r, latest) === 0 && payload(r) !== payload(latest)))
+      return null;
+    selected.push(latest);
+  }
+  return selected;
+}
+
 export function ParticipantGradeHistory({
   classroomId,
   seatId,
   seatSession = false,
   compact = false,
+  variant = 'default',
 }: {
   classroomId: string;
   seatId: string;
   seatSession?: boolean;
   compact?: boolean;
+  variant?: 'default' | 'teacherProfile';
 }): JSX.Element {
+  const teacherProfile = variant === 'teacherProfile';
   const time = useSchoolTime();
   const historyTime = useMemo(
     () =>
@@ -698,9 +777,22 @@ export function ParticipantGradeHistory({
   const currentIdentity = useRef(identity);
   currentIdentity.current = identity;
   const [loadedIdentity, setLoadedIdentity] = useState(identity);
+  const currentData = useRef(data);
+  currentData.current = data;
+  const paging = useRef(false);
+  const loggedOut = useRef(false);
+  const pages = useRef({ journal: [0], results: [0] });
+  type GradeStream = 'refresh' | 'journal' | 'results';
+  const failedPage = useRef<{ offset: number; resultOffset: number; stream: GradeStream } | null>(
+    null,
+  );
   function historyError(message: string, status: number): void {
     setError(message);
     if ([401, 403, 404].includes(status)) {
+      paging.current = false;
+      currentData.current = null;
+      pages.current = { journal: [0], results: [0] };
+      failedPage.current = { offset: 0, resultOffset: 0, stream: 'refresh' };
       generation.current++;
       gradeGeneration.current++;
       historyGeneration.current++;
@@ -750,10 +842,152 @@ export function ParticipantGradeHistory({
     else historyError(r.error.message, r.status);
   }
   const load = useCallback(
-    async (offset = 0, resultOffset = 0) => {
+    async (offset = 0, resultOffset = 0, stream: GradeStream = 'refresh') => {
+      if (teacherProfile && (paging.current || loggedOut.current)) return;
       const token = ++gradeGeneration.current;
       setError(null);
       setLoading(true);
+      if (teacherProfile) {
+        paging.current = true;
+        // Refresh only the explicitly loaded pages, never chase next cursors.
+        // SQL 0209 projects only the journal page at offset, not every changed
+        // column. A results click refreshes the other already loaded journal
+        // pages once each. These companions update loaded IDs only; neither
+        // their columns/cursors nor their result pages expand the loaded set.
+        const requests =
+          stream === 'refresh'
+            ? Array.from(
+                { length: Math.max(pages.current.journal.length, pages.current.results.length) },
+                (_, i) => ({
+                  offset: pages.current.journal[i] ?? 0,
+                  resultOffset: pages.current.results[i] ?? 0,
+                  journal: i < pages.current.journal.length,
+                  results: i < pages.current.results.length,
+                }),
+              )
+            : [
+                {
+                  offset,
+                  resultOffset,
+                  journal: stream === 'journal',
+                  results: stream === 'results',
+                },
+                ...(stream === 'results'
+                  ? pages.current.journal
+                      .filter((loadedOffset) => loadedOffset !== offset)
+                      .map((loadedOffset) => ({
+                        offset: loadedOffset,
+                        resultOffset,
+                        journal: false,
+                        results: false,
+                      }))
+                  : []),
+              ];
+        let merged = stream === 'refresh' ? null : currentData.current;
+        const unique = <T,>(items: readonly T[], key: (item: T) => string): T[] => [
+          ...new Map(items.map((item) => [key(item), item])).values(),
+        ];
+        for (const request of requests) {
+          const result = await participantsApi.grades(
+            classroomId,
+            seatId,
+            request.offset,
+            request.resultOffset,
+          );
+          if (
+            token !== gradeGeneration.current ||
+            identity !== currentIdentity.current ||
+            loggedOut.current
+          )
+            return;
+          if (!result.ok) {
+            paging.current = false;
+            setLoading(false);
+            // This response belongs to the current identity, even when its first
+            // read failed. Expose its error/retry without revealing the old seat.
+            setLoadedIdentity(identity);
+            failedPage.current = { offset, resultOffset, stream };
+            historyError(result.error.message, result.status);
+            return;
+          }
+          const incoming = result.data;
+          const previous: ParticipantGrades | null = merged;
+          const journalColumns = request.journal
+            ? unique(
+                [...(previous?.journal.columns ?? []), ...incoming.journal.columns],
+                (c) => c.id,
+              )
+            : previous!.journal.columns;
+          const loadedColumns = new Set(journalColumns.map((c) => c.id));
+          const journalGrades = [
+            ...new Map(
+              [
+                ...(previous?.journal.grades ?? []),
+                ...(currentData.current?.journal.grades ?? []),
+                ...incoming.journal.grades,
+              ]
+                .filter((g) => loadedColumns.has(g.columnId))
+                .sort(
+                  (a, b) =>
+                    a.revision - b.revision ||
+                    Date.parse(a.publishedAt) - Date.parse(b.publishedAt) ||
+                    (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
+                )
+                .map((grade) => [grade.columnId, grade] as const),
+            ).values(),
+          ];
+          const incomingIds = new Set(incoming.results.map((r) => r.assignment_id));
+          const results = request.results
+            ? latestProfileResults([
+                ...(previous?.results ?? []),
+                // A stale focus page cannot roll back a newer loaded projection.
+                // Retain only IDs seen on the explicitly refreshed result pages.
+                ...(currentData.current?.results.filter((r) => incomingIds.has(r.assignment_id)) ??
+                  []),
+                ...incoming.results,
+              ])
+            : previous!.results;
+          if (results === null) {
+            currentData.current = null;
+            setData(null);
+            historyGeneration.current++;
+            setHistory(null);
+            setResultHistory(null);
+            setHistoryLoading(false);
+            failedPage.current = { offset: 0, resultOffset: 0, stream: 'refresh' };
+            paging.current = false;
+            setLoading(false);
+            setLoadedIdentity(identity);
+            setError('Не удалось определить актуальный результат. Повторите загрузку оценок.');
+            return;
+          }
+          merged = {
+            journal: {
+              ...(request.journal ? incoming.journal : previous!.journal),
+              columns: journalColumns,
+              // Immutable IDs identify revisions; columnId identifies the one
+              // current grade, including null. Companions cannot add columns.
+              grades: journalGrades,
+            },
+            resultOffset: request.results ? incoming.resultOffset : previous!.resultOffset,
+            nextResultOffset: request.results
+              ? incoming.nextResultOffset
+              : previous!.nextResultOffset,
+            results,
+          };
+        }
+        if (stream === 'journal')
+          pages.current.journal = [...new Set([...pages.current.journal, offset])];
+        if (stream === 'results')
+          pages.current.results = [...new Set([...pages.current.results, resultOffset])];
+        failedPage.current = null;
+        currentData.current = merged;
+        setData(merged);
+        setLoadedIdentity(identity);
+        paging.current = false;
+        setLoading(false);
+        return;
+      }
       const result = seatSession
         ? await participantsApi.seatGrades(offset, resultOffset)
         : await participantsApi.grades(classroomId, seatId, offset, resultOffset);
@@ -791,9 +1025,14 @@ export function ParticipantGradeHistory({
         setError(result.error.message);
       }
     },
-    [classroomId, seatId, seatSession, identity],
+    [classroomId, seatId, seatSession, identity, teacherProfile],
   );
   useEffect(() => {
+    pages.current = { journal: [0], results: [0] };
+    currentData.current = null;
+    paging.current = false;
+    loggedOut.current = false;
+    failedPage.current = null;
     setData(null);
     setHistory(null);
     setResultHistory(null);
@@ -804,6 +1043,9 @@ export function ParticipantGradeHistory({
     };
     window.addEventListener('focus', refresh);
     const unsubscribe = onSessionLoggedOut(() => {
+      loggedOut.current = true;
+      paging.current = false;
+      currentData.current = null;
       generation.current++;
       gradeGeneration.current++;
       historyGeneration.current++;
@@ -824,26 +1066,58 @@ export function ParticipantGradeHistory({
   }, [load]);
   if (loadedIdentity !== identity) return <p role="status">Загружаем оценки…</p>;
   const dates = new Map(data?.journal.columns.map((column) => [column.id, column.date]) ?? []);
-  const displayedGrades = compact
-    ? [...(data?.journal.grades ?? [])]
-        .sort(
-          (left, right) =>
-            (dates.get(right.columnId) ?? '').localeCompare(dates.get(left.columnId) ?? '') ||
-            right.publishedAt.localeCompare(left.publishedAt) ||
-            left.id.localeCompare(right.id),
-        )
-        .slice(0, 3)
-    : (data?.journal.grades ?? []);
+  const sortedGrades = [...(data?.journal.grades ?? [])].sort(
+    (left, right) =>
+      (dates.get(right.columnId) ?? '').localeCompare(dates.get(left.columnId) ?? '') ||
+      Date.parse(right.publishedAt) - Date.parse(left.publishedAt) ||
+      left.id.localeCompare(right.id),
+  );
+  const displayedGrades = teacherProfile
+    ? sortedGrades
+    : compact
+      ? [...(data?.journal.grades ?? [])]
+          .sort(
+            (left, right) =>
+              (dates.get(right.columnId) ?? '').localeCompare(dates.get(left.columnId) ?? '') ||
+              right.publishedAt.localeCompare(left.publishedAt) ||
+              left.id.localeCompare(right.id),
+          )
+          .slice(0, 3)
+      : (data?.journal.grades ?? []);
   return (
     <section
-      className={`participant-grades${compact ? ' participant-grade-summary' : ''}`}
-      aria-label={compact ? 'Последние оценки' : 'Оценки и история'}
+      className={`participant-grades${teacherProfile && compact ? ' teacher-profile-grades' : compact ? ' participant-grade-summary' : ''}`}
+      aria-label={
+        teacherProfile && compact
+          ? 'Оценки этого класса'
+          : compact
+            ? 'Последние оценки'
+            : 'Оценки и история'
+      }
     >
-      <h2>{compact ? 'Последние оценки' : 'Оценки и история'}</h2>
+      <h2>
+        {teacherProfile && compact
+          ? 'Оценки этого класса'
+          : compact
+            ? 'Последние оценки'
+            : 'Оценки и история'}
+      </h2>
       {error ? (
         <p role="alert">
           {error}
-          <button type="button" className="btn-secondary" onClick={() => void load()}>
+          <button
+            type="button"
+            className="btn-secondary"
+            disabled={teacherProfile && loading}
+            onClick={() => {
+              const failed = teacherProfile ? failedPage.current : null;
+              void load(
+                failed?.offset ?? 0,
+                failed?.resultOffset ?? 0,
+                failed?.stream ?? 'refresh',
+              );
+            }}
+          >
             Повторить
           </button>
         </p>
@@ -851,7 +1125,14 @@ export function ParticipantGradeHistory({
       {loading ? <p role="status">Загружаем оценки…</p> : null}
       {data ? (
         <>
-          <ul className="participant-grade-list">
+          {teacherProfile && compact && displayedGrades.length > 0 ? (
+            <h3>Журнал · за все годы</h3>
+          ) : null}
+          <ul
+            className="participant-grade-list"
+            aria-label={teacherProfile ? 'Ручные оценки' : undefined}
+            tabIndex={teacherProfile && compact ? 0 : undefined}
+          >
             {displayedGrades.map((grade) => {
               const column = data.journal.columns.find((c) => c.id === grade.columnId);
               const value = journalRevisionLabel(column?.preset, grade.value);
@@ -865,7 +1146,7 @@ export function ParticipantGradeHistory({
                   </div>
                   <strong className="participant-grade-value">{value}</strong>
                   <small className="participant-grade-author">{grade.authorName}</small>
-                  {!compact ? (
+                  {!compact || teacherProfile ? (
                     <button
                       type="button"
                       className="btn-secondary"
@@ -879,8 +1160,24 @@ export function ParticipantGradeHistory({
               );
             })}
           </ul>
-          <ul className="participant-grade-list">
-            {(compact ? data.results.slice(0, 3) : data.results).map((result) => (
+          {teacherProfile && compact && data.results.length > 0 ? (
+            <h3>Результаты заданий · за все годы</h3>
+          ) : null}
+          <ul
+            className="participant-grade-list"
+            aria-label={teacherProfile ? 'Результаты заданий' : undefined}
+            tabIndex={teacherProfile && compact ? 0 : undefined}
+          >
+            {(teacherProfile
+              ? [...data.results].sort(
+                  (a, b) =>
+                    Date.parse(b.published_at) - Date.parse(a.published_at) ||
+                    a.assignment_id.localeCompare(b.assignment_id),
+                )
+              : compact
+                ? data.results.slice(0, 3)
+                : data.results
+            ).map((result) => (
               <li key={result.assignment_id} className="participant-grade-row">
                 <div className="participant-grade-context">
                   <time dateTime={result.published_at}>{momentLabel(result.published_at)}</time>
@@ -892,10 +1189,10 @@ export function ParticipantGradeHistory({
                       ? 'Без балла'
                       : `${result.raw_points} / ${result.max_points}`)}
                 </strong>
-                {result.feedback ? (
+                {result.feedback && (!teacherProfile || !compact) ? (
                   <p className="participant-grade-feedback">{result.feedback}</p>
                 ) : null}
-                {!compact ? (
+                {!compact || teacherProfile ? (
                   <button
                     type="button"
                     className="btn-secondary"
@@ -911,22 +1208,22 @@ export function ParticipantGradeHistory({
           {data.journal.grades.length + data.results.length === 0 ? <p>Оценок пока нет.</p> : null}
         </>
       ) : null}
-      {!compact && data?.journal.nextOffset != null ? (
+      {(!compact || teacherProfile) && data?.journal.nextOffset != null ? (
         <button
           type="button"
           className="btn-secondary"
           disabled={loading || historyLoading}
-          onClick={() => void load(data.journal.nextOffset!, data.resultOffset)}
+          onClick={() => void load(data.journal.nextOffset!, data.resultOffset, 'journal')}
         >
           Ещё ручные оценки
         </button>
       ) : null}
-      {!compact && data?.nextResultOffset != null ? (
+      {(!compact || teacherProfile) && data?.nextResultOffset != null ? (
         <button
           type="button"
           className="btn-secondary"
           disabled={loading || historyLoading}
-          onClick={() => void load(data.journal.offset, data.nextResultOffset!)}
+          onClick={() => void load(data.journal.offset, data.nextResultOffset!, 'results')}
         >
           Ещё результаты
         </button>

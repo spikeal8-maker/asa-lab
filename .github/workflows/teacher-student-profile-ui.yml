@@ -1,0 +1,76 @@
+name: Teacher Student Profile UI
+
+on:
+  push:
+    branches:
+      - codex/teacher-student-profile-589-ui-20261018
+  pull_request:
+    paths:
+      - apps/web/src/pages/ClassroomStudentPage.tsx
+      - apps/web/src/pages/classroom-student.css
+      - apps/web/src/components/ClassroomParticipantPanels.tsx
+      - apps/web/src/components/testing/classroom-student-navigation.spec.ts
+      - apps/web/src/components/testing/classroom-profile-completion.spec.ts
+      - apps/web/src/components/testing/classroom-student-profile.spec.ts
+      - e2e/classroom-student-profile.spec.ts
+      - e2e/classroom-profile-completion.spec.ts
+      - docs/product/ASA_TEACHER_STUDENT_PROFILE_UI_589.md
+      - .github/workflows/teacher-student-profile-ui.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  teacher-student-profile:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      CI: 'true'
+      NX_SKIP_NX_CACHE: 'true'
+      NX_DAEMON: 'false'
+      ASA_BUILD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Focused component regressions
+        run: >-
+          pnpm exec vitest run
+          apps/web/src/components/testing/classroom-student-navigation.spec.ts
+          apps/web/src/components/testing/classroom-profile-completion.spec.ts
+          apps/web/src/components/testing/classroom-student-profile.spec.ts
+      - run: pnpm exec nx run web:typecheck
+      - run: pnpm exec playwright install --with-deps chromium
+      - name: Build exact production web application
+        run: pnpm exec nx run web:build --skip-nx-cache
+      - name: Teacher profile built-page browser gate
+        env:
+          ASA_E2E_EXTERNAL: 'true'
+        run: pnpm e2e:access-a e2e/classroom-student-profile.spec.ts --config=playwright.config.ts --workers=1 --reporter=list
+      - name: Accepted open-class regression
+        env:
+          ASA_E2E_EXTERNAL: 'true'
+        run: pnpm exec playwright test e2e/classroom-open-compact.spec.ts --config=playwright.config.ts --workers=1 --reporter=list --output=reports/open-classroom
+      - name: Preserve screenshots, traces and exact build metadata
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: teacher-student-profile-${{ github.event.pull_request.head.sha || github.sha }}-${{ github.run_attempt }}
+          path: |
+            e2e/artifacts/owner-preview/student-profile
+            e2e/artifacts/owner-preview/open-class-compact
+            reports/playwright
+            reports/open-classroom
+            apps/web/dist/build-metadata.json
+          if-no-files-found: warn
+          retention-days: 14
