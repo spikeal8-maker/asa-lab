@@ -2286,9 +2286,11 @@ async function assertShellGeometry(page: Page, width: number, wideText = false) 
     }
   if (width <= 1023) {
     const account = metrics.controls.find((control) => control.label?.startsWith('Меню аккаунта'))!;
-    expect(account.right, 'mobile avatar follows the Header right inset').toBe(width - 8);
+    expect(account.right, 'mobile avatar follows the Header right inset').toBe(
+      width - (width < 360 ? 4 : 8),
+    );
   }
-  expect(metrics.links.map((link) => link.label)).toEqual(['Проекты', 'Знания']);
+  expect(metrics.links.map((link) => link.label)).toEqual(['Проекты', 'Знания', 'ИИ']);
   for (const link of metrics.links) {
     expect(link.height).toBeGreaterThanOrEqual(44);
     expect(link.textClip, `${width}px public label mode`).toBe(
@@ -2303,8 +2305,9 @@ async function assertShellGeometry(page: Page, width: number, wideText = false) 
   expect(metrics.brandMark.height).toBeGreaterThanOrEqual(23);
   expect(metrics.brandMark.x).toBeGreaterThanOrEqual(metrics.brand.x);
   expect(metrics.brandMark.right).toBeLessThanOrEqual(metrics.brand.right);
-  expect(metrics.createLabelVisible, `${width}px Create label mode`).toBe(width > 560);
-  if (width <= 560) {
+  const compactCreate = width <= 560 || (width >= 601 && width <= 760);
+  expect(metrics.createLabelVisible, `${width}px Create label mode`).toBe(!compactCreate);
+  if (compactCreate) {
     expect(metrics.create.width, `${width}px compact Create target`).toBe(44);
     expect(metrics.createPlusVisible, `${width}px visible Create plus`).toBe(true);
   }
@@ -2332,7 +2335,9 @@ async function assertShellGeometry(page: Page, width: number, wideText = false) 
   }
 }
 
-for (const width of [1440, 1024, 390, 320, 349, 350, 540, 600, 601, 820, 821, 1022, 1023])
+for (const width of [
+  1440, 1024, 390, 320, 349, 350, 359, 360, 540, 600, 601, 760, 761, 820, 821, 1022, 1023,
+])
   test(`portal shell keeps public controls in distinct slots at ${width}px`, async ({ page }) => {
     mkdirSync(shellEvidence, { recursive: true });
     const state = await fixture(page, {
@@ -2344,8 +2349,10 @@ for (const width of [1440, 1024, 390, 320, 349, 350, 540, 600, 601, 820, 821, 10
     await page.goto('/#/account/interface');
     await expect(page.getByLabel('Анимация', { exact: false })).toBeEnabled();
     const publicNav = page.getByLabel('Разделы ASA Lab');
-    await expect(publicNav.getByRole('link')).toHaveCount(2);
-    await expect(publicNav.getByRole('link', { name: 'ИИ', exact: true })).toHaveCount(0);
+    await expect(publicNav.getByRole('link')).toHaveCount(3);
+    const ai = publicNav.getByRole('link', { name: 'ИИ', exact: true });
+    await expect(ai).toHaveCount(1);
+    await expect(ai).toHaveAttribute('href', '/#/ai');
     await assertShellGeometry(page, width);
     await page.screenshot({ path: `${shellEvidence}/shell-${width}.png` });
     const sidebar = page.locator('#portal-sidebar');
@@ -2426,7 +2433,9 @@ for (const width of [1440, 1024, 390, 320, 349, 350, 540, 600, 601, 820, 821, 10
     }
   });
 
-for (const width of [1440, 1024, 1023, 1022, 821, 820, 601, 600, 540, 390, 350, 349, 320])
+for (const width of [
+  1440, 1024, 1023, 1022, 821, 820, 761, 760, 601, 600, 540, 390, 360, 359, 350, 349, 320,
+])
   test(`portal shell contains its controls under wide text metrics at ${width}px`, async ({
     page,
   }) => {
@@ -2436,7 +2445,7 @@ for (const width of [1440, 1024, 1023, 1022, 821, 820, 601, 600, 540, 390, 350, 
     await page.goto('/#/account/interface');
     await expect(page.getByLabel('Анимация', { exact: false })).toBeEnabled();
     await expect(page.locator('.learning-inbox-button')).toHaveCount(0);
-    // Exercise the approved two public links with deterministic wider fonts
+    // Exercise the approved three public links with deterministic wider fonts
     // and text spacing, including both sides of the responsive boundaries.
     await page.addStyleTag({
       content: `
@@ -2451,7 +2460,7 @@ for (const width of [1440, 1024, 1023, 1022, 821, 820, 601, 600, 540, 390, 350, 
     });
     await assertShellGeometry(page, width, true);
     await page.screenshot({ path: `${shellEvidence}/wide-text-${width}.png` });
-    if (width <= 560) {
+    if (width <= 560 || (width >= 601 && width <= 760)) {
       const create = page.locator('.portal-header .portal-quick-create > summary');
       await create.click();
       const popup = page.locator('.portal-header .portal-create-options');
@@ -2550,7 +2559,7 @@ for (const width of [1440, 1024, 1023, 821, 390, 320])
       'account',
     ]) {
       await page.goto(`/#/${hash}`);
-      await expect(page.getByLabel('Разделы ASA Lab').getByRole('link')).toHaveCount(2);
+      await expect(page.getByLabel('Разделы ASA Lab').getByRole('link')).toHaveCount(3);
       await assertShellGeometry(page, width);
       const active = page.locator('.portal-global-nav [aria-current="page"]');
       await expect(active).toHaveCount(['gallery', 'knowledge'].includes(hash) ? 1 : 0);
