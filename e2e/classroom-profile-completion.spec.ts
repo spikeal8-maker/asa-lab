@@ -941,7 +941,14 @@ test('real full Account and Seat manual history preserves zero and all five leve
       authoritative.journal.grades.filter((grade) => grade.columnId === retractionColumn.id),
     ).toEqual([expect.objectContaining({ revision: 2, value: null })]);
     await page.getByRole('button', { name: 'Оценки', exact: true }).click();
-    const gradesRegion = page.getByRole('region', { name: 'Оценки' });
+    // The summary strip separately exposes the same current grades under
+    // "Оценки этого класса"; inspect only the full panel, including after focus.
+    const gradesRegion = page.getByRole('region', { name: 'Оценки', exact: true });
+    const manualGrades = gradesRegion.getByRole('list', { name: 'Ручные оценки', exact: true });
+    await expect(manualGrades.getByRole('listitem')).toHaveCount(4);
+    await expect(
+      manualGrades.getByRole('listitem').filter({ hasText: 'Отзыв оценки' }),
+    ).toContainText('Отозвана');
     await expect(
       gradesRegion.locator('.participant-grade-value').filter({ hasText: /^0$/ }),
     ).toHaveCount(1);
@@ -953,10 +960,14 @@ test('real full Account and Seat manual history preserves zero and all five leve
     );
     await page.evaluate(() => window.dispatchEvent(new Event('focus')));
     expect((await gradesRefreshed).ok()).toBe(true);
+    await expect(manualGrades.getByRole('listitem')).toHaveCount(4);
+    await expect(
+      manualGrades.getByRole('listitem').filter({ hasText: 'Отзыв оценки' }),
+    ).toContainText('Отозвана');
     await expect(
       gradesRegion.locator('.participant-grade-value').filter({ hasText: /^0$/ }),
     ).toHaveCount(1);
-    for (const width of [320, 390, 1440]) await assertLayout(page, width, 'teacher-grades');
+    for (const width of [320, 390, 1024, 1440]) await assertLayout(page, width, 'teacher-grades');
     await seatContext.addCookies(await accountContext.cookies());
     for (const path of [
       '/api/class-join/participants/grades',
