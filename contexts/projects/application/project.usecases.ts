@@ -560,7 +560,9 @@ export class SaveDraftUseCase {
         );
       }
     }
-    const loaded = await this.repository.load(input.tenantId, input.projectId, input.actor);
+    const loaded = await this.repository.load(input.tenantId, input.projectId, input.actor, {
+      includeVersions: false,
+    });
     if (!loaded) {
       return fail('project_not_found', 'project not found');
     }
@@ -619,7 +621,9 @@ export class SaveDraftUseCase {
       throw error;
     }
     if (draft !== null) return { ok: true, value: { draft, moduleKey } };
-    const current = await this.repository.load(input.tenantId, input.projectId, input.actor);
+    const current = await this.repository.load(input.tenantId, input.projectId, input.actor, {
+      includeVersions: false,
+    });
     return current === null
       ? fail('project_not_found', 'project not found')
       : fail(

@@ -6,7 +6,7 @@ import { availableParallelism, totalmem } from 'node:os';
 import { monitorEventLoopDelay } from 'node:perf_hooks';
 import pg from 'pg';
 import { describe, it, expect, vi } from 'vitest';
-import { OpenProjectUseCase } from '../../contexts/projects/dist/index.js';
+import { OpenProjectUseCase, PgProjectRepository } from '../../contexts/projects/dist/index.js';
 import {
   createApiApp,
   poolSettings,
@@ -73,6 +73,7 @@ describe.skipIf(process.env.ASA_CAPACITY_BASELINE !== '1')(
       const loop = monitorEventLoopDelay({ resolution: 20 });
       // Observe the actual API reader; all repository/permission/SQL work still executes.
       const opened = vi.spyOn(OpenProjectUseCase.prototype, 'execute');
+      const projectLoads = vi.spyOn(PgProjectRepository.prototype, 'load');
       let app: Awaited<ReturnType<typeof createApiApp>> | undefined;
       const records: Observation[] = [];
       const samples: {
@@ -464,6 +465,9 @@ describe.skipIf(process.env.ASA_CAPACITY_BASELINE !== '1')(
             (r) => r.operation === 'project_read' || r.operation === 'expected_ownership_denial',
           ).length,
         );
+        expect(
+          projectLoads.mock.calls.filter((call) => call[3]?.includeVersions === false),
+        ).toHaveLength(acknowledged + retriedReceipts + conflicts * 2);
         success = true;
       } finally {
         const steadyEnded = now();
@@ -562,6 +566,13 @@ describe.skipIf(process.env.ASA_CAPACITY_BASELINE !== '1')(
                   r.operation === 'project_read' || r.operation === 'expected_ownership_denial',
               ).length,
           },
+          draftReads: {
+            // The two stale attempts each require an initial read and a conflict fallback.
+            expectedWithoutHistory: acknowledged + retriedReceipts + conflicts * 2,
+            actualWithoutHistory: projectLoads.mock.calls.filter(
+              (call) => call[3]?.includeVersions === false,
+            ).length,
+          },
           observedSlo,
           targetSlo: p.slo,
           groups,
@@ -589,6 +600,7 @@ describe.skipIf(process.env.ASA_CAPACITY_BASELINE !== '1')(
           writeFileSync('reports/capacity/backend30.json', JSON.stringify(report, null, 2));
         } finally {
           opened.mockRestore();
+          projectLoads.mockRestore();
           if (app) await app.close();
           else {
             await runtime.end();

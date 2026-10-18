@@ -430,10 +430,12 @@ describe('list, rename, draft and checkpoint', () => {
         value: method === 'execute' ? draft : { draft, moduleKey: 'electronics' },
       });
       expect(load).toHaveBeenCalledTimes(1);
-      expect(load).toHaveBeenCalledWith('t1', 'p1', {
-        principalId: 'principal:1',
-        userId: 'u1',
-      });
+      expect(load).toHaveBeenCalledWith(
+        't1',
+        'p1',
+        { principalId: 'principal:1', userId: 'u1' },
+        { includeVersions: false },
+      );
       expect(saves).toHaveLength(1);
     },
   );
@@ -469,6 +471,10 @@ describe('list, rename, draft and checkpoint', () => {
 
     expect(result).toMatchObject({ ok: false, code: 'project_revision_conflict' });
     expect(load).toHaveBeenCalledTimes(2);
+    expect(load.mock.calls.map((call) => call[3])).toEqual([
+      { includeVersions: false },
+      { includeVersions: false },
+    ]);
   });
 
   it('rejects an invalid base revision before writing', async () => {

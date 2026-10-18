@@ -33,3 +33,19 @@ Layout impact none. Initial read still fetches current draft JSON; this point
 only removes unused history. General gate/release/owner acceptance are separate.
 Canonical focused command: pnpm test:draft-save; workflow Classroom Capacity
 Baseline. Evidence/report in issue617. NEXT_ALLOWED_TASK: STOP after report.
+
+## POST_STEP_REVIEW
+
+CHANGE_CLASS: L3_CRITICAL. LAYOUT_IMPACT: none; visual/viewport evidence n/a.
+The writer opts out of unused history for its initial and conflict reads. The
+repository skips only the history SELECT after the unchanged authorized
+Project/Draft join; default readers retain complete history and existing errors.
+No data mutation, migration, authority, read/write permission or API change.
+
+Local evidence: uncached API build16 tasks PASS; focused120 tests PASS, including
+six repository SQL-selection cases and existing writer/controller/Account/Seat
+storage-retry coverage. Scoped ESLint PASS after a fixture-only unused argument
+repair; diff hygiene PASS. No unchanged repeated test loops. Self-review PASS.
+Independent HIGH final-source review and exact-source isolated backend30 pending;
+final outcome and general CI status are recorded in issue617. No deployment or
+full-scale performance acceptance implied.
