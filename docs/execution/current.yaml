@@ -133,6 +133,7 @@ parallel_lanes:
       - apps/web/src/components/testing/classroom-profile-completion.spec.ts
       - apps/web/src/components/testing/classroom-student-profile.spec.ts
       - e2e/classroom-student-profile.spec.ts
+      - e2e/classroom-profile-completion.spec.ts
       - docs/product/ASA_TEACHER_STUDENT_PROFILE_UI_589.md
     task:
       id: TASK-TEACHER-STUDENT-PROFILE-UI-589
