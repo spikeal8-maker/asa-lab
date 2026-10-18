@@ -76,6 +76,23 @@ export const depConstraints = [
   },
 ];
 
+// Vite executes this helper during the build to encrypt private source maps.
+// Share the same file-scoped allowance with the dedicated boundaries gate.
+export const viteBuildBoundaryOverrides = tseslint.config({
+  files: ['apps/web/vite.config.ts'],
+  rules: {
+    '@nx/enforce-module-boundaries': [
+      'error',
+      {
+        enforceBuildableLibDependency: true,
+        // Nx interprets allow entries as regular expressions: match one exact import.
+        allow: ['^\\.\\./\\.\\./tools/web-private-symbols\\.mjs$'],
+        depConstraints,
+      },
+    ],
+  },
+});
+
 export default tseslint.config(
   {
     ignores: [
@@ -103,4 +120,5 @@ export default tseslint.config(
       ],
     },
   },
+  ...viteBuildBoundaryOverrides,
 );
