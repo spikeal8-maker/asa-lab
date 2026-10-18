@@ -288,4 +288,6 @@ jobs:
             reports/playwright/access-a
             reports/playwright/settings-ui
             e2e/artifacts/owner-preview/access-a-ui
+            reports/playwright/portal-compact-shell-r2-20261008/
+            e2e/artifacts/owner-preview/classroom-profile-completion/
           retention-days: 14

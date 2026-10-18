@@ -65,3 +65,10 @@ operations, model equality and actual pulled config/rootfs proof. Preserve the
 shared committed overlay, production defaults, every other workflow and all
 existing provenance. Guard challenges, independent final-source review and
 actual exact-source CI pull/start/data/RLS evidence remain mandatory.
+
+Access A on sourceccb97048 passed, but its artifact omitted the generated
+compact-header shell/wide-text and classroom-profile-completion screenshots.
+Select a separate export-only repair: add those two exact screenshot directories
+to the existing Access A artifact paths, preserving all tests and other steps.
+Actual1440/1024/390/320 visual evidence and independent acceptance are still
+required; successful assertions alone do not replace the missing images.
