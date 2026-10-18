@@ -1,0 +1,76 @@
+{
+  "schema": "asa-electronics-independent-reviews-index-v1",
+  "created_at_utc": "2026-10-18T06:59:51.267Z",
+  "reviewer": "/root/acceptance_review",
+  "source": {
+    "decision": "APPROVE_SOURCE_ONLY",
+    "manifest_sha256": "0281b0ca452b744b6c34e0bfeb68899231601dd078d6da7934d0a2d8b159bb02",
+    "review_json": "r18-source-review.json",
+    "review_markdown": "r18-source-review.md"
+  },
+  "tests": {
+    "decision": "APPROVE_TEST_SOURCE",
+    "source_sha256": "092ae57fdcd0395cee667aa627542371a46519a79d0e86cd4d7e7470ab5c604b",
+    "review_json": "r18-test-source-review.json",
+    "review_markdown": "r18-test-source-review.md",
+    "independent_oracle_checks_passed": 20
+  },
+  "product_acceptance": "NOT CLAIMED; exact candidate browser/CI and owner first milestone remain separate",
+  "files": [
+    {
+      "path": "r18-independent-oracle-check.cjs",
+      "bytes": 8738,
+      "sha256": "f4239f776006fa4a7ed25259265c0cc7b2e3826559a32a1435edd531138abbe7"
+    },
+    {
+      "path": "r18-independent-oracle-check.json",
+      "bytes": 8308,
+      "sha256": "7bbfb04c9943b167012257381b453b444fce82aec748429312378662510b1fec"
+    },
+    {
+      "path": "r18-source-review.json",
+      "bytes": 15131,
+      "sha256": "3240540259127302d5bc7719c4f0e5f0d47876490f81ae4dc613cf6a8ad0855d"
+    },
+    {
+      "path": "r18-source-review.md",
+      "bytes": 6032,
+      "sha256": "2fbcc97052ec2c9e640aa01ae5b314f9c0673bbca7ef40f615f73f0b407d30a0"
+    },
+    {
+      "path": "r18-test-source-review.json",
+      "bytes": 24615,
+      "sha256": "108e65072b2008f89caf2c6e435f94cd9430091a1b89b9b155222581573f3855"
+    },
+    {
+      "path": "r18-test-source-review.md",
+      "bytes": 9272,
+      "sha256": "915bb6919572bbd63adcf8bf77c1d161e3664a7e95e86aca0a683691db2e6e48"
+    },
+    {
+      "path": "rejected-d067/frozen-e2e-source.txt",
+      "bytes": 92376,
+      "sha256": "d067f102d16f81390a92d68ebdc2c91ffa237dc1335503b7f92c93d9b8f751b4"
+    },
+    {
+      "path": "rejected-d067/original-false-pass.json",
+      "bytes": 2063,
+      "sha256": "f0fa8de2ab6e6184caf5d470eeba520da6e0a2538d80b5d0d55b15e7f26e81a8"
+    },
+    {
+      "path": "rejected-d067/r18-owner-e2e-manifest.json",
+      "bytes": 2325,
+      "sha256": "f5306e093471351cb4f8b045f5823854d1ed687e86db00313fcc32d84b1b1377"
+    },
+    {
+      "path": "rejected-d067/r18-owner-e2e.diff",
+      "bytes": 34989,
+      "sha256": "1d7f8cada8c9b52173f8e19e2537e60775f531ae90ae9ceaeff9dc5ed131c77a"
+    },
+    {
+      "path": "rejected-d067/reproduce-original-false-pass.cjs",
+      "bytes": 4473,
+      "sha256": "8ab67bc8040e43bb8a1e9280625eb82887df2da6869b0df8dafb9b08a9a9be7c"
+    }
+  ]
+}

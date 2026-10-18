@@ -1,0 +1,99 @@
+{
+  "base": "59fb260f5533a6f536a33417fe249c60b9bf9623",
+  "branch": "codex/electronics-546-r18-led-temporal-observation",
+  "frozen_at_utc": "2026-10-17T23:28:31.993709+00:00",
+  "author": "arduino_source_audit",
+  "excludes": "e2e/electronics-ready-cadence.spec.ts (separate author)",
+  "files": [
+    {
+      "path": "contexts/electronics/domain/led-temporal-observation.ts",
+      "bytes": 6286,
+      "sha256": "a8736a39e1ae2495512051abcabf304c4bb43d32c57fa438a1bd471f8ae45b13",
+      "git_blob": "c0c6de3b1208ac7f2ba29c1bcdc721bd738144dc"
+    },
+    {
+      "path": "contexts/electronics/domain/arduino-circuit-scheduler.ts",
+      "bytes": 59594,
+      "sha256": "e1da15d4f197cb613fe65b33b8838c1e22da171100cea72497061c6bf137906e",
+      "git_blob": "87e840e3b7d55a496a8e6aaadcc4b082f5fc2368"
+    },
+    {
+      "path": "contexts/electronics/engine.ts",
+      "bytes": 19471,
+      "sha256": "57d6db4a22bb55eb51f5e451896572c9b70907dc5b665028c8b492a97abcff5d",
+      "git_blob": "377019c0e6bb6a4d509bead81ddb89e1539cec9f"
+    },
+    {
+      "path": "apps/web/src/electronics/led-temporal-presentation.ts",
+      "bytes": 7923,
+      "sha256": "3ebc9b2d3e9602d9b684325762bb2b72683ff0271646de14eee248bddc17b80f",
+      "git_blob": "1ebed5671ccc2cdc487c7acfe48bb0f3882bc0ad"
+    },
+    {
+      "path": "apps/web/src/electronics/live-simulation-worker-controller.ts",
+      "bytes": 21778,
+      "sha256": "73d9af892743dacfce06eface6781f324d7188426c51017946b2b1a38cd0175b",
+      "git_blob": "44c36d484e4ea4f337fc502396100106d50767aa"
+    },
+    {
+      "path": "apps/web/src/electronics/simulation-worker-evaluator.ts",
+      "bytes": 9230,
+      "sha256": "7da47c21ff4d938e4018b2a25a7a678bb728a905f5d3e7976b68b8ade59ecbdb",
+      "git_blob": "97a29927f766dab381e6ba3cb0cd5b3b3d3d36af"
+    },
+    {
+      "path": "apps/web/src/electronics/simulation-worker-protocol.ts",
+      "bytes": 3292,
+      "sha256": "145d5b43486fb868e62afff00a22979c1cc57b398619cd95b374f30e76470f14",
+      "git_blob": "0e4f82ed7f3819a287f27ac110726c8004e0bf7c"
+    },
+    {
+      "path": "apps/web/src/electronics/use-electronics-workbench.ts",
+      "bytes": 113046,
+      "sha256": "72813fea2c4dd92c1b5a638486fb017cfa3aafcdf93bf1d19ae51de238dbf7bd",
+      "git_blob": "775fa41256938e164a9305a905f0190a213ffc17"
+    },
+    {
+      "path": "contexts/electronics/testing/led-temporal-observation.spec.ts",
+      "bytes": 15430,
+      "sha256": "9a62a6b52bbf01598dc48d39dee5a798228dbbd3e0a4e68c5f874ceaa82b607b",
+      "git_blob": "b2bdd4ec73159f8d3ec2089885c2f05b3e2d0c46"
+    },
+    {
+      "path": "apps/web/src/electronics/testing/led-temporal-presentation.spec.ts",
+      "bytes": 15658,
+      "sha256": "c53fe35b0156721d73dad94ac6730e6b98eac1d9d26a7ad60932f9f8f88c7a5c",
+      "git_blob": "890ab344bd093bed0b71805798a425054665529b"
+    },
+    {
+      "path": "apps/web/src/electronics/testing/simulation-worker.spec.ts",
+      "bytes": 30661,
+      "sha256": "e5a3d69b2b1ed39f2c62dd0754362b17b4e3d890d6248e42597f1537aaac4603",
+      "git_blob": "92d6c4e8bf21e5f4140551de29556d6b78846a50"
+    },
+    {
+      "path": "apps/web/src/electronics/testing/live-simulation-worker-controller.spec.ts",
+      "bytes": 70922,
+      "sha256": "762484c847bf7b5aed644b4dd7363cf36d030ff8d0160f459bee17f06380dbdd",
+      "git_blob": "facb1876eb726f7d42e1c19292696db1cf55d8a1"
+    },
+    {
+      "path": "apps/web/src/electronics/testing/use-electronics-workbench-clock.spec.ts",
+      "bytes": 34173,
+      "sha256": "10281abd46644f085415290ce4d7fac009cc6b8be9b70b8aee86a346f83d746f",
+      "git_blob": "6bbdcf3c3649c011361b7f86054bdfaab23e246a"
+    },
+    {
+      "path": "docs/product/electronics/contracts/CANONICAL_CLOCK_CONTRACT.md",
+      "bytes": 17223,
+      "sha256": "3cbbdea93b82a34a471399971d03f1b5791d5d87bc10da45c9a4138223eca320",
+      "git_blob": "8a4c415eab5417b718eb5091693a2f3d6f0d631d"
+    },
+    {
+      "path": "docs/product/electronics/components/engine-worker-clock.yaml",
+      "bytes": 8304,
+      "sha256": "033c651501a5d3ec16d17497d04271adbe9c773c9868071784373fbee72f8ef9",
+      "git_blob": "96fd4f7f6ca96e1e6de55cacff2ac12f98d85541"
+    }
+  ]
+}

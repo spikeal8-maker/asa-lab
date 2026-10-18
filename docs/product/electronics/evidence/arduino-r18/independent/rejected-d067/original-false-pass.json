@@ -1,0 +1,108 @@
+{
+  "reviewed_e2e_sha256": "d067f102d16f81390a92d68ebdc2c91ffa237dc1335503b7f92c93d9b8f751b4",
+  "method": "Exact three frozen helper bodies with analytic paint counterexamples. Electrical checks remain unchanged and correct. No browser or product execution.",
+  "phase_inversion": {
+    "paint_delay_ms": 10,
+    "perLed": [
+      {
+        "id": "led0",
+        "inverted": false,
+        "cycles": 2,
+        "duty": 0.5,
+        "halves": [
+          500,
+          500,
+          500,
+          500
+        ],
+        "periodMs": 1000,
+        "original_new_paint_assertions_passed": true
+      },
+      {
+        "id": "led1",
+        "inverted": true,
+        "cycles": 5,
+        "duty": 0.4805194805194805,
+        "halves": [
+          125,
+          200,
+          200,
+          200,
+          200,
+          200,
+          200,
+          200,
+          200,
+          200
+        ],
+        "periodMs": 385,
+        "original_new_paint_assertions_passed": true
+      },
+      {
+        "id": "led2",
+        "inverted": false,
+        "cycles": 10,
+        "duty": 0.5,
+        "halves": [
+          100,
+          100,
+          100,
+          100,
+          100,
+          100,
+          100,
+          100,
+          100,
+          100,
+          100,
+          100,
+          100,
+          100,
+          100,
+          100,
+          100,
+          100,
+          100,
+          100
+        ],
+        "periodMs": 200,
+        "original_new_paint_assertions_passed": true
+      }
+    ],
+    "vectors": [
+      "111",
+      "110",
+      "100",
+      "101",
+      "010",
+      "000",
+      "001",
+      "011"
+    ],
+    "vectors_assertions_passed": true,
+    "false_pass": true
+  },
+  "reset_stale_mean": {
+    "wrong_vector": [
+      33,
+      33,
+      33
+    ],
+    "wrong_window_ms": [
+      25,
+      310
+    ],
+    "correct_vector": [
+      0,
+      67,
+      0
+    ],
+    "correct_window_ms": [
+      325,
+      475
+    ],
+    "wrong_frames_discarded_by_positive_filter": 18,
+    "correct_frames_counted": 10,
+    "false_pass": true
+  }
+}

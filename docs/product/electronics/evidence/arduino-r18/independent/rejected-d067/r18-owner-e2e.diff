@@ -1,0 +1,800 @@
+diff --git a/e2e/electronics-ready-cadence.spec.ts b/e2e/electronics-ready-cadence.spec.ts
+index 259786a6..be616141 100644
+--- a/e2e/electronics-ready-cadence.spec.ts
++++ b/e2e/electronics-ready-cadence.spec.ts
+@@ -1460,3 +1460,795 @@ for (const mode of ['no-delay realtime', 'independent ports'] as const) {
+     failures.assertEmpty();
+   });
+ }
++
++// R18 evidence is collected only by the additional owner journeys below. The
++// seven earlier programmes, deadlines, raw rings and observers stay unchanged.
++type TemporalFrame = {
++  at: number;
++  requestAt: number | null;
++  requestId: string;
++  source: string | null;
++  generationId: number | null;
++  responseGenerationId: number;
++  protocolVersion: number;
++  engineRevision: string | null;
++  projectSessionId: string;
++  executionStatus: SimulationTimedAdvancePayload['executionStatus'];
++  requestedHorizonMicroseconds: number;
++  committedHorizonMicroseconds: number;
++  continuationHorizonMicroseconds: number | null;
++  computeMs: number | null;
++  solved: boolean;
++  qualityPassed: boolean;
++  diagnostics: SimulationTimedAdvancePayload['diagnostics'];
++  components: NonNullable<SimulationTimedAdvancePayload['result']>['components'];
++  ledTemporal: SimulationTimedAdvancePayload['ledTemporal'] | null;
++};
++type TemporalPaintRun = {
++  first: PaintReceipt;
++  lastAt: number;
++  frames: number;
++  maxGapMs: number;
++};
++type TemporalProbe = {
++  frames: TemporalFrame[];
++  paintRuns: TemporalPaintRun[];
++  resetClicks: Array<{ at: number; trusted: boolean }>;
++  errors: Array<{ at: number; code: string; requestId: string }>;
++};
++type TemporalWindow = ProbeWindow & { __ownerTemporal?: TemporalProbe };
++
++async function observeOwnerTemporal(page: Page): Promise<void> {
++  await observeRealWorkerAndUi(page, 3);
++  await page.addInitScript(() => {
++    const probe = window as TemporalWindow;
++    const captured: TemporalProbe = { frames: [], paintRuns: [], resetClicks: [], errors: [] };
++    probe.__ownerTemporal = captured;
++    // Capture compact, actual response envelopes on delivery, before the old
++    // 200-row ring can evict the beginning of an eight-second observation.
++    // No canonical matrix/state is copied or polled for each intermediate frame.
++    window.Worker = new Proxy(window.Worker, {
++      construct(target, args, newTarget) {
++        const worker = Reflect.construct(target, args, newTarget) as Worker;
++        if ((args[1] as WorkerOptions | undefined)?.name !== 'asa-electronics-simulation')
++          return worker;
++        const requests = new Map<
++          string,
++          { at: number; source: string; generationId: number; engineRevision: string }
++        >();
++        const post = worker.postMessage.bind(worker);
++        worker.postMessage = ((...args: unknown[]) => {
++          const request = args[0] as {
++            kind?: string;
++            requestId: string;
++            generationId: number;
++            engineRevision: string;
++            document?: SchematicDocument;
++          };
++          if (request.kind === 'advance')
++            requests.set(request.requestId, {
++              at: performance.now(),
++              source: String(
++                request.document?.components.find((row) => row.id === 'uno')?.stateProperties?.[
++                  'arduinoSource'
++                ] ?? '',
++              ),
++              generationId: request.generationId,
++              engineRevision: request.engineRevision,
++            });
++          Reflect.apply(post, worker, args);
++        }) as Worker['postMessage'];
++        worker.addEventListener('message', (event: MessageEvent) => {
++          const response = event.data as {
++            ok: boolean;
++            kind?: string;
++            code?: string;
++            requestId: string;
++            generationId: number;
++            protocolVersion: number;
++            projectSessionId: string;
++            advance?: SimulationTimedAdvancePayload;
++            metrics?: { computeMs?: number };
++          };
++          const request = requests.get(response.requestId);
++          requests.delete(response.requestId);
++          if (!response.ok) {
++            captured.errors.push({
++              at: performance.now(),
++              requestId: response.requestId,
++              code: response.code ?? 'unknown',
++            });
++            return;
++          }
++          if (response.kind !== 'advance' || !response.advance) return;
++          const advance = response.advance;
++          captured.frames.push({
++            at: performance.now(),
++            requestAt: request?.at ?? null,
++            requestId: response.requestId,
++            source: request?.source ?? null,
++            generationId: request?.generationId ?? null,
++            responseGenerationId: response.generationId,
++            protocolVersion: response.protocolVersion,
++            engineRevision: request?.engineRevision ?? null,
++            projectSessionId: response.projectSessionId,
++            executionStatus: advance.executionStatus,
++            requestedHorizonMicroseconds: advance.requestedHorizonMicroseconds,
++            committedHorizonMicroseconds: advance.committedHorizonMicroseconds,
++            continuationHorizonMicroseconds:
++              advance.state.continuation?.committedHorizonMicroseconds ?? null,
++            computeMs: response.metrics?.computeMs ?? null,
++            solved: advance.result?.solved === true,
++            qualityPassed: advance.result?.quality?.passed === true,
++            diagnostics: advance.diagnostics,
++            components:
++              advance.result?.components.filter((row) => /^led[0-2]$/.test(row.componentId)) ?? [],
++            ledTemporal: advance.ledTemporal ?? null,
++          });
++        });
++        return worker;
++      },
++    });
++    document.addEventListener(
++      'click',
++      (event) => {
++        if ((event.target as Element | null)?.closest('[data-testid="arduino-reset-button"]'))
++          captured.resetClicks.push({ at: performance.now(), trusted: event.isTrusted });
++      },
++      true,
++    );
++    let seenAt = -1;
++    let signature = '';
++    const collectPaint = () => {
++      const row = probe.__ownerPaint?.at(-1);
++      if (row && row.at > seenAt) {
++        seenAt = row.at;
++        if (row.stablePreviousFrame && row.previousFrameAt !== null) {
++          const next = JSON.stringify([row.brightness, row.images]);
++          const previous = captured.paintRuns.at(-1);
++          if (previous && next === signature) {
++            previous.maxGapMs = Math.max(previous.maxGapMs, row.previousFrameAt - previous.lastAt);
++            previous.lastAt = row.previousFrameAt;
++            previous.frames++;
++          } else {
++            captured.paintRuns.push({
++              first: row,
++              lastAt: row.previousFrameAt,
++              frames: 1,
++              maxGapMs: 0,
++            });
++          }
++          signature = next;
++        }
++      }
++      requestAnimationFrame(collectPaint);
++    };
++    requestAnimationFrame(collectPaint);
++  });
++}
++
++async function openOwnerTemporalSketch(
++  page: Page,
++  source: string,
++  name: string,
++  document: SchematicDocument = threeLedFixture(),
++) {
++  await page.setViewportSize({ width: 1600, height: 1000 });
++  const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
++  await observeOwnerTemporal(page);
++  await loginWithOrganization(page, teacher);
++  const origin = new URL(page.url()).origin;
++  const created = await page.context().request.post('/api/projects', {
++    headers: { origin, 'idempotency-key': crypto.randomUUID() },
++    data: { scope: 'personal', classroomId: null, module: 'electronics', title: `R18 ${name}` },
++  });
++  expect(created.status()).toBe(201);
++  const id = ((await created.json()) as { project: { id: string } }).project.id;
++  const endpoint = `/api/projects/${id}`;
++  const read = async () => {
++    const response = await page.context().request.get(endpoint, { headers: { origin } });
++    expect(response.status()).toBe(200);
++    return response.json() as Promise<{
++      draft: { revision: number; updatedAt: string; document: SchematicDocument };
++    }>;
++  };
++  const initial = await read();
++  const seeded = await page.context().request.put(`${endpoint}/draft`, {
++    headers: { origin },
++    data: { document, baseRevision: initial.draft.revision, mutationId: crypto.randomUUID() },
++  });
++  expect(seeded.status()).toBe(200);
++  const before = await read();
++  await page.goto(`/#/home/${id}`);
++  await expect(page.locator('.workbench-stage')).toBeVisible();
++  await page.getByRole('button', { name: 'Открыть редактор кода', exact: true }).click();
++  await page.locator('.arduino-source-editor textarea').fill(source);
++  const response = page.waitForResponse(
++    (response) =>
++      new URL(response.url()).pathname === `${endpoint}/draft` &&
++      response.request().method() === 'PUT',
++  );
++  await page.getByRole('button', { name: 'Сохранить проект', exact: true }).click();
++  expect((await response).status()).toBe(200);
++  const saved = await read();
++  expect(saved.draft.document).toEqual({
++    ...before.draft.document,
++    components: before.draft.document.components.map((row) =>
++      row.id === 'uno'
++        ? { ...row, stateProperties: { ...row.stateProperties, arduinoSource: source } }
++        : row,
++    ),
++  });
++  expect(saved.draft.revision).toBe(before.draft.revision + 1);
++  await page.getByRole('button', { name: 'Закрыть редактор кода', exact: true }).click();
++  await expect(page.locator('.arduino-code-panel')).toHaveClass(/closed/);
++  const startAt = await page.evaluate(() => {
++    const probe = window as TemporalWindow;
++    probe.__bitwiseWorker!.length = 0;
++    probe.__bitwiseUi!.length = 0;
++    probe.__ownerPaint!.length = 0;
++    const temporal = probe.__ownerTemporal!;
++    temporal.frames.length = 0;
++    temporal.paintRuns.length = 0;
++    temporal.resetClicks.length = 0;
++    temporal.errors.length = 0;
++    return performance.now();
++  });
++  return { source, name, before, saved, startAt, read, failures };
++}
++
++async function temporalObservation(page: Page) {
++  return page.evaluate(() => (window as TemporalWindow).__ownerTemporal!);
++}
++
++async function retainOwnerTemporalEvidence(
++  page: Page,
++  session: Awaited<ReturnType<typeof openOwnerTemporalSketch>>,
++  metrics: unknown,
++): Promise<void> {
++  const raw = await observation(page);
++  const temporal = await temporalObservation(page);
++  const path = resolve(artifactRoot, `owner-r18-${session.name}-raw.json`);
++  writeFileSync(
++    path,
++    JSON.stringify(
++      {
++        source: session.source,
++        sourceSha256: createHash('sha256').update(session.source).digest('hex'),
++        startAt: session.startAt,
++        collectedAt: await page.evaluate(() => performance.now()),
++        before: session.before,
++        saved: session.saved,
++        metrics,
++        temporal,
++        ...raw,
++      },
++      null,
++      2,
++    ) + '\n',
++  );
++  await test
++    .info()
++    .attach(`owner-r18-${session.name}-raw`, { path, contentType: 'application/json' });
++  // Native pixels are captured only after the timing records have been frozen.
++  const screenshot = resolve(artifactRoot, `owner-r18-${session.name}-frame.png`);
++  await page.screenshot({ path: screenshot });
++  await test.info().attach(`owner-r18-${session.name}-frame`, {
++    path: screenshot,
++    contentType: 'image/png',
++  });
++}
++
++async function waitForTemporalHorizon(page: Page, source: string, horizon: number) {
++  // Each poll retains the existing default five-second assertion deadline. The
++  // slow case observes two successive four-second cycles, within the unchanged
++  // default 30-second case budget; it does not lengthen an old case or timeout.
++  await expect
++    .poll(() =>
++      page.evaluate(
++        ({ source, horizon }) =>
++          ((window as TemporalWindow).__ownerTemporal?.frames
++            .filter((row) => row.source === source && row.executionStatus === 'ready')
++            .at(-1)?.committedHorizonMicroseconds ?? 0) >= horizon,
++        { source, horizon },
++      ),
++    )
++    .toBe(true);
++}
++
++function assertTemporalFrames(raw: TemporalProbe, source: string, generationId?: number) {
++  const frames = raw.frames.filter(
++    (row) =>
++      row.source === source && (generationId === undefined || row.generationId === generationId),
++  );
++  expect(frames.length).toBeGreaterThan(0);
++  expect(raw.errors.filter((row) => row.code !== 'cancelled')).toEqual([]);
++  const ready = frames.filter((row) => row.executionStatus === 'ready');
++  expect(ready.length).toBeGreaterThanOrEqual(8);
++  // Check every receipt/sample, but report violations together. Tens of
++  // thousands of individual Playwright steps would consume the unchanged case
++  // budget after an otherwise complete eight-second physical observation.
++  const violations: string[] = [];
++  const check = (valid: boolean, location: string) => {
++    if (!valid && violations.length < 30) violations.push(location);
++  };
++  let previous: TemporalFrame | undefined;
++  for (const frame of frames) {
++    const id = frame.requestId;
++    check(frame.executionStatus !== 'fault', `${id}: fault`);
++    check(frame.generationId === frame.responseGenerationId, `${id}: generation`);
++    check(frame.protocolVersion === 2, `${id}: protocol`);
++    check(/^asa-electronics-solver-v\d+$/.test(frame.engineRevision ?? ''), `${id}: engine`);
++    check(frame.projectSessionId.length > 0, `${id}: session`);
++    check(frame.requestAt !== null && frame.at >= frame.requestAt, `${id}: request clock`);
++    check(
++      frame.computeMs !== null && Number.isFinite(frame.computeMs) && frame.computeMs >= 0,
++      `${id}: compute`,
++    );
++    if (frame.executionStatus === 'yielded') {
++      check(
++        frame.components.length === 0 && !frame.solved && frame.ledTemporal === null,
++        `${id}: yielded optical publication`,
++      );
++      continue;
++    }
++    check(frame.solved && frame.qualityPassed && frame.diagnostics.length === 0, `${id}: quality`);
++    check(
++      frame.committedHorizonMicroseconds === frame.requestedHorizonMicroseconds,
++      `${id}: incomplete ready`,
++    );
++    check(
++      frame.continuationHorizonMicroseconds === frame.committedHorizonMicroseconds,
++      `${id}: continuation clock`,
++    );
++    const optical = frame.ledTemporal;
++    check(optical !== null, `${id}: missing temporal metadata`);
++    if (!optical) continue;
++    check(optical.profile === 'ordinary-led-held-v1', `${id}: optical profile`);
++    check(optical.toMicroseconds === frame.committedHorizonMicroseconds, `${id}: optical horizon`);
++    if (previous?.generationId === frame.generationId)
++      check(
++        optical.fromMicroseconds === previous.committedHorizonMicroseconds,
++        `${id}: optical continuity`,
++      );
++    check(
++      optical.components
++        .map((row) => row.componentId)
++        .sort()
++        .join(',') === 'led0,led1,led2',
++      `${id}: component identity`,
++    );
++    for (const led of optical.components) {
++      const at = `${id}/${led.componentId}`;
++      check(!led.truncated && led.samples.length > 0, `${at}: missing/truncated samples`);
++      if (!led.samples.length) continue;
++      check(led.samples[0]!.atMicroseconds === optical.fromMicroseconds, `${at}: first sample`);
++      check(led.samples.at(-1)!.atMicroseconds === optical.toMicroseconds, `${at}: final sample`);
++      let integral = 0;
++      let litDuration = 0;
++      let transitions = 0;
++      for (let index = 0; index < led.samples.length; index++) {
++        const sample = led.samples[index]!;
++        check(sample.brightness >= 0 && sample.brightness <= 100, `${at}/${index}: brightness`);
++        check(
++          sample.brightness > 0
++            ? sample.current > 0.001 && sample.current < 0.02
++            : Math.abs(sample.current) < 0.000001,
++          `${at}/${index}: physical current`,
++        );
++        const next = led.samples[index + 1];
++        if (!next) continue;
++        const duration = next.atMicroseconds - sample.atMicroseconds;
++        check(Number.isSafeInteger(duration) && duration > 0, `${at}/${index}: duration`);
++        integral += sample.brightness * duration;
++        if (sample.brightness > 0) litDuration += duration;
++        if (sample.brightness !== next.brightness) transitions++;
++      }
++      check(
++        Math.abs(led.brightnessIntegral - integral) < 0.000005,
++        `${at}: nonlinear optical integral`,
++      );
++      check(led.litDurationMicroseconds === litDuration, `${at}: lit duration`);
++      check(led.transitionCount === transitions, `${at}: transition count`);
++      const final = frame.components.find((row) => row.componentId === led.componentId);
++      check(
++        !!final &&
++          final.brightness === led.samples.at(-1)!.brightness &&
++          final.current === led.samples.at(-1)!.current &&
++          final.stressState !== 'burned',
++        `${at}: final physical state`,
++      );
++    }
++    previous = frame;
++  }
++  expect(violations, 'actual Worker/optical receipt contract violations').toEqual([]);
++  return ready;
++}
++
++function opticalEdges(ready: readonly TemporalFrame[], componentId: string) {
++  const edges: Array<{ at: number; level: number; brightness: number; current: number }> = [];
++  for (const frame of ready)
++    for (const sample of frame.ledTemporal!.components.find(
++      (row) => row.componentId === componentId,
++    )!.samples) {
++      const level = Number(sample.brightness > 0);
++      if (edges.at(-1)?.level !== level)
++        edges.push({
++          at: sample.atMicroseconds / 1000,
++          level,
++          brightness: sample.brightness,
++          current: sample.current,
++        });
++    }
++  return edges;
++}
++
++function opticalIntegral(
++  ready: readonly TemporalFrame[],
++  componentId: string,
++  fromMs: number,
++  toMs: number,
++) {
++  let integral = 0;
++  let durationMicroseconds = 0;
++  let litMicroseconds = 0;
++  for (const frame of ready) {
++    const samples = frame.ledTemporal!.components.find(
++      (row) => row.componentId === componentId,
++    )!.samples;
++    for (let index = 1; index < samples.length; index++) {
++      const previous = samples[index - 1]!;
++      const duration = Math.max(
++        0,
++        Math.min(toMs * 1000, samples[index]!.atMicroseconds) -
++          Math.max(fromMs * 1000, previous.atMicroseconds),
++      );
++      integral += previous.brightness * duration;
++      durationMicroseconds += duration;
++      if (previous.brightness > 0) litMicroseconds += duration;
++    }
++  }
++  return { integral, durationMicroseconds, litMicroseconds };
++}
++
++function validTemporalPaint(raw: TemporalProbe, from: number, to = Infinity) {
++  return raw.paintRuns.filter((run) => {
++    const row = run.first;
++    return (
++      row.previousFrameAt !== null &&
++      run.lastAt >= from &&
++      row.previousFrameAt <= to &&
++      row.brightness.length === 3 &&
++      row.images.length === 3 &&
++      row.images.every(
++        (image, index) =>
++          image.decoded &&
++          image.visible &&
++          image.unoccluded &&
++          image.opacity === 1 &&
++          image.lit === row.brightness[index]! > 0,
++      )
++    );
++  });
++}
++
++function paintEdges(runs: readonly TemporalPaintRun[], index: number) {
++  const edges: Array<{ at: number; level: number }> = [];
++  for (const run of runs) {
++    const level = Number(run.first.brightness[index]! > 0);
++    if (edges.at(-1)?.level !== level) edges.push({ at: run.first.previousFrameAt!, level });
++  }
++  return edges;
++}
++
++function assertTemporalWallClock(ready: readonly TemporalFrame[], minimumModelMs: number) {
++  const first = ready[0]!;
++  const last = ready.at(-1)!;
++  const modelMs = (last.committedHorizonMicroseconds - first.committedHorizonMicroseconds) / 1000;
++  const wallMs = last.at - first.at;
++  expect(first.committedHorizonMicroseconds).toBe(0);
++  expect(modelMs).toBeGreaterThanOrEqual(minimumModelMs);
++  expect(Math.abs(modelMs - wallMs)).toBeLessThanOrEqual(250);
++  return { first, last, modelMs, wallMs };
++}
++
++test('Owner Arduino temporal: delay 2000 ms, two complete electrical and loaded-image cycles', async ({
++  page,
++}) => {
++  const session = await openOwnerTemporalSketch(page, threeLedSource(2000), 'blink-2000');
++  let metrics: unknown;
++  try {
++    await page.getByRole('button', { name: 'Начать моделирование', exact: true }).click();
++    await waitForTemporalHorizon(page, session.source, 4_050_000);
++    await waitForTemporalHorizon(page, session.source, 8_100_000);
++    const raw = await temporalObservation(page);
++    const ready = assertTemporalFrames(raw, session.source);
++    const clock = assertTemporalWallClock(ready, 8100);
++    const painted = validTemporalPaint(raw, session.startAt);
++    const perLed = ['led0', 'led1', 'led2'].map((id, index) => {
++      const model = opticalEdges(ready, id);
++      const paint = paintEdges(painted, index);
++      const modelMetrics = blinkWallMetrics(model, 2000);
++      const paintMetrics = blinkWallMetrics(paint, 2000);
++      for (const measured of [modelMetrics, paintMetrics]) {
++        expect(measured.cycles).toBeGreaterThanOrEqual(2);
++        expect(measured.duty).toBeGreaterThanOrEqual(0.45);
++        expect(measured.duty).toBeLessThanOrEqual(0.55);
++      }
++      for (const half of modelMetrics.halves) {
++        expect(half).toBeGreaterThanOrEqual(2000);
++        expect(half).toBeLessThanOrEqual(2000.01);
++      }
++      for (const half of paintMetrics.halves) {
++        expect(half).toBeGreaterThanOrEqual(1750);
++        expect(half).toBeLessThanOrEqual(2250);
++      }
++      const highs = paint.filter((row) => row.level === 1);
++      const periodMs = (highs.at(-1)!.at - highs[0]!.at) / (highs.length - 1);
++      expect(periodMs).toBeGreaterThanOrEqual(3750);
++      expect(periodMs).toBeLessThanOrEqual(4250);
++      return { id, model, paint, modelMetrics, paintMetrics, periodMs };
++    });
++    metrics = { clock, perLed };
++    session.failures.assertEmpty();
++  } finally {
++    await retainOwnerTemporalEvidence(page, session, metrics);
++  }
++  await page.getByRole('button', { name: 'Остановить моделирование', exact: true }).click();
++  expect((await session.read()).draft).toEqual(session.saved.draft);
++});
++
++test('Owner Arduino temporal: delay 1 ms, independent optical integrals and stable loaded-image brightness', async ({
++  page,
++}) => {
++  const document = threeLedFixture();
++  // Real unequal loads expose accidental sharing of one LED's averaged light.
++  const loaded = {
++    ...document,
++    components: document.components.map((row) =>
++      /^r[0-2]$/.test(row.id) ? { ...row, value: [330, 680, 1000][Number(row.id.slice(1))]! } : row,
++    ),
++  };
++  const session = await openOwnerTemporalSketch(page, threeLedSource(1), 'blink-1', loaded);
++  let metrics: unknown;
++  try {
++    await page.getByRole('button', { name: 'Начать моделирование', exact: true }).click();
++    await waitForTemporalHorizon(page, session.source, 1_500_000);
++    const raw = await temporalObservation(page);
++    const ready = assertTemporalFrames(raw, session.source);
++    const clock = assertTemporalWallClock(ready, 1500);
++    const settledAt = ready.find((row) => row.committedHorizonMicroseconds >= 100_000)!.at;
++    const paint = validTemporalPaint(raw, settledAt);
++    const rendered = (await page.evaluate(() => (window as ProbeWindow).__ownerPaint ?? [])).filter(
++      (row) => row.at >= settledAt,
++    );
++    expect(paint.length).toBeGreaterThan(0);
++    expect(
++      paint.at(-1)!.lastAt - Math.max(settledAt, paint[0]!.first.previousFrameAt!),
++    ).toBeGreaterThanOrEqual(1000);
++    expect(paint.reduce((sum, row) => sum + row.frames, 0)).toBeGreaterThanOrEqual(30);
++    expect(rendered.length).toBeGreaterThanOrEqual(30);
++    expect(
++      rendered.every(
++        (row) =>
++          row.images.length === 3 &&
++          row.images.every(
++            (image, index) =>
++              image.decoded &&
++              image.visible &&
++              image.unoccluded &&
++              image.opacity === 1 &&
++              image.lit === row.brightness[index]! > 0,
++          ),
++      ),
++    ).toBe(true);
++    const perLed = ['led0', 'led1', 'led2'].map((id, index) => {
++      const edges = opticalEdges(ready, id);
++      const firstHigh = edges.findIndex((row) => row.level === 1);
++      const lastHigh = edges.findLastIndex((row) => row.level === 1);
++      const cycles = edges.slice(firstHigh, lastHigh + 1);
++      expect((cycles.length - 1) / 2).toBeGreaterThanOrEqual(500);
++      const halves: number[] = [];
++      for (let edge = 1; edge < cycles.length; edge++) {
++        const previous = cycles[edge - 1]!;
++        const duration = cycles[edge]!.at - previous.at;
++        halves.push(duration);
++      }
++      expect(Math.min(...halves)).toBeGreaterThanOrEqual(1);
++      expect(Math.max(...halves)).toBeLessThanOrEqual(1.01);
++      const span = cycles.at(-1)!.at - cycles[0]!.at;
++      // Sum every held optical sample, including amplitude changes within a
++      // lit half; binary edge times alone cannot establish nonlinear light.
++      const energy = opticalIntegral(ready, id, cycles[0]!.at, cycles.at(-1)!.at);
++      expect(energy.durationMicroseconds).toBeCloseTo(span * 1000, 5);
++      const meanBrightness = energy.integral / energy.durationMicroseconds;
++      const duty = energy.litMicroseconds / energy.durationMicroseconds;
++      expect(duty).toBeGreaterThanOrEqual(0.49);
++      expect(duty).toBeLessThanOrEqual(0.51);
++      // Also challenge single-frame beats which never form a stable two-RAF
++      // run. The stable runs independently witness loaded, visible image paint.
++      const paintedBrightness = rendered.map((row) => row.brightness[index]!);
++      for (const value of paintedBrightness)
++        expect(Math.abs(value - Math.round(meanBrightness))).toBeLessThanOrEqual(1);
++      expect(Math.max(...paintedBrightness) - Math.min(...paintedBrightness)).toBeLessThanOrEqual(
++        1,
++      );
++      return { id, edges, energy, meanBrightness, duty, paintedBrightness };
++    });
++    expect(perLed[0]!.meanBrightness).toBeGreaterThan(perLed[1]!.meanBrightness + 1);
++    expect(perLed[1]!.meanBrightness).toBeGreaterThan(perLed[2]!.meanBrightness + 1);
++    metrics = { clock, settledAt, perLed, paint, rendered };
++    session.failures.assertEmpty();
++  } finally {
++    await retainOwnerTemporalEvidence(page, session, metrics);
++  }
++  await page.getByRole('button', { name: 'Остановить моделирование', exact: true }).click();
++  expect((await session.read()).draft).toEqual(session.saved.draft);
++});
++
++const independentlyTimedMillisSource = `unsigned long next13 = 500;
++unsigned long next12 = 125;
++unsigned long next11 = 50;
++bool light13 = HIGH;
++bool light12 = LOW;
++bool light11 = HIGH;
++void setup() {
++  pinMode(13, OUTPUT); pinMode(12, OUTPUT); pinMode(11, OUTPUT);
++  digitalWrite(13, light13); digitalWrite(12, light12); digitalWrite(11, light11);
++}
++void loop() {
++  unsigned long now = millis();
++  if (now >= next13) { next13 += 500; light13 = !light13; digitalWrite(13, light13); }
++  if (now >= next12) { next12 += 200; light12 = !light12; digitalWrite(12, light12); }
++  if (now >= next11) { next11 += 100; light11 = !light11; digitalWrite(11, light11); }
++}`;
++
++test('Owner Arduino temporal: independent millis 500/200/100 ms outputs with different initial phases', async ({
++  page,
++}) => {
++  const session = await openOwnerTemporalSketch(
++    page,
++    independentlyTimedMillisSource,
++    'millis-independent',
++  );
++  let metrics: unknown;
++  try {
++    await page.getByRole('button', { name: 'Начать моделирование', exact: true }).click();
++    await waitForTemporalHorizon(page, session.source, 2_250_000);
++    const raw = await temporalObservation(page);
++    const ready = assertTemporalFrames(raw, session.source);
++    const clock = assertTemporalWallClock(ready, 2250);
++    const paint = validTemporalPaint(raw, session.startAt);
++    const firstRunning = ready.find((row) => row.committedHorizonMicroseconds >= 10_000)!;
++    expect(firstRunning.components.map((row) => Number((row.brightness ?? 0) > 0))).toEqual([
++      1, 0, 1,
++    ]);
++    const perLed = [500, 200, 100].map((halfMs, index) => {
++      const id = `led${index}`;
++      const model = opticalEdges(ready, id);
++      const visible = paintEdges(paint, index);
++      // LED2 begins halfway through its first HIGH. Exclude only that stated
++      // initial partial phase; all regular halves and complete cycles remain.
++      const modelStart =
++        index === 2 ? model.findIndex((row) => row.level === 0 && row.at >= 49) : 0;
++      const paintStart = index === 2 ? visible.findIndex((row, i) => row.level === 0 && i > 0) : 0;
++      const modelMetrics = blinkWallMetrics(model.slice(modelStart), halfMs);
++      const paintMetrics = blinkWallMetrics(visible.slice(paintStart), halfMs);
++      expect(modelMetrics.cycles).toBeGreaterThanOrEqual(2);
++      expect(paintMetrics.cycles).toBeGreaterThanOrEqual(2);
++      for (const half of modelMetrics.halves)
++        expect(Math.abs(half - halfMs)).toBeLessThanOrEqual(0.1);
++      for (const half of paintMetrics.halves) {
++        expect(half).toBeGreaterThanOrEqual(halfMs * 0.5);
++        expect(half).toBeLessThanOrEqual(halfMs * 1.5);
++      }
++      expect(paintMetrics.duty).toBeGreaterThanOrEqual(0.45);
++      expect(paintMetrics.duty).toBeLessThanOrEqual(0.55);
++      const highs = visible.slice(paintStart).filter((row) => row.level === 1);
++      const periodMs = (highs.at(-1)!.at - highs[0]!.at) / (highs.length - 1);
++      expect(periodMs).toBeGreaterThanOrEqual(halfMs * 2 * 0.9);
++      expect(periodMs).toBeLessThanOrEqual(halfMs * 2 * 1.1);
++      return { id, halfMs, model, visible, modelMetrics, paintMetrics, periodMs };
++    });
++    const vectors = new Set(
++      paint.map((row) => row.first.brightness.map((value) => Number(value > 0)).join('')),
++    );
++    for (const vector of ['101', '100', '110', '111', '000'])
++      expect(vectors.has(vector)).toBe(true);
++    metrics = { clock, perLed, vectors: [...vectors] };
++    session.failures.assertEmpty();
++  } finally {
++    await retainOwnerTemporalEvidence(page, session, metrics);
++  }
++  await page.getByRole('button', { name: 'Остановить моделирование', exact: true }).click();
++  expect((await session.read()).draft).toEqual(session.saved.draft);
++});
++
++const temporalResetSource = `void setup() {
++  pinMode(13, OUTPUT); pinMode(12, OUTPUT); pinMode(11, OUTPUT);
++  digitalWrite(13, LOW); digitalWrite(12, HIGH); digitalWrite(11, LOW);
++  delay(500);
++}
++void loop() {
++  digitalWrite(13, HIGH); digitalWrite(12, HIGH); digitalWrite(11, HIGH); delay(1);
++  digitalWrite(13, LOW); digitalWrite(12, LOW); digitalWrite(11, LOW); delay(1);
++}`;
++
++test('Owner Arduino temporal: real Arduino Reset restarts setup and clears fast optical history', async ({
++  page,
++}) => {
++  const session = await openOwnerTemporalSketch(page, temporalResetSource, 'arduino-reset');
++  let metrics: unknown;
++  try {
++    await page.getByRole('button', { name: 'Начать моделирование', exact: true }).click();
++    await waitForTemporalHorizon(page, session.source, 1_250_000);
++    const before = await temporalObservation(page);
++    const previous = assertTemporalFrames(before, session.source);
++    const oldGeneration = previous.at(-1)!.generationId!;
++    const oldPaint = validTemporalPaint(
++      before,
++      previous.find((row) => row.committedHorizonMicroseconds >= 600_000)!.at,
++    );
++    expect(
++      oldPaint.some((run) => run.first.brightness.every((value) => value > 0 && value < 60)),
++    ).toBe(true);
++    await page.getByTestId('arduino-reset-button').click();
++    await expect
++      .poll(() =>
++        page.evaluate((oldGeneration) => {
++          const ready = (window as TemporalWindow).__ownerTemporal!.frames.filter(
++            (row) => row.executionStatus === 'ready',
++          );
++          const last = ready.at(-1);
++          return (
++            !!last &&
++            last.generationId !== oldGeneration &&
++            last.committedHorizonMicroseconds >= 1_250_000
++          );
++        }, oldGeneration),
++      )
++      .toBe(true);
++    const raw = await temporalObservation(page);
++    expect(raw.resetClicks).toHaveLength(1);
++    expect(raw.resetClicks[0]!.trusted).toBe(true);
++    const clickedAt = raw.resetClicks[0]!.at;
++    const newGeneration = raw.frames
++      .filter((row) => row.executionStatus === 'ready')
++      .at(-1)!.generationId!;
++    expect(newGeneration).not.toBe(oldGeneration);
++    const restarted = assertTemporalFrames(raw, session.source, newGeneration);
++    const clock = assertTemporalWallClock(restarted, 1250);
++    expect(restarted[0]!.at).toBeGreaterThanOrEqual(clickedAt);
++    expect(restarted[0]!.ledTemporal!.fromMicroseconds).toBe(0);
++    const startup = restarted.filter(
++      (row) =>
++        row.committedHorizonMicroseconds >= 25_000 && row.committedHorizonMicroseconds < 500_000,
++    );
++    expect(startup.length).toBeGreaterThanOrEqual(4);
++    for (const row of startup)
++      expect(row.components.map((led) => Number((led.brightness ?? 0) > 0))).toEqual([0, 1, 0]);
++    const firstLoop = restarted.find((row) => row.committedHorizonMicroseconds >= 500_000)!;
++    const setupPaint = validTemporalPaint(raw, startup[0]!.at, firstLoop.at).filter(
++      (run) =>
++        run.first.brightness[0] === 0 &&
++        run.first.brightness[1]! > 60 &&
++        run.first.brightness[2] === 0,
++    );
++    expect(setupPaint.length).toBeGreaterThan(0);
++    expect(setupPaint.reduce((sum, run) => sum + run.frames, 0)).toBeGreaterThanOrEqual(8);
++    const settledAt = restarted.find((row) => row.committedHorizonMicroseconds >= 600_000)!.at;
++    const resumedPaint = validTemporalPaint(raw, settledAt);
++    expect(resumedPaint.length).toBeGreaterThan(0);
++    for (const run of resumedPaint)
++      for (const value of run.first.brightness) {
++        expect(value).toBeGreaterThan(20);
++        expect(value).toBeLessThan(60);
++      }
++    metrics = { clickedAt, oldGeneration, newGeneration, clock, setupPaint, resumedPaint };
++    session.failures.assertEmpty();
++  } finally {
++    await retainOwnerTemporalEvidence(page, session, metrics);
++  }
++  await page.getByRole('button', { name: 'Остановить моделирование', exact: true }).click();
++  expect((await session.read()).draft).toEqual(session.saved.draft);
++});

@@ -1,0 +1,349 @@
+{
+  "schema": "asa-electronics-independent-oracle-check-v1",
+  "reviewer": "/root/acceptance_review",
+  "reviewed_e2e_sha256": "092ae57fdcd0395cee667aa627542371a46519a79d0e86cd4d7e7470ab5c604b",
+  "source_helpers_sha256": "18ceb1782d058efaf20884afc081f0a0e0a643e6b0544999631171aa47f47254",
+  "kind": "Exact source helper extraction with independent analytic inputs; no browser or product run",
+  "publication_lag_ms": 50,
+  "model_wall_limit_ms": 250,
+  "count": 20,
+  "passed": 20,
+  "cases": [
+    {
+      "label": "Exactly 50 ms after supersede is accepted",
+      "expected": "ACCEPT",
+      "pass": true,
+      "accepted_witnesses": 1,
+      "violations": 0,
+      "first_violations": []
+    },
+    {
+      "label": "50.001 ms after supersede is rejected",
+      "expected": "REJECT",
+      "pass": true,
+      "accepted_witnesses": 0,
+      "violations": 1,
+      "first_violations": [
+        {
+          "at": 1100.001,
+          "brightness": [
+            0,
+            67,
+            0
+          ],
+          "reason": "electrical state superseded more than 50 ms ago"
+        }
+      ]
+    },
+    {
+      "label": "A currently held state has no artificial age limit",
+      "expected": "ACCEPT",
+      "pass": true,
+      "accepted_witnesses": 1,
+      "violations": 0,
+      "first_violations": []
+    },
+    {
+      "label": "A matching future response is not causal evidence",
+      "expected": "REJECT",
+      "pass": true,
+      "accepted_witnesses": 0,
+      "violations": 1,
+      "first_violations": [
+        {
+          "at": 1050,
+          "brightness": [
+            67,
+            0,
+            67
+          ],
+          "reason": "no causally preceding electrical state"
+        }
+      ]
+    },
+    {
+      "label": "Late old response cannot reactivate its generation",
+      "expected": "REJECT",
+      "pass": true,
+      "accepted_witnesses": 0,
+      "violations": 1,
+      "first_violations": [
+        {
+          "at": 1090,
+          "brightness": [
+            0,
+            67,
+            0
+          ],
+          "reason": "foreign source or inactive generation"
+        }
+      ]
+    },
+    {
+      "label": "New generation remains current after late old response",
+      "expected": "ACCEPT",
+      "pass": true,
+      "accepted_witnesses": 1,
+      "violations": 0,
+      "first_violations": []
+    },
+    {
+      "label": "Equal brightness from a newly active foreign source does not match",
+      "expected": "REJECT",
+      "pass": true,
+      "accepted_witnesses": 0,
+      "violations": 1,
+      "first_violations": [
+        {
+          "at": 1060,
+          "brightness": [
+            0,
+            67,
+            0
+          ],
+          "reason": "foreign source or inactive generation"
+        }
+      ]
+    },
+    {
+      "label": "Quality-failed response cannot establish a light state",
+      "expected": "REJECT",
+      "pass": true,
+      "accepted_witnesses": 0,
+      "violations": 1,
+      "first_violations": [
+        {
+          "at": 1100,
+          "brightness": [
+            67,
+            0,
+            67
+          ],
+          "reason": "no causally preceding electrical state"
+        }
+      ]
+    },
+    {
+      "label": "Incomplete ready cannot establish a light state",
+      "expected": "REJECT",
+      "pass": true,
+      "accepted_witnesses": 0,
+      "violations": 1,
+      "first_violations": [
+        {
+          "at": 1100,
+          "brightness": [
+            67,
+            0,
+            67
+          ],
+          "reason": "no causally preceding electrical state"
+        }
+      ]
+    },
+    {
+      "label": "Response/request generation mismatch cannot establish a light state",
+      "expected": "REJECT",
+      "pass": true,
+      "accepted_witnesses": 0,
+      "violations": 1,
+      "first_violations": [
+        {
+          "at": 1100,
+          "brightness": [
+            67,
+            0,
+            67
+          ],
+          "reason": "no causally preceding electrical state"
+        }
+      ]
+    },
+    {
+      "label": "Identical vector from an old phase expires after renewed supersede",
+      "expected": "REJECT",
+      "pass": true,
+      "accepted_witnesses": 0,
+      "violations": 1,
+      "first_violations": [
+        {
+          "at": 1125.001,
+          "brightness": [
+            0,
+            67,
+            0
+          ],
+          "reason": "electrical state superseded more than 50 ms ago"
+        }
+      ]
+    },
+    {
+      "label": "One compressed run with matching endpoints cannot hide an entire wrong interior phase",
+      "expected": "REJECT",
+      "pass": true,
+      "accepted_witnesses": 47,
+      "violations": 14,
+      "first_violations": [
+        {
+          "at": 1260,
+          "brightness": [
+            0,
+            67,
+            0
+          ],
+          "reason": "electrical state superseded more than 50 ms ago"
+        },
+        {
+          "at": 1270,
+          "brightness": [
+            0,
+            67,
+            0
+          ],
+          "reason": "electrical state superseded more than 50 ms ago"
+        }
+      ]
+    },
+    {
+      "label": "Window clips old matching run to its actual witnesses",
+      "expected": "ACCEPT",
+      "pass": true,
+      "accepted_witnesses": 6,
+      "violations": 0,
+      "first_violations": []
+    },
+    {
+      "label": "Independent millis with real 25 ms ready spacing and 20 ms UI lag is accepted",
+      "expected": "ACCEPT",
+      "pass": true,
+      "accepted_witnesses": 103,
+      "violations": 0,
+      "first_violations": []
+    },
+    {
+      "label": "D12 phase inversion is rejected despite unchanged per-channel period and duty",
+      "expected": "REJECT",
+      "pass": true,
+      "accepted_witnesses": 20,
+      "violations": 83,
+      "first_violations": [
+        {
+          "at": 1200,
+          "brightness": [
+            67,
+            0,
+            67
+          ],
+          "reason": "electrical state superseded more than 50 ms ago"
+        },
+        {
+          "at": 1220,
+          "brightness": [
+            67,
+            0,
+            67
+          ],
+          "reason": "electrical state superseded more than 50 ms ago"
+        }
+      ]
+    },
+    {
+      "label": "100 ms publication lag is rejected",
+      "expected": "REJECT",
+      "pass": true,
+      "accepted_witnesses": 34,
+      "violations": 69,
+      "first_violations": [
+        {
+          "at": 1200,
+          "brightness": [
+            67,
+            0,
+            0
+          ],
+          "reason": "electrical state superseded more than 50 ms ago"
+        },
+        {
+          "at": 1220,
+          "brightness": [
+            67,
+            0,
+            0
+          ],
+          "reason": "electrical state superseded more than 50 ms ago"
+        }
+      ]
+    },
+    {
+      "label": "All setup interior frames with new physical 010 are accepted",
+      "expected": "ACCEPT",
+      "pass": true,
+      "frames": 45,
+      "violations": 0,
+      "first_violations": []
+    },
+    {
+      "label": "Old fast mean in first 300 ms is rejected even with eight or more later good frames",
+      "expected": "REJECT",
+      "pass": true,
+      "frames": 45,
+      "violations": 24,
+      "first_violations": [
+        {
+          "at": 1060,
+          "brightness": [
+            33,
+            33,
+            33
+          ],
+          "imagesReady": true
+        },
+        {
+          "at": 1070,
+          "brightness": [
+            33,
+            33,
+            33
+          ],
+          "imagesReady": true
+        }
+      ]
+    },
+    {
+      "label": "One invalid image frame in setup interior is rejected",
+      "expected": "REJECT",
+      "pass": true,
+      "frames": 45,
+      "violations": 1,
+      "first_violations": [
+        {
+          "at": 1160,
+          "brightness": [
+            0,
+            67,
+            0
+          ],
+          "imagesReady": false
+        }
+      ]
+    },
+    {
+      "label": "One wrong channel in setup interior is rejected",
+      "expected": "REJECT",
+      "pass": true,
+      "frames": 45,
+      "violations": 1,
+      "first_violations": [
+        {
+          "at": 1160,
+          "brightness": [
+            0,
+            0,
+            0
+          ],
+          "imagesReady": true
+        }
+      ]
+    }
+  ]
+}

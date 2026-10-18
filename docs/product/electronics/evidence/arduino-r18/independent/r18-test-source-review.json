@@ -1,0 +1,611 @@
+{
+  "schema": "asa-electronics-independent-test-source-review-v1",
+  "reviewer": "/root/acceptance_review",
+  "reviewed_at_utc": "2026-10-18T06:59:51.267Z",
+  "decision": "APPROVE_TEST_SOURCE",
+  "base_sha": "59fb260f5533a6f536a33417fe249c60b9bf9623",
+  "path": "e2e/electronics-ready-cadence.spec.ts",
+  "source_sha256": "092ae57fdcd0395cee667aa627542371a46519a79d0e86cd4d7e7470ab5c604b",
+  "source_bytes": 98001,
+  "source_git_blob": "9b79a4b569ea699d9ae88a0c3fbe5fc7a9098b49",
+  "scope": "Только независимое source-of-tests review замороженного append. Никакого запуска продукта, browser или полного suite reviewer не выполнял.",
+  "unchanged_baseline": {
+    "test_count": 7,
+    "prefix_bytes": 58527,
+    "prefix_sha256": "74e45a784a4880a90834a92bda1034086721bf190f0f04179427544e4b8030e5",
+    "prefix_identical_to_59fb260": true
+  },
+  "added_test_count": 4,
+  "total_test_count": 11,
+  "appended_lines": 967,
+  "provenance": {
+    "author_manifest_sha256": "51fa5554e78e05f2857096a54d46b905a132fd388b201da4fad139b3fca1e79c",
+    "author_diff_sha256": "f1ccd8c28ca6ee7cec15d30a6ae187aa143cbde65775a6d9bc51ab602245e13f",
+    "independent_oracle_report_sha256": "7bbfb04c9943b167012257381b453b444fce82aec748429312378662510b1fec",
+    "author_manifest": {
+      "base_sha": "59fb260f5533a6f536a33417fe249c60b9bf9623",
+      "path": "/workspace/scratch/927b9b969e63/asa-lab-arduino/e2e/electronics-ready-cadence.spec.ts",
+      "source_sha256": "092ae57fdcd0395cee667aa627542371a46519a79d0e86cd4d7e7470ab5c604b",
+      "unchanged_original_prefix_sha256": "74e45a784a4880a90834a92bda1034086721bf190f0f04179427544e4b8030e5",
+      "original_prefix_bytes": 58527,
+      "preserved_existing_test_count": 7,
+      "added_test_count": 4,
+      "discovered_test_count": 11,
+      "added_lines": 967,
+      "diff_sha256": "f1ccd8c28ca6ee7cec15d30a6ae187aa143cbde65775a6d9bc51ab602245e13f",
+      "verification": {
+        "prettier": "PASS",
+        "narrow_eslint": "PASS after oracle correction",
+        "strict_tsc_with_build_metadata_ambient": "PASS after oracle correction",
+        "playwright_list_workers_1": "PASS: 11 tests",
+        "browser_execution": "NOT RUN by author; root owns directed candidate/browser run",
+        "millis_runtime_sanity": "Product author separately confirmed exact source H510000 ready, quality PASS; not a browser throughput claim",
+        "oracle_mutations": "PASS extracted exact helper functions: valid20mslag accepted; D12 inversion,100ms shift, stale33 Reset setup, hidden interior phase all rejected"
+      },
+      "new_cases": [
+        "Owner Arduino temporal: delay 2000 ms, two complete electrical and loaded-image cycles",
+        "Owner Arduino temporal: delay 1 ms, independent optical integrals and stable loaded-image brightness",
+        "Owner Arduino temporal: independent millis 500/200/100 ms outputs with different initial phases",
+        "Owner Arduino temporal: real Arduino Reset restarts setup and clears fast optical history"
+      ],
+      "artifact_contract": {
+        "raw": "e2e/artifacts/electronics-simulation/ready-cadence-539/owner-r18-*-raw.json",
+        "images": "e2e/artifacts/electronics-simulation/ready-cadence-539/owner-r18-*-frame.png",
+        "attachments": "Actual raw JSON and native PNG also attached with test.info(); failure trace retained by unchanged Playwright configuration",
+        "raw_fields": "actual advance.ledTemporal, source/hash, request/response generation, protocolVersion, engineRevision, projectSessionId, source clocks, compact complete optical frames, compressed confirmed loaded-image paint runs, reset trusted click, original raw ring/state/events/quality, persisted whole document, metrics"
+      },
+      "scope": "Only appended e2e/electronics-ready-cadence.spec.ts; no source/fixture/threshold/default timeout/worker/Playwright configuration change to the seven original tests; no remote/browser/GitHub mutation",
+      "previous_unpublished_source_sha256": "d067f102d16f81390a92d68ebdc2c91ffa237dc1335503b7f92c93d9b8f751b4",
+      "oracle_correction": {
+        "publication_lag_ms": 50,
+        "model_wall_bound_ms": 250,
+        "all_witness_timestamps": true,
+        "causal_rule": "Loaded paint must match a complete solved quality ready with the same actual source/current request generation delivered before that witness; matching state must still be current or superseded no more than50ms earlier",
+        "reset_rule": "Every actual RAF in first010ready+50ms..firstLoopReady must have loaded images and exact010 physical brightness, plus>=8 separately confirmed causal witnesses; no positive-only filter",
+        "mutation_report": "/workspace/scratch/927b9b969e63/evidence/r18/e2e/r18-owner-oracle-mutations.json",
+        "mutation_script": "/workspace/scratch/927b9b969e63/evidence/r18/e2e/r18-owner-oracle-mutations.cjs",
+        "mutation_report_sha256": "205a8f9e8c0270cca04833b2f9e163a28326e2d5997ff5fff8088a2ceab3eabe",
+        "mutation_script_sha256": "b82cdcc07490f32b408db9bc90e29204ce374ced717de0cfa4d0265e7240cf0b",
+        "independent_review": "Final092ae57f sent to acceptance_review; awaiting final verdict"
+      }
+    }
+  },
+  "case_matrix": [
+    {
+      "name": "delay 2000 ms",
+      "test": "Owner Arduino temporal: delay 2000 ms, two complete electrical and loaded-image cycles",
+      "model_horizon_us": 8100000,
+      "meaning": "Не менее двух complete model и loaded-paint циклов на каждом LED. Каждому confirmed paint timestamp соответствует actual preceding ready нужных source/generation и полного физического вектора.",
+      "assertions": {
+        "model_half_ms": [
+          2000,
+          2000.01
+        ],
+        "paint_half_ms": [
+          1750,
+          2250
+        ],
+        "paint_period_ms": [
+          3750,
+          4250
+        ],
+        "model_and_paint_duty": [
+          0.45,
+          0.55
+        ],
+        "publication_lag_ms": 50
+      }
+    },
+    {
+      "name": "delay 1 ms",
+      "test": "Owner Arduino temporal: delay 1 ms, independent optical integrals and stable loaded-image brightness",
+      "model_horizon_us": 1500000,
+      "meaning": "Три реальные различные нагрузки 330/680/1000 Ω; средняя вычисляется независимо из каждого полного optical integral, учитывая все held samples, включая изменение амплитуды внутри lit фазы.",
+      "assertions": {
+        "resistors_ohm": [
+          330,
+          680,
+          1000
+        ],
+        "minimum_complete_cycles_per_led": 500,
+        "model_half_ms": [
+          1,
+          1.01
+        ],
+        "duty": [
+          0.49,
+          0.51
+        ],
+        "settled_model_time_us": 100000,
+        "minimum_loaded_paint_span_ms": 1000,
+        "minimum_every_raf_rows": 30,
+        "every_raf_brightness_error_from_rounded_integral_max": 1,
+        "every_raf_brightness_range_max": 1,
+        "distinct_channel_mean_separation_min_exclusive": 1
+      }
+    },
+    {
+      "name": "independent millis",
+      "test": "Owner Arduino temporal: independent millis 500/200/100 ms outputs with different initial phases",
+      "model_horizon_us": 2250000,
+      "meaning": "Самостоятельные периоды и начальные фазы трёх outputs; initial electrical vector 101. Causal whole-vector matching исключает подмену одной фазы с той же частотой и duty.",
+      "assertions": {
+        "half_period_ms": [
+          500,
+          200,
+          100
+        ],
+        "first_toggle_model_ms": [
+          500,
+          125,
+          50
+        ],
+        "initial_vector": [
+          1,
+          0,
+          1
+        ],
+        "minimum_complete_cycles_per_led": 2,
+        "model_half_tolerance_ms": 0.1,
+        "paint_half_scale": [
+          0.5,
+          1.5
+        ],
+        "paint_period_scale": [
+          0.9,
+          1.1
+        ],
+        "paint_duty": [
+          0.45,
+          0.55
+        ],
+        "publication_lag_ms": 50
+      }
+    },
+    {
+      "name": "real Arduino Reset",
+      "test": "Owner Arduino temporal: real Arduino Reset restarts setup and clears fast optical history",
+      "model_horizon_before_and_after_us": 1250000,
+      "meaning": "Настоящий trusted click по board Reset, новый generation, H0 и непрерывная optical history от0. Все actual RAF в гарантированном setup interior обязаны иметь loaded images и exact physical 010; дополнительно нужны минимум8 confirmed causal witnesses.",
+      "assertions": {
+        "setup_delay_us": 500000,
+        "setup_vector": [
+          0,
+          1,
+          0
+        ],
+        "setup_from": "first new-generation physical 010 ready delivery +50 ms",
+        "setup_to_exclusive": "first new-generation ready with H>=500000 us",
+        "minimum_actual_setup_raf_frames": 8,
+        "minimum_confirmed_causal_setup_witnesses": 8,
+        "resumed_fast_settled_model_time_us": 600000,
+        "resumed_fast_brightness_bounds_exclusive": [
+          20,
+          60
+        ]
+      }
+    }
+  ],
+  "shared_receipt_checks": [
+    "Actual Worker request/response source, generation, protocol, engineRevision, projectSessionId, clocks и compute metadata сохраняются в raw. Это наблюдение actual responses, не подстановка solver output.",
+    "Каждый ready solved, quality passed, без diagnostics, requested H=committed H=continuation H; yielded не публикует optical/components.",
+    "ordinary-led-held-v1 metadata непрерывна между ready одного generation; untruncated per-LED samples начинаются в C и заканчиваются в H.",
+    "Пересчитаны brightness*duration, lit duration и transitions; sample currents соответствуют реальному состоянию LED, final sample совпадает с final electrical component.",
+    "Loaded paint подтверждён decoded/visible/unoccluded images с opacity1 и согласованностью lit/brightness.",
+    "Предел250 ms применяется к абсолютной разности полного model span и wall span. Отдельный предел50 ms относится к задержке paint после superseding ready. Они не взаимозаменяемы.",
+    "Итоговый draft после Stop сравнивается с сохранённым полным draft; raw JSON и native PNG сохраняются также через test.info attachments."
+  ],
+  "findings": [
+    {
+      "id": "E2E-1",
+      "severity": "BLOCKING_FALSE_PASS_ON_OLD_VERSION",
+      "status": "RESOLVED",
+      "rejected_sha256": "d067f102d16f81390a92d68ebdc2c91ffa237dc1335503b7f92c93d9b8f751b4",
+      "approved_sha256": "092ae57fdcd0395cee667aa627542371a46519a79d0e86cd4d7e7470ab5c604b",
+      "problem": "Частота, duty и набор видимых векторов проверялись отдельно от electrical phase. Полная инверсия D12 могла пройти.",
+      "independent_counterexample": {
+        "D12_cycles": 5,
+        "D12_duty": 0.4805194805194805,
+        "D12_period_ms": 385,
+        "required_vectors_all_present": true
+      },
+      "fix": "Каждый witnessAt, в том числе внутри сжатого run, должен причинно совпадать с предшествующим solved+quality complete ready того же source и active generation; совпавший полный вектор ещё текущий либо superseded не более50 ms назад. Active generation выбирается по actual request clock, не по позднему ответу.",
+      "evidence": "rejected-d067/original-false-pass.json; r18-independent-oracle-check.json"
+    },
+    {
+      "id": "E2E-2",
+      "severity": "BLOCKING_FALSE_PASS_ON_OLD_VERSION",
+      "status": "RESOLVED",
+      "rejected_sha256": "d067f102d16f81390a92d68ebdc2c91ffa237dc1335503b7f92c93d9b8f751b4",
+      "approved_sha256": "092ae57fdcd0395cee667aa627542371a46519a79d0e86cd4d7e7470ab5c604b",
+      "problem": "Reset оставлял только правильные010 paint runs и мог игнорировать старую среднюю яркость в остальном setup.",
+      "independent_counterexample": {
+        "wrong_vector": [
+          33,
+          33,
+          33
+        ],
+        "wrong_window_ms": [
+          25,
+          310
+        ],
+        "wrong_frames_filtered_out": 18,
+        "good_frames_counted": 10,
+        "old_assertions_passed": true
+      },
+      "fix": "Внутри first010ready+50 ms .. firstLoopReady проверяется каждый actual RAF, без positive-only фильтра, с exact physical vector и image readiness; минимум8 correct frames и8 confirmed causal witnesses — дополнительные условия.",
+      "evidence": "rejected-d067/original-false-pass.json; r18-independent-oracle-check.json"
+    }
+  ],
+  "independent_validation": {
+    "exact_helper_cases": 20,
+    "passed": 20,
+    "negative_cases_rejected": 14,
+    "positive_cases_accepted": 6,
+    "report": "r18-independent-oracle-check.json",
+    "script": "r18-independent-oracle-check.cjs",
+    "false_pass_reproduction": "rejected-d067/reproduce-original-false-pass.cjs",
+    "cases": [
+      {
+        "label": "Exactly 50 ms after supersede is accepted",
+        "expected": "ACCEPT",
+        "pass": true,
+        "accepted_witnesses": 1,
+        "violations": 0,
+        "first_violations": []
+      },
+      {
+        "label": "50.001 ms after supersede is rejected",
+        "expected": "REJECT",
+        "pass": true,
+        "accepted_witnesses": 0,
+        "violations": 1,
+        "first_violations": [
+          {
+            "at": 1100.001,
+            "brightness": [
+              0,
+              67,
+              0
+            ],
+            "reason": "electrical state superseded more than 50 ms ago"
+          }
+        ]
+      },
+      {
+        "label": "A currently held state has no artificial age limit",
+        "expected": "ACCEPT",
+        "pass": true,
+        "accepted_witnesses": 1,
+        "violations": 0,
+        "first_violations": []
+      },
+      {
+        "label": "A matching future response is not causal evidence",
+        "expected": "REJECT",
+        "pass": true,
+        "accepted_witnesses": 0,
+        "violations": 1,
+        "first_violations": [
+          {
+            "at": 1050,
+            "brightness": [
+              67,
+              0,
+              67
+            ],
+            "reason": "no causally preceding electrical state"
+          }
+        ]
+      },
+      {
+        "label": "Late old response cannot reactivate its generation",
+        "expected": "REJECT",
+        "pass": true,
+        "accepted_witnesses": 0,
+        "violations": 1,
+        "first_violations": [
+          {
+            "at": 1090,
+            "brightness": [
+              0,
+              67,
+              0
+            ],
+            "reason": "foreign source or inactive generation"
+          }
+        ]
+      },
+      {
+        "label": "New generation remains current after late old response",
+        "expected": "ACCEPT",
+        "pass": true,
+        "accepted_witnesses": 1,
+        "violations": 0,
+        "first_violations": []
+      },
+      {
+        "label": "Equal brightness from a newly active foreign source does not match",
+        "expected": "REJECT",
+        "pass": true,
+        "accepted_witnesses": 0,
+        "violations": 1,
+        "first_violations": [
+          {
+            "at": 1060,
+            "brightness": [
+              0,
+              67,
+              0
+            ],
+            "reason": "foreign source or inactive generation"
+          }
+        ]
+      },
+      {
+        "label": "Quality-failed response cannot establish a light state",
+        "expected": "REJECT",
+        "pass": true,
+        "accepted_witnesses": 0,
+        "violations": 1,
+        "first_violations": [
+          {
+            "at": 1100,
+            "brightness": [
+              67,
+              0,
+              67
+            ],
+            "reason": "no causally preceding electrical state"
+          }
+        ]
+      },
+      {
+        "label": "Incomplete ready cannot establish a light state",
+        "expected": "REJECT",
+        "pass": true,
+        "accepted_witnesses": 0,
+        "violations": 1,
+        "first_violations": [
+          {
+            "at": 1100,
+            "brightness": [
+              67,
+              0,
+              67
+            ],
+            "reason": "no causally preceding electrical state"
+          }
+        ]
+      },
+      {
+        "label": "Response/request generation mismatch cannot establish a light state",
+        "expected": "REJECT",
+        "pass": true,
+        "accepted_witnesses": 0,
+        "violations": 1,
+        "first_violations": [
+          {
+            "at": 1100,
+            "brightness": [
+              67,
+              0,
+              67
+            ],
+            "reason": "no causally preceding electrical state"
+          }
+        ]
+      },
+      {
+        "label": "Identical vector from an old phase expires after renewed supersede",
+        "expected": "REJECT",
+        "pass": true,
+        "accepted_witnesses": 0,
+        "violations": 1,
+        "first_violations": [
+          {
+            "at": 1125.001,
+            "brightness": [
+              0,
+              67,
+              0
+            ],
+            "reason": "electrical state superseded more than 50 ms ago"
+          }
+        ]
+      },
+      {
+        "label": "One compressed run with matching endpoints cannot hide an entire wrong interior phase",
+        "expected": "REJECT",
+        "pass": true,
+        "accepted_witnesses": 47,
+        "violations": 14,
+        "first_violations": [
+          {
+            "at": 1260,
+            "brightness": [
+              0,
+              67,
+              0
+            ],
+            "reason": "electrical state superseded more than 50 ms ago"
+          },
+          {
+            "at": 1270,
+            "brightness": [
+              0,
+              67,
+              0
+            ],
+            "reason": "electrical state superseded more than 50 ms ago"
+          }
+        ]
+      },
+      {
+        "label": "Window clips old matching run to its actual witnesses",
+        "expected": "ACCEPT",
+        "pass": true,
+        "accepted_witnesses": 6,
+        "violations": 0,
+        "first_violations": []
+      },
+      {
+        "label": "Independent millis with real 25 ms ready spacing and 20 ms UI lag is accepted",
+        "expected": "ACCEPT",
+        "pass": true,
+        "accepted_witnesses": 103,
+        "violations": 0,
+        "first_violations": []
+      },
+      {
+        "label": "D12 phase inversion is rejected despite unchanged per-channel period and duty",
+        "expected": "REJECT",
+        "pass": true,
+        "accepted_witnesses": 20,
+        "violations": 83,
+        "first_violations": [
+          {
+            "at": 1200,
+            "brightness": [
+              67,
+              0,
+              67
+            ],
+            "reason": "electrical state superseded more than 50 ms ago"
+          },
+          {
+            "at": 1220,
+            "brightness": [
+              67,
+              0,
+              67
+            ],
+            "reason": "electrical state superseded more than 50 ms ago"
+          }
+        ]
+      },
+      {
+        "label": "100 ms publication lag is rejected",
+        "expected": "REJECT",
+        "pass": true,
+        "accepted_witnesses": 34,
+        "violations": 69,
+        "first_violations": [
+          {
+            "at": 1200,
+            "brightness": [
+              67,
+              0,
+              0
+            ],
+            "reason": "electrical state superseded more than 50 ms ago"
+          },
+          {
+            "at": 1220,
+            "brightness": [
+              67,
+              0,
+              0
+            ],
+            "reason": "electrical state superseded more than 50 ms ago"
+          }
+        ]
+      },
+      {
+        "label": "All setup interior frames with new physical 010 are accepted",
+        "expected": "ACCEPT",
+        "pass": true,
+        "frames": 45,
+        "violations": 0,
+        "first_violations": []
+      },
+      {
+        "label": "Old fast mean in first 300 ms is rejected even with eight or more later good frames",
+        "expected": "REJECT",
+        "pass": true,
+        "frames": 45,
+        "violations": 24,
+        "first_violations": [
+          {
+            "at": 1060,
+            "brightness": [
+              33,
+              33,
+              33
+            ],
+            "imagesReady": true
+          },
+          {
+            "at": 1070,
+            "brightness": [
+              33,
+              33,
+              33
+            ],
+            "imagesReady": true
+          }
+        ]
+      },
+      {
+        "label": "One invalid image frame in setup interior is rejected",
+        "expected": "REJECT",
+        "pass": true,
+        "frames": 45,
+        "violations": 1,
+        "first_violations": [
+          {
+            "at": 1160,
+            "brightness": [
+              0,
+              67,
+              0
+            ],
+            "imagesReady": false
+          }
+        ]
+      },
+      {
+        "label": "One wrong channel in setup interior is rejected",
+        "expected": "REJECT",
+        "pass": true,
+        "frames": 45,
+        "violations": 1,
+        "first_violations": [
+          {
+            "at": 1160,
+            "brightness": [
+              0,
+              0,
+              0
+            ],
+            "imagesReady": true
+          }
+        ]
+      }
+    ]
+  },
+  "author_reported_static_checks": {
+    "prettier": "PASS",
+    "narrow_eslint": "PASS after oracle correction",
+    "strict_tsc_with_build_metadata_ambient": "PASS after oracle correction",
+    "playwright_list_workers_1": "PASS: 11 tests",
+    "browser_execution": "NOT RUN by author; root owns directed candidate/browser run",
+    "millis_runtime_sanity": "Product author separately confirmed exact source H510000 ready, quality PASS; not a browser throughput claim",
+    "oracle_mutations": "PASS extracted exact helper functions: valid20mslag accepted; D12 inversion,100ms shift, stale33 Reset setup, hidden interior phase all rejected"
+  },
+  "open_source_findings": [],
+  "limits": [
+    "APPROVE_TEST_SOURCE не является product PASS, owner acceptance или завершением первой пользовательской вехи.",
+    "Directed exact-candidate browser/CI execution и независимый review свежих raw artifacts ещё должны состояться.",
+    "Pure helper counterexamples доказывают свойства oracle на явных входах; они не являются данными реального browser или simulator run.",
+    "Общий wall threshold здесь endpoint-span metric; его нельзя переименовывать в измеренный maximum lag каждого ready.",
+    "Для2000/millis причинная проверка относится к подтверждённым loaded paint witnesses; raw timestamps сохраняются для анализа. Для1 ms есть дополнительная every-RAF anti-beat проверка, для setup Reset — every-RAF exact-state проверка.",
+    "Подготовка схемы использует API fixture и real editor/Save/Run/Stop/Reset; эти четыре теста отдельно не доказывают ручной wiring или Blockly round trip."
+  ],
+  "parent_reported_content_placement": {
+    "source_commit": "d4e2bb1e23730e162afc064e0cfb01a94e423333",
+    "candidate_commit": "10298adebf11d61636465bfe4b8691b36fc23913",
+    "candidate_tree": "ac5423381738d309c05c7e1a274053413337855f",
+    "basis": "Root сообщил exact full-tree identity; этот report одобряет указанные file hash/base, не выполняет новый integration audit."
+  }
+}

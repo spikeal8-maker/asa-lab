@@ -1,0 +1,333 @@
+{
+  "schema": "asa-electronics-independent-review-v1",
+  "reviewer": "/root/acceptance_review",
+  "reviewed_at_utc": "2026-10-18T06:51:30.617Z",
+  "decision": "APPROVE_SOURCE_ONLY",
+  "base_sha": "59fb260f5533a6f536a33417fe249c60b9bf9623",
+  "scope": "Независимый source/math review 15 замороженных путей: продукт, целевые unit/worker/mounted tests и контракты. E2E — отдельный автор и отдельное заключение.",
+  "provenance": {
+    "source_manifest": {
+      "path": "r18-evidence/r18-source-manifest.json",
+      "sha256": "0281b0ca452b744b6c34e0bfeb68899231601dd078d6da7934d0a2d8b159bb02"
+    },
+    "source_patch": {
+      "path": "r18-evidence/r18-source.patch",
+      "sha256": "f187a819b4ccdd2ab272fa21129489bead3faccb6c07e1d135a639ea990012db"
+    },
+    "focused_log": {
+      "path": "r18-evidence/focused.log",
+      "sha256": "a80c2971420bdc05be0b7fe18e014b5baae3413f8a9ec639698d9823be53792a"
+    },
+    "author": "arduino_source_audit",
+    "author_frozen_at_utc": "2026-10-17T23:28:31.993709+00:00"
+  },
+  "exact_frozen_files": [
+    {
+      "path": "contexts/electronics/domain/led-temporal-observation.ts",
+      "expected": {
+        "bytes": 6286,
+        "sha256": "a8736a39e1ae2495512051abcabf304c4bb43d32c57fa438a1bd471f8ae45b13",
+        "git_blob": "c0c6de3b1208ac7f2ba29c1bcdc721bd738144dc"
+      },
+      "actual": {
+        "bytes": 6286,
+        "sha256": "a8736a39e1ae2495512051abcabf304c4bb43d32c57fa438a1bd471f8ae45b13",
+        "git_blob": "c0c6de3b1208ac7f2ba29c1bcdc721bd738144dc"
+      },
+      "match": true
+    },
+    {
+      "path": "contexts/electronics/domain/arduino-circuit-scheduler.ts",
+      "expected": {
+        "bytes": 59594,
+        "sha256": "e1da15d4f197cb613fe65b33b8838c1e22da171100cea72497061c6bf137906e",
+        "git_blob": "87e840e3b7d55a496a8e6aaadcc4b082f5fc2368"
+      },
+      "actual": {
+        "bytes": 59594,
+        "sha256": "e1da15d4f197cb613fe65b33b8838c1e22da171100cea72497061c6bf137906e",
+        "git_blob": "87e840e3b7d55a496a8e6aaadcc4b082f5fc2368"
+      },
+      "match": true
+    },
+    {
+      "path": "contexts/electronics/engine.ts",
+      "expected": {
+        "bytes": 19471,
+        "sha256": "57d6db4a22bb55eb51f5e451896572c9b70907dc5b665028c8b492a97abcff5d",
+        "git_blob": "377019c0e6bb6a4d509bead81ddb89e1539cec9f"
+      },
+      "actual": {
+        "bytes": 19471,
+        "sha256": "57d6db4a22bb55eb51f5e451896572c9b70907dc5b665028c8b492a97abcff5d",
+        "git_blob": "377019c0e6bb6a4d509bead81ddb89e1539cec9f"
+      },
+      "match": true
+    },
+    {
+      "path": "apps/web/src/electronics/led-temporal-presentation.ts",
+      "expected": {
+        "bytes": 7923,
+        "sha256": "3ebc9b2d3e9602d9b684325762bb2b72683ff0271646de14eee248bddc17b80f",
+        "git_blob": "1ebed5671ccc2cdc487c7acfe48bb0f3882bc0ad"
+      },
+      "actual": {
+        "bytes": 7923,
+        "sha256": "3ebc9b2d3e9602d9b684325762bb2b72683ff0271646de14eee248bddc17b80f",
+        "git_blob": "1ebed5671ccc2cdc487c7acfe48bb0f3882bc0ad"
+      },
+      "match": true
+    },
+    {
+      "path": "apps/web/src/electronics/live-simulation-worker-controller.ts",
+      "expected": {
+        "bytes": 21778,
+        "sha256": "73d9af892743dacfce06eface6781f324d7188426c51017946b2b1a38cd0175b",
+        "git_blob": "44c36d484e4ea4f337fc502396100106d50767aa"
+      },
+      "actual": {
+        "bytes": 21778,
+        "sha256": "73d9af892743dacfce06eface6781f324d7188426c51017946b2b1a38cd0175b",
+        "git_blob": "44c36d484e4ea4f337fc502396100106d50767aa"
+      },
+      "match": true
+    },
+    {
+      "path": "apps/web/src/electronics/simulation-worker-evaluator.ts",
+      "expected": {
+        "bytes": 9230,
+        "sha256": "7da47c21ff4d938e4018b2a25a7a678bb728a905f5d3e7976b68b8ade59ecbdb",
+        "git_blob": "97a29927f766dab381e6ba3cb0cd5b3b3d3d36af"
+      },
+      "actual": {
+        "bytes": 9230,
+        "sha256": "7da47c21ff4d938e4018b2a25a7a678bb728a905f5d3e7976b68b8ade59ecbdb",
+        "git_blob": "97a29927f766dab381e6ba3cb0cd5b3b3d3d36af"
+      },
+      "match": true
+    },
+    {
+      "path": "apps/web/src/electronics/simulation-worker-protocol.ts",
+      "expected": {
+        "bytes": 3292,
+        "sha256": "145d5b43486fb868e62afff00a22979c1cc57b398619cd95b374f30e76470f14",
+        "git_blob": "0e4f82ed7f3819a287f27ac110726c8004e0bf7c"
+      },
+      "actual": {
+        "bytes": 3292,
+        "sha256": "145d5b43486fb868e62afff00a22979c1cc57b398619cd95b374f30e76470f14",
+        "git_blob": "0e4f82ed7f3819a287f27ac110726c8004e0bf7c"
+      },
+      "match": true
+    },
+    {
+      "path": "apps/web/src/electronics/use-electronics-workbench.ts",
+      "expected": {
+        "bytes": 113046,
+        "sha256": "72813fea2c4dd92c1b5a638486fb017cfa3aafcdf93bf1d19ae51de238dbf7bd",
+        "git_blob": "775fa41256938e164a9305a905f0190a213ffc17"
+      },
+      "actual": {
+        "bytes": 113046,
+        "sha256": "72813fea2c4dd92c1b5a638486fb017cfa3aafcdf93bf1d19ae51de238dbf7bd",
+        "git_blob": "775fa41256938e164a9305a905f0190a213ffc17"
+      },
+      "match": true
+    },
+    {
+      "path": "contexts/electronics/testing/led-temporal-observation.spec.ts",
+      "expected": {
+        "bytes": 15430,
+        "sha256": "9a62a6b52bbf01598dc48d39dee5a798228dbbd3e0a4e68c5f874ceaa82b607b",
+        "git_blob": "b2bdd4ec73159f8d3ec2089885c2f05b3e2d0c46"
+      },
+      "actual": {
+        "bytes": 15430,
+        "sha256": "9a62a6b52bbf01598dc48d39dee5a798228dbbd3e0a4e68c5f874ceaa82b607b",
+        "git_blob": "b2bdd4ec73159f8d3ec2089885c2f05b3e2d0c46"
+      },
+      "match": true
+    },
+    {
+      "path": "apps/web/src/electronics/testing/led-temporal-presentation.spec.ts",
+      "expected": {
+        "bytes": 15658,
+        "sha256": "c53fe35b0156721d73dad94ac6730e6b98eac1d9d26a7ad60932f9f8f88c7a5c",
+        "git_blob": "890ab344bd093bed0b71805798a425054665529b"
+      },
+      "actual": {
+        "bytes": 15658,
+        "sha256": "c53fe35b0156721d73dad94ac6730e6b98eac1d9d26a7ad60932f9f8f88c7a5c",
+        "git_blob": "890ab344bd093bed0b71805798a425054665529b"
+      },
+      "match": true
+    },
+    {
+      "path": "apps/web/src/electronics/testing/simulation-worker.spec.ts",
+      "expected": {
+        "bytes": 30661,
+        "sha256": "e5a3d69b2b1ed39f2c62dd0754362b17b4e3d890d6248e42597f1537aaac4603",
+        "git_blob": "92d6c4e8bf21e5f4140551de29556d6b78846a50"
+      },
+      "actual": {
+        "bytes": 30661,
+        "sha256": "e5a3d69b2b1ed39f2c62dd0754362b17b4e3d890d6248e42597f1537aaac4603",
+        "git_blob": "92d6c4e8bf21e5f4140551de29556d6b78846a50"
+      },
+      "match": true
+    },
+    {
+      "path": "apps/web/src/electronics/testing/live-simulation-worker-controller.spec.ts",
+      "expected": {
+        "bytes": 70922,
+        "sha256": "762484c847bf7b5aed644b4dd7363cf36d030ff8d0160f459bee17f06380dbdd",
+        "git_blob": "facb1876eb726f7d42e1c19292696db1cf55d8a1"
+      },
+      "actual": {
+        "bytes": 70922,
+        "sha256": "762484c847bf7b5aed644b4dd7363cf36d030ff8d0160f459bee17f06380dbdd",
+        "git_blob": "facb1876eb726f7d42e1c19292696db1cf55d8a1"
+      },
+      "match": true
+    },
+    {
+      "path": "apps/web/src/electronics/testing/use-electronics-workbench-clock.spec.ts",
+      "expected": {
+        "bytes": 34173,
+        "sha256": "10281abd46644f085415290ce4d7fac009cc6b8be9b70b8aee86a346f83d746f",
+        "git_blob": "6bbdcf3c3649c011361b7f86054bdfaab23e246a"
+      },
+      "actual": {
+        "bytes": 34173,
+        "sha256": "10281abd46644f085415290ce4d7fac009cc6b8be9b70b8aee86a346f83d746f",
+        "git_blob": "6bbdcf3c3649c011361b7f86054bdfaab23e246a"
+      },
+      "match": true
+    },
+    {
+      "path": "docs/product/electronics/contracts/CANONICAL_CLOCK_CONTRACT.md",
+      "expected": {
+        "bytes": 17223,
+        "sha256": "3cbbdea93b82a34a471399971d03f1b5791d5d87bc10da45c9a4138223eca320",
+        "git_blob": "8a4c415eab5417b718eb5091693a2f3d6f0d631d"
+      },
+      "actual": {
+        "bytes": 17223,
+        "sha256": "3cbbdea93b82a34a471399971d03f1b5791d5d87bc10da45c9a4138223eca320",
+        "git_blob": "8a4c415eab5417b718eb5091693a2f3d6f0d631d"
+      },
+      "match": true
+    },
+    {
+      "path": "docs/product/electronics/components/engine-worker-clock.yaml",
+      "expected": {
+        "bytes": 8304,
+        "sha256": "033c651501a5d3ec16d17497d04271adbe9c773c9868071784373fbee72f8ef9",
+        "git_blob": "96fd4f7f6ca96e1e6de55cacff2ac12f98d85541"
+      },
+      "actual": {
+        "bytes": 8304,
+        "sha256": "033c651501a5d3ec16d17497d04271adbe9c773c9868071784373fbee72f8ef9",
+        "git_blob": "96fd4f7f6ca96e1e6de55cacff2ac12f98d85541"
+      },
+      "match": true
+    }
+  ],
+  "review_findings": [
+    {
+      "id": "SOURCE-1",
+      "status": "RESOLVED_BEFORE_FREEZE",
+      "finding": "100 ms истории недостаточно у границы быстрых фаз с разделёнными ready.",
+      "counterexample": "Фронты 24/48/72/96/120 ms, ready143 ms: старые100 ms теряли первый необходимый фронт, mean отсутствовала.",
+      "resolution": "125 ms плюс предшественник, максимум513 samples. Сохраняет две полные циклические площади и текущую фазу; expiry остаётся строго25 ms."
+    },
+    {
+      "id": "SOURCE-2",
+      "status": "RESOLVED_BEFORE_FREEZE",
+      "finding": "stressState=burned ещё не означает физический разрыв; его использование как failure подавляло настоящее излучение и healthy neighbour.",
+      "counterexample": "Перед4,000,000 us: overdriven LED I≈0.397126 A, brightness100, lit=true, stress=burned, damage=none, presentation=destructive. На границе — failed_open и0.",
+      "resolution": "Actual failure определяется presentation=failed / deviceHealth=failed_open / damage=failed. До failure destructive отображается существующим overcurrent; после failure — burned и0. Root явно разрешил это узкое исправление в выбранном hook."
+    }
+  ],
+  "checked_invariants": [
+    {
+      "id": "MATH-CSEED",
+      "result": "PASS_SOURCE",
+      "detail": "Seed использует существующий checkpoint; held sample клипируется к C. Нет энергии до C даже при physicalCheckpoint<C."
+    },
+    {
+      "id": "MATH-SAME-TIME",
+      "result": "PASS_SOURCE",
+      "detail": "Same-time GPIO заменяет состояние без площади нулевой длительности; обратный переход и полный ring не оставляют фиктивный фронт."
+    },
+    {
+      "id": "MATH-NO-EXTRA-SOLVE",
+      "result": "PASS_SOURCE",
+      "detail": "Collector наблюдает уже имеющиеся quality-checked commits/seed/final ready; нет новых solve, physical barrier, instruction skip или изменения canonical continuation."
+    },
+    {
+      "id": "MATH-PARTITION",
+      "result": "PASS_SOURCE",
+      "detail": "Сумма brightness*held-duration и lit-duration сохраняются через бюджеты1/7/256, yield и JSON split. Fault/cancel отбрасывают приватный collector; ready публикуется только полностью."
+    },
+    {
+      "id": "MATH-INDEPENDENCE",
+      "result": "PASS_SOURCE",
+      "detail": "История и integral отдельны для каждого LED. Fast mean — действительная площадь за две полные циклические пары, включая amplitude changes; это не binary duty или общая средняя."
+    },
+    {
+      "id": "MATH-PHASE-EXPIRY",
+      "result": "PASS_SOURCE",
+      "detail": "Только все четыре полупериода<25 ms; last edge age<25 ms. В25,000 us возвращается мгновенная величина. Delay2000/100/50 остаётся фазовым."
+    },
+    {
+      "id": "HEALTH-AUTHORITY",
+      "result": "PASS_SOURCE",
+      "detail": "Disconnected/reversed/actual-failed LED не получают усреднённый свет. Реальный mixed test3999999/4000000/4000001 us сохраняет healthy fast mean на всех трёх кадрах и0 у физически failed LED."
+    },
+    {
+      "id": "UI-LIFECYCLE",
+      "result": "PASS_SOURCE",
+      "detail": "Result и presentation map публикуются атомарно; electrical result identity/current сохраняются. Generation, Stop, Reset, fault, cleanup очищают историю; stale callback не публикуется."
+    },
+    {
+      "id": "CONTRACT-SCOPE",
+      "result": "PASS_SOURCE",
+      "detail": "ordinary-led-held-v1 optional metadata исключена из canonical saved physical state. Изменения ограничены выбранными15 путями; e2e исключён из этого freeze."
+    }
+  ],
+  "validation": {
+    "independently_read_fresh_author_log": {
+      "domain": {
+        "files": 45,
+        "passed": 746
+      },
+      "web": {
+        "files": 49,
+        "passed": 519
+      },
+      "module_sdk_build": "PASS",
+      "typecheck": "27 projects +15 dependent tasks PASS",
+      "build": "27 projects PASS",
+      "cache_skipped_segments": 3,
+      "full_suite_rerun_by_reviewer": false
+    },
+    "independent_methods": [
+      "Сопоставлены все15 SHA256, bytes и Git blob с manifest; source patch и final focused log имеют ожидаемые SHA256.",
+      "Прочитан точный product/test/contract diff; проверены causal negative tests, а не только названия.",
+      "Ранее выполнены небольшие in-memory math counterexamples/held-area comparisons; browser и полные suites reviewer не запускал."
+    ],
+    "author_reported_additional_checks": [
+      "Narrow lint и Prettier15 files PASS",
+      "Routing PASS",
+      "Existing bundle threshold: SchematicEditor200247/209000 bytes PASS"
+    ],
+    "superseded_log": "focused-attempt1.log содержит три test-only strict TypeScript ошибки; итоговая проверка и исправления отражены в замороженном focused.log."
+  },
+  "limits": [
+    "Это source-only approval, не product PASS и не first milestone acceptance.",
+    "E2E-source review, exact candidate browser/CI, raw final artifact review и owner acceptance остаются отдельными.",
+    "Не подтверждает ручную wiring/Blockly/Save-reopen пользовательскую цепочку, школьную сеть/T3 или нагрузку15+15.",
+    "R17 SUCCESS и baseline General не заменяют exact R18 validation."
+  ]
+}

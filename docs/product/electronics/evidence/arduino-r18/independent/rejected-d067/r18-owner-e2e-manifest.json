@@ -1,0 +1,33 @@
+{
+  "base_sha": "59fb260f5533a6f536a33417fe249c60b9bf9623",
+  "path": "/workspace/scratch/927b9b969e63/asa-lab-arduino/e2e/electronics-ready-cadence.spec.ts",
+  "source_sha256": "d067f102d16f81390a92d68ebdc2c91ffa237dc1335503b7f92c93d9b8f751b4",
+  "unchanged_original_prefix_sha256": "74e45a784a4880a90834a92bda1034086721bf190f0f04179427544e4b8030e5",
+  "original_prefix_bytes": 58527,
+  "preserved_existing_test_count": 7,
+  "added_test_count": 4,
+  "discovered_test_count": 11,
+  "added_lines": 792,
+  "diff_sha256": "1d7f8cada8c9b52173f8e19e2537e60775f531ae90ae9ceaeff9dc5ed131c77a",
+  "verification": {
+    "prettier": "PASS",
+    "narrow_eslint": "PASS",
+    "strict_tsc_with_build_metadata_ambient": "PASS",
+    "playwright_list_workers_1": "PASS: 11 tests",
+    "browser_execution": "NOT RUN by author; root owns directed candidate/browser run",
+    "millis_runtime_sanity": "Product author separately confirmed exact source H510000 ready, quality PASS; not a browser throughput claim"
+  },
+  "new_cases": [
+    "Owner Arduino temporal: delay 2000 ms, two complete electrical and loaded-image cycles",
+    "Owner Arduino temporal: delay 1 ms, independent optical integrals and stable loaded-image brightness",
+    "Owner Arduino temporal: independent millis 500/200/100 ms outputs with different initial phases",
+    "Owner Arduino temporal: real Arduino Reset restarts setup and clears fast optical history"
+  ],
+  "artifact_contract": {
+    "raw": "e2e/artifacts/electronics-simulation/ready-cadence-539/owner-r18-*-raw.json",
+    "images": "e2e/artifacts/electronics-simulation/ready-cadence-539/owner-r18-*-frame.png",
+    "attachments": "Actual raw JSON and native PNG also attached with test.info(); failure trace retained by unchanged Playwright configuration",
+    "raw_fields": "actual advance.ledTemporal, source/hash, request/response generation, protocolVersion, engineRevision, projectSessionId, source clocks, compact complete optical frames, compressed confirmed loaded-image paint runs, reset trusted click, original raw ring/state/events/quality, persisted whole document, metrics"
+  },
+  "scope": "Only appended e2e/electronics-ready-cadence.spec.ts; no source/fixture/threshold/default timeout/worker/Playwright configuration change to the seven original tests; no remote/browser/GitHub mutation"
+}
