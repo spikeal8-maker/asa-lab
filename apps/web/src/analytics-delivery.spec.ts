@@ -34,7 +34,7 @@ function receipt(e: AnalyticsEnvelope, state = 'open') {
             sessionState: e.operation === 'close' ? 'closed' : state,
           },
         }
-      : { recordId: id(999) }),
+      : { recordId: 999 }),
   };
 }
 const workers: AnalyticsDelivery[] = [];
@@ -79,6 +79,32 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 describe('immutable actor-scoped browser delivery', () => {
+  it('removes an acknowledged numeric visit from memory and storage without retry or reload replay', async () => {
+    const f = fixture();
+    f.worker.visit(id(12), 'home', null);
+    expect(f.worker.inspect()).toEqual({ pending: 1, inFlight: 1, sessions: 0 });
+    expect(JSON.parse(f.storage.getItem('asa:analytics:v2')!).visits).toHaveLength(1);
+    await pump();
+    expect(f.transport).toHaveBeenCalledOnce();
+    expect(f.transport.mock.calls[0]![0]).toBe('/api/analytics/v2/events');
+    expect(f.worker.inspect()).toEqual({ pending: 0, inFlight: 0, sessions: 0 });
+    expect(JSON.parse(f.storage.getItem('asa:analytics:v2')!)).toEqual({
+      schemaVersion: 2,
+      actor,
+      sessions: [],
+      visits: [],
+    });
+    expect(f.quality.read().counters).toMatchObject({ acknowledged: 1, retried: 0 });
+    f.worker.retryNow();
+    await vi.advanceTimersByTimeAsync(31_000);
+    expect(f.transport).toHaveBeenCalledOnce();
+    f.worker.retire();
+    const restored = fixture(f.transport, f.storage);
+    restored.worker.retryNow();
+    await pump();
+    expect(restored.worker.inspect()).toEqual({ pending: 0, inFlight: 0, sessions: 0 });
+    expect(f.transport).toHaveBeenCalledOnce();
+  });
   it.each(['touch', 'close'] as const)(
     'acknowledges a server microsecond %s receipt and releases its queued operation',
     async (operation) => {

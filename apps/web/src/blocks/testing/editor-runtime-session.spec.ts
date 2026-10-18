@@ -57,7 +57,7 @@ function telemetryResponse(input: RequestInfo | URL, options?: RequestInit): Res
             pipeline: body['pipeline'],
             acknowledgementStage: body['acknowledgementStage'],
           }
-        : { recordId: PROJECT_ID }),
+        : { recordId: 1 }),
   });
 }
 

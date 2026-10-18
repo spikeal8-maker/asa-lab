@@ -44,7 +44,7 @@ function response(body: Record<string, unknown>) {
               pipeline: body.pipeline,
               acknowledgementStage: body.acknowledgementStage,
             }
-          : { recordId: projectId }),
+          : { recordId: 1 }),
     }),
     { status: 200 },
   );
@@ -325,6 +325,39 @@ describe('OBS007 repair actual ModuleEditorHost startup observation', () => {
 });
 
 describe('actual runtime identity and React ownership', () => {
+  it('does not replay acknowledged visits when the same Account switches workspace', async () => {
+    const visits = () =>
+      transport.mock.calls
+        .filter(([path]) => path === '/api/analytics/v2/events')
+        .map(([, init]) => JSON.parse(init!.body as string));
+    context.setTelemetryContext(actor, true, 'home');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(visits()).toHaveLength(1);
+    const original = visits()[0];
+    expect(savedQueue().visits).toEqual([]);
+    expect(savedQuality().snapshot.counters).toMatchObject({ acknowledged: 1, retried: 0 });
+    await vi.advanceTimersByTimeAsync(31_000);
+    expect(visits()).toEqual([original]);
+    const successor = { ...actor, workspaceId: projectId };
+    context.setTelemetryContext(successor, true, 'learning');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(visits()).toHaveLength(2);
+    const next = visits()[1];
+    expect(next.actorExpectation).toEqual(successor);
+    expect(next.eventId).not.toBe(original.eventId);
+    expect(next.visitId).not.toBe(original.visitId);
+    expect(savedQueue()).toEqual({
+      schemaVersion: 2,
+      actor: successor,
+      sessions: [],
+      visits: [],
+    });
+    context.setTelemetryContext({ ...successor }, true, 'projects');
+    window.dispatchEvent(new Event('online'));
+    await vi.advanceTimersByTimeAsync(31_000);
+    expect(visits()).toEqual([original, next]);
+    expect(savedQuality().snapshot.counters).toMatchObject({ acknowledged: 1, retried: 0 });
+  });
   it('StrictMode probe creates one visit and one start; disposal records the exact original close', async () => {
     const { trackInputActivity } = await import('./activity-lifecycle');
     const { analyticsSessionTransport } = await import('./analytics-runtime');

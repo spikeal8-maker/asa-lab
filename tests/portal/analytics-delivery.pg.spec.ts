@@ -3,6 +3,14 @@ import { performance } from 'node:perf_hooks';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createApiApp, analyticsPoolSettings } from '../../apps/api/dist/app.factory.js';
+import { AnalyticsDelivery } from '../../apps/web/src/analytics-delivery';
+import {
+  confirmedAnalytics,
+  validEnvelope,
+  type AnalyticsEnvelope,
+  type StoragePort,
+  type TelemetryActor,
+} from '../../apps/web/src/telemetry-contract';
 import { inject, type NestApp } from './app';
 import { seedTeacher, testAdminPool, testAppPool } from './helpers';
 
@@ -183,6 +191,91 @@ afterAll(async () => {
 });
 
 describe('real PostgreSQL observability delivery receipts', () => {
+  it('acknowledges the real numeric visit receipt in the shipping queue with one durable effect and no replay', async () => {
+    const actor: TelemetryActor = {
+      kind: 'account',
+      accountId: owner.accountId!,
+      workspaceId: owner.workspaceId!,
+    };
+    const values = new Map<string, string>();
+    const requests: AnalyticsEnvelope[] = [];
+    const responses: { status: number; body: unknown }[] = [];
+    let persistedAfterResponse!: () => void;
+    const processed = new Promise<void>((resolve) => (persistedAfterResponse = resolve));
+    const storage: StoragePort = {
+      getItem: (key) => values.get(key) ?? null,
+      setItem: (key, value) => {
+        values.set(key, value);
+        // Observe the shipping queue's first persisted state after real response consumption.
+        // A rejected acknowledgement resolves this too, exposing the retained visit immediately.
+        if (key === 'asa:analytics:v2' && responses.length) persistedAfterResponse();
+      },
+    };
+    const transport: typeof fetch = async (path, init) => {
+      requests.push(JSON.parse(init!.body as string) as AnalyticsEnvelope);
+      const response = await inject(app, {
+        method: 'POST',
+        url: String(path),
+        headers: { cookie, 'content-type': 'application/json' },
+        payload: init!.body as string,
+      });
+      responses.push({ status: response.statusCode, body: response.json() });
+      return new Response(response.body, {
+        status: response.statusCode,
+        headers: { 'content-type': 'application/json' },
+      });
+    };
+    const worker = new AnalyticsDelivery(actor, { storage, transport, id: randomUUID });
+    let restored: AnalyticsDelivery | undefined;
+    try {
+      worker.visit(randomUUID(), 'home', null);
+      await processed;
+      expect(requests).toHaveLength(1);
+      expect(responses).toHaveLength(1);
+      const envelope = requests[0]!;
+      const response = responses[0]!;
+      expect(validEnvelope(envelope)).toBe(true);
+      expect(envelope.eventId).toBe(envelope.eventId.toLowerCase());
+      expect(response.status).toBe(200);
+      expect(response.body).toMatchObject({
+        eventId: envelope.eventId,
+        receiptId: envelope.eventId,
+        operation: 'visit.observed',
+        recordId: expect.any(Number),
+      });
+      expect(confirmedAnalytics(response.body, envelope)).toBe(true);
+      expect(worker.inspect()).toEqual({ pending: 0, inFlight: 0, sessions: 0 });
+      expect(JSON.parse(storage.getItem('asa:analytics:v2')!)).toEqual({
+        schemaVersion: 2,
+        actor,
+        sessions: [],
+        visits: [],
+      });
+      expect(worker.quality.read().counters).toMatchObject({ acknowledged: 1, retried: 0 });
+      worker.retryNow();
+      expect(requests).toHaveLength(1);
+      worker.retire();
+      restored = new AnalyticsDelivery(actor, { storage, transport, id: randomUUID });
+      restored.retryNow();
+      expect(restored.inspect()).toEqual({ pending: 0, inFlight: 0, sessions: 0 });
+      expect(requests).toHaveLength(1);
+      const rows = (
+        await admin.query(
+          'SELECT id::text, event_type FROM product_analytics_events WHERE receipt_event_id=$1',
+          [envelope.eventId],
+        )
+      ).rows;
+      expect(rows).toEqual([
+        {
+          id: String((response.body as { recordId: number }).recordId),
+          event_type: 'visit.observed',
+        },
+      ]);
+    } finally {
+      worker.retire();
+      restored?.retire();
+    }
+  });
   it('confirms uppercase UUID input and replays canonical lowercase envelopes with one domain effect', async () => {
     const eventId = `abcdefab${randomUUID().slice(8)}`;
     const visitId = randomUUID();
