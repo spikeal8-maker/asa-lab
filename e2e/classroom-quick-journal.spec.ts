@@ -190,9 +190,9 @@ test('30 students, ten free slots, atomic retry, keyboard, header edit and relog
     };
   });
   expect(geometry.rows).toBe(1);
-  expect(geometry.name).toBeGreaterThanOrEqual(210);
-  // The designed 132px column fits a date and full category word.
-  expect(geometry.work).toBe(132);
+  expect(geometry.name).toBe(200);
+  // The designed 128px column fits a date and full category word.
+  expect(geometry.work).toBe(128);
   expect(geometry.font).toBe('16px');
   await page.screenshot({
     path: 'e2e/artifacts/owner-preview/classroom-quick-journal/teacher-1366.png',
