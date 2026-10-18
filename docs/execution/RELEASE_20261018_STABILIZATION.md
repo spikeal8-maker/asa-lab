@@ -53,3 +53,15 @@ opposite outcome, every other case, the shared timer helper and all runtime
 bytes. Keep passive failure evidence bounded. Independent HIGH review and one
 new exact-source Scratch Focused run are required; no unchanged heavy retry or
 claim that a product defect has already been established.
+
+General run39152831898 subsequently failed before PostgreSQL startup: its
+literal ECR image pull returned `toomanyrequests: Data limit exceeded` while
+Node builds/proofs and browser journeys passed. Select a separate ClassD
+General-only PostgreSQL transport repair. Retain original manifeste9243ab0,
+config52d5e34f and all14 ordered layers/rootfs identities from receipt545;
+mirror.gcr.io metadata has been verified. A disposable runner overlay may
+replace only that image for General/postgres-tests, with consistent Compose
+operations, model equality and actual pulled config/rootfs proof. Preserve the
+shared committed overlay, production defaults, every other workflow and all
+existing provenance. Guard challenges, independent final-source review and
+actual exact-source CI pull/start/data/RLS evidence remain mandatory.

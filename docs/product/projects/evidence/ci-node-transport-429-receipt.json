@@ -8,7 +8,7 @@
     "architecture": "amd64"
   },
   "original_receipt_sha256": "9b3b516e257aa31d3feb4a64c9dc8bfe7c33c9ad7d1be448245d8df044f7f273",
-  "boundary": "General disposable PostgreSQL job Node registry transport only; identical immutable image content",
+  "boundary": "General disposable PostgreSQL job Node and PostgreSQL registry transports only; identical immutable image content",
   "failure": {
     "candidate_sha": "4db817619772480f7a126ab8b761052e19c19b9e",
     "run": 39147961045,
@@ -103,6 +103,155 @@
           "config_sha256": "c72861c6705868ed7f08e1cf22ef4f7ba07a82c19a54ba65d931c442d3575889"
         }
       }
+    },
+    "postgres": {
+      "source": "registry-1.docker.io/library/postgres:17.7-bookworm",
+      "reference": "mirror.gcr.io/library/postgres@sha256:e9243ab06e47223dedeb3c129fa9ece8d37f506bdc6ee943afb9335f98bb4854",
+      "manifest_digest": "sha256:e9243ab06e47223dedeb3c129fa9ece8d37f506bdc6ee943afb9335f98bb4854",
+      "source_identity": {
+        "index": "sha256:86e0b703649d7a792bd9243ee28afc9d8f7c6b2b5638077c9d6882d4d472bbfd",
+        "manifest": "sha256:e9243ab06e47223dedeb3c129fa9ece8d37f506bdc6ee943afb9335f98bb4854",
+        "config": "sha256:52d5e34fcf5c882a859c1269963b35bdc7dcc2814ef0a0de6b8b408b2eb09db1"
+      },
+      "transport_identity": {
+        "index": "sha256:86e0b703649d7a792bd9243ee28afc9d8f7c6b2b5638077c9d6882d4d472bbfd",
+        "manifest": "sha256:e9243ab06e47223dedeb3c129fa9ece8d37f506bdc6ee943afb9335f98bb4854",
+        "config": "sha256:52d5e34fcf5c882a859c1269963b35bdc7dcc2814ef0a0de6b8b408b2eb09db1"
+      },
+      "config": {
+        "mediaType": "application/vnd.oci.image.config.v1+json",
+        "digest": "sha256:52d5e34fcf5c882a859c1269963b35bdc7dcc2814ef0a0de6b8b408b2eb09db1",
+        "size": 10137
+      },
+      "layers": [
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:4831516dd0cb86845f5f902cb9b9d25b5c853152c337eb57e4737a9b7e2a2eb9",
+          "size": 28228487
+        },
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:badb97e81c14b81b2e2ea2912cb28b229bd2be4f4ee7b27a468f1621731ca29d",
+          "size": 1168
+        },
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:5a76629586bf0afd9ae5c4b8c3c8d7cfe34b6c806f3540d7b97188e53018a026",
+          "size": 4534276
+        },
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:53c3a76086712838cd89353d2fe77556798565d2b2c97013bb55587f2c20cb62",
+          "size": 1249555
+        },
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:e89503f3fc88281c3edb3b6700fe95f1af1fcf27663b80bc81971f3ef58682d1",
+          "size": 8066462
+        },
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:0ad97e848d7bf5fc9fff15d6164f032a12f73c10a898b4e2b117528045b5587c",
+          "size": 1196381
+        },
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:acd32fbeaa7e64cde5974450d0da365dd0e569354f661b5fb0f50476f4695768",
+          "size": 116
+        },
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:175a5455594588f0126a154fd246bd3365a88e0836017cd979e581d9458f06d9",
+          "size": 3141
+        },
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:2862a781b6b96ce69cf5295d9a897914e1d6f45b6a0cf5a6bfaf170c3d163cb6",
+          "size": 112722862
+        },
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:f24480079ff229803d6194c238a7af2cc06569014bdc288413b4e6ffb055b2cb",
+          "size": 10239
+        },
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:69908cc7142f4a0018e7014dba9c70d4e1e8a518bc43aacf8500acb67fa80ca0",
+          "size": 128
+        },
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:073fedf2a066795a9066be7970b45a6b7a8b720af86ec1b67614e86813b3ab4e",
+          "size": 167
+        },
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:f4d95e72779e8825021e0500e6f494d86131ef7a633d82e5a13ac43119e2ecbb",
+          "size": 5838
+        },
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:cd77705f6bb6ab7e90bb4c7c1175e7caea546538aa76befdd2f4ea22af7b8f81",
+          "size": 187
+        }
+      ],
+      "rootfs_diff_ids": [
+        "sha256:e48af84b2108a5d73effd9e16685b42ac33e7994e606398c46690918f5f3604a",
+        "sha256:287fb1f473b2e1923bc3281be892641447378d38b58af7a59293823a04dfe0f8",
+        "sha256:d04b5335b095eee01a408dcaadbc480201219107ccc4214ce3f96e43eaeeb521",
+        "sha256:fce3803060adb77c26ed905dd34539711c4df933d5a1123e2e2a18215d09609c",
+        "sha256:a20164dabfca37537c0d112767045692b36e03669611993e1048b264d7af0856",
+        "sha256:bb726e5d0dde0be979588961a94c60340032f71b724c82a79f0f5ae7b6f7f442",
+        "sha256:b8e0869aa786e888603af1febf8e4882885a321f6a25f1e24bd81e3d740968b0",
+        "sha256:f4255b2a14fa1625a8f6f1f643757dc963ec7691e658fecef2f3e05fa795cad1",
+        "sha256:896150bb028306fe64b50c81cf780c2e201a83b94a1a92fa1f71b88a4642558c",
+        "sha256:8867ba12ef286751e500edced6441c40e748934e1b2e0229ee676e0b826ae24f",
+        "sha256:def223b045fa4c8a20a31e2b7c7df9e72b04d1a46661c5e5089defa0fc86e1db",
+        "sha256:636a299207abc037c24b1c03304bb853c831d5661f26e3ce1105f2d33c4cf08e",
+        "sha256:9fc1d5047d06f700449c3f8e87f716930e73c220f34b59c281259f4d3df31fa7",
+        "sha256:09b37072635700e0a3fbd521bea5543f997e944df6363dd74aa5b69daeda97f1"
+      ],
+      "raw_source_prefix": "postgres-17.7-bookworm-hub",
+      "raw_transport_prefix": "postgres-17.7-bookworm-ecr"
+    }
+  },
+  "postgres_transport": {
+    "task": "TASK-ESSENTIAL-RELEASE-001",
+    "issue": 620,
+    "workflow": ".github/workflows/spec-validation.yml",
+    "job": "postgres-tests",
+    "original_receipt_sha256": "9b3b516e257aa31d3feb4a64c9dc8bfe7c33c9ad7d1be448245d8df044f7f273",
+    "reuse": "Complete original PostgreSQL image identity and provenance retained; only reference changes for the General disposable data job",
+    "failure": {
+      "candidate_sha": "ccb97048d8b846798978c85eb8b544a04ffe057c",
+      "run": 39152831898,
+      "job": 117751333735,
+      "observed_utc": "2026-10-18T18:17:56.5530368Z",
+      "step": "Start isolated PostgreSQL",
+      "reason": "public.ecr.aws PostgreSQL pull returned toomanyrequests: Data limit exceeded after successful Node builds/rootfs/revision proof; PostgreSQL did not start"
+    },
+    "probe": {
+      "observed_utc": "2026-10-18T18:24:12.357483+00:00",
+      "reference": "mirror.gcr.io/library/postgres@sha256:e9243ab06e47223dedeb3c129fa9ece8d37f506bdc6ee943afb9335f98bb4854",
+      "manifest_url": "https://mirror.gcr.io/v2/library/postgres/manifests/sha256:e9243ab06e47223dedeb3c129fa9ece8d37f506bdc6ee943afb9335f98bb4854",
+      "config_url": "https://mirror.gcr.io/v2/library/postgres/blobs/sha256:52d5e34fcf5c882a859c1269963b35bdc7dcc2814ef0a0de6b8b408b2eb09db1",
+      "manifest": {
+        "http_status": 200,
+        "bytes": 3640,
+        "sha256": "sha256:e9243ab06e47223dedeb3c129fa9ece8d37f506bdc6ee943afb9335f98bb4854",
+        "docker_content_digest": "sha256:e9243ab06e47223dedeb3c129fa9ece8d37f506bdc6ee943afb9335f98bb4854"
+      },
+      "config": {
+        "http_status": 200,
+        "bytes": 10137,
+        "sha256": "sha256:52d5e34fcf5c882a859c1269963b35bdc7dcc2814ef0a0de6b8b408b2eb09db1"
+      },
+      "ordered_layer_count": 14,
+      "ordered_rootfs_count": 14,
+      "checks": "Raw manifest and config hashes, complete config descriptor, all ordered layer descriptors, Linux/amd64 and all rootfs diff_ids equal original receipt 545",
+      "capture_host": "Owner Windows host; read-only in-memory HTTP metadata; not a GitHub Actions runner",
+      "layer_bodies_fetched": 0,
+      "limitation": "Metadata proves content identity only. Actual Actions layer pull, PostgreSQL startup, migration/data/RLS and final exact-source CI remain required."
     }
   }
 }
