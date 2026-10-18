@@ -681,7 +681,7 @@ test('assigned without a project stays one row through start, submission and rev
     );
     expect(seatRoleDenied.status()).toBe(401);
     expect(await seatRoleDenied.json()).toMatchObject({ error: { code: 'unauthorized' } });
-    await pupil.goto('/#/learning');
+    await pupil.goto('/#/learning?view=results');
     await expect(pupil.getByRole('heading', { name: 'Мои заслуги', exact: true })).toBeVisible();
     await expect(pupil.getByRole('heading', { name: 'Заслуги преподавателя' })).toHaveCount(0);
     await expect(pupil.getByRole('region', { name: 'Мои показатели' })).not.toContainText('API');
@@ -845,7 +845,7 @@ test('real full Account and Seat manual history preserves zero and all five leve
     });
     for (const [learner, route, profilePath] of [
       [account, '/#/attending', `/api/classrooms/${classroom.id}/participants/${ownId}/profile`],
-      [seat, '/#/learning', '/api/class-join/participants/me'],
+      [seat, '/#/learning?view=results', '/api/class-join/participants/me'],
     ] as const) {
       await learner.goto(route);
       if (learner === account)
