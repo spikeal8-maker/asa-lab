@@ -701,8 +701,8 @@ function cleanCheckout(directory, expected) {
 
 const STAGES = [
   'identities',
-  'harness',
   'install',
+  'harness',
   'chromium-install',
   'build',
   'migrations',
@@ -817,12 +817,15 @@ export async function main(argv = process.argv.slice(2)) {
     delete env.PWDEBUG;
     const requireFromSource = createRequire(join(source, 'package.json'));
     const preparation = [
+      ['install', 'pnpm', ['install', '--frozen-lockfile']],
       [
         'harness',
         process.execPath,
         ['--test', join(diagnostic, 'tools/learning-mutation-diagnostic/harness.spec.mjs')],
+        // The integration regression must load the real pinned Playwright from
+        // the distinct tested-product checkout, after its frozen install.
+        { env: { ...env, ASA_LEARNING_DIAGNOSTIC_SOURCE: source } },
       ],
-      ['install', 'pnpm', ['install', '--frozen-lockfile']],
       ['chromium-install', 'pnpm', ['exec', 'playwright', 'install', '--with-deps', 'chromium']],
       ['build', 'pnpm', ['build']],
       ['migrations', 'pnpm', ['db:migrate']],
@@ -855,8 +858,8 @@ export async function main(argv = process.argv.slice(2)) {
         ],
       ],
     ];
-    for (const [name, command, args] of preparation) {
-      if (!childSucceeded(await stage(name, command, args))) throw new Error('STAGE_FAILED');
+    for (const [name, command, args, extra] of preparation) {
+      if (!childSucceeded(await stage(name, command, args, extra))) throw new Error('STAGE_FAILED');
     }
     cleanup = true;
     if (

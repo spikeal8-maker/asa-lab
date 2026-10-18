@@ -30,7 +30,14 @@ export default class MutationEvidenceReporter {
     return true;
   }
 
-  onBegin(_config, suite) {
+  version() {
+    // Playwright's V1 adapter retains raw stdout/stderr/errors until onBegin.
+    // Opt into V2 so even web-server startup output reaches our bounded sink
+    // immediately, before test discovery completes.
+    return 'v2';
+  }
+
+  onBegin(suite) {
     const tests = suite.allTests();
     if (tests.length !== 23) this.faults.add('MATRIX_MISMATCH');
     const cases = tests.slice(0, 23).map((test, index) => {

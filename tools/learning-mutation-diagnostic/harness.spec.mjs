@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
+import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { test } from 'node:test';
+import { fileURLToPath } from 'node:url';
 import {
   BoundedLines,
   EXPECTED_SUITES,
@@ -133,6 +136,94 @@ function fakeChild(events, { code = 0, signal = null, oversized = false } = {}) 
     ${signal ? `process.kill(process.pid, ${JSON.stringify(signal)});` : `process.exit(${code});`}
   `;
 }
+
+function actualPlaywrightWrapper() {
+  // No mock or skipped fallback: CI supplies the independently verified product
+  // checkout after frozen install. pnpm need not hoist playwright at its root.
+  // Resolve it through @playwright/test's own dependency context instead.
+  try {
+    const source = process.env.ASA_LEARNING_DIAGNOSTIC_SOURCE;
+    const diagnostic = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
+    if (!source || !isAbsolute(source) || resolve(source) === diagnostic) throw new Error();
+    const testPackage = createRequire(join(source, 'package.json')).resolve(
+      '@playwright/test/package.json',
+    );
+    const playwrightPackage = createRequire(testPackage).resolve('playwright/package.json');
+    for (const packagePath of [testPackage, playwrightPackage]) {
+      const within = relative(source, packagePath);
+      if (!within || within.startsWith('..') || isAbsolute(within)) throw new Error();
+      if (JSON.parse(readFileSync(packagePath, 'utf8')).version !== '1.55.1') throw new Error();
+    }
+    const actual = createRequire(playwrightPackage)(
+      join(dirname(playwrightPackage), 'lib/reporters/reporterV2.js'),
+    );
+    if (typeof actual.wrapReporterAsV2 !== 'function') throw new Error();
+    return actual.wrapReporterAsV2;
+  } catch {
+    // Do not put dynamic dependency errors, paths or raw test input in failures.
+    assert.fail('A distinct source checkout with actual Playwright 1.55.1 is required');
+  }
+}
+
+test('actual Playwright V2 adapter delivers and bounds early stdout before onBegin', () => {
+  const events = [];
+  const reporter = new MutationEvidenceReporter({ diagnosticEmit: (event) => events.push(event) });
+  const adapted = actualPlaywrightWrapper()(reporter);
+  assert.equal(adapted === reporter, true, 'V2 must bypass the raw deferred-output wrapper');
+  assert.equal(Object.hasOwn(adapted, '_deferred'), false);
+  assert.equal(adapted.version(), 'v2');
+
+  // First prove that actual adapter delivery starts before the test matrix.
+  adapted.onStdOut(prefix(`${JSON.stringify(raw('http_request_started'))}\n`));
+  adapted.onStdOut(prefix(`${JSON.stringify(raw('http_response'))}\n`));
+  assert.equal(reporter.capture.terminalCount, 1);
+  assert.equal(events.filter((event) => event.type === 'http').length, 1);
+  assert.equal(
+    events.some((event) => event.type === 'matrix'),
+    false,
+  );
+
+  // The first oversized unterminated chunk must fail immediately. Another 99
+  // chunks cannot accumulate behind Playwright's pre-onBegin adapter boundary.
+  const oversized = prefix(PRIVATE.repeat(Math.ceil((MAX_LINE_BYTES * 2) / PRIVATE.length)));
+  for (let index = 0; index < 100; index++) {
+    adapted.onStdOut(oversized);
+    assert.equal(reporter.capture.faults.list().includes('RAW_LINE_TOO_LONG'), true);
+    assert.equal(reporter.capture.lines.pending.length, 0);
+    assert.equal(reporter.capture.lines.discarding, true);
+  }
+  assert.equal(
+    events.some((event) => event.type === 'matrix'),
+    false,
+  );
+  noLeak({ events, reporter });
+});
+
+test('actual Playwright V2 adapter neither defers early stderr/errors nor changes the matrix signature', () => {
+  const events = [];
+  const reporter = new MutationEvidenceReporter({ diagnosticEmit: (event) => events.push(event) });
+  const adapted = actualPlaywrightWrapper()(reporter);
+  assert.equal(adapted === reporter, true, 'V2 must bypass the raw deferred-output wrapper');
+  const stderr = PRIVATE.repeat(Math.ceil((MAX_LINE_BYTES * 2) / PRIVATE.length));
+  for (let index = 0; index < 100; index++) {
+    adapted.onStdErr(stderr);
+    adapted.onError({ message: stderr, stack: stderr });
+    assert.equal(reporter.globalErrors, index + 1);
+    assert.equal(reporter.faults.list().includes('REPORTER_ERROR'), true);
+    assert.equal(reporter.capture.lines.pending.length, 0);
+  }
+  assert.equal(Object.hasOwn(adapted, '_deferred'), false);
+  assert.equal(events.length, 1);
+  const tests = matrixCases().map((item) => ({
+    location: { file: `${item.suite}.spec.ts` },
+    expectedStatus: 'passed',
+  }));
+  adapted.onBegin({ allTests: () => tests });
+  assert.equal(events.filter((event) => event.type === 'matrix').length, 1);
+  assert.equal(events.at(-1).cases.length, 23);
+  assert.equal(reporter.faults.list().includes('MATRIX_MISMATCH'), false);
+  noLeak({ events, reporter });
+});
 
 test('bounded UTF-8 lines reassemble split bytes and ANSI controls without retaining raw text', () => {
   const faults = faultSet();
@@ -441,7 +532,7 @@ test('reporter drops errors, attachments, test stdout and server stderr while re
     expectedStatus: 'passed',
     title: PRIVATE,
   }));
-  reporter.onBegin({}, { allTests: () => tests });
+  reporter.onBegin({ allTests: () => tests });
   reporter.onStdOut(prefix(`${JSON.stringify(raw('http_request_started'))}\n`));
   reporter.onStdOut(prefix(`${JSON.stringify(raw('http_response'))}\n`));
   for (const testCase of tests) {
@@ -491,7 +582,7 @@ test('reporter rejects unexpected matrix field values before they enter even the
     location: { file: `${item.suite}.spec.ts` },
     expectedStatus: 'passed',
   }));
-  reporter.onBegin({}, { allTests: () => tests });
+  reporter.onBegin({ allTests: () => tests });
   reporter.onTestBegin(tests[0], { startTime: new Date('invalid') });
   reporter.onTestEnd(tests[0], { status: PRIVATE, duration: 1, retry: 0 });
   reporter.onTestEnd(tests[1], { status: 'failed', duration: PRIVATE, retry: 0 });
