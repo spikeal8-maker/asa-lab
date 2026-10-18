@@ -270,3 +270,50 @@ ratings journey, while the exact same test passes in Data job `117757301925` at
 of the timing difference remains unproved. Keep it unresolved; no timeout or
 parallelism increase is selected. A further failure on the changed candidate
 requires phase/SQL/blocker evidence before a separate repair decision.
+
+## Separate C — preserve independent decoding of small print QR rasters
+
+TASK-PROJ-PUBLICATION-QR-PRINT-RASTER-001.
+Author branch: `codex/projects-qr-print-raster`.
+
+Classroom run `39154885479`, job `117755945105`, on publication source
+`662c8af4fbffead0f71b2fb95a4e9768d0c4b9fb` fails the owner mixed-card print
+scenario in `e2e/student-access-cards.spec.ts`. Independent read-only diagnosis
+verified artifact `12146839286`, SHA256
+`205457c8e4e5ccd34fe462818d1998716fee906c19e93ab47ecaab1e60bd5991`, and replayed
+the actual trace DOM, all fourteen loaded stylesheets and original SVG using
+the same Playwright 1.55.1 / Chromium 140.0.7339.186 as CI, with zero network
+requests and no ASA application, database or installation.
+
+The long-site fixture changes a printed label and CSS class, not the QR URL.
+Existing print CSS reduces the QR from 20mm to 16mm. At DPR1 its fractional
+position yields a 62x61 screenshot. Independent jsQR 1.4.0 returns null, although
+the original white quiet zone and opaque black/white pixels remain intact.
+Nearest-neighbor 2x replication of that exact PNG, the unchanged DOM at DPR2/3,
+and the unchanged two-page A4 PDF rasterized at 300dpi each decode the exact
+expected URL, including a separate monochrome check. Blank and removed-finder
+controls remain undecodable after replication. Physical paper/camera testing
+was not performed; these results establish the screenshot/decoder boundary,
+not a defect in the product encoder or print CSS.
+
+### Bounded author scope
+
+- `e2e/student-access-cards.spec.ts`.
+- `e2e/fixtures/qr-print-raster.ts`.
+- `tests/portal/qr-print-raster.spec.ts`.
+
+Keep the real Locator screenshot and inspect its original quiet zone. Normalize
+only print input with a bounded integer nearest-neighbor replication, preserving
+every original pixel and channel; do not smooth, crop, regenerate modules or read
+the expected URL from DOM/React/encoder state. Retain raw screen decoding,
+independent jsQR, monochrome decoding, full expected URL comparison, privacy,
+layout, roster, credential and no-mutation assertions. Preserve original PNG
+failure evidence. No retry, timeout, rate-limit, viewport/DPR, product CSS/SVG,
+API, database, dependency or workflow change is selected.
+
+Acceptance requires a focused regression using the reproduced failing raster,
+blank/corrupt-finder negative controls and input immutability; a new independent
+review of the final SHA; and actual changed-source Classroom/Access browser CI.
+Synthetic replay and source approval alone do not establish the full classroom
+journey. This repair is independent of analytics PR628, the final publication
+shell source7db13b9 and the single-owner GC1 shared-guard work.

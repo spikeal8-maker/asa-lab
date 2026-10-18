@@ -4114,6 +4114,37 @@ parallel_lanes:
           The six login429 responses are linked to the common mutation guard by headers;
           residual429 after this repair remain a separate question. Access rating timeout
           5011ms versus Data1135ms has no proved cause and remains unresolved, not waived.
+      - id: TASK-PROJ-PUBLICATION-QR-PRINT-RASTER-001
+        status: in_progress
+        branch: codex/projects-qr-print-raster
+        scope:
+          - e2e/student-access-cards.spec.ts
+          - e2e/fixtures/qr-print-raster.ts
+          - tests/portal/qr-print-raster.spec.ts
+        selection: >-
+          Separate bounded C test-only repair after independent exact-artifact diagnosis.
+          Classroom run39154885479/job117755945105 on662c8af4 fails independent jsQR
+          decoding only after long-site print CSS reduces the valid QR to16mm. Frozen
+          trace DOM/CSS/SVG replay on the same Chromium140/Playwright1.55.1 yields62x61
+          pixels atDPR1 and jsQR null; nearest-neighbor2x of those same pixels, DPR2/3
+          and the unchanged PDF at300dpi decode the exact payload. Original quiet zone,
+          opaque black/white pixels and encoder output are intact. No product defect
+          in the QR generation or print layout is established.
+        author_coordination: >-
+          One separate QR-test author owns only these three paths. Preserve active
+          analytics628, publication shell7db13b9, Learning622 and the GC1 guard/receipts
+          and Electronics specs. No QR author overlap was found in current PR/control
+          inspection; coordination is recorded in PR613/comment6254582754.
+        acceptance: >-
+          Normalize only print screenshots by bounded integer nearest-neighbor pixel
+          replication, never by reading the QR encoder/DOM payload. Retain raw-screen
+          decoding, original-raster quiet-zone checks, independent jsQR and monochrome
+          decoding, exact full URL and all privacy/no-mutation/layout assertions.
+          Reproduce the original failing raster, reject blank/corrupt finder controls,
+          preserve original screenshot evidence and prove no input mutation. No retry,
+          timeout/rate-limit/viewport/DPR/product CSS or SVG change. Require focused
+          regression, independent exact-source review and real Classroom/Access CI
+          on the changed SHA. Original artifact12146839286 SHA256205457c8e4e5ccd34fe462818d1998716fee906c19e93ab47ecaab1e60bd5991.
     accepted_foundation:
       accepted_r7_01b_merge_sha: 65316c50873e28a5effd7b6e603b5289e37e2fac
       accepted_r3_merge_sha: 5fa616045b16d2720418eb7945f7bef968dd9389

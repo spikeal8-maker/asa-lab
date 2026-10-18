@@ -963,6 +963,21 @@ export function AccountPage({
                   </div>
                   <strong>{profile.country}</strong>
                 </div>
+                <div>
+                  <div className="account-field-heading">
+                    <span>Пароль</span>
+                    <InfoHint label="Информация о входе по паролю">
+                      Настроенный пароль позволяет войти, если MAX и Telegram временно недоступны.
+                    </InfoHint>
+                  </div>
+                  <strong>
+                    {passwordStatus === null
+                      ? 'Статус недоступен'
+                      : passwordStatus.configured
+                        ? 'Настроен'
+                        : 'Не настроен'}
+                  </strong>
+                </div>
               </div>
               <AccountSignInMethods
                 key={session.account.id}

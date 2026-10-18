@@ -8,8 +8,11 @@ on:
       - 'apps/web/src/**'
       - 'migrations/**'
       - 'tests/account/**'
+      - 'tests/migration/**'
       - 'e2e/auth-confirmation-ui.spec.ts'
+      - 'e2e/access-account-ui.spec.ts'
       - 'playwright.auth-confirmation.config.ts'
+      - 'playwright.settings-ui.config.ts'
       - 'schemas/openapi.yaml'
       - 'package.json'
       - 'pnpm-lock.yaml'
@@ -20,8 +23,11 @@ on:
       - 'apps/web/src/**'
       - 'migrations/**'
       - 'tests/account/**'
+      - 'tests/migration/**'
       - 'e2e/auth-confirmation-ui.spec.ts'
+      - 'e2e/access-account-ui.spec.ts'
       - 'playwright.auth-confirmation.config.ts'
+      - 'playwright.settings-ui.config.ts'
       - 'schemas/openapi.yaml'
       - 'package.json'
       - 'pnpm-lock.yaml'
@@ -118,6 +124,8 @@ jobs:
         run: pnpm exec nx run web:build --skip-nx-cache
       - name: Sign-in, confirmation, outage fallback and responsive administration
         run: pnpm e2e:auth-confirmation
+      - name: Existing Account security and settings composition
+        run: pnpm e2e:settings-ui --grep 'R3 Account compact composition'
       - name: Preserve screenshots, traces and build identity
         if: always()
         uses: actions/upload-artifact@v4
