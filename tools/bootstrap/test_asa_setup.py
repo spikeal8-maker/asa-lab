@@ -55,7 +55,8 @@ class SetupPlanningTests(unittest.TestCase):
     def test_safe_restore_prepares_exact_flags(self):
         with tempfile.TemporaryDirectory() as d:
             Path(d, "manifest.json").write_text("{}")
-            data = answers(data_mode="restore", fresh_empty_confirmed=False,
+            data = answers(root=str(Path(d)/"new-school"), data_mode="restore",
+                           fresh_empty_confirmed=False,
                            restore_backup=d, restore_snapshot="20261017T231505Z-65b68074",
                            min_active_students=300, min_seats=400)
             plan = setup.build_plan(data, facts=FACTS)
@@ -70,7 +71,8 @@ class SetupPlanningTests(unittest.TestCase):
 
     def test_incomplete_backup_never_qualifies_for_restore(self):
         with tempfile.TemporaryDirectory() as d:
-            data = answers(data_mode="restore", fresh_empty_confirmed=False,
+            data = answers(root=str(Path(d)/"new-school"), data_mode="restore",
+                           fresh_empty_confirmed=False,
                            restore_backup=d, restore_snapshot="approved")
             plan = setup.build_plan(data, facts=FACTS)
             self.assertFalse(plan["ready"])
@@ -185,9 +187,10 @@ class SetupPlanningTests(unittest.TestCase):
             self.assertIn("school-lan", plan["command"])
 
     def test_school_lan_needs_existing_release(self):
-        plan = setup.build_plan({"schema_version":1, "action":"school-lan"},
-                                facts=FACTS)
-        self.assertFalse(plan["ready"])
+        with tempfile.TemporaryDirectory() as d:
+            plan = setup.build_plan({"schema_version":1, "action":"school-lan",
+                                     "root":str(Path(d)/"new-school")}, facts=FACTS)
+            self.assertFalse(plan["ready"])
 
     def test_windows_cannot_run_linux_bootstrap(self):
         plan = setup.build_plan(answers(),
@@ -230,7 +233,7 @@ class SetupExecutionTests(unittest.TestCase):
     def test_execute_passes_only_approved_argv(self):
         with tempfile.TemporaryDirectory() as d:
             source=Path(d)/"answers.json"
-            source.write_text(json.dumps(answers()))
+            source.write_text(json.dumps(answers(root=str(Path(d)/"new-school"))))
             with mock.patch.object(setup, "host_facts", return_value=FACTS), \
                  mock.patch.object(setup.os, "geteuid", return_value=0), \
                  mock.patch.object(setup.subprocess, "run", return_value=
