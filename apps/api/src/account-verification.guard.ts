@@ -6,9 +6,10 @@ import {
   type ExecutionContext,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import type { ActiveContextUseCase, SeatContextUseCase } from '@asa-lab/identity';
+import type { ActiveContextUseCase } from '@asa-lab/identity';
 import type { FastifyRequest } from 'fastify';
 import { AccountVerificationService } from './account-verification.service.js';
+import type { SeatContextUseCase } from './seat-context.js';
 import { SESSION_COOKIE, TOKENS } from './tokens.js';
 
 const ALLOW_UNVERIFIED_ACCOUNT = 'asa.allowUnverifiedAccount';
@@ -19,6 +20,7 @@ const ALLOW_UNVERIFIED_ACCOUNT = 'asa.allowUnverifiedAccount';
 const INDEPENDENT_ROUTES = new Set([
   'GET /api/modules',
   'GET /api/version',
+  'GET /api/classroom-teacher-invitations/:token',
   'GET /health/live',
   'GET /health/ready',
   'GET /health/metrics',
@@ -49,6 +51,7 @@ const SEAT_FIRST_ROUTES = new Set([
   'POST /api/class-join/me/assignments/:assignmentId/work',
   'POST /api/class-join/me/assignments/:assignmentId/submit',
   'GET /api/learning/projects/:projectId/context',
+  'POST /api/learning/projects/:projectId/submit',
   'POST /api/learning/work/runs/:activityRunId/start',
 ]);
 

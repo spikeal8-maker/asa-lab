@@ -2,7 +2,8 @@ import 'reflect-metadata';
 import { describe, expect, it, vi } from 'vitest';
 import { Reflector } from '@nestjs/core';
 import type { ExecutionContext } from '@nestjs/common';
-import type { ActiveContextUseCase, SeatContextUseCase } from '@asa-lab/identity';
+import type { ActiveContextUseCase } from '@asa-lab/identity';
+import type { SeatContextUseCase } from './seat-context.js';
 import { AccountVerificationGuard, AllowUnverifiedAccount } from './account-verification.guard.js';
 import { AccountVerificationService } from './account-verification.service.js';
 
@@ -106,14 +107,18 @@ describe('central account verification API guard', () => {
     expect(test.resolve).not.toHaveBeenCalled();
   });
 
-  it.each(['/api/modules', '/api/version', '/health/live', '/health/ready', '/health/metrics'])(
-    'preserves the public read %s with a restricted Account cookie',
-    async (route) => {
-      const test = harness({ cookie: 'valid-session', route, failure: new Error('required') });
-      expect(await test.guard.canActivate(test.context)).toBe(true);
-      expect(test.verification.isEnabled).not.toHaveBeenCalled();
-    },
-  );
+  it.each([
+    '/api/modules',
+    '/api/version',
+    '/api/classroom-teacher-invitations/:token',
+    '/health/live',
+    '/health/ready',
+    '/health/metrics',
+  ])('preserves the public read %s with a restricted Account cookie', async (route) => {
+    const test = harness({ cookie: 'valid-session', route, failure: new Error('required') });
+    expect(await test.guard.canActivate(test.context)).toBe(true);
+    expect(test.verification.isEnabled).not.toHaveBeenCalled();
+  });
 
   it.each([
     '/api/gallery',
@@ -146,12 +151,17 @@ describe('central account verification API guard', () => {
     expect(test.requireAccount).not.toHaveBeenCalled();
   });
 
-  it('preserves a verified Seat selected before Account by a mixed learner handler', async () => {
+  it.each([
+    ['GET', '/api/learning/projects/:projectId/context'],
+    ['POST', '/api/learning/projects/:projectId/submit'],
+    ['POST', '/api/learning/work/runs/:activityRunId/start'],
+  ])('preserves the genuine Seat selected before Account by %s %s', async (method, route) => {
     const test = harness({
       cookie: 'valid-session',
       seatCookie: 'valid-seat',
       resolveSeat: true,
-      route: '/api/learning/projects/:projectId/context',
+      method,
+      route,
       failure: new Error('required'),
     });
     expect(await test.guard.canActivate(test.context)).toBe(true);
@@ -159,11 +169,16 @@ describe('central account verification API guard', () => {
     expect(test.requireAccount).not.toHaveBeenCalled();
   });
 
-  it('does not accept a forged Seat cookie on a mixed learner handler', async () => {
+  it.each([
+    ['GET', '/api/learning/projects/:projectId/context'],
+    ['POST', '/api/learning/projects/:projectId/submit'],
+    ['POST', '/api/learning/work/runs/:activityRunId/start'],
+  ])('does not accept a forged Seat cookie on %s %s', async (method, route) => {
     const test = harness({
       cookie: 'valid-session',
       seatCookie: 'forged-seat',
-      route: '/api/learning/projects/:projectId/context',
+      method,
+      route,
       failure: new Error('required'),
     });
     await expect(test.guard.canActivate(test.context)).rejects.toThrow('required');
@@ -179,5 +194,15 @@ describe('central account verification API guard', () => {
     });
     await expect(test.guard.canActivate(test.context)).rejects.toThrow('required');
     expect(test.seats.resolve).not.toHaveBeenCalled();
+  });
+
+  it('keeps invitation acceptance protected although the token lookup is public', async () => {
+    const test = harness({
+      cookie: 'valid-session',
+      method: 'POST',
+      route: '/api/classroom-teacher-invitations/:token/accept',
+      failure: new Error('required'),
+    });
+    await expect(test.guard.canActivate(test.context)).rejects.toThrow('required');
   });
 });
