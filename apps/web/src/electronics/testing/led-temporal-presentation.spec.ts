@@ -1,4 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { runInNewContext } from 'node:vm';
+import ts from 'typescript';
 import {
   createElectronicsAdvanceSession,
   parseElectronicsEngineDocument,
@@ -91,6 +94,179 @@ function electrical(observation: ElectronicsLedTemporalObservation): SolveResult
   };
 }
 
+// Execute the real pure browser-oracle functions without importing a Playwright
+// suite (which initializes database fixtures). These are counterexamples, not
+// substitutes for the actual Worker/browser journeys.
+const oracleSource = ts.createSourceFile(
+  'electronics-ready-cadence.spec.ts',
+  readFileSync(
+    new URL('../../../../../e2e/electronics-ready-cadence.spec.ts', import.meta.url),
+    'utf8',
+  ),
+  ts.ScriptTarget.Latest,
+  true,
+);
+const oracleNames = new Set([
+  'validTemporalPaint',
+  'temporalPhysicalBrightness',
+  'temporalJointWitness',
+  'temporalPaintCausality',
+]);
+const oracleDeclarations = oracleSource.statements
+  .filter(
+    (statement) =>
+      (ts.isFunctionDeclaration(statement) &&
+        statement.name &&
+        oracleNames.has(statement.name.text)) ||
+      (ts.isVariableStatement(statement) &&
+        statement.declarationList.declarations.some(
+          (declaration) =>
+            ts.isIdentifier(declaration.name) &&
+            declaration.name.text === 'OWNER_TEMPORAL_PUBLICATION_LAG_MS',
+        )),
+  )
+  .map((statement) => statement.getText(oracleSource));
+if (oracleDeclarations.length !== 5)
+  throw new Error('actual browser joint oracle declarations not found');
+const oracle = runInNewContext(
+  ts.transpileModule(
+    `${oracleDeclarations.join('\n')}\n({ joint: temporalJointWitness, paint: temporalPaintCausality });`,
+    { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } },
+  ).outputText,
+) as {
+  joint: (frame: Record<string, unknown>, brightness: readonly number[]) => number | undefined;
+  paint: (
+    raw: Record<string, unknown>,
+    source: string,
+    generation: number,
+    from: number,
+  ) => {
+    witnesses: Array<{ modelTimeMicroseconds: number; supersededAt: number | null }>;
+    violations: Array<{ reason: string }>;
+  };
+};
+
+function oracleFrame(
+  observation: ElectronicsLedTemporalObservation,
+  at = observation.toMicroseconds / 1000,
+) {
+  return {
+    source: 'analytic',
+    generationId: 1,
+    responseGenerationId: 1,
+    requestAt: Math.max(0, at - 1),
+    at,
+    executionStatus: 'ready',
+    solved: true,
+    qualityPassed: true,
+    requestedHorizonMicroseconds: observation.toMicroseconds,
+    committedHorizonMicroseconds: observation.toMicroseconds,
+    continuationHorizonMicroseconds: observation.toMicroseconds,
+    components: electrical(observation).components,
+    ledTemporal: observation,
+  };
+}
+
+function oraclePaint(frames: ReturnType<typeof oracleFrame>[], at: number, brightness: number[]) {
+  return {
+    frames,
+    paintRuns: [
+      {
+        first: {
+          previousFrameAt: at - 16,
+          brightness,
+          images: brightness.map((value) => ({
+            decoded: true,
+            visible: true,
+            unoccluded: true,
+            opacity: 1,
+            lit: value > 0,
+          })),
+        },
+        lastAt: at,
+        witnessAt: [at],
+      },
+    ],
+  };
+}
+
+describe('actual browser joint provenance oracle counterexamples', () => {
+  const observation = window(175_000, 200_000, [
+    square(175_000, 200_000, 50_000, 80, 'led0'),
+    channel('led1', [point(175_000, 0), point(190_000, 80), point(200_000, 80)]),
+    channel('led2', [point(175_000, 0), point(200_000, 0)]),
+  ]);
+
+  it('uses one real190ms joint time in ready200 and expires it at200+50ms without a later receipt', () => {
+    const frame = oracleFrame(observation);
+    expect(oracle.joint(frame, [0, 80, 0])).toBe(190_000);
+    const first = oracle.paint(oraclePaint([frame], 215, [0, 80, 0]), 'analytic', 1, 0);
+    expect(first.violations).toEqual([]);
+    expect(first.witnesses[0]).toMatchObject({ modelTimeMicroseconds: 190_000, supersededAt: 200 });
+    expect(
+      oracle.paint(oraclePaint([frame], 250, [0, 80, 0]), 'analytic', 1, 0).violations,
+    ).toEqual([]);
+    expect(
+      oracle.paint(oraclePaint([frame], 250.001, [0, 80, 0]), 'analytic', 1, 0).violations,
+    ).toHaveLength(1);
+  });
+
+  it('rejects individually present light values that never coexist at one time', () => {
+    const neverJoint = window(0, 25_000, [
+      channel('led0', [point(0, 80), point(12_500, 0), point(25_000, 0)]),
+      channel('led1', [point(0, 0), point(12_500, 80), point(25_000, 80)]),
+      channel('led2', [point(0, 0), point(25_000, 0)]),
+    ]);
+    expect(oracle.joint(oracleFrame(neverJoint), [80, 80, 0])).toBeUndefined();
+    expect(
+      oracle.paint(oraclePaint([oracleFrame(neverJoint)], 30, [80, 80, 0]), 'analytic', 1, 0)
+        .violations,
+    ).toHaveLength(1);
+  });
+
+  it.each([
+    'yielded',
+    'fault',
+    'quality',
+    'unsolved',
+    'horizon',
+    'continuation',
+    'generation',
+    'failure',
+    'future-sample',
+  ])('withholds a %s optical witness', (reason) => {
+    const frame = oracleFrame(structuredClone(observation));
+    if (reason === 'yielded' || reason === 'fault') frame.executionStatus = reason;
+    if (reason === 'quality') frame.qualityPassed = false;
+    if (reason === 'unsolved') frame.solved = false;
+    if (reason === 'horizon') frame.requestedHorizonMicroseconds++;
+    if (reason === 'continuation') frame.continuationHorizonMicroseconds--;
+    if (reason === 'generation') frame.responseGenerationId++;
+    if (reason === 'failure') Object.assign(frame.components[0]!, { presentationState: 'failed' });
+    if (reason === 'future-sample')
+      Object.assign(frame.ledTemporal.components[0]!.samples.at(-1)!, { atMicroseconds: 200_001 });
+    expect(oracle.joint(frame, [0, 80, 0])).toBeUndefined();
+  });
+
+  it('rejects receipts arriving in the future and a previously valid but inactive generation', () => {
+    const future = oracleFrame(observation, 220);
+    expect(
+      oracle.paint(oraclePaint([future], 215, [0, 80, 0]), 'analytic', 1, 0).violations,
+    ).toHaveLength(1);
+    const old = oracleFrame(observation);
+    const active = {
+      ...future,
+      requestAt: 210,
+      source: 'changed',
+      generationId: 2,
+      responseGenerationId: 2,
+    };
+    expect(
+      oracle.paint(oraclePaint([old, active], 215, [0, 80, 0]), 'analytic', 1, 0).violations,
+    ).toHaveLength(1);
+  });
+});
+
 describe('accepted per-LED temporal presentation', () => {
   it.each([15_000, 17_000])(
     'paces 50ms phases with a %i us burst gap or reports the bounded discontinuity',
@@ -104,8 +280,9 @@ describe('accepted per-LED temporal presentation', () => {
         ]);
         return presentation.accept(electrical(observation), observation, wall);
       };
-      // The saved ready gap is17ms (the DOM gap was15.9ms). A15ms ready gap
-      // instead leaves35ms debt, exceeding the33.333ms pre-RAF allowance.
+      // LOW is inside ready100, but that window closes HIGH. Supersession is
+      // receipt90/92 itself: at124.999 its age34.999/32.999ms lies either side
+      // of the unchanged33.333ms pre-RAF allowance.
       expect(receiveWindow(0, 25_000, 25_000).get('first')).toBe(80);
       receiveWindow(25_000, 50_000, 50_000);
       expect(receiveWindow(50_000, 75_000, 75_000).get('first')).toBe(0);
@@ -117,6 +294,118 @@ describe('accepted per-LED temporal presentation', () => {
         ['other', 0],
       ]);
       expect(presentation.reanchorCount).toBe(gap === 17_000 ? 0 : 1);
+    },
+  );
+
+  it('witnesses the joint190ms vector inside ready200 rather than the old final75ms vector', () => {
+    const presentation = new LedTemporalPresentation();
+    let lastMatchingFinal = -1;
+    for (let to = 0; to <= 200_000; to += 25_000) {
+      const from = Math.max(0, to - 25_000);
+      const observation = window(from, to, [
+        square(from, to, 50_000, 80, 'led0'),
+        channel(
+          'led1',
+          square(from + 10_000, to + 10_000, 100_000).samples.map((sample) => ({
+            ...sample,
+            atMicroseconds: sample.atMicroseconds - 10_000,
+          })),
+        ),
+        square(from, to, 100_000, 0, 'led2'),
+      ]);
+      const result = electrical(observation);
+      if (result.components.every((component, index) => component.brightness === [0, 80, 0][index]))
+        lastMatchingFinal = to;
+      presentation.accept(result, observation, to);
+    }
+    expect(lastMatchingFinal).toBe(75_000);
+    expect([...presentation.sample(215_000).values()]).toEqual([0, 80, 0]);
+    expect(presentation.reanchorCount).toBe(0);
+  });
+
+  it('rejects individually recent channels when their joint state is genuinely stale', () => {
+    const presentation = new LedTemporalPresentation();
+    let from = 0;
+    const receive = (to: number, wall: number) => {
+      const times = [from, ...[250_000, 275_000, 325_000].filter((at) => at > from && at < to)];
+      if (to !== from) times.push(to);
+      const observation = window(
+        from,
+        to,
+        [0, 1, 2].map((index) =>
+          channel(
+            `led${index}`,
+            times.map((at) => {
+              const brightness =
+                index === 0
+                  ? at >= 250_000 && at < 325_000
+                    ? 80
+                    : 0
+                  : index === 1
+                    ? at < 250_000 || (at >= 275_000 && at < 325_000)
+                      ? 80
+                      : 0
+                    : 0;
+              return point(at, brightness);
+            }),
+          ),
+        ),
+      );
+      presentation.accept(electrical(observation), observation, wall);
+      from = to;
+    };
+    for (let to = 0; to <= 200_000; to += 25_000) receive(to, to);
+    presentation.sample(215_000);
+    for (const [to, wall] of [
+      [225_000, 216_000],
+      [250_000, 217_000],
+      [275_000, 218_000],
+      [300_000, 248_000],
+      [325_000, 249_000],
+      [350_000, 250_000],
+    ])
+      receive(to!, wall!);
+    // A=0 arrived250ms, B=80 arrived249ms, but they never coexist after250ms
+    // model time. The last joint receipt217ms already closes a different vector.
+    expect([...presentation.sample(250_333).values()]).toEqual([0, 80, 0]);
+    expect(presentation.reanchorCount).toBe(0);
+    expect([...presentation.sample(250_334).values()]).toEqual([0, 0, 0]);
+    expect(presentation.reanchorCount).toBe(1);
+  });
+
+  it('expires an intermediate-only witness at its own receipt even with no later receipt', () => {
+    const presentation = new LedTemporalPresentation();
+    for (let to = 0; to <= 150_000; to += 25_000) {
+      const from = Math.max(0, to - 25_000);
+      const observation = window(from, to, [square(from, to, 50_000)]);
+      presentation.accept(electrical(observation), observation, 0);
+    }
+    // Ready150 contains HIGH125..150, closes LOW, and is the last receipt.
+    expect(presentation.sample(33_333).get('led')).toBe(80);
+    expect(presentation.reanchorCount).toBe(0);
+    expect(presentation.sample(33_334).get('led')).toBe(0);
+    expect(presentation.reanchorCount).toBe(1);
+  });
+
+  it.each(['quality', 'unsolved', 'generation', 'failure'])(
+    'cannot retain old joint receipt authority after %s invalidation',
+    (reason) => {
+      const presentation = new LedTemporalPresentation();
+      const old = window(0, 25_000, [square(0, 25_000, 50_000)]);
+      presentation.accept(electrical(old), old, 0);
+      const fresh = window(reason === 'generation' ? 0 : 25_000, 50_000, [
+        channel('led', [point(reason === 'generation' ? 0 : 25_000, 0), point(50_000, 0)]),
+      ]);
+      const result = electrical(fresh);
+      if (reason === 'quality')
+        Object.assign(result, { quality: { ...result.quality!, passed: false } });
+      if (reason === 'unsolved') Object.assign(result, { solved: false });
+      if (reason === 'failure')
+        Object.assign(result.components[0]!, { presentationState: 'failed' });
+      const display = presentation.accept(result, fresh, 10_000);
+      if (reason === 'generation') expect(display.get('led')).toBe(0);
+      else expect(display.size).toBe(0);
+      expect([...presentation.sample(11_000).values()]).not.toContain(80);
     },
   );
 

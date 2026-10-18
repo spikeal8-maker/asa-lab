@@ -133,6 +133,43 @@ function fastCycleBrightness(samples: readonly ElectronicsLedTemporalSample[], t
   return integral / (end - start);
 }
 
+function containsJointState(
+  channels: ReadonlyMap<string, readonly ElectronicsLedTemporalSample[]>,
+  brightness: ReadonlyMap<string, number>,
+): boolean {
+  const cursors: Array<{
+    samples: readonly ElectronicsLedTemporalSample[];
+    index: number;
+    value: number;
+  }> = [];
+  let at = 0;
+  let to = Infinity;
+  for (const [id, value] of brightness) {
+    const samples = channels.get(id);
+    if (!samples?.length) return false;
+    at = Math.max(at, samples[0]!.atMicroseconds);
+    to = Math.min(to, samples.at(-1)!.atMicroseconds);
+    cursors.push({ samples, index: 0, value });
+  }
+  // Intersect actual held intervals. Every advance consumes a real sample;
+  // values found at different times cannot establish a joint optical state.
+  while (at <= to) {
+    let next = at;
+    for (const channel of cursors) {
+      const { samples, value } = channel;
+      while (channel.index + 1 < samples.length && samples[channel.index + 1]!.atMicroseconds <= at)
+        channel.index++;
+      while (channel.index < samples.length && samples[channel.index]!.brightness !== value)
+        channel.index++;
+      if (channel.index === samples.length) return false;
+      next = Math.max(next, samples[channel.index]!.atMicroseconds);
+    }
+    if (next === at) return true;
+    at = next;
+  }
+  return false;
+}
+
 /** Only accepted optical observations are retained; electrical results stay untouched. */
 export class LedTemporalPresentation {
   private committed: number | null = null;
@@ -140,7 +177,11 @@ export class LedTemporalPresentation {
   private cursor: number | null = null;
   private sampledAt: number | null = null;
   private buffered = false;
-  private receipts: Array<{ at: number; brightness: ReadonlyMap<string, number> }> = [];
+  private receipts: Array<{
+    at: number;
+    samples: ReadonlyMap<string, readonly ElectronicsLedTemporalSample[]>;
+    size: number;
+  }> = [];
   private reanchors = 0;
 
   /** A discontinuity is observable evidence, never successful phase preservation. */
@@ -224,18 +265,24 @@ export class LedTemporalPresentation {
     if (wallMicroseconds === undefined) return brightness;
     this.receipts.push({
       at: wallMicroseconds,
-      brightness: new Map(
+      samples: new Map(
         observation.components
           .filter((component) => next.has(component.componentId))
-          .map((component) => [component.componentId, component.samples.at(-1)!.brightness]),
+          .map((component) => [component.componentId, component.samples]),
       ),
+      size: Math.max(1, ...observation.components.map((component) => component.samples.length)),
     });
+    // Across all receipts, retain at most513 samples per channel. Reuse only
+    // accepted optical arrays, never a canonical result/continuation clone.
+    let retained = 0;
     this.receipts = this.receipts
       .filter(
         (_, index, all) =>
           index === all.length - 1 || all[index + 1]!.at >= wallMicroseconds - 50_000,
       )
-      .slice(-MAX_HISTORY_SAMPLES);
+      .reverse()
+      .filter((receipt) => (retained += receipt.size) <= MAX_HISTORY_SAMPLES)
+      .reverse();
     return this.sample(wallMicroseconds);
   }
 
@@ -250,19 +297,23 @@ export class LedTemporalPresentation {
       this.buffered = true;
 
     let brightness = this.atCursor();
-    const expired = [...brightness].some(([id, value]) => {
-      // Cycle means have their own existing optical policy. A visible held
-      // phase needs an actual, still timely complete-ready electrical witness.
-      const samples = this.histories.get(id)!;
-      if (fastCycleBrightness(this.throughCursor(samples), this.cursor!) !== undefined)
-        return false;
-      let matching = this.receipts.length - 1;
-      while (matching >= 0 && this.receipts[matching]!.brightness.get(id) !== value) matching--;
-      const supersededAt = matching < 0 ? this.receipts[0]?.at : this.receipts[matching + 1]?.at;
-      return (
-        supersededAt !== undefined && wallMicroseconds - supersededAt >= MAX_SUPERSEDED_MICROSECONDS
-      );
-    });
+    // A cycle mean keeps its existing policy; provenance refers to the actual
+    // underlying joint electrical state at that same presentation cursor.
+    const joint = this.atCursor(false);
+    let matching = this.receipts.length - 1;
+    while (matching >= 0 && !containsJointState(this.receipts[matching]!.samples, joint))
+      matching--;
+    const witness = this.receipts[matching];
+    const finalMatches =
+      witness &&
+      [...joint].every(([id, value]) => witness.samples.get(id)?.at(-1)?.brightness === value);
+    // An intermediate state is already superseded by this receipt's different
+    // closing vector. It must not acquire another50ms from a later receipt.
+    const supersededAt = witness && !finalMatches ? witness.at : this.receipts[matching + 1]?.at;
+    const expired =
+      matching < 0 ||
+      (supersededAt !== undefined &&
+        wallMicroseconds - supersededAt >= MAX_SUPERSEDED_MICROSECONDS);
     if (brightness.size !== this.histories.size || expired) {
       // Starvation cannot be repaired by accelerating or stretching a waveform.
       // Discard this playout segment and resume from actual complete-ready data.
@@ -284,13 +335,16 @@ export class LedTemporalPresentation {
     return prefix;
   }
 
-  private atCursor(): ReadonlyMap<string, number> {
+  private atCursor(average = true): ReadonlyMap<string, number> {
     const brightness = new Map<string, number>();
     for (const [id, samples] of this.histories) {
       const prefix = this.throughCursor(samples);
       const last = prefix.at(-1);
       if (!last) continue;
-      brightness.set(id, fastCycleBrightness(prefix, this.cursor!) ?? last.brightness);
+      brightness.set(
+        id,
+        (average ? fastCycleBrightness(prefix, this.cursor!) : undefined) ?? last.brightness,
+      );
     }
     return brightness;
   }

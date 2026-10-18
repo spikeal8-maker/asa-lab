@@ -1872,13 +1872,13 @@ test('Owner Arduino Blockly: visible default wait edits 100/50/1 ms, real light 
       await page.getByRole('button', { name: 'Открыть редактор кода', exact: true }).click();
     for (const blockId of waits) {
       const block = canvas.locator(`[data-id="${blockId}"]`);
-      await block.locator('.blocklyEditableText').first().dblclick();
+      await block.locator('.blocklyTextInputField').first().dblclick();
       const input = page.locator('input.blocklyHtmlInput');
       await expect(input).toBeVisible();
       await input.fill(String(half));
       await input.press('Enter');
       if (half === 100) {
-        await block.locator('.blocklyEditableText').nth(1).click();
+        await block.locator('.blocklyDropdownField').first().click();
         await page
           .locator('.blocklyDropDownDiv, .blocklyWidgetDiv')
           .getByText('мс', { exact: true })
@@ -1992,14 +1992,14 @@ test('Owner Arduino Blockly: visible default wait edits 100/50/1 ms, real light 
         await expect(
           reopened
             .getByTestId('arduino-block-workspace')
-            .locator(`[data-id="${blockId}"] .blocklyEditableText`)
+            .locator(`[data-id="${blockId}"] .blocklyTextInputField`)
             .first(),
         ).toHaveText(String(half));
         await expect(
           reopened
             .getByTestId('arduino-block-workspace')
-            .locator(`[data-id="${blockId}"] .blocklyEditableText`)
-            .nth(1),
+            .locator(`[data-id="${blockId}"] .blocklyDropdownField`)
+            .first(),
         ).toHaveText('мс');
       }
       expect((await read()).draft).toEqual(saved.draft);
@@ -2207,6 +2207,96 @@ function temporalPhysicalBrightness(frame: TemporalFrame): number[] {
   });
 }
 
+function temporalJointWitness(
+  frame: TemporalFrame,
+  brightness: readonly number[],
+): number | undefined {
+  const to = frame.committedHorizonMicroseconds;
+  const ids = ['led0', 'led1', 'led2'];
+  const electrical = ids.map((id) => frame.components.find((row) => row.componentId === id));
+  if (
+    brightness.length !== ids.length ||
+    frame.executionStatus !== 'ready' ||
+    !frame.solved ||
+    !frame.qualityPassed ||
+    frame.generationId === null ||
+    !Number.isSafeInteger(frame.generationId) ||
+    frame.responseGenerationId !== frame.generationId ||
+    !Number.isSafeInteger(to) ||
+    to < 0 ||
+    frame.requestedHorizonMicroseconds !== to ||
+    frame.continuationHorizonMicroseconds !== to ||
+    electrical.some(
+      (row) =>
+        !row ||
+        !Number.isFinite(row.brightness) ||
+        row.presentationState === 'failed' ||
+        row.deviceHealth === 'failed_open' ||
+        row.damageState === 'failed',
+    )
+  )
+    return undefined;
+  if (temporalPhysicalBrightness(frame).every((value, index) => value === brightness[index]))
+    return to;
+  const observation = frame.ledTemporal;
+  if (
+    !observation ||
+    observation.profile !== 'ordinary-led-held-v1' ||
+    observation.toMicroseconds !== to ||
+    !Number.isSafeInteger(observation.fromMicroseconds) ||
+    observation.fromMicroseconds < 0 ||
+    observation.fromMicroseconds > to
+  )
+    return undefined;
+  const channels = ids.map((id) => observation.components.find((row) => row.componentId === id));
+  if (
+    channels.some((channel, index) => {
+      if (!channel || channel.samples.length < 1 || channel.samples.length > 513) return true;
+      const samples = channel.samples;
+      return (
+        (!channel.truncated && samples[0]!.atMicroseconds !== observation.fromMicroseconds) ||
+        samples.at(-1)!.atMicroseconds !== to ||
+        samples.at(-1)!.brightness !== electrical[index]!.brightness ||
+        samples.at(-1)!.current !== electrical[index]!.current ||
+        samples.some(
+          (sample, sampleIndex) =>
+            !Number.isSafeInteger(sample.atMicroseconds) ||
+            sample.atMicroseconds < observation.fromMicroseconds ||
+            sample.atMicroseconds > to ||
+            !Number.isFinite(sample.brightness) ||
+            sample.brightness < 0 ||
+            sample.brightness > 100 ||
+            !Number.isFinite(sample.current) ||
+            (sample.brightness > 0 && sample.current <= 0) ||
+            (sampleIndex > 0 && samples[sampleIndex - 1]!.atMicroseconds >= sample.atMicroseconds),
+        )
+      );
+    })
+  )
+    return undefined;
+  const start = Math.max(...channels.map((channel) => channel!.samples[0]!.atMicroseconds));
+  const times = new Set<number>([start]);
+  for (const channel of channels)
+    for (const sample of channel!.samples)
+      if (sample.atMicroseconds >= start) times.add(sample.atMicroseconds);
+  const indices = channels.map(() => 0);
+  // Independent oracle: visit the union of real change times, and inspect all
+  // held electrical channels at that ONE time inside this completed request.
+  for (const at of [...times].sort((left, right) => left - right)) {
+    const joint = channels.map((channel, index) => {
+      const samples = channel!.samples;
+      while (
+        indices[index]! + 1 < samples.length &&
+        samples[indices[index]! + 1]!.atMicroseconds <= at
+      )
+        indices[index] = indices[index]! + 1;
+      return Math.round(samples[indices[index]!]!.brightness);
+    });
+    if (joint.every((value, index) => value === brightness[index])) return at;
+  }
+  return undefined;
+}
+
 function temporalPaintCausality(
   raw: TemporalProbe,
   source: string,
@@ -2230,6 +2320,7 @@ function temporalPaintCausality(
     requestId: string;
     generationId: number;
     committedHorizonMicroseconds: number;
+    modelTimeMicroseconds: number;
     readyAt: number;
     supersededAt: number | null;
   }> = [];
@@ -2251,17 +2342,19 @@ function temporalPaintCausality(
       }
       const available = ready.filter((row) => row.at <= at);
       const matching = available.findLastIndex(
-        (row) =>
-          brightness.length === 3 &&
-          temporalPhysicalBrightness(row).every((value, index) => value === brightness[index]),
+        (row) => temporalJointWitness(row, brightness) !== undefined,
       );
       if (matching < 0) {
         violations.push({ at, brightness, reason: 'no causally preceding electrical state' });
         continue;
       }
-      // The most recent matching state has no later identical copy; its next
-      // receipt, if present, is the first superseding electrical vector.
-      const supersededAt = available[matching + 1]?.at ?? null;
+      // A completed window can witness a real intermediate joint state. If its
+      // closing vector differs, supersession is already visible on THIS receipt.
+      const frame = available[matching]!;
+      const finalMatches = temporalPhysicalBrightness(frame).every(
+        (value, index) => value === brightness[index],
+      );
+      const supersededAt = finalMatches ? (available[matching + 1]?.at ?? null) : frame.at;
       if (supersededAt !== null && at - supersededAt > OWNER_TEMPORAL_PUBLICATION_LAG_MS) {
         violations.push({
           at,
@@ -2270,13 +2363,13 @@ function temporalPaintCausality(
         });
         continue;
       }
-      const frame = available[matching]!;
       witnesses.push({
         at,
         brightness,
         requestId: frame.requestId,
         generationId,
         committedHorizonMicroseconds: frame.committedHorizonMicroseconds,
+        modelTimeMicroseconds: temporalJointWitness(frame, brightness)!,
         readyAt: frame.at,
         supersededAt,
       });
