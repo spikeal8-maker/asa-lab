@@ -37,6 +37,7 @@ interface Message {
   content: string;
   createdAt: string;
   requestId: string;
+  state?: 'complete' | 'stopped';
 }
 
 async function fixture(page: Page, answer = 'Arduino — это платформа для электроники.') {
@@ -45,6 +46,8 @@ async function fixture(page: Page, answer = 'Arduino — это платформ
   const requests: string[] = [];
   const requestThreads: string[] = [];
   const models: string[] = [];
+  const historyCursors: (string | null)[] = [];
+  let completion: 'current' | 'legacy' | 'recovery' | 'stopped' | 'pending' = 'current';
   let releaseAnswer: (() => void) | null = null;
   let enabled = true;
   let hasKey = false;
@@ -115,7 +118,20 @@ async function fixture(page: Page, answer = 'Arduino — это платформ
       const history = messages.get(id);
       if (!history)
         return respond(route, { error: { code: 'ai_thread_denied', message: 'Not found' } }, 404);
-      if (method === 'GET') return respond(route, { items: history, nextCursor: null });
+      if (method === 'GET') {
+        const beforeId = new URL(req.url()).searchParams.get('beforeId');
+        historyCursors.push(beforeId);
+        const end = beforeId
+          ? history.findIndex((message) => message.id === beforeId)
+          : history.length;
+        const start = Math.max(0, end - 50);
+        const items = history.slice(start, end);
+        const first = items[0];
+        return respond(route, {
+          items,
+          nextCursor: start > 0 && first ? { at: first.createdAt, id: first.id } : null,
+        });
+      }
       const streamed = path.endsWith('/stream');
       const sse = (kind: string, value: unknown) =>
         'event: ' + kind + '\n' + 'data: ' + JSON.stringify(value) + '\n\n';
@@ -123,7 +139,10 @@ async function fixture(page: Page, answer = 'Arduino — это платформ
       requests.push(payload.requestId);
       requestThreads.push(id);
       models.push(payload.model ?? '');
-      if (!history.some((msg) => msg.role === 'user' && msg.requestId === payload.requestId)) {
+      const replayed = history.some(
+        (msg) => msg.role === 'user' && msg.requestId === payload.requestId,
+      );
+      if (!replayed) {
         history.push({
           id: randomUUID(),
           role: 'user',
@@ -133,20 +152,32 @@ async function fixture(page: Page, answer = 'Arduino — это платформ
         });
         threads.find((t) => t.id === id)!.title = payload.message;
         await waitForAnswer;
-        history.push({
-          id: randomUUID(),
-          role: 'assistant',
-          content: answer,
-          createdAt: NOW,
-          requestId: payload.requestId,
-        });
+        if (completion !== 'pending') {
+          history.push({
+            id: randomUUID(),
+            role: 'assistant',
+            content: answer,
+            createdAt: NOW,
+            requestId: payload.requestId,
+            state: completion === 'stopped' ? 'stopped' : 'complete',
+          });
+        }
       }
-      const result = { messages: history, replayed: requests.length > 1, stopped: false };
+      const result = {
+        messages:
+          completion === 'legacy'
+            ? history.slice(-80)
+            : history.filter((message) => message.requestId === payload.requestId),
+        replayed,
+        stopped: completion === 'stopped',
+      };
       if (streamed) {
         return route.fulfill({
           status: 200,
           contentType: 'text/event-stream; charset=utf-8',
-          body: sse('delta', { text: history.at(-1)?.content ?? '' }) + sse('done', result),
+          body:
+            sse('delta', { text: history.at(-1)?.content ?? '' }) +
+            (completion === 'recovery' || completion === 'pending' ? '' : sse('done', result)),
         });
       }
       return respond(route, result);
@@ -186,9 +217,202 @@ async function fixture(page: Page, answer = 'Arduino — это платформ
     requestThreads,
     threads,
     models,
+    messages,
+    historyCursors,
+    setCompletion: (value: typeof completion) => {
+      completion = value;
+    },
     submittedKey: () => keyWasSubmitted,
   };
 }
+
+for (const selection of ['single', 'switch', 'switch-error', 'retry'] as const) {
+  test(`AI waits for selected history before sending: ${selection}`, async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 750 });
+    const fake = await fixture(page, 'Ответ после загрузки');
+    const ids = [randomUUID(), randomUUID()];
+    for (const [threadIndex, id] of ids.entries()) {
+      fake.threads.push({ id, title: `Диалог ${threadIndex}`, updatedAt: NOW });
+      fake.messages.set(
+        id,
+        Array.from({ length: 10 }, (_, index) => ({
+          id: randomUUID(),
+          role: index % 2 === 0 ? 'user' : 'assistant',
+          content: `История ${threadIndex}/${index}`,
+          createdAt: NOW,
+          requestId: randomUUID(),
+        })),
+      );
+    }
+    const releases: (() => void)[] = [];
+    await page.route('**/api/ai/threads/*/messages', async (route) => {
+      const index = releases.length;
+      await new Promise<void>((resolve) => releases.push(resolve));
+      if (index === 0 && (selection === 'switch-error' || selection === 'retry')) {
+        return route.fulfill({
+          status: 503,
+          json: { error: { code: 'history_unavailable', message: 'История недоступна' } },
+        });
+      }
+      return route.fallback();
+    });
+    fake.release();
+    await page.goto('/#/ai');
+    const composer = page.getByRole('textbox', { name: 'Сообщение ИИ' });
+    const send = page.getByRole('button', { name: 'Отправить сообщение', exact: true });
+    await composer.fill('Вопрос после истории');
+    // Selection and submit happen in one JS task, before React disables send.
+    await page.getByRole('button', { name: 'Диалог 0', exact: true }).evaluate((button) => {
+      (button as HTMLButtonElement).click();
+      document.querySelector<HTMLFormElement>('form.chat-composer')!.requestSubmit();
+    });
+    await expect.poll(() => releases.length).toBe(1);
+    await composer.press('Enter');
+    await expect(send).toBeDisabled();
+    expect(fake.requests).toHaveLength(0);
+
+    const switched = selection === 'switch' || selection === 'switch-error';
+    if (switched) {
+      await page.getByRole('button', { name: 'Диалог 1', exact: true }).click();
+      await expect.poll(() => releases.length).toBe(2);
+    }
+    const firstResponse = page.waitForResponse(
+      (response) => response.url().endsWith(`/threads/${ids[0]}/messages`),
+    );
+    releases[0]!();
+    await firstResponse;
+    if (switched || selection === 'retry') {
+      if (selection === 'retry') {
+        await expect(page.getByRole('alert')).toContainText('История недоступна');
+      }
+      await composer.press('Enter');
+      await expect(send).toBeDisabled();
+      expect(fake.requests).toHaveLength(0);
+      if (selection === 'retry') {
+        await page.getByRole('button', { name: 'Обновить переписку' }).click();
+        await expect.poll(() => releases.length).toBe(2);
+      }
+      releases[1]!();
+    }
+    const turns = page.locator('.chat-turns > article');
+    await expect(turns).toHaveCount(10);
+    await expect(turns.first()).toContainText(`История ${switched ? 1 : 0}/0`);
+    await expect(send).toBeEnabled();
+    await send.click();
+    await expect(turns).toHaveCount(12);
+    await expect(turns.first()).toContainText(`История ${switched ? 1 : 0}/0`);
+    await expect(turns.last()).toContainText('Ответ после загрузки');
+    expect(fake.requests).toHaveLength(1);
+    expect(fake.requestThreads).toEqual([ids[switched ? 1 : 0]]);
+  });
+}
+
+for (const outcome of ['current', 'legacy', 'recovery', 'stopped'] as const) {
+  test(`AI preserves 80+ history on send/reload: ${outcome}`, async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 750 });
+    const fake = await fixture(page, 'Новый сохранённый ответ');
+    fake.setCompletion(outcome);
+    const id = randomUUID();
+    fake.threads.push({ id, title: 'Длинная переписка', updatedAt: NOW });
+    const history: Message[] = Array.from({ length: 120 }, (_, index) => ({
+      id: randomUUID(),
+      role: index % 2 === 0 ? 'user' : 'assistant',
+      // Legacy done really exceeds 128 KiB, using permitted persisted lengths.
+      content: `История ${index}: ` + (index % 2 === 1 ? 'я'.repeat(8000) : 'вопрос'),
+      createdAt: new Date(Date.parse(NOW) - (120 - index) * 1000).toISOString(),
+      requestId: randomUUID(),
+      state: 'complete',
+    }));
+    fake.messages.set(id, history);
+    expect(JSON.stringify(history.slice(-80)).length).toBeGreaterThan(128 * 1024);
+    fake.release();
+    await page.goto('/#/ai');
+    await page.getByRole('button', { name: 'Длинная переписка', exact: true }).click();
+    const turns = page.locator('.chat-turns > article');
+    const older = page.getByRole('button', { name: 'Загрузить предыдущие сообщения' });
+    const composer = page.getByRole('textbox', { name: 'Сообщение ИИ' });
+    const send = page.getByRole('button', { name: 'Отправить сообщение' });
+    await expect(turns).toHaveCount(50);
+    await older.click();
+    await expect(turns).toHaveCount(100);
+    await expect(turns.first()).toContainText('История 20:');
+    await composer.fill('Продолжить длинную переписку');
+    await send.click();
+    await expect(composer).toBeEnabled();
+    await expect(composer).toHaveValue('');
+    await expect(turns).toHaveCount(102);
+    await expect(turns.first()).toContainText('История 20:');
+    await expect(turns.last()).toContainText('Новый сохранённый ответ');
+    // A valid large completion must succeed through SSE, without a hidden
+    // history-recovery GET masking a parser failure.
+    expect(fake.historyCursors).toHaveLength(outcome === 'recovery' ? 3 : 2);
+    if (outcome === 'stopped') await expect(turns.last()).toContainText('Ответ остановлен.');
+    await expect(page.locator('.asa-ai-error')).toHaveCount(0);
+    await older.click();
+    await expect(turns).toHaveCount(122);
+    // Recovery must not move the cursor back to its newest 50-message page.
+    expect(fake.historyCursors.at(-1)).toBe(history[20]!.id);
+    await expect(turns.first()).toContainText('История 0:');
+    await expect(older).toHaveCount(0);
+    await composer.fill('Ещё один вопрос');
+    await send.click();
+    await expect(composer).toBeEnabled();
+    await expect(turns).toHaveCount(124);
+    await expect(older).toHaveCount(0);
+    await expect(turns.first()).toContainText('История 0:');
+    expect(fake.requests).toHaveLength(2);
+    await page.reload();
+    // The fixture auto-titles on send.
+    await page.getByRole('button', { name: 'Ещё один вопрос', exact: true }).click();
+    await expect(turns).toHaveCount(50);
+    await older.click();
+    await expect(turns).toHaveCount(100);
+    await older.click();
+    await expect(turns).toHaveCount(124);
+    await expect(turns.first()).toContainText('История 0:');
+    await expect(turns.last()).toContainText('Новый сохранённый ответ');
+    await expect(older).toHaveCount(0);
+    expect(fake.requests).toHaveLength(2);
+  });
+}
+
+test('AI pending and stopped replays keep request identity and state', async ({ page }) => {
+  const fake = await fixture(page);
+  fake.setCompletion('pending');
+  fake.release();
+  await page.goto('/#/ai');
+  const composer = page.getByRole('textbox', { name: 'Сообщение ИИ' });
+  const send = page.getByRole('button', { name: 'Отправить сообщение' });
+  const turns = page.locator('.chat-turns > article');
+  await composer.fill('Запрос без завершённого ответа');
+  await send.click();
+  await expect(composer).toBeEnabled();
+  await expect(turns).toHaveCount(1);
+  await expect(page.locator('.asa-ai-error')).toBeVisible();
+  fake.setCompletion('current');
+  await composer.fill('Запрос без завершённого ответа');
+  await send.click();
+  await expect(composer).toBeEnabled();
+  await expect(page.locator('.asa-ai-error')).toContainText('Запрос уже был принят');
+  await expect(composer).toHaveValue('Запрос без завершённого ответа');
+  await expect(turns).toHaveCount(1);
+  expect(fake.requests[1]).toBe(fake.requests[0]);
+  fake.messages.get(fake.threads[0]!.id)!.push({
+    id: randomUUID(),
+    role: 'assistant',
+    content: 'Сохранённая часть ответа',
+    createdAt: NOW,
+    requestId: fake.requests[0]!,
+    state: 'stopped',
+  });
+  await send.click();
+  await expect(composer).toBeEnabled();
+  await expect(composer).toHaveValue('');
+  await expect(turns).toHaveCount(2);
+  await expect(turns.last()).toContainText('Ответ остановлен.');
+  await expect(page.locator('.asa-ai-error')).toHaveCount(0);
+  expect(new Set(fake.requests).size).toBe(1);
+});
 
 for (const scenario of ['empty', 'existing', 'server-error', 'network-error'] as const) {
   test(`AI pending new-chat blocks duplicate creation and send: ${scenario}`, async ({ page }) => {
