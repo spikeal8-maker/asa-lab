@@ -4,6 +4,8 @@ import importlib.util
 from contextlib import nullcontext
 import io
 import json
+import os
+import pwd
 import hashlib
 import sys
 from pathlib import Path
@@ -305,7 +307,8 @@ class StableManagerCodeHandoffTests(unittest.TestCase):
             "profile": "production",
             "project": "asa-lab-dev",
         }))
-        return types.SimpleNamespace(operator="root", profile="production", root=path)
+        return types.SimpleNamespace(operator=pwd.getpwuid(os.geteuid()).pw_name,
+                                     profile="production", root=path)
 
     @staticmethod
     def read_only_git_and_docker(*argv, **kwargs):
