@@ -325,6 +325,12 @@ ONE bounded author may replace eager controller construction in apps/web/src/ele
 
 Targeted mounted-hook deferred-success/failure/retry/input/stale/lifecycle tests, type/lint and actual build size/dependency evidence are required. One final SHA then author STOP. Root actual review and NEW independent final source review precede changed-cause seven-case production browser, exact required General/ordinary evidence and NEW product review. Existing source or mathematical approvals are not combined product acceptance. Full per-LED above60Hz policy remains another necessary bounded repair of this same goal. Foreign work and school/DB/server/network/deployment untouched.
 
+### Startup dependency author evidence
+
+The hook now imports the complete unchanged controller/client capability only after committed Start through one loader; a successful instance is reused on subsequent runs. Committed document snapshots, Serial and Arduino reset commands are replayed in original order after loading. Cleanup/failure releases the pending queue, while existing layout/session guards reject stale completion. No host ticks enter the queue before H0. No arbitrary input limit, timeout, eager preload, budget change or physics edit was introduced. As with existing controller pending inputs, indefinite loading plus continued user input can retain an uncapped command queue until cancellation/failure; commands are not silently discarded.
+
+Short local Vite builds measured SchematicEditor 210346 -> 196484 bytes against the unchanged 209000 ceiling. The manifest exposes the controller as a dynamic entry absent from the editor's recursive static-import graph; all existing bundle checks pass. Targeted mounted-hook20 and controller52 tests pass, including pending command order, H0 anchoring, stale success/rejection, Stop/replacement/unmount, Suspense/StrictMode and single-load reuse. Web typecheck and focused lint pass. These direct runs execute no Nx tasks and do not replace required final CI or product review. Loader-retry tests prove a new hook attempt with a recoverable mocked loader, not universal browser module-cache/network recovery. Real cold-load wall latency, native network failure/retry and all seven unchanged production browser scenarios remain for final exact evidence. Controller/client/runtime and original browser assertions remain unchanged from the preserved CPU candidate.
+
 
 ## R17 runtime write cost: remaining no-delay browser lag
 
@@ -333,6 +339,14 @@ Preserve exact1eff1928ed3a414b2aecb34e9f67e631e52cdf01. Independent source and d
 H0 excluded:77 ready,compute1949.7ms,request durations2138.5ms,gaps16ms. Early lag peaks387.3ms, later partially catches up. These elapsed values do not prove JIT or a particular CPU cause. Existing native3d159 profile remains applicable to unchanged arduino-program-runtime.ts SHA256f2c429a8f5fb0e5fd962d07f6831184e8ad1874c7b113551a7932dc260c36c97: applyRuntimeAction has83 self samples/106.29ms sampled deltas. Source still performs an unconditional outputVoltages.set after comparing the same value. This identifies a bounded hypothesis, not a promised speedup or attribution to Map.set alone.
 
 One implementer may remove redundant write/lookups only after preserving mode handling, action ordering, existing event condition, signed-zero/absent-entry behavior, all instructions/time/budgets and rollback. One short paired saved-horizon comparison must establish a measurable improvement with full return equality before heavy CI. No special pupil-sketch path, skipped instructions, wider physical steps, clock rebasing, relaxed timeouts or repeated profile. If benefit is absent, stop this candidate without a blind browser rerun. New exact source/math reviews and unchanged real-browser scenarios remain required. High-frequency per-LED rendering and open Blockly remain unproved same-goal followups. No integration/deployment/owner acceptance claimed.
+
+### R17 bounded author evidence
+
+Only the write branch in applyRuntimeAction changes: read the previous voltage after original mode handling, retain the original !== event condition, and omit Map.set only when Object.is says the stored value is identical. Missing entries and signed-zero assignments retain their prior result; every instruction/action/time/budget still executes. No special source pattern or runtime cache is added.
+
+One finite unprofiled Node ABBA comparison replays the actual77 horizons from directed38831817911: before1051.1845/1019.9349ms, after1025.0433/890.2964ms. All77 complete public returns remain identical in every pass. Both pair directions improve, but the26.1ms cold versus129.6ms warm difference limits confidence; about7.5% mean reduction is local evidence only, not a promise of browser acceptance. The106.29ms prior sampled cost belongs to the whole function, not Map.set alone. No repeated benchmark/profile or blind CI run is performed.
+
+Targeted clock44 tests pass, including new repeated pull-up/PWM, signed-zero/missing output and instruction-preservation regressions.114 complete before/after runtime comparisons cover budgets1/7/256, JSON continuation, finite PWM/zero, input reads, shadowing, arithmetic rollback and tone interaction. Types/lint pass; saved engine input hashes bind before to1eff and after to the final candidate. Artifacts remain under r17-runtime-write-cost. New independent exact source/math review and unchanged browser evidence are still required; no integration, capacity, deployment or owner acceptance claim.
 
 ## R16 native Worker cost: actual no-delay browser failure
 
@@ -346,6 +360,14 @@ ONE bounded diagnostic implementer prepares external CDP instrumentation around 
 
 After root confirms the measured cause, one bounded execution-cost repair may remove only redundant work in existing runtime/request execution while preserving all instructions/events/physics/quality, immutable continuation and rollback; fresh exact source/math/product acceptance remains required. Above60Hz per-LED presentation and the owner's actual block-programming/open-panel scenario remain unproved same-goal followups, not claimed complete. No school/live install/DB/network/foreign changes.
 
+### R16 bounded author result: lazy observation at a physical barrier
+
+The single native Chromium140 profile38829805118 binds exact3d159 and its loaded Worker source. Grouped call-tree ancestry attributes595 samples/716277us to sample,452/528218us to commitPhysics and529/629163us to advanceRuntime, without overlapping these three groups. These sampled intervals are not precise CPU accounting or unprofiled timing. The original no-delay case still fails738.2ms over the unchanged250ms bound; no product acceptance is claimed.
+
+The approved scheduler repair keeps every real physical commit and quality check, one due instruction and its time/events/budget, GPIO settle and final ready sample. Only at a pure strict-v2 barrier it obtains the electrical observation lazily through the existing runtime input reader. Sleeping and write-only instructions need no second frame. Program load/input/failure/open/pulse/tone/Servo/sensor cases retain the eager path. A failed actual lazy read preserves electrical_sample_failed/electrical_quality_failed and discards the entire request without publishing its intermediate state.
+
+Local author evidence:9302 complete before/after scheduler returns against3d159 over9 cases, budgets1/7/256 and whole/partition/JSON are equal; cases include read/input1000us, changed/unchanged output1000us, awake repeatedHIGH, first physical failure800000us coinciding with a due instruction, tone and generic fallback. The actual native profile's60 requested horizons retain identical complete public returns in one unprofiled Node ABBA: before1086/952ms, after838/714ms (about24% mean reduction). This is local headroom, not native-browser acceptance. Engine timed30 tests pass including new changed/unchanged-output and explicit lazy-read sample/quality fault rollback regressions; types/lint pass. Raw scripts, source-input hashes, returns hashes and receipts are retained externally under r16-lazy-observation. No browser assertion, timeout, dependency, workflow, numerical operation or model precision changed. New exact independent review and required CI/browser evidence remain outstanding.
+
 ## R15 exact CI follow-up: deferred-start test integration and long-delay cost
 
 Preserve published20114c6ae4b3f5e5f6fe0ea5c6cf1933692024e8 and all earlier candidates. Source review approved the code only; product acceptance is blocked. Actual focused38823836520 failed1/718: unchanged delay2000 test5195ms exceeds5000. ActualGeneral38823832550 Data failed5/4149: same test7895ms, three PSU persistence journeys expected running before native deferred import settled, and presentation source contract expected the removed eager constructor. Governance/Code pass; no unrelated repair is selected. Main d997 General38822362193 all4PASS. Original logs remain retained; no workflow rerun yet.
@@ -358,6 +380,13 @@ Then run ONE short causal CPU profile of exact20114 existing delay2000 fixture w
 
 One exact candidate and author STOP, then root actual proof, NEW independent exact review and changed-cause focused/browser/General/ordinary acceptance. Above60Hz projection remains separately prepared read-only, not selected for implementation here. Only the owner's Arduino/LED timing problem is being repaired; school/live Docker/DB/server/network/foreign work untouched.
 
+### CI follow-up author evidence
+
+The saved exact-source delay2000 profile located duplicate zero-duration observations after a genuine 1ms physical commit while the strict-v2 board sleeps. The selected guard now omits only that unconsumed duplicate: every physical step and its quality check still runs; pending instructions/programs/input, pulse/tone/Servo/sensors, failure boundaries and open components retain the original observation path. Final ready publication uses the original sample. Unchanged whole/partition/JSON fixture with all assertions: unprofiled ABBA before3052/2865ms, after1669/1421ms, byte-identical complete return. The real65 no-delay requests remain full-return identical (before1179/1183ms, after1170/1020ms). These local results do not replace exact CI/browser acceptance.
+
+The PSU regression now awaits real dynamic-import settling instead of assuming20 microtasks; real controller/client/evaluator and all document/recovery/save assertions remain. Presentation contracts require the deferred loader and queued current-horizon update/restart. Three new budget1/7/256 regressions verify electrical read and Serial input exactly at the1000us physical barrier. Directed local148 core and24 compatibility tests, types/lint/routing pass. External2112 complete before/after scheduler returns cover whole/partition/JSON, exact wake/input/failure, tone and genuinely solved multiboard fallback. No timeout,5000ms case body, physical precision, event budget, browser fixture or source-size threshold changed. Source review and required final gates remain pending.
+
+
 
 ## R15 follow-up: measured no-delay throughput and required scheduler responsibility review
 
@@ -368,6 +397,11 @@ NEW bounded implementer first profiles exact30c4 actual no-delay whole request s
 ExactGeneral38818635173 failed before later gates because scheduler grew46481 to56547bytes and lacks a reviewed baseline entry. This explicitly selects only the necessary scheduler responsibility checkpoint under ENGINEERING_HYGIENE_CONTRACT sections6/8: inspect changed responsibility, preserve cohesive state/failure ordering, classify canonical-active or decomposition-candidate with honest rationale, add exact reviewed_bytes for this file in existing evidence/hygiene-baseline.yaml and record concise review evidence here. No global inventory, automatic decomposition, raising50000/20percent limits or unrelated cleanup. If technically justified extraction itself resolves size, preserve stable scope and test it; do not split merely to evade review. Main d4d5ec72 General38814837017 is fully green, so no foreign repair is needed. Existing bundle limits remain mandatory.
 
 One exact repair candidate and authorSTOP; controller checks actualdiff/evidence, NEW independent source review then same seven production-browser cases plus required General/ordinary gates and NEW productreview. All acceptance/integration/closure remains blocked until required evidence. Per-LED above60Hz presentation is still unimplemented, a subsequent necessary part of this same Arduino goal. No school/DB/network/deployment.
+
+
+### R15 follow-up scheduler responsibility checkpoint
+
+Reviewed `contexts/electronics/domain/arduino-circuit-scheduler.ts` at 56913 bytes against ENGINEERING_HYGIENE_CONTRACT sections 6/8; classified `decomposition-candidate` in the existing baseline. Its eligibility/continuation checks, electrical input routing, pre-event physics, simultaneous board commit and post-event settle form a coupled causal sequence. The event-driven thermal/failure profile and request-owned preparation increase this responsibility; a future extraction requires full-return, failure and simultaneous-event parity. No arbitrary split is justified for this throughput repair. The measured source-only support analysis is now prepared per request with an eight-source bound; every public/runtime continuation validation still runs. No routes, generated assets, legacy bridges or protected/historical material were removed or reclassified. The 50,000-byte/20-percent policy is unchanged; this checkpoint records maintainability debt and is not product/browser acceptance.
 
 
 ## R24: complete-ready phase debt and finite traversal

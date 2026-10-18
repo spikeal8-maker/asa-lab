@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -44,6 +45,7 @@ import {
   type WireVertexAssistTarget,
 } from './workbench-geometry';
 import { useWorkbenchProjectState } from './use-workbench-project-state';
+import { LedTemporalPresentation } from './led-temporal-presentation';
 import {
   addComponentToDocument,
   componentsBoundToBreadboard,
@@ -89,9 +91,11 @@ import {
   type VertexDrag,
 } from './workbench-model';
 import { calculateLiveSimulation, calculateSimulationPreflight } from './live-simulation';
-import { ElectronicsLiveSimulationWorkerController } from './live-simulation-worker-controller';
+import type { ElectronicsLiveSimulationWorkerController } from './live-simulation-worker-controller';
+import { loadSimulationWorkerController } from './load-simulation-worker-controller';
 import {
   circuitStateMessage,
+  SimulationFailure,
   simulationFailureMessage,
   type SimulationStatusMessage,
 } from './simulation-failure';
@@ -141,11 +145,14 @@ function emptyInitialViewport(): Viewport {
 }
 
 function ordinaryLedVisualState(result: ComponentResult | undefined): ComponentVisualState {
+  if (
+    result?.presentationState === 'failed' ||
+    result?.deviceHealth === 'failed_open' ||
+    result?.damageState === 'failed'
+  )
+    return 'burned';
   if (result?.junctionState === 'reverse_blocking') return 'reverse';
-  if (result?.presentationState === 'failed') return 'burned';
-  if (result?.presentationState === 'destructive') {
-    return result.stressState === 'burned' ? 'burned' : 'overcurrent';
-  }
+  if (result?.presentationState === 'destructive') return 'overcurrent';
   return result?.lit ? 'lit' : 'off';
 }
 
@@ -277,22 +284,51 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
   }
 
   const simulationStartedAtRef = useRef<number | null>(null);
-  const [requestedHorizonMicroseconds, setRequestedHorizonMicroseconds] = useState(0);
+  const simulationHostOffsetMicrosecondsRef = useRef(0);
+  // Host demand is not a new electrical frame. Keep the clock out of React
+  // state so a pending Worker does not redraw the whole editor every 10 ms.
+  const requestedHorizonMicrosecondsRef = useRef(0);
   const [committedHorizonMicroseconds, setCommittedHorizonMicroseconds] = useState(0);
   const [generationPending, setGenerationPending] = useState(false);
   const [simulationMessage, setSimulationMessage] = useState<SimulationStatusMessage | null>(null);
-  const [liveResult, setLiveResult] = useState<typeof persistedResult>(null);
+  const ledTemporalPresentationRef = useRef(new LedTemporalPresentation());
+  const [liveObservation, setLiveObservation] = useState<{
+    result: NonNullable<typeof persistedResult>;
+    ledBrightness: ReadonlyMap<string, number>;
+  } | null>(null);
+  const liveResult = liveObservation?.result ?? null;
   const [arduinoSerialByBoard, setArduinoSerialByBoard] = useState<
     Readonly<Record<string, ElectronicsArduinoSerialProjection>>
   >({});
   const simulationWorkerRef = useRef<ElectronicsLiveSimulationWorkerController | null>(null);
-  if (simulationWorkerRef.current === null) {
-    simulationWorkerRef.current = new ElectronicsLiveSimulationWorkerController();
-  }
+  const simulationCommandRef = useRef<
+    ((command: (controller: ElectronicsLiveSimulationWorkerController) => void) => void) | null
+  >(null);
   const runtimeDocumentRef = useRef(runtimeDocument);
-  runtimeDocumentRef.current = runtimeDocument;
   const resetSimulationRef = useRef(resetSimulation);
-  resetSimulationRef.current = resetSimulation;
+  const committedHostSessionRef = useRef<{
+    projectId: string;
+    running: boolean;
+    active: boolean;
+  } | null>(null);
+  useLayoutEffect(() => {
+    // A suspended render must not publish its document to the active timer.
+    runtimeDocumentRef.current = runtimeDocument;
+    resetSimulationRef.current = resetSimulation;
+  });
+  useLayoutEffect(() => {
+    // Suspense can detach/reveal layout effects without restarting the passive
+    // interval. Keep the same logical run identity across that lifecycle.
+    let session = committedHostSessionRef.current;
+    if (!session || session.projectId !== projectId || session.running !== simulationRunning) {
+      session = { projectId, running: simulationRunning, active: false };
+      committedHostSessionRef.current = session;
+    }
+    session.active = simulationRunning;
+    return () => {
+      session.active = false;
+    };
+  }, [projectId, simulationRunning]);
 
   async function toggleSimulation(): Promise<void> {
     setSimulationMessage(null);
@@ -306,10 +342,11 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
     resetSimulation();
     setRuntimeOverrides({});
     simulationStartedAtRef.current = null;
-    setRequestedHorizonMicroseconds(0);
+    requestedHorizonMicrosecondsRef.current = 0;
     setCommittedHorizonMicroseconds(0);
     setSimulationMessage(null);
-    setLiveResult(null);
+    ledTemporalPresentationRef.current.reset();
+    setLiveObservation(null);
     setArduinoSerialByBoard({});
   }
 
@@ -322,95 +359,208 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
   useEffect(() => {
     if (!simulationRunning) {
       simulationStartedAtRef.current = null;
-      setRequestedHorizonMicroseconds(0);
+      requestedHorizonMicrosecondsRef.current = 0;
       setCommittedHorizonMicroseconds(0);
-      setLiveResult(null);
+      ledTemporalPresentationRef.current.reset();
+      setLiveObservation(null);
       setArduinoSerialByBoard({});
       return;
     }
 
-    simulationStartedAtRef.current = window.performance.now();
-    setRequestedHorizonMicroseconds(0);
+    // Initialization does not advance model time. The first complete time-zero
+    // observation below starts this generation's host clock exactly once.
+    simulationStartedAtRef.current = null;
+    simulationHostOffsetMicrosecondsRef.current = 0;
+    requestedHorizonMicrosecondsRef.current = 0;
+    const session = committedHostSessionRef.current;
+    let active = true;
     const interval = window.setInterval(() => {
+      // Layout cleanup invalidates the old project/run before passive interval
+      // cleanup, including a Stop or route commit while another render waits.
+      if (!active || !session?.active || committedHostSessionRef.current !== session) return;
       const startedAt = simulationStartedAtRef.current;
-      if (startedAt !== null) {
-        setRequestedHorizonMicroseconds(
-          Math.max(0, Math.round((window.performance.now() - startedAt) * 1000)),
-        );
+      const currentDocument = runtimeDocumentRef.current;
+      if (startedAt !== null && currentDocument) {
+        const horizon =
+          simulationHostOffsetMicrosecondsRef.current +
+          Math.max(0, Math.round((window.performance.now() - startedAt) * 1000));
+        requestedHorizonMicrosecondsRef.current = horizon;
+        simulationWorkerRef.current?.update(currentDocument, horizon);
       }
-    }, 100);
-    return () => window.clearInterval(interval);
-  }, [simulationRunning]);
+    }, 10);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, [projectId, simulationRunning]);
 
   useEffect(() => {
-    const controller = simulationWorkerRef.current;
-    if (!controller) return;
+    let controller = simulationWorkerRef.current;
     if (!simulationRunning) {
-      controller.stop();
+      controller?.stop();
       return;
     }
     const initialDocument = runtimeDocumentRef.current;
     if (!initialDocument) return;
-    setLiveResult(null);
+    ledTemporalPresentationRef.current.reset();
+    setLiveObservation(null);
     setArduinoSerialByBoard({});
-    controller.start(projectId, initialDocument, {
-      onGenerationPending: () => {
-        setGenerationPending(true);
-        setCommittedHorizonMicroseconds(0);
-        setLiveResult(null);
-        setSimulationMessage(null);
-      },
-      onResult: (nextResult) => {
-        setGenerationPending(false);
-        setLiveResult(nextResult);
-        setSimulationMessage(circuitStateMessage(nextResult));
-        confirmSimulationStarted();
-      },
-      onCommittedHorizon: setCommittedHorizonMicroseconds,
-      onSerialProjection: (serial) => {
-        setArduinoSerialByBoard(
-          Object.fromEntries(serial.map((entry) => [entry.componentId, entry])) as Readonly<
-            Record<string, ElectronicsArduinoSerialProjection>
-          >,
+    const session = committedHostSessionRef.current;
+    let active = true;
+    const currentSession = () => active && committedHostSessionRef.current === session;
+    let presentedBrightness: ReadonlyMap<string, number> = new Map();
+    let animationFrame: number | null = null;
+    let recordedReanchors = ledTemporalPresentationRef.current.reanchorCount;
+    const observeReanchor = () => {
+      const count = ledTemporalPresentationRef.current.reanchorCount;
+      if (count === recordedReanchors) return;
+      recordedReanchors = count;
+      const name = 'asa-electronics-led-playout-reanchor';
+      window.performance.clearMarks?.(name);
+      window.performance.mark?.(name, { detail: { count } });
+    };
+    const presentLeds = () => {
+      if (!currentSession()) return;
+      animationFrame = window.requestAnimationFrame(presentLeds);
+      if (!session?.active) return;
+      const brightness = ledTemporalPresentationRef.current.sample(
+        Math.round(window.performance.now() * 1000),
+      );
+      observeReanchor();
+      if (
+        presentedBrightness.size === brightness.size &&
+        [...brightness].every(([id, value]) => presentedBrightness.get(id) === value)
+      )
+        return;
+      presentedBrightness = brightness;
+      setLiveObservation((current) =>
+        current ? { ...current, ledBrightness: brightness } : current,
+      );
+    };
+    animationFrame = window.requestAnimationFrame(presentLeds);
+    // Only committed document updates and explicit user commands enter this
+    // queue. Host ticks remain idle until the complete initial ready frame.
+    const pendingCommands: Array<(worker: ElectronicsLiveSimulationWorkerController) => void> = [];
+    const dispatch = (command: (worker: ElectronicsLiveSimulationWorkerController) => void) => {
+      if (!currentSession()) return;
+      if (controller) command(controller);
+      else pendingCommands.push(command);
+    };
+    simulationCommandRef.current = dispatch;
+    const fail = (failure: SimulationFailure) => {
+      if (!currentSession()) return;
+      active = false;
+      pendingCommands.length = 0;
+      reportClientDiagnostic('simulation_failed', 'electronics', {
+        phase: 'simulation',
+        category: failure.category,
+        failureCode: failure.code,
+      });
+      setGenerationPending(false);
+      simulationStartedAtRef.current = null;
+      requestedHorizonMicrosecondsRef.current = 0;
+      resetSimulationRef.current();
+      ledTemporalPresentationRef.current.reset();
+      setLiveObservation(null);
+      setArduinoSerialByBoard({});
+      setSimulationMessage(simulationFailureMessage(failure));
+    };
+    const start = (worker: ElectronicsLiveSimulationWorkerController) => {
+      if (!currentSession()) return;
+      controller = worker;
+      simulationWorkerRef.current = worker;
+      worker.start(projectId, initialDocument, {
+        onGenerationPending: () => {
+          if (!currentSession()) return;
+          simulationStartedAtRef.current = null;
+          setGenerationPending(true);
+          setCommittedHorizonMicroseconds(0);
+          ledTemporalPresentationRef.current.reset();
+          presentedBrightness = new Map();
+          setLiveObservation(null);
+          setSimulationMessage(null);
+        },
+        onInitialReady: (hostOffsetMicroseconds) => {
+          if (!currentSession() || simulationStartedAtRef.current !== null) return;
+          simulationHostOffsetMicrosecondsRef.current = hostOffsetMicroseconds;
+          requestedHorizonMicrosecondsRef.current = hostOffsetMicroseconds;
+          simulationStartedAtRef.current = window.performance.now();
+        },
+        onResult: (nextResult, ledTemporal) => {
+          if (!currentSession()) return;
+          setGenerationPending(false);
+          presentedBrightness = ledTemporalPresentationRef.current.accept(
+            nextResult,
+            ledTemporal,
+            Math.round(window.performance.now() * 1000),
+          );
+          setLiveObservation({
+            result: nextResult,
+            ledBrightness: presentedBrightness,
+          });
+          observeReanchor();
+          setSimulationMessage(circuitStateMessage(nextResult));
+          confirmSimulationStarted();
+        },
+        onCommittedHorizon: (horizon) => {
+          if (currentSession()) setCommittedHorizonMicroseconds(horizon);
+        },
+        onSerialProjection: (serial) => {
+          if (!currentSession()) return;
+          setArduinoSerialByBoard(
+            Object.fromEntries(serial.map((entry) => [entry.componentId, entry])) as Readonly<
+              Record<string, ElectronicsArduinoSerialProjection>
+            >,
+          );
+        },
+        onFailure: fail,
+      });
+      for (const command of pendingCommands) {
+        if (!currentSession()) break;
+        command(worker);
+      }
+      pendingCommands.length = 0;
+    };
+    if (controller) start(controller);
+    else {
+      void loadSimulationWorkerController()
+        .then((Controller) => {
+          if (currentSession()) start(new Controller());
+        })
+        .catch(() =>
+          fail(
+            new SimulationFailure('technical', 'worker-start', 'Simulation module could not load.'),
+          ),
         );
-      },
-      onFailure: (failure) => {
-        reportClientDiagnostic('simulation_failed', 'electronics', {
-          phase: 'simulation',
-          category: failure.category,
-          failureCode: failure.code,
-        });
-        setGenerationPending(false);
-        resetSimulationRef.current();
-        setLiveResult(null);
-        setArduinoSerialByBoard({});
-        setSimulationMessage(simulationFailureMessage(failure));
-      },
-    });
-    return () => controller.stop();
+    }
+    return () => {
+      active = false;
+      if (animationFrame !== null) window.cancelAnimationFrame(animationFrame);
+      pendingCommands.length = 0;
+      ledTemporalPresentationRef.current.reset();
+      if (simulationCommandRef.current === dispatch) simulationCommandRef.current = null;
+      controller?.stop();
+    };
   }, [confirmSimulationStarted, projectId, setNotice, simulationRunning]);
 
   useEffect(() => {
     if (!runtimeDocument || !simulationRunning) return;
-    simulationWorkerRef.current?.update(runtimeDocument, requestedHorizonMicroseconds);
-  }, [requestedHorizonMicroseconds, runtimeDocument, simulationRunning]);
+    const horizon = requestedHorizonMicrosecondsRef.current;
+    simulationCommandRef.current?.((worker) => worker.update(runtimeDocument, horizon));
+  }, [runtimeDocument, simulationRunning]);
 
   function sendArduinoSerialRx(boardId: string, text: string): void {
     if (!simulationRunning || !text) return;
-    simulationWorkerRef.current?.sendSerialRx(boardId, text, requestedHorizonMicroseconds);
+    const horizon = requestedHorizonMicrosecondsRef.current;
+    simulationCommandRef.current?.((worker) => worker.sendSerialRx(boardId, text, horizon));
   }
 
   const result = useMemo(
     () =>
       simulationRunning
         ? liveResult
-        : calculateLiveSimulation(
-            runtimeDocument,
-            persistedResult,
-            false,
-            requestedHorizonMicroseconds / 1000,
-          ),
-    [liveResult, persistedResult, requestedHorizonMicroseconds, runtimeDocument, simulationRunning],
+        : calculateLiveSimulation(runtimeDocument, persistedResult, false, 0),
+    [liveResult, persistedResult, runtimeDocument, simulationRunning],
   );
   usePiezoAudio(runtimeDocument, result, simulationRunning);
 
@@ -1352,10 +1502,12 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
     }
     const currentRuntimeDocument = runtimeDocumentRef.current;
     if (!currentRuntimeDocument) return;
-    simulationStartedAtRef.current = window.performance.now();
-    setRequestedHorizonMicroseconds(0);
-    setLiveResult(null);
-    simulationWorkerRef.current?.restart(currentRuntimeDocument);
+    simulationStartedAtRef.current = null;
+    simulationHostOffsetMicrosecondsRef.current = 0;
+    requestedHorizonMicrosecondsRef.current = 0;
+    ledTemporalPresentationRef.current.reset();
+    setLiveObservation(null);
+    simulationCommandRef.current?.((worker) => worker.restart(currentRuntimeDocument));
     setNotice('Arduino перезапущена: setup() и loop() выполняются сначала.');
   }
 
@@ -2746,8 +2898,10 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
 
   function componentLedBrightness(component: SchematicComponent): number {
     if (component.kind !== 'led' || !simulationRunning) return 0;
+    const electrical = runtimePresentationResultByComponent.get(component.id);
+    if (!electrical) return 0;
     return Math.round(
-      clamp(runtimePresentationResultByComponent.get(component.id)?.brightness ?? 0, 0, 100),
+      clamp(liveObservation?.ledBrightness.get(component.id) ?? electrical.brightness ?? 0, 0, 100),
     );
   }
 
@@ -2783,7 +2937,13 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
       }
       return runtimePresentationResultByComponent.get(component.id)?.lit ? 'lit' : 'off';
     }
-    return ordinaryLedVisualState(componentResult);
+    const state = ordinaryLedVisualState(componentResult);
+    const optical = liveObservation?.ledBrightness.get(component.id);
+    return optical !== undefined && (state === 'off' || state === 'lit')
+      ? optical > 0
+        ? 'lit'
+        : 'off'
+      : state;
   }
 
   // While a pan is in flight the element carries a viewBox React did not write.
@@ -2829,7 +2989,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
     simulationRunning,
     arduinoSerialByBoard,
     sendArduinoSerialRx,
-    simulationTimeMs: requestedHorizonMicroseconds / 1000,
+    simulationTimeMs: requestedHorizonMicrosecondsRef.current / 1000,
     committedSimulationTimeMs: committedHorizonMicroseconds / 1000,
     simulationStatus: simulationRunning && generationPending ? 'starting' : simulationStatus,
     simulationMessage,

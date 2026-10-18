@@ -69,6 +69,7 @@ components:
     tests:
     - contexts/electronics/testing/solver.spec.ts
     - contexts/electronics/testing/benchmark-corpus.spec.ts
+    - contexts/electronics/testing/linear-system.spec.ts
     dependencies:
     - electronics.engine.netlist
     - electronics.engine.device-model
@@ -123,18 +124,25 @@ components:
     risk: high
     contracts:
     - docs/product/electronics/ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md#5-e-opt-2--dedicated-electronics-worker
+    - docs/product/electronics/contracts/CANONICAL_CLOCK_CONTRACT.md#ordinary-led-temporal-observation-v1
     sources:
     - apps/web/src/electronics/live-simulation-worker-controller.ts
+    - apps/web/src/electronics/load-simulation-worker-controller.ts
     - apps/web/src/electronics/use-electronics-workbench.ts
     - apps/web/src/electronics/use-workbench-project-state.ts
+    - apps/web/src/electronics/led-temporal-presentation.ts
     tests:
     - apps/web/src/electronics/testing/live-simulation-worker-controller.spec.ts
+    - apps/web/src/electronics/testing/use-electronics-workbench-clock.spec.ts
+    - apps/web/src/electronics/testing/led-temporal-presentation.spec.ts
     - e2e/electronics-simulation.spec.ts
+    - e2e/electronics-ready-cadence.spec.ts
     dependencies:
     - electronics.worker.protocol
     symbols:
     - ElectronicsLiveSimulationWorkerController
     - useElectronicsWorkbench
+    - LedTemporalPresentation
   electronics.clock.canonical:
     ownership: asa
     risk: high
@@ -142,13 +150,16 @@ components:
     - docs/product/electronics/contracts/CANONICAL_CLOCK_CONTRACT.md#1-clock-authority
     - docs/product/electronics/ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md#6-e-opt-3--canonical-electronics-clock
     - docs/product/electronics/README.md#15-arduino-и-программирование
+    - docs/product/electronics/contracts/CANONICAL_CLOCK_CONTRACT.md#ordinary-led-temporal-observation-v1
     sources:
     - contexts/electronics/domain/arduino-circuit-scheduler.ts
+    - contexts/electronics/domain/led-temporal-observation.ts
     - contexts/electronics/domain/simulation.ts
     - apps/web/src/electronics/use-electronics-workbench.ts
     tests:
     - contexts/electronics/testing/arduino-circuit-scheduler.spec.ts
     - contexts/electronics/testing/arduino-execution-clock.spec.ts
+    - contexts/electronics/testing/led-temporal-observation.spec.ts
     - apps/web/src/electronics/testing/live-simulation-worker-controller.spec.ts
     - contexts/electronics/testing/canonical-piezo-clock.spec.ts
     - apps/web/src/electronics/testing/simulation-worker-piezo.spec.ts
@@ -160,6 +171,7 @@ components:
     symbols:
     - advanceArduinoCircuitClock
     - useElectronicsWorkbench
+    - createLedTemporalObservation
   electronics.transient.runtime:
     ownership: asa
     risk: high
