@@ -373,6 +373,17 @@ documents:
     context_role: compact
     read_when: [identity_any_change, account, auth, student_seat, access, profile, session]
 
+  - id: ACCOUNT-CONFIRMATION-SPEC
+    path: docs/product/ASA_ACCOUNT_CONFIRMATION_SPEC.md
+    scope: identity
+    lanes: [admin-auth]
+    kind: target
+    status: canonical
+    authority: account_confirmation_policy
+    revision: '1.0'
+    context_role: task
+    read_when: [account_confirmation, authentication_provider, provider_availability, admin_confirmation_policy]
+
   - id: ADMIN-AUTH-MAX-BLUEPRINT
     path: docs/execution/ADMIN_AUTH_MAX_EXECUTION_PLAN.md
     scope: identity
