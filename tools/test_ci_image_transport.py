@@ -128,6 +128,15 @@ def general_node_contract(contract, original, effective):
         if "--pulled-postgres" in step.get("run", ""):
             step["run"] = step["run"].replace("--pulled-postgres", "--general-pulled-postgres")
     require(changed == 1, "General transport must change exactly one required build")
+    uploads = [step for step in contract["jobs"]["access-a-browser"]["required_steps"]
+               if step.get("uses") == "actions/upload-artifact@v4"]
+    require(len(uploads) == 1 and uploads[0]["with"]["path"] == (
+        "e2e/artifacts/owner-preview/access-a\nreports/playwright/access-a\n"
+        "reports/playwright/settings-ui\ne2e/artifacts/owner-preview/access-a-ui\n"),
+        "Original General Access artifact scope changed")
+    uploads[0]["with"]["path"] += (
+        "reports/playwright/portal-compact-shell-r2-20261008/\n"
+        "e2e/artifacts/owner-preview/classroom-profile-completion/\n")
     return contract
 
 
@@ -544,6 +553,30 @@ def check_challenges(receipt):
     outside_proof["jobs"]["code"]["steps"].append(
         {"run": "python3 tools/test_ci_image_transport.py --prepare-general-postgres"})
     challenge("other job General PostgreSQL mode is outside scope", {general: json.dumps(outside_proof)}, False)
+    challenge("actual approved General Access artifact upload", {}, True)
+    access_workflow = parse_yaml(source[general])
+    access_steps = access_workflow["jobs"]["access-a-browser"]["steps"]
+    upload_index = next(index for index, step in enumerate(access_steps)
+                        if step.get("uses") == "actions/upload-artifact@v4")
+    for artifact_path in access_steps[upload_index]["with"]["path"].splitlines():
+        changed = deepcopy(access_workflow)
+        upload = changed["jobs"]["access-a-browser"]["steps"][upload_index]
+        upload["with"]["path"] = upload["with"]["path"].replace(artifact_path + "\n", "")
+        challenge("removed Access artifact path " + artifact_path, {general: json.dumps(changed)}, False)
+    for name, field, value in [
+        ("changed Access artifact retention", ["with", "retention-days"], 1),
+        ("changed Access artifact condition", ["if"], "failure()"),
+        ("changed Access artifact name", ["with", "name"], "other-artifacts"),
+        ("changed Access artifact action", ["uses"], "actions/upload-artifact@v3"),
+        ("unapproved Access artifact directory", ["with", "path"],
+            access_steps[upload_index]["with"]["path"] + "unapproved/directory/\n"),
+    ]:
+        changed = deepcopy(access_workflow)
+        parent = changed["jobs"]["access-a-browser"]["steps"][upload_index]
+        for key in field[:-1]:
+            parent = parent[key]
+        parent[field[-1]] = value
+        challenge(name, {general: json.dumps(changed)}, False)
     override = json.loads(source[TRANSPORT])
     for name, path, value in [
         ("wrong transport workflow", ["workflow"], focused),

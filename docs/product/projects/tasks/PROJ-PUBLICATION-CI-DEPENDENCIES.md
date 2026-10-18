@@ -1,10 +1,10 @@
 # Public Projects: verification baseline dependencies
 
 Parent programme: TASK-PROJ-R7-VISIBLE-PUBLICATION-001, Issue #211.
-The controller selects three separate bounded C repairs under AGENTS.md sections
-2.1 and 7. These support the first visible publication increment. They do not
-authorize another product feature, deployment, working database action, runtime
-change or weakening of a gate.
+The controller selects the separate bounded C repairs and D dependencies below
+under AGENTS.md sections 2.1 and 7. These support the first visible publication
+increment. Each selection authorizes only its stated paths and behavior; no
+deployment, working database action or weakening of a gate is authorized.
 
 ## Scratch type checking
 
@@ -85,6 +85,18 @@ Acceptance: new independent review of the exact combined source, actual Access
 Account UI and Portal Header Responsive CI, plus the complete general gate.
 
 ## Integration
+
+### Retired verification package
+
+PR619 was closed without merge as SUPERSEDED at unchanged head
+`efbaeada18819fff9f76a08a4acc74bfa468d397`. Independent comparison against main
+`d4dd2115c34415bd8ad0ef4968f02ffaffd62578` found seven of its fourteen blobs
+already byte-identical and seven superseded by newer accepted content. No
+missing ready source remained. Its branch, two source-only commits and earlier
+reviews remain provenance; this is not a claim that every commit was merged.
+See PR619 comment `6255104981`. Historical transport evidence below remains
+valid. GC1's scanner/duplicate finding, release620 and Public Projects combined
+acceptance remain open under their existing ownership.
 
 ### Isolated data-job Node transport
 
@@ -187,3 +199,310 @@ by this real shared infrastructure change; unrelated documentation movement does
 not invalidate focused publication evidence. Canonical selection/status remain in
 `current.yaml`. This scope authorizes no local Docker, working database,
 production cleanup or deployment.
+
+## Separate C — acknowledge the actual persisted visit receipt
+
+TASK-PROJ-PUBLICATION-ANALYTICS-RECEIPT-001.
+Author branch: `codex/projects-analytics-receipt`.
+Selection baseline: `e2677c3735b8a14b99691c59a38b050f685f10b3`.
+
+Learning run `39154885422`, job `117755945106`, on publication candidate
+`662c8af4fbffead0f71b2fb95a4e9768d0c4b9fb` reproduces the same seven failure
+causes as the earlier non-publication baseline `4db817619`. Independent read-only
+triage found a specific existing client/server contract defect:
+
+- Migration0098 defines `product_analytics_events.id` as `bigserial`.
+- Migration0207 emits `recordId` through `jsonb_build_object` from `v_id bigint`.
+- The actual successful HTTP200 wire response contains a JSON number.
+- `confirmedAnalytics` instead requires a UUID for this visit receipt.
+- In one mixed-course trace, four unique visits cause69 sends. One persisted
+  event with `recordId:43` is replayed seven times; after a later context switch
+  it correctly receives `409 context_mismatch`. A separate actual200 probe with
+  `recordId:51` is rejected by the current frontend despite its valid envelope.
+
+Evidence artifact `12146793263` has verified SHA256
+`fd5a2cd5ce1f941952152636e52eed794fb79c1269810610d09848b982442376`.
+The seven trace files were downloaded once and inspected read-only. This
+establishes unnecessary replay; it does not prove every later login failure will
+disappear after the receipt repair.
+
+### One bounded author scope
+
+1. `apps/web/src/telemetry-contract.ts`
+2. `apps/web/src/telemetry-contract.spec.ts`
+3. `apps/web/src/analytics-delivery.spec.ts`
+4. `apps/web/src/analytics-runtime.spec.ts`
+5. `apps/web/src/analytics-auth-recovery.spec.ts`
+6. `apps/web/src/blocks/testing/editor-runtime-session.spec.ts`
+7. `tests/portal/analytics-delivery.pg.spec.ts`
+8. `e2e/fixtures/telemetry-receipts.ts`
+9. `tests/portal/ui-telemetry-receipts.spec.ts`
+10. `tools/blocks/browser/telemetry-fixture.mjs`
+11. `e2e/classroom-scratch-time.spec.ts`
+
+For a visit only, recognize a numeric `recordId` satisfying
+`Number.isSafeInteger(value) && value > 0`. Reject UUIDs, numeric strings, zero,
+negative, fractional, unsafe and absent values. Do not coerce values or redesign
+bigint serialization. Keep every existing accepted/state/schema/event/receipt/
+operation/timestamp check, session interval and actor/context binding, and all
+terminal HTTP-error handling.
+
+The additional fixture changes correct only visit `recordId` to the wire type.
+They retain event/receipt UUID equality, quality receipts, Project/session IDs,
+routes, timers, activity intervals and autosave. Consumers of shared fixtures do
+not require changes. The uppercase-UUID API compatibility test remains intact;
+frontend exact equality is tested with a normal lowercase browser envelope or
+the canonical replay payload, not by weakening equality.
+
+The independent triage and controller searched current source and active PR
+scopes. No unfinished author overlap was found on these11 paths; PR622's Learning
+journey files and the active GC1 guard composition remain outside this repair.
+The controller authors only governance and mechanically integrates completed
+source. A separate author implements; a different reviewer checks frozen bytes.
+
+### Acceptance and unresolved failures
+
+Require meaningful focused numeric-validation and queue tests, including removal
+of the acknowledged visit from memory/storage and no replay on workspace change.
+The PostgreSQL regression must pass a real API200 body through the shipping
+frontend validator and `AnalyticsDelivery`, prove a single durable domain effect,
+an empty queue and no replay. Then require independent exact-source review and
+actual changed-source General/Learning CI. Local smoke or skipped PG is not PG
+acceptance.
+
+Six fresh unauthenticated Learning logins receive429 with a common reset window
+and `Retry-After`; the common mutation hook sets that header while the controller's
+per-identity login limiter does not. Repeated analytics spends this shared budget.
+First fix the proved receipt defect. Any residual429 requires separate diagnosis;
+do not change auth limits, add retry/sleep or ignore browser errors here.
+
+General Access A job `117757301887` separately times out at5011ms in the existing
+ratings journey, while the exact same test passes in Data job `117757301925` at
+1135ms. It does not invoke the publication repository lock wrapper, but the cause
+of the timing difference remains unproved. Keep it unresolved; no timeout or
+parallelism increase is selected. A further failure on the changed candidate
+requires phase/SQL/blocker evidence before a separate repair decision.
+
+## Separate C — preserve independent decoding of small print QR rasters
+
+TASK-PROJ-PUBLICATION-QR-PRINT-RASTER-001.
+Author branch: `codex/projects-qr-print-raster`.
+
+Classroom run `39154885479`, job `117755945105`, on publication source
+`662c8af4fbffead0f71b2fb95a4e9768d0c4b9fb` fails the owner mixed-card print
+scenario in `e2e/student-access-cards.spec.ts`. Independent read-only diagnosis
+verified artifact `12146839286`, SHA256
+`205457c8e4e5ccd34fe462818d1998716fee906c19e93ab47ecaab1e60bd5991`, and replayed
+the actual trace DOM, all fourteen loaded stylesheets and original SVG using
+the same Playwright 1.55.1 / Chromium 140.0.7339.186 as CI, with zero network
+requests and no ASA application, database or installation.
+
+The long-site fixture changes a printed label and CSS class, not the QR URL.
+Existing print CSS reduces the QR from 20mm to 16mm. At DPR1 its fractional
+position yields a 62x61 screenshot. Independent jsQR 1.4.0 returns null, although
+the original white quiet zone and opaque black/white pixels remain intact.
+Nearest-neighbor 2x replication of that exact PNG, the unchanged DOM at DPR2/3,
+and the unchanged two-page A4 PDF rasterized at 300dpi each decode the exact
+expected URL, including a separate monochrome check. Blank and removed-finder
+controls remain undecodable after replication. Physical paper/camera testing
+was not performed; these results establish the screenshot/decoder boundary,
+not a defect in the product encoder or print CSS.
+
+### Bounded author scope
+
+- `e2e/student-access-cards.spec.ts`.
+- `e2e/fixtures/qr-print-raster.ts`.
+- `tests/portal/qr-print-raster.spec.ts`.
+
+Keep one real Locator screenshot and inspect its original quiet zone. First
+decode the original pixels, preserving every raw success. Only a null raw print
+decode may select one fixed nearest-neighbor2x fallback from that same PNG;
+screen decoding never takes the fallback. Decode monochrome on the same selected
+raster with no further fallback. Preserve every original pixel and channel;
+do not smooth, crop, regenerate modules or read
+the expected URL from DOM/React/encoder state. Retain raw screen decoding,
+independent jsQR, monochrome decoding, full expected URL comparison, privacy,
+layout, roster, credential and no-mutation assertions. Preserve original PNG
+failure evidence. No retry, timeout, rate-limit, viewport/DPR, product CSS/SVG,
+API, database, dependency or workflow change is selected.
+
+Acceptance requires a focused regression using the reproduced failing raster,
+blank/corrupt-finder negative controls and input immutability; a new independent
+review of the final SHA; and actual changed-source Classroom/Access browser CI.
+Synthetic replay and source approval alone do not establish the full classroom
+journey. This repair is independent of analytics PR628, the final publication
+shell source7db13b9 and the single-owner GC1 shared-guard work.
+
+### Actual b138 runtime finding and bounded correction
+
+PR629 source `b1387d32db98e70d635b9843016fee2f81b83cf7` passed focused/source
+checks but actual Classroom `39163873957` found a new category A regression.
+The attached original 20mm print PNG is 76x77 and decodes the exact URL raw;
+forced nearest-neighbor2x produces 152x154 and jsQR null. Three/fourfold inputs
+also decode, but selecting an arbitrary new mandatory scale does not preserve
+the previous raw-success contract. The serial mixed16mm journey was skipped.
+
+Review5564865973 therefore rejects acceptance of b138. Correct the pipeline as
+specified above: raw first, at most one print-only pixel fallback from the same
+original PNG, no recapture/delay/rerun and no expected-URL-dependent selection.
+Wrong decoded URLs and monochrome failures must still fail. Add the new actual
+raw-success PNG beside the existing raw-failing62x61 fixture, testing the shared
+decode-selection implementation itself. Preserve all negative controls and
+original evidence. A different independent reviewer and new changed-SHA real
+Classroom/Access CI are required; existing unrelated failures remain open.
+
+## Separate evidence — locate the two remaining Scratch save failures
+
+TASK-PROJ-PUBLICATION-SCRATCH-SAVE-EVIDENCE-001.
+Author branch: `codex/projects-scratch-save-evidence`.
+Prepared base: exact analytics `4343b88b788f02a279fd18df3789582994cb6b9e`.
+Only two authored paths: `e2e/blocks-product-integration.spec.ts` and
+`e2e/blocks-recovery.spec.ts`.
+
+Actual Scratch run `39160885787`, job `117773758655`, completed55 browser passes
+and two failures. Artifact `12149940575`, SHA256
+`d5ae4753962d6d9a0e5f3189b849e3a980ec5dff4977cd51bc3f50dd0fd448c8`, confirms
+the exact host/source identity. The two test files and host editor/storage/recovery
+are unchanged from the parent, but the analytics fixture is in the changed source;
+that alone does not establish category C or exclude an introduced interaction.
+
+The default-cached Pop/Abby case expects revision24 and observes23. Existing JSON
+records a checkpoint, editor readiness, one project change and a fired60000ms
+timer, but zero asset requests, draft requests and revision commits. The timer
+observer accepts any55-65s timer without callback identity, so it does not prove
+ProjectSaver began. The clean-Pop sibling saves five protected assets and one
+draft and reopens the exact media. The failure is before the first durable-save
+HTTP request; an asset/SQL rejection has not been established.
+
+The failed-autosave case reaches the error UI and then exceeds150s. Completed
+repair `cc18c540d8a2e717e1961a956c7d6db689b15cd7` is already in4343 and must
+remain. Existing artifacts do not distinguish response headers, the unbounded
+`response.finished()` await, post-failure IndexedDB read, or fixture teardown.
+The finally-block inline attachment is absent from this list-only runner's
+uploaded files. Neither recovery loss nor accepted retention is demonstrated.
+
+Select passive, bounded stage evidence in the two tests, saved as real JSON files
+under the existing uploaded `reports/blocks` tree before blocking awaits and
+during failure/teardown. Distinguish observed timer/callback and exposed upstream
+serialization/save-adapter boundaries without invoking or replacing a save.
+Record non-observed stages explicitly; do not infer execution from an unrelated
+timer. Record response headers/completion, recovery-read entry/exit and teardown
+entry/exit separately. New metadata must exclude tokens, cookies, request bodies
+and raw errors and must remain bounded. Preserve every existing user action,
+clock advance, timeout/retry, exact revision/media/auth/origin/recovery assertion.
+Observers must retain callback this/arguments/return/throw and execution order;
+no forced save, extra click, reschedule, assertion catch or false success.
+
+Fresh canonical and open-PR inspection found no current unfinished author on
+these two E2E files. Issue601/599 completed owners retain their existing unit-test
+and runtime boundaries; coordination was posted in Issue601 comment6254919404.
+No host/bridge/storage, shared fixture, workflow, Analytics11 or GC1 file is
+authored. Start from exact4343 to keep the actual numeric-receipt fixture under
+test without composing unrelated main changes. A diagnostic PR may target that
+frozen analytics source branch for a precise two-file review; it is not selected
+for merging into that author's branch or for publication acceptance.
+
+Require independent final-source review, then one justified changed-source
+Scratch CI with exact build identity and uploaded JSON. A/B/C/D remain unresolved
+until causal evidence is read. Preserve failure exit status; an unreproduced
+failure is NOT_REPRODUCED, not proof of a repair. No product modification or
+second unchanged CI attempt is selected by this evidence task.
+
+## Separate C — preserve the accepted AI header in publication verification
+
+TASK-PROJ-PUBLICATION-SHELL-AI-COMPATIBILITY-001.
+Author branch: `codex/projects-shell-ai-compatibility`.
+Only authored path: `e2e/access-account-ui.spec.ts`.
+
+Main accepted PR616 at `6abacef6eb6a083a72392e4786fb3f5a1e6a9738`, adding the
+third global AI destination and scoped responsive styling. Independent read-only
+audit against `d4dd2115c34415bd8ad0ef4968f02ffaffd62578` found no new text conflict
+with publication662 and frozen shell `7db13b9ecce77139866708353e4f418f37141e3c`.
+However, both the current main Access test and that shell companion still demand
+exactly two top links and no AI. They also require an eight-pixel right inset at
+every mobile width and a visible Create label for every width above560. Those
+oracles contradict the accepted AI stylesheet: four-pixel inset below360 and
+compact Create between601 and760. This is a separate inherited compatibility
+finding, not permission to revert the accepted AI feature.
+
+One author starts from current accepted main, adopts the exact completed Access
+source from7db13b9, and changes only the demonstrated obsolete expectations and
+their boundary coverage. Preserve its canonical Explore/native-link and actual
+legacy Gallery redirect assertions. Keep the strict56px header and every44px
+target, no overflow/overlap, all normal and stress-text checks, role, focus/Escape,
+dirty-navigation, profile and no-mutation guards. Cover359/360,600/601,760/761 and
+1023/1024 as well as1440/1024/390/320. Do not change timeouts/retries, fixture
+authority, runtime, CSS, MyProjectsPage or any other author's files.
+
+The final composition must retain the new AI navigation, stylesheet and tests
+from616 together with publication routing. Existing AI entry/exit must preserve
+the personal sidebar preference, close the mobile drawer, and show a locked Seat
+view without granting AI API access. Those already authored responsive and
+capability tests remain mandatory; this single-file companion does not replace
+them. The final shell footer remains `Приватный`, with protected Learning work
+and feedback semantics intact.
+
+Acceptance requires a new independent exact-source review against both frozen7db
+and accepted616, then real changed combined Access and Portal Header Responsive
+CI on desktop/mobile. A companion branch without publication runtime cannot
+establish the combined journey. The controller retains the single final
+convergence requirement and the exclusive GC1 author.
+
+## Separate evidence — identify the remaining Learning mutation traffic
+
+TASK-PROJ-PUBLICATION-LEARNING-MUTATION-EVIDENCE-001.
+Author branch: `codex/projects-learning-mutation-evidence`.
+
+Analytics source `4343b88b788f02a279fd18df3789582994cb6b9e` passed General
+`39160885774`, including the real delivery PG regression (14/14), and Classroom
+`39160885775`. Learning `39160885790` completed with 18 browser passes and five
+fresh login HTTP429 failures. The second browser command after `&&` did not run.
+The five failing traces have no session cookies and a shared Retry-After reset;
+a preceding diagnostics429 contains `too_many_requests`. Exact source identifies
+the common MutationAbuseProtection before AuthController. Its address budget is
+also consumed by authenticated requests, but the earlier passing request stream
+and API stdout were not saved. The traffic that exhausted the window remains
+unknown. This selection gathers evidence; it does not alter or accept a repair.
+
+### Four new paths only
+
+- `.github/workflows/learning-mutation-budget-diagnostic.yml`.
+- `tools/learning-mutation-diagnostic/runner.mjs`.
+- `tools/learning-mutation-diagnostic/reporter.mjs`.
+- `tools/learning-mutation-diagnostic/harness.spec.mjs`.
+
+Use two independent exact checkouts: `source/` contains tested product SHA
+`4343b88b788f02a279fd18df3789582994cb6b9e`; `diagnostic/` contains the reviewed
+diagnostic head. Verify both actual revisions and record `testedProductSha` and
+`diagnosticSha` separately. Reuse original Learning Node22, pnpm9.15.9, frozen
+lockfile, build, PostgreSQL16, restricted application role, migrations, focused
+Learning tests and Scratch host preparation on the disposable GitHub runner.
+The new workflow may start from its own candidate PR only after independent
+source review; it uses a separate concurrency group. A manual trigger may also
+be provided. Existing workflows and their results remain unchanged.
+
+Run the complete first batch in its original order: `learning-author-preview`,
+`learning-course-01`, `courses-sharing` (23 cases), using the existing source
+Playwright config, one worker, zero retries and every existing assertion. The
+second batch is explicitly NOT_RUN in this diagnostic. Do not use `--debug` or
+`PWDEBUG`. Set `ASA_HTTP_LOG=1` and `DEBUG=pw:webserver`; ensure VITEST is absent
+from the browser child. The verified Playwright1.55.1 WebServer plugin forwards
+API stdout to the custom reporter. Runner pipes capture both stdout/stderr;
+neither a normal list reporter nor raw debug output may bypass sanitization.
+
+Persist HTTP JSONL with exactly `method`, `routecategory`, `status`, `timestamp`
+and `requestId`. Route categories are fixed, never raw paths/query or dynamic
+identifiers. Persist only separately allowlisted revision, stage and test-matrix
+metadata; do not store request bodies, headers, cookies/tokens, raw process
+output, trace ZIPs or raw test errors. `--trace=off` changes only this diagnostic
+capture mode. Handle ANSI, split chunks and incomplete/malformed streams with
+bounded buffers and explicit capture failure. Preserve observed test counts,
+actual child exit status and failed CI conclusion; upload sanitized artifacts
+with `if: always()` and no failure-to-success conversion.
+
+Acceptance requires meaningful privacy/chunking/matrix/capture-failure/exit-code
+tests, a new independent review of the frozen source before its real diagnostic
+workflow starts, and actual isolated CI with both exact identities. HTTP counts
+are observed traffic, not reads of the internal byAddress counter. If429 does
+not recur, report NOT_REPRODUCED and keep the cause unresolved. Existing Learning
+PR622 files, runtime/config/server, analytics11, QR629 and GC1 are outside scope.
