@@ -81,6 +81,138 @@ primary_lane:
     - docs/architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md
 
 parallel_lanes:
+  - id: session-database
+    parent_lane: observability
+    worktree_id: session-database-point6-604
+    owned_paths:
+      - apps/api/src/session-database-diagnostics.ts
+      - apps/api/src/session-database-diagnostics.spec.ts
+      - migrations/0216_session_context_nonblocking_heartbeat.sql
+      - docs/execution/CLASSROOM_SESSION_DATABASE_POINT6.md
+    task:
+      id: TASK-CLASSROOM-SESSION-DATABASE-006
+      issue: 604
+      branch: main
+      base_branch: main
+      pr: null
+      pr_draft: false
+      status: in_progress
+      checkpoint: point6_selected_context_wait_diagnostics_and_heartbeat
+      owner_acceptance: pending
+      owner_authorization: Owner selected audit point6 only; publish main, report and STOP. No deployment or working database actions.
+      context_hints:
+        - docs/execution/CLASSROOM_SESSION_DATABASE_POINT6.md
+        - docs/agent/contracts/identity.yaml
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: 1dda9dddaaf6da55625344b18d2fa4f6df2e16f0
+      head_sha: null
+      observed_at: '2026-10-18T13:15:00Z'
+      main:
+        branch: main
+        sha: 1dda9dddaaf6da55625344b18d2fa4f6df2e16f0
+      observation_note: Clean point6 selection. Fetch main before writes; actual final checks and independent review recorded in issue604. No deployment authority.
+    execution_lease:
+      executor_id: session-database-point6-604
+      holder: unassigned
+      acquired_at: null
+      expires_at: null
+      reviewer_role_requires_lease: false
+    gates:
+      focused:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm test:access-a
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
+  - id: electronics-mobile-add-connect
+    parent_lane: electronics
+    worktree_id: electronics-mobile-touch
+    owned_paths:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-MOBILE-ADD-CONNECT-001.md
+    task:
+      id: TASK-ELECTRONICS-MOBILE-ADD-CONNECT-001
+      issue: 280
+      programme_issue: 452
+      branch: main
+      base_branch: main
+      pr: null
+      status: in_progress
+      kind: repair
+      checkpoint: native_phone_add_connect_before_test_only
+      owner_acceptance: pending
+      owner_authorization: >-
+        Owner selected phone component adding and connecting, implementation through subagents
+        with controller checks and independent review; "делай так чтобы вы не мешали друг другу и не портили результат".
+      scoped_handoff_exception: >-
+        Owner permits this clean isolated mobile checkout despite recorded unrelated Classroom
+        .github/workflows/classroom-owner.yml shared-path WAITING_HANDOFF. Preserve guard output,
+        never claim SAFE_TO_START or change policies. No actual selected-path overlap is permitted.
+        Root Classroom dirty work and active546 hook/LED/core remain untouched.
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-MOBILE-ADD-CONNECT-001.md
+        - docs/product/electronics/components/ui-assets-persistence.yaml
+      repair_scope: >-
+        FIRST tests-only additive native touch cases in existing registered electronics-simulation
+        real auth/CAS/cookies journey plus original280 tap-select then canvas-tap count4to5;
+        two-componentflow or existing upward-drag4to5 alone cannot close280. Existing cases/helpers
+        byte-exact. After independently
+        challenged source and one actual built BEFORE proves missing active-placement cue, ONLY
+        Stage and CSS reuse catalogPlacement keyboard mode and existing cancelFamilyPlacement.
+        Wire/hook defects require exact evidence and handoff, no concurrent hook repair.
+      expected_write_paths:
+        - e2e/electronics-simulation.spec.ts
+        - apps/web/src/electronics/WorkbenchStage.tsx
+        - apps/web/src/electronics/workbench.css
+      path_coordination: >-
+        owned_paths lists the exclusive card only for compatibility; exact bounded source/test
+        budget above is advisory, not an overlap bypass. Check all dirty worktrees before each
+        target write. No existing interactions/helper changes, Sidebars without proven need,
+        hook/LED/core/workflow/package/dependency/artwork/schema edits or school operations.
+      next_action: >-
+        Controller first publishes canonical selection on main. NEW bounded author creates ONE
+        additive test-only candidate and STOP; controller verifies actual source and NEW independent
+        reviewer challenges before one justified built BEFORE. Only proved selected UI cause allows
+        minimal product phase, identical AFTER, exact required gates and NEW final independent review.
+      deployment: not_requested
+      database_actions: isolated_CI_fixture_only_no_local_live_owner_operations
+      ci_database_scope: >-
+        Existing unchanged registered isolated browser workflow may use its disposable fixture DB
+        and real API Save/CAS/cookies reopen. No local Docker, local/live/owner DB, network, backup
+        or deployment operations; no workflow/configuration changes.
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: 92720e3e9d24ed66e699471d20f903c2a7c642a0
+      head_sha: null
+      observed_at: '2026-10-18T13:02:27Z'
+      main:
+        branch: main
+        sha: 92720e3e9d24ed66e699471d20f903c2a7c642a0
+      observation_note: >-
+        Dated clean isolated mobile setup; fetch main before writes and recover exact Git/CI.
+        Recorded unrelated Classroom shared workflow WAITING_HANDOFF remains, with explicit owner
+        scoped exception; no SAFE claim or actual overlapping source permission. No product acceptance.
+    execution_lease:
+      executor_id: electronics-mobile-add-connect
+      holder: unassigned
+      acquired_at: null
+      expires_at: null
+      reviewer_role_requires_lease: false
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1
+      browser:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1:browser
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
   - id: session-recovery
     parent_lane: admin-auth
     worktree_id: session-recovery-point5-602
@@ -3664,8 +3796,12 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: "r21_early_electrical_reuse_and_led_playout"
+      checkpoint: "r21b_joint_complete_ready_optical_witness"
       owner_acceptance: pending
+      r21_preserved_candidate_sha: 39343090a79ec35da5b58236a21e0d11f66a3594
+      r21_core_source_math_review: APPROVE exact7b38ed018de0c1ede894b2b5eb8b4654d858f669; final product pending.
+      r21_final_ui_review: REQUEST_CHANGES exact39343090; per-channel receipt freshness does not prove whole-vector freshness. Real190ms joint state exists in completed175..200ms optical history, so final-vector-only test witness also needs the explicitly selected causal correction.
+      r21_exact_ci: General39130669326 and Electronics39130678017 still in progress at R21-b selection; focused,benchmark,governance,code PASS; PG image build failure unclassified pending available log. Never claim acceptance from these intermediate results.
       r20_negative_candidate_sha: 7494bea4a05a8daf86d9d12cd7c948d7a4ed507a
       r20_negative_result: Unpublished experiment, NOT FOR INTEGRATION. Full byte/state parity and10targettestsPASS; one22-horizon ABBA meanR19 902.928ms versusR20 908.449ms for506.8ms model, no useful throughput gain. No whole gate or repeated measurements. Preserve all evidence; next source baseline is a4ac, not7494.
       r19_general_final: General39127206701 FAIL onlyAccessA classroom-quick-journal.spec.ts193 expected>=210 actual200; categoryC unrelated baseline test already corrected on main67c21ae8. Governance,code(types/build),PostgreSQL/RLS jobsPASS on exacta4. Do not fix classroom or claim wholePASS; next candidate inherits canonical main and needs new exact gate.
@@ -3684,7 +3820,7 @@ parallel_lanes:
         DOM dark phase15.9ms.
       r18_directed_run: 39108267782
       r18_preserved_candidate_sha: 9bc659a780a02dfc99af789cef53ed8feb956146
-      selected_at: "2026-10-18T12:47:24.548514+00:00"
+      selected_at: "2026-10-18T13:25:14.750438+00:00"
       r17_preserved_candidate_sha: "343a6024ded71a883373ed7cc0fcc342a87db785"
       r17_directed_run: 38833934410
       r17_directed_result: "SUCCESS exact343a build; focused and unchanged seven production browser journeys PASS. Independent original ZIP CRC/hash,1135 ready records and13 native PNGs confirmed.100ms electrical4.999775Hz/paint5.099Hz;50ms electrical9.999100Hz/paint10.100Hz; no-delay realtime endpoint lag27.8ms. Earlier272.7ms FAIL belongs to1eff, not343a. Older sustained-HIGH capture has early305ms lag; no universal250ms claim."
@@ -3704,10 +3840,10 @@ parallel_lanes:
       r7_status: not_accepted_directed_failed
       r7_actual_host_tick_ms: 10
       r7_documentation_correction: 'Historical selected20ms retained above/in R7 history; actual controller-authorized source21e uses10ms and ready25000us. R8 does not change these values.'
-      implementation_acceptance: "CORE must preserve complete JSON bytes, Object.is signed-zero/undefined/order and canonical state/events/LED history, while permitting frozen shared readonly electrical subtrees as existing public contract allows. Current residual and independent quality each frame, current thermal/damage/failure/runtime overlays. Challenge immutable-template mutation refusal/isolation, different current state/time with same key, independent/highZ/tone/document/failure/fallback/partition/yield/JSON/Reset. ONE bounded paired R19/candidate22-horizon experiment observerON before heavy CI, no v8hash or elapsed-as-CPU claim. UI must preserve actual50ms phase durations on saved burst pattern and independent outputs, explicit off, fast glow, reset/stale/failure, 50ms witness, no cursor fallback during scored target phases. Each author ONE frozen commit + meaningful tests/typecheck/selfreview then STOP. Controller combines only accepted-scope commits, checks actual diff/provenance and runs required fresh focused/ordinary/repository/browser gates on finalexactSHA with NEW independent source/math/UI and product review. Real2000/100/50/1ms,threeHIGHnoDelay,independentmillis,Reset,Save/reopen and realBlockly all required; no product acceptance yet."
-      next_action: "Publish selection main FIRST. CORE newauthor starts from preserved a4ac and current canonical main, never unsuccessful7494. UI separate clean attached electronics-546-blocks-diagnostic checkout starts same base/current main; preserve old refs, install only frozen project dependencies. Any actual overlapping unfinished source or textual merge conflict STOP. Root coordinates short paired-measure quiet window, no concurrent heavy local tests by our other agent. Each author exact commit then STOP; root actual review/combine and NEW independent exact final reviews. Failure feedback separate bounded repair; CI foreign defects classified without foreign module edits. Keep issue/acceptance blocker OPEN until actual whole editor result."
+      implementation_acceptance: "Regress actual independent50ms/100ms phases shifted10ms with ready25ms windows and sample215ms/cursor190: genuine joint state must be supported by ready200 detailed history without fallback. Separately reject individually recent states that never coexist and genuinely stale joint state; enforce common-time electrical provenance, complete-ready/current-generation/quality, unchanged50ms bound. Fast mean continues from actual current-derived optical history. Preserve55 existing meaningful tests and all real2000/100/50/1ms,threeHIGHnoDelay,independentmillis,Reset,Save/reopen and Blockly actions. Author one frozen commit/selfreview then STOP. Controller checks actual diff then NEW independent exact-SHA UI/source/product review and fresh required focused/ordinary/repository/browser gates;393 CI is historical evidence only. Acceptance remains pending."
+      next_action: "Canonical R21-b selection main FIRST, then UI author new clean branch from preserved393 plus selected main. No actual unfinished source overlap or text conflict may be overridden. Author only selected three files, no CORE or hook edits; report exact SHA and STOP. Controller independently verifies and assigns NEW reviewer, classifies any393 browser failures by retained raw evidence before further bounded repair. Keep Issue546 and acceptance blocker open; no school/DB/network/deployment."
       r17_preserved_repair_scope: "Preserve exact1eff and its approved source/math; product still REQUEST_CHANGES. ONE bounded runtime write-action cost repair in arduino-program-runtime.ts: remove only redundant writes/lookups after existing pin-mode handling, retaining every action, instruction, time, budget, event, shadow/error, pullup/PWM and signed-zero/absent-entry semantics. Existing native profile identifies unchanged applyRuntimeAction cost; it does not measure individual Map.set. First verify equivalence and one short paired real-horizon cost comparison; retain only a measured improvement, no heavy CI for an unsupported micro-optimization. No instruction skipping, special sketch detection, clock rebasing, precision/timeout changes or new profiling. Focused regression and NEW exact independent source/math review before unchanged directed browser gate. FastLED/openBlockly remain required same-goal followups; no foreign/school/deployment changes."
-      repair_scope: "R21 two explicit disjoint bounded slices of the SAME Arduino/LED repair. CORE author only solver.ts plus meaningful existing solver.spec/scheduler/engine tests: early exact eligible electrical-template lookup before generic reconstruction, frozen readonly pure subtrees shared under the existing full Object.is request-owned32-entry key; every current stress/runtime/controller/time overlay, residual, independent quality, thermal/damage/failure/event/continuation stays current. No full runtime/physical/frame/history cache. UI author only led-temporal-presentation.ts, use-electronics-workbench.ts and meaningful existing presentation/workbench tests plus electronics-ready-cadence.spec.ts: wall-paced cursor over actual complete-ready LED history, independent ports, explicit zero/off, reset/stale/failure, bounded existing25ms lookahead, unchanged50ms publication witness and250ms model/wall bound; optical-only reanchor before overrun, never future/yielded data or fake waveform. Correct proven2000ms poll-helper backoff using intervals100 without increasing5000ms timeout or weakening assertions; add genuine visible Blockly wait-field edit100/50/1 Run/Save/reopen. No generator repair without defect. Authors use different clean checkouts, never each others files. No clock/instruction/quantum/budget/precision/equation/dependency/workflow/publicAPI/artwork/school/network/DB changes."
+      repair_scope: "R21-b bounded UI repair only led-temporal-presentation.ts, existing presentation spec and electronics-ready-cadence.spec.ts. Frozen combined39343090a79ec35da5b58236a21e0d11f66a3594 independently REQUEST_CHANGES: per-LED freshness is not joint-vector freshness. Preserve CORE7b38ed0 and workbench hook byte-identical. Validate each displayed vector at ONE common actual model time inside detailed optical history of a fully completed ready result, or its final vector. Do not mix individually recent channels. The old final-vector-only witness excluded a real190ms vector from completed175..200ms history; explicitly correct that witness with this proved cause, not by discarding real independent LED states. Keep50ms freshness, existing33333us pre-RAF fallback,250ms model/wall bound and all electrical precision/timeouts/horizons unchanged. No future/yielded/incomplete/stale/failed witnesses. No physics/clock/runtime/dependency/workflow/foreign module changes."
       r9_candidate_sha: "9df144e48165ee330ea43f547e2d52782964bd54"
       r9_candidate_branch: "codex/electronics-546-r9-host-demand"
       r9_candidate_publication: "pushed_not_integrated_not_deployed"
