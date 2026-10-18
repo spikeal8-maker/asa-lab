@@ -17,19 +17,72 @@ interface AiAdminConfig {
   readonly updatedAt: string | null;
 }
 
+const CONFIG_UNAVAILABLE =
+  'Настройки ИИ не загрузились. Проверьте версию API и миграции базы в «Админ → Система», затем повторите загрузку.';
+const CONFIG_INCOMPATIBLE =
+  'Версия настроек ИИ несовместима с этой формой. Требуется согласованное обновление Web, API и миграций базы (включая лимит платных операций). Проверьте «Админ → Система».';
+const CONFIG_REJECTED =
+  'Сохранение не подтверждено: сервер отклонил настройки ИИ. Проверьте модель и целочисленный лимит, затем повторите сохранение.';
+const TEST_RESULT_UNCERTAIN =
+  'Результат проверки не получен. Запрос мог быть оплачен; проверьте соединение перед повтором.';
+
+function isAiAdminConfig(value: unknown): value is AiAdminConfig {
+  if (!value || typeof value !== 'object') return false;
+  const config = value as AiAdminConfig;
+  return (
+    typeof config.enabled === 'boolean' &&
+    typeof config.apiKeyConfigured === 'boolean' &&
+    typeof config.encryptionReady === 'boolean' &&
+    Number.isSafeInteger(config.configurationVersion) &&
+    config.configurationVersion > 0 &&
+    Number.isInteger(config.paidOperationsPerHour) &&
+    config.paidOperationsPerHour >= 0 &&
+    config.paidOperationsPerHour <= 2147483647 &&
+    ((config.provider === 'deepseek' && config.model === 'deepseek-chat') ||
+      (config.provider === 'openai' &&
+        (config.model === 'gpt-5-mini' || config.model === 'gpt-4.1-mini')))
+  );
+}
+
+function failureMessage(status: number, code: string, message: string): string {
+  if (status === 401) return 'Сессия истекла. Войдите снова в аккаунт администратора платформы.';
+  if (code === 'ai_origin_denied' || code === 'ai_origin_required') {
+    return 'Сервер отклонил источник запроса. Откройте ASA по основному адресу установки; администратору сервера нужно проверить настройку origin.';
+  }
+  if (status === 403) {
+    return 'Для настройки ИИ нужна роль администратора платформы (platform_admin). Права администратора организации не дают этот доступ.';
+  }
+  if (code === 'ai_encryption_unavailable') {
+    return 'Сохранение ключа недоступно: администратору сервера нужно настроить ASA_SETTINGS_ENCRYPTION_KEY в окружении API, затем повторить загрузку.';
+  }
+  if (code === 'ai_config_invalid') return CONFIG_REJECTED;
+  if (
+    code === 'ai_config_unsupported' ||
+    code === 'ai_schema_unsupported' ||
+    code === 'ai_config_schema_unsupported'
+  ) {
+    return CONFIG_INCOMPATIBLE;
+  }
+  if (code.startsWith('ai_provider_') || code.startsWith('ai_response_')) return message;
+  if (status === 404) return CONFIG_INCOMPATIBLE;
+  if (status >= 500 || code === 'ai_config_unavailable') return CONFIG_UNAVAILABLE;
+  return message;
+}
+
 export function AiAdminPage({
   onAccessDenied,
 }: {
   readonly onAccessDenied: () => void;
 }): JSX.Element {
   const [config, setConfig] = useState<AiAdminConfig | null>(null);
-  const [provider, setProvider] = useState<Provider>('openai');
-  const [model, setModel] = useState<Model>('gpt-5-mini');
+  const [provider, setProvider] = useState<Provider>('deepseek');
+  const [model, setModel] = useState<Model>('deepseek-chat');
   const [enabled, setEnabled] = useState(false);
   const [paidOperationsPerHour, setPaidOperationsPerHour] = useState('0');
   const [apiKey, setApiKey] = useState('');
   const [clearKey, setClearKey] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [acknowledgeTest, setAcknowledgeTest] = useState(false);
@@ -45,19 +98,37 @@ export function AiAdminPage({
 
   useEffect(() => {
     let active = true;
-    void call<AiAdminConfig>('/api/admin/v1/ai')
+    setLoading(true);
+    setConfig(null);
+    setApiKey('');
+    setMessage(null);
+    setConnectionTest(null);
+    setAcknowledgeTest(false);
+    setError(null);
+    void call<unknown>('/api/admin/v1/ai')
       .then((result) => {
         if (!active) return;
         if (!result.ok) {
-          if (result.status === 401 || result.status === 403) onAccessDenied();
-          else setError(result.error.message);
+          setError(failureMessage(result.status, result.error.code, result.error.message));
+          if (result.status === 401) onAccessDenied();
+          return;
+        }
+        if (!isAiAdminConfig(result.data)) {
+          setError(CONFIG_INCOMPATIBLE);
           return;
         }
         setConfig(result.data);
-        setProvider(result.data.provider);
-        setModel(result.data.model);
+        const firstSetup =
+          result.data.configurationVersion === 1 &&
+          !result.data.apiKeyConfigured &&
+          !result.data.enabled;
+        setProvider(firstSetup ? 'deepseek' : result.data.provider);
+        setModel(firstSetup ? 'deepseek-chat' : result.data.model);
         setEnabled(result.data.enabled);
         setPaidOperationsPerHour(String(result.data.paidOperationsPerHour ?? 0));
+      })
+      .catch(() => {
+        if (active) setError(CONFIG_UNAVAILABLE);
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -65,17 +136,35 @@ export function AiAdminPage({
     return () => {
       active = false;
     };
-  }, [onAccessDenied]);
+  }, [onAccessDenied, loadAttempt]);
+
+  function handleFailure(result: {
+    readonly status: number;
+    readonly error: { readonly code: string; readonly message: string };
+  }): void {
+    setError(failureMessage(result.status, result.error.code, result.error.message));
+    if (
+      result.status === 401 ||
+      (result.status === 403 &&
+        result.error.code !== 'ai_origin_denied' &&
+        result.error.code !== 'ai_origin_required')
+    ) {
+      setApiKey('');
+      setConfig(null);
+      if (result.status === 401) onAccessDenied();
+    }
+  }
 
   async function save(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
+    if (!config || saving || testing || !validQuota || (switched && !apiKey.trim())) return;
     setSaving(true);
     setConnectionTest(null);
     setAcknowledgeTest(false);
     setMessage(null);
     setError(null);
     try {
-      const result = await call<AiAdminConfig>('/api/admin/v1/ai', {
+      const result = await call<unknown>('/api/admin/v1/ai', {
         method: 'PUT',
         body: JSON.stringify({
           enabled,
@@ -87,8 +176,13 @@ export function AiAdminPage({
         }),
       });
       if (!result.ok) {
-        if (result.status === 401 || result.status === 403) onAccessDenied();
-        else setError(result.error.message);
+        handleFailure(result);
+        return;
+      }
+      if (!isAiAdminConfig(result.data)) {
+        setApiKey('');
+        setConfig(null);
+        setError(CONFIG_INCOMPATIBLE);
         return;
       }
       setConfig(result.data);
@@ -99,23 +193,37 @@ export function AiAdminPage({
       setApiKey('');
       setClearKey(false);
       setMessage('Настройки сохранены. Новый API-ключ не возвращается в браузер.');
+    } catch {
+      setError('Сохранение не подтверждено. Проверьте соединение и повторите загрузку настроек.');
     } finally {
       setSaving(false);
     }
   }
 
   const switched = config !== null && provider !== config.provider;
+  const validQuota =
+    paidOperationsPerHour.trim() !== '' &&
+    Number.isInteger(Number(paidOperationsPerHour)) &&
+    Number(paidOperationsPerHour) >= 0 &&
+    Number(paidOperationsPerHour) <= 2147483647;
   const unsaved =
     !config ||
+    !validQuota ||
     provider !== config.provider ||
     model !== config.model ||
     enabled !== config.enabled ||
     Number(paidOperationsPerHour) !== config.paidOperationsPerHour ||
     Boolean(apiKey.trim()) ||
     clearKey;
+  const canTest =
+    config !== null &&
+    !unsaved &&
+    config.paidOperationsPerHour > 0 &&
+    config.apiKeyConfigured &&
+    config.encryptionReady;
 
   async function testConnection(): Promise<void> {
-    if (!config || unsaved || !acknowledgeTest || testing || saving) return;
+    if (!config || !canTest || !acknowledgeTest || testing || saving) return;
     setTesting(true);
     setConnectionTest(null);
     setError(null);
@@ -129,8 +237,10 @@ export function AiAdminPage({
         }),
       });
       if (result.ok) setConnectionTest(result.data);
-      else if (result.status === 401 || result.status === 403) onAccessDenied();
-      else setError(result.error.message);
+      else if (result.status === 0) setError(TEST_RESULT_UNCERTAIN);
+      else handleFailure(result);
+    } catch {
+      setError(TEST_RESULT_UNCERTAIN);
     } finally {
       setTesting(false);
       setAcknowledgeTest(false);
@@ -142,21 +252,37 @@ export function AiAdminPage({
     setAcknowledgeTest(false);
   }, [provider, model, enabled, paidOperationsPerHour, apiKey, clearKey]);
   return (
-    <section className="asa-ai-admin" aria-labelledby="asa-ai-admin-title">
+    <section
+      className="asa-ai-admin"
+      aria-labelledby="asa-ai-admin-title"
+      aria-busy={loading || saving || testing}
+    >
       <div className="admin-section-heading">
         <div>
           <h2 id="asa-ai-admin-title">ИИ и модели</h2>
           <p>
-            Подключение GPT к ASA Lab. Ключ хранится на сервере, доступен только администратору
-            платформы.
+            Подключите официальный API DeepSeek или OpenAI. Настройки доступны только администратору
+            платформы; API-ключ хранится на сервере в зашифрованном виде и не возвращается в
+            браузер.
           </p>
         </div>
       </div>
       {loading ? <p role="status">Загружаем настройки…</p> : null}
       {error ? (
-        <p className="admin-inline-error" role="alert">
-          {error}
-        </p>
+        <div className="admin-inline-error" role="alert">
+          <p>{error}</p>
+          <a href="/#/admin/system">Открыть «Система»</a>
+          {!loading ? (
+            <button
+              type="button"
+              className="btn-secondary"
+              disabled={saving || testing}
+              onClick={() => setLoadAttempt((attempt) => attempt + 1)}
+            >
+              Повторить загрузку
+            </button>
+          ) : null}
+        </div>
       ) : null}
       {message ? (
         <p className="asa-ai-admin-success" role="status">
@@ -165,6 +291,11 @@ export function AiAdminPage({
       ) : null}
       {config ? (
         <form onSubmit={(event) => void save(event)} className="asa-ai-admin-form">
+          <p className="asa-ai-admin-guide">
+            Введите API-ключ выбранного провайдера, задайте лимит больше 0 и сохраните настройки.
+            Затем подтвердите платную проверку подключения. Чтобы открыть ИИ пользователям, включите
+            разрешение ИИ-запросов и сохраните ещё раз.
+          </p>
           <div className="asa-ai-admin-status">
             <div>
               <span>Доступ по настройкам</span>
@@ -191,6 +322,7 @@ export function AiAdminPage({
                 setModel(next === 'openai' ? 'gpt-5-mini' : 'deepseek-chat');
                 setEnabled(false);
                 setClearKey(false);
+                setApiKey('');
               }}
             >
               <option value="openai">OpenAI (GPT)</option>
@@ -211,23 +343,33 @@ export function AiAdminPage({
                   <option value="gpt-4.1-mini">GPT-4.1 mini</option>
                 </>
               ) : (
-                <option value="deepseek-chat">DeepSeek Chat</option>
+                <option value="deepseek-chat">DeepSeek Chat (deepseek-chat)</option>
               )}
             </select>
           </label>
+          {provider === 'deepseek' ? (
+            <p id="ai-provider-help">
+              Официальный DeepSeek API: https://api.deepseek.com/chat/completions. Используйте ключ
+              из <a href="https://platform.deepseek.com/api_keys">кабинета DeepSeek</a>.
+            </p>
+          ) : (
+            <p id="ai-provider-help">Используйте API-ключ из кабинета OpenAI.</p>
+          )}
           <label>
             <span>
               Новый API-ключ {switched ? '(обязателен при смене провайдера)' : '(по необходимости)'}
             </span>
             <input
               type="password"
-              disabled={saving || testing}
+              disabled={saving || testing || !config.encryptionReady}
               value={apiKey}
               onChange={(event) => {
                 setApiKey(event.target.value);
                 if (event.target.value) setClearKey(false);
               }}
               autoComplete="new-password"
+              aria-describedby="ai-provider-help"
+              required={switched || (enabled && !config.apiKeyConfigured)}
               placeholder={
                 config.apiKeyConfigured
                   ? 'Оставьте пустым, чтобы сохранить прежний ключ'
@@ -287,11 +429,24 @@ export function AiAdminPage({
             <span>Разрешить ИИ-запросы для вошедших в аккаунт пользователей</span>
           </label>
           {!config.encryptionReady ? (
-            <p className="asa-ai-admin-warning">
+            <p className="asa-ai-admin-warning" role="alert">
               В окружении API необходимо настроить ASA_SETTINGS_ENCRYPTION_KEY. API-ключ модели
               нельзя безопасно сохранять без серверного ключа шифрования.
             </p>
           ) : null}
+          <div className="asa-ai-admin-actions">
+            <button
+              type="submit"
+              className="btn-primary"
+              disabled={saving || testing || loading || !validQuota || (switched && !apiKey.trim())}
+            >
+              {saving ? 'Сохраняем…' : 'Сохранить настройки'}
+            </button>
+            <small>
+              Настройки вступают в силу для следующих запросов. Использование API платное и
+              ограничено квотой.
+            </small>
+          </div>
           <section aria-label="Проверка соединения с моделью">
             <p>
               Сохранение ключа не проверяет доступ к модели. Проверка ниже отправляет один платный
@@ -301,14 +456,7 @@ export function AiAdminPage({
               <input
                 type="checkbox"
                 checked={acknowledgeTest}
-                disabled={
-                  saving ||
-                  testing ||
-                  unsaved ||
-                  config.paidOperationsPerHour === 0 ||
-                  !config.apiKeyConfigured ||
-                  !config.encryptionReady
-                }
+                disabled={saving || testing || !canTest}
                 onChange={(event) => setAcknowledgeTest(event.target.checked)}
               />
               <span>Подтверждаю один платный проверочный запрос</span>
@@ -316,15 +464,7 @@ export function AiAdminPage({
             <button
               type="button"
               className="btn-secondary"
-              disabled={
-                saving ||
-                testing ||
-                unsaved ||
-                config.paidOperationsPerHour === 0 ||
-                !acknowledgeTest ||
-                !config.apiKeyConfigured ||
-                !config.encryptionReady
-              }
+              disabled={saving || testing || !canTest || !acknowledgeTest}
               onClick={() => void testConnection()}
             >
               {testing ? 'Проверяем модель…' : 'Проверить подключение'}
@@ -336,20 +476,19 @@ export function AiAdminPage({
               </p>
             ) : null}
             {unsaved ? <p>Сначала сохраните настройки для проверки.</p> : null}
+            {config.paidOperationsPerHour === 0 ? (
+              <p className="asa-ai-admin-warning">
+                Сохранённый лимит — 0: проверка и ИИ-запросы заблокированы. Установите лимит больше
+                0 и сохраните настройки, чтобы проверить подключение.
+              </p>
+            ) : validQuota && Number(paidOperationsPerHour) === 0 ? (
+              <p className="asa-ai-admin-warning">
+                Лимит 0 пока не сохранён. После сохранения он заблокирует проверку и ИИ-запросы.
+                Сейчас действует сохранённый лимит: {config.paidOperationsPerHour} операций за час.
+              </p>
+            ) : null}
+            {!config.apiKeyConfigured ? <p>Для проверки сохраните API-ключ.</p> : null}
           </section>
-          <div className="asa-ai-admin-actions">
-            <button
-              type="submit"
-              className="btn-primary"
-              disabled={saving || testing || loading || (switched && !apiKey.trim())}
-            >
-              {saving ? 'Сохраняем…' : 'Сохранить настройки'}
-            </button>
-            <small>
-              Настройки вступают в силу для следующих запросов. Использование API платное и
-              ограничено квотой.
-            </small>
-          </div>
         </form>
       ) : null}
     </section>
