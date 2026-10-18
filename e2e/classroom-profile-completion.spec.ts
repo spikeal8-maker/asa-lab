@@ -256,8 +256,14 @@ async function assertLayout(page: Page, width: number, file: string) {
     expect(splitWords, 'Every full Russian tab label must remain readable').toEqual([]);
     for (const button of await sections.locator('button').all()) {
       await button.focus();
-      await expect(button).toBeInViewport();
+      await button.scrollIntoViewIfNeeded();
+      // Chromium rounds local scroll offsets to pixels; keep the same 1px
+      // geometry tolerance as the rest of this layout contract.
+      await expect(button).toBeInViewport({ ratio: 0.99 });
       const box = (await button.boundingBox())!;
+      const rail = (await sections.boundingBox())!;
+      expect(box.x).toBeGreaterThanOrEqual(rail.x - 1);
+      expect(box.x + box.width).toBeLessThanOrEqual(rail.x + rail.width + 1);
       expect(box.x).toBeGreaterThanOrEqual(0);
       expect(box.x + box.width).toBeLessThanOrEqual(width + 1);
       expect(box.height).toBeGreaterThanOrEqual(44);
@@ -856,8 +862,10 @@ test('real full Account and Seat manual history preserves zero and all five leve
       .filter({ hasText: 'symbols' })
       .getByRole('button', { name: 'История', exact: true })
       .click();
-    await expect(page.getByRole('heading', { name: 'История ручной оценки' })).toBeVisible();
-    const history = page.locator('.participant-history');
+    await expect(
+      gradesRegion.getByRole('heading', { name: 'История ручной оценки' }),
+    ).toBeVisible();
+    const history = gradesRegion.locator('.participant-history');
     await expect(history.locator('ol li')).toHaveCount(5);
     const longComment = history.locator('details.participant-history-note').first();
     await expect(longComment).toHaveCount(1);
@@ -883,7 +891,9 @@ test('real full Account and Seat manual history preserves zero and all five leve
     );
     await page.evaluate(() => window.dispatchEvent(new Event('focus')));
     expect((await historyRefreshed).ok()).toBe(true);
-    await expect(page.getByRole('heading', { name: 'История ручной оценки' })).toBeVisible();
+    await expect(
+      gradesRegion.getByRole('heading', { name: 'История ручной оценки' }),
+    ).toBeVisible();
     for (const width of [320, 390, 1440]) await assertLayout(page, width, 'grade-history');
     await seatContext.addCookies(await accountContext.cookies());
     for (const path of [
