@@ -1,25 +1,49 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type pg from 'pg';
 import { PgProjectRepository } from '../../contexts/projects/infrastructure/pg-project.repository';
+import { LearningWorkReadOnlyError } from '../../contexts/projects/domain/project';
 import type { CreateProjectInput } from '../../contexts/projects/application/ports';
 import type { OwnerPublicationStatus } from '../../apps/api/src/public-projects.controller';
 import { seedTeacher, testAdminPool, testAppPool } from './helpers';
+import { acquireLearningSubmissionSuiteLock } from '../courses/learning-submission-suite-lock';
 
 let admin: pg.Pool;
 let runtime: pg.Pool;
 let repo: PgProjectRepository;
+let releaseSubmissionSuiteLock: (() => Promise<void>) | undefined;
+const fixtureProjectIds: string[] = [];
 
-beforeAll(() => {
+beforeAll(async () => {
   // These helpers require the same isolated *_test database and different
   // admin/runtime credentials. This suite must never fall back to an emulator.
+  // Real legacy submission tests must not overlap another Learning suite's
+  // temporary failure trigger on learning_submissions.
+  releaseSubmissionSuiteLock = await acquireLearningSubmissionSuiteLock();
   admin = testAdminPool();
   runtime = testAppPool();
   repo = new PgProjectRepository(runtime);
-});
+}, 90_000);
 
 afterAll(async () => {
-  await runtime?.end();
-  await admin?.end();
+  try {
+    // The subsequent browser gate shares this disposable database. Retain the
+    // immutable test evidence but remove only this suite's generated Projects
+    // from public discovery; its byte-comparison rasters are not real PNGs.
+    if (admin && fixtureProjectIds.length > 0) {
+      await admin.query(
+        `UPDATE project_publication_state
+            SET state='revoked',revoked_at=COALESCE(revoked_at,now())
+          WHERE project_id=ANY($1::uuid[]) AND state IN ('public','unlisted')`,
+        [fixtureProjectIds],
+      );
+    }
+  } finally {
+    try {
+      await Promise.all([runtime?.end(), admin?.end()]);
+    } finally {
+      await releaseSubmissionSuiteLock?.();
+    }
+  }
 });
 
 async function fixture(label: string, withSnapshot = true) {
@@ -45,6 +69,7 @@ async function fixture(label: string, withSnapshot = true) {
   };
   const created = await repo.createWithDraft(input);
   if (created.kind !== 'created') throw new Error(`fixture ${label} was not created`);
+  fixtureProjectIds.push(created.project.id);
   const result = { teacher, principalId, accountId, input, projectId: created.project.id };
   if (withSnapshot) await snapshot(result, 1, 17);
   return result;
@@ -191,6 +216,222 @@ async function protectedSeat(source: Fixture, classroomId: string, accountId: st
   return principal.rows[0].id as string;
 }
 
+async function inTenant<T>(tenantId: string, operation: (client: pg.PoolClient) => Promise<T>) {
+  const client = await runtime.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query("SELECT set_config('app.tenant_id',$1,true)", [tenantId]);
+    const result = await operation(client);
+    await client.query('COMMIT');
+    return result;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+async function legacyHandout(source: Fixture, classroomId: string) {
+  const authored = await admin.query(
+    `INSERT INTO teacher_assignments
+       (tenant_id,owner_principal_id,title,brief,module_key,visibility)
+     VALUES ($1,$2,'Submission lock fixture','Build','electronics','private') RETURNING id`,
+    [source.teacher.tenantId, source.principalId],
+  );
+  const handout = await admin.query(
+    `INSERT INTO classroom_assignments
+       (tenant_id,classroom_id,assignment_id,status,created_by)
+     VALUES ($1,$2,$3,'open',$4) RETURNING id`,
+    [source.teacher.tenantId, classroomId, authored.rows[0].id, source.teacher.teacherId],
+  );
+  return handout.rows[0].id as string;
+}
+
+type SubmissionWriter = 'legacy' | 'direct';
+
+async function legacyOriginal(label: string, writer: SubmissionWriter) {
+  const source = await fixture(label, false);
+  const classroomId = await protectedClass(source);
+  const seatPrincipal = await protectedSeat(source, classroomId, null);
+  const seatId = (await admin.query('SELECT seat_id FROM principals WHERE id=$1', [seatPrincipal]))
+    .rows[0].seat_id as string;
+  const assignmentId = await legacyHandout(source, classroomId);
+  await admin.query('UPDATE projects SET owner_principal_id=$2 WHERE id=$1', [
+    source.projectId,
+    seatPrincipal,
+  ]);
+  const original: Fixture = {
+    ...source,
+    principalId: seatPrincipal,
+    input: { ...source.input, actor: { principalId: seatPrincipal, userId: null } },
+  };
+  if (writer === 'legacy') {
+    // Seed the same compatibility mapping that this command would create on
+    // first submission. The race then starts with all unrelated metadata ready.
+    const activity = await admin.query(
+      `INSERT INTO learning_activities
+         (tenant_id,owner_principal_id,scope_kind,activity_type,title)
+       VALUES ($1,$2,'school','project','Legacy lock fixture') RETURNING id`,
+      [source.teacher.tenantId, source.principalId],
+    );
+    const version = await admin.query(
+      `INSERT INTO learning_activity_versions
+         (tenant_id,activity_id,version_number,title,instructions,activity_type,
+          module_key,max_points,scoring_policy,content_digest)
+       VALUES ($1,$2,1,'Legacy lock fixture','Build','project','electronics',100,
+         '{"kind":"manual","scale":"integer","passThreshold":60}'::jsonb,$3) RETURNING id`,
+      [source.teacher.tenantId, activity.rows[0].id, 'a'.repeat(64)],
+    );
+    await admin.query(
+      `INSERT INTO classroom_activity_versions
+         (tenant_id,classroom_assignment_id,learning_activity_version_id) VALUES ($1,$2,$3)`,
+      [source.teacher.tenantId, assignmentId, version.rows[0].id],
+    );
+    const started = await runtime.query('SELECT * FROM classroom_assignment_work_start($1,$2,$3)', [
+      seatId,
+      assignmentId,
+      source.projectId,
+    ]);
+    expect(started.rows[0]).toMatchObject({ project_id: source.projectId, submitted_at: null });
+  } else {
+    const learnerId = (
+      await admin.query(
+        `INSERT INTO learner_identities(id,tenant_id,school_id)
+         VALUES (gen_random_uuid(),$1,$2) RETURNING id`,
+        [source.teacher.tenantId, source.teacher.schoolId],
+      )
+    ).rows[0].id as string;
+    await admin.query(
+      `INSERT INTO learner_identity_links
+         (id,tenant_id,school_id,learner_identity_id,link_kind,seat_id)
+       VALUES (gen_random_uuid(),$1,$2,$3,'student_seat',$4)`,
+      [source.teacher.tenantId, source.teacher.schoolId, learnerId, seatId],
+    );
+    await inTenant(source.teacher.tenantId, async (client) => {
+      const activity = await client.query(
+        `SELECT * FROM learning_activity_create(
+           $1,$2,'school','private','project','Direct lock fixture','Build','graded',20,
+           $3::jsonb,'electronics',NULL,NULL,NULL,$4)`,
+        [
+          source.principalId,
+          source.teacher.tenantId,
+          JSON.stringify({
+            attemptPolicy: { maxAttempts: 2 },
+            resultSelectionPolicy: { mode: 'latest' },
+            completionPolicy: { mode: 'submission' },
+            latePolicy: { mode: 'allow_mark_late' },
+            assessmentPolicy: { mode: 'manual' },
+            feedbackReleasePolicy: { mode: 'after_review' },
+          }),
+          crypto.randomUUID(),
+        ],
+      );
+      expect(activity.rows[0].result_code).toBe('ok');
+      const version = await client.query('SELECT * FROM learning_activity_publish($1,$2,$3,1,$4)', [
+        source.principalId,
+        source.teacher.tenantId,
+        activity.rows[0].activity_id,
+        crypto.randomUUID(),
+      ]);
+      expect(version.rows[0].result_code).toBe('ok');
+      const run = await client.query(
+        `SELECT * FROM activity_run_create(
+           $1,$2,$3,'direct',NULL,NULL,NULL,NULL,NULL,NULL,NULL,'{}'::jsonb,$4)`,
+        [
+          source.principalId,
+          assignmentId,
+          version.rows[0].activity_version_id,
+          crypto.randomUUID(),
+        ],
+      );
+      expect(run.rows[0].result_code).toBe('ok');
+      const participation = await client.query(
+        'SELECT * FROM activity_participation_assign($1,$2,$3,NULL)',
+        [source.principalId, run.rows[0].activity_run_id, learnerId],
+      );
+      expect(participation.rows[0].result_code).toBe('ok');
+      const started = await client.query(
+        'SELECT * FROM learning_direct_project_attempt_start($1,$2,$3,$4)',
+        [seatPrincipal, seatId, assignmentId, source.projectId],
+      );
+      expect(started.rows[0]).toMatchObject({
+        result_code: 'ok',
+        project_id: source.projectId,
+        attempt_state: 'in_progress',
+      });
+    });
+  }
+  return { ...original, writer, seatId, assignmentId };
+}
+
+type LegacyOriginal = Awaited<ReturnType<typeof legacyOriginal>>;
+
+function submitOriginal(client: pg.PoolClient, source: LegacyOriginal) {
+  return source.writer === 'legacy'
+    ? client.query('SELECT * FROM learning_project_submission_create($1,$2,$3)', [
+        source.seatId,
+        source.assignmentId,
+        crypto.randomUUID(),
+      ])
+    : client.query('SELECT * FROM learning_direct_project_submission_create($1,$2,$3,$4,1)', [
+        source.principalId,
+        source.seatId,
+        source.assignmentId,
+        crypto.randomUUID(),
+      ]);
+}
+
+/** Pause the real version INSERT before 0194's Project-locking trigger, only
+ * for this Project. A table-wide lock would block the publication suites that
+ * the gate runs in parallel. Setup DDL commits before either writer starts. */
+async function versionInsertBarrier(projectId: string) {
+  const name = `aa_publication_barrier_${projectId.replaceAll('-', '')}`;
+  const client = await admin.connect();
+  const drop = async () => {
+    await admin.query(`DROP TRIGGER IF EXISTS ${name} ON public.project_versions`);
+    await admin.query(`DROP FUNCTION IF EXISTS public.${name}()`);
+  };
+  try {
+    await admin.query(
+      `CREATE FUNCTION public.${name}() RETURNS trigger
+       LANGUAGE plpgsql SET search_path=pg_catalog,pg_temp AS $$
+       BEGIN
+         PERFORM pg_advisory_xact_lock(hashtextextended(NEW.project_id::text,218));
+         RETURN NEW;
+       END; $$`,
+    );
+    await admin.query(
+      `CREATE TRIGGER ${name} BEFORE INSERT ON public.project_versions
+       FOR EACH ROW WHEN (NEW.project_id='${projectId}'::uuid)
+       EXECUTE FUNCTION public.${name}()`,
+    );
+    await client.query('BEGIN');
+    await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,218))', [projectId]);
+    const pid = (await client.query('SELECT pg_backend_pid() AS pid')).rows[0].pid as number;
+    return {
+      pid,
+      release: () => client.query('ROLLBACK'),
+      close: async () => {
+        try {
+          await client.query('ROLLBACK');
+        } finally {
+          client.release(true);
+          await drop();
+        }
+      },
+    };
+  } catch (error) {
+    try {
+      await client.query('ROLLBACK');
+    } finally {
+      client.release(true);
+      await drop();
+    }
+    throw error;
+  }
+}
+
 function signal() {
   let release!: () => void;
   const promise = new Promise<void>((resolve) => {
@@ -224,10 +465,13 @@ function observe<T>(operation: Promise<T>): Observed<T> {
 /** All SQL and results go through this real runtime connection. The optional
  * boundary only lets a test hold a completed repository query before its next
  * statement; it does not replace queries, simulate row locks or retry writes. */
-function repositoryOn(client: pg.PoolClient, afterQuery?: (sql: string) => Promise<void>) {
+function repositoryOn(
+  client: pg.PoolClient,
+  afterQuery?: (sql: string, result: pg.QueryResult) => Promise<void>,
+) {
   const query = async (sql: string, values?: unknown[]) => {
     const result = await client.query(sql, values);
-    await afterQuery?.(sql);
+    await afterQuery?.(sql, result);
     return result;
   };
   const leasedClient = { query, release: () => undefined } as unknown as pg.PoolClient;
@@ -257,6 +501,35 @@ async function waitForBlock(waiter: number, blocker: number, finished: () => boo
   // unfinished Promise, and an arbitrary sleep are never proof of contention.
   expect(last?.wait_event_type).toBe('Lock');
   expect(last?.blocking_pids).toContain(blocker);
+}
+
+async function assertSubmittedVersion(
+  source: LegacyOriginal,
+  submitted: pg.QueryResult,
+  versionNo: number,
+) {
+  const row = submitted.rows[0];
+  expect(row).toMatchObject({
+    result_code: 'ok',
+    project_id: source.projectId,
+    attempt_state: source.writer === 'legacy' ? 'evaluating' : 'submitted',
+    reused: false,
+  });
+  const versions = await admin.query(
+    `SELECT version.id,version.version_no,version.document_json
+       FROM learning_submissions submission
+       JOIN project_versions version ON version.id=submission.project_version_id
+      WHERE submission.project_id=$1`,
+    [source.projectId],
+  );
+  expect(versions.rows).toEqual([
+    {
+      id: row.project_version_id,
+      version_no: versionNo,
+      document_json: source.input.initialDocument,
+    },
+  ]);
+  expect(await counts(source)).toEqual({ versions: versionNo, revisions: 0, states: 0 });
 }
 
 describe('explicit Public Projects on real PostgreSQL', () => {
@@ -510,6 +783,299 @@ describe('explicit Public Projects on real PostgreSQL', () => {
       if (checkpoint) await checkpoint.outcome;
       await checkpointClient.query('ROLLBACK');
       publicationClient.release(true);
+      checkpointClient.release(true);
+    }
+  }, 20_000);
+
+  it.each(['legacy', 'direct'] as const)(
+    'lets a pending %s submission finish before a real checkpoint of its immutable original',
+    async (writer) => {
+      const source = await legacyOriginal(`${writer}-submission-first`, writer);
+      const submissionClient = await runtime.connect();
+      const checkpointClient = await runtime.connect();
+      let barrier: Awaited<ReturnType<typeof versionInsertBarrier>> | undefined;
+      let submission: Observed<pg.QueryResult> | undefined;
+      let checkpoint: Observed<CheckpointResult> | undefined;
+      try {
+        barrier = await versionInsertBarrier(source.projectId);
+        await submissionClient.query('BEGIN');
+        await submissionClient.query("SET LOCAL statement_timeout='10s'");
+        await submissionClient.query("SELECT set_config('app.tenant_id',$1,true)", [
+          source.input.tenantId,
+        ]);
+        await checkpointClient.query("SET statement_timeout='10s'");
+        const submissionPid = (await submissionClient.query('SELECT pg_backend_pid() AS pid'))
+          .rows[0].pid as number;
+        const checkpointPid = (await checkpointClient.query('SELECT pg_backend_pid() AS pid'))
+          .rows[0].pid as number;
+        submission = observe(submitOriginal(submissionClient, source));
+        // The real SQL command has locked Work and Draft and reached its
+        // version INSERT, before the unchanged 0194 Project-locking trigger.
+        await waitForBlock(submissionPid, barrier.pid, submission.finished);
+        checkpoint = observe(
+          repositoryOn(checkpointClient).createCheckpoint(
+            source.input.tenantId,
+            source.projectId,
+            source.input.actor,
+            'After Learning submission',
+          ),
+        );
+        await waitForBlock(checkpointPid, submissionPid, checkpoint.finished);
+        // An unconditional early Project lock makes this release form a real
+        // Draft -> Project -> Draft cycle. No retry or deadlock is accepted.
+        await barrier.release();
+        const submitted = await submission.outcome;
+        if (!submitted.ok) throw submitted.error;
+        await submissionClient.query('COMMIT');
+        const checkpointResult = await checkpoint.outcome;
+        expect(checkpointResult.ok).toBe(false);
+        if (checkpointResult.ok) throw new Error('submitted original remained editable');
+        expect(checkpointResult.error).toBeInstanceOf(LearningWorkReadOnlyError);
+        await assertSubmittedVersion(source, submitted.value, 1);
+      } finally {
+        // Release the scoped barrier even if lock observation fails. Settle
+        // both real writers before removing the trigger from the shared table.
+        try {
+          await barrier?.release();
+          await submissionClient.query('ROLLBACK');
+          if (submission) await submission.outcome;
+          if (checkpoint) await checkpoint.outcome;
+          await checkpointClient.query('ROLLBACK');
+        } finally {
+          submissionClient.release(true);
+          checkpointClient.release(true);
+          await barrier?.close();
+        }
+      }
+    },
+    20_000,
+  );
+
+  it.each(['legacy', 'direct'] as const)(
+    'preserves a real checkpoint before a %s submission of its immutable original',
+    async (writer) => {
+      const source = await legacyOriginal(`${writer}-checkpoint-first`, writer);
+      const checkpointClient = await runtime.connect();
+      const submissionClient = await runtime.connect();
+      const draftLocked = signal();
+      const continueCheckpoint = signal();
+      let checkpoint: Observed<CheckpointResult> | undefined;
+      let submission: Observed<pg.QueryResult> | undefined;
+      try {
+        await checkpointClient.query("SET statement_timeout='10s'");
+        await submissionClient.query('BEGIN');
+        await submissionClient.query("SET LOCAL statement_timeout='10s'");
+        await submissionClient.query("SELECT set_config('app.tenant_id',$1,true)", [
+          source.input.tenantId,
+        ]);
+        const checkpointPid = (await checkpointClient.query('SELECT pg_backend_pid() AS pid'))
+          .rows[0].pid as number;
+        const submissionPid = (await submissionClient.query('SELECT pg_backend_pid() AS pid'))
+          .rows[0].pid as number;
+        checkpoint = observe(
+          repositoryOn(checkpointClient, async (sql) => {
+            if (sql.includes('FOR UPDATE OF d')) {
+              draftLocked.release();
+              await continueCheckpoint.promise;
+            }
+          }).createCheckpoint(
+            source.input.tenantId,
+            source.projectId,
+            source.input.actor,
+            'Before Learning submission',
+          ),
+        );
+        await Promise.race([
+          draftLocked.promise,
+          checkpoint.outcome.then((outcome) => {
+            if (!outcome.ok) throw outcome.error;
+            throw new Error('checkpoint did not reach its actual Draft lock');
+          }),
+        ]);
+        submission = observe(submitOriginal(submissionClient, source));
+        await waitForBlock(submissionPid, checkpointPid, submission.finished);
+        continueCheckpoint.release();
+        const checkpointResult = await checkpoint.outcome;
+        if (!checkpointResult.ok) throw checkpointResult.error;
+        expect(checkpointResult.value?.versionNo).toBe(1);
+        const submitted = await submission.outcome;
+        if (!submitted.ok) throw submitted.error;
+        await submissionClient.query('COMMIT');
+        await assertSubmittedVersion(source, submitted.value, 2);
+      } finally {
+        continueCheckpoint.release();
+        await submissionClient.query('ROLLBACK');
+        if (submission) await submission.outcome;
+        if (checkpoint) await checkpoint.outcome;
+        await checkpointClient.query('ROLLBACK');
+        checkpointClient.release(true);
+        submissionClient.release(true);
+      }
+    },
+    20_000,
+  );
+
+  it('rechecks a newly attached immutable origin after the Project wait and releases only its early lock', async () => {
+    const source = await fixture('origin-attach-during-checkpoint', false);
+    const classroomId = await protectedClass(source);
+    const seatPrincipal = await protectedSeat(source, classroomId, source.accountId);
+    const seatId = (
+      await admin.query('SELECT seat_id FROM principals WHERE id=$1', [seatPrincipal])
+    ).rows[0].seat_id as string;
+    const assignmentId = await legacyHandout(source, classroomId);
+    const originClient = await runtime.connect();
+    const checkpointClient = await runtime.connect();
+    const probeClient = await runtime.connect();
+    const earlyLockReleased = signal();
+    const continueCheckpoint = signal();
+    const checks: Array<{
+      hasOrigin: boolean;
+      pid: number;
+      xid: string;
+      tenant: string;
+      isolation: string;
+    }> = [];
+    let priorAuditId: string | undefined;
+    let checkpoint: Observed<CheckpointResult> | undefined;
+    try {
+      await originClient.query('BEGIN');
+      await originClient.query("SET LOCAL statement_timeout='10s'");
+      await originClient.query("SELECT set_config('app.tenant_id',$1,true)", [
+        source.input.tenantId,
+      ]);
+      await checkpointClient.query("SET statement_timeout='10s'");
+      const originPid = (await originClient.query('SELECT pg_backend_pid() AS pid')).rows[0]
+        .pid as number;
+      const checkpointPid = (await checkpointClient.query('SELECT pg_backend_pid() AS pid')).rows[0]
+        .pid as number;
+      const started = await originClient.query(
+        'SELECT * FROM classroom_assignment_work_start($1,$2,$3)',
+        [seatId, assignmentId, source.projectId],
+      );
+      expect(started.rows[0]).toMatchObject({ project_id: source.projectId, submitted_at: null });
+      checkpoint = observe(
+        repositoryOn(checkpointClient, async (sql, result) => {
+          if (sql.startsWith('SELECT project_editor_has_immutable_learning_origin')) {
+            const context = (
+              await checkpointClient.query(
+                `SELECT pg_backend_pid() AS pid,pg_current_xact_id()::text AS xid,
+                        current_setting('app.tenant_id') AS tenant,
+                        current_setting('transaction_isolation') AS isolation`,
+              )
+            ).rows[0];
+            checks.push({ hasOrigin: result.rows[0].has_origin as boolean, ...context });
+            if (checks.length === 1) {
+              // A real write before the savepoint is a witness: reclassification
+              // must not roll back the outer transaction or its tenant context.
+              priorAuditId = (
+                await checkpointClient.query(
+                  `INSERT INTO audit_events(tenant_id,entity_type,entity_id,action)
+                   VALUES ($1,'project',$2,'publication.test.before_savepoint') RETURNING id::text`,
+                  [source.input.tenantId, source.projectId],
+                )
+              ).rows[0].id as string;
+            }
+          }
+          if (sql === 'ROLLBACK TO SAVEPOINT project_publication_order') {
+            earlyLockReleased.release();
+            await continueCheckpoint.promise;
+          }
+        }).createCheckpoint(
+          source.input.tenantId,
+          source.projectId,
+          source.input.actor,
+          'Checkpoint after origin attachment',
+        ),
+      );
+      await waitForBlock(checkpointPid, originPid, checkpoint.finished);
+      expect(checks.map((check) => check.hasOrigin)).toEqual([false]);
+      await originClient.query('COMMIT');
+      await Promise.race([
+        earlyLockReleased.promise,
+        checkpoint.outcome.then((outcome) => {
+          if (!outcome.ok) throw outcome.error;
+          throw new Error('the newly visible origin did not release the early Project lock');
+        }),
+      ]);
+      expect(checks.map((check) => check.hasOrigin)).toEqual([false, true]);
+      expect(checks[0]).toMatchObject({
+        pid: checkpointPid,
+        tenant: source.input.tenantId,
+        isolation: 'read committed',
+      });
+      expect(checks[1]).toEqual({ ...checks[0], hasOrigin: true });
+      await probeClient.query('BEGIN');
+      await probeClient.query("SELECT set_config('app.tenant_id',$1,true)", [
+        source.input.tenantId,
+      ]);
+      const probePid = (await probeClient.query('SELECT pg_backend_pid() AS pid')).rows[0]
+        .pid as number;
+      // NOWAIT succeeds only if ROLLBACK TO released the early Project lock.
+      expect(
+        (
+          await probeClient.query(
+            'SELECT id FROM projects WHERE tenant_id=$1 AND id=$2 FOR UPDATE NOWAIT',
+            [source.input.tenantId, source.projectId],
+          )
+        ).rows,
+      ).toHaveLength(1);
+      continueCheckpoint.release();
+      await waitForBlock(checkpointPid, probePid, checkpoint.finished);
+      await probeClient.query('COMMIT');
+      const checkpointResult = await checkpoint.outcome;
+      if (!checkpointResult.ok) throw checkpointResult.error;
+      expect(checkpointResult.value?.versionNo).toBe(1);
+      expect(
+        (await admin.query('SELECT entity_id FROM audit_events WHERE id=$1', [priorAuditId])).rows,
+      ).toEqual([{ entity_id: source.projectId }]);
+      expect(await counts(source)).toEqual({ versions: 1, revisions: 0, states: 0 });
+
+      // Legacy Work may disappear, but the lock classifier must stay true.
+      await admin.query('DELETE FROM classroom_assignment_work WHERE project_id=$1', [
+        source.projectId,
+      ]);
+      for (const [tenant, expected] of [
+        [source.input.tenantId, true],
+        [crypto.randomUUID(), false],
+        ['', false],
+      ] as const) {
+        await probeClient.query("SELECT set_config('app.tenant_id',$1,false)", [tenant]);
+        expect(
+          (
+            await probeClient.query(
+              'SELECT project_editor_has_immutable_learning_origin($1) AS has_origin',
+              [source.projectId],
+            )
+          ).rows,
+        ).toEqual([{ has_origin: expected }]);
+      }
+      await expect(
+        admin.query('DELETE FROM learning_legacy_project_origins WHERE project_id=$1', [
+          source.projectId,
+        ]),
+      ).rejects.toThrow(/immutable/);
+      await expect(
+        probeClient.query('SELECT project_publication_publish($1,$2)', [
+          source.principalId,
+          source.projectId,
+        ]),
+      ).rejects.toMatchObject({ code: 'P5L01' });
+      await expect(
+        repositoryOn(checkpointClient).createCheckpoint(
+          source.input.tenantId,
+          source.projectId,
+          source.input.actor,
+          'Source no longer exists',
+        ),
+      ).rejects.toBeInstanceOf(LearningWorkReadOnlyError);
+    } finally {
+      continueCheckpoint.release();
+      await originClient.query('ROLLBACK');
+      await probeClient.query('ROLLBACK');
+      if (checkpoint) await checkpoint.outcome;
+      await checkpointClient.query('ROLLBACK');
+      originClient.release(true);
+      probeClient.release(true);
       checkpointClient.release(true);
     }
   }, 20_000);
@@ -1027,6 +1593,15 @@ describe('explicit Public Projects on real PostgreSQL', () => {
       `SELECT
          has_table_privilege('asalab_app','public.project_publication_state','SELECT') AS state_read,
          has_table_privilege('asalab_app','public.project_publication_revisions','SELECT') AS revision_read,
+         has_table_privilege('asalab_app','public.learning_project_origins','INSERT') AS origin_insert,
+         has_table_privilege('asalab_app','public.learning_legacy_project_origins','INSERT') AS legacy_origin_insert,
+         has_function_privilege('asalab_app','public.project_editor_has_immutable_learning_origin(uuid)','EXECUTE') AS classify_execute,
+         EXISTS (
+           SELECT 1 FROM pg_proc routine
+           CROSS JOIN LATERAL aclexplode(COALESCE(routine.proacl,acldefault('f',routine.proowner))) permission
+           WHERE routine.oid='public.project_editor_has_immutable_learning_origin(uuid)'::regprocedure
+             AND permission.grantee=0 AND permission.privilege_type='EXECUTE'
+         ) AS classify_public_execute,
          has_function_privilege('asalab_app','public.project_publication_policy_reason(uuid)','EXECUTE') AS policy_execute,
          has_function_privilege('asalab_app','public.project_publication_readable(uuid)','EXECUTE') AS readable_execute,
          has_function_privilege('asalab_app','public.project_publication_legacy_learning_guard(uuid,uuid)','EXECUTE') AS legacy_guard_execute,
@@ -1035,6 +1610,10 @@ describe('explicit Public Projects on real PostgreSQL', () => {
     expect(privileges.rows[0]).toEqual({
       state_read: false,
       revision_read: false,
+      origin_insert: false,
+      legacy_origin_insert: false,
+      classify_execute: true,
+      classify_public_execute: false,
       policy_execute: false,
       readable_execute: false,
       legacy_guard_execute: false,
@@ -1060,7 +1639,21 @@ describe('explicit Public Projects on real PostgreSQL', () => {
             )
           ).rows[0],
         ).toEqual({ pid: backendPid, context });
-        for (const relation of ['project_publication_state', 'project_publication_revisions']) {
+        expect(
+          (
+            await directClient.query(
+              `SELECT project_editor_has_immutable_learning_origin($1) AS has_origin,
+                      project_editor_has_immutable_learning_origin(NULL) AS missing`,
+              [source.projectId],
+            )
+          ).rows,
+        ).toEqual([{ has_origin: false, missing: false }]);
+        for (const relation of [
+          'project_publication_state',
+          'project_publication_revisions',
+          'learning_project_origins',
+          'learning_legacy_project_origins',
+        ]) {
           await expect(directClient.query(`SELECT * FROM ${relation}`)).rejects.toMatchObject({
             code: '42501',
           });

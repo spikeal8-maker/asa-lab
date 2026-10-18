@@ -38,6 +38,35 @@ ALTER POLICY project_publication_revisions_tenant ON public.project_publication_
     USING (tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid)
     WITH CHECK (tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid);
 
+-- Internal lock classification, not authorization. Project Core still resolves
+-- the actor's Project context and checks its existing EDIT_ACCESS_SQL. Keep this
+-- reader free of the School row locks taken by linked-access helpers: it also
+-- runs after the caller has acquired Project FOR UPDATE.
+-- Only durable origins are evidence here. Both tables reject UPDATE/DELETE,
+-- and their runtime INSERT paths acquire Project first (0176/0192). Mutable eligibility,
+-- classroom scope, owner kind and linked Account/Seat flags are not classifiers.
+CREATE FUNCTION public.project_editor_has_immutable_learning_origin(p_project_id uuid)
+RETURNS boolean
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
+DECLARE v_tenant uuid := NULLIF(current_setting('app.tenant_id', true), '')::uuid;
+BEGIN
+    IF v_tenant IS NULL OR p_project_id IS NULL THEN RETURN false; END IF;
+    RETURN EXISTS (
+        SELECT 1 FROM public.projects project
+         WHERE project.id = p_project_id AND project.tenant_id = v_tenant
+           AND (EXISTS (
+               SELECT 1 FROM public.learning_project_origins origin
+                WHERE origin.project_id = project.id
+                  AND origin.project_tenant_id = project.tenant_id
+           ) OR EXISTS (
+               SELECT 1 FROM public.learning_legacy_project_origins origin
+                WHERE origin.project_id = project.id
+                  AND origin.project_tenant_id = project.tenant_id
+           ))
+    );
+END;
+$$;
+
 -- This is the single eligibility policy used by every public/compatibility
 -- read and by publishing. Snapshot freshness is deliberately NOT part of it:
 -- saving Working Draft V2 must not hide the already published V1.
@@ -157,9 +186,10 @@ BEGIN
         WHERE actor.id = p_principal_id AND actor.kind = 'account'
     ) THEN RAISE EXCEPTION 'publication_forbidden' USING ERRCODE = 'P5P01'; END IF;
 
-    -- Generic editor transactions acquire Project FOR UPDATE before Draft.
-    -- Keep that same order and strength, including the Project lock taken by
-    -- Learning's version/draft/snapshot triggers, then freeze Draft + Snapshot.
+    -- Editor transactions without an immutable Learning origin acquire Project
+    -- FOR UPDATE before Draft. Keep that order and strength, then freeze Draft
+    -- + Snapshot. Protected originals are rejected below before touching Draft;
+    -- their existing School writer order is not changed by publication.
     SELECT * INTO v_project FROM public.projects project
      WHERE project.id = p_project_id AND project.owner_principal_id = p_principal_id
      FOR UPDATE;
@@ -598,6 +628,7 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
 $$;
 
 REVOKE ALL ON FUNCTION public.project_publication_policy_reason(uuid) FROM PUBLIC, asalab_app;
+REVOKE ALL ON FUNCTION public.project_editor_has_immutable_learning_origin(uuid) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.project_publication_readable(uuid) FROM PUBLIC, asalab_app;
 REVOKE ALL ON FUNCTION public.project_publication_legacy_learning_guard(uuid,uuid) FROM PUBLIC, asalab_app;
 REVOKE ALL ON FUNCTION public.gallery_publish_unprotected(uuid,uuid) FROM PUBLIC, asalab_app;
@@ -607,6 +638,7 @@ REVOKE ALL ON FUNCTION public.project_publication_revoke(uuid,uuid) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.public_projects_read(uuid,text,varchar,integer,integer) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.public_project_image(uuid,uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.project_publication_status(uuid,uuid) TO asalab_app;
+GRANT EXECUTE ON FUNCTION public.project_editor_has_immutable_learning_origin(uuid) TO asalab_app;
 GRANT EXECUTE ON FUNCTION public.project_publication_publish(uuid,uuid,jsonb) TO asalab_app;
 GRANT EXECUTE ON FUNCTION public.project_publication_revoke(uuid,uuid) TO asalab_app;
 GRANT EXECUTE ON FUNCTION public.public_projects_read(uuid,text,varchar,integer,integer) TO asalab_app;
