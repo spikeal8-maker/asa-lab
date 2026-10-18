@@ -51,7 +51,7 @@ describe('capability-aware Portal navigation', () => {
       portalNavigation(true, { seat: true, classes: true, contentAuthoring: true }).map(
         (item) => item.section,
       ),
-    ).toEqual(['home', 'learning', 'projects', 'help', 'account']);
+    ).toEqual(['home', 'learning', 'projects', 'games', 'help', 'account']);
   });
 
   it('keeps personal work and one settings destination distinct from public top navigation', () => {
