@@ -75,3 +75,15 @@ Compose settings/host-log canary test is explicitly opted in with
 ASA_COVERAGE_POSTGRES_PROBE=1 by Coverage Diagnostics; ordinary suites skip that
 probe and do not require Docker access or special PostgreSQL logging settings.
 No product-code change. Final independent review and isolated CI remain required.
+
+## Bounded CI repair: actual HTTP event order
+
+Exact-source571617c3 review PASS and published. Coverage Diagnostics39140219427:
+Windows/Linux focused and uncached API build PASS, migrated disposable PG and
+all3 provenance/lock/configuration/canary cases PASS. Real HTTP fixture failed
+only because it required connection_closed while Node emitted request_aborted
+first. Both existing outcomes mean disconnected delivery with unknown mutation
+result. The oracle now accepts either finite cancellation, still requiring
+exactly one correlated terminal, no response status and no private query value.
+No runtime change or weakened privacy/mutation assertions. Exact-source focused
+CI must confirm this corrected oracle; next point and deployment remain forbidden.
