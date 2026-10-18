@@ -43,6 +43,7 @@ import {
 import { learningWorkContextForProject, type WorkRow } from './learning-work-context.js';
 import { checkBodyShape, checkIdempotencyKey, isPlainObject } from './validation.js';
 import { safeValidationReason } from './server-diagnostics.js';
+import { throwPublicationError } from './public-projects.errors.js';
 
 interface ProjectRequestContext {
   readonly tenantId: string;
@@ -725,6 +726,12 @@ export class ProjectsController {
       if (typeof visibility !== 'string' || !['private', 'link', 'public'].includes(visibility)) {
         throw new HttpException(error('validation_error', 'Неизвестная видимость.'), 400);
       }
+      if (context.seatId && visibility !== 'private') {
+        throw new HttpException(
+          error('publication_forbidden', 'Ученическое место не может публиковать работу.'),
+          403,
+        );
+      }
     }
     const client = await pool.connect();
     try {
@@ -787,7 +794,7 @@ export class ProjectsController {
           403,
         );
       }
-      throw cause;
+      throwPublicationError(cause);
     } finally {
       client.release();
     }

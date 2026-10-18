@@ -1,0 +1,119 @@
+name: Public Projects Publication
+
+on:
+  push:
+    branches:
+      - main
+      - codex/projects-visible-publication
+    paths:
+      - 'contexts/projects/**'
+      - 'apps/api/src/**'
+      - 'apps/web/src/**'
+      - 'migrations/**'
+      - 'tests/portal/**'
+      - 'e2e/public-projects.spec.ts'
+      - 'e2e/gallery.spec.ts'
+      - 'e2e/project-hub.spec.ts'
+      - 'e2e/server.mjs'
+      - 'playwright.config.ts'
+      - 'tools/projects-publication*.mjs'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/projects-publication.yml'
+  pull_request:
+    paths:
+      - 'contexts/projects/**'
+      - 'apps/api/src/**'
+      - 'apps/web/src/**'
+      - 'migrations/**'
+      - 'tests/portal/**'
+      - 'e2e/public-projects.spec.ts'
+      - 'e2e/gallery.spec.ts'
+      - 'e2e/project-hub.spec.ts'
+      - 'e2e/server.mjs'
+      - 'playwright.config.ts'
+      - 'tools/projects-publication*.mjs'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/projects-publication.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: projects-publication-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+env:
+  CI: 'true'
+  NX_SKIP_NX_CACHE: 'true'
+  NX_DAEMON: 'false'
+
+jobs:
+  publication:
+    name: Exact publication PostgreSQL and built browser
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        # Same pinned PostgreSQL image as the repository's isolated data gate.
+        image: public.ecr.aws/docker/library/postgres@sha256:e9243ab06e47223dedeb3c129fa9ece8d37f506bdc6ee943afb9335f98bb4854
+        env:
+          POSTGRES_DB: asa_publication_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: publication-ci-isolated-test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d asa_publication_test"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    env:
+      ASA_BUILD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
+      VITE_ASA_BUILD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
+      TEST_DATABASE_URL: postgresql://postgres:publication-ci-isolated-test@127.0.0.1:5432/asa_publication_test
+      APP_TEST_DATABASE_URL: postgresql://asalab_app:publication-ci-isolated-test@127.0.0.1:5432/asa_publication_test
+      MIGRATION_DATABASE_URL: postgresql://postgres:publication-ci-isolated-test@127.0.0.1:5432/asa_publication_test
+      MIGRATION_EXPECT_DATABASE: asa_publication_test
+      MIGRATION_CONFIRM: APPLY:asa_publication_test
+      NODE_ENV: test
+      ASA_SEED_DEMO: 'false'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+      - name: Exact dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Chromium
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Fresh isolated schema and restricted runtime role
+        run: |
+          pnpm db:migrate
+          psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -c "ALTER ROLE asalab_app WITH LOGIN PASSWORD 'publication-ci-isolated-test'"
+      - name: Publication code and real PostgreSQL gate
+        run: pnpm gate:projects-publication
+      - name: Publication real browser gate
+        env:
+          ASA_WEB_PORT: '4612'
+          ASA_WEB_ORIGIN: http://127.0.0.1:4612
+        run: pnpm gate:projects-publication:browser
+      - name: Preserve exact-SHA synthetic browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: public-projects-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            e2e/artifacts/public-projects
+            e2e/artifacts/owner-preview/home-workspace/lifecycle
+            reports/playwright/projects-publication
+            apps/web/dist/build-metadata.json
+          if-no-files-found: error
+          retention-days: 14

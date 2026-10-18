@@ -152,9 +152,11 @@ export function MyProjectsPage({
   // What a teacher said, keyed by project. Empty for anyone with no teacher.
   const [feedback, setFeedback] = useState<Readonly<Record<string, ProjectFeedback>>>({});
   const [reading, setReading] = useState<{ title: string; entry: ProjectFeedback } | null>(null);
-  // Which of these are on the gallery wall, so the menu item says the truth.
   const [shareNotice, setShareNotice] = useState<string | null>(null);
   const [properties, setProperties] = useState<Project | null>(null);
+  const [propertiesSection, setPropertiesSection] = useState<'properties' | 'publication'>(
+    'properties',
+  );
   const [history, setHistory] = useState<Project | null>(null);
   const [collecting, setCollecting] = useState<Project | null>(null);
 
@@ -549,7 +551,9 @@ export function MyProjectsPage({
                 footerLabel={
                   response
                     ? (FEEDBACK_LABELS[response.badge ?? ''] ?? 'Есть отклик педагога')
-                    : 'Приватный'
+                    : learning
+                      ? 'Учебная работа'
+                      : 'Личный проект'
                 }
                 {...(tone ? { footerTone: tone } : {})}
                 {...(response
@@ -606,11 +610,22 @@ export function MyProjectsPage({
                         ...(!learning || actions?.editProperties === true
                           ? [
                               {
-                                // Имя, описание, теги, лицензия и то, кому работа
-                                // видна — в одном диалоге. Публикация живёт там же:
-                                // это состояние работы, а не действие сбоку.
                                 label: 'Свойства',
-                                onSelect: () => setProperties(project),
+                                onSelect: () => {
+                                  setPropertiesSection('properties');
+                                  setProperties(project);
+                                },
+                              },
+                            ]
+                          : []),
+                        ...(!learning
+                          ? [
+                              {
+                                label: 'Публикация',
+                                onSelect: () => {
+                                  setPropertiesSection('publication');
+                                  setProperties(project);
+                                },
                               },
                             ]
                           : []),
@@ -690,6 +705,7 @@ export function MyProjectsPage({
       {properties ? (
         <ProjectProperties
           project={properties}
+          initialSection={propertiesSection}
           onClose={() => setProperties(null)}
           onSaved={async () => {
             setProperties(null);

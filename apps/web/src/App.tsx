@@ -72,11 +72,10 @@ const AssignmentLibraryPage = lazy(() =>
     default: module.AssignmentLibraryPage,
   })),
 );
-const GalleryPage = lazy(() =>
-  import('./pages/GalleryPage').then((module) => ({ default: module.GalleryPage })),
-);
-const GalleryWorkPage = lazy(() =>
-  import('./pages/GalleryWorkPage').then((module) => ({ default: module.GalleryWorkPage })),
+const PublicProjectsSurface = lazy(() =>
+  import('./projects-public/PublicProjectsSurface').then((module) => ({
+    default: module.PublicProjectsSurface,
+  })),
 );
 const KnowledgePage = lazy(() =>
   import('./pages/KnowledgePage').then((module) => ({ default: module.KnowledgePage })),
@@ -92,7 +91,7 @@ import {
   adminSectionFromLocation,
   type AdminSection,
 } from './admin/admin-navigation';
-import { PortalHeader } from './components/PortalHeader';
+import { PortalGuestHeader, PortalHeader } from './components/PortalHeader';
 import { SchoolTimeProvider, deviceTimeZone } from './components/school-time';
 import { seatAvatar } from './creator-portal/default-avatars';
 import { QuickProjectCreation } from './creator-portal/QuickProjectCreation';
@@ -115,6 +114,7 @@ import {
   canUseClasses,
   creatorViewFromLocation,
   creatorViewToHref,
+  isPublicProjectView,
   sectionForView,
   type CreatorPortalSection,
   type CreatorPortalView,
@@ -133,6 +133,7 @@ import './creator-portal/creator-portal.css';
 import './creator-portal/portal-workspace.css';
 import './creator-portal/home-workspace.css';
 import './creator-portal/portal-header-adaptive.css';
+import './projects-public/public-projects.css';
 
 const AdminPage = lazy(() =>
   import('./admin/AdminPage').then((module) => ({ default: module.AdminPage })),
@@ -247,6 +248,12 @@ export function App(): JSX.Element {
 
   const acceptedLocation = useRef(window.location.href);
   const acceptedHistoryIndex = useRef(historyEntryIndex() ?? 0);
+  useEffect(() => {
+    if (view.kind !== 'public-projects' || window.location.hash.split('?')[0] !== '#/gallery')
+      return;
+    window.history.replaceState(window.history.state, '', creatorViewToHref(view));
+    acceptedLocation.current = window.location.href;
+  }, [view]);
   // Used only after approval (including the acknowledged workspace switch).
   const applyView = useCallback((next: CreatorPortalView) => {
     setAdminSection(null);
@@ -624,7 +631,7 @@ export function App(): JSX.Element {
         setView({ kind: 'teacher-invite', token: pendingTeacherInvite });
         return;
       }
-      setView(view.kind === 'editor' ? view : { kind: 'home' });
+      setView(view.kind === 'editor' || isPublicProjectView(view) ? view : { kind: 'home' });
     };
 
     if (
@@ -733,9 +740,49 @@ export function App(): JSX.Element {
           onCreateAccount={() => setPublicView({ kind: 'sign-up' })}
           onClassCodeLogin={() => setPublicView({ kind: 'join-class' })}
           onOrganizationLogin={() => setPublicView({ kind: 'organization-sign-in' })}
-          onBack={() => setPublicView({ kind: 'entry' })}
+          onBack={() => {
+            if (isPublicProjectView(view)) {
+              setPublicViewState({ kind: 'entry' });
+              setView(view);
+            } else setPublicView({ kind: 'entry' });
+          }}
           onHome={goToPublicHome}
         />
+      );
+    }
+    if (isPublicProjectView(view)) {
+      return (
+        <SchoolTimeProvider timeZone={null}>
+          <div
+            className="portal-shell public-projects-guest"
+            data-build-revision={__ASA_BUILD_REVISION__}
+          >
+            <a
+              className="skip-link"
+              href="#main-content"
+              onClick={(event) => {
+                event.preventDefault();
+                document.getElementById('main-content')?.focus();
+              }}
+            >
+              Перейти к содержанию
+            </a>
+            <PortalGuestHeader
+              onHome={goToPublicHome}
+              onProjects={() => setView({ kind: 'public-projects' })}
+              onSignIn={() => setPublicView({ kind: 'sign-in' })}
+            />
+            <Suspense
+              fallback={
+                <main className="portal-content" aria-busy="true">
+                  <p role="status">Загружаем проекты…</p>
+                </main>
+              }
+            >
+              <PublicProjectsSurface view={view} onNavigate={setView} />
+            </Suspense>
+          </div>
+        </SchoolTimeProvider>
       );
     }
     return (
@@ -835,7 +882,7 @@ export function App(): JSX.Element {
     else if (section === 'learning') setView({ kind: 'learning' });
     else if (section === 'knowledge') setView({ kind: 'knowledge' });
     else if (section === 'collections') setView({ kind: 'collections' });
-    else if (section === 'gallery') setView({ kind: 'gallery' });
+    else if (section === 'gallery') setView({ kind: 'public-projects' });
     else if (section === 'challenges') setView({ kind: 'challenges' });
     else if (section === 'classes') setView({ kind: 'classrooms' });
     else if (section === 'help') setView({ kind: 'help' });
@@ -928,7 +975,8 @@ export function App(): JSX.Element {
               onWorkspaceChanged={() => applyView({ kind: 'home' })}
               onLoggedOut={() => {
                 setSession({ kind: 'anonymous' });
-                setPublicView({ kind: 'entry' });
+                if (isPublicProjectView(view)) setPublicViewState({ kind: 'entry' });
+                else setPublicView({ kind: 'entry' });
               }}
             />
             {adminRoute ? (
@@ -972,7 +1020,9 @@ export function App(): JSX.Element {
                       onAllProjects={(module) =>
                         setView({ kind: 'my-projects', ...(module ? { module } : {}) })
                       }
-                      onOpenWork={(projectId) => setView({ kind: 'gallery-work', projectId })}
+                      onOpenWork={(publicationId) =>
+                        setView({ kind: 'public-project', publicationId })
+                      }
                       onOpenCourse={(courseId) => setView({ kind: 'knowledge-course', courseId })}
                       onOpenProject={(projectId, moduleKey) =>
                         setView({
@@ -1015,17 +1065,13 @@ export function App(): JSX.Element {
                     onRegisterLeaveGuard={registerLearningLeaveGuard}
                   />
                 ) : null}
-                {/* The gallery is the one place people see each other's work, and that
-            is the whole point of it: inside a class nobody sees a classmate's
-            model, because thirty children on one task shown each other's
-            answers is a copying machine. Here the work is finished and was
-            published on purpose. */}
-                {/* No "open" on a card: a gallery entry belongs to another person and
-            usually another school, and the picture is the point. */}
-                {view.kind === 'gallery' ? (
-                  <GalleryPage
-                    canTeach={hasTeachingCapability && !isSeatLearner}
-                    onOpenWork={(projectId) => setView({ kind: 'gallery-work', projectId })}
+                {isPublicProjectView(view) ? (
+                  <PublicProjectsSurface
+                    view={view}
+                    onNavigate={setView}
+                    {...(!isSeatLearner
+                      ? { onMyProjects: () => setView({ kind: 'my-projects' }) }
+                      : {})}
                   />
                 ) : null}
                 {view.kind === 'knowledge' || view.kind === 'knowledge-course' ? (
@@ -1033,20 +1079,6 @@ export function App(): JSX.Element {
                     {...(view.kind === 'knowledge-course' ? { courseId: view.courseId } : {})}
                     onOpen={(courseId) => setView({ kind: 'knowledge-course', courseId })}
                     onBack={() => setView({ kind: 'knowledge' })}
-                  />
-                ) : null}
-                {view.kind === 'gallery-work' ? (
-                  <GalleryWorkPage
-                    projectId={view.projectId}
-                    onBack={() => setView({ kind: 'gallery' })}
-                    onOpenProject={(projectId, moduleKey) =>
-                      setView({
-                        kind: 'editor',
-                        projectId,
-                        moduleKey,
-                        returnTo: { kind: 'my-projects' },
-                      })
-                    }
                   />
                 ) : null}
                 {/* Коллекции перестали быть заглушкой: это подборки работ из галереи,
