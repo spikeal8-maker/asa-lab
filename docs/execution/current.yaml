@@ -102,19 +102,28 @@ parallel_lanes:
       base_branch: main
       pr: null
       pr_draft: true
-      status: ready
-      checkpoint: governance_scope_proposed_product_mapping_review_required
+      status: in_progress
+      checkpoint: owner_selected_full_enforcement_and_teacher_ui_continuation
       owner_acceptance: pending
       change_class: L3_CRITICAL
       owner_authorization: >-
-        Owner Issue618 selects phase1 server-issued class/Seat admission for educational
-        offline Chess/Checkers, additive policy storage, enforcement and real teacher/Seat UI.
-        This branch authors only the task doc and additive lane proposal; canonical main
-        acceptance and fresh preflight are required before product work. Shared coordinated_paths
-        are informational in the selected task document, not owned or self-authorized.
-        Controller integration requires explicit owner-handoff and independent L3 review by
-        the existing lane; no product integration until that boundary and mapping are resolved.
-        No merge, Docker, live SQL, deployment or canonical authoring changes authorized.
+        Owner instruction on 2026-10-19 explicitly continues Issue618 and existing
+        PR621/622/624/626 through independent executor/reviewer work, actual tests,
+        ordinary merge of accepted changes to main, and a backed-up review582
+        preview on 127.0.0.1:4620. Installation4610 is excluded.
+        This selected game slice completes the existing PR626 foundation: trusted
+        Seat-first identity, current admission at catalogue/project read/create/
+        replay/open/edit/save/revocation, class and individual teacher controls,
+        and offline Chess/Checkers UI. SafeMode, existing assignment ACL, Account
+        ownership, tenant/RLS boundaries and online restrictions remain intact.
+        Controller hands off only the coordinated paths listed in the task
+        contract, after fresh overlap checks. Missing exact surface mappings are
+        added with the corresponding bounded implementation and reviewed before
+        merge; feature branches do not select their own execution state.
+        Product author may publish the existing candidate branch after focused
+        checks. Controller alone handles integration and preview operations after
+        independent L3 review, exact-SHA gates and verified backup. No live
+        production SQL, protected-data deletion, force-push or security bypass.
     revisions:
       kind: observed_snapshot
       convergence_baseline_sha: ccb97048d8b846798978c85eb8b544a04ffe057c
