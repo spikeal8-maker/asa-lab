@@ -220,6 +220,116 @@ describe('Seat work load retry', () => {
   });
 });
 
+describe('Seat quiz draft lifetime', () => {
+  it.each(['section', 'seat', 'session', 'logout'] as const)(
+    'retains answers only when %s keeps the same learner lifetime',
+    async (transition) => {
+      reactTestGlobal.IS_REACT_ACT_ENVIRONMENT = true;
+      const container = document.createElement('div');
+      const root = createRoot(container);
+      vi.spyOn(api, 'seatAssignments').mockResolvedValue({
+        ok: true,
+        status: 200,
+        data: { items: [] },
+      });
+      vi.spyOn(api, 'seatQuizzes').mockResolvedValue({
+        ok: true,
+        status: 200,
+        data: { items: [retryQuiz] },
+      });
+      const submit = vi.spyOn(api, 'submitSeatQuiz');
+      const actor = { kind: 'student' as const, seatId: 'seat-2', classId: 'class-2' };
+      const render = (seat = retrySeat) =>
+        root.render(createElement(LearningPage, { seat, onOpenProject: vi.fn() }));
+      const navigate = async (view: string) => {
+        await act(async () => {
+          window.history.replaceState(null, '', `#/learning?view=${view}`);
+          window.dispatchEvent(new HashChangeEvent('hashchange'));
+        });
+      };
+      const openQuiz = async () => {
+        await act(async () =>
+          (container.querySelector('.seat-quiz-summary') as HTMLButtonElement).click(),
+        );
+      };
+      try {
+        window.history.replaceState(null, '', '#/learning?view=assignments');
+        await act(async () => {
+          setTelemetryContext(actor, true, 'learning');
+          render();
+        });
+        await openQuiz();
+        await act(async () =>
+          (container.querySelector('input[type="radio"]') as HTMLInputElement).click(),
+        );
+        expect((container.querySelector('input[type="radio"]') as HTMLInputElement).checked).toBe(
+          true,
+        );
+        await navigate('classes');
+        if (transition === 'seat')
+          await act(async () =>
+            render({ ...retrySeat, student: { ...retrySeat.student, seatId: 'seat-3' } }),
+          );
+        if (transition === 'session')
+          await act(async () => render({ ...retrySeat, expiresAt: '2099-02-01' }));
+        if (transition === 'logout')
+          await act(async () => {
+            setTelemetryContext(null, false, 'unknown');
+            setTelemetryContext(actor, true, 'learning');
+          });
+        await navigate('assignments');
+        await openQuiz();
+        expect((container.querySelector('input[type="radio"]') as HTMLInputElement).checked).toBe(
+          transition === 'section',
+        );
+        expect(submit).not.toHaveBeenCalled();
+      } finally {
+        await act(async () => root.unmount());
+        setTelemetryContext(null, false, 'unknown');
+        reactTestGlobal.IS_REACT_ACT_ENVIRONMENT = false;
+      }
+    },
+  );
+
+  it('keeps reused question versions in separate assignment drafts', async () => {
+    reactTestGlobal.IS_REACT_ACT_ENVIRONMENT = true;
+    const container = document.createElement('div');
+    const root = createRoot(container);
+    vi.spyOn(api, 'seatAssignments').mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { items: [] },
+    });
+    vi.spyOn(api, 'seatQuizzes').mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { items: [retryQuiz, { ...retryQuiz, assignmentId: 'another-quiz' }] },
+    });
+    try {
+      window.history.replaceState(null, '', '#/learning?view=assignments');
+      await act(async () =>
+        root.render(createElement(LearningPage, { seat: retrySeat, onOpenProject: vi.fn() })),
+      );
+      const quizzes = container.querySelectorAll<HTMLButtonElement>('.seat-quiz-summary');
+      await act(async () => quizzes[0]!.click());
+      await act(async () =>
+        (container.querySelector('input[type="radio"]') as HTMLInputElement).click(),
+      );
+      await act(async () => quizzes[1]!.click());
+      expect((container.querySelector('input[type="radio"]') as HTMLInputElement).checked).toBe(
+        false,
+      );
+      await act(async () => quizzes[0]!.click());
+      expect((container.querySelector('input[type="radio"]') as HTMLInputElement).checked).toBe(
+        true,
+      );
+    } finally {
+      await act(async () => root.unmount());
+      reactTestGlobal.IS_REACT_ACT_ENVIRONMENT = false;
+    }
+  });
+});
+
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();

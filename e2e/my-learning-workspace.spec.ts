@@ -1,5 +1,6 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
+import { accountMenu, openAccountMenu, openPortalSection } from './portal-navigation';
 
 // Real built portal/React DOM, deterministic authorized read-model fixtures.
 // This suite does not claim database, server authorization or owner acceptance.
@@ -35,11 +36,16 @@ const seat = {
 };
 
 async function fixture(page: Page, identity: 'seat' | 'account', count: number) {
+  await page.route('https://st.max.ru/js/max-web-app.js', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/javascript', body: '' }),
+  );
   const state = {
     fail: false,
     hold: false,
     joins: 0,
     submitted: false,
+    signedIn: true,
+    studentSession: structuredClone(seat),
     writes: [] as string[],
     reads: [] as string[],
     errors: [] as string[],
@@ -185,7 +191,18 @@ async function fixture(page: Page, identity: 'seat' | 'account', count: number) 
     else state.writes.push(path);
     if (path === '/api/auth/me')
       return json(route, identity === 'account' ? account : { authenticated: false });
-    if (path === '/api/class-join/me') return json(route, seat);
+    if (path === '/api/class-join/me')
+      return json(route, state.signedIn ? state.studentSession : { authenticated: false });
+    if (path === '/api/class-join/logout' && method === 'POST') {
+      state.signedIn = false;
+      return json(route, { ok: true });
+    }
+    if (path === '/api/class-join/resolve' && method === 'POST')
+      return json(route, { classroom: { ...state.studentSession.classroom, safeMode: true } });
+    if (path === '/api/class-join/studentseat' && method === 'POST') {
+      state.signedIn = true;
+      return json(route, state.studentSession);
+    }
     if (path === '/api/account/avatar') return json(route, { avatarDataUrl: null });
     if (path === '/api/account/presentation')
       return json(route, { revision: 0, motion: 'system', sidebar: 'expanded' });
@@ -873,6 +890,86 @@ for (const kind of ['standalone', 'course', 'nested', 'quiz'] as const) {
   });
 }
 
+test('Seat: section history retains unsent quiz answers at every viewport', async ({ page }) => {
+  const state = await fixture(page, 'seat', 1);
+  await page.goto('/#/learning?view=assignments');
+  const quiz = page.getByRole('button', { name: /Проверка знаний/ });
+  const answer = page.getByRole('radio', { name: 'Напряжение', exact: true });
+  await quiz.click();
+  await answer.check();
+  const nav = page.getByRole('navigation', { name: 'Разделы моего обучения' });
+  for (const width of [1440, 1024, 390, 320]) {
+    await page.setViewportSize({ width, height: 960 });
+    await nav.getByRole('link', { name: 'Результаты', exact: true }).click();
+    await expect(nav.getByRole('link', { name: 'Результаты', exact: true })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+    await page.goBack();
+    await expect(nav.getByRole('link', { name: 'Задания', exact: true })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+    await quiz.click();
+    await expect(answer).toBeChecked();
+    await page.goForward();
+    await expect(nav.getByRole('link', { name: 'Результаты', exact: true })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+    await page.goBack();
+    await quiz.click();
+    await expect(answer).toBeChecked();
+  }
+  expect(
+    state.writes.filter(
+      (path) => !path.startsWith('/api/analytics/') && !path.startsWith('/api/diagnostics/'),
+    ),
+  ).toEqual([]);
+  expect(state.errors).toEqual([]);
+});
+
+for (const nextSeat of ['seat-1', 'seat-2']) {
+  test(`Seat: logout clears the quiz draft before ${nextSeat} signs in`, async ({ page }) => {
+    const state = await fixture(page, 'seat', 1);
+    await page.goto('/#/learning?view=assignments');
+    const quiz = page.getByRole('button', { name: /Проверка знаний/ });
+    const answer = page.getByRole('radio', { name: 'Напряжение', exact: true });
+    await quiz.click();
+    await answer.check();
+    await expect(answer).toBeChecked();
+    await openAccountMenu(page);
+    await accountMenu(page).getByRole('button', { name: 'Выход', exact: true }).click();
+    await expect(page.locator('.learning-workspace')).toHaveCount(0);
+    expect(state.signedIn).toBe(false);
+    state.studentSession = {
+      ...seat,
+      student: { ...seat.student, seatId: nextSeat },
+      expiresAt: '2099-02-01T00:00:00Z',
+    };
+    // Keep the same document: a reload would conceal an in-memory draft leak.
+    await page.evaluate(() => {
+      window.location.hash = '#/join-class?code=ABCDEF234';
+    });
+    await page.getByLabel('Код ученика', { exact: true }).fill('B123');
+    await page.getByRole('button', { name: 'Войти', exact: true }).click();
+    await openPortalSection(page, 'Моё обучение');
+    await page
+      .getByRole('navigation', { name: 'Разделы моего обучения' })
+      .getByRole('link', { name: 'Задания', exact: true })
+      .click();
+    await quiz.click();
+    await expect(answer).not.toBeChecked();
+    expect(state.studentSession.student.seatId).toBe(nextSeat);
+    expect(
+      state.writes.filter(
+        (path) => !path.startsWith('/api/analytics/') && !path.startsWith('/api/diagnostics/'),
+      ),
+    ).toEqual(['/api/class-join/logout', '/api/class-join/resolve', '/api/class-join/studentseat']);
+    expect(state.errors).toEqual([]);
+  });
+}
+
 test('Seat: existing quiz interaction and submit stay available', async ({ page }) => {
   const state = await fixture(page, 'seat', 1);
   await page.goto('/#/learning?view=assignments');
@@ -890,6 +987,12 @@ test('Seat: existing quiz interaction and submit stay available', async ({ page 
   }
   await page.getByRole('button', { name: 'Завершить и проверить', exact: true }).click();
   await expect(page.getByText('Тест пройден · 100%', { exact: true })).toBeVisible();
+  await expect(page.getByRole('radio', { name: 'Напряжение', exact: true })).toBeChecked();
+  const nav = page.getByRole('navigation', { name: 'Разделы моего обучения' });
+  await nav.getByRole('link', { name: 'Результаты', exact: true }).click();
+  await page.goBack();
+  await page.getByRole('button', { name: /Проверка знаний/ }).click();
+  await expect(page.getByRole('radio', { name: 'Напряжение', exact: true })).not.toBeChecked();
   expect(state.writes).toContain('/api/class-join/me/quizzes/quiz-1/submit');
   expect(state.errors).toEqual([]);
 });

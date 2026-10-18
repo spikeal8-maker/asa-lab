@@ -8,7 +8,11 @@ import {
 } from '../api';
 import { SeatAssignments } from '../components/SeatAssignments';
 import { SeatCourses } from '../components/SeatCourses';
-import { SeatQuizzes } from '../components/SeatQuizzes';
+import {
+  SeatQuizzes,
+  type SeatQuizDrafts,
+  type SeatQuizDraftStore,
+} from '../components/SeatQuizzes';
 import { SeatResults } from '../components/SeatResults';
 import { AttendedClassesPage } from './AttendedClassesPage';
 import { canonicalLearningLabel } from '../learning/canonical-learning-presentation';
@@ -97,12 +101,34 @@ export function LearningPage({
     window.addEventListener('hashchange', sync);
     return () => window.removeEventListener('hashchange', sync);
   }, []);
-  // A new destination or Seat lifetime gets fresh reads and retires pending work.
+  // Drafts survive section navigation only within the current learner lifetime.
   return (
-    <LearningWorkspace
-      key={`${continuity}:${seat?.student.seatId ?? 'account'}:${seat?.expiresAt ?? ''}:${hash}`}
+    <LearningContext
+      key={`${continuity}:${seat?.student.seatId ?? 'account'}:${seat?.expiresAt ?? ''}`}
+      hash={hash}
       seat={seat}
       onOpenProject={onOpenProject}
+    />
+  );
+}
+
+function LearningContext({
+  hash,
+  seat,
+  onOpenProject,
+}: {
+  readonly hash: string;
+  readonly seat: ClassroomStudentSession | null;
+  readonly onOpenProject: (projectId: string, moduleKey: string) => void;
+}): JSX.Element {
+  const [answers, update] = useState<SeatQuizDrafts>({});
+  // A new destination still gets fresh reads and retires pending work.
+  return (
+    <LearningWorkspace
+      key={hash}
+      seat={seat}
+      onOpenProject={onOpenProject}
+      quizDrafts={{ answers, update }}
     />
   );
 }
@@ -110,9 +136,11 @@ export function LearningPage({
 function LearningWorkspace({
   seat,
   onOpenProject,
+  quizDrafts,
 }: {
   readonly seat: ClassroomStudentSession | null;
   readonly onOpenProject: (projectId: string, moduleKey: string) => void;
+  readonly quizDrafts: SeatQuizDraftStore;
 }): JSX.Element {
   const requestedTab = learningSection(window.location.hash);
   const destination = useLearningDestination();
@@ -218,7 +246,7 @@ function LearningWorkspace({
         ) : tab === 'courses' ? (
           <SeatCourses onOpenProject={onOpenProject} />
         ) : tab === 'assignments' ? (
-          <SeatWorkSection onOpenProject={onOpenProject} />
+          <SeatWorkSection onOpenProject={onOpenProject} quizDrafts={quizDrafts} />
         ) : tab === 'completed' ? (
           <>
             <SeatCourses onOpenProject={onOpenProject} completedOnly />
@@ -351,8 +379,10 @@ function LearningOverview({ seat }: { readonly seat: boolean }): JSX.Element {
 /** Each work component reports its actual visible read to the shared retry boundary. */
 function SeatWorkSection({
   onOpenProject,
+  quizDrafts,
 }: {
   readonly onOpenProject: (projectId: string, moduleKey: string) => void;
+  readonly quizDrafts: SeatQuizDraftStore;
 }): JSX.Element {
   const [counts, setCounts] = useState<
     readonly [number | null | undefined, number | null | undefined]
@@ -381,7 +411,7 @@ function SeatWorkSection({
         <p>Заданий и тестов пока нет. Преподаватель выдаст их в вашем классе.</p>
       ) : null}
       <SeatAssignments onOpenProject={onOpenProject} reloadSignal={retry} onLoad={workLoaded} />
-      <SeatQuizzes reloadSignal={retry} onLoad={quizzesLoaded} />
+      <SeatQuizzes reloadSignal={retry} onLoad={quizzesLoaded} drafts={quizDrafts} />
     </>
   );
 }
