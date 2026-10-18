@@ -81,7 +81,14 @@ export function reportClientDiagnostic(
       count = 0;
     }
     const health = ['editor_ready', 'editor_heartbeat', 'editor_recovered'].includes(code);
-    const key = `${context.instanceId}:${module}:${code}`;
+    const baseKey = `${context.instanceId}:${module}:${code}`;
+    const scratchSave =
+      code === 'autosave_failed' &&
+      module === 'scratch' &&
+      ['scratch-save-asset', 'scratch-save-draft', 'scratch-save-prepare'].includes(
+        detail.failureCode ?? '',
+      );
+    const key = scratchSave ? `${baseKey}:${detail.failureCode}` : baseKey;
     if (!health && count >= 12) {
       quality.increment('suppressed');
       return;
@@ -92,6 +99,8 @@ export function reportClientDiagnostic(
     }
     if (recent.size > 200) for (const [id, at] of recent) if (now - at > 60_000) recent.delete(id);
     recent.set(key, now);
+    // A precise save report also covers a following generic controlled-exit failure.
+    if (scratchSave) recent.set(baseKey, now);
     if (!health) count += 1;
     const revision =
       typeof __ASA_BUILD_REVISION__ === 'string' && /^[a-f0-9]{7,64}$/.test(__ASA_BUILD_REVISION__)

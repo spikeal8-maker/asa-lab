@@ -29,6 +29,60 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 describe('bounded diagnostics delivery', () => {
+  it.each(['scratch-save-asset', 'scratch-save-draft', 'scratch-save-prepare'])(
+    'retains %s through a failed delivery and reload with the same event identity',
+    async (failureCode) => {
+      const port = storage();
+      let status = 503;
+      const transport = vi.fn<typeof fetch>(
+        async () => new Response(JSON.stringify({ accepted: true }), { status }),
+      );
+      vi.stubGlobal('fetch', transport);
+      const first = new DiagnosticOutbox(port);
+      first.enqueue({
+        ...event(),
+        module: 'scratch',
+        phase: 'save',
+        failureCode,
+        httpStatus: 400,
+        durationMs: 1,
+        relatedRequestId: id(8),
+      });
+      await vi.advanceTimersByTimeAsync(0);
+      const original = transport.mock.calls[0]![1]!.body;
+      vi.clearAllTimers(); // Browser reload destroys the old retry timer.
+      status = 202;
+      const restored = new DiagnosticOutbox(port);
+      restored.retryNow();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(transport.mock.calls.at(-1)![1]!.body).toBe(original);
+      expect(JSON.parse(port.getItem())).toEqual([]);
+    },
+  );
+
+  it('rejects restored Scratch save reports with foreign contexts or private extra fields', async () => {
+    const port = storage();
+    port.setItem(
+      'queue',
+      JSON.stringify([
+        { ...event(), module: 'portal', phase: 'save', failureCode: 'scratch-save-asset' },
+        { ...event(2), module: 'scratch', phase: 'runtime', failureCode: 'scratch-save-draft' },
+        {
+          ...event(3),
+          module: 'scratch',
+          phase: 'save',
+          failureCode: 'scratch-save-draft',
+          token: 'secret',
+        },
+      ]),
+    );
+    const transport = vi.fn<typeof fetch>();
+    vi.stubGlobal('fetch', transport);
+    new DiagnosticOutbox(port).retryNow();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(transport).not.toHaveBeenCalled();
+    expect(JSON.parse(port.getItem())).toEqual([]);
+  });
   it.each(['read', 'write', 'absent'] as const)(
     'reports %s queue storage failure through healthy anonymous quality and keeps bounded retryable memory',
     async (failure) => {
