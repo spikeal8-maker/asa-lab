@@ -81,6 +81,92 @@ primary_lane:
     - docs/architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md
 
 parallel_lanes:
+  - id: electronics-mobile-add-connect
+    parent_lane: electronics
+    worktree_id: electronics-mobile-touch
+    owned_paths:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-MOBILE-ADD-CONNECT-001.md
+    task:
+      id: TASK-ELECTRONICS-MOBILE-ADD-CONNECT-001
+      issue: 280
+      programme_issue: 452
+      branch: main
+      base_branch: main
+      pr: null
+      status: in_progress
+      kind: repair
+      checkpoint: native_phone_add_connect_before_test_only
+      owner_acceptance: pending
+      owner_authorization: >-
+        Owner selected phone component adding and connecting, implementation through subagents
+        with controller checks and independent review; "делай так чтобы вы не мешали друг другу и не портили результат".
+      scoped_handoff_exception: >-
+        Owner permits this clean isolated mobile checkout despite recorded unrelated Classroom
+        .github/workflows/classroom-owner.yml shared-path WAITING_HANDOFF. Preserve guard output,
+        never claim SAFE_TO_START or change policies. No actual selected-path overlap is permitted.
+        Root Classroom dirty work and active546 hook/LED/core remain untouched.
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-MOBILE-ADD-CONNECT-001.md
+        - docs/product/electronics/components/ui-assets-persistence.yaml
+      repair_scope: >-
+        FIRST tests-only additive native touch cases in existing registered electronics-simulation
+        real auth/CAS/cookies journey plus original280 tap-select then canvas-tap count4to5;
+        two-componentflow or existing upward-drag4to5 alone cannot close280. Existing cases/helpers
+        byte-exact. After independently
+        challenged source and one actual built BEFORE proves missing active-placement cue, ONLY
+        Stage and CSS reuse catalogPlacement keyboard mode and existing cancelFamilyPlacement.
+        Wire/hook defects require exact evidence and handoff, no concurrent hook repair.
+      expected_write_paths:
+        - e2e/electronics-simulation.spec.ts
+        - apps/web/src/electronics/WorkbenchStage.tsx
+        - apps/web/src/electronics/workbench.css
+      path_coordination: >-
+        owned_paths lists the exclusive card only for compatibility; exact bounded source/test
+        budget above is advisory, not an overlap bypass. Check all dirty worktrees before each
+        target write. No existing interactions/helper changes, Sidebars without proven need,
+        hook/LED/core/workflow/package/dependency/artwork/schema edits or school operations.
+      next_action: >-
+        Controller first publishes canonical selection on main. NEW bounded author creates ONE
+        additive test-only candidate and STOP; controller verifies actual source and NEW independent
+        reviewer challenges before one justified built BEFORE. Only proved selected UI cause allows
+        minimal product phase, identical AFTER, exact required gates and NEW final independent review.
+      deployment: not_requested
+      database_actions: isolated_CI_fixture_only_no_local_live_owner_operations
+      ci_database_scope: >-
+        Existing unchanged registered isolated browser workflow may use its disposable fixture DB
+        and real API Save/CAS/cookies reopen. No local Docker, local/live/owner DB, network, backup
+        or deployment operations; no workflow/configuration changes.
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: 92720e3e9d24ed66e699471d20f903c2a7c642a0
+      head_sha: null
+      observed_at: '2026-10-18T13:02:27Z'
+      main:
+        branch: main
+        sha: 92720e3e9d24ed66e699471d20f903c2a7c642a0
+      observation_note: >-
+        Dated clean isolated mobile setup; fetch main before writes and recover exact Git/CI.
+        Recorded unrelated Classroom shared workflow WAITING_HANDOFF remains, with explicit owner
+        scoped exception; no SAFE claim or actual overlapping source permission. No product acceptance.
+    execution_lease:
+      executor_id: electronics-mobile-add-connect
+      holder: unassigned
+      acquired_at: null
+      expires_at: null
+      reviewer_role_requires_lease: false
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1
+      browser:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1:browser
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
   - id: session-recovery
     parent_lane: admin-auth
     worktree_id: session-recovery-point5-602
