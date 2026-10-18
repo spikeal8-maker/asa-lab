@@ -53,15 +53,23 @@ async function render(seatId = 'seat-a', compact = true, teacher = true) {
   );
 }
 function button(label: string) {
-  const result = [...host.querySelectorAll('button')].find((b) => b.textContent?.trim() === label);
+  const result = [...host.querySelectorAll('button')].find(
+    (b) => b.textContent?.trim() === label || b.getAttribute('aria-label') === label,
+  );
   expect(result, label).toBeDefined();
   return result!;
 }
 async function click(label: string) {
   await act(async () => button(label).click());
 }
-const manualRows = () => host.querySelectorAll('[aria-label="Ручные оценки"] > li');
-const resultRows = () => host.querySelectorAll('[aria-label="Результаты заданий"] > li');
+const manualRows = () =>
+  host.querySelectorAll(
+    '.teacher-profile-grades [data-grade-source="journal"], .participant-grade-list:first-of-type:not([aria-label="Оценки текущего класса"]) > li',
+  );
+const resultRows = () =>
+  host.querySelectorAll(
+    '.teacher-profile-grades [data-grade-source="results"], .participant-grade-list:nth-of-type(2) > li',
+  );
 
 function page(manual = 100, results = 100, offset = 0, resultOffset = 0): ParticipantGrades {
   const ids = Array.from(
@@ -316,11 +324,8 @@ it.each([false, true])(
     expect(resultRows()).toHaveLength(100);
     expect(column()).toHaveLength(1);
     expect(column()[0]!.querySelector('strong')?.textContent).toBe('Отозвана');
-    await act(async () => column()[0]!.querySelector<HTMLButtonElement>('button')!.click());
-    expect(history).toHaveBeenCalledWith('class', 'seat-a', 'c0', undefined);
-    expect(host.querySelectorAll('.participant-history ol li')).toHaveLength(2);
-    expect(host.querySelector('.participant-history')?.textContent).toContain('5');
-    expect(host.querySelector('.participant-history')?.textContent).toContain('Отозвана');
+    expect(column()[0]!.querySelector('button')).toBeNull();
+    expect(history).not.toHaveBeenCalled();
   },
 );
 
@@ -379,9 +384,8 @@ it.each([30, 100])(
           ]
         : [[0, 30]],
     );
-    await act(async () => column()[0]!.querySelector<HTMLButtonElement>('button')!.click());
-    expect(host.querySelectorAll('.participant-history ol li')).toHaveLength(2);
-    expect(host.querySelector('.participant-history')?.textContent).toContain('5');
+    expect(column()[0]!.querySelector('button')).toBeNull();
+    expect(host.querySelector('.participant-history')).toBeNull();
     if (count === 30) {
       await click('Ещё ручные оценки');
       expect(read.mock.calls.at(-1)?.slice(2)).toEqual([manualOffset + 30, 30]);
@@ -657,7 +661,7 @@ it.each([503, 403])(
     vi.spyOn(participantsApi, 'resultHistory').mockReturnValueOnce(staleHistory.promise);
     await render();
     await act(async () => button('Ещё ручные оценки').click());
-    await click('История результата');
+    expect(host.textContent).not.toContain('История');
     await render('seat-b');
     expect(host.querySelector('[role="alert"]')?.textContent).toContain('Ошибка страницы');
     expect(host.querySelector('[role="status"]')).toBeNull();
@@ -729,7 +733,7 @@ it.each([401, 403])(
       .mockResolvedValueOnce(fail(status))
       .mockResolvedValueOnce(ok(page(1, 1)));
     vi.spyOn(participantsApi, 'resultHistory').mockReturnValueOnce(pending.promise);
-    await render();
+    await render('seat-a', false, false);
     await click('История результата');
     await act(async () => window.dispatchEvent(new Event('focus')));
     expect(manualRows()).toHaveLength(0);
@@ -778,6 +782,9 @@ it('keeps zero, retracted grade, null result, calendar dates and full revision f
   expect(host.textContent).toContain('0 / 10');
   expect(host.textContent).toContain('Без балла');
   expect(host.querySelector('time[datetime="2021-01-01"]')?.textContent).toBe('01.01.2021');
+  expect(host.textContent).not.toContain('История');
+  expect(history).not.toHaveBeenCalled();
+  await render('seat-a', false, false);
   await click('История');
   expect(history).toHaveBeenCalled();
   expect(host.textContent).toContain('Исправлена оценка');
@@ -804,6 +811,23 @@ it('preserves default compact pupil semantics and the seat-only API', async () =
   expect(read).toHaveBeenCalledWith(0, 0);
   expect(teacher).not.toHaveBeenCalled();
 });
+
+it.each([true, false])(
+  'suppresses teacher history in compact=%s without reading it',
+  async (compact) => {
+    vi.spyOn(participantsApi, 'grades').mockResolvedValue(ok(page(2, 2)));
+    const manual = vi.spyOn(participantsApi, 'history');
+    const results = vi.spyOn(participantsApi, 'resultHistory');
+    await render('seat-a', compact);
+    expect(host.textContent).not.toContain('История');
+    expect(host.textContent).not.toContain('история');
+    expect(manualRows()).toHaveLength(2);
+    expect(resultRows()).toHaveLength(2);
+    expect(host.textContent).toContain('0 / 10');
+    expect(manual).not.toHaveBeenCalled();
+    expect(results).not.toHaveBeenCalled();
+  },
+);
 
 it('does not rewind an exhausted journal while paging overlapping assignment results', async () => {
   vi.spyOn(participantsApi, 'grades').mockImplementation(async (_c, _s, o = 0, r = 0) => {
@@ -967,13 +991,20 @@ it('renders one navigation row, truthful safety, all eight keyboard-reachable se
         navigation: {
           total: 1,
           position: 1,
-          previous: { id: 'seat-a', displayLabel: 'Ученик' },
-          next: { id: 'seat-a', displayLabel: 'Ученик' },
+          previous: { id: 'seat-a', displayLabel: 'Иванов Иван Петрович' },
+          next: { id: 'seat-a', displayLabel: 'Петрова Анна Сергеевна' },
         },
       }),
     ),
   );
   expect(host.querySelectorAll('.classroom-student-navrow nav')).toHaveLength(1);
+  expect(host.querySelectorAll('.student-pager-name')[0]?.textContent).toBe('Иванов Иван');
+  expect(host.querySelectorAll('.student-pager-name')[1]?.textContent).toBe('Петрова Анна');
+  expect(
+    host
+      .querySelector('[aria-label="Предыдущий ученик: Иванов Иван Петрович"]')
+      ?.getAttribute('title'),
+  ).toBe('Иванов Иван Петрович');
   expect(host.querySelectorAll('.classroom-student-navrow button:disabled')).toHaveLength(2);
   expect(host.textContent).toContain('Защита выключена');
   expect(host.textContent).toContain('39.05');
@@ -984,7 +1015,11 @@ it('renders one navigation row, truthful safety, all eight keyboard-reachable se
     tabs[0]!.dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true })),
   );
   expect(document.activeElement).toBe(tabs[7]);
-  await click('Ждут проверки · среди загруженных');
+  await act(async () => {
+    const select = host.querySelector<HTMLSelectElement>('[aria-label="Статус работ"]')!;
+    select.value = 'awaiting';
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+  });
   expect(host.textContent).toContain(
     'Среди загруженных работ нет ожидающих проверки. Загрузите ещё работы.',
   );
