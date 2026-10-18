@@ -29,7 +29,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          ref: 10298adebf11d61636465bfe4b8691b36fc23913
+          ref: 9bc659a780a02dfc99af789cef53ed8feb956146
           persist-credentials: false
           fetch-depth: 0
 
@@ -61,8 +61,8 @@ jobs:
     timeout-minutes: 35
     env:
       CI: 'true'
-      ASA_BUILD_REVISION: 10298adebf11d61636465bfe4b8691b36fc23913
-      ASA_IMAGE_TAG: 10298adebf11d61636465bfe4b8691b36fc23913
+      ASA_BUILD_REVISION: 9bc659a780a02dfc99af789cef53ed8feb956146
+      ASA_IMAGE_TAG: 9bc659a780a02dfc99af789cef53ed8feb956146
       COMPOSE_PROJECT_NAME: asa-lab-electronics-${{ github.run_id }}
       ASA_TEST_UID: '1000'
       ASA_TEST_GID: '1000'
@@ -70,7 +70,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          ref: 10298adebf11d61636465bfe4b8691b36fc23913
+          ref: 9bc659a780a02dfc99af789cef53ed8feb956146
           persist-credentials: false
           fetch-depth: 0
 

@@ -1,0 +1,855 @@
+﻿2026-10-18T07:02:18.3997729Z Current runner version: '2.337.0'
+2026-10-18T07:02:18.4032415Z ##[group]Runner Image Provisioner
+2026-10-18T07:02:18.4034171Z Hosted Compute Agent
+2026-10-18T07:02:18.4035142Z Version: 20261012.601
+2026-10-18T07:02:18.4036301Z Commit: f3dc54e1fb89da6852db922499a0233137369e1d
+2026-10-18T07:02:18.4037526Z Build Date: 2026-10-12T17:48:21Z
+2026-10-18T07:02:18.4038769Z Worker ID: {d7600e38-122e-4865-b6d2-c6a438a0acc1}
+2026-10-18T07:02:18.4039929Z Region: eastus
+2026-10-18T07:02:18.4040843Z Cloud: Azure
+2026-10-18T07:02:18.4041812Z ##[endgroup]
+2026-10-18T07:02:18.4044442Z ##[group]Operating System
+2026-10-18T07:02:18.4045638Z Ubuntu
+2026-10-18T07:02:18.4046453Z 24.04.5
+2026-10-18T07:02:18.4047870Z LTS
+2026-10-18T07:02:18.4048989Z ##[endgroup]
+2026-10-18T07:02:18.4049882Z ##[group]Runner Image
+2026-10-18T07:02:18.4051013Z Image: ubuntu-24.04
+2026-10-18T07:02:18.4052005Z Version: 20261012.334.1
+2026-10-18T07:02:18.4054455Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20261012.334/images/ubuntu/Ubuntu2404-Readme.md
+2026-10-18T07:02:18.4057115Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20261012.334
+2026-10-18T07:02:18.4058979Z ##[endgroup]
+2026-10-18T07:02:18.4060816Z ##[group]GITHUB_TOKEN Permissions
+2026-10-18T07:02:18.4063955Z Contents: read
+2026-10-18T07:02:18.4065005Z Metadata: read
+2026-10-18T07:02:18.4066104Z ##[endgroup]
+2026-10-18T07:02:18.4069106Z Secret source: Actions
+2026-10-18T07:02:18.4070636Z Cache mode: write
+2026-10-18T07:02:18.4072080Z Prepare workflow directory
+2026-10-18T07:02:18.4606740Z Prepare all required actions
+2026-10-18T07:02:18.4655460Z Getting action download info
+2026-10-18T07:02:18.6523155Z Download action repository 'actions/checkout@v4' (SHA:11d5960a326750d5838078e36cf38b85af677262)
+2026-10-18T07:02:18.7779471Z Download action repository 'pnpm/action-setup@v4' (SHA:b906affcce14559ad1aafd4ab0e942779e9f58b1)
+2026-10-18T07:02:18.9509067Z Download action repository 'actions/setup-node@v4' (SHA:49933ea5288caeca8642d1e84afbd3f7d6820020)
+2026-10-18T07:02:19.1409784Z Complete job name: R18 shared solver, editor contracts and build
+2026-10-18T07:02:19.2312862Z ##[group]Run actions/checkout@v4
+2026-10-18T07:02:19.2314199Z with:
+2026-10-18T07:02:19.2314700Z   ref: 10298adebf11d61636465bfe4b8691b36fc23913
+2026-10-18T07:02:19.2315317Z   persist-credentials: false
+2026-10-18T07:02:19.2315824Z   fetch-depth: 0
+2026-10-18T07:02:19.2316282Z   repository: spikeal8-maker/asa-lab
+2026-10-18T07:02:19.2320467Z   token: ***
+2026-10-18T07:02:19.2320912Z   ssh-strict: true
+2026-10-18T07:02:19.2321342Z   ssh-user: git
+2026-10-18T07:02:19.2321763Z   clean: true
+2026-10-18T07:02:19.2322207Z   sparse-checkout-cone-mode: true
+2026-10-18T07:02:19.2322771Z   fetch-tags: false
+2026-10-18T07:02:19.2323219Z   show-progress: true
+2026-10-18T07:02:19.2323825Z   lfs: false
+2026-10-18T07:02:19.2324245Z   submodules: false
+2026-10-18T07:02:19.2324697Z   set-safe-directory: true
+2026-10-18T07:02:19.2325203Z   allow-unsafe-pr-checkout: false
+2026-10-18T07:02:19.2326047Z env:
+2026-10-18T07:02:19.2326464Z   NX_SKIP_NX_CACHE: true
+2026-10-18T07:02:19.2326926Z   CI: true
+2026-10-18T07:02:19.2327363Z ##[endgroup]
+2026-10-18T07:02:19.3318372Z Syncing repository: spikeal8-maker/asa-lab
+2026-10-18T07:02:19.3320574Z ##[group]Getting Git version info
+2026-10-18T07:02:19.3321368Z Working directory is '/home/runner/work/asa-lab/asa-lab'
+2026-10-18T07:02:19.3322524Z [command]/usr/bin/git version
+2026-10-18T07:02:19.3436838Z git version 2.55.0
+2026-10-18T07:02:19.3460589Z ##[endgroup]
+2026-10-18T07:02:19.3479392Z Temporarily overriding HOME='/home/runner/work/_temp/a38d86ca-32f7-4537-bf64-6e264a4efd8c' before making global git config changes
+2026-10-18T07:02:19.3485954Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-18T07:02:19.3487757Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/asa-lab/asa-lab
+2026-10-18T07:02:19.3555946Z Deleting the contents of '/home/runner/work/asa-lab/asa-lab'
+2026-10-18T07:02:19.3558818Z ##[group]Initializing the repository
+2026-10-18T07:02:19.3563755Z [command]/usr/bin/git init /home/runner/work/asa-lab/asa-lab
+2026-10-18T07:02:19.3716885Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-10-18T07:02:19.3718656Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2026-10-18T07:02:19.3720559Z hint: to use in all of your new repositories, which will suppress this warning,
+2026-10-18T07:02:19.3721820Z hint: call:
+2026-10-18T07:02:19.3722452Z hint:
+2026-10-18T07:02:19.3723243Z hint: 	git config --global init.defaultBranch <name>
+2026-10-18T07:02:19.3724485Z hint:
+2026-10-18T07:02:19.3725365Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-10-18T07:02:19.3726891Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-10-18T07:02:19.3728115Z hint:
+2026-10-18T07:02:19.3728776Z hint: 	git branch -m <name>
+2026-10-18T07:02:19.3729530Z hint:
+2026-10-18T07:02:19.3730530Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-10-18T07:02:19.3732471Z Initialized empty Git repository in /home/runner/work/asa-lab/asa-lab/.git/
+2026-10-18T07:02:19.3742331Z [command]/usr/bin/git remote add origin https://github.com/spikeal8-maker/asa-lab
+2026-10-18T07:02:19.3812891Z ##[endgroup]
+2026-10-18T07:02:19.3814687Z ##[group]Disabling automatic garbage collection
+2026-10-18T07:02:19.3818147Z [command]/usr/bin/git config --local gc.auto 0
+2026-10-18T07:02:19.3869291Z ##[endgroup]
+2026-10-18T07:02:19.3870970Z ##[group]Setting up auth
+2026-10-18T07:02:19.3876390Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-18T07:02:19.3929297Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-18T07:02:19.4392451Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-18T07:02:19.4436802Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-18T07:02:19.4690622Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-18T07:02:19.4730674Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-18T07:02:19.4985867Z [command]/usr/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-10-18T07:02:19.5040656Z ##[endgroup]
+2026-10-18T07:02:19.5042221Z ##[group]Fetching the repository
+2026-10-18T07:02:19.5056416Z [command]/usr/bin/git -c protocol.version=2 fetch --prune --no-recurse-submodules origin +refs/heads/*:refs/remotes/origin/* +refs/tags/*:refs/tags/*
+2026-10-18T07:02:24.3558253Z From https://github.com/spikeal8-maker/asa-lab
+2026-10-18T07:02:24.3560594Z  * [new branch]        agent/r3-project-lifecycle -> origin/agent/r3-project-lifecycle
+2026-10-18T07:02:24.3563700Z  * [new branch]        assistant/asa-shared-tabs-and-feedback-20261015 -> origin/assistant/asa-shared-tabs-and-feedback-20261015
+2026-10-18T07:02:24.3567024Z  * [new branch]        assistant/classroom-profile-tabs-readable-20261014 -> origin/assistant/classroom-profile-tabs-readable-20261014
+2026-10-18T07:02:24.3570612Z  * [new branch]        assistant/classroom-project-mobile-layout-20261014 -> origin/assistant/classroom-project-mobile-layout-20261014
+2026-10-18T07:02:24.3574295Z  * [new branch]        assistant/classroom-responsive-proof-20261014 -> origin/assistant/classroom-responsive-proof-20261014
+2026-10-18T07:02:24.3577608Z  * [new branch]        assistant/classroom-safe-gallery-publish-20261015 -> origin/assistant/classroom-safe-gallery-publish-20261015
+2026-10-18T07:02:24.3580619Z  * [new branch]        assistant/map-ux-owner-view -> origin/assistant/map-ux-owner-view
+2026-10-18T07:02:24.3593919Z  * [new branch]        auth/as-02-password-global-revocation -> origin/auth/as-02-password-global-revocation
+2026-10-18T07:02:24.3596262Z  * [new branch]        auth/as-04-openapi-account-contract -> origin/auth/as-04-openapi-account-contract
+2026-10-18T07:02:24.3598467Z  * [new branch]        bot/fix-account-c1-format -> origin/bot/fix-account-c1-format
+2026-10-18T07:02:24.3600308Z  * [new branch]        bot/format-account-c1-test -> origin/bot/format-account-c1-test
+2026-10-18T07:02:24.3601996Z  * [new branch]        bot/format-public-homepage -> origin/bot/format-public-homepage
+2026-10-18T07:02:24.3603224Z  * [new branch]        bot/public-home-hero-art -> origin/bot/public-home-hero-art
+2026-10-18T07:02:24.3605480Z  * [new branch]        bot/restore-account-c1-home-heading -> origin/bot/restore-account-c1-home-heading
+2026-10-18T07:02:24.3607794Z  * [new branch]        chore/smol-toml-security-pin -> origin/chore/smol-toml-security-pin
+2026-10-18T07:02:24.3610032Z  * [new branch]        codex/admin-logs-portal-gate-fix -> origin/codex/admin-logs-portal-gate-fix
+2026-10-18T07:02:24.3611903Z  * [new branch]        codex/admin-logs-ready  -> origin/codex/admin-logs-ready
+2026-10-18T07:02:24.3614138Z  * [new branch]        codex/asa-public-https-caddy-20261014 -> origin/codex/asa-public-https-caddy-20261014
+2026-10-18T07:02:24.3616261Z  * [new branch]        codex/doc-foundation-20260911 -> origin/codex/doc-foundation-20260911
+2026-10-18T07:02:24.3618343Z  * [new branch]        codex/doc-foundation-final-20260912 -> origin/codex/doc-foundation-final-20260912
+2026-10-18T07:02:24.3620621Z  * [new branch]        codex/doc-foundation-final2-20260912 -> origin/codex/doc-foundation-final2-20260912
+2026-10-18T07:02:24.3622993Z  * [new branch]        codex/e1-fix02c-student-code-inventory -> origin/codex/e1-fix02c-student-code-inventory
+2026-10-18T07:02:24.3625671Z  * [new branch]        codex/e1-preview-stabilized-20260913 -> origin/codex/e1-preview-stabilized-20260913
+2026-10-18T07:02:24.3628127Z  * [new branch]        codex/e1fix03-qr-verification -> origin/codex/e1fix03-qr-verification
+2026-10-18T07:02:24.3630164Z  * [new branch]        codex/electronics-507-diagnosis -> origin/codex/electronics-507-diagnosis
+2026-10-18T07:02:24.3632500Z  * [new branch]        codex/electronics-509-e2-style -> origin/codex/electronics-509-e2-style
+2026-10-18T07:02:24.3634945Z  * [new branch]        codex/electronics-510-cadence -> origin/codex/electronics-510-cadence
+2026-10-18T07:02:24.3637276Z  * [new branch]        codex/electronics-510-directed -> origin/codex/electronics-510-directed
+2026-10-18T07:02:24.3640189Z  * [new branch]        codex/electronics-510-directed-loaded -> origin/codex/electronics-510-directed-loaded
+2026-10-18T07:02:24.3642969Z  * [new branch]        codex/electronics-512-diagnostic-probe -> origin/codex/electronics-512-diagnostic-probe
+2026-10-18T07:02:24.3645988Z  * [new branch]        codex/electronics-513-directed -> origin/codex/electronics-513-directed
+2026-10-18T07:02:24.3648334Z  * [new branch]        codex/electronics-513-startup -> origin/codex/electronics-513-startup
+2026-10-18T07:02:24.3651890Z  * [new branch]        codex/electronics-516-acceptance-verification-20261008 -> origin/codex/electronics-516-acceptance-verification-20261008
+2026-10-18T07:02:24.3656195Z  * [new branch]        codex/electronics-516-directed-loaded -> origin/codex/electronics-516-directed-loaded
+2026-10-18T07:02:24.3659235Z  * [new branch]        codex/electronics-516-directed-solo -> origin/codex/electronics-516-directed-solo
+2026-10-18T07:02:24.3662238Z  * [new branch]        codex/electronics-517-commit-after-probe -> origin/codex/electronics-517-commit-after-probe
+2026-10-18T07:02:24.3665729Z  * [new branch]        codex/electronics-517-commit-before-probe -> origin/codex/electronics-517-commit-before-probe
+2026-10-18T07:02:24.3669138Z  * [new branch]        codex/electronics-517-controlled-before-probe -> origin/codex/electronics-517-controlled-before-probe
+2026-10-18T07:02:24.3673289Z  * [new branch]        codex/electronics-517-head-protocol-correction-20261008 -> origin/codex/electronics-517-head-protocol-correction-20261008
+2026-10-18T07:02:24.3678132Z  * [new branch]        codex/electronics-517-late-fixture-correction-20261008 -> origin/codex/electronics-517-late-fixture-correction-20261008
+2026-10-18T07:02:24.3682520Z  * [new branch]        codex/electronics-517-late-permanent-confirmation-20261008 -> origin/codex/electronics-517-late-permanent-confirmation-20261008
+2026-10-18T07:02:24.3687120Z  * [new branch]        codex/electronics-517-late-publication-repair-20261008 -> origin/codex/electronics-517-late-publication-repair-20261008
+2026-10-18T07:02:24.3690644Z  * [new branch]        codex/electronics-517-native-diagnostic -> origin/codex/electronics-517-native-diagnostic
+2026-10-18T07:02:24.3693681Z  * [new branch]        codex/electronics-517-native-probe -> origin/codex/electronics-517-native-probe
+2026-10-18T07:02:24.3696682Z  * [new branch]        codex/electronics-537-canonical-fixture-r1 -> origin/codex/electronics-537-canonical-fixture-r1
+2026-10-18T07:02:24.3700567Z  * [new branch]        codex/electronics-537-canonical-fixture-r1-after-directed-probe -> origin/codex/electronics-537-canonical-fixture-r1-after-directed-probe
+2026-10-18T07:02:24.3705353Z  * [new branch]        codex/electronics-537-canonical-fixture-r1-before-directed-probe -> origin/codex/electronics-537-canonical-fixture-r1-before-directed-probe
+2026-10-18T07:02:24.3709418Z  * [new branch]        codex/electronics-538-attributed-r2-directed-after -> origin/codex/electronics-538-attributed-r2-directed-after
+2026-10-18T07:02:24.3712778Z  * [new branch]        codex/electronics-538-classroom-baseline-final -> origin/codex/electronics-538-classroom-baseline-final
+2026-10-18T07:02:24.3716114Z  * [new branch]        codex/electronics-538-final-attributed-r2 -> origin/codex/electronics-538-final-attributed-r2
+2026-10-18T07:02:24.3719271Z  * [new branch]        codex/electronics-538-native-observer-r1 -> origin/codex/electronics-538-native-observer-r1
+2026-10-18T07:02:24.3723199Z  * [new branch]        codex/electronics-538-native-observer-r1-after-directed-probe -> origin/codex/electronics-538-native-observer-r1-after-directed-probe
+2026-10-18T07:02:24.3726989Z  * [new branch]        codex/electronics-539-after-directed-probe -> origin/codex/electronics-539-after-directed-probe
+2026-10-18T07:02:24.3729999Z  * [new branch]        codex/electronics-539-before-directed-probe -> origin/codex/electronics-539-before-directed-probe
+2026-10-18T07:02:24.3732943Z  * [new branch]        codex/electronics-540-after-directed-probe -> origin/codex/electronics-540-after-directed-probe
+2026-10-18T07:02:24.3736148Z  * [new branch]        codex/electronics-541-before-directed-probe -> origin/codex/electronics-541-before-directed-probe
+2026-10-18T07:02:24.3739006Z  * [new branch]        codex/electronics-541-ordinary-final-r1 -> origin/codex/electronics-541-ordinary-final-r1
+2026-10-18T07:02:24.3741779Z  * [new branch]        codex/electronics-543-causal-before -> origin/codex/electronics-543-causal-before
+2026-10-18T07:02:24.3745356Z  * [new branch]        codex/electronics-543-directed-after-four-widths -> origin/codex/electronics-543-directed-after-four-widths
+2026-10-18T07:02:24.3748443Z  * [new branch]        codex/electronics-543-ordinary-final-r2 -> origin/codex/electronics-543-ordinary-final-r2
+2026-10-18T07:02:24.3751150Z  * [new branch]        codex/electronics-543-r2-mobile-after -> origin/codex/electronics-543-r2-mobile-after
+2026-10-18T07:02:24.3754333Z  * [new branch]        codex/electronics-543-r3-reopen-ready-evidence -> origin/codex/electronics-543-r3-reopen-ready-evidence
+2026-10-18T07:02:24.3757889Z  * [new branch]        codex/electronics-543-r3-reopened-ready-after -> origin/codex/electronics-543-r3-reopened-ready-after
+2026-10-18T07:02:24.3765440Z  * [new branch]        codex/electronics-544-corrected-single-before -> origin/codex/electronics-544-corrected-single-before
+2026-10-18T07:02:24.3768782Z  * [new branch]        codex/electronics-544-owner-field-final -> origin/codex/electronics-544-owner-field-final
+2026-10-18T07:02:24.3772254Z  * [new branch]        codex/electronics-544-r2-clamp-single-after -> origin/codex/electronics-544-r2-clamp-single-after
+2026-10-18T07:02:24.3776000Z  * [new branch]        codex/electronics-544-r3-empty-binding-single-after -> origin/codex/electronics-544-r3-empty-binding-single-after
+2026-10-18T07:02:24.3779595Z  * [new branch]        codex/electronics-544-r3-expected-binding -> origin/codex/electronics-544-r3-expected-binding
+2026-10-18T07:02:24.3782611Z  * [new branch]        codex/electronics-544-r3-full32-after -> origin/codex/electronics-544-r3-full32-after
+2026-10-18T07:02:24.3785824Z  * [new branch]        codex/electronics-544-root-single-after -> origin/codex/electronics-544-root-single-after
+2026-10-18T07:02:24.3789119Z  * [new branch]        codex/electronics-544-single-native-before -> origin/codex/electronics-544-single-native-before
+2026-10-18T07:02:24.3792453Z  * [new branch]        codex/electronics-546-blocks-diagnostic -> origin/codex/electronics-546-blocks-diagnostic
+2026-10-18T07:02:24.3796398Z  * [new branch]        codex/electronics-546-desktop-close-locator-repair -> origin/codex/electronics-546-desktop-close-locator-repair
+2026-10-18T07:02:24.3800222Z  * [new branch]        codex/electronics-546-directed-full-programs -> origin/codex/electronics-546-directed-full-programs
+2026-10-18T07:02:24.3803931Z  * [new branch]        codex/electronics-546-observation-repair -> origin/codex/electronics-546-observation-repair
+2026-10-18T07:02:24.3807136Z  * [new branch]        codex/electronics-546-ordinary-final -> origin/codex/electronics-546-ordinary-final
+2026-10-18T07:02:24.3810461Z  * [new branch]        codex/electronics-546-owner-timing-diagnostic -> origin/codex/electronics-546-owner-timing-diagnostic
+2026-10-18T07:02:24.3814262Z  * [new branch]        codex/electronics-546-paint-proof-repair -> origin/codex/electronics-546-paint-proof-repair
+2026-10-18T07:02:24.3817840Z  * [new branch]        codex/electronics-546-r1-ordinary-final -> origin/codex/electronics-546-r1-ordinary-final
+2026-10-18T07:02:24.3821318Z  * [new branch]        codex/electronics-546-r1-static-routing-after -> origin/codex/electronics-546-r1-static-routing-after
+2026-10-18T07:02:24.3824871Z  * [new branch]        codex/electronics-546-r10-frozen-profile -> origin/codex/electronics-546-r10-frozen-profile
+2026-10-18T07:02:24.3827838Z  * [new branch]        codex/electronics-546-r12-directed -> origin/codex/electronics-546-r12-directed
+2026-10-18T07:02:24.3830869Z  * [new branch]        codex/electronics-546-r12-operating-point -> origin/codex/electronics-546-r12-operating-point
+2026-10-18T07:02:24.3834151Z  * [new branch]        codex/electronics-546-r13-directed -> origin/codex/electronics-546-r13-directed
+2026-10-18T07:02:24.3837137Z  * [new branch]        codex/electronics-546-r13-startup-clock -> origin/codex/electronics-546-r13-startup-clock
+2026-10-18T07:02:24.3840003Z  * [new branch]        codex/electronics-546-r15-ci-followup -> origin/codex/electronics-546-r15-ci-followup
+2026-10-18T07:02:24.3843162Z  * [new branch]        codex/electronics-546-r15-ci-followup-directed -> origin/codex/electronics-546-r15-ci-followup-directed
+2026-10-18T07:02:24.3847016Z  * [new branch]        codex/electronics-546-r15-composed-directed -> origin/codex/electronics-546-r15-composed-directed
+2026-10-18T07:02:24.3850246Z  * [new branch]        codex/electronics-546-r15-directed -> origin/codex/electronics-546-r15-directed
+2026-10-18T07:02:24.3853306Z  * [new branch]        codex/electronics-546-r15-event-execution -> origin/codex/electronics-546-r15-event-execution
+2026-10-18T07:02:24.3857652Z  * [new branch]        codex/electronics-546-r15-start-capability -> origin/codex/electronics-546-r15-start-capability
+2026-10-18T07:02:24.3861203Z  * [new branch]        codex/electronics-546-r16-native-worker-cost -> origin/codex/electronics-546-r16-native-worker-cost
+2026-10-18T07:02:24.3865338Z  * [new branch]        codex/electronics-546-r16-native-worker-cost-directed -> origin/codex/electronics-546-r16-native-worker-cost-directed
+2026-10-18T07:02:24.3869998Z  * [new branch]        codex/electronics-546-r16-native-worker-profile -> origin/codex/electronics-546-r16-native-worker-profile
+2026-10-18T07:02:24.3874020Z  * [new branch]        codex/electronics-546-r17-runtime-write-cost -> origin/codex/electronics-546-r17-runtime-write-cost
+2026-10-18T07:02:24.3878504Z  * [new branch]        codex/electronics-546-r17-runtime-write-cost-directed -> origin/codex/electronics-546-r17-runtime-write-cost-directed
+2026-10-18T07:02:24.3881549Z  * [new branch]        codex/electronics-546-r18-led-temporal-observation -> origin/codex/electronics-546-r18-led-temporal-observation
+2026-10-18T07:02:24.3884735Z  * [new branch]        codex/electronics-546-r2-compact-observer -> origin/codex/electronics-546-r2-compact-observer
+2026-10-18T07:02:24.3887795Z  * [new branch]        codex/electronics-546-r2-compact-observer-after -> origin/codex/electronics-546-r2-compact-observer-after
+2026-10-18T07:02:24.3891032Z  * [new branch]        codex/electronics-546-r3-linear-directed-after -> origin/codex/electronics-546-r3-linear-directed-after
+2026-10-18T07:02:24.3894200Z  * [new branch]        codex/electronics-546-r3-linear-rows -> origin/codex/electronics-546-r3-linear-rows
+2026-10-18T07:02:24.3897061Z  * [new branch]        codex/electronics-546-r4-final-canonical -> origin/codex/electronics-546-r4-final-canonical
+2026-10-18T07:02:24.3900123Z  * [new branch]        codex/electronics-546-r5-directed-diagnostic -> origin/codex/electronics-546-r5-directed-diagnostic
+2026-10-18T07:02:24.3903067Z  * [new branch]        codex/electronics-546-r5-evidence -> origin/codex/electronics-546-r5-evidence
+2026-10-18T07:02:24.3905824Z  * [new branch]        codex/electronics-546-r6-compute -> origin/codex/electronics-546-r6-compute
+2026-10-18T07:02:24.3908939Z  * [new branch]        codex/electronics-546-r7-paint-proof-diagnostic -> origin/codex/electronics-546-r7-paint-proof-diagnostic
+2026-10-18T07:02:24.3912582Z  * [new branch]        codex/electronics-546-r7-timing-diagnostic -> origin/codex/electronics-546-r7-timing-diagnostic
+2026-10-18T07:02:24.3915700Z  * [new branch]        codex/electronics-546-r8-diagnostic -> origin/codex/electronics-546-r8-diagnostic
+2026-10-18T07:02:24.3918319Z  * [new branch]        codex/electronics-546-r8-model-digest -> origin/codex/electronics-546-r8-model-digest
+2026-10-18T07:02:24.3921476Z  * [new branch]        codex/electronics-546-r8-worker-profile-diagnostic -> origin/codex/electronics-546-r8-worker-profile-diagnostic
+2026-10-18T07:02:24.3925020Z  * [new branch]        codex/electronics-546-r9-browser-transport -> origin/codex/electronics-546-r9-browser-transport
+2026-10-18T07:02:24.3927680Z  * [new branch]        codex/electronics-546-r9-directed -> origin/codex/electronics-546-r9-directed
+2026-10-18T07:02:24.3930120Z  * [new branch]        codex/electronics-546-r9-host-demand -> origin/codex/electronics-546-r9-host-demand
+2026-10-18T07:02:24.3932501Z  * [new branch]        codex/electronics-546-r9-ordinary -> origin/codex/electronics-546-r9-ordinary
+2026-10-18T07:02:24.3935331Z  * [new branch]        codex/electronics-547-causal-before-directed -> origin/codex/electronics-547-causal-before-directed
+2026-10-18T07:02:24.3938390Z  * [new branch]        codex/electronics-547-native-r1-causal-before -> origin/codex/electronics-547-native-r1-causal-before
+2026-10-18T07:02:24.3941278Z  * [new branch]        codex/electronics-547-native-scenario-r1 -> origin/codex/electronics-547-native-scenario-r1
+2026-10-18T07:02:24.3944201Z  * [new branch]        codex/electronics-547-native-stopped-r2 -> origin/codex/electronics-547-native-stopped-r2
+2026-10-18T07:02:24.3946782Z  * [new branch]        codex/electronics-547-shadow-before -> origin/codex/electronics-547-shadow-before
+2026-10-18T07:02:24.3949648Z  * [new branch]        codex/electronics-547-single-selector-causal-after -> origin/codex/electronics-547-single-selector-causal-after
+2026-10-18T07:02:24.3952955Z  * [new branch]        codex/electronics-547-single-selector-product -> origin/codex/electronics-547-single-selector-product
+2026-10-18T07:02:24.3956140Z  * [new branch]        codex/electronics-547-stopped-r2-causal-before -> origin/codex/electronics-547-stopped-r2-causal-before
+2026-10-18T07:02:24.3959048Z  * [new branch]        codex/electronics-548-causal-before-directed -> origin/codex/electronics-548-causal-before-directed
+2026-10-18T07:02:24.3961906Z  * [new branch]        codex/electronics-548-controlled-late-sidebar -> origin/codex/electronics-548-controlled-late-sidebar
+2026-10-18T07:02:24.4029817Z  * [new branch]        codex/electronics-548-controlled-late-sidebar-directed -> origin/codex/electronics-548-controlled-late-sidebar-directed
+2026-10-18T07:02:24.4033643Z  * [new branch]        codex/electronics-548-native-error-observer -> origin/codex/electronics-548-native-error-observer
+2026-10-18T07:02:24.4036493Z  * [new branch]        codex/electronics-548-native-react-ingress -> origin/codex/electronics-548-native-react-ingress
+2026-10-18T07:02:24.4039568Z  * [new branch]        codex/electronics-548-native-react-ingress-directed -> origin/codex/electronics-548-native-react-ingress-directed
+2026-10-18T07:02:24.4042713Z  * [new branch]        codex/electronics-548-r2-ordinary-observation -> origin/codex/electronics-548-r2-ordinary-observation
+2026-10-18T07:02:24.4046194Z  * [new branch]        codex/electronics-548-r2-ordinary-observation-directed -> origin/codex/electronics-548-r2-ordinary-observation-directed
+2026-10-18T07:02:24.4049260Z  * [new branch]        codex/electronics-548-search-r1-directed -> origin/codex/electronics-548-search-r1-directed
+2026-10-18T07:02:24.4051880Z  * [new branch]        codex/electronics-548-search-r1-evidence -> origin/codex/electronics-548-search-r1-evidence
+2026-10-18T07:02:24.4054618Z  * [new branch]        codex/electronics-549-6f27-directed-before -> origin/codex/electronics-549-6f27-directed-before
+2026-10-18T07:02:24.4057564Z  * [new branch]        codex/electronics-549-approved-composition-current -> origin/codex/electronics-549-approved-composition-current
+2026-10-18T07:02:24.4060798Z  * [new branch]        codex/electronics-549-outline-directed-before -> origin/codex/electronics-549-outline-directed-before
+2026-10-18T07:02:24.4064087Z  * [new branch]        codex/electronics-549-outline-final-logging-baseline -> origin/codex/electronics-549-outline-final-logging-baseline
+2026-10-18T07:02:24.4067647Z  * [new branch]        codex/electronics-549-outline-final-observability-baseline -> origin/codex/electronics-549-outline-final-observability-baseline
+2026-10-18T07:02:24.4070929Z  * [new branch]        codex/electronics-549-outline-native-pan-r3 -> origin/codex/electronics-549-outline-native-pan-r3
+2026-10-18T07:02:24.4073918Z  * [new branch]        codex/electronics-549-outline-r2-directed-before -> origin/codex/electronics-549-outline-r2-directed-before
+2026-10-18T07:02:24.4077127Z  * [new branch]        codex/electronics-549-outline-r2-final-admin-baseline -> origin/codex/electronics-549-outline-r2-final-admin-baseline
+2026-10-18T07:02:24.4080408Z  * [new branch]        codex/electronics-549-outline-r3-directed-before -> origin/codex/electronics-549-outline-r3-directed-before
+2026-10-18T07:02:24.4083528Z  * [new branch]        codex/electronics-549-outline-r4-directed-before -> origin/codex/electronics-549-outline-r4-directed-before
+2026-10-18T07:02:24.4086706Z  * [new branch]        codex/electronics-549-outline-transform-oracle-r4 -> origin/codex/electronics-549-outline-transform-oracle-r4
+2026-10-18T07:02:24.4089525Z  * [new branch]        codex/electronics-549-r6-directed-before -> origin/codex/electronics-549-r6-directed-before
+2026-10-18T07:02:24.4091976Z  * [new branch]        codex/electronics-549-r6-final-source -> origin/codex/electronics-549-r6-final-source
+2026-10-18T07:02:24.4094554Z  * [new branch]        codex/electronics-549-r7-directed-before -> origin/codex/electronics-549-r7-directed-before
+2026-10-18T07:02:24.4097088Z  * [new branch]        codex/electronics-549-r7-native-oracles -> origin/codex/electronics-549-r7-native-oracles
+2026-10-18T07:02:24.4099851Z  * [new branch]        codex/electronics-549-r8-unique-meter-hit -> origin/codex/electronics-549-r8-unique-meter-hit
+2026-10-18T07:02:24.4102754Z  * [new branch]        codex/electronics-552-final-canonical-convergence -> origin/codex/electronics-552-final-canonical-convergence
+2026-10-18T07:02:24.4106083Z  * [new branch]        codex/electronics-552-r1-primary-finalization -> origin/codex/electronics-552-r1-primary-finalization
+2026-10-18T07:02:24.4108804Z  * [new branch]        codex/electronics-552-r3-directed-after -> origin/codex/electronics-552-r3-directed-after
+2026-10-18T07:02:24.4111845Z  * [new branch]        codex/electronics-552-r3-directed-before -> origin/codex/electronics-552-r3-directed-before
+2026-10-18T07:02:24.4114597Z  * [new branch]        codex/electronics-552-r3-native-witness -> origin/codex/electronics-552-r3-native-witness
+2026-10-18T07:02:24.4117155Z  * [new branch]        codex/electronics-553-r1-directed-before -> origin/codex/electronics-553-r1-directed-before
+2026-10-18T07:02:24.4119884Z  * [new branch]        codex/electronics-553-r1-primary-finalization -> origin/codex/electronics-553-r1-primary-finalization
+2026-10-18T07:02:24.4122624Z  * [new branch]        codex/electronics-553-r2-directed-before -> origin/codex/electronics-553-r2-directed-before
+2026-10-18T07:02:24.4125381Z  * [new branch]        codex/electronics-553-r2-read-route -> origin/codex/electronics-553-r2-read-route
+2026-10-18T07:02:24.4127771Z  * [new branch]        codex/electronics-553-r3-directed-after -> origin/codex/electronics-553-r3-directed-after
+2026-10-18T07:02:24.4130310Z  * [new branch]        codex/electronics-553-r3-directed-before -> origin/codex/electronics-553-r3-directed-before
+2026-10-18T07:02:24.4132963Z  * [new branch]        codex/electronics-553-r3-normalized-fixtures -> origin/codex/electronics-553-r3-normalized-fixtures
+2026-10-18T07:02:24.4135715Z  * [new branch]        codex/electronics-553-r4-directed-after -> origin/codex/electronics-553-r4-directed-after
+2026-10-18T07:02:24.4138431Z  * [new branch]        codex/electronics-553-r4-directed-before -> origin/codex/electronics-553-r4-directed-before
+2026-10-18T07:02:24.4141133Z  * [new branch]        codex/electronics-553-r5-approved-composition -> origin/codex/electronics-553-r5-approved-composition
+2026-10-18T07:02:24.4143759Z  * [new branch]        codex/electronics-554-native-wheel -> origin/codex/electronics-554-native-wheel
+2026-10-18T07:02:24.4146116Z  * [new branch]        codex/electronics-554-r2-directed-before -> origin/codex/electronics-554-r2-directed-before
+2026-10-18T07:02:24.4148603Z  * [new branch]        codex/electronics-554-r3-directed-before -> origin/codex/electronics-554-r3-directed-before
+2026-10-18T07:02:24.4151049Z  * [new branch]        codex/electronics-554-r4-directed-after -> origin/codex/electronics-554-r4-directed-after
+2026-10-18T07:02:24.4153638Z  * [new branch]        codex/electronics-554-r4-directed-before -> origin/codex/electronics-554-r4-directed-before
+2026-10-18T07:02:24.4156289Z  * [new branch]        codex/electronics-555-course-order-baseline -> origin/codex/electronics-555-course-order-baseline
+2026-10-18T07:02:24.4158711Z  * [new branch]        codex/electronics-555-directed-pg -> origin/codex/electronics-555-directed-pg
+2026-10-18T07:02:24.4160932Z  * [new branch]        codex/electronics-557-final-canonical -> origin/codex/electronics-557-final-canonical
+2026-10-18T07:02:24.4163301Z  * [new branch]        codex/electronics-570-after-diagnostic -> origin/codex/electronics-570-after-diagnostic
+2026-10-18T07:02:24.4165837Z  * [new branch]        codex/electronics-570-before-diagnostic -> origin/codex/electronics-570-before-diagnostic
+2026-10-18T07:02:24.4168242Z  * [new branch]        codex/electronics-arduino-bitwise-537 -> origin/codex/electronics-arduino-bitwise-537
+2026-10-18T07:02:24.4171240Z  * [new branch]        codex/electronics-arduino-bitwise-537-after-directed-probe -> origin/codex/electronics-arduino-bitwise-537-after-directed-probe
+2026-10-18T07:02:24.4175227Z  * [new branch]        codex/electronics-arduino-bitwise-537-before-directed-probe -> origin/codex/electronics-arduino-bitwise-537-before-directed-probe
+2026-10-18T07:02:24.4178493Z  * [new branch]        codex/electronics-arduino-noop-publication-534 -> origin/codex/electronics-arduino-noop-publication-534
+2026-10-18T07:02:24.4181874Z  * [new branch]        codex/electronics-arduino-noop-publication-534-directed-probe -> origin/codex/electronics-arduino-noop-publication-534-directed-probe
+2026-10-18T07:02:24.4185051Z  * [new branch]        codex/electronics-asset-recovery-453 -> origin/codex/electronics-asset-recovery-453
+2026-10-18T07:02:24.4187136Z  * [new branch]        codex/electronics-autosave-459 -> origin/codex/electronics-autosave-459
+2026-10-18T07:02:24.4189178Z  * [new branch]        codex/electronics-autosave-60s-459 -> origin/codex/electronics-autosave-60s-459
+2026-10-18T07:02:24.4191554Z  * [new branch]        codex/electronics-blockly-media-init-533-r1 -> origin/codex/electronics-blockly-media-init-533-r1
+2026-10-18T07:02:24.4194761Z  * [new branch]        codex/electronics-blockly-media-init-533-r1-directed-probe -> origin/codex/electronics-blockly-media-init-533-r1-directed-probe
+2026-10-18T07:02:24.4197855Z  * [new branch]        codex/electronics-blockly-media-init-533-r2 -> origin/codex/electronics-blockly-media-init-533-r2
+2026-10-18T07:02:24.4200948Z  * [new branch]        codex/electronics-blockly-media-init-533-r2-directed-probe -> origin/codex/electronics-blockly-media-init-533-r2-directed-probe
+2026-10-18T07:02:24.4204145Z  * [new branch]        codex/electronics-blockly-media-init-533-r3 -> origin/codex/electronics-blockly-media-init-533-r3
+2026-10-18T07:02:24.4207251Z  * [new branch]        codex/electronics-blockly-media-init-533-r3-directed-probe -> origin/codex/electronics-blockly-media-init-533-r3-directed-probe
+2026-10-18T07:02:24.4210077Z  * [new branch]        codex/electronics-browser-clock-456 -> origin/codex/electronics-browser-clock-456
+2026-10-18T07:02:24.4212594Z  * [new branch]        codex/electronics-browser-readiness-531 -> origin/codex/electronics-browser-readiness-531
+2026-10-18T07:02:24.4215588Z  * [new branch]        codex/electronics-browser-readiness-531-directed-probe -> origin/codex/electronics-browser-readiness-531-directed-probe
+2026-10-18T07:02:24.4218499Z  * [new branch]        codex/electronics-browser-readiness-531-r1 -> origin/codex/electronics-browser-readiness-531-r1
+2026-10-18T07:02:24.4221488Z  * [new branch]        codex/electronics-browser-readiness-531-r1-directed-probe -> origin/codex/electronics-browser-readiness-531-r1-directed-probe
+2026-10-18T07:02:24.4224384Z  * [new branch]        codex/electronics-ci-blocker-repair -> origin/codex/electronics-ci-blocker-repair
+2026-10-18T07:02:24.4226690Z  * [new branch]        codex/electronics-ci-image-transport-545 -> origin/codex/electronics-ci-image-transport-545
+2026-10-18T07:02:24.4229200Z  * [new branch]        codex/electronics-ci-image-transport-545-r1 -> origin/codex/electronics-ci-image-transport-545-r1
+2026-10-18T07:02:24.4231791Z  * [new branch]        codex/electronics-ci-image-transport-545-r2 -> origin/codex/electronics-ci-image-transport-545-r2
+2026-10-18T07:02:24.4234347Z  * [new branch]        codex/electronics-compact-controls-532 -> origin/codex/electronics-compact-controls-532
+2026-10-18T07:02:24.4236747Z  * [new branch]        codex/electronics-compact-controls-532-r1 -> origin/codex/electronics-compact-controls-532-r1
+2026-10-18T07:02:24.4239633Z  * [new branch]        codex/electronics-compact-controls-532-r1-directed-probe -> origin/codex/electronics-compact-controls-532-r1-directed-probe
+2026-10-18T07:02:24.4242547Z  * [new branch]        codex/electronics-compact-controls-532-r2 -> origin/codex/electronics-compact-controls-532-r2
+2026-10-18T07:02:24.4245580Z  * [new branch]        codex/electronics-compact-controls-532-r2-directed-probe -> origin/codex/electronics-compact-controls-532-r2-directed-probe
+2026-10-18T07:02:24.4248631Z  * [new branch]        codex/electronics-compact-controls-532-r3 -> origin/codex/electronics-compact-controls-532-r3
+2026-10-18T07:02:24.4251536Z  * [new branch]        codex/electronics-compact-controls-532-r3-directed-probe -> origin/codex/electronics-compact-controls-532-r3-directed-probe
+2026-10-18T07:02:24.4254552Z  * [new branch]        codex/electronics-compact-controls-532-r4 -> origin/codex/electronics-compact-controls-532-r4
+2026-10-18T07:02:24.4257454Z  * [new branch]        codex/electronics-compact-controls-532-r4-directed-probe -> origin/codex/electronics-compact-controls-532-r4-directed-probe
+2026-10-18T07:02:24.4260481Z  * [new branch]        codex/electronics-conformance-ci-diagnosis-522 -> origin/codex/electronics-conformance-ci-diagnosis-522
+2026-10-18T07:02:24.4263099Z  * [new branch]        codex/electronics-conformance-ci-probe-522 -> origin/codex/electronics-conformance-ci-probe-522
+2026-10-18T07:02:24.4265690Z  * [new branch]        codex/electronics-conformance-runtime-521 -> origin/codex/electronics-conformance-runtime-521
+2026-10-18T07:02:24.4268450Z  * [new branch]        codex/electronics-conformance-worker-allocation-523 -> origin/codex/electronics-conformance-worker-allocation-523
+2026-10-18T07:02:24.4271354Z  * [new branch]        codex/electronics-conformance-worker-probe-523 -> origin/codex/electronics-conformance-worker-probe-523
+2026-10-18T07:02:24.4274174Z  * [new branch]        codex/electronics-e01-before-after-fixture-528 -> origin/codex/electronics-e01-before-after-fixture-528
+2026-10-18T07:02:24.4276857Z  * [new branch]        codex/electronics-e06-gesture-directed-before -> origin/codex/electronics-e06-gesture-directed-before
+2026-10-18T07:02:24.4279362Z  * [new branch]        codex/electronics-e06-r1-directed-after -> origin/codex/electronics-e06-r1-directed-after
+2026-10-18T07:02:24.4281724Z  * [new branch]        codex/electronics-e06-r1-directed-before -> origin/codex/electronics-e06-r1-directed-before
+2026-10-18T07:02:24.4284507Z  * [new branch]        codex/electronics-e06-r1-native-gesture-repair -> origin/codex/electronics-e06-r1-native-gesture-repair
+2026-10-18T07:02:24.4287084Z  * [new branch]        codex/electronics-e06-r1-pending-primary -> origin/codex/electronics-e06-r1-pending-primary
+2026-10-18T07:02:24.4289618Z  * [new branch]        codex/electronics-four-points-completion-569 -> origin/codex/electronics-four-points-completion-569
+2026-10-18T07:02:24.4292296Z  * [new branch]        codex/electronics-four-points-exact-diagnostic -> origin/codex/electronics-four-points-exact-diagnostic
+2026-10-18T07:02:24.4294690Z  * [new branch]        codex/electronics-hygiene-480 -> origin/codex/electronics-hygiene-480
+2026-10-18T07:02:24.4296472Z  * [new branch]        codex/electronics-hygiene-524 -> origin/codex/electronics-hygiene-524
+2026-10-18T07:02:24.4298241Z  * [new branch]        codex/electronics-hygiene-542 -> origin/codex/electronics-hygiene-542
+2026-10-18T07:02:24.4300018Z  * [new branch]        codex/electronics-hygiene-556 -> origin/codex/electronics-hygiene-556
+2026-10-18T07:02:24.4302183Z  * [new branch]        codex/electronics-hygiene-stabilization-004 -> origin/codex/electronics-hygiene-stabilization-004
+2026-10-18T07:02:24.4304740Z  * [new branch]        codex/electronics-instrument-mirror-525 -> origin/codex/electronics-instrument-mirror-525
+2026-10-18T07:02:24.4307228Z  * [new branch]        codex/electronics-instrument-mirror-525-final -> origin/codex/electronics-instrument-mirror-525-final
+2026-10-18T07:02:24.4309573Z  * [new branch]        codex/electronics-integer-time-541 -> origin/codex/electronics-integer-time-541
+2026-10-18T07:02:24.4311579Z  * [new branch]        codex/electronics-led-thermal-457 -> origin/codex/electronics-led-thermal-457
+2026-10-18T07:02:24.4313666Z  * [new branch]        codex/electronics-legacy-wire-538 -> origin/codex/electronics-legacy-wire-538
+2026-10-18T07:02:24.4317632Z  * [new branch]        codex/electronics-legacy-wire-538-after-directed-probe -> origin/codex/electronics-legacy-wire-538-after-directed-probe
+2026-10-18T07:02:24.4321266Z  * [new branch]        codex/electronics-legacy-wire-538-before-directed-probe -> origin/codex/electronics-legacy-wire-538-before-directed-probe
+2026-10-18T07:02:24.4324088Z  * [new branch]        codex/electronics-login-fixture-528 -> origin/codex/electronics-login-fixture-528
+2026-10-18T07:02:24.4326828Z  * [new branch]        codex/electronics-natural-wire-routing-undefined -> origin/codex/electronics-natural-wire-routing-undefined
+2026-10-18T07:02:24.4329456Z  * [new branch]        codex/electronics-observation-cadence-516 -> origin/codex/electronics-observation-cadence-516
+2026-10-18T07:02:24.4331901Z  * [new branch]        codex/electronics-ordinary-image-error-517 -> origin/codex/electronics-ordinary-image-error-517
+2026-10-18T07:02:24.4334529Z  * [new branch]        codex/electronics-parallel-card-guard-536 -> origin/codex/electronics-parallel-card-guard-536
+2026-10-18T07:02:24.4336824Z  * [new branch]        codex/electronics-prettier-probe-377 -> origin/codex/electronics-prettier-probe-377
+2026-10-18T07:02:24.4339013Z  * [new branch]        codex/electronics-project-polling-570 -> origin/codex/electronics-project-polling-570
+2026-10-18T07:02:24.4341324Z  * [new branch]        codex/electronics-ready-cadence-539-final -> origin/codex/electronics-ready-cadence-539-final
+2026-10-18T07:02:24.4343557Z  * [new branch]        codex/electronics-reset-high-456 -> origin/codex/electronics-reset-high-456
+2026-10-18T07:02:24.4345599Z  * [new branch]        codex/electronics-save-cross-tab-566 -> origin/codex/electronics-save-cross-tab-566
+2026-10-18T07:02:24.4347886Z  * [new branch]        codex/electronics-save-cross-tab-566-after -> origin/codex/electronics-save-cross-tab-566-after
+2026-10-18T07:02:24.4350336Z  * [new branch]        codex/electronics-save-cross-tab-566-before -> origin/codex/electronics-save-cross-tab-566-before
+2026-10-18T07:02:24.4352921Z  * [new branch]        codex/electronics-save-cross-tab-566-before-hub -> origin/codex/electronics-save-cross-tab-566-before-hub
+2026-10-18T07:02:24.4355599Z  * [new branch]        codex/electronics-save-indicator-569 -> origin/codex/electronics-save-indicator-569
+2026-10-18T07:02:24.4358030Z  * [new branch]        codex/electronics-save-indicator-569-diagnostic -> origin/codex/electronics-save-indicator-569-diagnostic
+2026-10-18T07:02:24.4360787Z  * [new branch]        codex/electronics-save-indicator-569-final-probe -> origin/codex/electronics-save-indicator-569-final-probe
+2026-10-18T07:02:24.4363708Z  * [new branch]        codex/electronics-save-indicator-569-r1-diagnostic -> origin/codex/electronics-save-indicator-569-r1-diagnostic
+2026-10-18T07:02:24.4366552Z  * [new branch]        codex/electronics-save-indicator-569-r1-hub-retry -> origin/codex/electronics-save-indicator-569-r1-hub-retry
+2026-10-18T07:02:24.4369160Z  * [new branch]        codex/electronics-save-recovery-526-before -> origin/codex/electronics-save-recovery-526-before
+2026-10-18T07:02:24.4371998Z  * [new branch]        codex/electronics-save-recovery-526-crash-scope-probe-r3 -> origin/codex/electronics-save-recovery-526-crash-scope-probe-r3
+2026-10-18T07:02:24.4374901Z  * [new branch]        codex/electronics-save-recovery-526-final -> origin/codex/electronics-save-recovery-526-final
+2026-10-18T07:02:24.4377345Z  * [new branch]        codex/electronics-save-recovery-526-post-530 -> origin/codex/electronics-save-recovery-526-post-530
+2026-10-18T07:02:24.4379738Z  * [new branch]        codex/electronics-save-recovery-526-r6 -> origin/codex/electronics-save-recovery-526-r6
+2026-10-18T07:02:24.4382123Z  * [new branch]        codex/electronics-save-recovery-526-review-r1 -> origin/codex/electronics-save-recovery-526-review-r1
+2026-10-18T07:02:24.4384761Z  * [new branch]        codex/electronics-save-recovery-526-review-r2 -> origin/codex/electronics-save-recovery-526-review-r2
+2026-10-18T07:02:24.4387301Z  * [new branch]        codex/electronics-save-recovery-526-review-r3 -> origin/codex/electronics-save-recovery-526-review-r3
+2026-10-18T07:02:24.4390005Z  * [new branch]        codex/electronics-save-recovery-526-review-r4 -> origin/codex/electronics-save-recovery-526-review-r4
+2026-10-18T07:02:24.4392535Z  * [new branch]        codex/electronics-save-recovery-526-review-r5 -> origin/codex/electronics-save-recovery-526-review-r5
+2026-10-18T07:02:24.4394926Z  * [new branch]        codex/electronics-save-retry-571 -> origin/codex/electronics-save-retry-571
+2026-10-18T07:02:24.4396976Z  * [new branch]        codex/electronics-save-retry-571-after -> origin/codex/electronics-save-retry-571-after
+2026-10-18T07:02:24.4399190Z  * [new branch]        codex/electronics-save-retry-571-before -> origin/codex/electronics-save-retry-571-before
+2026-10-18T07:02:24.4401476Z  * [new branch]        codex/electronics-scheduler-same-time-540 -> origin/codex/electronics-scheduler-same-time-540
+2026-10-18T07:02:24.4403966Z  * [new branch]        codex/electronics-sketch-draft-commit-529 -> origin/codex/electronics-sketch-draft-commit-529
+2026-10-18T07:02:24.4406654Z  * [new branch]        codex/electronics-sketch-draft-commit-529-evidence-r1 -> origin/codex/electronics-sketch-draft-commit-529-evidence-r1
+2026-10-18T07:02:24.4409094Z  * [new branch]        codex/electronics-touch-wire-461 -> origin/codex/electronics-touch-wire-461
+2026-10-18T07:02:24.4411237Z  * [new branch]        codex/electronics-visual-source-review-518 -> origin/codex/electronics-visual-source-review-518
+2026-10-18T07:02:24.4413615Z  * [new branch]        codex/electronics-wire-menu-layer-530 -> origin/codex/electronics-wire-menu-layer-530
+2026-10-18T07:02:24.4415903Z  * [new branch]        codex/electronics-wire-menu-layer-530-final -> origin/codex/electronics-wire-menu-layer-530-final
+2026-10-18T07:02:24.4418636Z  * [new branch]        codex/electronics-wire-menu-layer-530-protocol-repair -> origin/codex/electronics-wire-menu-layer-530-protocol-repair
+2026-10-18T07:02:24.4422298Z  * [new branch]        codex/electronics-wire-menu-layer-530-protocol-repair-after-directed-probe -> origin/codex/electronics-wire-menu-layer-530-protocol-repair-after-directed-probe
+2026-10-18T07:02:24.4425618Z  * [new branch]        codex/games-r1a2-pg-foundation -> origin/codex/games-r1a2-pg-foundation
+2026-10-18T07:02:24.4427519Z  * [new branch]        codex/learning-a6-file-evidence-map -> origin/codex/learning-a6-file-evidence-map
+2026-10-18T07:02:24.4429678Z  * [new branch]        codex/learning-account-list-performance -> origin/codex/learning-account-list-performance
+2026-10-18T07:02:24.4431821Z  * [new branch]        codex/learning-account-list-profile -> origin/codex/learning-account-list-profile
+2026-10-18T07:02:24.4434157Z  * [new branch]        codex/learning-account-timeout-diagnostic -> origin/codex/learning-account-timeout-diagnostic
+2026-10-18T07:02:24.4436344Z  * [new branch]        codex/learning-seat-join-e2e-compat -> origin/codex/learning-seat-join-e2e-compat
+2026-10-18T07:02:24.4438403Z  * [new branch]        codex/learning-visible-teacher-editor -> origin/codex/learning-visible-teacher-editor
+2026-10-18T07:02:24.4440418Z  * [new branch]        codex/observability-fixture-utf8 -> origin/codex/observability-fixture-utf8
+2026-10-18T07:02:24.4442168Z  * [new branch]        codex/observability-item-01 -> origin/codex/observability-item-01
+2026-10-18T07:02:24.4443897Z  * [new branch]        codex/observability-item-02 -> origin/codex/observability-item-02
+2026-10-18T07:02:24.4445514Z  * [new branch]        codex/observability-item-03 -> origin/codex/observability-item-03
+2026-10-18T07:02:24.4447132Z  * [new branch]        codex/observability-item-04 -> origin/codex/observability-item-04
+2026-10-18T07:02:24.4448729Z  * [new branch]        codex/observability-item-05 -> origin/codex/observability-item-05
+2026-10-18T07:02:24.4450337Z  * [new branch]        codex/observability-item-06 -> origin/codex/observability-item-06
+2026-10-18T07:02:24.4451927Z  * [new branch]        codex/observability-item-07 -> origin/codex/observability-item-07
+2026-10-18T07:02:24.4453664Z  * [new branch]        codex/observability-item-08 -> origin/codex/observability-item-08
+2026-10-18T07:02:24.4455431Z  * [new branch]        codex/observability-item-09 -> origin/codex/observability-item-09
+2026-10-18T07:02:24.4457286Z  * [new branch]        codex/observability-item-15-converged -> origin/codex/observability-item-15-converged
+2026-10-18T07:02:24.4459131Z  * [new branch]        codex/observability-item-16 -> origin/codex/observability-item-16
+2026-10-18T07:02:24.4460739Z  * [new branch]        codex/observability-item-17 -> origin/codex/observability-item-17
+2026-10-18T07:02:24.4462583Z  * [new branch]        codex/observability-main-integration -> origin/codex/observability-main-integration
+2026-10-18T07:02:24.4464761Z  * [new branch]        codex/observability-python-fixture -> origin/codex/observability-python-fixture
+2026-10-18T07:02:24.4466739Z  * [new branch]        codex/projects-r7-01b-activate-copy -> origin/codex/projects-r7-01b-activate-copy
+2026-10-18T07:02:24.4468848Z  * [new branch]        codex/projects-r7-01c-legacy-convergence -> origin/codex/projects-r7-01c-legacy-convergence
+2026-10-18T07:02:24.4471172Z  * [new branch]        codex/projects-r7-01c-legacy-convergence-v2 -> origin/codex/projects-r7-01c-legacy-convergence-v2
+2026-10-18T07:02:24.4473245Z  * [new branch]        codex/public-routing-stability -> origin/codex/public-routing-stability
+2026-10-18T07:02:24.4475213Z  * [new branch]        codex/release-registration-fixture -> origin/codex/release-registration-fixture
+2026-10-18T07:02:24.4476984Z  * [new branch]        codex/release-scratch-clock -> origin/codex/release-scratch-clock
+2026-10-18T07:02:24.4478872Z  * [new branch]        codex/release-scratch-protocol-fixture -> origin/codex/release-scratch-protocol-fixture
+2026-10-18T07:02:24.4481041Z  * [new branch]        codex/release-ui-actor-fixture-repair -> origin/codex/release-ui-actor-fixture-repair
+2026-10-18T07:02:24.4483063Z  * [new branch]        codex/release-ui-telemetry-fixture -> origin/codex/release-ui-telemetry-fixture
+2026-10-18T07:02:24.4485226Z  * [new branch]        codex/release-windows-junction-fixture -> origin/codex/release-windows-junction-fixture
+2026-10-18T07:02:24.4487511Z  * [new branch]        codex/scratch-asset-get-concurrency-4 -> origin/codex/scratch-asset-get-concurrency-4
+2026-10-18T07:02:24.4489709Z  * [new branch]        codex/scratch-asset-upload-concurrency-4 -> origin/codex/scratch-asset-upload-concurrency-4
+2026-10-18T07:02:24.4492118Z  * [new branch]        codex/scratch-autosave-stock-cache-repair-001 -> origin/codex/scratch-autosave-stock-cache-repair-001
+2026-10-18T07:02:24.4494248Z  * [new branch]        codex/scratch-cleanup-001 -> origin/codex/scratch-cleanup-001
+2026-10-18T07:02:24.4495892Z  * [new branch]        codex/scratch-final-convergence -> origin/codex/scratch-final-convergence
+2026-10-18T07:02:24.4497722Z  * [new branch]        codex/scratch-final-reconvergence -> origin/codex/scratch-final-reconvergence
+2026-10-18T07:02:24.4499414Z  * [new branch]        codex/scratch-loading-001 -> origin/codex/scratch-loading-001
+2026-10-18T07:02:24.4501101Z  * [new branch]        codex/scratch-native-preview-001 -> origin/codex/scratch-native-preview-001
+2026-10-18T07:02:24.4502808Z  * [new branch]        codex/scratch-recovery-001a -> origin/codex/scratch-recovery-001a
+2026-10-18T07:02:24.4504564Z  * [new branch]        codex/scratch-recovery-001b -> origin/codex/scratch-recovery-001b
+2026-10-18T07:02:24.4506408Z  * [new branch]        codex/scratch-runtime-capability-003a -> origin/codex/scratch-runtime-capability-003a
+2026-10-18T07:02:24.4508386Z  * [new branch]        codex/scratch-slice-a-acceptance -> origin/codex/scratch-slice-a-acceptance
+2026-10-18T07:02:24.4510310Z  * [new branch]        codex/scratch-upstream-autosave-001a -> origin/codex/scratch-upstream-autosave-001a
+2026-10-18T07:02:24.4511963Z  * [new branch]        codex/vscr-m1-002d      -> origin/codex/vscr-m1-002d
+2026-10-18T07:02:24.4513600Z  * [new branch]        dependabot/npm_and_yarn/nx-23.2.1 -> origin/dependabot/npm_and_yarn/nx-23.2.1
+2026-10-18T07:02:24.4515831Z  * [new branch]        design/figma-ui-atlas-integration-20261012 -> origin/design/figma-ui-atlas-integration-20261012
+2026-10-18T07:02:24.4517886Z  * [new branch]        diag/a6-prettier-probe-20260915 -> origin/diag/a6-prettier-probe-20260915
+2026-10-18T07:02:24.4519516Z  * [new branch]        diag/games-r1a-hygiene-fix -> origin/diag/games-r1a-hygiene-fix
+2026-10-18T07:02:24.4520975Z  * [new branch]        diag/games-r1a-prettier -> origin/diag/games-r1a-prettier
+2026-10-18T07:02:24.4522325Z  * [new branch]        diag/games-r1a-verify   -> origin/diag/games-r1a-verify
+2026-10-18T07:02:24.4523821Z  * [new branch]        diag/games-r1a2-prettier -> origin/diag/games-r1a2-prettier
+2026-10-18T07:02:24.4525433Z  * [new branch]        diag/scratch-b-prettier-current -> origin/diag/scratch-b-prettier-current
+2026-10-18T07:02:24.4527034Z  * [new branch]        diag/scratch-prettier-b -> origin/diag/scratch-prettier-b
+2026-10-18T07:02:24.4529178Z  * [new branch]        diagnostics/electronics-546-r18-led-temporal-directed -> origin/diagnostics/electronics-546-r18-led-temporal-directed
+2026-10-18T07:02:24.4531591Z  * [new branch]        docs/ai-assistant-product-spec-001 -> origin/docs/ai-assistant-product-spec-001
+2026-10-18T07:02:24.4533678Z  * [new branch]        docs/asa-games-platform-architecture -> origin/docs/asa-games-platform-architecture
+2026-10-18T07:02:24.4536031Z  * [new branch]        docs/electronics-owner-repair-priority-20261008 -> origin/docs/electronics-owner-repair-priority-20261008
+2026-10-18T07:02:24.4538020Z  * [new branch]        docs/games-r0-preflight -> origin/docs/games-r0-preflight
+2026-10-18T07:02:24.4539674Z  * [new branch]        docs/integrated-learning-spec-v1-3 -> origin/docs/integrated-learning-spec-v1-3
+2026-10-18T07:02:24.4541521Z  * [new branch]        docs/learning-ux-rebaseline-385 -> origin/docs/learning-ux-rebaseline-385
+2026-10-18T07:02:24.4543192Z  * [new branch]        docs/projects-ui-ux-spec-v3 -> origin/docs/projects-ui-ux-spec-v3
+2026-10-18T07:02:24.4544945Z  * [new branch]        docs/readme-materials-20260907 -> origin/docs/readme-materials-20260907
+2026-10-18T07:02:24.4547018Z  * [new branch]        feat/scratch-visual-programming-m1-001 -> origin/feat/scratch-visual-programming-m1-001
+2026-10-18T07:02:24.4548919Z  * [new branch]        feature/ai-admin-deepseek-001 -> origin/feature/ai-admin-deepseek-001
+2026-10-18T07:02:24.4550471Z  * [new branch]        feature/ai-chat-shell-001 -> origin/feature/ai-chat-shell-001
+2026-10-18T07:02:24.4552467Z  * [new branch]        fix/electronics-e09-spdt-shadow-owner-20261013 -> origin/fix/electronics-e09-spdt-shadow-owner-20261013
+2026-10-18T07:02:24.4555303Z  * [new branch]        fix/electronics-e12-nonblocking-audio-owner-20261013 -> origin/fix/electronics-e12-nonblocking-audio-owner-20261013
+2026-10-18T07:02:24.4557626Z  * [new branch]        fix/scratch-product-integration -> origin/fix/scratch-product-integration
+2026-10-18T07:02:24.4559540Z  * [new branch]        learning/a6-class-session-attendance -> origin/learning/a6-class-session-attendance
+2026-10-18T07:02:24.4561068Z  * [new branch]        main                    -> origin/main
+2026-10-18T07:02:24.4562486Z  * [new branch]        ops/staging-secure-origin-20261017 -> origin/ops/staging-secure-origin-20261017
+2026-10-18T07:02:24.4565335Z  * [new branch]        ops/ubuntu-1panel-windows-yandex-recovery-20261017 -> origin/ops/ubuntu-1panel-windows-yandex-recovery-20261017
+2026-10-18T07:02:24.4567502Z  * [new branch]        projects/r3c2-control-plane -> origin/projects/r3c2-control-plane
+2026-10-18T07:02:24.4569154Z  * [new branch]        projects/r3c2-control-plane-v2 -> origin/projects/r3c2-control-plane-v2
+2026-10-18T07:02:24.4570932Z  * [new branch]        prototype/community-discovery-v1 -> origin/prototype/community-discovery-v1
+2026-10-18T07:02:24.4572796Z  * [new branch]        release/learning-public-test-prep -> origin/release/learning-public-test-prep
+2026-10-18T07:02:24.4574826Z  * [new branch]        restore/github-homepage-previous -> origin/restore/github-homepage-previous
+2026-10-18T07:02:24.4576996Z  * [new branch]        review/studentseat-current-ui-20260918 -> origin/review/studentseat-current-ui-20260918
+2026-10-18T07:02:24.4579138Z  * [new branch]        staging/learning-public-test-20260921 -> origin/staging/learning-public-test-20260921
+2026-10-18T07:02:24.4581017Z  * [new branch]        ux/account-learning-layout-01 -> origin/ux/account-learning-layout-01
+2026-10-18T07:02:24.4582816Z  * [new branch]        ux/v-ux2a-assignment-list-20261004 -> origin/ux/v-ux2a-assignment-list-20261004
+2026-10-18T07:02:24.4585246Z  * [new tag]           archive/electronics-optimization-plan-pre-v2-20260911 -> archive/electronics-optimization-plan-pre-v2-20260911
+2026-10-18T07:02:24.4587835Z  * [new tag]           archive/electronics-ordinary-led-parity-20260814 -> archive/electronics-ordinary-led-parity-20260814
+2026-10-18T07:02:24.4590994Z [command]/usr/bin/git rev-parse --verify --quiet 10298adebf11d61636465bfe4b8691b36fc23913^{object}
+2026-10-18T07:02:24.4592338Z 10298adebf11d61636465bfe4b8691b36fc23913
+2026-10-18T07:02:24.4594407Z ##[endgroup]
+2026-10-18T07:02:24.4595310Z ##[group]Determining the checkout info
+2026-10-18T07:02:24.4596349Z ##[endgroup]
+2026-10-18T07:02:24.4596912Z [command]/usr/bin/git sparse-checkout disable
+2026-10-18T07:02:24.4598812Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+2026-10-18T07:02:24.4600908Z ##[group]Checking out the ref
+2026-10-18T07:02:24.4602007Z [command]/usr/bin/git checkout --progress --force 10298adebf11d61636465bfe4b8691b36fc23913
+2026-10-18T07:02:24.8571616Z Note: switching to '10298adebf11d61636465bfe4b8691b36fc23913'.
+2026-10-18T07:02:24.8573698Z 
+2026-10-18T07:02:24.8574138Z You are in 'detached HEAD' state. You can look around, make experimental
+2026-10-18T07:02:24.8574914Z changes and commit them, and you can discard any commits you make in this
+2026-10-18T07:02:24.8575664Z state without impacting any branches by switching back to a branch.
+2026-10-18T07:02:24.8576091Z 
+2026-10-18T07:02:24.8576446Z If you want to create a new branch to retain commits you create, you may
+2026-10-18T07:02:24.8577472Z do so (now or later) by using -c with the switch command. Example:
+2026-10-18T07:02:24.8577884Z 
+2026-10-18T07:02:24.8578081Z   git switch -c <new-branch-name>
+2026-10-18T07:02:24.8578390Z 
+2026-10-18T07:02:24.8578575Z Or undo this operation with:
+2026-10-18T07:02:24.8578836Z 
+2026-10-18T07:02:24.8579022Z   git switch -
+2026-10-18T07:02:24.8579267Z 
+2026-10-18T07:02:24.8579650Z Turn off this advice by setting config variable advice.detachedHead to false
+2026-10-18T07:02:24.8580130Z 
+2026-10-18T07:02:24.8580516Z HEAD is now at 10298ade Merge reviewed Arduino LED observation with current Classroom main
+2026-10-18T07:02:24.8609485Z ##[endgroup]
+2026-10-18T07:02:24.8658220Z [command]/usr/bin/git log -1 --format=%H
+2026-10-18T07:02:24.8695709Z 10298adebf11d61636465bfe4b8691b36fc23913
+2026-10-18T07:02:24.8705993Z ##[group]Removing auth
+2026-10-18T07:02:24.8709982Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-18T07:02:24.8746646Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-18T07:02:24.8976200Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-18T07:02:24.9008734Z http.https://github.com/.extraheader
+2026-10-18T07:02:24.9017306Z [command]/usr/bin/git config --local --unset-all http.https://github.com/.extraheader
+2026-10-18T07:02:24.9053284Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-18T07:02:24.9283766Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-18T07:02:24.9320941Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-18T07:02:24.9549362Z ##[endgroup]
+2026-10-18T07:02:24.9781673Z ##[group]Run pnpm/action-setup@v4
+2026-10-18T07:02:24.9782093Z with:
+2026-10-18T07:02:24.9782374Z   version: 9.15.9
+2026-10-18T07:02:24.9782673Z   run_install: false
+2026-10-18T07:02:24.9782985Z   dest: ~/setup-pnpm
+2026-10-18T07:02:24.9783286Z   cache: false
+2026-10-18T07:02:24.9783829Z   cache_dependency_path: pnpm-lock.yaml
+2026-10-18T07:02:24.9784240Z   package_json_file: package.json
+2026-10-18T07:02:24.9784604Z   standalone: false
+2026-10-18T07:02:24.9784893Z env:
+2026-10-18T07:02:24.9785164Z   NX_SKIP_NX_CACHE: true
+2026-10-18T07:02:24.9785479Z   CI: true
+2026-10-18T07:02:24.9785735Z ##[endgroup]
+2026-10-18T07:02:25.1316612Z ##[group]Running self-installer...
+2026-10-18T07:02:25.5540084Z (node:2407) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+2026-10-18T07:02:25.5542102Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-10-18T07:02:25.6899978Z Progress: resolved 1, reused 0, downloaded 0, added 0
+2026-10-18T07:02:25.6995831Z Packages: +1
+2026-10-18T07:02:25.6996403Z +
+2026-10-18T07:02:26.0588658Z Progress: resolved 1, reused 0, downloaded 1, added 1, done
+2026-10-18T07:02:26.1641606Z 
+2026-10-18T07:02:26.1642108Z dependencies:
+2026-10-18T07:02:26.1642469Z + pnpm 9.15.9 (12.14.0 is available)
+2026-10-18T07:02:26.1642735Z 
+2026-10-18T07:02:26.1721672Z Done in 859ms
+2026-10-18T07:02:26.1891863Z ##[endgroup]
+2026-10-18T07:02:26.1892260Z Installation Completed!
+2026-10-18T07:02:26.2085633Z ##[group]Run actions/setup-node@v4
+2026-10-18T07:02:26.2085918Z with:
+2026-10-18T07:02:26.2086113Z   node-version: 22
+2026-10-18T07:02:26.2086316Z   cache: pnpm
+2026-10-18T07:02:26.2086509Z   always-auth: false
+2026-10-18T07:02:26.2086722Z   check-latest: false
+2026-10-18T07:02:26.2089508Z   token: ***
+2026-10-18T07:02:26.2089714Z env:
+2026-10-18T07:02:26.2089905Z   NX_SKIP_NX_CACHE: true
+2026-10-18T07:02:26.2090121Z   CI: true
+2026-10-18T07:02:26.2090372Z   PNPM_HOME: /home/runner/setup-pnpm/node_modules/.bin
+2026-10-18T07:02:26.2090692Z ##[endgroup]
+2026-10-18T07:02:26.3558269Z Found in cache @ /opt/hostedtoolcache/node/22.23.3/x64
+2026-10-18T07:02:26.3562464Z (node:2421) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-10-18T07:02:26.3563950Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-10-18T07:02:26.3566538Z ##[group]Environment details
+2026-10-18T07:02:26.7986039Z node: v22.23.3
+2026-10-18T07:02:26.7986624Z npm: 10.9.9
+2026-10-18T07:02:26.7986972Z yarn: 1.22.22
+2026-10-18T07:02:26.7987930Z ##[endgroup]
+2026-10-18T07:02:26.8010330Z [command]/home/runner/setup-pnpm/node_modules/.bin/pnpm store path --silent
+2026-10-18T07:02:27.2022867Z /home/runner/setup-pnpm/node_modules/.bin/store/v3
+2026-10-18T07:02:27.2867402Z Cache hit for: node-cache-Linux-x64-pnpm-f008882f64a4cdc0b02f1bb86b999273e4826877cf33be6cf4bcb24fd54a7e39
+2026-10-18T07:02:27.2974200Z (node:2421) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+2026-10-18T07:02:27.9051899Z Received 124789839 of 124789839 (100.0%), 203.8 MBs/sec
+2026-10-18T07:02:27.9052865Z Cache Size: ~119 MB (124789839 B)
+2026-10-18T07:02:27.9085241Z [command]/usr/bin/tar -xf /home/runner/work/_temp/514464ab-8701-4a1c-9e9c-c9383fde62c1/cache.tzst -P -C /home/runner/work/asa-lab/asa-lab --use-compress-program unzstd
+2026-10-18T07:02:29.4865853Z Cache restored successfully
+2026-10-18T07:02:29.4922365Z Cache restored from key: node-cache-Linux-x64-pnpm-f008882f64a4cdc0b02f1bb86b999273e4826877cf33be6cf4bcb24fd54a7e39
+2026-10-18T07:02:29.5158380Z ##[group]Run pnpm install --frozen-lockfile
+2026-10-18T07:02:29.5158807Z [36;1mpnpm install --frozen-lockfile[0m
+2026-10-18T07:02:29.5474826Z shell: /usr/bin/bash -e {0}
+2026-10-18T07:02:29.5475151Z env:
+2026-10-18T07:02:29.5475394Z   NX_SKIP_NX_CACHE: true
+2026-10-18T07:02:29.5475670Z   CI: true
+2026-10-18T07:02:29.5475963Z   PNPM_HOME: /home/runner/setup-pnpm/node_modules/.bin
+2026-10-18T07:02:29.5476343Z ##[endgroup]
+2026-10-18T07:02:29.9886465Z Scope: all 18 workspace projects
+2026-10-18T07:02:30.0677083Z Lockfile is up to date, resolution step is skipped
+2026-10-18T07:02:30.1293031Z Progress: resolved 1, reused 0, downloaded 0, added 0
+2026-10-18T07:02:30.3023028Z Packages: +804
+2026-10-18T07:02:30.3024219Z ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+2026-10-18T07:02:31.1306742Z Progress: resolved 804, reused 804, downloaded 0, added 167
+2026-10-18T07:02:31.5436177Z Progress: resolved 804, reused 804, downloaded 0, added 804, done
+2026-10-18T07:02:32.1232542Z 
+2026-10-18T07:02:32.1233142Z dependencies:
+2026-10-18T07:02:32.1233741Z + @fastify/compress 9.2.0
+2026-10-18T07:02:32.1234092Z + @fastify/cookie 11.0.1
+2026-10-18T07:02:32.1234593Z + @fastify/static 10.1.2
+2026-10-18T07:02:32.1235009Z + @nestjs/common 11.1.28
+2026-10-18T07:02:32.1235395Z + @nestjs/core 11.1.28
+2026-10-18T07:02:32.1235870Z + @nestjs/platform-fastify 11.2.5
+2026-10-18T07:02:32.1236374Z + @opentelemetry/api 1.9.1
+2026-10-18T07:02:32.1236993Z + @opentelemetry/exporter-trace-otlp-http 0.220.0
+2026-10-18T07:02:32.1237636Z + @opentelemetry/sdk-node 0.220.0
+2026-10-18T07:02:32.1238117Z + fastify 5.12.5
+2026-10-18T07:02:32.1238489Z + pg 8.13.1
+2026-10-18T07:02:32.1238889Z + reflect-metadata 0.2.2
+2026-10-18T07:02:32.1239307Z + rxjs 7.8.1
+2026-10-18T07:02:32.1239517Z 
+2026-10-18T07:02:32.1239708Z devDependencies:
+2026-10-18T07:02:32.1240236Z + @apidevtools/swagger-parser 10.1.1
+2026-10-18T07:02:32.1240778Z + @axe-core/playwright 4.10.2
+2026-10-18T07:02:32.1241269Z + @electric-sql/pglite 0.2.17
+2026-10-18T07:02:32.1241725Z + @eslint/js 10.0.1
+2026-10-18T07:02:32.1242200Z + @nx/eslint 23.1.2
+2026-10-18T07:02:32.1242667Z + @nx/eslint-plugin 23.1.2
+2026-10-18T07:02:32.1243116Z + @nx/js 23.1.2
+2026-10-18T07:02:32.1243836Z + @playwright/test 1.55.1
+2026-10-18T07:02:32.1244307Z + @types/node 22.20.1
+2026-10-18T07:02:32.1244826Z + @types/pg 8.11.10
+2026-10-18T07:02:32.1245279Z + @types/pngjs 6.0.5
+2026-10-18T07:02:32.1245751Z + @types/react 18.3.18
+2026-10-18T07:02:32.1246235Z + @types/react-dom 18.3.5
+2026-10-18T07:02:32.1246766Z + @vitejs/plugin-react 4.3.4
+2026-10-18T07:02:32.1247259Z + ajv 8.20.0
+2026-10-18T07:02:32.1247657Z + ajv-formats 3.0.1
+2026-10-18T07:02:32.1248084Z + eslint 10.8.0
+2026-10-18T07:02:32.1248471Z + jsqr 1.4.0
+2026-10-18T07:02:32.1248853Z + nx 23.1.2
+2026-10-18T07:02:32.1249231Z + pngjs 7.0.0
+2026-10-18T07:02:32.1249644Z + prettier 3.9.5
+2026-10-18T07:02:32.1250061Z + react 18.3.1
+2026-10-18T07:02:32.1250506Z + react-dom 18.3.1
+2026-10-18T07:02:32.1250954Z + typescript 5.9.3
+2026-10-18T07:02:32.1251413Z + typescript-eslint 8.64.0
+2026-10-18T07:02:32.1251866Z + vite 6.4.3
+2026-10-18T07:02:32.1252253Z + vitest 4.1.11
+2026-10-18T07:02:32.1252637Z + yaml 2.9.0
+2026-10-18T07:02:32.1252841Z 
+2026-10-18T07:02:32.1680747Z Done in 2.5s using pnpm v9.15.9
+2026-10-18T07:02:32.1900836Z ##[group]Run pnpm gate:electronics-m1
+2026-10-18T07:02:32.1901208Z [36;1mpnpm gate:electronics-m1[0m
+2026-10-18T07:02:32.1966658Z shell: /usr/bin/bash -e {0}
+2026-10-18T07:02:32.1966927Z env:
+2026-10-18T07:02:32.1967133Z   NX_SKIP_NX_CACHE: true
+2026-10-18T07:02:32.1967374Z   CI: true
+2026-10-18T07:02:32.1967649Z   PNPM_HOME: /home/runner/setup-pnpm/node_modules/.bin
+2026-10-18T07:02:32.1967984Z ##[endgroup]
+2026-10-18T07:02:32.6061380Z 
+2026-10-18T07:02:32.6062324Z > @asa-lab/source@0.0.0 gate:electronics-m1 /home/runner/work/asa-lab/asa-lab
+2026-10-18T07:02:32.6065065Z > corepack pnpm nx build module-sdk && corepack pnpm validate:electronics-component-information && corepack pnpm test:electronics && corepack pnpm vitest run apps/web/src/electronics/testing && corepack pnpm typecheck && corepack pnpm build
+2026-10-18T07:02:32.6066488Z 
+2026-10-18T07:02:35.7129931Z 
+2026-10-18T07:02:35.7131333Z [2m> [22m[2mnx run[22m module-sdk:build
+2026-10-18T07:02:35.7131626Z 
+2026-10-18T07:02:35.7169742Z [2m> [22mtsc -p packages/module-sdk/tsconfig.json
+2026-10-18T07:02:35.7170256Z 
+2026-10-18T07:02:36.6636574Z 
+2026-10-18T07:02:36.6637586Z [2m[32m[39m[22m
+2026-10-18T07:02:36.6637949Z 
+2026-10-18T07:02:36.6639708Z [7m[1m[32m NX [39m[22m[27m  [32mSuccessfully ran target [1mbuild[22m for project module-sdk[39m
+2026-10-18T07:02:36.6640410Z 
+2026-10-18T07:02:36.6640420Z 
+2026-10-18T07:02:36.6666015Z   Run duration:      957ms
+2026-10-18T07:02:36.6667121Z   Cache:             Skipped (--skip-nx-cache)
+2026-10-18T07:02:36.6668119Z   Critical path:     951ms (1 task)
+2026-10-18T07:02:36.6668924Z   Recoverable time:  <1ms
+2026-10-18T07:02:37.0963698Z 
+2026-10-18T07:02:37.0965013Z > @asa-lab/source@0.0.0 validate:electronics-component-information /home/runner/work/asa-lab/asa-lab
+2026-10-18T07:02:37.0965910Z > node tools/validate-electronics-component-information.mjs
+2026-10-18T07:02:37.0966256Z 
+2026-10-18T07:02:37.5272192Z component-information PASS (4 schemas, 10 information decisions, 23 math decisions, 23 requirements, 43 component rows)
+2026-10-18T07:02:37.8612919Z 
+2026-10-18T07:02:37.8614301Z > @asa-lab/source@0.0.0 test:electronics /home/runner/work/asa-lab/asa-lab
+2026-10-18T07:02:37.8615515Z > vitest run contexts/electronics/testing --maxWorkers=1
+2026-10-18T07:02:37.8616056Z 
+2026-10-18T07:02:38.1685836Z 
+2026-10-18T07:02:38.1688354Z [1m[30m[46m RUN [49m[39m[22m [36mv4.1.11 [39m[90m/home/runner/work/asa-lab/asa-lab[39m
+2026-10-18T07:02:38.1689235Z 
+2026-10-18T07:02:42.9731006Z  [32m✓[39m contexts/electronics/testing/solver.spec.ts [2m([22m[2m143 tests[22m[2m)[22m[33m 3927[2mms[22m[39m
+2026-10-18T07:02:42.9732626Z      [33m[2m✓[22m[39m treats 12 V as destructive for the confirmed 3-6 V gearmotor profile [33m 1335[2mms[22m[39m
+2026-10-18T07:02:42.9734685Z      [33m[2m✓[22m[39m marks a 23 V unloaded motor as destructive overvoltage instead of healthy [33m 1462[2mms[22m[39m
+2026-10-18T07:02:51.7791636Z  [32m✓[39m contexts/electronics/testing/arduino-circuit-scheduler.spec.ts [2m([22m[2m89 tests[22m[2m)[22m[33m 8474[2mms[22m[39m
+2026-10-18T07:02:51.7794014Z      [33m[2m✓[22m[39m keeps exact three-pin fronts for delay(2000) [33m 3153[2mms[22m[39m
+2026-10-18T07:02:51.7795670Z      [33m[2m✓[22m[39m keeps a no-delay three-output sketch bounded, exact and complete after JSON yields [33m 390[2mms[22m[39m
+2026-10-18T07:02:51.7796804Z      [33m[2m✓[22m[39m preserves the instruction cost of 2000 delay calls rather than replacing them by one delay [33m 1097[2mms[22m[39m
+2026-10-18T07:02:51.7798297Z      [33m[2m✓[22m[39m keeps nested canonical documents immutable while applying inputs and continuing JSON state [33m 334[2mms[22m[39m
+2026-10-18T07:02:51.7800165Z      [33m[2m✓[22m[39m preserves the complete trace, final state and numerical result across quanta and time partitions [33m 855[2mms[22m[39m
+2026-10-18T07:02:51.7802318Z      [33m[2m✓[22m[39m carries source thermal damage to a persistent failed state [33m 601[2mms[22m[39m
+2026-10-18T07:02:54.9928069Z  [32m✓[39m contexts/electronics/testing/engine-timed-api.spec.ts [2m([22m[2m30 tests[22m[2m)[22m[33m 2953[2mms[22m[39m
+2026-10-18T07:02:54.9930978Z      [33m[2m✓[22m[39m preserves every instruction and full public result with budget 1 [33m 1851[2mms[22m[39m
+2026-10-18T07:02:54.9933845Z      [33m[2m✓[22m[39m keeps a constant-load thermal epoch through UI tails and fails at the first exact integer microsecond [33m 321[2mms[22m[39m
+2026-10-18T07:02:55.9038603Z  [32m✓[39m contexts/electronics/testing/arduino-execution-clock.spec.ts [2m([22m[2m44 tests[22m[2m)[22m[33m 701[2mms[22m[39m
+2026-10-18T07:02:55.9040777Z      [33m[2m✓[22m[39m reuses only compilation across cold/hot execution, source edits and bounded eviction [33m 384[2mms[22m[39m
+2026-10-18T07:02:56.4136279Z  [32m✓[39m contexts/electronics/testing/arduino-electrothermal-clock.spec.ts [2m([22m[2m12 tests[22m[2m)[22m[32m 277[2mms[22m[39m
+2026-10-18T07:02:57.7020620Z  [32m✓[39m contexts/electronics/testing/arduino-rc-clock.spec.ts [2m([22m[2m22 tests[22m[2m)[22m[33m 1051[2mms[22m[39m
+2026-10-18T07:02:57.9561266Z  [32m✓[39m contexts/electronics/testing/arduino-runtime-state.spec.ts [2m([22m[2m22 tests[22m[2m)[22m[32m 78[2mms[22m[39m
+2026-10-18T07:03:03.6006861Z  [32m✓[39m contexts/electronics/testing/engine-trace-replay.spec.ts [2m([22m[2m16 tests[22m[2m)[22m[33m 5402[2mms[22m[39m
+2026-10-18T07:03:03.6008871Z      [33m[2m✓[22m[39m physical-rc: preserves full state and result through bounded complete horizons [33m 1141[2mms[22m[39m
+2026-10-18T07:03:03.6011173Z      [33m[2m✓[22m[39m observation-arduino-led: preserves full state and result through bounded complete horizons [33m 1049[2mms[22m[39m
+2026-10-18T07:03:03.6012312Z      [33m[2m✓[22m[39m observation-motor: preserves full state and result through bounded complete horizons [33m 732[2mms[22m[39m
+2026-10-18T07:03:03.6014511Z      [33m[2m✓[22m[39m observation-damage: preserves full state and result through bounded complete horizons [33m 919[2mms[22m[39m
+2026-10-18T07:03:03.6016331Z      [33m[2m✓[22m[39m physical-rc: converges across host request partitions [33m 456[2mms[22m[39m
+2026-10-18T07:03:03.6017947Z      [33m[2m✓[22m[39m physical-rc: converges across bounded-yield partitions [33m 467[2mms[22m[39m
+2026-10-18T07:03:03.9194024Z  [32m✓[39m contexts/electronics/testing/simulation-contract.spec.ts [2m([22m[2m20 tests[22m[2m)[22m[32m 90[2mms[22m[39m
+2026-10-18T07:03:04.1793185Z  [32m✓[39m contexts/electronics/testing/brushed-motor-transient-model.spec.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 105[2mms[22m[39m
+2026-10-18T07:03:04.5012895Z  [32m✓[39m contexts/electronics/testing/live-control-continuity.spec.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 99[2mms[22m[39m
+2026-10-18T07:03:09.3882095Z  [32m✓[39m contexts/electronics/testing/thermal-transient-model.spec.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 4664[2mms[22m[39m
+2026-10-18T07:03:09.3884453Z      [33m[2m✓[22m[39m starts a symmetric two-NPN astable deterministically and keeps changing state [33m 492[2mms[22m[39m
+2026-10-18T07:03:09.3889006Z      [33m[2m✓[22m[39m starts a symmetric mirrored two-PNP astable deterministically and keeps changing state [33m 4060[2mms[22m[39m
+2026-10-18T07:03:12.0842548Z  [32m✓[39m contexts/electronics/testing/led-temporal-observation.spec.ts [2m([22m[2m17 tests[22m[2m)[22m[33m 2466[2mms[22m[39m
+2026-10-18T07:03:12.0845114Z      [33m[2m✓[22m[39m observes the physical three-LED fronts and duty for delay(2000) [33m 941[2mms[22m[39m
+2026-10-18T07:03:12.0846813Z      [33m[2m✓[22m[39m ends real LED emission at its thermal failure boundary while a protected neighbour stays lit [33m 991[2mms[22m[39m
+2026-10-18T07:03:12.3552887Z  [32m✓[39m contexts/electronics/testing/arduino-correctness.spec.ts [2m([22m[2m49 tests[22m[2m)[22m[32m 66[2mms[22m[39m
+2026-10-18T07:03:12.9615987Z  [32m✓[39m contexts/electronics/testing/canonical-piezo-clock.spec.ts [2m([22m[2m11 tests[22m[2m)[22m[33m 381[2mms[22m[39m
+2026-10-18T07:03:13.2804038Z  [32m✓[39m contexts/electronics/testing/tmp36-dc-model.spec.ts [2m([22m[2m25 tests[22m[2m)[22m[32m 87[2mms[22m[39m
+2026-10-18T07:03:13.6672416Z  [32m✓[39m contexts/electronics/testing/engine-runtime-conformance.spec.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 165[2mms[22m[39m
+2026-10-18T07:03:13.9902964Z  [32m✓[39m contexts/electronics/testing/soil-moisture-model.spec.ts [2m([22m[2m22 tests[22m[2m)[22m[32m 103[2mms[22m[39m
+2026-10-18T07:03:14.5012082Z  [32m✓[39m contexts/electronics/testing/capacitor-transient-model.spec.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 300[2mms[22m[39m
+2026-10-18T07:03:14.6606574Z  [32m✓[39m contexts/electronics/testing/linear-dc-models.spec.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 11[2mms[22m[39m
+2026-10-18T07:03:14.8295709Z  [32m✓[39m contexts/electronics/testing/brushed-motor-profiles.spec.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+2026-10-18T07:03:15.0082189Z  [32m✓[39m contexts/electronics/testing/arduino-capabilities.spec.ts [2m([22m[2m12 tests[22m[2m)[22m[32m 21[2mms[22m[39m
+2026-10-18T07:03:15.2219255Z  [32m✓[39m contexts/electronics/testing/regulated-power-supply-model.spec.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 21[2mms[22m[39m
+2026-10-18T07:03:15.3999676Z  [32m✓[39m contexts/electronics/testing/arduino-serial-runtime.spec.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 26[2mms[22m[39m
+2026-10-18T07:03:15.6521377Z  [32m✓[39m contexts/electronics/testing/piezo-audio-model.spec.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 28[2mms[22m[39m
+2026-10-18T07:03:15.8073282Z  [32m✓[39m contexts/electronics/testing/npn-dc-model.spec.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+2026-10-18T07:03:16.0602812Z  [32m✓[39m contexts/electronics/testing/simulation-input-digest.spec.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 36[2mms[22m[39m
+2026-10-18T07:03:16.3270883Z  [32m✓[39m contexts/electronics/testing/ultrasonic-block-runtime-adapter.spec.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 43[2mms[22m[39m
+2026-10-18T07:03:16.5905483Z  [32m✓[39m contexts/electronics/testing/ultrasonic-distance-timed-input.spec.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 44[2mms[22m[39m
+2026-10-18T07:03:16.8318501Z  [32m✓[39m contexts/electronics/testing/engine-public-api.spec.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 21[2mms[22m[39m
+2026-10-18T07:03:18.1499467Z  [32m✓[39m contexts/electronics/testing/engine-boundary.spec.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 759[2mms[22m[39m
+2026-10-18T07:03:18.1501952Z      [33m[2m✓[22m[39m keeps the transitive source closure inside engine/domain production code [33m 488[2mms[22m[39m
+2026-10-18T07:03:18.3229002Z  [32m✓[39m contexts/electronics/testing/arduino-servo-runtime.spec.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 17[2mms[22m[39m
+2026-10-18T07:03:18.5022845Z  [32m✓[39m contexts/electronics/testing/arduino-values.spec.ts [2m([22m[2m24 tests[22m[2m)[22m[32m 27[2mms[22m[39m
+2026-10-18T07:03:18.6480815Z  [32m✓[39m contexts/electronics/testing/capacitor-constraints.spec.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+2026-10-18T07:03:18.7990284Z  [32m✓[39m contexts/electronics/testing/pir-sensor-model.spec.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+2026-10-18T07:03:23.7268347Z  [32m✓[39m contexts/electronics/testing/engine-consumer-contract.spec.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 4683[2mms[22m[39m
+2026-10-18T07:03:23.7270993Z      [33m[2m✓[22m[39m bundles and executes the same public engine subpath from the Web package [33m 865[2mms[22m[39m
+2026-10-18T07:03:23.8792849Z  [32m✓[39m contexts/electronics/testing/linear-system.spec.ts [2m([22m[2m23 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+2026-10-18T07:03:24.0228676Z  [32m✓[39m contexts/electronics/testing/arduino-pulse-runtime.spec.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+2026-10-18T07:03:24.1719719Z  [32m✓[39m contexts/electronics/testing/pnp-dc-model.spec.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+2026-10-18T07:03:24.3151826Z  [32m✓[39m contexts/electronics/testing/ping-ultrasonic-runtime.spec.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+2026-10-18T07:03:24.4628426Z  [32m✓[39m contexts/electronics/testing/hc-sr04-runtime.spec.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+2026-10-18T07:03:27.1612236Z  [32m✓[39m contexts/electronics/testing/benchmark-corpus.spec.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 2455[2mms[22m[39m
+2026-10-18T07:03:27.1625388Z      [33m[2m✓[22m[39m keeps every benchmark case deterministic and on its declared status [33m 1702[2mms[22m[39m
+2026-10-18T07:03:27.1627817Z      [33m[2m✓[22m[39m matches the committed cross-version golden receipt [33m 748[2mms[22m[39m
+2026-10-18T07:03:27.3131406Z  [32m✓[39m contexts/electronics/testing/arduino-waveform-runtime.spec.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+2026-10-18T07:03:27.4616090Z  [32m✓[39m contexts/electronics/testing/servo-runtime.spec.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+2026-10-18T07:03:27.6014788Z  [32m✓[39m contexts/electronics/testing/switch-topology.spec.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+2026-10-18T07:03:27.6078551Z 
+2026-10-18T07:03:27.6087961Z [2m Test Files [22m [1m[32m45 passed[39m[22m[90m (45)[39m
+2026-10-18T07:03:27.6091127Z [2m      Tests [22m [1m[32m746 passed[39m[22m[90m (746)[39m
+2026-10-18T07:03:27.6091641Z [2m   Start at [22m 07:02:38
+2026-10-18T07:03:27.6094632Z [2m   Duration [22m 49.39s[2m (transform 1.28s, setup 0ms, import 4.17s, tests 39.67s, environment 5ms)[22m
+2026-10-18T07:03:27.6096431Z 
+2026-10-18T07:03:28.2670667Z 
+2026-10-18T07:03:28.2672789Z [1m[30m[46m RUN [49m[39m[22m [36mv4.1.11 [39m[90m/home/runner/work/asa-lab/asa-lab[39m
+2026-10-18T07:03:28.2673982Z 
+2026-10-18T07:03:28.8295906Z  [32m✓[39m apps/web/src/electronics/testing/workbench-presentation.spec.ts [2m([22m[2m18 tests[22m[2m)[22m[32m 38[2mms[22m[39m
+2026-10-18T07:03:29.9976579Z  [32m✓[39m apps/web/src/electronics/testing/production-editor-integration.spec.ts [2m([22m[2m22 tests[22m[2m)[22m[32m 282[2mms[22m[39m
+2026-10-18T07:03:31.0295988Z  [32m✓[39m apps/web/src/electronics/testing/workbench-project-state.spec.ts [2m([22m[2m52 tests[22m[2m)[22m[33m 536[2mms[22m[39m
+2026-10-18T07:03:31.9845830Z  [32m✓[39m apps/web/src/electronics/testing/use-electronics-workbench-clock.spec.ts [2m([22m[2m22 tests[22m[2m)[22m[33m 449[2mms[22m[39m
+2026-10-18T07:03:32.3995829Z  [32m✓[39m apps/web/src/electronics/testing/simulation-worker.spec.ts [2m([22m[2m23 tests[22m[2m)[22m[33m 928[2mms[22m[39m
+2026-10-18T07:03:32.4035478Z      [33m[2m✓[22m[39m publishes complete optical history beside the unchanged actual electrical result [33m 301[2mms[22m[39m
+2026-10-18T07:03:32.9715901Z  [32m✓[39m apps/web/src/electronics/testing/workbench-document.spec.ts [2m([22m[2m16 tests[22m[2m)[22m[32m 145[2mms[22m[39m
+2026-10-18T07:03:34.3886178Z  [32m✓[39m apps/web/src/electronics/testing/live-simulation-worker-controller.spec.ts [2m([22m[2m53 tests[22m[2m)[22m[33m 4689[2mms[22m[39m
+2026-10-18T07:03:34.3935040Z      [33m[2m✓[22m[39m 25ms completed observations expose both 50ms blink phases without changing canonical state [33m 2303[2mms[22m[39m
+2026-10-18T07:03:34.3945444Z      [33m[2m✓[22m[39m 25ms completed observations expose both 100ms blink phases without changing canonical state [33m 1459[2mms[22m[39m
+2026-10-18T07:03:34.3947985Z      [33m[2m✓[22m[39m preserves all MCU/RC/heat/damage/motor state and ordered inputs across ready partitions (physical=true) [33m 369[2mms[22m[39m
+2026-10-18T07:03:34.5316737Z  [32m✓[39m apps/web/src/electronics/testing/live-simulation.spec.ts [2m([22m[2m11 tests[22m[2m)[22m[33m 1081[2mms[22m[39m
+2026-10-18T07:03:34.5345463Z      [33m[2m✓[22m[39m fades a directly parallel red LED through the low-current tail of a 10000 uF capacitor [33m 672[2mms[22m[39m
+2026-10-18T07:03:34.8843102Z  [32m✓[39m apps/web/src/electronics/testing/component-information.spec.ts [2m([22m[2m20 tests[22m[2m)[22m[32m 18[2mms[22m[39m
+2026-10-18T07:03:34.9030035Z  [32m✓[39m apps/web/src/electronics/testing/arduino-code-contract.spec.ts [2m([22m[2m12 tests[22m[2m)[22m[32m 34[2mms[22m[39m
+2026-10-18T07:03:35.1644418Z  [32m✓[39m apps/web/src/electronics/testing/production-state-contracts.spec.ts [2m([22m[2m14 tests[22m[2m)[22m[32m 16[2mms[22m[39m
+2026-10-18T07:03:35.4795856Z  [32m✓[39m apps/web/src/electronics/testing/production-assets.spec.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 67[2mms[22m[39m
+2026-10-18T07:03:36.1186065Z  [32m✓[39m apps/web/src/electronics/testing/asset-recovery.spec.ts [2m([22m[2m23 tests[22m[2m)[22m[33m 2799[2mms[22m[39m
+2026-10-18T07:03:36.1215324Z      [33m[2m✓[22m[39m spreads the shared late transport check across thirty simulated browser tabs [33m 1223[2mms[22m[39m
+2026-10-18T07:03:36.1315151Z      [33m[2m✓[22m[39m rejects successful HTTP with invalid SVG and permits a later recovery event [33m 964[2mms[22m[39m
+2026-10-18T07:03:36.9170508Z  [32m✓[39m apps/web/src/electronics/testing/arduino-code-panel-persistence.spec.ts [2m([22m[2m9 tests[22m[2m)[22m[33m 948[2mms[22m[39m
+2026-10-18T07:03:37.8937063Z  [32m✓[39m apps/web/src/electronics/testing/psu-setpoint-persistence.spec.ts [2m([22m[2m6 tests[22m[2m)[22m[33m 434[2mms[22m[39m
+2026-10-18T07:03:38.1655828Z  [32m✓[39m apps/web/src/electronics/testing/workbench-geometry.spec.ts [2m([22m[2m39 tests[22m[2m)[22m[32m 26[2mms[22m[39m
+2026-10-18T07:03:38.8725337Z  [32m✓[39m apps/web/src/electronics/testing/owner-asset-manifest.spec.ts [2m([22m[2m9 tests[22m[2m)[22m[33m 318[2mms[22m[39m
+2026-10-18T07:03:39.1279135Z  [32m✓[39m apps/web/src/electronics/testing/simulation-trace-replay.spec.ts [2m([22m[2m7 tests[22m[2m)[22m[33m 1838[2mms[22m[39m
+2026-10-18T07:03:39.1315303Z      [33m[2m✓[22m[39m physical-rc: Worker payload converges across request partitions [33m 1293[2mms[22m[39m
+2026-10-18T07:03:39.4695775Z  [32m✓[39m apps/web/src/electronics/testing/runtime-conformance.spec.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 182[2mms[22m[39m
+2026-10-18T07:03:39.9022843Z  [32m✓[39m apps/web/src/electronics/testing/simulation-worker-piezo.spec.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 119[2mms[22m[39m
+2026-10-18T07:03:41.0046182Z  [32m✓[39m apps/web/src/electronics/testing/electronics-project-recovery.spec.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 45[2mms[22m[39m
+2026-10-18T07:03:41.0755788Z  [32m✓[39m apps/web/src/electronics/testing/workbench-native-wheel.spec.ts [2m([22m[2m8 tests[22m[2m)[22m[33m 429[2mms[22m[39m
+2026-10-18T07:03:41.2881887Z  [32m✓[39m apps/web/src/electronics/testing/workbench-autosave.spec.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 13[2mms[22m[39m
+2026-10-18T07:03:41.3793941Z  [31m❯[39m apps/web/src/electronics/testing/led-temporal-presentation.spec.ts [2m([22m[2m28 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[33m 5585[2mms[22m[39m
+2026-10-18T07:03:41.3796746Z [31m     [31m×[31m keeps a real 1ms neighbour visible before, at and after another LED thermally fails[39m[33m 5561[2mms[22m[39m
+2026-10-18T07:03:41.3798589Z      [32m✓[39m preserves instantaneous visible phases of 2000000 us[32m 11[2mms[22m[39m
+2026-10-18T07:03:41.3800115Z      [32m✓[39m preserves instantaneous visible phases of 100000 us[32m 0[2mms[22m[39m
+2026-10-18T07:03:41.3801491Z      [32m✓[39m preserves instantaneous visible phases of 50000 us[32m 0[2mms[22m[39m
+2026-10-18T07:03:41.3803037Z      [32m✓[39m shows a steady measured cycle mean at 1000 us phases without a window beat[32m 3[2mms[22m[39m
+2026-10-18T07:03:41.3805218Z      [32m✓[39m shows a steady measured cycle mean at 16666 us phases without a window beat[32m 1[2mms[22m[39m
+2026-10-18T07:03:41.3806556Z      [32m✓[39m shows a steady measured cycle mean at 24999 us phases without a window beat[32m 1[2mms[22m[39m
+2026-10-18T07:03:41.3808093Z      [32m✓[39m integrates unequal actual optical phases instead of averaging their states or current[32m 0[2mms[22m[39m
+2026-10-18T07:03:41.3809421Z      [32m✓[39m keeps a fast, a slow and a constant output independent[32m 1[2mms[22m[39m
+2026-10-18T07:03:41.3810701Z      [32m✓[39m replaces the previous average promptly after the output holds at 0[32m 0[2mms[22m[39m
+2026-10-18T07:03:41.3812129Z      [32m✓[39m replaces the previous average promptly after the output holds at 80[32m 0[2mms[22m[39m
+2026-10-18T07:03:41.3814082Z      [32m✓[39m forgets history on reset and on missing or noncontiguous observations[32m 0[2mms[22m[39m
+2026-10-18T07:03:41.3815414Z      [32m✓[39m cannot override an actual reverse electrical state[32m 0[2mms[22m[39m
+2026-10-18T07:03:41.3816459Z      [32m✓[39m cannot override an actual burned electrical state[32m 0[2mms[22m[39m
+2026-10-18T07:03:41.3817567Z      [32m✓[39m cannot override an actual disconnected electrical state[32m 0[2mms[22m[39m
+2026-10-18T07:03:41.3818801Z      [32m✓[39m retains the true cycle mean even when the bounded raw trace has overflowed[32m 1[2mms[22m[39m
+2026-10-18T07:03:41.3820058Z      [32m✓[39m expires a former fast cycle exactly 25,000 us after the last edge, held 0[32m 0[2mms[22m[39m
+2026-10-18T07:03:41.3821300Z      [32m✓[39m expires a former fast cycle exactly 25,000 us after the last edge, held 80[32m 0[2mms[22m[39m
+2026-10-18T07:03:41.3822599Z      [32m✓[39m keeps a healthy fast neighbour when a second LED is reverse[32m 0[2mms[22m[39m
+2026-10-18T07:03:41.3824050Z      [32m✓[39m keeps a healthy fast neighbour when a second LED is burned[32m 0[2mms[22m[39m
+2026-10-18T07:03:41.3825801Z      [32m✓[39m keeps a healthy fast neighbour when a second LED is disconnected[32m 0[2mms[22m[39m
+2026-10-18T07:03:41.3826565Z      [32m✓[39m rejects malformed nan metadata and clears old history[32m 0[2mms[22m[39m
+2026-10-18T07:03:41.3827277Z      [32m✓[39m rejects malformed integral metadata and clears old history[32m 0[2mms[22m[39m
+2026-10-18T07:03:41.3827996Z      [32m✓[39m rejects malformed order metadata and clears old history[32m 0[2mms[22m[39m
+2026-10-18T07:03:41.3828705Z      [32m✓[39m rejects malformed duplicate metadata and clears old history[32m 0[2mms[22m[39m
+2026-10-18T07:03:41.3829399Z      [32m✓[39m rejects malformed end metadata and clears old history[32m 1[2mms[22m[39m
+2026-10-18T07:03:41.3830458Z      [32m✓[39m rejects malformed summary metadata and clears old history[32m 0[2mms[22m[39m
+2026-10-18T07:03:41.3831269Z      [32m✓[39m rejects malformed profile metadata and clears old history[32m 0[2mms[22m[39m
+2026-10-18T07:03:41.6252524Z  [32m✓[39m apps/web/src/electronics/testing/component-hit-testing.spec.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 283[2mms[22m[39m
+2026-10-18T07:03:41.6326203Z  [32m✓[39m apps/web/src/electronics/testing/workbench-drag-preview.spec.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 40[2mms[22m[39m
+2026-10-18T07:03:41.7338245Z  [32m✓[39m apps/web/src/electronics/testing/production-breadboard.spec.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 62[2mms[22m[39m
+2026-10-18T07:03:42.0721941Z  [32m✓[39m apps/web/src/electronics/testing/electronics-document-merge.spec.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+2026-10-18T07:03:42.4645718Z  [32m✓[39m apps/web/src/electronics/testing/owner-runtime-assets.spec.ts [2m([22m[2m1 test[22m[2m)[22m[32m 70[2mms[22m[39m
+2026-10-18T07:03:42.5888820Z  [32m✓[39m apps/web/src/electronics/testing/arduino-serial-monitor.spec.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 106[2mms[22m[39m
+2026-10-18T07:03:42.7073720Z  [32m✓[39m apps/web/src/electronics/testing/workbench-runtime-controls.spec.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+2026-10-18T07:03:42.9609905Z  [32m✓[39m apps/web/src/electronics/testing/simulation-failure.spec.ts [2m([22m[2m14 tests[22m[2m)[22m[32m 15[2mms[22m[39m
+2026-10-18T07:03:43.0643304Z  [32m✓[39m apps/web/src/electronics/testing/arduino-command-reference.spec.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+2026-10-18T07:03:43.2965858Z  [32m✓[39m apps/web/src/electronics/testing/workbench-shortcuts.spec.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+2026-10-18T07:03:43.3196202Z  [32m✓[39m apps/web/src/electronics/testing/arduino-source-language.spec.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+2026-10-18T07:03:43.8555923Z  [32m✓[39m apps/web/src/electronics/testing/arduino-numeric-blocks.spec.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 55[2mms[22m[39m
+2026-10-18T07:03:44.3387337Z  [32m✓[39m apps/web/src/electronics/testing/resistor-visual.spec.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 16[2mms[22m[39m
+2026-10-18T07:03:44.6775726Z  [32m✓[39m apps/web/src/electronics/testing/workbench-header-time.spec.ts [2m([22m[2m1 test[22m[2m)[22m[32m 227[2mms[22m[39m
+2026-10-18T07:03:44.6910246Z  [32m✓[39m apps/web/src/electronics/testing/gearmotor-information.spec.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+2026-10-18T07:03:45.4826613Z  [32m✓[39m apps/web/src/electronics/testing/ultrasonic-distance-controls.spec.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 51[2mms[22m[39m
+2026-10-18T07:03:45.7896938Z  [32m✓[39m apps/web/src/electronics/testing/pir-sensor-controls.spec.ts [2m([22m[2m1 test[22m[2m)[22m[32m 106[2mms[22m[39m
+2026-10-18T07:03:45.9058011Z  [32m✓[39m apps/web/src/electronics/testing/workbench-values.spec.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 24[2mms[22m[39m
+2026-10-18T07:03:46.0594678Z  [32m✓[39m apps/web/src/electronics/testing/servo-visual.spec.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+2026-10-18T07:03:46.2449395Z  [32m✓[39m apps/web/src/electronics/testing/arduino-program-state.spec.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+2026-10-18T07:03:46.2824156Z  [32m✓[39m apps/web/src/electronics/testing/workbench-selection.spec.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+2026-10-18T07:03:46.4175796Z  [32m✓[39m apps/web/src/electronics/testing/diagnostic-presentation.spec.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+2026-10-18T07:03:46.5604545Z  [32m✓[39m apps/web/src/electronics/testing/arduino-servo-blocks.spec.ts [2m([22m[2m1 test[22m[2m)[22m[33m 4444[2mms[22m[39m
+2026-10-18T07:03:46.5625293Z      [33m[2m✓[22m[39m runs Servo block source through Arduino waveform, circuit and servo-motor angle [33m 4441[2mms[22m[39m
+2026-10-18T07:03:46.6060262Z  [32m✓[39m apps/web/src/electronics/testing/component-help-content.spec.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+2026-10-18T07:03:46.6216140Z  [32m✓[39m apps/web/src/electronics/testing/photoresistor-presentation.spec.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 4[2mms[22m[39m
+2026-10-18T07:03:46.6250218Z 
+2026-10-18T07:03:46.6250813Z [31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 1 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+2026-10-18T07:03:46.6251125Z 
+2026-10-18T07:03:46.6255230Z [41m[1m FAIL [22m[49m apps/web/src/electronics/testing/led-temporal-presentation.spec.ts[2m > [22maccepted per-LED temporal presentation[2m > [22mkeeps a real 1ms neighbour visible before, at and after another LED thermally fails
+2026-10-18T07:03:46.6260023Z [31m[1mError[22m: Test timed out in 5000ms.
+2026-10-18T07:03:46.6261159Z If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".[39m
+2026-10-18T07:03:46.6262225Z [36m [2m❯[22m apps/web/src/electronics/testing/led-temporal-presentation.spec.ts:[2m95:3[22m[39m
+2026-10-18T07:03:46.6332322Z     [90m 93|[39m
+2026-10-18T07:03:46.6334296Z     [90m 94|[39m [34mdescribe[39m([32m'accepted per-LED temporal presentation'[39m[33m,[39m () [33m=>[39m {
+2026-10-18T07:03:46.6335855Z     [90m 95|[39m   it('keeps a real 1ms neighbour visible before, at and after another …
+2026-10-18T07:03:46.6336697Z     [90m   |[39m   [31m^[39m
+2026-10-18T07:03:46.6337752Z     [90m 96|[39m     [35mconst[39m parsed [33m=[39m [34mparseElectronicsEngineDocument[39m({
+2026-10-18T07:03:46.6338893Z     [90m 97|[39m       schemaVersion[33m:[39m [34m4[39m[33m,[39m
+2026-10-18T07:03:46.6339353Z 
+2026-10-18T07:03:46.6339802Z [31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯[22m[39m
+2026-10-18T07:03:46.6340199Z 
+2026-10-18T07:03:46.6340445Z 
+2026-10-18T07:03:46.6345865Z [2m Test Files [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m48 passed[39m[22m[90m (49)[39m
+2026-10-18T07:03:46.6348631Z [2m      Tests [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m518 passed[39m[22m[90m (519)[39m
+2026-10-18T07:03:46.6349610Z [2m   Start at [22m 07:03:28
+2026-10-18T07:03:46.6351177Z [2m   Duration [22m 18.31s[2m (transform 4.75s, setup 0ms, import 11.83s, tests 26.60s, environment 6.80s)[22m
+2026-10-18T07:03:46.6352585Z 
+2026-10-18T07:03:46.6957610Z  ELIFECYCLE  Command failed with exit code 1.
+2026-10-18T07:03:46.7179008Z ##[error]Process completed with exit code 1.
+2026-10-18T07:03:46.7286633Z Post job cleanup.
+2026-10-18T07:03:46.8852339Z Pruning is unnecessary.
+2026-10-18T07:03:46.9072105Z Post job cleanup.
+2026-10-18T07:03:46.9939991Z [command]/usr/bin/git version
+2026-10-18T07:03:46.9982240Z git version 2.55.0
+2026-10-18T07:03:47.0022058Z Temporarily overriding HOME='/home/runner/work/_temp/e44f5429-9d4e-4aff-a854-acbfb9845ad9' before making global git config changes
+2026-10-18T07:03:47.0023907Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-18T07:03:47.0028721Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/asa-lab/asa-lab
+2026-10-18T07:03:47.0066391Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-18T07:03:47.0101713Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-18T07:03:47.0392611Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-18T07:03:47.0428810Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-18T07:03:47.0734834Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-18T07:03:47.0768558Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-18T07:03:47.1210333Z Cleaning up orphan processes
+2026-10-18T07:03:47.1529057Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-node@v4, pnpm/action-setup@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/

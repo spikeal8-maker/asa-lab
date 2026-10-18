@@ -1,0 +1,37 @@
+
+ RUN  v4.1.11 /workspace/scratch/927b9b969e63/asa-lab-arduino
+
+ ✓ apps/web/src/electronics/testing/led-temporal-presentation.spec.ts > accepted per-LED temporal presentation > keeps a real 1ms neighbour visible before, at and after another LED thermally fails 1767ms
+ ↓ apps/web/src/electronics/testing/led-temporal-presentation.spec.ts > accepted per-LED temporal presentation > preserves instantaneous visible phases of 2000000 us
+ ↓ apps/web/src/electronics/testing/led-temporal-presentation.spec.ts > accepted per-LED temporal presentation > preserves instantaneous visible phases of 100000 us
+ ↓ apps/web/src/electronics/testing/led-temporal-presentation.spec.ts > accepted per-LED temporal presentation > preserves instantaneous visible phases of 50000 us
+ ↓ apps/web/src/electronics/testing/led-temporal-presentation.spec.ts > accepted per-LED temporal presentation > shows a steady measured cycle mean at 1000 us phases without a window beat
+ ↓ apps/web/src/electronics/testing/led-temporal-presentation.spec.ts > accepted per-LED temporal presentation > shows a steady measured cycle mean at 16666 us phases without a window beat
+ ↓ apps/web/src/electronics/testing/led-temporal-presentation.spec.ts > accepted per-LED temporal presentation > shows a steady measured cycle mean at 24999 us phases without a window beat
+ ↓ apps/web/src/electronics/testing/led-temporal-presentation.spec.ts > accepted per-LED temporal presentation > integrates unequal actual optical phases instead of averaging their states or current
+ ↓ apps/web/src/electronics/testing/led-temporal-presentation.spec.ts > accepted per-LED temporal presentation > keeps a fast, a slow and a constant output independent
+ ↓ apps/web/src/electronics/testing/led-temporal-presentation.spec.ts > accepted per-LED temporal presentation > replaces the previous average promptly after the output holds at 0
+ ↓ apps/web/src/electronics/testing/led-temporal-presentation.spec.ts > accepted per-LED temporal presentation > replaces the previous average promptly after the output holds at 80
+ ↓ apps/web/src/electronics/testing/led-temporal-presentation.spec.ts > accepted per-LED temporal presentation > forgets history on reset and on missing or noncontiguous observations
+ ↓ apps/web/src/electronics/testing/led-temporal-presentation.spec.ts > accepted per-LED temporal presentation > cannot override an actual reverse electrical state
+ ↓ apps/web/src/electronics/testing/led-temporal-presentation.spec.ts > accepted per-LED temporal presentation > cannot override an actual burned electrical state
+ ↓ apps/web/src/electronics/testing/led-temporal-presentation.spec.ts > accepted per-LED temporal presentation > cannot override an actual disconnected electrical state
+ ↓ apps/web/src/electronics/testing/led-temporal-presentation.spec.ts > accepted per-LED temporal presentation > retains the true cycle mean even when the bounded raw trace has overflowed
+ ↓ apps/web/src/electronics/testing/led-temporal-presentation.spec.ts > accepted per-LED temporal presentation > expires a former fast cycle exactly 25,000 us after the last edge, held 0
+ ↓ apps/web/src/electronics/testing/led-temporal-presentation.spec.ts > accepted per-LED temporal presentation > expires a former fast cycle exactly 25,000 us after the last edge, held 80
+ ↓ apps/web/src/electronics/testing/led-temporal-presentation.spec.ts > accepted per-LED temporal presentation > keeps a healthy fast neighbour when a second LED is reverse
+ ↓ apps/web/src/electronics/testing/led-temporal-presentation.spec.ts > accepted per-LED temporal presentation > keeps a healthy fast neighbour when a second LED is burned
+ ↓ apps/web/src/electronics/testing/led-temporal-presentation.spec.ts > accepted per-LED temporal presentation > keeps a healthy fast neighbour when a second LED is disconnected
+ ↓ apps/web/src/electronics/testing/led-temporal-presentation.spec.ts > accepted per-LED temporal presentation > rejects malformed nan metadata and clears old history
+ ↓ apps/web/src/electronics/testing/led-temporal-presentation.spec.ts > accepted per-LED temporal presentation > rejects malformed integral metadata and clears old history
+ ↓ apps/web/src/electronics/testing/led-temporal-presentation.spec.ts > accepted per-LED temporal presentation > rejects malformed order metadata and clears old history
+ ↓ apps/web/src/electronics/testing/led-temporal-presentation.spec.ts > accepted per-LED temporal presentation > rejects malformed duplicate metadata and clears old history
+ ↓ apps/web/src/electronics/testing/led-temporal-presentation.spec.ts > accepted per-LED temporal presentation > rejects malformed end metadata and clears old history
+ ↓ apps/web/src/electronics/testing/led-temporal-presentation.spec.ts > accepted per-LED temporal presentation > rejects malformed summary metadata and clears old history
+ ↓ apps/web/src/electronics/testing/led-temporal-presentation.spec.ts > accepted per-LED temporal presentation > rejects malformed profile metadata and clears old history
+
+ Test Files  1 passed (1)
+      Tests  1 passed | 27 skipped (28)
+   Start at  15:11:44
+   Duration  2.38s (transform 417ms, setup 0ms, import 497ms, tests 1.77s, environment 0ms)
+

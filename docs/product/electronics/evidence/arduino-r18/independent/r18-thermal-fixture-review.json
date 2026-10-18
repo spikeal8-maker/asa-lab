@@ -1,0 +1,231 @@
+{
+  "schema": "asa-electronics-independent-thermal-fixture-review-v1",
+  "reviewer": "/root/acceptance_review",
+  "reviewed_at_utc": "2026-10-18T07:23:29.194Z",
+  "decision": "APPROVE_TEST_FIX_SOURCE_ONLY",
+  "base_candidate": "10298adebf11d61636465bfe4b8691b36fc23913",
+  "scope": "Immutable supplement: только один fixture-cost delta в test source; прежние source/e2e approvals и index не переписаны.",
+  "path": "apps/web/src/electronics/testing/led-temporal-presentation.spec.ts",
+  "baseline": {
+    "sha256": "c53fe35b0156721d73dad94ac6730e6b98eac1d9d26a7ad60932f9f8f88c7a5c",
+    "git_blob": "890ab344bd093bed0b71805798a425054665529b",
+    "bytes": 15658
+  },
+  "approved": {
+    "sha256": "8e21e809b165b6a8dec41288b89cb66e9f5a8f54182935569173b4e548a6e6de",
+    "git_blob": "8bea33ab8de18627622f99d3d877a52886d5338b",
+    "bytes": 15901,
+    "patch_sha256": "7d0ae5f082090348b706ea23db524bddcdefa1ecfc815527cd0018a6cb0bb733"
+  },
+  "ci_trigger": {
+    "run": 39106177040,
+    "focused_job": 117612380512,
+    "failure": "Only the real thermal +1 ms neighbour case timed out in5000 ms, recorded5561 ms. No assertion failure recorded; browser skipped.",
+    "domain_passed": 746,
+    "editor_passed": 518,
+    "editor_failed": 1,
+    "raw_log": "r18-evidence/directed-39106177040-focused.log"
+  },
+  "exact_change": {
+    "setup_warmup_delay_ms": 3990,
+    "loop_unchanged": "digitalWrite(12,HIGH);delay(1);digitalWrite(12,LOW);delay(1);",
+    "comment_lines_added": 3,
+    "all_other_bytes_preserved": true,
+    "all_original_assertions_preserved": true,
+    "all_other_27_cases_preserved": true,
+    "topology_preserved": true,
+    "state_continuation_preserved": true,
+    "horizons_us": [
+      3999999,
+      4000000,
+      4000001
+    ],
+    "test_timeout_ms": 5000,
+    "only_changed_path_from_base": "apps/web/src/electronics/testing/led-temporal-presentation.spec.ts"
+  },
+  "physical_reasoning": [
+    "Overdriven LED подключён к реальному power-5v с модельного t=0; настройка GPIO12 и delay не меняют эту ветку.",
+    "Первый request стартует из0 без fabricated state; последующие requests используют фактически возвращённый state и продолжают3999999→4000000→4000001 us.",
+    "Защищённая ветка остаётся реальным D12→330 Ω→LED→ground; после setup выполняет настоящие1 ms задержки с реальными instruction costs.",
+    "10 наблюдённых фронтов дают4 полных цикла. Последние2 полных цикла — самостоятельное достаточное основание mean; вся история за4 s переключений этому thermal-boundary assertion не требуется.",
+    "До порога stress=burned всё ещё допускает реальный ток и destructive presentation; actual failed_open появляется точно на прежнем пороге."
+  ],
+  "actual_points": [
+    {
+      "horizon_us": 3999999,
+      "request_from_us": 0,
+      "execution_status": "ready",
+      "quality_passed": true,
+      "batches": 16,
+      "overdriven": {
+        "current_amp": 0.397368421053,
+        "brightness": 100,
+        "lit": true,
+        "stress": "burned",
+        "health": "overheated",
+        "damage": "none",
+        "presentation": "destructive"
+      },
+      "protected": {
+        "projected_mean": 34.99253865336658,
+        "request_samples": 12,
+        "last_edge_age_us": 974
+      }
+    },
+    {
+      "horizon_us": 4000000,
+      "request_from_us": 3999999,
+      "execution_status": "ready",
+      "quality_passed": true,
+      "batches": 1,
+      "overdriven": {
+        "current_amp": 0,
+        "brightness": 0,
+        "lit": false,
+        "stress": "burned",
+        "health": "failed_open",
+        "damage": "failed",
+        "presentation": "failed"
+      },
+      "protected": {
+        "projected_mean": 34.99253865336658,
+        "request_samples": 2,
+        "last_edge_age_us": 975
+      }
+    },
+    {
+      "horizon_us": 4000001,
+      "request_from_us": 4000000,
+      "execution_status": "ready",
+      "quality_passed": true,
+      "batches": 1,
+      "overdriven": {
+        "current_amp": 0,
+        "brightness": 0,
+        "lit": false,
+        "stress": "burned",
+        "health": "failed_open",
+        "damage": "failed",
+        "presentation": "failed"
+      },
+      "protected": {
+        "projected_mean": 34.99253865336658,
+        "request_samples": 2,
+        "last_edge_age_us": 976
+      }
+    }
+  ],
+  "independent_raw_math": {
+    "fixture_exactly_equals_current_spec_literal": true,
+    "actual_fronts_us": [
+      3990003,
+      3991005,
+      3992008,
+      3993010,
+      3994013,
+      3995015,
+      3996018,
+      3997020,
+      3998023,
+      3999025
+    ],
+    "complete_cycles": 4,
+    "high_duration_us": 1002,
+    "low_duration_us": 1003,
+    "actual_peak": 70.02,
+    "total_request": {
+      "from": 0,
+      "to": 3999999,
+      "durationMicroseconds": 3999999,
+      "litMicroseconds": 5010,
+      "brightnessIntegral": 350800.19999999995,
+      "mean": 0.08770007192501797
+    },
+    "complete_four_cycles": {
+      "from": 3990003,
+      "to": 3998023,
+      "durationMicroseconds": 8020,
+      "litMicroseconds": 4008,
+      "brightnessIntegral": 280640.16,
+      "mean": 34.99253865336658
+    },
+    "complete_last_two_cycles": {
+      "from": 3995015,
+      "to": 3999025,
+      "durationMicroseconds": 4010,
+      "litMicroseconds": 2004,
+      "brightnessIntegral": 140320.08,
+      "mean": 34.99253865336658
+    },
+    "projected_mean": 34.99253865336658,
+    "all_three_means_identical": true,
+    "math_tolerance_abs": 1e-10
+  },
+  "paired_author_validation": {
+    "command": "node node_modules/vitest/vitest.mjs run apps/web/src/electronics/testing/led-temporal-presentation.spec.ts -t 'keeps a real 1ms neighbour' --maxWorkers=1 --reporter=verbose",
+    "baseline_case_ms": 1767,
+    "candidate_case_ms": 544,
+    "local_reduction_percent": 69.21,
+    "baseline_result": "1 passed /27 skipped",
+    "candidate_result": "1 passed /27 skipped",
+    "default_timeout_ms": 5000,
+    "logs_read_by_independent_reviewer": true,
+    "reviewer_reran_test": false,
+    "full_suite_rerun": false
+  },
+  "evidence_directory": "r18-evidence/test-cost-fix",
+  "evidence_files": {
+    "baseline-spec.txt": {
+      "bytes": 15658,
+      "sha256": "c53fe35b0156721d73dad94ac6730e6b98eac1d9d26a7ad60932f9f8f88c7a5c"
+    },
+    "baseline.json": {
+      "bytes": 293,
+      "sha256": "bbfde3640005eccdd412f04ae41ee58e33cbf22d6d799ad2dec3134126a1b10b"
+    },
+    "baseline.log": {
+      "bytes": 5250,
+      "sha256": "ec263a417f8e9fbc2094ae729ba8c36063e0ac8bd75657ac0524e8607a706df5"
+    },
+    "candidate-case.log": {
+      "bytes": 5249,
+      "sha256": "b42cc91530fd1d281b6d0bd69840d3b7542f4fb3c35c1558fcd9d976998087a9"
+    },
+    "candidate.patch": {
+      "bytes": 1119,
+      "sha256": "7d0ae5f082090348b706ea23db524bddcdefa1ecfc815527cd0018a6cb0bb733"
+    },
+    "actual-boundary-proof.json": {
+      "bytes": 10096,
+      "sha256": "12faa8d953507267c27011b31a3beb0c0ea089f9002276583ab029be7ff1290c"
+    },
+    "PROVENANCE.md": {
+      "bytes": 2839,
+      "sha256": "6320e7a8ab2c7103035eac9429f56f5b96d40f3c7eaff1968b087bc6403d8cec"
+    },
+    "manifest.json": {
+      "bytes": 3620,
+      "sha256": "9312833d54fe0ef870ac7256a453dabb8b0c59b21499614372b887fcaa9c6ed6"
+    }
+  },
+  "verified_other_artifact_sha256": {
+    "contexts/electronics/engine.ts": "57d6db4a22bb55eb51f5e451896572c9b70907dc5b665028c8b492a97abcff5d",
+    "contexts/electronics/dist/engine.js": "2b59b0b6a2adf8ce81382317e54fb8068ab5806f3a04149880af7b3abe48adea",
+    "apps/web/src/electronics/led-temporal-presentation.ts": "3ebc9b2d3e9602d9b684325762bb2b72683ff0271646de14eee248bddc17b80f",
+    "e2e/electronics-ready-cadence.spec.ts": "092ae57fdcd0395cee667aa627542371a46519a79d0e86cd4d7e7470ab5c604b"
+  },
+  "unchanged_original_approval_sha256": {
+    "r18-source-review.json": "3240540259127302d5bc7719c4f0e5f0d47876490f81ae4dc613cf6a8ad0855d",
+    "r18-source-review.md": "2fbcc97052ec2c9e640aa01ae5b314f9c0673bbca7ef40f615f73f0b407d30a0",
+    "r18-test-source-review.json": "108e65072b2008f89caf2c6e435f94cd9430091a1b89b9b155222581573f3855",
+    "r18-test-source-review.md": "915bb6919572bbd63adcf8bf77c1d161e3664a7e95e86aca0a683691db2e6e48",
+    "review-index.json": "84ea75659832f40c1c558ec92c79ab62cc201b645b764f9fd17c83742610c30b"
+  },
+  "findings": [],
+  "limits": [
+    "Это одобрение одного test-source исправления; новый exact directed CI и продуктовый browser результат ещё требуются.",
+    "Парная локальная длительность диагностирует стоимость fixture и не гарантирует длительность на CI.",
+    "Extra raw trace получен автором через compiled real engine и actual source projector; inline probe script отдельно не сохранён. Сохранены fixture, полные samples/component/quality results, hashes и письменный provenance. Решающий narrow Vitest PASS использует нормальные source aliases и неизменённые assertions.",
+    "Reviewer выполнил только read-only diff/hash/provenance review и арифметическую проверку сохранённых samples; продукт, браузер, GitHub, PC и полные suites не запускались и не изменялись."
+  ]
+}

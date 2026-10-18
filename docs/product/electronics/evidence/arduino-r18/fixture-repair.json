@@ -1,0 +1,26 @@
+{
+  "schema": "asa-electronics-r18-reviewed-fixture-delta-v1",
+  "baseCandidate": "10298adebf11d61636465bfe4b8691b36fc23913",
+  "candidate": "9bc659a780a02dfc99af789cef53ed8feb956146",
+  "tree": "c5416ee92ed06b7b3d7a11e77b2c0658125dfaee",
+  "sourceDifference": {
+    "path": "apps/web/src/electronics/testing/led-temporal-presentation.spec.ts",
+    "bytes": 15901,
+    "sha256": "8e21e809b165b6a8dec41288b89cb66e9f5a8f54182935569173b4e548a6e6de",
+    "git_blob": "8bea33ab8de18627622f99d3d877a52886d5338b"
+  },
+  "onlyDifference": true,
+  "originalManifest": "source-manifest.json",
+  "originalReview": "independent/r18-source-review.json",
+  "supplement": "independent/r18-thermal-fixture-review.json",
+  "review": "APPROVE_TEST_FIX_SOURCE_ONLY",
+  "e2eSha256": "092ae57fdcd0395cee667aa627542371a46519a79d0e86cd4d7e7470ab5c604b",
+  "originalFocusedRun": 39106177040,
+  "originalFailure": "One new synthetic thermal fixture exceeded 5000ms at5561ms; browser skipped. No timeout/assertion changes.",
+  "pairedFixtureMs": [
+    1767,
+    544
+  ],
+  "candidateProductAcceptance": "PENDING exact directed browser evidence; owner local startup still blocked by exhausted Docker address pools.",
+  "publication": "Pinned candidate first carried as parent of diagnostic CI commit. Product codex branch remains10298 until directedPASS; no repeated General from evidence-only ref."
+}

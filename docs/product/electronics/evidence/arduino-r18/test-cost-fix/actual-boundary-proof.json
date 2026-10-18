@@ -1,0 +1,394 @@
+{
+  "candidateHead": "10298adebf11d61636465bfe4b8691b36fc23913",
+  "testFile": "apps/web/src/electronics/testing/led-temporal-presentation.spec.ts",
+  "testSha256": "8e21e809b165b6a8dec41288b89cb66e9f5a8f54182935569173b4e548a6e6de",
+  "projectorPath": "apps/web/src/electronics/led-temporal-presentation.ts",
+  "projectorSha256": "3ebc9b2d3e9602d9b684325762bb2b72683ff0271646de14eee248bddc17b80f",
+  "source": "void setup(){pinMode(12,OUTPUT);delay(3990);}void loop(){digitalWrite(12,HIGH);delay(1);digitalWrite(12,LOW);delay(1);}",
+  "fixture": {
+    "schemaVersion": 4,
+    "components": [
+      {
+        "id": "uno",
+        "kind": "visual",
+        "componentTypeId": "arduino-uno",
+        "value": 5,
+        "position": {
+          "x": 0,
+          "y": 0
+        },
+        "pinIds": [
+          "d13",
+          "d12",
+          "d11",
+          "power-5v",
+          "power-3v3",
+          "power-gnd-1"
+        ],
+        "stateProperties": {
+          "arduinoSource": "void setup(){pinMode(12,OUTPUT);delay(3990);}void loop(){digitalWrite(12,HIGH);delay(1);digitalWrite(12,LOW);delay(1);}"
+        }
+      },
+      {
+        "id": "overdriven",
+        "kind": "led",
+        "componentTypeId": "led-5mm",
+        "value": 2,
+        "position": {
+          "x": 50,
+          "y": 0
+        },
+        "pinIds": [
+          "anode",
+          "cathode"
+        ]
+      },
+      {
+        "id": "protected",
+        "kind": "led",
+        "componentTypeId": "led-5mm",
+        "value": 2,
+        "position": {
+          "x": 100,
+          "y": 0
+        },
+        "pinIds": [
+          "anode",
+          "cathode"
+        ]
+      },
+      {
+        "id": "resistor",
+        "kind": "resistor",
+        "componentTypeId": "resistor-axial",
+        "value": 330,
+        "position": {
+          "x": 100,
+          "y": 50
+        },
+        "pinIds": [
+          "lead-1",
+          "lead-2"
+        ]
+      }
+    ],
+    "connections": [
+      {
+        "id": "overdrive",
+        "from": {
+          "componentId": "uno",
+          "terminal": "power-5v"
+        },
+        "to": {
+          "componentId": "overdriven",
+          "terminal": "anode"
+        }
+      },
+      {
+        "id": "overground",
+        "from": {
+          "componentId": "overdriven",
+          "terminal": "cathode"
+        },
+        "to": {
+          "componentId": "uno",
+          "terminal": "power-gnd-1"
+        }
+      },
+      {
+        "id": "drive",
+        "from": {
+          "componentId": "uno",
+          "terminal": "d12"
+        },
+        "to": {
+          "componentId": "resistor",
+          "terminal": "lead-1"
+        }
+      },
+      {
+        "id": "series",
+        "from": {
+          "componentId": "resistor",
+          "terminal": "lead-2"
+        },
+        "to": {
+          "componentId": "protected",
+          "terminal": "anode"
+        }
+      },
+      {
+        "id": "ground",
+        "from": {
+          "componentId": "protected",
+          "terminal": "cathode"
+        },
+        "to": {
+          "componentId": "uno",
+          "terminal": "power-gnd-1"
+        }
+      }
+    ]
+  },
+  "points": [
+    {
+      "horizonMicroseconds": 3999999,
+      "requestFromMicroseconds": 0,
+      "executionStatus": "ready",
+      "batches": 16,
+      "quality": {
+        "finite": true,
+        "passed": true,
+        "maxKclResidualAmp": 1.2e-11,
+        "maxSourceVoltageResidualVolt": 0,
+        "powerBalanceResidualWatt": 0,
+        "powerBalanceToleranceWatt": 1e-9,
+        "kclToleranceAmp": 0.000001,
+        "sourceVoltageToleranceVolt": 1e-9
+      },
+      "overdriven": {
+        "componentId": "overdriven",
+        "voltageDrop": 4.960263157894,
+        "current": 0.397368421053,
+        "terminalVoltages": {
+          "anode": 4.960263157894,
+          "cathode": 0
+        },
+        "power": 1.971051939058,
+        "brightness": 100,
+        "branchCurrents": {
+          "led": 0.397368421053
+        },
+        "branchBrightness": {
+          "led": 100
+        },
+        "continuousCurrentLimitAmp": 0.02,
+        "destructiveCurrentLimitAmp": 0.12,
+        "reverseVoltageLimitVolt": 5,
+        "junctionState": "conducting",
+        "currentUtilizationPercent": 1986.84,
+        "stressState": "burned",
+        "deviceHealth": "overheated",
+        "damageState": "none",
+        "presentationState": "destructive",
+        "lit": true,
+        "temperatureCelsius": 140.6,
+        "thermalLoadPercent": 1986.84,
+        "accumulatedDamagePercent": 100
+      },
+      "protected": {
+        "componentId": "protected",
+        "brightnessIntegral": 350800.2,
+        "litDurationMicroseconds": 5010,
+        "transitionCount": 10,
+        "samples": [
+          {
+            "atMicroseconds": 0,
+            "brightness": 0,
+            "current": 0
+          },
+          {
+            "atMicroseconds": 3990003,
+            "brightness": 70.02,
+            "current": 0.009058135491
+          },
+          {
+            "atMicroseconds": 3991005,
+            "brightness": 0,
+            "current": 0
+          },
+          {
+            "atMicroseconds": 3992008,
+            "brightness": 70.02,
+            "current": 0.009058135491
+          },
+          {
+            "atMicroseconds": 3993010,
+            "brightness": 0,
+            "current": 0
+          },
+          {
+            "atMicroseconds": 3994013,
+            "brightness": 70.02,
+            "current": 0.009058135491
+          },
+          {
+            "atMicroseconds": 3995015,
+            "brightness": 0,
+            "current": 0
+          },
+          {
+            "atMicroseconds": 3996018,
+            "brightness": 70.02,
+            "current": 0.009058135491
+          },
+          {
+            "atMicroseconds": 3997020,
+            "brightness": 0,
+            "current": 0
+          },
+          {
+            "atMicroseconds": 3998023,
+            "brightness": 70.02,
+            "current": 0.009058135491
+          },
+          {
+            "atMicroseconds": 3999025,
+            "brightness": 0,
+            "current": 0
+          },
+          {
+            "atMicroseconds": 3999999,
+            "brightness": 0,
+            "current": 0
+          }
+        ],
+        "truncated": false,
+        "alternatingEdges": [
+          3990003,
+          3991005,
+          3992008,
+          3993010,
+          3994013,
+          3995015,
+          3996018,
+          3997020,
+          3998023,
+          3999025
+        ],
+        "completeCyclesInRetainedRequest": 4,
+        "mean": 34.99253865336658,
+        "peak": 70.02,
+        "meanToPeak": 0.4997506234413965
+      }
+    },
+    {
+      "horizonMicroseconds": 4000000,
+      "requestFromMicroseconds": 3999999,
+      "executionStatus": "ready",
+      "batches": 1,
+      "quality": {
+        "finite": true,
+        "passed": true,
+        "maxKclResidualAmp": 5e-12,
+        "maxSourceVoltageResidualVolt": 0,
+        "powerBalanceResidualWatt": 0,
+        "powerBalanceToleranceWatt": 1e-9,
+        "kclToleranceAmp": 0.000001,
+        "sourceVoltageToleranceVolt": 1e-9
+      },
+      "overdriven": {
+        "componentId": "overdriven",
+        "voltageDrop": 5,
+        "current": 0,
+        "terminalVoltages": {
+          "anode": 5,
+          "cathode": 0
+        },
+        "terminalCurrents": {
+          "anode": 0,
+          "cathode": 0
+        },
+        "power": 0,
+        "brightness": 0,
+        "lit": false,
+        "energized": false,
+        "stressState": "burned",
+        "deviceHealth": "failed_open",
+        "damageState": "failed",
+        "presentationState": "failed",
+        "temperatureCelsius": 140.6,
+        "thermalLoadPercent": 1986.84,
+        "accumulatedDamagePercent": 100
+      },
+      "protected": {
+        "componentId": "protected",
+        "brightnessIntegral": 0,
+        "litDurationMicroseconds": 0,
+        "transitionCount": 0,
+        "samples": [
+          {
+            "atMicroseconds": 3999999,
+            "brightness": 0,
+            "current": 0
+          },
+          {
+            "atMicroseconds": 4000000,
+            "brightness": 0,
+            "current": 0
+          }
+        ],
+        "truncated": false,
+        "alternatingEdges": [],
+        "completeCyclesInRetainedRequest": 0,
+        "mean": 34.99253865336658,
+        "peak": 0,
+        "meanToPeak": null
+      }
+    },
+    {
+      "horizonMicroseconds": 4000001,
+      "requestFromMicroseconds": 4000000,
+      "executionStatus": "ready",
+      "batches": 1,
+      "quality": {
+        "finite": true,
+        "passed": true,
+        "maxKclResidualAmp": 5e-12,
+        "maxSourceVoltageResidualVolt": 0,
+        "powerBalanceResidualWatt": 0,
+        "powerBalanceToleranceWatt": 1e-9,
+        "kclToleranceAmp": 0.000001,
+        "sourceVoltageToleranceVolt": 1e-9
+      },
+      "overdriven": {
+        "componentId": "overdriven",
+        "voltageDrop": 5,
+        "current": 0,
+        "terminalVoltages": {
+          "anode": 5,
+          "cathode": 0
+        },
+        "terminalCurrents": {
+          "anode": 0,
+          "cathode": 0
+        },
+        "power": 0,
+        "brightness": 0,
+        "lit": false,
+        "energized": false,
+        "stressState": "burned",
+        "deviceHealth": "failed_open",
+        "damageState": "failed",
+        "presentationState": "failed",
+        "temperatureCelsius": 140.6,
+        "thermalLoadPercent": 1986.84,
+        "accumulatedDamagePercent": 100
+      },
+      "protected": {
+        "componentId": "protected",
+        "brightnessIntegral": 0,
+        "litDurationMicroseconds": 0,
+        "transitionCount": 0,
+        "samples": [
+          {
+            "atMicroseconds": 4000000,
+            "brightness": 0,
+            "current": 0
+          },
+          {
+            "atMicroseconds": 4000001,
+            "brightness": 0,
+            "current": 0
+          }
+        ],
+        "truncated": false,
+        "alternatingEdges": [],
+        "completeCyclesInRetainedRequest": 0,
+        "mean": 34.99253865336658,
+        "peak": 0,
+        "meanToPeak": null
+      }
+    }
+  ]
+}

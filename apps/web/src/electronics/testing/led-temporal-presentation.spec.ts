@@ -104,8 +104,11 @@ describe('accepted per-LED temporal presentation', () => {
           position: { x: 0, y: 0 },
           pinIds: ['d13', 'd12', 'd11', 'power-5v', 'power-3v3', 'power-gnd-1'],
           stateProperties: {
+            // The unprotected 5V LED heats from time zero. Let the real MCU
+            // wait during warmup, then measure multiple actual 1ms cycles
+            // before the failure boundary; earlier switching is not required.
             arduinoSource:
-              'void setup(){pinMode(12,OUTPUT);}void loop(){digitalWrite(12,HIGH);delay(1);digitalWrite(12,LOW);delay(1);}',
+              'void setup(){pinMode(12,OUTPUT);delay(3990);}void loop(){digitalWrite(12,HIGH);delay(1);digitalWrite(12,LOW);delay(1);}',
           },
         },
         {

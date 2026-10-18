@@ -1,0 +1,94 @@
+{
+  "baseCommit": "10298adebf11d61636465bfe4b8691b36fc23913",
+  "candidateStatus": "frozen one-file working-tree delta; no commit or index mutation",
+  "path": "apps/web/src/electronics/testing/led-temporal-presentation.spec.ts",
+  "bytes": 15901,
+  "sha256": "8e21e809b165b6a8dec41288b89cb66e9f5a8f54182935569173b4e548a6e6de",
+  "gitBlob": "8bea33ab8de18627622f99d3d877a52886d5338b",
+  "baselineSha256": "c53fe35b0156721d73dad94ac6730e6b98eac1d9d26a7ad60932f9f8f88c7a5c",
+  "baselineGitBlob": "890ab344bd093bed0b71805798a425054665529b",
+  "proof": {
+    "exactExpectedReplacementOnly": true,
+    "allOriginalAssertionsBytePreserved": true,
+    "allOriginalHorizonsBytePreserved": [
+      3999999,
+      4000000,
+      4000001
+    ],
+    "allOtherCasesBytePreserved": true,
+    "timeoutUnchangedMs": 5000,
+    "headUnchanged": true,
+    "indexEqualsHead": true,
+    "onlyChangedPath": "apps/web/src/electronics/testing/led-temporal-presentation.spec.ts",
+    "productAndE2eUnchanged": true
+  },
+  "pairedLocalCheck": {
+    "command": "node node_modules/vitest/vitest.mjs run apps/web/src/electronics/testing/led-temporal-presentation.spec.ts -t 'keeps a real 1ms neighbour' --maxWorkers=1 --reporter=verbose",
+    "baseline": {
+      "status": "PASS",
+      "caseMs": 1767,
+      "testsPassed": 1,
+      "testsSkipped": 27
+    },
+    "candidate": {
+      "status": "PASS",
+      "caseMs": 544,
+      "testsPassed": 1,
+      "testsSkipped": 27
+    },
+    "reductionPercent": 69.21,
+    "scope": "one causal test, identical local runtime and runner; descriptive timings, not a CI guarantee"
+  },
+  "physicalTrace": {
+    "path": "/workspace/scratch/927b9b969e63/r18-evidence/test-cost-fix/actual-boundary-proof.json",
+    "engine": "existing compiled real contexts/electronics/dist/engine.js",
+    "projector": "actual source transpiled to ES2022, no mock",
+    "firstHorizonActualEdges": [
+      3990003,
+      3991005,
+      3992008,
+      3993010,
+      3994013,
+      3995015,
+      3996018,
+      3997020,
+      3998023,
+      3999025
+    ],
+    "firstHorizonCompleteCycles": 4,
+    "firstHorizonMean": 34.99253865336658,
+    "firstHorizonPeak": 70.02
+  },
+  "evidence": {
+    "baseline-spec.txt": {
+      "absolutePath": "/workspace/scratch/927b9b969e63/r18-evidence/test-cost-fix/baseline-spec.txt",
+      "bytes": 15658,
+      "sha256": "c53fe35b0156721d73dad94ac6730e6b98eac1d9d26a7ad60932f9f8f88c7a5c"
+    },
+    "baseline.json": {
+      "absolutePath": "/workspace/scratch/927b9b969e63/r18-evidence/test-cost-fix/baseline.json",
+      "bytes": 293,
+      "sha256": "bbfde3640005eccdd412f04ae41ee58e33cbf22d6d799ad2dec3134126a1b10b"
+    },
+    "baseline.log": {
+      "absolutePath": "/workspace/scratch/927b9b969e63/r18-evidence/test-cost-fix/baseline.log",
+      "bytes": 5250,
+      "sha256": "ec263a417f8e9fbc2094ae729ba8c36063e0ac8bd75657ac0524e8607a706df5"
+    },
+    "candidate-case.log": {
+      "absolutePath": "/workspace/scratch/927b9b969e63/r18-evidence/test-cost-fix/candidate-case.log",
+      "bytes": 5249,
+      "sha256": "b42cc91530fd1d281b6d0bd69840d3b7542f4fb3c35c1558fcd9d976998087a9"
+    },
+    "candidate.patch": {
+      "absolutePath": "/workspace/scratch/927b9b969e63/r18-evidence/test-cost-fix/candidate.patch",
+      "bytes": 1119,
+      "sha256": "7d0ae5f082090348b706ea23db524bddcdefa1ecfc815527cd0018a6cb0bb733"
+    },
+    "actual-boundary-proof.json": {
+      "absolutePath": "/workspace/scratch/927b9b969e63/r18-evidence/test-cost-fix/actual-boundary-proof.json",
+      "bytes": 10096,
+      "sha256": "12faa8d953507267c27011b31a3beb0c0ea089f9002276583ab029be7ff1290c"
+    }
+  }
+}
