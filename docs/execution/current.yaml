@@ -3714,7 +3714,7 @@ parallel_lanes:
       - apps/web/src/styles.css
       - apps/api/src/public-projects.controller.ts
       - apps/web/src/projects-public/**
-      - migrations/0217_public_projects.sql
+      - migrations/0218_public_projects.sql
       - tests/portal/**
       - e2e/project-hub.spec.ts
       - e2e/artifacts/project-hub/**
@@ -3728,7 +3728,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: first_visible_exact_publication_selected
+      checkpoint: first_visible_implementation_awaits_pg_browser_review
       owner_acceptance: pending
       owner_authorization: >-
         Owner's 2026-10-18 implementation assignment delegates the complete Public Projects
@@ -3739,22 +3739,37 @@ parallel_lanes:
       context_hints:
         - docs/product/projects/tasks/PROJ-R7-VISIBLE-PUBLICATION.md
         - docs/product/projects/DECISION_LEDGER.md
+        - docs/product/projects/tasks/PROJ-PUBLICATION-BUILD-BASELINE.md
+    integration_dependencies:
+      - id: TASK-PROJ-PUBLICATION-BUILD-BASELINE-001
+        status: in_progress
+        branch: codex/projects-build-baseline
+        scope:
+          - eslint.config.mjs
+          - eslint.boundaries.config.mjs
+        selection: >-
+          Controller selects a separate bounded baseline repair under AGENTS.md section 7.
+          Main 15b9b0aa6ad915ebf8d99f27a6ececdfb843e884 fails the existing Vite build-tool
+          import boundary before the publication diff (run 39142129295, job 117718946995).
+          Preserve the private-symbol pipeline and all runtime dependency constraints.
+          Independent exact-SHA review and CI are required before integration.
     accepted_foundation:
       accepted_r7_01b_merge_sha: 65316c50873e28a5effd7b6e603b5289e37e2fac
       accepted_r3_merge_sha: 5fa616045b16d2720418eb7945f7bef968dd9389
       accepted_r7_01a_merge_sha: 92e7926fb4cf51b8fcb5d57741e01c812a26f2dc
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 913f70e2d38d5e155d203f08384478a128f9e57e
+      convergence_baseline_sha: c91d857a598ad423b938a92a85d6f002b56606a2
       head_sha: null
-      observed_at: '2026-10-18T15:10:00Z'
+      observed_at: '2026-10-18T16:06:25Z'
       main:
         branch: main
-        sha: 913f70e2d38d5e155d203f08384478a128f9e57e
+        sha: 651321681ad588ae728156f83ffc334d9a658db0
       observation_note: >-
-        Read-only projects preflight and control-plane PASS on this main baseline. First visible
-        replacement is selected, not implemented or accepted. R7-01C legacy-convergence PR 283
-        is superseded by the owner's no-migration decision. Run a fresh fetch main before writes.
+        First visible implementation is authored in the isolated candidate from c91d857;
+        PostgreSQL, built-browser evidence and independent exact-SHA review remain pending.
+        Main baseline CI category C is selected as a separate integration dependency above.
+        Fresh fetch main observed 6513216; preserve its capacity scripts during final convergence.
     execution_lease:
       executor_id: codex-projects-r7-01
       holder: unassigned
