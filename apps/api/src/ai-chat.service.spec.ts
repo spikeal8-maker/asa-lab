@@ -29,7 +29,13 @@ function secureRuntime() {
 }
 
 describe('ASA native AI Chat', () => {
-  for (const outcome of ['complete', 'stopped', 'replayed', 'pending-replay', 'uppercase'] as const) {
+  for (const outcome of [
+    'complete',
+    'stopped',
+    'replayed',
+    'pending-replay',
+    'uppercase',
+  ] as const) {
     it(`emits only this request's messages in done: ${outcome}`, async () => {
       const requestId = outcome === 'uppercase' ? 'abcdefab-cdef-4abc-8abc-abcdefabcdef' : REQUEST;
       const history = Array.from({ length: 78 }, (_, index) => ({
@@ -78,7 +84,10 @@ describe('ASA native AI Chat', () => {
         } as unknown as FastifyRequest,
         { hijack: vi.fn(), raw } as unknown as FastifyReply,
         THREAD,
-        { message: 'Вопрос', requestId: outcome === 'uppercase' ? requestId.toUpperCase() : requestId },
+        {
+          message: 'Вопрос',
+          requestId: outcome === 'uppercase' ? requestId.toUpperCase() : requestId,
+        },
       );
       expect(write).toHaveBeenCalledTimes(1);
       expect(write).toHaveBeenCalledWith(

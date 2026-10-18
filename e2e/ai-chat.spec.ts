@@ -121,9 +121,8 @@ async function fixture(page: Page, answer = 'Arduino — это платформ
       if (method === 'GET') {
         const beforeId = new URL(req.url()).searchParams.get('beforeId');
         historyCursors.push(beforeId);
-        const end = beforeId
-          ? history.findIndex((message) => message.id === beforeId)
-          : history.length;
+        const end =
+          beforeId ? history.findIndex((message) => message.id === beforeId) : history.length;
         const start = Math.max(0, end - 50);
         const items = history.slice(start, end);
         const first = items[0];
@@ -283,7 +282,7 @@ for (const selection of ['single', 'switch', 'switch-error', 'retry'] as const) 
     await firstResponse;
     if (switched || selection === 'retry') {
       if (selection === 'retry') {
-        await expect(page.getByRole('alert')).toContainText('История недоступна');
+        await expect(page.locator('.asa-ai-error')).toContainText('История недоступна');
       }
       await composer.press('Enter');
       await expect(send).toBeDisabled();
