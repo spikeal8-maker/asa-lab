@@ -54,6 +54,8 @@ export function learningSection(hash: string): LearningSection {
 
 function sectionHref(section: LearningSection, assignment?: string): string {
   const query = new URLSearchParams(window.location.hash.split('?')[1] ?? '');
+  // A section choice starts at that section, without the previous work's focus.
+  for (const key of ['assignment', 'attempt', 'courseRun', 'lesson']) query.delete(key);
   query.set('view', section);
   if (assignment) query.set('assignment', assignment);
   return `#/learning?${query}`;
@@ -97,7 +99,12 @@ function LearningWorkspace({
 }): JSX.Element {
   const requestedTab = learningSection(window.location.hash);
   const destination = useLearningDestination();
-  const assignment = requestedTab === 'assignments' ? destination.assignment : null;
+  const explicitView = new URLSearchParams(window.location.hash.split('?')[1] ?? '').get('view');
+  const hasExplicitView = sections.some(([id]) => id === explicitView);
+  // Only an implicit assignment destination needs course discovery. An explicit
+  // section remains authoritative even when a notification's focus is retained.
+  const assignment =
+    !hasExplicitView && requestedTab === 'assignments' ? destination.assignment : null;
   const [resolved, setResolved] = useState<{ key: string; course: boolean } | null>(null);
   const [lookupFailed, setLookupFailed] = useState(false);
   const [lookupRetry, setLookupRetry] = useState(0);

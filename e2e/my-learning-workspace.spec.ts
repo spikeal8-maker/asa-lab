@@ -3,7 +3,7 @@ import { mkdirSync } from 'node:fs';
 
 // Real built portal/React DOM, deterministic authorized read-model fixtures.
 // This suite does not claim database, server authorization or owner acceptance.
-const evidence = 'e2e/artifacts/owner-preview/my-learning-618';
+const evidence = `e2e/artifacts/owner-preview/my-learning-618/${process.env['ASA_E2E_EVIDENCE_SHA'] ?? 'local'}`;
 const longTitle =
   'Исследование электрических цепей и создание собственного проекта — расширенный учебный маршрут';
 const person = {
@@ -448,7 +448,14 @@ for (const identity of ['seat', 'account'] as const) {
       await page.goto(url);
       const nav = page.getByRole('navigation', { name: 'Разделы моего обучения' });
       const player = page.getByTestId('seat-course-player');
+      const courses = nav.getByRole('link', { name: 'Курсы', exact: true });
+      const assignments = nav.getByRole('link', { name: 'Задания', exact: true });
+      const list = page.getByTestId(
+        identity === 'seat' ? 'seat-assignments' : 'attended-assignments',
+      );
       await expect(player).toBeVisible();
+      await expect(courses).toHaveAttribute('aria-current', 'page');
+      await expect(page).toHaveURL(new RegExp('assignment=course-work&attempt=attempt-2$'));
       await expect(player).toContainText('Практика курса');
       await expect(player).toContainText('курс 2');
       await expect(player.locator('.seat-course-lesson h3')).toHaveText('Практика курса');
@@ -456,6 +463,60 @@ for (const identity of ['seat', 'account'] as const) {
       await expect(page.getByTestId('seat-assignments')).toHaveCount(0);
       await expect(page.getByTestId('attended-assignments')).toHaveCount(0);
       await page.reload();
+      await expect(player).toContainText('Практика курса');
+      const courseReads = () => state.reads.filter((path) => path.endsWith('/course-runs')).length;
+      expect(courseReads()).toBe(4);
+      await expect(assignments).toHaveAttribute('href', '#/learning?view=assignments');
+      await assignments.click();
+      await expect(page).toHaveURL(/#\/learning\?view=assignments$/);
+      await expect(assignments).toHaveAttribute('aria-current', 'page');
+      await expect(list).toBeVisible();
+      await expect(player).toHaveCount(0);
+      expect(courseReads()).toBe(4);
+      await page.goBack();
+      await expect(page).toHaveURL(/#\/learning\?assignment=course-work&attempt=attempt-2$/);
+      await expect(player).toContainText('Практика курса');
+      await expect(courses).toHaveAttribute('aria-current', 'page');
+      await page.goForward();
+      await expect(assignments).toHaveAttribute('aria-current', 'page');
+      await expect(list).toBeVisible();
+      await courses.focus();
+      await page.keyboard.press('Enter');
+      await expect(page).toHaveURL(/#\/learning\?view=courses$/);
+      await expect(courses).toHaveAttribute('aria-current', 'page');
+      await expect(page.getByTestId('seat-courses')).toBeVisible();
+      await expect(player).toHaveCount(0);
+      const beforeExplicitAssignments = courseReads();
+      await page.goto(`${url}&view=assignments&courseRun=course-1&lesson=lesson-1`);
+      await expect(assignments).toHaveAttribute('aria-current', 'page');
+      await expect(list).toBeVisible();
+      await expect(player).toHaveCount(0);
+      expect(courseReads()).toBe(beforeExplicitAssignments);
+      await page.reload();
+      await expect(assignments).toHaveAttribute('aria-current', 'page');
+      await expect(list).toBeVisible();
+      expect(courseReads()).toBe(beforeExplicitAssignments);
+      await page.goto(`${url}&view=courses`);
+      await expect(courses).toHaveAttribute('aria-current', 'page');
+      await expect(player).toContainText('Практика курса');
+      // The shell may retire an initial read when continuity changes on navigation.
+      // Only the visible course read is needed; assignment discovery must not loop.
+      expect(courseReads() - beforeExplicitAssignments).toBeGreaterThanOrEqual(1);
+      expect(courseReads() - beforeExplicitAssignments).toBeLessThanOrEqual(2);
+      await page.goto('/#/learning?courseRun=course-1&lesson=lesson-1');
+      await expect(courses).toHaveAttribute('aria-current', 'page');
+      await expect(player.locator('.seat-course-lesson h3')).toHaveText('Практика курса');
+      await expect(assignments).toHaveAttribute('href', '#/learning?view=assignments');
+      await assignments.click();
+      await expect(assignments).toHaveAttribute('aria-current', 'page');
+      await expect(page).toHaveURL(/#\/learning\?view=assignments$/);
+      await expect(list).toBeVisible();
+      mkdirSync(evidence, { recursive: true });
+      await page.screenshot({
+        path: `${evidence}/${identity}-${nested ? 'nested' : 'lesson'}-explicit-assignments.png`,
+        fullPage: true,
+      });
+      await page.goto(url);
       await expect(player).toContainText('Практика курса');
       const results = nav.getByRole('link', { name: 'Результаты', exact: true });
       await results.focus();

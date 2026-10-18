@@ -277,6 +277,114 @@ it('retires pending target reads on hashchange, identity change and unmount', as
 });
 
 describe('learning workspace destinations', () => {
+  for (const identity of ['seat', 'account'] as const) {
+    it.each([false, true])(
+      `${identity}: explicit sections override a resolved %s nested assignment destination`,
+      async (nested) => {
+        reactTestGlobal.IS_REACT_ACT_ENVIRONMENT = true;
+        const container = document.createElement('div');
+        const root = createRoot(container);
+        const runs = [
+          {
+            id: 'course',
+            title: 'Нужный курс',
+            status: 'open',
+            sections: [
+              {
+                id: 'section',
+                title: 'Раздел',
+                lessons: [
+                  {
+                    id: 'lesson',
+                    title: 'Нужный урок',
+                    kind: 'material',
+                    content: 'Материал',
+                    blocks: [],
+                    completedAt: null,
+                    classroomAssignmentId: nested ? null : 'course-work',
+                    activityOccurrences: nested ? [{ classroomAssignmentId: 'course-work' }] : [],
+                  },
+                ],
+              },
+            ],
+          },
+        ] as unknown as SeatCourseRun[];
+        const courses = vi
+          .spyOn(api, identity === 'seat' ? 'seatCourseRuns' : 'accountCourseRuns')
+          .mockResolvedValue({ ok: true, status: 200, data: { items: runs } });
+        vi.spyOn(api, 'seatAssignments').mockResolvedValue({
+          ok: true,
+          status: 200,
+          data: { items: [retryWork] },
+        });
+        vi.spyOn(api, 'seatQuizzes').mockResolvedValue({
+          ok: true,
+          status: 200,
+          data: { items: [] },
+        });
+        vi.spyOn(api, 'attendedClasses').mockResolvedValue({
+          ok: true,
+          status: 200,
+          data: { items: [] },
+        });
+        vi.spyOn(api, 'attendedAssignments').mockResolvedValue({
+          ok: true,
+          status: 200,
+          data: { items: [] },
+        });
+        const navigate = async (hash: string) =>
+          act(async () => {
+            window.history.replaceState(null, '', hash);
+            window.dispatchEvent(new Event('hashchange'));
+          });
+        const current = () => container.querySelector('[aria-current="page"]')?.textContent;
+        try {
+          window.history.replaceState(
+            null,
+            '',
+            '#/learning?assignment=course-work&attempt=attempt',
+          );
+          await act(async () =>
+            root.render(
+              createElement(LearningPage, {
+                seat: identity === 'seat' ? retrySeat : null,
+                onOpenProject: vi.fn(),
+              }),
+            ),
+          );
+          expect(current()).toBe('Курсы');
+          expect(
+            container.querySelector('[data-testid="seat-course-player"]')?.textContent,
+          ).toContain('Нужный урок');
+          expect(courses).toHaveBeenCalledTimes(2);
+          await navigate(
+            '#/learning?view=assignments&assignment=course-work&attempt=attempt&courseRun=course&lesson=lesson',
+          );
+          expect(current()).toBe('Задания');
+          expect(container.querySelector('[data-testid="seat-course-player"]')).toBeNull();
+          expect(courses).toHaveBeenCalledTimes(2);
+          await navigate('#/learning?view=courses&assignment=course-work');
+          expect(current()).toBe('Курсы');
+          expect(courses).toHaveBeenCalledTimes(3);
+          await navigate('#/learning?courseRun=course&lesson=lesson');
+          expect(current()).toBe('Курсы');
+          expect(
+            container.querySelector('[data-testid="seat-course-player"]')?.textContent,
+          ).toContain('Нужный урок');
+          expect(courses).toHaveBeenCalledTimes(4);
+          for (const link of container.querySelectorAll('nav a')) {
+            const query = new URLSearchParams(link.getAttribute('href')!.split('?')[1]);
+            for (const key of ['assignment', 'attempt', 'courseRun', 'lesson'])
+              expect(query.has(key)).toBe(false);
+          }
+        } finally {
+          await act(async () => root.unmount());
+          reactTestGlobal.IS_REACT_ACT_ENVIRONMENT = false;
+        }
+      },
+    );
+  }
+
   it('distinguishes course lesson and nested practice IDs from standalone assignments', () => {
     const runs = [
       {
@@ -306,6 +414,8 @@ describe('learning workspace destinations', () => {
     ['#/learning?joinRequest=request', 'classes'],
     ['#/learning?learner=seat', 'classes'],
     ['#/learning?view=completed&assignment=work', 'completed'],
+    ['#/learning?view=assignments&assignment=work&courseRun=course&lesson=lesson', 'assignments'],
+    ['#/learning?view=courses&assignment=work', 'courses'],
   ])('routes %s to %s without changing academic state', (hash, section) => {
     expect(learningSection(hash)).toBe(section);
   });

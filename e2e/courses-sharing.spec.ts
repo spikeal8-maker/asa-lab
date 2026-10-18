@@ -746,6 +746,10 @@ test('named Library exact mixed v1 copy survives source v2 and lost response the
       await learner.goto('/#/learning');
       // The same hash keeps the mounted player; refresh its lifecycle and server state.
       await learner.reload();
+      await learner
+        .getByRole('navigation', { name: 'Разделы моего обучения' })
+        .getByRole('link', { name: 'Курсы', exact: true })
+        .click();
       const list = learner.getByTestId('seat-courses');
       await expect(list).toBeVisible();
       const copiedCourse = list.getByRole('button').filter({ hasText: title });

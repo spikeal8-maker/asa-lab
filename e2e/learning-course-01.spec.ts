@@ -510,6 +510,10 @@ test('author-only content keeps exact ID and versions after teaching activation;
   expect(gradedAssignment?.canonicalState?.selectedResult?.rawPoints).toBe(8);
   expect(gradedAssignment?.canonicalState?.selectedResult?.maxPoints).toBe(10);
 
+  await learner.page
+    .getByRole('navigation', { name: 'Разделы моего обучения' })
+    .getByRole('link', { name: 'Задания', exact: true })
+    .click();
   const gradedRow = learner.page
     .getByTestId('seat-assignments')
     .locator('li')
@@ -1617,6 +1621,10 @@ test('Course Builder duplicates a section and excludes hidden lesson only from f
   await page.getByRole('button', { name: 'Назначить курс', exact: true }).click();
 
   await oldLearner.page.reload();
+  await oldLearner.page
+    .getByRole('navigation', { name: 'Разделы моего обучения' })
+    .getByRole('link', { name: 'Курсы', exact: true })
+    .click();
   const oldCourses = oldLearner.page.getByTestId('seat-courses');
   await oldCourses.getByRole('button').filter({ hasText: courseTitle }).click();
   await expect(
@@ -1712,6 +1720,10 @@ test('Course Builder duplicates a section and excludes hidden lesson only from f
   await page.getByRole('button', { name: 'Назначить курс', exact: true }).click();
 
   await newLearner.page.reload();
+  await newLearner.page
+    .getByRole('navigation', { name: 'Разделы моего обучения' })
+    .getByRole('link', { name: 'Курсы', exact: true })
+    .click();
   const newCourses = newLearner.page.getByTestId('seat-courses');
   await newCourses.getByRole('button').filter({ hasText: courseTitle }).click();
   await expect(
@@ -1731,6 +1743,10 @@ test('Course Builder duplicates a section and excludes hidden lesson only from f
   ).toHaveCount(3);
 
   await oldLearner.page.reload();
+  await oldLearner.page
+    .getByRole('navigation', { name: 'Разделы моего обучения' })
+    .getByRole('link', { name: 'Курсы', exact: true })
+    .click();
   const oldCoursesAfterV2 = oldLearner.page.getByTestId('seat-courses');
   await oldCoursesAfterV2.getByRole('button').filter({ hasText: courseTitle }).click();
   await expect(
@@ -1802,6 +1818,10 @@ test('Course Builder persists informational block structural controls into futur
   await page.getByRole('button', { name: 'Назначить курс', exact: true }).click();
 
   await oldLearner.page.reload();
+  await oldLearner.page
+    .getByRole('navigation', { name: 'Разделы моего обучения' })
+    .getByRole('link', { name: 'Курсы', exact: true })
+    .click();
   await oldLearner.page
     .getByTestId('seat-courses')
     .getByRole('button')
@@ -1906,6 +1926,10 @@ test('Course Builder persists informational block structural controls into futur
 
   await newLearner.page.reload();
   await newLearner.page
+    .getByRole('navigation', { name: 'Разделы моего обучения' })
+    .getByRole('link', { name: 'Курсы', exact: true })
+    .click();
+  await newLearner.page
     .getByTestId('seat-courses')
     .getByRole('button')
     .filter({ hasText: courseTitle })
@@ -1920,6 +1944,10 @@ test('Course Builder persists informational block structural controls into futur
   await expect(newPlayer.getByText('Исходный B', { exact: true })).toHaveCount(0);
 
   await oldLearner.page.reload();
+  await oldLearner.page
+    .getByRole('navigation', { name: 'Разделы моего обучения' })
+    .getByRole('link', { name: 'Курсы', exact: true })
+    .click();
   await oldLearner.page
     .getByTestId('seat-courses')
     .getByRole('button')
