@@ -79,6 +79,7 @@ function advancePayload(
     committedHorizonMicroseconds: timed.committedHorizonMicroseconds,
     state: timed.state,
     result: presentationResult(document, timed),
+    ...(timed.observation?.ledTemporal ? { ledTemporal: timed.observation.ledTemporal } : {}),
     serial: projectElectronicsArduinoSerial(timed.state),
     diagnostics: timed.diagnostics,
   };
@@ -210,11 +211,15 @@ export async function evaluateSimulationWorkerRequestBatched(
   try {
     const prepareStarted = globalThis.performance.now();
     const owned = structuredClone(request);
-    const session = createElectronicsAdvanceSession(owned.document, {
-      requestedHorizonMicroseconds: owned.requestedHorizonMicroseconds,
-      state: owned.state,
-      ...(owned.inputEvents ? { inputEvents: owned.inputEvents } : {}),
-    });
+    const session = createElectronicsAdvanceSession(
+      owned.document,
+      {
+        requestedHorizonMicroseconds: owned.requestedHorizonMicroseconds,
+        state: owned.state,
+        ...(owned.inputEvents ? { inputEvents: owned.inputEvents } : {}),
+      },
+      { observeLedTemporal: true },
+    );
     let computeMs = globalThis.performance.now() - prepareStarted;
     let sliceStarted = globalThis.performance.now();
     while (isCurrent()) {

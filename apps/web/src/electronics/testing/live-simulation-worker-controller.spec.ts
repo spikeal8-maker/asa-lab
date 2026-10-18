@@ -224,6 +224,47 @@ async function completeCanonicalStart(
 }
 
 describe('Electronics canonical Worker controller', () => {
+  it('publishes optical metadata only with its accepted complete ready horizon', async () => {
+    const executor = new FakeExecutor();
+    const controller = new ElectronicsLiveSimulationWorkerController(executor);
+    const onResult = vi.fn();
+    controller.start('project-a', circuit, { onResult, onFailure: vi.fn() });
+    await completeCanonicalStart(executor, 1);
+    onResult.mockClear();
+    controller.update(circuit, 25_000);
+    const optical = {
+      profile: 'ordinary-led-held-v1' as const,
+      fromMicroseconds: 0,
+      toMicroseconds: 25_000,
+      components: [],
+    };
+    executor.advances.at(-1)!.deferred.resolve({
+      ...timedAdvance('ready', 25_000, 25_000, 2),
+      ledTemporal: optical,
+    });
+    await flush();
+    expect(onResult).toHaveBeenCalledExactlyOnceWith(result(2), optical);
+
+    controller.update(circuit, 50_000);
+    executor.advances.at(-1)!.deferred.resolve({
+      ...timedAdvance('ready', 50_000, 50_000, 3),
+      ledTemporal: optical,
+    });
+    await flush();
+    expect(onResult).toHaveBeenLastCalledWith(result(3));
+
+    controller.update(circuit, 75_000);
+    const stale = executor.advances.at(-1)!;
+    controller.restart(circuit);
+    onResult.mockClear();
+    stale.deferred.resolve({
+      ...timedAdvance('ready', 75_000, 75_000, 4),
+      ledTemporal: { ...optical, fromMicroseconds: 50_000, toMicroseconds: 75_000 },
+    });
+    await flush();
+    expect(onResult).not.toHaveBeenCalled();
+  });
+
   it('publishes time zero before coalesced preflight horizons and later ready observations', async () => {
     const executor = new FakeExecutor();
     const onResult = vi.fn();

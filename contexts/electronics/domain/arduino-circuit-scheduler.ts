@@ -33,6 +33,7 @@ import {
 } from './models/signal-generator-model.js';
 import { advanceThermalState, thermalProfileFor } from './models/thermal-transient-model.js';
 import { electricalModelFor } from './model-registry.js';
+import type { LedElectricalObserver } from './led-temporal-observation.js';
 import { compileCircuit, verifyCircuitQuality, type SimulationQuality } from './simulation.js';
 import {
   prepareCircuitSolve,
@@ -405,12 +406,17 @@ interface ClockPreparation {
   physicalState?: CapacitorTransientState;
   failureTime?: number;
   readonly operatingPoint: ReturnType<typeof createArduinoOperatingPointReuse>;
+  readonly observeLedState?: LedElectricalObserver;
 }
 /** One immutable document and one request; never a shared/persisted state authority. */
-export function createArduinoCircuitClockExecutor(document: ElectronicsDocument) {
+export function createArduinoCircuitClockExecutor(
+  document: ElectronicsDocument,
+  observeLedState?: LedElectricalObserver,
+) {
   const preparation: ClockPreparation = {
     sourceSupport: new Map(),
     operatingPoint: createArduinoOperatingPointReuse(),
+    ...(observeLedState ? { observeLedState } : {}),
   };
   return (
     horizon: number,
@@ -1055,6 +1061,7 @@ export function advanceArduinoCircuitClock(
   const commitPhysics = (time: number): boolean => {
     const advanced = advancePhysics(time);
     if (!advanced.solved || !advanced.quality.passed || !advanced.transientState) return false;
+    ownedPreparation?.observeLedState?.(time, advanced.components);
     physicalState = advanced.transientState;
     cachedFrame = undefined;
     for (const thermal of physicalState.thermal) {
@@ -1087,7 +1094,13 @@ export function advanceArduinoCircuitClock(
       return fault('physical_advance_failed', 'Initial physical frame failed.');
     if (ownedPreparation && ownedPreparation.physicalState === physicalState)
       failureTime = ownedPreparation.failureTime ?? Number.POSITIVE_INFINITY;
-    else locateFailure(sample(Math.round(physicalState!.simulationTimeMs * 1000)));
+    else {
+      const checkpointTime = Math.round(physicalState!.simulationTimeMs * 1000);
+      const frame = sample(checkpointTime);
+      locateFailure(frame);
+      if (frame.solved && frame.quality.passed)
+        ownedPreparation?.observeLedState?.(checkpointTime, frame.components);
+    }
   }
   // A returned frame is never a speculative MCU state. Failure discards this whole batch.
   let clockEvents = 0;
@@ -1486,6 +1499,8 @@ export function advanceArduinoCircuitClock(
         'electrical_quality_failed',
         'Не выполнены проверки конечности, KCL или напряжения источников.',
       );
+    if (eventPhysics && frame.solved && frame.quality.passed)
+      ownedPreparation?.observeLedState?.(targetMicroseconds, frame.components);
     result = {
       ...frame,
       controllerState: {

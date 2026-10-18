@@ -2,6 +2,7 @@
 import { act, createElement, startTransition, StrictMode, Suspense, useLayoutEffect } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { ElectronicsLedTemporalObservation } from '@asa-lab/electronics/engine';
 import { api, type Project, type SchematicDocument, type SolveResult } from '../../api';
 import type { LiveSimulationWorkerCallbacks } from '../live-simulation-worker-controller';
 import { ElectronicsLiveSimulationWorkerController } from '../live-simulation-worker-controller';
@@ -90,6 +91,7 @@ const ready: SolveResult = {
   numericalResidual: 0,
   numericalTolerance: 1e-9,
 };
+let openedDocument = initial;
 let host: HTMLDivElement;
 let root: Root;
 let workbench: ReturnType<typeof useElectronicsWorkbench>;
@@ -148,6 +150,7 @@ beforeEach(() => {
   renders = 0;
   suspendRender = null;
   onLayoutCommit = null;
+  openedDocument = initial;
   vi.spyOn(api, 'me').mockResolvedValue({
     ok: true,
     status: 200,
@@ -167,7 +170,7 @@ beforeEach(() => {
             classroomId: null,
             status: 'active',
           } as Project,
-          draft: { projectId: id, document: initial, revision: 1, updatedAt: '' },
+          draft: { projectId: id, document: openedDocument, revision: 1, updatedAt: '' },
           versions: [],
           result: null,
         },
@@ -717,5 +720,141 @@ describe('mounted workbench host demand clock', () => {
     activeTick();
     await tick(50);
     expect(worker().update).not.toHaveBeenCalled();
+  });
+});
+
+describe('mounted workbench LED temporal display', () => {
+  const led: SchematicDocument['components'][number] = {
+    id: 'led',
+    kind: 'led',
+    componentTypeId: 'led-5mm',
+    value: 2,
+    position: { x: 200, y: 0 },
+    pinIds: ['anode', 'cathode'],
+  };
+
+  function opticalReady(toMicroseconds: number) {
+    const point = (atMicroseconds: number) => ({
+      atMicroseconds,
+      brightness: Math.floor(atMicroseconds / 1000) % 2 === 0 ? 80 : 0,
+      current: Math.floor(atMicroseconds / 1000) % 2 === 0 ? 0.01 : 0,
+    });
+    const samples = [point(0)];
+    for (let at = 1000; at < toMicroseconds; at += 1000) samples.push(point(at));
+    samples.push(point(toMicroseconds));
+    let brightnessIntegral = 0;
+    let litDurationMicroseconds = 0;
+    let transitionCount = 0;
+    for (let index = 1; index < samples.length; index++) {
+      const before = samples[index - 1]!;
+      const elapsed = samples[index]!.atMicroseconds - before.atMicroseconds;
+      brightnessIntegral += before.brightness * elapsed;
+      if (before.brightness > 0) litDurationMicroseconds += elapsed;
+      if (before.brightness !== samples[index]!.brightness) transitionCount++;
+    }
+    const final = samples.at(-1)!;
+    const result = {
+      ...ready,
+      quality: { passed: true },
+      components: [
+        {
+          componentId: 'led',
+          brightness: final.brightness,
+          current: final.current,
+          lit: final.brightness > 0,
+          terminalVoltages: {},
+        },
+      ],
+    } as SolveResult;
+    const observation: ElectronicsLedTemporalObservation = {
+      profile: 'ordinary-led-held-v1',
+      fromMicroseconds: 0,
+      toMicroseconds,
+      components: [
+        {
+          componentId: 'led',
+          samples,
+          brightnessIntegral,
+          litDurationMicroseconds,
+          transitionCount,
+          truncated: false,
+        },
+      ],
+    };
+    return { result, observation };
+  }
+
+  it('pairs the accepted mean with the actual result and clears it on Reset and Stop', async () => {
+    openedDocument = { ...initial, components: [...initial.components, led] };
+    await mount();
+    await act(async () => workbench.toggleSimulation());
+    const fast = opticalReady(11_000);
+    const oldCallbacks = worker().callbacks!;
+    await act(async () => {
+      oldCallbacks.onCommittedHorizon!(11_000);
+      oldCallbacks.onResult(fast.result, fast.observation);
+    });
+    expect(workbench.result).toBe(fast.result);
+    expect(workbench.result!.components[0]!.brightness).toBe(0);
+    expect(workbench.componentLedBrightness(led)).toBe(40);
+    expect(workbench.componentVisualState(led)).toBe('lit');
+    await act(async () => workbench.resetArduinoRuntime('uno'));
+    expect(worker().restart).toHaveBeenCalledTimes(1);
+    expect(workbench.simulationTimeMs).toBe(0);
+    expect(workbench.componentLedBrightness(led)).toBe(0);
+    expect(workbench.componentVisualState(led)).toBe('off');
+    const startup = opticalReady(500);
+    await act(async () => worker().callbacks!.onResult(startup.result, startup.observation));
+    expect(workbench.componentLedBrightness(led)).toBe(80);
+    expect(workbench.componentVisualState(led)).toBe('lit');
+
+    await act(async () => workbench.toggleSimulation());
+    expect(workbench.componentLedBrightness(led)).toBe(0);
+    await act(async () => oldCallbacks.onResult(fast.result, fast.observation));
+    expect(workbench.componentLedBrightness(led)).toBe(0);
+    await act(async () => workbench.toggleSimulation());
+    await act(async () => oldCallbacks.onResult(fast.result, fast.observation));
+    expect(workbench.result).toBe(ready);
+    expect(workbench.componentLedBrightness(led)).toBe(0);
+    expect(api.saveDraft).not.toHaveBeenCalled();
+  });
+
+  it('shows a conducting destructive preview as overcurrent and actual failure as burned', async () => {
+    openedDocument = { ...initial, components: [...initial.components, led] };
+    await mount();
+    await act(async () => workbench.toggleSimulation());
+    // These boundary states are independently obtained from the real engine in
+    // led-temporal-presentation.spec; here the mounted display mapping is tested.
+    const before = {
+      componentId: 'led',
+      brightness: 100,
+      current: 0.397126331189,
+      lit: true,
+      stressState: 'burned',
+      deviceHealth: 'overheated',
+      damageState: 'none',
+      presentationState: 'destructive',
+      terminalVoltages: {},
+    } as SolveResult['components'][number];
+    await act(async () => worker().callbacks!.onResult({ ...ready, components: [before] }));
+    expect(workbench.componentVisualState(led)).toBe('overcurrent');
+    expect(workbench.componentLedBrightness(led)).toBe(100);
+    for (const failure of [
+      { presentationState: 'failed' },
+      { deviceHealth: 'failed_open' },
+      { damageState: 'failed' },
+    ] as const) {
+      const failed = {
+        ...before,
+        ...failure,
+        brightness: 0,
+        current: 0,
+        lit: false,
+        junctionState: 'reverse_blocking' as const,
+      };
+      await act(async () => worker().callbacks!.onResult({ ...ready, components: [failed] }));
+      expect(workbench.componentVisualState(led)).toBe('burned');
+      expect(workbench.componentLedBrightness(led)).toBe(0);
+    }
   });
 });

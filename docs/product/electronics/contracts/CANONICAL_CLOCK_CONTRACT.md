@@ -222,3 +222,62 @@ result shape; a fault restores the original external request state. Inputs are
 appended once. The Worker yields its event loop after a bounded 8-ms CPU slice
 between engine batches and discards stale/cancelled sessions. Only complete
 ready C=H frames are published. CPU yield duration never advances canonical time.
+
+## Ordinary LED temporal observation v1
+
+`ordinary-led-held-v1` is optional, presentation-only metadata for the supported
+ordinary LEDs of `electrothermal-events-v2`. It does not change the canonical
+clock, continuation, electrical result, quality checks, damage equations or
+failure boundary. The public synchronous timed API retains its existing output;
+the Worker requests observation through the optional
+`createElectronicsAdvanceSession` capture setting.
+
+For one request from committed `C` to complete ready `H`, the scheduler observes
+only electrical frames it already calculated and quality checked. The existing
+checkpoint seed is clipped to `C`; in this eligible DC profile LED current and
+brightness are held between electrical or failure events. An event observer
+does not solve the circuit, add a physics barrier or skip a runtime instruction.
+Repeated settles at the same microsecond have zero duration and coalesce to the
+last accepted state. The request-private collector survives bounded `null`
+steps; a fault, cancellation or stale generation discards it. Metadata is
+published only with its matching complete ready result.
+
+Each component carries its own real electrical samples `(t, brightness, current)`
+and exact summaries over `[C,H)`: the integral of solved `brightness(I_LED(t))`
+in percent-microseconds, positive-light duration and brightness-transition count.
+This is neither GPIO duty nor brightness calculated from an average current.
+The trace retains at most 512 change samples plus the final `H` state. Overflow
+marks the trace as truncated; it does not truncate the summaries or physical
+work. Same-time reversion does not create an optical transition. All timestamps
+remain integer canonical microseconds.
+
+The UI keeps a bounded, per-component history only from contiguous accepted
+observations whose final brightness/current match the actual ready result.
+Missing, malformed or incompatible metadata clears history and uses the actual
+instantaneous electrical result. Reset, Stop, generation replacement and failure
+also clear presentation history. Optical history is not saved in the schematic
+or canonical continuation. Disconnected, reverse-blocked and actually failed
+LEDs cannot acquire invented emission; a failed neighbour cannot extinguish a
+healthy channel's observation. A destructive operating-point stress preview may
+still conduct before thermal failure: actual `presentationState=failed`,
+`deviceHealth=failed_open` or `damageState=failed`, rather than `stressState` alone,
+identify failure. The ordinary LED visual uses its existing overcurrent state
+before failure and burned state at actual failure, with zero physical light.
+
+The existing complete-ready cap is 25,000 microseconds. Visible 2,000/100/50-ms
+phases retain their instantaneous state. For faster observed signals, the UI
+requires five actual alternating light edges delimiting two complete cycles,
+with all four phases strictly shorter than that cap. Their time-weighted mean
+solved brightness is presented as steady light, independently for each LED;
+using complete cycles avoids a false beat from the phase of a ready window.
+The last edge must also be less than 25,000 microseconds old. A sustained HIGH
+or LOW therefore resumes instantaneous presentation at that boundary. A maximum
+125,000-microsecond history plus its predecessor, capped at 513 samples, retains
+two qualifying cycles and the current partial phase. This policy expresses the
+available observation cadence; it does not claim to paint every physical pulse
+on a finite-refresh display or alter any electrical frequency.
+
+Presentation summaries may differ with request partition and are excluded only
+as allowed by section 6. Equal horizons, input traces and initial states still
+require identical physical results and continuation with capture enabled or
+disabled, across budgets, JSON resumes and irregular UI partitions.

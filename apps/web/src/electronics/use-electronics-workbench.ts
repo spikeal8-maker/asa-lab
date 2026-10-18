@@ -45,6 +45,7 @@ import {
   type WireVertexAssistTarget,
 } from './workbench-geometry';
 import { useWorkbenchProjectState } from './use-workbench-project-state';
+import { LedTemporalPresentation } from './led-temporal-presentation';
 import {
   addComponentToDocument,
   componentsBoundToBreadboard,
@@ -144,11 +145,14 @@ function emptyInitialViewport(): Viewport {
 }
 
 function ordinaryLedVisualState(result: ComponentResult | undefined): ComponentVisualState {
+  if (
+    result?.presentationState === 'failed' ||
+    result?.deviceHealth === 'failed_open' ||
+    result?.damageState === 'failed'
+  )
+    return 'burned';
   if (result?.junctionState === 'reverse_blocking') return 'reverse';
-  if (result?.presentationState === 'failed') return 'burned';
-  if (result?.presentationState === 'destructive') {
-    return result.stressState === 'burned' ? 'burned' : 'overcurrent';
-  }
+  if (result?.presentationState === 'destructive') return 'overcurrent';
   return result?.lit ? 'lit' : 'off';
 }
 
@@ -287,7 +291,12 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
   const [committedHorizonMicroseconds, setCommittedHorizonMicroseconds] = useState(0);
   const [generationPending, setGenerationPending] = useState(false);
   const [simulationMessage, setSimulationMessage] = useState<SimulationStatusMessage | null>(null);
-  const [liveResult, setLiveResult] = useState<typeof persistedResult>(null);
+  const ledTemporalPresentationRef = useRef(new LedTemporalPresentation());
+  const [liveObservation, setLiveObservation] = useState<{
+    result: NonNullable<typeof persistedResult>;
+    ledBrightness: ReadonlyMap<string, number>;
+  } | null>(null);
+  const liveResult = liveObservation?.result ?? null;
   const [arduinoSerialByBoard, setArduinoSerialByBoard] = useState<
     Readonly<Record<string, ElectronicsArduinoSerialProjection>>
   >({});
@@ -336,7 +345,8 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
     requestedHorizonMicrosecondsRef.current = 0;
     setCommittedHorizonMicroseconds(0);
     setSimulationMessage(null);
-    setLiveResult(null);
+    ledTemporalPresentationRef.current.reset();
+    setLiveObservation(null);
     setArduinoSerialByBoard({});
   }
 
@@ -351,7 +361,8 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
       simulationStartedAtRef.current = null;
       requestedHorizonMicrosecondsRef.current = 0;
       setCommittedHorizonMicroseconds(0);
-      setLiveResult(null);
+      ledTemporalPresentationRef.current.reset();
+      setLiveObservation(null);
       setArduinoSerialByBoard({});
       return;
     }
@@ -391,7 +402,8 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
     }
     const initialDocument = runtimeDocumentRef.current;
     if (!initialDocument) return;
-    setLiveResult(null);
+    ledTemporalPresentationRef.current.reset();
+    setLiveObservation(null);
     setArduinoSerialByBoard({});
     const session = committedHostSessionRef.current;
     let active = true;
@@ -418,7 +430,8 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
       simulationStartedAtRef.current = null;
       requestedHorizonMicrosecondsRef.current = 0;
       resetSimulationRef.current();
-      setLiveResult(null);
+      ledTemporalPresentationRef.current.reset();
+      setLiveObservation(null);
       setArduinoSerialByBoard({});
       setSimulationMessage(simulationFailureMessage(failure));
     };
@@ -432,7 +445,8 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
           simulationStartedAtRef.current = null;
           setGenerationPending(true);
           setCommittedHorizonMicroseconds(0);
-          setLiveResult(null);
+          ledTemporalPresentationRef.current.reset();
+          setLiveObservation(null);
           setSimulationMessage(null);
         },
         onInitialReady: (hostOffsetMicroseconds) => {
@@ -441,10 +455,13 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
           requestedHorizonMicrosecondsRef.current = hostOffsetMicroseconds;
           simulationStartedAtRef.current = window.performance.now();
         },
-        onResult: (nextResult) => {
+        onResult: (nextResult, ledTemporal) => {
           if (!currentSession()) return;
           setGenerationPending(false);
-          setLiveResult(nextResult);
+          setLiveObservation({
+            result: nextResult,
+            ledBrightness: ledTemporalPresentationRef.current.accept(nextResult, ledTemporal),
+          });
           setSimulationMessage(circuitStateMessage(nextResult));
           confirmSimulationStarted();
         },
@@ -482,6 +499,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
     return () => {
       active = false;
       pendingCommands.length = 0;
+      ledTemporalPresentationRef.current.reset();
       if (simulationCommandRef.current === dispatch) simulationCommandRef.current = null;
       controller?.stop();
     };
@@ -1457,7 +1475,8 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
     simulationStartedAtRef.current = null;
     simulationHostOffsetMicrosecondsRef.current = 0;
     requestedHorizonMicrosecondsRef.current = 0;
-    setLiveResult(null);
+    ledTemporalPresentationRef.current.reset();
+    setLiveObservation(null);
     simulationCommandRef.current?.((worker) => worker.restart(currentRuntimeDocument));
     setNotice('Arduino перезапущена: setup() и loop() выполняются сначала.');
   }
@@ -2849,8 +2868,10 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
 
   function componentLedBrightness(component: SchematicComponent): number {
     if (component.kind !== 'led' || !simulationRunning) return 0;
+    const electrical = runtimePresentationResultByComponent.get(component.id);
+    if (!electrical) return 0;
     return Math.round(
-      clamp(runtimePresentationResultByComponent.get(component.id)?.brightness ?? 0, 0, 100),
+      clamp(liveObservation?.ledBrightness.get(component.id) ?? electrical.brightness ?? 0, 0, 100),
     );
   }
 
@@ -2886,7 +2907,10 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
       }
       return runtimePresentationResultByComponent.get(component.id)?.lit ? 'lit' : 'off';
     }
-    return ordinaryLedVisualState(componentResult);
+    const state = ordinaryLedVisualState(componentResult);
+    return state === 'off' && (liveObservation?.ledBrightness.get(component.id) ?? 0) > 0
+      ? 'lit'
+      : state;
   }
 
   // While a pan is in flight the element carries a viewBox React did not write.

@@ -1,6 +1,7 @@
 import {
   resetElectronicsTimedState,
   type ElectronicsArduinoSerialProjection,
+  type ElectronicsLedTemporalObservation,
   type ElectronicsTimedInputEvent,
   type ElectronicsTimedState,
 } from '@asa-lab/electronics/engine';
@@ -13,6 +14,7 @@ import {
 } from './simulation-failure';
 import { ElectronicsSimulationWorkerClient } from './simulation-worker-client';
 import type { SimulationTimedAdvancePayload } from './simulation-worker-protocol';
+import { LED_PRESENTATION_PHASE_LIMIT_MICROSECONDS } from './led-temporal-presentation';
 
 export interface ElectronicsSimulationWorkerExecutor {
   beginGeneration(projectSessionId: string): number;
@@ -31,7 +33,7 @@ export interface ElectronicsSimulationWorkerExecutor {
 export interface LiveSimulationWorkerCallbacks {
   readonly onGenerationPending?: () => void;
   readonly onInitialReady?: (hostHorizonOffsetMicroseconds: number) => void;
-  readonly onResult: (result: SolveResult) => void;
+  readonly onResult: (result: SolveResult, ledTemporal?: ElectronicsLedTemporalObservation) => void;
   readonly onCommittedHorizon?: (committedHorizonMicroseconds: number) => void;
   readonly onSerialProjection?: (serial: readonly ElectronicsArduinoSerialProjection[]) => void;
   readonly onFailure: (failure: SimulationFailure) => void;
@@ -63,7 +65,7 @@ const RUNTIME_INPUT_OBSERVATION_WINDOW_MICROSECONDS = 100_000;
 // At most 25 ms separates complete observations, including during catch-up.
 // A 100 ms observation grid aliases a 50 ms HIGH / 50 ms LOW sketch.
 // This is a model-time bound, not a wall-time/throughput promise.
-const COMPLETE_OBSERVATION_WINDOW_MICROSECONDS = 25_000;
+const COMPLETE_OBSERVATION_WINDOW_MICROSECONDS = LED_PRESENTATION_PHASE_LIMIT_MICROSECONDS;
 
 function boundedInputObservationHorizon(
   eventAtMicroseconds: number,
@@ -553,7 +555,11 @@ export class ElectronicsLiveSimulationWorkerController {
     }
     if (isStartup || this.pendingInputEvents.length === 0) {
       this.callbacks?.onCommittedHorizon?.(advance.committedHorizonMicroseconds);
-      this.callbacks?.onResult(advance.result);
+      if (advance.ledTemporal?.toMicroseconds === advance.committedHorizonMicroseconds) {
+        this.callbacks?.onResult(advance.result, advance.ledTemporal);
+      } else {
+        this.callbacks?.onResult(advance.result);
+      }
     }
     this.pump();
   }
