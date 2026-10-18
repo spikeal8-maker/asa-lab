@@ -81,6 +81,49 @@ primary_lane:
     - docs/architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md
 
 parallel_lanes:
+  - id: scratch-save-diagnostics
+    parent_lane: visual-programming
+    worktree_id: scratch-save-diagnostics-point4-601
+    owned_paths:
+      - tests/blocks/save-diagnostics.spec.ts
+    task:
+      id: TASK-VSCR-SAVE-DIAGNOSTICS-001
+      issue: 601
+      branch: main
+      base_branch: main
+      pr: null
+      status: in_progress
+      kind: repair
+      checkpoint: selected_point4_ordinary_save_failures
+      owner_acceptance: pending
+      owner_authorization: Owner selected point4 only; publish to main, report and STOP. No deployment or live data changes.
+      context_hints:
+        - docs/product/visual-programming/tasks/VSCR-SAVE-DIAGNOSTICS-001.md
+        - docs/product/visual-programming/components/host.yaml
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: 3f2ff98d0b1de5370af49cd3013c050a04ccf974
+      head_sha: null
+      observed_at: '2026-10-18T12:15:00Z'
+      main:
+        branch: main
+        sha: 3f2ff98d0b1de5370af49cd3013c050a04ccf974
+      observation_note: Selected point4; fetch main before writes. Ordinary Scratch save diagnostics only; final independent review and exact CI required. No deployment.
+    execution_lease:
+      executor_id: scratch-save-diagnostics-point4-601
+      holder: unassigned
+      acquired_at: null
+      expires_at: null
+      reviewer_role_requires_lease: false
+    gates:
+      focused:
+        workflow: Scratch Focused
+        commands:
+          - pnpm gate:blocks
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
   - id: scratch-library-svg
     parent_lane: visual-programming
     worktree_id: scratch-library-svg-point3-599
