@@ -459,7 +459,7 @@
 }
 .portal-shell.public-projects-guest .portal-header {
   grid-template-areas: 'brand public account';
-  grid-template-columns: minmax(100px, 220px) minmax(0, 1fr) max-content;
+  grid-template-columns: minmax(44px, 220px) minmax(max-content, 1fr) max-content;
   padding-inline: 12px;
 }
 .portal-shell.public-projects-guest .portal-header .portal-global-nav {

@@ -176,6 +176,82 @@ async function expectNoOverflow(page: Page): Promise<void> {
     document: document.documentElement.scrollWidth,
     body: document.body.scrollWidth,
   }));
+  if (sizes.document > sizes.viewport || sizes.body > sizes.viewport) {
+    const geometry = await page.evaluate(() => {
+      const describe = (element: Element) => {
+        const rect = element.getBoundingClientRect();
+        const style = getComputedStyle(element);
+        const parent = element.parentElement;
+        const parentRect = parent?.getBoundingClientRect();
+        return {
+          tag: element.tagName,
+          id: element.id,
+          className: element.getAttribute('class'),
+          testId: element.getAttribute('data-testid'),
+          text: element.textContent?.trim().slice(0, 160),
+          rect: {
+            x: rect.x,
+            y: rect.y,
+            width: rect.width,
+            height: rect.height,
+            right: rect.right,
+            bottom: rect.bottom,
+          },
+          clientWidth: element.clientWidth,
+          scrollWidth: element.scrollWidth,
+          style: {
+            display: style.display,
+            visibility: style.visibility,
+            position: style.position,
+            boxSizing: style.boxSizing,
+            width: style.width,
+            minWidth: style.minWidth,
+            maxWidth: style.maxWidth,
+            gridTemplateColumns: style.gridTemplateColumns,
+            gridAutoColumns: style.gridAutoColumns,
+            columnGap: style.columnGap,
+            flex: style.flex,
+            flexWrap: style.flexWrap,
+            whiteSpace: style.whiteSpace,
+            overflowX: style.overflowX,
+            overflowY: style.overflowY,
+            fontFamily: style.fontFamily,
+            fontSize: style.fontSize,
+          },
+          parent: parent
+            ? {
+                tag: parent.tagName,
+                id: parent.id,
+                className: parent.getAttribute('class'),
+                x: parentRect?.x,
+                width: parentRect?.width,
+                right: parentRect?.right,
+                clientWidth: parent.clientWidth,
+                scrollWidth: parent.scrollWidth,
+              }
+            : null,
+        };
+      };
+      return {
+        viewport: { width: innerWidth, height: innerHeight, scrollX, scrollY },
+        overflowingElements: [...document.querySelectorAll('body *')]
+          .filter((element) => {
+            const rect = element.getBoundingClientRect();
+            return rect.width > 0 && (rect.right > innerWidth || rect.x < 0);
+          })
+          .map(describe),
+        layoutContainers: [
+          ...document.querySelectorAll(
+            '.portal-header, .portal-content, .modal-backdrop, .publication-properties, .project-card-grid, .project-card-body, .project-card-footer',
+          ),
+        ].map(describe),
+      };
+    });
+    await test.info().attach(`overflow-geometry-${sizes.viewport}.json`, {
+      body: JSON.stringify({ sizes, ...geometry }, null, 2),
+      contentType: 'application/json',
+    });
+  }
   expect(sizes.document).toBeLessThanOrEqual(sizes.viewport);
   expect(sizes.body).toBeLessThanOrEqual(sizes.viewport);
 }
@@ -924,6 +1000,7 @@ test('archiving a previously public source closes metadata and images through th
         headers: { origin: origin(page) },
         data: { status: 'archived' },
       }),
+      201,
     );
     const source = await admin.query(
       `SELECT project.status, state.state, (SELECT count(*)::int FROM project_drafts WHERE project_id=project.id) drafts,
