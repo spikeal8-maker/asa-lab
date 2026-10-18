@@ -1,5 +1,7 @@
 import 'reflect-metadata';
 import { randomUUID } from 'node:crypto';
+import { observeHttpTerminal, type HttpTerminalOutcome } from './http-observation.js';
+import { clientAddressDiagnostics } from './client-address.js';
 import { existsSync, readFileSync } from 'node:fs';
 import { BlockList, isIP } from 'node:net';
 import { basename, join, resolve } from 'node:path';
@@ -356,47 +358,71 @@ export async function createApiApp(
     const blocksRuntimeAddressBudget = new BlocksRuntimeAddressBudget();
 
     fastify.addHook('onRequest', (request, _reply, done) => runSessionDatabaseScope(request, done));
-    fastify.addHook('onRequest', async (request) => {
+    const terminals = new WeakMap<object, (outcome: HttpTerminalOutcome) => boolean>();
+    fastify.addHook('onRequest', async (request, reply) => {
       runtimeMetrics.requestStarted();
       const path = (request.raw.url ?? '/').split('?')[0]!;
-      if (logRequests && path.startsWith('/api/') && path !== '/api/diagnostics/client')
-        process.stdout.write(
-          `${JSON.stringify({ time: new Date().toISOString(), kind: 'http_request_started', level: 'info', requestId: request.id, revision: logRevision, method: request.method, path: safeLogPath(path), subsystem: logSubsystem('api', path), ...diagnosticContext(request) })}\n`,
-        );
-    });
-
-    fastify.addHook('onResponse', async (request, reply) => {
-      const durationMs = Math.round(reply.elapsedTime);
-      runtimeMetrics.requestFinished(reply.statusCode, durationMs);
-      if (logRequests) {
-        const path = (request.raw.url ?? '/').split('?')[0];
-        const sessionDatabase = sessionDatabaseDiagnostics(request);
-        const databaseTrouble =
-          sessionDatabase &&
-          (sessionDatabase.failures > 0 ||
-            sessionDatabase.poolAcquireMs >= 250 ||
-            sessionDatabase.queryRoundTripMs >= 250);
-        process.stdout.write(
-          `${JSON.stringify({
-            time: new Date().toISOString(),
-            kind: 'http_response',
-            requestId: request.id,
-            revision: logRevision,
-            method: request.method,
-            path: safeLogPath(path),
-            subsystem: logSubsystem('api', path),
-            status: reply.statusCode,
-            durationMs,
-            errorCode: requestFailures.get(request),
-            reasonCode: requestValidationReasons.get(request),
-            sessionDatabase,
-            ...(databaseTrouble
-              ? { eventLoopDelaySinceStartMs: runtimeMetrics.snapshot(null).eventLoopDelayMs }
-              : {}),
-            ...diagnosticContext(request),
-          })}\n`,
-        );
+      const addressResolution = clientAddressDiagnostics(request);
+      if (logRequests && path.startsWith('/api/') && path !== '/api/diagnostics/client') {
+        try {
+          process.stdout.write(
+            `${JSON.stringify({ time: new Date().toISOString(), kind: 'http_request_started', level: 'info', requestId: request.id, revision: logRevision, method: request.method, path: safeLogPath(path), subsystem: logSubsystem('api', path), addressResolution, ...diagnosticContext(request) })}\n`,
+          );
+        } catch {
+          /* Logging failure must not turn a product request into an error. */
+        }
       }
+      terminals.set(
+        request,
+        observeHttpTerminal(request, reply, (outcome) => {
+          const durationMs = Math.round(reply.elapsedTime);
+          runtimeMetrics.requestFinished(
+            outcome === 'response' ? reply.statusCode : undefined,
+            durationMs,
+          );
+          if (logRequests) {
+            const path = (request.raw.url ?? '/').split('?')[0];
+            const sessionDatabase = sessionDatabaseDiagnostics(request);
+            const databaseTrouble =
+              sessionDatabase &&
+              (sessionDatabase.failures > 0 ||
+                sessionDatabase.poolAcquireMs >= 250 ||
+                sessionDatabase.queryRoundTripMs >= 250);
+            process.stdout.write(
+              `${JSON.stringify({
+                time: new Date().toISOString(),
+                kind: outcome === 'response' ? 'http_response' : 'http_request_ended',
+                ...(outcome === 'response'
+                  ? {}
+                  : {
+                      level: 'warn',
+                      outcome,
+                      delivery: 'disconnected',
+                      mutationOutcome: 'unknown',
+                    }),
+                requestId: request.id,
+                revision: logRevision,
+                method: request.method,
+                path: safeLogPath(path),
+                subsystem: logSubsystem('api', path),
+                ...(outcome === 'response' ? { status: reply.statusCode } : {}),
+                durationMs,
+                errorCode: requestFailures.get(request),
+                reasonCode: requestValidationReasons.get(request),
+                sessionDatabase,
+                addressResolution,
+                ...(databaseTrouble
+                  ? { eventLoopDelaySinceStartMs: runtimeMetrics.snapshot(null).eventLoopDelayMs }
+                  : {}),
+                ...diagnosticContext(request),
+              })}\n`,
+            );
+          }
+        }),
+      );
+    });
+    fastify.addHook('onResponse', async (request) => {
+      terminals.get(request)?.('response');
     });
 
     fastify.addHook('onRequest', async (request, reply) => {

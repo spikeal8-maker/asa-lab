@@ -49,7 +49,7 @@ def command(args, *, allow_missing=False):
 
 def digest(root):
     value = hashlib.sha256()
-    for name in ("collect_logs.py", "collect-windows-logs.ps1"):
+    for name in ("collect_logs.py", "collect-windows-logs.ps1", "resource_sampling.py"):
         path = root / "tools" / name
         value.update(name.encode()); value.update(path.read_bytes())
     return value.hexdigest()
