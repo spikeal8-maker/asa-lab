@@ -766,6 +766,103 @@ test('mobile work filters share a row and one card fills the grid while multiple
   expect(state.mutations).toEqual([]);
 });
 
+test('pending role mutations and old result history cannot repopulate another learner or a logged-out profile', async ({
+  page,
+}) => {
+  const state = await setup(page, { long: false, manual: 1, results: 1 });
+  const roles: Array<{ seatId: string; role: string; release: () => void }> = [];
+  await page.route(`**/api/classrooms/${classId}/participants/actions/role`, async (route) => {
+    const body = route.request().postDataJSON() as { seatId: string; role: string };
+    await new Promise<void>((release) => roles.push({ ...body, release }));
+    return route.fulfill({ json: { ok: true } });
+  });
+  let releaseHistory!: () => void;
+  const historyGate = new Promise<void>((resolve) => {
+    releaseHistory = resolve;
+  });
+  let historyStarted = false;
+  await page.route(
+    `**/api/classrooms/${classId}/participants/seat-0/result-history/*`,
+    async (route) => {
+      historyStarted = true;
+      await historyGate;
+      return route.fulfill({
+        json: {
+          offset: 0,
+          hasMore: false,
+          items: [
+            {
+              id: 'old-result',
+              revision: 1,
+              attempt_number: 1,
+              raw_points: 99,
+              max_points: 100,
+              reason: null,
+              feedback: 'УТЕКШАЯ ИСТОРИЯ A',
+              author: 'Учитель A',
+              published_at: '2026-01-01T00:00:00Z',
+            },
+          ],
+        },
+      });
+    },
+  );
+  let loggedOut = false;
+  await page.route('**/api/auth/me', (route) =>
+    loggedOut ? route.fulfill({ json: { authenticated: false } }) : route.fallback(),
+  );
+  await page.route('**/api/auth/logout', (route) => {
+    loggedOut = true;
+    return route.fulfill({ json: { ok: true } });
+  });
+  await state.open();
+  await page.getByRole('combobox', { name: 'Роль в классе' }).selectOption('helper');
+  await expect.poll(() => roles.length).toBe(1);
+  await page
+    .getByRole('region', { name: 'Оценки этого класса', exact: true })
+    .getByRole('button', { name: 'История результата', exact: true })
+    .click();
+  await expect.poll(() => historyStarted).toBe(true);
+  await page.getByRole('button', { name: /Следующий ученик:/ }).click();
+  await expect(page.locator('.classroom-student-identity h1')).toHaveText('Ученик 02');
+  await expect(page.getByRole('combobox', { name: 'Роль в классе' })).toHaveValue('student');
+  const beforeOldReply = state.requests.filter((request) => request.kind === 'profile').length;
+  const oldReplies = Promise.all([
+    page.waitForResponse((response) => response.url().endsWith('/participants/actions/role')),
+    page.waitForResponse((response) =>
+      response.url().includes('/participants/seat-0/result-history/'),
+    ),
+  ]);
+  roles[0]!.release();
+  releaseHistory();
+  for (const response of await oldReplies) await response.finished();
+  await expect(page.getByText('УТЕКШАЯ ИСТОРИЯ A')).toHaveCount(0);
+  await expect(page.getByRole('combobox', { name: 'Роль в классе' })).toHaveValue('student');
+  expect(state.requests.filter((request) => request.kind === 'profile')).toHaveLength(
+    beforeOldReply,
+  );
+  await page.getByRole('combobox', { name: 'Роль в классе' }).selectOption('helper');
+  await expect.poll(() => roles.length).toBe(2);
+  expect(roles.map(({ seatId, role }) => ({ seatId, role }))).toEqual([
+    { seatId: 'seat-0', role: 'helper' },
+    { seatId: 'seat-1', role: 'helper' },
+  ]);
+  await page.locator('.portal-account > summary').click();
+  await page.locator('.portal-account').getByRole('button', { name: 'Выход', exact: true }).click();
+  await expect(page.locator('main.classroom-student')).toHaveCount(0);
+  const beforeLogoutReply = state.requests.length;
+  const lastReply = page.waitForResponse((response) =>
+    response.url().endsWith('/participants/actions/role'),
+  );
+  roles[1]!.release();
+  await (await lastReply).finished();
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  await expect(page.locator('main.classroom-student')).toHaveCount(0);
+  await expect(page.getByRole('combobox', { name: 'Роль в классе' })).toHaveCount(0);
+  expect(state.requests).toHaveLength(beforeLogoutReply);
+  expect(state.errors).toEqual([]);
+});
+
 test('attended Account classes retain the original compact pupil summary', async ({ page }) => {
   const state = await setup(page, { account: true, manual: 30, results: 30 });
   await ownJournal(page);

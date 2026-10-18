@@ -606,13 +606,23 @@ test('assigned without a project stays one row through start, submission and rev
       ).status(),
     ).toBe(401);
     // Even the newly promoted helper's Seat session cannot mutate another seat.
-    expect(
-      (
-        await pupil.request.post(`/api/classrooms/${classroom.id}/participants/actions/role`, {
-          data: { seatId: b.id, role: 'helper', requestId: randomUUID() },
-        })
-      ).status(),
-    ).toBe(401);
+    const missingOrigin = await pupil.request.post(
+      `/api/classrooms/${classroom.id}/participants/actions/role`,
+      {
+        data: { seatId: b.id, role: 'helper', requestId: randomUUID() },
+      },
+    );
+    expect(missingOrigin.status()).toBe(403);
+    expect(await missingOrigin.json()).toMatchObject({ error: { code: 'origin_forbidden' } });
+    const seatRoleDenied = await pupil.request.post(
+      `/api/classrooms/${classroom.id}/participants/actions/role`,
+      {
+        headers: { Origin: new URL(pupil.url()).origin },
+        data: { seatId: b.id, role: 'helper', requestId: randomUUID() },
+      },
+    );
+    expect(seatRoleDenied.status()).toBe(401);
+    expect(await seatRoleDenied.json()).toMatchObject({ error: { code: 'unauthorized' } });
     await pupil.goto('/#/learning');
     await expect(pupil.getByRole('heading', { name: 'Мои заслуги', exact: true })).toBeVisible();
     await expect(pupil.getByRole('heading', { name: 'Заслуги преподавателя' })).toHaveCount(0);
@@ -724,13 +734,15 @@ test('real full Account and Seat manual history preserves zero and all five leve
         ).status(),
       ).toBe(404);
     }
-    expect(
-      (
-        await account.request.post(`/api/classrooms/${classroom.id}/participants/actions/role`, {
-          data: { seatId: b.id, role: 'helper', requestId: randomUUID() },
-        })
-      ).status(),
-    ).toBe(403);
+    const accountRoleDenied = await account.request.post(
+      `/api/classrooms/${classroom.id}/participants/actions/role`,
+      {
+        headers: { Origin: new URL(account.url()).origin },
+        data: { seatId: b.id, role: 'helper', requestId: randomUUID() },
+      },
+    );
+    expect(accountRoleDenied.status()).toBe(403);
+    expect(await accountRoleDenied.json()).toMatchObject({ error: { code: 'forbidden' } });
     // Exercise append-only retraction via the supported production journal API.
     await post(page, `/api/classrooms/${classroom.id}/journal/scale`, {
       preset: 'five',
