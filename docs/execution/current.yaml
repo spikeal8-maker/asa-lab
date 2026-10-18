@@ -81,6 +81,48 @@ primary_lane:
     - docs/architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md
 
 parallel_lanes:
+  - id: browser-errors
+    parent_lane: observability
+    worktree_id: browser-errors-point7-606
+    owned_paths:
+      - docs/execution/CLASSROOM_BROWSER_ERRORS_POINT7.md
+      - apps/web/src/client-error-details.ts
+    task:
+      id: TASK-CLASSROOM-BROWSER-ERRORS-007
+      issue: 606
+      branch: main
+      base_branch: main
+      pr: null
+      status: in_progress
+      checkpoint: point7_selected_safe_browser_errors_private_symbols
+      owner_acceptance: pending
+      owner_authorization: Owner selected audit point7 only; publish main, report and STOP. No deployment or live data actions.
+      context_hints:
+        - docs/execution/CLASSROOM_BROWSER_ERRORS_POINT7.md
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: 2c09fdf4b54b411cc7fde059444722c5d86fa156
+      head_sha: null
+      observed_at: '2026-10-18T14:00:00Z'
+      main:
+        branch: main
+        sha: 2c09fdf4b54b411cc7fde059444722c5d86fa156
+      observation_note: Dated point7 selection; fetch main before writes. Exact evidence in issue606. No deployment authority.
+    execution_lease:
+      executor_id: browser-errors-point7-606
+      holder: unassigned
+      acquired_at: null
+      expires_at: null
+      reviewer_role_requires_lease: false
+    gates:
+      focused:
+        workflow: Browser Error Diagnostics
+        commands:
+          - pnpm test apps/web/src/client-diagnostics.spec.ts apps/web/src/client-diagnostic-outbox.spec.ts apps/api/src/client-diagnostics.controller.spec.ts
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
   - id: session-database
     parent_lane: observability
     worktree_id: session-database-point6-604
@@ -3802,6 +3844,8 @@ parallel_lanes:
       status: in_progress
       checkpoint: "r22_compile_syntax_once_and_led_startup_pacing"
       owner_acceptance: pending
+      r22_supporting_browser_oracle_slice: "SELECTED separate bounded baseline TEST-ONLY author, same Issue546. ONLY e2e/electronics-interactions.spec.ts and e2e/electronics-simulation.spec.ts, no product/runtime/UI changes. Original393 traces independently prove3draftWrites1to4 are ownlocal slot+sessionhint+mirror, zeroPUT;8recoveryraws exactequal successfulPUTrequest/response/GETdocs, baselineclear retainsrawwithSHA256ack and canonicalreaderreturnsnull. Root checked actual unchanged recovery/projectstate/reader source. Count successful own local writer records, not all keys containingdraft; check canonical recovery reader/byte-boundACK rather than physicalraw deletion. Never merely raiseexpectedcount/removeassertion/accepttruthy/ignorependingdata. Require missing/wrong/staleACK and concurrentdifferentbytes staypending, exactserverdocument/revisions/visibleactions/deadlines preserved. One frozencommit+selfreview thenSTOP; NEWindependentreview and finalexactbrowser required."
+      r21_ordinary_failure_classification: "C stale baseline test observers after independent originaltrace+source proof; no own A/B regression found in those11 failedpredicates. Reader/manager/projectstate andbothspec blobs identical31fe/393. This reclassifies earlierUNCLASSIFIED, doesnotchange oldFAIL or prove unreachedsteps. No production save repair authorized by supportingtestslice."
       r21b_preserved_candidate_sha: b0c9f5279663a5540f3427eafc411991c1306edd
       r21b_source_ui_review: APPROVE new independent exact-SHA reviewer;51tests plus100000joint/24000sequence challenges. Author74testsPASS. No new browser/fullgates; productNOTACCEPTED.
       r21_product_result: Exact393 Electronics39130678017 FAIL146PASS19FAIL;12Arduino journeys4PASS8FAIL. Serial/GPIOsave-reopen,2000ms,ResetPASS;1ms correct1.004..1.005ms physics/loadedfastglow butlag289.1ms;milliscompute4915/model2071 deficit. Other11 ordinarypersistence/revision failures originUNCLASSIFIED. General39130669326FAIL DataECR429beforetestsD;foreignAccountshell26FAILC. PreserveoriginalZIP8f3d48d5568d0024cacaf042f44b741058426aa5442ed027d0d4c0def3d50656.
