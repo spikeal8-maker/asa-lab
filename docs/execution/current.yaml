@@ -3618,9 +3618,19 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: "r18_led_temporal_observation"
+      checkpoint: r19_exact_operating_point_reuse
       owner_acceptance: pending
-      selected_at: '2026-10-17T22:45:45+00:00'
+      owner_scoped_handoff_exception: Owner latest2026-10-18 explicitly orders immediate implementation by subagents only
+        Arduino/LED after earlier wait choice. Controller treats this as superseding that wait ONLY for a clean isolated
+        Arduino/LED slice with no foreign file overlap. Generic preflight remains WAITING_HANDOFF on E:/ASA-previews/teacher-pr582-redesign/.github/workflows/classroom-owner.yml;
+        never edit/stash/revert/commit that file, never disable guard or label it SAFE. Any actual selected source overlap
+        still STOP. This is no school/DB/network/deployment exception.
+      r18_preserved_result: Focused PASS, browser5PASS6FAIL on actual9bc. Preserve all source, raw evidence and independent
+        reviews; no acceptance/integration. delay1 model1631.8/wall4094.8/compute3933.1;50ms electricalcorrect but one
+        DOM dark phase15.9ms.
+      r18_directed_run: 39108267782
+      r18_preserved_candidate_sha: 9bc659a780a02dfc99af789cef53ed8feb956146
+      selected_at: '2026-10-18T12:10:18.829837+00:00'
       r17_preserved_candidate_sha: "343a6024ded71a883373ed7cc0fcc342a87db785"
       r17_directed_run: 38833934410
       r17_directed_result: "SUCCESS exact343a build; focused and unchanged seven production browser journeys PASS. Independent original ZIP CRC/hash,1135 ready records and13 native PNGs confirmed.100ms electrical4.999775Hz/paint5.099Hz;50ms electrical9.999100Hz/paint10.100Hz; no-delay realtime endpoint lag27.8ms. Earlier272.7ms FAIL belongs to1eff, not343a. Older sustained-HIGH capture has early305ms lag; no universal250ms claim."
@@ -3640,10 +3650,25 @@ parallel_lanes:
       r7_status: not_accepted_directed_failed
       r7_actual_host_tick_ms: 10
       r7_documentation_correction: 'Historical selected20ms retained above/in R7 history; actual controller-authorized source21e uses10ms and ready25000us. R8 does not change these values.'
-      implementation_acceptance: "Preserve343a physical/numerical returns, runtime continuation, every electrical edge, quality/failure/rollback and yielded-null semantics; optional versioned presentation metadata is excluded only from physics partition equivalence. Focused meaningful negative/yield/partition tests; unchanged seven directed browser scenarios plus2000ms/1ms, independently timed outputs, Reset and real text/Blockly/save/reopen journeys. Measure model/wall and actual loaded LED paint on a fresh candidate build. Exact final General/ordinary Electronics and NEW independent source/product review remain mandatory. No school/load/production/owner acceptance claim."
-      next_action: "Controller selects R18 on main, then author inherits this selection and saved343a in an isolated candidate. Implement only per-LED optical observation and its pure presentation projection; no additional solve or runtime optimisation. Review exact diff and frozen focused proof before one changed-cause production-browser run. Continue to real editor2000/100/50/1ms, independent millis outputs, no-delay three LEDs, Reset and Save/reopen; preserve acceptance blocker until the whole required evidence and independent review pass."
+      implementation_acceptance: Whole results, signed zero/undefined, state, continuation, event/diagnostic/quality/iterations
+        parity on revisited GPIO/highZ/tone/failure/document/fallback and existing canonical partition/yield/reset cases.
+        One bounded baseline9bc versus candidate replay of saved1ms22 horizons plus independent-output coverage establishes
+        real improvement before expensive CI; no sufficiency claim without measurement. Fresh focused gate, root actual-source/evidence
+        check, NEW independent exact-SHA source/math review, then one justified built browser run; final ordinary/repository
+        gates and NEW product review remain required before integration. Preserve all existing assertions/timeouts/physics
+        and acceptance blocker.
+      next_action: Controller publishes this selection on main first. Author inherits current main and preserved9bc in
+        one clean isolated context; real text conflict STOP. Implement ONLY R19, report ONE exact candidate SHA/tree/evidence
+        then STOP. Root checks source/evidence, assigns NEW independent reviewer; repair findings in separate bounded
+        invocation. Only after measured throughput/browser outcome select separate LED presentation repair. Continue owner
+        programme through required evidence/review; no foreign module repair or deployment.
       r17_preserved_repair_scope: "Preserve exact1eff and its approved source/math; product still REQUEST_CHANGES. ONE bounded runtime write-action cost repair in arduino-program-runtime.ts: remove only redundant writes/lookups after existing pin-mode handling, retaining every action, instruction, time, budget, event, shadow/error, pullup/PWM and signed-zero/absent-entry semantics. Existing native profile identifies unchanged applyRuntimeAction cost; it does not measure individual Map.set. First verify equivalence and one short paired real-horizon cost comparison; retain only a measured improvement, no heavy CI for an unsupported micro-optimization. No instruction skipping, special sketch detection, clock rebasing, precision/timeout changes or new profiling. Focused regression and NEW exact independent source/math review before unchanged directed browser gate. FastLED/openBlockly remain required same-goal followups; no foreign/school/deployment changes."
-      repair_scope: "R18 ONE bounded actual-electrical LED temporal observation repair: new domain/led-temporal-observation.ts, existing arduino-circuit-scheduler.ts and engine.ts; existing Worker protocol/evaluator/controller/use-electronics-workbench.ts and new led-temporal-presentation.ts. Seed/tap only already computed quality-checked electrical frames; request-private collection survives yields and publishes only complete ready, never fault/stale/cancelled work. Integrate brightness(I_LED(t)) over real per-component durations, retain observable100/50ms phases, present unresolved fast cycles as stable time-weighted brightness without a false slow beat. Fail closed for disconnected/reversed/burned LEDs and malformed observations; bound trace/history without dropping physical work. Meaningful supporting domain/engine/Worker/controller/presentation tests and preserved ready-cadence seven cases plus missing owner cases. Versioned presentation-only contract/component mapping and exact hygiene entry only if required. No extra solves, state/continuation/physics changes, global timer, source or GPIO heuristics, solver/runtime micro-optimisation, CSS/artwork/publicapi.ts edits, weakened assertions/timeouts, foreign modules or workflow edits."
+      repair_scope: 'R19 ONE bounded exact algebraic operating-point reuse repair: only contexts/electronics/domain/solver.ts
+        createArduinoOperatingPointReuse replaces one previous-key slot by bounded request-owned exact-key entries. Preserve
+        Object.is key/order/signed-zero, eligible UNO/redLED/axialR only, identity/diagnostic/failure invalidation, every
+        event and thermal/damage/current quality work. Supporting existing solver.spec.ts; existing scheduler/engine-timed
+        specs only for meaningful full-state parity. No scheduler/runtime/observer/UI/public API/workflow/dependency/quantum/budget/precision/timeout/artwork
+        changes. No approximate waveform/state cache or third-party source.'
       r9_candidate_sha: "9df144e48165ee330ea43f547e2d52782964bd54"
       r9_candidate_branch: "codex/electronics-546-r9-host-demand"
       r9_candidate_publication: "pushed_not_integrated_not_deployed"
