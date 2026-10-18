@@ -14,6 +14,12 @@ const tenantId = '33333333-3333-4333-8333-333333333333';
 const account = { resolve: vi.fn() };
 const seats = { resolve: vi.fn() };
 const query = vi.fn();
+const release = vi.fn();
+const transactionQuery = vi.fn(async (sql: string, params?: unknown[]) => {
+  if (/^(BEGIN|COMMIT|ROLLBACK)/.test(sql)) return { rows: [] };
+  return query(sql, params);
+});
+const connect = vi.fn(async () => ({ query: transactionQuery, release }));
 let app: NestFastifyApplication;
 @Module({})
 class TestModule {}
@@ -25,7 +31,7 @@ beforeAll(async () => {
       providers: [
         { provide: TOKENS.activeContextUseCase, useValue: account },
         { provide: TOKENS.seatContextUseCase, useValue: seats },
-        { provide: TOKENS.pool, useValue: { query } },
+        { provide: TOKENS.pool, useValue: { query, connect } },
       ],
     },
     new FastifyAdapter(),
@@ -83,7 +89,7 @@ function inject(
     ...(payload === undefined ? {} : { payload }),
   });
 }
-describe('unregistered games controller in isolated HTTP module', () => {
+describe('games controller in isolated HTTP module', () => {
   it('uses Seat with both cookies, hashes its session, minimizes output and disables caching', async () => {
     const response = await inject();
     expect(response.statusCode).toBe(200);
@@ -180,6 +186,71 @@ describe('unregistered games controller in isolated HTTP module', () => {
       JSON.stringify(body),
     ]);
   });
+  it('reads configuration and effective Seat admission on one repeatable snapshot and minimizes the result', async () => {
+    query.mockResolvedValueOnce({
+      rows: [
+        {
+          data: {
+            mode: 'rating_threshold',
+            threshold: 50,
+            state: 'active',
+            version: 2,
+            override: 'inherit',
+          },
+        },
+      ],
+    });
+    query.mockResolvedValueOnce({
+      rows: [
+        {
+          data: {
+            eligible: true,
+            state: 'active',
+            mode: 'rating_threshold',
+            threshold: 50,
+            override: 'inherit',
+            rating: 49,
+            principalId: 'private',
+            roster: ['private'],
+          },
+        },
+      ],
+    });
+    const response = await inject(
+      `/api/games/classrooms/${classId}/seats/${seatId}`,
+      'GET',
+      undefined,
+      false,
+    );
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({
+      mode: 'rating_threshold',
+      threshold: 50,
+      state: 'active',
+      version: 2,
+      override: 'inherit',
+      admission: { granted: false, reason: 'rating_below_threshold', threshold: 50 },
+    });
+    expect(transactionQuery.mock.calls[0]?.[0]).toBe(
+      'BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY',
+    );
+    expect(transactionQuery.mock.calls.at(-1)?.[0]).toBe('COMMIT');
+    expect(connect).toHaveBeenCalledOnce();
+    expect(release).toHaveBeenCalledOnce();
+  });
+  it('rolls back a denied policy change and releases its transaction', async () => {
+    query.mockResolvedValue({ rows: [{ data: { error: 'forbidden' } }] });
+    const response = await inject(
+      `/api/games/classrooms/${classId}/policy`,
+      'PUT',
+      { mode: 'allow', threshold: null, expectedVersion: 0 },
+      false,
+    );
+    expect(response.statusCode).toBe(403);
+    expect(transactionQuery.mock.calls.at(-1)?.[0]).toBe('ROLLBACK');
+    expect(transactionQuery.mock.calls.some((call) => call[0] === 'COMMIT')).toBe(false);
+    expect(release).toHaveBeenCalledOnce();
+  });
   it('maps unauthorized/foreign class or Seat to forbidden', async () => {
     query.mockResolvedValue({ rows: [{ data: null }] });
     expect(
@@ -199,7 +270,13 @@ describe('unregistered games controller in isolated HTTP module', () => {
       { expectedVersion: 1 },
       false,
     );
-    expect(JSON.parse(query.mock.calls.at(-1)?.[1]?.[5])).toEqual({
+    expect(
+      JSON.parse(
+        query.mock.calls
+          .filter((call) => String(call[0]).includes('policy_write'))
+          .at(-1)?.[1]?.[5],
+      ),
+    ).toEqual({
       expectedVersion: 1,
       override: 'inherit',
     });

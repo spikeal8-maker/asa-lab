@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  Header,
   HttpException,
   Inject,
   Param,
@@ -15,7 +16,13 @@ import type { ActiveContextUseCase } from '@asa-lab/identity';
 import { hashSessionToken } from '@asa-lab/identity';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type pg from 'pg';
-import { currentSeatGamesAccess, isOfflineGame, type GamesAdmission } from './games-access.js';
+import {
+  currentSeatGamesAccess,
+  evaluateGamesAccess,
+  isOfflineGame,
+  type GamesAdmission,
+  type GamesPolicySnapshot,
+} from './games-access.js';
 import { STUDENT_SESSION_COOKIE, SeatContextUseCase } from './seat-context.js';
 import { SESSION_COOKIE, TOKENS } from './tokens.js';
 import { checkBodyShape } from './validation.js';
@@ -25,8 +32,8 @@ function reject(status: number, code: string): never {
   throw new HttpException({ error: { code, message: code } }, status);
 }
 
-/** Foundation only. Deliberately NOT registered in app.module until the shared
- * ProjectsController session/ACL/list/create/open/save handoff is reviewed.
+/** Current admission and exact-class teacher policy. Project operations also
+ * re-evaluate admission in their own transaction; this is never a capability.
  */
 @Controller('api/games')
 export class GamesAccessController {
@@ -85,27 +92,49 @@ export class GamesAccessController {
     if (!UUID.test(classroomId) || (seatId !== null && !UUID.test(seatId)))
       reject(400, 'invalid_id');
     const actor = await this.teacher(request);
-    const result = await this.pool!.query<{ data: Record<string, unknown> | null }>(
-      action === 'read'
-        ? 'SELECT public.classroom_games_policy_read($1,$2,$3,$4) AS data'
-        : 'SELECT public.classroom_games_policy_write($1,$2,$3,$4,$5,$6::jsonb) AS data',
-      action === 'read'
-        ? [actor.principalId, actor.tenantId, classroomId, seatId]
-        : [actor.principalId, actor.tenantId, classroomId, seatId, action, JSON.stringify(input)],
-    );
-    const data = result.rows[0]?.data;
-    if (!data || data['error'] === 'forbidden') reject(403, 'forbidden');
-    if (data['error'] === 'version_conflict') reject(409, 'version_conflict');
-    if (data['error']) reject(400, 'invalid_policy');
-    return data;
+    const client = await this.pool!.connect();
+    try {
+      await client.query(
+        action === 'read' ? 'BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY' : 'BEGIN',
+      );
+      const result = await client.query<{ data: Record<string, unknown> | null }>(
+        action === 'read'
+          ? 'SELECT public.classroom_games_policy_read($1,$2,$3,$4) AS data'
+          : 'SELECT public.classroom_games_policy_write($1,$2,$3,$4,$5,$6::jsonb) AS data',
+        action === 'read'
+          ? [actor.principalId, actor.tenantId, classroomId, seatId]
+          : [actor.principalId, actor.tenantId, classroomId, seatId, action, JSON.stringify(input)],
+      );
+      const data = result.rows[0]?.data;
+      if (!data || data['error'] === 'forbidden') reject(403, 'forbidden');
+      if (data['error'] === 'version_conflict') reject(409, 'version_conflict');
+      if (data['error']) reject(400, 'invalid_policy');
+      if (seatId !== null) {
+        const snapshot = await client.query<{ data: GamesPolicySnapshot | null }>(
+          'SELECT public.classroom_games_teacher_seat_snapshot($1,$2,$3,$4) AS data',
+          [actor.principalId, actor.tenantId, classroomId, seatId],
+        );
+        await client.query('COMMIT');
+        return { ...data, admission: evaluateGamesAccess('chess', snapshot.rows[0]?.data ?? null) };
+      }
+      await client.query('COMMIT');
+      return data;
+    } catch (cause) {
+      await client.query('ROLLBACK');
+      throw cause;
+    } finally {
+      client.release();
+    }
   }
 
   @Get('classrooms/:classroomId/policy')
+  @Header('Cache-Control', 'private, no-store')
   readClass(@Req() req: FastifyRequest, @Param('classroomId') id: string) {
     return this.policy(req, id, null, 'read', null);
   }
 
   @Get('classrooms/:classroomId/seats/:seatId')
+  @Header('Cache-Control', 'private, no-store')
   readSeat(
     @Req() req: FastifyRequest,
     @Param('classroomId') id: string,

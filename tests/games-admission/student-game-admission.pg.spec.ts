@@ -4,6 +4,10 @@ import pg from 'pg';
 import { planMigrations } from '../../tools/migrate.mjs';
 import { applyIsolatedTestPlan } from '../migration/isolated-postgres-plan';
 import { storageContract } from './storage-contract';
+import { buildTestApp, type NestApp } from '../portal/app';
+import { httpContract } from './http-contract';
+import { listRevocationContract } from './reviewer-list-revocation';
+import { galleryGameCopyContract } from './reviewer-gallery-game-copy';
 
 // Opt-in only on isolated CI. Never silently use an application/dev DB URL.
 // Embedded tests above remain executable without any PostgreSQL service.
@@ -19,6 +23,8 @@ describe.skipIf(!enabled)(
     let admin: pg.Pool;
     let runtime: pg.Pool;
     let created = false;
+    let app: NestApp;
+    let runtimePassedToApp = false;
     beforeAll(async () => {
       const adminUrl = new URL(process.env['TEST_DATABASE_URL']!);
       const runtimeUrl = new URL(process.env['APP_TEST_DATABASE_URL']!);
@@ -33,22 +39,46 @@ describe.skipIf(!enabled)(
       await owner.query(`CREATE DATABASE "${databaseName}"`);
       created = true;
       adminUrl.pathname = runtimeUrl.pathname = '/' + databaseName;
-      admin = new pg.Pool({ connectionString: adminUrl.toString(), max: 2 });
+      admin = new pg.Pool({ connectionString: adminUrl.toString(), max: 3 });
       const client = await admin.connect();
       try {
         await applyIsolatedTestPlan(client, planMigrations());
       } finally {
         client.release();
       }
-      runtime = new pg.Pool({ connectionString: runtimeUrl.toString(), max: 2 });
+      runtime = new pg.Pool({ connectionString: runtimeUrl.toString(), max: 6 });
       expect((await runtime.query('SELECT current_user')).rows[0]?.current_user).toBe('asalab_app');
-    }, 60_000);
+      runtimePassedToApp = true;
+      app = await buildTestApp(runtime);
+    }, 120_000);
     afterAll(async () => {
-      await Promise.all([admin?.end(), runtime?.end()]);
-      if (created) await owner.query(`DROP DATABASE "${databaseName}"`);
-      await owner?.end();
+      // createApiApp owns an injected pool, including failed construction.
+      // End that runtime pool only when it was never handed to the application.
+      const results = await Promise.allSettled([
+        app?.close(),
+        admin?.end(),
+        runtimePassedToApp ? undefined : runtime?.end(),
+      ]);
+      try {
+        if (created) await owner.query(`DROP DATABASE "${databaseName}"`);
+      } catch (error) {
+        results.push({ status: 'rejected', reason: error });
+      } finally {
+        try {
+          await owner?.end();
+        } catch (error) {
+          results.push({ status: 'rejected', reason: error });
+        }
+      }
+      const errors = results
+        .filter((result): result is PromiseRejectedResult => result.status === 'rejected')
+        .map((result) => result.reason);
+      if (errors.length) throw new AggregateError(errors, 'Isolated games test cleanup failed');
     });
     const fixture = storageContract(() => ({ admin, runtime }));
+    httpContract(() => ({ admin, runtime, app }), fixture);
+    listRevocationContract(() => ({ admin, runtime, app }), fixture);
+    galleryGameCopyContract(() => ({ admin, runtime, app }), fixture);
     it('serializes competing initial updates on the existing class row', async () => {
       // Fresh class with no policy row, two actual runtime connections.
       const f = await fixture();

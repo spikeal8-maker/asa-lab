@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
+import { hashSessionToken } from '../../contexts/identity/dist/index.js';
 import { expect, it } from 'vitest';
 import { seedTeacher } from '../portal/helpers';
 import { evaluateGamesAccess, type GamesPolicySnapshot } from '../../apps/api/src/games-access';
@@ -46,7 +47,8 @@ export function storageContract(clients: () => { admin: SqlClient; runtime: SqlC
     ]);
     const principal = (await admin.query('SELECT id FROM principals WHERE seat_id=$1', [seatId]))
       .rows[0]!['id'] as string;
-    const hash = randomUUID().replaceAll('-', '').repeat(2);
+    const token = randomUUID().replaceAll('-', '').repeat(2);
+    const hash = hashSessionToken(token);
     await admin.query(
       `INSERT INTO classroom_seat_credentials(seat_id,credential_hash,version,last_request_id,issued_by_account_id)
       VALUES($1,$2,1,$3,$4)`,
@@ -99,6 +101,7 @@ export function storageContract(clients: () => { admin: SqlClient; runtime: SqlC
       seatId,
       principal,
       hash,
+      token,
       read,
       write,
       snapshot,
@@ -362,7 +365,14 @@ export function storageContract(clients: () => { admin: SqlClient; runtime: SqlC
     const functions = await f.admin.query(
       `SELECT proname,proconfig FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname LIKE 'classroom_games_%'`,
     );
-    expect(functions.rows).toHaveLength(4);
+    expect(functions.rows.map((row) => row['proname']).sort()).toEqual([
+      'classroom_games_admission_lock',
+      'classroom_games_admission_snapshot',
+      'classroom_games_policy_read',
+      'classroom_games_policy_write',
+      'classroom_games_teacher',
+      'classroom_games_teacher_seat_snapshot',
+    ]);
     for (const row of functions.rows)
       expect(row['proconfig']).toContain('search_path=pg_catalog, pg_temp');
   });

@@ -335,6 +335,17 @@ export class GalleryController {
     @Param('projectId') projectId: string,
     @Body() rawBody: unknown,
   ) {
+    // A selected StudentSeat cannot create Account personal work by carrying
+    // another cookie. Public viewing and Account-only copy keep their own ACL.
+    if (Object.prototype.hasOwnProperty.call(request.cookies, STUDENT_SESSION_COOKIE)) {
+      throw new HttpException(
+        error(
+          'account_context_required',
+          'Копирование в личные проекты доступно после выхода из ученического режима.',
+        ),
+        403,
+      );
+    }
     const viewer = await this.requireViewer(request);
     this.requireUuid(projectId, 'project');
     const shape = checkBodyShape(rawBody ?? {}, ['title']);
