@@ -128,6 +128,7 @@ components:
     - apps/web/src/electronics/testing/electronics-project-recovery.spec.ts
     - apps/web/src/electronics/testing/workbench-document.spec.ts
     - apps/api/src/electronics-save-validation.spec.ts
+    - tests/electronics/copy-identifiers.spec.ts
     - apps/web/src/electronics/testing/electronics-document-merge.spec.ts
     - apps/web/src/modules/testing/project-local-draft.spec.ts
     - e2e/electronics-simulation.spec.ts

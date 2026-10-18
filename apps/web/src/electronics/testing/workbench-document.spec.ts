@@ -462,26 +462,71 @@ describe('Electronics M1 editor document operations', () => {
         .filter((item) => selection.ids.includes(item.id))
         .every((item) => item.rotation === 45),
     ).toBe(true);
-    const duplicated = duplicateComponentInDocument(
-      rotated as SchematicDocument,
-      selection,
-      'copy',
-    );
+    const duplicated = duplicateComponentInDocument(rotated as SchematicDocument, selection);
     expect(duplicated?.document.components).toHaveLength(10);
     expect(duplicated?.document.connections).toHaveLength(3);
-    expect(duplicated?.components.map((item) => item.id)).toEqual(['copy-1', 'copy-2']);
-    const copiedWire = duplicated?.document.connections.find((wire) => wire.id === 'copy-wire-1');
-    expect(copiedWire?.from.componentId).toBe('copy-1');
-    expect(copiedWire?.to.componentId).toBe('copy-2');
+    const copiedIds = duplicated!.components.map((item) => item.id);
+    expect(new Set(copiedIds).size).toBe(2);
+    const copiedWire = duplicated?.document.connections.find(
+      (wire) => !document.connections.some((original) => original.id === wire.id),
+    );
+    expect(copiedWire?.from.componentId).toBe(copiedIds[0]);
+    expect(copiedWire?.to.componentId).toBe(copiedIds[1]);
     expect(copiedWire?.vertices).toEqual([{ x: 361, y: 250 }]);
     expect(
       duplicated?.document.connections.some(
-        (wire) => wire.from.componentId.startsWith('copy-') && wire.to.componentId === 'led',
+        (wire) => copiedIds.includes(wire.from.componentId) && wire.to.componentId === 'led',
       ),
     ).toBe(false);
     const removed = removeSelectionFromDocument(document, selection);
     expect(removed.components.some((item) => selection.ids.includes(item.id))).toBe(false);
     expect(removed.connections).toHaveLength(0);
+  });
+
+  it('keeps fifty generations of connected copies valid after serialization and reopen', () => {
+    const firstId = 'a'.repeat(64);
+    const secondId = 'b'.repeat(64);
+    let document: SchematicDocument = {
+      ...EMPTY,
+      components: [
+        {
+          id: firstId,
+          kind: 'resistor',
+          name: 'R'.repeat(120),
+          value: 1000,
+          position: { x: 0, y: 0 },
+        },
+        { id: secondId, kind: 'led', value: 2, position: { x: 100, y: 0 } },
+      ],
+      connections: [
+        {
+          id: 'w'.repeat(64),
+          from: { componentId: firstId, terminal: 'a' },
+          to: { componentId: secondId, terminal: 'a' },
+        },
+      ],
+    };
+    const original = structuredClone(document);
+    let selection = { kind: 'component' as const, id: firstId, ids: [firstId, secondId] };
+    for (let generation = 0; generation < 50; generation += 1) {
+      const before = structuredClone(document);
+      const duplicated = duplicateComponentInDocument(document, selection)!;
+      expect(document).toEqual(before);
+      const ids = duplicated.components.map((item) => item.id);
+      const copiedWire = duplicated.document.connections.at(-1)!;
+      expect(copiedWire.from.componentId).toBe(ids[0]);
+      expect(copiedWire.to.componentId).toBe(ids[1]);
+      expect([...ids, copiedWire.id].every((id) => id.length <= 64)).toBe(true);
+      document = JSON.parse(JSON.stringify(duplicated.document)) as SchematicDocument;
+      expect(parseElectronicsDocument(document).ok).toBe(true);
+      selection = { kind: 'component', id: ids[0]!, ids };
+    }
+    expect(document.components).toHaveLength(102);
+    expect(document.connections).toHaveLength(51);
+    expect(new Set(document.components.map((item) => item.id)).size).toBe(102);
+    expect(new Set(document.connections.map((item) => item.id)).size).toBe(51);
+    expect(document.components.slice(0, 2)).toEqual(original.components);
+    expect(document.connections[0]).toEqual(original.connections[0]);
   });
 
   it('rotates a non-square component by 45 degrees around its unchanged centre', () => {
