@@ -107,7 +107,7 @@ parallel_lanes:
       owner_acceptance: pending
       change_class: L3_CRITICAL
       owner_authorization: >-
-        Owner instruction on 2026-10-19 explicitly continues Issue618 and existing
+        Owner instruction on 2026-10-18 explicitly continues Issue618 and existing
         PR621/622/624/626 through independent executor/reviewer work, actual tests,
         ordinary merge of accepted changes to main, and a backed-up review582
         preview on 127.0.0.1:4620. Installation4610 is excluded.
