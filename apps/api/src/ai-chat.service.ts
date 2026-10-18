@@ -7,6 +7,7 @@ export type AiModel = 'gpt-5-mini' | 'gpt-4.1-mini' | 'deepseek-chat';
 
 export interface AiAdminConfig {
   readonly enabled: boolean;
+  readonly paidOperationsPerHour: number;
   readonly provider: AiProvider;
   readonly model: AiModel;
   readonly apiKeyConfigured: boolean;
@@ -18,6 +19,7 @@ export interface AiAdminConfig {
 
 export interface AiAdminUpdate {
   readonly enabled: boolean;
+  readonly paidOperationsPerHour?: number;
   readonly provider: AiProvider;
   readonly model: AiModel;
   readonly apiKey?: string;
@@ -51,6 +53,7 @@ export interface AiPage<T> {
 
 interface AdminRow {
   readonly enabled: boolean;
+  readonly paid_operations_per_hour: number;
   readonly provider: AiProvider;
   readonly model: AiModel;
   readonly api_key_configured: boolean;
@@ -61,6 +64,7 @@ interface AdminRow {
 
 interface RuntimeRow {
   readonly enabled: boolean;
+  readonly configuration_version: string | number;
   readonly provider: AiProvider;
   readonly model: AiModel;
   readonly api_key_ciphertext: string | null;
@@ -146,6 +150,7 @@ export class AiChatService {
     if (!row) throw new AiServiceError('ai_config_unavailable', 503, 'Настройки ИИ недоступны.');
     return {
       enabled: row.enabled,
+      paidOperationsPerHour: row.paid_operations_per_hour ?? 0,
       provider: row.provider,
       model: row.model,
       apiKeyConfigured: row.api_key_configured,
@@ -161,6 +166,18 @@ export class AiChatService {
     input: AiAdminUpdate,
     requestId: string,
   ): Promise<AiAdminConfig> {
+    if (
+      input.paidOperationsPerHour !== undefined &&
+      (!Number.isInteger(input.paidOperationsPerHour) ||
+        input.paidOperationsPerHour < 0 ||
+        input.paidOperationsPerHour > 2147483647)
+    ) {
+      throw new AiServiceError(
+        'ai_config_invalid',
+        400,
+        'Лимит должен быть целым числом от 0 до 2147483647.',
+      );
+    }
     if (!validModel(input.provider, input.model)) {
       throw new AiServiceError('ai_model_invalid', 400, 'Модель не соответствует провайдеру.');
     }
@@ -201,18 +218,22 @@ export class AiChatService {
     const encrypted = candidate ? this.encrypt(candidate) : null;
     const action = input.clearApiKey ? 'clear' : encrypted ? 'replace' : 'keep';
     try {
-      await this.pool.query('SELECT ai_admin_set_config($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)', [
-        principalId,
-        input.enabled,
-        input.provider,
-        input.model,
-        action,
-        encrypted?.ciphertext ?? null,
-        encrypted?.iv ?? null,
-        encrypted?.tag ?? null,
-        encrypted?.fingerprint ?? null,
-        requestId,
-      ]);
+      await this.pool.query(
+        'SELECT ai_admin_set_config($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::integer)',
+        [
+          principalId,
+          input.enabled,
+          input.provider,
+          input.model,
+          action,
+          encrypted?.ciphertext ?? null,
+          encrypted?.iv ?? null,
+          encrypted?.tag ?? null,
+          encrypted?.fingerprint ?? null,
+          requestId,
+          input.paidOperationsPerHour ?? null,
+        ],
+      );
     } catch (problem) {
       if ((problem as { code?: string }).code === '42501') {
         throw new AiServiceError('ai_admin_denied', 403, 'Нет доступа к настройкам ИИ.');
@@ -254,6 +275,19 @@ export class AiChatService {
     }
     const started = Date.now();
     try {
+      // SQL rechecks the real platform-admin role and configuration version,
+      // then durably reserves from the same quota used by chat admission.
+      const admission = await this.pool.query<{ admitted: boolean }>(
+        'SELECT ai_admin_test_begin($1,$2::bigint) AS admitted',
+        [principalId, expectedVersion],
+      );
+      if (admission.rows[0]?.admitted !== true) {
+        throw new AiServiceError(
+          'ai_admission_unavailable',
+          503,
+          'Допуск платной операции не подтверждён.',
+        );
+      }
       const result = await streamProviderText({
         fetchImpl: this.fetchImpl,
         provider: runtime.provider,
@@ -272,6 +306,7 @@ export class AiChatService {
         );
       }
     } catch (problem) {
+      this.rethrowAdmissionError(problem);
       if (problem instanceof ProviderStreamError) {
         throw new AiServiceError(problem.code, problem.status, problem.message);
       }
@@ -466,8 +501,8 @@ export class AiChatService {
     let accepted: boolean;
     try {
       const admitted = await this.pool.query<{ admitted: boolean }>(
-        'SELECT ai_chat_begin($1,$2,$3,$4::varchar) AS admitted',
-        [principalId, threadId, requestId, prompt],
+        'SELECT ai_chat_begin_paid($1,$2,$3,$4::varchar,$5::bigint) AS admitted',
+        [principalId, threadId, requestId, prompt, runtime.configuration_version],
       );
       accepted = admitted.rows[0]?.admitted === true;
     } catch (problem) {
@@ -478,6 +513,7 @@ export class AiChatService {
         throw new AiServiceError('ai_input_invalid', 400, 'Сообщение слишком длинное.');
       }
       const message = (problem as Error).message;
+      this.rethrowAdmissionError(problem);
       if (message.includes('AI_RATE_LIMIT')) {
         throw new AiServiceError('ai_rate_limit', 429, 'Лимит: 30 сообщений в час на аккаунт.');
       }
@@ -569,13 +605,14 @@ export class AiChatService {
     let admitted: boolean;
     try {
       const result = await this.pool.query<{ admitted: boolean }>(
-        'SELECT ai_chat_begin($1,$2,$3,$4::varchar) AS admitted',
-        [principalId, threadId, requestId, prompt],
+        'SELECT ai_chat_begin_paid($1,$2,$3,$4::varchar,$5::bigint) AS admitted',
+        [principalId, threadId, requestId, prompt, runtime.configuration_version],
       );
       admitted = result.rows[0]?.admitted === true;
     } catch (problem) {
       const code = (problem as { code?: string }).code;
       const message = (problem as Error).message;
+      this.rethrowAdmissionError(problem);
       if (code === '42501') {
         throw new AiServiceError('ai_access_denied', 403, 'Доступ к диалогу запрещён.');
       }
@@ -685,6 +722,31 @@ export class AiChatService {
     const row = result.rows[0];
     if (!row) throw new AiServiceError('ai_config_unavailable', 503, 'Конфигурация ИИ недоступна.');
     return row;
+  }
+
+  private rethrowAdmissionError(problem: unknown): void {
+    const message = problem instanceof Error ? problem.message : '';
+    if (message.includes('AI_DISABLED')) {
+      throw new AiServiceError(
+        'ai_disabled',
+        503,
+        'ИИ не подключён. Настройте провайдера в админке.',
+      );
+    }
+    if (message.includes('AI_PLATFORM_QUOTA_EXHAUSTED')) {
+      throw new AiServiceError(
+        'ai_platform_quota_exhausted',
+        429,
+        'Общий лимит платных ИИ-операций за час исчерпан или равен 0. Обратитесь к администратору платформы.',
+      );
+    }
+    if (message.includes('AI_CONFIG_CHANGED')) {
+      throw new AiServiceError(
+        'ai_config_changed',
+        409,
+        'Настройки изменились. Перезагрузите страницу.',
+      );
+    }
   }
 
   private encrypt(secret: string): {

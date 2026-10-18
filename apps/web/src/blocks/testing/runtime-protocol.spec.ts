@@ -36,6 +36,43 @@ function makeBridge(target = makeTarget(), onFatal = vi.fn(), onMessage = vi.fn(
 }
 
 describe('BlocksRuntimeBridge', () => {
+  it('accepts only bound finite save-failure status payloads and rejects private/free-form data', () => {
+    const { bridge, target } = makeBridge();
+    const data = {
+      protocolVersion: 1,
+      messageType: 'ASA_BLOCKS_STATUS',
+      projectId: PROJECT_ID,
+      sessionNonce: bridge.sessionNonce,
+      status: 'save-failed',
+      failureCode: 'scratch-save-draft',
+      durationMs: 123,
+      httpStatus: 503,
+      relatedRequestId: '10000000-0000-4000-8000-000000000001',
+    };
+    const event = { source: target, origin: RUNTIME_ORIGIN, data };
+    expect(bridge.acceptChildMessage(event)).toBe(true);
+    for (const change of [
+      { failureCode: 'private exception text' },
+      { failureCode: undefined },
+      { durationMs: undefined },
+      { durationMs: -1 },
+      { durationMs: 600001 },
+      { durationMs: NaN },
+      { durationMs: 0.5 },
+      { httpStatus: 0 },
+      { httpStatus: 600 },
+      { relatedRequestId: 'https://private/?token=secret' },
+      { token: 'secret' },
+      { document: { secret: true } },
+      { generation: 1 },
+      { sessionNonce: 'old' },
+      { projectId: 'foreign' },
+      { protocolVersion: 2 },
+    ])
+      expect(bridge.acceptChildMessage({ ...event, data: { ...data, ...change } })).toBe(false);
+    expect(bridge.acceptChildMessage({ ...event, source: {} })).toBe(false);
+    expect(bridge.acceptChildMessage({ ...event, origin: 'https://evil.test' })).toBe(false);
+  });
   it('accepts activity only from the exact frame/origin/binding with an exact empty payload', () => {
     const { bridge, target } = makeBridge();
     const data = {

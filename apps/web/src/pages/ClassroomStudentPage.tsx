@@ -97,6 +97,7 @@ export function ClassroomStudentPage({
   const [works, setWorks] = useState<ParticipantWorks | null>(null);
   const [worksError, setWorksError] = useState<string | null>(null);
   const [workLoading, setWorkLoading] = useState(false);
+  const workRequest = useRef(0);
   const [modules, setModules] = useState<readonly ModuleSummary[]>([]);
   const [responding, setResponding] = useState<ClassroomStudentWork | null>(null);
   const [onlyAwaiting, setOnlyAwaiting] = useState(false);
@@ -104,6 +105,7 @@ export function ClassroomStudentPage({
   const [roleBusy, setRoleBusy] = useState(false);
   const generation = useRef(0);
   const profileGeneration = useRef(0);
+  const sessionEnded = useRef(false);
   const lastClassroomId = useRef(classroomId);
   const scope = useRef('');
   scope.current = `${classroomId}:${seatId}`;
@@ -111,7 +113,7 @@ export function ClassroomStudentPage({
   const module = TABS.find((t) => t.key === tab)?.module ?? null;
   const showsWorks = !['assignments', 'merits', 'grades', 'activity'].includes(tab);
   const load = useCallback(async () => {
-    if (scope.current !== `${classroomId}:${seatId}`) return;
+    if (sessionEnded.current || scope.current !== `${classroomId}:${seatId}`) return;
     const token = ++profileGeneration.current;
     setProfileError(null);
     // Same-scope refresh must not unmount active forms or restart the awards panel.
@@ -152,6 +154,7 @@ export function ClassroomStudentPage({
     };
     window.addEventListener('focus', refresh);
     const unsubscribe = onSessionLoggedOut(() => {
+      sessionEnded.current = true;
       profileGeneration.current++;
       generation.current++;
       setProfile(null);
@@ -177,12 +180,13 @@ export function ClassroomStudentPage({
   }, []);
   const loadWorks = useCallback(
     async (offset = 0) => {
-      if (scope.current !== `${classroomId}:${seatId}`) return;
+      if (sessionEnded.current || scope.current !== `${classroomId}:${seatId}`) return;
       const token = ++generation.current;
       setWorkLoading(true);
+      workRequest.current = offset;
       setWorksError(null);
       const result = await participantsApi.works(classroomId, seatId, module, archive, offset);
-      if (generation.current !== token) return;
+      if (generation.current !== token || scope.current !== `${classroomId}:${seatId}`) return;
       setWorkLoading(false);
       if (result.ok)
         setWorks((old) =>
@@ -195,7 +199,13 @@ export function ClassroomStudentPage({
               }
             : result.data,
         );
-      else setWorksError(result.error.message);
+      else {
+        if ([401, 403, 404].includes(result.status)) {
+          setWorks(null);
+          workRequest.current = 0;
+        }
+        setWorksError(result.error.message);
+      }
     },
     [classroomId, seatId, module, archive, tab],
   );
@@ -207,13 +217,62 @@ export function ClassroomStudentPage({
     };
   }, [loadWorks, showsWorks]);
 
+  const navigationRow = (
+    <div className="classroom-student-navrow">
+      <button
+        type="button"
+        className="classroom-student-back"
+        onClick={onBack}
+        title={classroomTitle}
+      >
+        ← К классу
+      </button>
+      {navigation ? (
+        <nav className="classroom-student-navigation" aria-label="Переход по ученикам">
+          <button
+            type="button"
+            aria-label={`Предыдущий ученик: ${navigation.previous.displayLabel}`}
+            title={navigation.previous.displayLabel}
+            disabled={navigation.total < 2}
+            onClick={() => onNavigateStudent(navigation.previous.id)}
+          >
+            <span aria-hidden="true">←</span>
+            <span className="student-pager-desktop">Предыдущий</span>
+          </button>
+          <span
+            className="classroom-student-navigation-position"
+            aria-label={`Ученик ${navigation.position} из ${navigation.total}`}
+          >
+            {navigation.position}/{navigation.total}
+          </span>
+          <button
+            type="button"
+            aria-label={`Следующий ученик: ${navigation.next.displayLabel}`}
+            title={navigation.next.displayLabel}
+            disabled={navigation.total < 2}
+            onClick={() => onNavigateStudent(navigation.next.id)}
+          >
+            <span className="student-pager-desktop">Следующий</span>
+            <span aria-hidden="true">→</span>
+          </button>
+        </nav>
+      ) : null}
+    </div>
+  );
   if (!profile || profile.student.id !== seatId || loadedScope !== `${classroomId}:${seatId}`)
     return (
       <main className="portal-content classroom-student" id="main-content" tabIndex={-1}>
+        {navigationRow}
         {profileError ? (
           <section role="alert">
             <p>{profileError}</p>
-            <button type="button" onClick={() => void load()}>
+            <button
+              type="button"
+              onClick={() => {
+                sessionEnded.current = false;
+                void load();
+              }}
+            >
               Повторить
             </button>
             <button type="button" onClick={onBack}>
@@ -235,14 +294,7 @@ export function ClassroomStudentPage({
   );
   return (
     <main className="portal-content classroom-student" id="main-content" tabIndex={-1}>
-      <button
-        type="button"
-        className="classroom-student-back"
-        onClick={onBack}
-        title={classroomTitle}
-      >
-        ← К классу
-      </button>
+      {navigationRow}
       <section className="classroom-student-hero participant-hero" aria-label="Профиль ученика">
         <div className="classroom-student-heading-row">
           <div className="classroom-student-person">
@@ -250,8 +302,8 @@ export function ClassroomStudentPage({
               className="classroom-student-avatar"
               src={metrics.avatarUrl ?? seatAvatar(student.id, student.avatarKey).src}
               alt=""
-              width={56}
-              height={56}
+              width={48}
+              height={48}
             />
             <div className="classroom-student-identity">
               <h1>{student.displayLabel}</h1>
@@ -260,44 +312,6 @@ export function ClassroomStudentPage({
               ) : null}
             </div>
           </div>
-          {navigation ? (
-            <nav className="classroom-student-navigation" aria-label="Переход по ученикам">
-              <button
-                type="button"
-                className="classroom-student-navigation-button"
-                aria-label={`Предыдущий ученик: ${navigation.previous.displayLabel}`}
-                title={`Предыдущий ученик: ${navigation.previous.displayLabel}`}
-                disabled={navigation.total < 2}
-                onClick={() => onNavigateStudent(navigation.previous.id)}
-              >
-                <span className="classroom-student-navigation-label">
-                  <span className="student-pager-desktop">← Предыдущий ученик</span>
-                  <span className="student-pager-mobile">← Предыдущий</span>
-                </span>
-                <small>{navigation.previous.displayLabel}</small>
-              </button>
-              <span
-                className="classroom-student-navigation-position"
-                aria-label={`Ученик ${navigation.position} из ${navigation.total}`}
-              >
-                {navigation.position}/{navigation.total}
-              </span>
-              <button
-                type="button"
-                className="classroom-student-navigation-button"
-                aria-label={`Следующий ученик: ${navigation.next.displayLabel}`}
-                title={`Следующий ученик: ${navigation.next.displayLabel}`}
-                disabled={navigation.total < 2}
-                onClick={() => onNavigateStudent(navigation.next.id)}
-              >
-                <span className="classroom-student-navigation-label">
-                  <span className="student-pager-desktop">Следующий ученик →</span>
-                  <span className="student-pager-mobile">Следующий →</span>
-                </span>
-                <small>{navigation.next.displayLabel}</small>
-              </button>
-            </nav>
-          ) : null}
         </div>
         <div className="classroom-student-meta-row">
           <div className="participant-main-stats" aria-label="Показатели ученика">
@@ -333,7 +347,9 @@ export function ClassroomStudentPage({
                       if (r.ok) await load();
                       else setProfileError(r.error.message);
                     })
-                    .finally(() => setRoleBusy(false));
+                    .finally(() => {
+                      if (scope.current === `${classroomId}:${seatId}`) setRoleBusy(false);
+                    });
                 }}
               >
                 <option value="student">Учащийся</option>
@@ -342,11 +358,9 @@ export function ClassroomStudentPage({
             </label>
             <div className="classroom-student-badges">
               <SeatAwardRow keys={awardKeys} size="small" />
-              {student.safeMode ? (
-                <span title="Безопасный режим включён" className="classroom-student-safety">
-                  Защита
-                </span>
-              ) : null}
+              <span className="classroom-student-safety">
+                Защита {student.safeMode ? 'включена' : 'выключена'}
+              </span>
             </div>
           </div>
         </div>
@@ -356,6 +370,7 @@ export function ClassroomStudentPage({
         classroomId={classroomId}
         seatId={seatId}
         compact
+        variant="teacherProfile"
       />
       {metrics.role === 'helper' ? (
         <section className="participant-helper-classes" aria-label="Классы помощника">
@@ -382,7 +397,29 @@ export function ClassroomStudentPage({
           </button>
         </p>
       ) : null}
-      <nav className="participant-tabs" aria-label="Разделы профиля">
+      <nav
+        className="participant-tabs"
+        aria-label="Разделы профиля"
+        onFocus={(event) => {
+          // Native focus may leave a partly visible button clipped in a local
+          // scroller. Reveal its full label for Tab and arrow/Home/End users.
+          if (event.target instanceof HTMLButtonElement)
+            event.target.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+        }}
+        onKeyDown={(event) => {
+          const buttons = Array.from(event.currentTarget.querySelectorAll('button'));
+          const index = buttons.indexOf(event.target as HTMLButtonElement);
+          if (index < 0 || !['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+          event.preventDefault();
+          const next =
+            event.key === 'Home'
+              ? 0
+              : event.key === 'End'
+                ? buttons.length - 1
+                : (index + (event.key === 'ArrowRight' ? 1 : -1) + buttons.length) % buttons.length;
+          buttons[next]?.focus();
+        }}
+      >
         {TABS.map((item) => (
           <button
             type="button"
@@ -412,7 +449,7 @@ export function ClassroomStudentPage({
               aria-pressed={onlyAwaiting}
               onClick={() => setOnlyAwaiting(!onlyAwaiting)}
             >
-              {onlyAwaiting ? 'Показать все' : 'Ждут проверки'}
+              {onlyAwaiting ? 'Все загруженные' : 'Ждут проверки · среди загруженных'}
             </button>
           </div>
           {works && works.visibleWorks < works.totalWorks ? (
@@ -424,14 +461,18 @@ export function ClassroomStudentPage({
           {worksError ? (
             <p role="alert">
               {worksError}{' '}
-              <button type="button" onClick={() => void loadWorks(works?.offset ?? 0)}>
+              <button type="button" onClick={() => void loadWorks(workRequest.current)}>
                 Повторить
               </button>
             </p>
           ) : null}
           {workLoading ? <p role="status">Загружаем работы…</p> : null}
           {works && !workLoading && !worksError && visible.length === 0 ? (
-            <p className="classroom-student-empty">Нет доступных работ по этому фильтру.</p>
+            <p className="classroom-student-empty">
+              {onlyAwaiting
+                ? `Среди загруженных работ нет ожидающих проверки.${works.hasMore ? ' Загрузите ещё работы.' : ''}`
+                : 'Нет доступных работ по этому фильтру.'}
+            </p>
           ) : null}
           <ul className="project-card-grid">
             {visible.map((work) => (
@@ -516,6 +557,7 @@ export function ClassroomStudentPage({
           key={`${classroomId}:${seatId}`}
           classroomId={classroomId}
           seatId={seatId}
+          variant="teacherProfile"
         />
       ) : null}
       {tab === 'activity' ? (

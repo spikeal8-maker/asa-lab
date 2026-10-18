@@ -1,6 +1,6 @@
 name: ASA AI Chat Focused
 
-"on":
+'on':
   push:
     branches:
       - feature/ai-chat-gpt-integration-20261014
@@ -11,11 +11,15 @@ name: ASA AI Chat Focused
       - 'apps/api/src/tokens.ts'
       - 'apps/web/src/ai/**'
       - 'apps/web/src/admin/AdminAiPage.tsx'
+      - 'apps/web/src/admin/testing/ai-platform-quota.spec.ts'
       - 'apps/web/src/admin/admin-navigation.ts'
       - 'apps/web/src/App.tsx'
       - 'e2e/ai-chat.spec.ts'
       - 'migrations/0214_ai_assistant_text_chat.sql'
+      - 'migrations/0215_ai_platform_paid_operation_quota.sql'
       - 'tests/admin/ai-chat.pg.spec.ts'
+      - 'tests/admin/ai-platform-quota*.spec.ts'
+      - 'tests/admin/ai-postgres-suite-lock.ts'
       - 'playwright.ai-chat.config.ts'
       - '.github/workflows/ai-chat-focused.yml'
 
@@ -46,9 +50,9 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - name: AI Chat unit regression
-        run: pnpm exec vitest run apps/api/src/ai-chat.service.spec.ts apps/api/src/ai-provider-stream.spec.ts apps/web/src/ai/stream-ai-request.spec.ts
+        run: pnpm exec vitest run apps/api/src/ai-chat.service.spec.ts apps/api/src/ai-provider-stream.spec.ts apps/web/src/ai/stream-ai-request.spec.ts apps/api/src/ai-platform-quota.spec.ts apps/web/src/admin/testing/ai-platform-quota.spec.ts tests/admin/ai-platform-quota.embedded.spec.ts
       - name: No unformatted files
-        run: pnpm exec prettier --check apps/api/src/ai-* apps/web/src/ai e2e/ai-chat.spec.ts tests/admin/ai-chat.pg.spec.ts
+        run: pnpm exec prettier --check apps/api/src/ai-* apps/web/src/ai apps/web/src/admin/testing/ai-platform-quota.spec.ts e2e/ai-chat.spec.ts tests/admin/ai-chat.pg.spec.ts tests/admin/ai-platform-quota*.spec.ts tests/admin/ai-postgres-suite-lock.ts
       - name: API TypeScript
         run: pnpm exec nx run api:typecheck --skip-nx-cache
       - name: Web TypeScript
@@ -99,7 +103,7 @@ jobs:
       - name: Build API identity contracts
         run: pnpm exec nx run-many -t build -p identity api --skip-nx-cache
       - name: AI cross-account security and provider persistence
-        run: pnpm exec vitest run tests/admin/ai-chat.pg.spec.ts
+        run: pnpm exec vitest run tests/admin/ai-chat.pg.spec.ts tests/admin/ai-platform-quota.pg.spec.ts
 
   browser:
     name: AI desktop and mobile browser

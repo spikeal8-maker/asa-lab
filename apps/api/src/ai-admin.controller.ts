@@ -112,10 +112,15 @@ export class AiAdminController {
     const enabled = value['enabled'];
     const clearApiKey = value['clearApiKey'];
     const apiKey = value['apiKey'];
+    const paidOperationsPerHour = value['paidOperationsPerHour'];
     if (
       (provider !== 'openai' && provider !== 'deepseek') ||
       (model !== 'gpt-5-mini' && model !== 'gpt-4.1-mini' && model !== 'deepseek-chat') ||
       typeof enabled !== 'boolean' ||
+      (paidOperationsPerHour !== undefined &&
+        (!Number.isInteger(paidOperationsPerHour) ||
+          Number(paidOperationsPerHour) < 0 ||
+          Number(paidOperationsPerHour) > 2147483647)) ||
       (clearApiKey !== undefined && typeof clearApiKey !== 'boolean') ||
       (apiKey !== undefined && typeof apiKey !== 'string')
     ) {
@@ -128,6 +133,7 @@ export class AiAdminController {
           provider: provider as AiProvider,
           model: model as AiModel,
           enabled,
+          ...(typeof paidOperationsPerHour === 'number' ? { paidOperationsPerHour } : {}),
           ...(typeof apiKey === 'string' ? { apiKey } : {}),
           ...(typeof clearApiKey === 'boolean' ? { clearApiKey } : {}),
         },

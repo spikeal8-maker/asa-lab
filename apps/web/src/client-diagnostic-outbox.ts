@@ -27,6 +27,9 @@ export const FAILURE_CATEGORIES = [
   'technical',
 ] as const;
 export const FAILURE_CODES = [
+  'scratch-save-asset',
+  'scratch-save-draft',
+  'scratch-save-prepare',
   'worker-start',
   'worker-runtime',
   'worker-message',
@@ -102,6 +105,10 @@ function valid(value: unknown, now: number): value is Envelope {
       FAILURE_CATEGORIES.includes(v.category as (typeof FAILURE_CATEGORIES)[number])) &&
     (v.failureCode === undefined ||
       FAILURE_CODES.includes(v.failureCode as (typeof FAILURE_CODES)[number])) &&
+    (!['scratch-save-asset', 'scratch-save-draft', 'scratch-save-prepare'].includes(
+      v.failureCode as string,
+    ) ||
+      (v.code === 'autosave_failed' && v.module === 'scratch' && v.phase === 'save')) &&
     (v.script === undefined || (typeof v.script === 'string' && ASSET_SCRIPT.test(v.script))) &&
     ['line', 'column'].every(
       (k) =>

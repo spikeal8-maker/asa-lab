@@ -73,6 +73,7 @@
     onReady,
     onDirty,
     onActivity,
+    onSaveFailure,
     onThumbnailReady,
     onHomeRequest,
   }) {
@@ -132,6 +133,9 @@
         getProjectAssets: () => vm?.assets ?? [],
         onProjectDurable: ({ savedGeneration }) => {
           void recoveryController?.durable(savedGeneration);
+        },
+        onSaveFailure: (detail) => {
+          if (!disposed) onSaveFailure?.(detail);
         },
         onSaveCompletedStale: () => {
           globalThis.setTimeout(() => {

@@ -1,6 +1,11 @@
 (() => {
   const unavailable = (code = 'runtime_asset_unavailable') =>
     Object.assign(new Error(code), { code });
+  const requestFailure = (code, response) =>
+    Object.assign(unavailable(code), {
+      status: response?.status,
+      relatedRequestId: response?.headers?.get?.('x-request-id'),
+    });
   const formatsByType = {
     ImageVector: ['svg'],
     ImageBitmap: ['png', 'jpg', 'jpeg'],
@@ -257,6 +262,26 @@
 
     const saveFailureReason = (error) =>
       typeof error?.code === 'string' && error.code.length > 0 ? error.code : 'save_failed';
+    const reportSaveFailure = (failureCode, error, started) => {
+      if (disposed) return;
+      try {
+        const status = typeof error === 'number' ? error : error?.status;
+        const requestId = error?.relatedRequestId;
+        options.onSaveFailure?.({
+          failureCode,
+          durationMs: Math.max(0, Math.min(600000, Date.now() - started)),
+          ...(Number.isInteger(status) && status >= 100 && status <= 599
+            ? { httpStatus: status }
+            : {}),
+          ...(typeof requestId === 'string' &&
+          /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(requestId)
+            ? { relatedRequestId: requestId }
+            : {}),
+        });
+      } catch {
+        // Diagnostic observers must never alter the actual save outcome.
+      }
+    };
     const publishUpstreamSaveOutcome = (outcome) => {
       upstreamSaveSequence += 1;
       latestUpstreamSaveOutcome = Object.freeze({ sequence: upstreamSaveSequence, ...outcome });
@@ -350,6 +375,7 @@
         drainUpstreamAssetStoreQueue();
       });
     scratchStorage.store = async (assetType, dataFormat, data, assetId) => {
+      const started = Date.now();
       const format = dataFormat || assetType?.runtimeFormat;
       if (
         !validTypeAndFormat(assetType, format) ||
@@ -358,7 +384,9 @@
         data.BYTES_PER_ELEMENT !== 1 ||
         data.byteLength < 1
       ) {
-        throw unavailable('asset_write_failed');
+        const error = unavailable('asset_write_failed');
+        reportSaveFailure('scratch-save-asset', error, started);
+        throw error;
       }
       const generation = options.getProjectGeneration?.();
       if (upstreamSaveGeneration === null && Number.isSafeInteger(generation)) {
@@ -407,6 +435,7 @@
             savedGeneration: failedGeneration,
             latestGeneration: options.getProjectGeneration?.(),
           });
+          reportSaveFailure('scratch-save-asset', error, started);
         }
         throw error;
       }
@@ -492,7 +521,7 @@
 
       if (!response.ok || response.redirected) {
         if (response.status === 409) {
-          let payload = null;
+          let payload;
           try {
             payload = await response.json();
           } catch {
@@ -500,26 +529,26 @@
           }
           unresolvedMutation = null;
           if (payload?.error?.code === 'project_revision_conflict') {
-            throw unavailable('revision_conflict');
+            throw requestFailure('revision_conflict', response);
           }
-          throw unavailable('draft_write_failed');
+          throw requestFailure('draft_write_failed', response);
         }
         if (response.status < 500 && !reconciliation) unresolvedMutation = null;
-        throw unavailable('draft_write_failed');
+        throw requestFailure('draft_write_failed', response);
       }
 
       let payload;
       try {
         payload = await response.json();
       } catch {
-        throw unavailable('draft_write_failed');
+        throw requestFailure('draft_write_failed', response);
       }
       if (
         payload?.status !== 'ok' ||
         !Number.isSafeInteger(payload.revision) ||
         payload.revision <= mutation.baseRevision
       ) {
-        throw unavailable('draft_revision_invalid');
+        throw requestFailure('draft_revision_invalid', response);
       }
       return payload.revision;
     };
@@ -822,19 +851,25 @@
       },
       waitForUpstreamSaveAfter,
       async saveProject(projectId, vmState) {
+        const started = Date.now();
+        const failPreparation = (code) => {
+          const error = unavailable(code);
+          reportSaveFailure('scratch-save-prepare', error, started);
+          throw error;
+        };
         if (disposed) throw unavailable('storage_disposed');
         if (options.canSave === false) throw unavailable('runtime_storage_read_only');
         const isManagedReset = projectId === null || typeof projectId === 'undefined';
         if (!isManagedReset && String(projectId) !== String(options.projectId ?? '')) {
-          throw unavailable('project_identity_mismatch');
+          failPreparation('project_identity_mismatch');
         }
-        if (typeof vmState !== 'string') throw unavailable('project_document_invalid');
+        if (typeof vmState !== 'string') failPreparation('project_document_invalid');
 
         let projectJson;
         try {
           projectJson = JSON.parse(vmState);
         } catch {
-          throw unavailable('project_document_invalid');
+          failPreparation('project_document_invalid');
         }
 
         const currentGeneration = options.getProjectGeneration?.();
@@ -842,8 +877,10 @@
           ? upstreamSaveGeneration
           : currentGeneration;
         const saveSequenceAtStart = upstreamSaveSequence;
+        let failureCode = 'scratch-save-prepare';
         try {
           const projectReferences = referencedProjectAssets(projectJson);
+          failureCode = 'scratch-save-asset';
           await prepareMissingProjectAssets(projectReferences);
           if (disposed) throw unavailable('storage_disposed');
           const references = projectReferences.map((reference) => {
@@ -851,6 +888,7 @@
             if (!durable) throw unavailable('asset_reference_missing');
             return durable;
           });
+          failureCode = 'scratch-save-draft';
           const revision = await persistCanonicalDocument(projectJson, references);
           const generationAtEnd = options.getProjectGeneration?.();
           if (Number.isSafeInteger(generationAtStart)) {
@@ -893,6 +931,7 @@
               savedGeneration: Number.isSafeInteger(generationAtStart) ? generationAtStart : null,
               latestGeneration: options.getProjectGeneration?.(),
             });
+            reportSaveFailure(failureCode, error, started);
           }
           throw error;
         } finally {

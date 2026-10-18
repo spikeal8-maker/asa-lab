@@ -5,6 +5,7 @@ import { AiChatService } from '../../apps/api/src/ai-chat.service';
 import { hashSessionToken } from '../../contexts/identity/dist/index.js';
 import { buildTestApp, inject } from '../portal/app';
 import { testAdminPool, testAppPool } from '../portal/helpers';
+import { lockAiPostgresSuite } from './ai-postgres-suite-lock';
 
 interface Identity {
   accountId: string;
@@ -19,6 +20,7 @@ let owner: Identity;
 let stranger: Identity;
 let platformAdmin: Identity;
 let providerCalls = 0;
+let unlockSuite: (() => Promise<void>) | undefined;
 
 async function makeIdentity(name: string, elevated: boolean): Promise<Identity> {
   const id = randomUUID();
@@ -59,6 +61,7 @@ beforeAll(async () => {
   }
   admin = testAdminPool();
   runtime = testAppPool();
+  unlockSuite = await lockAiPostgresSuite(admin);
   owner = await makeIdentity('owner', false);
   stranger = await makeIdentity('stranger', false);
   platformAdmin = await makeIdentity('admin', true);
@@ -85,11 +88,15 @@ beforeAll(async () => {
       );
     }),
   });
-});
+}, 60000);
 
 afterAll(async () => {
-  await runtime?.end();
-  await admin?.end();
+  try {
+    await runtime?.end();
+  } finally {
+    await unlockSuite?.();
+    await admin?.end();
+  }
 });
 
 describe('AI Chat PostgreSQL access and request replay', () => {
@@ -143,6 +150,7 @@ describe('AI Chat PostgreSQL access and request replay', () => {
         provider: 'openai',
         model: 'gpt-5-mini',
         apiKey: 'sk-ai-private-integration-key-001',
+        paidOperationsPerHour: 1000,
       },
       randomUUID(),
     );
