@@ -1242,6 +1242,10 @@ export function WorkbenchStage({
   }
 
   const alignmentGuideAxes = c.wireGuide ? wireGuideAxes(c.wireGuide) : [];
+  const placementEntry =
+    c.catalogPlacement?.mode === 'keyboard'
+      ? catalogEntry(c.catalogPlacement.componentTypeId)
+      : null;
 
   return (
     <section className="workbench-stage" aria-label="Рабочее поле электронной схемы">
@@ -1517,11 +1521,27 @@ export function WorkbenchStage({
           {unsupportedModelIndicators}
         </g>
       </svg>
-      {document.components.filter((item) => item.kind !== 'wire').length === 0 ? (
+      {placementEntry ? (
+        <div className="workbench-placement">
+          <p role="status">
+            <strong>{placementEntry.label}</strong>
+            Выберите место на поле.
+          </p>
+          <button
+            type="button"
+            aria-label="Отменить размещение"
+            onClick={() => c.cancelFamilyPlacement()}
+          >
+            Отменить
+          </button>
+        </div>
+      ) : null}
+      {!placementEntry &&
+      document.components.filter((item) => item.kind !== 'wire').length === 0 ? (
         <div className="workbench-empty-stage">
           <CircuitIcon />
           <h2>Рабочее поле пустое</h2>
-          <p>Перетащите компоненты из библиотеки справа или нажмите на карточку компонента.</p>
+          <p>Перетащите компоненты из библиотеки или нажмите на карточку компонента.</p>
         </div>
       ) : null}
       <div className="workbench-stage-controls">

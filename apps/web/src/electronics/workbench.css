@@ -925,6 +925,42 @@
     stroke-dashoffset: -34;
   }
 }
+.workbench-placement {
+  position: absolute;
+  top: 8px;
+  left: 64px;
+  box-sizing: border-box;
+  width: min(420px, calc(100% - 72px));
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 6px;
+  border: 1px solid #d2d8de;
+  border-radius: 6px;
+  background: #fff;
+  color: var(--ink-muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+.workbench-placement p {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.workbench-placement strong {
+  display: block;
+}
+.workbench-placement button {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 6px 8px;
+  border: 1px solid #d2d8de;
+  border-radius: 4px;
+  background: #f4f5f7;
+  color: inherit;
+  font: inherit;
+}
 .workbench-empty-stage {
   position: absolute;
   left: 50%;
