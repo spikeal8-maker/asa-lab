@@ -1,0 +1,70 @@
+name: Classroom Capacity Baseline
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'tools/capacity/**'
+      - 'tests/capacity/**'
+      - '.github/workflows/classroom-capacity-baseline.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  backend30:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    services:
+      postgres:
+        image: postgres:17.7
+        env:
+          POSTGRES_DB: asa_capacity_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: capacity-ci-only
+        ports: ['127.0.0.1:5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d asa_capacity_test"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    env:
+      NX_SKIP_NX_CACHE: 'true'
+      ASA_CAPACITY_BASELINE: '1'
+      TEST_DATABASE_URL: postgresql://postgres:capacity-ci-only@127.0.0.1:5432/asa_capacity_test
+      APP_TEST_DATABASE_URL: postgresql://asalab_app:capacity-ci-only@127.0.0.1:5432/asa_capacity_test
+      MIGRATION_DATABASE_URL: postgresql://postgres:capacity-ci-only@127.0.0.1:5432/asa_capacity_test
+      MIGRATION_EXPECT_DATABASE: asa_capacity_test
+      MIGRATION_CONFIRM: APPLY:asa_capacity_test
+      ASA_BLOCKS_RUNTIME_ORIGIN: http://127.0.0.1:4612
+      ASA_BLOCKS_RUNTIME_SIGNING_KEY: '000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f'
+      # Empty asset lists perform no object I/O; configure client construction only.
+      ASA_OBJECT_STORAGE_ENDPOINT: http://127.0.0.1:19000
+      ASA_OBJECT_STORAGE_REGION: us-east-1
+      ASA_OBJECT_STORAGE_BUCKET: capacity-fixture
+      ASA_OBJECT_STORAGE_ACCESS_KEY: capacity-ci-only
+      ASA_OBJECT_STORAGE_SECRET_KEY: capacity-ci-only-synthetic
+      ASA_OBJECT_STORAGE_FORCE_PATH_STYLE: 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test:capacity
+      - run: pnpm exec nx build api --skip-nx-cache
+      - name: Migrate this job's disposable test database
+        run: |
+          pnpm db:migrate
+          psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -c "ALTER ROLE asalab_app WITH LOGIN PASSWORD 'capacity-ci-only'"
+      - run: pnpm test:capacity:baseline
+      - name: Preserve aggregate evidence even after a failed workload
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: classroom-backend30-${{ github.sha }}
+          path: reports/capacity/backend30.json
+          if-no-files-found: warn
+          retention-days: 14
