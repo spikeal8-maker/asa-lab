@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import * as linearSystem from '../domain/linear-system';
+import * as linearDcModels from '../domain/models/linear-dc-models';
 import {
   parseElectronicsDocument,
   type ComponentKind,
@@ -432,6 +433,120 @@ describe('advance-local Arduino algebraic operating point', () => {
       spy.mockRestore();
     }
   });
+
+  it('returns before generic model reconstruction and shares only frozen electrical subtrees', () => {
+    const document = fixture();
+    const reuse = createArduinoOperatingPointReuse();
+    const state = advanceArduinoRuntime(source).state;
+    const solve = (time: number) =>
+      solveCircuitWithHeldArduino(
+        document,
+        time,
+        snapshots({ ...state, variables: { currentTime: time } }),
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        reuse,
+      );
+    const first = solve(1);
+    const spy = vi.spyOn(linearDcModels, 'createLinearDcDevice');
+    try {
+      const second = solve(2);
+      expect(spy).not.toHaveBeenCalled();
+      const third = solve(3);
+      expect(third).not.toBe(second);
+      expect(third.components).not.toBe(second.components);
+      expect(third.components[0]).not.toBe(second.components[0]);
+      expect(third.nodes).toBe(second.nodes);
+      expect(third.controllerState?.simulationTimeMs).toBe(3);
+      expect(third.controllerState?.boards[0]?.runtime.variables).toEqual({ currentTime: 3 });
+      for (const result of [first, second, third])
+        for (const component of result.components)
+          for (const key of [
+            'terminalVoltages',
+            'terminalCurrents',
+            'branchCurrents',
+            'branchBrightness',
+          ] as const) {
+            const values = component[key];
+            if (!values) continue;
+            expect(Object.isFrozen(values)).toBe(true);
+            expect(Reflect.set(values, Object.keys(values)[0] ?? 'newTerminal', 12345)).toBe(false);
+          }
+      expect(Object.isFrozen(second.nodes)).toBe(true);
+      for (const node of second.nodes) {
+        expect(Object.isFrozen(node)).toBe(true);
+        expect(Object.isFrozen(node.terminals)).toBe(true);
+        expect(Reflect.set(node, 'voltage', 12345)).toBe(false);
+      }
+      // A caller violating a root object's readonly type cannot poison the template.
+      Reflect.set(first.components[0]!, 'voltageDrop', 12345);
+      Reflect.set(second.components[0]!, 'voltageDrop', 12345);
+      const expected = solveCircuitWithHeldArduino(
+        document,
+        4,
+        snapshots({ ...state, variables: { currentTime: 4 } }),
+      );
+      expect(encode(solve(4))).toBe(encode(expected));
+      expect(first.controllerState?.simulationTimeMs).toBe(1);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it.each([330, 150, 149.9999, 100, 10])(
+    'preserves original raw stress and diagnostic decisions at resistance %s',
+    (resistance) => {
+      const original = fixture();
+      const document = {
+        ...original,
+        components: original.components.map((entry) =>
+          entry.id === 'r' ? { ...entry, value: resistance } : entry,
+        ),
+      };
+      const snapshot = snapshots(advanceArduinoRuntime(source).state);
+      const expected = solveCircuitWithHeldArduino(document, 1, snapshot);
+      const reuse = createArduinoOperatingPointReuse();
+      for (let repeat = 0; repeat < 3; repeat++)
+        expect(
+          encode(
+            solveCircuitWithHeldArduino(
+              document,
+              1,
+              snapshot,
+              undefined,
+              undefined,
+              undefined,
+              undefined,
+              reuse,
+            ),
+          ),
+        ).toBe(encode(expected));
+      if (expected.diagnostics.some((entry) => entry.code !== 'circuit_ok')) {
+        const spy = vi.spyOn(linearDcModels, 'createLinearDcDevice');
+        try {
+          expect(
+            encode(
+              solveCircuitWithHeldArduino(
+                document,
+                1,
+                snapshot,
+                undefined,
+                undefined,
+                undefined,
+                undefined,
+                reuse,
+              ),
+            ),
+          ).toBe(encode(expected));
+          expect(spy).toHaveBeenCalled();
+        } finally {
+          spy.mockRestore();
+        }
+      }
+    },
+  );
 
   it('reuses recurring independent three-port states with exact fresh-solve results', () => {
     const original = fixture();
