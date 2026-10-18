@@ -57,8 +57,9 @@ jobs:
     timeout-minutes: 30
     services:
       postgres:
-        # Same pinned PostgreSQL image as the repository's isolated data gate.
-        image: public.ecr.aws/docker/library/postgres@sha256:e9243ab06e47223dedeb3c129fa9ece8d37f506bdc6ee943afb9335f98bb4854
+        # Same PostgreSQL 17.7-bookworm linux/amd64 manifest as the isolated data gate.
+        # Pull from Docker Hub; ECR's quota blocked container initialization.
+        image: docker.io/library/postgres@sha256:e9243ab06e47223dedeb3c129fa9ece8d37f506bdc6ee943afb9335f98bb4854
         env:
           POSTGRES_DB: asa_publication_test
           POSTGRES_USER: postgres
