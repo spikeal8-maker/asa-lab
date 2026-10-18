@@ -402,7 +402,19 @@ async function passwordLogin(page: Page): Promise<void> {
   await page.getByRole('checkbox', { name: 'Я не робот' }).focus();
   await page.keyboard.press('Space');
   await expect(page.getByRole('button', { name: 'Войти', exact: true })).toBeEnabled();
+  const completedLogin = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === '/api/auth/login' &&
+      response.request().method() === 'POST',
+  );
   await page.getByRole('button', { name: 'Войти', exact: true }).click();
+  const response = await completedLogin;
+  expect(response.ok()).toBe(true);
+  expect(await response.json()).toMatchObject({ authenticated: true });
+  // The shell accepts the session and chooses its destination asynchronously.
+  // Navigating before that render lets the pending onSignedIn overwrite the
+  // requested settings route with Home. Wait for the actual login transition.
+  await expect(page.locator('input#identifier')).toHaveCount(0);
 }
 
 for (const width of [1440, 1024, 390, 320]) {
