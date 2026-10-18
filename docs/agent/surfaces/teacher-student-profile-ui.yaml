@@ -1,0 +1,91 @@
+schema_version: 1.0.0
+context: teacher-student-profile-ui
+surfaces:
+  - id: SURF-TEACHER-CLASSROOM-STUDENT
+    routes:
+      - '#/classrooms/:classroomId'
+    implementation:
+      files:
+        - apps/web/src/pages/ClassroomStudentPage.tsx
+        - apps/web/src/pages/classroom-student.css
+        - apps/web/src/components/ClassroomParticipantPanels.tsx
+        - apps/web/src/classroom-participants-api.ts
+    invariants:
+      - TSP-IDENTITY-001
+      - TSP-AUTH-001
+      - TSP-CONTEXT-001
+      - TSP-GRADES-001
+      - TSP-FEEDBACK-001
+      - TSP-LIFECYCLE-001
+    tests:
+      - TST-ASA-ACCESS-A-CORE-001
+      - TST-ASA-ACCESS-A-E2E-001
+      - TST-LRN-COURSE-E1-CORE-001
+      - TST-LRN-COURSE-E1-E2E-001
+    controls:
+      - id: CTRL-TEACHER-CLASSROOM-STUDENT-COMPACT-VIEW
+        label: Compact profile, learner navigation and read-only works, grades and history; file targeting also includes the sensitive control where applicable
+        change_class: L1_UI_BEHAVIOR
+        files:
+          - apps/web/src/pages/ClassroomStudentPage.tsx
+          - apps/web/src/pages/classroom-student.css
+          - apps/web/src/components/ClassroomParticipantPanels.tsx
+          - apps/web/src/classroom-participants-api.ts
+        commands:
+          - profile
+          - roster
+          - works
+          - assignments
+          - grades
+          - history
+          - resultHistory
+          - listSeatAwards
+          - staff
+          - managers
+          - summary
+          - seatProfile
+          - seatAssignments
+          - seatGrades
+          - seatHistory
+          - seatResultHistory
+        invariants:
+          - TSP-IDENTITY-001
+          - TSP-AUTH-001
+          - TSP-CONTEXT-001
+          - TSP-GRADES-001
+          - TSP-FEEDBACK-001
+          - TSP-LIFECYCLE-001
+        tests:
+          - TST-ASA-ACCESS-A-CORE-001
+          - TST-ASA-ACCESS-A-E2E-001
+          - TST-LRN-COURSE-E1-CORE-001
+          - TST-LRN-COURSE-E1-E2E-001
+      - id: CTRL-TEACHER-CLASSROOM-STUDENT-SENSITIVE-MUTATIONS
+        label: Existing role, rating settings, merit, builtin award and avatar writes including shared learner consumers; classification requires challenge review and grants no UI-task mutation scope
+        change_class: L3_CRITICAL
+        files:
+          - apps/web/src/pages/ClassroomStudentPage.tsx
+          - apps/web/src/components/ClassroomParticipantPanels.tsx
+          - apps/web/src/classroom-participants-api.ts
+        commands:
+          - role
+          - settings
+          - merit
+          - merit_grant
+          - avatar
+          - avatar_grant
+          - avatar_choose
+          - builtin_grant
+          - seatAvatar
+        invariants:
+          - TSP-IDENTITY-001
+          - TSP-AUTH-001
+          - TSP-CONTEXT-001
+          - TSP-GRADES-001
+          - TSP-FEEDBACK-001
+          - TSP-LIFECYCLE-001
+        tests:
+          - TST-ASA-ACCESS-A-CORE-001
+          - TST-ASA-ACCESS-A-E2E-001
+          - TST-LRN-COURSE-E1-CORE-001
+          - TST-LRN-COURSE-E1-E2E-001
