@@ -93,7 +93,7 @@ parallel_lanes:
       base_branch: main
       pr: null
       status: in_progress
-      checkpoint: point9_profile_backend30_7_unit_pass_independent_review_and_actual_ci_pending
+      checkpoint: point9_v2_valid_png_minio_9_unit_pass_new_review_and_actual_ci_pending
       owner_acceptance: pending
       owner_authorization: Owner selected audit point9; publish main, report and STOP. No deployment or live load.
       context_hints:
