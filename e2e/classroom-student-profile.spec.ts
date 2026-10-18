@@ -730,7 +730,13 @@ test('mobile work filters share a row and one card fills the grid while multiple
       expect(Math.abs(boxes[0]!.y - boxes[1]!.y)).toBeLessThanOrEqual(1);
       expect(boxes[0]!.x + boxes[0]!.width).toBeLessThan(boxes[1]!.x);
     } else expect(boxes[1]!.y).toBeGreaterThanOrEqual(boxes[0]!.y + boxes[0]!.height);
-    for (const link of await grid.getByRole('link', { name: 'Открыть', exact: true }).all()) {
+    // Reveal each card's actions through its real keyboard focus path. Role
+    // locators across the whole grid change indices as hover visibility changes.
+    for (const card of await grid.locator(':scope > li').all()) {
+      await card.locator('.project-card-title a').focus();
+      const link = card.getByRole('link', { name: 'Открыть', exact: true });
+      await expect(link).toBeVisible();
+      await link.focus();
       const box = (await link.boundingBox())!;
       expect(box.height).toBeGreaterThanOrEqual(44);
       expect(box.width).toBeGreaterThanOrEqual(44);
