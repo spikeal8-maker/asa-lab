@@ -16,6 +16,10 @@ import { SeatContextUseCase } from './seat-context.js';
 import { AppModule } from './app.module.js';
 import { ProductAnalyticsService } from './product-analytics.service.js';
 import { OwnedPools, SafeNestLogger, boundedClose } from './owned-pool-lifecycle.js';
+import {
+  runSessionDatabaseScope,
+  sessionDatabaseDiagnostics,
+} from './session-database-diagnostics.js';
 import { noteRequestReceipt } from './request-receipt.js';
 import { TOKENS } from './tokens.js';
 import { runtimeBuildMetadata } from './build-metadata.js';
@@ -351,6 +355,7 @@ export async function createApiApp(
     );
     const blocksRuntimeAddressBudget = new BlocksRuntimeAddressBudget();
 
+    fastify.addHook('onRequest', (request, _reply, done) => runSessionDatabaseScope(request, done));
     fastify.addHook('onRequest', async (request) => {
       runtimeMetrics.requestStarted();
       const path = (request.raw.url ?? '/').split('?')[0]!;
@@ -365,6 +370,12 @@ export async function createApiApp(
       runtimeMetrics.requestFinished(reply.statusCode, durationMs);
       if (logRequests) {
         const path = (request.raw.url ?? '/').split('?')[0];
+        const sessionDatabase = sessionDatabaseDiagnostics(request);
+        const databaseTrouble =
+          sessionDatabase &&
+          (sessionDatabase.failures > 0 ||
+            sessionDatabase.poolAcquireMs >= 250 ||
+            sessionDatabase.queryRoundTripMs >= 250);
         process.stdout.write(
           `${JSON.stringify({
             time: new Date().toISOString(),
@@ -378,6 +389,10 @@ export async function createApiApp(
             durationMs,
             errorCode: requestFailures.get(request),
             reasonCode: requestValidationReasons.get(request),
+            sessionDatabase,
+            ...(databaseTrouble
+              ? { eventLoopDelaySinceStartMs: runtimeMetrics.snapshot(null).eventLoopDelayMs }
+              : {}),
             ...diagnosticContext(request),
           })}\n`,
         );

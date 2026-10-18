@@ -1,0 +1,66 @@
+name: Session Context Database
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'migrations/0216_session_context_nonblocking_heartbeat.sql'
+      - 'contexts/identity/infrastructure/pg-session-v2.store.ts'
+      - 'contexts/identity/index.ts'
+      - 'contexts/identity/testing/session-context-query.spec.ts'
+      - 'apps/api/src/app.factory.ts'
+      - 'apps/api/src/app.module.ts'
+      - 'apps/api/src/server-diagnostics.ts'
+      - 'apps/api/src/session-database-diagnostics*'
+      - 'tests/account/session-context-contention.pg.spec.ts'
+      - 'package.json'
+      - '.github/workflows/session-context-database.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  context:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    services:
+      postgres:
+        image: docker.io/library/postgres@sha256:75adc2a65806c96bc0e59030230bfe3f1c1b0d6d8f8181a8913e2b8b53bdc166
+        env:
+          POSTGRES_DB: asa_session_context_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: session-context-ci-only
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d asa_session_context_test"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    env:
+      TEST_DATABASE_URL: postgresql://postgres:session-context-ci-only@127.0.0.1:5432/asa_session_context_test
+      APP_TEST_DATABASE_URL: postgresql://asalab_app:session-context-ci-only@127.0.0.1:5432/asa_session_context_test
+      MIGRATION_DATABASE_URL: postgresql://postgres:session-context-ci-only@127.0.0.1:5432/asa_session_context_test
+      MIGRATION_EXPECT_DATABASE: asa_session_context_test
+      MIGRATION_CONFIRM: APPLY:asa_session_context_test
+      NX_SKIP_NX_CACHE: 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec nx build api --skip-nx-cache
+      - name: Migrate disposable test database and provision restricted runtime
+        run: |
+          pnpm db:migrate
+          psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -c "ALTER ROLE asalab_app WITH LOGIN PASSWORD 'session-context-ci-only'"
+      - run: pnpm test:session-database
+      - run: pnpm test:session-database:pg --reporter=json --outputFile=reports/session-context-postgres.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: session-context-${{ github.sha }}
+          path: reports/session-context-postgres.json
+          retention-days: 14
