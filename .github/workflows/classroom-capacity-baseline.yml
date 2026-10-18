@@ -7,6 +7,12 @@ on:
       - 'tests/capacity/**'
       - '.github/workflows/classroom-capacity-baseline.yml'
       - 'infra/minio/Dockerfile'
+      - 'contexts/projects/**'
+      - 'apps/api/src/projects.controller.ts'
+      - 'apps/api/src/projects-save-status.spec.ts'
+      - 'apps/api/src/electronics-save-validation.spec.ts'
+      - 'apps/api/src/blocks-project-persistence.spec.ts'
+      - 'package.json'
   workflow_dispatch:
 permissions:
   contents: read
@@ -54,6 +60,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec nx build api --skip-nx-cache
+      - run: pnpm test:draft-save
       - run: pnpm test:capacity
       - name: Build the repository's pinned disposable object-store image
         run: docker build -f infra/minio/Dockerfile -t asa-capacity-minio:${{ github.run_id }} .

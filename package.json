@@ -90,6 +90,7 @@
     "test:account-c1": "vitest run contexts/identity/testing/account-c1.spec.ts",
     "test:access-a": "vitest run contexts/identity/testing apps/api/src/presentation-preferences.controller.spec.ts apps/api/src/account-c1.controller.spec.ts apps/api/src/auth.controller.spec.ts apps/api/src/max-auth.service.spec.ts apps/api/src/refresh-session.service.spec.ts apps/api/src/learning-activities.controller.spec.ts apps/api/src/classroom-join.controller.spec.ts apps/web/src/session-fetch.spec.ts tests/account tests/portal tests/courses",
     "test:capacity": "node --test tools/capacity/contracts.test.mjs && vitest run tests/capacity/documents.spec.ts",
+    "test:draft-save": "vitest run contexts/projects/testing/projects.spec.ts apps/api/src/projects-save-status.spec.ts apps/api/src/electronics-save-validation.spec.ts apps/api/src/blocks-project-persistence.spec.ts",
     "test:capacity:baseline": "node tools/capacity/run-baseline.mjs",
     "test:coverage": "python tools/test_collect_logs.py && python -m unittest discover -s tools -p test_coverage_diagnostics.py && python -m unittest tools.deployment.test_collector && vitest run apps/api/src/http-observation.spec.ts apps/api/src/client-address.spec.ts apps/api/src/app.factory.spec.ts apps/api/src/health.spec.ts apps/api/src/admin-logs.worker.spec.ts",
     "test:coverage:integration": "vitest run tests/account/coverage-diagnostics.pg.spec.ts tests/account/coverage-http.spec.ts",
