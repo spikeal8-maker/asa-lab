@@ -291,7 +291,7 @@ SVG: UTF-8/XML parse with root svg and the exact active/external-content policy 
 For core v1, uploaded/imported SVG MUST be rejected when any of the following is present:
 
 ```text
-DOCTYPE or ENTITY declarations
+DOCTYPE declarations except the exact inert SVG 1.1 exception below; all ENTITY declarations
 <script>
 <foreignObject>
 any attribute whose local name starts with "on" (event handler)
@@ -309,6 +309,24 @@ data: URI embedded inside the same bounded SVG asset
 ```
 
 The parser MUST NOT resolve external entities or fetch resources during validation.
+
+Reviewed compatibility exception (classroom audit point 3, issue #599): the pinned
+Scratch library includes `1e2c3987e4cdb1f317b1773662719b13.svg` (586 bytes, SHA-256
+`56a5e1d10eefec3ee23ca969e01d809d8488bf57f56733c36f57639f548fb93b`). Its
+standard SVG 1.1 PUBLIC declaration may be accepted as inert declaration text only:
+
+```xml
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+```
+
+Allow only that exact lowercase root, uppercase PUBLIC, public identifier and W3C
+system identifier (HTTP or HTTPS); XML whitespace and independently matching single
+or double quote pairs may vary. Match the entire declaration, including mandatory
+XML whitespace after DOCTYPE. Internal subsets (even empty), entity declarations,
+other roots/identifiers/URLs and trailing content remain forbidden. Saxes must not
+load or resolve the named DTD. Every other SVG check above remains mandatory.
+Do not remove or rewrite the declaration or any asset bytes: MD5 path identity,
+server SHA-256, immutable aliases and byte limits use the original uploaded stream.
 
 SVG remains subject to the normal per-file byte limit. Nested data URIs are part of the
 same SVG bytes and do not create a second hidden storage object; their total encoded size

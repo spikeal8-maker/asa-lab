@@ -21,6 +21,10 @@ import {
 } from './blocks-asset-storage.js';
 
 const ASSET_ID = /^[a-f0-9]{32}$/;
+// Inert SVG 1.1 declaration used by the pinned Scratch library. Saxes does not
+// resolve DTDs. Match callback text only; never rewrite the stored/hash input.
+const SVG11_DOCTYPE =
+  /^[ \t\r\n]+svg[ \t\r\n]+PUBLIC[ \t\r\n]+(["'])-\/\/W3C\/\/DTD SVG 1\.1\/\/EN\1[ \t\r\n]+(["'])https?:\/\/www\.w3\.org\/Graphics\/SVG\/1\.1\/DTD\/svg11\.dtd\2[ \t\r\n]*$/;
 const FORMATS = new Set<BlocksAssetFormat>(['svg', 'png', 'jpg', 'wav', 'mp3']);
 const BINARY_EXT: Readonly<Record<Exclude<BlocksAssetFormat, 'svg'>, string>> = {
   png: 'png',
@@ -120,7 +124,11 @@ async function validateSvg(path: string): Promise<void> {
   let styleText = '';
   try {
     const parser = new SaxesParser({ xmlns: true });
-    parser.on('doctype', () => reject('blocks_asset_format_invalid'));
+    parser.on('doctype', (declaration) => {
+      const match = SVG11_DOCTYPE.exec(declaration);
+      // JS $ also permits a position before a final Unicode line separator.
+      if (!match || match[0] !== declaration) reject('blocks_asset_format_invalid');
+    });
     parser.on('processinginstruction', () => reject('blocks_asset_format_invalid'));
     parser.on('opentag', (tag) => {
       const local = String(tag.local ?? tag.name).toLowerCase();
