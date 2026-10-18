@@ -322,7 +322,11 @@ def source_install(args):
     # Preserve this recovery launcher OUTSIDE replaceable source files first.
     persistent = Path("/var/lib/asa-server-rebuild")
     persistent.mkdir(mode=0o755, parents=True, exist_ok=True)
-    for filename in ("install-ubuntu-1panel.py", "prepare-age-backup.py", "transfer-backup-ssh.py", "restore-verified-backup.py", "lan-preview-ubuntu.py"):
+    for filename in (
+        "install-ubuntu-1panel.py", "prepare-age-backup.py", "transfer-backup-ssh.py",
+        "restore-verified-backup.py", "lan-preview-ubuntu.py", "lan-https-entry.py",
+        "school-lan.py", "trust-school-server.ps1",
+    ):
         source = Path(__file__).resolve().parent / filename
         if source.is_file():
             target = persistent / filename
@@ -410,9 +414,29 @@ def update(args):
     doctor(args)
 
 
+def configure_school_lan(args):
+    """Use the bundled offline HTTPS ingress without reinstalling or restoring data."""
+    root = args.root.resolve()
+    require(args.profile == "production", "School HTTPS requires a production installation")
+    require((root / ".asa/installed-release.json").is_file(),
+            "Install or restore the production ASA release before configuring school HTTPS")
+    helper = Path(__file__).resolve().parent / "school-lan.py"
+    if not helper.is_file():
+        helper = Path("/var/lib/asa-server-rebuild/school-lan.py")
+    require(helper.is_file(), "Missing bundled school HTTPS helper; use the matching GitHub revision")
+    command = ["python3", str(helper), "configure", "--root", str(root)]
+    if args.school_lan_interface != "auto":
+        command.extend(["--interface", args.school_lan_interface])
+    if args.school_lan_follow_interface:
+        command.append("--follow-interface")
+    run(*command)
+    record("SCHOOL_LAN_INGRESS_CONFIGURED", root=str(root), port=4610,
+           transport="https", data="existing PostgreSQL and MinIO preserved")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=("install", "panel", "harden-panel", "doctor", "backup", "verify-backup", "restore-check", "update"))
+    parser.add_argument("action", choices=("install", "panel", "harden-panel", "doctor", "backup", "verify-backup", "restore-check", "update", "school-lan"))
     parser.add_argument("--root", type=Path, default=Path("/srv/asa-lab-test"))
     parser.add_argument("--operator", default=os.environ.get("SUDO_USER") or "admins")
     parser.add_argument("--profile", choices=("staging", "production", "dev"), default="staging")
@@ -427,6 +451,12 @@ def main():
     parser.add_argument("--lan-preview-interface", help="Physical interface for preview, e.g. eno1")
     parser.add_argument("--ack-production-http-preview", action="store_true",
                         help="Explicit acknowledgement: LAN HTTP is view-only; real logins require HTTPS")
+    parser.add_argument("--school-lan-https", action="store_true",
+                        help="During production install, configure offline HTTPS on the discovered school LAN")
+    parser.add_argument("--school-lan-interface", default="auto",
+                        help="Physical school LAN interface; auto only when exactly one safe candidate exists")
+    parser.add_argument("--school-lan-follow-interface", action="store_true",
+                        help="Approve automatic private DHCP/subnet changes on the selected physical interface")
     parser.add_argument("--restore-backup", type=Path, help="Verified extracted snapshot for full install+restore")
     parser.add_argument("--target-hostname", help="Required exact host name for full recovery")
     parser.add_argument("--restore-snapshot", help="Required exact backup snapshot ID for full recovery")
@@ -458,7 +488,20 @@ def main():
         if args.fresh_empty:
             require(args.action == "install" and args.profile == "production",
                     "--fresh-empty is only for an intentional new production installation")
+        school_mode = args.school_lan_https or args.action == "school-lan"
+        if args.school_lan_https:
+            require(args.action == "install" and args.profile == "production",
+                    "--school-lan-https requires a production install")
+        if args.action == "school-lan":
+            require(args.profile == "production",
+                    "Existing school LAN entry can only be configured for production")
+        require(not args.school_lan_follow_interface or school_mode,
+                "--school-lan-follow-interface needs school HTTPS")
+        require(args.school_lan_interface == "auto" or school_mode,
+                "--school-lan-interface needs school HTTPS")
         lan_flags = (args.lan_preview_ip, args.lan_preview_cidr, args.lan_preview_interface)
+        require(not (school_mode and (any(lan_flags) or args.ack_production_http_preview)),
+                "Choose secure school HTTPS or legacy view-only HTTP, never both")
         if any(lan_flags):
             require(args.action == "install" and all(lan_flags),
                     "Provide all three LAN preview fields only with install")
@@ -513,9 +556,12 @@ def main():
                         run(*argv)
                         record("LAN_HTTP_PREVIEW_READY", host=args.lan_preview_ip,
                                port=4610, security="view-only; HTTPS required for login")
+                    if args.school_lan_https:
+                        configure_school_lan(args)
             else:
                 require(os.geteuid() == 0, "Run with sudo/root")
-                if args.action == "doctor": doctor(args)
+                if args.action == "school-lan": configure_school_lan(args)
+                elif args.action == "doctor": doctor(args)
                 elif args.action == "backup": full_backup(args)
                 elif args.action == "verify-backup": verify_backup(args)
                 elif args.action == "restore-check": test_restore(args)

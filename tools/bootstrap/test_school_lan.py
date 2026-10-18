@@ -117,6 +117,27 @@ class ReconciliationTests(unittest.TestCase):
         for attr,value in [('PREFIX',self.prefix),('CONFIG',self.config_file),('STATE',self.state_file)]:
             patcher=patch.object(m,attr,value);patcher.start();self.addCleanup(patcher.stop)
         patcher=patch.dict(sys.modules,self.mods);patcher.start();self.addCleanup(patcher.stop)
+    def test_repeat_configure_preserves_existing_dhcp_follow_approval(self):
+        self.helper.validate_lan=lambda *args: None
+        args=types.SimpleNamespace(root=self.root,interface='auto',follow_interface=False)
+        with patch.object(m,'discover',return_value=self.old) as discover, \
+             patch.object(m,'load_helper',return_value=self.helper), \
+             patch.object(m,'reconcile',return_value=False), \
+             patch.object(m,'export_client_kit'), patch.object(m,'install_timer'):
+            m.configure(args)
+        discover.assert_called_once_with('eno1', '192.168.1.115')
+        self.assertTrue(json.loads(self.config_file.read_text())['follow_interface'])
+
+    def test_existing_install_cannot_silently_expand_dhcp_trust(self):
+        self.policy['follow_interface']=False
+        self.config_file.write_text(json.dumps(self.policy))
+        self.helper.validate_lan=lambda *args: None
+        args=types.SimpleNamespace(root=self.root,interface='eno1',follow_interface=True)
+        with patch.object(m,'discover',return_value=self.old), \
+             patch.object(m,'load_helper',return_value=self.helper), \
+             self.assertRaises(m.Refused):
+            m.configure(args)
+
     def test_idle_tick_does_not_restart_anything(self):
         with patch.object(m,'call') as c:
             self.assertFalse(m.reconcile(self.policy,self.helper,self.old))

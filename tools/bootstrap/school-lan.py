@@ -319,7 +319,12 @@ def configure(args):
     need(args.root is not None, '--root is required for initial network selection')
     root = args.root.resolve()
     need(root.is_dir() and not root.is_symlink(), 'Existing canonical ASA directory required')
-    endpoint = discover(args.interface)
+    # Reuse the previously approved physical interface; an added VPN/NIC must
+    # not force another manual choice or silently become the school entry.
+    previous = json.loads(CONFIG.read_text()) if CONFIG.exists() else None
+    selected_interface = (previous['interface'] if previous and args.interface == 'auto'
+                          else args.interface)
+    endpoint = discover(selected_interface, previous['current_address'] if previous else None)
     helper = load_helper('asa_https','lan-https-entry.py')
     helper.validate_lan(endpoint.address, endpoint.cidr, endpoint.interface, endpoint.port)
     policy = dict(schema=1, root=str(root), interface=endpoint.interface,
@@ -329,8 +334,9 @@ def configure(args):
         previous = json.loads(CONFIG.read_text())
         need(previous['root'] == str(root) and previous['interface'] == endpoint.interface,
              'Another installation/interface already owns the network watcher')
-        need(previous['follow_interface'] == args.follow_interface,
-             'Do not silently change the approved DHCP following policy')
+        need(not args.follow_interface or previous['follow_interface'],
+             'Cannot widen an existing DHCP follow policy without an explicit migration')
+        # No flag on a routine repeat means keep the persisted approval.
         policy = previous
     if not STATE.exists():
         preview = load_helper('asa_preview','lan-preview-ubuntu.py')
