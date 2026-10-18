@@ -1006,7 +1006,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: provider_policy_and_ui_implementation
+      checkpoint: account_confirmation_frozen_header_verification_dependency
       owner_acceptance: pending
       normative_refs:
         - document: IDENTITY-ACCESS-V22
@@ -1018,12 +1018,53 @@ parallel_lanes:
       owner_authorization: implement_account_confirmation_with_admin_switch_max_telegram_and_server_verified_outage_fallback
       status: in_progress
       target_revision: '1.0'
-      selected_slice: AUTH-C1-C2-C3
+      selected_slice: AUTH-C4-ACCEPTANCE
       dependency_order: [AUTH-C1-PROVIDERS, AUTH-C2-POLICY, AUTH-C3-UI, AUTH-C4-ACCEPTANCE]
       completed_slices: []
       owner_acceptance: pending
       deployment_authorized: false
       working_database_actions_authorized: false
+    integration_dependencies:
+      - id: TASK-AUTH-HEADER-COMPATIBILITY-001
+        status: in_progress
+        branch: codex/auth-header-ci-baseline-20261018
+        scope:
+          - e2e/classroom-profile-completion.spec.ts
+        observed_source_sha: 74cf0768d04f77149c55b83509fbbfa1566c6e58
+        observed_general_run: 39165774800
+        selection: >-
+          Controller selects a separate bounded category C test repair under AGENTS.md section 7.
+          The account confirmation candidate passed 158 unit, 54 integration, 18 authentication
+          browser and 8 existing Account R3 checks, with independent source and visual review.
+          General Data passed 4560 tests and 16 RLS checks. Two real Access journeys fail because
+          the unchanged mobile header helper expects six targets after accepted main PR 616
+          added the third native AI destination. The authentication feature changes neither
+          PortalHeader nor this helper. This repair does not change provider or policy code.
+        acceptance: >-
+          Require seven exact header controls and three named native destinations while
+          preserving the 56px header, every 44px target, ordering, viewport, overlap and all
+          original real journeys and widths. Do not change runtime, CSS, timeouts, retries,
+          rate limits or fixture authority, and do not weaken assertions. A separate author,
+          new independent review of the final source and successful actual Access and complete
+          General CI are required.
+      - id: TASK-AUTH-ACCESS-AI-COMPATIBILITY-DEPENDENCY-001
+        status: in_progress
+        source_task: TASK-PROJ-PUBLICATION-SHELL-AI-COMPATIBILITY-001
+        prepared_branch: codex/projects-shell-ai-compatibility
+        scope:
+          - e2e/access-account-ui.spec.ts
+        selection: >-
+          The full settings step was skipped after the Access failure. Main e5546bac already
+          selects a separate Projects companion for inherited two-link and responsive boundary
+          expectations in this file. Preserve that active author and its completed handoff;
+          do not create a competing Access-file repair or adopt unpublished publication runtime.
+          Any reuse must isolate compatibility with accepted main PR 616 and retain existing
+          Account, authorization, profile, navigation and geometry checks.
+        acceptance: >-
+          Read and independently review the actual frozen compatible source before integration.
+          Full changed-source settings and required General CI must pass; R3-only success cannot
+          replace the skipped full settings suite. Owner acceptance, deployment and working
+          database actions remain unperformed.
     previous_task:
       id: TASK-PORTAL-SHELL-UX-001
       issue: 520
