@@ -540,6 +540,159 @@ export function createArduinoOperatingPointReuse() {
 
 type ArduinoOperatingPointReuse = ReturnType<typeof createArduinoOperatingPointReuse>;
 
+type QualityDictionary = Readonly<Record<string, number | undefined>>;
+const qualityAccessor = Symbol('quality-accessor');
+const qualityDictionaryFields = [
+  'terminalVoltages',
+  'terminalCurrents',
+  'branchCurrents',
+  'branchBrightness',
+] as const;
+interface ArduinoQualityLayoutState {
+  readonly layouts: WeakMap<object, readonly string[]>;
+  readonly components: ComponentResult[];
+  readonly records: (QualityDictionary | undefined)[];
+  receipt?: object;
+  result?: SolveResult;
+  document?: ElectronicsDocument;
+  componentArray?: SolveResult['components'];
+  nodes?: SolveResult['nodes'];
+  controller?: SolveResult['controllerState'];
+  transient?: SolveResult['transientState'];
+  analysis?: SolveResult['transientAnalysis'];
+}
+const arduinoQualityOwners = new WeakMap<ArduinoOperatingPointReuse, object>();
+const arduinoQualityLayouts = new WeakMap<object, ArduinoQualityLayoutState>();
+const arduinoQualityReceipts = new WeakMap<object, ArduinoQualityLayoutState>();
+
+function clearArduinoQualityCapture(state: ArduinoQualityLayoutState): void {
+  state.components.length = 0;
+  state.records.length = 0;
+  delete state.result;
+  delete state.document;
+  delete state.componentArray;
+  delete state.nodes;
+  delete state.controller;
+  delete state.transient;
+  delete state.analysis;
+}
+
+/** Package internal. The owned scheduler alone enables this after AST admission. */
+export function createArduinoQualityLayoutOwner(operatingPoint: ArduinoOperatingPointReuse) {
+  const owner = {};
+  arduinoQualityOwners.set(operatingPoint, owner);
+  arduinoQualityLayouts.set(owner, { layouts: new WeakMap(), components: [], records: [] });
+  return {
+    owner,
+    dispose() {
+      const state = arduinoQualityLayouts.get(owner);
+      if (state?.receipt) arduinoQualityReceipts.delete(state.receipt);
+      if (state) clearArduinoQualityCapture(state);
+      arduinoQualityLayouts.delete(owner);
+      if (arduinoQualityOwners.get(operatingPoint) === owner)
+        arduinoQualityOwners.delete(operatingPoint);
+    },
+  };
+}
+
+function retainArduinoQualityLayouts(
+  operatingPoint: ArduinoOperatingPointReuse | undefined,
+  fields: ArduinoElectricalFields,
+): void {
+  const owner = operatingPoint && arduinoQualityOwners.get(operatingPoint);
+  const layouts = owner && arduinoQualityLayouts.get(owner)?.layouts;
+  if (!layouts) return;
+  // Only called at the actual template producer/retention sites. Freezing an
+  // arbitrary public record never grants it this construction provenance.
+  for (const key of qualityDictionaryFields) {
+    const record = fields[key];
+    if (record && !layouts.has(record)) layouts.set(record, Object.freeze(Object.keys(record)));
+  }
+}
+
+function issueArduinoQualityReceipt(
+  result: SolveResult,
+  operatingPoint: ArduinoOperatingPointReuse | undefined,
+  document: ElectronicsDocument,
+): SolveResult {
+  const owner = operatingPoint && arduinoQualityOwners.get(operatingPoint);
+  const layouts = owner && arduinoQualityLayouts.get(owner);
+  if (layouts) {
+    if (layouts.receipt) arduinoQualityReceipts.delete(layouts.receipt);
+    const receipt = {};
+    layouts.receipt = receipt;
+    clearArduinoQualityCapture(layouts);
+    layouts.result = result;
+    layouts.document = document;
+    layouts.componentArray = result.components;
+    layouts.nodes = result.nodes;
+    layouts.controller = result.controllerState;
+    layouts.transient = result.transientState;
+    layouts.analysis = result.transientAnalysis;
+    for (const component of result.components) {
+      layouts.components.push(component);
+      for (const key of qualityDictionaryFields) layouts.records.push(component[key]);
+    }
+    arduinoQualityReceipts.set(receipt, layouts);
+  }
+  return result;
+}
+
+/** Consume the actual immediately returned frame once, before reading its data. */
+export function takeArduinoQualityReceipt(
+  owner: object,
+  result: SolveResult,
+  document: ElectronicsDocument,
+): object | undefined {
+  const state = arduinoQualityLayouts.get(owner);
+  const receipt = state?.receipt;
+  if (state) delete state.receipt;
+  const issued = receipt && arduinoQualityReceipts.get(receipt);
+  if (!issued) return undefined;
+  if (issued.result !== result || issued.document !== document) {
+    arduinoQualityReceipts.delete(receipt!);
+    clearArduinoQualityCapture(issued);
+    return undefined;
+  }
+  const data = (object: object, key: PropertyKey) => {
+    const descriptor = Object.getOwnPropertyDescriptor(object, key);
+    return descriptor ? ('value' in descriptor ? descriptor.value : qualityAccessor) : undefined;
+  };
+  let matches =
+    data(result, 'components') === issued.componentArray &&
+    data(result, 'nodes') === issued.nodes &&
+    data(result, 'controllerState') === issued.controller &&
+    data(result, 'transientState') === issued.transient &&
+    data(result, 'transientAnalysis') === issued.analysis;
+  // These containers were constructed by this solver. Compare identities before
+  // inspecting replacements, including accessors and Proxy dictionaries.
+  const components = data(result, 'components') as SolveResult['components'] | undefined;
+  matches = matches && components?.length === issued.components.length;
+  for (let index = 0; matches && index < issued.components.length; index++) {
+    const component = issued.components[index]!;
+    matches = data(components!, index) === component;
+    for (let field = 0; matches && field < qualityDictionaryFields.length; field++)
+      matches =
+        data(component, qualityDictionaryFields[field]!) ===
+        issued.records[index * qualityDictionaryFields.length + field];
+  }
+  clearArduinoQualityCapture(issued);
+  if (matches) return receipt;
+  arduinoQualityReceipts.delete(receipt!);
+  return undefined;
+}
+
+export function arduinoQualityDictionaryKeys(
+  receipt: object,
+  record: object,
+): readonly string[] | undefined {
+  return arduinoQualityReceipts.get(receipt)?.layouts.get(record);
+}
+
+export function releaseArduinoQualityReceipt(receipt: object): void {
+  arduinoQualityReceipts.delete(receipt);
+}
+
 export interface ArduinoThermalEpoch {
   readonly componentId: string;
   readonly atMicroseconds: number;
@@ -815,6 +968,7 @@ function circuitOkDiagnostic(totalSourceCurrent: number): Diagnostic {
 function retainArduinoElectricalComponent(
   result: ComponentResult,
   input: ArduinoElectricalInput,
+  operatingPoint: ArduinoOperatingPointReuse | undefined,
 ): ArduinoElectricalTemplate['components'][number] {
   const fields = Object.fromEntries(
     Object.entries(result).filter(([key]) =>
@@ -844,6 +998,7 @@ function retainArduinoElectricalComponent(
     'branchBrightness',
   ] as const)
     if (fields[key]) Object.freeze(fields[key]);
+  retainArduinoQualityLayouts(operatingPoint, fields);
   return Object.freeze({
     fields: Object.freeze(fields),
     indicators: Object.freeze({
@@ -2397,16 +2552,20 @@ export function solveCircuitWithHeldArduino(
   preparation?: CircuitSolvePreparation,
   operatingPointReuse?: ArduinoOperatingPointReuse,
 ): SolveResult {
-  return solveCircuitStep(document, {
-    preparation,
+  return issueArduinoQualityReceipt(
+    solveCircuitStep(document, {
+      preparation,
+      operatingPointReuse,
+      simulationTimeMs,
+      heldArduinoSnapshots: snapshots,
+      ...(hcSr04States ? { hcSr04RuntimeStateById: hcSr04States } : {}),
+      ...(pingUltrasonicStates ? { pingUltrasonicRuntimeStateById: pingUltrasonicStates } : {}),
+      ...(servoStates ? { servoRuntimeStateById: servoStates } : {}),
+      suppressOscilloscopeTrace: true,
+    }),
     operatingPointReuse,
-    simulationTimeMs,
-    heldArduinoSnapshots: snapshots,
-    ...(hcSr04States ? { hcSr04RuntimeStateById: hcSr04States } : {}),
-    ...(pingUltrasonicStates ? { pingUltrasonicRuntimeStateById: pingUltrasonicStates } : {}),
-    ...(servoStates ? { servoRuntimeStateById: servoStates } : {}),
-    suppressOscilloscopeTrace: true,
-  });
+    document,
+  );
 }
 
 /** Validate persisted RC history before the scheduler can consume any of it. */
@@ -2486,19 +2645,23 @@ export function solveRcCircuitWithHeldArduino(
   operatingPointReuse?: ArduinoOperatingPointReuse,
   thermalEpochs?: ReadonlyMap<string, ArduinoThermalEpoch>,
 ): SolveResult {
-  return solveCircuitBase(document, {
-    preparation,
+  return issueArduinoQualityReceipt(
+    solveCircuitBase(document, {
+      preparation,
+      operatingPointReuse,
+      thermalEpochs,
+      simulationTimeMs,
+      ...(transientState ? { transientState } : {}),
+      heldArduinoSnapshots: snapshots,
+      ...(hcSr04States ? { hcSr04RuntimeStateById: hcSr04States } : {}),
+      ...(pingUltrasonicStates ? { pingUltrasonicRuntimeStateById: pingUltrasonicStates } : {}),
+      ...(servoStates ? { servoRuntimeStateById: servoStates } : {}),
+      clockedRcTransient: true,
+      suppressOscilloscopeTrace: true,
+    }),
     operatingPointReuse,
-    thermalEpochs,
-    simulationTimeMs,
-    ...(transientState ? { transientState } : {}),
-    heldArduinoSnapshots: snapshots,
-    ...(hcSr04States ? { hcSr04RuntimeStateById: hcSr04States } : {}),
-    ...(pingUltrasonicStates ? { pingUltrasonicRuntimeStateById: pingUltrasonicStates } : {}),
-    ...(servoStates ? { servoRuntimeStateById: servoStates } : {}),
-    clockedRcTransient: true,
-    suppressOscilloscopeTrace: true,
-  });
+    document,
+  );
 }
 
 function solveCircuitStep(
@@ -2536,6 +2699,8 @@ function solveCircuitStep(
       )
     : undefined;
   if (earlySlot?.point?.template) {
+    for (const entry of earlySlot.point.template.components)
+      retainArduinoQualityLayouts(options.operatingPointReuse, entry.fields);
     const result = resultFromArduinoElectricalTemplate(
       earlySlot.point,
       earlySlot.point.template,
@@ -4819,7 +4984,11 @@ function solveCircuitStep(
             template: Object.freeze({
               components: Object.freeze(
                 components.map((component, index) =>
-                  retainArduinoElectricalComponent(component, templateInputs[index]!),
+                  retainArduinoElectricalComponent(
+                    component,
+                    templateInputs[index]!,
+                    options.operatingPointReuse,
+                  ),
                 ),
               ),
               nodes: Object.freeze(
