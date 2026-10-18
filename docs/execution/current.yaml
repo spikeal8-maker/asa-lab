@@ -81,6 +81,49 @@ primary_lane:
     - docs/architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md
 
 parallel_lanes:
+  - id: scratch-library-svg
+    parent_lane: visual-programming
+    worktree_id: scratch-library-svg-point3-599
+    owned_paths:
+      - tests/blocks/library-svg-roundtrip.spec.ts
+    task:
+      id: TASK-VSCR-LIBRARY-SVG-COMPAT-001
+      issue: 599
+      branch: main
+      base_branch: main
+      pr: null
+      status: in_progress
+      kind: repair
+      checkpoint: selected_point3_security_design_review_before_exception
+      owner_acceptance: pending
+      owner_authorization: Owner selected audit point3 only; publish to main, report and STOP. No deployment or live data changes.
+      context_hints:
+        - docs/product/visual-programming/tasks/VSCR-LIBRARY-SVG-COMPAT-001.md
+        - docs/product/visual-programming/components/assets.yaml
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: 23f87bd537c7622f049349af6c896fff948e17d9
+      head_sha: null
+      observed_at: '2026-10-18T12:00:00Z'
+      main:
+        branch: main
+        sha: 23f87bd537c7622f049349af6c896fff948e17d9
+      observation_note: Selected point3; fetch main before writes. Safe library SVG compatibility only; independent security review and exact CI required. No deployment.
+    execution_lease:
+      executor_id: scratch-library-svg-point3-599
+      holder: unassigned
+      acquired_at: null
+      expires_at: null
+      reviewer_role_requires_lease: false
+    gates:
+      focused:
+        workflow: Scratch Focused
+        commands:
+          - pnpm gate:blocks
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
   - id: electronics-identifier-recovery
     parent_lane: electronics
     worktree_id: electronics-identifiers-point2-596
