@@ -53,8 +53,8 @@ jobs:
           node-version: '22'
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm test:capacity
       - run: pnpm exec nx build api --skip-nx-cache
+      - run: pnpm test:capacity
       - name: Build the repository's pinned disposable object-store image
         run: docker build -f infra/minio/Dockerfile -t asa-capacity-minio:${{ github.run_id }} .
       - name: Start this run's isolated object store and bucket
