@@ -61,7 +61,7 @@ export const AllowUnverifiedAccount = () => SetMetadata(ALLOW_UNVERIFIED_ACCOUNT
 @Injectable()
 export class AccountVerificationGuard implements CanActivate {
   constructor(
-    private readonly reflector: Reflector,
+    @Inject(Reflector) private readonly reflector: Reflector,
     @Inject(TOKENS.activeContextUseCase) private readonly activeContext: ActiveContextUseCase,
     @Inject(TOKENS.accountVerification) private readonly verification: AccountVerificationService,
     @Inject(TOKENS.seatContextUseCase) private readonly seats: SeatContextUseCase,
