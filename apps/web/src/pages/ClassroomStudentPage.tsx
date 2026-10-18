@@ -935,7 +935,8 @@ export function ClassroomStudentPage({
               classroomId={classroomId}
               seatId={seatId}
               profile={profile}
-              readOnly={settingsLocked}
+              readOnly={readOnly}
+              mutationsDisabled={settingsLocked}
               onChanged={load}
             />
           </section>

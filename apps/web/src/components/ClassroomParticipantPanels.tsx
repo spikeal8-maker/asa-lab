@@ -258,6 +258,7 @@ export function ParticipantMeritsAndAvatars({
   profile,
   onChanged,
   readOnly = false,
+  mutationsDisabled = false,
   accountLearner = false,
   learnerView = false,
 }: {
@@ -266,6 +267,7 @@ export function ParticipantMeritsAndAvatars({
   profile: ParticipantProfile;
   onChanged: () => Promise<void>;
   readOnly?: boolean;
+  mutationsDisabled?: boolean;
   accountLearner?: boolean;
   learnerView?: boolean;
 }): JSX.Element {
@@ -302,7 +304,7 @@ export function ParticipantMeritsAndAvatars({
     };
   }, [classroomId, seatId]);
   const archived = profile.status !== 'active';
-  const locked = busy || archived;
+  const locked = busy || archived || mutationsDisabled;
   async function mutate(
     action: string,
     input: Record<string, unknown>,
@@ -458,7 +460,9 @@ export function ParticipantMeritsAndAvatars({
                 disabled={locked || !avatar.available}
                 aria-pressed={choice === avatar.id}
                 aria-label={`Выбрать ${avatar.title}`}
-                onClick={() => setChoice(avatar.id)}
+                onClick={() => {
+                  if (!locked) setChoice(avatar.id);
+                }}
               >
                 <img src={avatar.url} alt="" width={64} height={64} />
                 <span>{avatar.title}</span>
@@ -487,13 +491,20 @@ export function ParticipantMeritsAndAvatars({
           ))}
         </div>
         <div className="participant-actions">
-          <button type="button" disabled={locked} onClick={() => setChoice(null)}>
+          <button
+            type="button"
+            disabled={locked}
+            onClick={() => {
+              if (!locked) setChoice(null);
+            }}
+          >
             Обычный аватар
           </button>
           <button
             type="button"
             disabled={locked}
             onClick={() => {
+              if (locked) return;
               if (readOnly) {
                 const token = scope.current;
                 setBusy(true);
@@ -579,6 +590,7 @@ export function ParticipantMeritsAndAvatars({
                 accept="image/png,image/jpeg,image/webp"
                 multiple
                 onChange={(event) => {
+                  if (locked) return;
                   const files = [...(event.target.files ?? [])];
                   event.target.value = '';
                   setError(null);

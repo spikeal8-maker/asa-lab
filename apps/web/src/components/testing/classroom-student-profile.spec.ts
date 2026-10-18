@@ -1031,6 +1031,68 @@ it('wires settings, credentials, access cards, suspension and the real class ava
   expect(document.activeElement).toBe(section);
 });
 
+it('blocks suspended teacher avatar writes and uses the teacher endpoint after reactivation', async () => {
+  const data = profile();
+  data.student.status = 'suspended';
+  data.merits = [
+    { id: 'merit-a', title: 'Мастер', description: '', granted: false, grantedAt: null },
+  ];
+  data.avatars = ['saved', 'next'].map((id) => ({
+    id,
+    title: id,
+    url: `/avatar/${id}`,
+    secret: true,
+    available: true,
+    selected: id === 'saved',
+    permitted: true,
+  }));
+  mockProfilePage(async () => ok({ ...data, student: { ...data.student } }));
+  vi.spyOn(participantsApi, 'listSeatAwards').mockResolvedValue(ok({ items: [] }));
+  const learnerSave = vi
+    .spyOn(participantsApi, 'seatAvatar')
+    .mockResolvedValue(ok({ saved: true }));
+  const teacherSave = vi
+    .spyOn(participantsApi, 'mutate')
+    .mockResolvedValue(ok({}) as Awaited<ReturnType<typeof participantsApi.mutate>>);
+  const actions = profileActions();
+  await renderProfileActions(actions);
+  expect(button('Аватары класса').disabled).toBe(true);
+  await click('Заслуги');
+  for (const label of [
+    'Выбрать next',
+    'Обычный аватар',
+    'Сохранить аватар',
+    'Отозвать доступ: next',
+    'Выдать',
+  ]) {
+    expect(button(label).disabled).toBe(true);
+    await click(label);
+  }
+  expect(
+    host.querySelector<HTMLFieldSetElement>('.participant-recognition form fieldset')!.disabled,
+  ).toBe(true);
+  expect(
+    host.querySelector<HTMLInputElement>('input[type="file"]')!.closest('fieldset')!.disabled,
+  ).toBe(true);
+  expect(button('Выбрать saved').getAttribute('aria-pressed')).toBe('true');
+  expect(learnerSave).not.toHaveBeenCalled();
+  expect(teacherSave).not.toHaveBeenCalled();
+
+  data.student.status = 'active';
+  await renderProfileActions(actions, 'seat-a', 1);
+  expect(button('Выбрать next').disabled).toBe(false);
+  expect(button('Сохранить аватар').disabled).toBe(false);
+  await click('Выбрать next');
+  await click('Сохранить аватар');
+  expect(teacherSave).toHaveBeenCalledExactlyOnceWith(
+    'class',
+    'avatar_choose',
+    { seatId: 'seat-a', id: 'next' },
+    expect.any(String),
+  );
+  expect(learnerSave).not.toHaveBeenCalled();
+});
+
 it.each(['archive', 'suspended', 'pending'] as const)(
   'disables mutation controls for %s',
   async (mode) => {
