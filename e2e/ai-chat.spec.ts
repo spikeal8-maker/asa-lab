@@ -535,7 +535,7 @@ async function expectChatFits(page: Page): Promise<void> {
 }
 
 for (const theme of ['light', 'dark'] as const) {
-  for (const width of [320, 390, 768, 1024, 1120, 1440]) {
+  for (const width of [320, 390, 600, 768, 1024, 1120, 1440]) {
     test(`AI creation workspace fits ${width}px in ${theme} theme`, async ({ page }) => {
       await page.emulateMedia({ colorScheme: theme });
       await page.setViewportSize({ width, height: 750 });
@@ -618,6 +618,119 @@ test('AI long draft contracts with the keyboard visual viewport and remains edit
   await expect(composer).toHaveCSS('height', '160px');
   await expectChatFits(page);
   expect(fake.requests).toHaveLength(0);
+});
+
+for (const width of [320, 600, 1440]) {
+  for (const action of ['rename', 'delete', 'pagination', 'new-chat'] as const) {
+    test(`AI history ${action} failure stays accessible at ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 750 });
+      const fake = await fixture(page);
+      const id = randomUUID();
+      fake.threads.push({ id, title: 'Схема проекта', updatedAt: NOW });
+      fake.messages.set(id, []);
+      const failure = `Не удалось выполнить действие: ${action}`;
+      await page.route(/\/api\/ai\/threads(?:\?.*)?$/, (route) => {
+        const request = route.request();
+        if (
+          (action === 'new-chat' && request.method() === 'POST') ||
+          (action === 'pagination' && new URL(request.url()).searchParams.has('beforeId'))
+        ) {
+          return route.fulfill({
+            status: 503,
+            json: { error: { code: 'history_action_failed', message: failure } },
+          });
+        }
+        if (request.method() !== 'GET') return route.fallback();
+        return route.fulfill({ json: { items: fake.threads, nextCursor: { at: NOW, id } } });
+      });
+      await page.route(`**/api/ai/threads/${id}`, (route) =>
+        route.fulfill({
+          status: 503,
+          json: { error: { code: 'history_action_failed', message: failure } },
+        }),
+      );
+      await page.goto('/#/ai');
+      const composer = page.getByRole('textbox', { name: 'Сообщение ИИ' });
+      await composer.fill('Сохранить черновик');
+      const toggle = page.getByRole('button', { name: 'Открыть историю диалогов' });
+      const dialog = page.getByRole('dialog', { name: 'История диалогов' });
+      if (width < 1120) await toggle.click();
+      await expect(dialog).toBeVisible();
+      if (action === 'rename') {
+        await dialog.getByRole('button', { name: 'Переименовать: Схема проекта' }).click();
+        await dialog.getByRole('textbox', { name: 'Новое название диалога' }).fill('Новое имя');
+        await dialog.getByRole('button', { name: 'Сохранить', exact: true }).click();
+      } else if (action === 'delete') {
+        await dialog.getByRole('button', { name: 'Удалить: Схема проекта' }).click();
+        await dialog.getByRole('button', { name: 'Удалить', exact: true }).click();
+      } else if (action === 'pagination') {
+        await dialog.getByRole('button', { name: 'Показать больше диалогов' }).click();
+      } else {
+        await dialog.getByRole('button', { name: 'Новый чат', exact: true }).click();
+      }
+      if (width < 1120) {
+        const alert = dialog.getByRole('alert');
+        await expect(alert).toHaveText(failure);
+        await expect(alert).toBeInViewport({ ratio: 1 });
+        expect(await dialog.evaluate((node) => node.matches(':modal'))).toBe(true);
+        await page.keyboard.press('Tab');
+        expect(await dialog.evaluate((node) => node.contains(document.activeElement))).toBe(true);
+        await page.keyboard.press('Escape');
+        await expect(dialog).toBeHidden();
+        await expect(toggle).toBeFocused();
+        await expect(page.getByRole('alert')).toContainText(failure);
+        await toggle.click();
+        await expect(dialog.getByRole('alert')).toHaveText(failure);
+        await dialog.getByRole('button', { name: 'Закрыть историю', exact: true }).click();
+        await expect(toggle).toBeFocused();
+      } else {
+        await expect(dialog.getByRole('alert')).toHaveCount(0);
+        await expect(page.getByRole('alert')).toContainText(failure);
+      }
+      await expect(composer).toHaveValue('Сохранить черновик');
+      expect(fake.threads).toEqual([{ id, title: 'Схема проекта', updatedAt: NOW }]);
+      expect(fake.requests).toHaveLength(0);
+    });
+  }
+}
+
+test('AI composer sends with Enter, adds a line with Shift+Enter and respects IME', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 600, height: 750 });
+  const fake = await fixture(page, 'Ответ на многострочный вопрос');
+  fake.release();
+  await page.goto('/#/ai');
+  const composer = page.getByRole('textbox', { name: 'Сообщение ИИ' });
+  await composer.fill('Первая строка');
+  await composer.press('End');
+  await composer.press('Shift+Enter');
+  await composer.press('x');
+  await expect(composer).toHaveValue('Первая строка\nx');
+  expect(fake.requests).toHaveLength(0);
+  await composer.dispatchEvent('compositionstart', { data: '' });
+  const prevented = await composer.evaluate((node) => {
+    const event = new KeyboardEvent('keydown', {
+      key: 'Enter',
+      code: 'Enter',
+      isComposing: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    node.dispatchEvent(event);
+    return event.defaultPrevented;
+  });
+  expect(prevented).toBe(false);
+  await composer.dispatchEvent('compositionend', { data: 'x' });
+  await expect(composer).toBeEnabled();
+  await expect(composer).toHaveValue('Первая строка\nx');
+  expect(fake.requests).toHaveLength(0);
+  expect(fake.threads).toHaveLength(0);
+  await composer.press('Enter');
+  await expect(composer).toHaveValue('');
+  await expect(page.locator('.chat-user-bubble')).toHaveText('Первая строка\nx');
+  await expect(page.locator('.chat-turn-assistant')).toContainText('Ответ на многострочный вопрос');
+  expect(fake.requests).toHaveLength(1);
 });
 
 test.describe('AI history touch backdrop', () => {
@@ -734,6 +847,7 @@ test('AI stays within the viewport after portal and chat panels collapse and the
   await page.getByRole('button', { name: 'Свернуть историю' }).click();
   for (const viewport of [
     { width: 1024, height: 750 },
+    { width: 600, height: 750 },
     { width: 390, height: 640 },
     { width: 320, height: 480 },
     { width: 768, height: 400 },
@@ -819,7 +933,7 @@ test('AI stop control saves a stopped reply and unlocks the composer', async ({ 
   await expectChatFits(page);
 });
 
-for (const width of [1440, 1024, 390, 320]) {
+for (const width of [1440, 1024, 600, 390, 320]) {
   test(`AI text chat shows pending, model reply and saved history at ${width}px`, async ({
     page,
   }) => {
@@ -961,7 +1075,7 @@ test('AI model picker uses only admin-allowed OpenAI models', async ({ page }) =
   expect(fake.models).toEqual(['gpt-4.1-mini']);
 });
 
-for (const width of [1440, 390, 320]) {
+for (const width of [1440, 600, 390, 320]) {
   test(`Admin tests the saved provider only with explicit paid consent at ${width}px`, async ({
     page,
   }) => {

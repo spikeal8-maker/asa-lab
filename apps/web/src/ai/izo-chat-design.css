@@ -302,6 +302,9 @@
   width: 100%;
   margin-top: 8px;
 }
+.asa-ai-layout .asa-ai-history-error {
+  flex: 0 0 auto;
+}
 .asa-ai-layout .chat-sidebar-bottom {
   flex: 0 0 auto;
   padding: 12px 16px max(12px, env(safe-area-inset-bottom));

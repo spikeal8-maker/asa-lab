@@ -635,6 +635,11 @@ export function AiChatPage(): JSX.Element {
               />
             </label>
           </div>
+          {!desktop && error ? (
+            <div className="asa-ai-error asa-ai-history-error" role="alert">
+              {error}
+            </div>
+          ) : null}
           <strong className="chat-side-section">Недавние</strong>
           <nav className="chat-history-list" aria-label="Диалоги">
             {visible.map((thread) => (
