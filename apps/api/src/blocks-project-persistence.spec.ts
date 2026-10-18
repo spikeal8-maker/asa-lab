@@ -876,7 +876,7 @@ describe('Scratch storage failure through the existing project controller', () =
           actor,
         }),
       );
-      expect(opened).toHaveBeenCalledTimes(1);
+      expect(opened).not.toHaveBeenCalled();
       expect(account).toHaveBeenCalledWith('synthetic-account-session');
       if (sessionKind === 'seat') expect(seat).toHaveBeenCalledWith('synthetic-seat-session');
       else expect(seat).not.toHaveBeenCalled();

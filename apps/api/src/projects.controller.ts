@@ -535,7 +535,7 @@ export class ProjectsController {
         400,
       );
     }
-    const result = await this.saveUseCase.execute({
+    const result = await this.saveUseCase.executeWithModule({
       tenantId: context.tenantId,
       projectId,
       actor: ProjectsController.actorOf(context),
@@ -544,15 +544,9 @@ export class ProjectsController {
       mutationId: String(shape.body['mutationId'] ?? ''),
     });
     if (!result.ok) ProjectsController.reject(result.code, result.message, result.reasonCode);
-    const opened = await this.openUseCase.execute(
-      context.tenantId,
-      projectId,
-      ProjectsController.actorOf(context),
-    );
-    if (!opened.ok) ProjectsController.reject(opened.code, opened.message);
     return {
-      draft: result.value,
-      result: this.analyse(opened.value.project.moduleKey, result.value.document),
+      draft: result.value.draft,
+      result: this.analyse(result.value.moduleKey, result.value.draft.document),
     };
   }
 

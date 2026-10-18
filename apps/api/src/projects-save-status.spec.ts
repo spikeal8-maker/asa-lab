@@ -8,6 +8,49 @@ import { ProjectsController } from './projects.controller.js';
 import { SESSION_COOKIE } from './tokens.js';
 
 describe('existing project controller preserves draft failure status', () => {
+  it('returns and analyses the acknowledged draft without a fallible post-save reopen', async () => {
+    const controller = Object.create(ProjectsController.prototype) as ProjectsController;
+    const tenantId = randomUUID();
+    const principalId = randomUUID();
+    const userId = randomUUID();
+    const projectId = randomUUID();
+    const draft = {
+      projectId,
+      document: { normalized: true },
+      revision: 2,
+      updatedAt: 'now',
+      preview: null,
+    };
+    const open = vi.fn().mockRejectedValue(new Error('post-save read unavailable'));
+    const analyse = vi.fn().mockReturnValue({ summary: 'saved' });
+    const executeWithModule = vi.fn().mockResolvedValue({
+      ok: true,
+      value: { draft, moduleKey: 'electronics' },
+    });
+    Object.assign(controller, {
+      activeContext: { resolve: async () => ({ tenantId, principalId, userId }) },
+      saveUseCase: { executeWithModule },
+      openUseCase: { execute: open },
+      analyse,
+    });
+    const request = {
+      cookies: { [SESSION_COOKIE]: 'synthetic-unit-session' },
+    } as unknown as FastifyRequest;
+    const body = { document: { submitted: true }, baseRevision: 1, mutationId: randomUUID() };
+    expect(await controller.saveDraft(request, projectId, body)).toEqual({
+      draft,
+      result: { summary: 'saved' },
+    });
+    expect(executeWithModule).toHaveBeenCalledWith({
+      tenantId,
+      projectId,
+      actor: { principalId, userId },
+      ...body,
+    });
+    expect(analyse).toHaveBeenCalledWith('electronics', draft.document);
+    expect(open).not.toHaveBeenCalled();
+  });
+
   it.each([
     ['validation_error', 400],
     ['dependency_unavailable', 503],
@@ -27,7 +70,9 @@ describe('existing project controller preserves draft failure status', () => {
           userId: randomUUID(),
         }),
       },
-      saveUseCase: { execute: async () => ({ ok: false, code, message: 'safe failure' }) },
+      saveUseCase: {
+        executeWithModule: async () => ({ ok: false, code, message: 'safe failure' }),
+      },
       openUseCase: { execute: open },
     });
     const request = {

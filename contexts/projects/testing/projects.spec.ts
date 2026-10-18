@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   isProjectScope,
   isValidCheckpointLabel,
@@ -410,8 +410,54 @@ describe('list, rename, draft and checkpoint', () => {
     expect(saved.ok && saved.value.revision).toBe(2);
   });
 
+  it.each(['execute', 'executeWithModule'] as const)(
+    '%s saves once using the authorized module without loading the project again',
+    async (method) => {
+      const { port, saves } = repo();
+      const load = vi.spyOn(port, 'load');
+      const save = vi.spyOn(port, 'saveDraft');
+      const result = await new SaveDraftUseCase(port, catalog())[method]({
+        tenantId: 't1',
+        projectId: 'p1',
+        actor: { principalId: 'principal:1', userId: 'u1' },
+        document: {},
+        baseRevision: 1,
+        mutationId: '00000000-0000-4000-8000-000000000005',
+      });
+      const draft = await save.mock.results[0].value;
+      expect(result).toEqual({
+        ok: true,
+        value: method === 'execute' ? draft : { draft, moduleKey: 'electronics' },
+      });
+      expect(load).toHaveBeenCalledTimes(1);
+      expect(load).toHaveBeenCalledWith('t1', 'p1', {
+        principalId: 'principal:1',
+        userId: 'u1',
+      });
+      expect(saves).toHaveLength(1);
+    },
+  );
+
+  it.each(['execute', 'executeWithModule'] as const)(
+    '%s rejects an inaccessible project without writing',
+    async (method) => {
+      const { port, saves } = repo({ load: async () => null });
+      const result = await new SaveDraftUseCase(port, catalog())[method]({
+        tenantId: 't1',
+        projectId: 'p1',
+        actor: { principalId: 'principal:1', userId: 'u1' },
+        document: {},
+        baseRevision: 1,
+        mutationId: '00000000-0000-4000-8000-000000000006',
+      });
+      expect(result).toMatchObject({ ok: false, code: 'project_not_found' });
+      expect(saves).toHaveLength(0);
+    },
+  );
+
   it('refuses to overwrite a draft whose server revision moved forward', async () => {
     const { port } = repo({ saveDraft: async () => null });
+    const load = vi.spyOn(port, 'load');
     const result = await new SaveDraftUseCase(port, catalog()).execute({
       tenantId: 't1',
       projectId: 'p1',
@@ -422,6 +468,7 @@ describe('list, rename, draft and checkpoint', () => {
     });
 
     expect(result).toMatchObject({ ok: false, code: 'project_revision_conflict' });
+    expect(load).toHaveBeenCalledTimes(2);
   });
 
   it('rejects an invalid base revision before writing', async () => {
