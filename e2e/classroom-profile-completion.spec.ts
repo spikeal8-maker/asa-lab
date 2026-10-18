@@ -256,14 +256,15 @@ async function assertLayout(page: Page, width: number, file: string) {
     expect(splitWords, 'Every full Russian tab label must remain readable').toEqual([]);
     for (const button of await sections.locator('button').all()) {
       await button.focus();
-      await button.scrollIntoViewIfNeeded();
       // Chromium rounds local scroll offsets to pixels; keep the same 1px
       // geometry tolerance as the rest of this layout contract.
-      await expect(button).toBeInViewport({ ratio: 0.99 });
+      await expect(button).toBeInViewport();
       const box = (await button.boundingBox())!;
       const rail = (await sections.boundingBox())!;
       expect(box.x).toBeGreaterThanOrEqual(rail.x - 1);
       expect(box.x + box.width).toBeLessThanOrEqual(rail.x + rail.width + 1);
+      expect(box.y).toBeGreaterThanOrEqual(rail.y - 1);
+      expect(box.y + box.height).toBeLessThanOrEqual(rail.y + rail.height + 1);
       expect(box.x).toBeGreaterThanOrEqual(0);
       expect(box.x + box.width).toBeLessThanOrEqual(width + 1);
       expect(box.height).toBeGreaterThanOrEqual(44);
@@ -282,8 +283,10 @@ async function assertLayout(page: Page, width: number, file: string) {
     await sections.locator('button').first().focus();
     await page.keyboard.press('End');
     await expect(sections.locator('button').last()).toBeFocused();
+    await expect(sections.locator('button').last()).toBeInViewport();
     await page.keyboard.press('Home');
     await expect(sections.locator('button').first()).toBeFocused();
+    await expect(sections.locator('button').first()).toBeInViewport();
   }
 
   const controls = page.locator(

@@ -408,18 +408,21 @@ test('production profile stays compact with long Russian identity on desktop, sp
     await expect(tabs.locator('button')).toHaveCount(8);
     for (const tab of await tabs.locator('button').all()) {
       await tab.focus();
-      await tab.scrollIntoViewIfNeeded();
-      await expect(tab).toBeInViewport({ ratio: 0.99 });
+      await expect(tab).toBeInViewport();
       const box = (await tab.boundingBox())!;
       const rail = (await tabs.boundingBox())!;
       expect(box.x).toBeGreaterThanOrEqual(rail.x - 1);
       expect(box.x + box.width).toBeLessThanOrEqual(rail.x + rail.width + 1);
+      expect(box.y).toBeGreaterThanOrEqual(rail.y - 1);
+      expect(box.y + box.height).toBeLessThanOrEqual(rail.y + rail.height + 1);
     }
     await tabs.locator('button').first().focus();
     await page.keyboard.press('End');
     await expect(tabs.locator('button').last()).toBeFocused();
+    await expect(tabs.locator('button').last()).toBeInViewport();
     await page.keyboard.press('Home');
     await expect(tabs.locator('button').first()).toBeFocused();
+    await expect(tabs.locator('button').first()).toBeInViewport();
     await shot(page, `profile-${width}`);
   }
   // CSS layout reflow only. Actual browser/device zoom is NOT_RUN by this test.

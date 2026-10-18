@@ -400,6 +400,12 @@ export function ClassroomStudentPage({
       <nav
         className="participant-tabs"
         aria-label="Разделы профиля"
+        onFocus={(event) => {
+          // Native focus may leave a partly visible button clipped in a local
+          // scroller. Reveal its full label for Tab and arrow/Home/End users.
+          if (event.target instanceof HTMLButtonElement)
+            event.target.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+        }}
         onKeyDown={(event) => {
           const buttons = Array.from(event.currentTarget.querySelectorAll('button'));
           const index = buttons.indexOf(event.target as HTMLButtonElement);
