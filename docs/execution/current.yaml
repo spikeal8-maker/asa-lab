@@ -106,7 +106,7 @@ parallel_lanes:
       main:
         branch: main
         sha: 90e09831dd3b0dea42fb71cf47bd9f4a57c3aa30
-      observation_note: Point9 selection snapshot; actual source/review/CI evidence in issue611. No deployment authority.
+      observation_note: Dated point9 selection; fetch main before writes. Actual source/review/CI evidence in issue611. No deployment authority.
     execution_lease:
       executor_id: capacity-point9-611
       holder: unassigned
@@ -117,7 +117,7 @@ parallel_lanes:
       focused:
         workflow: Classroom Capacity Baseline
         commands:
-          - pnpm test:capacity
+          - pnpm control-plane:check
       general:
         workflow: ASA Lab Governance and Code Gates
         commands:
