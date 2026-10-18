@@ -88,6 +88,8 @@ components:
     - contexts/electronics/domain/model-identity.ts
     - contexts/electronics/domain/model-registry.ts
     - contexts/electronics/domain/models/device-model.ts
+    - contexts/electronics/domain/models/linear-dc-models.ts
+    - contexts/electronics/domain/led-model.ts
     tests:
     - contexts/electronics/testing/solver.spec.ts
     - contexts/electronics/testing/linear-dc-models.spec.ts

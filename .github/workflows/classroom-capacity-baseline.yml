@@ -6,6 +6,7 @@ on:
       - 'tools/capacity/**'
       - 'tests/capacity/**'
       - '.github/workflows/classroom-capacity-baseline.yml'
+      - 'infra/minio/Dockerfile'
   workflow_dispatch:
 permissions:
   contents: read
@@ -34,7 +35,6 @@ jobs:
       MIGRATION_CONFIRM: APPLY:asa_capacity_test
       ASA_BLOCKS_RUNTIME_ORIGIN: http://127.0.0.1:4612
       ASA_BLOCKS_RUNTIME_SIGNING_KEY: '000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f'
-      # Empty asset lists perform no object I/O; configure client construction only.
       ASA_OBJECT_STORAGE_ENDPOINT: http://127.0.0.1:19000
       ASA_OBJECT_STORAGE_REGION: us-east-1
       ASA_OBJECT_STORAGE_BUCKET: capacity-fixture
@@ -53,8 +53,12 @@ jobs:
           node-version: '22'
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm test:capacity
       - run: pnpm exec nx build api --skip-nx-cache
+      - run: pnpm test:capacity
+      - name: Build the repository's pinned disposable object-store image
+        run: docker build -f infra/minio/Dockerfile -t asa-capacity-minio:${{ github.run_id }} .
+      - name: Start this run's isolated object store and bucket
+        run: node tools/capacity/object-store.mjs
       - name: Migrate this job's disposable test database
         run: |
           pnpm db:migrate
@@ -68,3 +72,6 @@ jobs:
           path: reports/capacity/backend30.json
           if-no-files-found: warn
           retention-days: 14
+      - name: Remove only this run's disposable object store
+        if: always()
+        run: node tools/capacity/object-store.mjs stop
