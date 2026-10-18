@@ -142,6 +142,17 @@ export default defineConfig(({ command }) => {
               : 'assets/[name]-[hash][extname]';
           },
           manualChunks(id) {
+            // Shared storage and CommonJS interop are also used on Home. Keep
+            // them separate so Home does not eagerly load the Electronics engine.
+            if (
+              id.includes('commonjsHelpers') ||
+              /\/(modules\/project-local-draft|components\/sha256)\./.test(id)
+            ) {
+              return 'project-draft-storage';
+            }
+            if (/\/electronics\/electronics-(document-repair|project-recovery)\./.test(id)) {
+              return 'electronics-recovery';
+            }
             if (id.includes('/node_modules/.pnpm/three@') || id.includes('/node_modules/three/')) {
               return 'three-vendor';
             }

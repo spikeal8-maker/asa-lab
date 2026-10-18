@@ -4,8 +4,13 @@ import { resolve } from 'node:path';
 import { act, createElement, StrictMode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { parseElectronicsDocument } from '@asa-lab/electronics';
 import { api, type Project, type SchematicDocument } from '../../api';
-import { readLocalProjectDraft, writeLocalProjectDraft } from '../../modules/project-local-draft';
+import {
+  localProjectDraftKey,
+  readLocalProjectDraft,
+  writeLocalProjectDraft,
+} from '../../modules/project-local-draft';
 import {
   configureProductionLibrary,
   type OwnerCatalogManifest,
@@ -195,13 +200,13 @@ async function mountProject() {
   return save;
 }
 
-async function reopenProject() {
+async function reopenProject(expectedStatus: 'ready' | 'error' = 'ready') {
   await act(async () => root!.unmount());
   host?.remove();
   host = document.body.appendChild(document.createElement('div'));
   root = createRoot(host);
   await act(async () => root!.render(createElement(Probe)));
-  expect(state().status).toBe('ready');
+  expect(state().status).toBe(expectedStatus);
 }
 
 function edit(zoom: number) {
@@ -230,6 +235,298 @@ afterEach(async () => {
 });
 
 describe('Electronics project autosave in the mounted editor hook', () => {
+  function oldCopy(): SchematicDocument {
+    const id = 'old-copy-'.repeat(15);
+    return {
+      ...initialDocument,
+      components: [resistor('base', 10), { ...resistor(id, 80), name: 'Old copy' }],
+      connections: [
+        {
+          id: 'old-wire-'.repeat(15),
+          from: { componentId: 'base', terminal: 'a' },
+          to: { componentId: id, terminal: 'b' },
+        },
+      ],
+    };
+  }
+
+  function storeOldCopy(document = oldCopy(), baseDocument = initialDocument) {
+    const key =
+      localProjectDraftKey(projectId, userId, 'account') + ':electronics-editor:old-classroom-tab';
+    expect(
+      writeLocalProjectDraft(
+        window.localStorage,
+        {
+          projectId,
+          userId,
+          identityKind: 'account',
+          moduleKey: 'electronics',
+          baseRevision: 1,
+          baseDocument,
+          document,
+        },
+        key,
+      ),
+    ).toBe(true);
+    window.sessionStorage.clear();
+    return { key, raw: window.localStorage.getItem(key)! };
+  }
+
+  it.each([
+    ['delete', false],
+    ['edit', false],
+    ['delete', true],
+    ['edit', true],
+  ] as const)(
+    'retires the consumed source after %s before first confirmation (reload=%s)',
+    async (action, reload) => {
+      const save = await mountProject();
+      const { key, raw } = storeOldCopy();
+      await reopenProject();
+      const recovered = state().document!;
+      const changed =
+        action === 'delete'
+          ? { ...recovered, components: [], connections: [] }
+          : {
+              ...recovered,
+              components: recovered.components.map((item) => ({ ...item, value: 1000 })),
+            };
+      act(() => state().setDocument(changed));
+      if (reload) {
+        // Leave without a successful server write; the lineage must survive in storage.
+        save.mockResolvedValue({
+          ok: false,
+          status: 0,
+          error: { code: 'offline', message: 'offline' },
+        } as Awaited<ReturnType<typeof api.saveDraft>>);
+        window.sessionStorage.clear();
+        await reopenProject();
+      }
+      save.mockImplementation(async (_id, document, revision) => {
+        expect(parseElectronicsDocument(document).ok).toBe(true);
+        vi.mocked(api.openProject).mockResolvedValue({
+          ok: true,
+          status: 200,
+          data: {
+            project,
+            draft: { projectId, document, revision: revision + 1, updatedAt: '' },
+            versions: [],
+            result: null,
+          },
+        } as Awaited<ReturnType<typeof api.openProject>>);
+        return {
+          ok: true,
+          status: 200,
+          data: {
+            draft: { projectId, document, revision: revision + 1, updatedAt: '' },
+            result: null,
+          },
+        } as Awaited<ReturnType<typeof api.saveDraft>>;
+      });
+      await act(async () => state().saveNow());
+      expect(state().saveStatus).toBe('saved');
+      expect(window.localStorage.getItem(key)).toBe(raw);
+      expect(window.localStorage.getItem(key + ':ack')).not.toBeNull();
+      window.sessionStorage.clear();
+      await reopenProject();
+      expect(state().document!.components).toEqual(changed.components);
+      expect(state().document!.connections).toEqual(changed.connections);
+      expect(state().saveStatus).toBe('saved');
+    },
+  );
+
+  it('repairs an old local copy, confirms a valid save and never resurrects the original branch', async () => {
+    const save = await mountProject();
+    const { key, raw } = storeOldCopy();
+    await reopenProject();
+    const repaired = state().document!;
+    expect(parseElectronicsDocument(repaired).ok).toBe(true);
+    expect(repaired.components).toHaveLength(2);
+    expect(repaired.connections[0]!.to.componentId).toBe(repaired.components[1]!.id);
+    expect(state().saveStatus).toBe('dirty');
+    expect(state().localCopySaved).toBe(true);
+    const originals = Object.keys(window.localStorage).filter((item) =>
+      item.includes(':electronics-identifier-original:'),
+    );
+    expect(originals).toHaveLength(1);
+    expect(window.localStorage.getItem(originals[0]!)).toBe(raw);
+    save.mockImplementation(async (_id, document, revision) => {
+      expect(parseElectronicsDocument(document).ok).toBe(true);
+      const stored = JSON.parse(JSON.stringify(document)) as SchematicDocument;
+      vi.mocked(api.openProject).mockResolvedValue({
+        ok: true,
+        status: 200,
+        data: {
+          project,
+          draft: { projectId, document: stored, revision: revision + 1, updatedAt: '' },
+          versions: [],
+          result: null,
+        },
+      } as Awaited<ReturnType<typeof api.openProject>>);
+      return {
+        ok: true,
+        status: 200,
+        data: {
+          draft: { projectId, document: stored, revision: revision + 1, updatedAt: '' },
+          result: null,
+        },
+      } as Awaited<ReturnType<typeof api.saveDraft>>;
+    });
+    await act(async () => state().saveNow());
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(save.mock.calls[0]![2]).toBe(1);
+    expect(state().saveStatus).toBe('saved');
+    expect(window.localStorage.getItem(key + ':ack')).not.toBeNull();
+    window.sessionStorage.clear();
+    await reopenProject();
+    expect(state().document).toEqual(repaired);
+    // A later confirmed deletion must not bring back an old, pre-repair branch.
+    act(() => state().setDocument({ ...state().document!, components: [], connections: [] }));
+    await act(async () => state().saveNow());
+    window.sessionStorage.clear();
+    await reopenProject();
+    expect(state().document!.components).toEqual([]);
+    expect(state().document!.connections).toEqual([]);
+    expect(state().saveStatus).toBe('saved');
+    expect(window.localStorage.getItem(originals[0]!)).toBe(raw);
+    expect(save).toHaveBeenCalledTimes(2);
+  });
+
+  it('backs up a legacy server draft before repair and retains its actual revision', async () => {
+    const save = await mountProject();
+    const original = oldCopy();
+    vi.mocked(api.openProject).mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: {
+        project,
+        draft: { projectId, document: original, revision: 17, updatedAt: '2026-10-16T12:00:00Z' },
+        versions: [],
+        result: null,
+      },
+    } as Awaited<ReturnType<typeof api.openProject>>);
+    await reopenProject();
+    expect(parseElectronicsDocument(state().document).ok).toBe(true);
+    expect(state().saveStatus).toBe('dirty');
+    const backup = Object.keys(window.localStorage).find((key) =>
+      key.includes(':electronics-identifier-original:'),
+    )!;
+    expect(JSON.parse(window.localStorage.getItem(backup)!)).toMatchObject({
+      document: original,
+      baseRevision: 17,
+      userId,
+      identityKind: 'account',
+    });
+    save.mockImplementationOnce(
+      async (_id, document, revision) =>
+        ({
+          ok: true,
+          status: 200,
+          data: {
+            draft: { projectId, document, revision: revision + 1, updatedAt: '' },
+            result: null,
+          },
+        }) as Awaited<ReturnType<typeof api.saveDraft>>,
+    );
+    await act(async () => state().saveNow());
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(save.mock.calls[0]![2]).toBe(17);
+    expect(state().serverRevision).toBe(18);
+  });
+
+  it('does not apply a repair or overwrite the original when its backup cannot be verified', async () => {
+    const save = await mountProject();
+    const { key, raw } = storeOldCopy();
+    const actualSet = Storage.prototype.setItem;
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(function (
+      this: Storage,
+      name,
+      value,
+    ) {
+      if (name.includes(':electronics-identifier-original:')) throw new Error('quota');
+      actualSet.call(this, name, value);
+    });
+    await reopenProject('error');
+    expect(window.localStorage.getItem(key)).toBe(raw);
+    expect(window.localStorage.getItem(key + ':ack')).toBeNull();
+    expect(state().document).toBeNull();
+    await advance(180_000);
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  it('leaves an ambiguous legacy slot byte-for-byte intact without saving or acknowledging it', async () => {
+    const save = await mountProject();
+    const original = oldCopy();
+    const ambiguous = {
+      ...original,
+      components: [...original.components, original.components[1]!],
+    };
+    const stored = storeOldCopy(ambiguous);
+    const key = localProjectDraftKey(projectId, userId, 'account');
+    window.localStorage.setItem(key, stored.raw);
+    window.localStorage.removeItem(stored.key);
+    await reopenProject('error');
+    expect(window.localStorage.getItem(key)).toBe(stored.raw);
+    expect(window.localStorage.getItem(key + ':ack')).toBeNull();
+    await advance(180_000);
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  it.each([false, true])(
+    'keeps CAS conflicts and the actual base snapshot (invalid base=%s)',
+    async (invalidBase) => {
+      const save = await mountProject();
+      const base = normalizeLoadedDocument(
+        invalidBase
+          ? oldCopy()
+          : {
+              ...initialDocument,
+              components: [resistor('base', 10)],
+            },
+      );
+      const original = oldCopy();
+      const local = {
+        ...original,
+        components: original.components.map((item) =>
+          item.id === 'base' ? { ...item, value: 330 } : item,
+        ),
+      };
+      storeOldCopy(local, base);
+      const remote = {
+        ...base,
+        components: base.components.map((item) =>
+          item.id === 'base' ? { ...item, value: 470 } : item,
+        ),
+      };
+      vi.mocked(api.openProject).mockResolvedValue({
+        ok: true,
+        status: 200,
+        data: {
+          project,
+          draft: { projectId, document: remote, revision: 2, updatedAt: '' },
+          versions: [],
+          result: null,
+        },
+      } as Awaited<ReturnType<typeof api.openProject>>);
+      await reopenProject();
+      expect(state().saveIssue).toBe('conflict');
+      expect(state().serverRevision).toBe(1);
+      expect(state().document!.components.find((item) => item.id === 'base')!.value).toBe(330);
+      expect(parseElectronicsDocument(state().document).ok).toBe(true);
+      expect(state().localCopySaved).toBe(true);
+      expect(
+        readLocalProjectDraft<SchematicDocument>(
+          window.localStorage,
+          projectId,
+          'electronics',
+          userId,
+        )!.baseDocument,
+      ).toEqual(base);
+      await advance(180_000);
+      expect(save).not.toHaveBeenCalled();
+    },
+  );
+
   it('stops a non-advancing conflict readback instead of repeating on every hide', async () => {
     const save = await mountProject();
     const local = { ...state().document!, components: [resistor('local', 10)] };

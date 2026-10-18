@@ -229,7 +229,13 @@ export class AiChatController {
         canceled.signal,
         model as AiModel | undefined,
       );
-      event('done', result);
+      // Completion acknowledges this operation, not a replacement history page.
+      event('done', {
+        ...result,
+        messages: result.messages.filter(
+          (message) => message.requestId.toLowerCase() === requestId.toLowerCase(),
+        ),
+      });
     } catch (problem) {
       const code = problem instanceof AiServiceError ? problem.code : 'ai_provider_unavailable';
       const message =

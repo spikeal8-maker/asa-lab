@@ -1,0 +1,16 @@
+Scratch library compatibility regression fixture
+
+File: 1e2c3987e4cdb1f317b1773662719b13.svg
+Size: 586 bytes
+MD5: 1e2c3987e4cdb1f317b1773662719b13
+SHA-256: 56a5e1d10eefec3ee23ca969e01d809d8488bf57f56733c36f57639f548fb93b
+
+Exact bytes captured read-only on 2026-10-18 from the existing pinned Scratch
+runtime library-assets directory for the 2026-10-16 classroom audit. This asset
+was rejected by ASA's blanket DOCTYPE rule. No pupil project or personal data.
+The source already belongs to the bundled upstream Scratch library; this is
+test evidence, not a replacement/redrawing or a new upstream pin.
+
+Keep the original XML declaration, comment, DOCTYPE, line endings and contents.
+Byte identity is asserted by the tests; do not format or sanitize the fixture.
+Scope: issue #599, VSCR-LIBRARY-SVG-COMPAT-001, audit point 3.
