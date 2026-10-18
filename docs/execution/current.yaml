@@ -3696,7 +3696,7 @@ parallel_lanes:
           - pnpm gate:repository
 
   - id: projects
-    worktree_id: projects-r7-01
+    worktree_id: projects-publication
     owned_paths:
       - contexts/projects/**
       - apps/api/src/projects.controller.ts
@@ -3712,28 +3712,49 @@ parallel_lanes:
       - apps/web/src/pages/MyProjectsPage.tsx
       - apps/web/src/pages/ProjectsPage.tsx
       - apps/web/src/styles.css
-      - migrations/0144_project_legacy_publication_convergence.sql
+      - apps/api/src/public-projects.controller.ts
+      - apps/web/src/projects-public/**
+      - migrations/0217_public_projects.sql
       - tests/portal/**
       - e2e/project-hub.spec.ts
       - e2e/artifacts/project-hub/**
       - docs/product/projects/**
       - docs/review/PROJ_R7_01/**
     task:
-      id: TASK-PROJ-R7-01C-001
+      id: TASK-PROJ-R7-VISIBLE-PUBLICATION-001
       issue: 211
-      branch: codex/projects-r7-01c-legacy-convergence
+      branch: main
       base_branch: main
       pr: null
-      pr_draft: true
+      pr_draft: false
       status: in_progress
-      checkpoint: r7_01c_legacy_publication_convergence_selected
+      checkpoint: first_visible_exact_publication_selected
       owner_acceptance: pending
-    revisions:
-      convergence_baseline_sha: b07203df33d2a3f0d95c719efe9ab8e5ef3541bd
-      head_sha: b07203df33d2a3f0d95c719efe9ab8e5ef3541bd
+      owner_authorization: >-
+        Owner's 2026-10-18 implementation assignment delegates the complete Public Projects
+        replacement programme to a controller and real author/review/QA subagents, including
+        tested integration into main. Legacy Gallery publication retention is superseded;
+        original Projects, drafts, versions, learning data and personal Collections are protected.
+        No production cleanup or deployment is authorized by this selection.
+      context_hints:
+        - docs/product/projects/tasks/PROJ-R7-VISIBLE-PUBLICATION.md
+        - docs/product/projects/DECISION_LEDGER.md
+    accepted_foundation:
       accepted_r7_01b_merge_sha: 65316c50873e28a5effd7b6e603b5289e37e2fac
       accepted_r3_merge_sha: 5fa616045b16d2720418eb7945f7bef968dd9389
       accepted_r7_01a_merge_sha: 92e7926fb4cf51b8fcb5d57741e01c812a26f2dc
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: 913f70e2d38d5e155d203f08384478a128f9e57e
+      head_sha: null
+      observed_at: '2026-10-18T15:10:00Z'
+      main:
+        branch: main
+        sha: 913f70e2d38d5e155d203f08384478a128f9e57e
+      observation_note: >-
+        Read-only projects preflight and control-plane PASS on this main baseline. First visible
+        replacement is selected, not implemented or accepted. R7-01C legacy-convergence PR 283
+        is superseded by the owner's no-migration decision. Run a fresh fetch main before writes.
     execution_lease:
       executor_id: codex-projects-r7-01
       holder: unassigned

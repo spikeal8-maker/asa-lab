@@ -57,7 +57,7 @@
 | DEC-PROJ-101 | Canonical public URL и redirect policy | до route activation в PROJ-R7-02 | можно строить backend foundation без переименования legacy URLs |
 | DEC-PROJ-102 | Public author projection для minor/StudentSeat | до завершения PROJ-R7-01 | публичный StudentSeat publish запрещён; использовать минимальную safe projection |
 | DEC-PROJ-103 | Assignment/student work publication policy | до завершения PROJ-R7-01 | fail closed; assignment work не становится public |
-| DEC-PROJ-104 | Retention existing reactions при legacy convergence/revoke | **RESOLVED** в R7-01C | сохранять legacy `project_publications.project_id` как compatibility anchor; не delete/rekey в convergence |
+| DEC-PROJ-104 | Historical legacy retention/convergence | **SUPERSEDED** by DEC-PROJ-114 | no legacy migration; preserve original Projects and independent personal Collections |
 | DEC-PROJ-105 | Можно ли полностью запретить remix/copy | до PROJ-R7-05 publication settings | R7-02 использует текущую безопасную copy semantics без нового toggle |
 | DEC-PROJ-106 | Default license для новых publication | до PROJ-R7-05 | migrated/current license сохраняется; не придумывать новый default в UI |
 | DEC-PROJ-107 | Download formats / 3D export policy | до включения download в viewer/detail | скрывать действие, если contract не доказан |
@@ -103,7 +103,11 @@ Target contract уже предполагает:
 
 ## 5. DEC-PROJ-104 — existing reactions
 
-**Статус:** RESOLVED для R7-01C/R7-01D.
+**Статус:** SUPERSEDED by DEC-PROJ-114 (owner decision, 2026-10-18).
+
+Следующий текст сохранён как история прежнего решения, а не требование переноса
+старых публикаций. Никакое его условие не разрешает удалять исходные Projects,
+учебные данные или собственные приватные элементы Collections.
 
 Фактическая legacy-схема связывает и `project_reactions`, и `collection_items` с `project_publications(project_id)` через `ON DELETE CASCADE`. Поэтому удаление либо rekey compatibility row в convergence уничтожило бы уже существующие реакции и сохранения.
 
@@ -188,3 +192,43 @@ Decision считается закрытым, когда есть:
 - ссылка из task card, которую решение разблокирует.
 
 Список вопросов больше не должен жить как общий неопределённый хвост. Каждый вопрос имеет конкретный gate.
+
+---
+
+## 11. DEC-PROJ-114 — замена Gallery без переноса старых публикаций
+
+**Статус:** RESOLVED, решение владельца от 18 октября 2026 года.
+
+Старые публикации, реакции, публичные карточки, рейтинги и сохранения чужих
+публикаций переносить не требуется. PR #283 и обязательная legacy convergence
+R7-01C утратили назначение. Старые public rows не принимаются новой витриной
+автоматически: нужна новая явная публикация, использующая проверенный revision
+contract (`schema_version = 2`) и frozen preview.
+
+Существующие Working Project, Draft, ProjectVersion, учебные данные, пользователи
+и собственные приватные элементы Collections остаются неприкосновенными.
+Cutover выполняется логическим ограничением read/write paths без массовой
+очистки production. Физическая очистка требует отдельно подтверждённых таблиц,
+FK, тестовой копии и backup. Существующая Collections остаётся единственной;
+чужая отозванная работа не раскрывает private metadata через её элементы.
+
+Решение заменяет DEC-PROJ-104, R7-01 §5/AC03/AC14 и legacy compatibility clauses
+старых task cards. Сохранность Project/version/history после нового revoke и
+серверная защита детей остаются обязательными.
+
+## 12. DEC-PROJ-115 — маршруты и первый сквозной инкремент
+
+**Статус:** RESOLVED, техническое решение в рамках порученной программы.
+
+В текущем hash router `#/projects/:id` уже занят личным редактором. Поэтому
+public catalog использует `#/explore`, а stable publication page —
+`#/public-projects/:publicationId`; `#/projects` остаётся личным разделом.
+Это уточняет DEC-PROJ-101 и заменяет пример `/projects/:publicSlug` в старых
+спецификациях. Старые Gallery routes ведут в новую витрину или безопасное
+unavailable состояние, а не в приватный Project.
+
+Публикация exact version, immutable raster preview, safe anonymous metadata,
+отзыв, минимальная витрина и страница принимаются одним пользовательским
+инкрементом по `tasks/PROJ-R7-VISIBLE-PUBLICATION.md`. Это не означает принятия
+всего R7/R8. Контролёр затем ведёт copy/download/ShareLink, полный discovery,
+supported artifacts/viewers и author management до критериев задания.
