@@ -273,6 +273,33 @@ it('preserves default compact pupil semantics and the seat-only API', async () =
   expect(teacher).not.toHaveBeenCalled();
 });
 
+it('does not rewind an exhausted journal while paging overlapping assignment results', async () => {
+  vi.spyOn(participantsApi, 'grades').mockImplementation(async (_c, _s, o = 0, r = 0) => {
+    const next = page(1, 100, o, r);
+    if (r > 0) next.results.push(page(1, 100).results[0]!);
+    return ok(next);
+  });
+  await render();
+  for (let i = 0; i < 3; i++) await click('Ещё результаты');
+  expect(manualRows()).toHaveLength(1);
+  expect(resultRows()).toHaveLength(100);
+  expect(host.textContent).not.toContain('Ещё ручные оценки');
+  expect(host.textContent).not.toContain('Ещё результаты');
+});
+
+it('orders published instants by time rather than the spelling of timezone offsets', async () => {
+  const data = page(0, 2);
+  data.results[0]!.published_at = '2026-01-01T00:00:00-12:00';
+  data.results[1]!.published_at = '2026-01-01T05:00:00Z';
+  vi.spyOn(participantsApi, 'grades').mockResolvedValue(ok(data));
+  await render();
+  expect(
+    [...resultRows()].map(
+      (row) => row.querySelector('.participant-grade-context span')?.textContent,
+    ),
+  ).toEqual(['Задание 0', 'Задание 1']);
+});
+
 const profile = (): ParticipantProfile => ({
   status: 'active',
   student: {

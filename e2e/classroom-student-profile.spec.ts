@@ -11,6 +11,26 @@ const longName = 'Александра Константинопольская-Д
 test.use({ locale: 'ru-RU', timezoneId: 'Europe/Moscow', trace: 'on' });
 test.setTimeout(90_000);
 
+async function ownJournal(page: Page) {
+  for (const path of ['/api/learning/journal/results', '/api/class-join/journal/results']) {
+    await page.route(`**${path}*`, (route) =>
+      route.fulfill({
+        json: {
+          range: {
+            from: '2026-10-01',
+            to: '2026-10-31',
+            today: '2026-10-18',
+            timeZone: 'Europe/Moscow',
+          },
+          offset: 0,
+          nextOffset: null,
+          items: [],
+        },
+      }),
+    );
+  }
+}
+
 function grades(
   manual: number,
   results: number,
@@ -67,10 +87,12 @@ async function setup(
     helper?: boolean;
     suspended?: boolean;
     long?: boolean;
+    account?: boolean;
   } = {},
 ) {
   const state = await fixture(page, options.count ?? 3, {
     status: options.archived ? 'archived' : 'active',
+    account: options.account,
   });
   // Legacy request-error diagnostics are receipts, never classroom mutations.
   await page.route('**/api/diagnostics/client', (route) =>
@@ -116,6 +138,8 @@ async function setup(
     failProfile: false,
     holdProfile: false,
     release: () => {},
+    holdGrade: false,
+    releaseGrade: () => {},
   };
   await page.route(`**/api/classrooms/${classId}/participants/*/*`, async (route) => {
     const url = new URL(route.request().url());
@@ -181,6 +205,19 @@ async function setup(
       return route.fulfill({ json: data });
     }
     if (kind === 'grades') {
+      if (control.holdGrade && seatId === 'seat-0') {
+        await new Promise<void>((resolve) => {
+          control.releaseGrade = resolve;
+        });
+        const stale = grades(100, 100, offset, resultOffset);
+        stale.journal.columns.forEach((c) => {
+          c.category = 'УТЕКШАЯ ОЦЕНКА';
+        });
+        stale.results.forEach((r) => {
+          r.assignment_title = 'УТЕКШИЙ РЕЗУЛЬТАТ';
+        });
+        return route.fulfill({ json: stale });
+      }
       if (control.failGrade) {
         control.failGrade = false;
         return error();
@@ -516,6 +553,145 @@ test('previous/next wrap and return to the exact journal context including month
     'aria-pressed',
     'true',
   );
+  expect(state.errors).toEqual([]);
+  expect(state.mutations).toEqual([]);
+});
+
+test('a delayed previous learner grade page cannot populate the next learner', async ({ page }) => {
+  const state = await setup(page, { long: false, manual: 100, results: 100 });
+  await state.open();
+  const summary = page.getByRole('region', { name: 'Оценки этого класса', exact: true });
+  state.control.holdGrade = true;
+  await summary.getByRole('button', { name: 'Ещё ручные оценки', exact: true }).click();
+  await expect
+    .poll(() => state.requests.some((r) => r.kind === 'grades' && r.offset === 30))
+    .toBe(true);
+  await page.getByRole('button', { name: /Следующий ученик:/ }).click();
+  await expect(page.locator('.classroom-student-identity h1')).toHaveText('Ученик 02');
+  await expect(
+    summary.getByRole('list', { name: 'Ручные оценки', exact: true }).locator('li'),
+  ).toHaveCount(30);
+  state.control.holdGrade = false;
+  state.control.releaseGrade();
+  await expect(page.getByText(/УТЕКШАЯ ОЦЕНКА|УТЕКШИЙ РЕЗУЛЬТАТ/)).toHaveCount(0);
+  await noOverflow(page);
+  expect(state.errors).toEqual([]);
+});
+
+test('attended Account classes retain the original compact pupil summary', async ({ page }) => {
+  const state = await setup(page, { account: true, manual: 30, results: 30 });
+  await ownJournal(page);
+  await page.route('**/api/class-join/account/classes', (route) =>
+    route.fulfill({
+      json: {
+        items: [
+          {
+            seatId: 'seat-0',
+            classroomId: classId,
+            classroomTitle: 'Мой учебный класс',
+            teacherDisplayName: 'Преподаватель',
+            openCount: 0,
+            unfinishedCount: 0,
+          },
+        ],
+      },
+    }),
+  );
+  await page.goto('/#/classrooms');
+  await page.getByRole('button', { name: 'Мой рейтинг и заслуги', exact: true }).click();
+  const summary = page.getByRole('region', { name: 'Последние оценки', exact: true });
+  await expect(summary.locator('.participant-grade-row')).toHaveCount(6);
+  await expect(summary.locator('button')).toHaveCount(0);
+  await expect(page.locator('.teacher-profile-grades')).toHaveCount(0);
+  await page.setViewportSize({ width: 390, height: 900 });
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+    ),
+  ).toBe(true);
+  await shot(page, 'account-pupil-default-390');
+  expect(state.errors).toEqual([]);
+  expect(state.mutations).toEqual([]);
+});
+
+test('SeatResults keeps the original pupil summary and uses only Seat grade reads', async ({
+  page,
+}) => {
+  const state = await fixture(page, 0, { account: true });
+  await ownJournal(page);
+  await page.route('**/api/auth/me', (route) => route.fulfill({ json: { authenticated: false } }));
+  await page.route('**/api/class-join/me', (route) =>
+    route.fulfill({
+      json: {
+        authenticated: true,
+        student: { seatId: 'seat-0', displayName: 'Ученик', safeMode: true, avatarKey: null },
+        classroom: { id: classId, title: 'Мой класс', teacherDisplayName: 'Преподаватель' },
+        expiresAt: '2099-01-01T00:00:00Z',
+      },
+    }),
+  );
+  await page.route('**/api/class-join/participants/me', (route) =>
+    route.fulfill({
+      json: {
+        status: 'active',
+        student: {
+          id: 'seat-0',
+          displayLabel: 'Ученик',
+          avatarKey: null,
+          status: 'active',
+          safeMode: true,
+          lastActiveAt: null,
+        },
+        settings: {
+          revision: 0,
+          periodDays: 30,
+          factors: { projects: true, logins: true, days: true, time: true, grades: true },
+        },
+        metrics: {
+          seatId: 'seat-0',
+          totalWorks: 0,
+          archivedWorks: 0,
+          score: 0,
+          rank: 1,
+          role: 'student',
+          avatarUrl: null,
+          factors: { projects: 0, logins: 0, days: 0, time: 0, grades: 0 },
+          sources: { projects: 0, logins: 0, days: 0, time: 0, grades: 0 },
+        },
+        submittedCount: 0,
+        awaitingReview: 0,
+        activity: [],
+        builtinAwards: [],
+        merits: [],
+        avatars: [],
+        helperClasses: [],
+      },
+    }),
+  );
+  let seatReads = 0,
+    teacherReads = 0;
+  await page.route('**/api/classrooms/*/participants/*/grades*', (route) => {
+    teacherReads++;
+    return route.abort();
+  });
+  await page.route('**/api/class-join/participants/grades*', (route) => {
+    seatReads++;
+    return route.fulfill({ json: grades(30, 30, 0, 0) });
+  });
+  await page.goto('/#/classrooms');
+  const summary = page.getByRole('region', { name: 'Последние оценки', exact: true });
+  await expect(summary.locator('.participant-grade-row')).toHaveCount(6);
+  await expect(summary.locator('button')).toHaveCount(0);
+  await expect(page.locator('.teacher-profile-grades')).toHaveCount(0);
+  expect(seatReads).toBeGreaterThan(0);
+  expect(teacherReads).toBe(0);
+  await page.setViewportSize({ width: 390, height: 900 });
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+    ),
+  ).toBe(true);
+  await shot(page, 'seat-pupil-default-390');
   expect(state.errors).toEqual([]);
   expect(state.mutations).toEqual([]);
 });

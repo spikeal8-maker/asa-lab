@@ -59,7 +59,7 @@ jobs:
       - name: Accepted open-class regression
         env:
           ASA_E2E_EXTERNAL: 'true'
-        run: pnpm exec playwright test e2e/classroom-open-compact.spec.ts --config=playwright.config.ts --workers=1 --reporter=list
+        run: pnpm exec playwright test e2e/classroom-open-compact.spec.ts --config=playwright.config.ts --workers=1 --reporter=list --output=reports/open-classroom
       - name: Preserve screenshots, traces and exact build metadata
         if: always()
         uses: actions/upload-artifact@v4
@@ -69,6 +69,7 @@ jobs:
             e2e/artifacts/owner-preview/student-profile
             e2e/artifacts/owner-preview/open-class-compact
             reports/playwright
+            reports/open-classroom
             apps/web/dist/build-metadata.json
           if-no-files-found: warn
           retention-days: 14

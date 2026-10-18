@@ -606,7 +606,7 @@
   grid-template-columns: minmax(0, 1fr) auto;
   align-content: start;
   align-items: center;
-  flex: 0 0 230px;
+  flex: 0 0 260px;
   gap: 3px 8px;
   min-width: 0;
   padding: 6px 8px;
@@ -616,12 +616,19 @@
 }
 .classroom-student .teacher-profile-grades .participant-grade-context {
   display: grid;
+  grid-column: 1;
+  grid-row: 1;
   min-width: 0;
   font-size: 12px;
   overflow-wrap: anywhere;
 }
 .classroom-student .teacher-profile-grades .participant-grade-value {
+  grid-column: 2;
+  grid-row: 1;
   font-size: 16px;
+}
+.classroom-student .teacher-profile-grades .participant-grade-context time {
+  font-size: 11px;
 }
 .classroom-student .teacher-profile-grades .participant-grade-author {
   display: none;
