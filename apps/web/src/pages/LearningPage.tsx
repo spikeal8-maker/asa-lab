@@ -1,10 +1,47 @@
-import { useState } from 'react';
-import type { ClassroomStudentSession } from '../api';
+import { useEffect, useState } from 'react';
+import {
+  api,
+  type ClassroomStudentSession,
+  type LearnerResult,
+  type SeatAssignment,
+  type SeatCourseRun,
+} from '../api';
 import { SeatAssignments } from '../components/SeatAssignments';
 import { SeatCourses } from '../components/SeatCourses';
 import { SeatQuizzes } from '../components/SeatQuizzes';
 import { SeatResults } from '../components/SeatResults';
 import { AttendedClassesPage } from './AttendedClassesPage';
+import { canonicalLearningLabel } from '../learning/canonical-learning-presentation';
+import './my-learning-workspace.css';
+
+const sections = [
+  ['overview', 'Обзор'],
+  ['results', 'Результаты'],
+  ['courses', 'Курсы'],
+  ['assignments', 'Задания'],
+  ['classes', 'Классы'],
+  ['completed', 'Завершённое'],
+  ['self', 'Самостоятельно'],
+] as const;
+type LearningSection = (typeof sections)[number][0];
+
+export function learningSection(hash: string): LearningSection {
+  const query = new URLSearchParams(hash.split('?')[1] ?? '');
+  const explicit = sections.find(([id]) => id === query.get('view'));
+  if (explicit) return explicit[0];
+  if (query.has('journalColumn') || query.has('journalMonth')) return 'results';
+  if (query.has('courseRun') || query.has('lesson')) return 'courses';
+  if (query.has('assignment') || query.has('attempt')) return 'assignments';
+  if (query.has('joinRequest') || query.has('learner')) return 'classes';
+  return 'overview';
+}
+
+function sectionHref(section: LearningSection, assignment?: string): string {
+  const query = new URLSearchParams(window.location.hash.split('?')[1] ?? '');
+  query.set('view', section);
+  if (assignment) query.set('assignment', assignment);
+  return `#/learning?${query}`;
+}
 
 export function LearningPage({
   seat,
@@ -13,80 +50,303 @@ export function LearningPage({
   readonly seat: ClassroomStudentSession | null;
   readonly onOpenProject: (projectId: string, moduleKey: string) => void;
 }): JSX.Element {
-  const [tab, setTab] = useState<'self' | 'teacher' | 'completed'>('teacher');
+  const [tab, setTab] = useState(() => learningSection(window.location.hash));
+  useEffect(() => {
+    const sync = () => setTab(learningSection(window.location.hash));
+    window.addEventListener('hashchange', sync);
+    return () => window.removeEventListener('hashchange', sync);
+  }, []);
   const navigation = (
-    <nav aria-label="Разделы моего обучения" className="learning-sections">
-      {(
-        [
-          { id: 'self', title: 'Самостоятельно' },
-          { id: 'teacher', title: 'С преподавателем' },
-          { id: 'completed', title: 'Завершённое' },
-        ] as const
-      ).map((item) => (
-        <button
-          type="button"
-          key={item.id}
-          className="btn-secondary"
-          aria-current={tab === item.id ? 'page' : undefined}
-          onClick={() => setTab(item.id)}
-        >
-          {item.title}
-        </button>
+    <nav aria-label="Разделы моего обучения" className="learning-workspace-nav">
+      {sections.map(([id, title]) => (
+        <a key={id} href={sectionHref(id)} aria-current={tab === id ? 'page' : undefined}>
+          {title}
+        </a>
       ))}
     </nav>
   );
 
-  if (tab === 'self')
-    return (
-      <main id="main-content" className="portal-content learning-page" tabIndex={-1}>
-        <h1>Моё обучение</h1>
-        {navigation}
-        <p>
-          Выбирайте открытые материалы в «Знаниях». Личный прогресс самостоятельных курсов пока не
-          поддерживается.
-        </p>
-        {!seat ? (
-          <a className="btn-secondary" href="#/knowledge">
-            Открыть знания
-          </a>
-        ) : (
-          <p>Сейчас для вашего учебного профиля доступны занятия преподавателя.</p>
-        )}
-      </main>
-    );
-
-  if (!seat)
-    return (
-      <>
-        <div className="portal-content">{navigation}</div>
-        <AttendedClassesPage
-          onOpenProject={onOpenProject}
-          mode="learning"
-          completedOnly={tab === 'completed'}
-        />
-      </>
-    );
-
   return (
-    <main id="main-content" className="portal-content learning-page" tabIndex={-1}>
-      <header className="seat-class-heading">
-        <h1>Моё обучение</h1>
-        {navigation}
-        <p>
-          Курсы и отдельные задания класса «{seat.classroom.title}». Материалы можно проходить по
-          порядку, а практические работы — открывать в редакторе.
-        </p>
+    <main id="main-content" className="portal-content learning-workspace" tabIndex={-1}>
+      <header className="learning-workspace-heading">
+        <div>
+          <h1>Моё обучение</h1>
+          <p>
+            {seat
+              ? `Класс «${seat.classroom.title}»`
+              : 'Ваши занятия, работы и достижения в одном месте'}
+          </p>
+        </div>
+        <a href={sectionHref('classes')}>{seat ? 'Мой класс' : 'Войти в класс'}</a>
       </header>
-      <SeatCourses onOpenProject={onOpenProject} completedOnly={tab === 'completed'} />
-      {tab === 'completed' ? (
-        <SeatResults completedOnly />
-      ) : (
-        <>
+      {navigation}
+      <div className="learning-workspace-body" key={`${seat ? 'seat' : 'account'}:${tab}`}>
+        {tab === 'overview' ? (
+          <LearningOverview seat={seat !== null} />
+        ) : tab === 'self' ? (
+          <section className="learning-empty" aria-label="Самостоятельное обучение">
+            <h2>Учитесь в своём темпе</h2>
+            <p>
+              Выбирайте открытые материалы в «Знаниях». Личный прогресс самостоятельных курсов пока
+              не поддерживается.
+            </p>
+            {!seat ? (
+              <a className="btn-secondary" href="#/knowledge">
+                Открыть знания
+              </a>
+            ) : (
+              <p>Сейчас для вашего учебного профиля доступны занятия преподавателя.</p>
+            )}
+          </section>
+        ) : !seat ? (
+          <AttendedClassesPage
+            onOpenProject={onOpenProject}
+            mode="learning"
+            embedded
+            section={tab}
+            completedOnly={tab === 'completed'}
+          />
+        ) : tab === 'results' ? (
           <SeatResults />
-          <SeatQuizzes />
-          <SeatAssignments onOpenProject={onOpenProject} />
-        </>
-      )}
+        ) : tab === 'courses' ? (
+          <SeatCourses onOpenProject={onOpenProject} />
+        ) : tab === 'assignments' ? (
+          <SeatWorkSection onOpenProject={onOpenProject} />
+        ) : tab === 'completed' ? (
+          <>
+            <SeatCourses onOpenProject={onOpenProject} completedOnly />
+            <CompletedSeatResults />
+          </>
+        ) : (
+          <section className="learning-empty" aria-label="Мой класс">
+            <h2>{seat.classroom.title}</h2>
+            <p>Вы вошли по учебному профилю этого класса.</p>
+            <a className="btn-secondary" href={sectionHref('results')}>
+              Мой рейтинг и заслуги
+            </a>
+          </section>
+        )}
+      </div>
     </main>
+  );
+}
+
+function LearningOverview({ seat }: { readonly seat: boolean }): JSX.Element {
+  const [data, setData] = useState<{
+    assignments: SeatAssignment[] | null;
+    courses: SeatCourseRun[] | null;
+    results: LearnerResult[] | null;
+  } | null>(null);
+  const [retry, setRetry] = useState(0);
+  useEffect(() => {
+    let active = true;
+    setData(null);
+    void Promise.allSettled([
+      seat ? api.seatAssignments() : api.attendedAssignments(),
+      seat ? api.seatCourseRuns() : api.accountCourseRuns(),
+      seat ? api.seatResults() : api.accountResults(),
+    ]).then(([assignments, courses, results]) => {
+      if (!active) return;
+      setData({
+        assignments:
+          assignments.status === 'fulfilled' && assignments.value.ok
+            ? assignments.value.data.items
+            : null,
+        courses:
+          courses.status === 'fulfilled' && courses.value.ok ? courses.value.data.items : null,
+        results:
+          results.status === 'fulfilled' && results.value.ok ? results.value.data.items : null,
+      });
+    });
+    return () => {
+      active = false;
+    };
+  }, [seat, retry]);
+  return (
+    <>
+      {!data ? <p role="status">Загружаем обзор обучения…</p> : null}
+      {data && Object.values(data).some((items) => items === null) ? (
+        <p role="alert">
+          Часть обзора недоступна.{' '}
+          <button className="btn-secondary" onClick={() => setRetry((value) => value + 1)}>
+            Повторить
+          </button>
+        </p>
+      ) : null}
+      <div className="learning-overview-metrics">
+        {(
+          [
+            ['assignments', 'Выдано заданий', data?.assignments],
+            ['courses', 'Курсы', data?.courses],
+            ['results', 'Опубликовано результатов', data?.results],
+          ] as const
+        ).map(([id, title, items]) => (
+          <a key={id} href={sectionHref(id)}>
+            <span>{title}</span>
+            <strong>{items ? items.length : '—'}</strong>
+            <small>Открыть раздел →</small>
+          </a>
+        ))}
+      </div>
+      <div className="learning-overview-columns">
+        <section className="learning-overview-panel" aria-labelledby="learning-overview-work">
+          <header>
+            <h2 id="learning-overview-work">Ваши задания</h2>
+            <a href={sectionHref('assignments')}>Все задания →</a>
+          </header>
+          {data?.assignments?.length === 0 ? (
+            <p>Заданий пока нет. Преподаватель выдаст их в вашем классе.</p>
+          ) : null}
+          {data?.assignments === null ? <p>Не удалось загрузить задания.</p> : null}
+          <ul>
+            {data?.assignments?.slice(0, 3).map((item) => (
+              <li key={item.id}>
+                <a href={sectionHref('assignments', item.id)}>{item.title}</a>
+                {'classroomTitle' in item ? <small>{String(item.classroomTitle)}</small> : null}
+                <span>
+                  {canonicalLearningLabel(item.canonicalState) ??
+                    (item.submittedAt ? 'Сдано' : item.projectId ? 'В работе' : 'Не начато')}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+        <section className="learning-overview-panel" aria-labelledby="learning-overview-results">
+          <header>
+            <h2 id="learning-overview-results">Опубликованные результаты</h2>
+            <a href={sectionHref('results')}>Все результаты →</a>
+          </header>
+          {data?.results?.length === 0 ? (
+            <p>Результаты появятся после публикации преподавателем.</p>
+          ) : null}
+          {data?.results === null ? <p>Не удалось загрузить результаты.</p> : null}
+          <ul>
+            {data?.results?.slice(0, 3).map((item) => (
+              <li key={item.assignmentId}>
+                <strong>{item.assignmentTitle}</strong>
+                <small>
+                  {item.classroomTitle} · попытка {item.attemptNumber}
+                </small>
+                <span>
+                  {(item.canonicalState
+                    ? item.canonicalState.selectedResult?.displayGrade
+                    : item.displayGrade) ?? 'Без оценки'}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      </div>
+    </>
+  );
+}
+
+/** The unchanged work components return null for both loading and empty lists.
+ * Give their section an explicit read/error boundary without changing writers. */
+function SeatWorkSection({
+  onOpenProject,
+}: {
+  readonly onOpenProject: (projectId: string, moduleKey: string) => void;
+}): JSX.Element {
+  const [counts, setCounts] = useState<readonly [number | null, number | null] | null>(null);
+  const [retry, setRetry] = useState(0);
+  useEffect(() => {
+    let active = true;
+    setCounts(null);
+    void Promise.allSettled([api.seatAssignments(), api.seatQuizzes()]).then(([work, quizzes]) => {
+      if (active)
+        setCounts([
+          work.status === 'fulfilled' && work.value.ok ? work.value.data.items.length : null,
+          quizzes.status === 'fulfilled' && quizzes.value.ok
+            ? quizzes.value.data.items.length
+            : null,
+        ]);
+    });
+    return () => {
+      active = false;
+    };
+  }, [retry]);
+  return (
+    <>
+      {!counts ? <p role="status">Загружаем задания и тесты…</p> : null}
+      {counts?.some((count) => count === null) ? (
+        <p role="alert">
+          Часть заданий недоступна.{' '}
+          <button className="btn-secondary" onClick={() => setRetry((value) => value + 1)}>
+            Повторить
+          </button>
+        </p>
+      ) : null}
+      {counts?.every((count) => count === 0) ? (
+        <p>Заданий и тестов пока нет. Преподаватель выдаст их в вашем классе.</p>
+      ) : null}
+      {(counts?.[0] ?? 0) > 0 ? (
+        <SeatAssignments key={`work:${retry}`} onOpenProject={onOpenProject} />
+      ) : null}
+      {(counts?.[1] ?? 0) > 0 ? <SeatQuizzes key={`quizzes:${retry}`} /> : null}
+    </>
+  );
+}
+
+function CompletedSeatResults(): JSX.Element {
+  const [items, setItems] = useState<LearnerResult[] | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [retry, setRetry] = useState(0);
+  useEffect(() => {
+    let active = true;
+    setFailed(false);
+    setItems(null);
+    void api
+      .seatResults()
+      .then((result) => {
+        if (!active) return;
+        if (result.ok)
+          setItems(
+            result.data.items.filter((item) => item.canonicalState?.workflowState === 'completed'),
+          );
+        else setFailed(true);
+      })
+      .catch(() => {
+        if (active) setFailed(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, [retry]);
+  return (
+    <section className="learning-overview-panel" aria-labelledby="learning-completed-results">
+      <header>
+        <h2 id="learning-completed-results">Завершённые задания</h2>
+        <a href={sectionHref('results')}>Все результаты →</a>
+      </header>
+      {failed ? (
+        <p role="alert">
+          Не удалось загрузить завершённые задания.{' '}
+          <button className="btn-secondary" onClick={() => setRetry((value) => value + 1)}>
+            Повторить
+          </button>
+        </p>
+      ) : items === null ? (
+        <p role="status">Загружаем завершённые задания…</p>
+      ) : items.length === 0 ? (
+        <p>
+          Завершённых заданий пока нет. Сданная работа, ожидающая проверки, ещё не считается
+          завершённой.
+        </p>
+      ) : (
+        <ul>
+          {items.map((item) => (
+            <li key={item.assignmentId}>
+              <a href={sectionHref('assignments', item.assignmentId)}>{item.assignmentTitle}</a>
+              <small>
+                {item.classroomTitle} · попытка {item.attemptNumber}
+              </small>
+              <strong>{item.canonicalState?.selectedResult?.displayGrade ?? 'Без оценки'}</strong>
+              {item.feedback ? <p>{item.feedback}</p> : null}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }
