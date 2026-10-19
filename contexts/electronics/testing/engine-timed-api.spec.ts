@@ -1031,17 +1031,25 @@ describe('event execution request ownership and physical barriers', () => {
         expect(result).toStrictEqual(expected);
         expect(JSON.stringify(result)).toBe(JSON.stringify(expected));
         expect(saved.length).toBeGreaterThan(1);
-        for (const snapshot of saved) {
-          expect(JSON.stringify(snapshot.state)).toBe(snapshot.bytes);
+        // Check every view at the same point, without creating a matcher context
+        // for each property of every instruction-budget snapshot.
+        const snapshotFailures: string[] = [];
+        for (const [index, snapshot] of saved.entries()) {
+          if (JSON.stringify(snapshot.state) !== snapshot.bytes)
+            snapshotFailures.push(`${index}: serialized state changed`);
           for (const key of ['variables', 'locals', 'scopes'] as const) {
-            expect(snapshot.state[key]).toBe(snapshot.state[key]);
-            expect(Object.getOwnPropertyDescriptor(snapshot.state, key)).toMatchObject({
-              writable: true,
-              enumerable: true,
-              configurable: true,
-            });
+            if (!Object.is(snapshot.state[key], snapshot.state[key]))
+              snapshotFailures.push(`${index}: ${key} identity changed`);
+            const descriptor = Object.getOwnPropertyDescriptor(snapshot.state, key);
+            if (
+              descriptor?.writable !== true ||
+              descriptor.enumerable !== true ||
+              descriptor.configurable !== true
+            )
+              snapshotFailures.push(`${index}: ${key} descriptor changed`);
           }
         }
+        expect(snapshotFailures).toEqual([]);
         expect(
           saved.some(({ state }) => state.scopes.some((scope) => scope.pending?.value === null)),
         ).toBe(true);
