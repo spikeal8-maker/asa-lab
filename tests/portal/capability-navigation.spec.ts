@@ -1,7 +1,36 @@
 import { describe, expect, it } from 'vitest';
-import { canUseClasses, portalNavigation } from '../../apps/web/src/creator-portal/navigation';
+import {
+  canUseClasses,
+  creatorViewFromHash,
+  creatorViewToHash,
+  portalNavigation,
+  sectionForView,
+} from '../../apps/web/src/creator-portal/navigation';
 
 describe('capability-aware Portal navigation', () => {
+  it('keeps Seat My Projects on the existing projects route without Games or staff links', () => {
+    const navigation = portalNavigation(true, {
+      seat: true,
+      classes: true,
+      contentAuthoring: true,
+    });
+    const projects = navigation.find((item) => item.label === 'Мои проекты');
+    expect(projects).toEqual({ section: 'projects', label: 'Мои проекты' });
+    const view = creatorViewFromHash('#/projects');
+    expect(view).toEqual({ kind: 'my-projects' });
+    expect(sectionForView(view, false)).toBe(projects?.section);
+    expect(creatorViewToHash(view)).toBe('#/projects');
+    // Games stays absent until a server-side Seat game access policy is approved.
+    expect(navigation.map((item) => item.section)).toEqual([
+      'home',
+      'learning',
+      'projects',
+      'ai',
+      'help',
+      'account',
+    ]);
+  });
+
   it('allows a server-enabled educator to manage personal classes', () => {
     expect(canUseClasses({ classes: false }, 'personal')).toBe(false);
     expect(canUseClasses({ classes: true }, 'personal')).toBe(true);
@@ -51,7 +80,7 @@ describe('capability-aware Portal navigation', () => {
       portalNavigation(true, { seat: true, classes: true, contentAuthoring: true }).map(
         (item) => item.section,
       ),
-    ).toEqual(['home', 'learning', 'projects', 'help', 'account']);
+    ).toEqual(['home', 'learning', 'projects', 'ai', 'help', 'account']);
   });
 
   it('keeps personal work and one settings destination distinct from public top navigation', () => {

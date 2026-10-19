@@ -1,10 +1,16 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, type LearnerQuiz } from '../api';
 import { useSchoolTime } from './school-time';
 import './seat-quizzes.css';
 import { canonicalLearningLabel } from '../learning/canonical-learning-presentation';
+import { useLearningDestination } from '../learning/use-learning-destination';
 
 type AnswerState = Record<string, string | string[] | boolean>;
+export type SeatQuizDrafts = Record<string, AnswerState>;
+export interface SeatQuizDraftStore {
+  readonly answers: SeatQuizDrafts;
+  readonly update: (change: (current: SeatQuizDrafts) => SeatQuizDrafts) => void;
+}
 
 function prompt(question: LearnerQuiz['questions'][number]): string {
   return question.promptBlocks
@@ -13,30 +19,83 @@ function prompt(question: LearnerQuiz['questions'][number]): string {
     .trim();
 }
 
-export function SeatQuizzes(): JSX.Element | null {
+export function SeatQuizzes({
+  reloadSignal = 0,
+  onLoad,
+  drafts,
+}: {
+  readonly reloadSignal?: number;
+  /** undefined: pending, null: failed, number: successfully loaded row count. */
+  readonly onLoad?: (count: number | null | undefined) => void;
+  /** Kept in memory by the current learner lifetime, outside section remounts. */
+  readonly drafts?: SeatQuizDraftStore;
+} = {}): JSX.Element | null {
   const [items, setItems] = useState<LearnerQuiz[] | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
-  const [answers, setAnswers] = useState<AnswerState>({});
+  const destination = useLearningDestination();
+  useEffect(() => {
+    if (destination.assignment) setOpenId(destination.assignment);
+  }, [destination.assignment]);
+  const [localDrafts, setLocalDrafts] = useState<SeatQuizDrafts>({});
+  const answersByQuiz = drafts?.answers ?? localDrafts;
+  const updateDrafts = drafts?.update ?? setLocalDrafts;
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<
     Record<
       string,
-      { percentage: number; outcome: 'passed' | 'failed'; correct: Record<string, boolean> }
+      {
+        percentage: number;
+        outcome: 'passed' | 'failed';
+        correct: Record<string, boolean>;
+        answers: AnswerState;
+      }
     >
   >({});
   const time = useSchoolTime();
+  const live = useRef(false);
+  const request = useRef(0);
+  const [loadError, setLoadError] = useState(false);
 
   const reload = useCallback(async () => {
-    const result = await api.seatQuizzes();
-    setItems(result.ok ? result.data.items : []);
-  }, []);
+    if (!live.current) return;
+    const current = ++request.current;
+    onLoad?.(undefined);
+    try {
+      const result = await api.seatQuizzes();
+      if (!live.current || current !== request.current) return;
+      setLoadError(!result.ok);
+      if (result.ok) setItems(result.data.items);
+      onLoad?.(result.ok ? result.data.items.length : null);
+    } catch {
+      if (!live.current || current !== request.current) return;
+      setLoadError(true);
+      onLoad?.(null);
+    }
+  }, [onLoad]);
 
   useEffect(() => {
+    live.current = true;
     void reload();
-  }, [reload]);
+    return () => {
+      live.current = false;
+      request.current++;
+    };
+  }, [reload, reloadSignal]);
+
+  function updateAnswer(
+    assignmentId: string,
+    questionVersionId: string,
+    answer: AnswerState[string],
+  ) {
+    updateDrafts((current) => ({
+      ...current,
+      [assignmentId]: { ...current[assignmentId], [questionVersionId]: answer },
+    }));
+  }
 
   async function submit(quiz: LearnerQuiz): Promise<void> {
+    const answers = answersByQuiz[quiz.assignmentId] ?? {};
     const unanswered = quiz.questions.some((question) => answers[question.versionId] === undefined);
     if (unanswered) {
       setError('Ответьте на все вопросы перед отправкой.');
@@ -54,6 +113,14 @@ export function SeatQuizzes(): JSX.Element | null {
             : { value: answers[question.versionId] },
       })),
     );
+    if (result.ok)
+      updateDrafts((current) => {
+        if (current[quiz.assignmentId] !== answers) return current;
+        const next = { ...current };
+        delete next[quiz.assignmentId];
+        return next;
+      });
+    if (!live.current) return;
     setBusy(null);
     if (!result.ok) {
       setError(result.error.message);
@@ -67,15 +134,18 @@ export function SeatQuizzes(): JSX.Element | null {
         correct: Object.fromEntries(
           result.data.questionResults.map((entry) => [entry.questionVersionId, entry.correct]),
         ),
+        answers,
       },
     }));
     await reload();
   }
 
-  if (items === null || items.length === 0) return null;
+  const loadAlert = loadError && !onLoad ? <p role="alert">Не удалось загрузить тесты.</p> : null;
+  if (items === null || items.length === 0) return loadAlert;
 
   return (
     <section className="seat-quizzes" aria-labelledby="seat-quizzes-title">
+      {loadAlert}
       <div className="seat-quizzes-heading">
         <h2 id="seat-quizzes-title">Тесты</h2>
         <span>{items.length}</span>
@@ -88,6 +158,7 @@ export function SeatQuizzes(): JSX.Element | null {
       <div className="seat-quiz-list">
         {items.map((quiz) => {
           const result = feedback[quiz.assignmentId];
+          const answers = result?.answers ?? answersByQuiz[quiz.assignmentId] ?? {};
           const attemptsLeft = Math.max(0, quiz.attemptLimit - quiz.attemptsUsed);
           return (
             <article
@@ -141,10 +212,7 @@ export function SeatQuizzes(): JSX.Element | null {
                                   name={question.versionId}
                                   checked={answers[question.versionId] === option.id}
                                   onChange={() =>
-                                    setAnswers((value) => ({
-                                      ...value,
-                                      [question.versionId]: option.id,
-                                    }))
+                                    updateAnswer(quiz.assignmentId, question.versionId, option.id)
                                   }
                                 />
                                 {option.label}
@@ -161,12 +229,13 @@ export function SeatQuizzes(): JSX.Element | null {
                                     type="checkbox"
                                     checked={selected.includes(option.id)}
                                     onChange={(event) =>
-                                      setAnswers((value) => ({
-                                        ...value,
-                                        [question.versionId]: event.target.checked
+                                      updateAnswer(
+                                        quiz.assignmentId,
+                                        question.versionId,
+                                        event.target.checked
                                           ? [...selected, option.id]
                                           : selected.filter((id) => id !== option.id),
-                                      }))
+                                      )
                                     }
                                   />
                                   {option.label}
@@ -186,10 +255,11 @@ export function SeatQuizzes(): JSX.Element | null {
                                   name={question.versionId}
                                   checked={answers[question.versionId] === value}
                                   onChange={() =>
-                                    setAnswers((current) => ({
-                                      ...current,
-                                      [question.versionId]: value as boolean,
-                                    }))
+                                    updateAnswer(
+                                      quiz.assignmentId,
+                                      question.versionId,
+                                      value as boolean,
+                                    )
                                   }
                                 />
                                 {label as string}
@@ -202,10 +272,11 @@ export function SeatQuizzes(): JSX.Element | null {
                             type={question.type === 'numeric' ? 'number' : 'text'}
                             value={(answers[question.versionId] as string | undefined) ?? ''}
                             onChange={(event) =>
-                              setAnswers((value) => ({
-                                ...value,
-                                [question.versionId]: event.target.value,
-                              }))
+                              updateAnswer(
+                                quiz.assignmentId,
+                                question.versionId,
+                                event.target.value,
+                              )
                             }
                           />
                         ) : null}

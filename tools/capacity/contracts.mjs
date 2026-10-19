@@ -69,9 +69,7 @@ export function assertIsolatedEnvironment(env) {
     env.ASA_BLOCKS_RUNTIME_ORIGIN !== 'http://127.0.0.1:4612' ||
     env.ASA_OBJECT_STORAGE_ENDPOINT !== 'http://127.0.0.1:19000'
   )
-    throw new Error(
-      'Loopback-only capacity runtime and unused object-store configuration required',
-    );
+    throw new Error('Loopback-only capacity runtime and object-store configuration required');
   if (
     env.ASA_CAPACITY_BASELINE !== '1' ||
     env.GITHUB_ACTIONS !== 'true' ||

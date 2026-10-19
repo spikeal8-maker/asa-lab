@@ -527,6 +527,14 @@ export class SaveDraftUseCase {
     baseRevision: number;
     mutationId: string;
   }): Promise<UseCaseResult<ProjectDraft>> {
+    const result = await this.executeWithModule(input);
+    return result.ok ? { ok: true, value: result.value.draft } : result;
+  }
+
+  /** Reuse the writer's authorized module identity when forming the editor reply. */
+  async executeWithModule(
+    input: Parameters<SaveDraftUseCase['execute']>[0],
+  ): Promise<UseCaseResult<{ readonly draft: ProjectDraft; readonly moduleKey: string }>> {
     if (!Number.isSafeInteger(input.baseRevision) || input.baseRevision < 0) {
       return fail(
         'validation_error',
@@ -552,15 +560,18 @@ export class SaveDraftUseCase {
         );
       }
     }
-    const loaded = await this.repository.load(input.tenantId, input.projectId, input.actor);
+    const loaded = await this.repository.load(input.tenantId, input.projectId, input.actor, {
+      includeVersions: false,
+    });
     if (!loaded) {
       return fail('project_not_found', 'project not found');
     }
-    const module = this.modules.get(loaded.project.moduleKey);
+    const moduleKey = loaded.project.moduleKey;
+    const module = this.modules.get(moduleKey);
     if (!module) {
       return fail(
         'validation_error',
-        `module "${loaded.project.moduleKey}" is not registered`,
+        `module "${moduleKey}" is not registered`,
         'draft_module_unavailable',
       );
     }
@@ -577,7 +588,7 @@ export class SaveDraftUseCase {
           tenantId: input.tenantId,
           projectId: input.projectId,
           actor: { ...input.actor },
-          moduleKey: loaded.project.moduleKey,
+          moduleKey,
           document: structuredClone(document),
         });
         if (result.ok !== true) {
@@ -609,8 +620,10 @@ export class SaveDraftUseCase {
       }
       throw error;
     }
-    if (draft !== null) return { ok: true, value: draft };
-    const current = await this.repository.load(input.tenantId, input.projectId, input.actor);
+    if (draft !== null) return { ok: true, value: { draft, moduleKey } };
+    const current = await this.repository.load(input.tenantId, input.projectId, input.actor, {
+      includeVersions: false,
+    });
     return current === null
       ? fail('project_not_found', 'project not found')
       : fail(

@@ -143,6 +143,7 @@ export function AiChatPage(): JSX.Element {
   const [editingTitle, setEditingTitle] = useState('');
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [threadActionBusy, setThreadActionBusy] = useState(false);
+  const threadMutationBusy = useRef(false);
   const [currentId, setCurrentId] = useState<string | null>(null);
   const [messages, setMessages] = useState<readonly AiMessage[]>([]);
   const [messageCursor, setMessageCursor] = useState<AiCursor | null>(null);
@@ -155,7 +156,7 @@ export function AiChatPage(): JSX.Element {
   const requestBusy = useRef(false);
   const selectedHistoryReady = useRef(true);
   const [historyReady, setHistoryReady] = useState(true);
-  const interactionBusy = busy || creatingChat;
+  const interactionBusy = busy || creatingChat || threadActionBusy;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sideOpen, setSideOpen] = useState(() => window.matchMedia('(min-width: 1120px)').matches);
@@ -186,6 +187,40 @@ export function AiChatPage(): JSX.Element {
       if (desktop) panel.show();
       else panel.showModal();
     }
+  }, [desktop, sideOpen]);
+
+  useEffect(() => {
+    const panel = historyPanel.current;
+    if (desktop || !sideOpen || !panel) return;
+    // A native modal makes the background inert. Keep keyboard navigation
+    // inside its controls as well, including after a focused action disables
+    // itself while loading and the browser moves focus to the document.
+    const handleHistoryKey = (event: KeyboardEvent): void => {
+      if (!panel.matches(':modal')) return;
+      if (event.key === 'Escape') {
+        // Search inputs consume Escape to clear their value before a native
+        // dialog receives cancel. The history shortcut must still close it.
+        event.preventDefault();
+        closeHistory();
+        return;
+      }
+      if (event.key !== 'Tab') return;
+      const controls = [...panel.querySelectorAll<HTMLElement>('button, input, [tabindex]')].filter(
+        (node) =>
+          node.tabIndex >= 0 && !node.matches(':disabled') && node.getClientRects().length > 0,
+      );
+      const first = controls[0];
+      const last = controls.at(-1);
+      if (!first || !last) return;
+      const active = document.activeElement;
+      const inside = controls.some((node) => node === active);
+      if (event.shiftKey ? active === first || !inside : active === last || !inside) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus();
+      }
+    };
+    document.addEventListener('keydown', handleHistoryKey);
+    return () => document.removeEventListener('keydown', handleHistoryKey);
   }, [desktop, sideOpen]);
 
   useLayoutEffect(() => {
@@ -325,46 +360,62 @@ export function AiChatPage(): JSX.Element {
 
   async function renameThread(id: string): Promise<void> {
     const title = editingTitle.trim();
-    if (!title || title.length > 120 || requestBusy.current || threadActionBusy) return;
+    if (!title || title.length > 120 || requestBusy.current || threadMutationBusy.current) return;
+    threadMutationBusy.current = true;
     setThreadActionBusy(true);
-    const result = await call<AiThread>('/api/ai/threads/' + encodeURIComponent(id), {
-      method: 'PATCH',
-      body: JSON.stringify({ title }),
-    });
-    if (result.ok) {
-      setThreads((previous) => previous.map((thread) => (thread.id === id ? result.data : thread)));
-      setEditingId(null);
-      setError(null);
-    } else setError(result.error.message);
-    setThreadActionBusy(false);
+    try {
+      const result = await call<AiThread>('/api/ai/threads/' + encodeURIComponent(id), {
+        method: 'PATCH',
+        body: JSON.stringify({ title }),
+      });
+      if (result.ok) {
+        setThreads((previous) =>
+          previous.map((thread) => (thread.id === id ? result.data : thread)),
+        );
+        setEditingId(null);
+        setError(null);
+      } else setError(result.error.message);
+    } finally {
+      threadMutationBusy.current = false;
+      setThreadActionBusy(false);
+    }
   }
 
   async function deleteThread(id: string): Promise<void> {
-    if (requestBusy.current || threadActionBusy) return;
+    if (requestBusy.current || threadMutationBusy.current) return;
+    threadMutationBusy.current = true;
     setThreadActionBusy(true);
-    const result = await call<{ deleted: true }>('/api/ai/threads/' + encodeURIComponent(id), {
-      method: 'DELETE',
-      body: JSON.stringify({}),
-    });
-    if (result.ok) {
-      setThreads((previous) => previous.filter((thread) => thread.id !== id));
-      setConfirmDeleteId(null);
-      if (currentId === id) {
-        selectedVersion.current += 1;
-        selectedHistoryReady.current = true;
-        setHistoryReady(true);
-        setCurrentId(null);
-        setMessages([]);
-        setMessageCursor(null);
-        setDraft('');
-      }
-      setError(null);
-    } else setError(result.error.message);
-    setThreadActionBusy(false);
+    const version = selectedVersion.current;
+    try {
+      const result = await call<{ deleted: true }>('/api/ai/threads/' + encodeURIComponent(id), {
+        method: 'DELETE',
+        body: JSON.stringify({}),
+      });
+      if (result.ok) {
+        setThreads((previous) => previous.filter((thread) => thread.id !== id));
+        setConfirmDeleteId(null);
+        // A delayed response must never clear a newer selected conversation.
+        if (currentId === id && version === selectedVersion.current) {
+          selectedVersion.current += 1;
+          selectedHistoryReady.current = true;
+          pendingRequest.current = null;
+          restoreScroll.current = null;
+          setHistoryReady(true);
+          setCurrentId(null);
+          setMessages([]);
+          setMessageCursor(null);
+          setDraft('');
+        }
+        setError(null);
+      } else setError(result.error.message);
+    } finally {
+      threadMutationBusy.current = false;
+      setThreadActionBusy(false);
+    }
   }
 
   async function selectThread(id: string): Promise<void> {
-    if (requestBusy.current) return;
+    if (requestBusy.current || threadMutationBusy.current) return;
     const version = ++selectedVersion.current;
     // Guard synchronously, including Enter before disabled controls render.
     selectedHistoryReady.current = false;
@@ -401,7 +452,7 @@ export function AiChatPage(): JSX.Element {
   }
 
   async function newChat(): Promise<string | null> {
-    if (requestBusy.current) return null;
+    if (requestBusy.current || threadMutationBusy.current) return null;
     requestBusy.current = true;
     setCreatingChat(true);
     setError(null);
@@ -458,6 +509,7 @@ export function AiChatPage(): JSX.Element {
       text.length > 3000 ||
       !status?.enabled ||
       requestBusy.current ||
+      threadMutationBusy.current ||
       !selectedHistoryReady.current
     ) {
       return;
@@ -621,7 +673,7 @@ export function AiChatPage(): JSX.Element {
               disabled={interactionBusy || loading}
               onClick={() => void newChat()}
             >
-              <span aria-hidden="true">＋</span>
+              <span aria-hidden="true">+</span>
               <span>Новый чат</span>
             </button>
             <label className="chat-search-box">
@@ -803,7 +855,7 @@ export function AiChatPage(): JSX.Element {
               aria-label="Создать новый диалог"
               title="Новый диалог"
             >
-              <span aria-hidden="true">＋</span>
+              <span aria-hidden="true">+</span>
             </button>
           </header>
 
@@ -999,7 +1051,10 @@ export function AiChatPage(): JSX.Element {
                   type={busy ? 'button' : 'submit'}
                   className="chat-send-button"
                   disabled={
-                    !status?.enabled || creatingChat || (!busy && (!historyReady || !draft.trim()))
+                    !status?.enabled ||
+                    creatingChat ||
+                    threadActionBusy ||
+                    (!busy && (!historyReady || !draft.trim()))
                   }
                   onClick={busy ? () => void stop() : undefined}
                   aria-label={busy ? 'Остановить генерацию' : 'Отправить сообщение'}

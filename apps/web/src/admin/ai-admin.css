@@ -2,6 +2,8 @@
   display: grid;
   gap: 18px;
   max-width: 980px;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .asa-ai-admin-form {
   display: grid;
@@ -11,14 +13,23 @@
   border: 1px solid #dce6eb;
   border-radius: 14px;
   background: #fff;
+  min-width: 0;
+}
+.asa-ai-admin-guide {
+  margin: 0;
+  color: #1b3344;
 }
 .asa-ai-admin-form label:not(.asa-ai-admin-check) {
   display: grid;
   gap: 8px;
+  min-width: 0;
   font-weight: 600;
 }
 .asa-ai-admin-form select,
-.asa-ai-admin-form input[type='password'] {
+.asa-ai-admin-form input[type='password'],
+.asa-ai-admin-form input[type='number'] {
+  box-sizing: border-box;
+  min-width: 0;
   width: 100%;
   min-height: 44px;
   padding: 9px 12px;
@@ -27,6 +38,20 @@
   background: white;
   color: #1b3344;
   font: inherit;
+}
+.asa-ai-admin :is(input, select, button, a):focus-visible {
+  outline: 3px solid #176953;
+  outline-offset: 3px;
+}
+.asa-ai-admin .admin-inline-error {
+  display: grid;
+  gap: 12px;
+  justify-items: start;
+}
+.asa-ai-admin button {
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 .asa-ai-admin-status {
   display: grid;
@@ -52,6 +77,7 @@
   gap: 10px;
 }
 .asa-ai-admin-check input {
+  flex-shrink: 0;
   width: 18px;
   height: 18px;
 }
@@ -60,6 +86,10 @@
   border: 1px solid #e8c77b;
   border-radius: 9px;
   background: #fff7e6;
+}
+.asa-ai-admin-model-upgrade {
+  margin: 0;
+  color: #603f09;
 }
 .asa-ai-admin-success {
   padding: 12px;
@@ -79,5 +109,8 @@
   }
   .asa-ai-admin-form {
     padding: 14px;
+  }
+  .asa-ai-admin-actions > * {
+    min-width: 0;
   }
 }

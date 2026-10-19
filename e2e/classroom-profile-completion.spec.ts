@@ -14,6 +14,7 @@ import type {
   ParticipantAssignments,
   ParticipantGrades,
   ParticipantManualHistory,
+  ParticipantProfile,
 } from '../apps/web/src/classroom-participants-api';
 
 // Production browser bundle + real API + isolated *_test PostgreSQL. No mocks.
@@ -149,7 +150,7 @@ async function openProfile(page: Page, classId: string, name: string) {
   // API fixture setup does not refresh an already-mounted same-hash classroom.
   await page.reload();
   await page.getByRole('row').filter({ hasText: name }).locator('.classroom-student-name').click();
-  await expect(page.getByRole('heading', { name, exact: true })).toBeVisible();
+  await expect(page.locator('.classroom-student-picker-name')).toHaveText(name);
 }
 async function assertLayout(page: Page, width: number, file: string) {
   await page.setViewportSize({ width, height: 900 });
@@ -196,7 +197,7 @@ async function assertLayout(page: Page, width: number, file: string) {
     const sections = page.getByRole('navigation', { name: 'Разделы профиля' });
     await expect(sections.locator('button')).toHaveText([
       'Все работы',
-      'Оценки и история',
+      'Оценки',
       'Задания',
       '3D',
       'Электроника',
@@ -348,10 +349,35 @@ async function assertLayout(page: Page, width: number, file: string) {
     const rect = await header.boundingBox();
     expect(rect!.y).toBe(0);
     expect(rect!.height).toBe(56);
+    const globalLinks = header.locator('.portal-global-nav a');
+    const expectedLinks = [
+      ['Проекты', '/#/gallery'],
+      ['Знания', '/#/knowledge'],
+      ['ИИ', '/#/ai'],
+    ] as const;
+    await expect(globalLinks).toHaveCount(expectedLinks.length);
+    for (const [index, [name, href]] of expectedLinks.entries()) {
+      await expect(globalLinks.nth(index)).toHaveAccessibleName(name);
+      await expect(globalLinks.nth(index)).toHaveAttribute('href', href);
+    }
     const headerControls = header.locator(
       '.portal-menu-toggle, .portal-brand, .portal-global-nav a, .portal-header-create, .portal-account > summary',
     );
-    await expect(headerControls).toHaveCount(6);
+    await expect(headerControls).toHaveCount(7);
+    const publicNavigation = header.getByRole('navigation', {
+      name: 'Разделы ASA Lab',
+      exact: true,
+    });
+    await expect(publicNavigation.locator('a')).toHaveCount(3);
+    for (const [name, href] of [
+      ['Проекты', '/#/gallery'],
+      ['Знания', '/#/knowledge'],
+      ['ИИ', '/#/ai'],
+    ] as const) {
+      const link = publicNavigation.getByRole('link', { name, exact: true });
+      await expect(link).toHaveJSProperty('tagName', 'A');
+      await expect(link).toHaveAttribute('href', href);
+    }
     let previousRight = 0;
     for (const control of await headerControls.all()) {
       await expect(control).toBeVisible();
@@ -368,6 +394,53 @@ async function assertLayout(page: Page, width: number, file: string) {
   }
   await page.screenshot({ path: `${screenshots}/${file}-${width}.png`, fullPage: true });
 }
+
+test('teacher saves real pupil settings from the profile and keeps the learner selected', async ({
+  page,
+}) => {
+  const classroom = await createClass(page);
+  const pupil = await addPupil(page, classroom.id, 'Настройки первого ученика');
+  await addPupil(page, classroom.id, 'Настройки второго ученика');
+  await openProfile(page, classroom.id, pupil.name);
+  const main = page.locator('main.classroom-student');
+  const profilePath = `/api/classrooms/${classroom.id}/participants/${pupil.id}/profile`;
+  const protection = main.getByRole('checkbox', { name: `Защита: ${pupil.name}`, exact: true });
+  await expect(protection).toBeChecked();
+  const saved = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'PATCH' &&
+      new URL(response.url()).pathname === `/api/classrooms/${classroom.id}/seats/${pupil.id}`,
+  );
+  await protection.click();
+  expect((await saved).ok()).toBe(true);
+  await expect(protection).not.toBeChecked();
+  expect((await get<ParticipantProfile>(page, profilePath)).student.safeMode).toBe(false);
+  const newName = 'Сохранённый профиль ученика';
+  for (const width of [1440, 390, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    await main.getByRole('button', { name: /^Настройки ученика:/ }).click();
+    const dialog = page.getByRole('dialog', { name: /^Настройки ученика:/ });
+    await expect(dialog).toBeVisible();
+    await expect(page.locator('main.classroom-owner-workspace')).toBeHidden();
+    await dialog.getByLabel('Имя в списке класса').fill(newName);
+    await dialog.getByRole('button', { name: 'Сохранить', exact: true }).click();
+    await expect(dialog).toBeHidden();
+    await expect(main.locator('.classroom-student-picker-name')).toHaveText(newName);
+    expect((await get<ParticipantProfile>(page, profilePath)).student.displayLabel).toBe(newName);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+  }
+  await main.getByRole('button', { name: /^Следующий ученик:/ }).click();
+  await expect(main.locator('.classroom-student-picker-name')).toHaveText(
+    'Настройки второго ученика',
+  );
+  await main.getByRole('button', { name: /^Предыдущий ученик:/ }).click();
+  await expect(main.locator('.classroom-student-picker-name')).toHaveText(newName);
+  await expect(
+    main.getByRole('checkbox', { name: `Защита: ${newName}`, exact: true }),
+  ).not.toBeChecked();
+});
 
 test('assigned without a project stays one row through start, submission and review; theory, exclusion, helper and real mobile profile', async ({
   page,
@@ -439,11 +512,11 @@ test('assigned without a project stays one row through start, submission and rev
   const neighbors = page.getByRole('navigation', { name: 'Переход по ученикам' });
   await expect(neighbors.getByText('1/2', { exact: true })).toBeVisible();
   await neighbors.getByRole('button', { name: 'Предыдущий ученик: ' + b.name }).click();
-  await expect(page.getByRole('heading', { name: b.name, exact: true })).toBeVisible();
+  await expect(page.locator('.classroom-student-picker-name')).toHaveText(b.name);
   await expect(neighbors.getByText('2/2', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Задания', exact: true }).click();
   await neighbors.getByRole('button', { name: 'Следующий ученик: ' + a.name }).click();
-  await expect(page.getByRole('heading', { name: a.name, exact: true })).toBeVisible();
+  await expect(page.locator('.classroom-student-picker-name')).toHaveText(a.name);
   await expect(
     page
       .getByRole('navigation', { name: 'Разделы профиля' })
@@ -583,15 +656,17 @@ test('assigned without a project stays one row through start, submission and rev
     await expect(row).toContainText('Принято');
     await page.evaluate(() => window.dispatchEvent(new Event('focus')));
     const summary = page.getByRole('region', { name: 'Оценки этого класса', exact: true });
-    const result = summary
-      .getByRole('list', { name: 'Результаты заданий', exact: true })
-      .locator('li')
-      .filter({ hasText: title });
+    const result = summary.locator('[data-grade-source="results"]').filter({ hasText: title });
     await expect(result).toHaveCount(1);
-    await result.getByRole('button', { name: 'История результата', exact: true }).click();
-    await expect(summary.locator('.participant-history ol li')).toHaveCount(2);
-    await expect(summary.locator('.participant-history')).toContainText('Работа принята');
-    await expect(summary.locator('.participant-history')).toContainText('Добавь деталь');
+    await expect(summary.getByRole('button', { name: /История/ })).toHaveCount(0);
+    const resultHistory = await get<{ items: Array<{ feedback: string }> }>(
+      page,
+      `/api/classrooms/${classroom.id}/participants/${a.id}/result-history/${assignment.assignmentId}`,
+    );
+    expect(resultHistory.items).toHaveLength(2);
+    expect(resultHistory.items.map((item) => item.feedback)).toEqual(
+      expect.arrayContaining(['Работа принята', 'Добавь деталь']),
+    );
     expect(
       (
         await get<ParticipantAssignments>(pupil, '/api/class-join/participants/assignments')
@@ -631,7 +706,7 @@ test('assigned without a project stays one row through start, submission and rev
     );
     expect(seatRoleDenied.status()).toBe(401);
     expect(await seatRoleDenied.json()).toMatchObject({ error: { code: 'unauthorized' } });
-    await pupil.goto('/#/learning');
+    await pupil.goto('/#/learning?view=results');
     await expect(pupil.getByRole('heading', { name: 'Мои заслуги', exact: true })).toBeVisible();
     await expect(pupil.getByRole('heading', { name: 'Заслуги преподавателя' })).toHaveCount(0);
     await expect(pupil.getByRole('region', { name: 'Мои показатели' })).not.toContainText('API');
@@ -795,7 +870,7 @@ test('real full Account and Seat manual history preserves zero and all five leve
     });
     for (const [learner, route, profilePath] of [
       [account, '/#/attending', `/api/classrooms/${classroom.id}/participants/${ownId}/profile`],
-      [seat, '/#/learning', '/api/class-join/participants/me'],
+      [seat, '/#/learning?view=results', '/api/class-join/participants/me'],
     ] as const) {
       await learner.goto(route);
       if (learner === account)
@@ -811,6 +886,22 @@ test('real full Account and Seat manual history preserves zero and all five leve
         .getByRole('button', { name: 'История', exact: true })
         .click();
       await expect(details.locator('.participant-history ol li')).toHaveCount(5);
+      // History remains an Account/Seat feature, including long notes and
+      // localized publication instants; teacher-only suppression must not leak.
+      const history = details.locator('.participant-history');
+      const longComment = history.locator('details.participant-history-note').first();
+      await expect(longComment).not.toHaveAttribute('open', '');
+      await longComment.locator('summary').click();
+      await expect(longComment.locator('p')).toBeVisible();
+      await expect(history).toContainText(
+        `Уточнение: ${'ПодробныйКомментарийПреподавателя'.repeat(8)}`,
+      );
+      for (const time of await history.locator('time').all()) {
+        const original = (await time.getAttribute('datetime'))!;
+        expect(original).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+        await expect(time).not.toHaveText(original);
+        expect(await time.innerText()).toContain(String(new Date(original).getFullYear()));
+      }
       const draft = summary.getByRole('button', { name: `Выбрать ${avatarTitle}`, exact: true });
       await draft.click();
       await expect(draft).toHaveAttribute('aria-pressed', 'true');
@@ -840,8 +931,7 @@ test('real full Account and Seat manual history preserves zero and all five leve
     await openProfile(page, classroom.id, a.name);
     const teacherSummary = page.getByRole('region', { name: 'Оценки этого класса', exact: true });
     const currentGrade = teacherSummary
-      .getByRole('list', { name: 'Ручные оценки', exact: true })
-      .locator('li')
+      .locator('[data-grade-source="journal"]')
       .filter({ hasText: 'Отзыв оценки' });
     await expect(currentGrade).toHaveCount(1);
     await expect(currentGrade.locator('strong')).toHaveText('5');
@@ -856,17 +946,18 @@ test('real full Account and Seat manual history preserves zero and all five leve
     await page.evaluate(() => window.dispatchEvent(new Event('focus')));
     await expect(currentGrade).toHaveCount(1);
     await expect(currentGrade.locator('strong')).toHaveText('Отозвана');
-    await expect(
-      teacherSummary.getByRole('list', { name: 'Ручные оценки', exact: true }).locator('li'),
-    ).toHaveCount(4);
-    await currentGrade.getByRole('button', { name: 'История', exact: true }).click();
-    await expect(teacherSummary.locator('.participant-history ol li')).toHaveCount(2);
-    await expect(teacherSummary.locator('.participant-history ol li').first()).toContainText(
-      'Версия 2: Отозвана',
+    await expect(teacherSummary.locator('[data-grade-source="journal"]')).toHaveCount(4);
+    await expect(teacherSummary.getByRole('button', { name: /История/ })).toHaveCount(0);
+    const preservedHistory = await get<ParticipantManualHistory>(
+      page,
+      `/api/classrooms/${classroom.id}/participants/${a.id}/history/${retractionColumn.id}`,
     );
-    await expect(teacherSummary.locator('.participant-history ol li').last()).toContainText(
-      'Версия 1:',
-    );
+    expect(
+      preservedHistory.items.map((grade) => ({ revision: grade.revision, value: grade.value })),
+    ).toEqual([
+      { revision: 2, value: null },
+      { revision: 1, value: 5 },
+    ]);
     const authoritative = await get<ParticipantGrades>(
       page,
       `/api/classrooms/${classroom.id}/participants/${a.id}/grades`,
@@ -874,50 +965,34 @@ test('real full Account and Seat manual history preserves zero and all five leve
     expect(
       authoritative.journal.grades.filter((grade) => grade.columnId === retractionColumn.id),
     ).toEqual([expect.objectContaining({ revision: 2, value: null })]);
-    await page.getByRole('button', { name: 'Оценки и история', exact: true }).click();
-    const gradesRegion = page.getByRole('region', { name: 'Оценки и история' });
+    await page.getByRole('button', { name: 'Оценки', exact: true }).click();
+    // The summary strip separately exposes the same current grades under
+    // "Оценки этого класса"; inspect only the full panel, including after focus.
+    const gradesRegion = page.getByRole('region', { name: 'Оценки', exact: true });
+    const manualGrades = gradesRegion.getByRole('list', { name: 'Ручные оценки', exact: true });
+    await expect(manualGrades.getByRole('listitem')).toHaveCount(4);
+    await expect(
+      manualGrades.getByRole('listitem').filter({ hasText: 'Отзыв оценки' }),
+    ).toContainText('Отозвана');
     await expect(
       gradesRegion.locator('.participant-grade-value').filter({ hasText: /^0$/ }),
     ).toHaveCount(1);
-    await page
-      .getByRole('region', { name: 'Оценки и история' })
-      .locator('.participant-grade-row')
-      .filter({ hasText: 'symbols' })
-      .getByRole('button', { name: 'История', exact: true })
-      .click();
-    await expect(
-      gradesRegion.getByRole('heading', { name: 'История ручной оценки' }),
-    ).toBeVisible();
-    const history = gradesRegion.locator('.participant-history');
-    await expect(history.locator('ol li')).toHaveCount(5);
-    const longComment = history.locator('details.participant-history-note').first();
-    await expect(longComment).toHaveCount(1);
-    await expect(longComment).not.toHaveAttribute('open', '');
-    await longComment.locator('summary').click();
-    await expect(longComment).toHaveAttribute('open', '');
-    await expect(longComment.locator('p')).toBeVisible();
-    await expect(history).toContainText(
-      `Уточнение: ${'ПодробныйКомментарийПреподавателя'.repeat(8)}`,
-    );
-    const times = history.locator('time');
-    expect(await times.count()).toBeGreaterThan(0);
-    for (const time of await times.all()) {
-      const original = await time.getAttribute('datetime');
-      expect(original).toMatch(/^\d{4}-\d{2}-\d{2}T/);
-      await expect(time).not.toHaveText(original!);
-      expect(await time.innerText()).toContain(String(new Date(original!).getFullYear()));
-    }
-    const historyRefreshed = page.waitForResponse(
+    await expect(gradesRegion.getByRole('button', { name: /История/ })).toHaveCount(0);
+    const gradesRefreshed = page.waitForResponse(
       (response) =>
         response.request().method() === 'GET' &&
         response.url().includes(`/participants/${a.id}/grades?`),
     );
     await page.evaluate(() => window.dispatchEvent(new Event('focus')));
-    expect((await historyRefreshed).ok()).toBe(true);
+    expect((await gradesRefreshed).ok()).toBe(true);
+    await expect(manualGrades.getByRole('listitem')).toHaveCount(4);
     await expect(
-      gradesRegion.getByRole('heading', { name: 'История ручной оценки' }),
-    ).toBeVisible();
-    for (const width of [320, 390, 1440]) await assertLayout(page, width, 'grade-history');
+      manualGrades.getByRole('listitem').filter({ hasText: 'Отзыв оценки' }),
+    ).toContainText('Отозвана');
+    await expect(
+      gradesRegion.locator('.participant-grade-value').filter({ hasText: /^0$/ }),
+    ).toHaveCount(1);
+    for (const width of [320, 390, 1024, 1440]) await assertLayout(page, width, 'teacher-grades');
     await seatContext.addCookies(await accountContext.cookies());
     for (const path of [
       '/api/class-join/participants/grades',

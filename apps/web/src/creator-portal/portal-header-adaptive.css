@@ -108,10 +108,34 @@
 
   .portal-shell .portal-header {
     grid-template-areas: 'menu brand public create account';
-    grid-template-columns: 44px minmax(135px, 1fr) max-content max-content 44px;
+    grid-template-columns:
+      44px minmax(56px, 1fr) minmax(88px, max-content) minmax(44px, max-content)
+      44px;
     grid-template-rows: var(--portal-header-height);
     gap: 6px;
-    padding: 0 10px;
+    padding: 0 8px;
+  }
+
+  /* Text spacing and wider fallback fonts may exceed their intrinsic slots.
+     Shrink only text: preserve the mark, icons and 44px interactive targets. */
+  .portal-shell .portal-header .portal-brand,
+  .portal-shell .portal-header .asa-brand-lockup {
+    max-width: 100%;
+  }
+
+  .portal-shell .portal-header .asa-brand-copy {
+    min-width: 0;
+  }
+
+  .portal-shell .portal-header .asa-brand-copy strong,
+  .portal-shell .portal-header .asa-brand-copy span,
+  .portal-shell .portal-header .portal-header-create-label,
+  .portal-shell .portal-header .portal-global-nav a span {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .portal-shell .portal-header .portal-menu-toggle {
@@ -131,7 +155,8 @@
   }
 
   .portal-shell .portal-header .portal-global-nav a {
-    flex: 0 0 auto;
+    flex: 0 1 auto;
+    min-width: 44px;
     gap: 6px;
     min-height: 44px;
     padding: 0 6px;
@@ -142,9 +167,15 @@
   }
 
   .portal-shell .portal-header .portal-header-create {
-    width: auto;
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 44px;
     min-height: 44px;
     padding: 0 10px;
+  }
+
+  .portal-shell .portal-header .portal-header-create > span:first-child {
+    flex: 0 0 auto;
   }
 
   .portal-shell .portal-sidebar,

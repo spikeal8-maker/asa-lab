@@ -128,7 +128,12 @@ export function cacheControlFor(fileName: string): string {
 
 export function shouldServeSpaDocument(path: string): boolean {
   return (
-    path === '/' || path === '/max-login' || path === '/max-login/' || path.startsWith('/projects/')
+    path === '/' ||
+    path === '/max-login' ||
+    path === '/max-login/' ||
+    path === '/telegram-login' ||
+    path === '/telegram-login/' ||
+    path.startsWith('/projects/')
   );
 }
 
@@ -474,7 +479,11 @@ export async function createApiApp(
       // Runtime mutations use short-lived bearer authority and their own bounded
       // capability/upload budgets. Do not collapse a whole classroom behind one
       // school-NAT IP into the generic browser mutation limiter.
-      if (!runtimePath && path !== '/api/auth/max/webhook') {
+      if (
+        !runtimePath &&
+        path !== '/api/auth/max/webhook' &&
+        path !== '/api/auth/telegram/webhook'
+      ) {
         const allowed = isAllowedMutationOrigin({
           origin: request.headers.origin,
           allowedWebOrigin,

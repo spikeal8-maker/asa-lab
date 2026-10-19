@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, createElement } from 'react';
+import { act, createElement, type ComponentProps } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { ApiResult } from '../../api-call';
@@ -53,15 +53,23 @@ async function render(seatId = 'seat-a', compact = true, teacher = true) {
   );
 }
 function button(label: string) {
-  const result = [...host.querySelectorAll('button')].find((b) => b.textContent?.trim() === label);
+  const result = [...host.querySelectorAll('button')].find(
+    (b) => b.textContent?.trim() === label || b.getAttribute('aria-label') === label,
+  );
   expect(result, label).toBeDefined();
   return result!;
 }
 async function click(label: string) {
   await act(async () => button(label).click());
 }
-const manualRows = () => host.querySelectorAll('[aria-label="Ручные оценки"] > li');
-const resultRows = () => host.querySelectorAll('[aria-label="Результаты заданий"] > li');
+const manualRows = () =>
+  host.querySelectorAll(
+    '.teacher-profile-grades [data-grade-source="journal"], .participant-grade-list:first-of-type:not([aria-label="Оценки текущего класса"]) > li',
+  );
+const resultRows = () =>
+  host.querySelectorAll(
+    '.teacher-profile-grades [data-grade-source="results"], .participant-grade-list:nth-of-type(2) > li',
+  );
 
 function page(manual = 100, results = 100, offset = 0, resultOffset = 0): ParticipantGrades {
   const ids = Array.from(
@@ -316,11 +324,8 @@ it.each([false, true])(
     expect(resultRows()).toHaveLength(100);
     expect(column()).toHaveLength(1);
     expect(column()[0]!.querySelector('strong')?.textContent).toBe('Отозвана');
-    await act(async () => column()[0]!.querySelector<HTMLButtonElement>('button')!.click());
-    expect(history).toHaveBeenCalledWith('class', 'seat-a', 'c0', undefined);
-    expect(host.querySelectorAll('.participant-history ol li')).toHaveLength(2);
-    expect(host.querySelector('.participant-history')?.textContent).toContain('5');
-    expect(host.querySelector('.participant-history')?.textContent).toContain('Отозвана');
+    expect(column()[0]!.querySelector('button')).toBeNull();
+    expect(history).not.toHaveBeenCalled();
   },
 );
 
@@ -379,9 +384,8 @@ it.each([30, 100])(
           ]
         : [[0, 30]],
     );
-    await act(async () => column()[0]!.querySelector<HTMLButtonElement>('button')!.click());
-    expect(host.querySelectorAll('.participant-history ol li')).toHaveLength(2);
-    expect(host.querySelector('.participant-history')?.textContent).toContain('5');
+    expect(column()[0]!.querySelector('button')).toBeNull();
+    expect(host.querySelector('.participant-history')).toBeNull();
     if (count === 30) {
       await click('Ещё ручные оценки');
       expect(read.mock.calls.at(-1)?.slice(2)).toEqual([manualOffset + 30, 30]);
@@ -657,7 +661,7 @@ it.each([503, 403])(
     vi.spyOn(participantsApi, 'resultHistory').mockReturnValueOnce(staleHistory.promise);
     await render();
     await act(async () => button('Ещё ручные оценки').click());
-    await click('История результата');
+    expect(host.textContent).not.toContain('История');
     await render('seat-b');
     expect(host.querySelector('[role="alert"]')?.textContent).toContain('Ошибка страницы');
     expect(host.querySelector('[role="status"]')).toBeNull();
@@ -729,7 +733,7 @@ it.each([401, 403])(
       .mockResolvedValueOnce(fail(status))
       .mockResolvedValueOnce(ok(page(1, 1)));
     vi.spyOn(participantsApi, 'resultHistory').mockReturnValueOnce(pending.promise);
-    await render();
+    await render('seat-a', false, false);
     await click('История результата');
     await act(async () => window.dispatchEvent(new Event('focus')));
     expect(manualRows()).toHaveLength(0);
@@ -778,6 +782,9 @@ it('keeps zero, retracted grade, null result, calendar dates and full revision f
   expect(host.textContent).toContain('0 / 10');
   expect(host.textContent).toContain('Без балла');
   expect(host.querySelector('time[datetime="2021-01-01"]')?.textContent).toBe('01.01.2021');
+  expect(host.textContent).not.toContain('История');
+  expect(history).not.toHaveBeenCalled();
+  await render('seat-a', false, false);
   await click('История');
   expect(history).toHaveBeenCalled();
   expect(host.textContent).toContain('Исправлена оценка');
@@ -804,6 +811,23 @@ it('preserves default compact pupil semantics and the seat-only API', async () =
   expect(read).toHaveBeenCalledWith(0, 0);
   expect(teacher).not.toHaveBeenCalled();
 });
+
+it.each([true, false])(
+  'suppresses teacher history in compact=%s without reading it',
+  async (compact) => {
+    vi.spyOn(participantsApi, 'grades').mockResolvedValue(ok(page(2, 2)));
+    const manual = vi.spyOn(participantsApi, 'history');
+    const results = vi.spyOn(participantsApi, 'resultHistory');
+    await render('seat-a', compact);
+    expect(host.textContent).not.toContain('История');
+    expect(host.textContent).not.toContain('история');
+    expect(manualRows()).toHaveLength(2);
+    expect(resultRows()).toHaveLength(2);
+    expect(host.textContent).toContain('0 / 10');
+    expect(manual).not.toHaveBeenCalled();
+    expect(results).not.toHaveBeenCalled();
+  },
+);
 
 it('does not rewind an exhausted journal while paging overlapping assignment results', async () => {
   vi.spyOn(participantsApi, 'grades').mockImplementation(async (_c, _s, o = 0, r = 0) => {
@@ -867,6 +891,237 @@ const profile = (): ParticipantProfile => ({
   avatars: [],
 });
 
+type SeatActions = NonNullable<ComponentProps<typeof ClassroomStudentPage>['seatActions']>;
+function profileActions(overrides: Partial<SeatActions> = {}): SeatActions {
+  return {
+    busy: false,
+    readOnly: false,
+    studentCode: true,
+    canOpenCard: true,
+    error: null,
+    onSettings: vi.fn(),
+    onCode: vi.fn(),
+    onAccessCard: vi.fn(),
+    onSuspend: vi.fn(),
+    onSafeMode: vi.fn(async () => null),
+    ...overrides,
+  };
+}
+function mockProfilePage(
+  read = async (_class: string, seat: string) => {
+    const data = profile();
+    data.student.id = seat;
+    data.student.displayLabel = seat;
+    data.metrics.seatId = seat;
+    return ok(data);
+  },
+) {
+  vi.spyOn(api, 'listProjectModules').mockResolvedValue(ok({ items: [] }));
+  vi.spyOn(participantsApi, 'grades').mockResolvedValue(ok(page(0, 0)));
+  vi.spyOn(participantsApi, 'works').mockResolvedValue(
+    ok({
+      items: [],
+      totalWorks: 0,
+      visibleWorks: 0,
+      filteredWorks: 0,
+      offset: 0,
+      hasMore: false,
+    }),
+  );
+  return vi.spyOn(participantsApi, 'profile').mockImplementation(read);
+}
+async function renderProfileActions(actions: SeatActions, seatId = 'seat-a', revision = 0) {
+  await act(async () =>
+    root.render(
+      createElement(ClassroomStudentPage, {
+        classroomId: 'class',
+        classroomTitle: 'Класс',
+        seatId,
+        navigation: null,
+        onNavigateStudent: vi.fn(),
+        onBack: vi.fn(),
+        onOpenProject: vi.fn(),
+        seatActions: actions,
+        profileRevision: revision,
+      }),
+    ),
+  );
+}
+
+it('keeps protection at the confirmed value until save and profile refresh complete', async () => {
+  let safeMode = false;
+  const read = mockProfilePage(async () => {
+    const data = profile();
+    data.student.displayLabel = 'seat-a';
+    data.student.safeMode = safeMode;
+    return ok(data);
+  });
+  const saved = deferred<string | null>();
+  const actions = profileActions({ onSafeMode: vi.fn(() => saved.promise) });
+  await renderProfileActions(actions);
+  const protection = host.querySelector<HTMLInputElement>('[aria-label="Защита: seat-a"]')!;
+  await act(async () => protection.click());
+  expect(actions.onSafeMode).toHaveBeenCalledWith(true);
+  expect(protection.checked).toBe(false);
+  expect(protection.disabled).toBe(true);
+  safeMode = true;
+  await act(async () => saved.resolve(null));
+  expect(protection.checked).toBe(true);
+  expect(protection.disabled).toBe(false);
+  expect(read).toHaveBeenCalledTimes(2);
+});
+
+it.each(['switch', 'logout'] as const)(
+  'ignores a pending protection failure after %s',
+  async (boundary) => {
+    const read = mockProfilePage();
+    const saved = deferred<string | null>();
+    const actions = profileActions({ onSafeMode: vi.fn(() => saved.promise) });
+    await renderProfileActions(actions);
+    await act(async () =>
+      host.querySelector<HTMLInputElement>('[aria-label="Защита: seat-a"]')!.click(),
+    );
+    if (boundary === 'switch') await renderProfileActions(actions, 'seat-b');
+    else await act(async () => notifySessionLoggedOut());
+    const calls = read.mock.calls.length;
+    await act(async () => saved.resolve('STALE FORBIDDEN'));
+    expect(host.textContent).not.toContain('STALE FORBIDDEN');
+    expect(read).toHaveBeenCalledTimes(calls);
+    if (boundary === 'switch') {
+      expect(host.querySelector('.classroom-student-picker-name')?.textContent).toBe('seat-b');
+      expect(host.querySelector<HTMLInputElement>('[aria-label="Защита: seat-b"]')!.checked).toBe(
+        false,
+      );
+    } else expect(host.querySelector('.classroom-student-safety')).toBeNull();
+  },
+);
+
+it('refreshes the saved name on revision without losing the selected profile tab', async () => {
+  let name = 'До сохранения';
+  mockProfilePage(async () => {
+    const data = profile();
+    data.student.displayLabel = name;
+    return ok(data);
+  });
+  const actions = profileActions();
+  await renderProfileActions(actions);
+  await click('Активность');
+  name = 'После сохранения';
+  await renderProfileActions(actions, 'seat-a', 1);
+  expect(host.querySelector('.classroom-student-picker-name')?.textContent).toBe(name);
+  expect(button('Активность').getAttribute('aria-pressed')).toBe('true');
+});
+
+it('wires settings, credentials, access cards, suspension and the real class avatar panel', async () => {
+  mockProfilePage();
+  const actions = profileActions();
+  await renderProfileActions(actions);
+  await click('Настройки ученика: seat-a');
+  await click('Изменить код');
+  await click('Карточка доступа');
+  await click('Приостановить доступ');
+  expect(actions.onSettings).toHaveBeenCalledTimes(1);
+  expect(actions.onCode).toHaveBeenCalledTimes(1);
+  expect(actions.onAccessCard).toHaveBeenCalledTimes(1);
+  expect(actions.onSuspend).toHaveBeenCalledTimes(1);
+  await click('Аватары класса');
+  const section = host.querySelector<HTMLElement>('section[aria-label="Аватары класса"]')!;
+  expect(section).not.toBeNull();
+  expect(section.contains(host.querySelector('.participant-recognition'))).toBe(true);
+  expect(document.activeElement).toBe(section);
+});
+
+it('blocks suspended teacher avatar writes and uses the teacher endpoint after reactivation', async () => {
+  const data = profile();
+  data.student.status = 'suspended';
+  data.merits = [
+    { id: 'merit-a', title: 'Мастер', description: '', granted: false, grantedAt: null },
+  ];
+  data.avatars = ['saved', 'next'].map((id) => ({
+    id,
+    title: id,
+    url: `/avatar/${id}`,
+    secret: true,
+    available: true,
+    selected: id === 'saved',
+    permitted: true,
+  }));
+  mockProfilePage(async () => ok({ ...data, student: { ...data.student } }));
+  vi.spyOn(participantsApi, 'listSeatAwards').mockResolvedValue(ok({ items: [] }));
+  const learnerSave = vi
+    .spyOn(participantsApi, 'seatAvatar')
+    .mockResolvedValue(ok({ saved: true }));
+  const teacherSave = vi
+    .spyOn(participantsApi, 'mutate')
+    .mockResolvedValue(ok({}) as Awaited<ReturnType<typeof participantsApi.mutate>>);
+  const actions = profileActions();
+  await renderProfileActions(actions);
+  expect(button('Аватары класса').disabled).toBe(true);
+  await click('Заслуги');
+  for (const label of [
+    'Выбрать next',
+    'Обычный аватар',
+    'Сохранить аватар',
+    'Отозвать доступ: next',
+    'Выдать',
+  ]) {
+    expect(button(label).disabled).toBe(true);
+    await click(label);
+  }
+  expect(
+    host.querySelector<HTMLFieldSetElement>('.participant-recognition form fieldset')!.disabled,
+  ).toBe(true);
+  expect(
+    host.querySelector<HTMLInputElement>('input[type="file"]')!.closest('fieldset')!.disabled,
+  ).toBe(true);
+  expect(button('Выбрать saved').getAttribute('aria-pressed')).toBe('true');
+  expect(learnerSave).not.toHaveBeenCalled();
+  expect(teacherSave).not.toHaveBeenCalled();
+
+  data.student.status = 'active';
+  await renderProfileActions(actions, 'seat-a', 1);
+  expect(button('Выбрать next').disabled).toBe(false);
+  expect(button('Сохранить аватар').disabled).toBe(false);
+  await click('Выбрать next');
+  await click('Сохранить аватар');
+  expect(teacherSave).toHaveBeenCalledExactlyOnceWith(
+    'class',
+    'avatar_choose',
+    { seatId: 'seat-a', id: 'next' },
+    expect.any(String),
+  );
+  expect(learnerSave).not.toHaveBeenCalled();
+});
+
+it.each(['archive', 'suspended', 'pending'] as const)(
+  'disables mutation controls for %s',
+  async (mode) => {
+    mockProfilePage(async () => {
+      const data = profile();
+      data.student.displayLabel = 'seat-a';
+      if (mode === 'suspended') data.student.status = 'suspended';
+      return ok(data);
+    });
+    const actions = profileActions({
+      readOnly: mode === 'archive',
+      busy: mode === 'pending',
+      studentCode: false,
+    });
+    await renderProfileActions(actions);
+    expect(host.querySelector<HTMLInputElement>('[aria-label="Защита: seat-a"]')!.disabled).toBe(
+      true,
+    );
+    expect(button('Настройки ученика: seat-a').disabled).toBe(true);
+    expect(button('Карточка доступа').disabled).toBe(true);
+    expect(host.textContent).not.toContain('Изменить код');
+    if (mode === 'suspended') {
+      expect(button('Вернуть доступ').disabled).toBe(false);
+      await click('Вернуть доступ');
+      expect(actions.onSuspend).toHaveBeenCalledTimes(1);
+    } else expect(button('Приостановить доступ').disabled).toBe(true);
+  },
+);
+
 it.each(['switch', 'logout'] as const)(
   'ignores a pending role mutation after %s',
   async (boundary) => {
@@ -890,6 +1145,20 @@ it.each(['switch', 'logout'] as const)(
       }),
     );
     const pending = deferred<Awaited<ReturnType<typeof participantsApi.mutate>>>();
+    vi.spyOn(api, 'listClassroomRoster').mockResolvedValue(
+      ok({
+        items: ['seat-a', 'seat-b'].map((id) => ({
+          ...profile().student,
+          status: 'active' as const,
+          id,
+          displayLabel: id,
+          studentCode: 'PRIVATE-CODE',
+          loginMethod: 'student_code' as const,
+          loginHandle: 'PRIVATE-HANDLE',
+          createdAt: '',
+        })),
+      }),
+    );
     const mutation = vi.spyOn(participantsApi, 'mutate').mockReturnValueOnce(pending.promise);
     const props = {
       classroomId: 'class',
@@ -923,14 +1192,84 @@ it.each(['switch', 'logout'] as const)(
     );
     expect(read).toHaveBeenCalledTimes(calls);
     if (boundary === 'switch') {
-      expect(host.querySelector('h1')?.textContent).toBe('seat-b');
+      expect(host.querySelector('.classroom-student-picker-name')?.textContent).toBe('seat-b');
       expect(host.querySelector<HTMLSelectElement>('[aria-label="Роль в классе"]')?.value).toBe(
         'student',
       );
+      await click('Выбрать ученика: seat-b');
+      const menu = host.querySelector('[role="dialog"][aria-label="Ученики класса"]')!;
+      expect(menu.querySelectorAll('[aria-current="page"]')).toHaveLength(1);
+      expect(menu.querySelector('[aria-current="page"] > span')?.textContent).toBe('seat-b');
+      expect(menu.textContent).not.toContain('PRIVATE');
     } else {
       expect(host.querySelector('[aria-label="Роль в классе"]')).toBeNull();
       expect(host.textContent).toContain('Войдите');
     }
+  },
+);
+
+it.each(['api error', 'rejection'] as const)(
+  'retries the learner roster after an initial %s and caches the successful read',
+  async (failure) => {
+    vi.spyOn(api, 'listProjectModules').mockResolvedValue(ok({ items: [] }));
+    vi.spyOn(participantsApi, 'profile').mockResolvedValue(ok(profile()));
+    vi.spyOn(participantsApi, 'grades').mockResolvedValue(ok(page(0, 0)));
+    vi.spyOn(participantsApi, 'works').mockResolvedValue(
+      ok({
+        items: [],
+        totalWorks: 0,
+        visibleWorks: 0,
+        filteredWorks: 0,
+        offset: 0,
+        hasMore: false,
+      }),
+    );
+    const roster = vi.spyOn(api, 'listClassroomRoster').mockResolvedValue(
+      ok({
+        items: [
+          {
+            ...profile().student,
+            status: 'active' as const,
+            studentCode: 'PRIVATE-CODE',
+            loginMethod: 'student_code' as const,
+            loginHandle: 'PRIVATE-HANDLE',
+            createdAt: '',
+          },
+        ],
+      }),
+    );
+    if (failure === 'api error') roster.mockResolvedValueOnce(fail());
+    else roster.mockRejectedValueOnce(new Error('Network unavailable'));
+    await act(async () =>
+      root.render(
+        createElement(ClassroomStudentPage, {
+          classroomId: 'class',
+          classroomTitle: 'Класс',
+          seatId: 'seat-a',
+          onBack: vi.fn(),
+          onOpenProject: vi.fn(),
+          navigation: null,
+          onNavigateStudent: vi.fn(),
+        }),
+      ),
+    );
+    const open = `Выбрать ученика: ${profile().student.displayLabel}`;
+    await click(open);
+    expect(roster).toHaveBeenCalledTimes(1);
+    expect(host.querySelector('[role="dialog"] [role="alert"]')).not.toBeNull();
+    await click('Повторить');
+    expect(roster).toHaveBeenCalledTimes(2);
+    expect(roster).toHaveBeenLastCalledWith('class');
+    const menu = host.querySelector('[role="dialog"]')!;
+    expect(menu.querySelector('[role="alert"]')).toBeNull();
+    expect(menu.querySelector('[aria-current="page"] > span')?.textContent).toBe(
+      profile().student.displayLabel,
+    );
+    expect(menu.textContent).not.toContain('PRIVATE');
+    await click(open);
+    await click(open);
+    expect(roster).toHaveBeenCalledTimes(2);
+    expect(host.querySelector('[role="dialog"] [aria-current="page"]')).not.toBeNull();
   },
 );
 
@@ -967,15 +1306,27 @@ it('renders one navigation row, truthful safety, all eight keyboard-reachable se
         navigation: {
           total: 1,
           position: 1,
-          previous: { id: 'seat-a', displayLabel: 'Ученик' },
-          next: { id: 'seat-a', displayLabel: 'Ученик' },
+          previous: { id: 'seat-a', displayLabel: 'Иванов Иван Петрович' },
+          next: { id: 'seat-a', displayLabel: 'Петрова Анна Сергеевна' },
         },
       }),
     ),
   );
   expect(host.querySelectorAll('.classroom-student-navrow nav')).toHaveLength(1);
+  expect(host.querySelectorAll('.student-pager-name')[0]?.textContent).toBe('Иванов Иван');
+  expect(host.querySelectorAll('.student-pager-name')[1]?.textContent).toBe('Петрова Анна');
+  expect(
+    host
+      .querySelector('[aria-label="Предыдущий ученик: Иванов Иван Петрович"]')
+      ?.getAttribute('title'),
+  ).toBe('Иванов Иван Петрович');
   expect(host.querySelectorAll('.classroom-student-navrow button:disabled')).toHaveLength(2);
-  expect(host.textContent).toContain('Защита выключена');
+  const protection = host.querySelector<HTMLInputElement>(
+    `input[type="checkbox"][aria-label="Защита: ${profile().student.displayLabel}"]`,
+  );
+  expect(protection).not.toBeNull();
+  expect(protection!.checked).toBe(false);
+  expect(protection!.disabled).toBe(true);
   expect(host.textContent).toContain('39.05');
   const tabs = host.querySelectorAll<HTMLButtonElement>('.participant-tabs button');
   expect(tabs).toHaveLength(8);
@@ -984,7 +1335,11 @@ it('renders one navigation row, truthful safety, all eight keyboard-reachable se
     tabs[0]!.dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true })),
   );
   expect(document.activeElement).toBe(tabs[7]);
-  await click('Ждут проверки · среди загруженных');
+  await act(async () => {
+    const select = host.querySelector<HTMLSelectElement>('[aria-label="Статус работ"]')!;
+    select.value = 'awaiting';
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+  });
   expect(host.textContent).toContain(
     'Среди загруженных работ нет ожидающих проверки. Загрузите ещё работы.',
   );

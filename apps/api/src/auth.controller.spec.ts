@@ -8,17 +8,70 @@ function fixture(cookies: Record<string, string> = {}) {
   const active = { resolve: vi.fn().mockResolvedValue(null), logout: vi.fn() };
   const seats = { resolve: vi.fn().mockResolvedValue(null) };
   const refresh = { rotate: vi.fn(), revoke: vi.fn() };
+  const maxAuth = { consumePairing: vi.fn(), startPairing: vi.fn() };
   const controller = new AuthController(
-    ...([{}, active, {}, {}, {}, {}, {}, refresh, {}, seats] as unknown as ConstructorParameters<
-      typeof AuthController
-    >),
+    ...([
+      {},
+      active,
+      {},
+      {},
+      {},
+      {},
+      maxAuth,
+      {},
+      {},
+      refresh,
+      {},
+      seats,
+    ] as unknown as ConstructorParameters<typeof AuthController>),
   );
-  const reply = { clearCookie: vi.fn(), setCookie: vi.fn() };
-  const request = { id: 'trusted-request', cookies } as FastifyRequest;
+  const reply = { clearCookie: vi.fn(), setCookie: vi.fn(), header: vi.fn() };
+  const request = {
+    id: 'trusted-request',
+    cookies,
+    headers: {},
+    ip: '127.0.0.1',
+    raw: { socket: { remoteAddress: '127.0.0.1' } },
+  } as unknown as FastifyRequest;
   const stdout = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
   const run = () => controller.refresh(request, reply as unknown as FastifyReply);
-  return { controller, active, seats, refresh, reply, request, stdout, run };
+  return { controller, active, seats, refresh, maxAuth, reply, request, stdout, run };
 }
+
+describe('native provider polling budget', () => {
+  it('does not spend the credential limit while a browser waits for bot confirmation', async () => {
+    const f = fixture();
+    const pairingToken = 'a'.repeat(43);
+    f.maxAuth.consumePairing.mockResolvedValue({ status: 'pending' });
+    for (let attempt = 0; attempt < 75; attempt += 1) {
+      expect(
+        await f.controller.completeMaxPairing(
+          { pairingToken },
+          f.request,
+          f.reply as unknown as FastifyReply,
+        ),
+      ).toEqual({ status: 'pending' });
+    }
+    f.maxAuth.startPairing.mockResolvedValue({
+      pairingToken,
+      browserNonce: 'nonce-kept-in-cookie',
+      launchUrl: 'https://max.ru/test_bot?start=pair_test',
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    });
+    const response = await f.controller.startMaxPairing(
+      { purpose: 'login' },
+      f.request,
+      f.reply as unknown as FastifyReply,
+    );
+    expect(response).toMatchObject({ pairingToken });
+    expect(response).not.toHaveProperty('browserNonce');
+    expect(f.reply.setCookie).toHaveBeenCalledWith(
+      expect.stringMatching(/^asa_pairing_max_/),
+      'nonce-kept-in-cookie',
+      expect.objectContaining({ httpOnly: true, path: '/api/auth' }),
+    );
+  });
+});
 
 describe('Account refresh and Seat isolation', () => {
   it.each([undefined, 'old-account-refresh-secret'])(

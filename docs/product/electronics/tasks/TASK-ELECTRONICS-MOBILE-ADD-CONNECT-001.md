@@ -144,11 +144,119 @@ never copy an old whole spec/YAML tree over them. Require actual dirty-path
 checks, source/composition review and complete native journeys with the existing
 strict Save/CAS/cookies-only reopen/gate contracts and NEW runtime/visual review.
 
+For the separately selected corrected BEFORE composition, the executor may write
+only the existing simulation spec and its generated coverage browser-evidence
+hash. Inherit the three source-approved infra blobs unchanged. Append the exact
+corrected93c suffix: **631 lines / 25341 bytes**, SHA-256
+`5272d3b08d52eb77b544fa121ef4c34272076d49435d570b7c5167c18997e2b4`.
+Preserve the latest accepted main prefix byte-for-byte, including any accepted
+#546 test repair; never import unintegrated #546 refs or replace an old whole
+spec. Keep old cases/helpers/interactions, assertions and timeouts unchanged.
+Six native placement/connection journeys must finish their respective strict
+document and Save/CAS/cookies-reopen oracles despite expected soft cue failures;
+five strict Cancel/desktop missing-cue cases retain their causal expected failures.
+A NEW independent reviewer must inspect actual BEFORE raw/visual evidence before
+the controller selects the exact6184 Stage/CSS-only AFTER. Complete BEFORE/AFTER
+simulation test bytes must match. No mobile/source/infra repair is implied by
+composition authority.
+
 Transport proof is not mobile acceptance and does not remove the blocker.
 Subsequent mobile/test/product authors must not fix old #546 specs, core, hook or
 LED code. Any real source overlap requires a controller handoff. No integration,
 issue closure, release claim, deployment or next product slice follows merely
 from this supporting source change or an infra PASS.
+
+## R3 exception: reload oracle only, before any AFTER selection
+
+Actual b967 runtime review found both a harness oracle error and an unactivated
+single Save tap. This narrow versioned R3 exception supersedes only the earlier
+exact631-line suffix requirement for the precise new-block storage oracle and
+its passive instrumentation. R2 bytes and historical receipts stay historical;
+canonical active phase, revisions and observations remain in `current.yaml`.
+
+The test-only executor may change only the registered simulation spec and the
+canonical generated `browserEvidenceSha256`. Preserve its accepted **394151-byte
+prefix** and every other corrected93c suffix byte. Replace the new mobile block's
+invalid post-load all-storage-empty assertion with:
+
+- Passive `addInitScript` sampling on the main app origin only, before app code:
+  both local/session entries must be exactly empty. No app or storage writes.
+- After load, local draft entries remain empty and session draft entries equal
+  exactly one scoped pair: [`${localKey}:electronics-editor:`, `saved`]. The
+  actual value must be proved by the new real CI journey, not inferred from a key.
+  Compute expected localKey from the existing fixture formula using identityKind
+  (account), userId and projectId; never derive it from a discovered storage key.
+
+Retain `fresh.storageState().origins` equal to `[]`, the complete saved,
+delivered/server/rendered documents, component positions, wires, one PUT and CAS
+assertions. Keep all native gestures/checkpoints, helpers and timeouts unchanged.
+No additional Save activation, keypress, second tap, wait, forced hit or fake
+controller/API/document result. Freeze the NEW complete R3 test blob so R3 BEFORE
+and AFTER use byte-identical tests. The generator may change only the registered
+browser hash; any wider change requires a new proposal.
+
+A NEW source review precedes one justified R3 BEFORE. All three original placement
+cases must reach saved/reopened/complete. The three wire cases retain strict full
+Save/CAS/reopen expectations: BEFORE may fail only on the observed single-Save
+no-click/PUT0 product behaviour, never on a remaining harness failure. Five
+Cancel/desktop cases retain the causal missing-cue failures. A NEW actual BEFORE
+raw/runtime review is required before AFTER is selected. All six journeys must
+fully complete AFTER; no current UI edit is selected by this oracle exception.
+
+Only after that new R3 review and a separate controller selection may the future
+UI budget include `WorkbenchHeader.tsx` alongside the reviewed Stage/CSS diff.
+The bounded Save proposal would reuse the existing `ToolButton` touch command,
+preserving Save class/title/disabled state and keyboard/mouse behaviour. Invoke
+the command exactly once; suppress a subsequent compatibility click if it arrives,
+and never synthesize a click. It must not change hook/core/state/API. This is a source
+mechanism proposal, not a proven fix; actual AFTER evidence remains required.
+
+## Supporting guard composition: version GC1
+
+A real shared/security overlap with accepted General Node transport requires a
+separate supporting composition. GC1 supersedes the earlier exact02ae three-file
+infra requirement **only for the shared guard**. It does not alter the R3 oracle
+contract, expand UI authority or rewrite historical receipts. Canonical active
+selection and dated source results remain solely in `current.yaml`.
+
+The executor authors only `tools/test_ci_image_transport.py`. Start from fresh
+accepted main and exactly recompose the four reviewed R3 inherited source blobs:
+Electronics workflow, Electronics 429 receipt, simulation spec and generated
+coverage. The workflow/429 receipt must stay byte-identical to reviewed02ae; the
+R3 spec/generated must stay byte-identical to the source-approved R3 candidate.
+These are frozen composition inputs, not permission to edit them. Never replace
+an old whole tree or blindly resolve a shared/security conflict.
+
+Preserve accepted General `.github/workflows/spec-validation.yml`, projects
+`docs/product/projects/evidence/ci-node-transport-429-receipt.json` and original
+545 receipt byte-for-byte. Compose both scoped receipts/contracts by separating
+conflicting transport constants and effective mappings:
+
+| Scope/job | Node transport | Caddy transport |
+| --- | --- | --- |
+| General/postgres-tests | pinned mirror | preserved ECR |
+| Electronics/browser + review-images | pinned mirror | pinned mirror |
+| Every other job | original545 baseline | original545 baseline |
+
+Retain every immutable identity/security check, General proof mode and stdlib,
+strict CI-only Electronics actual-image mode. Preserve all 33 baseline + 12
+Electronics + 27 General semantic cases and 14 Electronics runtime cases. Adapt
+both cross-scope negative replacements to mutate the actual selected mapping;
+a no-op replacement is not a valid negative challenge. Add receipt swaps, extra
+jobs and explicit no-op mutation protection. No weakening or skipping checks.
+
+Do not change registrations, workflows, receipts, Compose/Docker, package,
+timeouts, security, defaults or registry references. No registry probe or local
+Docker operation. A new boundary needs a precise controller proposal.
+
+One author emits one self-reviewed composition candidate and STOP. A NEW
+independent guard/composition reviewer must approve before one justified R3
+BEFORE run. Freeze the complete reviewed R3 simulation blob for byte-identical
+BEFORE/AFTER. Original3 must reach saved/reopened/complete; wire3 retain genuine
+single-Save full PUT/CAS/reopen expectations and BEFORE may fail only on the
+observed Save no-click/PUT0; cue5 retain causal failures. All six must complete
+AFTER. A NEW actual R3 runtime/raw review and separate UI selection remain
+required; no Header/UI change is selected by GC1 or by source approval.
 
 ## Initial bounded phase: native BEFORE before product changes
 

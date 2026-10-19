@@ -7,10 +7,615 @@ info:
     capability-aware workspace context, scoped administrative control plane
     and classroom create/list. Tenant, capability, active workspace and
     administrative grants are derived exclusively from the server-side session.
+    Protected Account APIs can return account_verification_required after the
+    configured one-time confirmation deadline. Public APIs and StudentSeat
+    authentication keep their existing access rules. A server-observed outage
+    of all confirmation providers removes only this additional confirmation gate.
 servers:
   - url: http://127.0.0.1:4611
     description: Local development
 paths:
+  /api/auth/providers:
+    get:
+      operationId: getAuthProviders
+      summary: Public server-observed confirmation provider availability
+      description: >-
+        No credentials are returned. Buttons use available=true and reason=ready. Browser flags and invalid login attempts do not alter server health.
+      responses:
+        '200':
+          description: Successful server-authorized operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthProvidersEnvelope'
+        '503':
+          $ref: '#/components/responses/AuthProviderUnavailable'
+  /api/auth/verification:
+    get:
+      operationId: getAccountVerification
+      summary: Current Account confirmation state
+      description: >-
+        Available to the authenticated restricted Account. Confirmation belongs to this same Account; no Account identifier is accepted from the browser.
+      responses:
+        '200':
+          description: Successful server-authorized operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountVerificationState'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+        '503':
+          $ref: '#/components/responses/AuthProviderUnavailable'
+  /api/auth/refresh:
+    post:
+      operationId: postAuthRefresh
+      summary: Rotate a valid Account refresh family
+      description: >-
+        A rotated access cookie remains subject to current verification policy on every protected Account API. A suspended Account or revoked refresh family cannot recover access through provider outage.
+      responses:
+        '200':
+          description: Successful server-authorized operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthRefreshResponse'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+        '403':
+          $ref: '#/components/responses/AuthForbidden'
+        '409':
+          $ref: '#/components/responses/AuthConflict'
+  /api/admin/v1/auth/verification-policy:
+    get:
+      operationId: getAdminVerificationPolicy
+      summary: Read the persistent Account confirmation switch
+      responses:
+        '200':
+          description: Successful server-authorized operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountVerificationPolicy'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+        '403':
+          $ref: '#/components/responses/AuthForbidden'
+    post:
+      operationId: postAdminVerificationPolicy
+      summary: Update the persistent Account confirmation switch
+      description: >-
+        Platform administrator only, with existing origin checks and audit. The switch defaults to false. First activation is retained across disable/enable cycles; the grace interval is fixed at 24 hours. Restricted platform administrators may recover this setting.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AccountVerificationPolicyUpdate'
+      responses:
+        '200':
+          description: Successful server-authorized operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountVerificationPolicy'
+        '400':
+          $ref: '#/components/responses/AuthValidationError'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+        '403':
+          $ref: '#/components/responses/AuthForbidden'
+  /api/auth/max/pairing/start:
+    post:
+      operationId: postMaxPairingStart
+      summary: Create a browser-bound Max bot confirmation request
+      description: >-
+        Purpose link requires the current Account session. A separate HttpOnly cookie binds this browser and challenge; the nonce is never included in JSON. The bot asks for explicit confirmation.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthPairingStartRequest'
+      responses:
+        '200':
+          description: Successful server-authorized operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthPairingStartResponse'
+        '400':
+          $ref: '#/components/responses/AuthValidationError'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+        '503':
+          $ref: '#/components/responses/AuthProviderUnavailable'
+  /api/auth/max/pairing/complete:
+    post:
+      operationId: postMaxPairingComplete
+      summary: Complete or poll a browser-bound Max confirmation
+      description: >-
+        Requires the matching browser cookie. Link completion additionally requires the same current Account session used at start. Unknown provider profiles require real registration data and a backup password before an Account is created.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthPairingTokenRequest'
+      responses:
+        '200':
+          description: Successful server-authorized operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthPairingCompleteResponse'
+        '400':
+          $ref: '#/components/responses/AuthValidationError'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+        '403':
+          $ref: '#/components/responses/AuthForbidden'
+        '409':
+          $ref: '#/components/responses/AuthConflict'
+        '410':
+          $ref: '#/components/responses/AuthPairingGone'
+        '503':
+          $ref: '#/components/responses/AuthProviderUnavailable'
+  /api/auth/max/pairing/register:
+    post:
+      operationId: postMaxPairingRegister
+      summary: Finish Max registration with a real profile and backup password
+      description: >-
+        Requires approved, fresh provider proof and its browser-bound cookie. A username or email belonging to an existing Account is a conflict; Accounts are never merged from an unverified email. Returns the session directly without an authenticated wrapper.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthPairingRegistrationRequest'
+      responses:
+        '201':
+          description: Successful server-authorized operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserEnvelope'
+        '400':
+          $ref: '#/components/responses/AuthValidationError'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+        '403':
+          $ref: '#/components/responses/AuthForbidden'
+        '409':
+          $ref: '#/components/responses/AuthConflict'
+        '410':
+          $ref: '#/components/responses/AuthPairingGone'
+        '422':
+          $ref: '#/components/responses/AuthRegistrationRouted'
+        '503':
+          $ref: '#/components/responses/AuthProviderUnavailable'
+  /api/auth/max/register:
+    post:
+      operationId: postMaxAuthRegister
+      summary: Register an Account using validated Max Mini App proof
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProviderRegistrationRequest'
+      responses:
+        '201':
+          description: Successful server-authorized operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserEnvelope'
+        '400':
+          $ref: '#/components/responses/AuthValidationError'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+        '403':
+          $ref: '#/components/responses/AuthForbidden'
+        '409':
+          $ref: '#/components/responses/AuthConflict'
+        '422':
+          $ref: '#/components/responses/AuthRegistrationRouted'
+        '503':
+          $ref: '#/components/responses/AuthProviderUnavailable'
+  /api/auth/max/status:
+    get:
+      operationId: getMaxAccountStatus
+      summary: Read the current Account Max link status
+      responses:
+        '200':
+          description: Successful server-authorized operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderAccountStatus'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+        '503':
+          $ref: '#/components/responses/AuthProviderUnavailable'
+  /api/auth/max/unlink:
+    post:
+      operationId: postMaxAccountUnlink
+      summary: Unlink the current Account Max identity
+      description: >-
+        The final usable sign-in method cannot be removed. A pending Account confirmation requirement cannot be bypassed by unlinking a provider.
+      responses:
+        '200':
+          description: Successful server-authorized operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderUnlinkResponse'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+        '403':
+          $ref: '#/components/responses/AuthForbidden'
+        '409':
+          $ref: '#/components/responses/AuthConflict'
+  /api/auth/max/webhook:
+    post:
+      operationId: postMaxWebhook
+      summary: Receive authenticated Max bot updates
+      description: The configured provider webhook secret is required; this is not a browser login endpoint.
+      parameters:
+        - in: header
+          name: x-max-bot-api-secret
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        '200':
+          description: Authenticated update handled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthOkResponse'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+  /api/admin/v1/integrations/max:
+    get:
+      operationId: getAdminMaxConfiguration
+      summary: Read redacted Max authentication configuration and health
+      responses:
+        '200':
+          description: Successful server-authorized operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderAdminConfig'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+        '403':
+          $ref: '#/components/responses/AuthForbidden'
+        '503':
+          $ref: '#/components/responses/AuthProviderUnavailable'
+    put:
+      operationId: putAdminMaxConfiguration
+      summary: Validate and update Max authentication configuration
+      description: >-
+        Platform administrator only. Credentials are encrypted and never returned. Enabling requires a valid matching bot and delivery configuration. Provider availability is distinct from the required-confirmation switch.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProviderAdminConfigUpdate'
+      responses:
+        '200':
+          description: Successful server-authorized operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderAdminConfig'
+        '400':
+          $ref: '#/components/responses/AuthValidationError'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+        '403':
+          $ref: '#/components/responses/AuthForbidden'
+        '409':
+          $ref: '#/components/responses/AuthConflict'
+        '422':
+          $ref: '#/components/responses/AuthValidationError'
+        '503':
+          $ref: '#/components/responses/AuthProviderUnavailable'
+  /api/auth/telegram/pairing/start:
+    post:
+      operationId: postTelegramPairingStart
+      summary: Create a browser-bound Telegram bot confirmation request
+      description: >-
+        Purpose link requires the current Account session. A separate HttpOnly cookie binds this browser and challenge; the nonce is never included in JSON. The bot asks for explicit confirmation.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthPairingStartRequest'
+      responses:
+        '200':
+          description: Successful server-authorized operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthPairingStartResponse'
+        '400':
+          $ref: '#/components/responses/AuthValidationError'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+        '503':
+          $ref: '#/components/responses/AuthProviderUnavailable'
+  /api/auth/telegram/pairing/complete:
+    post:
+      operationId: postTelegramPairingComplete
+      summary: Complete or poll a browser-bound Telegram confirmation
+      description: >-
+        Requires the matching browser cookie. Link completion additionally requires the same current Account session used at start. Unknown provider profiles require real registration data and a backup password before an Account is created.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthPairingTokenRequest'
+      responses:
+        '200':
+          description: Successful server-authorized operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthPairingCompleteResponse'
+        '400':
+          $ref: '#/components/responses/AuthValidationError'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+        '403':
+          $ref: '#/components/responses/AuthForbidden'
+        '409':
+          $ref: '#/components/responses/AuthConflict'
+        '410':
+          $ref: '#/components/responses/AuthPairingGone'
+        '503':
+          $ref: '#/components/responses/AuthProviderUnavailable'
+  /api/auth/telegram/pairing/register:
+    post:
+      operationId: postTelegramPairingRegister
+      summary: Finish Telegram registration with a real profile and backup password
+      description: >-
+        Requires approved, fresh provider proof and its browser-bound cookie. A username or email belonging to an existing Account is a conflict; Accounts are never merged from an unverified email. Returns the session directly without an authenticated wrapper.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthPairingRegistrationRequest'
+      responses:
+        '201':
+          description: Successful server-authorized operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserEnvelope'
+        '400':
+          $ref: '#/components/responses/AuthValidationError'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+        '403':
+          $ref: '#/components/responses/AuthForbidden'
+        '409':
+          $ref: '#/components/responses/AuthConflict'
+        '410':
+          $ref: '#/components/responses/AuthPairingGone'
+        '422':
+          $ref: '#/components/responses/AuthRegistrationRouted'
+        '503':
+          $ref: '#/components/responses/AuthProviderUnavailable'
+  /api/auth/telegram/register:
+    post:
+      operationId: postTelegramAuthRegister
+      summary: Register an Account using validated Telegram Mini App proof
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProviderRegistrationRequest'
+      responses:
+        '201':
+          description: Successful server-authorized operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserEnvelope'
+        '400':
+          $ref: '#/components/responses/AuthValidationError'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+        '403':
+          $ref: '#/components/responses/AuthForbidden'
+        '409':
+          $ref: '#/components/responses/AuthConflict'
+        '422':
+          $ref: '#/components/responses/AuthRegistrationRouted'
+        '503':
+          $ref: '#/components/responses/AuthProviderUnavailable'
+  /api/auth/telegram/status:
+    get:
+      operationId: getTelegramAccountStatus
+      summary: Read the current Account Telegram link status
+      responses:
+        '200':
+          description: Successful server-authorized operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderAccountStatus'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+        '503':
+          $ref: '#/components/responses/AuthProviderUnavailable'
+  /api/auth/telegram/unlink:
+    post:
+      operationId: postTelegramAccountUnlink
+      summary: Unlink the current Account Telegram identity
+      description: >-
+        The final usable sign-in method cannot be removed. A pending Account confirmation requirement cannot be bypassed by unlinking a provider.
+      responses:
+        '200':
+          description: Successful server-authorized operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderUnlinkResponse'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+        '403':
+          $ref: '#/components/responses/AuthForbidden'
+        '409':
+          $ref: '#/components/responses/AuthConflict'
+  /api/auth/telegram/webhook:
+    post:
+      operationId: postTelegramWebhook
+      summary: Receive authenticated Telegram bot updates
+      description: The configured provider webhook secret is required; this is not a browser login endpoint.
+      parameters:
+        - in: header
+          name: x-telegram-bot-api-secret-token
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object }
+      responses:
+        '200':
+          description: Authenticated update handled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthOkResponse'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+  /api/admin/v1/integrations/telegram:
+    get:
+      operationId: getAdminTelegramConfiguration
+      summary: Read redacted Telegram authentication configuration and health
+      responses:
+        '200':
+          description: Successful server-authorized operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderAdminConfig'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+        '403':
+          $ref: '#/components/responses/AuthForbidden'
+        '503':
+          $ref: '#/components/responses/AuthProviderUnavailable'
+    put:
+      operationId: putAdminTelegramConfiguration
+      summary: Validate and update Telegram authentication configuration
+      description: >-
+        Platform administrator only. Credentials are encrypted and never returned. Enabling requires a valid matching bot and delivery configuration. Provider availability is distinct from the required-confirmation switch.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProviderAdminConfigUpdate'
+      responses:
+        '200':
+          description: Successful server-authorized operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderAdminConfig'
+        '400':
+          $ref: '#/components/responses/AuthValidationError'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+        '403':
+          $ref: '#/components/responses/AuthForbidden'
+        '409':
+          $ref: '#/components/responses/AuthConflict'
+        '422':
+          $ref: '#/components/responses/AuthValidationError'
+        '503':
+          $ref: '#/components/responses/AuthProviderUnavailable'
+  /api/auth/telegram/config:
+    get:
+      operationId: getTelegramAuthConfig
+      summary: Public Telegram launch configuration without credentials
+      responses:
+        '200':
+          description: Successful server-authorized operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MaxAuthConfig'
+  /api/auth/telegram/session:
+    post:
+      operationId: postTelegramAuthSession
+      summary: Establish a session from fresh server-validated Telegram Mini App data
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MaxInitDataRequest'
+      responses:
+        '200':
+          description: Successful server-authorized operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserEnvelope'
+        '400':
+          $ref: '#/components/responses/AuthValidationError'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+        '403':
+          $ref: '#/components/responses/AuthForbidden'
+        '409':
+          $ref: '#/components/responses/AuthConflict'
+        '503':
+          $ref: '#/components/responses/AuthProviderUnavailable'
+  /api/auth/telegram/link:
+    post:
+      operationId: postTelegramAuthLink
+      summary: Link validated Telegram proof to the current Account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MaxInitDataRequest'
+      responses:
+        '200':
+          description: Successful server-authorized operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MaxLinkResponse'
+        '400':
+          $ref: '#/components/responses/AuthValidationError'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+        '403':
+          $ref: '#/components/responses/AuthForbidden'
+        '409':
+          $ref: '#/components/responses/AuthConflict'
+        '503':
+          $ref: '#/components/responses/AuthProviderUnavailable'
   /api/classrooms/observation/prepare:
     post:
       operationId: prepareClassroomObservation
@@ -6130,6 +6735,55 @@ paths:
             maximum: 100000
             default: 0
 components:
+  responses:
+    AuthValidationError:
+      description: Invalid request fields
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    AuthUnauthorized:
+      description: No valid session, incorrect password, invalid proof, or expired/revoked credential
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    AuthForbidden:
+      description: The current actor, origin, or Account state does not permit this operation
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    AuthConflict:
+      description: Identity conflict, replay, or removal of the final sign-in method
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    AuthPairingGone:
+      description: Pairing request expired or was already consumed; start again
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    AuthRegistrationRouted:
+      description: Registration age policy routes the user to an appropriate flow
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    AuthProviderUnavailable:
+      description: The provider is disabled, misconfigured, or temporarily unavailable; valid password authentication remains independent
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    AccountVerificationRequired:
+      description: The authenticated Account must confirm one available provider after its grace interval
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AccountVerificationRequiredResponse'
   parameters:
     ProjectId:
       name: projectId
@@ -6169,6 +6823,309 @@ components:
         maxLength: 128
         pattern: '^[A-Za-z0-9._:-]+$'
   schemas:
+    AuthProviderAvailability:
+      type: object
+      additionalProperties: false
+      required: [id, available, reason, checkedAt]
+      properties:
+        id:
+          type: string
+          enum: [max, telegram, email]
+        available:
+          type: boolean
+        reason:
+          type: string
+          enum: [ready, disabled, not_configured, invalid_token, delivery_unavailable, unavailable]
+        checkedAt:
+          type: [string, 'null']
+          format: date-time
+        launchUrl:
+          type: [string, 'null']
+          format: uri
+    AuthProvidersEnvelope:
+      type: object
+      additionalProperties: false
+      required: [providers]
+      properties:
+        providers:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuthProviderAvailability'
+    AccountVerificationPolicy:
+      type: object
+      additionalProperties: false
+      required: [enabled, activatedAt, graceHours]
+      properties:
+        enabled:
+          type: boolean
+          default: false
+        activatedAt:
+          type: [string, 'null']
+          format: date-time
+          description: First activation only; toggling never resets an existing deadline.
+        graceHours:
+          type: integer
+          const: 24
+    AccountVerificationPolicyUpdate:
+      type: object
+      additionalProperties: false
+      required: [enabled]
+      properties:
+        enabled:
+          type: boolean
+    AccountVerificationState:
+      type: object
+      additionalProperties: false
+      required: [policyEnabled, required, reason, dueAt, verifiedProvider, providers]
+      properties:
+        policyEnabled:
+          type: boolean
+        required:
+          type: boolean
+          description: When true, the session is restricted to identity confirmation and recovery.
+        reason:
+          type: string
+          enum: [disabled, verified, grace_period, providers_unavailable, verification_required]
+        dueAt:
+          type: [string, 'null']
+          format: date-time
+          description: Twenty-four hours after the later of first Account authentication and initial policy activation.
+        verifiedProvider:
+          type: [string, 'null']
+          enum: [max, telegram, email, null]
+          description: An active verified proof belonging to this Account; registration email alone is not a proof.
+        providers:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuthProviderAvailability'
+    AccountVerificationRequiredResponse:
+      type: object
+      additionalProperties: false
+      required: [error, verification]
+      properties:
+        error:
+          type: object
+          additionalProperties: false
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              const: account_verification_required
+            message:
+              type: string
+        verification:
+          $ref: '#/components/schemas/AccountVerificationState'
+    AuthPairingStartRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        purpose:
+          type: string
+          enum: [login, register, link]
+          default: login
+    AuthPairingStartResponse:
+      type: object
+      additionalProperties: false
+      required: [pairingToken, launchUrl, expiresAt]
+      properties:
+        pairingToken:
+          $ref: '#/components/schemas/AuthPairingToken'
+        launchUrl:
+          type: string
+          format: uri
+        expiresAt:
+          type: string
+          format: date-time
+    AuthPairingToken:
+      type: string
+      minLength: 32
+      maxLength: 128
+      pattern: '^[A-Za-z0-9_-]{32,128}$'
+    AuthPairingTokenRequest:
+      type: object
+      additionalProperties: false
+      required: [pairingToken]
+      properties:
+        pairingToken:
+          $ref: '#/components/schemas/AuthPairingToken'
+    AuthPairingCompleteResponse:
+      oneOf:
+        - type: object
+          additionalProperties: false
+          required: [status]
+          properties:
+            status: { type: string, const: pending }
+        - type: object
+          additionalProperties: false
+          required: [status, profile]
+          properties:
+            status: { type: string, const: registration_required }
+            profile:
+              type: object
+              additionalProperties: false
+              required: [displayName, username]
+              properties:
+                displayName: { type: [string, 'null'] }
+                username: { type: [string, 'null'] }
+        - type: object
+          additionalProperties: false
+          required: [status, linked]
+          properties:
+            status: { type: string, const: linked }
+            linked: { type: boolean, const: true }
+        - type: object
+          additionalProperties: false
+          required: [status, session]
+          properties:
+            status: { type: string, const: authenticated }
+            session:
+              $ref: '#/components/schemas/UserEnvelope'
+    ProviderAccountStatus:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          linked,
+          available,
+          verifiedAt,
+          firstAuthenticatedAt,
+          promptDue,
+          promptDismissedUntil,
+          canUnlink,
+        ]
+      properties:
+        linked: { type: boolean }
+        available: { type: boolean }
+        verifiedAt:
+          type: [string, 'null']
+          format: date-time
+        firstAuthenticatedAt:
+          type: [string, 'null']
+          format: date-time
+        promptDue: { type: boolean }
+        promptDismissedUntil:
+          type: [string, 'null']
+          format: date-time
+        canUnlink: { type: boolean }
+    ProviderUnlinkResponse:
+      type: object
+      additionalProperties: false
+      required: [unlinked]
+      properties:
+        unlinked: { type: boolean }
+    AuthRefreshResponse:
+      type: object
+      additionalProperties: false
+      required: [refreshed]
+      properties:
+        refreshed: { type: boolean, const: true }
+    AuthOkResponse:
+      type: object
+      additionalProperties: false
+      required: [ok]
+      properties:
+        ok: { type: boolean, const: true }
+    ProviderAdminConfigUpdate:
+      type: object
+      additionalProperties: false
+      required: [enabled, botUsername, miniAppUrl]
+      properties:
+        enabled: { type: boolean }
+        botUsername: { type: string, maxLength: 64 }
+        miniAppUrl: { type: string, maxLength: 2048 }
+        botToken:
+          type: string
+          maxLength: 2048
+          writeOnly: true
+        clearToken: { type: boolean }
+    AuthPairingRegistrationRequest:
+      type: object
+      additionalProperties: false
+      required: [pairingToken, email, password, username, birthDate, country]
+      properties:
+        pairingToken:
+          $ref: '#/components/schemas/AuthPairingToken'
+        email:
+          $ref: '#/components/schemas/RegisterRequest/properties/email'
+        password:
+          $ref: '#/components/schemas/RegisterRequest/properties/password'
+        username:
+          $ref: '#/components/schemas/RegisterRequest/properties/username'
+        displayName:
+          $ref: '#/components/schemas/RegisterRequest/properties/displayName'
+        birthDate:
+          $ref: '#/components/schemas/RegisterRequest/properties/birthDate'
+        country:
+          $ref: '#/components/schemas/RegisterRequest/properties/country'
+    ProviderRegistrationRequest:
+      type: object
+      additionalProperties: false
+      required: [initData, email, password, username, birthDate, country]
+      properties:
+        initData:
+          $ref: '#/components/schemas/MaxInitDataRequest/properties/initData'
+        email:
+          $ref: '#/components/schemas/RegisterRequest/properties/email'
+        password:
+          $ref: '#/components/schemas/RegisterRequest/properties/password'
+        username:
+          $ref: '#/components/schemas/RegisterRequest/properties/username'
+        displayName:
+          $ref: '#/components/schemas/RegisterRequest/properties/displayName'
+        birthDate:
+          $ref: '#/components/schemas/RegisterRequest/properties/birthDate'
+        country:
+          $ref: '#/components/schemas/RegisterRequest/properties/country'
+    ProviderAdminConfig:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          enabled,
+          featureEnabled,
+          available,
+          availabilityReason,
+          healthCheckedAt,
+          tokenConfigured,
+          botUsername,
+          launchUrl,
+          miniAppUrl,
+          encryptionReady,
+          tokenFingerprint,
+          verifiedBotId,
+          verifiedBotName,
+          tokenVerifiedAt,
+          configurationVersion,
+          updatedAt,
+          webhookUrl,
+          webhookVerifiedAt,
+          webhookLastError,
+        ]
+      properties:
+        enabled: { type: boolean }
+        featureEnabled: { type: boolean }
+        available: { type: boolean }
+        availabilityReason:
+          {
+            type: string,
+            enum:
+              [ready, disabled, not_configured, invalid_token, delivery_unavailable, unavailable],
+          }
+        healthCheckedAt: { type: [string, 'null'], format: date-time }
+        tokenConfigured: { type: boolean }
+        botUsername: { type: [string, 'null'] }
+        launchUrl: { type: [string, 'null'], format: uri }
+        miniAppUrl: { type: [string, 'null'], format: uri }
+        encryptionReady: { type: boolean }
+        tokenFingerprint: { type: [string, 'null'] }
+        verifiedBotId: { type: [string, 'null'] }
+        verifiedBotName: { type: [string, 'null'] }
+        tokenVerifiedAt: { type: [string, 'null'], format: date-time }
+        configurationVersion: { type: integer, minimum: 1 }
+        updatedAt: { type: [string, 'null'], format: date-time }
+        webhookUrl: { type: [string, 'null'], format: uri }
+        webhookVerifiedAt: { type: [string, 'null'], format: date-time }
+        webhookLastError: { type: [string, 'null'] }
     ManualJournalRange:
       type: object
       additionalProperties: false
@@ -7946,6 +8903,9 @@ components:
       additionalProperties: false
       required: [error]
       properties:
+        verification:
+          description: Present when the central Account confirmation gate returns HTTP 403.
+          $ref: '#/components/schemas/AccountVerificationState'
         error:
           type: object
           additionalProperties: false
@@ -8206,6 +9166,7 @@ components:
           activeWorkspace,
           navigation,
           timeZone,
+          verification,
         ]
       properties:
         authenticated:
@@ -8237,6 +9198,8 @@ components:
             is rendered in it. Null until a browser has reported one.
           type: [string, 'null']
           maxLength: 64
+        verification:
+          $ref: '#/components/schemas/AccountVerificationState'
     SessionStatusEnvelope:
       oneOf:
         - $ref: '#/components/schemas/UserEnvelope'

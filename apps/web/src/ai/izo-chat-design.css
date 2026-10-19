@@ -329,11 +329,14 @@
 .asa-ai-layout .chat-start-state {
   display: grid;
   align-items: center;
-  padding: 32px clamp(16px, 4vw, 48px);
+  padding-inline: clamp(16px, 4vw, 48px);
 }
 .asa-ai-layout .asa-ai-start-copy {
   width: min(100%, 720px);
   margin: auto;
+  /* The scrollable row must be able to shrink to zero while a keyboard is
+   * open. Vertical padding belongs to its content, not to the grid item. */
+  padding-block: 32px;
 }
 .asa-ai-layout .asa-ai-start-brand {
   display: flex;
@@ -687,8 +690,8 @@
 @media (max-width: 1023px) {
   .portal-shell > .asa-ai-layout,
   .portal-shell:has(.portal-sidebar.collapsed) > .asa-ai-layout {
-    width: calc(100% - 16px);
-    margin: 8px;
+    width: calc(100% - 24px);
+    margin: 8px 12px;
   }
 }
 @media (max-width: 600px) {
@@ -718,7 +721,10 @@
   }
   .asa-ai-layout .chat-start-state {
     align-items: start;
-    padding: 24px 16px;
+    padding-inline: 16px;
+  }
+  .asa-ai-layout .asa-ai-start-copy {
+    padding-block: 24px;
   }
   .asa-ai-layout .asa-ai-start-brand {
     margin-bottom: 14px;

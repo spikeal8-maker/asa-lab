@@ -54,7 +54,7 @@ invariants:
     forbid: [registration_required_for_public_read, seat_publication_as_account, seat_global_personal_storage_by_default]
 
   - id: IDA-SEAT-PROJECT-001
-    statement: StudentSeat project create, duplicate, restore and save operations always resolve to an exact assignment, class-scoped learner project or explicitly allowed safe-practice scope; they never create an Account Personal Workspace or public Account identity implicitly.
+    statement: StudentSeat project create, duplicate, restore and save operations always resolve to an exact assignment, class-scoped learner project or explicitly allowed safe-practice scope; they never create an Account Personal Workspace or public Account identity implicitly. The shared navigation label «Мои проекты» opens only the current StudentSeat's authorized projects at `#/projects` and never merges Account storage or grants staff, cross-class or game access.
     master_refs:
       - document: IDENTITY-ACCESS-V22
         section: §7 / §12 / §33

@@ -36,7 +36,7 @@ USER_RESULT: repeatable isolated workload with independent sessions and verified
 save/reopen outcomes; honest aggregate latency/status/pool/generator limitations.
 INVARIANTS_TOUCHED: production auth/RLS/grants/session lifetime/CAS/history none.
 LAYOUT_IMPACT: none. VIEWPORTS/VISUAL_EVIDENCE: n/a.
-TESTS: Node5 contract cases and2 real-validator fixture cases PASS;
+TESTS: Node5 contract cases and4 real-validator/PNG fixture cases PASS;
 ESLint/Prettier/diff hygiene PASS. Generic Vitest
 discovery does not select the opt-in workload; actual backend evidence pending CI.
 NEGATIVE_CHECKS: live/external/mismatched DB/query-host override/nonselected CI
@@ -49,5 +49,16 @@ VERDICT: source self-review PASS; independent HIGH review and real CI required.
 Review repairs before publication: every timed probe checks authenticated=true
 and unchanged actor identity (120 checked responses); HTTP200 alone is not enough.
 Electronics fixtures use canonical connections, tested against the actual parser
-before the workload. Required S3-client construction settings use an unused
-loopback-only endpoint; no object I/O/MinIO readiness is claimed for empty assets.
+before the workload.
+
+Bounded CI repair after65132168/run39142683652: all30 admitted and opened;
+Electronics saves succeeded, Scratch rejected the invalid asset-free test graph.
+Full durable Scratch parser reproduces blocks_project_invalid locally: a stage
+requires a costume. V2 adds a valid tiny PNG, real disposable MinIO from the
+repository's pinned Dockerfile, actual capability upload/read with SHA checks,
+and a full durable-parser regression. No product validation bypass or live I/O.
+Only own run-labelled container is removed, no host mount/persistent stack.
+Independent V2 review found one further fixture P2: the borrowed PNG literal had
+an incorrect IDAT CRC. Repaired the literal; a new chunk-CRC/inflate/dimensions
+regression verifies valid one-pixel data before full Scratch validation. New
+independent final-source review required after this FAIL; actual V2 CI pending.

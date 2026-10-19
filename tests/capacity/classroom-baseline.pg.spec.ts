@@ -1,10 +1,12 @@
-import { edit } from './documents';
-import { randomUUID } from 'node:crypto';
+import { edit, CAPACITY_PNG, CAPACITY_ASSET } from './documents';
+import { createHash, randomUUID } from 'node:crypto';
+import { BLOCKS_DRAFT_CONTENT_TYPE } from '../../apps/api/dist/blocks-runtime-transport.js';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { availableParallelism, totalmem } from 'node:os';
 import { monitorEventLoopDelay } from 'node:perf_hooks';
 import pg from 'pg';
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+import { OpenProjectUseCase, PgProjectRepository } from '../../contexts/projects/dist/index.js';
 import {
   createApiApp,
   poolSettings,
@@ -69,6 +71,9 @@ describe.skipIf(process.env.ASA_CAPACITY_BASELINE !== '1')(
         ...analyticsPoolSettings(),
       });
       const loop = monitorEventLoopDelay({ resolution: 20 });
+      // Observe the actual API reader; all repository/permission/SQL work still executes.
+      const opened = vi.spyOn(OpenProjectUseCase.prototype, 'execute');
+      const projectLoads = vi.spyOn(PgProjectRepository.prototype, 'load');
       let app: Awaited<ReturnType<typeof createApiApp>> | undefined;
       const records: Observation[] = [];
       const samples: {
@@ -84,6 +89,8 @@ describe.skipIf(process.env.ASA_CAPACITY_BASELINE !== '1')(
         peakInFlight = 0,
         peakActorInFlight = 0;
       let identityChecks = 0;
+      let mediaUploads = 0,
+        mediaReads = 0;
       let acknowledged = 0,
         verified = 0,
         denied = 0,
@@ -115,7 +122,9 @@ describe.skipIf(process.env.ASA_CAPACITY_BASELINE !== '1')(
           throw new Error('invalid_fixture_target');
         const started = now(),
           requestPhase = phase;
-        const text = body === undefined ? undefined : JSON.stringify(body);
+        const binary = body instanceof Uint8Array;
+        const text =
+          body === undefined ? undefined : binary ? Buffer.from(body) : JSON.stringify(body);
         const measuredActor = actor.index >= 0;
         let status = 0,
           ok = false,
@@ -131,12 +140,20 @@ describe.skipIf(process.env.ASA_CAPACITY_BASELINE !== '1')(
             signal: AbortSignal.timeout(b.requestTimeoutMs),
             headers: {
               origin: ORIGIN,
-              ...(text ? { 'content-type': 'application/json' } : {}),
+              ...(text
+                ? {
+                    'content-type': binary
+                      ? 'image/png'
+                      : path.startsWith('/api/blocks/runtime/')
+                        ? BLOCKS_DRAFT_CONTENT_TYPE
+                        : 'application/json',
+                  }
+                : {}),
               cookie: [...actor.jar].map(([k, v]) => `${k}=${v}`).join('; '),
               ...(capability ? { authorization: `Bearer ${capability}` } : {}),
               ...(method === 'POST' ? { 'idempotency-key': randomUUID() } : {}),
             },
-            body: text,
+            body: binary ? new Uint8Array(text as Buffer).buffer : (text as string | undefined),
           });
           status = response.status;
           for (const cookie of response.headers.getSetCookie()) {
@@ -144,10 +161,12 @@ describe.skipIf(process.env.ASA_CAPACITY_BASELINE !== '1')(
               split = pair.indexOf('=');
             actor.jar.set(pair.slice(0, split), pair.slice(split + 1));
           }
-          const raw = await response.text();
-          receivedBytes = Buffer.byteLength(raw);
+          const raw = Buffer.from(await response.arrayBuffer());
+          receivedBytes = raw.length;
           if (!expected.includes(status)) throw new Error('unexpected_fixture_status');
-          const data = object(JSON.parse(raw));
+          const data = response.headers.get('content-type')?.startsWith('image/png')
+            ? { assetSha256: createHash('sha256').update(raw).digest('hex') }
+            : object(JSON.parse(raw.toString('utf8')));
           ok = true;
           return { ...data, fixtureStatus: status };
         } finally {
@@ -194,6 +213,20 @@ describe.skipIf(process.env.ASA_CAPACITY_BASELINE !== '1')(
         if (!Number.isSafeInteger(actor.revision)) throw new Error('missing_save_revision');
         acknowledged++;
         await verify(actor);
+        if (actor.module === 'blocks' && waveIndex === 1) {
+          const media = await call(
+            actor,
+            'asset_read',
+            'GET',
+            `/api/blocks/runtime/projects/${actor.project}/assets/${CAPACITY_ASSET.assetId}.png`,
+            undefined,
+            [200],
+            actor.capability,
+          );
+          if (media.assetSha256 !== CAPACITY_ASSET.sha256)
+            throw new Error('asset_roundtrip_mismatch');
+          mediaReads++;
+        }
         if (waveIndex === 1 && [0, b.blocks].includes(actor.index)) {
           // Model a lost acknowledgement by replaying the exact mutation, not a new write.
           const retry = await call(
@@ -369,6 +402,18 @@ describe.skipIf(process.env.ASA_CAPACITY_BASELINE !== '1')(
             if (typeof session.runtimeToken !== 'string')
               throw new Error('missing_runtime_capability');
             actor.capability = session.runtimeToken;
+            const upload = await call(
+              actor,
+              'asset_upload',
+              'PUT',
+              `/api/blocks/runtime/projects/${actor.project}/assets/${CAPACITY_ASSET.assetId}.png`,
+              CAPACITY_PNG,
+              [200],
+              actor.capability,
+            );
+            if (object(upload.asset).sha256 !== CAPACITY_ASSET.sha256)
+              throw new Error('asset_upload_mismatch');
+            mediaUploads++;
           }
         });
         const waveStarted = now();
@@ -411,8 +456,18 @@ describe.skipIf(process.env.ASA_CAPACITY_BASELINE !== '1')(
         expect(retriedReceipts).toBe(2);
         expect(denied).toBe(2);
         expect(peakActorInFlight).toBe(b.sessions);
+        expect(mediaUploads).toBe(b.blocks);
+        expect(mediaReads).toBe(b.blocks);
         expect(identityChecks).toBe(b.sessions * (b.identityProbeSeconds.length + 1));
         expect(records.filter((r) => r.phase !== 'setup' && !r.ok)).toHaveLength(0);
+        expect(opened).toHaveBeenCalledTimes(
+          records.filter(
+            (r) => r.operation === 'project_read' || r.operation === 'expected_ownership_denial',
+          ).length,
+        );
+        expect(
+          projectLoads.mock.calls.filter((call) => call[3]?.includeVersions === false),
+        ).toHaveLength(acknowledged + retriedReceipts + conflicts * 2);
         success = true;
       } finally {
         const steadyEnded = now();
@@ -469,7 +524,7 @@ describe.skipIf(process.env.ASA_CAPACITY_BASELINE !== '1')(
             logicalCpus: availableParallelism(),
             memoryBytes: totalmem(),
             topology:
-              'API and closed-loop generator share one Node process; PostgreSQL disposable container',
+              'API and closed-loop generator share one Node process; PostgreSQL and MinIO disposable containers',
             runtimePoolMax: runtime.options.max,
             analyticsPoolMax: analytics.options.max,
           },
@@ -489,12 +544,34 @@ describe.skipIf(process.env.ASA_CAPACITY_BASELINE !== '1')(
             waveIntervalSeconds: b.waveIntervalSeconds,
           },
           saves: {
+            mediaUploadsVerified: mediaUploads,
+            mediaReadsVerified: mediaReads,
             acknowledged,
             verifiedReads: verified,
             expected: b.sessions * b.saveWaves,
             receiptRetriesVerified: retriedReceipts,
             staleWritesRejected: conflicts,
             ownershipReadsDenied: denied,
+          },
+          fullProjectReads: {
+            explicitRequests: records.filter(
+              (r) => r.operation === 'project_read' || r.operation === 'expected_ownership_denial',
+            ).length,
+            actualOpens: opened.mock.calls.length,
+            // Includes setup reads; zero means no extra full reopen was caused by a save.
+            extraOpens:
+              opened.mock.calls.length -
+              records.filter(
+                (r) =>
+                  r.operation === 'project_read' || r.operation === 'expected_ownership_denial',
+              ).length,
+          },
+          draftReads: {
+            // The two stale attempts each require an initial read and a conflict fallback.
+            expectedWithoutHistory: acknowledged + retriedReceipts + conflicts * 2,
+            actualWithoutHistory: projectLoads.mock.calls.filter(
+              (call) => call[3]?.includeVersions === false,
+            ).length,
           },
           observedSlo,
           targetSlo: p.slo,
@@ -522,6 +599,8 @@ describe.skipIf(process.env.ASA_CAPACITY_BASELINE !== '1')(
           mkdirSync('reports/capacity', { recursive: true });
           writeFileSync('reports/capacity/backend30.json', JSON.stringify(report, null, 2));
         } finally {
+          opened.mockRestore();
+          projectLoads.mockRestore();
           if (app) await app.close();
           else {
             await runtime.end();

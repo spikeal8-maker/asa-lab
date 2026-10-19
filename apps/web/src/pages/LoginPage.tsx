@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { api, type BotProof, type SessionPayload } from '../api';
 import { AuthHomeBrand } from '../components/AuthHomeBrand';
 import { BotCheck } from '../components/BotCheck';
+import { SocialAuthButtons, useAuthProviders } from '../auth-providers';
 
 export function LoginPage({
   onSignedIn,
@@ -26,9 +27,8 @@ export function LoginPage({
   const [message, setMessage] = useState<string | null>(null);
   const [botProof, setBotProof] = useState<BotProof | null>(null);
   const [botReset, setBotReset] = useState(0);
-  const [maxLaunchUrl, setMaxLaunchUrl] = useState<string | null>(null);
-  const [pairingToken, setPairingToken] = useState<string | null>(null);
-  const [pairingLaunchUrl, setPairingLaunchUrl] = useState<string | null>(null);
+  const { providers, refresh: refreshProviders } = useAuthProviders();
+  const [socialRegistration, setSocialRegistration] = useState(false);
   const [recoveryOpen, setRecoveryOpen] = useState(false);
   const [localPreviewEnabled, setLocalPreviewEnabled] = useState(false);
   const messageId = useId();
@@ -36,9 +36,6 @@ export function LoginPage({
 
   useEffect(() => {
     let active = true;
-    void api.maxConfig().then((result) => {
-      if (active && result.ok && result.data.enabled) setMaxLaunchUrl(result.data.launchUrl);
-    });
     void api.localPreviewConfig().then((result) => {
       if (active && result.ok) setLocalPreviewEnabled(result.data.enabled);
     });
@@ -46,56 +43,6 @@ export function LoginPage({
       active = false;
     };
   }, []);
-
-  useEffect(() => {
-    if (!pairingToken) return;
-    let active = true;
-    let timer: number | null = null;
-    const check = async (): Promise<void> => {
-      const result = await api.completeMaxPairing(pairingToken);
-      if (!active) return;
-      if (result.ok && result.data.status === 'authenticated') {
-        setPairingToken(null);
-        onSignedIn(result.data.session);
-        return;
-      }
-      if (!result.ok && result.status !== 0) {
-        setPairingToken(null);
-        setMessage(
-          result.error.code === 'max_pairing_expired'
-            ? 'Время входа истекло. Откройте MAX ещё раз.'
-            : 'Не удалось завершить вход через MAX.',
-        );
-        return;
-      }
-      timer = window.setTimeout(() => void check(), 6_000);
-    };
-    timer = window.setTimeout(() => void check(), 2_000);
-    return () => {
-      active = false;
-      if (timer !== null) window.clearTimeout(timer);
-    };
-  }, [onSignedIn, pairingToken]);
-
-  async function openMax(): Promise<void> {
-    const popup = window.open('', '_blank');
-    if (popup) popup.opener = null;
-    setBusy(true);
-    setMessage(null);
-    const result = await api.startMaxPairing();
-    setBusy(false);
-    if (!result.ok) {
-      popup?.close();
-      setMessage('Не удалось создать вход через MAX. Попробуйте ещё раз.');
-      return;
-    }
-    setPairingToken(result.data.pairingToken);
-    setPairingLaunchUrl(result.data.launchUrl);
-    setMessage(
-      'В MAX нажмите «Начать». Ничего вводить не нужно — затем вернитесь сюда, вход завершится автоматически.',
-    );
-    if (popup) popup.location.href = result.data.launchUrl;
-  }
 
   async function submit(event: FormEvent): Promise<void> {
     event.preventDefault();
@@ -159,7 +106,7 @@ export function LoginPage({
           </nav>
         ) : null}
         {contextMessage ? <p className="max-link-copy">{contextMessage}</p> : null}
-        <form onSubmit={(event) => void submit(event)} noValidate>
+        <form onSubmit={(event) => void submit(event)} noValidate hidden={socialRegistration}>
           <label htmlFor="identifier">Email или имя пользователя</label>
           <input
             id="identifier"
@@ -205,27 +152,27 @@ export function LoginPage({
           </button>
         </form>
 
-        {maxLaunchUrl && !contextMessage ? (
-          <button
-            type="button"
-            className="btn-secondary max-login-button"
-            disabled={busy || pairingToken !== null}
-            onClick={() => void openMax()}
-          >
-            {pairingToken ? 'Подтвердите вход в MAX…' : 'Войти через MAX'}
-          </button>
-        ) : null}
-        {pairingLaunchUrl && pairingToken ? (
-          <a className="auth-max-fallback" href={pairingLaunchUrl} target="_blank" rel="noreferrer">
-            MAX не открылся? Открыть ещё раз
-          </a>
+        {!contextMessage ? (
+          <SocialAuthButtons
+            providers={providers}
+            purpose="login"
+            disabled={busy}
+            onAuthenticated={onSignedIn}
+            onUnavailable={() => void refreshProviders()}
+            onUsePassword={() => {
+              setSocialRegistration(false);
+              window.setTimeout(() => identifierRef.current?.focus(), 0);
+            }}
+            onRegistrationActiveChange={setSocialRegistration}
+          />
         ) : null}
         {recoveryOpen ? (
           <section className="auth-recovery-note" aria-label="Восстановление пароля">
-            <strong>Восстановление через MAX</strong>
+            <strong>Как восстановить доступ</strong>
             <p>
-              Если MAX уже связан с аккаунтом, просто подтвердите вход в боте. Затем новый пароль
-              можно задать в разделе «Учётная запись». Отправку писем подключим позже.
+              Если MAX или Telegram уже связан с аккаунтом и его кнопка доступна выше, подтвердите
+              вход через него. После входа можно настроить пароль в разделе «Учётная запись». Если
+              доступного способа нет, обратитесь к администратору портала.
             </p>
           </section>
         ) : null}

@@ -279,7 +279,7 @@ export function telemetryReceipt(request, body, origin) {
                 sessionState: body.operation === 'close' ? 'closed' : 'open',
               },
             }
-          : { recordId: body.eventId }),
+          : { recordId: 1 }),
     },
   };
 }

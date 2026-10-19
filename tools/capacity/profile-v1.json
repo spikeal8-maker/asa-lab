@@ -53,7 +53,7 @@
     "capacity-477-blockers-closed-or-owner-deferred"
   ],
   "backendBaseline": {
-    "id": "CLASSROOM-API-30-V1",
+    "id": "CLASSROOM-API-30-V2",
     "sessions": 30,
     "accounts": 15,
     "studentSeats": 15,
@@ -64,10 +64,10 @@
     "identityProbeSeconds": [15, 30, 45],
     "requestTimeoutMs": 10000,
     "sampleIntervalMs": 1000,
-    "scope": "real-api-postgresql-loopback-only",
+    "scope": "real-api-postgresql-minio-loopback-only",
     "missingLayers": [
       "browser-ui-vm",
-      "minio-media",
+      "representative-media-size-distribution",
       "caddy-static-cache",
       "external-ingress",
       "learning-3d-games",
