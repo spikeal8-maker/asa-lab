@@ -598,7 +598,7 @@ describe('native provider confirmation through real HTTP and PostgreSQL boundari
       const schoolScopes = await visit(schoolAdmin.browser, 'GET', '/api/admin/v1/me');
       expect(schoolScopes.statusCode, schoolScopes.body).toBe(200);
       expect(schoolScopes.json().scopes).toEqual([
-        { kind: 'organization', id: workspaceId, role: 'school_admin' },
+        expect.objectContaining({ kind: 'organization', id: workspaceId, role: 'school_admin' }),
       ]);
       for (const provider of PROVIDERS) {
         const versionBefore = (

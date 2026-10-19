@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { abortable, authRequest, AUTH_REQUEST_TIMEOUT_MS, isAuthRequest } from './auth-request';
 import { call } from './api-call';
 import { call as adminCall } from './admin/admin-api';
+import { api } from './api';
 
 vi.mock('./client-diagnostics', () => ({ reportClientDiagnostic: vi.fn() }));
 
@@ -57,6 +58,76 @@ describe('bounded authentication requests', () => {
     ).rejects.toMatchObject({ code: 'auth_cancelled' });
     expect(operation).not.toHaveBeenCalled();
   });
+
+  it('starts live operations immediately before a newer request cancels the older one', async () => {
+    const controller = new AbortController();
+    const firstTransport = vi.fn(() => new Promise<never>(() => undefined));
+    const first = abortable(firstTransport, controller.signal);
+    const rejected = expect(first).rejects.toBeDefined();
+    expect(firstTransport).toHaveBeenCalledTimes(1);
+    controller.abort();
+    const secondTransport = vi.fn(async () => 'newer response');
+    const second = abortable(secondTransport, new AbortController().signal);
+    expect(secondTransport).toHaveBeenCalledTimes(1);
+    await rejected;
+    await expect(second).resolves.toBe('newer response');
+  });
+
+  it('turns an immediate operation error into a rejected promise', async () => {
+    const failure = new Error('transport setup failed');
+    const result = abortable(() => {
+      throw failure;
+    }, new AbortController().signal);
+    await expect(result).rejects.toBe(failure);
+  });
+
+  it.each(['password', 'max'] as const)(
+    'cancels the underlying %s registration request',
+    async (method) => {
+      const controller = new AbortController();
+      const observed: { signal?: AbortSignal | null | undefined } = {};
+      const transport = vi.fn<typeof fetch>().mockImplementation((_path, init) => {
+        observed.signal = init?.signal;
+        return new Promise<Response>(() => undefined);
+      });
+      vi.stubGlobal('fetch', transport);
+      const input = {
+        email: 'fixture@example.test',
+        username: 'fixture-account',
+        displayName: 'Fixture',
+        birthDate: '1988-03-01',
+        country: 'RU',
+        password: 'fixture-password-2026',
+      };
+      const result =
+        method === 'max'
+          ? api.maxRegister({ ...input, initData: 'synthetic-max-data' }, controller.signal)
+          : api.register(
+              {
+                ...input,
+                botProof: {
+                  action: 'register',
+                  nonce: 'fixture',
+                  salt: 'fixture',
+                  difficulty: 0,
+                  issuedAt: 1,
+                  expiresAt: 2,
+                  signature: 'fixture',
+                  counter: 0,
+                },
+              },
+              controller.signal,
+            );
+      expect(transport).toHaveBeenCalledTimes(1);
+      expect(transport.mock.calls[0]?.[0]).toBe(
+        method === 'max' ? '/api/auth/max/register' : '/api/auth/register',
+      );
+      controller.abort();
+      await expect(result).resolves.toMatchObject({ ok: false, error: { code: 'auth_cancelled' } });
+      expect(observed.signal?.aborted).toBe(true);
+      expect(transport).toHaveBeenCalledTimes(1);
+    },
+  );
 
   it('ignores a late successful result after cancellation', async () => {
     const controller = new AbortController();

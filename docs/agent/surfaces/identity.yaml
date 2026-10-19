@@ -445,7 +445,7 @@ surfaces:
     - apps/api/src/app.module.ts
     - apps/api/src/tokens.ts
     - migrations/0219_account_verification_policy.sql
-    - migrations/0220_auth_provider_readiness.sql
+    - migrations/0225_auth_provider_readiness.sql
     - schemas/openapi.yaml
     - compose.staging.yaml
     - .env.example
@@ -498,7 +498,7 @@ surfaces:
     - apps/api/src/max-auth.service.ts
     - apps/api/src/telegram-auth.service.ts
     - migrations/0218_auth_provider_lifecycle.sql
-    - migrations/0220_auth_provider_readiness.sql
+    - migrations/0225_auth_provider_readiness.sql
     commands:
     - auth_provider_configuration_read
     - auth_provider_configuration_write

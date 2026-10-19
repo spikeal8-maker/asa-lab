@@ -31,13 +31,17 @@ export function abortable<T>(operation: () => Promise<T>, signal?: AbortSignal |
       return;
     }
     signal.addEventListener('abort', aborted, { once: true });
-    void Promise.resolve()
-      .then(() => {
-        if (signal.aborted) throw signal.reason ?? new AuthRequestError('auth_cancelled');
-        return operation();
-      })
-      .then(resolve, reject)
-      .finally(() => signal.removeEventListener('abort', aborted));
+    try {
+      // Preserve fetch's immediate start for existing non-auth AbortSignal users.
+      // Deferring this call can drop an already-started operation when a second
+      // event synchronously cancels the first request.
+      void operation()
+        .then(resolve, reject)
+        .finally(() => signal.removeEventListener('abort', aborted));
+    } catch (error) {
+      signal.removeEventListener('abort', aborted);
+      reject(error);
+    }
   });
 }
 

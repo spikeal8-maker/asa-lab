@@ -54,6 +54,7 @@ interface UiState {
   policySaveFailure: boolean;
   adminReadFailure: boolean;
   emptyProviderUrl: boolean;
+  localPreviewEnabled: boolean;
   pairingExpiresAt: string | null;
   nextPairing: PairingOutcome;
   passwordConfigured: boolean;
@@ -78,6 +79,7 @@ async function fixture(
     policySaveFailure: false,
     adminReadFailure: false,
     emptyProviderUrl: false,
+    localPreviewEnabled: false,
     pairingExpiresAt: null,
     nextPairing: 'pending',
     passwordConfigured: true,
@@ -254,7 +256,8 @@ async function fixture(
     if (path === '/api/auth/me')
       return reply(state.signedIn ? session() : { authenticated: false });
     if (path === '/api/class-join/me') return reply({ authenticated: false });
-    if (path === '/api/auth/local-preview/config') return reply({ enabled: false });
+    if (path === '/api/auth/local-preview/config')
+      return reply({ enabled: state.localPreviewEnabled });
     if (path === '/api/auth/max/config') return reply({ enabled: false, launchUrl: null });
     if (path === '/api/auth/providers')
       return state.providersFailure
@@ -449,6 +452,41 @@ async function visit(page: Page, route: string): Promise<void> {
 }
 
 async function screenshot(page: Page, name: string): Promise<void> {
+  const overflow = await page.evaluate(() => {
+    const viewport = document.documentElement.clientWidth;
+    if (document.documentElement.scrollWidth <= viewport) return null;
+    return {
+      viewport,
+      scrollWidth: document.documentElement.scrollWidth,
+      elements: Array.from(document.querySelectorAll<HTMLElement>('body *')).flatMap((node) => {
+        const rect = node.getBoundingClientRect();
+        if (rect.right <= viewport && rect.left >= 0 && node.scrollWidth <= node.clientWidth)
+          return [];
+        const style = getComputedStyle(node);
+        return [
+          {
+            tag: node.tagName,
+            className: node.className,
+            text: node.textContent?.slice(0, 180),
+            left: rect.left,
+            right: rect.right,
+            width: rect.width,
+            clientWidth: node.clientWidth,
+            scrollWidth: node.scrollWidth,
+            fontSize: style.fontSize,
+            minWidth: style.minWidth,
+            whiteSpace: style.whiteSpace,
+            display: style.display,
+          },
+        ];
+      }),
+    };
+  });
+  if (overflow)
+    await test.info().attach(`${name}-overflow`, {
+      body: JSON.stringify(overflow, null, 2),
+      contentType: 'application/json',
+    });
   await expect
     .poll(() =>
       page.evaluate(
@@ -1066,6 +1104,10 @@ test('confirmation checks are single flight and logout remains usable during a s
   expect(await heldRequests(page)).toBe(1);
   await page.getByRole('button', { name: 'Выйти', exact: true }).click();
   await expect.poll(() => state.signedIn).toBe(false);
+  // The shared logout event returns App to public Home. Use its normal entry
+  // action to check that a late result cannot restore the authenticated view.
+  const publicSignIn = page.getByRole('banner').getByRole('button', { name: 'Войти', exact: true });
+  await expect(publicSignIn).toBeVisible();
   await releaseHeldRequest(page, {
     policyEnabled: false,
     required: false,
@@ -1074,10 +1116,13 @@ test('confirmation checks are single flight and logout remains usable during a s
     verifiedProvider: null,
     providers: healthyProviders(),
   });
+  await publicSignIn.click();
   await expect(page.getByLabel('Пароль', { exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Подтвердите аккаунт', exact: true })).toHaveCount(
     0,
   );
+  expect(state.signedIn).toBe(false);
+  expect(await heldRequests(page)).toBe(1);
   expect(state.requests.filter((request) => request.path === '/api/auth/logout')).toHaveLength(1);
 });
 
@@ -1134,6 +1179,108 @@ test('password sign-in cancels the pending social attempt and ignores its late a
   expect(state.signedIn).toBe(true);
   expect(state.verifiedProvider).toBeNull();
   expect(state.requests.filter((request) => request.path === '/api/auth/login')).toHaveLength(1);
+  expect(await heldRequests(page)).toBe(1);
+});
+
+async function submitRegistration(page: Page): Promise<void> {
+  await page.getByLabel('Email', { exact: true }).fill('pending-a@example.test');
+  await page.getByLabel('Имя пользователя', { exact: true }).fill('pending-account-a');
+  await page.getByLabel('Дата рождения', { exact: true }).fill('1988-03-01');
+  await page.getByLabel('Пароль', { exact: true }).fill('pending-password-2026');
+  await page.getByRole('checkbox', { name: 'Я не робот', exact: true }).focus();
+  await page.keyboard.press('Space');
+  const submit = page.getByRole('button', { name: 'Создать аккаунт', exact: true });
+  await expect(submit).toBeEnabled();
+  await submit.click();
+}
+
+for (const attempt of ['register', 'local-preview'] as const) {
+  test(`leaving ${attempt} preserves the password account and its capabilities after a late response`, async ({
+    page,
+  }) => {
+    const state = await fixture(page, {
+      admin: true,
+      localPreviewEnabled: attempt === 'local-preview',
+    });
+    const path = attempt === 'register' ? '/api/auth/register' : '/api/auth/local-preview/session';
+    await holdAuthRequest(page, path, 'POST');
+    await visit(page, '/sign-up');
+    if (attempt === 'register') await submitRegistration(page);
+    else await page.getByRole('button', { name: 'Войти в тестовый стенд', exact: true }).click();
+    await expect.poll(() => heldRequests(page)).toBe(1);
+    await page.getByRole('button', { name: '← К входу', exact: true }).click();
+    expect(
+      await page.evaluate(
+        () =>
+          (
+            window as typeof window & {
+              __authUiHold: { aborted: number };
+            }
+          ).__authUiHold.aborted,
+      ),
+    ).toBe(1);
+    await passwordLogin(page);
+    const current = await page.evaluate(async () => (await fetch('/api/auth/me')).json());
+    expect(current.account.id).toBe(ACCOUNT_ID);
+    expect(current.capabilities).toContainEqual({
+      capability: 'platform_admin',
+      state: 'verified',
+    });
+    await releaseHeldRequest(page, {
+      ...current,
+      account: {
+        ...current.account,
+        id: 'late-register-account-a',
+        displayName: 'Late registration A',
+      },
+      user: { ...current.user, id: 'late-register-account-a', displayName: 'Late registration A' },
+      capabilities: [],
+    });
+    await expect(
+      page.getByRole('button', {
+        name: `Меню аккаунта ${current.user.displayName}`,
+        exact: true,
+      }),
+    ).toBeVisible();
+    await page.evaluate(() => {
+      location.hash = '#/admin/confirmations';
+    });
+    await expect(
+      page.getByRole('switch', {
+        name: 'Обязательное подтверждение входа',
+        exact: true,
+      }),
+    ).toBeEnabled();
+    await expect(page.getByText('Late registration A', { exact: true })).toHaveCount(0);
+    expect(await heldRequests(page)).toBe(1);
+    expect(state.requests.filter((request) => request.path === '/api/auth/login')).toHaveLength(1);
+    expect(state.signedIn).toBe(true);
+  });
+}
+
+test('registration timeout retains unknown-result guidance and does not repeat the write', async ({
+  page,
+}) => {
+  await fixture(page);
+  await holdAuthRequest(page, '/api/auth/register', 'POST');
+  await visit(page, '/sign-up');
+  // Complete the anti-bot interaction normally, then control only the request deadline.
+  await page.getByLabel('Email', { exact: true }).fill('pending-a@example.test');
+  await page.getByLabel('Имя пользователя', { exact: true }).fill('pending-account-a');
+  await page.getByLabel('Дата рождения', { exact: true }).fill('1988-03-01');
+  await page.getByLabel('Пароль', { exact: true }).fill('pending-password-2026');
+  await page.getByRole('checkbox', { name: 'Я не робот', exact: true }).focus();
+  await page.keyboard.press('Space');
+  const submit = page.getByRole('button', { name: 'Создать аккаунт', exact: true });
+  await expect(submit).toBeEnabled();
+  await page.clock.install();
+  await submit.click();
+  await expect.poll(() => heldRequests(page)).toBe(1);
+  await page.clock.runFor(15_100);
+  await expect(page.getByRole('alert')).toContainText('Результат действия пока неизвестен');
+  await expect(page.getByRole('alert')).toContainText('Проверьте состояние перед повтором');
+  await expect(page.getByRole('alert')).not.toContainText('Попробуйте ещё раз');
+  await expect(page.getByRole('button', { name: '← К входу', exact: true })).toBeEnabled();
   expect(await heldRequests(page)).toBe(1);
 });
 

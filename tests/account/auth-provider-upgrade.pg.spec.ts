@@ -8,7 +8,7 @@ import {
   IngressProbeRegistry,
 } from '../../apps/api/dist/bot-provider-ingress.js';
 import { testAdminPool } from '../portal/helpers';
-import { planMigrations } from '../../tools/migrate.mjs';
+import { inspectPlan, planMigrations } from '../../tools/migrate.mjs';
 import { applyIsolatedTestPlan as applyPlan } from '../migration/isolated-postgres-plan';
 
 type HistoricalKind = 'self' | 'admin-other' | 'admin-own' | 'admin-reused-audit';
@@ -43,6 +43,8 @@ let legacyAccount: Account;
 let legacySubject: string;
 let legacySessionSnapshot: Record<string, unknown>;
 let legacyIdentitySnapshot: Record<string, unknown>;
+let priorMainHistory: Array<{ version: string; checksum: string; [key: string]: unknown }>;
+let priorMainPendingVersions: string[];
 
 async function account(): Promise<Account> {
   const unique = randomUUID().replaceAll('-', '');
@@ -205,15 +207,40 @@ beforeAll(async () => {
   for (const { kind, flow } of cases) {
     identities.set(`${kind}:${flow}`, await historicalIdentity(kind));
   }
-  const upgradePlan = plan.filter((migration) => Number(migration.version) <= 220);
+  const priorMainPlan = plan.filter((migration) => Number(migration.version) <= 224);
+  const upgradePlan = plan.filter((migration) => Number(migration.version) <= 225);
   expect(
     upgradePlan
       .filter((migration) => Number(migration.version) > 217)
       .map((migration) => Number(migration.version)),
-  ).toEqual([218, 219, 220]);
+  ).toEqual([218, 219, 222, 223, 224, 225]);
   const upgradeClient = await admin.connect();
   try {
-    await applyPlan(upgradeClient, upgradePlan);
+    // Reproduce an installation that already accepted main through 0224.
+    // The legacy Account/identity/session fixtures above cross both upgrades.
+    expect(await applyPlan(upgradeClient, priorMainPlan)).toBe(5);
+    priorMainHistory = (
+      await upgradeClient.query(
+        'SELECT id::text,version,name,checksum,applied_at::text FROM schema_migrations ORDER BY version',
+      )
+    ).rows;
+    expect(priorMainHistory.at(-1)?.version).toBe('0224');
+    const readiness = upgradePlan.find((migration) => migration.version === '0225')!;
+    expect(readiness.file).toBe('0225_auth_provider_readiness.sql');
+    const lateLowerPlan = [
+      ...priorMainPlan,
+      { ...readiness, version: '0220', file: '0220_auth_provider_readiness.sql' },
+    ].sort((left, right) => Number(left.version) - Number(right.version));
+    // This read-only canonical inspection must reproduce the original defect;
+    // neither the real ledger nor the migrator gets an out-of-order exception.
+    await expect(inspectPlan(upgradeClient, lateLowerPlan)).rejects.toThrow(
+      'Forbidden out-of-order pending migration(s): 0220; maximum applied migration version is 0224.',
+    );
+    priorMainPendingVersions = (await inspectPlan(upgradeClient, upgradePlan)).map(
+      (migration) => migration.version,
+    );
+    expect(priorMainPendingVersions).toEqual(['0225']);
+    expect(await applyPlan(upgradeClient, upgradePlan)).toBe(1);
   } finally {
     upgradeClient.release();
   }
@@ -267,7 +294,32 @@ async function relink(identity: HistoricalIdentity, flow: Flow) {
   return { approval: approved.rows[0]!.result, result: consumed.rows[0]!.result };
 }
 
-describe('historical MAX revocation provenance across 0217 → 0220', () => {
+describe('historical MAX revocation provenance across 0217 → 0224 → 0225', () => {
+  it('extends an already-applied main 0224 ledger by only 0225 without rewriting historical receipts', async () => {
+    expect(priorMainHistory.at(-1)?.version).toBe('0224');
+    expect(priorMainPendingVersions).toEqual(['0225']);
+    const history = (
+      await admin.query(
+        'SELECT id::text,version,name,checksum,applied_at::text FROM schema_migrations ORDER BY version',
+      )
+    ).rows;
+    expect(history.slice(0, -1)).toEqual(priorMainHistory);
+    const plan = planMigrations().filter((migration) => Number(migration.version) <= 225);
+    const readiness = plan.find((migration) => migration.version === '0225')!;
+    expect(history.at(-1)).toMatchObject({
+      version: '0225',
+      name: 'auth_provider_readiness',
+      checksum: readiness.checksum,
+    });
+    const client = await admin.connect();
+    try {
+      await expect(inspectPlan(client, plan)).resolves.toEqual([]);
+      await expect(applyPlan(client, plan)).resolves.toBe(0);
+    } finally {
+      client.release();
+    }
+  });
+
   it('preserves a legacy MAX-only Account and signed Mini App access before any native webhook test', async () => {
     const fetchImpl = vi.fn(async (url: string | URL | Request) => {
       expect(String(url)).toBe('https://platform-api2.max.ru/me');

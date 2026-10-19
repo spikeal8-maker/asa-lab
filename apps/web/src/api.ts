@@ -1886,18 +1886,22 @@ export const api = {
         body: JSON.stringify({ pairingToken }),
       },
     ),
-  maxRegister: (input: {
-    initData: string;
-    email: string;
-    username: string;
-    displayName: string;
-    birthDate: string;
-    country: string;
-    password: string;
-  }) =>
+  maxRegister: (
+    input: {
+      initData: string;
+      email: string;
+      username: string;
+      displayName: string;
+      birthDate: string;
+      country: string;
+      password: string;
+    },
+    signal?: AbortSignal,
+  ) =>
     call<SessionPayload>('/api/auth/max/register', {
       method: 'POST',
       body: JSON.stringify(input),
+      ...(signal ? { signal } : {}),
     }),
   maxLink: (initData: string) =>
     call<{ linked: true }>('/api/auth/max/link', {
@@ -1919,18 +1923,22 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ workspace, email, password, botProof }),
     }),
-  register: (input: {
-    email: string;
-    password: string;
-    username: string;
-    displayName: string;
-    birthDate: string;
-    country: string;
-    botProof: BotProof;
-  }) =>
+  register: (
+    input: {
+      email: string;
+      password: string;
+      username: string;
+      displayName: string;
+      birthDate: string;
+      country: string;
+      botProof: BotProof;
+    },
+    signal?: AbortSignal,
+  ) =>
     call<SessionPayload>('/api/auth/register', {
       method: 'POST',
       body: JSON.stringify(input),
+      ...(signal ? { signal } : {}),
     }),
   usernameAvailable: (username: string) =>
     call<{ available: boolean }>(
