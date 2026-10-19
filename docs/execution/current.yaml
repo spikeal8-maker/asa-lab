@@ -126,6 +126,15 @@ parallel_lanes:
         - id: AI-TEXT-API-002
           scope: terminal response state, UUID identity, precise history cursors and focused regressions
           status: in_progress
+        - id: AI-STUDENT-ACCESS-003
+          scope: teacher-controlled Seat admission, stable student chat ownership and focused access regressions
+          status: in_progress
+          integration_after: [AI-TEXT-API-002, AI-TEXT-UI-001]
+          coordination: >-
+            Implement in an isolated checkout; preserve the text repair and shared
+            Classroom changes during final convergence. Reuse trusted Seat context
+            and existing teacher authority; do not require a personal Account for
+            school access, expose private chats to teachers or redesign tenant/RLS.
       dependency_sequence:
         - text_convergence_and_focused_ci
         - complete_text_search_regeneration_and_math
