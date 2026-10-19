@@ -1084,6 +1084,38 @@ describe('mounted workbench LED temporal display', () => {
     });
   }
 
+  async function requestedHorizon(toMicroseconds: number) {
+    for (
+      let turn = 0;
+      turn < 20 && Number(worker().update.mock.calls.at(-1)?.[1] ?? 0) < toMicroseconds;
+      turn++
+    )
+      await tick(10);
+    expect(worker().update.mock.calls.at(-1)![1]).toBeGreaterThanOrEqual(toMicroseconds);
+  }
+
+  // Keep the original physical edge times. A quarter-paced producer reaches
+  // those edges through real requested 12.5ms windows, not a future 25ms reply.
+  async function receiveHeldPrefix(from: number, to: number, half: number) {
+    expect(to).toBeGreaterThan(from);
+    let last: ReturnType<typeof opticalReady> | undefined;
+    for (let cursor = from; cursor < to;) {
+      const next = Math.min(to, cursor + 12_500);
+      await requestedHorizon(next);
+      last = opticalReady(next, cursor, half);
+      const samples = last.observation.components[0]!.samples;
+      expect(samples.every((sample) => sample.brightness === samples[0]!.brightness)).toBe(true);
+      await receive(last);
+      // A held vector can ACK later cursor positions without a React render.
+      // Publish this new result at the full requested endpoint on its first RAF;
+      // no intermediate same-result render is required by the production hook.
+      await frame((next - cursor) / 1000 / 0.25);
+      expect(workbench.simulationTimeMs).toBe(next / 1000);
+      cursor = next;
+    }
+    return last!;
+  }
+
   // JSDOM cannot load SVGs or deliver trusted browser events. As in the existing
   // native renderer tests, invoke the real React-installed callback with an
   // induced record. No event is dispatched or Event.isTrusted property changed.
@@ -1119,12 +1151,12 @@ describe('mounted workbench LED temporal display', () => {
     );
     expect(lease?.element.style.opacity).toBe('1');
   }
-  async function settleNativeFrame() {
+  async function settleNativeFrame(preparationMilliseconds = 16) {
     // Two complete intervening RAFs precede a distinct optical frame.
     await frame();
     await frame(16);
     // The third RAF can prepare and mount the new immutable native request.
-    await frame(16);
+    await frame(preparationMilliseconds);
     await loadMountedImages();
     // A resource that needed loading publishes on a subsequent RAF/layout ACK.
     await frame(16);
@@ -1156,8 +1188,9 @@ describe('mounted workbench LED temporal display', () => {
       (image) => image !== high.element,
     );
     if (!off) throw new Error('The already-loaded resident OFF image is missing');
+    await receiveHeldPrefix(0, 12_500, 25_000);
     await tick(18);
-    const low = opticalReady(25_000, 0, 25_000);
+    const low = opticalReady(25_000, 12_500, 25_000);
     await receive(low);
     // Two intervening shared frames still display HIGH. The following RAF
     // reaches the real LOW edge and is eligible to prepare its resident asset.
@@ -1248,56 +1281,52 @@ describe('mounted workbench LED temporal display', () => {
     });
   }
 
-  it('keeps temporal demand at 0.5 pace and within 25ms of the last actual native frame', async () => {
+  it('keeps temporal demand at 0.25 pace and within 12.5ms of the last actual native frame', async () => {
     const first = await startOptical(50_000);
     const before = renders;
     worker().update.mockClear();
     for (let turn = 0; turn < 10; turn++) await tick(10);
     expect(worker().update.mock.calls.map((call) => call[1])).toEqual([
-      20_000, 25_000, 25_000, 25_000, 25_000, 25_000, 25_000, 25_000, 25_000, 25_000,
+      10_000, 12_500, 12_500, 12_500, 12_500, 12_500, 12_500, 12_500, 12_500, 12_500,
     ]);
     expect(renders).toBe(before);
     expect(workbench.result).toBe(first.result);
     expect(workbench.simulationTimeMs).toBe(0);
-    const next = opticalReady(25_000, 0, 50_000);
+    const next = opticalReady(12_500, 0, 50_000);
     await receive(next);
     expect(workbench.result).toBe(first.result);
     await frame();
     expect(workbench.result).toBe(next.result);
-    expect(workbench.simulationTimeMs).toBe(25);
+    expect(workbench.simulationTimeMs).toBe(12.5);
     assertCommitted(80, 'lit');
     await tick(10);
-    expect(worker().update.mock.calls.at(-1)![1]).toBe(50_000);
+    expect(worker().update.mock.calls.at(-1)![1]).toBe(25_000);
   });
 
   it('publishes explicit HIGH and LOW only after shared RAF, native readiness and layout ACK', async () => {
     await startOptical(50_000);
-    await tick(18);
-    const first = opticalReady(25_000, 0, 50_000);
-    await receive(first);
-    await frame();
-    await frames(2);
-    await tick(18);
-    const low = opticalReady(50_000, 25_000, 50_000);
+    const first = await receiveHeldPrefix(0, 25_000, 50_000);
+    expect(workbench.result).toBe(first.result);
+    const beforeLow = await receiveHeldPrefix(25_000, 37_500, 50_000);
+    await requestedHorizon(50_000);
+    const low = opticalReady(50_000, 37_500, 50_000);
     await receive(low);
     expect(low.result.components[0]!.brightness).toBe(0);
-    expect(workbench.result).toBe(first.result);
+    expect(workbench.result).toBe(beforeLow.result);
     assertCommitted(80, 'lit');
     await frame();
     assertCommitted(80, 'lit');
     await frames(4);
     expect(workbench.result).toBe(low.result);
     assertCommitted(0, 'off');
-    await tick(10);
-    const middle = opticalReady(75_000, 50_000, 50_000);
-    await receive(middle);
-    await frame();
-    await frames(3);
-    await tick(8);
-    const high = opticalReady(100_000, 75_000, 50_000);
+    const middle = await receiveHeldPrefix(50_000, 75_000, 50_000);
+    expect(workbench.result).toBe(middle.result);
+    const beforeHigh = await receiveHeldPrefix(75_000, 87_500, 50_000);
+    await requestedHorizon(100_000);
+    const high = opticalReady(100_000, 87_500, 50_000);
     await receive(high);
     expect(high.result.components[0]!.brightness).toBe(80);
-    expect(workbench.result).toBe(middle.result);
+    expect(workbench.result).toBe(beforeHigh.result);
     assertCommitted(0, 'off');
     await frame();
     await frames(4);
@@ -1308,7 +1337,14 @@ describe('mounted workbench LED temporal display', () => {
   it('pairs the accepted mean with the actual result and clears it on Reset and Stop', async () => {
     await startOptical(1000);
     await tick(18);
-    const fast = opticalReady(25_000);
+    await receive(opticalReady(12_500));
+    // Reach this mean's same 12.5ms endpoint on its eligible preparation RAF.
+    // Native loading still precedes the separate following RAF/layout ACK.
+    await settleNativeFrame(50);
+    await frames(3);
+    expect(workbench.simulationTimeMs).toBe(12.5);
+    await requestedHorizon(25_000);
+    const fast = opticalReady(25_000, 12_500);
     const oldCallbacks = worker().callbacks!;
     await receive(fast);
     await settleNativeFrame();

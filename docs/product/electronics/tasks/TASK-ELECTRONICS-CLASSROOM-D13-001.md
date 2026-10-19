@@ -752,3 +752,78 @@ The existing D13 and full-realtime blockers remain until their own evidence.
 After normally integrating the accepted D13 slice continue D2-D4 immediately.
 No school installation, live DB, local Docker, network, backup or protected
 data operation is selected. Code in main and deployment remain separate facts.
+
+## Prospective common quarter-pace revision after exact55ee
+
+The controller selected this bounded revision on 2026-10-19 at21:33:42UTC under
+the owner's permission for a common measured slowdown. Exact candidate
+55ee72154bdab886adc95cb5800533aac44cdb08 remains NOT ACCEPTED for the complete
+release: classroom39322854954 recorded162PASS/8FAIL, strict39322860514 recorded
+160PASS/10FAIL, and15 of42 mandatory core entries were unreached. General
+39322852570 passed. Independent native review
+7b138a8f889a64bcc0922caf1d08ba079d3f17011fb1750b5f6352fe4827580b accepted only
+its five D13 cases on that source. No historical failure becomes PASS here.
+
+The new product selection uses one fixed0.25 MODEL/WALL pace for every accepted
+event-history programme and12,500microseconds of model lookahead, equivalent to
+the unchanged50ms wall bound. The original25,000microsecond optical phase limit
+and generic-profile1x clock remain. Physical execution, native readiness and
+joint commit barriers are unchanged. This is a prospective product change;
+the old0.5 registry and its actual outcomes retain their historical meaning.
+
+The existing named command remains
+`pnpm gate:electronics-classroom-d13-v3:browser`. Every new ledger must identify
+registry revision
+`59a2e0eb270735abc5e40862a304ae36f7fc8d2858d38700c4c60f4137159993`,
+the SHA256 of the complete frozen quarter-pace contract. The original draft
+contract8c951bebc758f1b7a4b99338140dbd0b1cbfbdf2dc8306b5940c0c5247ec2ee3
+is preserved separately; one descriptive correction records the actual Reset
+predicate, new generation and H>=1,250,000, without changing that predicate.
+Independent description reviewcb9c86b62abbb63d88085b8a04769485e0db039f3290a02376ff10755983cbff
+confirms that correction. Full source and actual acceptance are still pending.
+
+All38 original timing sites retain their numeric bounds and operators; the
+single normalization is raw wall milliseconds multiplied by0.25. The same
+35 timing sites bind. The same three throughput measurements remain mandatory
+with their actual raw strict and normalized PASS/FAIL values. All four model
+acquisitions remain binding and now use the prospective finite20seconds
+(5seconds/0.25), retaining their actual original5second boundary outcomes.
+Core completeness remains exactly42 entries, rejecting unknown, missing,
+duplicate, malformed or tampered records.
+
+Eight existing discovery invocations additionally retain every completed
+predicate sample and both deadlines on the Node expectation clock. The two
+canonical GPIO initial/cookies-reopen acquisitions use10seconds for the same
+complete indices0..7; visible-index assertions keep their original deadline.
+Owner blink100 and50, no-delay and independent-ports execution, and the two
+Reset acquisitions use8seconds for their unchanged H>=1,250,000 and existing
+visible/generation predicates. Both deadlines, actual rejected errors and
+reached-but-empty evidence remain explicit. All eight invocations are required
+for their associated passing cases. Unknown observed provenance is never
+invented from the expected sketch hash. Strict/v2 keep their original defaults.
+Blockly H>=1,000,000 remains5seconds; all native and functional waits are unchanged.
+
+Only the classroom delay2000 case receives a finite60second whole-case budget:
+two20second acquisitions plus20seconds for setup, native preparation, complete
+evidence, Stop and final draft read. The same8.1secondsMODEL requires at least
+32.4secondsWALL at0.25. The strict30second default is unchanged. Two full cycles,
+all currents, duty, raw50ms causality and final saved-draft equality remain binding.
+
+The complete wire and temporal observer objects are JSON-stringified inside
+the browser and parsed in Node, avoiding recursive protocol copies of their
+large canonical matrices. Every original row, source, generation, H0, native
+witness and array order is retained. The final JSON bytes are equivalent,
+including normal JSON handling of undefined/nonfinite fixture values. No
+filtering, slicing or cap is introduced. Separately selected touch preparation
+waits for the actual catalogue target before the unchanged native gesture.
+
+Bounded source paths are the existing presenter and its presenter/clock specs,
+ready-cadence and mapped qualification specs, the separately authored touch
+interaction spec, and this task's metadata. No runner/workflow/package, primary
+D13 observer, physics kernel, school installation, DB, Docker, network or
+protected data change is selected. Preserve the complete170-case suite and
+zero retries/filters/skips. After independent exact-source review, run the
+required full same-SHA classroom, separate strict, focused, benchmark and
+General gates, then obtain NEW actual native acceptance before normal main
+integration. Current observed main remains e098d0c9a6e7724f3ed74a9c326afab7ad05ea7f.
+Continue D2-D4 after accepted D13; integration and deployment remain separate.

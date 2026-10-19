@@ -14,7 +14,10 @@ export const LED_PRESENTATION_PHASE_LIMIT_MICROSECONDS = 25_000;
 const HISTORY_MICROSECONDS = 5 * LED_PRESENTATION_PHASE_LIMIT_MICROSECONDS;
 const MAX_HISTORY_SAMPLES = 513;
 // One deliberately shared classroom clock. Electrical instruction time is unchanged.
-export const ELECTRONICS_CLASSROOM_PACE = 0.5;
+export const ELECTRONICS_CLASSROOM_PACE = 0.25;
+// Keep the requested future window within 50 ms of wall time at the shared pace.
+// This demand bound is separate from the unchanged optical phase classification.
+export const ELECTRONICS_CLASSROOM_LOOKAHEAD_MICROSECONDS = 12_500;
 
 export function classroomRequestedHorizon(
   hostOffsetMicroseconds: number,
@@ -25,7 +28,7 @@ export function classroomRequestedHorizon(
     hostOffsetMicroseconds +
     Math.min(
       Math.max(0, Math.floor(elapsedWallMicroseconds * ELECTRONICS_CLASSROOM_PACE)),
-      Math.max(0, presentedMicroseconds) + LED_PRESENTATION_PHASE_LIMIT_MICROSECONDS,
+      Math.max(0, presentedMicroseconds) + ELECTRONICS_CLASSROOM_LOOKAHEAD_MICROSECONDS,
     )
   );
 }

@@ -14,6 +14,8 @@ import type { SolveResult } from '../../api';
 import {
   LedTemporalPresentation,
   ELECTRONICS_CLASSROOM_PACE,
+  ELECTRONICS_CLASSROOM_LOOKAHEAD_MICROSECONDS,
+  LED_PRESENTATION_PHASE_LIMIT_MICROSECONDS,
   classroomRequestedHorizon,
 } from '../led-temporal-presentation';
 
@@ -323,7 +325,7 @@ describe('accepted per-LED temporal presentation', () => {
     expect(presentation.acknowledgeFrame(initial, 500_000)).toBe(true);
     expect(presentation.sample().get('led')).toBe(80);
     const after = presentation.prepareFrame(510_000)!;
-    expect(after.atMicroseconds).toBe(5_000);
+    expect(after.atMicroseconds).toBe(2_500);
     expect(presentation.presentedMicroseconds).toBe(0);
   });
 
@@ -343,14 +345,14 @@ describe('accepted per-LED temporal presentation', () => {
     receive(25_000, 50_000, 1_000_001);
     expect(presentation.presentedMicroseconds).toBe(25_000);
     drawFrame(presentation, 1_010_000);
-    expect(presentation.presentedMicroseconds).toBe(30_000);
+    expect(presentation.presentedMicroseconds).toBe(27_500);
     for (let from = 50_000; from < 125_000; from += 25_000)
       receive(from, from + 25_000, 1_010_001 + from);
-    for (let wall = 1_020_000; wall <= 1_150_000; wall += 10_000) drawFrame(presentation, wall);
+    for (let wall = 1_020_000; wall <= 1_300_000; wall += 10_000) drawFrame(presentation, wall);
     expect(presentation.presentedMicroseconds).toBe(100_000);
     expect(presentation.sample().get('led')).toBe(0);
-    drawFrame(presentation, 1_160_000);
-    expect(presentation.presentedMicroseconds).toBe(105_000);
+    drawFrame(presentation, 1_310_000);
+    expect(presentation.presentedMicroseconds).toBe(102_500);
     expect(presentation.reanchorCount).toBe(0);
   });
 
@@ -373,13 +375,13 @@ describe('accepted per-LED temporal presentation', () => {
       expect(presentation.presentedMicroseconds).toBe(0);
       expect(
         classroomRequestedHorizon(0, wall, presentation.presentedMicroseconds),
-      ).toBeLessThanOrEqual(25_000);
+      ).toBeLessThanOrEqual(12_500);
     }
     expect(presentation.acknowledgeFrame({ ...high }, 500_000)).toBe(false);
     expect(presentation.acknowledgeFrame(high, 500_000)).toBe(true);
     expect(presentation.sample().get('led')).toBe(80);
     const after = presentation.prepareFrame(510_000)!;
-    expect(after.atMicroseconds - high.atMicroseconds).toBe(5_000);
+    expect(after.atMicroseconds - high.atMicroseconds).toBe(2_500);
   });
 
   it('requires two complete shared RAF turns after an actual distinct DOM commit', () => {
@@ -408,10 +410,15 @@ describe('accepted per-LED temporal presentation', () => {
   it.each([0, 17_000, 1_000_000])(
     'bounds future model demand after a %i us host stall without a second clock',
     (stall) => {
-      expect(ELECTRONICS_CLASSROOM_PACE).toBe(0.5);
-      expect(classroomRequestedHorizon(70_000, 10_000, 0)).toBe(75_000);
-      expect(classroomRequestedHorizon(70_000, 100_000 + stall, 0)).toBe(95_000);
-      expect(classroomRequestedHorizon(70_000, 1_000_000 + stall, 100_000)).toBe(195_000);
+      expect(ELECTRONICS_CLASSROOM_PACE).toBe(0.25);
+      expect(ELECTRONICS_CLASSROOM_LOOKAHEAD_MICROSECONDS).toBe(12_500);
+      expect(ELECTRONICS_CLASSROOM_LOOKAHEAD_MICROSECONDS / ELECTRONICS_CLASSROOM_PACE).toBe(
+        50_000,
+      );
+      expect(LED_PRESENTATION_PHASE_LIMIT_MICROSECONDS).toBe(25_000);
+      expect(classroomRequestedHorizon(70_000, 10_000, 0)).toBe(72_500);
+      expect(classroomRequestedHorizon(70_000, 100_000 + stall, 0)).toBe(82_500);
+      expect(classroomRequestedHorizon(70_000, 1_000_000 + stall, 100_000)).toBe(182_500);
       expect(classroomRequestedHorizon(70_000, -1, 0)).toBe(70_000);
     },
   );
@@ -488,7 +495,7 @@ describe('accepted per-LED temporal presentation', () => {
       expect(presentation.sample().size).toBe(0);
       expect(presentation.reanchorCount).toBe(1);
     } else {
-      expect(frame!.atMicroseconds).toBe(10_000);
+      expect(frame!.atMicroseconds).toBe(7_500);
       expect([...frame!.brightness.values()]).toEqual([60, 80]);
       expect(presentation.reanchorCount).toBe(0);
     }
@@ -505,7 +512,7 @@ describe('accepted per-LED temporal presentation', () => {
       ]);
       presentation.accept(electrical(first), first, 0);
       const edges: Array<{ at: number; lit: boolean }> = [];
-      for (let wall = 0; wall <= half * 20; wall += 5_000) {
+      for (let wall = 0; wall <= half * 40; wall += 5_000) {
         const target = classroomRequestedHorizon(0, wall, presentation.presentedMicroseconds);
         if (target > committed) {
           const observation = window(committed, target, [
@@ -525,7 +532,7 @@ describe('accepted per-LED temporal presentation', () => {
         );
         const lit = frame.brightness.get('first')! > 0;
         if (!edges.length || edges.at(-1)!.lit !== lit) edges.push({ at: wall, lit });
-        expect(committed - presentation.presentedMicroseconds).toBeLessThanOrEqual(25_000);
+        expect(committed - presentation.presentedMicroseconds).toBeLessThanOrEqual(12_500);
       }
       expect(edges.length).toBeGreaterThanOrEqual(9);
       for (let index = 1; index < edges.length; index++) {
@@ -547,7 +554,7 @@ describe('accepted per-LED temporal presentation', () => {
       expect(presentation.reanchorCount).toBe(0);
     }
     expect(presentation.acknowledgeFrame(prepared, 500_000)).toBe(true);
-    expect(presentation.prepareFrame(510_000)!.atMicroseconds).toBe(5_000);
+    expect(presentation.prepareFrame(510_000)!.atMicroseconds).toBe(2_500);
   });
 
   it('holds actual complete data on underrun and never advances a future edge', () => {
@@ -561,12 +568,12 @@ describe('accepted per-LED temporal presentation', () => {
       channel('led', [point(3_400, 80), point(10_000, 0), point(25_000, 0)]),
     ]);
     presentation.accept(electrical(next), next, 100_001);
-    drawFrame(presentation, 105_000);
+    drawFrame(presentation, 110_000);
     expect(presentation.presentedMicroseconds).toBe(5_900);
     expect(presentation.sample().get('led')).toBe(80);
-    drawFrame(presentation, 110_000);
+    drawFrame(presentation, 120_000);
     expect(presentation.sample().get('led')).toBe(80);
-    drawFrame(presentation, 115_000);
+    drawFrame(presentation, 130_000);
     expect(presentation.sample().get('led')).toBe(0);
   });
 
@@ -578,7 +585,9 @@ describe('accepted per-LED temporal presentation', () => {
     expect(presentation.sample().get('led')).toBe(80);
     for (const wall of [16_667, 33_334, 50_001]) drawFrame(presentation, wall);
     expect(presentation.sample().get('led')).toBe(40);
-    expect(presentation.displayedFrame!.atMicroseconds).toBe(8_333);
+    // At quarter pace the first short held prefix is still instantaneous;
+    // two floor(16_667 * 0.25) advances precede the acknowledged cycle mean.
+    expect(presentation.displayedFrame!.atMicroseconds).toBe(8_332);
     expect(presentation.reanchorCount).toBe(0);
   });
 
@@ -701,7 +710,7 @@ describe('accepted per-LED temporal presentation', () => {
     // Original complete windows are deliberately ingested at their old receipt
     // times, even though the new host caps future data more tightly. Drain the
     // retained physical prefix with declared 10 ms RAFs, without a new receipt.
-    for (let wall = 360_000; wall <= 1_000_000; wall += 10_000) {
+    for (let wall = 360_000; wall <= 1_800_000; wall += 10_000) {
       const display = drawFrame(presentation, wall);
       const lit = (display.get('led0') ?? 0) > 0;
       if (states.at(-1) !== lit) states.push(lit);
@@ -1216,9 +1225,9 @@ describe('Arduino L and ordinary LED share one presentation cursor', () => {
       const canonical = solved(first);
       const before = JSON.stringify(canonical);
       presenter.accept(canonical, first, 0);
-      drawUntil(presenter, 20_000);
+      drawUntil(presenter, 40_000);
       expect(presenter.arduinoLStates().get('uno')).toBe(false);
-      const high = drawUntil(presenter, 42_000);
+      const high = drawUntil(presenter, 84_000);
       expect(presenter.arduinoLStates().get('uno')).toBe(true);
       expect(high.get('led')).toBe(
         external === 'absent' ? undefined : external === 'connected' ? 80 : 0,
@@ -1233,9 +1242,9 @@ describe('Arduino L and ordinary LED share one presentation cursor', () => {
         ],
         external,
       );
-      presenter.accept(solved(second), second, 50_000);
+      presenter.accept(solved(second), second, 100_000);
       expect(presenter.arduinoLStates().get('uno')).toBe(true);
-      const low = drawUntil(presenter, 82_000);
+      const low = drawUntil(presenter, 164_000);
       expect(presenter.arduinoLStates().get('uno')).toBe(false);
       expect(low.get('led')).toBe(external === 'absent' ? undefined : 0);
       expect(JSON.stringify(canonical)).toBe(before);
@@ -1266,7 +1275,7 @@ describe('Arduino L and ordinary LED share one presentation cursor', () => {
     );
     const originalReverse = JSON.stringify(reverse);
     presenter.accept(reverse, first, 0);
-    drawUntil(presenter, 30_000);
+    drawUntil(presenter, 60_000);
     expect(presenter.arduinoLStates().get('uno')).toBe(true);
 
     const second = indicatorWindow(
@@ -1290,14 +1299,14 @@ describe('Arduino L and ordinary LED share one presentation cursor', () => {
     // This complete LOW-ending window arrives while the joint cursor is still
     // before its from25ms boundary. The LED stayed physically dark in both windows;
     // its junction label cannot erase the earlier coverage or shorten D13 HIGH.
-    presenter.accept(forward, second, 32_000);
+    presenter.accept(forward, second, 64_000);
     expect(presenter.presentedMicroseconds).toBe(15_000);
     expect(presenter.sample().get('led')).toBe(0);
     expect(presenter.arduinoLStates().get('uno')).toBe(true);
     expect(presenter.reanchorCount).toBe(0);
-    expect(drawUntil(presenter, 79_998).get('led')).toBe(0);
+    expect(drawUntil(presenter, 159_996).get('led')).toBe(0);
     expect(presenter.arduinoLStates().get('uno')).toBe(true);
-    expect(drawUntil(presenter, 80_000).get('led')).toBe(0);
+    expect(drawUntil(presenter, 160_000).get('led')).toBe(0);
     expect(presenter.arduinoLStates().get('uno')).toBe(false);
     expect(JSON.stringify(reverse)).toBe(originalReverse);
     expect(JSON.stringify(forward)).toBe(originalForward);
@@ -1345,7 +1354,7 @@ describe('Arduino L and ordinary LED share one presentation cursor', () => {
         },
       );
       presenter.accept(result, changed, 0);
-      expect(drawUntil(presenter, 30_000).has('led')).toBe(false);
+      expect(drawUntil(presenter, 60_000).has('led')).toBe(false);
       // Rejecting that LED must not invent a dependency for the independent board.
       expect(presenter.arduinoLStates().get('uno')).toBe(true);
     },
@@ -1363,7 +1372,7 @@ describe('Arduino L and ordinary LED share one presentation cursor', () => {
       'dark',
     );
     presenter.accept(solved(first), first, 0);
-    drawUntil(presenter, 50_000);
+    drawUntil(presenter, 100_000);
     const second = indicatorWindow(
       10_000,
       60_000,
@@ -1375,9 +1384,9 @@ describe('Arduino L and ordinary LED share one presentation cursor', () => {
       ],
       'dark',
     );
-    presenter.accept(solved(second), second, 50_000);
+    presenter.accept(solved(second), second, 100_000);
     expect(presenter.arduinoLStates().get('uno')).toBe(false);
-    expect(drawUntil(presenter, 70_000).get('led')).toBe(0);
+    expect(drawUntil(presenter, 140_000).get('led')).toBe(0);
     expect(presenter.arduinoLStates().get('uno')).toBe(true);
   });
 

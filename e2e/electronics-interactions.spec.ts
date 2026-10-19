@@ -2581,6 +2581,24 @@ touchVideoTest.describe('interaction: native touch', () => {
     async ({ page, context }) => {
       await openEditor(page);
       const shelf = page.locator('.workbench-catalog-grid');
+      // The schematic can mount before its lazy catalog. Native CDP input has
+      // no locator auto-wait, so first prove that the actual gesture surface exists.
+      await expect(shelf).toBeVisible();
+      await expect(shelf.getByRole('button', { name: 'Резистор', exact: true })).toBeVisible();
+      await expect
+        .poll(() =>
+          shelf.evaluate((el) => {
+            const box = el.getBoundingClientRect();
+            return (
+              el.scrollWidth - el.clientWidth > 100 &&
+              box.left <= 340 &&
+              box.right > 340 &&
+              box.top <= 775 &&
+              box.bottom > 775
+            );
+          }),
+        )
+        .toBe(true);
       const session = await context.newCDPSession(page);
       const send = (
         type: 'touchStart' | 'touchMove' | 'touchEnd',

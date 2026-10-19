@@ -262,9 +262,9 @@ function recordOwnerMillisAcquisition(
 // Raw browser timestamps, native witnesses and electrical times stay untouched.
 const OWNER_V3_PROFILE = 'classroom-d13-v3';
 const OWNER_V3_ENTRYPOINT = 'gate:electronics-classroom-d13-v3:browser';
-const OWNER_V3_PACE = 0.5;
+const OWNER_V3_PACE = 0.25;
 const OWNER_V3_REGISTRY_REVISION =
-  '06fa47e2744f9c1389e3a709d6b33c88d12a9a25024993afece62b483d0e14dd';
+  '59a2e0eb270735abc5e40862a304ae36f7fc8d2858d38700c4c60f4137159993';
 type OwnerV3Dimensions = Readonly<Record<string, string | number | readonly number[]>>;
 type OwnerV3Site = {
   site: string;
@@ -685,7 +685,7 @@ type OwnerV3TimingEntry = {
   title: string;
   provenance: OwnerV3Provenance;
   bounds: OwnerV3Site['bounds'];
-  expectedPace: 0.5;
+  expectedPace: 0.25;
   modelMs: number | null;
   rawWallMs: number[];
   samples: Array<{
@@ -719,7 +719,7 @@ type OwnerV3AcquisitionEntry = {
   site: string;
   title: string;
   provenance: OwnerV3Provenance;
-  expectedPace: 0.5;
+  expectedPace: 0.25;
   horizonMicroseconds: number;
   strictLimitMs: 5000;
   acquisitionLimitMs: number;
@@ -744,7 +744,7 @@ type OwnerV3ReachedAcquisition = {
   dimensions: OwnerV3Dimensions;
   expectedSourceSha256: string;
   observedProvenance: OwnerV3Provenance | null;
-  expectedPace: 0.5;
+  expectedPace: 0.25;
   horizonMicroseconds: number;
   strictLimitMs: 5000;
   acquisitionLimitMs: number;
@@ -776,7 +776,7 @@ type OwnerV3Ledger = {
   title: string;
   expectedSourceSha: string;
   observerSha256: string;
-  expectedPace: 0.5;
+  expectedPace: 0.25;
   registryRevision: string;
   stages: Array<Omit<OwnerV3Provenance, 'dimensions'>>;
   entries: Array<OwnerV3TimingEntry | OwnerV3AcquisitionEntry>;
@@ -788,6 +788,242 @@ type OwnerV3Ledger = {
   }>;
 };
 let ownerV3Ledger: OwnerV3Ledger | null = null;
+
+// Prospective quarter-pace discovery budgets for eight existing invocations.
+// These retain their original predicates and the original five-second outcome.
+// They supplement, and never replace, the unchanged 38 + 4 core registry.
+const OWNER_V3_DISCOVERY_SITES = freezeOwnerV3([
+  {
+    site: 'gpio-initial-complete-indices',
+    title: OWNER_V3_CASES[1]!,
+    stage: 'gpio-initial',
+    timeoutMs: 10000,
+    expected: [0, 1, 2, 3, 4, 5, 6, 7],
+  },
+  {
+    site: 'gpio-reopened-complete-indices',
+    title: OWNER_V3_CASES[1]!,
+    stage: 'gpio-reopened',
+    timeoutMs: 10000,
+    expected: [0, 1, 2, 3, 4, 5, 6, 7],
+  },
+  {
+    site: 'owner-blink-100-ready-and-light',
+    title: OWNER_V3_CASES[3]!,
+    stage: 'blink-100',
+    timeoutMs: 8000,
+    expected: true,
+  },
+  {
+    site: 'owner-blink-50-ready-and-light',
+    title: OWNER_V3_CASES[4]!,
+    stage: 'blink-50',
+    timeoutMs: 8000,
+    expected: true,
+  },
+  {
+    site: 'no-delay-execution-ready-1250000',
+    title: OWNER_V3_CASES[5]!,
+    stage: 'no-delay realtime',
+    timeoutMs: 8000,
+    expected: true,
+  },
+  {
+    site: 'independent-ports-execution-ready-1250000',
+    title: OWNER_V3_CASES[6]!,
+    stage: 'independent ports',
+    timeoutMs: 8000,
+    expected: true,
+  },
+  {
+    site: 'reset-before-ready-1250000',
+    title: OWNER_V3_CASES[11]!,
+    stage: 'reset-before',
+    timeoutMs: 8000,
+    expected: true,
+  },
+  {
+    site: 'reset-restarted-ready-1250000',
+    title: OWNER_V3_CASES[11]!,
+    stage: 'reset-restarted',
+    timeoutMs: 8000,
+    expected: true,
+  },
+]);
+type OwnerV3DiscoveryInput = {
+  invocation: 'REACHED';
+  registryRevision: string;
+  title: string;
+  site: string;
+  stage: string;
+  expectedSourceSha256: string;
+  clock: 'node-performance';
+  startedAt: number;
+  endedAt: number | null;
+  samples: Array<{ at: number; value: boolean | number[] }>;
+  expectationCompleted: boolean | null;
+  rejection: string | null;
+};
+type OwnerV3DiscoveryRecord = {
+  input: OwnerV3DiscoveryInput;
+  evaluation?: ReturnType<typeof evaluateOwnerV3Discovery>;
+  evaluationError?: string;
+};
+let ownerV3Discoveries: OwnerV3DiscoveryRecord[] = [];
+
+function ownerV3DiscoveryDefinition(title: string, site: string) {
+  const definition = OWNER_V3_DISCOVERY_SITES.find((entry) => entry.site === site);
+  if (!definition || definition.title !== title)
+    throw new Error('Unknown or mismatched quarter-pace discovery invocation.');
+  return definition;
+}
+
+function evaluateOwnerV3Discovery(input: OwnerV3DiscoveryInput) {
+  if (arguments.length !== 1) throw new Error('Discovery accepts no caller-selected limits.');
+  const definition = ownerV3DiscoveryDefinition(input.title, input.site);
+  if (
+    Object.keys(input).sort().join(',') !==
+      'clock,endedAt,expectationCompleted,expectedSourceSha256,invocation,registryRevision,rejection,samples,site,stage,startedAt,title' ||
+    input.invocation !== 'REACHED' ||
+    input.registryRevision !== OWNER_V3_REGISTRY_REVISION ||
+    input.stage !== definition.stage ||
+    input.clock !== 'node-performance' ||
+    !/^[a-f0-9]{64}$/.test(input.expectedSourceSha256) ||
+    !Number.isFinite(input.startedAt) ||
+    input.startedAt < 0 ||
+    input.endedAt === null ||
+    !Number.isFinite(input.endedAt) ||
+    input.endedAt < input.startedAt ||
+    typeof input.expectationCompleted !== 'boolean' ||
+    (input.expectationCompleted ? input.rejection !== null : typeof input.rejection !== 'string') ||
+    !Array.isArray(input.samples) ||
+    input.samples.some(
+      (sample, index) =>
+        Object.keys(sample).sort().join(',') !== 'at,value' ||
+        !Number.isFinite(sample.at) ||
+        sample.at < input.startedAt ||
+        sample.at > input.endedAt! ||
+        (index > 0 && sample.at < input.samples[index - 1]!.at) ||
+        (Array.isArray(definition.expected)
+          ? !Array.isArray(sample.value) ||
+            sample.value.some((value) => !Number.isSafeInteger(value))
+          : typeof sample.value !== 'boolean'),
+    )
+  )
+    throw new Error('Invalid quarter-pace discovery clock, provenance or complete samples.');
+  const firstSatisfiedAt =
+    input.samples.find(
+      (sample) => JSON.stringify(sample.value) === JSON.stringify(definition.expected),
+    )?.at ?? null;
+  const originalDeadlineAt = input.startedAt + 5000;
+  const activeDeadlineAt = input.startedAt + definition.timeoutMs;
+  const outcome = (deadline: number) =>
+    firstSatisfiedAt !== null && firstSatisfiedAt <= deadline
+      ? 'PASS'
+      : input.endedAt! >= deadline
+        ? 'FAIL'
+        : 'INCOMPLETE';
+  const activeOutcome = outcome(activeDeadlineAt);
+  return freezeOwnerV3({
+    registryRevision: OWNER_V3_REGISTRY_REVISION,
+    site: input.site,
+    title: input.title,
+    stage: input.stage,
+    expectedSourceSha256: input.expectedSourceSha256,
+    clock: input.clock,
+    originalTimeoutMs: 5000,
+    activeTimeoutMs: definition.timeoutMs,
+    originalDeadlineAt,
+    activeDeadlineAt,
+    firstSatisfiedAt,
+    originalOutcome: outcome(originalDeadlineAt),
+    activeOutcome: !input.expectationCompleted && activeOutcome === 'PASS' ? 'FAIL' : activeOutcome,
+    comparisonScope: 'completed-predicate-samples-on-this-execution',
+  });
+}
+
+function requireOwnerV3DiscoveriesComplete(title: string, records: OwnerV3DiscoveryRecord[]): void {
+  const expected = OWNER_V3_DISCOVERY_SITES.filter((entry) => entry.title === title);
+  if (!Array.isArray(records)) throw new Error('Missing quarter-pace discovery records.');
+  const seen = new Set<string>();
+  for (const record of records) {
+    if (
+      Object.keys(record).sort().join(',') !== 'evaluation,input' ||
+      record.input.title !== title ||
+      seen.has(record.input.site) ||
+      record.evaluationError
+    )
+      throw new Error('Unknown, duplicate or invalid quarter-pace discovery record.');
+    const actual = evaluateOwnerV3Discovery(record.input);
+    if (JSON.stringify(record.evaluation) !== JSON.stringify(actual))
+      throw new Error('Missing or tampered quarter-pace discovery outcome.');
+    if (actual.activeOutcome !== 'PASS' || !record.input.expectationCompleted)
+      throw new Error('Quarter-pace discovery did not pass its finite original predicate.');
+    seen.add(record.input.site);
+  }
+  if (expected.some((entry) => !seen.has(entry.site)))
+    throw new Error('Required quarter-pace discovery invocation not reached.');
+}
+
+function ownerV3DiscoverySample<T extends boolean | number[]>(
+  input: OwnerV3DiscoveryInput | null,
+  value: T,
+): T {
+  if (input)
+    input.samples.push({ at: performance.now(), value: Array.isArray(value) ? [...value] : value });
+  return value;
+}
+
+function ownerV3DiscoveryOptions(input: OwnerV3DiscoveryInput | null) {
+  return input
+    ? { timeout: ownerV3DiscoveryDefinition(input.title, input.site).timeoutMs }
+    : undefined;
+}
+
+async function withOwnerV3Discovery(
+  site: string,
+  source: string,
+  operation: (input: OwnerV3DiscoveryInput | null) => Promise<void>,
+): Promise<void> {
+  if (arguments.length !== 3) throw new Error('Discovery accepts no caller-selected limits.');
+  if (!ownerV3Ledger) return operation(null);
+  assertOwnerV3Identity(ownerV3Ledger, test.info().title);
+  const definition = ownerV3DiscoveryDefinition(ownerV3Ledger.title, site);
+  if (ownerV3Discoveries.some((record) => record.input.site === site))
+    throw new Error('Duplicate quarter-pace discovery invocation.');
+  const input: OwnerV3DiscoveryInput = {
+    invocation: 'REACHED',
+    registryRevision: OWNER_V3_REGISTRY_REVISION,
+    title: definition.title,
+    site,
+    stage: definition.stage,
+    expectedSourceSha256: createHash('sha256').update(source).digest('hex'),
+    clock: 'node-performance',
+    startedAt: performance.now(),
+    endedAt: null,
+    samples: [],
+    expectationCompleted: null,
+    rejection: null,
+  };
+  const record: OwnerV3DiscoveryRecord = { input };
+  ownerV3Discoveries.push(record);
+  const [execution] = await Promise.allSettled([Promise.resolve().then(() => operation(input))]);
+  input.endedAt = performance.now();
+  input.expectationCompleted = execution.status === 'fulfilled';
+  input.rejection = execution.status === 'rejected' ? String(execution.reason) : null;
+  const [retention] = await Promise.allSettled([
+    Promise.resolve().then(() => {
+      record.evaluation = evaluateOwnerV3Discovery(input);
+      freezeOwnerV3(record);
+    }),
+  ]);
+  if (retention.status === 'rejected') record.evaluationError = String(retention.reason);
+  // Logging never replaces or swallows the original rejected expectation.
+  if (execution.status === 'rejected') throw execution.reason;
+  if (retention.status === 'rejected') throw retention.reason;
+  if (record.evaluation?.activeOutcome !== 'PASS')
+    throw new Error('Quarter-pace discovery did not pass its finite original predicate.');
+}
 
 function ownerV3IdentityError(ledger: OwnerV3Ledger | null, title: string): string | null {
   if (
@@ -1944,13 +2180,25 @@ async function observeRealWorkerAndUi(page: Page, ledCount = 8): Promise<void> {
   }, ledCount);
 }
 async function observation(page: Page) {
-  return page.evaluate(() => ({
-    worker: (window as ProbeWindow).__bitwiseWorker ?? [],
-    ui: (window as ProbeWindow).__bitwiseUi ?? [],
-    paint: (window as ProbeWindow).__ownerPaint ?? [],
-    startClicks: (window as ProbeWindow).__ownerStartClicks ?? [],
-    reanchors: (window as ProbeWindow).__ledPlayoutReanchors ?? [],
-  }));
+  // Serialize every original row inside the page; avoid recursive protocol
+  // copying of canonical matrices before the final identical JSON artifact.
+  return JSON.parse(
+    await page.evaluate(() =>
+      JSON.stringify({
+        worker: (window as ProbeWindow).__bitwiseWorker ?? [],
+        ui: (window as ProbeWindow).__bitwiseUi ?? [],
+        paint: (window as ProbeWindow).__ownerPaint ?? [],
+        startClicks: (window as ProbeWindow).__ownerStartClicks ?? [],
+        reanchors: (window as ProbeWindow).__ledPlayoutReanchors ?? [],
+      }),
+    ),
+  ) as {
+    worker: WorkerReceipt[];
+    ui: UiReceipt[];
+    paint: PaintReceipt[];
+    startClicks: NonNullable<ProbeWindow['__ownerStartClicks']>;
+    reanchors: NonNullable<ProbeWindow['__ledPlayoutReanchors']>;
+  };
 }
 // Keep polling beside the full receipts: transporting their canonical state on
 // every attempt can cross the deadline after the required frame already exists.
@@ -2008,7 +2256,13 @@ function compactObservation({
     visible: visibleIndices(observed.ui),
   };
 }
-async function runActualSketch(page: Page, kind: 'serial' | 'gpio', source: string, path: string) {
+async function runActualSketch(
+  page: Page,
+  kind: 'serial' | 'gpio',
+  source: string,
+  path: string,
+  stage: 'initial' | 'reopened',
+) {
   let raw: Awaited<ReturnType<typeof observation>>;
   try {
     await page.getByRole('button', { name: 'Начать моделирование', exact: true }).click();
@@ -2020,9 +2274,18 @@ async function runActualSketch(page: Page, kind: 'serial' | 'gpio', source: stri
         [1, 2, 4, 8, 16, 32, 64, 128].map(String),
       );
     } else {
-      await expect
-        .poll(async () => (await page.evaluate(compactObservation, { source })).gpio)
-        .toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
+      await withOwnerV3Discovery(`gpio-${stage}-complete-indices`, source, async (input) => {
+        await expect
+          .poll(
+            async () =>
+              ownerV3DiscoverySample(
+                input,
+                (await page.evaluate(compactObservation, { source })).gpio,
+              ),
+            ownerV3DiscoveryOptions(input),
+          )
+          .toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
+      });
       await expect
         .poll(async () => (await page.evaluate(compactObservation, { source })).visible)
         .toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
@@ -2092,6 +2355,7 @@ test.beforeEach(async ({ browserName }, info) => {
   void browserName;
   ownerQualificationLedger = null;
   ownerV3Ledger = null;
+  ownerV3Discoveries = [];
   const profile = ownerQualificationProfile(
     process.env.ASA_ELECTRONICS_QUALIFICATION_PROFILE,
     process.env.ASA_ELECTRONICS_QUALIFICATION_ENTRYPOINT,
@@ -2156,6 +2420,7 @@ test.afterEach(async ({ browserName }, info) => {
     try {
       if (info.status === 'passed') {
         requireOwnerV3Complete(ledger, info.title);
+        requireOwnerV3DiscoveriesComplete(info.title, ownerV3Discoveries);
         complete = true;
       }
     } finally {
@@ -2179,6 +2444,18 @@ test.afterEach(async ({ browserName }, info) => {
             unreached: missingSites
               .filter((site) => !reachedWithoutValidEvidence.some((entry) => entry.site === site))
               .map((site) => ({ site, outcome: 'NOT_REACHED' })),
+            discoveryEvidence: {
+              registryRevision: OWNER_V3_REGISTRY_REVISION,
+              requiredSites: OWNER_V3_DISCOVERY_SITES.filter(
+                (entry) => entry.title === info.title,
+              ).map((entry) => entry.site),
+              records: ownerV3Discoveries,
+              unreached: OWNER_V3_DISCOVERY_SITES.filter(
+                (entry) =>
+                  entry.title === info.title &&
+                  !ownerV3Discoveries.some((record) => record.input.site === entry.site),
+              ).map((entry) => ({ site: entry.site, outcome: 'NOT_REACHED' })),
+            },
             strictComparisonScope:
               'original-limits-on-this-v3-execution; actual strict run is separate',
           },
@@ -2303,6 +2580,7 @@ for (const kind of ['serial', 'gpio'] as const) {
       kind,
       source,
       resolve(artifactRoot, `${kind}-initial`),
+      'initial',
     );
     const originalAfterRun = await read();
     expect(originalAfterRun.draft.document).toEqual(after.draft.document);
@@ -2318,7 +2596,13 @@ for (const kind of ['serial', 'gpio'] as const) {
       await reopened.getByRole('button', { name: 'Открыть редактор кода', exact: true }).click();
       await expect(reopened.locator('.arduino-source-editor textarea')).toHaveValue(source);
       expect(
-        await runActualSketch(reopened, kind, source, resolve(artifactRoot, `${kind}-reopened`)),
+        await runActualSketch(
+          reopened,
+          kind,
+          source,
+          resolve(artifactRoot, `${kind}-reopened`),
+          'reopened',
+        ),
       ).toBe(fingerprint);
       const finalResponse = await context.request.get(endpoint, { headers: { origin } });
       expect(finalResponse.status()).toBe(200);
@@ -2604,17 +2888,24 @@ for (const delayMs of [null, 100, 50] as const) {
       } else {
         // A correct GPIO event log alone cannot pass a hidden/aliased blink.
         // Both on and off states must actually reach the production DOM.
-        await expect
-          .poll(async () => {
-            const summary = await page.evaluate(ownerTimingSummary, { source });
-            return (
-              summary.committed >= 1_250_000 &&
-              summary.visibleChanges >= (delayMs === 100 ? 8 : 16) &&
-              summary.paintHigh &&
-              summary.paintLow
-            );
-          })
-          .toBe(true);
+        await withOwnerV3Discovery(
+          `owner-blink-${delayMs}-ready-and-light`,
+          source,
+          async (input) => {
+            await expect
+              .poll(async () => {
+                const summary = await page.evaluate(ownerTimingSummary, { source });
+                return ownerV3DiscoverySample(
+                  input,
+                  summary.committed >= 1_250_000 &&
+                    summary.visibleChanges >= (delayMs === 100 ? 8 : 16) &&
+                    summary.paintHigh &&
+                    summary.paintLow,
+                );
+              }, ownerV3DiscoveryOptions(input))
+              .toBe(true);
+          },
+        );
       }
     } catch (error) {
       primary = error;
@@ -3094,20 +3385,34 @@ for (const mode of ['no-delay realtime', 'independent ports'] as const) {
         );
       });
       assetsReadyAt = await page.evaluate(() => performance.now());
-      await expect
-        .poll(() =>
-          page.evaluate(
-            ({ source }) => {
-              const probe = window as ProbeWindow;
-              const ready = (probe.__bitwiseWorker ?? []).filter(
-                (row) => row.requestSource === source && row.advance.executionStatus === 'ready',
-              );
-              return (ready.at(-1)?.advance.committedHorizonMicroseconds ?? 0) >= 1_250_000;
-            },
-            { source },
-          ),
-        )
-        .toBe(true);
+      await withOwnerV3Discovery(
+        mode === 'no-delay realtime'
+          ? 'no-delay-execution-ready-1250000'
+          : 'independent-ports-execution-ready-1250000',
+        source,
+        async (input) => {
+          await expect
+            .poll(
+              async () =>
+                ownerV3DiscoverySample(
+                  input,
+                  await page.evaluate(
+                    ({ source }) => {
+                      const probe = window as ProbeWindow;
+                      const ready = (probe.__bitwiseWorker ?? []).filter(
+                        (row) =>
+                          row.requestSource === source && row.advance.executionStatus === 'ready',
+                      );
+                      return (ready.at(-1)?.advance.committedHorizonMicroseconds ?? 0) >= 1_250_000;
+                    },
+                    { source },
+                  ),
+                ),
+              ownerV3DiscoveryOptions(input),
+            )
+            .toBe(true);
+        },
+      );
     } finally {
       raw = await observation(page);
       writeFileSync(
@@ -3497,7 +3802,9 @@ async function openOwnerTemporalSketch(
 }
 
 async function temporalObservation(page: Page) {
-  return page.evaluate(() => (window as TemporalWindow).__ownerTemporal!);
+  return JSON.parse(
+    await page.evaluate(() => JSON.stringify((window as TemporalWindow).__ownerTemporal!)),
+  ) as TemporalProbe;
 }
 
 async function retainOwnerTemporalEvidence(
@@ -3538,23 +3845,33 @@ async function retainOwnerTemporalEvidence(
   });
 }
 
-async function waitForTemporalHorizon(page: Page, source: string, horizon: number) {
-  // Each poll retains the existing default five-second assertion deadline. The
-  // slow case observes two successive four-second cycles, within the unchanged
-  // default 30-second case budget; it does not lengthen an old case or timeout.
-  await expect
-    .poll(
-      () =>
-        page.evaluate(
-          ({ source, horizon }) =>
-            ((window as TemporalWindow).__ownerTemporal?.frames
-              .filter((row) => row.source === source && row.executionStatus === 'ready')
-              .at(-1)?.committedHorizonMicroseconds ?? 0) >= horizon,
-          { source, horizon },
-        ),
-      { intervals: [100] },
-    )
-    .toBe(true);
+async function waitForTemporalHorizon(
+  page: Page,
+  source: string,
+  horizon: number,
+  discoverySite?: 'reset-before-ready-1250000',
+) {
+  // Strict/v2 and unselected waits retain the original five-second deadline.
+  const observe = async (input: OwnerV3DiscoveryInput | null) => {
+    await expect
+      .poll(
+        async () =>
+          ownerV3DiscoverySample(
+            input,
+            await page.evaluate(
+              ({ source, horizon }) =>
+                ((window as TemporalWindow).__ownerTemporal?.frames
+                  .filter((row) => row.source === source && row.executionStatus === 'ready')
+                  .at(-1)?.committedHorizonMicroseconds ?? 0) >= horizon,
+              { source, horizon },
+            ),
+          ),
+        { intervals: [100], ...ownerV3DiscoveryOptions(input) },
+      )
+      .toBe(true);
+  };
+  if (discoverySite) await withOwnerV3Discovery(discoverySite, source, observe);
+  else await observe(null);
 }
 
 async function waitForOwnerMillisHorizon(page: Page, source: string): Promise<void> {
@@ -4357,6 +4674,7 @@ function assertTemporalWallClock(
 test('Owner Arduino temporal: delay 2000 ms, two complete electrical and loaded-image cycles', async ({
   page,
 }) => {
+  if (ownerV3Ledger) test.setTimeout(60_000);
   const session = await openOwnerTemporalSketch(page, threeLedSource(2000), 'blink-2000');
   let metrics: unknown;
   try {
@@ -4688,7 +5006,7 @@ test('Owner Arduino temporal: real Arduino Reset restarts setup and clears fast 
   let metrics: unknown;
   try {
     await page.getByRole('button', { name: 'Начать моделирование', exact: true }).click();
-    await waitForTemporalHorizon(page, session.source, 1_250_000);
+    await waitForTemporalHorizon(page, session.source, 1_250_000, 'reset-before-ready-1250000');
     const before = await temporalObservation(page);
     const previous = assertTemporalFrames(before, session.source);
     const oldGeneration = previous.at(-1)!.generationId!;
@@ -4700,21 +5018,28 @@ test('Owner Arduino temporal: real Arduino Reset restarts setup and clears fast 
       oldPaint.some((run) => run.first.brightness.every((value) => value > 0 && value < 60)),
     ).toBe(true);
     await page.getByTestId('arduino-reset-button').click();
-    await expect
-      .poll(() =>
-        page.evaluate((oldGeneration) => {
-          const ready = (window as TemporalWindow).__ownerTemporal!.frames.filter(
-            (row) => row.executionStatus === 'ready',
-          );
-          const last = ready.at(-1);
-          return (
-            !!last &&
-            last.generationId !== oldGeneration &&
-            last.committedHorizonMicroseconds >= 1_250_000
-          );
-        }, oldGeneration),
-      )
-      .toBe(true);
+    await withOwnerV3Discovery('reset-restarted-ready-1250000', session.source, async (input) => {
+      await expect
+        .poll(
+          async () =>
+            ownerV3DiscoverySample(
+              input,
+              await page.evaluate((oldGeneration) => {
+                const ready = (window as TemporalWindow).__ownerTemporal!.frames.filter(
+                  (row) => row.executionStatus === 'ready',
+                );
+                const last = ready.at(-1);
+                return (
+                  !!last &&
+                  last.generationId !== oldGeneration &&
+                  last.committedHorizonMicroseconds >= 1_250_000
+                );
+              }, oldGeneration),
+            ),
+          ownerV3DiscoveryOptions(input),
+        )
+        .toBe(true);
+    });
     const raw = await temporalObservation(page);
     expect(raw.resetClicks).toHaveLength(1);
     expect(raw.resetClicks[0]!.trusted).toBe(true);

@@ -91,6 +91,14 @@ const functionNames = new Set([
   'ownerV3TemporalProvenance',
   'assertOwnerV3TemporalClock',
   'waitForOwnerV3Horizon',
+  'ownerV3DiscoveryDefinition',
+  'evaluateOwnerV3Discovery',
+  'requireOwnerV3DiscoveriesComplete',
+  'ownerV3DiscoverySample',
+  'ownerV3DiscoveryOptions',
+  'withOwnerV3Discovery',
+  'observation',
+  'temporalObservation',
   'validTemporalPaint',
   'temporalPhysicalBrightness',
   'temporalJointWitness',
@@ -107,6 +115,7 @@ const constantNames = new Set([
   'OWNER_V3_TIMING_SITES',
   'OWNER_V3_ACQUISITION_SITES',
   'OWNER_V3_CASES',
+  'OWNER_V3_DISCOVERY_SITES',
   'OWNER_TEMPORAL_PUBLICATION_LAG_MS',
 ]);
 const declarations: string[] = [];
@@ -144,7 +153,13 @@ const oracleJavaScript = ts.transpileModule(
      required: ownerV3RequiredSites, complete: requireOwnerV3Complete,
      acquisition: evaluateOwnerV3Acquisition, recordAcquisition: recordOwnerV3Acquisition,
      requireAcquisition: requireOwnerV3Acquisition, clock: assertOwnerV3TemporalClock,
-     causality: temporalPaintCausality } });`,
+     causality: temporalPaintCausality,
+     discoverySites: OWNER_V3_DISCOVERY_SITES,
+     discovery: evaluateOwnerV3Discovery,
+     discoveriesComplete: requireOwnerV3DiscoveriesComplete,
+     discover: withOwnerV3Discovery, discoverySample: ownerV3DiscoverySample,
+     discoveryOptions: ownerV3DiscoveryOptions,
+     observation, temporalObservation } });`,
   {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
   },
@@ -161,12 +176,23 @@ function ledger(title: string = sites[0][1], profile: string = 'classroom-d13-v2
     entries: [],
   };
 }
-function oracle(value: Ledger | null = null, v3Value: V3Ledger | null = null) {
+function oracle(
+  value: Ledger | null = null,
+  v3Value: V3Ledger | null = null,
+  runtime: {
+    now?: () => number;
+    discoveries?: V3DiscoveryRecord[];
+    window?: Record<string, unknown>;
+  } = {},
+) {
   return runInNewContext(oracleJavaScript, {
     expect,
     createHash,
     ownerQualificationLedger: value,
     ownerV3Ledger: v3Value,
+    ownerV3Discoveries: runtime.discoveries ?? [],
+    performance: runtime.now ? { now: runtime.now } : performance,
+    window: runtime.window,
     test: { info: () => ({ title: v3Value?.title ?? value?.title ?? '' }) },
   }) as {
     v3: V3Oracle;
@@ -668,12 +694,50 @@ type V3Input = {
   >;
 };
 type V3Assessment = { ok: true; entry: Record<string, unknown> } | { ok: false; error: string };
+type V3DiscoveryDefinition = {
+  site: string;
+  title: string;
+  stage: string;
+  timeoutMs: number;
+  expected: boolean | number[];
+};
+type V3DiscoveryInput = {
+  invocation: 'REACHED';
+  registryRevision: string;
+  title: string;
+  site: string;
+  stage: string;
+  expectedSourceSha256: string;
+  clock: 'node-performance';
+  startedAt: number;
+  endedAt: number | null;
+  samples: Array<{ at: number; value: boolean | number[] }>;
+  expectationCompleted: boolean | null;
+  rejection: string | null;
+};
+type V3DiscoveryRecord = {
+  input: V3DiscoveryInput;
+  evaluation?: Record<string, unknown>;
+  evaluationError?: string;
+};
 type V3Oracle = {
   sites: V3Definition[];
   acquisitions: V3AcquisitionDefinition[];
   cases: string[];
   pace: number;
   registry: string;
+  discoverySites: V3DiscoveryDefinition[];
+  discovery: (input: V3DiscoveryInput) => Record<string, unknown>;
+  discoveriesComplete: (title: string, records: V3DiscoveryRecord[]) => void;
+  discover: (
+    site: string,
+    source: string,
+    operation: (input: V3DiscoveryInput | null) => Promise<void>,
+  ) => Promise<void>;
+  discoverySample: <T extends boolean | number[]>(input: V3DiscoveryInput | null, value: T) => T;
+  discoveryOptions: (input: V3DiscoveryInput | null) => { timeout: number } | undefined;
+  observation: (page: unknown) => Promise<Record<string, unknown>>;
+  temporalObservation: (page: unknown) => Promise<Record<string, unknown>>;
   evaluate: (
     value: V3Ledger | null,
     title: string,
@@ -718,7 +782,7 @@ type V3Oracle = {
     };
   };
 };
-const v3RegistryRevision = '06fa47e2744f9c1389e3a709d6b33c88d12a9a25024993afece62b483d0e14dd';
+const v3RegistryRevision = '59a2e0eb270735abc5e40862a304ae36f7fc8d2858d38700c4c60f4137159993';
 function v3Ledger(title: string): V3Ledger {
   return {
     schema: 'electronics-classroom-qualification-v3',
@@ -727,7 +791,7 @@ function v3Ledger(title: string): V3Ledger {
     title,
     expectedSourceSha: 'a'.repeat(40),
     observerSha256: 'b'.repeat(64),
-    expectedPace: 0.5,
+    expectedPace: 0.25,
     registryRevision: v3RegistryRevision,
     stages: [],
     entries: [],
@@ -766,8 +830,8 @@ function populateV3(value: V3Ledger): V3Oracle {
     const absolute = definition.kind === 'absolute-wall-model';
     const model = absolute ? 1000 : null;
     const raw = absolute
-      ? 2000
-      : ((definition.bounds.minimumMs ?? 0) + definition.bounds.maximumMs!) / 2 / 0.5;
+      ? 4000
+      : ((definition.bounds.minimumMs ?? 0) + definition.bounds.maximumMs!) / 2 / 0.25;
     actual.record(value, value.title, definition.site, v3Provenance(definition), [raw], model);
   }
   for (const definition of actual.acquisitions.filter((entry) => entry.title === value.title)) {
@@ -787,7 +851,7 @@ function populateV3(value: V3Ledger): V3Oracle {
 describe('fixed v3 normalization over the frozen exhaustive registry', () => {
   it('requires all 38 timing records and 4 acquisitions in the unchanged 12 ready cases', () => {
     const actual = oracle().v3;
-    expect(actual.pace).toBe(0.5);
+    expect(actual.pace).toBe(0.25);
     expect(actual.registry).toBe(v3RegistryRevision);
     expect(actual.sites).toHaveLength(38);
     expect(actual.acquisitions).toHaveLength(4);
@@ -1290,7 +1354,7 @@ describe('fixed v3 normalization over the frozen exhaustive registry', () => {
       const value = v3Ledger(definition.title);
       const provenance = v3Provenance(definition);
       if (definition.kind === 'absolute-wall-model') {
-        for (const raw of [1500, 2500]) {
+        for (const raw of [3000, 5000]) {
           const measured = actual.evaluate(
             value,
             value.title,
@@ -1302,7 +1366,7 @@ describe('fixed v3 normalization over the frozen exhaustive registry', () => {
           expect(measured.v3Outcome, definition.site).toBe('PASS');
           expect(measured.strictOutcome, definition.site).toBe('FAIL');
         }
-        for (const raw of [1499.999, 2500.001])
+        for (const raw of [2999.999, 5000.001])
           expect(
             actual.evaluate(value, value.title, definition.site, provenance, [raw], 1000).v3Outcome,
           ).toBe('FAIL');
@@ -1321,17 +1385,17 @@ describe('fixed v3 normalization over the frozen exhaustive registry', () => {
         const upper = definition.bounds.maximumMs!;
         for (const bound of [lower, upper])
           expect(
-            actual.evaluate(value, value.title, definition.site, provenance, [bound / 0.5])
+            actual.evaluate(value, value.title, definition.site, provenance, [bound / 0.25])
               .v3Outcome,
           ).toBe('PASS');
         expect(
-          actual.evaluate(value, value.title, definition.site, provenance, [(upper + 0.001) / 0.5])
+          actual.evaluate(value, value.title, definition.site, provenance, [(upper + 0.001) / 0.25])
             .v3Outcome,
         ).toBe('FAIL');
         if (lower > 0)
           expect(
             actual.evaluate(value, value.title, definition.site, provenance, [
-              (lower - 0.001) / 0.5,
+              (lower - 0.001) / 0.25,
             ]).v3Outcome,
           ).toBe('FAIL');
       }
@@ -1351,21 +1415,21 @@ describe('fixed v3 normalization over the frozen exhaustive registry', () => {
         value.title,
         definition.site,
         v3Provenance(definition),
-        [4000],
+        [8000],
         1000,
       );
       expect(measured).toMatchObject({
         binding: false,
         bounds: { absoluteDeltaMaximumMs: 250 },
-        rawWallMs: [4000],
+        rawWallMs: [8000],
         modelMs: 1000,
         strictOutcome: 'FAIL',
         v3Outcome: 'FAIL',
         samples: [
           {
-            rawWallMs: 4000,
+            rawWallMs: 8000,
             normalizedWallMs: 2000,
-            strictComparedMs: 3000,
+            strictComparedMs: 7000,
             v3ComparedMs: 1000,
             strictPassed: false,
             v3Passed: false,
@@ -1374,7 +1438,7 @@ describe('fixed v3 normalization over the frozen exhaustive registry', () => {
       });
       actual.complete(value, value.title);
       expect(() =>
-        actual.record(value, value.title, definition.site, v3Provenance(definition), [4000], 1000),
+        actual.record(value, value.title, definition.site, v3Provenance(definition), [8000], 1000),
       ).toThrow('Duplicate');
       const missing = structuredClone(value);
       missing.entries = missing.entries.filter((entry) => entry.site !== definition.site);
@@ -1408,7 +1472,7 @@ describe('fixed v3 normalization over the frozen exhaustive registry', () => {
     for (const definition of definitions) {
       const value = v3Ledger(definition.title);
       const absolute = definition.kind === 'absolute-wall-model';
-      const raw = absolute ? 4000 : (definition.bounds.maximumMs! + 1) / 0.5;
+      const raw = absolute ? 8000 : (definition.bounds.maximumMs! + 1) / 0.25;
       expect(() =>
         actual.record(
           value,
@@ -1428,14 +1492,14 @@ describe('fixed v3 normalization over the frozen exhaustive registry', () => {
     const actual = oracle().v3;
     for (const definition of actual.sites.filter((entry) => entry.kind.endsWith('-array'))) {
       const value = v3Ledger(definition.title);
-      const good = ((definition.bounds.minimumMs ?? 0) + definition.bounds.maximumMs!) / 2 / 0.5;
-      const raw = [good, (definition.bounds.maximumMs! + 0.01) / 0.5, good];
+      const good = ((definition.bounds.minimumMs ?? 0) + definition.bounds.maximumMs!) / 2 / 0.25;
+      const raw = [good, (definition.bounds.maximumMs! + 0.01) / 0.25, good];
       expect(() =>
         actual.record(value, value.title, definition.site, v3Provenance(definition), raw),
       ).toThrow('fixed-pace');
       const entry = value.entries[0] as V3Timing;
       expect(entry.rawWallMs).toEqual(raw);
-      expect(raw).toEqual([good, (definition.bounds.maximumMs! + 0.01) / 0.5, good]);
+      expect(raw).toEqual([good, (definition.bounds.maximumMs! + 0.01) / 0.25, good]);
       expect(entry.samples.map((sample) => sample.index)).toEqual([0, 1, 2]);
       expect(entry.samples.map((sample) => sample.v3Passed)).toEqual([true, false, true]);
       expect(entry.v3Outcome).toBe('FAIL');
@@ -1458,7 +1522,7 @@ describe('fixed v3 normalization over the frozen exhaustive registry', () => {
     const value = v3Ledger(definition.title);
     for (const site of ['', '__proto__', 'constructor', 'owner-blink-200-dom-wall-model'])
       expect(() =>
-        actual.record(value, value.title, site, v3Provenance(definition), [2000], 1000),
+        actual.record(value, value.title, site, v3Provenance(definition), [4000], 1000),
       ).toThrow();
     for (const changed of [
       { stage: 'another-stage' },
@@ -1478,7 +1542,7 @@ describe('fixed v3 normalization over the frozen exhaustive registry', () => {
           value.title,
           definition.site,
           { ...v3Provenance(definition), ...changed } as V3Provenance,
-          [2000],
+          [4000],
           1000,
         ),
       ).toThrow();
@@ -1488,7 +1552,7 @@ describe('fixed v3 normalization over the frozen exhaustive registry', () => {
         value.title,
         definition.site,
         v3Provenance(definition),
-        [2000],
+        [4000],
         1000,
         { pace: 1 },
       ]),
@@ -1499,7 +1563,7 @@ describe('fixed v3 normalization over the frozen exhaustive registry', () => {
         millisTitle,
         definition.site,
         v3Provenance(definition),
-        [2000],
+        [4000],
         1000,
       ),
     ).toThrow();
@@ -1535,7 +1599,7 @@ describe('fixed v3 normalization over the frozen exhaustive registry', () => {
         blockly,
         definition.site,
         v3Provenance(definition),
-        [definition.kind === 'absolute-wall-model' ? 2000 : 200],
+        [definition.kind === 'absolute-wall-model' ? 4000 : 400],
         definition.kind === 'absolute-wall-model' ? 1000 : null,
       );
     }
@@ -1556,7 +1620,7 @@ describe('fixed v3 normalization over the frozen exhaustive registry', () => {
           definition.title,
           definition.site,
           v3Provenance(definition),
-          [2000],
+          [4000],
           1000,
         ),
       ).toThrow();
@@ -1582,8 +1646,8 @@ describe('v3 original acquisition boundary and complete real prefix', () => {
       expect(measured.entry).toMatchObject({
         waitStartedAt: 100,
         originalDeadlineAt: 5100,
-        activeDeadlineAt: 10100,
-        acquisitionLimitMs: 10000,
+        activeDeadlineAt: 20100,
+        acquisitionLimitMs: 20000,
         strictLimitMs: 5000,
         observedAt: 6600,
         firstHorizonAt: 6100,
@@ -1659,13 +1723,13 @@ describe('v3 original acquisition boundary and complete real prefix', () => {
         actual.acquisition(value, value.title, first.site, v3Provenance(first), notCompleted),
       ),
     ).toThrow('incomplete');
-    for (const firstAt of [10100, 10100.001]) {
+    for (const firstAt of [20100, 20100.001]) {
       const last = validV3Input(first);
-      last.observedAt = 10300;
+      last.observedAt = 20300;
       last.readyTimestamps[1]!.at = firstAt;
-      last.readyTimestamps[2]!.at = 10200;
+      last.readyTimestamps[2]!.at = 20200;
       const entry = actual.acquisition(value, value.title, first.site, v3Provenance(first), last);
-      expect(entry.ok && entry.entry.v3Outcome).toBe(firstAt === 10100 ? 'PASS' : 'FAIL');
+      expect(entry.ok && entry.entry.v3Outcome).toBe(firstAt === 20100 ? 'PASS' : 'FAIL');
     }
   });
 
@@ -2231,7 +2295,7 @@ async function runV3Lifecycle(
   const value = options.value ?? v3Ledger(definition.title);
   value.observerSha256 = createHash('sha256').update(readyText).digest('hex');
   const waitStartedAt = options.waitStartedAt ?? 100;
-  const observedAt = options.observedAt ?? 10101;
+  const observedAt = options.observedAt ?? 20101;
   let browserNow = waitStartedAt;
   let evaluateCalls = 0;
   let afterEachCallback:
@@ -2259,6 +2323,7 @@ async function runV3Lifecycle(
     createHash,
     ownerQualificationLedger: null,
     ownerV3Ledger: value,
+    ownerV3Discoveries: [],
     artifactRoot: '/v3-lifecycle-fixture',
     resolve,
     mkdirSync: () => undefined,
@@ -2344,7 +2409,7 @@ describe('actual v3 acquisition and afterEach preserve reached failures without 
       expect(result.acquisitionError).toBe(primary);
       expect(result.afterEachError).toBeNull();
       expect(result.polls).toEqual([
-        { timeout: 10000, intervals: [100], predicateResult: false, expected: true },
+        { timeout: 20000, intervals: [100], predicateResult: false, expected: true },
       ]);
       expect(result.evaluateCalls).toBe(3);
       expect(result.value.entries).toEqual([]);
@@ -2358,15 +2423,15 @@ describe('actual v3 acquisition and afterEach preserve reached failures without 
         dimensions: definition.dimensions,
         expectedSourceSha256: v3LifecycleSourceSha256,
         observedProvenance: null,
-        expectedPace: 0.5,
+        expectedPace: 0.25,
         horizonMicroseconds: definition.horizonMicroseconds,
         waitStartedAt: 100,
         originalDeadlineAt: 5100,
-        activeDeadlineAt: 10100,
-        observedAt: 10101,
+        activeDeadlineAt: 20100,
+        observedAt: 20101,
         firstHorizonAt: null,
         strictLimitMs: 5000,
-        acquisitionLimitMs: 10000,
+        acquisitionLimitMs: 20000,
         strictOutcome: 'FAIL',
         v3Outcome: 'FAIL',
         expectationCompleted: false,
@@ -2397,8 +2462,8 @@ describe('actual v3 acquisition and afterEach preserve reached failures without 
         [900, 'INCOMPLETE', 'INCOMPLETE'],
         [4999.999, 'INCOMPLETE', 'INCOMPLETE'],
         [5000, 'FAIL', 'INCOMPLETE'],
-        [9999.999, 'FAIL', 'INCOMPLETE'],
-        [10000, 'FAIL', 'FAIL'],
+        [19999.999, 'FAIL', 'INCOMPLETE'],
+        [20000, 'FAIL', 'FAIL'],
       ] as const) {
         const primary = new Error('cancelled or expired actual acquisition');
         const result = await runV3Lifecycle(definition, {
@@ -2411,7 +2476,7 @@ describe('actual v3 acquisition and afterEach preserve reached failures without 
           waitStartedAt: start,
           observedAt: start + elapsed,
           originalDeadlineAt: start + 5000,
-          activeDeadlineAt: start + 10000,
+          activeDeadlineAt: start + 20000,
           strictOutcome,
           v3Outcome,
           observedProvenance: null,
@@ -2426,7 +2491,7 @@ describe('actual v3 acquisition and afterEach preserve reached failures without 
     const row = v3LifecycleFrame(6100, definition.horizonMicroseconds);
     const candidates = [
       { frames: [{ ...row, at: NaN }] },
-      { frames: [{ ...row, at: 10102 }] },
+      { frames: [{ ...row, at: 20102 }] },
       { frames: [{ ...row, committedHorizonMicroseconds: 1.5 }] },
       { frames: [row, { ...row, at: 6000 }] },
       { frames: [{ ...row, generationId: null }] },
@@ -2456,9 +2521,9 @@ describe('actual v3 acquisition and afterEach preserve reached failures without 
         site: definition.site,
         invocation: 'REACHED',
         waitStartedAt: 100,
-        observedAt: 10101,
+        observedAt: 20101,
         originalDeadlineAt: 5100,
-        activeDeadlineAt: 10100,
+        activeDeadlineAt: 20100,
         firstHorizonAt: null,
         strictOutcome: 'FAIL',
         v3Outcome: 'FAIL',
@@ -2504,7 +2569,7 @@ describe('actual v3 acquisition and afterEach preserve reached failures without 
       invocation: 'REACHED',
       waitStartedAt: 100,
       originalDeadlineAt: 5100,
-      activeDeadlineAt: 10100,
+      activeDeadlineAt: 20100,
       observedAt: null,
       observedProvenance: null,
       readyTimestamps: null,
@@ -2536,8 +2601,8 @@ describe('actual v3 acquisition and afterEach preserve reached failures without 
     for (const timing of actual.sites.filter((entry) => entry.title === value.title)) {
       const absolute = timing.kind === 'absolute-wall-model';
       const raw = absolute
-        ? 2000
-        : ((timing.bounds.minimumMs ?? 0) + timing.bounds.maximumMs!) / 2 / 0.5;
+        ? 4000
+        : ((timing.bounds.minimumMs ?? 0) + timing.bounds.maximumMs!) / 2 / 0.25;
       actual.record(
         value,
         value.title,
@@ -2569,11 +2634,480 @@ describe('actual v3 acquisition and afterEach preserve reached failures without 
       v3Outcome: 'PASS',
       firstHorizonAt: 6100,
       originalDeadlineAt: 5100,
-      activeDeadlineAt: 10100,
+      activeDeadlineAt: 20100,
     });
     expect(result.report.qualificationStatus).toBe('PASS');
     expect(result.report.missingSites).toEqual([]);
     expect(result.report.unreached).toEqual([]);
     expect(result.report.reachedWithoutValidEvidence).toEqual([]);
+  });
+});
+
+function discoveryInput(definition: V3DiscoveryDefinition, firstAt = 6100): V3DiscoveryInput {
+  return {
+    invocation: 'REACHED',
+    registryRevision: v3RegistryRevision,
+    title: definition.title,
+    site: definition.site,
+    stage: definition.stage,
+    expectedSourceSha256: 'c'.repeat(64),
+    clock: 'node-performance',
+    startedAt: 100,
+    endedAt: firstAt + 1,
+    expectationCompleted: true,
+    rejection: null,
+    samples: [
+      { at: 100, value: Array.isArray(definition.expected) ? [] : false },
+      { at: firstAt, value: structuredClone(definition.expected) },
+    ],
+  };
+}
+
+type DiscoveryOperation = {
+  site: string;
+  startedAt: number;
+  endedAt: number;
+  samples: V3DiscoveryInput['samples'];
+  error?: Error;
+};
+type DiscoveryReport = V3LifecycleReport & {
+  discoveryEvidence: {
+    registryRevision: string;
+    requiredSites: string[];
+    records: V3DiscoveryRecord[];
+    unreached: Array<{ site: string; outcome: string }>;
+  };
+};
+
+// Execute the actual wrapper and actual afterEach. Manual predicate completion
+// times are an analytic fixture, never a browser timing or native-paint claim.
+async function runDiscoveryLifecycle(operations: DiscoveryOperation[], afterStatus?: string) {
+  const definitions = oracle().v3.discoverySites.slice(0, 2);
+  const value = v3Ledger(definitions[0]!.title);
+  const records: V3DiscoveryRecord[] = [];
+  const observedOptions: unknown[] = [];
+  let now = 0;
+  let report: DiscoveryReport | null = null;
+  let after: ((fixtures: { browserName: string }, info: V3LifecycleInfo) => Promise<void>) | null =
+    null;
+  const actual = runInNewContext(
+    `${v3LifecycleJavaScript}\n({ discover: withOwnerV3Discovery, sample: ownerV3DiscoverySample, options: ownerV3DiscoveryOptions });`,
+    {
+      createHash,
+      expect,
+      ownerQualificationLedger: null,
+      ownerV3Ledger: value,
+      ownerV3Discoveries: records,
+      performance: { now: () => now },
+      artifactRoot: '/quarter-discovery-fixture',
+      resolve,
+      mkdirSync: () => undefined,
+      writeFileSync: (_path: string, body: string) => {
+        report = JSON.parse(body) as DiscoveryReport;
+      },
+      test: {
+        info: () => ({ title: value.title }),
+        afterEach: (callback: typeof after) => {
+          after = callback;
+        },
+      },
+    },
+  ) as {
+    discover: V3Oracle['discover'];
+    sample: V3Oracle['discoverySample'];
+    options: V3Oracle['discoveryOptions'];
+  };
+  const errors: unknown[] = [];
+  for (const operation of operations) {
+    now = operation.startedAt;
+    const [result] = await Promise.allSettled([
+      actual.discover(operation.site, v3LifecycleSource, async (input) => {
+        observedOptions.push(actual.options(input));
+        for (const sample of operation.samples) {
+          now = sample.at;
+          expect(actual.sample(input, sample.value)).toBe(sample.value);
+        }
+        now = operation.endedAt;
+        if (operation.error) throw operation.error;
+      }),
+    ]);
+    if (result.status === 'rejected') errors.push(result.reason);
+  }
+  if (!after) throw new Error('Actual discovery afterEach did not register.');
+  const callback = after as (
+    fixtures: { browserName: string },
+    info: V3LifecycleInfo,
+  ) => Promise<void>;
+  const [afterResult] = await Promise.allSettled([
+    callback(
+      { browserName: 'chromium' },
+      {
+        title: value.title,
+        status: afterStatus ?? (errors.length ? 'failed' : 'passed'),
+        expectedStatus: 'passed',
+        workerIndex: 0,
+        retry: 0,
+        attach: async () => undefined,
+      },
+    ),
+  ]);
+  if (!report) throw new Error('Actual discovery afterEach did not retain its artifact.');
+  return {
+    errors,
+    records,
+    observedOptions,
+    report: report as DiscoveryReport,
+    afterError: afterResult.status === 'rejected' ? (afterResult.reason as unknown) : null,
+  };
+}
+
+describe('prospective quarter-pace discovery and lossless transport', () => {
+  it('seals exactly eight finite existing discoveries without changing the 42 core records', () => {
+    const actual = oracle().v3;
+    expect(actual.sites.length + actual.acquisitions.length).toBe(42);
+    expect(
+      actual.discoverySites.map(({ site, stage, timeoutMs, expected }) => ({
+        site,
+        stage,
+        timeoutMs,
+        expected,
+      })),
+    ).toEqual([
+      {
+        site: 'gpio-initial-complete-indices',
+        stage: 'gpio-initial',
+        timeoutMs: 10000,
+        expected: [0, 1, 2, 3, 4, 5, 6, 7],
+      },
+      {
+        site: 'gpio-reopened-complete-indices',
+        stage: 'gpio-reopened',
+        timeoutMs: 10000,
+        expected: [0, 1, 2, 3, 4, 5, 6, 7],
+      },
+      {
+        site: 'owner-blink-100-ready-and-light',
+        stage: 'blink-100',
+        timeoutMs: 8000,
+        expected: true,
+      },
+      {
+        site: 'owner-blink-50-ready-and-light',
+        stage: 'blink-50',
+        timeoutMs: 8000,
+        expected: true,
+      },
+      {
+        site: 'no-delay-execution-ready-1250000',
+        stage: 'no-delay realtime',
+        timeoutMs: 8000,
+        expected: true,
+      },
+      {
+        site: 'independent-ports-execution-ready-1250000',
+        stage: 'independent ports',
+        timeoutMs: 8000,
+        expected: true,
+      },
+      {
+        site: 'reset-before-ready-1250000',
+        stage: 'reset-before',
+        timeoutMs: 8000,
+        expected: true,
+      },
+      {
+        site: 'reset-restarted-ready-1250000',
+        stage: 'reset-restarted',
+        timeoutMs: 8000,
+        expected: true,
+      },
+    ]);
+    expect(
+      actual.cases.map(
+        (title) => actual.discoverySites.filter((site) => site.title === title).length,
+      ),
+    ).toEqual([0, 2, 0, 1, 1, 1, 1, 0, 0, 0, 0, 2]);
+    expect(Object.isFrozen(actual.discoverySites)).toBe(true);
+    for (const definition of actual.discoverySites) expect(Object.isFrozen(definition)).toBe(true);
+    expect(readyCompact).toContain('if (ownerV3Ledger) test.setTimeout(60_000);');
+    expect(readyCompact).toContain(
+      "if (ownerQualificationLedger?.profile === 'classroom-d13-v2') test.setTimeout(60_000);",
+    );
+    // The prior profile is not silently reinterpreted as the new quarter pace.
+    const old = {
+      ...v3Ledger(actual.cases[1]!),
+      registryRevision: '06fa47e2744f9c1389e3a709d6b33c88d12a9a25024993afece62b483d0e14dd',
+      expectedPace: 0.5,
+    };
+    expect(() => actual.complete(old, old.title)).toThrow('invalid v3 ledger');
+  });
+
+  it('retains exact original and active inclusive deadlines, interruption and every ordered sample', () => {
+    const actual = oracle().v3;
+    for (const definition of actual.discoverySites) {
+      for (const [at, originalOutcome, activeOutcome] of [
+        [5100, 'PASS', 'PASS'],
+        [5100.001, 'FAIL', 'PASS'],
+        [100 + definition.timeoutMs, 'FAIL', 'PASS'],
+        [100.001 + definition.timeoutMs, 'FAIL', 'FAIL'],
+      ] as const) {
+        const input = discoveryInput(definition, at);
+        const before = structuredClone(input);
+        expect(actual.discovery(input)).toMatchObject({
+          originalOutcome,
+          activeOutcome,
+          originalDeadlineAt: 5100,
+          activeDeadlineAt: 100 + definition.timeoutMs,
+          originalTimeoutMs: 5000,
+          activeTimeoutMs: definition.timeoutMs,
+          firstSatisfiedAt: at,
+        });
+        expect(input).toEqual(before);
+      }
+      for (const [elapsed, originalOutcome, activeOutcome] of [
+        [900, 'INCOMPLETE', 'INCOMPLETE'],
+        [5000, 'FAIL', 'INCOMPLETE'],
+        [definition.timeoutMs, 'FAIL', 'FAIL'],
+      ] as const) {
+        const input = {
+          ...discoveryInput(definition),
+          samples: [],
+          endedAt: 100 + elapsed,
+          expectationCompleted: false,
+          rejection: 'actual cancellation or timeout',
+        };
+        expect(actual.discovery(input)).toMatchObject({
+          originalOutcome,
+          activeOutcome,
+          firstSatisfiedAt: null,
+        });
+      }
+      const rejected = {
+        ...discoveryInput(definition),
+        expectationCompleted: false,
+        rejection: 'original rejection',
+      };
+      expect(actual.discovery(rejected).activeOutcome).toBe('FAIL');
+    }
+  });
+
+  it('rejects missing, duplicate, unknown, malformed and tampered discoveries without accepting caller limits', () => {
+    const actual = oracle().v3;
+    for (const title of actual.cases) {
+      const records = actual.discoverySites
+        .filter((definition) => definition.title === title)
+        .map((definition) => {
+          const input = discoveryInput(definition);
+          return { input, evaluation: actual.discovery(input) };
+        });
+      actual.discoveriesComplete(title, records);
+      if (!records.length) continue;
+      expect(() => actual.discoveriesComplete(title, records.slice(1))).toThrow('not reached');
+      expect(() => actual.discoveriesComplete(title, [...records, records[0]!])).toThrow(
+        'duplicate',
+      );
+      for (const changed of [
+        { activeOutcome: 'FAIL' },
+        { originalOutcome: 'PASS' },
+        { activeTimeoutMs: 60000 },
+      ]) {
+        const forged = structuredClone(records);
+        Object.assign(forged[0]!.evaluation, changed);
+        expect(() => actual.discoveriesComplete(title, forged)).toThrow('tampered');
+      }
+      expect(() =>
+        actual.discoveriesComplete(title, [
+          { ...records[0]!, waiver: true } as V3DiscoveryRecord,
+          ...records.slice(1),
+        ]),
+      ).toThrow('invalid');
+    }
+    const input = discoveryInput(actual.discoverySites[0]!);
+    for (const changed of [
+      { site: '__proto__' },
+      { title: actual.cases[0]! },
+      { stage: 'reopened' },
+      { registryRevision: '06fa47e2744f9c1389e3a709d6b33c88d12a9a25024993afece62b483d0e14dd' },
+      { expectedSourceSha256: '' },
+      { clock: 'browser-performance' },
+      { startedAt: NaN },
+      { endedAt: 5000 },
+      { samples: [{ at: 99, value: input.samples[1]!.value }] },
+      { samples: [...input.samples].reverse() },
+      { timeoutMs: 60000 },
+    ])
+      expect(() => actual.discovery({ ...input, ...changed } as V3DiscoveryInput)).toThrow();
+    expect(() => Reflect.apply(actual.discovery, undefined, [input, { timeout: 60000 }])).toThrow(
+      'caller-selected',
+    );
+    const wrongOrder = structuredClone(input);
+    wrongOrder.samples[1]!.value = [1, 0, 2, 3, 4, 5, 6, 7];
+    expect(actual.discovery(wrongOrder).activeOutcome).toBe('INCOMPLETE');
+  });
+
+  it('executes the actual wrapper and afterEach with late success, missing invocation and reached empty-prefix failures', async () => {
+    const definitions = oracle().v3.discoverySites.slice(0, 2);
+    const operations = definitions.map((definition, index) => ({
+      site: definition.site,
+      startedAt: 100 + index * 7000,
+      endedAt: 6200 + index * 7000,
+      samples: [{ at: 6100 + index * 7000, value: definition.expected }],
+    }));
+    const success = await runDiscoveryLifecycle(operations);
+    expect(success.errors).toEqual([]);
+    expect(success.afterError).toBeNull();
+    expect(success.observedOptions).toEqual([{ timeout: 10000 }, { timeout: 10000 }]);
+    expect(success.report.qualificationStatus).toBe('PASS');
+    expect(success.report.discoveryEvidence.unreached).toEqual([]);
+    expect(success.report.discoveryEvidence.records.map((record) => record.evaluation)).toEqual(
+      success.records.map((record) => record.evaluation),
+    );
+    for (const record of success.records)
+      expect(record.evaluation).toMatchObject({ originalOutcome: 'FAIL', activeOutcome: 'PASS' });
+    const missing = await runDiscoveryLifecycle(operations.slice(0, 1), 'passed');
+    expect(String(missing.afterError)).toContain('not reached');
+    expect(missing.report.qualificationStatus).toBe('FAIL_OR_INCOMPLETE');
+    for (const [endedAt, originalOutcome, activeOutcome] of [
+      [1000, 'INCOMPLETE', 'INCOMPLETE'],
+      [10101, 'FAIL', 'FAIL'],
+    ] as const) {
+      const primary = new Error('original actual discovery rejection');
+      const failed = await runDiscoveryLifecycle([
+        { site: definitions[0]!.site, startedAt: 100, endedAt, samples: [], error: primary },
+      ]);
+      expect(failed.errors).toEqual([primary]);
+      expect(failed.errors[0]).toBe(primary);
+      expect(failed.afterError).toBeNull();
+      expect(failed.records[0]!.input).toMatchObject({
+        invocation: 'REACHED',
+        samples: [],
+        expectationCompleted: false,
+      });
+      expect(failed.records[0]!.evaluation).toMatchObject({
+        originalOutcome,
+        activeOutcome,
+        firstSatisfiedAt: null,
+      });
+      expect(failed.report.discoveryEvidence.unreached).toEqual([
+        { site: definitions[1]!.site, outcome: 'NOT_REACHED' },
+      ]);
+    }
+    // A fulfilled callback with no matching predicate sample still cannot pass.
+    const empty = await runDiscoveryLifecycle([
+      { site: definitions[0]!.site, startedAt: 100, endedAt: 6200, samples: [] },
+    ]);
+    expect(String(empty.errors[0])).toContain('did not pass');
+    expect(empty.report.qualificationStatus).toBe('FAIL_OR_INCOMPLETE');
+  });
+
+  it('keeps strict/v2 discovery options and predicates on the original default path', async () => {
+    for (const profile of ['strict-real-time', 'classroom-d13-v2']) {
+      const records: V3DiscoveryRecord[] = [];
+      const actual = oracle(ledger(sites[0][1], profile), null, { discoveries: records }).v3;
+      const primary = new Error('strict original assertion');
+      const [result] = await Promise.allSettled([
+        actual.discover('no-delay-execution-ready-1250000', 'source', async (input) => {
+          expect(input).toBeNull();
+          expect(actual.discoveryOptions(input)).toBeUndefined();
+          expect(actual.discoverySample(input, false)).toBe(false);
+          throw primary;
+        }),
+      ]);
+      expect(result.status === 'rejected' ? result.reason : null).toBe(primary);
+      expect(records).toEqual([]);
+    }
+  });
+
+  it('serializes every original wire and temporal row inside the page with identical final JSON bytes', async () => {
+    const worker = [0, 1].flatMap((generationId) =>
+      [0, 12500].map((horizon) => ({
+        at: 50 + generationId * 100 + horizon / 1000,
+        generationId,
+        requestSource: `sketch-${generationId}`,
+        sourceSha256: `${generationId}`.repeat(64),
+        advance: {
+          committedHorizonMicroseconds: horizon,
+          requestedHorizonMicroseconds: horizon,
+          result: {
+            solved: true,
+            quality: { passed: true },
+            values: {
+              current: 0.01,
+              missing: undefined,
+              invalid: NaN,
+              bounds: [Infinity, -Infinity, -0, undefined],
+            },
+          },
+          state: {
+            clocks: [0, 1],
+            matrix: [
+              [0, 5],
+              [2, 3],
+            ],
+            boards: [{ runtime: { outputVoltages: { d13: horizon ? 5 : 0 } } }],
+          },
+          ledTemporal: {
+            fromMicroseconds: 0,
+            toMicroseconds: horizon,
+            samples: [{ atMicroseconds: 0, brightness: [0, 0, 0], currents: [0, 0, 0] }],
+          },
+        },
+      })),
+    );
+    const ui = [
+      {
+        at: 10,
+        brightness: [0, 0, 0],
+        startupEvidence: { board: { dark: true }, advertisedModelTimeMs: null },
+      },
+      { at: 200, brightness: [40, 0, 0] },
+    ];
+    const paint = [
+      {
+        at: 205,
+        images: [{ href: '/led.png', element: 7, loadedAt: 180, decoded: true, visible: true }],
+        brightness: [40, 0, 0],
+      },
+    ];
+    const startClicks = [{ at: 1, trusted: true }],
+      reanchors = [{ at: 20, count: 0 }];
+    const temporal = {
+      frames: worker,
+      paintFrames: paint,
+      paintRuns: [{ first: paint[0], lastAt: 230 }],
+      resetClicks: [{ at: 300, trusted: true }],
+      errors: [],
+      reanchors,
+    };
+    const snapshot = { worker, ui, paint, startClicks, reanchors };
+    const actual = oracle(null, null, {
+      window: {
+        __bitwiseWorker: worker,
+        __bitwiseUi: ui,
+        __ownerPaint: paint,
+        __ownerStartClicks: startClicks,
+        __ledPlayoutReanchors: reanchors,
+        __ownerTemporal: temporal,
+      },
+    }).v3;
+    const transported: unknown[] = [];
+    const page = {
+      evaluate: async (callback: () => unknown) => {
+        const payload = callback();
+        transported.push(payload);
+        return payload;
+      },
+    };
+    const captured = await actual.observation(page),
+      capturedTemporal = await actual.temporalObservation(page);
+    expect(transported.map((payload) => typeof payload)).toEqual(['string', 'string']);
+    expect(JSON.stringify({ temporal: capturedTemporal, ...captured }, null, 2) + '\n').toBe(
+      JSON.stringify({ temporal, ...snapshot }, null, 2) + '\n',
+    );
+    expect(captured.worker).toEqual(JSON.parse(JSON.stringify(worker)));
+    expect(capturedTemporal.frames).toEqual(captured.worker);
+    expect(
+      (captured.worker as Array<{ generationId: number }>).map((row) => row.generationId),
+    ).toEqual([0, 0, 1, 1]);
   });
 });
