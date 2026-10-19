@@ -348,7 +348,7 @@ parallel_lanes:
       pr: null
       pr_draft: true
       status: in_progress
-      checkpoint: all_four_issue618_prs_integrated_preview_verification_selected
+      checkpoint: all_four_issue618_prs_integrated_preview_verified_on_4620
       owner_acceptance: pending
       change_class: L3_CRITICAL
       owner_authorization: >-
@@ -399,7 +399,9 @@ parallel_lanes:
         independent_review: approved
         exact_candidate_general_run: 39240798011
         candidate_governance_code: success
-        candidate_postgresql_access: pending_at_observation
+        candidate_postgresql_access: success
+        candidate_access_real: 22_passed
+        candidate_access_interface: 417_passed
         local_unit_dom: 14_passed
         local_uncached_api_web: pass
         local_built_chrome: 7_passed
@@ -423,24 +425,46 @@ parallel_lanes:
         Preserve AI-BASELINE-LEARNING-006 and its separate three-file author.
         Its seven historical default-tab journeys need explicit accepted Learning
         destinations; do not weaken assertions or duplicate that concurrent patch.
-        The published 981114855c13ca352edcc7b6b41b2b3bdc506439 still queries
-        seat-results after selecting Assignments in learning-surface-convergence.
-        Select the native Results tab before that existing result assertion.
-        This is an independent source finding; its hosted Learning run is pending.
+        The separate author repaired the missing native Results-tab transition
+        in 7e7ba2fc083bf09e003a52d8f1234d4c5d5b634a. Independent incremental
+        source review approved that repair; required Learning39242480208 and
+        General39242480216 still need their own finished runtime evidence.
       final_preview:
         target: http://127.0.0.1:4620/
-        status: build_backup_restore_and_shadow_proof_pending
+        status: deployed_verified
+        source_revision: 095080febc0450fd01efa21950c8f5ba024aa166
+        schema_version: 224
+        backup_directory: 'E:\ASA-backups\issue618-preview4620-20261019T110727Z'
+        sealed_manifest_sha256: 64e8d9330d219291bfe3bc0e127f82923ef4bd74d6910079e55263f0625daa47
+        backup_files: 1550
+        backup_bytes: 717444333
+        actual_restore_and_exact_shadow_migration: pass
+        previous_data_counts_rls_and_ledger_preserved: true
+        migration_ledger_entries: 219
+        independent_runtime_and_visual_review: approved
+        actual_public_api_demo: pass
+        account_join_approval_and_studentcode_login: pass
+        saved_move_after_reload: e2e4
+        server_denied_project_http_status: 403
+        direct_game_route_denied: true
+        synthetic_class_policy_restored: true
+        screenshots_at_1440_390_320: 21
+        page_console_and_5xx_errors: 0
+        asa_api_interception: false
+        external_max_sdk_stub: true
+        visible_task_owned_seat_profile: open_with_learning_projects_games
+        installation_4610_unchanged: true
         prerequisite: Fresh exact runtime inspection, verified backup, actual restore and exact shadow migration
         excluded_installation: 4610
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 1b0db2964045cd0a9b1c60f4b603e24aaf1982c5
+      convergence_baseline_sha: 095080febc0450fd01efa21950c8f5ba024aa166
       head_sha: null
-      observed_at: '2026-10-19T11:02:49Z'
+      observed_at: '2026-10-19T11:22:40Z'
       main:
         branch: main
-        sha: 1b0db2964045cd0a9b1c60f4b603e24aaf1982c5
-      observation_note: Dated accepted four-PR integration observation. Candidate a019 full General succeeded; final 621 candidate has independent source acceptance, 14 unit/DOM, uncached API/Web and 7 actual Chrome passes. Final 621 hosted PostgreSQL/Access and the separately owned Learning compatibility workflow remain tracked. Owner acceptance and preview proof are pending. Fresh fetch main and exact refs before continuation.
+        sha: 095080febc0450fd01efa21950c8f5ba024aa166
+      observation_note: Dated verified preview observation. All four Issue618 PRs are integrated; exact a019 and final 621 candidate General workflows succeeded. Preview095 is ready with synchronized API/Web/schema224 after verified backup, actual restore, preservation proof, real public API demo and independent runtime/visual acceptance. Owner acceptance and the separately owned Learning compatibility workflow remain distinct. Fresh fetch main and exact refs before continuation.
     execution_lease:
       executor_id: student-games-access-scope-618
       holder: unassigned
