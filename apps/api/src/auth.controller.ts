@@ -28,6 +28,7 @@ import { checkBodyShape } from './validation.js';
 import { FixedWindowRateLimiter } from './rate-limit.js';
 import { clientAddress, clientConnection, type ClientNetworkKind } from './client-address.js';
 import { BotChallengeService, type BotAction } from './bot-challenge.js';
+import type { IngressProbeResponse } from './bot-provider-ingress.js';
 import { MaxAuthService } from './max-auth.service.js';
 import { TelegramAuthService } from './telegram-auth.service.js';
 import {
@@ -641,6 +642,16 @@ export class AuthController {
     if (!shape.ok) throw new HttpException(error('validation_error', shape.message), 400);
     const token = this.validPairingToken(shape.body['pairingToken']);
     const cookie = this.pairingCookieName(provider, token);
+    // Registration belongs to the anonymous attempt. A later password login
+    // must not be replaced by a delayed profile submission from that attempt.
+    const context = await this.activeContext.resolve(request.cookies[SESSION_COOKIE]);
+    if (context) {
+      reply.clearCookie(cookie, { path: '/api/auth' });
+      throw new HttpException(
+        error(`${provider}_pairing_invalid`, 'Запрос регистрации недействителен.'),
+        400,
+      );
+    }
     let result;
     try {
       result = await this.providerService(provider).registerPairing(
@@ -957,7 +968,10 @@ export class AuthController {
   @Post('max/webhook')
   @AllowUnverifiedAccount()
   @HttpCode(200)
-  async maxWebhook(@Body() body: unknown, @Req() request: FastifyRequest): Promise<{ ok: true }> {
+  async maxWebhook(
+    @Body() body: unknown,
+    @Req() request: FastifyRequest,
+  ): Promise<{ ok: true } | IngressProbeResponse> {
     let result;
     try {
       result = await this.maxAuth.handleWebhook(request.headers['x-max-bot-api-secret'], body);
@@ -967,7 +981,7 @@ export class AuthController {
     if (result === 'unauthorized') {
       throw new HttpException(error('unauthorized', 'invalid MAX webhook secret'), 401);
     }
-    return { ok: true };
+    return typeof result === 'object' ? result : { ok: true };
   }
 
   @Post('max/link')
@@ -1056,7 +1070,7 @@ export class AuthController {
   async telegramWebhook(
     @Body() body: unknown,
     @Req() request: FastifyRequest,
-  ): Promise<{ ok: true }> {
+  ): Promise<{ ok: true } | IngressProbeResponse> {
     let result;
     try {
       result = await this.telegramAuth.handleWebhook(
@@ -1068,7 +1082,7 @@ export class AuthController {
     }
     if (result === 'unauthorized')
       throw new HttpException(error('unauthorized', 'invalid Telegram webhook secret'), 401);
-    return { ok: true };
+    return typeof result === 'object' ? result : { ok: true };
   }
 
   @Post('telegram/session')

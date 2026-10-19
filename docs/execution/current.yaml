@@ -1536,12 +1536,12 @@ parallel_lanes:
     task:
       id: TASK-ACCOUNT-CONFIRMATION-001
       issue: 135
-      branch: codex/auth-readiness-20261019
+      branch: main
       base_branch: main
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: account_confirmation_readiness_repair_selected
+      checkpoint: technical_verified_owner_review_pending
       owner_acceptance: pending
       normative_refs:
         - document: IDENTITY-ACCESS-V22
@@ -1551,20 +1551,20 @@ parallel_lanes:
     programme:
       document: docs/product/ASA_ACCOUNT_CONFIRMATION_SPEC.md
       owner_authorization: implement_account_confirmation_with_admin_switch_max_telegram_and_server_verified_outage_fallback
-      status: in_progress
+      status: technical_accepted
       target_revision: '1.1'
-      verified_revision: '1.0'
-      final_source_sha: 5353dcbc8f60a4867aaf9fe4126fe2caaad31fdc
-      exact_final_focused_run: 39171454030
+      verified_revision: '1.1'
+      final_source_sha: 4e4ea950ba4e7d9935ba752a089fa95993160e31
+      exact_final_focused_run: 39267688751
       exact_final_focused_conclusion: success
-      exact_final_general_run: 39171454021
+      exact_final_general_run: 39267688763
       exact_final_general_conclusion: success
-      selected_slice: AUTH-C5-READINESS
+      selected_slice: null
       dependency_order: [AUTH-C1-PROVIDERS, AUTH-C2-POLICY, AUTH-C3-UI, AUTH-C4-ACCEPTANCE, AUTH-C5-READINESS]
-      remaining_slices: [AUTH-C5-READINESS]
+      remaining_slices: []
       readiness_repair:
         id: AUTH-C5-READINESS
-        status: in_progress
+        status: technical_accepted
         baseline_sha: 185f43e1618848da5db14f7223b059395fd85408
         owner_request_date: '2026-10-19'
         owner_request: audit_and_prepare_reliable_max_telegram_login_before_update_with_domain_or_ip
@@ -1574,7 +1574,8 @@ parallel_lanes:
           legacy MAX Mini App access independently from webhook readiness; reject wrong
           callback origins and conflicting bot deployments; bound auth UI requests and
           preserve cancel/password recovery; forward staging public origins and preserve
-          existing encryption keys in bootstrap. No polling worker, network changes,
+          existing encryption keys in bootstrap. Fence post-link/unlink completion by the
+          active Account and component lifetime. No polling worker, network changes,
           live tokens, webhook registration, deployment or working database writes.
         delegated_parts: [provider_backend, auth_ui, installation_preflight]
         required_review: independent_final_source_and_fault_matrix
@@ -1587,24 +1588,32 @@ parallel_lanes:
         findings:
           - id: AUTH-READINESS-DELIVERY
             severity: high
-            status: repair_selected
+            status: repaired
             cause: registered_webhook_can_remain_ready_when_delivery_to_this_installation_fails
           - id: AUTH-READINESS-LEGACY-MAX
             severity: high
-            status: repair_selected
+            status: repaired
             cause: webhook_readiness_blocks_existing_signed_mini_app_login_after_upgrade
           - id: AUTH-READINESS-UI-TIMEOUT
             severity: medium
-            status: repair_selected
+            status: repaired
             cause: unresolved_auth_transport_can_hold_sign_in_actions_indefinitely
           - id: AUTH-READINESS-PUBLIC-ORIGIN
             severity: medium
-            status: repair_selected
+            status: repaired
             cause: staging_does_not_forward_saved_public_origin_and_bot_address_errors_are_misleading
           - id: AUTH-READINESS-KEY-PRESERVATION
             severity: medium
-            status: repair_selected
+            status: repaired
             cause: legacy_bootstrap_can_append_a_replacement_for_an_invalid_existing_key
+          - id: AUTH-READINESS-ACCOUNT-METHOD-CONTINUATION
+            severity: high
+            status: repaired
+            cause: late_post_link_or_unlink_identity_response_can_replace_the_next_account_in_ui
+            discovered_at_sha: a42e449772ed99643b6267052dfed2e578c7873d
+            repaired_at_sha: 4e4ea950ba4e7d9935ba752a089fa95993160e31
+            negative_control_run: 39267257166
+            server_authorization_bypass_claimed: false
       completed_slices:
         - id: AUTH-C1-PROVIDERS
           status: technical_accepted
@@ -1686,6 +1695,107 @@ parallel_lanes:
             Focused and General suites overlap and are not additive. Separate source and
             visual review were completed; unchanged UI blob identity permits the recorded
             visual evidence. This receipt does not claim CI for its later integration commit.
+        - id: AUTH-C5-READINESS
+          status: technical_accepted
+          verification_sha: 4e4ea950ba4e7d9935ba752a089fa95993160e31
+          final_convergence_sha: 0775369238e768780f1fb4ba80a1c72a606498c4
+          source_paths_changed: 54
+          independent_review: approved
+          independent_review_sha: 4e4ea950ba4e7d9935ba752a089fa95993160e31
+          independent_reviewer: auth_c5_lifecycle_final_review
+          independent_review_received_at: '2026-10-19T14:42:56Z'
+          independent_review_record: controller_received_separate_agent_final_verdict
+          independent_static_challenger: auth_c5_lifecycle_final_review/account_methods_static_challenge
+          readiness_runbook: docs/deployment/ACCOUNT_CONFIRMATION_READINESS.md
+          result: current_version_native_delivery_readiness_legacy_max_recovery_bounded_ui_and_preserved_installation_keys
+          exact_focused_run: 39267688751
+          exact_focused_conclusion: success
+          exact_focused_server_job: 118111460036
+          exact_focused_ui_job: 118111459109
+          focused_unit_passed: 270
+          focused_integration_passed: 73
+          focused_native_postgres_passed: 66
+          focused_pglite_passed: 7
+          focused_auth_browser_passed: 48
+          focused_existing_account_r3_passed: 8
+          focused_existing_classroom_owner_header_passed: 1
+          focused_api_build_nx_tasks_executed_uncached: 16
+          focused_web_typecheck_nx_tasks_executed_uncached: 6
+          focused_web_build_nx_tasks_executed_uncached: 6
+          focused_openapi_paths: 166
+          focused_installation_windows_job: 118111459619
+          focused_installation_windows_passed: 10
+          focused_installation_ubuntu_job: 118111459850
+          focused_installation_ubuntu_passed: 10
+          focused_ui_artifact_id: 12192699625
+          focused_ui_artifact_sha256: 6bb158abe7ac41c7b4f7606e56d0d14aa8d03aa1ddbee9e4ae787d94df07bcbe
+          focused_ui_build_revision: 4e4ea950ba4e7d9935ba752a089fa95993160e31
+          focused_ui_png_count: 120
+          independent_fresh_png_inspected: 8
+          independent_comparison_png_inspected: 2
+          png_identical_to_a42: 108
+          independent_visual_review: approved
+          visual_widths: [1440, 1024, 390, 320]
+          visual_font_scales: [normal, font150]
+          exact_general_run: 39267688763
+          exact_general_conclusion: success
+          exact_general_governance_job: 118111462820
+          exact_general_code_job: 118112026914
+          exact_general_data_job: 118114535558
+          exact_general_access_job: 118114535376
+          general_data_tests_passed: 4812
+          general_data_tests_skipped: 34
+          general_data_files_passed: 472
+          general_data_files_skipped: 2
+          separate_rls_tests_passed: 16
+          general_access_tests_passed: 971
+          general_access_tests_skipped: 1
+          general_real_access_browser_passed: 22
+          general_settings_browser_passed: 417
+          general_observability_tests_passed: 533
+          general_release_tests_passed: 10
+          general_python_test_suites_passed: [61, 69]
+          general_code_nx_tasks_executed_uncached: 96
+          general_data_build_nx_tasks_executed_uncached: 43
+          general_browser_build_nx_tasks_executed_uncached: 27
+          general_compose_check: pass
+          lifecycle_negative_control:
+            source_sha: 4f6fda47752f2f19d9029c647fda02dd777bbda2
+            parent_sha: a42e449772ed99643b6267052dfed2e578c7873d
+            product_paths_changed: 0
+            exact_run: 39267257166
+            exact_browser_job: 118109976651
+            exact_conclusion: failure
+            expected_contract_failures: 12
+            existing_tests_passed: 34
+            ordinary_completion_tests_passed: 2
+            same_test_blob_in_positive_source: 0a7c0db8e3be45a461675304fdc2cd40b0a50b89
+            independent_negative_review: validated
+            fixed_new_tests_passed: 14
+          rejected_candidate_history:
+            - source_sha: d581fa9942028df45bb7e659c020bf13f81c035f
+              focused_run: 39254939558
+              focused_conclusion: success
+              general_run: 39254939543
+              general_conclusion: failure
+              visual_review: failed_provider_action_text_readability
+              unrelated_data_timeout_classification: unresolved_C_or_D
+              electronics_source_and_timeout_changed_by_auth: false
+            - source_sha: a42e449772ed99643b6267052dfed2e578c7873d
+              focused_run: 39259228304
+              focused_conclusion: success
+              general_run: 39259228266
+              general_conclusion: success
+              source_review: failed_late_account_method_identity_continuation
+              repaired_and_reproduced_by_lifecycle_negative_control: true
+          verification_note: >-
+            Actual terminal workflows and all final test counts belong to source 4e4ea950ba4e7d9935ba752a089fa95993160e31.
+            Focused and General suites overlap and are not additive. Negative control
+            changes tests only and intentionally fails on the old product. The repaired
+            source passes the identical tests. Historical unrelated Electronics timeout
+            is not claimed repaired; this source passes its unchanged test and deadline.
+            This receipt does not claim CI for its later integration commit, deployment,
+            live bot delivery, working database migration or owner acceptance.
       owner_acceptance: pending
       deployment_authorized: false
       working_database_actions_authorized: false

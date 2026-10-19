@@ -18,6 +18,8 @@ const max: AuthProviderAvailability = {
   id: 'max',
   available: true,
   reason: 'ready',
+  enforcementEligible: true,
+  enforcementReason: 'ready',
   checkedAt: new Date(START).toISOString(),
 };
 const telegram: AuthProviderAvailability = { ...max, id: 'telegram' };
@@ -96,6 +98,26 @@ describe('one-time account confirmation policy', () => {
         ],
       }),
     ).toMatchObject({ required: false, reason: 'providers_unavailable' });
+  });
+
+  it('allows the first native test without making unproved delivery mandatory', () => {
+    expect(
+      evaluate({
+        providers: [
+          { ...max, enforcementEligible: false, enforcementReason: 'delivery_unverified' },
+        ],
+      }),
+    ).toMatchObject({
+      required: false,
+      reason: 'providers_unverified',
+    });
+    expect(
+      evaluate({
+        providers: [
+          { ...max, enforcementEligible: undefined } as unknown as AuthProviderAvailability,
+        ],
+      }),
+    ).toMatchObject({ required: false });
   });
 
   it('requires confirmation through a healthy alternative when MAX is unavailable', () => {

@@ -2,6 +2,11 @@ import { createHmac } from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
 import type pg from 'pg';
 import {
+  BotProviderIngress,
+  IngressProbeRegistry,
+  providerSecretHeader,
+} from './bot-provider-ingress.js';
+import {
   TelegramAuthService,
   TelegramInitDataError,
   validateTelegramInitData,
@@ -11,6 +16,28 @@ const TOKEN = '1001:test_only_telegram_token_000000';
 const KEY = Buffer.alloc(32, 9);
 const NOW = 1_800_000_000;
 const PAIRING = 't'.repeat(43);
+
+function testIngress() {
+  const ingress = new BotProviderIngress({
+    registry: new IngressProbeRegistry(),
+    resolve: async () => [{ address: '8.8.8.8', family: 4 }],
+    request: async (input) => {
+      const challenge = JSON.parse(input.body);
+      const result = ingress.answer(
+        {
+          provider: challenge.provider,
+          configurationVersion: challenge.configurationVersion,
+          url: input.url.href,
+          key: KEY,
+        },
+        input.headers[providerSecretHeader(challenge.provider)],
+        challenge,
+      );
+      return { status: result ? 200 : 401, body: JSON.stringify(result) };
+    },
+  });
+  return ingress;
+}
 
 function signed(fields: Record<string, string> = {}) {
   const values = new Map(
@@ -65,6 +92,8 @@ describe('Telegram provider proof and real bot routes', () => {
       now: () => NOW * 1000,
       enabled: true,
       fetchImpl,
+      ingress: testIngress(),
+      publicWebOrigins: ['https://asa.example'],
     });
     const secret = createHmac('sha256', KEY)
       .update('telegram-webhook:asa_test_bot:1')
@@ -113,6 +142,8 @@ describe('Telegram provider proof and real bot routes', () => {
       encryptionKey: KEY.toString('base64url'),
       enabled: true,
       fetchImpl,
+      ingress: testIngress(),
+      publicWebOrigins: ['https://asa.example'],
     });
     const secret = createHmac('sha256', KEY)
       .update('telegram-webhook:asa_test_bot:1')
@@ -149,6 +180,8 @@ describe('Telegram provider proof and real bot routes', () => {
       encryptionKey: KEY.toString('base64url'),
       enabled: true,
       fetchImpl,
+      ingress: testIngress(),
+      publicWebOrigins: ['https://asa.example'],
     });
     const secret = createHmac('sha256', KEY)
       .update('telegram-webhook:asa_test_bot:1')
@@ -201,6 +234,8 @@ describe('Telegram provider proof and real bot routes', () => {
         encryptionKey: KEY.toString('base64url'),
         enabled: true,
         fetchImpl,
+        ingress: testIngress(),
+        publicWebOrigins: ['https://asa.example'],
       });
       const secret = createHmac('sha256', KEY)
         .update('telegram-webhook:asa_test_bot:1')
@@ -260,6 +295,8 @@ describe('Telegram provider proof and real bot routes', () => {
       encryptionKey: KEY.toString('base64url'),
       enabled: true,
       fetchImpl,
+      ingress: testIngress(),
+      publicWebOrigins: ['https://asa.example'],
     });
     const secret = createHmac('sha256', KEY)
       .update('telegram-webhook:asa_test_bot:1')

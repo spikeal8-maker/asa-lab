@@ -15,6 +15,7 @@ import pg from 'pg';
 import { createRuntimeMetrics } from '@asa-lab/observability';
 import type { ActiveContextUseCase } from '@asa-lab/identity';
 import { SeatContextUseCase } from './seat-context.js';
+import type { BotProviderAuthOptions } from './bot-provider-runtime.js';
 import { AppModule } from './app.module.js';
 import { ProductAnalyticsService } from './product-analytics.service.js';
 import { OwnedPools, SafeNestLogger, boundedClose } from './owned-pool-lifecycle.js';
@@ -154,6 +155,7 @@ function shouldLogRequests(explicit: boolean | undefined): boolean {
 }
 
 export interface ApiFactoryOptions {
+  readonly authProviderOptions?: Pick<BotProviderAuthOptions, 'ingress' | 'publicWebOrigins'>;
   /** Injected pool (tests); otherwise built from APP_DATABASE_URL only. */
   readonly pool?: pg.Pool | null;
   /** Explicit test/embedding dependency; null disables telemetry with no fallback. */
@@ -288,7 +290,13 @@ export async function createApiApp(
     ];
     const adapter = new FastifyAdapter({ genReqId: () => randomUUID(), logger: false });
     const app = await NestFactory.create<NestFastifyApplication>(
-      AppModule.forPool(pool, { productAnalytics: analytics, runtimeMetrics: metrics }),
+      AppModule.forPool(pool, {
+        productAnalytics: analytics,
+        runtimeMetrics: metrics,
+        ...(options.authProviderOptions
+          ? { authProviderOptions: options.authProviderOptions }
+          : {}),
+      }),
       adapter,
       {
         logger: new SafeNestLogger(),

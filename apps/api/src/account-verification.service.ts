@@ -17,7 +17,12 @@ export interface VerificationState {
   readonly policyEnabled: boolean;
   readonly required: boolean;
   readonly reason:
-    'disabled' | 'verified' | 'grace_period' | 'providers_unavailable' | 'verification_required';
+    | 'disabled'
+    | 'verified'
+    | 'grace_period'
+    | 'providers_unavailable'
+    | 'providers_unverified'
+    | 'verification_required';
   readonly dueAt: string | null;
   readonly verifiedProvider: ProviderId | null;
   readonly providers: readonly AuthProviderAvailability[];
@@ -74,8 +79,15 @@ export function evaluateAccountVerification(input: {
   if (!policy.enabled) reason = 'disabled';
   else if (verifiedProvider !== null) reason = 'verified';
   else if (due !== null && input.now < due) reason = 'grace_period';
-  else if (!providers.some((provider) => provider.available && provider.reason === 'ready'))
-    reason = 'providers_unavailable';
+  else if (
+    !providers.some(
+      (provider) =>
+        provider.available && provider.reason === 'ready' && provider.enforcementEligible === true,
+    )
+  )
+    reason = providers.some((provider) => provider.available && provider.reason === 'ready')
+      ? 'providers_unverified'
+      : 'providers_unavailable';
   else reason = 'verification_required';
   return {
     policyEnabled: policy.enabled,
@@ -112,7 +124,14 @@ export class AccountVerificationService {
     const providers = await Promise.all(this.providers.map((provider) => provider.availability()));
     return [
       ...providers,
-      { id: 'email', available: false, reason: 'not_configured', checkedAt: null },
+      {
+        id: 'email',
+        available: false,
+        reason: 'not_configured',
+        checkedAt: null,
+        enforcementEligible: false,
+        enforcementReason: 'not_configured',
+      },
     ];
   }
 

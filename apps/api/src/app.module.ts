@@ -96,6 +96,8 @@ import { createApiModuleRegistry } from './module-registry.js';
 import { SeatContextUseCase } from './seat-context.js';
 import { ProjectFeedbackService } from './project-feedback.js';
 import { BotChallengeService } from './bot-challenge.js';
+import { BotProviderIngress, IngressProbeRegistry } from './bot-provider-ingress.js';
+import type { BotProviderAuthOptions } from './bot-provider-runtime.js';
 import { MaxAuthService } from './max-auth.service.js';
 import { TelegramAuthService } from './telegram-auth.service.js';
 import { AccountVerificationService } from './account-verification.service.js';
@@ -113,7 +115,11 @@ import { validationMessage } from './validation.js';
 export class AppModule {
   static forPool(
     pool: pg.Pool | null,
-    options: { productAnalytics?: ProductAnalyticsService; runtimeMetrics?: RuntimeMetrics } = {},
+    options: {
+      productAnalytics?: ProductAnalyticsService;
+      runtimeMetrics?: RuntimeMetrics;
+      authProviderOptions?: Pick<BotProviderAuthOptions, 'ingress' | 'publicWebOrigins'>;
+    } = {},
   ): DynamicModule {
     const unavailablePool = new Proxy({} as pg.Pool, {
       get() {
@@ -128,8 +134,16 @@ export class AppModule {
     const contextQuery =
       pool && typeof pool.connect === 'function' ? runSessionContextQuery : undefined;
     const runtimeMetrics = options.runtimeMetrics ?? createRuntimeMetrics();
-    const maxAuthService = new MaxAuthService(requirePool());
-    const telegramAuthService = new TelegramAuthService(requirePool());
+    // One registry per application composition, shared only by its provider runtimes.
+    // A second installation in this process must not answer this installation's probe.
+    const authProviderOptions = {
+      ...options.authProviderOptions,
+      ingress:
+        options.authProviderOptions?.ingress ??
+        new BotProviderIngress({ registry: new IngressProbeRegistry() }),
+    };
+    const maxAuthService = new MaxAuthService(requirePool(), authProviderOptions);
+    const telegramAuthService = new TelegramAuthService(requirePool(), authProviderOptions);
     const accountVerification = new AccountVerificationService(requirePool(), [
       maxAuthService,
       telegramAuthService,

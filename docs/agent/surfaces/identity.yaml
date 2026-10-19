@@ -416,6 +416,8 @@ surfaces:
   routes:
   - /api/auth/providers
   - /api/auth/verification
+  - /api/admin/v1/integrations/max/check
+  - /api/admin/v1/integrations/telegram/check
   - '#/admin/confirmations'
   implementation:
     files:
@@ -423,7 +425,10 @@ surfaces:
     - apps/web/src/auth-verification.ts
     - apps/web/src/auth-verification.css
     - apps/web/src/api-call.ts
+    - apps/web/src/auth-request.ts
+    - apps/web/src/session-fetch.ts
     - apps/web/src/pages/AccountConfirmationPage.tsx
+    - apps/web/src/pages/AccountPage.tsx
     - apps/web/src/components/AccountSignInMethods.tsx
     - apps/web/src/admin/VerificationPolicyControl.tsx
     - apps/web/src/admin/AdminAuthProviderCard.tsx
@@ -432,6 +437,7 @@ surfaces:
     - apps/api/src/account-verification.service.ts
     - apps/api/src/account-verification.guard.ts
     - apps/api/src/auth-provider-availability.ts
+    - apps/api/src/bot-provider-ingress.ts
     - apps/api/src/auth.controller.ts
     - apps/api/src/admin.controller.ts
     - apps/api/src/blocks-runtime.controller.ts
@@ -440,19 +446,21 @@ surfaces:
     - apps/api/src/app.module.ts
     - apps/api/src/tokens.ts
     - migrations/0219_account_verification_policy.sql
+    - migrations/0225_auth_provider_readiness.sql
     - schemas/openapi.yaml
+    - compose.staging.yaml
+    - .env.example
+    - tools/asa-lab.sh
+    - tools/asa-lab.ps1
+    - tools/provision-settings-key.mjs
   invariants:
-  - IDA-ACC-001
-  - IDA-AUTH-001
-  - IDA-CAP-001
-  - IDA-SESSION-001
-  - IDA-REV-001
-  - IDA-SEAT-001
+    [IDA-ACC-001, IDA-AUTH-001, IDA-CAP-001, IDA-SESSION-001, IDA-REV-001, IDA-SEAT-001]
   tests:
   - TST-ACCOUNT-CONFIRMATION-UNIT-001
   - TST-ACCOUNT-CONFIRMATION-PG-001
   - TST-ACCOUNT-CONFIRMATION-UI-001
   - TST-ASA-ACCESS-A-REPOSITORY-001
+  - TST-ACCOUNT-CONFIRMATION-INSTALL-001
   controls:
   - id: CTRL-ACCOUNT-CONFIRMATION-POLICY
     label: Persist the admin confirmation switch and enforce the 24-hour deadline with server-verified provider outage fallback
@@ -482,17 +490,21 @@ surfaces:
     change_class: L3_CRITICAL
     files:
     - apps/web/src/admin/AdminAuthProviderCard.tsx
+    - apps/web/src/pages/AccountPage.tsx
     - apps/web/src/components/AccountSignInMethods.tsx
     - apps/web/src/auth-providers.tsx
     - apps/api/src/admin.controller.ts
     - apps/api/src/bot-provider-auth.service.ts
     - apps/api/src/bot-provider-runtime.ts
+    - apps/api/src/bot-provider-ingress.ts
     - apps/api/src/max-auth.service.ts
     - apps/api/src/telegram-auth.service.ts
     - migrations/0218_auth_provider_lifecycle.sql
+    - migrations/0225_auth_provider_readiness.sql
     commands:
     - auth_provider_configuration_read
     - auth_provider_configuration_write
+    - auth_provider_configuration_check
     - auth_provider_link
     - auth_provider_unlink
     invariants:
@@ -503,6 +515,21 @@ surfaces:
     - TST-ACCOUNT-CONFIRMATION-UNIT-001
     - TST-ACCOUNT-CONFIRMATION-PG-001
     - TST-ACCOUNT-CONFIRMATION-UI-001
+  - id: CTRL-ACCOUNT-CONFIRMATION-INSTALLATION
+    label: Preserve integration secrets and forward trusted public origins during installation
+    change_class: L3_CRITICAL
+    files:
+    - compose.staging.yaml
+    - .env.example
+    - tools/asa-lab.sh
+    - tools/asa-lab.ps1
+    - tools/provision-settings-key.mjs
+    commands:
+    - auth_installation_validate
+    invariants:
+      [IDA-AUTH-001, IDA-SESSION-001]
+    tests:
+    - TST-ACCOUNT-CONFIRMATION-INSTALL-001
 - id: SURF-CLASSROOM-ROSTER
   routes:
   - '#/classrooms/:classroomId'

@@ -1,9 +1,14 @@
-import { randomBytes, randomUUID } from 'node:crypto';
+import { createHmac, randomBytes, randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import pg from 'pg';
 import type { LightMyRequestResponse } from 'fastify';
 import { hashSessionToken } from '../../contexts/identity/dist/index.js';
-import { buildTestApp, fastifyOf, inject, type NestApp } from '../portal/app';
+import { createApiApp } from '../../apps/api/dist/app.factory.js';
+import {
+  BotProviderIngress,
+  IngressProbeRegistry,
+} from '../../apps/api/dist/bot-provider-ingress.js';
+import { fastifyOf, inject, type NestApp } from '../portal/app';
 import { testAdminPool } from '../portal/helpers';
 import { planMigrations } from '../../tools/migrate.mjs';
 import { applyIsolatedTestPlan as applyPlan } from '../migration/isolated-postgres-plan';
@@ -26,6 +31,13 @@ let runtime: pg.Pool;
 let app: NestApp;
 let administrator: Awaited<ReturnType<typeof account>>;
 let updateSequence = 0;
+let deliveryTester: Awaited<ReturnType<typeof account>>;
+const deliverySubjects = new Map<Provider, string>();
+const providerFailures = new Set<Provider>();
+const providerRequests: Provider[] = [];
+let ingressMode: 'normal' | 'html' | 'wrong_instance' = 'normal';
+const ingressRequests: string[] = [];
+const SETTINGS_KEY = Buffer.alloc(32, 19);
 
 /** A synthetic browser retains server cookies, including HttpOnly cookies.
  * Tests inspect Set-Cookie; no nonce is obtained from a response JSON field. */
@@ -82,6 +94,8 @@ const syntheticProviderFetch: typeof fetch = async (input, options) => {
     unexpectedFetches.push(`unexpected host ${url.hostname}`);
     throw new Error('Unexpected external request in synthetic provider test');
   }
+  providerRequests.push(provider);
+  if (providerFailures.has(provider)) throw new Error('Synthetic provider network unavailable');
   const method = url.pathname.split('/').at(-1)!;
   const body =
     typeof options?.body === 'string'
@@ -176,7 +190,11 @@ async function visit(
   return response;
 }
 
-async function setProviderEnabled(provider: Provider, enabled: boolean): Promise<void> {
+async function setProviderEnabled(
+  provider: Provider,
+  enabled: boolean,
+  certify = true,
+): Promise<void> {
   const configured = await visit(
     administrator.browser,
     'PUT',
@@ -194,6 +212,7 @@ async function setProviderEnabled(provider: Provider, enabled: boolean): Promise
     availabilityReason: enabled ? 'ready' : 'disabled',
     tokenConfigured: true,
   });
+  if (enabled && certify) await certifyDelivery(provider);
 }
 
 async function setPolicyEnabled(enabled: boolean): Promise<void> {
@@ -310,9 +329,13 @@ async function webhook(provider: Provider, body: Record<string, unknown>, secret
   });
 }
 
-async function startLink(provider: Provider, user: Awaited<ReturnType<typeof account>>) {
-  const started = await visit(user.browser, 'POST', `/api/auth/${provider}/pairing/start`, {
-    purpose: 'link',
+async function startPairing(
+  provider: Provider,
+  browser: BrowserCookies,
+  purpose: 'login' | 'register' | 'link',
+) {
+  const started = await visit(browser, 'POST', `/api/auth/${provider}/pairing/start`, {
+    purpose,
   });
   expect(started.statusCode, started.body).toBe(200);
   const { pairingToken, launchUrl, expiresAt } = started.json();
@@ -343,6 +366,85 @@ async function startLink(provider: Provider, user: Awaited<ReturnType<typeof acc
   };
 }
 
+async function startLink(provider: Provider, user: Awaited<ReturnType<typeof account>>) {
+  return startPairing(provider, user.browser, 'link');
+}
+
+async function approveInBot(
+  provider: Provider,
+  subject: string,
+  pair: Awaited<ReturnType<typeof startPairing>>,
+) {
+  const started = await webhook(
+    provider,
+    webhookUpdate(provider, subject, 'start', pair.botPayload),
+  );
+  expect(started.statusCode, started.body).toBe(200);
+  const confirmation = confirmationButtons.get(`${provider}:${subject}`);
+  expect(confirmation).toBe(`approve:${pair.botPayload}`);
+  const approved = await webhook(
+    provider,
+    webhookUpdate(provider, subject, 'approve', confirmation!),
+  );
+  expect(approved.statusCode, approved.body).toBe(200);
+}
+
+async function checkedConfiguration(provider: Provider) {
+  const response = await visit(
+    administrator.browser,
+    'POST',
+    `/api/admin/v1/integrations/${provider}/check`,
+  );
+  expect(response.statusCode, response.body).toBe(200);
+  return response.json();
+}
+
+async function certifyDelivery(provider: Provider) {
+  let subject = deliverySubjects.get(provider);
+  if (!subject) {
+    subject = String(Number.parseInt(randomBytes(6).toString('hex'), 16));
+    deliverySubjects.set(provider, subject);
+  }
+  const pair = await startLink(provider, deliveryTester);
+  const start = await webhook(provider, webhookUpdate(provider, subject, 'start', pair.botPayload));
+  expect(start.statusCode, start.body).toBe(200);
+  const confirmation = confirmationButtons.get(`${provider}:${subject}`);
+  expect(confirmation).toBe(`approve:${pair.botPayload}`);
+  const approved = await webhook(
+    provider,
+    webhookUpdate(provider, subject, 'approve', confirmation!),
+  );
+  expect(approved.statusCode, approved.body).toBe(200);
+  const consumed = await visit(
+    deliveryTester.browser,
+    'POST',
+    `/api/auth/${provider}/pairing/complete`,
+    { pairingToken: pair.pairingToken },
+  );
+  expect(consumed.statusCode, consumed.body).toBe(200);
+  expect(consumed.json()).toEqual({ status: 'linked', linked: true });
+  expect(await checkedConfiguration(provider)).toMatchObject({
+    available: true,
+    enforcementEligible: true,
+    diagnostics: { nativeConfirmation: { current: true } },
+  });
+}
+
+function signedRawProof(provider: Provider, subject: string) {
+  const fields = new Map<string, string>([
+    ['auth_date', String(Math.floor(Date.now() / 1000))],
+    ['query_id', `synthetic-http-${randomUUID()}`],
+    ['user', JSON.stringify({ id: Number(subject), first_name: 'Synthetic Mini App' })],
+  ]);
+  const data = [...fields.entries()]
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+    .map(([key, value]) => `${key}=${value}`)
+    .join('\n');
+  const secret = createHmac('sha256', 'WebAppData').update(providerBot[provider].token).digest();
+  fields.set('hash', createHmac('sha256', secret).update(data).digest('hex'));
+  return new URLSearchParams(fields).toString();
+}
+
 beforeAll(async () => {
   if (!/^asa_provider_http_[a-f0-9]{32}_test$/.test(databaseName) || databaseName.length > 63)
     throw new Error('Unsafe generated test database name');
@@ -362,9 +464,50 @@ beforeAll(async () => {
     migrationClient.release();
   }
   runtime = new pg.Pool({ connectionString: runtimeUrl.toString(), max: 3 });
-  vi.stubEnv('ASA_SETTINGS_ENCRYPTION_KEY', Buffer.alloc(32, 19).toString('base64url'));
+  vi.stubEnv('ASA_SETTINGS_ENCRYPTION_KEY', SETTINGS_KEY.toString('base64url'));
   vi.stubGlobal('fetch', syntheticProviderFetch);
-  app = await buildTestApp(runtime);
+  const wrongInstance = new BotProviderIngress({ registry: new IngressProbeRegistry() });
+  const ingress = new BotProviderIngress({
+    registry: new IngressProbeRegistry(),
+    resolve: async () => [{ address: '8.8.8.8', family: 4 }],
+    request: async (input) => {
+      ingressRequests.push(input.url.href);
+      if (ingressMode === 'html')
+        return { status: 200, body: '<html>Wrong reverse-proxy route</html>' };
+      if (ingressMode === 'wrong_instance') {
+        const challenge = JSON.parse(input.body);
+        const response = wrongInstance.answer(
+          {
+            provider: challenge.provider,
+            configurationVersion: challenge.configurationVersion,
+            url: input.url.href,
+            key: SETTINGS_KEY,
+          },
+          input.headers[
+            challenge.provider === 'max'
+              ? 'x-max-bot-api-secret'
+              : 'x-telegram-bot-api-secret-token'
+          ],
+          challenge,
+        );
+        return { status: response ? 200 : 401, body: JSON.stringify(response) };
+      }
+      // DNS/TLS is the fake boundary. Actual Nest controller, current DB version,
+      // per-process challenge registry and request/response HMAC all execute.
+      const response = await fastifyOf(app).inject({
+        method: 'POST',
+        url: input.url.pathname,
+        headers: input.headers,
+        payload: input.body,
+      });
+      return { status: response.statusCode, body: response.body };
+    },
+  });
+  app = await createApiApp({
+    pool: runtime,
+    webDist: null,
+    authProviderOptions: { ingress, publicWebOrigins: ['https://asa-http.test'] },
+  });
   administrator = await account();
   await admin.query(
     "INSERT INTO capability_grants (account_id,capability,state,policy_version,granted_by) VALUES ($1,'platform_admin','verified','provider-http-test','admin')",
@@ -392,6 +535,8 @@ beforeAll(async () => {
     expect(configured.body).not.toContain(providerBot[provider].token);
     expect(subscriptions.get(provider)?.secret).toBeTruthy();
   }
+  deliveryTester = await account();
+  for (const provider of PROVIDERS) await certifyDelivery(provider);
   await admin.query(
     "UPDATE account_verification_policy SET activated_at=now()-interval '48 hours' WHERE singleton_key",
   );
@@ -419,6 +564,355 @@ afterAll(async () => {
 });
 
 describe('native provider confirmation through real HTTP and PostgreSQL boundaries', () => {
+  it('keeps only authorized admin recovery checks available to an overdue owner and preserves CSRF and probe authenticity', async () => {
+    const first = (
+      await admin.query('SELECT first_authenticated_at FROM accounts WHERE id=$1', [
+        administrator.id,
+      ])
+    ).rows[0].first_authenticated_at;
+    await makeOverdue(administrator);
+    try {
+      expect((await visit(administrator.browser, 'GET', '/api/account/profile')).statusCode).toBe(
+        403,
+      );
+      const ordinary = await account();
+      const schoolAdmin = await account();
+      const organizationKey = randomUUID().replaceAll('-', '');
+      const tenant = await admin.query(
+        'INSERT INTO tenants(title,workspace_slug) VALUES($1,$2) RETURNING id',
+        ['Provider check school', `provider-check-${organizationKey}`],
+      );
+      const organization = await admin.query(
+        "INSERT INTO workspaces(tenant_id,kind,title) VALUES($1,'organization',$2) RETURNING id",
+        [tenant.rows[0].id, 'Provider check organization'],
+      );
+      const workspaceId = organization.rows[0].id;
+      await admin.query(
+        "INSERT INTO workspace_memberships(account_id,workspace_id,role) VALUES($1,$2,'school_admin')",
+        [schoolAdmin.id, workspaceId],
+      );
+      await admin.query('UPDATE sessions_v2 SET active_workspace_id=$2 WHERE token_hash=$1', [
+        hashSessionToken(schoolAdmin.browser.value('asa_session')!),
+        workspaceId,
+      ]);
+      const schoolScopes = await visit(schoolAdmin.browser, 'GET', '/api/admin/v1/me');
+      expect(schoolScopes.statusCode, schoolScopes.body).toBe(200);
+      expect(schoolScopes.json().scopes).toEqual([
+        expect.objectContaining({ kind: 'organization', id: workspaceId, role: 'school_admin' }),
+      ]);
+      for (const provider of PROVIDERS) {
+        const versionBefore = (
+          await admin.query(
+            'SELECT configuration_version FROM auth_provider_settings WHERE provider=$1',
+            [provider],
+          )
+        ).rows[0].configuration_version;
+        expect(await checkedConfiguration(provider)).toMatchObject({
+          available: true,
+          enforcementEligible: true,
+          configurationVersion: Number(versionBefore),
+        });
+        expect(
+          (
+            await admin.query(
+              'SELECT configuration_version FROM auth_provider_settings WHERE provider=$1',
+              [provider],
+            )
+          ).rows[0].configuration_version,
+        ).toBe(versionBefore);
+        const requestsBefore = providerRequests.length;
+        const probesBefore = ingressRequests.length;
+        const denied = await visit(
+          ordinary.browser,
+          'POST',
+          `/api/admin/v1/integrations/${provider}/check`,
+        );
+        expect(denied.statusCode, denied.body).toBe(403);
+        const nonPlatform = await visit(
+          schoolAdmin.browser,
+          'POST',
+          `/api/admin/v1/integrations/${provider}/check`,
+        );
+        expect(nonPlatform.statusCode, nonPlatform.body).toBe(403);
+        const csrf = await inject(app, {
+          method: 'POST',
+          url: `/api/admin/v1/integrations/${provider}/check`,
+          headers: { cookie: administrator.browser.header(), origin: 'https://unexpected.example' },
+        });
+        expect(csrf.statusCode, csrf.body).toBe(403);
+        const missingOrigin = await fastifyOf(app).inject({
+          method: 'POST',
+          url: `/api/admin/v1/integrations/${provider}/check`,
+          headers: { cookie: administrator.browser.header() },
+        });
+        expect(missingOrigin.statusCode, missingOrigin.body).toBe(403);
+        expect(providerRequests.length).toBe(requestsBefore);
+        expect(ingressRequests.length).toBe(probesBefore);
+        const healthBefore = (
+          await admin.query(
+            'SELECT health_available,health_checked_at,native_confirmation_verified_at FROM auth_provider_settings WHERE provider=$1',
+            [provider],
+          )
+        ).rows[0];
+        const forged = await webhook(
+          provider,
+          {
+            type: 'asa_ingress_probe',
+            protocol: 1,
+            instance: 'i'.repeat(43),
+            provider,
+            configurationVersion: Number(versionBefore),
+            issuedAt: Date.now(),
+            nonce: 'n'.repeat(43),
+          },
+          's'.repeat(43),
+        );
+        expect(forged.statusCode, forged.body).toBe(401);
+        expect(
+          (
+            await admin.query(
+              'SELECT health_available,health_checked_at,native_confirmation_verified_at FROM auth_provider_settings WHERE provider=$1',
+              [provider],
+            )
+          ).rows[0],
+        ).toEqual(healthBefore);
+        expect((await visit(administrator.browser, 'GET', '/api/account/profile')).statusCode).toBe(
+          403,
+        );
+      }
+    } finally {
+      await admin.query('UPDATE accounts SET first_authenticated_at=$2 WHERE id=$1', [
+        administrator.id,
+        first,
+      ]);
+    }
+  });
+
+  it.each(PROVIDERS)(
+    '%s allows its first test but gates overdue Accounts only after callback plus browser consume',
+    async (provider) => {
+      const other = provider === 'max' ? 'telegram' : 'max';
+      await setProviderEnabled(other, false);
+      await setProviderEnabled(provider, true, false);
+      try {
+        const user = await account();
+        await admin.query(
+          "UPDATE accounts SET first_authenticated_at=now()-interval '48 hours' WHERE id=$1",
+          [user.id],
+        );
+        const status = await visit(user.browser, 'GET', '/api/auth/verification');
+        expect(status.json()).toMatchObject({ required: false, reason: 'providers_unverified' });
+        expect((await visit(user.browser, 'GET', '/api/account/profile')).statusCode).toBe(200);
+        const incorrect = await visit(new BrowserCookies(), 'POST', '/api/auth/login', {
+          identifier: user.email,
+          password: 'Incorrect-password-001',
+        });
+        expect(incorrect.statusCode, incorrect.body).toBe(401);
+        const correct = await visit(new BrowserCookies(), 'POST', '/api/auth/login', {
+          identifier: user.email,
+          password: user.password,
+        });
+        expect(correct.statusCode, correct.body).toBe(200);
+        expect(correct.json().verification).toMatchObject({
+          required: false,
+          reason: 'providers_unverified',
+        });
+        const before = await checkedConfiguration(provider);
+        expect(before).toMatchObject({
+          available: true,
+          enforcementEligible: false,
+          enforcementReason: 'delivery_unverified',
+          diagnostics: {
+            token: { state: 'ok' },
+            subscription: { state: 'ok' },
+            ingress: { state: 'ok' },
+            nativeConfirmation: { current: false, configurationVersion: null, verifiedAt: null },
+          },
+        });
+        const subject = String(Number.parseInt(randomBytes(6).toString('hex'), 16));
+        const pair = await startLink(provider, user);
+        expect(
+          (await webhook(provider, webhookUpdate(provider, subject, 'start', pair.botPayload)))
+            .statusCode,
+        ).toBe(200);
+        expect((await checkedConfiguration(provider)).enforcementEligible).toBe(false);
+        const confirmation = confirmationButtons.get(`${provider}:${subject}`)!;
+        expect(confirmation).toBe(`approve:${pair.botPayload}`);
+        expect(
+          (await webhook(provider, webhookUpdate(provider, subject, 'approve', confirmation)))
+            .statusCode,
+        ).toBe(200);
+        expect((await checkedConfiguration(provider)).enforcementEligible).toBe(false);
+        const consumed = await visit(
+          user.browser,
+          'POST',
+          `/api/auth/${provider}/pairing/complete`,
+          { pairingToken: pair.pairingToken },
+        );
+        expect(consumed.statusCode, consumed.body).toBe(200);
+        expect(consumed.json()).toEqual({ status: 'linked', linked: true });
+        const after = await checkedConfiguration(provider);
+        expect(after).toMatchObject({
+          available: true,
+          enforcementEligible: true,
+          enforcementReason: 'ready',
+          configurationVersion: before.configurationVersion,
+          diagnostics: {
+            nativeConfirmation: {
+              current: true,
+              configurationVersion: before.configurationVersion,
+              verifiedAt: expect.any(String),
+            },
+          },
+        });
+        const unverified = await account();
+        await makeOverdue(unverified);
+        expect((await visit(unverified.browser, 'GET', '/api/account/profile')).statusCode).toBe(
+          403,
+        );
+        await setProviderEnabled(provider, true, false);
+        expect(await checkedConfiguration(provider)).toMatchObject({
+          available: true,
+          enforcementEligible: false,
+          diagnostics: {
+            nativeConfirmation: { current: false, configurationVersion: null, verifiedAt: null },
+          },
+        });
+      } finally {
+        await setProviderEnabled(provider, true);
+        await setProviderEnabled(other, true);
+      }
+    },
+  );
+
+  it.each(['html', 'wrong_instance'] as const)(
+    'fails open only the additional gate when public ingress returns %s',
+    async (mode) => {
+      const user = await account();
+      await makeOverdue(user);
+      ingressMode = mode;
+      try {
+        for (const provider of PROVIDERS) {
+          expect(await checkedConfiguration(provider)).toMatchObject({
+            available: false,
+            enforcementEligible: false,
+            diagnostics: { ingress: { state: 'failed', reason: 'ingress_invalid_response' } },
+          });
+        }
+        const status = await visit(user.browser, 'GET', '/api/auth/verification');
+        expect(status.json()).toMatchObject({ required: false, reason: 'providers_unavailable' });
+        expect((await visit(user.browser, 'GET', '/api/account/profile')).statusCode).toBe(200);
+        const invalid = await visit(new BrowserCookies(), 'POST', '/api/auth/login', {
+          identifier: user.email,
+          password: 'Incorrect-password-001',
+        });
+        expect(invalid.statusCode, invalid.body).toBe(401);
+      } finally {
+        ingressMode = 'normal';
+        for (const provider of PROVIDERS)
+          expect((await checkedConfiguration(provider)).enforcementEligible).toBe(true);
+      }
+    },
+  );
+
+  it.each(PROVIDERS)(
+    '%s refuses foreign webhook ownership before any local settings mutation and permits network-free disable',
+    async (provider) => {
+      const subscription = subscriptions.get(provider)!;
+      const before = (
+        await admin.query('SELECT * FROM auth_provider_settings WHERE provider=$1', [provider])
+      ).rows[0];
+      subscriptions.set(provider, { ...subscription, url: 'https://foreign.example/webhook' });
+      try {
+        const rejected = await visit(
+          administrator.browser,
+          'PUT',
+          `/api/admin/v1/integrations/${provider}`,
+          {
+            enabled: true,
+            botUsername: providerBot[provider].username,
+            miniAppUrl: 'https://asa-http.test/new-path',
+            botToken:
+              provider === 'telegram'
+                ? '6102:replacement_synthetic_token_000000'
+                : 'replacement-synthetic-max-token',
+          },
+        );
+        expect(rejected.statusCode, rejected.body).toBe(409);
+        expect(rejected.json().error.code).toBe(`${provider}_webhook_conflict`);
+        expect(
+          (await admin.query('SELECT * FROM auth_provider_settings WHERE provider=$1', [provider]))
+            .rows[0],
+        ).toEqual(before);
+      } finally {
+        subscriptions.set(provider, subscription);
+      }
+      providerFailures.add(provider);
+      const requestsBefore = providerRequests.length;
+      try {
+        const disabled = await visit(
+          administrator.browser,
+          'PUT',
+          `/api/admin/v1/integrations/${provider}`,
+          {
+            enabled: false,
+            botUsername: 'invalid!',
+            miniAppUrl: 'http://127.0.0.1/private',
+            botToken: 'broken',
+          },
+        );
+        expect(disabled.statusCode, disabled.body).toBe(200);
+        expect(disabled.json()).toMatchObject({
+          featureEnabled: false,
+          available: false,
+          tokenConfigured: true,
+          miniAppUrl: before.mini_app_url,
+          tokenFingerprint: before.token_fingerprint,
+        });
+        expect(providerRequests.length).toBe(requestsBefore);
+      } finally {
+        providerFailures.delete(provider);
+        await setProviderEnabled(provider, true);
+      }
+    },
+  );
+
+  it('keeps the existing MAX Mini App HTTP session and link usable independently of native webhook readiness', async () => {
+    await setProviderEnabled('max', true, false);
+    const subscription = subscriptions.get('max')!;
+    subscriptions.delete('max');
+    try {
+      expect(await checkedConfiguration('max')).toMatchObject({
+        available: false,
+        enforcementEligible: false,
+      });
+      const user = await account();
+      const subject = String(Number.parseInt(randomBytes(6).toString('hex'), 16));
+      const config = await visit(user.browser, 'GET', '/api/auth/max/config');
+      expect(config.json()).toMatchObject({ enabled: true });
+      const linked = await visit(user.browser, 'POST', '/api/auth/max/link', {
+        initData: signedRawProof('max', subject),
+      });
+      expect(linked.statusCode, linked.body).toBe(200);
+      expect(linked.json()).toEqual({ linked: true });
+      const entered = await visit(new BrowserCookies(), 'POST', '/api/auth/max/session', {
+        initData: signedRawProof('max', subject),
+      });
+      expect(entered.statusCode, entered.body).toBe(200);
+      expect(entered.json().account.id).toBe(user.id);
+      const receipt = await admin.query(
+        "SELECT native_confirmation_configuration_version,native_confirmation_verified_at FROM auth_provider_settings WHERE provider='max'",
+      );
+      expect(receipt.rows[0]).toEqual({
+        native_confirmation_configuration_version: null,
+        native_confirmation_verified_at: null,
+      });
+    } finally {
+      subscriptions.set('max', subscription);
+      await setProviderEnabled('max', true);
+    }
+  });
+
   it.each(PROVIDERS)(
     '%s links the same restricted Account only after explicit bot approval and the initiating browser nonce',
     async (provider) => {
@@ -503,6 +997,144 @@ describe('native provider confirmation through real HTTP and PostgreSQL boundari
       ]);
       expect(email.rows[0].email_verification_state).toBe('unverified');
       expect(unexpectedFetches).toEqual([]);
+    },
+  );
+
+  it.each(PROVIDERS)(
+    '%s does not replace a password Account with a late anonymous login confirmation',
+    async (provider) => {
+      const original = await account();
+      const other = await account();
+      const subject = String(Number.parseInt(randomBytes(6).toString('hex'), 16));
+      const link = await startLink(provider, original);
+      await approveInBot(provider, subject, link);
+      const linked = await visit(
+        original.browser,
+        'POST',
+        `/api/auth/${provider}/pairing/complete`,
+        {
+          pairingToken: link.pairingToken,
+        },
+      );
+      expect(linked.statusCode, linked.body).toBe(200);
+      expect(linked.json()).toEqual({ status: 'linked', linked: true });
+
+      const browser = new BrowserCookies();
+      const pair = await startPairing(provider, browser, 'login');
+      await approveInBot(provider, subject, pair);
+      const loggedIn = await visit(browser, 'POST', '/api/auth/login', {
+        identifier: other.email,
+        password: other.password,
+      });
+      expect(loggedIn.statusCode, loggedIn.body).toBe(200);
+      expect(loggedIn.json().account.id).toBe(other.id);
+      expect(browser.value(pair.nonceName)).toBe(pair.nonceValue);
+      const beforeOriginal = await sessionCount(original.id);
+      const beforeOther = await sessionCount(other.id);
+      const receiptBefore = (
+        await admin.query(
+          'SELECT native_confirmation_configuration_version,native_confirmation_verified_at FROM auth_provider_settings WHERE provider=$1',
+          [provider],
+        )
+      ).rows[0];
+      const completed = await visit(browser, 'POST', `/api/auth/${provider}/pairing/complete`, {
+        pairingToken: pair.pairingToken,
+      });
+      expect(completed.statusCode, completed.body).toBe(400);
+      expect(completed.json().error.code).toBe(`${provider}_pairing_invalid`);
+      expect(completed.cookies.some((cookie) => cookie.name === 'asa_session')).toBe(false);
+      expect(await sessionCount(original.id)).toBe(beforeOriginal);
+      expect(await sessionCount(other.id)).toBe(beforeOther);
+      expect(await linkedAccounts(provider, subject)).toEqual([original.id]);
+      expect(
+        (
+          await admin.query(
+            'SELECT native_confirmation_configuration_version,native_confirmation_verified_at FROM auth_provider_settings WHERE provider=$1',
+            [provider],
+          )
+        ).rows[0],
+      ).toEqual(receiptBefore);
+      expect(
+        (
+          await admin.query(
+            'SELECT consumed_at FROM auth_provider_pairings WHERE provider=$1 AND token_hash=$2',
+            [provider, hashSessionToken(pair.pairingToken)],
+          )
+        ).rows[0].consumed_at,
+      ).toBeNull();
+      expect((await visit(browser, 'GET', '/api/auth/me')).json().account.id).toBe(other.id);
+    },
+  );
+
+  it.each(PROVIDERS)(
+    '%s rejects a late anonymous profile registration after password login without creating authority',
+    async (provider) => {
+      const other = await account();
+      const browser = new BrowserCookies();
+      const subject = String(Number.parseInt(randomBytes(6).toString('hex'), 16));
+      const pair = await startPairing(provider, browser, 'register');
+      await approveInBot(provider, subject, pair);
+      const pendingProfile = await visit(
+        browser,
+        'POST',
+        `/api/auth/${provider}/pairing/complete`,
+        {
+          pairingToken: pair.pairingToken,
+        },
+      );
+      expect(pendingProfile.statusCode, pendingProfile.body).toBe(200);
+      expect(pendingProfile.json().status).toBe('registration_required');
+      expect(pendingProfile.cookies.some((cookie) => cookie.name === 'asa_session')).toBe(false);
+      const loggedIn = await visit(browser, 'POST', '/api/auth/login', {
+        identifier: other.email,
+        password: other.password,
+      });
+      expect(loggedIn.statusCode, loggedIn.body).toBe(200);
+      expect(loggedIn.json().account.id).toBe(other.id);
+      const beforeAccounts = (await admin.query('SELECT count(*)::integer AS count FROM accounts'))
+        .rows[0].count;
+      const beforeSessions = await sessionCount(other.id);
+      const receiptBefore = (
+        await admin.query(
+          'SELECT native_confirmation_configuration_version,native_confirmation_verified_at FROM auth_provider_settings WHERE provider=$1',
+          [provider],
+        )
+      ).rows[0];
+      const unique = randomUUID().replaceAll('-', '');
+      const registered = await visit(browser, 'POST', `/api/auth/${provider}/pairing/register`, {
+        pairingToken: pair.pairingToken,
+        email: `${unique}@provider-http.test`,
+        username: `r${unique.slice(0, 24)}`,
+        displayName: 'Late synthetic profile',
+        password: `Safe-${unique}-Password`,
+        birthDate: '1990-04-12',
+        country: 'RU',
+      });
+      expect(registered.statusCode, registered.body).toBe(400);
+      expect(registered.json().error.code).toBe(`${provider}_pairing_invalid`);
+      expect(registered.cookies.some((cookie) => cookie.name === 'asa_session')).toBe(false);
+      expect(
+        (await admin.query('SELECT count(*)::integer AS count FROM accounts')).rows[0].count,
+      ).toBe(beforeAccounts);
+      expect(await sessionCount(other.id)).toBe(beforeSessions);
+      expect(await linkedAccounts(provider, subject)).toEqual([]);
+      expect(
+        (
+          await admin.query(
+            'SELECT native_confirmation_configuration_version,native_confirmation_verified_at FROM auth_provider_settings WHERE provider=$1',
+            [provider],
+          )
+        ).rows[0],
+      ).toEqual(receiptBefore);
+      expect(
+        (
+          await admin.query(
+            'SELECT consumed_at FROM auth_provider_pairings WHERE provider=$1 AND token_hash=$2',
+            [provider, hashSessionToken(pair.pairingToken)],
+          )
+        ).rows[0].consumed_at,
+      ).toBeNull();
+      expect((await visit(browser, 'GET', '/api/auth/me')).json().account.id).toBe(other.id);
     },
   );
 

@@ -1,4 +1,5 @@
 import { fetchWithSessionRefresh } from '../session-fetch';
+import { authRequest, authRequestFailure } from '../auth-request';
 import { notifyAccountVerificationRequired } from '../auth-verification';
 import type { AuthProviderAvailabilityReason, SocialAuthProvider } from '../api';
 
@@ -161,6 +162,24 @@ export interface AdminMaxIdentity {
   readonly lastRevokedAt: string | null;
 }
 
+export interface AdminProviderDiagnostic {
+  readonly state: 'not_checked' | 'ok' | 'failed';
+  readonly reason:
+    | 'disabled'
+    | 'not_configured'
+    | 'invalid_token'
+    | 'bot_mismatch'
+    | 'subscription_missing'
+    | 'subscription_mismatch'
+    | 'ingress_invalid_url'
+    | 'ingress_dns_unavailable'
+    | 'ingress_network_unavailable'
+    | 'ingress_invalid_response'
+    | 'unavailable'
+    | null;
+  readonly checkedAt: string | null;
+}
+
 export interface AdminMaxConfiguration {
   readonly enabled: boolean;
   readonly featureEnabled: boolean;
@@ -181,6 +200,18 @@ export interface AdminMaxConfiguration {
   readonly available?: boolean;
   readonly availabilityReason?: AuthProviderAvailabilityReason;
   readonly healthCheckedAt?: string | null;
+  readonly enforcementEligible?: boolean;
+  readonly enforcementReason?: AuthProviderAvailabilityReason | 'delivery_unverified';
+  readonly diagnostics?: {
+    readonly token: AdminProviderDiagnostic;
+    readonly subscription: AdminProviderDiagnostic;
+    readonly ingress: AdminProviderDiagnostic;
+    readonly nativeConfirmation: {
+      readonly current: boolean;
+      readonly configurationVersion: number | null;
+      readonly verifiedAt: string | null;
+    };
+  };
 }
 
 export interface AdminVerificationPolicy {
@@ -378,40 +409,44 @@ export type AdminApiResult<T> =
   | { readonly ok: false; readonly status: number; readonly error: AdminApiError };
 
 export async function call<T>(path: string, init: RequestInit = {}): Promise<AdminApiResult<T>> {
-  let response: Response;
   try {
-    response = await fetchWithSessionRefresh(path, {
-      ...init,
-      method: init.method ?? 'GET',
-      headers: {
-        accept: 'application/json',
-        ...(init.body === undefined ? {} : { 'content-type': 'application/json' }),
-        ...init.headers,
-      },
+    return await authRequest(path, init, async (request): Promise<AdminApiResult<T>> => {
+      const response = await fetchWithSessionRefresh(path, {
+        ...request,
+        method: request.method ?? 'GET',
+        headers: {
+          accept: 'application/json',
+          ...(request.body === undefined ? {} : { 'content-type': 'application/json' }),
+          ...request.headers,
+        },
+      });
+      let body: unknown = null;
+      try {
+        body = await response.json();
+      } catch {
+        // A malformed response is handled below as a stable server error.
+      }
+      request.signal?.throwIfAborted();
+      if (response.ok) return { ok: true, status: response.status, data: body as T };
+      const error = (body as { error?: AdminApiError } | null)?.error ?? {
+        code: 'server_error',
+        message: 'Не удалось выполнить административный запрос.',
+      };
+      if (response.status === 403 && error.code === 'account_verification_required') {
+        notifyAccountVerificationRequired();
+      }
+      return { ok: false, status: response.status, error };
     });
-  } catch {
+  } catch (error) {
     return {
       ok: false,
       status: 0,
-      error: { code: 'network', message: 'Сервер администрирования недоступен.' },
+      error: authRequestFailure(error) ?? {
+        code: 'network',
+        message: 'Сервер администрирования недоступен.',
+      },
     };
   }
-
-  let body: unknown = null;
-  try {
-    body = await response.json();
-  } catch {
-    // A malformed response is handled below as a stable server error.
-  }
-  if (response.ok) return { ok: true, status: response.status, data: body as T };
-  const error = (body as { error?: AdminApiError } | null)?.error ?? {
-    code: 'server_error',
-    message: 'Не удалось выполнить административный запрос.',
-  };
-  if (response.status === 403 && error.code === 'account_verification_required') {
-    notifyAccountVerificationRequired();
-  }
-  return { ok: false, status: response.status, error };
 }
 
 interface AdminListInput {
@@ -437,18 +472,34 @@ function list<T>(path: string, input: AdminListInput): Promise<AdminApiResult<Ad
 }
 
 export const adminApi = {
-  verificationPolicy: () => call<AdminVerificationPolicy>('/api/admin/v1/auth/verification-policy'),
-  updateVerificationPolicy: (enabled: boolean) =>
+  verificationPolicy: (signal?: AbortSignal) =>
+    call<AdminVerificationPolicy>('/api/admin/v1/auth/verification-policy', {
+      ...(signal ? { signal } : {}),
+    }),
+  updateVerificationPolicy: (enabled: boolean, signal?: AbortSignal) =>
     call<AdminVerificationPolicy>('/api/admin/v1/auth/verification-policy', {
       method: 'POST',
       body: JSON.stringify({ enabled }),
+      ...(signal ? { signal } : {}),
     }),
-  authProviderConfiguration: (provider: SocialAuthProvider) =>
-    call<AdminMaxConfiguration>(`/api/admin/v1/integrations/${provider}`),
-  updateAuthProviderConfiguration: (provider: SocialAuthProvider, input: AdminAuthProviderInput) =>
+  authProviderConfiguration: (provider: SocialAuthProvider, signal?: AbortSignal) =>
+    call<AdminMaxConfiguration>(`/api/admin/v1/integrations/${provider}`, {
+      ...(signal ? { signal } : {}),
+    }),
+  checkAuthProviderConfiguration: (provider: SocialAuthProvider, signal?: AbortSignal) =>
+    call<AdminMaxConfiguration>(`/api/admin/v1/integrations/${provider}/check`, {
+      method: 'POST',
+      ...(signal ? { signal } : {}),
+    }),
+  updateAuthProviderConfiguration: (
+    provider: SocialAuthProvider,
+    input: AdminAuthProviderInput,
+    signal?: AbortSignal,
+  ) =>
     call<AdminMaxConfiguration>(`/api/admin/v1/integrations/${provider}`, {
       method: 'PUT',
       body: JSON.stringify(input),
+      ...(signal ? { signal } : {}),
     }),
   me: () => call<AdminProfile>('/api/admin/v1/me'),
   dashboard: (input: {
