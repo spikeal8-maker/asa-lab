@@ -4652,6 +4652,35 @@ parallel_lanes:
           Require independent source review and actual changed-source Scratch CI with
           exact build identity and durable JSON artifacts. Existing failures remain failures;
           no reproduction is NOT_REPRODUCED and does not establish an underlying repair.
+      - id: TASK-PROJ-PUBLICATION-AUTH-AUDIT-COVERAGE-001
+        status: in_progress
+        branch: codex/projects-auth-audit-coverage
+        prepared_base: 33a2790cc8a95181f6fcff613e3a6ec6eaca78fe
+        scope:
+          - apps/api/src/database-diagnostic-contract.json
+        selection: >-
+          Separate C baseline compatibility repair for accepted Auth0219. Actual Coverage
+          run39174033312 fails on both Windows and Linux because the real audit action
+          administration.verification_policy.update is missing from the closed diagnostic
+          enum. Exact current source scans12 migration actions with only this value missing.
+          Preserve the completed Coverage point8 projection and accepted Auth policy.
+        author_coordination: >-
+          One separate author owns this single JSON path after canonical main acceptance.
+          Coverage Issue610 owner handed off source90e09831 and STOP in6251702346.
+          Fresh AUTH-C5-READINESS scope and published4614349 do not change this path;
+          coordination and the single-writer boundary are recorded in Issue1356264235551.
+          Keep provider/backend/UI/installation work with its existing Auth authors and
+          do not modify their files, the existing regression test, Learning, Scratch or GC1.
+        acceptance: >-
+          Add only administration.verification_policy.update to the existing action enum
+          under sources.administrative_audit_events.fields.action.values. Preserve every
+          other enum member and closed projection, unknown-action rejection and omission
+          of private reason/payload fields. The existing dynamic real-migration regression
+          must demonstrate baseline FAIL and candidate PASS without changing its assertions.
+          Require a separate independent exact-source review and the unchanged full
+          Coverage Diagnostics workflow on the new SHA, including both platform collectors
+          and downstream real PostgreSQL integration. No migration, collector algorithm,
+          auth policy, rate-limit, timeout/retry, workflow or deployment/live DB change.
     accepted_foundation:
       accepted_r7_01b_merge_sha: 65316c50873e28a5effd7b6e603b5289e37e2fac
       accepted_r3_merge_sha: 5fa616045b16d2720418eb7945f7bef968dd9389
