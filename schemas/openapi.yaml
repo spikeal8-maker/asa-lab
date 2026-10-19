@@ -2987,8 +2987,12 @@ paths:
                             {
                               'type': 'object',
                               'additionalProperties': false,
-                              'properties': { 'id': { 'type': 'string', 'format': 'uuid' } },
-                              'required': ['id'],
+                              'properties':
+                                {
+                                  'id': { 'type': 'string', 'format': 'uuid' },
+                                  'draftRevision': { 'type': 'integer', 'minimum': 1 },
+                                },
+                              'required': ['id', 'draftRevision'],
                             },
                         },
                     },
@@ -3039,8 +3043,12 @@ paths:
                             {
                               'type': 'object',
                               'additionalProperties': false,
-                              'properties': { 'id': { 'type': 'string', 'format': 'uuid' } },
-                              'required': ['id'],
+                              'properties':
+                                {
+                                  'id': { 'type': 'string', 'format': 'uuid' },
+                                  'draftRevision': { 'type': 'integer', 'minimum': 1 },
+                                },
+                              'required': ['id', 'draftRevision'],
                             },
                         },
                     },
@@ -3260,8 +3268,12 @@ paths:
                             {
                               'type': 'object',
                               'additionalProperties': false,
-                              'properties': { 'id': { 'type': 'string', 'format': 'uuid' } },
-                              'required': ['id'],
+                              'properties':
+                                {
+                                  'id': { 'type': 'string', 'format': 'uuid' },
+                                  'draftRevision': { 'type': 'integer', 'minimum': 1 },
+                                },
+                              'required': ['id', 'draftRevision'],
                             },
                         },
                     },
@@ -3318,8 +3330,12 @@ paths:
                             {
                               'type': 'object',
                               'additionalProperties': false,
-                              'properties': { 'id': { 'type': 'string', 'format': 'uuid' } },
-                              'required': ['id'],
+                              'properties':
+                                {
+                                  'id': { 'type': 'string', 'format': 'uuid' },
+                                  'draftRevision': { 'type': 'integer', 'minimum': 1 },
+                                },
+                              'required': ['id', 'draftRevision'],
                             },
                         },
                     },

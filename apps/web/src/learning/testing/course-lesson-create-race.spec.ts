@@ -935,7 +935,7 @@ it.each(['failed', 'stale'] as const)(
         expect(input.expectedRevision).toBe(2);
         sections.push(testSection('section-2', []));
         revision = 3;
-        return { ok: true, status: 200, data: { id: 'section-2' } };
+        return { ok: true, status: 200, data: { id: 'section-2', draftRevision: revision } };
       });
     const publish = vi.spyOn(api, 'publishCourse').mockResolvedValue({
       ok: true,

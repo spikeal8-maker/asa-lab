@@ -4846,7 +4846,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: first_visible_pg_browser_source_pass_external_gates_pending
+      checkpoint: stage2_general009_integrated_games32_pass_full_general_blocked
       owner_acceptance: pending
       owner_authorization: >-
         Owner's 2026-10-18 implementation assignment delegates the complete Public Projects
@@ -4925,21 +4925,29 @@ parallel_lanes:
         status: in_progress
         prepared_source: 28d1af61107fdee1f4f1a4884a04658bbb16902e
         consumer_observed_evidence: >-
-          Separate General009 consumer review 5573429524 on PR643 exact
-          a23b2cf50f8e1035097967ef80095ca9bb5f33bc is SOURCE PASS and ACTUAL PASS
-          for the retained four-job contract, original six Access artifact paths and
-          separate always summary. General 39265326066 completed 219 migrations,
-          4739 PASS plus 34 SKIP, RLS 16/16, real Access 22/22 and settings 418/418.
-          Actual PG17.7 image-only/model/config/14 ordered rootfs proof and cleanup
-          passed. Summary contains exactly 22 unique passed IDs and retry 0.
-          Source receipt SHA256 ac188c2d4e7566af06bf6a224d40e2253a8d60a16f639b14b5cb6ceec2926837;
-          actual receipt SHA256 01385c51b673b469a2c94018b0c1220993de3eca72a930b93c43cbbe54f9991a.
-          All 32 Games admission PG tests were skipped in that same run because
-          test-runner has no CI environment value. This remains a separate requirement.
-          PR643 now has child 632691d7215a41b0141df0c8a3d57c7ccac44462 merging d193;
-          its six-path scope and unchanged compose.test.yaml are observed, but old
-          a23 source/actual results are not new-head acceptance. External General009,
-          GC1 and D13 authors retain their shared workflow/guard scopes.
+          Historical a23 consumer review 5573429524 is retained as dated evidence.
+          New exact PR643 source 632691d7215a41b0141df0c8a3d57c7ccac44462 has
+          independent SOURCE review 5574033961 and ACTUAL review 5574134455 PASS.
+          Its General 39274158221 passed all four jobs, 220 migrations, Data
+          4818 PASS plus 34 SKIP, separate RLS 16/16, 22 unique Access journeys
+          without skips or retries and all 418 settings cases. Full image/model,
+          PG17.7 config and 14 ordered rootfs, source identities, original six
+          artifact paths, always retention and isolated cleanup were verified.
+          Current-source actual receipt is 55839 bytes, SHA256
+          e9dd669b58154d45e99a2ce989b456d781a361942d583cdf4daa903d4fbfb666.
+          Normal PR643 merge 47524e08f14a1c7c6c11b213063103e652a32c3d has parents
+          fcc9e4c0 plus 632691d7 and independently verified expected tree
+          f1d5e2b3a820f9fbbc023368764bdb561ef438ce. Only the six reviewed source
+          paths changed; accepted Auth and the controller's two documents survive.
+          New post-main General 39280683031 independently passed all four jobs
+          with the same 4818/34/0 Data totals, separate RLS 16, Access 22 and
+          settings 418, complete 220-file catalogs and actual cleanup. Post-main
+          receipt is 53646 bytes, SHA256
+          2920460cbc822fe5b6545b92461115f323cb93395ebf92a773c23fd2158e4246;
+          published PR643 comment 6272837347. On both 632 and 475, Games is
+          0 PASS / 32 SKIP, not a transferred Games acceptance. The separate
+          PR645 result below is different evidence. General009 consumer adoption
+          is accepted; GC1 and D13 guard/source findings remain external and open.
         scope:
           - .github/workflows/spec-validation.yml
           - tools/test_ci_image_transport.py
@@ -5547,8 +5555,67 @@ parallel_lanes:
       - id: TASK-PROJ-PUBLICATION-GAMES-CI-ENVIRONMENT-001
         status: in_progress
         branch: projects/games-admission-ci-environment
-        prepared_base: d1937f7c63c25dbe6551209000f49d2283e9a046
-        checkpoint: bounded_test_runner_ci_passthrough_selected
+        selection_base: d1937f7c63c25dbe6551209000f49d2283e9a046
+        author_base: fcc9e4c0f61cbc12a260e83e62e8107263bf9a2a
+        prepared_base: 47524e08f14a1c7c6c11b213063103e652a32c3d
+        prepared_source: 94f2e18b8e76543f0f6ee5a7eceb0fb6791df54d
+        pr: 645
+        pr_draft: true
+        checkpoint: source_pass_games32_actual_pass_general_failed
+        observed_evidence: >-
+          Separate author froze 262370b52584ab1076904970ac5243dcafda6318 on fcc.
+          The controller copied the exact authored Compose blob onto accepted
+          main475, producing single-parent source94f and tree
+          071397f47eb7395b452c1d8e34473351e9743bfe. Only one CI key was added;
+          all 4282 other files are preserved. Independent SOURCE review
+          5574299924 PASS has a 42987-byte receipt, SHA256
+          36c06e5724dd60564a3277c257957151d49e35f7c5fcd8a8ba215f64825c3737.
+          Independent ACTUAL review 5575121886 records Games PASS and General
+          FAILURE. Its final safe receipt is 102488 bytes, SHA256
+          3986bbaf482452046b51375f5370ad231f5e589af911606d58c6b7c4773ae73d.
+          New General 39282065316 is terminal FAILURE. Its actual test-runner
+          model has CI=true and all 32 original Games PG/HTTP/concurrency cases
+          pass without skips in 10740 ms. Full Data has 4849 PASS / 1 FAIL /
+          2 SKIP across 476 files. Inline tests/portal/rls.spec.ts has 16 PASS;
+          the separate trailing pnpm test:rls is NOT_RUN because the preceding
+          Vitest command failed in the preserved && chain. Governance, Code
+          and Access jobs pass; real Access has 22 unique PASS without retries
+          or skips, settings has 418 unique PASS. Both complete migration
+          validations, 220 migrations including Auth0225, restricted roles,
+          PG17.7 config and all 14 ordered rootfs, source API/Test identities
+          and actual container/volume/network removal remain verified.
+          The one failed Electronics observation-arduino-led bounded complete
+          horizon case in engine-trace-replay.spec.ts:468 exceeded its 5000 ms
+          limit at 5119 ms. No physics equality assertion failure is reported.
+          Its owner scope is Electronics; causal classification is UNRESOLVED,
+          not proven A, B or C. Unchanged source is not causal independence.
+          Locked Vitest 4.1.11 and std-env 4.3.0 source-only inspection found
+          no CI-triggered worker/pool/timeout change for explicit vitest run;
+          actual worker allocation and influence of added workload are unknown.
+          Runner source receipt is 36735 bytes, SHA256
+          6121fecbc7659e926954c7ca2be7fffd1f8bf46543cafaf60a0e99296da280fc.
+          The same case passed at 4536 ms on 632 and 3126 ms on 475; those
+          observations do not prove the new timeout's underlying cause.
+          Portable Delivery 39282065291 separately passed all three jobs:
+          Linux/Windows contracts and actual Linux source-image boot, PG/MinIO
+          backup/restore, restricted-role HTTP login and scoped cleanup.
+          Independent ACTUAL review 5575032133, receipt 41728 bytes, SHA256
+          224c40a937ca1d7d6ea02b2e9a155aa2caee96316bd17661b6e9704bd1627466.
+          Its active transition exception and TRANSITIONAL_NON_COMPLIANT status
+          remain; no full Standard, browser, fresh ZIP or General RLS transfer.
+          Separate Electronics Focused 39282065304 failed before browser when
+          exact Node and Caddy manifests returned public.ecr.aws HTTP429
+          Data limit exceeded. This is infrastructure class D, not a browser
+          verdict or a change to the selected Games source scope. The separate
+          focused receipt is 18885 bytes, SHA256
+          c3b5514a93546fc44061b98e4694682e928ce1fb4a9194b62fc95be43176df01.
+          Existing-owner handoffs are published in Issue280 comment6273695392
+          for the focused infrastructure D and Issue638 comment6273706695 for
+          the causally unresolved General replay timeout. PR645's body now
+          records these terminal results above its original creation history.
+          Observer stop is best-effort; actual PID termination is not attested.
+          Explicit container, volume and network removals are distinct evidence.
+          PR645 remains draft and unmerged pending complete required acceptance.
         scope:
           - compose.test.yaml
         selection: >-
@@ -5607,21 +5674,37 @@ parallel_lanes:
       kind: observed_snapshot
       convergence_baseline_sha: d2b623f3c59b504e60738d24cc8b627dfc7a04d2
       head_sha: null
-      observed_at: '2026-10-19T15:19:42Z'
+      observed_at: '2026-10-19T17:53:55Z'
       main:
         branch: main
-        sha: d1937f7c63c25dbe6551209000f49d2283e9a046
+        sha: cc6c4bf1e753ef617e11932fd36a9fb85b4c5e70
       observation_note: >-
-        Fresh remote main d1937f7c contains the accepted Auth C5 source 4e4ea950 and
-        prior AI, Games, Learning and D13 governance. Independent read-only Auth intake
-        verifies all 54 changed source blobs preserved exactly; the 55th merge path
-        is current.yaml. Source Focused 39267688751 and General 39267688763 are SUCCESS
-        by metadata plus the external canonical handoff, not new Projects actual QA.
-        Post-main Auth Focused 39272633508 is SUCCESS by metadata; main General
-        39272633626 is terminal FAILURE at 15:04:29Z: Access browser step failed and
-        settings step skipped; its other three jobs succeeded. This is metadata only,
-        not a new cause diagnosis or inherited PASS. No current main General run is
-        cancelled by publishing this checkpoint after that terminal result.
+        Observed main cc6c4bf1 is the single-parent Learning course/section-save
+        change over main475. Its eight source paths do not intersect this
+        two-document checkpoint; its new API, CoursesPanel, schema and test
+        blobs are preserved. At this observation, General 39297710485 and
+        Learning 39297755737 are in_progress, metadata only. Source or actual
+        PASS from 632, 475 or 94 is not cc6 acceptance. Publishing this
+        checkpoint must wait for the current main CI terminal barrier.
+        Main475 is the accepted normal General009 merge over the independently
+        reviewed fcc controller checkpoint and accepted Auth C5 main d193.
+        Exact632 SOURCE/ACTUAL reviews and the separate post-main475 actual
+        General009 review all pass. Post-main General 39280683031 and all four
+        jobs are terminal SUCCESS, with 220 migrations, separate RLS16,
+        Access22/settings418, immutable images and actual isolated cleanup.
+        This checkpoint follows that terminal barrier. Games is still 32 SKIP
+        on main475; source94 in draft PR645 has its own actual 32 PASS proof.
+        Full General94 is FAILURE from the Electronics timed replay case;
+        its causal category is unresolved and its existing external ownership
+        is preserved. Inline RLS16 passes, but the trailing standalone RLS
+        command is NOT_RUN. Locked runner-source checks find no CI-specific
+        worker/pool/timeout change for the actual explicit run command, while
+        workload and actual worker allocation remain unknown. No new runtime
+        repair, longer timeout, skip or unchanged CI rerun is selected here.
+        Portable94 has bounded independent ACTUAL PASS, with its active
+        transition exception and full-compliance claim still blocked. The
+        separate Electronics94 manifest429 failure is class D before browser;
+        shared transport/guard correction belongs to the existing GC1 author.
         Coverage635 remains merged with its focused post-main PASS. Learning639 at
         4a651e23 retains independent source and causal actual Learning/General PASS;
         accepted AI636 preserves its three exclusive Learning specs. QR629 remains
@@ -5631,15 +5714,17 @@ parallel_lanes:
         composed exact ffc in draft PR644 has independent composed review 5573134896.
         New Scratch 39269655871 has full actual 57/57 PASS plus contracts/fresh ZIP;
         both durable Abby reports are NOT_REPRODUCED and Recovery schema3 reaches all
-        original assertions and real IndexedDB retention. General 39269657333 separately
-        fails two Access quality-receipt no-mutation checks (C); its other three jobs
-        pass. Required overall acceptance remains pending. No runtime cause is invented.
-        General009 exact a23 has independent consumer SOURCE/ACTUAL PASS in review
-        5573429524; current external PR643 head632 must obtain its own final handoff/CI.
-        Current-source Games32 skips are confirmed independently and a separate bounded
-        compose.test.yaml-only pass-through task is selected above. General workflow
-        and the still-unclosed GC1/D13 guard stay with their existing external authors.
-        GC1 fe70 and D13 f967 preserve the same Compose blob; no guard repair is implied.
+        original assertions and real IndexedDB retention. ACTUAL review 5573987710
+        is published. Its old General 39269657333 remains FAILURE from the two
+        UUID fixture errors; the accepted General009 slice addresses their proven
+        cause, without turning old ffc into new combined-source acceptance.
+        GC1 fe70 has no corrected frozen scanner/ordered-argument handoff.
+        D13 f967 actual Classroom 39271296982 has 164 PASS / 6 FAIL and Strict
+        39271290925 has 161 PASS / 9 FAIL, each 170 unique cases without skips
+        or retries. Build/PG startup completed before those browser assertions;
+        cleanup completed afterward. Independent matrix and cause limits were delivered to the
+        existing owner in Issue638 comment6271625706. Product versus observer
+        cause and the last type annotation's causal role remain unproved.
         PR613 remains unchanged at 662c8af4fbffead0f71b2fb95a4e9768d0c4b9fb; its single
         final composition has not started. Require fresh fetch main and scoped overlap
         checks before the one final composition. Historical publication 39154885397 evidence

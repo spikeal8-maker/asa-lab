@@ -2590,7 +2590,7 @@ export const api = {
       requestId?: string;
     },
   ) =>
-    call<{ id: string }>(
+    call<{ id: string; draftRevision: number }>(
       courseId ? `/api/courses/${encodeURIComponent(courseId)}` : '/api/courses',
       {
         method: courseId ? 'PATCH' : 'POST',
@@ -2653,7 +2653,7 @@ export const api = {
     sectionId: string | null,
     input: { title: string; summary: string | null; expectedRevision: number },
   ) =>
-    call<{ id: string }>(
+    call<{ id: string; draftRevision: number }>(
       sectionId
         ? `/api/courses/${encodeURIComponent(courseId)}/sections/${encodeURIComponent(sectionId)}`
         : `/api/courses/${encodeURIComponent(courseId)}/sections`,

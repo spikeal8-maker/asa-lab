@@ -60,6 +60,105 @@ function controller(
 }
 
 describe('course outline API', () => {
+  it.each(['create', 'update'] as const)(
+    'returns the exact course %s revision from the guarded save receipt',
+    async (action) => {
+      const target = controller([{ result_code: 'ok', id: COURSE_ID, draft_revision: '8' }]);
+      const input = {
+        title: 'Saved metadata',
+        summary: 'Saved description',
+        expectedRevision: 7,
+        requestId: 'course-metadata-save-0001',
+      };
+      const result =
+        action === 'create'
+          ? target.value.create(request(), input)
+          : target.value.update(request(), COURSE_ID, input);
+      await expect(result).resolves.toEqual({ id: COURSE_ID, draftRevision: 8 });
+      expect(target.query).toHaveBeenCalledTimes(1);
+      expect(target.query).toHaveBeenCalledWith(expect.stringContaining('course_save_v2'), [
+        'principal-id',
+        'tenant-id',
+        action === 'create' ? null : COURSE_ID,
+        input.title,
+        input.summary,
+        null,
+        null,
+        7,
+        input.requestId,
+      ]);
+    },
+  );
+
+  it.each([undefined, null, 0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1])(
+    'does not acknowledge a course save with invalid revision %s',
+    async (draftRevision) => {
+      const target = controller([
+        { result_code: 'ok', id: COURSE_ID, draft_revision: draftRevision },
+      ]);
+      await expect(
+        target.value.update(request(), COURSE_ID, {
+          title: 'Saved metadata',
+          summary: null,
+          expectedRevision: 7,
+          requestId: 'course-metadata-save-0002',
+        }),
+      ).rejects.toMatchObject({
+        status: 503,
+        response: { error: { code: 'draft_revision_missing' } },
+      });
+      expect(target.query).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it.each(['create', 'update'] as const)(
+    'returns the section %s revision before committing its locked mutation',
+    async (action) => {
+      const target = controller([{ id: SECTION_ID }]);
+      const input = { title: 'Saved section', summary: 'Saved description', expectedRevision: 1 };
+      const result =
+        action === 'create'
+          ? target.value.createSection(request(), COURSE_ID, input)
+          : target.value.updateSection(request(), COURSE_ID, SECTION_ID, input);
+      await expect(result).resolves.toEqual({ id: SECTION_ID, draftRevision: 3 });
+      expect(target.query.mock.calls.map(([sql]) => sql)).toEqual([
+        'BEGIN',
+        'SELECT course_draft_lock($1,$2,$3) AS ok',
+        expect.stringContaining('course_section_save'),
+        'SELECT course_draft_revision($1,$2) AS draft_revision',
+        'COMMIT',
+      ]);
+    },
+  );
+
+  it('rolls back a section save when its exact revision receipt is missing', async () => {
+    const target = controller();
+    target.query.mockImplementation(async (sql) => ({
+      rows: sql.includes('course_draft_lock')
+        ? [{ ok: true }]
+        : sql.includes('course_section_save')
+          ? [{ id: SECTION_ID }]
+          : [],
+    }));
+    await expect(
+      target.value.createSection(request(), COURSE_ID, {
+        title: 'Saved section',
+        summary: null,
+        expectedRevision: 1,
+      }),
+    ).rejects.toMatchObject({
+      status: 503,
+      response: { error: { code: 'draft_revision_missing' } },
+    });
+    expect(target.query.mock.calls.map(([sql]) => sql)).toEqual([
+      'BEGIN',
+      'SELECT course_draft_lock($1,$2,$3) AS ok',
+      expect.stringContaining('course_section_save'),
+      'SELECT course_draft_revision($1,$2) AS draft_revision',
+      'ROLLBACK',
+    ]);
+  });
+
   it('copies only an explicitly viewed release and returns its durable replay receipt', async () => {
     const target = controller([
       {
