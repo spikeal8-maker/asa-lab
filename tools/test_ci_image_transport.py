@@ -236,13 +236,15 @@ def electronics_contract(contract, original, effective):
 
 
 QUALIFICATION_PROFILE = "${{ inputs.qualification_profile || 'strict-real-time' }}"
-QUALIFICATION_GATE = ("${{ inputs.qualification_profile == 'classroom-d13-v2' && "
+QUALIFICATION_GATE = ("${{ inputs.qualification_profile == 'classroom-d13-v3' && "
+                      "'gate:electronics-classroom-d13-v3:browser' || "
+                      "inputs.qualification_profile == 'classroom-d13-v2' && "
                       "'gate:electronics-classroom-d13:browser' || 'gate:electronics-m1:browser' }}")
 QUALIFICATION_TEST = {"run": "pnpm exec vitest run tests/electronics/classroom-qualification.spec.ts --maxWorkers=1"}
 QUALIFICATION_INPUT = {"inputs": {"qualification_profile": {
     "description": "Explicit browser qualification; strict real-time remains the default",
     "required": False, "type": "choice", "default": "strict-real-time",
-    "options": ["strict-real-time", "classroom-d13-v2"]}}}
+    "options": ["strict-real-time", "classroom-d13-v2", "classroom-d13-v3"]}}}
 QUALIFICATION_RUNNER = "tools/run-electronics-classroom-browser.mjs"
 QUALIFICATION_SUITE = ["e2e/electronics-simulation.spec.ts", "e2e/electronics-interactions.spec.ts",
     "e2e/electronics-simulation-time.spec.ts", "e2e/electronics-piezo-clock.spec.ts",
@@ -251,7 +253,7 @@ QUALIFICATION_SUITE = ["e2e/electronics-simulation.spec.ts", "e2e/electronics-in
 
 
 def qualification_contract(contract):
-    """Select two named qualifications of the same complete Electronics suite."""
+    """Select three explicit qualifications of the same complete Electronics suite."""
     contract = deepcopy(contract)
     contract["required_triggers"]["workflow_dispatch"] = deepcopy(QUALIFICATION_INPUT)
     paths = contract["required_triggers"]["pull_request"]["paths"]
@@ -286,8 +288,9 @@ def qualification_contract(contract):
 
 def check_qualification_package(package):
     scripts = package.get("scripts", {})
-    require(scripts.get("gate:electronics-classroom-d13:browser") == "node " + QUALIFICATION_RUNNER,
-            "Missing or changed named classroom browser gate")
+    for entrypoint in ["gate:electronics-classroom-d13:browser", "gate:electronics-classroom-d13-v3:browser"]:
+        require(scripts.get(entrypoint) == "node " + QUALIFICATION_RUNNER,
+                "Missing or changed named classroom browser gate: " + entrypoint)
     # Preserve all existing cases and harmless additive test registration. A
     # grep, retry, shell suffix or subset is never a complete qualification.
     for name in ["e2e:electronics", "e2e:electronics-simulation"]:
@@ -407,7 +410,8 @@ def check_workflow(path, contract, receipt, general_node, electronics):
             if not classroom_browser:
                 require("ASA_ELECTRONICS_QUALIFICATION_PROFILE" not in command
                         and "ASA_ELECTRONICS_BROWSER_GATE" not in command
-                        and "gate:electronics-classroom-d13:browser" not in command,
+                        and "gate:electronics-classroom-d13:browser" not in command
+                        and "gate:electronics-classroom-d13-v3:browser" not in command,
                         "Qualification command outside selected Electronics browser job: " + job_id)
             if not selected:
                 require(GENERAL_OVERLAY_NAME not in command and "--general-" not in command
@@ -1105,7 +1109,7 @@ def check_electronics_challenges(receipt):
 
 
 def check_qualification_challenges(receipt):
-    """Keep the two exact profiles explicit and every mandatory gate binding."""
+    """Keep all three exact profiles explicit and every mandatory gate binding."""
     from contextlib import redirect_stdout
     from io import StringIO
     from unittest.mock import patch
@@ -1132,6 +1136,10 @@ def check_qualification_challenges(receipt):
     for name, mutate in [
         ("classroom cannot become default", lambda w: w["on"]["workflow_dispatch"]["inputs"]["qualification_profile"].update({"default": "classroom-d13-v2"})),
         ("unknown profile cannot be offered", lambda w: w["on"]["workflow_dispatch"]["inputs"]["qualification_profile"]["options"].append("unknown")),
+        ("v3 cannot become default", lambda w: w["on"]["workflow_dispatch"]["inputs"]["qualification_profile"].update({"default": "classroom-d13-v3"})),
+        ("historical v2 remains selectable", lambda w: w["on"]["workflow_dispatch"]["inputs"]["qualification_profile"]["options"].remove("classroom-d13-v2")),
+        ("v3 remains separately selectable", lambda w: w["on"]["workflow_dispatch"]["inputs"]["qualification_profile"]["options"].remove("classroom-d13-v3")),
+        ("v3 cannot select the historical v2 gate", lambda w: w["jobs"]["browser"]["env"].update({"ASA_ELECTRONICS_BROWSER_GATE": QUALIFICATION_GATE.replace("gate:electronics-classroom-d13-v3:browser", "gate:electronics-classroom-d13:browser")})),
         ("profile must be a choice", lambda w: w["on"]["workflow_dispatch"]["inputs"]["qualification_profile"].update({"type": "string"})),
         ("profile is optional with strict default", lambda w: w["on"]["workflow_dispatch"]["inputs"]["qualification_profile"].update({"required": True})),
         ("profile must be named in evidence run", lambda w: w.pop("run-name")),
@@ -1159,18 +1167,19 @@ def check_qualification_challenges(receipt):
         require(old in source[FOCUSED], "Challenge selector missing: " + name)
         challenge(name, {FOCUSED: source[FOCUSED].replace(old, new)})
     original_package = json.loads(source["package.json"])
-    for name, value in [
-        ("missing named classroom gate", None),
-        ("classroom gate cannot select subset", "playwright test e2e/electronics-classroom-timing.spec.ts"),
-        ("classroom gate cannot swallow failure", "node " + QUALIFICATION_RUNNER + " || true"),
-        ("classroom gate cannot add filters", "node " + QUALIFICATION_RUNNER + " --grep D13"),
-    ]:
-        changed = deepcopy(original_package)
-        if value is None:
-            changed["scripts"].pop("gate:electronics-classroom-d13:browser")
-        else:
-            changed["scripts"]["gate:electronics-classroom-d13:browser"] = value
-        challenge(name, {"package.json": json.dumps(changed)})
+    for entrypoint in ["gate:electronics-classroom-d13:browser", "gate:electronics-classroom-d13-v3:browser"]:
+        for name, value in [
+            ("missing named classroom gate", None),
+            ("classroom gate cannot select subset", "playwright test e2e/electronics-classroom-timing.spec.ts"),
+            ("classroom gate cannot swallow failure", "node " + QUALIFICATION_RUNNER + " || true"),
+            ("classroom gate cannot add filters", "node " + QUALIFICATION_RUNNER + " --grep D13"),
+        ]:
+            changed = deepcopy(original_package)
+            if value is None:
+                changed["scripts"].pop(entrypoint)
+            else:
+                changed["scripts"][entrypoint] = value
+            challenge(entrypoint + ": " + name, {"package.json": json.dumps(changed)})
     for alias in ["e2e:electronics", "e2e:electronics-simulation"]:
         for case in QUALIFICATION_SUITE:
             changed = deepcopy(original_package)

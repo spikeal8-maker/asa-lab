@@ -7313,7 +7313,10 @@ test('real editor recalculates SPDT, resistor and LED without waiting for persis
     'off',
   );
   await expect(diagnostic(page, 'led-5mm', 'led-diagnostic-badge')).toHaveCount(0);
-  await expect(led.locator('image:not([filter])')).toHaveAttribute('href', /led_red_i000\.svg$/);
+  await expect(led.locator('image:not([filter])').first()).toHaveAttribute(
+    'href',
+    /led_red_i000\.svg$/,
+  );
   await switchComponent.getByTestId('spdt-actuator').click();
   await expect(switchComponent).toHaveClass(/workbench-component-actuator-active/);
   const colourBrightness = new Map<string, number>();
@@ -7329,7 +7332,7 @@ test('real editor recalculates SPDT, resistor and LED without waiting for persis
     await switchComponent.getByTestId('spdt-actuator').click();
     await selectLed(page);
     await expect.poll(() => brightnessValue(page)).toBeGreaterThan(0);
-    await expect(led.locator('image:not([filter])')).toHaveAttribute(
+    await expect(led.locator('image:not([filter])').first()).toHaveAttribute(
       'href',
       new RegExp(`led_${colour}_i(?!000)\\d{3}\\.svg$`),
     );
@@ -7348,7 +7351,7 @@ test('real editor recalculates SPDT, resistor and LED without waiting for persis
     'lit',
   );
   await expect(diagnostic(page, 'led-5mm', 'led-diagnostic-badge')).toHaveCount(0);
-  await expect(led.locator('image:not([filter])')).not.toHaveAttribute(
+  await expect(led.locator('image:not([filter])').first()).not.toHaveAttribute(
     'href',
     /led_red_i000\.svg$/,
   );
@@ -7481,7 +7484,7 @@ test('real editor recalculates SPDT, resistor and LED without waiting for persis
   await selectLed(page);
   await expect.poll(() => brightnessValue(page)).toBe(0);
   await expect(led).not.toHaveAttribute('data-diagnostics', /reverse_polarity/);
-  await expect(led.locator('image:not([filter])')).toHaveAttribute(
+  await expect(led.locator('image:not([filter])').first()).toHaveAttribute(
     'href',
     /special\/led_red_reverse_polarity\.svg$/,
   );
@@ -7506,7 +7509,7 @@ test('real editor recalculates SPDT, resistor and LED without waiting for persis
     'data-led-runtime-state',
     'stopped',
   );
-  await expect(led.locator('image:not([filter])')).not.toHaveAttribute(
+  await expect(led.locator('image:not([filter])').first()).not.toHaveAttribute(
     'href',
     /special\/led_red_burned\.svg$/,
   );
@@ -7557,7 +7560,7 @@ test('real editor recalculates SPDT, resistor and LED without waiting for persis
   }
   try {
     await expect(led).toHaveAttribute('data-diagnostics', /led_burnout/);
-    await expect(led.locator('image:not([filter])')).toHaveAttribute(
+    await expect(led.locator('image:not([filter])').first()).toHaveAttribute(
       'href',
       /special\/led_red_burned\.svg$/,
     );
@@ -7873,7 +7876,7 @@ test('a direct 3 V / 166 ohm LED branch stays lit beside loose editor parts', as
     )
     .toBeGreaterThan(40);
   await expect(workingLed).not.toHaveAttribute('data-diagnostics', /numerical_instability/);
-  await expect(workingLed.locator('image:not([filter])')).not.toHaveAttribute(
+  await expect(workingLed.locator('image:not([filter])').first()).not.toHaveAttribute(
     'href',
     /led_red_i000\.svg$/,
   );

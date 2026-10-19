@@ -456,16 +456,17 @@ NX_SKIP_NX_CACHE=true. Required classroom acceptance commands are:
 
 - pnpm gate:electronics-m1
 - pnpm benchmark:electronics:ci
-- pnpm gate:electronics-classroom-d13:browser
+- pnpm gate:electronics-classroom-d13-v3:browser
 - pnpm gate:repository
 
 The separately named classroom command is now composed with the complete suite
 and the reviewed focused workflow. Also run pnpm gate:electronics-m1:browser
 under strict-real-time on the same exact source and preserve its actual result.
-The active implementation remains the explicit revision-2 qualification until
-the separately frozen revision-3 inventory and source are composed. Each
-version permits only its enumerated separation; a strict non-realtime failure
-remains a finding to resolve, not a waived result.
+The active implementation is the independently reviewed explicit revision-3
+qualification, composed below. Revision2 and strict remain executable with
+their original behavior and historical outcomes. Each version permits only its
+enumerated separation; a strict non-realtime failure remains a finding to
+resolve, not a waived result.
 All binding classroom assertions must execute and pass, including the downstream
 assertions that a strict absolute-rate failure may have prevented from running.
 This composition checkpoint is not browser acceptance or permission to deploy.
@@ -573,3 +574,59 @@ arbitrary helper split, debt deletion or full checkpoint reset is authorized by
 this maintenance amendment. The three existing Issue641 documentation paths
 remain its complete author scope; final matching-source routing/governance and
 independent baseline/evidence review remain required.
+
+## Reviewed revision 3 composition awaiting actual browser acceptance
+
+The controller composed the separately approved causal product/native repair2,
+the nine exact active-image consumer amendments, the two-call test-spy retention
+repair, the bounded Issue641 documentation review, and qualification-v3-r2 on
+accepted main47524e08f14a1c7c6c11b213063103e652a32c3d. This is one D13 candidate;
+no browser acceptance, integrated release or running-site update is asserted.
+
+Qualification source manifest:
+bc4b37b8a1a8bf21cb645d53da80a471476122145130033a70387c46d877ba3d.
+Full six-file patch:
+1391c53a10001ded41bbbc8d98483b735f385d00a0b8a78e7ad3c7f8586da6aa.
+Independent exact-source review SHA256: d9001c8a8b9d0c89d24969d10db20f6556f2b556d41ebd80be578a8425357682.
+Supporting exact38-site timing review:
+fba16c5af78586cf7fa677f68f67c5863fba9a4df865a8ec635755ca20913447.
+
+The distinct active command is pnpm gate:electronics-classroom-d13-v3:browser.
+The strict default and previous v2 command are retained. Independently fixed
+wall-duration normalization0.5 applies only to the38 selected comparisons with
+all their original numeric bounds, operators and array elements. Only the three
+selected acquisitions use10seconds and retain their original5second outcomes.
+The full170-case suite, original R2/native observers and all binding physical,
+duty, order, lifecycle, raw-wall50ms publication and Reset bounds remain.
+
+The first qualification source remains rejected for Q3-SOURCE-HIGH-001, with
+original failure receipt af922024e48ec6443510b4db9dfa5338bafeaaa7eedfb2630783491bc3066534.
+Repair2 preserves an actually reached failed acquisition separately from missing
+qualified evidence. Unknown provenance remains null, invalid evidence cannot
+pass, and the original wait rejection survives artifact retention. This is a
+repair to evidence truthfulness and does not relax product acceptance.
+
+Actual official qualification receipt SHA256: a9a7844ca4ac4b7872ca0808dfa43e6280bc15b51a8189cbc4e7da87ee7384af.
+It records exact patch application and formatter-only patch
+f81f933b9e6706962e9216eac416db37a32ecb0305059aecc13f7229bde507a2, the official Node22/Vitest qualification
+suite, and official image-transport guard plus its complete self-test. All
+recorded steps passed on source tree 5bac1559b33c06980d83acee69ba6adfe7e407e9.
+Independent formatter linkage is attached separately before publication.
+
+The nine formatted product/test sources retain source approval49d5423f and
+independent format review8e4acf5a. Actual product receiptc79cbd1c records238of238
+targeted tests and six freshly executed web:typecheck tasks with
+NX_SKIP_NX_CACHE=true. Issue641 independent final diff381f418f and actual
+receipt4799b73c record the exact two-doc baseline, targeted routing, full114of114
+routing and GovernancePASS. Neither source checks nor this bounded maintenance
+review substitute for new browser evidence or a full hygiene checkpoint.
+
+Publish one exact composed SHA for the complete classroom-v3 browser run and a
+separate actual strict run, focused, benchmark and General CI. Preserve every
+original run and full artifact prefix; no filtered retry is selected. A NEW
+independent source-and-native-browser verdict must link that SHA to visible
+delay100/150/200/300 and asymmetric100/300 results, source edits, Reset, Save,
+reopen, wiring/current controls and sustained behavior before normal main
+integration. Historical f967 classroom164PASS/6FAIL, strict161PASS/9FAIL and
+GeneralFAIL remain unchanged. After accepted D13 integration immediately select
+D2-D4; main and installation deployment remain separate actions.

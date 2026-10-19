@@ -97,14 +97,20 @@ let ownerQualificationLedger: OwnerQualificationLedger | null = null;
 function ownerQualificationProfile(
   value: string | undefined,
   entrypoint?: string,
-): OwnerQualificationProfile {
+): OwnerQualificationProfile | 'classroom-d13-v3' {
   const profile = value === undefined ? 'strict-real-time' : value;
-  if (profile !== 'strict-real-time' && profile !== 'classroom-d13-v2')
+  if (
+    profile !== 'strict-real-time' &&
+    profile !== 'classroom-d13-v2' &&
+    profile !== OWNER_V3_PROFILE
+  )
     throw new Error(`Unknown Electronics qualification profile: ${value}`);
   if (
     profile === 'classroom-d13-v2'
       ? entrypoint !== 'gate:electronics-classroom-d13:browser'
-      : entrypoint !== undefined
+      : profile === OWNER_V3_PROFILE
+        ? entrypoint !== OWNER_V3_ENTRYPOINT
+        : entrypoint !== undefined
   )
     throw new Error(
       'Classroom qualification requires its named runner; ambient profile cannot change the strict gate.',
@@ -250,6 +256,1146 @@ function recordOwnerMillisAcquisition(
   };
   ledger.entries.push(entry);
   return entry;
+}
+
+// Revision 3 is an independently fixed qualification, not a product setting.
+// Raw browser timestamps, native witnesses and electrical times stay untouched.
+const OWNER_V3_PROFILE = 'classroom-d13-v3';
+const OWNER_V3_ENTRYPOINT = 'gate:electronics-classroom-d13-v3:browser';
+const OWNER_V3_PACE = 0.5;
+const OWNER_V3_REGISTRY_REVISION =
+  'e0e6b912853c5c5650f2dc2d6eab4ecb234f73b14c7491a631154e30b956b017';
+type OwnerV3Dimensions = Readonly<Record<string, string | number | readonly number[]>>;
+type OwnerV3Site = {
+  site: string;
+  title: string;
+  stage: string;
+  kind: 'absolute-wall-model' | 'wall-range' | 'wall-range-array' | 'wall-upper-bound-array';
+  dimensions: OwnerV3Dimensions;
+  bounds: { minimumMs?: number; maximumMs?: number; absoluteDeltaMaximumMs?: number };
+};
+type OwnerV3AcquisitionSite = {
+  site: string;
+  title: string;
+  stage: string;
+  horizonMicroseconds: number;
+  dimensions: OwnerV3Dimensions;
+};
+function freezeOwnerV3<T>(value: T): T {
+  if (value !== null && typeof value === 'object') {
+    for (const child of Object.values(value)) freezeOwnerV3(child);
+    Object.freeze(value);
+  }
+  return value;
+}
+const OWNER_V3_TIMING_SITES: readonly OwnerV3Site[] = freezeOwnerV3([
+  {
+    site: 'owner-blink-100-dom-wall-model',
+    title:
+      'Owner Arduino timing: blink delay 100 ms, complete ready frames and real LED transitions',
+    stage: 'blink-100',
+    kind: 'absolute-wall-model',
+    dimensions: { delayMs: 100 },
+    bounds: { absoluteDeltaMaximumMs: 250 },
+  },
+  {
+    site: 'owner-blink-100-dom-mean-period',
+    title:
+      'Owner Arduino timing: blink delay 100 ms, complete ready frames and real LED transitions',
+    stage: 'blink-100',
+    kind: 'wall-range',
+    dimensions: { delayMs: 100 },
+    bounds: { minimumMs: 150.0, maximumMs: 250.0 },
+  },
+  {
+    site: 'owner-blink-100-dom-transition-gaps',
+    title:
+      'Owner Arduino timing: blink delay 100 ms, complete ready frames and real LED transitions',
+    stage: 'blink-100',
+    kind: 'wall-upper-bound-array',
+    dimensions: { delayMs: 100 },
+    bounds: { maximumMs: 300 },
+  },
+  {
+    site: 'owner-blink-100-dom-half-durations',
+    title:
+      'Owner Arduino timing: blink delay 100 ms, complete ready frames and real LED transitions',
+    stage: 'blink-100',
+    kind: 'wall-range-array',
+    dimensions: { delayMs: 100, surface: 'dom' },
+    bounds: { minimumMs: 50.0, maximumMs: 200 },
+  },
+  {
+    site: 'owner-blink-100-paint-half-durations',
+    title:
+      'Owner Arduino timing: blink delay 100 ms, complete ready frames and real LED transitions',
+    stage: 'blink-100',
+    kind: 'wall-range-array',
+    dimensions: { delayMs: 100, surface: 'paint' },
+    bounds: { minimumMs: 50.0, maximumMs: 200 },
+  },
+  {
+    site: 'owner-blink-100-paint-wall-model',
+    title:
+      'Owner Arduino timing: blink delay 100 ms, complete ready frames and real LED transitions',
+    stage: 'blink-100',
+    kind: 'absolute-wall-model',
+    dimensions: { delayMs: 100 },
+    bounds: { absoluteDeltaMaximumMs: 250 },
+  },
+  {
+    site: 'owner-blink-50-dom-wall-model',
+    title:
+      'Owner Arduino timing: blink delay 50 ms, complete ready frames and real LED transitions',
+    stage: 'blink-50',
+    kind: 'absolute-wall-model',
+    dimensions: { delayMs: 50 },
+    bounds: { absoluteDeltaMaximumMs: 250 },
+  },
+  {
+    site: 'owner-blink-50-dom-mean-period',
+    title:
+      'Owner Arduino timing: blink delay 50 ms, complete ready frames and real LED transitions',
+    stage: 'blink-50',
+    kind: 'wall-range',
+    dimensions: { delayMs: 50 },
+    bounds: { minimumMs: 75.0, maximumMs: 125.0 },
+  },
+  {
+    site: 'owner-blink-50-dom-transition-gaps',
+    title:
+      'Owner Arduino timing: blink delay 50 ms, complete ready frames and real LED transitions',
+    stage: 'blink-50',
+    kind: 'wall-upper-bound-array',
+    dimensions: { delayMs: 50 },
+    bounds: { maximumMs: 150 },
+  },
+  {
+    site: 'owner-blink-50-dom-half-durations',
+    title:
+      'Owner Arduino timing: blink delay 50 ms, complete ready frames and real LED transitions',
+    stage: 'blink-50',
+    kind: 'wall-range-array',
+    dimensions: { delayMs: 50, surface: 'dom' },
+    bounds: { minimumMs: 25.0, maximumMs: 100 },
+  },
+  {
+    site: 'owner-blink-50-paint-half-durations',
+    title:
+      'Owner Arduino timing: blink delay 50 ms, complete ready frames and real LED transitions',
+    stage: 'blink-50',
+    kind: 'wall-range-array',
+    dimensions: { delayMs: 50, surface: 'paint' },
+    bounds: { minimumMs: 25.0, maximumMs: 100 },
+  },
+  {
+    site: 'owner-blink-50-paint-wall-model',
+    title:
+      'Owner Arduino timing: blink delay 50 ms, complete ready frames and real LED transitions',
+    stage: 'blink-50',
+    kind: 'absolute-wall-model',
+    dimensions: { delayMs: 50 },
+    bounds: { absoluteDeltaMaximumMs: 250 },
+  },
+  {
+    site: 'no-delay-execution-wall-model',
+    title: 'Owner Arduino execution: no-delay realtime, production frames and painted LEDs',
+    stage: 'no-delay realtime',
+    kind: 'absolute-wall-model',
+    dimensions: {},
+    bounds: { absoluteDeltaMaximumMs: 250 },
+  },
+  {
+    site: 'independent-ports-execution-wall-model',
+    title: 'Owner Arduino execution: independent ports, production frames and painted LEDs',
+    stage: 'independent ports',
+    kind: 'absolute-wall-model',
+    dimensions: {},
+    bounds: { absoluteDeltaMaximumMs: 250 },
+  },
+  {
+    site: 'independent-ports-led0-high-periods',
+    title: 'Owner Arduino execution: independent ports, production frames and painted LEDs',
+    stage: 'independent ports',
+    kind: 'wall-range-array',
+    dimensions: { ledIndex: 0, arduinoPin: 13 },
+    bounds: { minimumMs: 225, maximumMs: 375 },
+  },
+  {
+    site: 'independent-ports-led1-high-periods',
+    title: 'Owner Arduino execution: independent ports, production frames and painted LEDs',
+    stage: 'independent ports',
+    kind: 'wall-range-array',
+    dimensions: { ledIndex: 1, arduinoPin: 12 },
+    bounds: { minimumMs: 225, maximumMs: 375 },
+  },
+  {
+    site: 'independent-ports-led2-high-periods',
+    title: 'Owner Arduino execution: independent ports, production frames and painted LEDs',
+    stage: 'independent ports',
+    kind: 'wall-range-array',
+    dimensions: { ledIndex: 2, arduinoPin: 11 },
+    bounds: { minimumMs: 225, maximumMs: 375 },
+  },
+  {
+    site: 'blockly-100-temporal-wall-model',
+    title:
+      'Owner Arduino Blockly: visible default wait edits 100/50/1 ms, real light and cookies-only reopen',
+    stage: 'blockly-100',
+    kind: 'absolute-wall-model',
+    dimensions: { halfMs: 100, stageOrder: [100, 50, 1] },
+    bounds: { absoluteDeltaMaximumMs: 250 },
+  },
+  {
+    site: 'blockly-100-paint-half-durations',
+    title:
+      'Owner Arduino Blockly: visible default wait edits 100/50/1 ms, real light and cookies-only reopen',
+    stage: 'blockly-100',
+    kind: 'wall-range-array',
+    dimensions: { halfMs: 100, ledIndex: 0 },
+    bounds: { minimumMs: 50.0, maximumMs: 200 },
+  },
+  {
+    site: 'blockly-50-temporal-wall-model',
+    title:
+      'Owner Arduino Blockly: visible default wait edits 100/50/1 ms, real light and cookies-only reopen',
+    stage: 'blockly-50',
+    kind: 'absolute-wall-model',
+    dimensions: { halfMs: 50, stageOrder: [100, 50, 1] },
+    bounds: { absoluteDeltaMaximumMs: 250 },
+  },
+  {
+    site: 'blockly-50-paint-half-durations',
+    title:
+      'Owner Arduino Blockly: visible default wait edits 100/50/1 ms, real light and cookies-only reopen',
+    stage: 'blockly-50',
+    kind: 'wall-range-array',
+    dimensions: { halfMs: 50, ledIndex: 0 },
+    bounds: { minimumMs: 25.0, maximumMs: 100 },
+  },
+  {
+    site: 'blockly-1-temporal-wall-model',
+    title:
+      'Owner Arduino Blockly: visible default wait edits 100/50/1 ms, real light and cookies-only reopen',
+    stage: 'blockly-1',
+    kind: 'absolute-wall-model',
+    dimensions: { halfMs: 1, stageOrder: [100, 50, 1] },
+    bounds: { absoluteDeltaMaximumMs: 250 },
+  },
+  {
+    site: 'delay-2000-temporal-wall-model',
+    title: 'Owner Arduino temporal: delay 2000 ms, two complete electrical and loaded-image cycles',
+    stage: 'blink-2000',
+    kind: 'absolute-wall-model',
+    dimensions: {},
+    bounds: { absoluteDeltaMaximumMs: 250 },
+  },
+  {
+    site: 'delay-2000-led0-paint-half-durations',
+    title: 'Owner Arduino temporal: delay 2000 ms, two complete electrical and loaded-image cycles',
+    stage: 'blink-2000',
+    kind: 'wall-range-array',
+    dimensions: { ledIndex: 0, arduinoPin: 13 },
+    bounds: { minimumMs: 1750, maximumMs: 2250 },
+  },
+  {
+    site: 'delay-2000-led0-paint-mean-period',
+    title: 'Owner Arduino temporal: delay 2000 ms, two complete electrical and loaded-image cycles',
+    stage: 'blink-2000',
+    kind: 'wall-range',
+    dimensions: { ledIndex: 0, arduinoPin: 13 },
+    bounds: { minimumMs: 3750, maximumMs: 4250 },
+  },
+  {
+    site: 'delay-2000-led1-paint-half-durations',
+    title: 'Owner Arduino temporal: delay 2000 ms, two complete electrical and loaded-image cycles',
+    stage: 'blink-2000',
+    kind: 'wall-range-array',
+    dimensions: { ledIndex: 1, arduinoPin: 12 },
+    bounds: { minimumMs: 1750, maximumMs: 2250 },
+  },
+  {
+    site: 'delay-2000-led1-paint-mean-period',
+    title: 'Owner Arduino temporal: delay 2000 ms, two complete electrical and loaded-image cycles',
+    stage: 'blink-2000',
+    kind: 'wall-range',
+    dimensions: { ledIndex: 1, arduinoPin: 12 },
+    bounds: { minimumMs: 3750, maximumMs: 4250 },
+  },
+  {
+    site: 'delay-2000-led2-paint-half-durations',
+    title: 'Owner Arduino temporal: delay 2000 ms, two complete electrical and loaded-image cycles',
+    stage: 'blink-2000',
+    kind: 'wall-range-array',
+    dimensions: { ledIndex: 2, arduinoPin: 11 },
+    bounds: { minimumMs: 1750, maximumMs: 2250 },
+  },
+  {
+    site: 'delay-2000-led2-paint-mean-period',
+    title: 'Owner Arduino temporal: delay 2000 ms, two complete electrical and loaded-image cycles',
+    stage: 'blink-2000',
+    kind: 'wall-range',
+    dimensions: { ledIndex: 2, arduinoPin: 11 },
+    bounds: { minimumMs: 3750, maximumMs: 4250 },
+  },
+  {
+    site: 'delay-1-temporal-wall-model',
+    title:
+      'Owner Arduino temporal: delay 1 ms, independent optical integrals and stable loaded-image brightness',
+    stage: 'blink-1',
+    kind: 'absolute-wall-model',
+    dimensions: {},
+    bounds: { absoluteDeltaMaximumMs: 250 },
+  },
+  {
+    site: 'millis-temporal-wall-model',
+    title:
+      'Owner Arduino temporal: independent millis 500/200/100 ms outputs with different initial phases',
+    stage: 'millis-independent',
+    kind: 'absolute-wall-model',
+    dimensions: {},
+    bounds: { absoluteDeltaMaximumMs: 250 },
+  },
+  {
+    site: 'millis-led0-paint-half-durations',
+    title:
+      'Owner Arduino temporal: independent millis 500/200/100 ms outputs with different initial phases',
+    stage: 'millis-independent',
+    kind: 'wall-range-array',
+    dimensions: { ledIndex: 0, arduinoPin: 13, halfMs: 500 },
+    bounds: { minimumMs: 250.0, maximumMs: 750.0 },
+  },
+  {
+    site: 'millis-led0-paint-mean-period',
+    title:
+      'Owner Arduino temporal: independent millis 500/200/100 ms outputs with different initial phases',
+    stage: 'millis-independent',
+    kind: 'wall-range',
+    dimensions: { ledIndex: 0, arduinoPin: 13, halfMs: 500 },
+    bounds: { minimumMs: 900.0, maximumMs: 1100.0 },
+  },
+  {
+    site: 'millis-led1-paint-half-durations',
+    title:
+      'Owner Arduino temporal: independent millis 500/200/100 ms outputs with different initial phases',
+    stage: 'millis-independent',
+    kind: 'wall-range-array',
+    dimensions: { ledIndex: 1, arduinoPin: 12, halfMs: 200 },
+    bounds: { minimumMs: 100.0, maximumMs: 300.0 },
+  },
+  {
+    site: 'millis-led1-paint-mean-period',
+    title:
+      'Owner Arduino temporal: independent millis 500/200/100 ms outputs with different initial phases',
+    stage: 'millis-independent',
+    kind: 'wall-range',
+    dimensions: { ledIndex: 1, arduinoPin: 12, halfMs: 200 },
+    bounds: { minimumMs: 360.0, maximumMs: 440.00000000000006 },
+  },
+  {
+    site: 'millis-led2-paint-half-durations',
+    title:
+      'Owner Arduino temporal: independent millis 500/200/100 ms outputs with different initial phases',
+    stage: 'millis-independent',
+    kind: 'wall-range-array',
+    dimensions: { ledIndex: 2, arduinoPin: 11, halfMs: 100 },
+    bounds: { minimumMs: 50.0, maximumMs: 150.0 },
+  },
+  {
+    site: 'millis-led2-paint-mean-period',
+    title:
+      'Owner Arduino temporal: independent millis 500/200/100 ms outputs with different initial phases',
+    stage: 'millis-independent',
+    kind: 'wall-range',
+    dimensions: { ledIndex: 2, arduinoPin: 11, halfMs: 100 },
+    bounds: { minimumMs: 180.0, maximumMs: 220.00000000000003 },
+  },
+  {
+    site: 'reset-temporal-wall-model',
+    title:
+      'Owner Arduino temporal: real Arduino Reset restarts setup and clears fast optical history',
+    stage: 'reset-restarted',
+    kind: 'absolute-wall-model',
+    dimensions: {},
+    bounds: { absoluteDeltaMaximumMs: 250 },
+  },
+]);
+const OWNER_V3_ACQUISITION_SITES: readonly OwnerV3AcquisitionSite[] = freezeOwnerV3([
+  {
+    site: 'delay-2000-ready-horizon-4050000',
+    title: 'Owner Arduino temporal: delay 2000 ms, two complete electrical and loaded-image cycles',
+    stage: 'blink-2000',
+    horizonMicroseconds: 4050000,
+    dimensions: {},
+  },
+  {
+    site: 'delay-2000-ready-horizon-8100000',
+    title: 'Owner Arduino temporal: delay 2000 ms, two complete electrical and loaded-image cycles',
+    stage: 'blink-2000',
+    horizonMicroseconds: 8100000,
+    dimensions: {},
+  },
+  {
+    site: 'millis-ready-horizon-2250000',
+    title:
+      'Owner Arduino temporal: independent millis 500/200/100 ms outputs with different initial phases',
+    stage: 'millis-independent',
+    horizonMicroseconds: 2250000,
+    dimensions: {},
+  },
+]);
+const OWNER_V3_CASES: readonly string[] = freezeOwnerV3([
+  'Canonical ready cadence: serial sketch saved, observed completely and reopened with cookies only',
+  'Canonical ready cadence: gpio sketch saved, observed completely and reopened with cookies only',
+  'Owner Arduino timing: three HIGH outputs without delay, complete ready frames and real LED transitions',
+  'Owner Arduino timing: blink delay 100 ms, complete ready frames and real LED transitions',
+  'Owner Arduino timing: blink delay 50 ms, complete ready frames and real LED transitions',
+  'Owner Arduino execution: no-delay realtime, production frames and painted LEDs',
+  'Owner Arduino execution: independent ports, production frames and painted LEDs',
+  'Owner Arduino Blockly: visible default wait edits 100/50/1 ms, real light and cookies-only reopen',
+  'Owner Arduino temporal: delay 2000 ms, two complete electrical and loaded-image cycles',
+  'Owner Arduino temporal: delay 1 ms, independent optical integrals and stable loaded-image brightness',
+  'Owner Arduino temporal: independent millis 500/200/100 ms outputs with different initial phases',
+  'Owner Arduino temporal: real Arduino Reset restarts setup and clears fast optical history',
+]);
+
+type OwnerV3Provenance = {
+  sourceSha256: string;
+  observedSourceSha256: string;
+  generationId: number;
+  stage: string;
+  dimensions: OwnerV3Dimensions;
+};
+type OwnerV3TimingEntry = {
+  kind: OwnerV3Site['kind'];
+  site: string;
+  title: string;
+  provenance: OwnerV3Provenance;
+  bounds: OwnerV3Site['bounds'];
+  expectedPace: 0.5;
+  modelMs: number | null;
+  rawWallMs: number[];
+  samples: Array<{
+    index: number;
+    rawWallMs: number;
+    normalizedWallMs: number;
+    strictComparedMs: number;
+    v3ComparedMs: number;
+    strictPassed: boolean;
+    v3Passed: boolean;
+  }>;
+  strictOutcome: 'PASS' | 'FAIL';
+  v3Outcome: 'PASS' | 'FAIL';
+  binding: true;
+};
+type OwnerV3ReadyTimestamp = {
+  at: number;
+  sourceSha256: string;
+  generationId: number | null;
+  responseGenerationId: number | null;
+  committedHorizonMicroseconds: number;
+};
+type OwnerV3AcquisitionInput = {
+  waitStartedAt: number;
+  observedAt: number;
+  expectationCompleted: boolean;
+  readyTimestamps: OwnerV3ReadyTimestamp[];
+};
+type OwnerV3AcquisitionEntry = {
+  kind: 'model-horizon-acquisition';
+  site: string;
+  title: string;
+  provenance: OwnerV3Provenance;
+  expectedPace: 0.5;
+  horizonMicroseconds: number;
+  strictLimitMs: 5000;
+  acquisitionLimitMs: number;
+  waitStartedAt: number;
+  originalDeadlineAt: number;
+  activeDeadlineAt: number;
+  observedAt: number;
+  firstHorizonAt: number | null;
+  expectationCompleted: boolean;
+  strictOutcome: 'PASS' | 'FAIL' | 'INCOMPLETE';
+  v3Outcome: 'PASS' | 'FAIL' | 'INCOMPLETE';
+  binding: true;
+  readyTimestamps: OwnerV3ReadyTimestamp[];
+  comparisonScope: 'original-limit-on-this-v3-execution';
+};
+type OwnerV3ReachedAcquisition = {
+  kind: 'model-horizon-acquisition-attempt';
+  invocation: 'REACHED';
+  site: string;
+  title: string;
+  stage: string;
+  dimensions: OwnerV3Dimensions;
+  expectedSourceSha256: string;
+  observedProvenance: OwnerV3Provenance | null;
+  expectedPace: 0.5;
+  horizonMicroseconds: number;
+  strictLimitMs: 5000;
+  acquisitionLimitMs: number;
+  waitStartedAt: number | null;
+  originalDeadlineAt: number | null;
+  activeDeadlineAt: number | null;
+  observedAt: number | null;
+  firstHorizonAt: null;
+  expectationCompleted: boolean | null;
+  strictOutcome: 'FAIL' | 'INCOMPLETE';
+  v3Outcome: 'FAIL' | 'INCOMPLETE';
+  readyTimestamps: OwnerV3ReadyTimestamp[] | null;
+  evidenceStatus: 'UNAVAILABLE' | 'REJECTED';
+  outcomeBasis: 'no-validated-matching-ready-row';
+  comparisonScope: 'original-limit-on-this-v3-execution';
+};
+type OwnerV3AcquisitionFailureInput = {
+  waitStartedAt: number | null;
+  observedAt: number | null;
+  expectationCompleted: boolean | null;
+  provenance: OwnerV3Provenance | null;
+  readyTimestamps: OwnerV3ReadyTimestamp[] | null;
+  rawFrames?: unknown;
+};
+type OwnerV3Ledger = {
+  schema: 'electronics-classroom-qualification-v3';
+  profile: 'classroom-d13-v3';
+  entrypoint: string;
+  title: string;
+  expectedSourceSha: string;
+  observerSha256: string;
+  expectedPace: 0.5;
+  registryRevision: string;
+  stages: Array<Omit<OwnerV3Provenance, 'dimensions'>>;
+  entries: Array<OwnerV3TimingEntry | OwnerV3AcquisitionEntry>;
+  invalidAcquisitions: Array<{
+    site: string;
+    error: string;
+    input: unknown;
+    reached?: OwnerV3ReachedAcquisition;
+  }>;
+};
+let ownerV3Ledger: OwnerV3Ledger | null = null;
+
+function ownerV3IdentityError(ledger: OwnerV3Ledger | null, title: string): string | null {
+  if (
+    !ledger ||
+    Object.keys(ledger).sort().join(',') !==
+      'entries,entrypoint,expectedPace,expectedSourceSha,invalidAcquisitions,observerSha256,profile,registryRevision,schema,stages,title' ||
+    ledger.schema !== 'electronics-classroom-qualification-v3' ||
+    ledger.profile !== OWNER_V3_PROFILE ||
+    ledger.entrypoint !== OWNER_V3_ENTRYPOINT ||
+    ledger.expectedPace !== OWNER_V3_PACE ||
+    ledger.registryRevision !== OWNER_V3_REGISTRY_REVISION ||
+    ledger.title !== title ||
+    !OWNER_V3_CASES.includes(title) ||
+    !/^[a-f0-9]{40}$/.test(ledger.expectedSourceSha) ||
+    !/^[a-f0-9]{64}$/.test(ledger.observerSha256) ||
+    !Array.isArray(ledger.entries) ||
+    !Array.isArray(ledger.stages) ||
+    !Array.isArray(ledger.invalidAcquisitions)
+  )
+    return 'Missing or invalid v3 ledger, exact case or source provenance.';
+  return null;
+}
+
+function assertOwnerV3Identity(
+  ledger: OwnerV3Ledger | null,
+  title: string,
+): asserts ledger is OwnerV3Ledger {
+  const error = ownerV3IdentityError(ledger, title);
+  if (error) throw new Error(error);
+}
+
+function ownerV3ContextError(
+  ledger: OwnerV3Ledger,
+  definition: OwnerV3Site | OwnerV3AcquisitionSite,
+  provenance: OwnerV3Provenance,
+): string | null {
+  if (
+    !provenance ||
+    Object.keys(provenance).sort().join(',') !==
+      'dimensions,generationId,observedSourceSha256,sourceSha256,stage' ||
+    provenance.stage !== definition.stage ||
+    !/^[a-f0-9]{64}$/.test(provenance.sourceSha256) ||
+    provenance.observedSourceSha256 !== provenance.sourceSha256 ||
+    !Number.isSafeInteger(provenance.generationId) ||
+    provenance.generationId < 0 ||
+    !provenance.dimensions ||
+    Object.keys(provenance.dimensions).sort().join(',') !==
+      Object.keys(definition.dimensions).sort().join(',') ||
+    Object.keys(definition.dimensions).some(
+      (key) =>
+        !Object.hasOwn(provenance.dimensions, key) ||
+        JSON.stringify(provenance.dimensions[key]) !== JSON.stringify(definition.dimensions[key]),
+    )
+  )
+    return 'Wrong v3 stage, dimensions, source or generation provenance.';
+  const previous = ledger.stages.filter((entry) => entry.stage === provenance.stage);
+  if (
+    previous.length > 1 ||
+    previous.some(
+      (entry) =>
+        entry.sourceSha256 !== provenance.sourceSha256 ||
+        entry.observedSourceSha256 !== provenance.observedSourceSha256 ||
+        entry.generationId !== provenance.generationId,
+    )
+  )
+    return 'V3 stage source or generation changed inside the same stage.';
+  return null;
+}
+
+function rememberOwnerV3Stage(ledger: OwnerV3Ledger, provenance: OwnerV3Provenance): void {
+  if (!ledger.stages.some((entry) => entry.stage === provenance.stage)) {
+    const { dimensions, ...stage } = provenance;
+    void dimensions;
+    ledger.stages.push(freezeOwnerV3({ ...stage }));
+  }
+}
+
+function ownerV3RequiredSites(title: string): string[] {
+  if (!OWNER_V3_CASES.includes(title)) throw new Error('Unknown v3 case identity.');
+  return [...OWNER_V3_TIMING_SITES, ...OWNER_V3_ACQUISITION_SITES]
+    .filter((entry) => entry.title === title)
+    .map((entry) => entry.site);
+}
+
+function evaluateOwnerV3Timing(
+  ledger: OwnerV3Ledger | null,
+  title: string,
+  site: string,
+  provenance: OwnerV3Provenance,
+  rawWallMs: readonly number[],
+  modelMs: number | null = null,
+): OwnerV3TimingEntry {
+  if (arguments.length > 6) throw new Error('V3 accepts no caller-selected limits or pace.');
+  assertOwnerV3Identity(ledger, title);
+  const definition = OWNER_V3_TIMING_SITES.find((entry) => entry.site === site);
+  if (!definition || definition.title !== title)
+    throw new Error('Unknown or mismatched v3 timing site.');
+  const contextError = ownerV3ContextError(ledger, definition, provenance);
+  if (contextError) throw new Error(contextError);
+  if (
+    !Array.isArray(rawWallMs) ||
+    rawWallMs.length === 0 ||
+    Array.from(rawWallMs).some((value) => !Number.isFinite(value) || value < 0) ||
+    (!definition.kind.endsWith('-array') && rawWallMs.length !== 1) ||
+    (definition.kind === 'absolute-wall-model'
+      ? modelMs === null || !Number.isFinite(modelMs) || modelMs < 0
+      : modelMs !== null)
+  )
+    throw new Error('Invalid v3 raw measurement, scalar/array shape or model duration.');
+  const bounds = definition.bounds;
+  const within = (value: number) =>
+    (bounds.minimumMs === undefined || value >= bounds.minimumMs) &&
+    (bounds.maximumMs === undefined || value <= bounds.maximumMs) &&
+    (bounds.absoluteDeltaMaximumMs === undefined || value <= bounds.absoluteDeltaMaximumMs);
+  const samples = rawWallMs.map((wallMs, index) => {
+    const normalizedWallMs = wallMs * OWNER_V3_PACE;
+    const strictComparedMs = modelMs === null ? wallMs : Math.abs(modelMs - wallMs);
+    const v3ComparedMs = modelMs === null ? normalizedWallMs : Math.abs(modelMs - normalizedWallMs);
+    return {
+      index,
+      rawWallMs: wallMs,
+      normalizedWallMs,
+      strictComparedMs,
+      v3ComparedMs,
+      strictPassed: within(strictComparedMs),
+      v3Passed: within(v3ComparedMs),
+    };
+  });
+  return freezeOwnerV3({
+    kind: definition.kind,
+    site,
+    title,
+    provenance: { ...provenance, dimensions: { ...provenance.dimensions } },
+    bounds: { ...bounds },
+    expectedPace: OWNER_V3_PACE,
+    modelMs,
+    rawWallMs: [...rawWallMs],
+    samples,
+    strictOutcome: samples.every((entry) => entry.strictPassed) ? 'PASS' : 'FAIL',
+    v3Outcome: samples.every((entry) => entry.v3Passed) ? 'PASS' : 'FAIL',
+    binding: true,
+  });
+}
+
+function recordOwnerV3Timing(
+  ledger: OwnerV3Ledger | null,
+  title: string,
+  site: string,
+  provenance: OwnerV3Provenance,
+  rawWallMs: readonly number[],
+  modelMs: number | null = null,
+): OwnerV3TimingEntry {
+  if (arguments.length > 6) throw new Error('V3 accepts no caller-selected limits or pace.');
+  const entry = evaluateOwnerV3Timing(ledger, title, site, provenance, rawWallMs, modelMs);
+  assertOwnerV3Identity(ledger, title);
+  if (ledger.entries.some((previous) => previous.site === site))
+    throw new Error('Duplicate v3 timing site.');
+  rememberOwnerV3Stage(ledger, provenance);
+  ledger.entries.push(entry);
+  // Preserve original strict and active outcomes before enforcing v3.
+  if (entry.v3Outcome !== 'PASS') throw new Error(`V3 fixed-pace timing failed at ${site}.`);
+  return entry;
+}
+
+type OwnerV3AcquisitionAssessment =
+  { ok: true; entry: OwnerV3AcquisitionEntry } | { ok: false; error: string };
+
+function evaluateOwnerV3Acquisition(
+  ledger: OwnerV3Ledger | null,
+  title: string,
+  site: string,
+  provenance: OwnerV3Provenance | null,
+  input: OwnerV3AcquisitionInput,
+): OwnerV3AcquisitionAssessment {
+  if (arguments.length > 5)
+    return { ok: false, error: 'V3 acquisition accepts no extra limits or pace.' };
+  const identityError = ownerV3IdentityError(ledger, title);
+  if (identityError || !ledger) return { ok: false, error: identityError ?? 'Missing ledger.' };
+  const definition = OWNER_V3_ACQUISITION_SITES.find((entry) => entry.site === site);
+  if (!definition || definition.title !== title)
+    return { ok: false, error: 'Unknown or mismatched v3 acquisition site.' };
+  if (provenance === null)
+    return { ok: false, error: 'No observed v3 acquisition source/generation provenance.' };
+  const contextError = ownerV3ContextError(ledger, definition, provenance);
+  if (contextError) return { ok: false, error: contextError };
+  if (
+    !input ||
+    Object.keys(input).sort().join(',') !==
+      'expectationCompleted,observedAt,readyTimestamps,waitStartedAt' ||
+    !Number.isFinite(input.waitStartedAt) ||
+    input.waitStartedAt < 0 ||
+    !Number.isFinite(input.observedAt) ||
+    input.observedAt < input.waitStartedAt ||
+    typeof input.expectationCompleted !== 'boolean' ||
+    !Array.isArray(input.readyTimestamps) ||
+    Array.from(input.readyTimestamps).some(
+      (row, index) =>
+        !row ||
+        Object.keys(row).sort().join(',') !==
+          'at,committedHorizonMicroseconds,generationId,responseGenerationId,sourceSha256' ||
+        !Number.isFinite(row.at) ||
+        row.at < 0 ||
+        row.at > input.observedAt ||
+        row.sourceSha256 !== provenance.sourceSha256 ||
+        row.generationId !== provenance.generationId ||
+        row.responseGenerationId !== provenance.generationId ||
+        (index > 0 && row.at < input.readyTimestamps[index - 1]!.at) ||
+        !Number.isSafeInteger(row.committedHorizonMicroseconds) ||
+        row.committedHorizonMicroseconds < 0 ||
+        (index > 0 &&
+          row.committedHorizonMicroseconds <
+            input.readyTimestamps[index - 1]!.committedHorizonMicroseconds),
+    )
+  )
+    return {
+      ok: false,
+      error: 'Invalid v3 acquisition boundary or complete ordered ready prefix.',
+    };
+  const { waitStartedAt, observedAt, readyTimestamps, expectationCompleted } = input;
+  const acquisitionLimitMs = 5000 / OWNER_V3_PACE;
+  const originalDeadlineAt = waitStartedAt + 5000;
+  const activeDeadlineAt = waitStartedAt + acquisitionLimitMs;
+  const firstHorizonAt =
+    readyTimestamps.find(
+      (row) => row.committedHorizonMicroseconds >= definition.horizonMicroseconds,
+    )?.at ?? null;
+  const outcomeAt = (deadlineAt: number) =>
+    firstHorizonAt !== null && firstHorizonAt <= deadlineAt
+      ? 'PASS'
+      : observedAt >= deadlineAt
+        ? 'FAIL'
+        : 'INCOMPLETE';
+  return {
+    ok: true,
+    entry: freezeOwnerV3({
+      kind: 'model-horizon-acquisition',
+      site,
+      title,
+      provenance: { ...provenance, dimensions: { ...provenance.dimensions } },
+      expectedPace: OWNER_V3_PACE,
+      horizonMicroseconds: definition.horizonMicroseconds,
+      strictLimitMs: 5000,
+      acquisitionLimitMs,
+      waitStartedAt,
+      originalDeadlineAt,
+      activeDeadlineAt,
+      observedAt,
+      firstHorizonAt,
+      expectationCompleted,
+      strictOutcome: outcomeAt(originalDeadlineAt),
+      v3Outcome: outcomeAt(activeDeadlineAt),
+      binding: true,
+      readyTimestamps: readyTimestamps.map((row) => ({ ...row })),
+      comparisonScope: 'original-limit-on-this-v3-execution',
+    }),
+  };
+}
+
+function recordOwnerV3Acquisition(
+  ledger: OwnerV3Ledger,
+  title: string,
+  site: string,
+  provenance: OwnerV3Provenance | null,
+  input: OwnerV3AcquisitionInput,
+): OwnerV3AcquisitionAssessment {
+  const assessment = evaluateOwnerV3Acquisition(ledger, title, site, provenance, input);
+  const duplicate =
+    ledger.entries.some((entry) => entry.site === site) ||
+    ledger.invalidAcquisitions.some((entry) => entry.site === site);
+  const result: OwnerV3AcquisitionAssessment = duplicate
+    ? { ok: false, error: 'Duplicate v3 acquisition site.' }
+    : assessment;
+  if (result.ok) {
+    rememberOwnerV3Stage(ledger, result.entry.provenance);
+    ledger.entries.push(result.entry);
+  } else
+    ledger.invalidAcquisitions.push({ site, error: result.error, input: { provenance, ...input } });
+  return result;
+}
+
+function retainOwnerV3AcquisitionFailure(
+  ledger: OwnerV3Ledger,
+  title: string,
+  site: string,
+  expectedSourceSha256: string,
+  input: OwnerV3AcquisitionFailureInput,
+  error: string,
+): void {
+  assertOwnerV3Identity(ledger, title);
+  const definition = OWNER_V3_ACQUISITION_SITES.find((entry) => entry.site === site);
+  if (!definition || definition.title !== title || !/^[a-f0-9]{64}$/.test(expectedSourceSha256))
+    throw new Error('Unknown reached v3 acquisition or expected source.');
+  // A measured wait is still reached when there is no trustworthy ready row.
+  // Missing provenance and unavailable boundaries stay null; they cannot become
+  // a qualified entry, an invented generation, or evidence of a successful wait.
+  const waitStartedAt =
+    input.waitStartedAt !== null && Number.isFinite(input.waitStartedAt) && input.waitStartedAt >= 0
+      ? input.waitStartedAt
+      : null;
+  const observedAt =
+    waitStartedAt !== null &&
+    input.observedAt !== null &&
+    Number.isFinite(input.observedAt) &&
+    input.observedAt >= waitStartedAt
+      ? input.observedAt
+      : null;
+  const acquisitionLimitMs = 5000 / OWNER_V3_PACE;
+  const originalDeadlineAt = waitStartedAt === null ? null : waitStartedAt + 5000;
+  const activeDeadlineAt = waitStartedAt === null ? null : waitStartedAt + acquisitionLimitMs;
+  const outcomeAt = (deadlineAt: number | null): 'FAIL' | 'INCOMPLETE' =>
+    observedAt !== null && deadlineAt !== null && observedAt >= deadlineAt ? 'FAIL' : 'INCOMPLETE';
+  const reached: OwnerV3ReachedAcquisition = freezeOwnerV3({
+    kind: 'model-horizon-acquisition-attempt',
+    invocation: 'REACHED',
+    site,
+    title,
+    stage: definition.stage,
+    dimensions: { ...definition.dimensions },
+    expectedSourceSha256,
+    observedProvenance: input.provenance,
+    expectedPace: OWNER_V3_PACE,
+    horizonMicroseconds: definition.horizonMicroseconds,
+    strictLimitMs: 5000,
+    acquisitionLimitMs,
+    waitStartedAt,
+    originalDeadlineAt,
+    activeDeadlineAt,
+    observedAt,
+    firstHorizonAt: null,
+    expectationCompleted: input.expectationCompleted,
+    strictOutcome: outcomeAt(originalDeadlineAt),
+    v3Outcome: outcomeAt(activeDeadlineAt),
+    readyTimestamps: input.readyTimestamps,
+    evidenceStatus: input.readyTimestamps === null ? 'UNAVAILABLE' : 'REJECTED',
+    outcomeBasis: 'no-validated-matching-ready-row',
+    comparisonScope: 'original-limit-on-this-v3-execution',
+  });
+  ledger.invalidAcquisitions.push({ site, error, input, reached });
+}
+
+function requireOwnerV3Acquisition(assessment: OwnerV3AcquisitionAssessment): void {
+  if (!assessment.ok) throw new Error(assessment.error);
+  if (assessment.entry.v3Outcome !== 'PASS' || !assessment.entry.expectationCompleted)
+    throw new Error(`V3 acquisition failed or incomplete at ${assessment.entry.site}.`);
+}
+
+function requireOwnerV3Complete(ledger: OwnerV3Ledger | null, title: string): void {
+  assertOwnerV3Identity(ledger, title);
+  const required = ownerV3RequiredSites(title);
+  if (ledger.invalidAcquisitions.some((entry) => entry.reached?.invocation === 'REACHED'))
+    throw new Error('Reached v3 acquisition has invalid or unavailable ready evidence.');
+  const missing = required.filter((site) => !ledger.entries.some((entry) => entry.site === site));
+  if (missing.length) throw new Error(`Required v3 evidence not reached: ${missing.join(', ')}`);
+  if (
+    ledger.entries.length !== required.length ||
+    new Set(ledger.entries.map((entry) => entry.site)).size !== ledger.entries.length ||
+    ledger.invalidAcquisitions.length !== 0
+  )
+    throw new Error('Unknown, duplicate or invalid v3 evidence.');
+  const stages = new Map<string, Omit<OwnerV3Provenance, 'dimensions'>>();
+  for (const entry of ledger.entries) {
+    if (!required.includes(entry.site) || entry.title !== title)
+      throw new Error('Unknown or mismatched v3 recorded site.');
+    if (entry.kind === 'model-horizon-acquisition') {
+      const assessment = evaluateOwnerV3Acquisition(ledger, title, entry.site, entry.provenance, {
+        waitStartedAt: entry.waitStartedAt,
+        observedAt: entry.observedAt,
+        expectationCompleted: entry.expectationCompleted,
+        readyTimestamps: entry.readyTimestamps,
+      });
+      requireOwnerV3Acquisition(assessment);
+      if (!assessment.ok || JSON.stringify(assessment.entry) !== JSON.stringify(entry))
+        throw new Error('Mismatched v3 acquisition record, bounds or outcomes.');
+    } else {
+      const original = evaluateOwnerV3Timing(
+        ledger,
+        title,
+        entry.site,
+        entry.provenance,
+        entry.rawWallMs,
+        entry.modelMs,
+      );
+      if (original.v3Outcome !== 'PASS' || JSON.stringify(original) !== JSON.stringify(entry))
+        throw new Error('Mismatched v3 timing record, bounds or outcomes.');
+    }
+    const { dimensions, ...stage } = entry.provenance;
+    void dimensions;
+    stages.set(stage.stage, stage);
+  }
+  if (
+    ledger.stages.length !== stages.size ||
+    ledger.stages.some((stage) => JSON.stringify(stages.get(stage.stage)) !== JSON.stringify(stage))
+  )
+    throw new Error('Missing, duplicate or mismatched v3 stage provenance.');
+}
+
+function ownerV3WorkerProvenance(
+  ready: readonly WorkerReceipt[],
+  source: string,
+  stage: string,
+  dimensions: OwnerV3Dimensions,
+): OwnerV3Provenance {
+  const generationId = ready[0]?.generationId;
+  if (
+    !Number.isSafeInteger(generationId) ||
+    generationId === null ||
+    generationId === undefined ||
+    ready.some((row) => row.requestSource !== source || row.generationId !== generationId)
+  )
+    throw new Error('V3 Worker source/generation provenance is incomplete.');
+  return {
+    sourceSha256: createHash('sha256').update(source).digest('hex'),
+    observedSourceSha256: createHash('sha256').update(ready[0]!.requestSource!).digest('hex'),
+    generationId,
+    stage,
+    dimensions,
+  };
+}
+
+function ownerV3TemporalProvenance(
+  ready: readonly TemporalFrame[],
+  source: string,
+  stage: string,
+  dimensions: OwnerV3Dimensions,
+): OwnerV3Provenance {
+  const generationId = ready[0]?.generationId;
+  if (
+    !Number.isSafeInteger(generationId) ||
+    generationId === null ||
+    generationId === undefined ||
+    ready.some(
+      (row) =>
+        row.source !== source ||
+        row.generationId !== generationId ||
+        row.responseGenerationId !== generationId,
+    )
+  )
+    throw new Error('V3 temporal source/generation provenance is incomplete.');
+  return {
+    sourceSha256: createHash('sha256').update(source).digest('hex'),
+    observedSourceSha256: createHash('sha256').update(ready[0]!.source!).digest('hex'),
+    generationId,
+    stage,
+    dimensions,
+  };
+}
+
+function assertOwnerV3TemporalClock(
+  ready: readonly TemporalFrame[],
+  minimumModelMs: number,
+  site: string,
+  source: string,
+  stage: string,
+  dimensions: OwnerV3Dimensions,
+) {
+  const first = ready[0]!;
+  const last = ready.at(-1)!;
+  const modelMs = (last.committedHorizonMicroseconds - first.committedHorizonMicroseconds) / 1000;
+  const wallMs = last.at - first.at;
+  expect(first.committedHorizonMicroseconds).toBe(0);
+  expect(modelMs).toBeGreaterThanOrEqual(minimumModelMs);
+  recordOwnerV3Timing(
+    ownerV3Ledger,
+    test.info().title,
+    site,
+    ownerV3TemporalProvenance(ready, source, stage, dimensions),
+    [wallMs],
+    modelMs,
+  );
+  return { first, last, modelMs, wallMs };
+}
+
+async function waitForOwnerV3Horizon(page: Page, source: string, site: string): Promise<void> {
+  const ledger = ownerV3Ledger;
+  assertOwnerV3Identity(ledger, test.info().title);
+  const definition = OWNER_V3_ACQUISITION_SITES.find((entry) => entry.site === site);
+  if (!definition || definition.title !== ledger.title)
+    throw new Error('Unknown or mismatched v3 horizon acquisition.');
+  const sourceSha256 = createHash('sha256').update(source).digest('hex');
+  const [start] = await Promise.allSettled([page.evaluate(() => performance.now())]);
+  if (start.status === 'rejected') {
+    retainOwnerV3AcquisitionFailure(
+      ledger,
+      ledger.title,
+      site,
+      sourceSha256,
+      {
+        waitStartedAt: null,
+        observedAt: null,
+        expectationCompleted: null,
+        provenance: null,
+        readyTimestamps: null,
+      },
+      String(start.reason),
+    );
+    throw start.reason;
+  }
+  const waitStartedAt = start.value;
+  // Observe one finite acquisition and retain its evidence. Both failures are
+  // retained separately; a secondary observation failure cannot replace the
+  // original rejected expectation. Neither operation is retried.
+  const [acquisition] = await Promise.allSettled([
+    expect
+      .poll(
+        () =>
+          page.evaluate(
+            ({ source, horizon }) =>
+              ((window as TemporalWindow).__ownerTemporal?.frames
+                .filter((row) => row.source === source && row.executionStatus === 'ready')
+                .at(-1)?.committedHorizonMicroseconds ?? 0) >= horizon,
+            { source, horizon: definition.horizonMicroseconds },
+          ),
+        { intervals: [100], timeout: 5000 / OWNER_V3_PACE },
+      )
+      .toBe(true),
+  ]);
+  const [observation] = await Promise.allSettled([
+    page.evaluate((source) => {
+      const frames = ((window as TemporalWindow).__ownerTemporal?.frames ?? []).filter(
+        (row) => row.source === source && row.executionStatus === 'ready',
+      );
+      return {
+        observedAt: performance.now(),
+        frames: frames.map((row) => ({
+          at: row.at,
+          source: row.source,
+          generationId: row.generationId,
+          responseGenerationId: row.responseGenerationId,
+          committedHorizonMicroseconds: row.committedHorizonMicroseconds,
+        })),
+      };
+    }, source),
+  ]);
+  if (observation.status === 'rejected') {
+    retainOwnerV3AcquisitionFailure(
+      ledger,
+      ledger.title,
+      site,
+      sourceSha256,
+      {
+        waitStartedAt,
+        observedAt: null,
+        expectationCompleted: acquisition.status === 'fulfilled',
+        provenance: null,
+        readyTimestamps: null,
+      },
+      String(observation.reason),
+    );
+    if (acquisition.status === 'rejected') throw acquisition.reason;
+    throw observation.reason;
+  }
+  const observed = observation.value;
+  const failureInput: OwnerV3AcquisitionFailureInput = {
+    waitStartedAt,
+    observedAt: observed.observedAt,
+    expectationCompleted: acquisition.status === 'fulfilled',
+    provenance: null,
+    readyTimestamps: null,
+    rawFrames: observed.frames,
+  };
+  const [retention] = await Promise.allSettled([
+    Promise.resolve().then(() => {
+      const first = observed.frames[0];
+      const provenance: OwnerV3Provenance | null =
+        first &&
+        typeof first.source === 'string' &&
+        Number.isSafeInteger(first.generationId) &&
+        first.generationId !== null &&
+        first.generationId >= 0
+          ? {
+              sourceSha256,
+              observedSourceSha256: createHash('sha256').update(first.source).digest('hex'),
+              generationId: first.generationId,
+              stage: definition.stage,
+              dimensions: definition.dimensions,
+            }
+          : null;
+      failureInput.provenance = provenance;
+      const input: OwnerV3AcquisitionInput = {
+        waitStartedAt,
+        observedAt: observed.observedAt,
+        expectationCompleted: acquisition.status === 'fulfilled',
+        readyTimestamps: observed.frames.map((row) => ({
+          at: row.at,
+          sourceSha256: createHash('sha256')
+            .update(row.source ?? '')
+            .digest('hex'),
+          generationId: row.generationId,
+          responseGenerationId: row.responseGenerationId,
+          committedHorizonMicroseconds: row.committedHorizonMicroseconds,
+        })),
+      };
+      failureInput.readyTimestamps = input.readyTimestamps;
+      const assessment = evaluateOwnerV3Acquisition(ledger, ledger.title, site, provenance, input);
+      if (assessment.ok)
+        return recordOwnerV3Acquisition(ledger, ledger.title, site, provenance, input);
+      retainOwnerV3AcquisitionFailure(
+        ledger,
+        ledger.title,
+        site,
+        sourceSha256,
+        failureInput,
+        assessment.error,
+      );
+      return assessment;
+    }),
+  ]);
+  if (retention.status === 'rejected') {
+    retainOwnerV3AcquisitionFailure(
+      ledger,
+      ledger.title,
+      site,
+      sourceSha256,
+      failureInput,
+      String(retention.reason),
+    );
+    if (acquisition.status === 'rejected') throw acquisition.reason;
+    throw retention.reason;
+  }
+  if (acquisition.status === 'rejected') throw acquisition.reason;
+  requireOwnerV3Acquisition(retention.value);
 }
 
 type BoardReceipt = {
@@ -824,26 +1970,108 @@ test.beforeAll(() => {
 test.beforeEach(async ({ browserName }, info) => {
   void browserName;
   ownerQualificationLedger = null;
-  ownerQualificationLedger = {
-    schema: 'electronics-classroom-qualification-v2',
-    profile: ownerQualificationProfile(
-      process.env.ASA_ELECTRONICS_QUALIFICATION_PROFILE,
-      process.env.ASA_ELECTRONICS_QUALIFICATION_ENTRYPOINT,
-    ),
-    entrypoint: process.env.ASA_ELECTRONICS_QUALIFICATION_ENTRYPOINT ?? null,
-    title: info.title,
-    expectedSourceSha: process.env.ASA_ELECTRONICS_EXPECTED_SHA ?? null,
-    observerSha256: createHash('sha256')
-      .update(readFileSync(resolve('e2e/electronics-ready-cadence.spec.ts')))
-      .digest('hex'),
-    entries: [],
-  };
-  assertOwnerQualificationIdentity(ownerQualificationLedger, info.title);
+  ownerV3Ledger = null;
+  const profile = ownerQualificationProfile(
+    process.env.ASA_ELECTRONICS_QUALIFICATION_PROFILE,
+    process.env.ASA_ELECTRONICS_QUALIFICATION_ENTRYPOINT,
+  );
+  if (profile === OWNER_V3_PROFILE) {
+    ownerV3Ledger = {
+      schema: 'electronics-classroom-qualification-v3',
+      profile,
+      entrypoint: process.env.ASA_ELECTRONICS_QUALIFICATION_ENTRYPOINT ?? '',
+      title: info.title,
+      expectedSourceSha: process.env.ASA_ELECTRONICS_EXPECTED_SHA ?? '',
+      observerSha256: createHash('sha256')
+        .update(readFileSync(resolve('e2e/electronics-ready-cadence.spec.ts')))
+        .digest('hex'),
+      expectedPace: OWNER_V3_PACE,
+      registryRevision: OWNER_V3_REGISTRY_REVISION,
+      stages: [],
+      entries: [],
+      invalidAcquisitions: [],
+    };
+    assertOwnerV3Identity(ownerV3Ledger, info.title);
+  } else {
+    ownerQualificationLedger = {
+      schema: 'electronics-classroom-qualification-v2',
+      profile,
+      entrypoint: process.env.ASA_ELECTRONICS_QUALIFICATION_ENTRYPOINT ?? null,
+      title: info.title,
+      expectedSourceSha: process.env.ASA_ELECTRONICS_EXPECTED_SHA ?? null,
+      observerSha256: createHash('sha256')
+        .update(readFileSync(resolve('e2e/electronics-ready-cadence.spec.ts')))
+        .digest('hex'),
+      entries: [],
+    };
+    assertOwnerQualificationIdentity(ownerQualificationLedger, info.title);
+  }
   teacher = await seedTeacher(admin, `ready-cadence-${info.workerIndex}-${info.retry}`);
 });
 
 test.afterEach(async ({ browserName }, info) => {
   void browserName;
+  if (ownerV3Ledger !== null) {
+    const ledger = ownerV3Ledger;
+    const requiredSites = ownerV3RequiredSites(info.title);
+    const missingSites = requiredSites.filter(
+      (site) => !ledger.entries.some((entry) => entry.site === site),
+    );
+    const reachedWithoutValidEvidence = ledger.invalidAcquisitions
+      .filter(
+        (entry) =>
+          entry.reached?.invocation === 'REACHED' &&
+          entry.reached.site === entry.site &&
+          entry.reached.title === info.title &&
+          requiredSites.includes(entry.site),
+      )
+      .map((entry) => ({
+        site: entry.site,
+        outcome: 'REACHED_WITH_INVALID_EVIDENCE',
+        error: entry.error,
+        acquisition: entry.reached!,
+      }));
+    let complete = false;
+    try {
+      if (info.status === 'passed') {
+        requireOwnerV3Complete(ledger, info.title);
+        complete = true;
+      }
+    } finally {
+      mkdirSync(artifactRoot, { recursive: true });
+      const titleHash = createHash('sha256').update(info.title).digest('hex').slice(0, 16);
+      const path = resolve(
+        artifactRoot,
+        `qualification-v3-${titleHash}-${info.workerIndex}-${info.retry}.json`,
+      );
+      writeFileSync(
+        path,
+        JSON.stringify(
+          {
+            ledger,
+            caseStatusBeforeLedgerCheck: info.status,
+            expectedStatus: info.expectedStatus,
+            qualificationStatus: complete ? 'PASS' : 'FAIL_OR_INCOMPLETE',
+            requiredSites,
+            missingSites,
+            reachedWithoutValidEvidence,
+            unreached: missingSites
+              .filter((site) => !reachedWithoutValidEvidence.some((entry) => entry.site === site))
+              .map((site) => ({ site, outcome: 'NOT_REACHED' })),
+            strictComparisonScope:
+              'original-limits-on-this-v3-execution; actual strict run is separate',
+          },
+          null,
+          2,
+        ) + '\n',
+      );
+      await info.attach('electronics-qualification-v3-ledger', {
+        path,
+        contentType: 'application/json',
+      });
+    }
+    return;
+  }
   const ledger = ownerQualificationLedger;
   const requiredSites = ownerQualificationRequiredSites(info.title);
   const missingSites = ledger
@@ -1479,15 +2707,41 @@ for (const delayMs of [null, 100, 50] as const) {
       expect(modelSpanMs).toBeGreaterThanOrEqual(750);
       // The five-second discovery deadline is not permission to play one
       // logical second over five real seconds. This is a separate rate check.
-      expect(Math.abs(wallSpanMs - modelSpanMs)).toBeLessThanOrEqual(250);
+      if (ownerV3Ledger)
+        recordOwnerV3Timing(
+          ownerV3Ledger,
+          test.info().title,
+          `owner-blink-${delayMs}-dom-wall-model`,
+          ownerV3WorkerProvenance(ready, source, `blink-${delayMs}`, { delayMs }),
+          [wallSpanMs],
+          modelSpanMs,
+        );
+      else expect(Math.abs(wallSpanMs - modelSpanMs)).toBeLessThanOrEqual(250);
       const sameLevel = transitions.filter((row) => row.level === 1);
       const wallPeriodMs = (sameLevel.at(-1)!.at - sameLevel[0]!.at) / (sameLevel.length - 1);
-      expect(wallPeriodMs).toBeGreaterThanOrEqual(delayMs * 2 * 0.75);
-      expect(wallPeriodMs).toBeLessThanOrEqual(delayMs * 2 * 1.25);
-      for (let index = 1; index < transitions.length; index++)
-        expect(transitions[index]!.at - transitions[index - 1]!.at).toBeLessThanOrEqual(
-          delayMs * 3,
+      if (ownerV3Ledger) {
+        recordOwnerV3Timing(
+          ownerV3Ledger,
+          test.info().title,
+          `owner-blink-${delayMs}-dom-mean-period`,
+          ownerV3WorkerProvenance(ready, source, `blink-${delayMs}`, { delayMs }),
+          [wallPeriodMs],
         );
+        recordOwnerV3Timing(
+          ownerV3Ledger,
+          test.info().title,
+          `owner-blink-${delayMs}-dom-transition-gaps`,
+          ownerV3WorkerProvenance(ready, source, `blink-${delayMs}`, { delayMs }),
+          transitions.slice(1).map((row, index) => row.at - transitions[index]!.at),
+        );
+      } else {
+        expect(wallPeriodMs).toBeGreaterThanOrEqual(delayMs * 2 * 0.75);
+        expect(wallPeriodMs).toBeLessThanOrEqual(delayMs * 2 * 1.25);
+        for (let index = 1; index < transitions.length; index++)
+          expect(transitions[index]!.at - transitions[index - 1]!.at).toBeLessThanOrEqual(
+            delayMs * 3,
+          );
+      }
       // Independently challenge effective image presentation. Check each
       // half, both polarities and duty; a good mean cannot hide 5ms bursts or
       // a dark second. Time-zero configuration is reported separately.
@@ -1498,17 +2752,36 @@ for (const delayMs of [null, 100, 50] as const) {
       for (const phases of [transitions, paintTransitions]) {
         const wall = blinkWallMetrics(phases, delayMs);
         expect(wall.cycles).toBeGreaterThanOrEqual(4);
-        expect(wall.halfBoundsPassed).toBe(true);
+        if (ownerV3Ledger) {
+          const surface = phases === transitions ? 'dom' : 'paint';
+          recordOwnerV3Timing(
+            ownerV3Ledger,
+            test.info().title,
+            `owner-blink-${delayMs}-${surface}-half-durations`,
+            ownerV3WorkerProvenance(ready, source, `blink-${delayMs}`, { delayMs, surface }),
+            wall.halves,
+          );
+        } else expect(wall.halfBoundsPassed).toBe(true);
         expect(wall.duty).toBeGreaterThanOrEqual(0.45);
         expect(wall.duty).toBeLessThanOrEqual(0.55);
       }
       const paintFirst = steady[0]!;
       const paintLast = steady.at(-1)!;
-      expect(
-        Math.abs(
-          paintLast.at - paintFirst.at - (paintLast.committed - paintFirst.committed) / 1000,
-        ),
-      ).toBeLessThanOrEqual(250);
+      if (ownerV3Ledger)
+        recordOwnerV3Timing(
+          ownerV3Ledger,
+          test.info().title,
+          `owner-blink-${delayMs}-paint-wall-model`,
+          ownerV3WorkerProvenance(ready, source, `blink-${delayMs}`, { delayMs }),
+          [paintLast.at - paintFirst.at],
+          (paintLast.committed - paintFirst.committed) / 1000,
+        );
+      else
+        expect(
+          Math.abs(
+            paintLast.at - paintFirst.at - (paintLast.committed - paintFirst.committed) / 1000,
+          ),
+        ).toBeLessThanOrEqual(250);
     } else {
       const lit = ready.filter((row) => row.advance.committedHorizonMicroseconds > 0);
       expect(lit.length).toBeGreaterThanOrEqual(7);
@@ -1740,7 +3013,18 @@ for (const mode of ['no-delay realtime', 'independent ports'] as const) {
       1000;
     const wallMs = last.at - first.at;
     expect(modelMs).toBeGreaterThanOrEqual(1250);
-    if (mode === 'no-delay realtime')
+    if (ownerV3Ledger)
+      recordOwnerV3Timing(
+        ownerV3Ledger,
+        test.info().title,
+        mode === 'no-delay realtime'
+          ? 'no-delay-execution-wall-model'
+          : 'independent-ports-execution-wall-model',
+        ownerV3WorkerProvenance(ready, source, mode, {}),
+        [wallMs],
+        modelMs,
+      );
+    else if (mode === 'no-delay realtime')
       recordOwnerQualifiedWallClock(
         ownerQualificationLedger,
         test.info().title,
@@ -1780,10 +3064,20 @@ for (const mode of ['no-delay realtime', 'independent ports'] as const) {
         }
         const highs = changes.filter((row) => row.level === 1);
         expect(highs.length).toBeGreaterThanOrEqual(4);
-        for (let i = 1; i < highs.length; i++)
-          expect(highs[i]!.at - highs[i - 1]!.at).toBeGreaterThanOrEqual(225);
-        for (let i = 1; i < highs.length; i++)
-          expect(highs[i]!.at - highs[i - 1]!.at).toBeLessThanOrEqual(375);
+        if (ownerV3Ledger)
+          recordOwnerV3Timing(
+            ownerV3Ledger,
+            test.info().title,
+            `independent-ports-led${pin}-high-periods`,
+            ownerV3WorkerProvenance(ready, source, mode, { ledIndex: pin, arduinoPin: 13 - pin }),
+            highs.slice(1).map((row, index) => row.at - highs[index]!.at),
+          );
+        else {
+          for (let i = 1; i < highs.length; i++)
+            expect(highs[i]!.at - highs[i - 1]!.at).toBeGreaterThanOrEqual(225);
+          for (let i = 1; i < highs.length; i++)
+            expect(highs[i]!.at - highs[i - 1]!.at).toBeLessThanOrEqual(375);
+        }
       }
       for (const frame of ready.filter(
         (frame) => frame.advance.committedHorizonMicroseconds >= 10,
@@ -2319,7 +3613,16 @@ test('Owner Arduino Blockly: visible default wait edits 100/50/1 ms, real light 
       await waitForTemporalHorizon(page, source, 1_000_000);
       raw = await temporalObservation(page);
       const ready = assertTemporalFrames(raw, source);
-      assertTemporalWallClock(ready, 1000);
+      if (ownerV3Ledger)
+        assertOwnerV3TemporalClock(
+          ready,
+          1000,
+          `blockly-${half}-temporal-wall-model`,
+          source,
+          `blockly-${half}`,
+          { halfMs: half, stageOrder: [100, 50, 1] },
+        );
+      else assertTemporalWallClock(ready, 1000);
       const edges = opticalEdges(ready, 'led0');
       const paint = validTemporalPaint(raw, startAt);
       expect(paint.length).toBeGreaterThan(0);
@@ -2331,7 +3634,18 @@ test('Owner Arduino Blockly: visible default wait edits 100/50/1 ms, real light 
         const visible = blinkWallMetrics(paintEdges(paint, 0), half);
         expect(model.cycles).toBeGreaterThanOrEqual(4);
         expect(visible.cycles).toBeGreaterThanOrEqual(4);
-        expect(visible.halfBoundsPassed).toBe(true);
+        if (ownerV3Ledger)
+          recordOwnerV3Timing(
+            ownerV3Ledger,
+            test.info().title,
+            `blockly-${half}-paint-half-durations`,
+            ownerV3TemporalProvenance(ready, source, `blockly-${half}`, {
+              halfMs: half,
+              ledIndex: 0,
+            }),
+            visible.halves,
+          );
+        else expect(visible.halfBoundsPassed).toBe(true);
         expect(visible.duty).toBeGreaterThanOrEqual(0.45);
         expect(visible.duty).toBeLessThanOrEqual(0.55);
         expect(
@@ -2809,11 +4123,25 @@ test('Owner Arduino temporal: delay 2000 ms, two complete electrical and loaded-
   let metrics: unknown;
   try {
     await page.getByRole('button', { name: 'Начать моделирование', exact: true }).click();
-    await waitForTemporalHorizon(page, session.source, 4_050_000);
-    await waitForTemporalHorizon(page, session.source, 8_100_000);
+    if (ownerV3Ledger) {
+      await waitForOwnerV3Horizon(page, session.source, 'delay-2000-ready-horizon-4050000');
+      await waitForOwnerV3Horizon(page, session.source, 'delay-2000-ready-horizon-8100000');
+    } else {
+      await waitForTemporalHorizon(page, session.source, 4_050_000);
+      await waitForTemporalHorizon(page, session.source, 8_100_000);
+    }
     const raw = await temporalObservation(page);
     const ready = assertTemporalFrames(raw, session.source);
-    const clock = assertTemporalWallClock(ready, 8100);
+    const clock = ownerV3Ledger
+      ? assertOwnerV3TemporalClock(
+          ready,
+          8100,
+          'delay-2000-temporal-wall-model',
+          session.source,
+          'blink-2000',
+          {},
+        )
+      : assertTemporalWallClock(ready, 8100);
     const painted = validTemporalPaint(raw, session.startAt);
     const causal = temporalPaintCausality(
       raw,
@@ -2837,14 +4165,39 @@ test('Owner Arduino temporal: delay 2000 ms, two complete electrical and loaded-
         expect(half).toBeGreaterThanOrEqual(2000);
         expect(half).toBeLessThanOrEqual(2000.01);
       }
-      for (const half of paintMetrics.halves) {
-        expect(half).toBeGreaterThanOrEqual(1750);
-        expect(half).toBeLessThanOrEqual(2250);
-      }
+      if (ownerV3Ledger)
+        recordOwnerV3Timing(
+          ownerV3Ledger,
+          test.info().title,
+          `delay-2000-${id}-paint-half-durations`,
+          ownerV3TemporalProvenance(ready, session.source, 'blink-2000', {
+            ledIndex: index,
+            arduinoPin: 13 - index,
+          }),
+          paintMetrics.halves,
+        );
+      else
+        for (const half of paintMetrics.halves) {
+          expect(half).toBeGreaterThanOrEqual(1750);
+          expect(half).toBeLessThanOrEqual(2250);
+        }
       const highs = paint.filter((row) => row.level === 1);
       const periodMs = (highs.at(-1)!.at - highs[0]!.at) / (highs.length - 1);
-      expect(periodMs).toBeGreaterThanOrEqual(3750);
-      expect(periodMs).toBeLessThanOrEqual(4250);
+      if (ownerV3Ledger)
+        recordOwnerV3Timing(
+          ownerV3Ledger,
+          test.info().title,
+          `delay-2000-${id}-paint-mean-period`,
+          ownerV3TemporalProvenance(ready, session.source, 'blink-2000', {
+            ledIndex: index,
+            arduinoPin: 13 - index,
+          }),
+          [periodMs],
+        );
+      else {
+        expect(periodMs).toBeGreaterThanOrEqual(3750);
+        expect(periodMs).toBeLessThanOrEqual(4250);
+      }
       return { id, model, paint, modelMetrics, paintMetrics, periodMs };
     });
     metrics = { clock, perLed, causal };
@@ -2874,7 +4227,16 @@ test('Owner Arduino temporal: delay 1 ms, independent optical integrals and stab
     await waitForTemporalHorizon(page, session.source, 1_500_000);
     const raw = await temporalObservation(page);
     const ready = assertTemporalFrames(raw, session.source);
-    const clock = assertTemporalWallClock(ready, 1500, 'delay-1-temporal-wall-model');
+    const clock = ownerV3Ledger
+      ? assertOwnerV3TemporalClock(
+          ready,
+          1500,
+          'delay-1-temporal-wall-model',
+          session.source,
+          'blink-1',
+          {},
+        )
+      : assertTemporalWallClock(ready, 1500, 'delay-1-temporal-wall-model');
     const settledAt = ready.find((row) => row.committedHorizonMicroseconds >= 100_000)!.at;
     const paint = validTemporalPaint(raw, settledAt);
     const rendered = (await page.evaluate(() => (window as ProbeWindow).__ownerPaint ?? [])).filter(
@@ -2973,10 +4335,21 @@ test('Owner Arduino temporal: independent millis 500/200/100 ms outputs with dif
   let metrics: unknown;
   try {
     await page.getByRole('button', { name: 'Начать моделирование', exact: true }).click();
-    await waitForOwnerMillisHorizon(page, session.source);
+    if (ownerV3Ledger)
+      await waitForOwnerV3Horizon(page, session.source, 'millis-ready-horizon-2250000');
+    else await waitForOwnerMillisHorizon(page, session.source);
     const raw = await temporalObservation(page);
     const ready = assertTemporalFrames(raw, session.source);
-    const clock = assertTemporalWallClock(ready, 2250);
+    const clock = ownerV3Ledger
+      ? assertOwnerV3TemporalClock(
+          ready,
+          2250,
+          'millis-temporal-wall-model',
+          session.source,
+          'millis-independent',
+          {},
+        )
+      : assertTemporalWallClock(ready, 2250);
     const paint = validTemporalPaint(raw, session.startAt);
     const causal = temporalPaintCausality(
       raw,
@@ -3005,16 +4378,43 @@ test('Owner Arduino temporal: independent millis 500/200/100 ms outputs with dif
       expect(paintMetrics.cycles).toBeGreaterThanOrEqual(2);
       for (const half of modelMetrics.halves)
         expect(Math.abs(half - halfMs)).toBeLessThanOrEqual(0.1);
-      for (const half of paintMetrics.halves) {
-        expect(half).toBeGreaterThanOrEqual(halfMs * 0.5);
-        expect(half).toBeLessThanOrEqual(halfMs * 1.5);
-      }
+      if (ownerV3Ledger)
+        recordOwnerV3Timing(
+          ownerV3Ledger,
+          test.info().title,
+          `millis-${id}-paint-half-durations`,
+          ownerV3TemporalProvenance(ready, session.source, 'millis-independent', {
+            ledIndex: index,
+            arduinoPin: 13 - index,
+            halfMs,
+          }),
+          paintMetrics.halves,
+        );
+      else
+        for (const half of paintMetrics.halves) {
+          expect(half).toBeGreaterThanOrEqual(halfMs * 0.5);
+          expect(half).toBeLessThanOrEqual(halfMs * 1.5);
+        }
       expect(paintMetrics.duty).toBeGreaterThanOrEqual(0.45);
       expect(paintMetrics.duty).toBeLessThanOrEqual(0.55);
       const highs = visible.slice(paintStart).filter((row) => row.level === 1);
       const periodMs = (highs.at(-1)!.at - highs[0]!.at) / (highs.length - 1);
-      expect(periodMs).toBeGreaterThanOrEqual(halfMs * 2 * 0.9);
-      expect(periodMs).toBeLessThanOrEqual(halfMs * 2 * 1.1);
+      if (ownerV3Ledger)
+        recordOwnerV3Timing(
+          ownerV3Ledger,
+          test.info().title,
+          `millis-${id}-paint-mean-period`,
+          ownerV3TemporalProvenance(ready, session.source, 'millis-independent', {
+            ledIndex: index,
+            arduinoPin: 13 - index,
+            halfMs,
+          }),
+          [periodMs],
+        );
+      else {
+        expect(periodMs).toBeGreaterThanOrEqual(halfMs * 2 * 0.9);
+        expect(periodMs).toBeLessThanOrEqual(halfMs * 2 * 1.1);
+      }
       return { id, halfMs, model, visible, modelMetrics, paintMetrics, periodMs };
     });
     const vectors = new Set(
@@ -3084,7 +4484,16 @@ test('Owner Arduino temporal: real Arduino Reset restarts setup and clears fast 
       .at(-1)!.generationId!;
     expect(newGeneration).not.toBe(oldGeneration);
     const restarted = assertTemporalFrames(raw, session.source, newGeneration);
-    const clock = assertTemporalWallClock(restarted, 1250, 'reset-temporal-wall-model');
+    const clock = ownerV3Ledger
+      ? assertOwnerV3TemporalClock(
+          restarted,
+          1250,
+          'reset-temporal-wall-model',
+          session.source,
+          'reset-restarted',
+          {},
+        )
+      : assertTemporalWallClock(restarted, 1250, 'reset-temporal-wall-model');
     expect(restarted[0]!.at).toBeGreaterThanOrEqual(clickedAt);
     expect(restarted[0]!.ledTemporal!.fromMicroseconds).toBe(0);
     const startup = restarted.filter(

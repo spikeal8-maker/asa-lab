@@ -3,16 +3,20 @@ import { isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 // This named qualification selects the same complete suite as the strict gate.
-// It changes only the three recorded comparison sites in ready-cadence; the
-// browser, product clock and all other assertions receive no alternate runner.
+// V2 retains its historical comparisons; v3 applies its separate fixed-pace
+// registry. Neither entrypoint filters cases or changes the product clock.
 if (process.argv.length !== 2) {
   throw new Error('The classroom browser gate accepts no filters or extra arguments.');
 }
-const profile = 'classroom-d13-v2';
-const entrypoint = 'gate:electronics-classroom-d13:browser';
-if (process.env.npm_lifecycle_event !== entrypoint) {
+const profiles = Object.freeze({
+  'gate:electronics-classroom-d13:browser': 'classroom-d13-v2',
+  'gate:electronics-classroom-d13-v3:browser': 'classroom-d13-v3',
+});
+const entrypoint = process.env.npm_lifecycle_event;
+if (!entrypoint || !Object.hasOwn(profiles, entrypoint)) {
   throw new Error('Invoke the explicitly named classroom browser gate through pnpm.');
 }
+const profile = profiles[entrypoint];
 if (process.env.ASA_ELECTRONICS_QUALIFICATION_ENTRYPOINT !== undefined) {
   throw new Error('Do not inherit an alternate qualification entrypoint.');
 }

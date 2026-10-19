@@ -30,8 +30,8 @@ large_sources:
     rationale: Active sidebar surface contains multiple inspector/library responsibilities and needs bounded responsibility review before further growth.
   - path: apps/web/src/electronics/use-electronics-workbench.ts
     class: decomposition-candidate
-    reviewed_bytes: 103385
-    rationale: Active workbench controller coordinates interaction and simulation concerns; E-OPT-3 is complete, while any structural extraction remains a separately selected E-OPT-7/maintenance responsibility change.
+    reviewed_bytes: 126864
+    rationale: Active workbench controller coordinates interaction and simulation concerns; E-OPT-3 is complete, while any structural extraction remains a separately selected E-OPT-7/maintenance responsibility change. The prepared/ready/joint-commit acknowledgement, rollback and lifecycle cleanup boundary is reviewed in evidence/classroom-retained-source-responsibility-641-20261019.md; retaining that atomic boundary does not discharge the existing decomposition debt.
   - path: contexts/electronics/domain/arduino-program-runtime.ts
     class: decomposition-candidate
     reviewed_bytes: 106392
@@ -42,8 +42,8 @@ large_sources:
     rationale: Active code-editor surface is above the review threshold; future extraction must preserve command/editor behavior and tests.
   - path: apps/web/src/electronics/ProductionComponentVisual.tsx
     class: decomposition-candidate
-    reviewed_bytes: 72432
-    rationale: Lifecycle and family-render boundaries reviewed in evidence/visual-source-responsibility-518-20261007.md; retain the ordinary-image repair inside its private hook. Shared loading, instrument controls and selection/family dispatch remain decomposition debt; the reviewed candidate ceiling is not product acceptance.
+    reviewed_bytes: 89698
+    rationale: Lifecycle and family-render boundaries reviewed in evidence/visual-source-responsibility-518-20261007.md; retain the ordinary-image repair inside its private hook. The bounded native OFF/active/pending resource lifetime, exact readiness leases and protected rollback boundary are also reviewed in evidence/classroom-retained-source-responsibility-641-20261019.md. Shared loading, instrument controls and selection/family dispatch remain decomposition debt; the reviewed candidate ceiling is not product acceptance.
   - path: apps/web/src/electronics/WorkbenchStage.tsx
     class: decomposition-candidate
     reviewed_bytes: 54879

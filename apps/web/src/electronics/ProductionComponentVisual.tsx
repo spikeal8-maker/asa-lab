@@ -1,5 +1,7 @@
 import {
+  useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -40,6 +42,23 @@ import {
   type MultimeterVisualMode,
 } from './production-asset-contracts';
 
+/** One quality-derived optical frame requested by the workbench presenter. */
+export interface LedAssetPreparation {
+  readonly token: string;
+  readonly asset: string;
+}
+
+/** A resource lease, not a claim that the browser has painted this frame. */
+export interface LedAssetReadiness extends LedAssetPreparation {
+  readonly componentId: string;
+  readonly href: string;
+  readonly element: SVGImageElement;
+  readonly bindingRevision: number;
+  readonly status: 'ready' | 'error' | 'invalidated';
+  readonly isCurrent: () => boolean;
+  readonly isActive: () => boolean;
+}
+
 const TINKERCAD_MODEL_UNIT_MM = 0.254;
 const TINKERCAD_MODEL_TO_WORLD = TINKERCAD_MODEL_UNIT_MM * WORLD_UNITS_PER_MM;
 const TINKERCAD_RESISTOR_BODY =
@@ -67,6 +86,10 @@ interface Props {
   readonly visualState: ComponentVisualState;
   readonly effectiveBrightness?: number;
   readonly effectiveArduinoLActive?: boolean | undefined;
+  readonly preparedLedAsset?: LedAssetPreparation | undefined;
+  readonly committedLedAsset?: LedAssetReadiness | undefined;
+  readonly rollbackLedAsset?: LedAssetReadiness | undefined;
+  readonly onLedAssetReadiness?: ((event: LedAssetReadiness) => void) | undefined;
   readonly result?: ComponentResult | undefined;
   readonly selected?: boolean;
   readonly selectionOffset?: number;
@@ -493,6 +516,456 @@ function useOwnerImageHref(asset: string): {
     onError: () => notify('error'),
     onLoad: () => notify('load'),
   };
+}
+
+interface MountedLedBindingState {
+  readonly element: SVGImageElement;
+  readonly asset: string;
+  readonly href: string;
+  readonly bindingRevision: number;
+  readonly loaded: boolean;
+  readonly failed: boolean;
+}
+
+/**
+ * Owns one mounted body image. Resource warmup and selection copies cannot
+ * produce a lease. The binding key also rejects a callback retained from an
+ * earlier A -> B -> A render of the same native element.
+ */
+export function createMountedLedAssetBinding(changed: () => void) {
+  let element: SVGImageElement | null = null;
+  let asset = '';
+  let href = '';
+  let key: object | null = null;
+  let revision = 0;
+  let loaded = false;
+  let failed = false;
+  let observer: MutationObserver | null = null;
+  const currentHref = () => element?.getAttribute('href') ?? '';
+  const observeMutations = (records: readonly MutationRecord[]) => {
+    if (!records.some((record) => record.target === element && record.oldValue !== currentHref()))
+      return;
+    revision++;
+    loaded = false;
+    failed = false;
+    changed();
+  };
+  const flushMutations = () => {
+    if (observer) observeMutations(observer.takeRecords());
+  };
+  const connected = () => !!element?.isConnected && currentHref() === href;
+  return {
+    bind(next: SVGImageElement | null, nextAsset: string, nextHref: string, nextKey: object) {
+      // React may run an older ref cleanup after a replacement has attached.
+      if (next === null && key !== nextKey) return;
+      if (next === element && nextAsset === asset && nextHref === href && nextKey === key) return;
+      observer?.disconnect();
+      observer = null;
+      revision++;
+      element = next;
+      asset = nextAsset;
+      href = nextHref;
+      key = nextKey;
+      loaded = false;
+      failed = false;
+      if (element) {
+        observer = new MutationObserver(observeMutations);
+        observer.observe(element, {
+          attributes: true,
+          attributeFilter: ['href', 'xlink:href'],
+          attributeOldValue: true,
+        });
+      }
+      changed();
+    },
+    native(
+      kind: 'load' | 'error',
+      event: Pick<Event, 'target' | 'isTrusted'>,
+      expectedKey: object,
+    ) {
+      flushMutations();
+      if (expectedKey !== key || !event.isTrusted || event.target !== element || !connected())
+        return false;
+      if (kind === 'error') {
+        revision++;
+        loaded = false;
+        failed = true;
+        changed();
+      } else if (!loaded || failed) {
+        loaded = true;
+        failed = false;
+        changed();
+      }
+      return true;
+    },
+    state(): MountedLedBindingState | null {
+      flushMutations();
+      return element
+        ? { element, asset, href, bindingRevision: revision, loaded: loaded && connected(), failed }
+        : null;
+    },
+    lease(
+      request: LedAssetPreparation,
+      componentId: string,
+      requestIsCurrent: () => boolean,
+    ): LedAssetReadiness | null {
+      flushMutations();
+      if (!element || !loaded || failed || asset !== request.asset || !connected()) return null;
+      const leasedElement = element;
+      const leasedHref = href;
+      const leasedRevision = revision;
+      const isCurrent = () => {
+        flushMutations();
+        return (
+          element === leasedElement &&
+          revision === leasedRevision &&
+          asset === request.asset &&
+          href === leasedHref &&
+          loaded &&
+          !failed &&
+          connected() &&
+          requestIsCurrent()
+        );
+      };
+      return {
+        ...request,
+        componentId,
+        href: leasedHref,
+        element: leasedElement,
+        bindingRevision: leasedRevision,
+        status: 'ready',
+        isCurrent,
+        isActive: () =>
+          isCurrent() &&
+          leasedElement.parentElement?.querySelector('.workbench-led-asset') === leasedElement &&
+          leasedElement.getAttribute('data-led-asset-active') === 'true' &&
+          leasedElement.getAttribute('data-led-asset-token') === request.token &&
+          leasedElement.style.opacity === '1',
+      };
+    },
+  };
+}
+
+type MountedLedAssetBinding = ReturnType<typeof createMountedLedAssetBinding>;
+type OwnerLedImageGeometry = {
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+  readonly transform: string | undefined;
+  readonly preserveAspectRatio: string;
+};
+
+function OwnerLedAssetSlot({
+  slot,
+  asset,
+  active,
+  token,
+  register,
+  ...geometry
+}: OwnerLedImageGeometry & {
+  readonly slot: number;
+  readonly asset: string;
+  readonly active: boolean;
+  readonly token: string | undefined;
+  readonly register: (slot: number, binding: MountedLedAssetBinding) => void;
+}) {
+  const ownerImage = useOwnerImageHref(asset);
+  const binding: MountedLedAssetBinding = useMemo(
+    () => createMountedLedAssetBinding(() => register(slot, binding)),
+    [register, slot],
+  );
+  const bindingKey = useMemo(() => ({}), [asset, ownerImage.href]);
+  const bind = useCallback(
+    (element: SVGImageElement | null) => binding.bind(element, asset, ownerImage.href, bindingKey),
+    [asset, binding, bindingKey, ownerImage.href],
+  );
+  return (
+    <>
+      <image
+        {...geometry}
+        ref={bind}
+        className="workbench-led-asset"
+        href={ownerImage.href}
+        style={{ opacity: active ? 1 : 0 }}
+        data-led-asset-active={active ? 'true' : 'false'}
+        data-led-asset-token={active ? token : undefined}
+        data-owner-image-status={ownerImage.failed ? 'failed' : undefined}
+        aria-hidden={!active}
+        onLoad={(event) => {
+          if (binding.native('load', event.nativeEvent, bindingKey)) ownerImage.onLoad();
+        }}
+        onError={(event) => {
+          if (binding.native('error', event.nativeEvent, bindingKey)) ownerImage.onError();
+        }}
+        pointerEvents="none"
+      />
+      {ownerImage.failed && (
+        <OwnerAssetErrorBadge
+          width={geometry.width}
+          height={geometry.height}
+          testId="owner-image-error"
+        />
+      )}
+    </>
+  );
+}
+
+/** At most OFF + current + pending. A promoted node keeps its exact href. */
+function OwnerPreparedLedImage({
+  asset,
+  offAsset,
+  componentId,
+  running,
+  prepared,
+  committed,
+  rollback,
+  onReadiness,
+  ...geometry
+}: OwnerLedImageGeometry & {
+  readonly asset: string;
+  readonly offAsset: string;
+  readonly componentId: string;
+  readonly running: boolean;
+  readonly prepared: LedAssetPreparation | undefined;
+  readonly committed: LedAssetReadiness | undefined;
+  readonly rollback: LedAssetReadiness | undefined;
+  readonly onReadiness: (event: LedAssetReadiness) => void;
+}) {
+  const [slots, setSlots] = useState<readonly { id: number; asset: string }[]>([
+    { id: 0, asset: offAsset },
+  ]);
+  const bindings = useRef(new Map<number, MountedLedAssetBinding>());
+  const issued = useRef(new Map<string, LedAssetReadiness>());
+  const reportedErrors = useRef(new Map<string, { element: SVGImageElement; revision: number }>());
+  const current = useRef({ prepared, committed, rollback, running, componentId, onReadiness });
+  const publish = useRef<() => void>(() => {});
+  const publicationQueued = useRef(false);
+  const publishing = useRef(false);
+  const lastActive = useRef(0);
+  const register = useCallback((slot: number, binding: MountedLedAssetBinding) => {
+    bindings.current.set(slot, binding);
+    // A lease may synchronously flush a pending href mutation during render.
+    // Notify the host afterwards, never by setting its state from that render.
+    if (publicationQueued.current) return;
+    publicationQueued.current = true;
+    queueMicrotask(() => {
+      publicationQueued.current = false;
+      publish.current();
+    });
+  }, []);
+  const offReady = useCallback(() => {
+    const state = bindings.current.get(0)?.state();
+    return state?.asset === offAsset && state.loaded && !state.failed;
+  }, [offAsset]);
+  const requestIsCurrent = useCallback(
+    (request: LedAssetPreparation, owner: string) => {
+      const live = current.current;
+      return (
+        live.running &&
+        (live.prepared !== undefined || live.committed !== undefined) &&
+        live.componentId === owner &&
+        offReady() &&
+        [live.prepared, live.committed, live.rollback].some(
+          (candidate) => candidate?.token === request.token && candidate.asset === request.asset,
+        )
+      );
+    },
+    [offReady],
+  );
+  const currentLeaseSlot = (lease: LedAssetReadiness | undefined): number | undefined => {
+    const issuedLease = lease ? issued.current.get(lease.token) : undefined;
+    if (
+      !running ||
+      !lease ||
+      lease.status !== 'ready' ||
+      lease.componentId !== componentId ||
+      !issuedLease ||
+      issuedLease.element !== lease.element ||
+      issuedLease.bindingRevision !== lease.bindingRevision ||
+      issuedLease.href !== lease.href ||
+      !issuedLease.isCurrent() ||
+      !lease.isCurrent()
+    )
+      return undefined;
+    return slots.find((slot) => {
+      const state = bindings.current.get(slot.id)?.state();
+      return (
+        slot.asset === lease.asset &&
+        state?.asset === lease.asset &&
+        state.element === lease.element &&
+        state.href === lease.href &&
+        state.bindingRevision === lease.bindingRevision &&
+        state.loaded &&
+        !state.failed
+      );
+    })?.id;
+  };
+  const targetSlot = committed?.asset === asset ? currentLeaseSlot(committed) : undefined;
+  const rollbackSlot = currentLeaseSlot(rollback);
+  // Clearing the committed token is an explicit Stop/Reset/source cancellation.
+  // The host retains the previous lease until its layout ACK. If a proposed
+  // node becomes invalid after render selected it, rollback can still select
+  // the previous exact node; the renderer never decides that an ACK occurred.
+  const active = !running || !committed ? 0 : (targetSlot ?? lastActive.current);
+  const activeToken = running && targetSlot !== undefined ? committed?.token : undefined;
+
+  useLayoutEffect(() => {
+    current.current = { prepared, committed, rollback, running, componentId, onReadiness };
+    if (targetSlot !== undefined || !running || !committed) lastActive.current = active;
+    publish.current = () => {
+      if (publishing.current) return;
+      publishing.current = true;
+      try {
+        const live = current.current;
+        const relevant = live.running
+          ? [live.prepared, live.committed, live.rollback].filter(
+              (request): request is LedAssetPreparation => request !== undefined,
+            )
+          : [];
+        for (const token of reportedErrors.current.keys())
+          if (!relevant.some((request) => request.token === token))
+            reportedErrors.current.delete(token);
+        for (const [token, previous] of issued.current) {
+          if (
+            !relevant.some(
+              (request) => request.token === token && request.asset === previous.asset,
+            ) ||
+            !previous.isCurrent()
+          ) {
+            issued.current.delete(token);
+            live.onReadiness({
+              ...previous,
+              status: 'invalidated',
+              isCurrent: () => false,
+              isActive: () => false,
+            });
+          }
+        }
+        if (!live.prepared || !live.running) return;
+        const request = live.prepared;
+        const binding = [...bindings.current.values()].find(
+          (candidate) => candidate.state()?.asset === request.asset,
+        );
+        const state = binding?.state();
+        if (!binding || !state) return;
+        if (state.failed) {
+          const previous = reportedErrors.current.get(request.token);
+          if (previous?.element === state.element && previous.revision === state.bindingRevision)
+            return;
+          reportedErrors.current.set(request.token, {
+            element: state.element,
+            revision: state.bindingRevision,
+          });
+          live.onReadiness({
+            ...request,
+            componentId: live.componentId,
+            href: state.href,
+            element: state.element,
+            bindingRevision: state.bindingRevision,
+            status: 'error',
+            isCurrent: () => false,
+            isActive: () => false,
+          });
+          return;
+        }
+        if (!offReady()) return;
+        const previous = issued.current.get(request.token);
+        if (
+          previous?.element === state.element &&
+          previous.bindingRevision === state.bindingRevision &&
+          previous.isCurrent()
+        )
+          return;
+        const lease: LedAssetReadiness | null = binding.lease(
+          request,
+          live.componentId,
+          () =>
+            issued.current.get(request.token) === lease && requestIsCurrent(request, componentId),
+        );
+        if (!lease) return;
+        issued.current.set(request.token, lease);
+        if (!lease.isCurrent()) {
+          issued.current.delete(request.token);
+          return;
+        }
+        reportedErrors.current.delete(request.token);
+        live.onReadiness(lease);
+      } finally {
+        publishing.current = false;
+      }
+    };
+    if (running && prepared && !slots.some((slot) => slot.asset === prepared.asset)) {
+      const reusable = slots.find(
+        (slot) => slot.id !== 0 && slot.id !== active && slot.id !== rollbackSlot,
+      );
+      if (reusable) {
+        setSlots(
+          slots.map((slot) =>
+            slot.id === reusable.id ? { ...slot, asset: prepared.asset } : slot,
+          ),
+        );
+      } else if (slots.length < 3) {
+        setSlots([...slots, { id: slots.length, asset: prepared.asset }]);
+      }
+    }
+    publish.current();
+  }, [
+    active,
+    asset,
+    committed,
+    componentId,
+    offAsset,
+    offReady,
+    onReadiness,
+    prepared,
+    requestIsCurrent,
+    rollback,
+    rollbackSlot,
+    running,
+    slots,
+    targetSlot,
+  ]);
+
+  useLayoutEffect(
+    () => () => {
+      publish.current = () => {};
+      for (const previous of issued.current.values())
+        current.current.onReadiness({
+          ...previous,
+          status: 'invalidated',
+          isCurrent: () => false,
+          isActive: () => false,
+        });
+      issued.current.clear();
+      reportedErrors.current.clear();
+      current.current = {
+        ...current.current,
+        running: false,
+        prepared: undefined,
+        committed: undefined,
+        rollback: undefined,
+      };
+    },
+    [],
+  );
+
+  return (
+    <g className="workbench-led-assets">
+      {[...slots]
+        .sort((left, right) => Number(right.id === active) - Number(left.id === active))
+        .map((slot) => (
+          <OwnerLedAssetSlot
+            key={slot.id}
+            slot={slot.id}
+            asset={slot.asset}
+            active={slot.id === active}
+            token={activeToken}
+            register={register}
+            {...geometry}
+          />
+        ))}
+    </g>
+  );
 }
 
 function OwnerMultimeterVisual({
@@ -1261,6 +1734,10 @@ export function ProductionComponentVisual({
   visualState,
   effectiveBrightness,
   effectiveArduinoLActive,
+  preparedLedAsset,
+  committedLedAsset,
+  rollbackLedAsset,
+  onLedAssetReadiness,
   result,
   selected = false,
   selectionOffset = 2,
@@ -1348,6 +1825,17 @@ export function ProductionComponentVisual({
           }
         : component;
   const asset = visualAsset(entry, visualComponent, visualState);
+  const offAsset =
+    entry.key === 'led-5mm'
+      ? visualAsset(
+          entry,
+          {
+            ...component,
+            stateProperties: { ...properties, ledBrightness: 0, ledFault: 'none' },
+          },
+          'off',
+        )
+      : asset;
   const ownerImage = useOwnerImageHref(asset);
   const toleranceValue = Number(properties['tolerancePercent'] ?? 5);
   const tolerance: ResistorTolerancePercent = [1, 2, 5, 10].includes(toleranceValue)
@@ -1779,6 +2267,23 @@ export function ProductionComponentVisual({
               component={component}
               result={result}
               simulationRunning={simulationRunning}
+            />
+          ) : entry.key === 'led-5mm' && onLedAssetReadiness ? (
+            <OwnerPreparedLedImage
+              key={`${component.id}:${offAsset}`}
+              asset={asset}
+              offAsset={offAsset}
+              componentId={component.id}
+              running={simulationRunning}
+              prepared={preparedLedAsset}
+              committed={committedLedAsset}
+              rollback={rollbackLedAsset}
+              onReadiness={onLedAssetReadiness}
+              y={ownerAssetY}
+              width={ownerAssetWidth}
+              height={ownerAssetHeight}
+              transform={ownerAssetTransform}
+              preserveAspectRatio={imageFit}
             />
           ) : (
             <>

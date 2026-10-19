@@ -1,7 +1,8 @@
+import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runInNewContext } from 'node:vm';
 import ts from 'typescript';
@@ -21,6 +22,7 @@ const runnerPath = fileURLToPath(
 );
 const repositoryRoot = fileURLToPath(new URL('../../', import.meta.url));
 const entrypoint = 'gate:electronics-classroom-d13:browser';
+const v3Entrypoint = 'gate:electronics-classroom-d13-v3:browser';
 const sites = [
   [
     'no-delay-execution-wall-model',
@@ -72,8 +74,40 @@ const functionNames = new Set([
   'recordOwnerMillisAcquisition',
   'createOwnerMountedImageWitness',
   'assertTemporalWallClock',
+  'freezeOwnerV3',
+  'ownerV3IdentityError',
+  'assertOwnerV3Identity',
+  'ownerV3ContextError',
+  'rememberOwnerV3Stage',
+  'ownerV3RequiredSites',
+  'evaluateOwnerV3Timing',
+  'recordOwnerV3Timing',
+  'evaluateOwnerV3Acquisition',
+  'recordOwnerV3Acquisition',
+  'retainOwnerV3AcquisitionFailure',
+  'requireOwnerV3Acquisition',
+  'requireOwnerV3Complete',
+  'ownerV3WorkerProvenance',
+  'ownerV3TemporalProvenance',
+  'assertOwnerV3TemporalClock',
+  'waitForOwnerV3Horizon',
+  'validTemporalPaint',
+  'temporalPhysicalBrightness',
+  'temporalJointWitness',
+  'temporalPaintCausality',
 ]);
-const constantNames = new Set(['OWNER_CLASSROOM_WALL_SITES', 'OWNER_MILLIS_CASE']);
+const constantNames = new Set([
+  'OWNER_CLASSROOM_WALL_SITES',
+  'OWNER_MILLIS_CASE',
+  'OWNER_V3_PROFILE',
+  'OWNER_V3_ENTRYPOINT',
+  'OWNER_V3_PACE',
+  'OWNER_V3_REGISTRY_REVISION',
+  'OWNER_V3_TIMING_SITES',
+  'OWNER_V3_ACQUISITION_SITES',
+  'OWNER_V3_CASES',
+  'OWNER_TEMPORAL_PUBLICATION_LAG_MS',
+]);
 const declarations: string[] = [];
 const found = new Set<string>();
 function collectDeclarations(node: ts.Node): void {
@@ -102,7 +136,14 @@ const oracleJavaScript = ts.transpileModule(
 ({ profile: ownerQualificationProfile, qualify: recordOwnerQualifiedWallClock,
    required: ownerQualificationRequiredSites, complete: requireOwnerQualificationComplete,
    millis: recordOwnerMillisAcquisition, mounted: createOwnerMountedImageWitness,
-   clock: assertTemporalWallClock });`,
+   clock: assertTemporalWallClock,
+   v3: { sites: OWNER_V3_TIMING_SITES, acquisitions: OWNER_V3_ACQUISITION_SITES,
+     cases: OWNER_V3_CASES, pace: OWNER_V3_PACE, registry: OWNER_V3_REGISTRY_REVISION,
+     evaluate: evaluateOwnerV3Timing, record: recordOwnerV3Timing,
+     required: ownerV3RequiredSites, complete: requireOwnerV3Complete,
+     acquisition: evaluateOwnerV3Acquisition, recordAcquisition: recordOwnerV3Acquisition,
+     requireAcquisition: requireOwnerV3Acquisition, clock: assertOwnerV3TemporalClock,
+     causality: temporalPaintCausality } });`,
   {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
   },
@@ -119,12 +160,15 @@ function ledger(title: string = sites[0][1], profile: string = 'classroom-d13-v2
     entries: [],
   };
 }
-function oracle(value: Ledger | null = null) {
+function oracle(value: Ledger | null = null, v3Value: V3Ledger | null = null) {
   return runInNewContext(oracleJavaScript, {
     expect,
+    createHash,
     ownerQualificationLedger: value,
-    test: { info: () => ({ title: value?.title ?? '' }) },
+    ownerV3Ledger: v3Value,
+    test: { info: () => ({ title: v3Value?.title ?? value?.title ?? '' }) },
   }) as {
+    v3: V3Oracle;
     profile: (value?: string, entrypoint?: string) => string;
     qualify: (
       ledger: Ledger | null,
@@ -158,6 +202,10 @@ describe('explicit classroom qualification identity and original strict outcomes
     expect(actual.profile()).toBe('strict-real-time');
     expect(actual.profile('strict-real-time')).toBe('strict-real-time');
     expect(actual.profile('classroom-d13-v2', entrypoint)).toBe('classroom-d13-v2');
+    expect(actual.profile('classroom-d13-v3', v3Entrypoint)).toBe('classroom-d13-v3');
+    expect(() => actual.profile('classroom-d13-v3', entrypoint)).toThrow();
+    expect(() => actual.profile('classroom-d13-v2', v3Entrypoint)).toThrow();
+    expect(() => actual.profile('classroom-d13-v3')).toThrow();
     for (const profile of ['', 'classroom', 'unknown', 'Classroom-d13-v2'])
       expect(() => actual.profile(profile, entrypoint)).toThrow();
     expect(() => actual.profile('classroom-d13-v2')).toThrow();
@@ -548,6 +596,7 @@ describe('named cross-platform runner of the complete existing suite', () => {
     ).scripts;
     expect(scripts['gate:electronics-m1:browser']).toBe('corepack pnpm e2e:electronics-simulation');
     expect(scripts[entrypoint]).toBe('node tools/run-electronics-classroom-browser.mjs');
+    expect(scripts[v3Entrypoint]).toBe('node tools/run-electronics-classroom-browser.mjs');
     const required = [
       'e2e/electronics-simulation.spec.ts',
       'e2e/electronics-interactions.spec.ts',
@@ -565,5 +614,1526 @@ describe('named cross-platform runner of the complete existing suite', () => {
         true,
       );
     }
+  });
+});
+
+type V3Definition = {
+  site: string;
+  title: string;
+  stage: string;
+  kind: string;
+  dimensions: Record<string, string | number | number[]>;
+  bounds: { minimumMs?: number; maximumMs?: number; absoluteDeltaMaximumMs?: number };
+};
+type V3AcquisitionDefinition = Omit<V3Definition, 'kind' | 'bounds'> & {
+  horizonMicroseconds: number;
+};
+type V3Provenance = {
+  sourceSha256: string;
+  observedSourceSha256: string;
+  generationId: number;
+  stage: string;
+  dimensions: V3Definition['dimensions'];
+};
+type V3Ledger = Ledger & {
+  expectedPace: number;
+  registryRevision: string;
+  stages: Array<Omit<V3Provenance, 'dimensions'>>;
+  invalidAcquisitions: Array<Record<string, unknown>>;
+};
+type V3Timing = Record<string, unknown> & {
+  rawWallMs: number[];
+  samples: Array<{
+    index: number;
+    rawWallMs: number;
+    normalizedWallMs: number;
+    strictPassed: boolean;
+    v3Passed: boolean;
+  }>;
+  strictOutcome: string;
+  v3Outcome: string;
+};
+type V3Input = {
+  waitStartedAt: number;
+  observedAt: number;
+  expectationCompleted: boolean;
+  readyTimestamps: Array<
+    ReadyTimestamp & {
+      sourceSha256: string;
+      generationId: number | null;
+      responseGenerationId: number | null;
+    }
+  >;
+};
+type V3Assessment = { ok: true; entry: Record<string, unknown> } | { ok: false; error: string };
+type V3Oracle = {
+  sites: V3Definition[];
+  acquisitions: V3AcquisitionDefinition[];
+  cases: string[];
+  pace: number;
+  registry: string;
+  evaluate: (
+    value: V3Ledger | null,
+    title: string,
+    site: string,
+    provenance: V3Provenance,
+    raw: number[],
+    model?: number | null,
+  ) => V3Timing;
+  record: V3Oracle['evaluate'];
+  required: (title: string) => string[];
+  complete: (value: V3Ledger | null, title: string) => void;
+  acquisition: (
+    value: V3Ledger | null,
+    title: string,
+    site: string,
+    provenance: V3Provenance,
+    input: V3Input,
+  ) => V3Assessment;
+  recordAcquisition: V3Oracle['acquisition'];
+  requireAcquisition: (assessment: V3Assessment) => void;
+  clock: (
+    ready: Array<Record<string, unknown>>,
+    minimum: number,
+    site: string,
+    source: string,
+    stage: string,
+    dimensions: V3Definition['dimensions'],
+  ) => Record<string, unknown>;
+  causality: (
+    raw: Record<string, unknown>,
+    source: string,
+    generation: number,
+    from: number,
+    to?: number,
+  ) => { witnesses: unknown[]; violations: Array<{ reason: string }> };
+};
+const v3RegistryRevision = 'e0e6b912853c5c5650f2dc2d6eab4ecb234f73b14c7491a631154e30b956b017';
+function v3Ledger(title: string): V3Ledger {
+  return {
+    schema: 'electronics-classroom-qualification-v3',
+    profile: 'classroom-d13-v3',
+    entrypoint: v3Entrypoint,
+    title,
+    expectedSourceSha: 'a'.repeat(40),
+    observerSha256: 'b'.repeat(64),
+    expectedPace: 0.5,
+    registryRevision: v3RegistryRevision,
+    stages: [],
+    entries: [],
+    invalidAcquisitions: [],
+  };
+}
+function v3Provenance(definition: V3Definition | V3AcquisitionDefinition): V3Provenance {
+  return {
+    sourceSha256: 'c'.repeat(64),
+    observedSourceSha256: 'c'.repeat(64),
+    generationId: 7,
+    stage: definition.stage,
+    dimensions: { ...definition.dimensions },
+  };
+}
+function validV3Input(definition: V3AcquisitionDefinition): V3Input {
+  return {
+    waitStartedAt: 100,
+    observedAt: 6600,
+    expectationCompleted: true,
+    readyTimestamps: [
+      { at: 90, committedHorizonMicroseconds: 0 },
+      { at: 6100, committedHorizonMicroseconds: definition.horizonMicroseconds },
+      { at: 6500, committedHorizonMicroseconds: definition.horizonMicroseconds + 1000 },
+    ].map((row) => ({
+      ...row,
+      sourceSha256: 'c'.repeat(64),
+      generationId: 7,
+      responseGenerationId: 7,
+    })),
+  };
+}
+function populateV3(value: V3Ledger): V3Oracle {
+  const actual = oracle().v3;
+  for (const definition of actual.sites.filter((entry) => entry.title === value.title)) {
+    const absolute = definition.kind === 'absolute-wall-model';
+    const model = absolute ? 1000 : null;
+    const raw = absolute
+      ? 2000
+      : ((definition.bounds.minimumMs ?? 0) + definition.bounds.maximumMs!) / 2 / 0.5;
+    actual.record(value, value.title, definition.site, v3Provenance(definition), [raw], model);
+  }
+  for (const definition of actual.acquisitions.filter((entry) => entry.title === value.title)) {
+    actual.requireAcquisition(
+      actual.recordAcquisition(
+        value,
+        value.title,
+        definition.site,
+        v3Provenance(definition),
+        validV3Input(definition),
+      ),
+    );
+  }
+  return actual;
+}
+
+describe('fixed v3 normalization over the frozen exhaustive registry', () => {
+  it('binds all 38 timing sites and 3 acquisitions in the unchanged 12 ready cases', () => {
+    const actual = oracle().v3;
+    expect(actual.pace).toBe(0.5);
+    expect(actual.registry).toBe(v3RegistryRevision);
+    expect(actual.sites).toHaveLength(38);
+    expect(actual.acquisitions).toHaveLength(3);
+    expect(actual.cases).toHaveLength(12);
+    expect(new Set([...actual.sites, ...actual.acquisitions].map((entry) => entry.site)).size).toBe(
+      41,
+    );
+    expect(actual.cases.map((title) => actual.required(title).length)).toEqual([
+      0, 0, 0, 6, 6, 1, 4, 5, 9, 1, 8, 1,
+    ]);
+    for (const definition of [...actual.sites, ...actual.acquisitions]) {
+      expect(actual.cases).toContain(definition.title);
+      expect(Object.isFrozen(definition)).toBe(true);
+      expect(Object.isFrozen(definition.dimensions)).toBe(true);
+      expect(actual.required(definition.title)).toContain(definition.site);
+    }
+    expect(
+      actual.sites.map(({ site, kind, dimensions, bounds }) => ({
+        site,
+        kind,
+        dimensions,
+        bounds,
+      })),
+    ).toEqual([
+      {
+        site: 'owner-blink-100-dom-wall-model',
+        kind: 'absolute-wall-model',
+        dimensions: {
+          delayMs: 100,
+        },
+        bounds: {
+          absoluteDeltaMaximumMs: 250,
+        },
+      },
+      {
+        site: 'owner-blink-100-dom-mean-period',
+        kind: 'wall-range',
+        dimensions: {
+          delayMs: 100,
+        },
+        bounds: {
+          minimumMs: 150.0,
+          maximumMs: 250.0,
+        },
+      },
+      {
+        site: 'owner-blink-100-dom-transition-gaps',
+        kind: 'wall-upper-bound-array',
+        dimensions: {
+          delayMs: 100,
+        },
+        bounds: {
+          maximumMs: 300,
+        },
+      },
+      {
+        site: 'owner-blink-100-dom-half-durations',
+        kind: 'wall-range-array',
+        dimensions: {
+          delayMs: 100,
+          surface: 'dom',
+        },
+        bounds: {
+          minimumMs: 50.0,
+          maximumMs: 200,
+        },
+      },
+      {
+        site: 'owner-blink-100-paint-half-durations',
+        kind: 'wall-range-array',
+        dimensions: {
+          delayMs: 100,
+          surface: 'paint',
+        },
+        bounds: {
+          minimumMs: 50.0,
+          maximumMs: 200,
+        },
+      },
+      {
+        site: 'owner-blink-100-paint-wall-model',
+        kind: 'absolute-wall-model',
+        dimensions: {
+          delayMs: 100,
+        },
+        bounds: {
+          absoluteDeltaMaximumMs: 250,
+        },
+      },
+      {
+        site: 'owner-blink-50-dom-wall-model',
+        kind: 'absolute-wall-model',
+        dimensions: {
+          delayMs: 50,
+        },
+        bounds: {
+          absoluteDeltaMaximumMs: 250,
+        },
+      },
+      {
+        site: 'owner-blink-50-dom-mean-period',
+        kind: 'wall-range',
+        dimensions: {
+          delayMs: 50,
+        },
+        bounds: {
+          minimumMs: 75.0,
+          maximumMs: 125.0,
+        },
+      },
+      {
+        site: 'owner-blink-50-dom-transition-gaps',
+        kind: 'wall-upper-bound-array',
+        dimensions: {
+          delayMs: 50,
+        },
+        bounds: {
+          maximumMs: 150,
+        },
+      },
+      {
+        site: 'owner-blink-50-dom-half-durations',
+        kind: 'wall-range-array',
+        dimensions: {
+          delayMs: 50,
+          surface: 'dom',
+        },
+        bounds: {
+          minimumMs: 25.0,
+          maximumMs: 100,
+        },
+      },
+      {
+        site: 'owner-blink-50-paint-half-durations',
+        kind: 'wall-range-array',
+        dimensions: {
+          delayMs: 50,
+          surface: 'paint',
+        },
+        bounds: {
+          minimumMs: 25.0,
+          maximumMs: 100,
+        },
+      },
+      {
+        site: 'owner-blink-50-paint-wall-model',
+        kind: 'absolute-wall-model',
+        dimensions: {
+          delayMs: 50,
+        },
+        bounds: {
+          absoluteDeltaMaximumMs: 250,
+        },
+      },
+      {
+        site: 'no-delay-execution-wall-model',
+        kind: 'absolute-wall-model',
+        dimensions: {},
+        bounds: {
+          absoluteDeltaMaximumMs: 250,
+        },
+      },
+      {
+        site: 'independent-ports-execution-wall-model',
+        kind: 'absolute-wall-model',
+        dimensions: {},
+        bounds: {
+          absoluteDeltaMaximumMs: 250,
+        },
+      },
+      {
+        site: 'independent-ports-led0-high-periods',
+        kind: 'wall-range-array',
+        dimensions: {
+          ledIndex: 0,
+          arduinoPin: 13,
+        },
+        bounds: {
+          minimumMs: 225,
+          maximumMs: 375,
+        },
+      },
+      {
+        site: 'independent-ports-led1-high-periods',
+        kind: 'wall-range-array',
+        dimensions: {
+          ledIndex: 1,
+          arduinoPin: 12,
+        },
+        bounds: {
+          minimumMs: 225,
+          maximumMs: 375,
+        },
+      },
+      {
+        site: 'independent-ports-led2-high-periods',
+        kind: 'wall-range-array',
+        dimensions: {
+          ledIndex: 2,
+          arduinoPin: 11,
+        },
+        bounds: {
+          minimumMs: 225,
+          maximumMs: 375,
+        },
+      },
+      {
+        site: 'blockly-100-temporal-wall-model',
+        kind: 'absolute-wall-model',
+        dimensions: {
+          halfMs: 100,
+          stageOrder: [100, 50, 1],
+        },
+        bounds: {
+          absoluteDeltaMaximumMs: 250,
+        },
+      },
+      {
+        site: 'blockly-100-paint-half-durations',
+        kind: 'wall-range-array',
+        dimensions: {
+          halfMs: 100,
+          ledIndex: 0,
+        },
+        bounds: {
+          minimumMs: 50.0,
+          maximumMs: 200,
+        },
+      },
+      {
+        site: 'blockly-50-temporal-wall-model',
+        kind: 'absolute-wall-model',
+        dimensions: {
+          halfMs: 50,
+          stageOrder: [100, 50, 1],
+        },
+        bounds: {
+          absoluteDeltaMaximumMs: 250,
+        },
+      },
+      {
+        site: 'blockly-50-paint-half-durations',
+        kind: 'wall-range-array',
+        dimensions: {
+          halfMs: 50,
+          ledIndex: 0,
+        },
+        bounds: {
+          minimumMs: 25.0,
+          maximumMs: 100,
+        },
+      },
+      {
+        site: 'blockly-1-temporal-wall-model',
+        kind: 'absolute-wall-model',
+        dimensions: {
+          halfMs: 1,
+          stageOrder: [100, 50, 1],
+        },
+        bounds: {
+          absoluteDeltaMaximumMs: 250,
+        },
+      },
+      {
+        site: 'delay-2000-temporal-wall-model',
+        kind: 'absolute-wall-model',
+        dimensions: {},
+        bounds: {
+          absoluteDeltaMaximumMs: 250,
+        },
+      },
+      {
+        site: 'delay-2000-led0-paint-half-durations',
+        kind: 'wall-range-array',
+        dimensions: {
+          ledIndex: 0,
+          arduinoPin: 13,
+        },
+        bounds: {
+          minimumMs: 1750,
+          maximumMs: 2250,
+        },
+      },
+      {
+        site: 'delay-2000-led0-paint-mean-period',
+        kind: 'wall-range',
+        dimensions: {
+          ledIndex: 0,
+          arduinoPin: 13,
+        },
+        bounds: {
+          minimumMs: 3750,
+          maximumMs: 4250,
+        },
+      },
+      {
+        site: 'delay-2000-led1-paint-half-durations',
+        kind: 'wall-range-array',
+        dimensions: {
+          ledIndex: 1,
+          arduinoPin: 12,
+        },
+        bounds: {
+          minimumMs: 1750,
+          maximumMs: 2250,
+        },
+      },
+      {
+        site: 'delay-2000-led1-paint-mean-period',
+        kind: 'wall-range',
+        dimensions: {
+          ledIndex: 1,
+          arduinoPin: 12,
+        },
+        bounds: {
+          minimumMs: 3750,
+          maximumMs: 4250,
+        },
+      },
+      {
+        site: 'delay-2000-led2-paint-half-durations',
+        kind: 'wall-range-array',
+        dimensions: {
+          ledIndex: 2,
+          arduinoPin: 11,
+        },
+        bounds: {
+          minimumMs: 1750,
+          maximumMs: 2250,
+        },
+      },
+      {
+        site: 'delay-2000-led2-paint-mean-period',
+        kind: 'wall-range',
+        dimensions: {
+          ledIndex: 2,
+          arduinoPin: 11,
+        },
+        bounds: {
+          minimumMs: 3750,
+          maximumMs: 4250,
+        },
+      },
+      {
+        site: 'delay-1-temporal-wall-model',
+        kind: 'absolute-wall-model',
+        dimensions: {},
+        bounds: {
+          absoluteDeltaMaximumMs: 250,
+        },
+      },
+      {
+        site: 'millis-temporal-wall-model',
+        kind: 'absolute-wall-model',
+        dimensions: {},
+        bounds: {
+          absoluteDeltaMaximumMs: 250,
+        },
+      },
+      {
+        site: 'millis-led0-paint-half-durations',
+        kind: 'wall-range-array',
+        dimensions: {
+          ledIndex: 0,
+          arduinoPin: 13,
+          halfMs: 500,
+        },
+        bounds: {
+          minimumMs: 250.0,
+          maximumMs: 750.0,
+        },
+      },
+      {
+        site: 'millis-led0-paint-mean-period',
+        kind: 'wall-range',
+        dimensions: {
+          ledIndex: 0,
+          arduinoPin: 13,
+          halfMs: 500,
+        },
+        bounds: {
+          minimumMs: 900.0,
+          maximumMs: 1100.0,
+        },
+      },
+      {
+        site: 'millis-led1-paint-half-durations',
+        kind: 'wall-range-array',
+        dimensions: {
+          ledIndex: 1,
+          arduinoPin: 12,
+          halfMs: 200,
+        },
+        bounds: {
+          minimumMs: 100.0,
+          maximumMs: 300.0,
+        },
+      },
+      {
+        site: 'millis-led1-paint-mean-period',
+        kind: 'wall-range',
+        dimensions: {
+          ledIndex: 1,
+          arduinoPin: 12,
+          halfMs: 200,
+        },
+        bounds: {
+          minimumMs: 360.0,
+          maximumMs: 440.00000000000006,
+        },
+      },
+      {
+        site: 'millis-led2-paint-half-durations',
+        kind: 'wall-range-array',
+        dimensions: {
+          ledIndex: 2,
+          arduinoPin: 11,
+          halfMs: 100,
+        },
+        bounds: {
+          minimumMs: 50.0,
+          maximumMs: 150.0,
+        },
+      },
+      {
+        site: 'millis-led2-paint-mean-period',
+        kind: 'wall-range',
+        dimensions: {
+          ledIndex: 2,
+          arduinoPin: 11,
+          halfMs: 100,
+        },
+        bounds: {
+          minimumMs: 180.0,
+          maximumMs: 220.00000000000003,
+        },
+      },
+      {
+        site: 'reset-temporal-wall-model',
+        kind: 'absolute-wall-model',
+        dimensions: {},
+        bounds: {
+          absoluteDeltaMaximumMs: 250,
+        },
+      },
+    ]);
+  });
+
+  it('enforces every original inclusive boundary after the one fixed factor, without extra tolerance', () => {
+    const actual = oracle().v3;
+    for (const definition of actual.sites) {
+      const value = v3Ledger(definition.title);
+      const provenance = v3Provenance(definition);
+      if (definition.kind === 'absolute-wall-model') {
+        for (const raw of [1500, 2500]) {
+          const measured = actual.evaluate(
+            value,
+            value.title,
+            definition.site,
+            provenance,
+            [raw],
+            1000,
+          );
+          expect(measured.v3Outcome, definition.site).toBe('PASS');
+          expect(measured.strictOutcome, definition.site).toBe('FAIL');
+        }
+        for (const raw of [1499.999, 2500.001])
+          expect(
+            actual.evaluate(value, value.title, definition.site, provenance, [raw], 1000).v3Outcome,
+          ).toBe('FAIL');
+        const oldPass = actual.evaluate(
+          value,
+          value.title,
+          definition.site,
+          provenance,
+          [1000],
+          1000,
+        );
+        expect(oldPass.strictOutcome).toBe('PASS');
+        expect(oldPass.v3Outcome).toBe('FAIL');
+      } else {
+        const lower = definition.bounds.minimumMs ?? 0;
+        const upper = definition.bounds.maximumMs!;
+        for (const bound of [lower, upper])
+          expect(
+            actual.evaluate(value, value.title, definition.site, provenance, [bound / 0.5])
+              .v3Outcome,
+          ).toBe('PASS');
+        expect(
+          actual.evaluate(value, value.title, definition.site, provenance, [(upper + 0.001) / 0.5])
+            .v3Outcome,
+        ).toBe('FAIL');
+        if (lower > 0)
+          expect(
+            actual.evaluate(value, value.title, definition.site, provenance, [
+              (lower - 0.001) / 0.5,
+            ]).v3Outcome,
+          ).toBe('FAIL');
+      }
+    }
+  });
+
+  it('checks and retains every array element and its index, including an interior outlier', () => {
+    const actual = oracle().v3;
+    for (const definition of actual.sites.filter((entry) => entry.kind.endsWith('-array'))) {
+      const value = v3Ledger(definition.title);
+      const good = ((definition.bounds.minimumMs ?? 0) + definition.bounds.maximumMs!) / 2 / 0.5;
+      const raw = [good, (definition.bounds.maximumMs! + 0.01) / 0.5, good];
+      expect(() =>
+        actual.record(value, value.title, definition.site, v3Provenance(definition), raw),
+      ).toThrow('fixed-pace');
+      const entry = value.entries[0] as V3Timing;
+      expect(entry.rawWallMs).toEqual(raw);
+      expect(raw).toEqual([good, (definition.bounds.maximumMs! + 0.01) / 0.5, good]);
+      expect(entry.samples.map((sample) => sample.index)).toEqual([0, 1, 2]);
+      expect(entry.samples.map((sample) => sample.v3Passed)).toEqual([true, false, true]);
+      expect(entry.v3Outcome).toBe('FAIL');
+      for (const invalid of [[], new Array<number>(3), [good, NaN], [good, Infinity], [-1]])
+        expect(() =>
+          actual.evaluate(
+            v3Ledger(value.title),
+            value.title,
+            definition.site,
+            v3Provenance(definition),
+            invalid,
+          ),
+        ).toThrow();
+    }
+  });
+
+  it('rejects unknown sites, stage/pin/surface/source mismatch and caller-selected factors or limits', () => {
+    const actual = oracle().v3;
+    const definition = actual.sites[0]!;
+    const value = v3Ledger(definition.title);
+    for (const site of ['', '__proto__', 'constructor', 'owner-blink-200-dom-wall-model'])
+      expect(() =>
+        actual.record(value, value.title, site, v3Provenance(definition), [2000], 1000),
+      ).toThrow();
+    for (const changed of [
+      { stage: 'another-stage' },
+      { generationId: -1 },
+      { generationId: NaN },
+      { sourceSha256: '' },
+      { observedSourceSha256: 'd'.repeat(64) },
+      { dimensions: {} },
+      { dimensions: { delayMs: 200 } },
+      { dimensions: { delayMs: 100, arduinoPin: 2 } },
+      { pace: 0.1 },
+      { maximumMs: 10000 },
+    ])
+      expect(() =>
+        actual.record(
+          value,
+          value.title,
+          definition.site,
+          { ...v3Provenance(definition), ...changed } as V3Provenance,
+          [2000],
+          1000,
+        ),
+      ).toThrow();
+    expect(() =>
+      Reflect.apply(actual.record, undefined, [
+        value,
+        value.title,
+        definition.site,
+        v3Provenance(definition),
+        [2000],
+        1000,
+        { pace: 1 },
+      ]),
+    ).toThrow();
+    expect(() =>
+      actual.record(
+        v3Ledger(millisTitle),
+        millisTitle,
+        definition.site,
+        v3Provenance(definition),
+        [2000],
+        1000,
+      ),
+    ).toThrow();
+  });
+
+  it('cannot pass an omitted, duplicated, forged or partly completed stage in any case', () => {
+    const actual = oracle().v3;
+    for (const title of actual.cases) {
+      const value = v3Ledger(title);
+      populateV3(value);
+      actual.complete(value, title);
+      if (!actual.required(title).length) continue;
+      const missing = JSON.parse(JSON.stringify(value)) as V3Ledger;
+      missing.entries.pop();
+      expect(() => actual.complete(missing, title)).toThrow('not reached');
+      const duplicate = JSON.parse(JSON.stringify(value)) as V3Ledger;
+      duplicate.entries.push(duplicate.entries[0]!);
+      expect(() => actual.complete(duplicate, title)).toThrow('duplicate');
+      const forged = JSON.parse(JSON.stringify(value)) as V3Ledger;
+      forged.entries[0]!.binding = false;
+      expect(() => actual.complete(forged, title)).toThrow('Mismatched');
+      const differentGeneration = JSON.parse(JSON.stringify(value)) as V3Ledger;
+      differentGeneration.stages[0]!.generationId += 1;
+      expect(() => actual.complete(differentGeneration, title)).toThrow();
+    }
+    const blockly = actual.cases.find((title) => title.includes('Owner Arduino Blockly:'))!;
+    const partial = v3Ledger(blockly);
+    for (const definition of actual.sites.filter(
+      (entry) => entry.title === blockly && entry.stage === 'blockly-100',
+    )) {
+      actual.record(
+        partial,
+        blockly,
+        definition.site,
+        v3Provenance(definition),
+        [definition.kind === 'absolute-wall-model' ? 2000 : 200],
+        definition.kind === 'absolute-wall-model' ? 1000 : null,
+      );
+    }
+    expect(() => actual.complete(partial, blockly)).toThrow('not reached');
+    const definition = actual.sites[0]!;
+    for (const [key, changed] of [
+      ['schema', 'electronics-classroom-qualification-v2'],
+      ['profile', 'strict-real-time'],
+      ['entrypoint', entrypoint],
+      ['expectedPace', 1],
+      ['registryRevision', ''],
+      ['expectedSourceSha', ''],
+      ['observerSha256', ''],
+    ] as const)
+      expect(() =>
+        actual.record(
+          { ...v3Ledger(definition.title), [key]: changed } as V3Ledger,
+          definition.title,
+          definition.site,
+          v3Provenance(definition),
+          [2000],
+          1000,
+        ),
+      ).toThrow();
+  });
+});
+
+describe('v3 original acquisition boundary and complete real prefix', () => {
+  it('retains original5s FAIL beside later v3 PASS at all three finite acquisition sites', () => {
+    const actual = oracle().v3;
+    for (const definition of actual.acquisitions) {
+      const value = v3Ledger(definition.title);
+      const input = validV3Input(definition);
+      const measured = actual.recordAcquisition(
+        value,
+        value.title,
+        definition.site,
+        v3Provenance(definition),
+        input,
+      );
+      actual.requireAcquisition(measured);
+      expect(measured.ok).toBe(true);
+      if (!measured.ok) throw new Error(measured.error);
+      expect(measured.entry).toMatchObject({
+        waitStartedAt: 100,
+        originalDeadlineAt: 5100,
+        activeDeadlineAt: 10100,
+        acquisitionLimitMs: 10000,
+        strictLimitMs: 5000,
+        observedAt: 6600,
+        firstHorizonAt: 6100,
+        strictOutcome: 'FAIL',
+        v3Outcome: 'PASS',
+        comparisonScope: 'original-limit-on-this-v3-execution',
+        binding: true,
+      });
+      expect(measured.entry.readyTimestamps).toEqual(input.readyTimestamps);
+      const repeated = actual.recordAcquisition(
+        value,
+        value.title,
+        definition.site,
+        v3Provenance(definition),
+        input,
+      );
+      expect(() => actual.requireAcquisition(repeated)).toThrow('Duplicate');
+      expect(value.invalidAcquisitions).toHaveLength(1);
+    }
+  });
+
+  it('distinguishes inclusive boundaries, interruption, later sequential starts and a failed expectation', () => {
+    const actual = oracle().v3;
+    const first = actual.acquisitions[0]!;
+    const second = actual.acquisitions[1]!;
+    const value = v3Ledger(first.title);
+    const atStrict = validV3Input(first);
+    atStrict.readyTimestamps[1]!.at = 5100;
+    const exact = actual.acquisition(value, value.title, first.site, v3Provenance(first), atStrict);
+    expect(exact.ok && exact.entry.strictOutcome).toBe('PASS');
+    const interrupted = validV3Input(first);
+    interrupted.observedAt = 1000;
+    interrupted.expectationCompleted = false;
+    interrupted.readyTimestamps = interrupted.readyTimestamps.slice(0, 1);
+    const partial = actual.acquisition(
+      value,
+      value.title,
+      first.site,
+      v3Provenance(first),
+      interrupted,
+    );
+    expect(partial.ok && partial.entry.strictOutcome).toBe('INCOMPLETE');
+    expect(() => actual.requireAcquisition(partial)).toThrow('incomplete');
+    const later = validV3Input(second);
+    later.waitStartedAt = 6200;
+    later.observedAt = 11300;
+    later.readyTimestamps = [
+      later.readyTimestamps[0]!,
+      {
+        ...later.readyTimestamps[1]!,
+        at: 6100,
+        committedHorizonMicroseconds: first.horizonMicroseconds,
+      },
+      {
+        ...later.readyTimestamps[2]!,
+        at: 11200,
+        committedHorizonMicroseconds: second.horizonMicroseconds,
+      },
+    ];
+    const acquired = actual.acquisition(
+      value,
+      value.title,
+      second.site,
+      v3Provenance(second),
+      later,
+    );
+    expect(acquired.ok && acquired.entry.originalDeadlineAt).toBe(11200);
+    expect(acquired.ok && acquired.entry.strictOutcome).toBe('PASS');
+    const notCompleted = validV3Input(first);
+    notCompleted.expectationCompleted = false;
+    expect(() =>
+      actual.requireAcquisition(
+        actual.acquisition(value, value.title, first.site, v3Provenance(first), notCompleted),
+      ),
+    ).toThrow('incomplete');
+    for (const firstAt of [10100, 10100.001]) {
+      const last = validV3Input(first);
+      last.observedAt = 10300;
+      last.readyTimestamps[1]!.at = firstAt;
+      last.readyTimestamps[2]!.at = 10200;
+      const entry = actual.acquisition(value, value.title, first.site, v3Provenance(first), last);
+      expect(entry.ok && entry.entry.v3Outcome).toBe(firstAt === 10100 ? 'PASS' : 'FAIL');
+    }
+  });
+
+  it('rejects future/unordered rows, nonfinite times, wrong source/generation and undeclared acquisitions', () => {
+    const actual = oracle().v3;
+    const definition = actual.acquisitions[0]!;
+    const value = v3Ledger(definition.title);
+    const input = validV3Input(definition);
+    const invalid: V3Input[] = [
+      { ...input, waitStartedAt: NaN },
+      { ...input, observedAt: Infinity },
+      { ...input, readyTimestamps: [...input.readyTimestamps].reverse() },
+      { ...input, readyTimestamps: new Array<V3Input['readyTimestamps'][number]>(2) },
+      ...[
+        { at: 6601 },
+        { at: -1 },
+        { committedHorizonMicroseconds: 1.1 },
+        { sourceSha256: 'd'.repeat(64) },
+        { generationId: 8 },
+        { responseGenerationId: 8 },
+      ].map((changed) => ({
+        ...input,
+        readyTimestamps: [{ ...input.readyTimestamps[1]!, ...changed }],
+      })),
+    ];
+    for (const candidate of invalid)
+      expect(() =>
+        actual.requireAcquisition(
+          actual.acquisition(
+            value,
+            value.title,
+            definition.site,
+            v3Provenance(definition),
+            candidate,
+          ),
+        ),
+      ).toThrow();
+    for (const site of ['__proto__', 'constructor', 'delay-1-ready-horizon-1500000'])
+      expect(() =>
+        actual.requireAcquisition(
+          actual.acquisition(value, value.title, site, v3Provenance(definition), input),
+        ),
+      ).toThrow();
+    const wrongTitle = actual.cases[0]!;
+    expect(() =>
+      actual.requireAcquisition(
+        actual.acquisition(
+          v3Ledger(wrongTitle),
+          wrongTitle,
+          definition.site,
+          v3Provenance(definition),
+          input,
+        ),
+      ),
+    ).toThrow();
+  });
+});
+
+describe('v3 preserves real functional publication and native observations', () => {
+  it('keeps the actual supersession allowance at 50 raw wall milliseconds', () => {
+    const actual = oracle().v3;
+    const frame = (at: number, brightness: number) => ({
+      at,
+      requestAt: at - 1,
+      source: 'source',
+      generationId: 7,
+      responseGenerationId: 7,
+      requestId: String(at),
+      executionStatus: 'ready',
+      solved: true,
+      qualityPassed: true,
+      committedHorizonMicroseconds: at * 1000,
+      requestedHorizonMicroseconds: at * 1000,
+      continuationHorizonMicroseconds: at * 1000,
+      components: [0, 1, 2].map((index) => ({ componentId: `led${index}`, brightness })),
+    });
+    const raw = (at: number) => ({
+      frames: [frame(100, 80), frame(200, 0)],
+      paintRuns: [
+        {
+          first: {
+            previousFrameAt: at - 16,
+            brightness: [80, 80, 80],
+            images: [0, 1, 2].map(() => ({
+              decoded: true,
+              visible: true,
+              unoccluded: true,
+              opacity: 1,
+              lit: true,
+            })),
+          },
+          lastAt: at,
+          witnessAt: [at],
+        },
+      ],
+    });
+    expect(actual.causality(raw(250), 'source', 7, 0).violations).toEqual([]);
+    expect(actual.causality(raw(250), 'source', 7, 0).witnesses).toHaveLength(1);
+    expect(actual.causality(raw(250.001), 'source', 7, 0).violations).toEqual([
+      expect.objectContaining({ reason: 'electrical state superseded more than 50 ms ago' }),
+    ]);
+    expect(readyCompact).toContain('const OWNER_TEMPORAL_PUBLICATION_LAG_MS = 50;');
+    expect(readyCompact).toContain(
+      'const setupFrom = firstSetup.at + OWNER_TEMPORAL_PUBLICATION_LAG_MS;',
+    );
+  });
+
+  it('retains the exact primary observer, original model guards and every acquisition outside the allowlist', () => {
+    const originalObserver = readFileSync(
+      new URL('../../e2e/electronics-classroom-timing.spec.ts', import.meta.url),
+    );
+    expect(createHash('sha256').update(originalObserver).digest('hex')).toBe(
+      'ca71a1fb21a958507dc33250a1858bce0ee55e1e9a144fb5f742c162662c6436',
+    );
+    expect(readyCompact).toContain(
+      "if (ownerQualificationLedger?.profile === 'classroom-d13-v2') test.setTimeout(60_000);",
+    );
+    expect(readyCompact).toContain('expect(first.committedHorizonMicroseconds).toBe(0);');
+    expect(readyCompact).toContain('expect(modelMs).toBeGreaterThanOrEqual(minimumModelMs);');
+    expect(readyCompact).toContain('expect(half).toBeLessThanOrEqual(2000.01);');
+    expect(readyCompact).toContain('expect(Math.abs(half - halfMs)).toBeLessThanOrEqual(0.1);');
+    expect(readyText).not.toMatch(/test\.(?:skip|fixme|fail|slow)\(/);
+    const calls: ts.CallExpression[] = [];
+    const visit = (node: ts.Node): void => {
+      if (ts.isCallExpression(node)) calls.push(node);
+      ts.forEachChild(node, visit);
+    };
+    visit(readySource);
+    expect(
+      calls
+        .filter((node) => node.expression.getText(readySource) === 'waitForOwnerV3Horizon')
+        .map((node) => node.arguments[2]?.getText(readySource)),
+    ).toEqual([
+      "'delay-2000-ready-horizon-4050000'",
+      "'delay-2000-ready-horizon-8100000'",
+      "'millis-ready-horizon-2250000'",
+    ]);
+    expect(
+      calls
+        .filter((node) => node.expression.getText(readySource) === 'recordOwnerV3Timing')
+        .map((node) => node.arguments[2]!.getText(readySource).replace(/\s+/g, ' ')),
+    ).toEqual([
+      'site',
+      '`owner-blink-${delayMs}-dom-wall-model`',
+      '`owner-blink-${delayMs}-dom-mean-period`',
+      '`owner-blink-${delayMs}-dom-transition-gaps`',
+      '`owner-blink-${delayMs}-${surface}-half-durations`',
+      '`owner-blink-${delayMs}-paint-wall-model`',
+      "mode === 'no-delay realtime' ? 'no-delay-execution-wall-model' : 'independent-ports-execution-wall-model'",
+      '`independent-ports-led${pin}-high-periods`',
+      '`blockly-${half}-paint-half-durations`',
+      '`delay-2000-${id}-paint-half-durations`',
+      '`delay-2000-${id}-paint-mean-period`',
+      '`millis-${id}-paint-half-durations`',
+      '`millis-${id}-paint-mean-period`',
+    ]);
+    expect(
+      calls
+        .filter((node) => node.expression.getText(readySource) === 'assertOwnerV3TemporalClock')
+        .map((node) => node.arguments[2]!.getText(readySource)),
+    ).toEqual([
+      '`blockly-${half}-temporal-wall-model`',
+      "'delay-2000-temporal-wall-model'",
+      "'delay-1-temporal-wall-model'",
+      "'millis-temporal-wall-model'",
+      "'reset-temporal-wall-model'",
+    ]);
+  });
+});
+
+describe('separately named v3 runner with the complete original browser suite', () => {
+  it.each([0, 17])(
+    'propagates real v3 child exit %i and immutable source environment',
+    (exitCode) => {
+      const result = runActualRunner({ exitCode, lifecycle: v3Entrypoint });
+      expect(result.error).toBeUndefined();
+      expect(result.status).toBe(exitCode);
+      expect(JSON.parse(result.stdout.trim())).toEqual({
+        argv: ['e2e:electronics-simulation'],
+        cwd: repositoryRoot.replace(/[\\/]$/, ''),
+        profile: 'classroom-d13-v3',
+        entrypoint: v3Entrypoint,
+        expectedSha: 'd'.repeat(40),
+        nxSkip: 'true',
+      });
+    },
+  );
+  it('does not turn v3 child signal failure, profile conflicts or filtered invocations into PASS', () => {
+    expect(runActualRunner({ signal: true, lifecycle: v3Entrypoint }).status).not.toBe(0);
+    for (const options of [
+      { args: ['--grep', 'D13'] },
+      { args: ['--retries', '3'] },
+      { profile: 'classroom-d13-v2' },
+      { profile: 'strict-real-time' },
+      { profile: 'unknown' },
+      { lifecycle: '__proto__' },
+      { lifecycle: 'constructor' },
+      { inheritedEntrypoint: v3Entrypoint },
+      { cli: '' },
+      { cli: 'relative-pnpm.cjs' },
+    ]) {
+      const result = runActualRunner({ lifecycle: v3Entrypoint, ...options });
+      expect(result.status).not.toBe(0);
+      expect(result.stdout).toBe('');
+    }
+  });
+});
+
+type V3LifecycleFrame = {
+  at: number;
+  source: string;
+  executionStatus: string;
+  generationId: number | null;
+  responseGenerationId: number | null;
+  committedHorizonMicroseconds: number;
+};
+type V3LifecycleReport = {
+  ledger: V3Ledger;
+  qualificationStatus: string;
+  missingSites: string[];
+  unreached: Array<{ site: string; outcome: string }>;
+  reachedWithoutValidEvidence: Array<{
+    site: string;
+    outcome: string;
+    acquisition: Record<string, unknown>;
+  }>;
+};
+type V3LifecycleInfo = {
+  title: string;
+  status: string;
+  expectedStatus: string;
+  workerIndex: number;
+  retry: number;
+  attach: (name: string, attachment: { path: string; contentType: string }) => Promise<void>;
+};
+const v3LifecycleSource = 'void loop() { delay(2000); }';
+const v3LifecycleSourceSha256 = createHash('sha256').update(v3LifecycleSource).digest('hex');
+const actualAfterEachStatements = readySource.statements.filter(
+  (statement) =>
+    ts.isExpressionStatement(statement) &&
+    ts.isCallExpression(statement.expression) &&
+    statement.expression.expression.getText(readySource) === 'test.afterEach',
+);
+if (actualAfterEachStatements.length !== 1)
+  throw new Error('Expected exactly one actual ready-cadence afterEach callback.');
+const v3LifecycleJavaScript = ts.transpileModule(
+  `${declarations.join('\n')}\n${actualAfterEachStatements[0]!.getText(readySource)}\nwaitForOwnerV3Horizon;`,
+  { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } },
+).outputText;
+
+// Exercise the actual acquisition wrapper and actual afterEach together. Only
+// the browser clock/Worker prefix, rejecting poll and artifact sink are fixtures.
+// This is a control-flow regression, not a browser or visible-product result.
+async function runV3Lifecycle(
+  definition: V3AcquisitionDefinition,
+  options: {
+    value?: V3Ledger;
+    waitStartedAt?: number;
+    observedAt?: number;
+    frames?: V3LifecycleFrame[];
+    primaryError?: Error;
+    observationError?: Error;
+    startError?: Error;
+    afterStatus?: string;
+  } = {},
+) {
+  const value = options.value ?? v3Ledger(definition.title);
+  value.observerSha256 = createHash('sha256').update(readyText).digest('hex');
+  const waitStartedAt = options.waitStartedAt ?? 100;
+  const observedAt = options.observedAt ?? 10101;
+  let browserNow = waitStartedAt;
+  let evaluateCalls = 0;
+  let afterEachCallback:
+    ((fixtures: { browserName: string }, info: V3LifecycleInfo) => Promise<void>) | null = null;
+  let report: V3LifecycleReport | null = null;
+  const attachments: string[] = [];
+  const polls: Array<{
+    timeout: number;
+    intervals: number[];
+    predicateResult: unknown;
+    expected: unknown;
+  }> = [];
+  const page = {
+    evaluate: async (callback: (argument?: unknown) => unknown, argument?: unknown) => {
+      evaluateCalls++;
+      if (evaluateCalls === 1 && options.startError) throw options.startError;
+      if (typeof argument === 'string') {
+        if (options.observationError) throw options.observationError;
+        browserNow = observedAt;
+      }
+      return callback(argument);
+    },
+  };
+  const invoke = runInNewContext(v3LifecycleJavaScript, {
+    createHash,
+    ownerQualificationLedger: null,
+    ownerV3Ledger: value,
+    artifactRoot: '/v3-lifecycle-fixture',
+    resolve,
+    mkdirSync: () => undefined,
+    writeFileSync: (_path: string, body: string) => {
+      report = JSON.parse(body) as V3LifecycleReport;
+    },
+    performance: { now: () => browserNow },
+    window: { __ownerTemporal: { frames: options.frames ?? [] } },
+    test: {
+      info: () => ({ title: value.title }),
+      afterEach: (callback: typeof afterEachCallback) => {
+        afterEachCallback = callback;
+      },
+    },
+    expect: {
+      poll: (
+        predicate: () => Promise<unknown>,
+        configuration: { timeout: number; intervals: number[] },
+      ) => ({
+        toBe: async (expected: unknown) => {
+          const predicateResult = await predicate();
+          polls.push({ ...configuration, predicateResult, expected });
+          if (options.primaryError) throw options.primaryError;
+          expect(predicateResult).toBe(expected);
+        },
+      }),
+    },
+  }) as (page: unknown, source: string, site: string) => Promise<void>;
+  const [acquisition] = await Promise.allSettled([
+    invoke(page, v3LifecycleSource, definition.site),
+  ]);
+  if (!afterEachCallback) throw new Error('Actual afterEach did not register.');
+  const callback = afterEachCallback as (
+    fixtures: { browserName: string },
+    info: V3LifecycleInfo,
+  ) => Promise<void>;
+  const [afterEachResult] = await Promise.allSettled([
+    callback(
+      { browserName: 'chromium' },
+      {
+        title: value.title,
+        status: options.afterStatus ?? (acquisition.status === 'rejected' ? 'failed' : 'passed'),
+        expectedStatus: 'passed',
+        workerIndex: 0,
+        retry: 0,
+        attach: async (name) => {
+          attachments.push(name);
+        },
+      },
+    ),
+  ]);
+  if (!report) throw new Error('Actual afterEach did not retain its artifact.');
+  return {
+    value,
+    report: report as V3LifecycleReport,
+    polls,
+    evaluateCalls,
+    attachments,
+    acquisitionError: acquisition.status === 'rejected' ? (acquisition.reason as unknown) : null,
+    afterEachError:
+      afterEachResult.status === 'rejected' ? (afterEachResult.reason as unknown) : null,
+  };
+}
+
+function v3LifecycleFrame(at: number, horizon: number): V3LifecycleFrame {
+  return {
+    at,
+    source: v3LifecycleSource,
+    executionStatus: 'ready',
+    generationId: 7,
+    responseGenerationId: 7,
+    committedHorizonMicroseconds: horizon,
+  };
+}
+
+describe('actual v3 acquisition and afterEach preserve reached failures without invented provenance', () => {
+  it('retains both elapsed deadlines for every invoked zero-ready acquisition and preserves the original rejection', async () => {
+    // The second delay-2000 acquisition is isolated here; this does not claim a
+    // complete preceding browser sequence. Its invocation still has real bounds.
+    for (const definition of oracle().v3.acquisitions) {
+      const primary = new Error(`primary timeout: ${definition.site}`);
+      const result = await runV3Lifecycle(definition, { primaryError: primary });
+      expect(result.acquisitionError).toBe(primary);
+      expect(result.afterEachError).toBeNull();
+      expect(result.polls).toEqual([
+        { timeout: 10000, intervals: [100], predicateResult: false, expected: true },
+      ]);
+      expect(result.evaluateCalls).toBe(3);
+      expect(result.value.entries).toEqual([]);
+      expect(result.value.stages).toEqual([]);
+      expect(result.value.invalidAcquisitions).toHaveLength(1);
+      expect(result.value.invalidAcquisitions[0]!.reached).toMatchObject({
+        invocation: 'REACHED',
+        site: definition.site,
+        title: definition.title,
+        stage: definition.stage,
+        dimensions: definition.dimensions,
+        expectedSourceSha256: v3LifecycleSourceSha256,
+        observedProvenance: null,
+        expectedPace: 0.5,
+        horizonMicroseconds: definition.horizonMicroseconds,
+        waitStartedAt: 100,
+        originalDeadlineAt: 5100,
+        activeDeadlineAt: 10100,
+        observedAt: 10101,
+        firstHorizonAt: null,
+        strictLimitMs: 5000,
+        acquisitionLimitMs: 10000,
+        strictOutcome: 'FAIL',
+        v3Outcome: 'FAIL',
+        expectationCompleted: false,
+        readyTimestamps: [],
+        evidenceStatus: 'REJECTED',
+        outcomeBasis: 'no-validated-matching-ready-row',
+      });
+      expect(result.report.qualificationStatus).toBe('FAIL_OR_INCOMPLETE');
+      expect(result.report.missingSites).toContain(definition.site);
+      expect(result.report.unreached.some((entry) => entry.site === definition.site)).toBe(false);
+      expect(result.report.reachedWithoutValidEvidence).toHaveLength(1);
+      expect(result.report.reachedWithoutValidEvidence[0]).toMatchObject({
+        site: definition.site,
+        outcome: 'REACHED_WITH_INVALID_EVIDENCE',
+      });
+      expect(result.report.unreached).toHaveLength(
+        oracle().v3.required(definition.title).length - 1,
+      );
+      expect(result.attachments).toEqual(['electronics-qualification-v3-ledger']);
+    }
+  });
+
+  it('uses the actual invocation boundary for cancellation and the inclusive original and active deadlines', async () => {
+    const definitions = oracle().v3.acquisitions;
+    for (const definition of definitions) {
+      const start = definition === definitions[1] ? 6200 : 100;
+      for (const [elapsed, strictOutcome, v3Outcome] of [
+        [900, 'INCOMPLETE', 'INCOMPLETE'],
+        [4999.999, 'INCOMPLETE', 'INCOMPLETE'],
+        [5000, 'FAIL', 'INCOMPLETE'],
+        [9999.999, 'FAIL', 'INCOMPLETE'],
+        [10000, 'FAIL', 'FAIL'],
+      ] as const) {
+        const primary = new Error('cancelled or expired actual acquisition');
+        const result = await runV3Lifecycle(definition, {
+          waitStartedAt: start,
+          observedAt: start + elapsed,
+          primaryError: primary,
+        });
+        expect(result.acquisitionError).toBe(primary);
+        expect(result.value.invalidAcquisitions[0]!.reached).toMatchObject({
+          waitStartedAt: start,
+          observedAt: start + elapsed,
+          originalDeadlineAt: start + 5000,
+          activeDeadlineAt: start + 10000,
+          strictOutcome,
+          v3Outcome,
+          observedProvenance: null,
+        });
+        expect(result.report.unreached.some((entry) => entry.site === definition.site)).toBe(false);
+      }
+    }
+  });
+
+  it('retains malformed, wrong-generation and stale-source prefixes as reached failures, with no qualified entry', async () => {
+    const definition = oracle().v3.acquisitions[0]!;
+    const row = v3LifecycleFrame(6100, definition.horizonMicroseconds);
+    const candidates = [
+      { frames: [{ ...row, at: NaN }] },
+      { frames: [{ ...row, at: 10102 }] },
+      { frames: [{ ...row, committedHorizonMicroseconds: 1.5 }] },
+      { frames: [row, { ...row, at: 6000 }] },
+      { frames: [{ ...row, generationId: null }] },
+      { frames: [{ ...row, responseGenerationId: 8 }] },
+      { frames: [row, { ...row, at: 6500, generationId: 8, responseGenerationId: 8 }] },
+      { frames: [{ ...row, generationId: 6, responseGenerationId: 6 }], previousGeneration: 7 },
+      { frames: [{ ...row, source: 'stale source' }] },
+    ];
+    for (const candidate of candidates) {
+      const value = v3Ledger(definition.title);
+      if (candidate.previousGeneration !== undefined)
+        value.stages.push({
+          stage: definition.stage,
+          sourceSha256: v3LifecycleSourceSha256,
+          observedSourceSha256: v3LifecycleSourceSha256,
+          generationId: candidate.previousGeneration,
+        });
+      const primary = new Error('primary remains primary despite invalid retained prefix');
+      const result = await runV3Lifecycle(definition, {
+        value,
+        frames: candidate.frames,
+        primaryError: primary,
+      });
+      expect(result.acquisitionError).toBe(primary);
+      expect(result.value.entries).toEqual([]);
+      expect(result.value.invalidAcquisitions[0]!.reached).toMatchObject({
+        site: definition.site,
+        invocation: 'REACHED',
+        waitStartedAt: 100,
+        observedAt: 10101,
+        originalDeadlineAt: 5100,
+        activeDeadlineAt: 10100,
+        firstHorizonAt: null,
+        strictOutcome: 'FAIL',
+        v3Outcome: 'FAIL',
+      });
+      expect(result.report.unreached.some((entry) => entry.site === definition.site)).toBe(false);
+      expect(result.report.qualificationStatus).toBe('FAIL_OR_INCOMPLETE');
+    }
+  });
+
+  it('cannot promote a fulfilled poll with invalid ready provenance or a mislabeled passed case to PASS', async () => {
+    const definition = oracle().v3.acquisitions[0]!;
+    const result = await runV3Lifecycle(definition, {
+      frames: [
+        { ...v3LifecycleFrame(6100, definition.horizonMicroseconds), responseGenerationId: 8 },
+      ],
+      afterStatus: 'passed',
+    });
+    expect(result.polls[0]!.predicateResult).toBe(true);
+    expect(String(result.acquisitionError)).toContain('Invalid v3 acquisition');
+    expect(result.afterEachError).not.toBeNull();
+    expect(String(result.afterEachError)).toContain('Reached v3 acquisition');
+    expect(result.value.entries).toEqual([]);
+    expect(result.value.invalidAcquisitions[0]!.reached).toMatchObject({
+      expectationCompleted: true,
+      strictOutcome: 'FAIL',
+      v3Outcome: 'FAIL',
+    });
+    expect(result.report.qualificationStatus).toBe('FAIL_OR_INCOMPLETE');
+    expect(result.report.unreached.some((entry) => entry.site === definition.site)).toBe(false);
+  });
+
+  it('keeps unavailable clock or retention boundaries explicit and preserves the primary failure', async () => {
+    const definition = oracle().v3.acquisitions[0]!;
+    const primary = new Error('primary acquisition rejection');
+    const secondary = new Error('observation unavailable');
+    const result = await runV3Lifecycle(definition, {
+      primaryError: primary,
+      observationError: secondary,
+    });
+    expect(result.acquisitionError).toBe(primary);
+    expect(result.value.invalidAcquisitions[0]!.error).toContain('observation unavailable');
+    expect(result.value.invalidAcquisitions[0]!.reached).toMatchObject({
+      invocation: 'REACHED',
+      waitStartedAt: 100,
+      originalDeadlineAt: 5100,
+      activeDeadlineAt: 10100,
+      observedAt: null,
+      observedProvenance: null,
+      readyTimestamps: null,
+      strictOutcome: 'INCOMPLETE',
+      v3Outcome: 'INCOMPLETE',
+      evidenceStatus: 'UNAVAILABLE',
+    });
+    expect(result.report.unreached.some((entry) => entry.site === definition.site)).toBe(false);
+    const start = await runV3Lifecycle(definition, { startError: secondary });
+    expect(start.acquisitionError).toBe(secondary);
+    expect(start.polls).toEqual([]);
+    expect(start.value.invalidAcquisitions[0]!.reached).toMatchObject({
+      invocation: 'REACHED',
+      waitStartedAt: null,
+      originalDeadlineAt: null,
+      activeDeadlineAt: null,
+      observedAt: null,
+      expectationCompleted: null,
+      strictOutcome: 'INCOMPLETE',
+      v3Outcome: 'INCOMPLETE',
+    });
+    expect(start.report.unreached.some((entry) => entry.site === definition.site)).toBe(false);
+  });
+
+  it('still permits a genuine complete acquisition while preserving its original5s failure', async () => {
+    const actual = oracle().v3;
+    const definition = actual.acquisitions[2]!;
+    const value = v3Ledger(definition.title);
+    for (const timing of actual.sites.filter((entry) => entry.title === value.title)) {
+      const absolute = timing.kind === 'absolute-wall-model';
+      const raw = absolute
+        ? 2000
+        : ((timing.bounds.minimumMs ?? 0) + timing.bounds.maximumMs!) / 2 / 0.5;
+      actual.record(
+        value,
+        value.title,
+        timing.site,
+        {
+          ...v3Provenance(timing),
+          sourceSha256: v3LifecycleSourceSha256,
+          observedSourceSha256: v3LifecycleSourceSha256,
+        },
+        [raw],
+        absolute ? 1000 : null,
+      );
+    }
+    const result = await runV3Lifecycle(definition, {
+      value,
+      observedAt: 6600,
+      frames: [
+        v3LifecycleFrame(90, 0),
+        v3LifecycleFrame(6100, definition.horizonMicroseconds),
+        v3LifecycleFrame(6500, definition.horizonMicroseconds + 1000),
+      ],
+    });
+    expect(result.acquisitionError).toBeNull();
+    expect(result.afterEachError).toBeNull();
+    expect(result.value.invalidAcquisitions).toEqual([]);
+    expect(result.value.entries.at(-1)).toMatchObject({
+      site: definition.site,
+      strictOutcome: 'FAIL',
+      v3Outcome: 'PASS',
+      firstHorizonAt: 6100,
+      originalDeadlineAt: 5100,
+      activeDeadlineAt: 10100,
+    });
+    expect(result.report.qualificationStatus).toBe('PASS');
+    expect(result.report.missingSites).toEqual([]);
+    expect(result.report.unreached).toEqual([]);
+    expect(result.report.reachedWithoutValidEvidence).toEqual([]);
   });
 });

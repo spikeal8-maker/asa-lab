@@ -217,3 +217,120 @@ independent product review and all required focused, benchmark, browser and
 repository gates. Its acceptance blocker, Issue546's full-realtime restrictions,
 and the separate main/deployment distinction remain active. No working-site,
 database, Docker, network or protected-data action is authorized by this record.
+
+## R3 repair 2: native resource and host responsibility review
+
+This appended review implements the further bounded UI selection in
+01d431d2fbdd078987546a728f24785f75bd9d6f. It preserves every earlier paragraph,
+source review, failure and matching-source validation above. The controller
+observed main 47524e08f14a1c7c6c11b213063103e652a32c3d again at
+2026-10-19T17:02:01Z; the selected candidate HEAD was 01d431d2, with nine known
+staged product/test paths and no overlapping target edits in 67 worktrees.
+The exact staged product tree after formatting is
+3e568227484ef0738f6447155f95243556bc7cae. It is a source identity for this review,
+not an integrated commit or a browser acceptance claim.
+
+| Reviewed source | Previous reviewed bytes | Actual formatted bytes | SHA256 | Git blob |
+|---|---:|---:|---|---|
+| ProductionComponentVisual.tsx | 72,432 | 89,698 | `e3313f0572fb890ee157f4204e956c1888f04d2294fbb5800c8c83537121125a` | `9f6f58825947d495da172d8d6f04d3cdd6993403` |
+| use-electronics-workbench.ts | 103,385 | 126,864 | `dedc04bd6cd93581e7fa053295cb4c85c74fceab5edc9b9bdc813be3ce63c4fd` | `940b44c37934ea9931a064fa5a65f6ecb467a6f2` |
+| WorkbenchStage.tsx | 54,879 | 63,252 | `581f0c57b74d932a3dca15f042f0895b2030aa1be8696f7787a80cbb7ef3cdab` | `686af0075aa3cd61e031689a50f91ce10075c3f8` |
+
+The renderer and host exceed their unchanged 20% growth boundaries of 86,918.4
+and 124,062 bytes respectively. Update only their reviewed_bytes to the exact
+formatted counts in this table and their evidenced rationales. WorkbenchStage
+remains below 65,854.8 bytes, so its complete baseline entry is unchanged. The
+previous scheduler/runtime entries and every other baseline entry remain exact.
+No allowance above the measured size is added.
+
+### Responsibility and residual debt
+
+The renderer owns the actual native image elements and their resource lifetime.
+The ordinary LED implementation preserves loaded OFF, current active and pending
+resources within three resident nodes. An exact element/href/revision lease
+cannot be manufactured from a matching colour or a later load. The prior active
+lease is protected until the parent accepts the new joint state or rejects it;
+a rejected new state restores that same prior loaded element. A protected slot
+cannot be reused for a fourth resource. Shared asset recovery and the existing
+non-LED family rendering remain at their original boundaries. No owner artwork
+is replaced, generated or redrawn.
+
+The host owns the atomic publication of the simulated optical vector. It passes
+immutable preparation to the renderer, admits only current ready leases, commits
+a joint state, and acknowledges the actual layout. Explicit rollback state is
+cleared by a cleanup commit after acknowledgement, rather than waiting for an
+unrelated future update. If a rejected state also has invalid prior leases, or
+the presenter clears its accepted frame, the entire optical vector is cleared;
+ordinary waiting for two RAFs preserves a valid prior frame. Source/generation,
+Stop and Reset cancellation remain one host lifecycle boundary. Electrical
+collection and programme execution stay in the domain; the presentation clock
+stays in led-temporal-presentation.ts. No independent GPIO animation is added.
+
+Keeping these coherent native-lifetime and joint-publication responsibilities
+avoids splitting an atomic protocol solely to reduce file size. Both sources
+remain decomposition-candidate. Future extraction must preserve exact resource
+identity, cancellation/rollback, whole-vector publication, physical provenance,
+shared cursor and native browser evidence together. The pre-existing shared
+loading, family dispatch, instrument/selection and controller responsibility debt
+remains. This review selects no new helper layer, source removal or retirement.
+
+### Exact independent source and formatting evidence
+
+The independent repair-2 source verdict is
+APPROVE_BOUNDED_SOURCE_COMPOSITION_ONLY in
+native-phase-r3-r2-independent-source-review.json, SHA256
+`49d5423f862da01a229e9dc37e6159249285b562b2b427ff525b6c52e4a6e216`.
+Its separate placement receipt is
+native-phase-r3-r2-ui-responsibility-independent-review.json, SHA256
+`d2aeded73072f2380a172752fdd920703b3c949037da20a473b0670d14a396ce`.
+Both full patches to the retained candidate and deltas to original R3 produced
+the same six authored files. Old 28 native and 42 phase test-call ASTs are
+preserved. The earlier R3 rejection, SHA256
+`fa85ad411352ef231a76057df8ca467d026ae60c0d246c2738aea14631d7cc68`,
+remains the verdict on that earlier source. The new source closes its reproduced
+rollback defect and the separate stale-vector cleanup defect; it does not rewrite
+the original result.
+
+The formatter-only patch has SHA256
+`89925616d14db0be251396dca9a37d45db0d1614fce685942179701b525a3b2e`.
+Actual TypeScript 5.9.3 lowering and complete semantic-child AST comparison of
+all nine formatted files passed; only positions, trivia and redundant
+parentheses are excluded. Identifiers, literal/template values and template raw
+text are included. The comparison receipt v3-r2-format-semantic.json has SHA256
+`e4e19c08dd67733841d25974e4db92f6f293bebcc51d5f3529b6593ae1d27a73`;
+its complete script has SHA256
+`beda5c735c82aff019c8eba20b823529586dace1d1267b386cc1b51626c6876f`.
+Emitted JavaScript bytes differ in five files because of formatting; no claim
+of emitted-byte identity is made. An independently assembled local mirror also
+matches every measured final SHA256, byte count and Git blob. Final independent
+format/baseline diff approval is recorded by its separate matching receipt.
+
+### Actual verification and remaining product boundary
+
+The actual formatted source receipt v3-r2-product-actual.json has SHA256
+`c79cbd1c37bf7e3df563ab0af6405bd014f76d86b9834732e55b952335377dbe`.
+At 2026-10-19T16:52:07Z the complete four targeted Vitest suites passed 238/238:
+82 engine, 96 presenter, 37 asset recovery and 23 temporal observation cases.
+The official web:typecheck also passed all six freshly executed Nx tasks with
+literal NX_SKIP_NX_CACHE=true. Original logs are retained as
+v3-r2-product-complete-targeted-vitest.log, SHA256
+`a78d1bdaefe3cdd47b53b8e3b030a1bd22277fca03aa9fd352897b5db9446e2c`,
+and v3-r2-product-web-typecheck.log, SHA256
+`008d5811f2f0f6b1601bbe71c5185645b5fada84ffcd759e53b74e9b5989ee91`.
+These source checks do not replace the actual browser or repository gates.
+
+This baseline/evidence amendment changes no source, test, route, generator,
+protected asset, legacy bridge, retirement condition or policy. All previous
+lifecycle and residual-debt obligations in this record remain. It is still a
+bounded growth review with production_source_changed=false and
+full_hygiene_checkpoint=false; the accepted production-slice ledger is not reset.
+
+The exact composed baseline/source must pass the targeted hygiene validator,
+full Electronics routing and Governance, with independent final diff review.
+Attach those original receipts to the final candidate identity. D13 still
+requires full focused, benchmark, complete classroom and General gates, the
+separate actual strict qualification, and new independent native-browser review.
+The raw-wall 50 ms publication bound, physical current/polarity/resistor checks,
+full order, duty and lifecycle criteria remain binding. Main integration and
+working-site deployment remain separate actions; no installation or live-data
+action is authorized by this maintenance amendment.

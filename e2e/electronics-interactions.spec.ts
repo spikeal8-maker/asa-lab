@@ -1387,7 +1387,7 @@ test.describe('asset recovery in the built editor', () => {
     );
     await expect.poll(() => failedMaskRequests).toBe(1);
     await expect(part(page, 'battery')).toHaveAttribute('data-hit-mask-status', 'ready');
-    await expect(part(page, 'led').locator('image.workbench-led-asset')).toHaveAttribute(
+    await expect(part(page, 'led').locator('image.workbench-led-asset').first()).toHaveAttribute(
       'href',
       /\.svg$/,
     );
@@ -1935,7 +1935,7 @@ test.describe('asset recovery in the built editor', () => {
     const writes = await page.evaluate(
       () => (window as unknown as { draftWrites: number }).draftWrites,
     );
-    await expect(part(page, 'led').locator('image.workbench-led-asset')).toHaveAttribute(
+    await expect(part(page, 'led').locator('image.workbench-led-asset').first()).toHaveAttribute(
       'href',
       /asa-image-retry=0/,
       { timeout: 10_000 },

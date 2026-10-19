@@ -44,6 +44,7 @@ on:
         options:
           - strict-real-time
           - classroom-d13-v2
+          - classroom-d13-v3
 
 permissions:
   contents: read
@@ -153,7 +154,7 @@ jobs:
       ASA_BUILD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
       ASA_ELECTRONICS_EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
       ASA_ELECTRONICS_QUALIFICATION_PROFILE: ${{ inputs.qualification_profile || 'strict-real-time' }}
-      ASA_ELECTRONICS_BROWSER_GATE: ${{ inputs.qualification_profile == 'classroom-d13-v2' && 'gate:electronics-classroom-d13:browser' || 'gate:electronics-m1:browser' }}
+      ASA_ELECTRONICS_BROWSER_GATE: ${{ inputs.qualification_profile == 'classroom-d13-v3' && 'gate:electronics-classroom-d13-v3:browser' || inputs.qualification_profile == 'classroom-d13-v2' && 'gate:electronics-classroom-d13:browser' || 'gate:electronics-m1:browser' }}
       ASA_IMAGE_TAG: ${{ github.event.pull_request.head.sha || github.sha }}
       COMPOSE_PROJECT_NAME: asa-lab-electronics-${{ github.run_id }}
       ASA_TEST_UID: '1000'

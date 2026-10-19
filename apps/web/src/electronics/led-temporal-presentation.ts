@@ -13,8 +13,40 @@ export const LED_PRESENTATION_PHASE_LIMIT_MICROSECONDS = 25_000;
 // Two complete cycles plus the current phase, including near the cadence limit.
 const HISTORY_MICROSECONDS = 5 * LED_PRESENTATION_PHASE_LIMIT_MICROSECONDS;
 const MAX_HISTORY_SAMPLES = 513;
-// Leave one 60 Hz paint handoff inside the existing 50 ms publication allowance.
-const MAX_SUPERSEDED_MICROSECONDS = 50_000 - 1_000_000 / 60;
+// One deliberately shared classroom clock. Electrical instruction time is unchanged.
+export const ELECTRONICS_CLASSROOM_PACE = 0.5;
+
+export function classroomRequestedHorizon(
+  hostOffsetMicroseconds: number,
+  elapsedWallMicroseconds: number,
+  presentedMicroseconds: number,
+): number {
+  return (
+    hostOffsetMicroseconds +
+    Math.min(
+      Math.max(0, Math.floor(elapsedWallMicroseconds * ELECTRONICS_CLASSROOM_PACE)),
+      Math.max(0, presentedMicroseconds) + LED_PRESENTATION_PHASE_LIMIT_MICROSECONDS,
+    )
+  );
+}
+
+export interface LedPresentationFrame {
+  readonly token: string;
+  readonly atMicroseconds: number;
+  readonly brightness: ReadonlyMap<string, number>;
+  readonly arduinoLStates: ReadonlyMap<string, boolean>;
+}
+
+function sameOpticalFrame(left: LedPresentationFrame, right: LedPresentationFrame): boolean {
+  return (
+    left.brightness.size === right.brightness.size &&
+    [...left.brightness].every(
+      ([id, value]) => Math.round(value) === Math.round(right.brightness.get(id) ?? -1),
+    ) &&
+    left.arduinoLStates.size === right.arduinoLStates.size &&
+    [...left.arduinoLStates].every(([id, value]) => right.arduinoLStates.get(id) === value)
+  );
+}
 
 type HeldPresentationSample = ElectronicsLedTemporalSample | ElectronicsArduinoIndicatorSample;
 
@@ -171,52 +203,6 @@ function fastCycleBrightness(samples: readonly ElectronicsLedTemporalSample[], t
   return integral / (end - start);
 }
 
-function containsJointState(
-  channels: ReadonlyMap<string, readonly ElectronicsLedTemporalSample[]>,
-  brightness: ReadonlyMap<string, number>,
-  indicators: ReadonlyMap<string, readonly ElectronicsArduinoIndicatorSample[]>,
-  voltages: ReadonlyMap<string, number>,
-): boolean {
-  const cursors: Array<{
-    samples: readonly HeldPresentationSample[];
-    index: number;
-    value: number;
-  }> = [];
-  let at = 0;
-  let to = Infinity;
-  for (const [id, value] of brightness) {
-    const samples = channels.get(id);
-    if (!samples?.length) return false;
-    at = Math.max(at, samples[0]!.atMicroseconds);
-    to = Math.min(to, samples.at(-1)!.atMicroseconds);
-    cursors.push({ samples, index: 0, value });
-  }
-  for (const [id, value] of voltages) {
-    const samples = indicators.get(id);
-    if (!samples?.length) return false;
-    at = Math.max(at, samples[0]!.atMicroseconds);
-    to = Math.min(to, samples.at(-1)!.atMicroseconds);
-    cursors.push({ samples, index: 0, value });
-  }
-  // Intersect actual held intervals. Every advance consumes a real sample;
-  // values found at different times cannot establish a joint optical state.
-  while (at <= to) {
-    let next = at;
-    for (const channel of cursors) {
-      const { samples, value } = channel;
-      while (channel.index + 1 < samples.length && samples[channel.index + 1]!.atMicroseconds <= at)
-        channel.index++;
-      while (channel.index < samples.length && heldValue(samples[channel.index]!) !== value)
-        channel.index++;
-      if (channel.index === samples.length) return false;
-      next = Math.max(next, samples[channel.index]!.atMicroseconds);
-    }
-    if (next === at) return true;
-    at = next;
-  }
-  return false;
-}
-
 /** Only accepted optical observations are retained; electrical results stay untouched. */
 export class LedTemporalPresentation {
   private committed: number | null = null;
@@ -226,31 +212,35 @@ export class LedTemporalPresentation {
   private indicatorCompleteSince = new Map<string, number>();
   private cursor: number | null = null;
   private sampledAt: number | null = null;
-  private desiredEpoch: { at: number; cursor: number; lookahead: number } | null = null;
-  private buffered = false;
-  private warming = true;
-  private receipts: Array<{
-    at: number;
-    samples: ReadonlyMap<string, readonly ElectronicsLedTemporalSample[]>;
-    indicators: ReadonlyMap<string, readonly ElectronicsArduinoIndicatorSample[]>;
-    size: number;
-  }> = [];
+  private frameSequence = 0;
+  private generation = 0;
+  private animationFrame = 0;
+  private committedAnimationFrame = -3;
+  private presentedFrame: LedPresentationFrame | null = null;
+  private pendingFrame: LedPresentationFrame | null = null;
+  private snapshot: Omit<LedPresentationFrame, 'token'> | null = null;
   private reanchors = 0;
-  private heldRecoveries = 0;
-  private heldMicroseconds = 0;
 
   /** A discontinuity is observable evidence, never successful phase preservation. */
   get reanchorCount(): number {
     return this.reanchors;
   }
 
-  /** Lifetime accounting, separate from genuine optical discontinuities. */
-  get heldRecoveryCount(): number {
-    return this.heldRecoveries;
+  /** The cap follows acknowledged display, never a prepared future asset. */
+  get presentedMicroseconds(): number {
+    return this.presentedFrame?.atMicroseconds ?? 0;
   }
 
-  get heldRecoveredMicroseconds(): number {
-    return this.heldMicroseconds;
+  get preparedFrame(): LedPresentationFrame | null {
+    return this.pendingFrame;
+  }
+
+  get displayedFrame(): LedPresentationFrame | null {
+    return this.presentedFrame;
+  }
+
+  get canPublishDistinctFrame(): boolean {
+    return this.presentedFrame === null || this.animationFrame - this.committedAnimationFrame > 2;
   }
 
   reset(): void {
@@ -261,10 +251,12 @@ export class LedTemporalPresentation {
     this.indicatorCompleteSince.clear();
     this.cursor = null;
     this.sampledAt = null;
-    this.desiredEpoch = null;
-    this.buffered = false;
-    this.warming = true;
-    this.receipts = [];
+    this.pendingFrame = null;
+    this.presentedFrame = null;
+    this.snapshot = null;
+    this.animationFrame = 0;
+    this.committedAnimationFrame = -3;
+    this.generation++;
   }
 
   accept(
@@ -315,21 +307,12 @@ export class LedTemporalPresentation {
       }
       ids.add(indicator.componentId);
     }
-    if (this.committed !== observation.fromMicroseconds) this.reset();
-    if (wallMicroseconds !== undefined && this.cursor === null) {
-      this.cursor = observation.fromMicroseconds;
-      this.sampledAt = wallMicroseconds;
-      this.desiredEpoch = {
-        at: wallMicroseconds,
-        cursor: observation.fromMicroseconds,
-        // A caller may begin with an already complete window rather than H0.
-        lookahead: Math.max(
-          0,
-          LED_PRESENTATION_PHASE_LIMIT_MICROSECONDS -
-            (observation.toMicroseconds - observation.fromMicroseconds),
-        ),
-      };
+    if (this.committed !== observation.fromMicroseconds) {
+      if (this.committed !== null) this.reanchors++;
+      this.reset();
     }
+    if (wallMicroseconds !== undefined && this.cursor === null)
+      this.cursor = observation.fromMicroseconds;
     const next = new Map<string, readonly ElectronicsLedTemporalSample[]>();
     const nextCompleteSince = new Map<string, number>();
     for (const component of observation.components) {
@@ -421,187 +404,143 @@ export class LedTemporalPresentation {
     this.committed = observation.toMicroseconds;
     this.histories = next;
     this.completeSince = nextCompleteSince;
-    if (wallMicroseconds === undefined) return brightness;
-    this.receipts.push({
-      at: wallMicroseconds,
-      samples: new Map(
-        observation.components
-          .filter((component) => next.has(component.componentId))
-          .map((component) => [component.componentId, component.samples]),
-      ),
-      indicators: new Map(
-        arduinoIndicators.map((indicator) => [indicator.componentId, indicator.samples]),
-      ),
-      size: Math.max(
-        1,
-        ...observation.components.map((component) => component.samples.length),
-        ...arduinoIndicators.map((indicator) => indicator.samples.length),
-      ),
-    });
-    // Across all receipts, retain at most513 samples per channel. Reuse only
-    // accepted optical arrays, never a canonical result/continuation clone.
-    let retained = 0;
-    this.receipts = this.receipts
-      .filter(
-        (_, index, all) =>
-          index === all.length - 1 || all[index + 1]!.at >= wallMicroseconds - 50_000,
-      )
-      .reverse()
-      .filter((receipt) => (retained += receipt.size) <= MAX_HISTORY_SAMPLES)
-      .reverse();
-    return this.sample(wallMicroseconds);
-  }
-
-  /** Advance only the optical cursor; no host tick becomes a physical frame. */
-  sample(wallMicroseconds: number): ReadonlyMap<string, number> {
-    if (this.cursor === null || this.committed === null || this.sampledAt === null)
-      return new Map();
-    const elapsed = Math.max(0, wallMicroseconds - this.sampledAt);
-    this.sampledAt = wallMicroseconds;
-    if (this.buffered) this.cursor = Math.min(this.committed, this.cursor + elapsed);
-    else if (this.committed - this.cursor >= LED_PRESENTATION_PHASE_LIMIT_MICROSECONDS) {
-      // Preserve the initial full-window lookahead at H0. If partial ready
-      // data already advanced startup, do not discard elapsed time here.
-      if (this.warming && this.cursor > 0)
-        this.cursor = Math.min(this.committed, this.cursor + elapsed);
-      this.buffered = true;
-      this.warming = false;
-    } else if (this.warming) {
-      // A partial startup window is already complete physical data. Pace it
-      // at 1x, clamped to ready, rather than holding a superseded H0 vector.
-      this.cursor = Math.min(this.committed, this.cursor + elapsed);
-    }
-    if (!this.desiredEpoch && this.buffered) {
-      // An actual reanchor starts a new segment only after the original rebuffer
-      // hold. It cannot borrow elapsed time from the discarded segment.
-      this.desiredEpoch = { at: wallMicroseconds, cursor: this.cursor, lookahead: 0 };
-    }
-    this.recoverHeldTime(wallMicroseconds);
-
-    let brightness = this.atCursor();
-    // A cycle mean keeps its existing policy; provenance refers to the actual
-    // underlying joint electrical state at that same presentation cursor.
-    const joint = this.atCursor(false);
-    const voltages = this.indicatorVoltagesAtCursor();
-    let matching = this.receipts.length - 1;
-    while (
-      matching >= 0 &&
-      !containsJointState(
-        this.receipts[matching]!.samples,
-        joint,
-        this.receipts[matching]!.indicators,
-        voltages,
-      )
-    )
-      matching--;
-    const witness = this.receipts[matching];
-    const finalMatches =
-      witness &&
-      [...joint].every(([id, value]) => witness.samples.get(id)?.at(-1)?.brightness === value) &&
-      [...voltages].every(([id, value]) => witness.indicators.get(id)?.at(-1)?.voltage === value);
-    // An intermediate state is already superseded by this receipt's different
-    // closing vector. It must not acquire another50ms from a later receipt.
-    const supersededAt = witness && !finalMatches ? witness.at : this.receipts[matching + 1]?.at;
-    const expired =
-      matching < 0 ||
-      (supersededAt !== undefined &&
-        wallMicroseconds - supersededAt >= MAX_SUPERSEDED_MICROSECONDS);
-    if (
-      brightness.size !== this.histories.size ||
-      voltages.size !== this.indicatorHistories.size ||
-      expired
-    ) {
-      // Starvation cannot be repaired by accelerating or stretching a waveform.
-      // Discard this playout segment and resume from actual complete-ready data.
-      this.cursor = this.committed;
-      this.buffered = false;
-      this.desiredEpoch = null;
-      this.reanchors++;
-      brightness = this.atCursor();
-    }
+    if (this.pendingFrame && [...this.pendingFrame.brightness.keys()].some((id) => !next.has(id)))
+      this.pendingFrame = null;
+    // Ingestion never advances or publishes the optical cursor. In particular,
+    // a burst of completed Worker windows cannot compress a later visible phase.
     return brightness;
   }
 
-  private recoverHeldTime(wallMicroseconds: number): void {
-    const epoch = this.desiredEpoch;
+  /** A non-clocked circuit supplies a real endpoint, never an invented timeline. */
+  acceptSnapshot(result: SolveResult, atMicroseconds: number): void {
     if (
-      !epoch ||
-      (!this.warming && !this.buffered) ||
-      (!this.histories.size && !this.indicatorHistories.size)
-    )
+      !result.solved ||
+      !result.quality?.passed ||
+      !Number.isSafeInteger(atMicroseconds) ||
+      atMicroseconds < 0 ||
+      (this.committed !== null && atMicroseconds < this.committed)
+    ) {
+      this.reset();
       return;
-    const desired = epoch.cursor + Math.max(0, wallMicroseconds - epoch.at - epoch.lookahead);
-    const target = Math.min(this.committed!, desired);
-    if (target <= this.cursor!) return;
-    // Recover only time spent in one proved joint hold. A matching final value
-    // cannot hide an intervening edge, a current change or truncated coverage.
-    const channels: Array<{ samples: readonly HeldPresentationSample[]; completeSince: number }> = [
-      ...[...this.histories].map(([id, samples]) => ({
-        samples,
-        completeSince: this.completeSince.get(id) ?? Infinity,
-      })),
-      ...[...this.indicatorHistories].map(([id, samples]) => ({
-        samples,
-        completeSince: this.indicatorCompleteSince.get(id) ?? Infinity,
-      })),
-    ];
-    for (const { samples, completeSince } of channels) {
-      if (
-        completeSince > this.cursor! ||
-        samples[0]!.atMicroseconds > this.cursor! ||
-        samples.at(-1)!.atMicroseconds < target
-      )
-        return;
-      let held: HeldPresentationSample | undefined;
-      for (const sample of samples) {
-        if (sample.atMicroseconds <= this.cursor!) held = sample;
-        else if (sample.atMicroseconds > target) break;
-        else if (!held || !sameState(held, sample)) return;
-      }
-      if (!held) return;
     }
-    this.heldMicroseconds += target - this.cursor!;
-    this.heldRecoveries++;
-    this.cursor = target;
+    if (this.histories.size || this.indicatorHistories.size) this.reset();
+    this.snapshot = {
+      atMicroseconds,
+      brightness: new Map(
+        result.components.flatMap((component) =>
+          Number.isFinite(component.brightness)
+            ? [[component.componentId, component.brightness!] as const]
+            : [],
+        ),
+      ),
+      arduinoLStates: new Map(),
+    };
+    this.committed = atMicroseconds;
+    if (this.cursor === null) this.cursor = atMicroseconds;
   }
 
-  private throughCursor<T extends HeldPresentationSample>(samples: readonly T[]) {
+  /**
+   * Prepare one frame from accepted history on the shared animation-frame path.
+   * The caller must acknowledge its actual joint DOM commit. A pending native
+   * asset or React commit freezes this exact frame and discards elapsed wall
+   * time; no saved waiting-time debt is repaid in a subsequent phase.
+   */
+  prepareFrame(wallMicroseconds: number): LedPresentationFrame | null {
+    this.animationFrame++;
+    const elapsed = this.sampledAt === null ? 0 : Math.max(0, wallMicroseconds - this.sampledAt);
+    this.sampledAt = wallMicroseconds;
+    if (this.pendingFrame) return this.pendingFrame;
+    if (this.cursor === null || this.committed === null) return null;
+    const target = this.snapshot
+      ? this.snapshot.atMicroseconds
+      : this.presentedFrame === null
+        ? this.cursor
+        : Math.min(this.committed, this.cursor + Math.floor(elapsed * ELECTRONICS_CLASSROOM_PACE));
+    const brightness = this.snapshot?.brightness ?? this.atTime(target);
+    const voltages = this.indicatorVoltagesAtTime(target);
+    if (
+      !this.snapshot &&
+      (brightness.size !== this.histories.size || voltages.size !== this.indicatorHistories.size)
+    ) {
+      // Missing/truncated coverage cannot establish a displayable frame. Report
+      // the discontinuity and forget it; never jump across unpresented phases.
+      this.reanchors++;
+      this.reset();
+      return null;
+    }
+    const frame: LedPresentationFrame = {
+      token: `${this.generation}:${++this.frameSequence}`,
+      atMicroseconds: target,
+      brightness,
+      arduinoLStates: new Map([...voltages].map(([id, voltage]) => [id, voltage >= 2.5])),
+    };
+    if (
+      this.presentedFrame &&
+      !sameOpticalFrame(this.presentedFrame, frame) &&
+      !this.canPublishDistinctFrame
+    )
+      return null;
+    this.pendingFrame = frame;
+    return frame;
+  }
+
+  /** The only cursor commit. A native load callback alone must never call this. */
+  acknowledgeFrame(
+    frame: LedPresentationFrame,
+    wallMicroseconds: number,
+    distinctOpticalCommit = false,
+  ): boolean {
+    if (this.pendingFrame !== frame) return false;
+    const changed =
+      distinctOpticalCommit ||
+      this.presentedFrame === null ||
+      !sameOpticalFrame(this.presentedFrame, frame);
+    this.cursor = frame.atMicroseconds;
+    this.presentedFrame = frame;
+    this.pendingFrame = null;
+    this.sampledAt = wallMicroseconds;
+    if (changed) this.committedAnimationFrame = this.animationFrame;
+    return true;
+  }
+
+  /** A read of the last acknowledged vector; it cannot advance model time. */
+  sample(): ReadonlyMap<string, number> {
+    return this.presentedFrame?.brightness ?? new Map();
+  }
+
+  private throughTime<T extends HeldPresentationSample>(samples: readonly T[], time: number) {
     let end = samples.length - 1;
-    while (end >= 0 && samples[end]!.atMicroseconds > this.cursor!) end--;
+    while (end >= 0 && samples[end]!.atMicroseconds > time) end--;
     if (end < 0) return [];
     const prefix = samples.slice(0, end + 1);
     const last = prefix.at(-1)!;
-    if (last.atMicroseconds < this.cursor!) prefix.push({ ...last, atMicroseconds: this.cursor! });
+    if (last.atMicroseconds < time) prefix.push({ ...last, atMicroseconds: time });
     return prefix;
   }
 
-  /** Values for the renderer at the exact cursor used by sample(), not latest-ready GPIO. */
+  /** Arduino L and ordinary LED always refer to the same acknowledged frame. */
   arduinoLStates(): ReadonlyMap<string, boolean> {
-    return new Map(
-      [...this.indicatorVoltagesAtCursor()].map(([id, voltage]) => [id, voltage >= 2.5]),
-    );
+    return this.presentedFrame?.arduinoLStates ?? new Map();
   }
 
-  private indicatorVoltagesAtCursor(): ReadonlyMap<string, number> {
+  private indicatorVoltagesAtTime(time: number): ReadonlyMap<string, number> {
     const voltages = new Map<string, number>();
-    if (this.cursor === null) return voltages;
     for (const [id, samples] of this.indicatorHistories) {
-      const last = this.throughCursor(samples).at(-1);
+      if ((this.indicatorCompleteSince.get(id) ?? Infinity) > time) continue;
+      const last = this.throughTime(samples, time).at(-1);
       if (last) voltages.set(id, last.voltage);
     }
     return voltages;
   }
 
-  private atCursor(average = true): ReadonlyMap<string, number> {
+  private atTime(time: number): ReadonlyMap<string, number> {
     const brightness = new Map<string, number>();
     for (const [id, samples] of this.histories) {
-      const prefix = this.throughCursor(samples);
+      if ((this.completeSince.get(id) ?? Infinity) > time) continue;
+      const prefix = this.throughTime(samples, time);
       const last = prefix.at(-1);
       if (!last) continue;
-      brightness.set(
-        id,
-        (average ? fastCycleBrightness(prefix, this.cursor!) : undefined) ?? last.brightness,
-      );
+      brightness.set(id, fastCycleBrightness(prefix, time) ?? last.brightness);
     }
     return brightness;
   }

@@ -1008,6 +1008,8 @@ describe('event execution request ownership and physical barriers', () => {
         do {
           result = session.step();
           if (result === null) actualBoundaries.push(JSON.stringify(last));
+          // The test observes returned states, not Vitest's retained call history.
+          advance.mockClear();
         } while (!result);
         session.dispose();
         session.dispose();
@@ -1025,6 +1027,8 @@ describe('event execution request ownership and physical barriers', () => {
             expectedBoundaries.push(
               JSON.stringify(JSON.parse(state.continuation!.serializedState).boards[0].runtime),
             );
+          // Release only spy metadata after the complete public resume boundary.
+          advance.mockClear();
         } while (expected.executionStatus === 'yielded');
         expect(contexts).toBe(1);
         expect(actualBoundaries).toEqual(expectedBoundaries);

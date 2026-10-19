@@ -8567,11 +8567,11 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: d13_classroom_causal_v3_selected
+      checkpoint: d13_classroom_v3_composed_pending_actual
       owner_acceptance: pending
       programme_issue: 452
       acceptance_revision: classroom-d13-v3
-      active_qualification_profile: classroom-d13-v2
+      active_qualification_profile: classroom-d13-v3
       planned_qualification_profile: classroom-d13-v3
       selected_nominal_model_per_wall_pace: 0.5
       expected_write_paths:
@@ -8596,7 +8596,7 @@ parallel_lanes:
       reported_strict_qualification: pnpm gate:electronics-m1:browser on the same exact source under strict-real-time; preserve its actual conclusion separately from the required classroom gate.
       qualification_inventory_review: 2af8f74ccd5cbe2c557fec44890e141a33652457c62d0140abb70eab59998738
       qualification_contract_sha256: 933b377f6cb2149ee388d36a68600e3a729274793f94620ad1b70baed1454399
-      qualification_author_status: bounded_v3_authoring_selected
+      qualification_author_status: independently_reviewed_r2_composed
       qualification_selection_at: '2026-10-19T15:56:52Z'
       selected_at: '2026-10-19T11:10:21Z'
       owner_authorization: Explicit 2026-10-19 instruction permits a first visible D13 slice with common measured slowdown, normal integration after browser/review/CI, and continued later slices; no deployment or live data action.
@@ -8606,7 +8606,7 @@ parallel_lanes:
       context_hints:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-CLASSROOM-D13-001.md
       - docs/product/electronics/components/engine-worker-clock.yaml
-      next_action: Compose frozen causal phase/native product, retain selected two-call ownership repair and active-image consumer amendment; separately author and review the frozen v3 qualification contract before applying it. Complete selected UI responsibility review, actual focused/type/build/benchmark/full classroom/strict/General and NEW independent actual review before D13 integration; continue D2-D4 afterwards.
+      next_action: Publish the exact reviewed product/native and qualification-v3-r2 composition for full same-SHA focused, benchmark, complete classroom-v3, separately reported strict and General CI. Obtain NEW independent actual native-browser acceptance before normal D13 integration, then select visible D2-D4. Preserve all historical failures and full-realtime Issue546 restrictions.
     execution_lease:
       executor_id: electronics-classroom-d13
       holder: unassigned
@@ -8625,20 +8625,20 @@ parallel_lanes:
       browser:
         workflow: Electronics R4-M1 Focused
         commands:
-        - pnpm gate:electronics-classroom-d13:browser
+        - pnpm gate:electronics-classroom-d13-v3:browser
       general:
         workflow: ASA Lab Governance and Code Gates
         commands:
         - pnpm gate:repository
     revisions:
       kind: observed_snapshot
-      observed_at: '2026-10-19T15:56:52Z'
+      observed_at: '2026-10-19T17:33:23.339Z'
       main:
         branch: main
         sha: 47524e08f14a1c7c6c11b213063103e652a32c3d
       convergence_baseline_sha: 47524e08f14a1c7c6c11b213063103e652a32c3d
       head_sha: null
-      observation_note: Dated revision3 repair selection after clean f9679b90fc184dee61a9da99dec15b5a1c5bce36 recovery against main47524e08; divergence12 behind/8 ahead, SAFE_TO_START,67 worktrees with no selected-path foreign edits and clean read-only merge-tree. Exact f967 classroom39271296982 FAIL164passed/6failed, strict39271290925 FAIL161passed/9failed, General39271287365 FAIL remain historical actual outcomes. Main47524 already integrates reviewed PR643 Access fixture and launcher dependency. Existing named classroom gate remains activev2 until separately reviewed v3 composition. No D13 acceptance or deployment; fresh fetch main and actual refs, final exact-source gates and NEW independent actual review required.
+      observation_note: Dated reviewed composition on controller HEAD01d431d2 and accepted main47524e08, with verified source manifestbc4b37b8, full six-file patch1391c53a and exact independent source review linked in the taskcard. The active named qualification is now classroom-d13-v3; strict and v2 remain executable. Actual product238 tests and fresh web types passed; bounded641 routing and Governance passed. Actual new browser and final-SHA repository conclusions remain pending. Historical f967 classroom164pass6fail, strict161pass9fail and GeneralFAIL remain unchanged; no acceptance or deployment. Fresh fetch main is required before execution and integration.
 
   - id: electronics-classroom-hygiene
     parent_lane: electronics
@@ -8659,7 +8659,7 @@ parallel_lanes:
       status: in_progress
       kind: maintenance
       semantic_change: 'no'
-      checkpoint: bounded_d13_v3_ui_growth_review_selected
+      checkpoint: bounded_d13_v3_ui_review_verified_pending_integration
       owner_acceptance: pending
       programme_issue: 452
       full_hygiene_checkpoint: false
@@ -8676,7 +8676,7 @@ parallel_lanes:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-CLASSROOM-HYGIENE-001.md
       - docs/product/electronics/contracts/ENGINEERING_HYGIENE_CONTRACT.md
       - docs/product/electronics/evidence/hygiene-baseline.yaml
-      next_action: Preserve original scheduler/runtime review; perform separately selected R3 native resource and host responsibility review. Update renderer baseline only to exact final formatted bytes after independent review; update host only if its actual growth exceeds the unchanged20percent review limit. Preserve all other baseline/policy/debt and validate exact composed routing/governance with independent evidence review.
+      next_action: Carry independently reviewed exact renderer89698 and host126864 byte baselines with the matching product source. Targeted641 routing, full114-case routing and Governance passed on the composed source; attach final CI linkage before integration. Preserve all other baselines, decomposition debt and retirement policy; this bounded review does not reset the full hygiene checkpoint or accept D13.
     execution_lease:
       executor_id: electronics-classroom-hygiene
       holder: unassigned
@@ -8694,13 +8694,13 @@ parallel_lanes:
         - pnpm gate:governance
     revisions:
       kind: observed_snapshot
-      observed_at: '2026-10-19T12:01:48Z'
+      observed_at: '2026-10-19T17:14:33Z'
       main:
         branch: main
-        sha: 4c4bbed5c575122fdaa366a033e72f63ef0e96d6
-      convergence_baseline_sha: 4c4bbed5c575122fdaa366a033e72f63ef0e96d6
+        sha: 47524e08f14a1c7c6c11b213063103e652a32c3d
+      convergence_baseline_sha: 47524e08f14a1c7c6c11b213063103e652a32c3d
       head_sha: null
-      observation_note: Fresh fetch main is required before execution and integration. The recorded authenticated fetch confirmed main and a clean control checkout before this additive selection. Baseline review and every D13 acceptance gate remain pending.
+      observation_note: Independently approved two-doc amendment applied to exact reviewed product tree3e568227; combined treea299770e. Actual receipt4799b73c records fresh main47524e08, no foreign target overlaps in67 worktrees, unchanged nine product hashes, targeted641 routingPASS, full114of114 routingPASS and GovernancePASS. This records a bounded matching-source review only; final D13 browser, repository gates, integration and deployment remain separate. Fresh fetch main is required before execution and integration.
 
 integration:
   owner_lane: visual-programming
@@ -8902,7 +8902,7 @@ blocking:
     - focused_verification
     - independent_source_review
     - independent_product_review
-    reason: Owner-selected classroom-d13-v3 bounded repair uses one nominal0.5 model/wall pace, unchanged physical instruction clock, actual native-asset and joint-commit barriers, and separately inventoried qualification. Exact f967 browser and General remain FAIL. Current gate is activev2 until reviewed v3 composition. Require unchanged-observer complete BEFORE/AFTER, all D13 ratios/duty/order/physical/native/lifecycle/sustained bounds, exact required gates and NEW independent actual acceptance. Selection and source review do not accept D13 or clear full-realtime Issue546.
+    reason: Owner-selected classroom-d13-v3 bounded repair uses one nominal0.5 model/wall pace, unchanged physical instruction clock, actual native-asset and joint-commit barriers, and separately inventoried qualification. Exact f967 browser and General remain FAIL. The independently reviewed revision3-r2 is now composed as the explicit classroom-d13-v3 gate; actual new complete browser and repository evidence remains pending. Require unchanged-observer complete BEFORE/AFTER, all D13 ratios/duty/order/physical/native/lifecycle/sustained bounds, exact required gates and NEW independent actual acceptance. Selection and source review do not accept D13 or clear full-realtime Issue546.
     evidence: docs/product/electronics/tasks/TASK-ELECTRONICS-CLASSROOM-D13-001.md
 
 next_task: null
