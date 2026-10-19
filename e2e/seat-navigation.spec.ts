@@ -179,11 +179,8 @@ for (const width of [1440, 1024, 390, 320]) {
       '/#/projects',
     );
     const headerAi = page.locator('.portal-global-nav > a[aria-label="ИИ"]');
-    const drawerAi = nav.locator('.portal-mobile-public').getByRole('link', {
-      name: 'ИИ',
-      exact: true,
-      includeHidden: true,
-    });
+    const drawerAi = nav.locator('.portal-mobile-public > a[href="/#/ai"]');
+    await expect(drawerAi.locator('.portal-nav-label')).toHaveText('ИИ');
     for (const ai of [headerAi, drawerAi]) {
       await expect(ai).toHaveAttribute('href', '/#/ai');
       expect(await ai.evaluate((link) => link.tagName)).toBe('A');
