@@ -449,6 +449,30 @@ async function visit(page: Page, route: string): Promise<void> {
 }
 
 async function screenshot(page: Page, name: string): Promise<void> {
+  const overflow = await page.evaluate(() => {
+    const viewport = document.documentElement.clientWidth;
+    if (document.documentElement.scrollWidth <= viewport) return null;
+    return {
+      viewport,
+      scrollWidth: document.documentElement.scrollWidth,
+      elements: Array.from(document.querySelectorAll<HTMLElement>('body *')).flatMap((node) => {
+        const rect = node.getBoundingClientRect();
+        if (rect.right <= viewport && rect.left >= 0 && node.scrollWidth <= node.clientWidth)
+          return [];
+        const style = getComputedStyle(node);
+        return [{
+          tag: node.tagName, className: node.className, text: node.textContent?.slice(0, 180),
+          left: rect.left, right: rect.right, width: rect.width,
+          clientWidth: node.clientWidth, scrollWidth: node.scrollWidth,
+          fontSize: style.fontSize, minWidth: style.minWidth,
+          whiteSpace: style.whiteSpace, display: style.display,
+        }];
+      }),
+    };
+  });
+  if (overflow) await test.info().attach(`${name}-overflow`, {
+    body: JSON.stringify(overflow, null, 2), contentType: 'application/json',
+  });
   await expect
     .poll(() =>
       page.evaluate(
