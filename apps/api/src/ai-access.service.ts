@@ -68,9 +68,18 @@ export async function aiRequestActor(
 ): Promise<string> {
   const studentToken = request.cookies[STUDENT_SESSION_COOKIE];
   if (studentToken !== undefined) {
-    const seat = await seats.resolveExisting(studentToken);
-    if (!seat) throw new AiServiceError('ai_session_required', 401, 'Войдите в класс заново.');
-    return seat.principalId;
+    const result = await seats.resolveExistingState(studentToken);
+    if (result.state === 'invalid_session') {
+      throw new AiServiceError('ai_session_required', 401, 'Войдите в класс заново.');
+    }
+    if (result.state === 'unavailable_owner') {
+      throw new AiServiceError(
+        'ai_scope_denied',
+        403,
+        'Школьный чат сейчас недоступен. Обратитесь к преподавателю.',
+      );
+    }
+    return result.context.principalId;
   }
   const account = await accounts.resolve(request.cookies[SESSION_COOKIE]);
   if (!account?.accountId) {

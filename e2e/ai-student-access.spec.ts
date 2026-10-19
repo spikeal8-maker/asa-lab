@@ -142,6 +142,45 @@ async function noOverflow(page: Page) {
     ),
   ).toBe(true);
 }
+
+test('Unavailable school owner remains denied on retry without automatic auth refresh', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 900 });
+  await chatFixture(page);
+  const refreshes: string[] = [];
+  let reads = 0;
+  await page.route('**/api/auth/refresh', async (route) => {
+    refreshes.push(route.request().url());
+    return route.fulfill({ status: 409, json: { error: { code: 'refresh_not_applicable' } } });
+  });
+  await page.route('**/api/ai/scopes', async (route) => {
+    reads += 1;
+    return route.fulfill({
+      status: 403,
+      json: {
+        error: {
+          code: 'ai_scope_denied',
+          message: 'Школьный чат сейчас недоступен. Обратитесь к преподавателю.',
+        },
+      },
+    });
+  });
+  await page.goto('/#/ai');
+  const denial = page.getByRole('alert').filter({ hasText: 'Школьный чат сейчас недоступен.' });
+  await expect(denial).toBeVisible();
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const beforeRetry = reads;
+    await denial.getByRole('button', { name: 'Повторить загрузку' }).click();
+    await expect.poll(() => reads).toBe(beforeRetry + 1);
+    await expect(denial).toBeVisible();
+  }
+  expect(refreshes).toEqual([]);
+  await expect(page.getByRole('textbox', { name: 'Сообщение ИИ' })).toHaveCount(0);
+  await expect(page.getByRole('combobox', { name: 'Контекст чата' })).toHaveCount(0);
+  await noOverflow(page);
+});
+
 for (const width of [1440, 1024, 390, 320]) {
   test(`Student AI admission, live check and school-only transport at ${width}`, async ({
     page,

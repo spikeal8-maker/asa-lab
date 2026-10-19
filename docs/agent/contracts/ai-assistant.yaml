@@ -8,7 +8,9 @@ invariants:
     statement: A conversation has one immutable Account or StudentSeat principal owner. School history stays with that Seat after Account linkage; personal Account history and quotas remain separate. The current signed session and canonical active linkage authorize each selected school scope, never a client principal or teacher role.
     master_refs:
       - document: AI-ASSISTANT-SPEC
-        section: 4 / 12
+        section: 4. Диалоги и история
+      - document: AI-ASSISTANT-SPEC
+        section: 12. Privacy и безопасность
       - document: IDENTITY-ACCESS-V22
         section: INV-07 / INV-11
     applies_to: [chat_history, chat_message, chat_request_quota, scope_selection, seat_account_link]
@@ -17,7 +19,9 @@ invariants:
     statement: School generation is denied by default. An exact-class owner or co-teacher chooses deny, allow or existing participant-rating threshold, with inherit/allow/deny Seat overrides. Inactive Seat/Class and global provider disable cannot be overridden. Teacher rules change admission only; they do not grant chat-content access or change safe-mode/game policies.
     master_refs:
       - document: AI-ASSISTANT-SPEC
-        section: 11 / 12
+        section: 11. Администрирование
+      - document: AI-ASSISTANT-SPEC
+        section: 12. Privacy и безопасность
       - document: IDENTITY-ACCESS-V22
         section: INV-11 / INV-12
     applies_to: [school_chat_create, school_chat_send, classroom_ai_settings, participant_rating]
@@ -26,7 +30,9 @@ invariants:
     statement: New generation rechecks teacher admission at the SQL boundary before shared paid reservation. A durable request ID is single-use per stable owner; replay returns the existing result without a provider call. Deletion, cancellation, linking and policy changes do not refund quota. Exact teacher writes use revision checks and immutable request receipts.
     master_refs:
       - document: AI-ASSISTANT-SPEC
-        section: 13 / Проверяемое включение текстового чата
+        section: 13. Поведение при ошибках
+      - document: AI-ASSISTANT-SPEC
+        section: Проверяемое включение текстового чата
       - document: IDENTITY-ACCESS-V22
         section: INV-11
     applies_to: [provider_admission, request_replay, quota, policy_write]
@@ -35,7 +41,9 @@ invariants:
     statement: AI resolves existing Seat principals through the same trusted session use case without initializing or repairing identity. Missing principals, invalid/expired/revoked sessions and wrong class lineage fail closed. Revoked AI permission preserves own history and Stop, but forbids new generation; an already admitted operation may finish.
     master_refs:
       - document: AI-ASSISTANT-SPEC
-        section: 12 / 13
+        section: 12. Privacy и безопасность
+      - document: AI-ASSISTANT-SPEC
+        section: 13. Поведение при ошибках
       - document: IDENTITY-ACCESS-V22
         section: INV-07 / INV-11
     applies_to: [seat_session, principal_resolution, account_verification_guard, ai_revocation, stream_stop]
@@ -44,7 +52,11 @@ invariants:
     statement: Changing personal/school chat scope replaces the conversation state, including draft, history cursors, request IDs and stream. The permission state remains actionable at supported widths; teacher settings expose admission and rating, never private messages.
     master_refs:
       - document: AI-ASSISTANT-SPEC
-        section: 3 / 4 / 13
+        section: 3. Пользовательская поверхность
+      - document: AI-ASSISTANT-SPEC
+        section: 4. Диалоги и история
+      - document: AI-ASSISTANT-SPEC
+        section: 13. Поведение при ошибках
       - document: IDENTITY-ACCESS-V22
         section: §31
     applies_to: [chat_scope_selector, chat_composer, classroom_ai_settings]

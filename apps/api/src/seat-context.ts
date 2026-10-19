@@ -27,6 +27,11 @@ export interface SeatContext {
   readonly safeMode: boolean;
 }
 
+export type ExistingSeatResolution =
+  | { readonly state: 'invalid_session' }
+  | { readonly state: 'unavailable_owner' }
+  | { readonly state: 'resolved'; readonly context: SeatContext };
+
 interface SeatSessionRow {
   seat_id: string;
   classroom_id: string;
@@ -46,28 +51,40 @@ export class SeatContextUseCase {
   /** AI reads/admission require an already materialized principal. Resolving
    * a session here never initializes or repairs a historical Seat identity. */
   async resolveExisting(token: string | undefined): Promise<SeatContext | null> {
-    if (!token || !this.pool) return null;
+    const result = await this.resolveExistingState(token);
+    return result.state === 'resolved' ? result.context : null;
+  }
+
+  /** A valid session with no usable owner is an access-state denial. Keeping
+   * it distinct prevents AI clients from attempting Account session refresh. */
+  async resolveExistingState(token: string | undefined): Promise<ExistingSeatResolution> {
+    if (!token || !this.pool) return { state: 'invalid_session' };
     const session = await this.pool.query<SeatSessionRow>(
       `SELECT seat_id, classroom_id, display_label, safe_mode
          FROM classroom_student_session_context($1)`,
       [hashSessionToken(token)],
     );
     const seat = session.rows[0];
-    if (!seat) return null;
+    if (!seat) return { state: 'invalid_session' };
     const principal = await this.pool.query<SeatPrincipalRow>(
       'SELECT principal_id, tenant_id, classroom_id FROM ai_student_principal_existing($1)',
       [seat.seat_id],
     );
     const row = principal.rows[0];
-    if (!row || row.classroom_id !== seat.classroom_id) return null;
+    if (!row || !row.principal_id || !row.tenant_id || row.classroom_id !== seat.classroom_id) {
+      return { state: 'unavailable_owner' };
+    }
     return {
-      tenantId: row.tenant_id,
-      principalId: row.principal_id,
-      userId: null,
-      seatId: seat.seat_id,
-      classroomId: row.classroom_id,
-      displayName: seat.display_label,
-      safeMode: seat.safe_mode,
+      state: 'resolved',
+      context: {
+        tenantId: row.tenant_id,
+        principalId: row.principal_id,
+        userId: null,
+        seatId: seat.seat_id,
+        classroomId: row.classroom_id,
+        displayName: seat.display_label,
+        safeMode: seat.safe_mode,
+      },
     };
   }
 

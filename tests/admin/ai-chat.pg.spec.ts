@@ -298,7 +298,7 @@ describe('AI Chat PostgreSQL access and request replay', () => {
     const fresh = await adapter.createThread(actor.principalId);
     await expect(
       adapter.send(actor.principalId, fresh.id, text, deletedRequest),
-    ).rejects.toMatchObject({ code: 'ai_input_invalid', status: 400 });
+    ).rejects.toMatchObject({ code: 'ai_request_id_reused', status: 409 });
     await expect(
       adapter.send(actor.principalId, fresh.id, text, randomUUID()),
     ).rejects.toMatchObject({ code: 'ai_rate_limit', status: 429 });

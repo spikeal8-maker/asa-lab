@@ -21,7 +21,7 @@ export async function aiIdentity(admin: pg.Pool): Promise<AiIdentity> {
     )
   ).rows[0]!;
 }
-export async function aiClassFixture(admin: pg.Pool, runtime: pg.Pool) {
+export async function aiClassroomFixture(admin: pg.Pool) {
   const teacher = await aiIdentity(admin);
   await admin.query(
     `INSERT INTO capability_grants(account_id,capability,state,policy_version,granted_by)
@@ -47,6 +47,10 @@ export async function aiClassFixture(admin: pg.Pool, runtime: pg.Pool) {
     VALUES($1,$2,$3,$4,'owner')`,
     [context.tenant_id, classroomId, context.user_id, teacher.account_id],
   );
+  return { teacher, context, classroomId };
+}
+export async function aiClassFixture(admin: pg.Pool, runtime: pg.Pool) {
+  const { teacher, context, classroomId } = await aiClassroomFixture(admin);
   async function addSeat() {
     const handle = randomUUID().slice(0, 20);
     const seatId = (
@@ -117,6 +121,18 @@ export function aiStudentAccessContract(database: () => { admin: pg.Pool; runtim
   describe('stable StudentSeat chat ownership and teacher admission', () => {
     it('fails closed for historical missing principals without initializing identity on a read or linked admission', async () => {
       const f = await fixture();
+      const token = randomUUID();
+      await f.runtime.query('SELECT * FROM classroom_seat_credential_issue($1,$2,$3,$4,$5)', [
+        f.teacher.account_id,
+        f.classroomId,
+        f.seatId,
+        hashSessionToken(randomUUID()),
+        randomUUID(),
+      ]);
+      await f.admin.query(
+        "INSERT INTO classroom_student_sessions(seat_id,token_hash,expires_at,credential_version) VALUES($1,$2,now()+interval '1 hour',1)",
+        [f.seatId, hashSessionToken(token)],
+      );
       const account = await aiIdentity(f.admin);
       await f.admin.query('UPDATE classroom_student_seats SET account_id=$2 WHERE id=$1', [
         f.seatId,
@@ -127,6 +143,9 @@ export function aiStudentAccessContract(database: () => { admin: pg.Pool; runtim
       expect(
         (await f.runtime.query('SELECT * FROM ai_student_principal_existing($1)', [f.seatId])).rows,
       ).toEqual([]);
+      const seats = new SeatContextUseCase(f.runtime);
+      expect(await seats.resolveExistingState(token)).toEqual({ state: 'unavailable_owner' });
+      expect(await seats.resolveExisting(token)).toBeNull();
       await expect(f.access.owner(account.principal_id, f.seatId)).rejects.toMatchObject({
         status: 403,
       });
@@ -393,7 +412,7 @@ export function aiStudentAccessContract(database: () => { admin: pg.Pool; runtim
       const next = await f.service.createThread(f.principalId);
       await expect(
         f.service.send(f.principalId, next.id, 'Вопрос до отзыва', requestId),
-      ).rejects.toMatchObject({ code: 'ai_request_id_reused' });
+      ).rejects.toMatchObject({ code: 'ai_request_id_reused', status: 409 });
       const quota = await f.admin.query<{ n: number }>(
         'SELECT count(*)::integer AS n FROM ai_assistant_request_quota WHERE owner_principal_id=$1',
         [f.principalId],

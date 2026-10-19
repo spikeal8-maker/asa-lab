@@ -20,6 +20,7 @@ interface ChessModuleExperienceProps {
   projectId: string;
   onBack: () => void;
   user: PublicUser;
+  readonly seatLearner?: boolean;
 }
 
 // Candidate-contract marker retained while the visible launcher has moved into
@@ -97,6 +98,22 @@ export function ChessModuleExperience(props: ChessModuleExperienceProps): JSX.El
     );
   }
   if (route.page === 'online') {
+    if (props.seatLearner) {
+      return (
+        <main className="page-center">
+          <section className="login-card" role="status">
+            <h1>Учебные шахматы</h1>
+            <p>В ученическом режиме доступны доска, задачи и локальные партии с ботом.</p>
+            <button type="button" className="btn-primary" onClick={() => navigate('play')}>
+              Открыть доску
+            </button>
+            <button type="button" className="btn-secondary" onClick={props.onBack}>
+              К играм
+            </button>
+          </section>
+        </main>
+      );
+    }
     return (
       <ChessOnlineLobby
         user={props.user}

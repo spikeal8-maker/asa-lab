@@ -77,6 +77,21 @@ all forward-upgrade data and schema assertions. The existing
 non-game editor path from the required game admission loading shell, including
 real server-rendered first-frame assertions for both games.
 
+Observed Owner and Blocks integration also hands off only the existing
+`tests/portal/classroom-participants.pg.spec.ts`,
+`tests/portal/classroom-observation.pg.spec.ts` and
+`tests/portal/classroom-scratch-time.pg.spec.ts` Account fixture constructors,
+and `apps/api/src/blocks-project-persistence.spec.ts` controller test contexts.
+Account fixture issuance must match the canonical Account join: initial Account
+binding and its Seat principal before participant preparation. Keep StudentCode
+fixtures on their canonical constructor and never delete, rebind or repair
+existing learner links. The Blocks tests must distinguish an Account-only cookie
+from a complete server-resolved Seat context; assert the canonical Seat actor's
+null Account user and bound student session. Preserve dependency failures,
+exact retry/durable bytes, cross-identity denial and all learning assertions.
+These are bounded fixture/contract repairs with independent review and actual
+focused reruns, not permission to modify Scratch behavior or weaken admission.
+
 For any shared file, inspect current main and actual pending changes before
 writing; an unresolved overlap still blocks that file. Add precise missing
 surface/control mappings alongside the corresponding implementation, using

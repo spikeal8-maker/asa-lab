@@ -12,6 +12,13 @@ import type { ProjectSnapshot, ProjectSnapshotBytes, SnapshotImage } from '../do
 export interface ProjectActor {
   readonly principalId: string;
   readonly userId: string | null;
+  /** Server-resolved StudentSeat context. Never accepted from a project request body. */
+  readonly studentSession?: {
+    readonly tenantId: string;
+    readonly classroomId: string;
+    readonly seatId: string;
+    readonly tokenHash: string;
+  };
 }
 
 export type ProjectAccessMode = 'read' | 'edit';

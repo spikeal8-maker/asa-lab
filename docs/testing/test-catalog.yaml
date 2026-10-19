@@ -1019,3 +1019,34 @@ tests:
     timeout_seconds: 2400
     owner: checkers
     artifacts: [playwright-report, checkers-screenshots, browser-failure-report]
+
+  - id: TST-GAMES-ADMISSION-CORE-001
+    title: Current Seat game policy evaluation, teacher HTTP controls and fail-closed client admission
+    suite: authorization
+    level: integration
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm vitest run apps/api/src/games-access.spec.ts apps/api/src/games-access.controller.spec.ts apps/api/src/games-project-guard.spec.ts tests/games-admission/student-game-admission.embedded.spec.ts apps/web/src/games/open-game.spec.ts apps/web/src/games/game-access-api.spec.ts
+    timeout_seconds: 180
+    owner: identity
+    artifacts: [vitest-report]
+  - id: TST-GAMES-ADMISSION-PG-001
+    title: Isolated PostgreSQL runtime-role game admission, full HTTP lifecycle, foreign scopes and concurrent revoke
+    suite: authorization
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm vitest run tests/games-admission/student-game-admission.pg.spec.ts
+    timeout_seconds: 300
+    owner: identity
+    artifacts: [vitest-report, isolated-postgresql-admission-report]
+  - id: TST-GAMES-ADMISSION-E2E-001
+    title: Real teacher class and Seat controls, persisted offline move, revoked direct route and four viewport layouts
+    suite: e2e
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec playwright test e2e/games-admission.spec.ts
+    timeout_seconds: 300
+    owner: identity
+    artifacts: [playwright-report, games-admission-desktop-screenshot, games-admission-mobile-screenshot]

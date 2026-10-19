@@ -101,7 +101,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: owner_selected_full_ai_programme_text_convergence
+      checkpoint: text_integrated_access_models_history_in_progress
       owner_acceptance: pending
       change_class: L3_CRITICAL
       owner_authorization: >-
@@ -122,13 +122,29 @@ parallel_lanes:
         - id: AI-TEXT-UI-001
           source_pr: 623
           scope: existing chat screen, styles and AI browser regressions
-          status: in_progress
+          status: technical_accepted
+          accepted_candidate_sha: 79d78ba825091cee17b7f987c44e2f9c333d1d37
+          integrated_sha: 847aa3a4f6b82869c795dc09ee041962d090963f
+          independent_review: approved
+          exact_head_focused_run: 39226475471
+          exact_head_general_run: 39226476022
         - id: AI-TEXT-API-002
+          source_pr: 631
           scope: terminal response state, UUID identity, precise history cursors and focused regressions
-          status: in_progress
+          status: technical_accepted
+          accepted_candidate_sha: 667d3fb70f95140a955432aad8ae766ad0081789
+          integrated_sha: c2d41028f29c041d3b8df1215bb81d0479dbecd5
+          independent_review: approved
+          exact_head_focused_run: 39226480720
+          exact_head_general_run: 39226473860
         - id: AI-STUDENT-ACCESS-003
           scope: teacher-controlled Seat admission, stable student chat ownership and focused access regressions
           status: in_progress
+          source_pr: 633
+          reviewed_candidate_sha: 81e9ff5cd0a0c6fb4076932dfbb36702adbafb5f
+          independent_review: changes_requested
+          acceptance_dependency: AI-BASELINE-SEAT-CONSTRUCTOR-007
+          reserved_migration: migrations/0225_ai_student_admission.sql
           integration_after: [AI-TEXT-API-002, AI-TEXT-UI-001]
           coordination: >-
             Implement in an isolated checkout; preserve the text repair and shared
@@ -138,6 +154,7 @@ parallel_lanes:
         - id: AI-MODEL-CAPABILITIES-004
           scope: current provider model catalog, capability descriptors and compatible encrypted configuration
           status: in_progress
+          reserved_migration: migrations/0226_ai_model_catalog_and_provider_credentials.sql
           integration_after: [AI-TEXT-API-002]
           coordination: >-
             Verify official provider documentation; retain configured credentials
@@ -146,37 +163,149 @@ parallel_lanes:
         - id: AI-TEXT-COMPLETE-005
           scope: server history search, archive, fresh answer regeneration and safe mathematical rendering
           status: in_progress
+          reserved_migration: migrations/0227_ai_text_history.sql
           integration_after: [AI-TEXT-UI-001, AI-TEXT-API-002, AI-STUDENT-ACCESS-003]
           coordination: >-
             Preserve accepted interaction and identity fixes. New answer generation
             uses a new paid operation while replay retains the original request.
             Search and archive remain scoped to the canonical Account or Seat owner.
+        - id: AI-FILES-FOUNDATION-008
+          scope: private attachment storage, bounded byte validation, text extraction and durable ownership APIs
+          status: pending
+          reserved_migration: migrations/0228_ai_private_attachments.sql
+          integration_after: [AI-STUDENT-ACCESS-003, AI-TEXT-COMPLETE-005]
+          selected_scope:
+            - apps/api/src/ai-attachments/**
+            - apps/api/src/app.module.ts
+            - apps/api/src/app.factory.ts
+            - apps/api/src/tokens.ts
+            - apps/api/src/account-verification.guard.ts
+            - apps/api/src/account-verification.guard.spec.ts
+            - migrations/0228_ai_private_attachments.sql
+            - tests/ai-attachments/**
+            - tests/migration/course-structure-forward-upgrade.pg.spec.ts
+            - docs/agent/contracts/ai-assistant.yaml
+            - docs/agent/surfaces/ai-assistant.yaml
+            - docs/testing/test-catalog.yaml
+            - docs/product/ASA_AI_ASSISTANT_SPEC.md
+          selection: >-
+            Prepare an independently reviewed backend boundary for Account and Seat
+            attachments using the existing ASA object-storage configuration and a
+            private AI prefix. Validate actual PNG/JPEG/WebP signatures and bounded
+            dimensions, and strictly decode allowlisted UTF-8 text/Markdown/source
+            files without execution. Enforce byte, count and owner storage budgets;
+            retain immutable upload identity, content digest and exact ownership.
+            Add authenticated no-store reads, explicit unsent removal/expiry and
+            recoverable deletion. Unknown storage outcomes must retain their receipt
+            and reservation until reconciled. Atomic message binding must preserve
+            the 005 request/source receipt and reject foreign or reused attachments.
+          coordination: >-
+            This pending selection does not start an author automatically. The
+            controller assigns the bounded author after the current handoffs and
+            supplies the exact candidate dependency snapshot. Use a dedicated AI
+            streaming content type so existing Blocks parsers and ACL stay intact.
+            Do not edit AiChatPage, provider adapters, the 005 package/lock changes,
+            old migrations, existing Blocks formats, Compose, ports or live storage.
+            PDF parsing and the visible send/Vision integration follow separately;
+            do not advertise unsupported formats or an incomplete upload capability.
+          acceptance: >-
+            Require bounded byte/signature/encoding and uncertain-storage tests,
+            real PostgreSQL runtime-role ownership/quota/binding races, the existing
+            AI regressions and independent L3 review of the exact source. Register
+            necessary focused CI commands through the controller. No paid provider
+            call or working-installation data action is part of this slice.
+      integration_dependencies:
+        - id: AI-BASELINE-LEARNING-006
+          status: in_progress
+          author_branch: assistant/ai-learning-compatibility-20261019
+          selected_scope:
+            - e2e/learning-learner-submits-project-assignment.spec.ts
+            - e2e/learning-surface-convergence.spec.ts
+            - e2e/learning-teacher-assigns-activity.spec.ts
+          classification: C
+          evidence_runs: [39226475997, 39226473852]
+          cause: >-
+            Seven existing Learning browser journeys expect assignment or course
+            lists on the former default tab after PR622. Both independent AI
+            candidates reproduce the same failures; their required general
+            repository and AI-focused gates pass on the exact accepted heads.
+          selection: >-
+            Controller selects a separate bounded compatibility repair for the
+            existing seven failing journeys: open the accepted assignments or
+            courses workspace tab before inspecting its list. Preserve every
+            original case, API/identity/data assertion and the default Overview
+            product behavior. Do not change runtime, fixtures, workflow, retries,
+            timeouts, rate limits or authorization to obtain a passing result.
+          coordination: >-
+            The Projects controller separately owns Learning workflow batch
+            isolation and Auth audit coverage. Preserve those authors and paths;
+            this selection changes only the three existing browser specs above.
+          acceptance: >-
+            Require independent exact-source review and the unchanged complete
+            Learning E1 workflow on the new SHA, including its real PostgreSQL
+            and browser journeys. Record any unrelated failure by its actual
+            cause; this test companion does not accept the Learning programme.
+        - id: AI-BASELINE-SEAT-CONSTRUCTOR-007
+          status: awaiting_accepted_baseline
+          source_pr: 626
+          observed_candidate_sha: a01966507e1a7bdcae1f01a0eecd1161ff230bca
+          required_migration: migrations/0224_classroom_new_seat_learner_identity.sql
+          classification: B
+          cause: >-
+            Independent review of 003 reproduced canonical new-Seat creation,
+            credentials, successful sign-in/session and teacher AI allow, while
+            the stable principal remained absent. The current AI reader correctly
+            refuses missing identity, so the first chat depends on an unrelated
+            materializing path until the canonical constructor is integrated.
+          coordination: >-
+            The Games programme already owns the INSERT-only constructor correction
+            in PR626. Preserve that author and adopt its independently accepted
+            baseline; do not copy its mutable draft or initialize/repair historical
+            identity from an AI read, sign-in retry or automatic session refresh.
+            This dependency blocks technical acceptance of the complete 003 first
+            school-entry journey, not unrelated model work or isolated candidate
+            verification of 005. Keep any AI-triggered refresh/identity side effect
+            as a separate bounded 003 repair finding when confirmed.
+          acceptance: >-
+            Require the accepted constructor SHA and a real canonical new-Seat to
+            first-chat HTTP journey without optional analytics. Recheck historical
+            missing identity, revoked sessions, no Account fallback and zero identity
+            writes from AI reads across the complete browser/API request chain.
       dependency_sequence:
         - text_convergence_and_focused_ci
-        - complete_text_search_regeneration_and_math
         - teacher_controlled_student_admission
+        - provider_catalog_and_compatible_encrypted_configuration
+        - complete_text_search_regeneration_and_math
         - attachments_and_text_extraction
         - image_vision_and_pdf_documents
+        - server_financial_budgets
         - image_generation
         - explicit_authorized_asa_context
         - combined_verification_and_ai_branch_closeout
       accepted_foundation_prs: [567, 588, 600, 616, 627]
-      superseded_draft_prs: [514, 515]
+      closed_superseded_draft_prs:
+        - pr: 514
+          replacement_prs: [567, 623]
+        - pr: 515
+          replacement_prs: [567, 631]
       deployment: not_run
       live_provider_verification: not_run
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 61f301c3385d7bc0ceeb1f3b293fabd52e0bdcd8
+      convergence_baseline_sha: c2d41028f29c041d3b8df1215bb81d0479dbecd5
       head_sha: null
-      observed_at: '2026-10-19T08:05:14Z'
+      observed_at: '2026-10-19T09:30:42Z'
       main:
         branch: main
-        sha: 61f301c3385d7bc0ceeb1f3b293fabd52e0bdcd8
+        sha: c2d41028f29c041d3b8df1215bb81d0479dbecd5
       observation_note: >-
-        Dated source observation only. PR623 has passing unit/PostgreSQL jobs and
-        44 passed / 15 failed browser cases; it is not accepted or deployed.
-        Fresh main CI is in progress; fetch main and actual exact-SHA evidence
-        before integration; preserve the separately owned header/Access repairs.
+        PR623 and PR631 are integrated after independent approval and passing
+        exact-head AI-focused and general repository gates. Combined main CI is
+        in progress at this dated observation; do not infer its conclusion from
+        the accepted candidate runs. Student access, provider configuration and
+        complete text history remain in implementation. Preserve concurrent
+        Learning and authentication work. Fetch main again and actual exact-SHA
+        CI before the next integration. No deployment or live paid call ran.
     execution_lease:
       executor_id: chatgpt-ai-programme-controller
       holder: unassigned
@@ -219,7 +348,7 @@ parallel_lanes:
       pr: null
       pr_draft: true
       status: in_progress
-      checkpoint: owner_selected_full_enforcement_and_teacher_ui_continuation
+      checkpoint: games_enforcement_integrated_navigation_continuation_selected
       owner_acceptance: pending
       change_class: L3_CRITICAL
       owner_authorization: >-
@@ -240,15 +369,59 @@ parallel_lanes:
         checks. Controller alone handles integration and preview operations after
         independent L3 review, exact-SHA gates and verified backup. No live
         production SQL, protected-data deletion, force-push or security bypass.
+    integrated_issue618_slices:
+      - pr: 624
+        accepted_candidate_sha: 4cffc08dc5f803d132ea910342340ec53b23553b
+        integrated_sha: 61f301c3385d7bc0ceeb1f3b293fabd52e0bdcd8
+        independent_review: approved
+        result: Seat My Projects label and class scope preserved
+      - pr: 622
+        accepted_candidate_sha: 3f37a8c63fa9c74455e3584ce404adde35d42ec4
+        integrated_sha: 185f43e1618848da5db14f7223b059395fd85408
+        independent_review: approved
+        result: Explicit Learning workspaces and real Account or Seat class lists
+      - pr: 626
+        accepted_candidate_sha: a01966507e1a7bdcae1f01a0eecd1161ff230bca
+        integrated_sha: 9f8170134bdd7884990938fb81a1e6cb63bab097
+        independent_review: approved
+        exact_candidate_general_run: 39235509514
+        candidate_governance_code_postgresql_rls: success
+        candidate_access_browser: in_progress_at_observation
+        local_final_analytics: 14_passed
+        local_final_rls: 16_passed
+        local_final_governance: pass
+        result: Current server game admission and INSERT-only new Seat identity
+    selected_issue618_continuation:
+      pr: 621
+      branch: codex/student-navigation-projects-games-618
+      starting_head: 9c1ef6eaa13325ef42a1b9b02116597b5dde8204
+      accepted_main: 9f8170134bdd7884990938fb81a1e6cb63bab097
+      status: in_progress
+      scope: >-
+        Continue the existing navigation PR after accepted server enforcement.
+        Preserve the accepted My Projects label and locked AI link; add one Seat
+        Games destination. Keep game admission and project guards unchanged.
+        Verify active module metadata with allowed, denied, pending, unavailable
+        and revoked admission in the seven existing navigation browser cases.
+      independent_review: required_on_final_sha
+      shared_learning_followup: >-
+        Preserve AI-BASELINE-LEARNING-006 and its separate three-file author.
+        Its seven historical default-tab journeys need explicit accepted Learning
+        destinations; do not weaken assertions or duplicate that concurrent patch.
+      final_preview:
+        target: http://127.0.0.1:4620/
+        status: not_deployed
+        prerequisite: Fresh exact runtime inspection, verified backup, actual restore and exact shadow migration
+        excluded_installation: 4610
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: ccb97048d8b846798978c85eb8b544a04ffe057c
+      convergence_baseline_sha: 9f8170134bdd7884990938fb81a1e6cb63bab097
       head_sha: null
-      observed_at: '2026-10-18T18:18:37Z'
+      observed_at: '2026-10-19T10:36:00Z'
       main:
         branch: main
-        sha: ccb97048d8b846798978c85eb8b544a04ffe057c
-      observation_note: Dated baseline only; fresh fetch main and exact refs/CI required before edits. No product implementation or acceptance evidence.
+        sha: 9f8170134bdd7884990938fb81a1e6cb63bab097
+      observation_note: Dated integration observation. Candidate a019 has successful hosted governance, code and full PostgreSQL/RLS; Access browser and main CI are tracked separately. Owner acceptance and final preview are pending. Fresh fetch main and exact refs before continuation.
     execution_lease:
       executor_id: student-games-access-scope-618
       holder: unassigned
@@ -4652,6 +4825,133 @@ parallel_lanes:
           Require independent source review and actual changed-source Scratch CI with
           exact build identity and durable JSON artifacts. Existing failures remain failures;
           no reproduction is NOT_REPRODUCED and does not establish an underlying repair.
+      - id: TASK-PROJ-PUBLICATION-AUTH-AUDIT-COVERAGE-001
+        status: in_progress
+        branch: codex/projects-auth-audit-coverage
+        prepared_base: 33a2790cc8a95181f6fcff613e3a6ec6eaca78fe
+        scope:
+          - apps/api/src/database-diagnostic-contract.json
+        selection: >-
+          Separate C baseline compatibility repair for accepted Auth0219. Actual Coverage
+          run39174033312 fails on both Windows and Linux because the real audit action
+          administration.verification_policy.update is missing from the closed diagnostic
+          enum. Exact current source scans12 migration actions with only this value missing.
+          Preserve the completed Coverage point8 projection and accepted Auth policy.
+        author_coordination: >-
+          One separate author owns this single JSON path after canonical main acceptance.
+          Coverage Issue610 owner handed off source90e09831 and STOP in6251702346.
+          Fresh AUTH-C5-READINESS scope and published4614349 do not change this path;
+          coordination and the single-writer boundary are recorded in Issue1356264235551.
+          Keep provider/backend/UI/installation work with its existing Auth authors and
+          do not modify their files, the existing regression test, Learning, Scratch or GC1.
+        acceptance: >-
+          Add only administration.verification_policy.update to the existing action enum
+          under sources.administrative_audit_events.fields.action.values. Preserve every
+          other enum member and closed projection, unknown-action rejection and omission
+          of private reason/payload fields. The existing dynamic real-migration regression
+          must demonstrate baseline FAIL and candidate PASS without changing its assertions.
+          Require a separate independent exact-source review and the unchanged full
+          Coverage Diagnostics workflow on the new SHA, including both platform collectors
+          and downstream real PostgreSQL integration. No migration, collector algorithm,
+          auth policy, rate-limit, timeout/retry, workflow or deployment/live DB change.
+      - id: TASK-PROJ-PUBLICATION-LEARNING-DECLARATION-ISOLATION-001
+        status: in_progress
+        branch: codex/projects-learning-declaration-isolation
+        prepared_source: 7f4d87d3c5a361b25db2bc4f05b62501db856d52
+        scope:
+          - .github/workflows/learning-e1-focused.yml
+        selection: >-
+          Separate bounded successor to the failed per-file isolation experiment.
+          Actual Learning39234380988 on7f4d87d executed courses2/2 and preview7/7,
+          then all14 course cases with12 PASS/2 fresh-login429 FAIL; first23 is21/23
+          and the complete second group is NOT_RUN. Captured login requests have no
+          Cookie/Authorization and Retry-After116/114, supporting the common mutation
+          guard within the separate course lifetime; internal counters were not read.
+          Source-only success and successful evidence preservation are not a repair.
+        author_coordination: >-
+          One separate workflow author starts from the completed frozen7f4d87d source.
+          Preserve PR634 and its failure evidence. The current-main three-spec
+          destination repair is exclusively AI-BASELINE-LEARNING-006 on
+          assistant/ai-learning-compatibility-20261019, selected in main e503d00f and
+          acknowledged in Issue373 comment6264966785; do not assign another writer
+          or modify those specs. Keep all application, config, fixture, package,
+          diagnostic630, Scratch, QR and exclusive GC1 paths unchanged.
+        acceptance: >-
+          Keep the first full courses-sharing and learning-author-preview invocations.
+          Partition only the full14-case course spec by its12 actual declaration
+          locations, preserving declaration order and both two-case loop groups.
+          Each group uses the ordinary unchanged Playwright-managed fresh API.
+          Preserve loop orders three-d then electronics, and electronics then three-d.
+          Normal fresh invocations repeat beforeAll/afterAll, teacher/pool creation
+          and module teacher/sequence/keys state; do not modify those fixtures or seeds.
+          Independently check that groups need no earlier invocation's state.
+          Derive current locations from exact candidate CLI discovery matched to
+          the approved ordered case-identity manifest, not only a count. Pre-discover
+          every location selector and prove its exact expected group and the full
+          ordered14-case union. Do not freeze obsolete line numbers, use text-grep
+          guesses, add fullyParallel, or rely on shards that keep the file together.
+          Save structured actual execution IDs/statuses for every invocation; missing,
+          duplicate, extra, skipped, interrupted, hook-unexecuted or ambiguous cases
+          cannot count as PASS. Missing/invalid execution reports fail coverage.
+          Run every selected group after earlier failures, retain the first nonzero
+          exit even after reporting failure, and run the unchanged complete15-case
+          second group only after all23 first-group cases actually pass. Preserve workers1,
+          retries0, all test/job timeouts, original assertions and actions, script
+          drift rejection, Node22/pnpm9.15.9/frozen install/uncached build/PG16/
+          restricted role/upgrade/Scratch setup/cleanup. No sleep, limiter reset,
+          proxy identity, privilege or product-policy change. Extra startup/hooks/
+          cleanup must fit the unchanged30-minute job timeout; exceeding it means
+          incomplete verification, never permission to raise it or infer remaining PASS.
+          No local application/server, PostgreSQL, Docker or browser journeys;
+          local source/CLI discovery and bounded synthetic checks may not start ASA.
+          Require independent
+          exact-source review with actual discovery and failure/coverage challenges,
+          then changed-source full Learning and required General CI. This is
+          per-declaration isolation, not one process per individual test; remaining
+          failures require their actual cause and never justify an unchanged rerun.
+      - id: TASK-PROJ-PUBLICATION-SCRATCH-RECOVERY-TIMING-001
+        status: in_progress
+        branch: codex/projects-scratch-recovery-timing
+        prepared_source: 8f2cc69835cb7cf135d2390319651c315c496e54
+        scope:
+          - e2e/blocks-recovery.spec.ts
+        selection: >-
+          Bounded evidence successor after Scratch39232051458 on8f2cc698 completed
+          56/57 cumulative cases, with only failed server autosave retains recovery
+          timing out at150000ms. General39232051363 passed. Both Abby/Pop cases passed
+          and are NOT_REPRODUCED, not proven repaired. Recovery JSON records checkpoint73,
+          HTTP503 with recoveryReadyAtResponse=true, response-completion-enter, then
+          finally-enter and legacy-attachment-enter. Later retention assertions and
+          teardown were not reached. No trace or monotonic timing exists, so neither
+          sole response.finished nor sole attachment hang is established.
+        author_coordination: >-
+          One separate diagnostic author owns only this failed-autosave case after
+          completed frozen8f2 handoff and independent actual QA. Preserve both original
+          diagnostic files and PR632 history, editing only this one case and required
+          local declarations/imports. Existing Issue601/599 runtime/unit authors retain
+          their lanes. Do not modify protocol fixture, product/runtime, workflow,
+          other Scratch cases, Learning, QR or the exclusive GC1 guard.
+        acceptance: >-
+          Add bounded monotonic Node timestamps and closed fixed-enum events for the
+          exact existing draft requestfinished/requestfailed, response.finished call,
+          normal/null or Error-value return and rejection, and existing attachment
+          payload preparation, call, return and rejection. Distinguish method call
+          return from Promise settlement. Preserve original invocation counts, arguments,
+          this/return/throw, await order, every assertion, clock/actions and150000ms
+          timeout. Preserve the attachment's existing rejection handling and rethrow
+          originally propagated errors unchanged; diagnostic failures cannot replace
+          those errors or bypass cleanup. Observe only already-existing events; do
+          not consume bodies or invoke save, retry, reschedule or add a timeout.
+          Retain existing safe JSON and durable writes before waits, numeric bounds,
+          event caps and failure counters. No URLs, tokens, cookies, bodies or raw
+          errors in new evidence. Missing callback/return/settlement evidence remains
+          UNKNOWN or NOT_OBSERVED; loss or write failures make capture incomplete.
+          No local application/server, PostgreSQL, Docker or browser journeys;
+          local source/discovery and bounded synthetic checks may not start ASA.
+          Independently challenge actual callback/error/
+          persistence behavior and privacy, then run changed-source Scratch CI with
+          exact pinned build identity and all original cases. A timeout remains FAIL;
+          nonreproduction is NOT_REPRODUCED and does not establish a runtime repair.
     accepted_foundation:
       accepted_r7_01b_merge_sha: 65316c50873e28a5effd7b6e603b5289e37e2fac
       accepted_r3_merge_sha: 5fa616045b16d2720418eb7945f7bef968dd9389
