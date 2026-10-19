@@ -156,16 +156,41 @@ export function storageContract(clients: () => { admin: SqlClient; runtime: SqlC
     const f = await fixture();
     const requestId = randomUUID();
     const students = JSON.stringify([
-      { displayLabel: 'First batch learner', loginHandle: 'AbC234', safeMode: true },
-      { displayLabel: 'Second batch learner', loginHandle: 'aBc234', safeMode: false },
+      { displayLabel: 'First batch learner', safeMode: true },
+      { displayLabel: 'Second batch learner', safeMode: false },
     ]);
-    const commit = async (request = requestId) =>
+    const prepare = async (request = requestId, input = students) =>
+      (
+        await f.runtime.query(
+          'SELECT * FROM public.classroom_student_seat_batch_prepare_v2($1,$2,$3,$4::jsonb)',
+          [f.account, f.classroomId, request, input],
+        )
+      ).rows;
+    const commit = async (request = requestId, input = students) =>
       (
         await f.runtime.query(
           'SELECT * FROM public.classroom_student_seat_batch_commit_v2($1,$2,$3,$4::jsonb)',
-          [f.account, f.classroomId, request, students],
+          [f.account, f.classroomId, request, input],
         )
       ).rows;
+    // Current batch preparation generates and reserves codes. Explicit codes
+    // are deliberately not part of its input contract.
+    const prepared = await prepare();
+    expect(prepared).toHaveLength(2);
+    expect(
+      prepared.map((row) => [
+        row['result_code'],
+        row['reused'],
+        row['row_status'],
+        row['reason_code'],
+      ]),
+    ).toEqual([
+      ['ok', false, 'valid', 'ready'],
+      ['ok', false, 'valid', 'ready'],
+    ]);
+    const codes = prepared.map((row) => row['login_handle'] as string);
+    for (const code of codes) expect(code).toMatch(/^[A-Za-z0-9]{6}$/);
+    expect(new Set(codes).size).toBe(2);
     const created = await commit();
     expect(created).toHaveLength(2);
     expect(
@@ -174,13 +199,14 @@ export function storageContract(clients: () => { admin: SqlClient; runtime: SqlC
         row['reused'],
         row['row_status'],
         row['login_handle'],
+        row['safe_mode'],
       ]),
     ).toEqual([
-      ['ok', false, 'created', 'AbC234'],
-      ['ok', false, 'created', 'aBc234'],
+      ['ok', false, 'created', codes[0], true],
+      ['ok', false, 'created', codes[1], false],
     ]);
     const seatIds = created.map((row) => row['seat_id'] as string);
-    const links = async () =>
+    const links = async (targetSeats = seatIds) =>
       (
         await f.admin.query(
           `SELECT link.seat_id,link.learner_identity_id FROM learner_identity_links link
@@ -188,22 +214,52 @@ export function storageContract(clients: () => { admin: SqlClient; runtime: SqlC
        WHERE link.seat_id=ANY($1::uuid[]) AND link.status='active' AND link.disabled_at IS NULL
          AND learner.state='active' AND link.tenant_id=$2 AND learner.tenant_id=$2
          AND link.school_id=$3 AND learner.school_id=$3`,
-          [seatIds, f.teacher.tenantId, f.teacher.schoolId],
+          [targetSeats, f.teacher.tenantId, f.teacher.schoolId],
         )
       ).rows;
     const initialLinks = await links();
     expect(initialLinks).toHaveLength(2);
     expect(new Set(initialLinks.map((row) => row['learner_identity_id'])).size).toBe(2);
     await f.admin.query('DELETE FROM learner_identity_links WHERE seat_id=$1', [seatIds[0]]);
-    expect((await commit()).map((row) => [row['reused'], row['seat_id']])).toEqual([
-      [true, seatIds[0]],
-      [true, seatIds[1]],
+    expect(
+      (await commit()).map((row) => [row['reused'], row['seat_id'], row['login_handle']]),
+    ).toEqual([
+      [true, seatIds[0], codes[0]],
+      [true, seatIds[1], codes[1]],
     ]);
     expect(await links()).toHaveLength(1);
-    expect((await commit(randomUUID())).map((row) => row['row_status'])).toEqual([
-      'duplicate',
-      'duplicate',
+
+    // Interleave a real canonical creation after another request has reserved
+    // its code. Commit must take the existing-Seat duplicate path without
+    // recreating a link removed from that Seat.
+    const duplicateRequest = randomUUID();
+    const duplicateStudents = JSON.stringify([
+      { displayLabel: 'Interleaved learner', safeMode: true },
     ]);
+    const reserved = await prepare(duplicateRequest, duplicateStudents);
+    expect(reserved).toHaveLength(1);
+    expect(reserved[0]).toMatchObject({ result_code: 'ok', row_status: 'valid', reused: false });
+    const duplicateCode = reserved[0]!['login_handle'] as string;
+    expect(duplicateCode).toMatch(/^[A-Za-z0-9]{6}$/);
+    const existing = (
+      await f.runtime.query(
+        `SELECT id FROM public.classroom_management_add_seat($1,$2,'Interleaved learner',$3,true)`,
+        [f.account, f.classroomId, duplicateCode],
+      )
+    ).rows[0]!['id'] as string;
+    expect(await links([existing])).toHaveLength(1);
+    await f.admin.query('DELETE FROM learner_identity_links WHERE seat_id=$1', [existing]);
+    expect(await commit(duplicateRequest, duplicateStudents)).toEqual([
+      expect.objectContaining({
+        result_code: 'ok',
+        reused: false,
+        row_status: 'duplicate',
+        reason_code: 'existing_same_seat',
+        seat_id: existing,
+        login_handle: duplicateCode,
+      }),
+    ]);
+    expect(await links([existing])).toHaveLength(0);
     expect(await links()).toHaveLength(1);
     const issued = await f.runtime.query(
       'SELECT result_code FROM public.classroom_seat_credential_issue($1,$2,$3,$4,$5)',
@@ -224,6 +280,24 @@ export function storageContract(clients: () => { admin: SqlClient; runtime: SqlC
         ])
       ).rows[0]?.['n'],
     ).toBe(0);
+
+    // Case-sensitive explicit codes belong to the single-Seat constructor,
+    // which both canonical issuance paths share. They remain distinct.
+    const explicitIds: string[] = [];
+    for (const code of ['AbC234', 'aBc234']) {
+      const row = (
+        await f.runtime.query(
+          `SELECT id,login_handle FROM public.classroom_management_add_seat($1,$2,'Case learner',$3,true)`,
+          [f.account, f.classroomId, code],
+        )
+      ).rows[0]!;
+      expect(row['login_handle']).toBe(code);
+      explicitIds.push(row['id'] as string);
+    }
+    expect(new Set(explicitIds).size).toBe(2);
+    const explicitLinks = await links(explicitIds);
+    expect(explicitLinks).toHaveLength(2);
+    expect(new Set(explicitLinks.map((row) => row['learner_identity_id'])).size).toBe(2);
   });
   it('keeps raw historical Seat rows unmaterialized and preserves the reserved Account-code validation', async () => {
     const f = await fixture();
