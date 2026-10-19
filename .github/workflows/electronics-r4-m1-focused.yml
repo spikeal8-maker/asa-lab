@@ -53,38 +53,99 @@ jobs:
           mkdir -p e2e/artifacts/electronics-simulation reports
           chmod -R 0777 e2e/artifacts reports
 
+      - name: Prepare image-only transport for the disposable browser job
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, os, platform
+          from pathlib import Path
+          assert os.environ.get("GITHUB_ACTIONS") == "true"
+          assert os.environ.get("GITHUB_JOB") == "browser"
+          assert "/.github/workflows/electronics-r4-m1-focused.yml@" in os.environ.get("GITHUB_WORKFLOW_REF", "")
+          assert platform.system() == "Linux" and platform.machine() in ("x86_64", "amd64")
+          receipt_path = Path("docs/product/electronics/evidence/ci-image-transport-545-receipt.json")
+          assert hashlib.sha256(receipt_path.read_bytes()).hexdigest() == "9b3b516e257aa31d3feb4a64c9dc8bfe7c33c9ad7d1be448245d8df044f7f273"
+          original = json.loads(receipt_path.read_text())
+          reference = "mirror.gcr.io/library/postgres@" + original["images"]["postgres"]["manifest_digest"]
+          assert reference == "mirror.gcr.io/library/postgres@sha256:e9243ab06e47223dedeb3c129fa9ece8d37f506bdc6ee943afb9335f98bb4854"
+          directory = Path(os.environ["RUNNER_TEMP"])
+          assert directory.is_absolute()
+          (directory / "asa-electronics-postgres.yaml").write_text("services:\n  postgres:\n    image: " + reference + "\n")
+          PY
+
       - name: Build isolated Electronics browser images
         run: >-
-          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml --profile test
-          build --build-arg NODE_IMAGE=public.ecr.aws/docker/library/node@sha256:43aeff40f4afc22e83f7589a2f37e111cff5ca84529571f1c8415bcc5fcc21b2 --build-arg CADDY_IMAGE=public.ecr.aws/docker/library/caddy@sha256:d8c17a862962def15cde69863a3a463f25a2664942eafd7bdbf050e9c3116b83 --build-arg BUILDKIT_SYNTAX=mirror.gcr.io/docker/dockerfile@sha256:b5f3b260a9678e1d83d2fce86eeddf79420b79147eaba2a25986f47133d73720 migration api web test-runner
+          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test
+          build --build-arg NODE_IMAGE=mirror.gcr.io/library/node@sha256:43aeff40f4afc22e83f7589a2f37e111cff5ca84529571f1c8415bcc5fcc21b2 --build-arg CADDY_IMAGE=mirror.gcr.io/library/caddy@sha256:d8c17a862962def15cde69863a3a463f25a2664942eafd7bdbf050e9c3116b83 --build-arg BUILDKIT_SYNTAX=mirror.gcr.io/docker/dockerfile@sha256:b5f3b260a9678e1d83d2fce86eeddf79420b79147eaba2a25986f47133d73720 migration api web test-runner
+
+      - name: Verify original base layers and exact source revision
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json, os, subprocess
+          from pathlib import Path
+          receipt = json.loads(Path("docs/product/electronics/evidence/ci-image-transport-545-receipt.json").read_text())
+          revision = os.environ["ASA_BUILD_REVISION"]
+          assert revision == os.environ["GITHUB_SHA"] == os.environ["ASA_IMAGE_TAG"]
+          evidence = []
+          for service, base in (("api", "node"), ("test", "node"), ("web", "caddy")):
+              reference = "asa-lab-" + service + ":" + revision
+              image = json.loads(subprocess.check_output(["docker", "image", "inspect", reference], text=True))[0]
+              assert image["Os"] == "linux" and image["Architecture"] == "amd64"
+              layers = receipt["images"][base]["rootfs_diff_ids"]
+              assert image["RootFS"]["Layers"][:len(layers)] == layers, reference
+              if service in ("api", "web"):
+                  assert image["Config"].get("Labels", {}).get("org.opencontainers.image.revision") == revision, reference
+              evidence.append({"image": reference, "id": image["Id"], "base": base, "rootfs_diff_ids": layers, "source_sha": revision})
+          Path("reports/classroom-before-built-image-identity.json").write_text(json.dumps(evidence, indent=2) + "\n")
+          print(json.dumps(evidence))
+          PY
 
       - name: Start isolated PostgreSQL
         run: >-
-          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml --profile test
+          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test
           up -d --wait --wait-timeout 120 postgres
+
+      - name: Verify original PostgreSQL image identity
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json, subprocess
+          from pathlib import Path
+          receipt = json.loads(Path("docs/product/electronics/evidence/ci-image-transport-545-receipt.json").read_text())
+          expected = receipt["images"]["postgres"]
+          reference = "mirror.gcr.io/library/postgres@" + expected["manifest_digest"]
+          image = json.loads(subprocess.check_output(["docker", "image", "inspect", reference], text=True))[0]
+          assert image["Os"] == "linux" and image["Architecture"] == "amd64"
+          assert image["Id"] == expected["config"]["digest"]
+          assert image["RootFS"]["Layers"] == expected["rootfs_diff_ids"]
+          evidence = {"image": reference, "id": image["Id"], "rootfs_diff_ids": image["RootFS"]["Layers"]}
+          Path("reports/classroom-before-postgres-image-identity.json").write_text(json.dumps(evidence, indent=2) + "\n")
+          print(json.dumps(evidence))
+          PY
 
       - name: Apply isolated migrations
         run: >-
-          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml --profile test
+          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test
           run --rm --no-deps migration
 
       - name: Start Electronics API and Web without unrelated media services
         run: >-
-          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml --profile test
+          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test
           up -d --wait --wait-timeout 240 --no-deps api web
 
       # A BEFORE harness PASS means evidence was collected, never product acceptance.
       # The observer records the same numeric contract and all observed failures.
       - name: Observe old main D13 with the classroom observer
         run: >-
-          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml --profile test
+          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test
           run --rm --no-deps -e NX_SKIP_NX_CACHE=true -e ASA_ELECTRONICS_EXPECTED_SHA
           -e ASA_ELECTRONICS_CLASSROOM_PHASE=before test-runner
           pnpm exec playwright test e2e/electronics-classroom-timing.spec.ts --workers=1
 
       - name: Show isolated stack state
         if: always()
-        run: docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml --profile test ps -a
+        run: docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test ps -a
 
       - name: Upload browser evidence
         if: always()
@@ -100,5 +161,5 @@ jobs:
       - name: Remove isolated test stack
         if: always()
         run: >-
-          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml --profile test
+          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test
           down -v --remove-orphans
