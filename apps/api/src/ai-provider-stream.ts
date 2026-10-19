@@ -33,6 +33,65 @@ export interface ProviderStreamResult {
 const MAX_RESULT_CHARS = 8192;
 const MAX_EVENT_BUFFER = 128 * 1024;
 
+function completionState(
+  provider: StreamProvider,
+  terminal: unknown,
+  partialText = '',
+): 'complete' | 'stopped' {
+  if (provider === 'openai' && terminal === 'completed') return 'complete';
+  if (provider === 'deepseek' && terminal === 'stop') return 'complete';
+  if (provider === 'deepseek' && terminal === 'length') return 'stopped';
+  throw new ProviderStreamError(
+    provider === 'openai' && terminal === 'failed' ? 'ai_provider_error' : 'ai_response_incomplete',
+    503,
+    'Модель не завершила ответ.',
+    partialText,
+  );
+}
+
+/** The legacy JSON transport must confirm the same provider terminal state as SSE. */
+export function parseProviderText(
+  provider: StreamProvider,
+  payload: unknown,
+): ProviderStreamResult {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    throw new ProviderStreamError('ai_response_invalid', 503, 'Модель вернула некорректный ответ.');
+  }
+  let text = '';
+  let terminal: unknown;
+  if (provider === 'openai') {
+    const response = payload as { status?: unknown; output_text?: unknown; output?: unknown };
+    terminal = response.status;
+    if (typeof response.output_text === 'string') text = response.output_text;
+    else if (Array.isArray(response.output)) {
+      text = response.output
+        .flatMap((item: { content?: unknown } | null) =>
+          Array.isArray(item?.content) ? item.content : [],
+        )
+        .filter(
+          (item: { type?: unknown; text?: unknown } | null) =>
+            item?.type === 'output_text' && typeof item.text === 'string',
+        )
+        .map((item: { text: string }) => item.text)
+        .join('\n');
+    }
+  } else {
+    const response = payload as {
+      choices?: Array<{ finish_reason?: unknown; message?: { content?: unknown } } | null>;
+    };
+    const choice = Array.isArray(response.choices) ? response.choices[0] : null;
+    terminal = choice?.finish_reason;
+    if (typeof choice?.message?.content === 'string') text = choice.message.content;
+  }
+  text = text.trim();
+  const bounded = text.slice(0, MAX_RESULT_CHARS);
+  const state = completionState(provider, terminal, bounded);
+  if (!bounded) {
+    throw new ProviderStreamError('ai_response_empty', 503, 'Модель не вернула текст ответа.');
+  }
+  return { text: bounded, stopped: state === 'stopped' || text.length >= MAX_RESULT_CHARS };
+}
+
 function textDelta(event: string, payload: unknown, provider: StreamProvider): string {
   if (!payload || typeof payload !== 'object') return '';
   if (provider === 'openai') {
@@ -129,7 +188,7 @@ export async function streamProviderText({
   let buffer = '';
   let content = '';
   let finished = false;
-  let providerTruncated = false;
+  let providerState: 'complete' | 'stopped' | null = null;
 
   function handle(frame: string): void {
     if (finished || combined.aborted) return;
@@ -145,7 +204,10 @@ export async function streamProviderText({
       .join('\n');
     if (!data) return;
     if (data === '[DONE]') {
-      if (provider === 'deepseek') finished = true;
+      if (provider === 'deepseek') {
+        if (providerState === null) completionState(provider, null);
+        finished = true;
+      }
       return;
     }
     let payload: unknown;
@@ -168,20 +230,21 @@ export async function streamProviderText({
       provider === 'openai' &&
       (event === 'response.incomplete' || packetType === 'response.incomplete')
     ) {
-      throw new ProviderStreamError('ai_response_incomplete', 503, 'Модель не завершила ответ.');
+      completionState(provider, 'incomplete');
     }
     if (provider === 'deepseek' && payload && typeof payload === 'object') {
       const reason = (payload as { choices?: Array<{ finish_reason?: string | null }> })
         .choices?.[0]?.finish_reason;
-      if (reason === 'length') providerTruncated = true;
-      else if (reason && reason !== 'stop') {
-        throw new ProviderStreamError('ai_response_incomplete', 503, 'Модель не завершила ответ.');
+      if (reason !== null && reason !== undefined) {
+        providerState = completionState(provider, reason);
       }
     }
     if (
       provider === 'openai' &&
       (event === 'response.completed' || packetType === 'response.completed')
     ) {
+      const status = (payload as { response?: { status?: unknown } })?.response?.status;
+      completionState(provider, status ?? 'completed');
       finished = true;
       return;
     }
@@ -249,6 +312,6 @@ export async function streamProviderText({
   }
   return {
     text: content,
-    stopped: signal.aborted || providerTruncated || content.length >= MAX_RESULT_CHARS,
+    stopped: signal.aborted || providerState === 'stopped' || content.length >= MAX_RESULT_CHARS,
   };
 }

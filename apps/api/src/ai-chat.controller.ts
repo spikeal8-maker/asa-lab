@@ -70,7 +70,7 @@ export class AiChatController {
   private threadId(value: string): string {
     if (!UUID.test(value))
       return reject('ai_thread_id_invalid', 'Неверный идентификатор чата.', 400);
-    return value;
+    return value.toLowerCase();
   }
 
   private cursor(beforeAt: string | undefined, beforeId: string | undefined): AiCursor | null {
@@ -80,12 +80,13 @@ export class AiChatController {
       !beforeAt ||
       !beforeId ||
       !UUID.test(beforeId) ||
+      !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.(?:\d{3}|\d{6})Z$/.test(beforeAt) ||
       !Number.isFinite(parsed.getTime()) ||
-      parsed.toISOString() !== beforeAt
+      parsed.toISOString() !== beforeAt.replace(/(\.\d{3})\d{3}Z$/, '$1Z')
     ) {
       return reject('ai_cursor_invalid', 'Неверная позиция истории.', 400);
     }
-    return { at: beforeAt, id: beforeId };
+    return { at: beforeAt, id: beforeId.toLowerCase() };
   }
 
   @Get('status')
@@ -167,7 +168,7 @@ export class AiChatController {
     if (!UUID.test(rawRequestId)) {
       return reject('ai_request_id_invalid', 'Неверный идентификатор запроса.', 400);
     }
-    return this.ai.stopStream(account.principalId, threadId, rawRequestId);
+    return this.ai.stopStream(account.principalId, threadId, rawRequestId.toLowerCase());
   }
 
   @Post('threads/:threadId/messages/stream')
@@ -193,7 +194,7 @@ export class AiChatController {
       return reject('ai_input_invalid', 'Нужен текст сообщения и уникальный идентификатор.', 400);
     }
     const message = body['message'] as string;
-    const requestId = body['requestId'] as string;
+    const requestId = (body['requestId'] as string).toLowerCase();
     const model = body['model'];
     if (
       model !== undefined &&
@@ -273,7 +274,7 @@ export class AiChatController {
         account.principalId,
         threadId,
         body['message'] as string,
-        body['requestId'] as string,
+        (body['requestId'] as string).toLowerCase(),
       ),
     );
   }

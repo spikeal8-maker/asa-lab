@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ProviderStreamError, streamProviderText } from './ai-provider-stream';
+import { parseProviderText, ProviderStreamError, streamProviderText } from './ai-provider-stream';
 
 const encoding = new TextEncoder();
 
@@ -56,6 +56,7 @@ describe('provider SSE adapter', () => {
     const text =
       'data: {"choices":[{"delta":{"content":"Электроника"}}]}\n\n' +
       'data: {"choices":[{"delta":{"content":" и Arduino"}}]}\n\n' +
+      'data: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\n' +
       'data: [DONE]\n\n';
     const calls: string[] = [];
     const fetchImpl = vi.fn<typeof fetch>(async () => fakeSse(text));
@@ -148,4 +149,119 @@ describe('provider SSE adapter', () => {
     });
     expect(result).toEqual({ text: 'Часть', stopped: true });
   });
+
+  it('does not accept DeepSeek DONE without a completion reason', async () => {
+    const fetchImpl = vi.fn<typeof fetch>(async () =>
+      fakeSse('data: {"choices":[{"delta":{"content":"Часть"}}]}\n\ndata: [DONE]\n\n'),
+    );
+    await expect(
+      streamProviderText({
+        ...input,
+        provider: 'deepseek',
+        fetchImpl,
+        signal: new AbortController().signal,
+        onDelta: () => undefined,
+      }),
+    ).rejects.toMatchObject({ code: 'ai_response_incomplete', partialText: 'Часть' });
+  });
+
+  it('rejects a completed event whose response declares incomplete', async () => {
+    const fetchImpl = vi.fn<typeof fetch>(async () =>
+      fakeSse(
+        'event: response.output_text.delta\ndata: {"delta":"Часть"}\n\n' +
+          'event: response.completed\ndata: {"response":{"status":"incomplete"}}\n\n',
+      ),
+    );
+    await expect(
+      streamProviderText({
+        ...input,
+        fetchImpl,
+        signal: new AbortController().signal,
+        onDelta: () => undefined,
+      }),
+    ).rejects.toMatchObject({ code: 'ai_response_incomplete', partialText: 'Часть' });
+  });
+});
+
+describe('provider JSON completion semantics', () => {
+  it('reads completed OpenAI output items and completed DeepSeek text', () => {
+    expect(
+      parseProviderText('openai', {
+        status: 'completed',
+        output: [{ content: [{ type: 'output_text', text: 'Ответ' }] }],
+      }),
+    ).toEqual({ text: 'Ответ', stopped: false });
+    expect(
+      parseProviderText('deepseek', {
+        choices: [{ message: { content: 'Ответ' }, finish_reason: 'stop' }],
+      }),
+    ).toEqual({ text: 'Ответ', stopped: false });
+  });
+
+  it.each(['incomplete', 'in_progress', 'queued', 'cancelled', undefined, null])(
+    'preserves partial OpenAI text without completing status %s',
+    (status) => {
+      expect(() => parseProviderText('openai', { status, output_text: 'Частичный ответ' })).toThrow(
+        expect.objectContaining({
+          code: 'ai_response_incomplete',
+          partialText: 'Частичный ответ',
+          status: 503,
+        }),
+      );
+    },
+  );
+
+  it('does not expose provider error bodies for a failed OpenAI result', () => {
+    expect(() =>
+      parseProviderText('openai', {
+        status: 'failed',
+        output_text: 'Часть',
+        error: { message: 'private provider detail' },
+      }),
+    ).toThrow(expect.objectContaining({ code: 'ai_provider_error', partialText: 'Часть' }));
+  });
+
+  it('keeps DeepSeek length-limited JSON text as stopped', () => {
+    expect(
+      parseProviderText('deepseek', {
+        choices: [{ finish_reason: 'length', message: { content: 'Частичный ответ' } }],
+      }),
+    ).toEqual({ text: 'Частичный ответ', stopped: true });
+  });
+
+  it.each([
+    'tool_calls',
+    'content_filter',
+    'insufficient_system_resource',
+    'aborted',
+    null,
+    undefined,
+  ])('does not complete a DeepSeek response with reason %s', (finish_reason) => {
+    expect(() =>
+      parseProviderText('deepseek', {
+        choices: [{ finish_reason, message: { content: 'Часть' } }],
+      }),
+    ).toThrow(expect.objectContaining({ code: 'ai_response_incomplete', partialText: 'Часть' }));
+  });
+
+  it('marks a locally bounded JSON response as stopped', () => {
+    expect(
+      parseProviderText('openai', { status: 'completed', output_text: 'a'.repeat(9000) }),
+    ).toEqual({ text: 'a'.repeat(8192), stopped: true });
+  });
+
+  it.each([null, [], 'invalid'])('rejects malformed JSON payload %s', (body) => {
+    expect(() => parseProviderText('openai', body)).toThrow(
+      expect.objectContaining({ code: 'ai_response_invalid' }),
+    );
+  });
+
+  it.each([undefined, null, {}, [null, { content: null }, { content: [null] }]])(
+    'rejects malformed or empty OpenAI output without leaking a runtime TypeError',
+    (output) => {
+      expect(() => parseProviderText('openai', { status: 'completed', output })).toThrow(
+        expect.objectContaining({ code: 'ai_response_empty' }),
+      );
+    },
+  );
 });
