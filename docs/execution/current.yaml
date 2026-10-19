@@ -101,7 +101,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: combined_text_reviewed_files_foundation_in_progress
+      checkpoint: text_repairs_reviewed_baseline_repair_in_progress
       owner_acceptance: pending
       change_class: L3_CRITICAL
       owner_authorization: >-
@@ -147,7 +147,23 @@ parallel_lanes:
           reviewed_header_source_sha: 98295cbb6c29a6932369c39c2ee4a6361fa428dc
           independent_review: approved
           runtime_focused_run: 39241612226
-          general_gate: external_baseline_failure
+          general_gate: combined_response_repair_required
+          response_repair:
+            candidate_sha: c76aebe5f84bdcbd3acce1086d1f889ed892d206
+            candidate_tree: e200b03c82945a12a2e5322646769e83a85061ac
+            independent_review: approved
+            author_unit_cases: 71
+            author_ai_browser_cases: 15
+            author_unchanged_general_cases: 17
+            independent_unit_cases: 71
+            independent_sql_and_lifecycle_cases: 7
+            independent_browser_cases: 9
+            cause: >-
+              The combined candidate trusted a successful classroom-access body
+              without runtime validation. A generic or malformed response could
+              throw while reading students and unmount the whole classroom page.
+              The bounded repair validates GET and PUT receipts, keeps errors local,
+              preserves uncertain request identity and permits explicit safe retry.
           integration_candidate: AI-TEXT-COMPLETE-005
           acceptance_dependency: AI-BASELINE-SEAT-CONSTRUCTOR-007
           reserved_migration: migrations/0225_ai_student_admission.sql
@@ -185,7 +201,14 @@ parallel_lanes:
           author_browser_cases: 93
           exact_head_focused_run: 39251837416
           exact_head_general_run: 39251837619
-          combined_gate: in_progress
+          combined_gate: failed_classroom_response
+          combined_general_result: >-
+            Exact 0a7423080feff135ca90e904617201440992e6f1 passes AI-focused,
+            header, governance, code, real PostgreSQL and all 22 real Access cases.
+            General settings finishes with 400 passed and 17 failed because the
+            newly composed classroom AI panel trusts malformed successful data.
+            The independently approved 003 response repair restores all 17 unchanged
+            cases locally; final combined exact-SHA gates remain required.
           reserved_migration: migrations/0227_ai_text_history.sql
           integration_after:
             - AI-TEXT-UI-001
@@ -205,6 +228,24 @@ parallel_lanes:
           author_branch: assistant/ai-private-attachments-20261019
           candidate_dependency_sha: 0a7423080feff135ca90e904617201440992e6f1
           dependency_acceptance: pending_combined_gates
+          preserved_wip_sha: 9f0a2be498627972b17aacb58760e2384e459d65
+          preserved_wip_tree: b90d992ddb1122d7b252f03e1bdbb05d4e80a516
+          wip_author_reported_cases: 212
+          wip_evidence: historical_author_stdout_only_not_acceptance
+          guard_boundary:
+            candidate_sha: 29356255821d8a30fef634666d049556003283d0
+            candidate_tree: 22442af7352edd504904adf26205274a100d29e7
+            independent_review: approved
+            maintained_cases: 84
+            independent_http_and_credential_probes: 10
+            previous_finding: closed
+            result: >-
+              Proof cache and pending checks now use the same resolver policy and
+              actual credential as the resolver. Positive Account proof, negative
+              AI Seat proof and a pending legacy initializer cannot cross policies.
+              The original per-session budget key and all numeric limits remain
+              unchanged. HTTP probes use actual compiled Fastify hooks and isolated
+              PGlite; final real PostgreSQL and combined CI remain required.
           reserved_migration: migrations/0228_ai_private_attachments.sql
           integration_after: [AI-STUDENT-ACCESS-003, AI-TEXT-COMPLETE-005]
           selected_scope:
@@ -248,12 +289,36 @@ parallel_lanes:
             old migrations, existing Blocks formats, Compose, ports or live storage.
             PDF parsing and the visible send/Vision integration follow separately;
             do not advertise unsupported formats or an incomplete upload capability.
+            After independent approval of the isolated guard repair, the controller
+            resumes this same selected author slice from its preserved WIP using an
+            ordinary guard merge. Finish controller/guard, storage uncertainty,
+            expiry/deletion and real CI PostgreSQL/MinIO probes before freezing.
           acceptance: >-
             Require bounded byte/signature/encoding and uncertain-storage tests,
             real PostgreSQL runtime-role ownership/quota/binding races, the existing
             AI regressions and independent L3 review of the exact source. Register
             necessary focused CI commands through the controller. No paid provider
             call or working-installation data action is part of this slice.
+        - id: AI-IDENTITY-FOCUSED-CI-010
+          scope: collect the accepted identity guard regressions in the AI focused gate
+          status: selected
+          selected_scope:
+            - package.json
+            - .github/workflows/ai-chat-focused.yml
+          integration_candidate: AI-TEXT-COMPLETE-005
+          selection: >-
+            Register the existing abuse-protection and account-verification guard
+            suites in the same test:ai-chat command used locally and by focused CI.
+            Add the exact shared guard and app.factory trigger/format paths, retain
+            the current identity build dependency and all existing suites and gates.
+            Verify test collection and unchanged budgets without product edits.
+            Preserve the 005 mathematical-rendering dependencies and the separately
+            accepted 009 launcher scripts during final package convergence.
+          acceptance: >-
+            Require an independent exact-source tooling review and actual complete
+            AI unit execution; final combined CI must execute these regressions.
+            Private attachment storage CI is registered separately when its frozen
+            test entrypoints exist. No workflow guard or semantic contract is weakened.
       integration_dependencies:
         - id: AI-BASELINE-LEARNING-006
           status: technical_accepted
@@ -326,8 +391,40 @@ parallel_lanes:
             missing identity, revoked sessions, no Account fallback and zero identity
             writes from AI reads across the complete browser/API request chain.
         - id: AI-BASELINE-GENERAL-009
-          status: selected
+          status: in_progress
           classification: C
+          source_pr: 643
+          candidate_sha: 4da9cf1c63678e20116b202d5d5b280eac56ccf6
+          candidate_tree: 8b20a91c9b82010a281ca7f11d8e44e89cdb2d84
+          independent_review: repair_required
+          exact_head_general_run: 39261737090
+          fixture_repair:
+            frozen_author_sha: a57fa6f48613b6c821b4a69ee30252075d6fb8db
+            published_commit: 28034d46f53bdd5b6cb6c472d9b40d95329a42c0
+            independent_review: approved
+            author_complete_settings_cases: 418
+            independent_focused_cases: 9
+            previous_case_preservation: proved
+          launcher_repair:
+            frozen_author_sha: c5425c419e7d5dbc5e8fe3aa1d85b04e3c36b357
+            independent_review: failed_p2_required_artifact_path
+            maintained_contract_cases: 7
+            independent_additional_contract_cases: 5
+            preserved_case_collection: 22_equals_21_plus_whole_1
+            preserved_explicit_profile_cases: 26
+            classified_repair: B
+            failure_job: 118094021775
+            cause: >-
+              Adding the summary JSON path inside the existing required artifact
+              step changes its exact semantic contract. General fails its Compose
+              validation before PostgreSQL tests. Display names are ignored and
+              are not the cause. Offline independent A/B proves the added path.
+            selected_repair: >-
+              Restore the original six artifact paths exactly and upload the new
+              summary in a separate additive always-run step with 14-day retention
+              and a distinct artifact name. Preserve launcher behavior, all tests,
+              the existing validator and its immutable transport contract. Require
+              new independent repair review and actual final-SHA General success.
           owner_area: shared-test-tooling-and-account-settings
           evidence_runs: [39241612253, 39240760662]
           evidence_jobs: [118027411136, 118023541044]
@@ -335,6 +432,7 @@ parallel_lanes:
             - e2e/access-account-ui.spec.ts
             - playwright.access-a.config.ts
             - tools/testing/ai-access-baseline.mjs
+            - tools/testing/ai-access-baseline.test.mjs
             - package.json
             - .github/workflows/spec-validation.yml
           cause: >-
@@ -381,21 +479,27 @@ parallel_lanes:
       kind: observed_snapshot
       convergence_baseline_sha: 896d1c6ba23e119784c7ef63351d97a43be1ede2
       head_sha: null
-      observed_at: '2026-10-19T12:26:12Z'
+      observed_at: '2026-10-19T13:52:43Z'
       main:
         branch: main
-        sha: 15de68aaa075e224a8afaa2e8045ef964f5af0a5
+        sha: 77ee7358124e0ba1f648ef9ed7e52d110cc039f4
       observation_note: >-
         PR623, PR631 and the separately reviewed Learning compatibility PR636 are
         integrated after their required exact-candidate gates. School access 003,
         model configuration 004 and combined text 005 have independent approval;
-        combined PR642 is awaiting its actual-SHA CI and separate General baseline
-        repairs. Source approval does not replace these gates. The isolated private
-        attachment author is assigned on the frozen published 005 candidate; its
-        integration awaits dependency acceptance. Fresh main adds only unrelated
-        Electronics governance since the combined candidate baseline. Preserve all
-        concurrent work. Fetch main again and inspect actual exact-SHA CI before
-        integration. No deployment, working DB action or live paid provider call ran.
+        combined PR642 passes its focused gate but General exposes a composed
+        classroom-response defect. Its bounded four-file repair and the separate
+        three-file mutation proof repair now have independent approval. The private
+        attachment author resumes the same preserved WIP with the approved guard;
+        integration still awaits accepted dependencies and complete storage tests.
+        Separate baseline PR643 preserves all cases and has fixture approval, but
+        its launcher publication changes a required artifact path and needs the
+        selected narrow B repair before final General acceptance. Select the small
+        guard CI companion so the combined gate actually collects those tests.
+        Fresh main adds only unrelated Projects/Electronics governance. Preserve
+        all concurrent work. Fetch main again and inspect actual exact-SHA CI
+        before integration.
+        No deployment, working DB action or live paid provider call ran.
     execution_lease:
       executor_id: chatgpt-ai-programme-controller
       holder: unassigned
