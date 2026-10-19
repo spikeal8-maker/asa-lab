@@ -8594,6 +8594,9 @@ parallel_lanes:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-CLASSROOM-D13-001.md
       path_coordination: The existing Electronics-field owned-path labels and global shared-path classifications remain unchanged. Explicit revision3 taskcard selects the host/renderer and nine active-image consumer changes with one author per path. Preserve the unchanged R2 observer and every foreign worktree; require fresh fetch main and actual scoped overlap checks before writes. Labels confer no exclusive write permission under direct_main.
       reported_strict_qualification: pnpm gate:electronics-m1:browser on the same exact source under strict-real-time; preserve its actual conclusion separately from the required classroom gate.
+      qualification_inventory_review: 2af8f74ccd5cbe2c557fec44890e141a33652457c62d0140abb70eab59998738
+      qualification_contract_sha256: 933b377f6cb2149ee388d36a68600e3a729274793f94620ad1b70baed1454399
+      qualification_author_status: bounded_v3_authoring_selected
       qualification_selection_at: '2026-10-19T15:56:52Z'
       selected_at: '2026-10-19T11:10:21Z'
       owner_authorization: Explicit 2026-10-19 instruction permits a first visible D13 slice with common measured slowdown, normal integration after browser/review/CI, and continued later slices; no deployment or live data action.
@@ -8603,7 +8606,7 @@ parallel_lanes:
       context_hints:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-CLASSROOM-D13-001.md
       - docs/product/electronics/components/engine-worker-clock.yaml
-      next_action: Compose separately authored common0.5 presenter/host and native OFF-active-pending repair with actual commit acknowledgement; freeze complete v3 qualification inventory before its source edits. Preserve exact f967 original failures and unchanged R2 observer. Use accepted main Access dependency, then focused/benchmark/full classroom/strict/General and NEW independent actual review before D13 integration; continue D2-D4 afterwards.
+      next_action: Compose frozen causal phase/native product, retain selected two-call ownership repair and active-image consumer amendment; separately author and review the frozen v3 qualification contract before applying it. Complete selected UI responsibility review, actual focused/type/build/benchmark/full classroom/strict/General and NEW independent actual review before D13 integration; continue D2-D4 afterwards.
     execution_lease:
       executor_id: electronics-classroom-d13
       holder: unassigned
@@ -8656,7 +8659,7 @@ parallel_lanes:
       status: in_progress
       kind: maintenance
       semantic_change: 'no'
-      checkpoint: bounded_retained_source_growth_review_selected
+      checkpoint: bounded_d13_v3_ui_growth_review_selected
       owner_acceptance: pending
       programme_issue: 452
       full_hygiene_checkpoint: false
@@ -8667,11 +8670,13 @@ parallel_lanes:
       reviewed_production_scope:
       - contexts/electronics/domain/arduino-circuit-scheduler.ts
       - contexts/electronics/domain/arduino-program-runtime.ts
+      - apps/web/src/electronics/ProductionComponentVisual.tsx
+      - apps/web/src/electronics/use-electronics-workbench.ts
       context_hints:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-CLASSROOM-HYGIENE-001.md
       - docs/product/electronics/contracts/ENGINEERING_HYGIENE_CONTRACT.md
       - docs/product/electronics/evidence/hygiene-baseline.yaml
-      next_action: Review actual formatted D13 scheduler/runtime source responsibility and exact growth; record retained bridges, routes, generated/protected material and residual debt; update only the two reviewed baseline entries after independent review, with actual bytes and unchanged policy; validate routing/governance. Keep D13 separately selected and unaccepted, with all product gates and old blockers intact.
+      next_action: Preserve original scheduler/runtime review; perform separately selected R3 native resource and host responsibility review. Update renderer baseline only to exact final formatted bytes after independent review; update host only if its actual growth exceeds the unchanged20percent review limit. Preserve all other baseline/policy/debt and validate exact composed routing/governance with independent evidence review.
     execution_lease:
       executor_id: electronics-classroom-hygiene
       holder: unassigned

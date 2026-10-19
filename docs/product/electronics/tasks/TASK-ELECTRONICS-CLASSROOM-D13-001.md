@@ -498,3 +498,78 @@ operation and no second permanent test stack. Heavy built browser/Docker/data
 evidence runs in isolated GitHub Actions. Prepare a concrete exact-SHA update of
 the known installation only after code acceptance; deployment requires its
 separate authorization under AGENTS.md section 4.
+
+## Qualification revision 3: bounded source-author selection
+
+The controller selects the independently reviewed frozen qualification contract
+933b377f6cb2149ee388d36a68600e3a729274793f94620ad1b70baed1454399.
+Inventory review2af8f74ccd5cbe2c557fec44890e141a33652457c62d0140abb70eab59998738
+is APPROVE_INVENTORY_FOR_BOUNDED_AUTHORING only. It independently verified all
+13 source hashes/Git blobs,120 exact quotations,38 timing sites,3 selected
+acquisitions and the complete170-case original roster. Product/source/browser
+acceptance has not been granted.
+
+Frozen packet manifest:
+cd61098cefec2e37e99221f9569bbb743154f9f5005f2a6e25617bc626e17451.
+Timing inventory:
+e0e6b912853c5c5650f2dc2d6eab4ecb234f73b14c7491a631154e30b956b017.
+Acquisition inventory:
+6b83b2654685502013af4729596abeb172a0cbc527f0eec7cc72e5a34024ef28.
+Unchanged functional-publication inventory:
+3d880c4e52458cf1f1f7e2e6e60364991435508dd16485528002223f10dd57bb.
+
+Authorize one qualification author to propose changes only in the existing
+e2e/electronics-ready-cadence.spec.ts,
+tools/run-electronics-classroom-browser.mjs, package.json,
+.github/workflows/electronics-r4-m1-focused.yml,
+tools/test_ci_image_transport.py and
+tests/electronics/classroom-qualification.spec.ts. The author uses the frozen
+f967 references and an additive package change reconciled with accepted main.
+The controller applies no qualification source until its separate exact-source
+independent review passes.
+
+Add a distinct classroom-d13-v3 profile and
+gate:electronics-classroom-d13-v3:browser entrypoint. Strict remains default;
+v2 remains executable with its original behavior and historical failures.
+Every one of the38 enumerated wall-duration sites uses the independently fixed
+expected pace0.5 and the same original numeric bounds/operators, including
+every original array element. No measured/fitted rate, extra overhead allowance,
+model-time normalization or implicit site is selected.
+
+Only three actual acquisitions change in v3: the sequential delay2000 horizons
+4050000us and8100000us, and millis2250000us, each5000ms to10000ms.
+All other polls and the original30000ms v3 case budgets stay unchanged.
+Keep the original real wait boundary and complete timestamped ready prefix;
+later success cannot erase the original5000ms outcome. A mandatory versioned
+ledger requires all38 timing and3 acquisition entries with exact case, stage,
+pin/surface, source and generation provenance; unknown, missing, duplicate,
+nonfinite or mismatched records cannot pass. Preserve failure and explicitly
+record unreached sites instead of synthesizing evidence.
+
+The raw-wall50ms publication/Reset bounds remain binding. Native observers,
+R2ca71, physics, duty, order, relative ratios, finite usability, backlog,
+one-inflight and Stop/lifecycle assertions stay unchanged. No retry, filtering,
+skip, swallowed child failure or test-subset gate is authorized. Require fresh
+same-SHA full classroom, separately reported actual strict, General and the
+other selected gates. The existing active profile remainsv2 until the reviewed
+v3 source is coherently composed.
+
+## Revision 3 UI growth maintenance amendment
+
+Extend the separately selected Issue641 responsibility review to the actual
+formatted ProductionComponentVisual.tsx and use-electronics-workbench.ts.
+Frozen renderer88440bytes exceeds the existing72432byte review by more than20%.
+The host proposal123931bytes is near its existing103385byte review's20% limit;
+its final formatted measurement determines whether that entry requires update.
+
+Select review of the coherent native resource lifetime boundary and host
+prepare/native-ready/joint-commit/acknowledgement boundary. This is not a size-only
+extraction mandate. After independent responsibility review, update the renderer
+baseline only to its exact final formatted bytes; update the host baseline only
+if those actual final bytes exceed its existing review limit. Preserve every
+other entry, threshold,20% growth policy, decomposition-candidate class,
+retirement condition and existing scheduler/runtime evidence. No product edit,
+arbitrary helper split, debt deletion or full checkpoint reset is authorized by
+this maintenance amendment. The three existing Issue641 documentation paths
+remain its complete author scope; final matching-source routing/governance and
+independent baseline/evidence review remain required.
