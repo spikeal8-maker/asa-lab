@@ -3,7 +3,7 @@ import { HttpException } from '@nestjs/common';
 import type { FastifyRequest } from 'fastify';
 import { ProjectsController } from './projects.controller.js';
 import { SESSION_COOKIE } from './tokens.js';
-import { STUDENT_SESSION_COOKIE } from './seat-context.js';
+import { STUDENT_SESSION_COOKIE, type SeatContext } from './seat-context.js';
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdtempSync, readFileSync, writeFileSync, rmSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -829,9 +829,31 @@ describe('Scratch storage failure through the existing project controller', () =
       const reader = new OpenProjectUseCase(h.projects);
       const opened = vi.spyOn(reader, 'execute');
       const controller = Object.create(ProjectsController.prototype) as ProjectsController;
-      const context = { tenantId, ...actor };
-      const account = vi.fn(async () => (sessionKind === 'account' ? context : null));
-      const seat = vi.fn(async () => (sessionKind === 'seat' ? context : null));
+      const accountContext = { tenantId, ...actor, accountId: randomUUID() };
+      const seatContext: SeatContext = {
+        tenantId,
+        principalId: actor.principalId,
+        userId: null,
+        classroomId: randomUUID(),
+        seatId: randomUUID(),
+        displayName: 'Scratch learner',
+        safeMode: true,
+      };
+      const account = vi.fn(async () => (sessionKind === 'account' ? accountContext : null));
+      const seat = vi.fn(async () => (sessionKind === 'seat' ? seatContext : null));
+      const expectedActor: ProjectActor =
+        sessionKind === 'account'
+          ? actor
+          : {
+              principalId: actor.principalId,
+              userId: null,
+              studentSession: {
+                tenantId,
+                classroomId: seatContext.classroomId,
+                seatId: seatContext.seatId,
+                tokenHash: digest(Buffer.from('synthetic-seat-session')),
+              },
+            };
       Object.assign(controller, {
         activeContext: { resolve: account },
         seatContext: { resolve: seat },
@@ -840,10 +862,12 @@ describe('Scratch storage failure through the existing project controller', () =
         moduleRegistry: { get: () => BLOCKS_MODULE },
       });
       const request = {
-        cookies: {
-          [SESSION_COOKIE]: 'synthetic-account-session',
-          [STUDENT_SESSION_COOKIE]: 'synthetic-seat-session',
-        },
+        // The storage case selects one canonical identity; a stale Seat
+        // cookie beside an Account is deliberately not Account authority.
+        cookies:
+          sessionKind === 'account'
+            ? { [SESSION_COOKIE]: 'synthetic-account-session' }
+            : { [STUDENT_SESSION_COOKIE]: 'synthetic-seat-session' },
       } as unknown as FastifyRequest;
       const body = {
         document: structuredClone(saved.value.document),
@@ -873,13 +897,17 @@ describe('Scratch storage failure through the existing project controller', () =
         expect.objectContaining({
           baseRevision: capturedBody.baseRevision,
           mutationId: capturedBody.mutationId,
-          actor,
+          actor: expectedActor,
         }),
       );
       expect(opened).not.toHaveBeenCalled();
-      expect(account).toHaveBeenCalledWith('synthetic-account-session');
-      if (sessionKind === 'seat') expect(seat).toHaveBeenCalledWith('synthetic-seat-session');
-      else expect(seat).not.toHaveBeenCalled();
+      if (sessionKind === 'account') {
+        expect(account).toHaveBeenCalledWith('synthetic-account-session');
+        expect(seat).not.toHaveBeenCalled();
+      } else {
+        expect(seat).toHaveBeenCalledWith('synthetic-seat-session');
+        expect(account).not.toHaveBeenCalled();
+      }
     },
   );
 });
