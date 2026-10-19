@@ -433,7 +433,17 @@ test('failed server autosave retains recovery', async () => {
     'draft-request-selection-ambiguous',
     'draft-requestfinished',
     'draft-requestfailed',
+    'draft-terminal-ambiguous',
+    'draft-terminal-page-close',
+    'draft-terminal-page-crash',
+    'draft-terminal-wait-enter',
+    'draft-terminal-wait-finished',
+    'draft-terminal-wait-failed',
+    'draft-terminal-wait-reject',
     'draft-observer-failed',
+    'draft-observer-cleanup-enter',
+    'draft-observer-cleanup-return',
+    'draft-observer-cleanup-failed',
     'response-headers',
     'response-completion-enter',
     'response-completion-call-return',
@@ -494,6 +504,22 @@ test('failed server autosave retains recovery', async () => {
   let draftRequest: import('@playwright/test').Request | null = null;
   let draftRequestState: 'NOT_OBSERVED' | 'REQUEST_OBSERVED' | 'RESPONSE_MATCHED' | 'AMBIGUOUS' =
     'NOT_OBSERVED';
+  type DraftTerminal = 'FINISHED' | 'FAILED';
+  let draftTerminalState: 'NOT_OBSERVED' | DraftTerminal | 'AMBIGUOUS' = 'NOT_OBSERVED';
+  const draftTerminalEvents = new WeakMap<
+    import('@playwright/test').Request,
+    DraftTerminal | 'AMBIGUOUS'
+  >();
+  let terminalFailure: { error: unknown } | null = null;
+  let releaseTerminalSignal: () => void = () => undefined;
+  // This signal only fulfills. A setup failure can leave it unconsumed without
+  // an orphan rejected Promise; waitForDraftTerminal propagates failures later.
+  const terminalSignal = new Promise<void>((resolve) => {
+    releaseTerminalSignal = resolve;
+  });
+  const removeDraftObservers: Array<() => void> = [];
+  let observerCleanupFailure: { error: unknown } | null = null;
+  let draftObserversRemoved = false;
   let assertionsCompleted = false;
   let teardownCompleted = false;
   const incrementCount = (value: number) => Math.min(value + 1, Number.MAX_SAFE_INTEGER);
@@ -550,9 +576,12 @@ test('failed server autosave retains recovery', async () => {
         `${stagePath}.tmp`,
         JSON.stringify(
           {
-            schemaVersion: 2,
+            schemaVersion: 3,
             lastStage: stage,
-            outcome: assertionsCompleted && teardownCompleted ? 'NOT_REPRODUCED' : 'INCOMPLETE',
+            outcome:
+              assertionsCompleted && teardownCompleted && draftObserversRemoved
+                ? 'NOT_REPRODUCED'
+                : 'INCOMPLETE',
             captureState:
               stageWriteFailures === 0 &&
               droppedStageEvents === 0 &&
@@ -568,6 +597,9 @@ test('failed server autosave retains recovery', async () => {
             serverRevision: safeCount(fixture.getServerRevision()),
             draftCount: safeCount(fixture.runtimeDraftEvidence.length),
             draftRequestState,
+            draftTerminalState,
+            draftObserversRemoved,
+            completionStrategy: 'PUBLIC_REQUEST_TERMINAL',
             boundaries: Object.fromEntries(
               stageNames.map((boundary) => [
                 boundary,
@@ -591,10 +623,7 @@ test('failed server autosave retains recovery', async () => {
     }
   };
   const recordPromiseReturn = (
-    stage:
-      | 'response-completion-call-return'
-      | 'legacy-attachment-call-return'
-      | 'legacy-attachment-catch-return',
+    stage: 'legacy-attachment-call-return' | 'legacy-attachment-catch-return',
     value: unknown,
   ) => {
     let returnKind: 'PROMISE' | 'UNKNOWN' = 'UNKNOWN';
@@ -608,17 +637,35 @@ test('failed server autosave retains recovery', async () => {
       stageObservationFailures = incrementCount(stageObservationFailures);
     recordStage(stage, { returnKind });
   };
-  const recordResponseCompletion = (value: unknown) => {
-    let stage: Stage = 'response-completion-unknown-return';
-    try {
-      if (value === null) stage = 'response-completion-return';
-      else if (nodeTypes.isNativeError(value)) stage = 'response-completion-error-return';
-    } catch {
-      // Only the fixed classification is evidence, never the Error value.
+  const failDraftTerminal = (error: unknown) => {
+    if (terminalFailure === null) terminalFailure = { error };
+    releaseTerminalSignal();
+  };
+  const throwDraftTerminalFailure = () => {
+    if (terminalFailure !== null) throw terminalFailure.error;
+  };
+  const observeSelectedTerminal = () => {
+    if (draftRequest === null) return;
+    const terminal = draftTerminalEvents.get(draftRequest);
+    if (terminal === undefined) return;
+    if (draftTerminalState !== terminal) {
+      draftTerminalState = terminal;
+      if (terminal === 'AMBIGUOUS') {
+        stageObservationFailures = incrementCount(stageObservationFailures);
+        recordStage('draft-terminal-ambiguous');
+        failDraftTerminal(new Error('Ambiguous terminal events for the selected draft Request'));
+      } else recordStage(terminal === 'FINISHED' ? 'draft-requestfinished' : 'draft-requestfailed');
     }
-    if (stage === 'response-completion-unknown-return')
-      stageObservationFailures = incrementCount(stageObservationFailures);
-    recordStage(stage);
+    if (draftRequestState === 'RESPONSE_MATCHED') releaseTerminalSignal();
+  };
+  const observeDraftTerminal = (
+    request: import('@playwright/test').Request,
+    terminal: DraftTerminal,
+  ) => {
+    // Retain early events weakly, including those before response/request selection.
+    // A similar URL is never sufficient to associate a terminal event.
+    draftTerminalEvents.set(request, draftTerminalEvents.has(request) ? 'AMBIGUOUS' : terminal);
+    if (request === draftRequest) observeSelectedTerminal();
   };
   const selectDraftRequest = (
     request: import('@playwright/test').Request,
@@ -632,10 +679,29 @@ test('failed server autosave retains recovery', async () => {
       draftRequestState = 'AMBIGUOUS';
       stageObservationFailures = incrementCount(stageObservationFailures);
       recordStage('draft-request-selection-ambiguous');
+      failDraftTerminal(new Error('Multiple draft Request identities were observed'));
     } else if (fromResponse && draftRequestState !== 'AMBIGUOUS') {
       draftRequestState = 'RESPONSE_MATCHED';
       recordStage('draft-response-request-matched');
     }
+    observeSelectedTerminal();
+  };
+  const waitForDraftTerminal = async (
+    request: import('@playwright/test').Request,
+  ): Promise<DraftTerminal> => {
+    throwDraftTerminalFailure();
+    if (request !== draftRequest || draftRequestState !== 'RESPONSE_MATCHED')
+      throw new Error('The response did not identify one observed draft Request');
+    await terminalSignal;
+    // Recheck after continuation: ambiguity or page close/crash may have arrived
+    // after the signal fulfilled. None is a successful Request terminal event.
+    throwDraftTerminalFailure();
+    if (request !== draftRequest || draftRequestState !== 'RESPONSE_MATCHED')
+      throw new Error('The selected draft Request association changed');
+    const terminal = draftTerminalEvents.get(request);
+    if (terminal !== 'FINISHED' && terminal !== 'FAILED')
+      throw new Error('The selected draft Request has no unambiguous terminal event');
+    return terminal;
   };
   recordStage('fixture-ready');
   try {
@@ -655,14 +721,12 @@ test('failed server autosave retains recovery', async () => {
       event: 'request' | 'requestfinished' | 'requestfailed',
       callback: (request: import('@playwright/test').Request) => void,
     ) => {
-      try {
-        if (event === 'request') page.on('request', callback);
-        else if (event === 'requestfinished') page.on('requestfinished', callback);
-        else page.on('requestfailed', callback);
-      } catch {
-        stageObservationFailures = incrementCount(stageObservationFailures);
-        recordStage('draft-observer-failed');
-      }
+      // Register removal first, so even an on() failure after registration is
+      // cleaned up without replacing that original setup error.
+      removeDraftObservers.push(() => page.off(event, callback));
+      if (event === 'request') page.on('request', callback);
+      else if (event === 'requestfinished') page.on('requestfinished', callback);
+      else page.on('requestfailed', callback);
     };
     registerDraftObserver('request', (request) => {
       try {
@@ -672,18 +736,32 @@ test('failed server autosave retains recovery', async () => {
         ) {
           selectDraftRequest(request, false);
         }
-      } catch {
+      } catch (error) {
         stageObservationFailures = incrementCount(stageObservationFailures);
         recordStage('draft-observer-failed');
+        failDraftTerminal(error);
       }
     });
     // Terminal events are associated by object identity, never by a similar URL.
     registerDraftObserver('requestfinished', (request) => {
-      if (request === draftRequest) recordStage('draft-requestfinished');
+      observeDraftTerminal(request, 'FINISHED');
     });
     registerDraftObserver('requestfailed', (request) => {
-      if (request === draftRequest) recordStage('draft-requestfailed');
+      observeDraftTerminal(request, 'FAILED');
     });
+    const onPageClose = () => {
+      recordStage('draft-terminal-page-close');
+      failDraftTerminal(new Error('Page closed before the draft terminal wait completed'));
+    };
+    const onPageCrash = () => {
+      recordStage('draft-terminal-page-crash');
+      failDraftTerminal(new Error('Page crashed before the draft terminal wait completed'));
+    };
+    removeDraftObservers.push(() => page.off('close', onPageClose));
+    page.on('close', onPageClose);
+    removeDraftObservers.push(() => page.off('crash', onPageCrash));
+    page.on('crash', onPageCrash);
+    if (page.isClosed()) onPageClose();
     let recoveryReady = false;
     let recoveryReadyAtResponse = false;
     recordStage('save-and-checkpoint-wait-enter');
@@ -718,24 +796,19 @@ test('failed server autosave retains recovery', async () => {
       })(),
     ]);
     recordStage('save-and-checkpoint-wait-return');
-    recordStage('response-completion-enter');
-    let responseCompletionPromise: ReturnType<import('@playwright/test').Response['finished']>;
+    recordStage('draft-terminal-wait-enter');
     try {
-      responseCompletionPromise = response.finished();
+      // Playwright 1.55.1 does not settle Response.finished() on requestfailed.
+      // Either actual terminal kind proceeds only to this case's original 503,
+      // authorization, no-mutation and real IndexedDB retention assertions.
+      const terminal = await waitForDraftTerminal(response.request());
+      recordStage(
+        terminal === 'FINISHED' ? 'draft-terminal-wait-finished' : 'draft-terminal-wait-failed',
+      );
     } catch (error) {
-      recordStage('response-completion-call-throw');
+      recordStage('draft-terminal-wait-reject');
       throw error;
     }
-    recordPromiseReturn('response-completion-call-return', responseCompletionPromise);
-    let responseCompletion: Awaited<typeof responseCompletionPromise>;
-    try {
-      // Await the original returned Promise without adding an observer reaction.
-      responseCompletion = await responseCompletionPromise;
-    } catch (error) {
-      recordStage('response-completion-reject');
-      throw error;
-    }
-    recordResponseCompletion(responseCompletion);
     expect(recoveryReadyAtResponse).toBe(true);
     expect(observedDraftStatus).toBe(503);
     expect(fixture.runtimeDraftEvidence).toHaveLength(1);
@@ -770,6 +843,22 @@ test('failed server autosave retains recovery', async () => {
     recordStage('assertions-completed');
   } finally {
     recordStage('finally-enter');
+    recordStage('draft-observer-cleanup-enter');
+    let observersRemoved = true;
+    for (const remove of removeDraftObservers.splice(0)) {
+      try {
+        remove();
+      } catch (error) {
+        // Attempt every removal; a cleanup observation cannot replace the
+        // original setup/assertion or legacy attachment/fixture error.
+        observersRemoved = false;
+        if (observerCleanupFailure === null) observerCleanupFailure = { error };
+        stageObservationFailures = incrementCount(stageObservationFailures);
+        recordStage('draft-observer-cleanup-failed');
+      }
+    }
+    draftObserversRemoved = observersRemoved;
+    if (observersRemoved) recordStage('draft-observer-cleanup-return');
     recordStage('legacy-attachment-enter');
     let attachmentInfo: ReturnType<typeof test.info>;
     let attach: ReturnType<typeof test.info>['attach'];
@@ -857,6 +946,9 @@ test('failed server autosave retains recovery', async () => {
       recordStage(closeReturned ? 'teardown-return' : 'teardown-interrupted');
     }
   }
+  // Reached only if the original body, attachment and fixture close all returned.
+  // Their errors retain precedence; a cleanup failure alone must still fail.
+  if (observerCleanupFailure !== null) throw observerCleanupFailure.error;
 });
 
 test('different account cannot restore or autosave another principal recovery', async () => {
