@@ -1,4 +1,5 @@
 name: Electronics R4-M1 Focused
+run-name: Electronics R4-M1 ${{ inputs.qualification_profile || 'strict-real-time' }} ${{ github.event.pull_request.head.sha || github.sha }}
 
 on:
   pull_request:
@@ -23,6 +24,7 @@ on:
       - 'e2e/electronics-ready-cadence.spec.ts'
       - 'e2e/electronics-classroom-timing.spec.ts'
       - 'tests/electronics/**'
+      - 'tools/run-electronics-classroom-browser.mjs'
       - 'tools/run-electronics-benchmark.mjs'
       - 'tools/run-electronics-browser-benchmark.mjs'
       - 'tools/run-electronics-load-benchmark.mjs'
@@ -33,6 +35,15 @@ on:
       - 'pnpm-lock.yaml'
       - '.github/workflows/electronics-r4-m1-focused.yml'
   workflow_dispatch:
+    inputs:
+      qualification_profile:
+        description: Explicit browser qualification; strict real-time remains the default
+        required: false
+        type: choice
+        default: strict-real-time
+        options:
+          - strict-real-time
+          - classroom-d13-v2
 
 permissions:
   contents: read
@@ -41,7 +52,7 @@ env:
   NX_SKIP_NX_CACHE: 'true'
 
 concurrency:
-  group: electronics-r4-m1-${{ github.event.pull_request.number || github.ref }}
+  group: electronics-r4-m1-${{ github.event.pull_request.number || github.ref }}-${{ inputs.qualification_profile || 'strict-real-time' }}
   cancel-in-progress: true
 
 jobs:
@@ -78,6 +89,9 @@ jobs:
       # evidence run invoke. Do not inline its steps here.
       - name: Focused Electronics M1 gate
         run: pnpm gate:electronics-m1
+
+      - name: Mandatory classroom qualification adversarial tests
+        run: pnpm exec vitest run tests/electronics/classroom-qualification.spec.ts --maxWorkers=1
 
   benchmark:
     name: Electronics E-OPT benchmark integrity
@@ -138,6 +152,8 @@ jobs:
       CI: 'true'
       ASA_BUILD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
       ASA_ELECTRONICS_EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      ASA_ELECTRONICS_QUALIFICATION_PROFILE: ${{ inputs.qualification_profile || 'strict-real-time' }}
+      ASA_ELECTRONICS_BROWSER_GATE: ${{ inputs.qualification_profile == 'classroom-d13-v2' && 'gate:electronics-classroom-d13:browser' || 'gate:electronics-m1:browser' }}
       ASA_IMAGE_TAG: ${{ github.event.pull_request.head.sha || github.sha }}
       COMPOSE_PROJECT_NAME: asa-lab-electronics-${{ github.run_id }}
       ASA_TEST_UID: '1000'
@@ -189,11 +205,11 @@ jobs:
       # Identical to the command registered in docs/testing/active-task-tests.yaml.
       # Named as its own gate because `gate:electronics-m1` deliberately does not
       # include it: that gate needs no browser stack, this one does.
-      - name: Electronics M1 browser gate
+      - name: Selected Electronics browser qualification
         run: >-
           docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test
-          run --rm --no-deps -e NX_SKIP_NX_CACHE=true -e ASA_ELECTRONICS_EXPECTED_SHA test-runner
-          pnpm gate:electronics-m1:browser
+          run --rm --no-deps -e NX_SKIP_NX_CACHE=true -e ASA_ELECTRONICS_EXPECTED_SHA -e ASA_ELECTRONICS_QUALIFICATION_PROFILE test-runner
+          pnpm "$ASA_ELECTRONICS_BROWSER_GATE"
 
       - name: Show isolated stack state
         if: always()

@@ -44,6 +44,214 @@ const artifactRoot = resolve('e2e/artifacts/electronics-simulation/ready-cadence
 let admin: pg.Pool;
 let teacher: SeededTeacher;
 
+// Revision 2 is a separately named test qualification, never a product clock.
+const OWNER_CLASSROOM_WALL_SITES = {
+  'no-delay-execution-wall-model':
+    'Owner Arduino execution: no-delay realtime, production frames and painted LEDs',
+  'delay-1-temporal-wall-model':
+    'Owner Arduino temporal: delay 1 ms, independent optical integrals and stable loaded-image brightness',
+  'reset-temporal-wall-model':
+    'Owner Arduino temporal: real Arduino Reset restarts setup and clears fast optical history',
+} as const;
+const OWNER_MILLIS_CASE =
+  'Owner Arduino temporal: independent millis 500/200/100 ms outputs with different initial phases';
+type OwnerQualificationProfile = 'strict-real-time' | 'classroom-d13-v2';
+type OwnerQualificationSite = keyof typeof OWNER_CLASSROOM_WALL_SITES;
+type OwnerWallQualification = {
+  kind: 'absolute-wall-model';
+  title: string;
+  site: OwnerQualificationSite;
+  modelMs: number;
+  wallMs: number;
+  deltaMs: number;
+  strictLimitMs: 250;
+  strictPassed: boolean;
+  binding: boolean;
+};
+type OwnerMillisQualification = {
+  kind: 'model-horizon-acquisition';
+  title: string;
+  site: 'millis-ready-horizon-2250000';
+  sourceSha256: string;
+  waitStartedAt: number;
+  observedAt: number;
+  horizonMicroseconds: 2250000;
+  strictLimitMs: 5000;
+  acquisitionLimitMs: 5000 | 45000;
+  firstHorizonAt: number | null;
+  strictOutcome: 'PASS' | 'FAIL' | 'INCOMPLETE';
+  binding: boolean;
+  readyTimestamps: Array<{ at: number; committedHorizonMicroseconds: number }>;
+};
+type OwnerQualificationLedger = {
+  schema: 'electronics-classroom-qualification-v2';
+  profile: OwnerQualificationProfile;
+  entrypoint: string | null;
+  title: string;
+  expectedSourceSha: string | null;
+  observerSha256: string;
+  entries: Array<OwnerWallQualification | OwnerMillisQualification>;
+};
+let ownerQualificationLedger: OwnerQualificationLedger | null = null;
+
+function ownerQualificationProfile(
+  value: string | undefined,
+  entrypoint?: string,
+): OwnerQualificationProfile {
+  const profile = value === undefined ? 'strict-real-time' : value;
+  if (profile !== 'strict-real-time' && profile !== 'classroom-d13-v2')
+    throw new Error(`Unknown Electronics qualification profile: ${value}`);
+  if (
+    profile === 'classroom-d13-v2'
+      ? entrypoint !== 'gate:electronics-classroom-d13:browser'
+      : entrypoint !== undefined
+  )
+    throw new Error(
+      'Classroom qualification requires its named runner; ambient profile cannot change the strict gate.',
+    );
+  return profile;
+}
+
+function assertOwnerQualificationIdentity(
+  ledger: OwnerQualificationLedger | null,
+  title: string,
+): asserts ledger is OwnerQualificationLedger {
+  if (
+    !ledger ||
+    ledger.schema !== 'electronics-classroom-qualification-v2' ||
+    !['strict-real-time', 'classroom-d13-v2'].includes(ledger.profile) ||
+    (ledger.profile === 'classroom-d13-v2'
+      ? ledger.entrypoint !== 'gate:electronics-classroom-d13:browser'
+      : ledger.entrypoint !== null) ||
+    ledger.title !== title ||
+    !Array.isArray(ledger.entries) ||
+    !/^[a-f0-9]{64}$/.test(ledger.observerSha256) ||
+    (ledger.profile === 'classroom-d13-v2' &&
+      !/^[a-f0-9]{40}$/.test(ledger.expectedSourceSha ?? ''))
+  )
+    throw new Error('Missing or invalid Electronics qualification ledger/provenance.');
+}
+
+function recordOwnerQualifiedWallClock(
+  ledger: OwnerQualificationLedger | null,
+  title: string,
+  site: OwnerQualificationSite,
+  modelMs: number,
+  wallMs: number,
+): OwnerWallQualification {
+  assertOwnerQualificationIdentity(ledger, title);
+  if (
+    !Object.hasOwn(OWNER_CLASSROOM_WALL_SITES, site) ||
+    OWNER_CLASSROOM_WALL_SITES[site] !== title ||
+    !Number.isFinite(modelMs) ||
+    !Number.isFinite(wallMs) ||
+    modelMs < 0 ||
+    wallMs < 0 ||
+    ledger.entries.some((entry) => entry.site === site)
+  )
+    throw new Error('Unknown, mismatched or duplicate wall/model comparison site or value.');
+  const deltaMs = Math.abs(modelMs - wallMs);
+  const entry: OwnerWallQualification = {
+    kind: 'absolute-wall-model',
+    title,
+    site,
+    modelMs,
+    wallMs,
+    deltaMs,
+    strictLimitMs: 250,
+    strictPassed: deltaMs <= 250,
+    binding: ledger.profile === 'strict-real-time',
+  };
+  // Retain the measured strict outcome before the original binding failure.
+  ledger.entries.push(entry);
+  if (entry.binding && !entry.strictPassed)
+    throw new Error(`Strict wall/model comparison failed at ${site}: ${deltaMs} ms > 250 ms.`);
+  return entry;
+}
+
+function ownerQualificationRequiredSites(title: string): string[] {
+  const sites = Object.entries(OWNER_CLASSROOM_WALL_SITES)
+    .filter(([, selectedTitle]) => selectedTitle === title)
+    .map(([site]) => site);
+  if (title === OWNER_MILLIS_CASE) sites.push('millis-ready-horizon-2250000');
+  return sites;
+}
+
+function ownerQualificationMissingSites(
+  ledger: OwnerQualificationLedger | null,
+  title: string,
+): string[] {
+  assertOwnerQualificationIdentity(ledger, title);
+  return ownerQualificationRequiredSites(title).filter(
+    (site) => !ledger.entries.some((entry) => entry.site === site && entry.title === title),
+  );
+}
+
+function requireOwnerQualificationComplete(
+  ledger: OwnerQualificationLedger | null,
+  title: string,
+): void {
+  const missing = ownerQualificationMissingSites(ledger, title);
+  if (missing.length)
+    throw new Error(`Required qualification evidence not reached: ${missing.join(', ')}`);
+}
+
+function recordOwnerMillisAcquisition(
+  ledger: OwnerQualificationLedger | null,
+  title: string,
+  sourceSha256: string,
+  waitStartedAt: number,
+  observedAt: number,
+  readyTimestamps: OwnerMillisQualification['readyTimestamps'],
+): OwnerMillisQualification {
+  assertOwnerQualificationIdentity(ledger, title);
+  if (
+    title !== OWNER_MILLIS_CASE ||
+    !/^[a-f0-9]{64}$/.test(sourceSha256) ||
+    !Number.isFinite(waitStartedAt) ||
+    !Number.isFinite(observedAt) ||
+    waitStartedAt < 0 ||
+    observedAt < waitStartedAt ||
+    !Array.isArray(readyTimestamps) ||
+    readyTimestamps.some(
+      (row, index) =>
+        !Number.isFinite(row.at) ||
+        row.at < 0 ||
+        row.at > observedAt ||
+        (index > 0 && row.at < readyTimestamps[index - 1]!.at) ||
+        !Number.isSafeInteger(row.committedHorizonMicroseconds) ||
+        row.committedHorizonMicroseconds < 0,
+    ) ||
+    ledger.entries.some((entry) => entry.site === 'millis-ready-horizon-2250000')
+  )
+    throw new Error('Invalid millis acquisition case, boundary or complete ready timestamps.');
+  const firstHorizonAt =
+    readyTimestamps.find((row) => row.committedHorizonMicroseconds >= 2_250_000)?.at ?? null;
+  const strictOutcome =
+    firstHorizonAt !== null && firstHorizonAt <= waitStartedAt + 5000
+      ? 'PASS'
+      : observedAt >= waitStartedAt + 5000
+        ? 'FAIL'
+        : 'INCOMPLETE';
+  const entry: OwnerMillisQualification = {
+    kind: 'model-horizon-acquisition',
+    title,
+    site: 'millis-ready-horizon-2250000',
+    sourceSha256,
+    waitStartedAt,
+    observedAt,
+    horizonMicroseconds: 2_250_000,
+    strictLimitMs: 5000,
+    acquisitionLimitMs: ledger.profile === 'classroom-d13-v2' ? 45000 : 5000,
+    firstHorizonAt,
+    strictOutcome,
+    binding: ledger.profile === 'strict-real-time',
+    readyTimestamps,
+  };
+  ledger.entries.push(entry);
+  return entry;
+}
+
 type BoardReceipt = {
   componentId: string;
   loadedSource?: string | null;
@@ -76,6 +284,7 @@ type PaintReceipt = {
     hitTargets: string[];
     lit: boolean;
   }>;
+  imageDiagnostics: Array<{ href: string; resourceDecoded: boolean; mountedLoadAt: number | null }>;
   stablePreviousFrame: boolean;
 };
 type ProbeWindow = Window & {
@@ -284,6 +493,65 @@ async function observeRealWorkerAndUi(page: Page, ledCount = 8): Promise<void> {
         true,
       );
       const decoded = new Map<string, boolean>();
+      // The detached decoder below is a resource diagnostic. Readiness must
+      // instead belong to this mounted SVG image and its current href.
+      function createOwnerMountedImageWitness<T extends object>() {
+        const loaded = new WeakMap<T, { href: string; at: number }>();
+        return {
+          nativeLoad(element: T, href: string, at: number, trusted: boolean, connected: boolean) {
+            if (!trusted || !connected || !href || !Number.isFinite(at) || at < 0) return;
+            loaded.set(element, { href, at });
+          },
+          nativeError(element: T, trusted: boolean) {
+            if (trusted) loaded.delete(element);
+          },
+          changed(element: T, previousHref: string, href: string) {
+            if (previousHref !== href) loaded.delete(element);
+          },
+          current(element: T, href: string, connected: boolean): number | null {
+            const witness = loaded.get(element);
+            return connected && witness?.href === href ? witness.at : null;
+          },
+        };
+      }
+      const mounted = createOwnerMountedImageWitness<SVGImageElement>();
+      const observeHrefChanges = (records: MutationRecord[]) => {
+        for (const record of records) {
+          if (record.target instanceof SVGImageElement)
+            mounted.changed(record.target, record.oldValue ?? '', record.target.href.baseVal);
+        }
+      };
+      const hrefChanges = new MutationObserver(observeHrefChanges);
+      hrefChanges.observe(document, {
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['href', 'xlink:href'],
+        attributeOldValue: true,
+      });
+      document.addEventListener(
+        'load',
+        (event) => {
+          const image = event.target;
+          if (!(image instanceof SVGImageElement) || !image.matches('.workbench-led-asset')) return;
+          observeHrefChanges(hrefChanges.takeRecords());
+          mounted.nativeLoad(
+            image,
+            image.href.baseVal,
+            performance.now(),
+            event.isTrusted,
+            image.isConnected,
+          );
+        },
+        true,
+      );
+      document.addEventListener(
+        'error',
+        (event) => {
+          const image = event.target;
+          if (image instanceof SVGImageElement) mounted.nativeError(image, event.isTrusted);
+        },
+        true,
+      );
       let previous = '';
       let previousFrameAt: number | null = null;
       const paint = () => {
@@ -296,6 +564,7 @@ async function observeRealWorkerAndUi(page: Page, ledCount = 8): Promise<void> {
           const brightness = elements.map((element) =>
             Number(element!.getAttribute('data-led-brightness') ?? '0'),
           );
+          const imageDiagnostics: PaintReceipt['imageDiagnostics'] = [];
           const images = elements.map((element) => {
             const image = element!.querySelector<SVGImageElement>('.workbench-led-asset');
             const href = image?.href.baseVal ?? '';
@@ -308,6 +577,13 @@ async function observeRealWorkerAndUi(page: Page, ledCount = 8): Promise<void> {
                 () => decoded.set(href, false),
               );
             }
+            observeHrefChanges(hrefChanges.takeRecords());
+            const mountedLoadAt = image ? mounted.current(image, href, image.isConnected) : null;
+            imageDiagnostics.push({
+              href,
+              resourceDecoded: decoded.get(href) === true,
+              mountedLoadAt,
+            });
             let opacity = 1;
             let visible = !!image;
             for (
@@ -366,7 +642,7 @@ async function observeRealWorkerAndUi(page: Page, ledCount = 8): Promise<void> {
               box.bottom <= innerHeight;
             return {
               href,
-              decoded: decoded.get(href) === true,
+              decoded: mountedLoadAt !== null,
               opacity,
               visible,
               lit,
@@ -387,6 +663,7 @@ async function observeRealWorkerAndUi(page: Page, ledCount = 8): Promise<void> {
             previousFrameAt,
             brightness,
             images,
+            imageDiagnostics,
             stablePreviousFrame: signature === previous,
           });
           previous = signature;
@@ -546,7 +823,56 @@ test.beforeAll(() => {
 });
 test.beforeEach(async ({ browserName }, info) => {
   void browserName;
+  ownerQualificationLedger = null;
+  ownerQualificationLedger = {
+    schema: 'electronics-classroom-qualification-v2',
+    profile: ownerQualificationProfile(
+      process.env.ASA_ELECTRONICS_QUALIFICATION_PROFILE,
+      process.env.ASA_ELECTRONICS_QUALIFICATION_ENTRYPOINT,
+    ),
+    entrypoint: process.env.ASA_ELECTRONICS_QUALIFICATION_ENTRYPOINT ?? null,
+    title: info.title,
+    expectedSourceSha: process.env.ASA_ELECTRONICS_EXPECTED_SHA ?? null,
+    observerSha256: createHash('sha256')
+      .update(readFileSync(resolve('e2e/electronics-ready-cadence.spec.ts')))
+      .digest('hex'),
+    entries: [],
+  };
+  assertOwnerQualificationIdentity(ownerQualificationLedger, info.title);
   teacher = await seedTeacher(admin, `ready-cadence-${info.workerIndex}-${info.retry}`);
+});
+
+test.afterEach(async ({ browserName }, info) => {
+  void browserName;
+  const ledger = ownerQualificationLedger;
+  const requiredSites = ownerQualificationRequiredSites(info.title);
+  const missingSites = ledger
+    ? requiredSites.filter((site) => !ledger.entries.some((entry) => entry.site === site))
+    : requiredSites;
+  mkdirSync(artifactRoot, { recursive: true });
+  const titleHash = createHash('sha256').update(info.title).digest('hex').slice(0, 16);
+  const path = resolve(
+    artifactRoot,
+    `qualification-${titleHash}-${info.workerIndex}-${info.retry}.json`,
+  );
+  writeFileSync(
+    path,
+    JSON.stringify(
+      {
+        ledger,
+        caseStatus: info.status,
+        expectedStatus: info.expectedStatus,
+        requiredSites,
+        missingSites,
+      },
+      null,
+      2,
+    ) + '\n',
+  );
+  await info.attach('electronics-qualification-ledger', { path, contentType: 'application/json' });
+  // An earlier failing assertion stays a failure and its unreached site is
+  // explicit. A case cannot claim PASS after omitting its mandatory ledger.
+  if (info.status === 'passed') requireOwnerQualificationComplete(ledger, info.title);
 });
 test.afterAll(async () => {
   await admin.end();
@@ -1414,7 +1740,15 @@ for (const mode of ['no-delay realtime', 'independent ports'] as const) {
       1000;
     const wallMs = last.at - first.at;
     expect(modelMs).toBeGreaterThanOrEqual(1250);
-    expect(Math.abs(modelMs - wallMs)).toBeLessThanOrEqual(250);
+    if (mode === 'no-delay realtime')
+      recordOwnerQualifiedWallClock(
+        ownerQualificationLedger,
+        test.info().title,
+        'no-delay-execution-wall-model',
+        modelMs,
+        wallMs,
+      );
+    else expect(Math.abs(modelMs - wallMs)).toBeLessThanOrEqual(250);
     const paint = witnessedPaintFrames(raw.paint, assetsReadyAt);
     for (const row of paint)
       for (const [index, image] of row.images.entries()) {
@@ -1800,6 +2134,55 @@ async function waitForTemporalHorizon(page: Page, source: string, horizon: numbe
       { intervals: [100] },
     )
     .toBe(true);
+}
+
+async function waitForOwnerMillisHorizon(page: Page, source: string): Promise<void> {
+  const ledger = ownerQualificationLedger;
+  assertOwnerQualificationIdentity(ledger, test.info().title);
+  const waitStartedAt = await page.evaluate(() => performance.now());
+  try {
+    if (ledger.profile === 'classroom-d13-v2') {
+      // A distinct, selected acquisition budget, not a caught strict failure.
+      // Only this millis acquisition receives 45 s; its later 250 ms, physical,
+      // phase, image and lifecycle assertions remain unchanged and binding.
+      await expect
+        .poll(
+          () =>
+            page.evaluate(
+              (source) =>
+                ((window as TemporalWindow).__ownerTemporal?.frames
+                  .filter((row) => row.source === source && row.executionStatus === 'ready')
+                  .at(-1)?.committedHorizonMicroseconds ?? 0) >= 2_250_000,
+              source,
+            ),
+          { intervals: [100], timeout: 45_000 },
+        )
+        .toBe(true);
+    } else {
+      await waitForTemporalHorizon(page, source, 2_250_000);
+    }
+  } finally {
+    const observed = await page.evaluate(
+      (source) => ({
+        observedAt: performance.now(),
+        readyTimestamps: ((window as TemporalWindow).__ownerTemporal?.frames ?? [])
+          .filter((row) => row.source === source && row.executionStatus === 'ready')
+          .map((row) => ({
+            at: row.at,
+            committedHorizonMicroseconds: row.committedHorizonMicroseconds,
+          })),
+      }),
+      source,
+    );
+    recordOwnerMillisAcquisition(
+      ledger,
+      test.info().title,
+      createHash('sha256').update(source).digest('hex'),
+      waitStartedAt,
+      observed.observedAt,
+      observed.readyTimestamps,
+    );
+  }
 }
 
 test('Owner Arduino Blockly: visible default wait edits 100/50/1 ms, real light and cookies-only reopen', async ({
@@ -2396,14 +2779,26 @@ function resetSetupPaintViolations(
   };
 }
 
-function assertTemporalWallClock(ready: readonly TemporalFrame[], minimumModelMs: number) {
+function assertTemporalWallClock(
+  ready: readonly TemporalFrame[],
+  minimumModelMs: number,
+  qualificationSite?: OwnerQualificationSite,
+) {
   const first = ready[0]!;
   const last = ready.at(-1)!;
   const modelMs = (last.committedHorizonMicroseconds - first.committedHorizonMicroseconds) / 1000;
   const wallMs = last.at - first.at;
   expect(first.committedHorizonMicroseconds).toBe(0);
   expect(modelMs).toBeGreaterThanOrEqual(minimumModelMs);
-  expect(Math.abs(modelMs - wallMs)).toBeLessThanOrEqual(250);
+  if (qualificationSite !== undefined)
+    recordOwnerQualifiedWallClock(
+      ownerQualificationLedger,
+      test.info().title,
+      qualificationSite,
+      modelMs,
+      wallMs,
+    );
+  else expect(Math.abs(modelMs - wallMs)).toBeLessThanOrEqual(250);
   return { first, last, modelMs, wallMs };
 }
 
@@ -2479,7 +2874,7 @@ test('Owner Arduino temporal: delay 1 ms, independent optical integrals and stab
     await waitForTemporalHorizon(page, session.source, 1_500_000);
     const raw = await temporalObservation(page);
     const ready = assertTemporalFrames(raw, session.source);
-    const clock = assertTemporalWallClock(ready, 1500);
+    const clock = assertTemporalWallClock(ready, 1500, 'delay-1-temporal-wall-model');
     const settledAt = ready.find((row) => row.committedHorizonMicroseconds >= 100_000)!.at;
     const paint = validTemporalPaint(raw, settledAt);
     const rendered = (await page.evaluate(() => (window as ProbeWindow).__ownerPaint ?? [])).filter(
@@ -2569,6 +2964,7 @@ void loop() {
 test('Owner Arduino temporal: independent millis 500/200/100 ms outputs with different initial phases', async ({
   page,
 }) => {
+  if (ownerQualificationLedger?.profile === 'classroom-d13-v2') test.setTimeout(60_000);
   const session = await openOwnerTemporalSketch(
     page,
     independentlyTimedMillisSource,
@@ -2577,7 +2973,7 @@ test('Owner Arduino temporal: independent millis 500/200/100 ms outputs with dif
   let metrics: unknown;
   try {
     await page.getByRole('button', { name: 'Начать моделирование', exact: true }).click();
-    await waitForTemporalHorizon(page, session.source, 2_250_000);
+    await waitForOwnerMillisHorizon(page, session.source);
     const raw = await temporalObservation(page);
     const ready = assertTemporalFrames(raw, session.source);
     const clock = assertTemporalWallClock(ready, 2250);
@@ -2688,7 +3084,7 @@ test('Owner Arduino temporal: real Arduino Reset restarts setup and clears fast 
       .at(-1)!.generationId!;
     expect(newGeneration).not.toBe(oldGeneration);
     const restarted = assertTemporalFrames(raw, session.source, newGeneration);
-    const clock = assertTemporalWallClock(restarted, 1250);
+    const clock = assertTemporalWallClock(restarted, 1250, 'reset-temporal-wall-model');
     expect(restarted[0]!.at).toBeGreaterThanOrEqual(clickedAt);
     expect(restarted[0]!.ledTemporal!.fromMicroseconds).toBe(0);
     const startup = restarted.filter(

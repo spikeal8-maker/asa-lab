@@ -235,6 +235,70 @@ def electronics_contract(contract, original, effective):
     return contract
 
 
+QUALIFICATION_PROFILE = "${{ inputs.qualification_profile || 'strict-real-time' }}"
+QUALIFICATION_GATE = ("${{ inputs.qualification_profile == 'classroom-d13-v2' && "
+                      "'gate:electronics-classroom-d13:browser' || 'gate:electronics-m1:browser' }}")
+QUALIFICATION_TEST = {"run": "pnpm exec vitest run tests/electronics/classroom-qualification.spec.ts --maxWorkers=1"}
+QUALIFICATION_INPUT = {"inputs": {"qualification_profile": {
+    "description": "Explicit browser qualification; strict real-time remains the default",
+    "required": False, "type": "choice", "default": "strict-real-time",
+    "options": ["strict-real-time", "classroom-d13-v2"]}}}
+QUALIFICATION_RUNNER = "tools/run-electronics-classroom-browser.mjs"
+QUALIFICATION_SUITE = ["e2e/electronics-simulation.spec.ts", "e2e/electronics-interactions.spec.ts",
+    "e2e/electronics-simulation-time.spec.ts", "e2e/electronics-piezo-clock.spec.ts",
+    "e2e/electronics-native-wheel.spec.ts", "e2e/electronics-ready-cadence.spec.ts",
+    "e2e/electronics-classroom-timing.spec.ts"]
+
+
+def qualification_contract(contract):
+    """Select two named qualifications of the same complete Electronics suite."""
+    contract = deepcopy(contract)
+    contract["required_triggers"]["workflow_dispatch"] = deepcopy(QUALIFICATION_INPUT)
+    paths = contract["required_triggers"]["pull_request"]["paths"]
+    for path in [QUALIFICATION_RUNNER, "e2e/electronics-classroom-timing.spec.ts"]:
+        if path not in paths:
+            paths.append(path)
+    controls = contract["workflow_controls"]
+    controls["run-name"] = ("Electronics R4-M1 " + QUALIFICATION_PROFILE
+                            + " ${{ github.event.pull_request.head.sha || github.sha }}")
+    require(controls["concurrency"]["group"] ==
+            "electronics-r4-m1-${{ github.event.pull_request.number || github.ref }}",
+            "Qualification must extend the original focused concurrency identity")
+    controls["concurrency"]["group"] += "-" + QUALIFICATION_PROFILE
+    contract["jobs"]["focused"]["required_steps"].append(deepcopy(QUALIFICATION_TEST))
+    browser = contract["jobs"]["browser"]
+    browser["controls"]["env"]["ASA_ELECTRONICS_QUALIFICATION_PROFILE"] = QUALIFICATION_PROFILE
+    browser["controls"]["env"]["ASA_ELECTRONICS_BROWSER_GATE"] = QUALIFICATION_GATE
+    old = ("run --rm --no-deps -e NX_SKIP_NX_CACHE=true -e ASA_ELECTRONICS_EXPECTED_SHA "
+           "test-runner pnpm gate:electronics-m1:browser")
+    new = ("run --rm --no-deps -e NX_SKIP_NX_CACHE=true -e ASA_ELECTRONICS_EXPECTED_SHA "
+           '-e ASA_ELECTRONICS_QUALIFICATION_PROFILE test-runner pnpm "$ASA_ELECTRONICS_BROWSER_GATE"')
+    replacements = 0
+    for step in browser["required_steps"]:
+        command = step.get("run", "")
+        if old in command:
+            require(command.count(old) == 1, "Duplicate browser gate in original step")
+            step["run"] = command.replace(old, new)
+            replacements += 1
+    require(replacements == 1, "Qualification must replace exactly the original browser gate")
+    return contract
+
+
+def check_qualification_package(package):
+    scripts = package.get("scripts", {})
+    require(scripts.get("gate:electronics-classroom-d13:browser") == "node " + QUALIFICATION_RUNNER,
+            "Missing or changed named classroom browser gate")
+    # Preserve all existing cases and harmless additive test registration. A
+    # grep, retry, shell suffix or subset is never a complete qualification.
+    for name in ["e2e:electronics", "e2e:electronics-simulation"]:
+        words = shlex.split(scripts.get(name, ""))
+        require(words[:2] == ["playwright", "test"]
+                and all(path in words[2:] for path in QUALIFICATION_SUITE)
+                and all(re.fullmatch(r"e2e/[a-zA-Z0-9_./-]+\.spec\.ts", word)
+                        for word in words[2:]),
+                "Classroom and strict must retain the complete unfiltered suite: " + name)
+
+
 def check_identities(receipt):
     require(receipt["platform"] == {"os": "linux", "architecture": "amd64"},
             "This mapping only proves existing Linux amd64 CI runners")
@@ -334,8 +398,17 @@ def check_workflow(path, contract, receipt, general_node, electronics):
         classroom_browser = path == FOCUSED and job_id == "browser"
         effective = general_node if selected else electronics if classroom_build else receipt
         arguments = build_args(effective)
+        if not classroom_browser:
+            require(not any(key in job.get("env", {}) for key in
+                    ["ASA_ELECTRONICS_QUALIFICATION_PROFILE", "ASA_ELECTRONICS_BROWSER_GATE"]),
+                    "Qualification profile outside selected Electronics browser job: " + job_id)
         for step in job.get("steps", []):
             command = step.get("run", "")
+            if not classroom_browser:
+                require("ASA_ELECTRONICS_QUALIFICATION_PROFILE" not in command
+                        and "ASA_ELECTRONICS_BROWSER_GATE" not in command
+                        and "gate:electronics-classroom-d13:browser" not in command,
+                        "Qualification command outside selected Electronics browser job: " + job_id)
             if not selected:
                 require(GENERAL_OVERLAY_NAME not in command and "--general-" not in command
                         and "--prepare-general-postgres" not in command,
@@ -391,13 +464,14 @@ def check_offline(receipt):
     for name, expected in contract["gate_scripts"].items():
         require(package.get("scripts", {}).get(name) == expected,
                 "Required gate definition changed: " + name)
+    check_qualification_package(package)
     effective = general_node_receipt(receipt)
     classroom = electronics_receipt(receipt, effective)
     for path, expected in contract["workflows"].items():
         if path == GENERAL:
             expected = general_node_contract(expected, receipt, effective)
         elif path == FOCUSED:
-            expected = electronics_contract(expected, receipt, classroom)
+            expected = qualification_contract(electronics_contract(expected, receipt, classroom))
         check_workflow(path, expected, receipt, effective, classroom)
     print("CI image transport semantic guard: PASS (5 immutable mappings; required gates/security/defaults)")
 
@@ -940,7 +1014,7 @@ def check_electronics_challenges(receipt):
     challenge("disabled literal NX cache bypass", {FOCUSED: source[FOCUSED].replace(
         "-e NX_SKIP_NX_CACHE=true", "-e NX_SKIP_NX_CACHE=false")})
     challenge("browser gate weakened", {FOCUSED: source[FOCUSED].replace(
-        "pnpm gate:electronics-m1:browser", "pnpm gate:electronics-m1:browser || true")})
+        'pnpm "$ASA_ELECTRONICS_BROWSER_GATE"', 'pnpm "$ASA_ELECTRONICS_BROWSER_GATE" || true')})
     challenge("missing classroom runner overlay", {FOCUSED: source[FOCUSED].replace(
         ELECTRONICS_OVERLAY_ARGUMENT, "", 1)})
     challenge("extra classroom runner overlay", {FOCUSED: source[FOCUSED].replace(
@@ -1030,6 +1104,85 @@ def check_electronics_challenges(receipt):
     print(json.dumps({"classroom_transport_challenges": results}, indent=2))
 
 
+def check_qualification_challenges(receipt):
+    """Keep the two exact profiles explicit and every mandatory gate binding."""
+    from contextlib import redirect_stdout
+    from io import StringIO
+    from unittest.mock import patch
+
+    paths = [OVERLAY, TRANSPORT, ELECTRONICS_TRANSPORT, "compose.yaml", "package.json",
+             *receipt["semantic_contract"]["dockerfile_defaults"],
+             *receipt["semantic_contract"]["workflows"]]
+    source = {path: read(path) for path in paths}
+    workflow = parse_yaml(source[FOCUSED])
+    outcomes = []
+
+    def challenge(name, replacements, passes=False):
+        error = None
+        with patch(__name__ + ".read", side_effect={**source, **replacements}.__getitem__):
+            try:
+                with redirect_stdout(StringIO()):
+                    check_offline(receipt)
+            except ValueError as failure:
+                error = str(failure)
+        require((error is None) == passes, "Qualification challenge failed: " + name + ":" + str(error))
+        outcomes.append({"challenge": name, "expected_pass": passes, "result": "PASS", "rejection": error})
+
+    challenge("exact explicit profiles and complete suite", {}, True)
+    for name, mutate in [
+        ("classroom cannot become default", lambda w: w["on"]["workflow_dispatch"]["inputs"]["qualification_profile"].update({"default": "classroom-d13-v2"})),
+        ("unknown profile cannot be offered", lambda w: w["on"]["workflow_dispatch"]["inputs"]["qualification_profile"]["options"].append("unknown")),
+        ("profile must be a choice", lambda w: w["on"]["workflow_dispatch"]["inputs"]["qualification_profile"].update({"type": "string"})),
+        ("profile is optional with strict default", lambda w: w["on"]["workflow_dispatch"]["inputs"]["qualification_profile"].update({"required": True})),
+        ("profile must be named in evidence run", lambda w: w.pop("run-name")),
+        ("strict and classroom cannot cancel each other", lambda w: w["concurrency"].update({"group": "electronics-r4-m1-${{ github.event.pull_request.number || github.ref }}"})),
+        ("browser profile cannot disappear", lambda w: w["jobs"]["browser"]["env"].pop("ASA_ELECTRONICS_QUALIFICATION_PROFILE")),
+        ("browser profile cannot be silently classroom", lambda w: w["jobs"]["browser"]["env"].update({"ASA_ELECTRONICS_QUALIFICATION_PROFILE": "classroom-d13-v2"})),
+        ("gate cannot use arbitrary input", lambda w: w["jobs"]["browser"]["env"].update({"ASA_ELECTRONICS_BROWSER_GATE": "${{ inputs.qualification_profile }}"})),
+        ("browser dependency remains focused", lambda w: w["jobs"]["browser"].update({"needs": []})),
+        ("review images require browser and benchmark", lambda w: w["jobs"]["review-images"].update({"needs": ["focused"]})),
+        ("mandatory qualification test cannot be omitted", lambda w: w["jobs"]["focused"].update({"steps": [step for step in w["jobs"]["focused"]["steps"] if semantic_step(step) != QUALIFICATION_TEST]})),
+        ("runner path must trigger checks", lambda w: w["on"]["pull_request"]["paths"].remove(QUALIFICATION_RUNNER)),
+        ("D13 observer must trigger checks", lambda w: w["on"]["pull_request"]["paths"].remove("e2e/electronics-classroom-timing.spec.ts")),
+        ("profile cannot move to benchmark job", lambda w: w["jobs"]["benchmark"]["env"].update({"ASA_ELECTRONICS_QUALIFICATION_PROFILE": "classroom-d13-v2"})),
+    ]:
+        changed = deepcopy(workflow)
+        mutate(changed)
+        challenge(name, {FOCUSED: json.dumps(changed)})
+    for name, old, new in [
+        ("profile reaches real test container", " -e ASA_ELECTRONICS_QUALIFICATION_PROFILE", ""),
+        ("selected gate cannot ignore failure", 'pnpm "$ASA_ELECTRONICS_BROWSER_GATE"', 'pnpm "$ASA_ELECTRONICS_BROWSER_GATE" || true'),
+        ("selected gate cannot become strict-only", 'pnpm "$ASA_ELECTRONICS_BROWSER_GATE"', "pnpm gate:electronics-m1:browser"),
+        ("qualification tests cannot be conditional", "      - name: Mandatory classroom qualification adversarial tests", "      - name: Mandatory classroom qualification adversarial tests\n        if: false"),
+        ("qualification tests cannot ignore failure", "      - name: Mandatory classroom qualification adversarial tests", "      - name: Mandatory classroom qualification adversarial tests\n        continue-on-error: true"),
+    ]:
+        require(old in source[FOCUSED], "Challenge selector missing: " + name)
+        challenge(name, {FOCUSED: source[FOCUSED].replace(old, new)})
+    original_package = json.loads(source["package.json"])
+    for name, value in [
+        ("missing named classroom gate", None),
+        ("classroom gate cannot select subset", "playwright test e2e/electronics-classroom-timing.spec.ts"),
+        ("classroom gate cannot swallow failure", "node " + QUALIFICATION_RUNNER + " || true"),
+        ("classroom gate cannot add filters", "node " + QUALIFICATION_RUNNER + " --grep D13"),
+    ]:
+        changed = deepcopy(original_package)
+        if value is None:
+            changed["scripts"].pop("gate:electronics-classroom-d13:browser")
+        else:
+            changed["scripts"]["gate:electronics-classroom-d13:browser"] = value
+        challenge(name, {"package.json": json.dumps(changed)})
+    for alias in ["e2e:electronics", "e2e:electronics-simulation"]:
+        for case in QUALIFICATION_SUITE:
+            changed = deepcopy(original_package)
+            changed["scripts"][alias] = changed["scripts"][alias].replace(" " + case, "")
+            challenge(alias + " retains " + case, {"package.json": json.dumps(changed)})
+        for suffix in [" --grep D13", " --retries 3", " || true"]:
+            changed = deepcopy(original_package)
+            changed["scripts"][alias] += suffix
+            challenge(alias + " rejects " + suffix, {"package.json": json.dumps(changed)})
+    print(json.dumps({"classroom_qualification_challenges": outcomes}, indent=2))
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--self-test", action="store_true")
@@ -1078,6 +1231,7 @@ def main():
     if options.self_test:
         check_challenges(receipt)
         check_electronics_challenges(receipt)
+        check_qualification_challenges(receipt)
     if options.baseline_proof:
         check_original_baseline(receipt)
     if options.compose_model_check or options.built_images or options.pulled_postgres:

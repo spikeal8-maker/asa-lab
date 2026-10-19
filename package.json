@@ -142,6 +142,7 @@
     "validate:electronics-component-information": "node tools/validate-electronics-component-information.mjs",
     "gate:electronics-m1": "corepack pnpm nx build module-sdk && corepack pnpm validate:electronics-component-information && corepack pnpm test:electronics && corepack pnpm vitest run apps/web/src/electronics/testing && corepack pnpm typecheck && corepack pnpm build",
     "gate:electronics-m1:browser": "corepack pnpm e2e:electronics-simulation",
+    "gate:electronics-classroom-d13:browser": "node tools/run-electronics-classroom-browser.mjs",
     "gate:three-d-m0": "corepack pnpm nx build module-sdk && corepack pnpm nx build chess && corepack pnpm nx build checkers && corepack pnpm test:three-d && corepack pnpm typecheck && corepack pnpm build",
     "gate:three-d-m0:browser": "corepack pnpm e2e:three-d",
     "gate:three-d-opt-1": "corepack pnpm nx build module-sdk && corepack pnpm test:three-d:worker && corepack pnpm test:three-d:corpus && corepack pnpm vitest run apps/web/src/three-d/testing/owner-geometry-regressions.spec.ts && corepack pnpm nx run web:typecheck && corepack pnpm nx run web:build",
