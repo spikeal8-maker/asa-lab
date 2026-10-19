@@ -133,6 +133,7 @@ const oracleNames = new Set([
   'validTemporalPaint',
   'temporalPhysicalBrightness',
   'temporalJointWitness',
+  'temporalStartupBoundary',
   'temporalPaintCausality',
 ]);
 const oracleDeclarations = oracleSource.statements
@@ -149,7 +150,7 @@ const oracleDeclarations = oracleSource.statements
         )),
   )
   .map((statement) => statement.getText(oracleSource));
-if (oracleDeclarations.length !== 5)
+if (oracleDeclarations.length !== 6)
   throw new Error('actual browser joint oracle declarations not found');
 const oracle = runInNewContext(
   ts.transpileModule(
@@ -191,8 +192,17 @@ function oracleFrame(
 }
 
 function oraclePaint(frames: ReturnType<typeof oracleFrame>[], at: number, brightness: number[]) {
+  // These are post-H0 counterexamples: include the accepted analytic dark start,
+  // then retain every supplied receipt and the original paint time/vector.
+  const initial = oracleFrame(
+    window(
+      0,
+      0,
+      ['led0', 'led1', 'led2'].map((id) => channel(id, [point(0, 0)])),
+    ),
+  );
   return {
-    frames,
+    frames: [initial, ...frames],
     paintRuns: [
       {
         first: {
@@ -229,9 +239,9 @@ describe('actual browser joint provenance oracle counterexamples', () => {
     expect(
       oracle.paint(oraclePaint([frame], 250, [0, 80, 0]), 'analytic', 1, 0).violations,
     ).toEqual([]);
-    expect(
-      oracle.paint(oraclePaint([frame], 250.001, [0, 80, 0]), 'analytic', 1, 0).violations,
-    ).toHaveLength(1);
+    const expired = oracle.paint(oraclePaint([frame], 250.001, [0, 80, 0]), 'analytic', 1, 0);
+    expect(expired.violations).toHaveLength(1);
+    expect(expired.violations[0]!.reason).toBe('electrical state superseded more than 50 ms ago');
   });
 
   it('rejects individually present light values that never coexist at one time', () => {
@@ -241,10 +251,14 @@ describe('actual browser joint provenance oracle counterexamples', () => {
       channel('led2', [point(0, 0), point(25_000, 0)]),
     ]);
     expect(oracle.joint(oracleFrame(neverJoint), [80, 80, 0])).toBeUndefined();
-    expect(
-      oracle.paint(oraclePaint([oracleFrame(neverJoint)], 30, [80, 80, 0]), 'analytic', 1, 0)
-        .violations,
-    ).toHaveLength(1);
+    const painted = oracle.paint(
+      oraclePaint([oracleFrame(neverJoint)], 30, [80, 80, 0]),
+      'analytic',
+      1,
+      0,
+    );
+    expect(painted.violations).toHaveLength(1);
+    expect(painted.violations[0]!.reason).toBe('no causally preceding electrical state');
   });
 
   it.each([
@@ -273,9 +287,9 @@ describe('actual browser joint provenance oracle counterexamples', () => {
 
   it('rejects receipts arriving in the future and a previously valid but inactive generation', () => {
     const future = oracleFrame(observation, 220);
-    expect(
-      oracle.paint(oraclePaint([future], 215, [0, 80, 0]), 'analytic', 1, 0).violations,
-    ).toHaveLength(1);
+    const futurePaint = oracle.paint(oraclePaint([future], 215, [0, 80, 0]), 'analytic', 1, 0);
+    expect(futurePaint.violations).toHaveLength(1);
+    expect(futurePaint.violations[0]!.reason).toBe('no causally preceding electrical state');
     const old = oracleFrame(observation);
     const active = {
       ...future,
@@ -284,9 +298,9 @@ describe('actual browser joint provenance oracle counterexamples', () => {
       generationId: 2,
       responseGenerationId: 2,
     };
-    expect(
-      oracle.paint(oraclePaint([old, active], 215, [0, 80, 0]), 'analytic', 1, 0).violations,
-    ).toHaveLength(1);
+    const stalePaint = oracle.paint(oraclePaint([old, active], 215, [0, 80, 0]), 'analytic', 1, 0);
+    expect(stalePaint.violations).toHaveLength(1);
+    expect(stalePaint.violations[0]!.reason).toBe('foreign source or inactive generation');
   });
 });
 
