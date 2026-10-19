@@ -285,6 +285,10 @@ async function learnerAssignments(
   await page.getByLabel('Код ученика', { exact: true }).fill(keys.get(handle)!);
   await page.getByRole('button', { name: 'Войти', exact: true }).click();
   await openPortalSection(page, 'Моё обучение');
+  await page
+    .getByRole('navigation', { name: 'Разделы моего обучения' })
+    .getByRole('link', { name: 'Задания', exact: true })
+    .click();
   return { context, page };
 }
 
@@ -430,6 +434,10 @@ test('learner starts the real project editor and submits one immutable attempt',
   await expect(learner.page.getByTestId('assignment-brief-anchor')).toBeVisible();
   await learner.page.goto('/#/learning');
   await openPortalSection(learner.page, 'Моё обучение');
+  await learner.page
+    .getByRole('navigation', { name: 'Разделы моего обучения' })
+    .getByRole('link', { name: 'Задания', exact: true })
+    .click();
 
   row = assignmentRow(learner.page, title);
   await expect(row).toContainText('В работе');
@@ -487,6 +495,10 @@ test('learner starts the real project editor and submits one immutable attempt',
 
   await learner.page.reload();
   await openPortalSection(learner.page, 'Моё обучение');
+  await learner.page
+    .getByRole('navigation', { name: 'Разделы моего обучения' })
+    .getByRole('link', { name: 'Задания', exact: true })
+    .click();
   await expect(assignmentRow(learner.page, title)).toContainText('Сдано');
 
   await page.reload();
@@ -1039,6 +1051,10 @@ test('UX1A4 keeps an exact task image in an independent desktop reference window
 
   await learner.page.goto('/#/learning');
   await openPortalSection(learner.page, 'Моё обучение');
+  await learner.page
+    .getByRole('navigation', { name: 'Разделы моего обучения' })
+    .getByRole('link', { name: 'Задания', exact: true })
+    .click();
   row = assignmentRow(learner.page, titleWithoutImage);
   await row.getByRole('button', { name: 'Открыть', exact: true }).click();
   await expect(learner.page.locator('.workbench-shell')).toBeVisible({ timeout: 60_000 });
@@ -1052,6 +1068,10 @@ test('UX1A4 keeps an exact task image in an independent desktop reference window
 
   await learner.page.goto('/#/learning');
   await openPortalSection(learner.page, 'Моё обучение');
+  await learner.page
+    .getByRole('navigation', { name: 'Разделы моего обучения' })
+    .getByRole('link', { name: 'Задания', exact: true })
+    .click();
   row = assignmentRow(learner.page, titleWithImage);
   await row.getByRole('button', { name: 'Открыть работу', exact: true }).click();
   await expect(learner.page.locator('.workbench-shell')).toBeVisible({ timeout: 60_000 });

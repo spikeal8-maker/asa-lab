@@ -4,7 +4,7 @@
 // of general linting.
 import tseslint from 'typescript-eslint';
 import nxPlugin from '@nx/eslint-plugin';
-import { depConstraints } from './eslint.config.mjs';
+import { depConstraints, viteBuildBoundaryOverrides } from './eslint.config.mjs';
 
 export default tseslint.config(
   {
@@ -32,4 +32,5 @@ export default tseslint.config(
       ],
     },
   },
+  ...viteBuildBoundaryOverrides,
 );

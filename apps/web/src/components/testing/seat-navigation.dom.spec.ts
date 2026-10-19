@@ -55,6 +55,20 @@ describe('Seat header navigation', () => {
     expect(projects.getAttribute('href')).toBe('/#/projects');
     expect(projects.getAttribute('aria-current')).toBe('page');
     expect(games.getAttribute('href')).toBe('/#/games');
+    // Main keeps AI discoverable in the public header/drawer groups; Seat
+    // access remains controlled by App, with no capability granted here.
+    const headerAi = container.querySelector<HTMLAnchorElement>(
+      '.portal-global-nav > a[aria-label="ИИ"]',
+    )!;
+    const drawerAi = sidebar.querySelector<HTMLAnchorElement>(
+      '.portal-mobile-public > a[href="/#/ai"]',
+    )!;
+    expect(headerAi.tagName).toBe('A');
+    expect(headerAi.getAttribute('href')).toBe('/#/ai');
+    expect(drawerAi.tagName).toBe('A');
+    expect(drawerAi.getAttribute('href')).toBe('/#/ai');
+    expect(drawerAi.querySelector('.portal-nav-label')?.textContent).toBe('ИИ');
+    expect(sidebar.querySelector('.portal-nav > a[href="/#/ai"]')).toBeNull();
     expect(links.some((link) => /Классы|Курсы и задания/.test(link.textContent ?? ''))).toBe(false);
     expect(container.querySelector('[data-admin-navigation]')).toBeNull();
     const menu = container.querySelector<HTMLButtonElement>('[aria-label="Открыть меню"]')!;

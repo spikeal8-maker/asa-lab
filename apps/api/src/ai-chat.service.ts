@@ -1,6 +1,17 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
 import type pg from 'pg';
-import { ProviderStreamError, streamProviderText } from './ai-provider-stream.js';
+import {
+  parseProviderText,
+  ProviderStreamError,
+  streamProviderText,
+  type ProviderStreamResult,
+} from './ai-provider-stream.js';
+
+const ASSISTANT_INSTRUCTIONS =
+  'Ты ИИ-помощник цифровой лаборатории ASA Lab. Помогай создавать проекты, программировать, ' +
+  'разбираться в электронике, исследовать идеи и учиться. ' +
+  'Отвечай на русском, если пользователь не выбрал другой язык. ' +
+  'Объясняй решения и не выдавай неподтверждённые результаты за факты.';
 
 export type AiProvider = 'openai' | 'deepseek';
 export type AiModel = 'gpt-5-mini' | 'gpt-4.1-mini' | 'deepseek-chat';
@@ -106,20 +117,6 @@ function validModel(provider: AiProvider, model: string): model is AiModel {
 
 function iso(value: Date | string | null): string | null {
   return value === null ? null : new Date(value).toISOString();
-}
-
-function extractOpenAiText(value: unknown): string {
-  if (!value || typeof value !== 'object') return '';
-  const result = value as {
-    output_text?: unknown;
-    output?: Array<{ content?: Array<{ type?: string; text?: unknown }> }>;
-  };
-  if (typeof result.output_text === 'string') return result.output_text;
-  return (result.output ?? [])
-    .flatMap((item) => item.content ?? [])
-    .filter((item) => item.type === 'output_text' && typeof item.text === 'string')
-    .map((item) => item.text as string)
-    .join('\n');
 }
 
 /**
@@ -359,21 +356,23 @@ export class AiChatService {
       id: string;
       title: string;
       updated_at: Date | string;
-    }>('SELECT * FROM ai_chat_list_page($1,$2::timestamptz,$3::uuid,$4)', [
-      principalId,
-      cursor?.at ?? null,
-      cursor?.id ?? null,
-      51,
-    ]);
+      cursor_at: string;
+    }>(
+      `SELECT page.*,
+          to_char(page.updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_at
+        FROM ai_chat_list_page($1,$2::timestamptz,$3::uuid,$4) AS page`,
+      [principalId, cursor?.at ?? null, cursor?.id ?? null, 51],
+    );
     const page = result.rows.slice(0, 50).map((row) => ({
       id: row.id,
       title: row.title,
       updatedAt: new Date(row.updated_at).toISOString(),
     }));
-    const last = page.at(-1);
+    // pg decodes timestamptz as Date and loses microseconds. Only the SQL text is a cursor.
+    const last = result.rows[49];
     return {
       items: page,
-      nextCursor: result.rows.length > 50 && last ? { at: last.updatedAt, id: last.id } : null,
+      nextCursor: result.rows.length > 50 && last ? { at: last.cursor_at, id: last.id } : null,
     };
   }
 
@@ -451,13 +450,13 @@ export class AiChatService {
       request_id: string;
       created_at: Date | string;
       state?: 'complete' | 'stopped';
-    }>('SELECT * FROM ai_chat_messages_page($1,$2,$3::timestamptz,$4::uuid,$5)', [
-      principalId,
-      threadId,
-      cursor?.at ?? null,
-      cursor?.id ?? null,
-      51,
-    ]);
+      cursor_at: string;
+    }>(
+      `SELECT page.*,
+          to_char(page.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_at
+        FROM ai_chat_messages_page($1,$2,$3::timestamptz,$4::uuid,$5) AS page`,
+      [principalId, threadId, cursor?.at ?? null, cursor?.id ?? null, 51],
+    );
     const rows = result.rows.length > 50 ? result.rows.slice(1) : result.rows;
     const items = rows.map((row) => ({
       id: row.id,
@@ -467,10 +466,10 @@ export class AiChatService {
       createdAt: new Date(row.created_at).toISOString(),
       state: row.state ?? 'complete',
     }));
-    const first = items[0];
+    const first = rows[0];
     return {
       items,
-      nextCursor: result.rows.length > 50 && first ? { at: first.createdAt, id: first.id } : null,
+      nextCursor: result.rows.length > 50 && first ? { at: first.cursor_at, id: first.id } : null,
     };
   }
 
@@ -497,7 +496,7 @@ export class AiChatService {
         'ИИ не подключён. Настройте провайдера в админке.',
       );
     }
-    const requestId = clientRequestId;
+    const requestId = clientRequestId.toLowerCase();
     let accepted: boolean;
     try {
       const admitted = await this.pool.query<{ admitted: boolean }>(
@@ -538,17 +537,31 @@ export class AiChatService {
         content: row.content.slice(0, 3000),
       }));
       const reply = await this.generate(runtime, apiKey, context);
-      await this.pool.query('SELECT ai_chat_finish($1,$2,$3,$4::varchar)', [
+      await this.pool.query('SELECT ai_chat_finish($1,$2,$3,$4::varchar,$5::varchar)', [
         principalId,
         threadId,
         requestId,
-        reply.slice(0, 8192),
+        reply.text,
+        reply.stopped ? 'stopped' : 'complete',
       ]);
       return { messages: await this.messages(principalId, threadId), replayed: false };
     } catch (problem) {
-      await this.pool
-        .query('SELECT ai_chat_abort($1,$2,$3)', [principalId, threadId, requestId])
-        .catch(() => undefined);
+      if (problem instanceof ProviderStreamError && problem.partialText.trim()) {
+        await this.pool.query('SELECT ai_chat_finish($1,$2,$3,$4::varchar,$5::varchar)', [
+          principalId,
+          threadId,
+          requestId,
+          problem.partialText.slice(0, 8192),
+          'stopped',
+        ]);
+      } else {
+        await this.pool
+          .query('SELECT ai_chat_abort($1,$2,$3)', [principalId, threadId, requestId])
+          .catch(() => undefined);
+      }
+      if (problem instanceof ProviderStreamError) {
+        throw new AiServiceError(problem.code, problem.status, problem.message);
+      }
       if (problem instanceof AiServiceError) throw problem;
       throw new AiServiceError(
         'ai_provider_unavailable',
@@ -576,6 +589,9 @@ export class AiChatService {
     readonly replayed: boolean;
     readonly stopped: boolean;
   }> {
+    principalId = principalId.toLowerCase();
+    threadId = threadId.toLowerCase();
+    requestId = requestId.toLowerCase();
     const prompt = text.trim();
     if (prompt.length < 1 || prompt.length > 3000) {
       throw new AiServiceError(
@@ -656,9 +672,7 @@ export class AiChatService {
         model,
         apiKey,
         context,
-        instructions:
-          'Ты учебный помощник ASA Lab. Отвечай на русском, если пользователь не выбрал другой язык. ' +
-          'Объясняй решения и не выдавай неподтверждённые результаты за факты.',
+        instructions: ASSISTANT_INSTRUCTIONS,
         signal: combined,
         onDelta,
       });
@@ -709,6 +723,9 @@ export class AiChatService {
   }
 
   stopStream(principalId: string, threadId: string, requestId: string): { stopped: boolean } {
+    principalId = principalId.toLowerCase();
+    threadId = threadId.toLowerCase();
+    requestId = requestId.toLowerCase();
     const operation = this.activeStreams.get(principalId + ':' + requestId);
     if (!operation || operation.threadId !== threadId || operation.principalId !== principalId) {
       return { stopped: false };
@@ -792,14 +809,12 @@ export class AiChatService {
     runtime: RuntimeRow,
     apiKey: string,
     context: readonly { role: 'user' | 'assistant'; content: string }[],
-  ): Promise<string> {
+  ): Promise<ProviderStreamResult> {
     const openai = runtime.provider === 'openai';
     const url = openai
       ? 'https://api.openai.com/v1/responses'
       : 'https://api.deepseek.com/chat/completions';
-    const instructions =
-      'Ты учебный помощник ASA Lab. Отвечай на русском, если пользователь не выбрал другой язык. ' +
-      'Объясняй решения и не выдавай неподтверждённые результаты за факты.';
+    const instructions = ASSISTANT_INSTRUCTIONS;
     let response: Response;
     try {
       response = await this.fetchImpl(url, {
@@ -850,13 +865,6 @@ export class AiChatService {
     } catch {
       throw new AiServiceError('ai_response_invalid', 503, 'Модель вернула некорректный ответ.');
     }
-    const reply = openai
-      ? extractOpenAiText(body)
-      : ((body as { choices?: Array<{ message?: { content?: string } }> }).choices?.[0]?.message
-          ?.content ?? '');
-    if (!reply.trim()) {
-      throw new AiServiceError('ai_response_empty', 503, 'Модель не вернула текст ответа.');
-    }
-    return reply.trim();
+    return parseProviderText(runtime.provider, body);
   }
 }

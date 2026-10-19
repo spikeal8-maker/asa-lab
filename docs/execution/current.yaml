@@ -81,6 +81,365 @@ primary_lane:
     - docs/architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md
 
 parallel_lanes:
+  - id: ai-assistant
+    worktree_id: ai-assistant-programme
+    owned_paths:
+      - apps/api/src/ai-chat.service.ts
+      - apps/api/src/ai-chat.controller.ts
+      - apps/api/src/ai-provider-stream.ts
+      - apps/api/src/ai-chat.service.spec.ts
+      - apps/api/src/ai-provider-stream.spec.ts
+      - apps/api/src/ai-platform-quota.spec.ts
+      - apps/web/src/ai/**
+      - e2e/ai-chat.spec.ts
+      - docs/product/ASA_AI_ASSISTANT_SPEC.md
+    task:
+      id: TASK-AI-ASSISTANT-PROGRAMME-001
+      issue: 373
+      branch: main
+      base_branch: main
+      pr: null
+      pr_draft: false
+      status: in_progress
+      checkpoint: text_integrated_access_models_history_in_progress
+      owner_acceptance: pending
+      change_class: L3_CRITICAL
+      owner_authorization: >-
+        On 2026-10-19 the owner instructed the controller to split and complete
+        the planned AI Assistant, finish the existing AI branches and integrate
+        their accepted implementation. Continue the existing main foundation and
+        PR623 through bounded authors, independent reviewers and actual tests.
+        The controller continues the dependency sequence after each accepted
+        slice; author/reviewer STOP does not end the requested programme.
+        Preserve concurrent non-AI work, personal Account independence, Seat
+        access without mandatory Account, existing tenant/RLS boundaries and
+        protected data. Ordinary integration and closure of superseded AI drafts
+        follow evidence; no force-push or destructive history/data action.
+      context_hints:
+        - docs/product/ASA_AI_ASSISTANT_SPEC.md
+        - docs/agent/contracts/identity.yaml
+      selected_slices:
+        - id: AI-TEXT-UI-001
+          source_pr: 623
+          scope: existing chat screen, styles and AI browser regressions
+          status: technical_accepted
+          accepted_candidate_sha: 79d78ba825091cee17b7f987c44e2f9c333d1d37
+          integrated_sha: 847aa3a4f6b82869c795dc09ee041962d090963f
+          independent_review: approved
+          exact_head_focused_run: 39226475471
+          exact_head_general_run: 39226476022
+        - id: AI-TEXT-API-002
+          source_pr: 631
+          scope: terminal response state, UUID identity, precise history cursors and focused regressions
+          status: technical_accepted
+          accepted_candidate_sha: 667d3fb70f95140a955432aad8ae766ad0081789
+          integrated_sha: c2d41028f29c041d3b8df1215bb81d0479dbecd5
+          independent_review: approved
+          exact_head_focused_run: 39226480720
+          exact_head_general_run: 39226473860
+        - id: AI-STUDENT-ACCESS-003
+          scope: teacher-controlled Seat admission, stable student chat ownership and focused access regressions
+          status: in_progress
+          source_pr: 633
+          reviewed_candidate_sha: 81e9ff5cd0a0c6fb4076932dfbb36702adbafb5f
+          independent_review: changes_requested
+          acceptance_dependency: AI-BASELINE-SEAT-CONSTRUCTOR-007
+          reserved_migration: migrations/0225_ai_student_admission.sql
+          integration_after: [AI-TEXT-API-002, AI-TEXT-UI-001]
+          coordination: >-
+            Implement in an isolated checkout; preserve the text repair and shared
+            Classroom changes during final convergence. Reuse trusted Seat context
+            and existing teacher authority; do not require a personal Account for
+            school access, expose private chats to teachers or redesign tenant/RLS.
+        - id: AI-MODEL-CAPABILITIES-004
+          scope: current provider model catalog, capability descriptors and compatible encrypted configuration
+          status: in_progress
+          reserved_migration: migrations/0226_ai_model_catalog_and_provider_credentials.sql
+          integration_after: [AI-TEXT-API-002]
+          coordination: >-
+            Verify official provider documentation; retain configured credentials
+            and historical messages. Replace retired runtime aliases explicitly,
+            advertise only implemented capabilities and preserve platform quotas.
+        - id: AI-TEXT-COMPLETE-005
+          scope: server history search, archive, fresh answer regeneration and safe mathematical rendering
+          status: in_progress
+          reserved_migration: migrations/0227_ai_text_history.sql
+          integration_after: [AI-TEXT-UI-001, AI-TEXT-API-002, AI-STUDENT-ACCESS-003]
+          coordination: >-
+            Preserve accepted interaction and identity fixes. New answer generation
+            uses a new paid operation while replay retains the original request.
+            Search and archive remain scoped to the canonical Account or Seat owner.
+        - id: AI-FILES-FOUNDATION-008
+          scope: private attachment storage, bounded byte validation, text extraction and durable ownership APIs
+          status: pending
+          reserved_migration: migrations/0228_ai_private_attachments.sql
+          integration_after: [AI-STUDENT-ACCESS-003, AI-TEXT-COMPLETE-005]
+          selected_scope:
+            - apps/api/src/ai-attachments/**
+            - apps/api/src/app.module.ts
+            - apps/api/src/app.factory.ts
+            - apps/api/src/tokens.ts
+            - apps/api/src/account-verification.guard.ts
+            - apps/api/src/account-verification.guard.spec.ts
+            - migrations/0228_ai_private_attachments.sql
+            - tests/ai-attachments/**
+            - tests/migration/course-structure-forward-upgrade.pg.spec.ts
+            - docs/agent/contracts/ai-assistant.yaml
+            - docs/agent/surfaces/ai-assistant.yaml
+            - docs/testing/test-catalog.yaml
+            - docs/product/ASA_AI_ASSISTANT_SPEC.md
+          selection: >-
+            Prepare an independently reviewed backend boundary for Account and Seat
+            attachments using the existing ASA object-storage configuration and a
+            private AI prefix. Validate actual PNG/JPEG/WebP signatures and bounded
+            dimensions, and strictly decode allowlisted UTF-8 text/Markdown/source
+            files without execution. Enforce byte, count and owner storage budgets;
+            retain immutable upload identity, content digest and exact ownership.
+            Add authenticated no-store reads, explicit unsent removal/expiry and
+            recoverable deletion. Unknown storage outcomes must retain their receipt
+            and reservation until reconciled. Atomic message binding must preserve
+            the 005 request/source receipt and reject foreign or reused attachments.
+          coordination: >-
+            This pending selection does not start an author automatically. The
+            controller assigns the bounded author after the current handoffs and
+            supplies the exact candidate dependency snapshot. Use a dedicated AI
+            streaming content type so existing Blocks parsers and ACL stay intact.
+            Do not edit AiChatPage, provider adapters, the 005 package/lock changes,
+            old migrations, existing Blocks formats, Compose, ports or live storage.
+            PDF parsing and the visible send/Vision integration follow separately;
+            do not advertise unsupported formats or an incomplete upload capability.
+          acceptance: >-
+            Require bounded byte/signature/encoding and uncertain-storage tests,
+            real PostgreSQL runtime-role ownership/quota/binding races, the existing
+            AI regressions and independent L3 review of the exact source. Register
+            necessary focused CI commands through the controller. No paid provider
+            call or working-installation data action is part of this slice.
+      integration_dependencies:
+        - id: AI-BASELINE-LEARNING-006
+          status: in_progress
+          author_branch: assistant/ai-learning-compatibility-20261019
+          selected_scope:
+            - e2e/learning-learner-submits-project-assignment.spec.ts
+            - e2e/learning-surface-convergence.spec.ts
+            - e2e/learning-teacher-assigns-activity.spec.ts
+          classification: C
+          evidence_runs: [39226475997, 39226473852]
+          cause: >-
+            Seven existing Learning browser journeys expect assignment or course
+            lists on the former default tab after PR622. Both independent AI
+            candidates reproduce the same failures; their required general
+            repository and AI-focused gates pass on the exact accepted heads.
+          selection: >-
+            Controller selects a separate bounded compatibility repair for the
+            existing seven failing journeys: open the accepted assignments or
+            courses workspace tab before inspecting its list. Preserve every
+            original case, API/identity/data assertion and the default Overview
+            product behavior. Do not change runtime, fixtures, workflow, retries,
+            timeouts, rate limits or authorization to obtain a passing result.
+          coordination: >-
+            The Projects controller separately owns Learning workflow batch
+            isolation and Auth audit coverage. Preserve those authors and paths;
+            this selection changes only the three existing browser specs above.
+          acceptance: >-
+            Require independent exact-source review and the unchanged complete
+            Learning E1 workflow on the new SHA, including its real PostgreSQL
+            and browser journeys. Record any unrelated failure by its actual
+            cause; this test companion does not accept the Learning programme.
+        - id: AI-BASELINE-SEAT-CONSTRUCTOR-007
+          status: awaiting_accepted_baseline
+          source_pr: 626
+          observed_candidate_sha: a01966507e1a7bdcae1f01a0eecd1161ff230bca
+          required_migration: migrations/0224_classroom_new_seat_learner_identity.sql
+          classification: B
+          cause: >-
+            Independent review of 003 reproduced canonical new-Seat creation,
+            credentials, successful sign-in/session and teacher AI allow, while
+            the stable principal remained absent. The current AI reader correctly
+            refuses missing identity, so the first chat depends on an unrelated
+            materializing path until the canonical constructor is integrated.
+          coordination: >-
+            The Games programme already owns the INSERT-only constructor correction
+            in PR626. Preserve that author and adopt its independently accepted
+            baseline; do not copy its mutable draft or initialize/repair historical
+            identity from an AI read, sign-in retry or automatic session refresh.
+            This dependency blocks technical acceptance of the complete 003 first
+            school-entry journey, not unrelated model work or isolated candidate
+            verification of 005. Keep any AI-triggered refresh/identity side effect
+            as a separate bounded 003 repair finding when confirmed.
+          acceptance: >-
+            Require the accepted constructor SHA and a real canonical new-Seat to
+            first-chat HTTP journey without optional analytics. Recheck historical
+            missing identity, revoked sessions, no Account fallback and zero identity
+            writes from AI reads across the complete browser/API request chain.
+      dependency_sequence:
+        - text_convergence_and_focused_ci
+        - teacher_controlled_student_admission
+        - provider_catalog_and_compatible_encrypted_configuration
+        - complete_text_search_regeneration_and_math
+        - attachments_and_text_extraction
+        - image_vision_and_pdf_documents
+        - server_financial_budgets
+        - image_generation
+        - explicit_authorized_asa_context
+        - combined_verification_and_ai_branch_closeout
+      accepted_foundation_prs: [567, 588, 600, 616, 627]
+      closed_superseded_draft_prs:
+        - pr: 514
+          replacement_prs: [567, 623]
+        - pr: 515
+          replacement_prs: [567, 631]
+      deployment: not_run
+      live_provider_verification: not_run
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: c2d41028f29c041d3b8df1215bb81d0479dbecd5
+      head_sha: null
+      observed_at: '2026-10-19T09:30:42Z'
+      main:
+        branch: main
+        sha: c2d41028f29c041d3b8df1215bb81d0479dbecd5
+      observation_note: >-
+        PR623 and PR631 are integrated after independent approval and passing
+        exact-head AI-focused and general repository gates. Combined main CI is
+        in progress at this dated observation; do not infer its conclusion from
+        the accepted candidate runs. Student access, provider configuration and
+        complete text history remain in implementation. Preserve concurrent
+        Learning and authentication work. Fetch main again and actual exact-SHA
+        CI before the next integration. No deployment or live paid call ran.
+    execution_lease:
+      executor_id: chatgpt-ai-programme-controller
+      holder: unassigned
+      acquired_at: null
+      expires_at: null
+      reviewer_role_requires_lease: false
+    gates:
+      focused:
+        workflow: ASA AI Chat Focused
+        commands:
+          - pnpm test:ai-chat
+      browser:
+        workflow: ASA AI Chat Focused
+        commands:
+          - pnpm e2e:ai-chat
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
+
+  - id: student-game-admission
+    parent_lane: games
+    worktree_id: student-games-access-scope-618
+    owned_paths:
+      - docs/product/student-game-admission/STUDENT_GAME_ADMISSION.md
+      - apps/api/src/games-access.ts
+      - apps/api/src/games-access.controller.ts
+      - apps/api/src/games-access.spec.ts
+      - apps/api/src/games-access.controller.spec.ts
+      - tests/games-admission/**
+      - apps/web/src/pages/GamesPage.tsx
+      - apps/web/src/games/open-game.ts
+      - apps/web/src/games/game-access-api.ts
+      - migrations/0222_classroom_games_policy.sql
+    task:
+      id: TASK-STUDENT-GAME-ADMISSION-001
+      issue: 618
+      branch: main
+      base_branch: main
+      pr: null
+      pr_draft: true
+      status: in_progress
+      checkpoint: owner_selected_full_enforcement_and_teacher_ui_continuation
+      owner_acceptance: pending
+      change_class: L3_CRITICAL
+      owner_authorization: >-
+        Owner instruction on 2026-10-18 explicitly continues Issue618 and existing
+        PR621/622/624/626 through independent executor/reviewer work, actual tests,
+        ordinary merge of accepted changes to main, and a backed-up review582
+        preview on 127.0.0.1:4620. Installation4610 is excluded.
+        This selected game slice completes the existing PR626 foundation: trusted
+        Seat-first identity, current admission at catalogue/project read/create/
+        replay/open/edit/save/revocation, class and individual teacher controls,
+        and offline Chess/Checkers UI. SafeMode, existing assignment ACL, Account
+        ownership, tenant/RLS boundaries and online restrictions remain intact.
+        Controller hands off only the coordinated paths listed in the task
+        contract, after fresh overlap checks. Missing exact surface mappings are
+        added with the corresponding bounded implementation and reviewed before
+        merge; feature branches do not select their own execution state.
+        Product author may publish the existing candidate branch after focused
+        checks. Controller alone handles integration and preview operations after
+        independent L3 review, exact-SHA gates and verified backup. No live
+        production SQL, protected-data deletion, force-push or security bypass.
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: ccb97048d8b846798978c85eb8b544a04ffe057c
+      head_sha: null
+      observed_at: '2026-10-18T18:18:37Z'
+      main:
+        branch: main
+        sha: ccb97048d8b846798978c85eb8b544a04ffe057c
+      observation_note: Dated baseline only; fresh fetch main and exact refs/CI required before edits. No product implementation or acceptance evidence.
+    execution_lease:
+      executor_id: student-games-access-scope-618
+      holder: unassigned
+      acquired_at: null
+      expires_at: null
+      reviewer_role_requires_lease: false
+    gates:
+      focused:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:governance
+          - pnpm test tests/games-admission
+          - pnpm test:games
+      browser:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm e2e:games
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
+  - id: release-stabilization
+    parent_lane: draft-save
+    worktree_id: essential-release-620
+    owned_paths:
+      - docs/execution/RELEASE_20261018_STABILIZATION.md
+    task:
+      id: TASK-ESSENTIAL-RELEASE-001
+      issue: 620
+      branch: main
+      base_branch: main
+      pr: null
+      status: in_progress
+      checkpoint: essential_release_repairs_and_guarded_update_selected
+      owner_acceptance: pending
+      owner_authorization: Owner explicitly requests essential repairs, main publication, live site update and fresh verified Yandex backup. No large load or point12.
+      context_hints:
+        - docs/execution/RELEASE_20261018_STABILIZATION.md
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: 7613927c053db9e11d323f133e17c2cac33fa081
+      head_sha: null
+      observed_at: '2026-10-18T17:20:46Z'
+      main:
+        branch: main
+        sha: 7613927c053db9e11d323f133e17c2cac33fa081
+      observation_note: Dated programme selection; fetch main before writes. Production314078ba schema0213. Exact source/CI/deploy/cloud evidence in issue620.
+    execution_lease:
+      executor_id: essential-release-620
+      holder: unassigned
+      acquired_at: null
+      expires_at: null
+      reviewer_role_requires_lease: false
+    gates:
+      focused:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm e2e:access-a
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
   - id: draft-save
     parent_lane: capacity
     worktree_id: draft-history-point11-617
@@ -310,7 +669,7 @@ parallel_lanes:
       pr: null
       status: in_progress
       kind: repair
-      checkpoint: corrected_before_composition_selected
+      checkpoint: shared_ci_guard_composition_selected
       owner_acceptance: pending
       owner_authorization: >-
         Owner selected phone component adding and connecting, implementation through subagents
@@ -327,15 +686,15 @@ parallel_lanes:
         - docs/product/electronics/components/ui-assets-persistence.yaml
         - docs/product/electronics/evidence/ci-image-transport-545-receipt.json
       repair_scope: >-
-        Test-only corrected BEFORE composition for the SAME280/452 mobile result. Inherit the exact
-        reviewed three-file transport candidate unchanged together with latest accepted main; append ONLY
-        exact631-line corrected93c mobile test suffix to the preserved accepted simulation prefix and
-        canonically recompute only the coverage browserEvidenceSha256. No UI/infra/core changes.
+        ONE supporting guard-composition slice authoring ONLY tools/test_ci_image_transport.py. Compose
+        accepted General Node transport and reviewed Electronics transport without stale shared/security guard
+        overwrite. Recompose the four inherited7146 blobs exactly on fresh accepted main; freeze reviewed R3
+        spec/generated bytes, preserve every other accepted foreign path. No workflow/receipt/test/UI edits.
       supporting_generated_path_decision: >-
         Controller permits the canonical generator to update only generatedFrom.browserEvidenceSha256
         in docs/product/electronics/generated/component-coverage.json for the changed registered
         simulation spec; every other generated field and byte must remain unchanged.
-      evidence: docs/product/electronics/evidence/mobile-add-connect-6184f331-review.md
+      evidence: docs/product/electronics/evidence/mobile-add-connect-b967697e-before.md
       observed_candidate:
         observed_at: '2026-10-18T14:24:08Z'
         branch: codex/electronics-mobile-add-connect-ui
@@ -362,32 +721,88 @@ parallel_lanes:
           These are source-only results. Actual Actions mirror pull/build/image identity NOT_RUN;
           General39139917902 was in_progress with no conclusion, not a gate PASS.
       corrected_before_composition_contract:
+        version: R2_historical_superseded_only_by_R3_oracle_exception
         preserved_mobile_test_source: 93c8d0308cedd74454e4553ca9ee17e75ef66575
         appended_suffix_lines: 631
         appended_suffix_bytes: 25341
         appended_suffix_sha256: 5272d3b08d52eb77b544fa121ef4c34272076d49435d570b7c5167c18997e2b4
         accepted_prefix: Latest accepted main bytes including any newly integrated546 test repair; no unintegrated546 refs or old whole-file replacement.
         before_after_tests: Complete simulation test file must be byte-identical between the selected BEFORE and AFTER.
+      observed_before_result:
+        observed_at: '2026-10-18T17:25:55Z'
+        sha: b967697e8083e8c3a25d14a1a2f6904f19ce93e8
+        electronics_run: 39146696935
+        browser_job: 117732400870
+        runtime_review: NEEDS_FIX
+        reviewer: mobile_before_runtime_review
+        evidence: docs/product/electronics/evidence/mobile-add-connect-b967697e-before.md
+        observation_note: >-
+          Actual image build/identity, isolated PG migrations and API/Web startup passed; browser142PASS22FAIL.
+          All11 new cases failed; zero of six native journeys reached complete. Three original cases saved
+          once with exact CAS2to3 and fresh GET before the incorrect reload-session oracle. Three wire cases
+          completed local gestures but single visible Save had trusted pointerdown/up without click, PUT0.
+          Five strict missing-cue cases are causal; General failed foreign Vite boundary C, not repair scope.
+      r3_oracle_exception:
+        version: R3
+        supersedes: Only R2 exact631-line suffix requirement for the precise new-block storage oracle/instrumentation; no historical test or receipt rewrite.
+        frozen_baseline: b967697e8083e8c3a25d14a1a2f6904f19ce93e8
+        accepted_prefix_bytes: 394151
+        pre_app: Passive addInitScript on main app origin only; capture local/session entries both empty before app, no application or storage writes.
+        post_load: Local draft entries empty; exact single scoped session pair ["${localKey}:electronics-editor:", saved] with actual value proved in new CI. Expected localKey is computed from the existing fixture formula with identityKind=account, userId and projectId, never from an actually discovered storage key.
+        unchanged: Existing fresh.storageState().origins empty check; full saved/delivered/server/rendered/positions/wires/onePUT/CAS assertions, all native gestures and checkpoints.
+        save_activation: No extra Save activation, keypress, second tap, wait, forced hit or controller/API result substitution.
+        before_after_tests: Freeze NEW complete R3 test blob; selected R3 BEFORE and AFTER test files must be byte-identical.
+      observed_r3_source_result:
+        observed_at: '2026-10-18T17:50:10Z'
+        sha: 7146df149c4a3cde3edbd33e7cdff7087db1750d
+        tree: 28fa0a7c17605f5af87b6086983bed7cd559e308
+        source_review: SOURCE_APPROVE
+        reviewer: mobile_oracle_source_review
+        publication: unpublished
+        actual_ci: NOT_RUN
+        complete_spec_sha256: 7363b3837ec1cd5414061c0ddde8c9700dd38e0c967e522bf8b3b5ed25e6ea34
+        preserved_prefix_bytes: 394151
+        suffix_lines: 665
+        suffix_bytes: 26718
+        suffix_sha256: b2dde5aa789e442fa4e8c7753e1356097775987ddaed7620be456d86e12b11f4
+        observation_note: Dated source-only approval; local Git blobs verified, no Actions runs for7146. No runtime or owner acceptance.
+      supporting_guard_composition_exception:
+        version: GC1
+        supersedes: Only the earlier exact02ae three-infra-blob requirement for the shared guard; Electronics workflow/receipt stay exact02ae and R3 tests remain frozen7146.
+        accepted_main_observed: ce6f0e87ffa37a112bb584e7e5d85d182bcd97f6
+        accepted_general_transport: 8f274153e7b7494e572aa3f18a98876e23c4ec85
+        reason: Real shared/security overlap in the guard requires intentional scoped composition, never a stale whole-tree overwrite or blind conflict merge.
+        inherited_source_sha: 7146df149c4a3cde3edbd33e7cdff7087db1750d
+        inherited_source_paths:
+          - .github/workflows/electronics-r4-m1-focused.yml
+          - docs/product/electronics/evidence/ci-image-transport-429-receipt.json
+          - e2e/electronics-simulation.spec.ts
+          - docs/product/electronics/generated/component-coverage.json
+        immutable_general_paths:
+          - .github/workflows/spec-validation.yml
+          - docs/product/projects/evidence/ci-node-transport-429-receipt.json
+          - docs/product/electronics/evidence/ci-image-transport-545-receipt.json
+        matrix: General/postgres-tests Node mirror and Caddy ECR; Electronics/browser+review-images Node+Caddy mirror; every other job keeps545 baseline.
+        retained_checks: All immutable identity/security checks, General proof modes and stdlib CI-only Electronics actual-image mode.
+        challenge_contract: Retain33baseline+12Electronics+27General semantic cases and14Electronics runtime cases; make both cross-scope negative replacements mutate actual mappings and add receipt swaps, extra jobs and no-op protection.
       expected_write_paths:
-        - e2e/electronics-simulation.spec.ts
-        - docs/product/electronics/generated/component-coverage.json
+        - tools/test_ci_image_transport.py
       path_coordination: >-
-        Check all actual dirty target paths before writing. The composition author inherits reviewedinfra
-        three blobs unchanged and latest accepted main foreign bytes. Preserve the complete accepted prefix,
-        old cases/helpers and interactions; if546 test repair becomes accepted main, retain that new prefix.
-        Do not import unintegrated546 fcf refs. Append exact93c suffix only; generated metadata change only.
-        No workflow/receipt/guard/UI/Stage/CSS/core/hook/LED or Course/Portal edits. Any overlap returns a handoff.
+        Check actual dirty paths and latest accepted main before writing. Author only the shared guard;
+        the four inherited7146 blobs are exact recomposition inputs, never independently edited. Preserve
+        accepted General workflow/projects receipt/original545 receipt byte-for-byte and all other main work.
+        No registration, workflow, receipt, Compose/Docker, package, timeout, security/default or registry-ref
+        changes; no registry probes/local Docker. Any additional conflict or boundary returns a proposal.
       next_action: >-
-        ONE bounded test-composition author inherits reviewedinfra02ae plus latest accepted main unchanged,
-        appends the exact corrected93c suffix and regenerates only the browser evidence hash; narrow checks,
-        self-review, ONE unpublished candidate then STOP. A NEW independent composition reviewer checks it.
-        Then ONE justified combined Actions actual image proof plus corrected BEFORE: six full native placement/
-        connection journeys must complete their respective strict document and Save/CAS/cookies-reopen oracles
-        through expected soft cue failures; five strict Cancel/desktop missing-cue cases remain causal expected
-        failures, never acceptance PASS. A NEW independent reviewer examines actual BEFORE raw/visual evidence
-        before the controller selects AFTER with ONLY reviewed6184 Stage/CSS diff and identical whole test file.
-        Require full exact gates and NEW final runtime/visual review. No retry, closure, integration/release/deploy,
-        old546/core/hook/LED or foreign Course/Portal repair; extra paths or new infrastructure cause need proposal.
+        ONE bounded guard-composition author starts fresh from latest accepted main, exactly recomposes four
+        inherited7146 blobs and composes ONLY tools/test_ci_image_transport.py; focused checks/self-review,
+        ONE unpublished candidate then STOP. NEW independent guard/composition review must precede ONE
+        justified R3 BEFORE run. R3 full test blob remains exactly7146 and byte-identical BEFORE/AFTER.
+        Original3 must complete saved/reopened/complete; wire3 retain genuine single-Save full PUT/CAS/reopen
+        oracles and BEFORE may fail only at observed Save no-click/PUT0; cue5 retain causal failures.
+        All6 must complete AFTER, only after NEW actual R3 raw/runtime review and separate UI selection.
+        No UI/Header now; future command invocation exactly once, suppress compatibility click if it arrives,
+        never synthesize click. No old546/core/hook/LED or foreign fixes, integration/closure/release/deploy.
       deployment: not_requested
       database_actions: isolated_CI_fixture_only_no_local_live_owner_operations
       ci_database_scope: >-
@@ -399,15 +814,15 @@ parallel_lanes:
       kind: observed_snapshot
       convergence_baseline_sha: 63a72f874cf382961220a3ae99426297a60cb597
       head_sha: null
-      observed_at: '2026-10-18T15:19:35Z'
+      observed_at: '2026-10-18T17:50:10Z'
       main:
         branch: main
-        sha: 913f70e2d38d5e155d203f08384478a128f9e57e
+        sha: ce6f0e87ffa37a112bb584e7e5d85d182bcd97f6
       observation_note: >-
-        Dated main/remote infra observation for corrected BEFORE selection, not a live HEAD claim.
-        Fetch main, candidate refs and exact CI before writes;02ae is source-approved only, actual mirror proof NOT_RUN.
-        The6184 candidate/historical receipt and all closure restrictions remain unchanged. Known Classroom
-        WAITING_HANDOFF retains its narrow owner exception, never a SAFE claim or actual-overlap permission.
+        Dated fresh main observation for GC1 supporting guard composition, not live HEAD or acceptance.
+        Fetch main, exact source refs and CI before writes;7146 has source-only approval and actual CI NOT_RUN.
+        General39150828545 was queued, never a gate PASS. Historical receipts and closure blocks unchanged.
+        Known Classroom WAITING_HANDOFF retains its narrow owner exception, never a SAFE or overlap bypass.
     execution_lease:
       executor_id: electronics-mobile-add-connect
       holder: unassigned
@@ -838,6 +1253,250 @@ parallel_lanes:
       - docs/execution/ADMIN_AUTH_MAX_EXECUTION_PLAN.md
       - docs/execution/ASA_ACCESS_A.md
     task:
+      id: TASK-ACCOUNT-CONFIRMATION-001
+      issue: 135
+      branch: codex/auth-readiness-20261019
+      base_branch: main
+      pr: null
+      pr_draft: false
+      status: in_progress
+      checkpoint: account_confirmation_readiness_repair_selected
+      owner_acceptance: pending
+      normative_refs:
+        - document: IDENTITY-ACCESS-V22
+          revision: '2.2'
+        - document: ACCOUNT-CONFIRMATION-SPEC
+          revision: '1.1'
+    programme:
+      document: docs/product/ASA_ACCOUNT_CONFIRMATION_SPEC.md
+      owner_authorization: implement_account_confirmation_with_admin_switch_max_telegram_and_server_verified_outage_fallback
+      status: in_progress
+      target_revision: '1.1'
+      verified_revision: '1.0'
+      final_source_sha: 5353dcbc8f60a4867aaf9fe4126fe2caaad31fdc
+      exact_final_focused_run: 39171454030
+      exact_final_focused_conclusion: success
+      exact_final_general_run: 39171454021
+      exact_final_general_conclusion: success
+      selected_slice: AUTH-C5-READINESS
+      dependency_order: [AUTH-C1-PROVIDERS, AUTH-C2-POLICY, AUTH-C3-UI, AUTH-C4-ACCEPTANCE, AUTH-C5-READINESS]
+      remaining_slices: [AUTH-C5-READINESS]
+      readiness_repair:
+        id: AUTH-C5-READINESS
+        status: in_progress
+        baseline_sha: 185f43e1618848da5db14f7223b059395fd85408
+        owner_request_date: '2026-10-19'
+        owner_request: audit_and_prepare_reliable_max_telegram_login_before_update_with_domain_or_ip
+        selected_scope: >-
+          Correct only confirmed authentication readiness gaps: distinguish saved webhook,
+          reachable installation and real current-version delivery; preserve authenticated
+          legacy MAX Mini App access independently from webhook readiness; reject wrong
+          callback origins and conflicting bot deployments; bound auth UI requests and
+          preserve cancel/password recovery; forward staging public origins and preserve
+          existing encryption keys in bootstrap. No polling worker, network changes,
+          live tokens, webhook registration, deployment or working database writes.
+        delegated_parts: [provider_backend, auth_ui, installation_preflight]
+        required_review: independent_final_source_and_fault_matrix
+        required_gates: [auth_confirmation_focused, repository]
+        live_provider_delivery: not_run
+        known_verification_limit: >-
+          A request to the public ingress from this server does not prove reachability
+          specifically from a provider network. Live start/approve/browser-consume on the
+          intended installation is separate acceptance; historical CI is not deployment.
+        findings:
+          - id: AUTH-READINESS-DELIVERY
+            severity: high
+            status: repair_selected
+            cause: registered_webhook_can_remain_ready_when_delivery_to_this_installation_fails
+          - id: AUTH-READINESS-LEGACY-MAX
+            severity: high
+            status: repair_selected
+            cause: webhook_readiness_blocks_existing_signed_mini_app_login_after_upgrade
+          - id: AUTH-READINESS-UI-TIMEOUT
+            severity: medium
+            status: repair_selected
+            cause: unresolved_auth_transport_can_hold_sign_in_actions_indefinitely
+          - id: AUTH-READINESS-PUBLIC-ORIGIN
+            severity: medium
+            status: repair_selected
+            cause: staging_does_not_forward_saved_public_origin_and_bot_address_errors_are_misleading
+          - id: AUTH-READINESS-KEY-PRESERVATION
+            severity: medium
+            status: repair_selected
+            cause: legacy_bootstrap_can_append_a_replacement_for_an_invalid_existing_key
+      completed_slices:
+        - id: AUTH-C1-PROVIDERS
+          status: technical_accepted
+          verification_sha: 5353dcbc8f60a4867aaf9fe4126fe2caaad31fdc
+          donor_repository: spikeal8-maker/IZO_ASA
+          donor_source_sha: d1ee3a0ac5114ec08f4a8daee9cf6e41e97d6a7a
+          result: max_telegram_browser_bound_single_use_confirmation_and_server_verified_provider_health
+          live_provider_delivery: not_run
+        - id: AUTH-C2-POLICY
+          status: technical_accepted
+          verification_sha: 5353dcbc8f60a4867aaf9fe4126fe2caaad31fdc
+          result: persistent_admin_switch_one_time_confirmation_after_24_hours_and_correct_password_outage_fallback
+          default_enabled: false
+          email_delivery: unavailable
+        - id: AUTH-C3-UI
+          status: technical_accepted
+          verification_sha: 5353dcbc8f60a4867aaf9fe4126fe2caaad31fdc
+          result: conditional_sign_in_buttons_same_account_confirmation_and_responsive_admin_controls
+          auth_browser_passed: 18
+          existing_account_r3_passed: 8
+          independent_visual_review: approved
+          security_visual_review_sha: 74cf0768d04f77149c55b83509fbbfa1566c6e58
+          security_visual_png_inspected: 8
+          other_unchanged_visual_review_sha: e5e01f87304582f1755e9b7cb3374468b9aede50
+          other_unchanged_visual_png_inspected: 24
+          visual_widths: [1440, 1024, 390, 320]
+          visual_font_scales: [normal, font150]
+          visual_basis: reviewed_ui_blobs_unchanged_in_final_source
+        - id: AUTH-C4-ACCEPTANCE
+          status: technical_accepted
+          verification_sha: 5353dcbc8f60a4867aaf9fe4126fe2caaad31fdc
+          independent_review: approved
+          independent_review_sha: 5353dcbc8f60a4867aaf9fe4126fe2caaad31fdc
+          independent_reviewer: auth_independent_review
+          independent_review_received_at: '2026-10-18T22:45:05Z'
+          independent_review_record: controller_received_separate_agent_final_verdict
+          exact_focused_run: 39171454030
+          exact_focused_conclusion: success
+          exact_focused_server_job: 117805196610
+          exact_focused_ui_job: 117805196823
+          focused_unit_passed: 158
+          focused_integration_passed: 54
+          focused_native_postgres_passed: 47
+          focused_pglite_passed: 7
+          focused_auth_browser_passed: 18
+          focused_existing_account_r3_passed: 8
+          focused_existing_classroom_owner_header_passed: 1
+          focused_api_build_nx_tasks_executed_uncached: 16
+          focused_web_typecheck_nx_tasks_executed_uncached: 6
+          focused_web_build_nx_tasks_executed_uncached: 6
+          focused_existing_browser_commands:
+            - "pnpm e2e:settings-ui --grep 'R3 Account compact composition'"
+            - "pnpm e2e:settings-ui e2e/classroom-owner-ui.spec.ts --grep 'single header keeps all global actions and a working drawer$'"
+          focused_ui_artifact_id: 12152791281
+          focused_ui_artifact_sha256: f5d7b8d26f02680f8890ef7311065f52c78765499fba5961f7d8986f46b60c8e
+          exact_general_run: 39171454021
+          exact_general_conclusion: success
+          general_data_tests_passed: 4560
+          general_data_tests_skipped: 2
+          general_data_files_passed: 464
+          general_data_files_skipped: 1
+          separate_rls_tests_passed: 16
+          general_access_tests_passed: 943
+          general_access_tests_skipped: 1
+          general_real_access_browser_passed: 22
+          general_settings_browser_passed: 417
+          general_observability_tests_passed: 511
+          general_release_tests_passed: 10
+          general_code_nx_tasks_executed_uncached: 96
+          general_data_build_nx_tasks_executed_uncached: 43
+          general_browser_build_nx_tasks_executed_uncached: 27
+          general_compose_check: pass
+          resolved_integration_dependencies:
+            - TASK-AUTH-HEADER-COMPATIBILITY-001
+            - TASK-AUTH-ACCESS-AI-COMPATIBILITY-DEPENDENCY-001
+            - TASK-AUTH-CLASSROOM-OWNER-HEADER-COMPATIBILITY-001
+          verification_note: >-
+            Actual terminal workflows and all test counts belong to source 5353dcbc8f60a4867aaf9fe4126fe2caaad31fdc.
+            Focused and General suites overlap and are not additive. Separate source and
+            visual review were completed; unchanged UI blob identity permits the recorded
+            visual evidence. This receipt does not claim CI for its later integration commit.
+      owner_acceptance: pending
+      deployment_authorized: false
+      working_database_actions_authorized: false
+      deployment: not_performed
+      working_database_actions: not_performed
+      live_provider_delivery: not_run
+    integration_dependencies:
+      - id: TASK-AUTH-HEADER-COMPATIBILITY-001
+        status: resolved
+        verification_sha: 5353dcbc8f60a4867aaf9fe4126fe2caaad31fdc
+        exact_verification_general_run: 39171454021
+        exact_verification_general_conclusion: success
+        independent_review: approved
+        independent_review_sha: 5353dcbc8f60a4867aaf9fe4126fe2caaad31fdc
+        branch: codex/auth-header-ci-baseline-20261018
+        scope:
+          - e2e/classroom-profile-completion.spec.ts
+        observed_source_sha: 74cf0768d04f77149c55b83509fbbfa1566c6e58
+        observed_general_run: 39165774800
+        selection: >-
+          Controller selects a separate bounded category C test repair under AGENTS.md section 7.
+          The account confirmation candidate passed 158 unit, 54 integration, 18 authentication
+          browser and 8 existing Account R3 checks, with independent source and visual review.
+          General Data passed 4560 tests and 16 RLS checks. Two real Access journeys fail because
+          the unchanged mobile header helper expects six targets after accepted main PR 616
+          added the third native AI destination. The authentication feature changes neither
+          PortalHeader nor this helper. This repair does not change provider or policy code.
+        acceptance: >-
+          Require seven exact header controls and three named native destinations while
+          preserving the 56px header, every 44px target, ordering, viewport, overlap and all
+          original real journeys and widths. Do not change runtime, CSS, timeouts, retries,
+          rate limits or fixture authority, and do not weaken assertions. A separate author,
+          new independent review of the final source and successful actual Access and complete
+          General CI are required.
+      - id: TASK-AUTH-ACCESS-AI-COMPATIBILITY-DEPENDENCY-001
+        status: resolved
+        verification_sha: 5353dcbc8f60a4867aaf9fe4126fe2caaad31fdc
+        exact_verification_general_run: 39171454021
+        exact_verification_general_conclusion: success
+        independent_review: approved
+        independent_review_sha: 5353dcbc8f60a4867aaf9fe4126fe2caaad31fdc
+        source_task: TASK-PROJ-PUBLICATION-SHELL-AI-COMPATIBILITY-001
+        reused_completed_handoff_base_sha: 7db13b9ecce77139866708353e4f418f37141e3c
+        reused_completed_handoff_sha: ad5464d04e9e93b5cff151a0ce5305e158fb153d
+        reuse_scope: completed_eight_hunk_native_ai_header_compatibility_only
+        prepared_branch: codex/projects-shell-ai-compatibility
+        scope:
+          - e2e/access-account-ui.spec.ts
+        selection: >-
+          The full settings step was skipped after the Access failure. Main e5546bac already
+          selects a separate Projects companion for inherited two-link and responsive boundary
+          expectations in this file. Preserve that active author and its completed handoff;
+          do not create a competing Access-file repair or adopt unpublished publication runtime.
+          Any reuse must isolate compatibility with accepted main PR 616 and retain existing
+          Account, authorization, profile, navigation and geometry checks.
+        acceptance: >-
+          Read and independently review the actual frozen compatible source before integration.
+          Full changed-source settings and required General CI must pass; R3-only success cannot
+          replace the skipped full settings suite. Owner acceptance, deployment and working
+          database actions remain unperformed.
+      - id: TASK-AUTH-CLASSROOM-OWNER-HEADER-COMPATIBILITY-001
+        status: resolved
+        verification_sha: 5353dcbc8f60a4867aaf9fe4126fe2caaad31fdc
+        exact_verification_general_run: 39171454021
+        exact_verification_general_conclusion: success
+        independent_review: approved
+        independent_review_sha: 5353dcbc8f60a4867aaf9fe4126fe2caaad31fdc
+        scope:
+          - e2e/classroom-owner-ui.spec.ts
+          - .github/workflows/account-confirmation-focused.yml
+        observed_source_sha: 4b7ea198edf7331b53972a19c9e428dd9adc94fb
+        observed_general_run: 39168676146
+        observed_settings_passed: 416
+        observed_settings_failed: 1
+        selection: >-
+          Controller selects a separate bounded category C baseline repair under AGENTS.md
+          section 7 after the complete settings suite exposed its last stale mobile header
+          observer. The candidate passed all focused checks, General governance, code and Data,
+          22 real Access journeys and 416 settings cases. The unchanged classroom owner test
+          expects five controls excluding the brand, while accepted AI navigation makes six.
+          Independent review verified identical test and fixture on pre-AI main, current main
+          and the authentication candidate. Authentication and portal runtime remain frozen.
+        acceptance: >-
+          Update only the existing single-header case to require six controls and three named
+          native Gallery, Knowledge and AI links. Preserve the 56px header, every 44px target,
+          320px bounds, roster assertion, drawer opening, Escape, restored focus and error check.
+          Add that existing case to the focused workflow by exact grep and include its path in
+          triggers; preserve all existing checks, fixtures, runtime, timeouts and retries.
+          Require a separate author, independent exact-source review, the actual changed-case
+          focused run and complete General CI. This selection grants no owner acceptance,
+          deployment or working-database authorization.
+    previous_task:
       id: TASK-PORTAL-SHELL-UX-001
       issue: 520
       branch: main
@@ -852,7 +1511,7 @@ parallel_lanes:
           revision: '2.2'
         - document: PORTAL-SHELL-UX-ETZ
           revision: '2.0'
-    programme:
+    previous_programme:
       document: docs/product/ASA_PORTAL_SHELL_AND_AVATAR_ETZ.md
       owner_authorization: revise_avatar_shell_and_settings_to_compact_owner_requirements
       status: technical_accepted
@@ -1221,21 +1880,24 @@ parallel_lanes:
           status: unverified
           evidence: docs/testing/ACCESS_A_WINDOWS_TOUCH_REPRO.md
     revisions:
+      convergence_baseline_sha: 185f43e1618848da5db14f7223b059395fd85408
+      head_sha: 2fb1761437f5fded8bcfbc475d72d9b448ec0640
+    prior_auth_delivery_revisions:
       kind: observed_snapshot
       convergence_baseline_sha: 78da596b3e27a5bd396d195f8d1348b7f8b8cb00
       head_sha: null
-      observed_at: '2026-10-08T01:40:05Z'
+      observed_at: '2026-10-18T22:45:05Z'
       main:
         branch: main
-        sha: 7744cebbe92f7b7155ac280d875fdc1abecb51a8
+        sha: 685762419fd829ce18e4695988d721f4659183b0
       observation_note: >-
-        Dated published main contains the final Portal shell delivery candidate.
-        This is a historical observation, not a live HEAD claim. Fetch main and
-        read exact-SHA GitHub CI before writes. Slice evidence is recorded in the
-        programme; it grants no owner acceptance or deployment authority.
-        Account and StudentSeat scopes, permissions, MAX, API, SQL and the working
-        database are unchanged. The load protocol is unexecuted; calculated bundle
-        compression does not establish network performance or 3000-user capacity.
+        Dated main observation before integrating the technically accepted account confirmation
+        source 5353dcbc8f60a4867aaf9fe4126fe2caaad31fdc. Both successful workflows and independent source approval belong
+        to that exact source; this receipt does not claim CI for the later integration commit.
+        The separately reviewed main delta preserves all authentication source blobs.
+        This is not a live HEAD claim: fetch main and inspect exact-SHA GitHub CI before writes.
+        Owner acceptance, deployment, working database actions and live bot delivery remain
+        unperformed; this programme grants no authority to perform them.
     execution_lease:
       executor_id: codex-admin-auth-max
       holder: unassigned
@@ -1244,9 +1906,14 @@ parallel_lanes:
       reviewer_role_requires_lease: false
     gates:
       focused:
-        workflow: ASA Lab Governance and Code Gates
+        workflow: Account Confirmation Focused
         commands:
-          - pnpm test:access-a
+          - pnpm test:auth-confirmation
+          - pnpm test:auth-confirmation:pg
+      authentication_browser:
+        workflow: Account Confirmation Focused
+        commands:
+          - pnpm e2e:auth-confirmation
       browser:
         workflow: ASA Lab Governance and Code Gates
         commands:
@@ -1256,7 +1923,6 @@ parallel_lanes:
         workflow: ASA Lab Governance and Code Gates
         commands:
           - pnpm gate:repository
-
     accepted_slices:
       - task_id: TASK-ACCOUNT-SETTINGS-UX-002
         status: technical_accepted
@@ -3789,7 +4455,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: first_visible_implementation_awaits_pg_browser_review
+      checkpoint: first_visible_pg_browser_source_pass_external_gates_pending
       owner_acceptance: pending
       owner_authorization: >-
         Owner's 2026-10-18 implementation assignment delegates the complete Public Projects
@@ -3850,23 +4516,321 @@ parallel_lanes:
           9e12e981e4b7ece388cc226bf8cd878908a5aed3, preserving its branch and the accepted
           single-row56px header with44px controls. No PR609 package or unrelated changes.
           Independent combined-source review, actual Access/header CI and general gate required.
+      - id: TASK-PROJ-PUBLICATION-DATA-TRANSPORT-001
+        status: in_progress
+        branch: codex/projects-data-transport
+        scope:
+          - .github/workflows/spec-validation.yml
+          - tools/test_ci_image_transport.py
+          - docs/product/projects/evidence/ci-node-transport-429-receipt.json
+        selection: >-
+          Separate D dependency: exact4db817619 data job117736631518 failed before PostgreSQL
+          on the pinned Node manifest's public.ecr.aws HTTP429. Change only this isolated
+          General job's Node transport to mirror.gcr.io with identical digest/config/layers.
+          Preserve original receipt, all other images/defaults/gates/security and image proof;
+          bound the semantic guard to that exact substitution. No Electronics workflow edit.
+          Independent final-source review and actual full combined CI remain required.
+      - id: TASK-PROJ-PUBLICATION-POSTGRES-TRANSPORT-001
+        status: in_progress
+        prepared_source: 28d1af61107fdee1f4f1a4884a04658bbb16902e
+        scope:
+          - .github/workflows/spec-validation.yml
+          - tools/test_ci_image_transport.py
+          - docs/product/projects/evidence/ci-node-transport-429-receipt.json
+        selection: >-
+          Separate successor D dependency: General39150123385/job117743433533 built Node
+          images but PostgreSQL start failed with ECR toomanyrequests before DB/Data.
+          The release620 controller has now published completed source28d1af611 in main75cbad5bb.
+          Review and adopt that actual General-only same-image transport instead of authoring
+          a duplicate overlay or receipt. General17.7 manifest e9243ab06e47223dedeb3c129fa9ece8d37f506bdc6ee943afb9335f98bb4854,
+          config52d5e34fcf5c882a859c1269963b35bdc7dcc2814ef0a0de6b8b408b2eb09db1 and14ordered layers/rootfs must remain identical.
+          Preserve shared overlay, original545 receipt, other jobs/defaults/runtime/security/gates.
+        author_coordination: >-
+          Electronics GC1 has an active shared-guard composition, coordinated in issue280
+          comment6253626829 and issue620 comment6253177650. No competing Projects author
+          writes the shared guard/workflow/receipts. Any remaining scanner/duplicate finding
+          goes to that author; require actual frozen handoff and preserve release620 PostgreSQL
+          and General/Electronics contracts before the controlled final composition.
+        acceptance: >-
+          NEW independent exact-source review, actual General image/model/config/rootfs/revision
+          proof and full Data/required combined CI are mandatory. Reused metadata and dated
+          external probe are attributed as such. Published source or focused publication PASS
+          does not establish repository acceptance; no deployment or working database action.
+      - id: TASK-PROJ-PUBLICATION-ANALYTICS-RECEIPT-001
+        status: in_progress
+        branch: codex/projects-analytics-receipt
+        scope:
+          - apps/web/src/telemetry-contract.ts
+          - apps/web/src/telemetry-contract.spec.ts
+          - apps/web/src/analytics-delivery.spec.ts
+          - apps/web/src/analytics-runtime.spec.ts
+          - apps/web/src/analytics-auth-recovery.spec.ts
+          - apps/web/src/blocks/testing/editor-runtime-session.spec.ts
+          - tests/portal/analytics-delivery.pg.spec.ts
+          - e2e/fixtures/telemetry-receipts.ts
+          - tests/portal/ui-telemetry-receipts.spec.ts
+          - tools/blocks/browser/telemetry-fixture.mjs
+          - e2e/classroom-scratch-time.spec.ts
+        selection: >-
+          Separate bounded C repair, not a publication feature change. Learning39154885422
+          on662c8af4 reproduces baseline4db failures. Actual HTTP200 visit receipts contain
+          numeric bigserial recordId, while confirmedAnalytics incorrectly requires UUID;
+          a trace has69 requests for4 visits and a persisted event repeats before a later
+          workspace change correctly produces409 context_mismatch. Recognize only positive
+          Number.isSafeInteger recordId for visits, and correct all11 scoped producer/test
+          paths to the actual wire contract. Preserve every event/receipt/operation/time,
+          session/actor/context/terminal-error check. No coercion, bigint protocol redesign,
+          migration, auth/rate-limit change, timeout increase, context-fixture redesign,
+          ignored browser error or unchanged CI rerun is selected.
+        author_coordination: >-
+          One separate analytics author owns these11 paths; independent review and QA follow.
+          Fresh main e2677c373 and active PR622/623/624/626/605 scopes show no actual
+          unfinished overlap on these paths. GC1 guard/workflow/receipts remain untouched.
+        acceptance: >-
+          Focused strict validator and queue tests, real PostgreSQL HTTP200 through the
+          shipping frontend validator and delivery queue with one durable effect and no
+          replay, independent exact-source review, then changed-source Learning/General CI.
+          The six login429 responses are linked to the common mutation guard by headers;
+          residual429 after this repair remain a separate question. Access rating timeout
+          5011ms versus Data1135ms has no proved cause and remains unresolved, not waived.
+      - id: TASK-PROJ-PUBLICATION-QR-PRINT-RASTER-001
+        status: in_progress
+        branch: codex/projects-qr-print-raster
+        scope:
+          - e2e/student-access-cards.spec.ts
+          - e2e/fixtures/qr-print-raster.ts
+          - tests/portal/qr-print-raster.spec.ts
+        selection: >-
+          Separate bounded C test-only repair after independent exact-artifact diagnosis.
+          Classroom run39154885479/job117755945105 on662c8af4 fails independent jsQR
+          decoding only after long-site print CSS reduces the valid QR to16mm. Frozen
+          trace DOM/CSS/SVG replay on the same Chromium140/Playwright1.55.1 yields62x61
+          pixels atDPR1 and jsQR null; nearest-neighbor2x of those same pixels, DPR2/3
+          and the unchanged PDF at300dpi decode the exact payload. Original quiet zone,
+          opaque black/white pixels and encoder output are intact. No product defect
+          in the QR generation or print layout is established.
+        author_coordination: >-
+          One separate QR-test author owns only these three paths. Preserve active
+          analytics628, publication shell7db13b9, Learning622 and the GC1 guard/receipts
+          and Electronics specs. No QR author overlap was found in current PR/control
+          inspection; coordination is recorded in PR613/comment6254582754.
+        acceptance: >-
+          Decode the original raster first. Preserve every successful raw decode; only
+          a null raw print decode may select one fixed nearest-neighbor2x fallback from
+          the same PNG, never a new screenshot or the QR encoder/DOM payload. Check
+          monochrome on that same selected raster with no further fallback. Retain raw-screen
+          decoding, original-raster quiet-zone checks, independent jsQR and monochrome
+          decoding, exact full URL and all privacy/no-mutation/layout assertions.
+          Reproduce the original failing raster, reject blank/corrupt finder controls,
+          preserve original screenshot evidence and prove no input mutation. No retry,
+          timeout/rate-limit/viewport/DPR/product CSS or SVG change. Require focused
+          regression, independent exact-source review and real Classroom/Access CI
+          on the changed SHA. Original artifact12146839286 SHA256205457c8e4e5ccd34fe462818d1998716fee906c19e93ab47ecaab1e60bd5991.
+        runtime_refinement: >-
+          PR629 b1387d32 actual Classroom39163873957 has a new category A regression:
+          original20mm76x77 print PNG decodes raw but forced2x returns null. Do not accept
+          that source or count the serial-skipped mixed16mm journey as run. Preserve raw
+          success and regress BOTH exact real PNGs through the actual decode-selection
+          pipeline. Review5564865973 supersedes prior source-only acceptance; require a
+          different independent reviewer and new changed-SHA real CI after author repair.
+      - id: TASK-PROJ-PUBLICATION-LEARNING-MUTATION-EVIDENCE-001
+        status: in_progress
+        branch: codex/projects-learning-mutation-evidence
+        scope:
+          - .github/workflows/learning-mutation-budget-diagnostic.yml
+          - tools/learning-mutation-diagnostic/runner.mjs
+          - tools/learning-mutation-diagnostic/reporter.mjs
+          - tools/learning-mutation-diagnostic/harness.spec.mjs
+        selection: >-
+          Separate bounded read-only runtime evidence after analytics source 4343b88b
+          passed General Data, real delivery PG14/14 and Classroom. Learning run39160885790
+          still has18 browser passes and5 fresh no-cookie login429 failures. Existing
+          failed traces identify the common mutation guard before AuthController, but
+          omit the prior successful request stream. Capture the whole original first
+          23-case batch without changing auth limits, retries or product behavior.
+        author_coordination: >-
+          One diagnostic author owns only these four new paths. Keep existing Learning
+          workflow/config/server, PR622 journey files, Analytics11 paths, QR629 and GC1
+          unchanged. Use a separate concurrency group and reviewed candidate PR trigger;
+          no production, owner-computer application stack or working database action.
+        acceptance: >-
+          Two exact checkouts: tested product 4343b88b788f02a279fd18df3789582994cb6b9e and
+          the diagnostic head, both independently recorded and verified. Reuse original
+          Node22/pnpm9.15.9/frozen lockfile/build/PG16 restricted-role setup and all first
+          batch assertions, one worker and zero retries. ASA_HTTP_LOG and DEBUG=pw:webserver
+          feed bounded private pipes through a strict custom reporter; never use PWDEBUG.
+          Persist only method, routecategory, status, timestamp and requestId, plus safe
+          stage/identity/matrix metadata. No raw paths/query, bodies, headers, tokens,
+          stdout/stderr or trace artifacts; trace-off is diagnostic capture only. Require
+          split-chunk/ANSI/privacy/capture-failure and exit-status negative tests, new
+          independent source review before starting this workflow, and actual isolated
+          CI with exact identities and preserved failure status. Counts are observed HTTP
+          traffic, not internal limiter state; no429 is NOT_REPRODUCED, never a repair PASS.
+        observed_evidence: >-
+          Diagnostic PR630 fb7a7b215096afd989a8b42635a14ffdd592259c completed actual
+          run39168489103 on separately pinned product4343b88b. Independent capture QA
+          PASS: COMPLETE,7055 unique five-field records,faults0,23 cases18 PASS/5 login429
+          FAIL,second batch NOT_RUN. Before first429,934 successful non-runtime mutations
+          passed the common guard within256.006 seconds; the first two specs contributed331
+          mutations. Internal limiter counters/resetAt and raw receipt bodies were not
+          observed. Artifact12151514511 SHA256e56fccf3bfdfa02d25dfda2dcf2dd1c4c7a29a3fbf1ec98e497fa08014182f6c.
+          This establishes cumulative test-window interference, not a product-policy verdict
+          or accepted repair. Main later accepted analytics4343 through merge685762419.
+      - id: TASK-PROJ-PUBLICATION-LEARNING-BATCH-ISOLATION-001
+        status: in_progress
+        branch: codex/projects-learning-batch-isolation
+        prepared_base: 4343b88b788f02a279fd18df3789582994cb6b9e
+        scope:
+          - .github/workflows/learning-e1-focused.yml
+        selection: >-
+          Bounded CI isolation experiment from the completed exact-product capture above.
+          The original first23-case batch shares one API process and its900/5min address
+          budget. Verified requests also consume that budget; later new no-cookie logins
+          fail after successful fixtures accumulated across files. Keep the application
+          policy intact and test whether fresh ordinary Playwright-managed API processes
+          between the three original first-batch specs remove their hidden order dependency.
+          This changes all inter-file API memory lifetime, not just limiter state; sufficient
+          isolation and underlying repair acceptance remain unproven until changed-source CI.
+        author_coordination: >-
+          One separate CI author owns only this workflow after canonical main acceptance.
+          Fork the exact analytics4343 product for causal comparison; this is not the final
+          publication convergence. Fresh main185f43e has merged Learning PR6223f37a8c,
+          including newer journey tests; no unfinished writer on this workflow was found.
+          Preserve all accepted main auth/AI/Learning changes in final composition. This
+          causal first23-case experiment does not accept the newer main journey matrix.
+          Do not edit package.json, specs, config/server, application limits, shared fixtures,
+          diagnostic630, Scratch evidence, completed QR629 or the GC1 guard/receipts.
+        acceptance: >-
+          Preserve the effective order courses-sharing then learning-author-preview then
+          learning-course-01, every original case/assertion, one worker, zero retries and
+          existing timeouts. Run all three specs even if one fails, aggregate a nonzero exit,
+          and run the original complete second batch only after first-batch success. Keep
+          Node22,pnpm9.15.9,frozen install,uncached build,PG16 restricted role,all unit/upgrade
+          gates and exact pinned Scratch preparation unchanged. Keep original browser config
+          and ordinary server lifecycle; no external-server reuse, limiter reset API, sleeps,
+          proxy identity, session privilege or auth bypass. Reject drift of the original
+          package script/spec matrix instead of silently omitting cases; preserve artifacts
+          from each invocation below existing uploaded paths. Independently challenge actual
+          shell failure aggregation/order/coverage before the PR triggers any changed CI.
+          Require all23 cases including the previously failing five and the complete original
+          second batch on the new exact SHA. The observed627 course mutations included five
+          early failures and are not a bound on the full14-case suite. Any remaining failure
+          stays a failure and requires its actual cause; no repeat of an unchanged run.
+      - id: TASK-PROJ-PUBLICATION-SHELL-AI-COMPATIBILITY-001
+        status: in_progress
+        branch: codex/projects-shell-ai-compatibility
+        scope:
+          - e2e/access-account-ui.spec.ts
+        selection: >-
+          Separate bounded C test companion for the accepted main PR616 AI navigation.
+          Read-only audit on d4dd2115 finds no new textual publication/shell conflicts,
+          but both main and frozen shell7db13b9 still require two global links and no AI.
+          Their geometry also predates the accepted four-pixel inset below360 and the
+          compact Create label between601 and760. Preserve the completed shell7db13b9
+          Explore/legacy-redirect assertions while adapting only these obsolete oracles.
+        author_coordination: >-
+          One new test author owns only this path after the prior shell author supplied
+          frozen7db13b9 handoff. Base the companion on current accepted main and adopt
+          that exact completed Access source before the bounded compatibility edit.
+          Do not author a publication convergence or replace runtime/header/styles,
+          MyProjectsPage, Analytics11, Learning622, QR629 or any GC1-owned file.
+        acceptance: >-
+          Keep three native destinations Projects, Knowledge and AI; strict56px header,
+          every44px target, overflow/overlap, stress-text, role, focus/Escape, dirty
+          navigation and profile/no-mutation guards. Preserve canonical Explore and the
+          actual legacy Gallery redirect. Cover359/360,600/601,760/761,1023/1024 together
+          with1440/1024/390/320. Independently review exact source against both7db and
+          accepted616. Existing AI entry/exit sidebar preference, mobile drawer and Seat
+          locked-view/no-API-access tests remain mandatory in the final composition.
+          Source-only compatibility is pending until changed combined Access/header
+          browser CI; an isolated companion without the publication runtime is not
+          final acceptance. No timeout/retry/fixture-authority or product behavior change.
+      - id: TASK-PROJ-PUBLICATION-SCRATCH-SAVE-EVIDENCE-001
+        status: in_progress
+        branch: codex/projects-scratch-save-evidence
+        prepared_base: 4343b88b788f02a279fd18df3789582994cb6b9e
+        scope:
+          - e2e/blocks-product-integration.spec.ts
+          - e2e/blocks-recovery.spec.ts
+        selection: >-
+          Separate bounded test-evidence task after actual Scratch39160885787 on4343b88b
+          completed55 passes and2 failures. Default-cached Pop/Abby reaches an observed
+          minute timer but no asset or draft request; timer identity is not established.
+          Failed autosave shows the error UI, but response completion, recovery read and
+          teardown cannot be distinguished. Preserve the already-present cc18c540 repair;
+          A/B/C/D causality remains unresolved and no runtime repair is selected.
+        author_coordination: >-
+          One author owns only these two E2E paths. Current canonical scopes and fresh
+          open-PR inspection found no unfinished author on them; completed Issue601/599
+          owners retain their unit-test/runtime lanes. Coordination evidence is in
+          Issue601 comment6254919404. Fork exact completed analytics4343b88b so its eleven
+          unchanged receipt files remain the tested baseline; review the two-file diff
+          against that source. This diagnostic fork is not the final main convergence.
+          Keep all host/bridge/storage/fixture/workflow and GC1-owned paths unchanged.
+        acceptance: >-
+          Persist bounded safe stage JSON under already-uploaded reports/blocks before
+          blocking waits and during failure/teardown. Identify observed timer callback,
+          upstream serialization or save-adapter boundaries where exposed by existing
+          test hooks; label anything not observed honestly. Record failed-save response
+          headers/completion, recovery-read entry/exit and teardown entry/exit separately.
+          Preserve original actions, clock advance, retries/timeouts, all exact revision,
+          media, authentication, origin, recovery and no-mutation assertions. Passive
+          observers must preserve callback this/arguments/return/throw and execution order;
+          no save invocation, extra click, rescheduling, swallowed assertion or fabricated
+          success. Admit only safe bounded metadata, never tokens/cookies/bodies/raw errors.
+          Require independent source review and actual changed-source Scratch CI with
+          exact build identity and durable JSON artifacts. Existing failures remain failures;
+          no reproduction is NOT_REPRODUCED and does not establish an underlying repair.
+      - id: TASK-PROJ-PUBLICATION-AUTH-AUDIT-COVERAGE-001
+        status: in_progress
+        branch: codex/projects-auth-audit-coverage
+        prepared_base: 33a2790cc8a95181f6fcff613e3a6ec6eaca78fe
+        scope:
+          - apps/api/src/database-diagnostic-contract.json
+        selection: >-
+          Separate C baseline compatibility repair for accepted Auth0219. Actual Coverage
+          run39174033312 fails on both Windows and Linux because the real audit action
+          administration.verification_policy.update is missing from the closed diagnostic
+          enum. Exact current source scans12 migration actions with only this value missing.
+          Preserve the completed Coverage point8 projection and accepted Auth policy.
+        author_coordination: >-
+          One separate author owns this single JSON path after canonical main acceptance.
+          Coverage Issue610 owner handed off source90e09831 and STOP in6251702346.
+          Fresh AUTH-C5-READINESS scope and published4614349 do not change this path;
+          coordination and the single-writer boundary are recorded in Issue1356264235551.
+          Keep provider/backend/UI/installation work with its existing Auth authors and
+          do not modify their files, the existing regression test, Learning, Scratch or GC1.
+        acceptance: >-
+          Add only administration.verification_policy.update to the existing action enum
+          under sources.administrative_audit_events.fields.action.values. Preserve every
+          other enum member and closed projection, unknown-action rejection and omission
+          of private reason/payload fields. The existing dynamic real-migration regression
+          must demonstrate baseline FAIL and candidate PASS without changing its assertions.
+          Require a separate independent exact-source review and the unchanged full
+          Coverage Diagnostics workflow on the new SHA, including both platform collectors
+          and downstream real PostgreSQL integration. No migration, collector algorithm,
+          auth policy, rate-limit, timeout/retry, workflow or deployment/live DB change.
     accepted_foundation:
       accepted_r7_01b_merge_sha: 65316c50873e28a5effd7b6e603b5289e37e2fac
       accepted_r3_merge_sha: 5fa616045b16d2720418eb7945f7bef968dd9389
       accepted_r7_01a_merge_sha: 92e7926fb4cf51b8fcb5d57741e01c812a26f2dc
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: c91d857a598ad423b938a92a85d6f002b56606a2
+      convergence_baseline_sha: d2b623f3c59b504e60738d24cc8b627dfc7a04d2
       head_sha: null
-      observed_at: '2026-10-18T16:06:25Z'
+      observed_at: '2026-10-18T19:15:00Z'
       main:
         branch: main
-        sha: 651321681ad588ae728156f83ffc334d9a658db0
+        sha: e2677c3735b8a14b99691c59a38b050f685f10b3
       observation_note: >-
-        First visible implementation is authored in the isolated candidate from c91d857;
-        PostgreSQL, built-browser evidence and independent exact-SHA review remain pending.
-        Main baseline CI category C is selected as a separate integration dependency above.
-        Fresh fetch main observed 6513216; preserve its capacity scripts during final convergence.
+        Draft PR613 on codex/projects-visible-publication has exact662c8af4 source review PASS;
+        publication39154885397 passed142 code/real-PG,
+        48portal and8browser checks, with37 exact-revision screenshots independently read.
+        General39154885429 Code/Governance/Data PASS, including4445 Data and16 RLS checks.
+        Access rating timeout and Learning analytics failures remain external blockers.
+        Main e267 has a newer General PG/artifact guard contract under independent review;
+        require fresh fetch main and overlap check, preserve shared GC1 ownership and
+        require one controlled final composition.
     execution_lease:
       executor_id: codex-projects-r7-01
       holder: unassigned
@@ -4082,8 +5046,22 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: "r25_complete_strict_origin_closure_then_runtime_reconnect"
+      checkpoint: "owner_requested_stop_preserved_r26_r27_not_implemented"
       owner_acceptance: pending
+      owner_stop_requested_at: "2026-10-18T18:02:08.399514+00:00"
+      owner_stop_reason: "Owner requested ending this session to preserve remaining tokens and publishing only results already eligible for main. This is not product acceptance or programme completion."
+      resume_requires_explicit_owner_instruction: true
+      preserved_r27_entry_sha: "1669d7b2f1f630b3c4da045147500a343e139ca9"
+      r27_implementation_state: "NOT_STARTED; source author stopped before any edits; working tree/index clean, no owned running processes. Existing source-approved R26 packet remains remote diagnostics/electronics-546-r26-combined atcdad26c; product integration/Issue closure not accepted."
+      r26_combined_source_sha: "cdad26c361cb4cf8ed2d095fae3c087b5d2abb2d"
+      r26_source_reviews: "Runtime46ec APPROVE_SOURCE_ONLY c22c2b329d5c4124780b92c2a95161651861b28d848271c21ad2178c5cfe632e; quality6ae APPROVE_SOURCE_ONLY6f89188050ea097231137d2711d6b7e4fdfcb9840876b1464fe1e4eceec5b792; combinedresponsibility9bf76418ecb7cdff724098657c7c5df10faefbe9fae03b1a84ae6452e391c835. Not product acceptance."
+      r26_pair_negative: "One158/version observerON pair allfullreturns/null parityPASS, no demonstrated gain: blink1291.0037->1284.0077ms;millis1837.0177->2058.0597ms;combined+6.84percent. Host50percent/background/order caveat. reportf5d273509372200c474cf8f3b28f561d38c903502f7df00b3698884ea5c41f03. No rerun."
+      r27_confirmed_activation_defect: "Root decoded original actual158 input states: after each H0 output-history eventQueue alreadycontains pin-mode-change/output-change and later up to256; ordinaryOwnedContinuation requires length0. Thus156continued requests cannot enter retained execution, despite single-session tests passing and full parity via generic fallback. This is a defect of the new optimization, not a claim of sole original classroom cause. Correct the passive-history filter and require real subsequent-request activation before further timing."
+      r25_runtime_source_sha: "32b20074c6c92367c7008690375507dba79f2c67"
+      r25_runtime_independent_source_review: "APPROVE_SOURCE_ONLY; report629b2d204221de0d021e38d75103e21d8719e37adb39e121f0a436fe3eec3b21,148 independent runtime cases and8 Worker lifecycle cases; complete158 artifacts/hashes audited without replay. Not product acceptance."
+      r25_runtime_responsibility_review: "APPROVE_RESPONSIBILITY_ONLY; report4a34e042e04783ee211b68a10f8a58b37d22a0ee636a6a48db165bc15cdc5f91; runtime102998B/scheduler70007B retain decomposition-candidate, narrow reviewed baseline maintenance required."
+      r25_one_pair_result: "ONE sequential coldNode pair observerON,158 requests/version,full returns/null vectors0/8954 identical. Blink1317.2612->1289.7330ms (-2.0898percent);millis2701.9966->2071.2621ms (-23.3433percent);combined4019.2578->3360.9951ms (-16.3777percent). Insufficient native headroom; not realtime/school/browser acceptance. reportadd76daa641ff258f1ffcf61c3b5f970dfddf2cc34367a50e6af261c7b70aca8; original defer then root15percent host-load decision retained."
+      r26_quality_prior_proposal: "Prepared quality traversal38a30ee18076ed74ac7a5043cf3de1dc6d1a74a203750e3988dc1dbfab81cf6b; prior refusal1ce817ae was missing producer authority. NEW bounded architecture review must use actual fecd/32 early complete origin proof, no unbounded callback inventory. Cached verdicts and rejectedc532 finite-only path remain prohibited."
       r25_origin_foundation_sha: "8cc7f8299991f568c299e393c6fae2e9a5fbc055"
       r25_origin_foundation_review: "NEW APPROVE_SOURCE_ONLY report94c9ca0a14923d6f88c55ea24a8bd3bbd603356de27cfeed20521fdca0253b50;23freshVitest4.1.11,254independentoriginnegatives,70parentmodelcomparisonsPASS/0extraGetterProxy. Notwholekernel/runtime/performance/productapproval."
       r25_finite_closure_receipt_sha256: "b92738ff583c9d362546545345fada62eb3da57259a3fdc7445aaa55fa225c50"
@@ -4141,7 +5119,7 @@ parallel_lanes:
         DOM dark phase15.9ms.
       r18_directed_run: 39108267782
       r18_preserved_candidate_sha: 9bc659a780a02dfc99af789cef53ed8feb956146
-      selected_at: "2026-10-18T16:33:45.876921+00:00"
+      selected_at: "2026-10-18T17:58:38.475626+00:00"
       r17_preserved_candidate_sha: "343a6024ded71a883373ed7cc0fcc342a87db785"
       r17_directed_run: 38833934410
       r17_directed_result: "SUCCESS exact343a build; focused and unchanged seven production browser journeys PASS. Independent original ZIP CRC/hash,1135 ready records and13 native PNGs confirmed.100ms electrical4.999775Hz/paint5.099Hz;50ms electrical9.999100Hz/paint10.100Hz; no-delay realtime endpoint lag27.8ms. Earlier272.7ms FAIL belongs to1eff, not343a. Older sustained-HIGH capture has early305ms lag; no universal250ms claim."
@@ -4161,10 +5139,10 @@ parallel_lanes:
       r7_status: not_accepted_directed_failed
       r7_actual_host_tick_ms: 10
       r7_documentation_correction: 'Historical selected20ms retained above/in R7 history; actual controller-authorized source21e uses10ms and ready25000us. R8 does not change these values.'
-      implementation_acceptance: "Finite strictclosure source receipt b92738ff583c9d362546545345fada62eb3da57259a3fdc7445aaa55fa225c50 completes9groups. Beforetrust, noarg defining-module predicates must coverresistoractualmethods+7rejectedlinearidselectors, ordinaryLEDprofiles, groundarray,3requiredterminalarrays,3exactidentityrecords,2thermalprofiles,NUMERIC_TYPES. Reuse reviewed8ccoriginaldescriptor machinery; knownliterals only, nogetter/unknownProxy probes, publicgeneric mutation/read/error behavior unchanged. NPN/PNP selector ID-only DATA-descriptor proofs maylive inalreadyselected scheduler againstknown nonmatching primitiveid; noNPN/PNP source edit. ARDUINO_TEXT_COMMAND_SUPPORT routes excluded upfront: anysourceinclude/directive/member support orotherunprovedroute GENERIC; noarduino-capabilities edit. Admission strictly1canonicalUNOvisual/resistor-axial/led-5mm,ordinaryprimitivecloneddata,6knownowncolours/absentdefaultred,noinputs/timedperipheral/Servo/unprovedcalls. Unknowneligible route staysgeneric notproductreject. Origins checked AFTERexistingclones BEFOREinitialmodelcallbacks, then beforefirststep/everyresume; neverpromoteafterunprovedcallbackmayhaveescapedclone. Keep oldcompile/digest/guard exceptionpriority; puredescriptors addnoexternalreads. Onoriginloss transfer exactcompletedbatch toexistinggenericonce withunchangedremainingbudget/nullpartitions. NEW independent exactremainingoriginreview thenruntimeauthorconnects; NEW runtime/source/math/hygiene review,158parity/ONEpairedelapsed,final12+ordinary+repository+NEWproductreview. AlloriginalR25normalization/old-newGPIO/detachedsnapshot/disposal/1us/1000us/256requirementsremain. AcceptanceblockerOPEN."
-      next_action: "Publishthisfiniteclosure mainFIRST; same separateorigin authorimplements5newowners+smalllinearselectionextension andexistingcoupledmodelspec, onefrozenSHA STOP, NEWindependentreview. No furthergeneralinventory/profile/wholeCI. Thenhandapproveddisjointsource toheldruntimeauthor preserving8dirtyfiles, wire completeoriginaggregation/strictsemanticadmission/exactstickyfallback, finish158correctness/freeze/NEWreview,rootonepairedelapsed beforeactualeditor. Preserve foreignClassroom/capacity/Projects/source/currentstate andallheldnegativeevidence; no school/DB/Docker/network orotherownerproblem."
+      implementation_acceptance: "Prove actual multi-REQUEST activation after H0, later requests and full256 output-history tail using owner production three-LED/millis documents; nonnull retained runtime and genuine prepared-quality receipt must execute on each eligible subsequent request. Exact result/queue/state/physical/quality/optical/null parity and malformed-history fault priority remain. Use saved actual continuations and a few directed activation probes before ONE later corrected-packet158 pair; no new profile or repeat of unchanged R26 pair. Author exactSHA/STOP, root actualdiff/evidence, NEW independent exact review, then viable exact built-editor12/ordinary/repository/new product review. All R25/R26 ownership/origin/snapshot/disposal invariants remain. Acceptance blocker OPEN."
+      next_action: "STOP explicitly requested by owner to limit token use. All authors/reviewers stopped; resume only on new explicit owner instruction and fresh Git/current/CI recovery. Do not run R27, new measurements, profiles, CI or deployment automatically. Preserved combinedsourcecdad26c and common1669d7b2 are in diagnostics refs; R27 branch clean at1669, no correction written. Existing acceptance blocker prevents unaccepted product integration. On owner resume, implement only confirmed passive event-history admission correction, prove actual subsequent-request owned/quality activation, NEW exact review, then corrected full158 and real browser acceptance. School/liveDB/Docker/network untouched."
       r17_preserved_repair_scope: "Preserve exact1eff and its approved source/math; product still REQUEST_CHANGES. ONE bounded runtime write-action cost repair in arduino-program-runtime.ts: remove only redundant writes/lookups after existing pin-mode handling, retaining every action, instruction, time, budget, event, shadow/error, pullup/PWM and signed-zero/absent-entry semantics. Existing native profile identifies unchanged applyRuntimeAction cost; it does not measure individual Map.set. First verify equivalence and one short paired real-horizon cost comparison; retain only a measured improvement, no heavy CI for an unsupported micro-optimization. No instruction skipping, special sketch detection, clock rebasing, precision/timeout changes or new profiling. Focused regression and NEW exact independent source/math review before unchanged directed browser gate. FastLED/openBlockly remain required same-goal followups; no foreign/school/deployment changes."
-      repair_scope: "R25 same Arduino546 repair, no new programme/task. Preserve held8runtimefiles and reviewedUI19d22; origin8cc SOURCE_ONLY_APPROVE. ONE remaining-origin author may edit previously selected device-model.ts/linear-dc-models.ts/led-model.ts plus FIVE existing owners ONLY: arduino-model.ts (ground array), model-registry.ts (3strictrequiredterminalarrays), model-identity.ts (3exactidentityrecords), models/thermal-transient-model.ts (resistor+junction profiles), arduino-values.ts (NUMERIC_TYPES array); all paths under contexts/electronics/domain. ONEexisting linear-dc-models.spec.ts covers coupled origin wrappers; no newtestfile. Root maps5sources. Runtimeauthor retains original4prod4spec only. Total12production/5existingtests, onecohesive privateorigin/ownedrequest repair. No newmodule, baseline bump, publicfreeze/token/package/index export, physics/maths/quality/numeric-cache/precision/budget/timeout/artwork/deployment changes."
+      repair_scope: "Only confirmed R26 acceptance defect: ordinaryOwnedContinuation wrongly rejects every nonempty passive output event history. Preserve cdad26c combined source, all reviews and negative pair. ONE repair author may edit only contexts/electronics/domain/arduino-circuit-scheduler.ts and existing contexts/electronics/testing/engine-timed-api.spec.ts. Permit originally validated passive output history without weakening old initial full runtime/schema/counter/sequence/time/kind or unloaded-source guards; retain every history entry and copy/append/trim order. No new input/peripheral/Serial/Servo/tone/source/producer admission, new module, runtime arithmetic, clock, physics, quality, timeout or precision change."
       r9_candidate_sha: "9df144e48165ee330ea43f547e2d52782964bd54"
       r9_candidate_branch: "codex/electronics-546-r9-host-demand"
       r9_candidate_publication: "pushed_not_integrated_not_deployed"
@@ -6907,12 +7885,13 @@ blocking:
     - bounded_corrected_before_composition
     - isolated_ci_fixture_validation
     - independent_runtime_evidence_review
-    reason: Reviewed6184 mobile UI remains unaccepted; exact prior browser failed before tests on Node/Caddy
-      HTTP429 (D). Supporting02ae transport has NEW source approval only, actual Actions identity NOT_RUN.
-      The owner now selects bounded corrected BEFORE composition and isolated CI fixture validation with
-      unchanged reviewed infrastructure. This does not lift closure blocks; actual complete native BEFORE/
-      AFTER, Save/CAS/cookies reopen, required exact gates and NEW runtime/visual review remain unproved.
-      Historical General6184 foreign migration/Portal failures (C) are not this composition's repair scope.
+    - bounded_r3_mobile_oracle_repair
+    - bounded_shared_ci_guard_composition
+    reason: R3 tests7146 have NEW source approval only; actual R3 CI/runtime remains NOT_RUN. Accepted main
+      changed the shared/security image guard for General Node transport, requiring the selected GC1 scoped
+      guard composition before publication or R3 BEFORE. Preserve both scoped contracts and frozen tests;
+      do not publish stale guard or claim acceptance. Prior b967 zero-of-six completion and genuine single
+      Save no-click/PUT0 remain unproved after repair. Existing full gates/NEW actual runtime review required.
     unblock_requires: Actual required exact-SHA gates plus complete native/visual and whole-document
       Save/CAS/reopen evidence and NEW independent runtime/visual approval; text changes alone cannot close this blocker.
     evidence: docs/product/electronics/evidence/mobile-add-connect-6184f331-review.md

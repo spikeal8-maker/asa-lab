@@ -349,10 +349,35 @@ async function assertLayout(page: Page, width: number, file: string) {
     const rect = await header.boundingBox();
     expect(rect!.y).toBe(0);
     expect(rect!.height).toBe(56);
+    const globalLinks = header.locator('.portal-global-nav a');
+    const expectedLinks = [
+      ['Проекты', '/#/gallery'],
+      ['Знания', '/#/knowledge'],
+      ['ИИ', '/#/ai'],
+    ] as const;
+    await expect(globalLinks).toHaveCount(expectedLinks.length);
+    for (const [index, [name, href]] of expectedLinks.entries()) {
+      await expect(globalLinks.nth(index)).toHaveAccessibleName(name);
+      await expect(globalLinks.nth(index)).toHaveAttribute('href', href);
+    }
     const headerControls = header.locator(
       '.portal-menu-toggle, .portal-brand, .portal-global-nav a, .portal-header-create, .portal-account > summary',
     );
-    await expect(headerControls).toHaveCount(6);
+    await expect(headerControls).toHaveCount(7);
+    const publicNavigation = header.getByRole('navigation', {
+      name: 'Разделы ASA Lab',
+      exact: true,
+    });
+    await expect(publicNavigation.locator('a')).toHaveCount(3);
+    for (const [name, href] of [
+      ['Проекты', '/#/gallery'],
+      ['Знания', '/#/knowledge'],
+      ['ИИ', '/#/ai'],
+    ] as const) {
+      const link = publicNavigation.getByRole('link', { name, exact: true });
+      await expect(link).toHaveJSProperty('tagName', 'A');
+      await expect(link).toHaveAttribute('href', href);
+    }
     let previousRight = 0;
     for (const control of await headerControls.all()) {
       await expect(control).toBeVisible();
@@ -681,7 +706,7 @@ test('assigned without a project stays one row through start, submission and rev
     );
     expect(seatRoleDenied.status()).toBe(401);
     expect(await seatRoleDenied.json()).toMatchObject({ error: { code: 'unauthorized' } });
-    await pupil.goto('/#/learning');
+    await pupil.goto('/#/learning?view=results');
     await expect(pupil.getByRole('heading', { name: 'Мои заслуги', exact: true })).toBeVisible();
     await expect(pupil.getByRole('heading', { name: 'Заслуги преподавателя' })).toHaveCount(0);
     await expect(pupil.getByRole('region', { name: 'Мои показатели' })).not.toContainText('API');
@@ -845,7 +870,7 @@ test('real full Account and Seat manual history preserves zero and all five leve
     });
     for (const [learner, route, profilePath] of [
       [account, '/#/attending', `/api/classrooms/${classroom.id}/participants/${ownId}/profile`],
-      [seat, '/#/learning', '/api/class-join/participants/me'],
+      [seat, '/#/learning?view=results', '/api/class-join/participants/me'],
     ] as const) {
       await learner.goto(route);
       if (learner === account)
@@ -941,7 +966,14 @@ test('real full Account and Seat manual history preserves zero and all five leve
       authoritative.journal.grades.filter((grade) => grade.columnId === retractionColumn.id),
     ).toEqual([expect.objectContaining({ revision: 2, value: null })]);
     await page.getByRole('button', { name: 'Оценки', exact: true }).click();
-    const gradesRegion = page.getByRole('region', { name: 'Оценки' });
+    // The summary strip separately exposes the same current grades under
+    // "Оценки этого класса"; inspect only the full panel, including after focus.
+    const gradesRegion = page.getByRole('region', { name: 'Оценки', exact: true });
+    const manualGrades = gradesRegion.getByRole('list', { name: 'Ручные оценки', exact: true });
+    await expect(manualGrades.getByRole('listitem')).toHaveCount(4);
+    await expect(
+      manualGrades.getByRole('listitem').filter({ hasText: 'Отзыв оценки' }),
+    ).toContainText('Отозвана');
     await expect(
       gradesRegion.locator('.participant-grade-value').filter({ hasText: /^0$/ }),
     ).toHaveCount(1);
@@ -953,10 +985,14 @@ test('real full Account and Seat manual history preserves zero and all five leve
     );
     await page.evaluate(() => window.dispatchEvent(new Event('focus')));
     expect((await gradesRefreshed).ok()).toBe(true);
+    await expect(manualGrades.getByRole('listitem')).toHaveCount(4);
+    await expect(
+      manualGrades.getByRole('listitem').filter({ hasText: 'Отзыв оценки' }),
+    ).toContainText('Отозвана');
     await expect(
       gradesRegion.locator('.participant-grade-value').filter({ hasText: /^0$/ }),
     ).toHaveCount(1);
-    for (const width of [320, 390, 1440]) await assertLayout(page, width, 'teacher-grades');
+    for (const width of [320, 390, 1024, 1440]) await assertLayout(page, width, 'teacher-grades');
     await seatContext.addCookies(await accountContext.cookies());
     for (const path of [
       '/api/class-join/participants/grades',

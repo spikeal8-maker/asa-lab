@@ -20,6 +20,7 @@ import {
   type LiveChessResult,
 } from '@asa-lab/chess-live';
 import { SESSION_COOKIE, TOKENS } from './tokens.js';
+import { STUDENT_SESSION_COOKIE } from './seat-context.js';
 import { checkBodyShape, checkIdempotencyKey } from './validation.js';
 
 const STATUS_BY_CODE: Readonly<Record<LiveChessErrorCode, number>> = {
@@ -97,6 +98,15 @@ export class ChessLiveController {
   ) {}
 
   private async principal(request: FastifyRequest): Promise<{ tenantId: string; userId: string }> {
+    if (Object.prototype.hasOwnProperty.call(request.cookies, STUDENT_SESSION_COOKIE)) {
+      throw new HttpException(
+        error(
+          'student_offline_only',
+          'В ученическом режиме доступны только игры без сетевых соперников.',
+        ),
+        403,
+      );
+    }
     const context = await this.activeContext.resolve(request.cookies[SESSION_COOKIE]);
     if (!context) throw new HttpException(error('unauthorized', 'no active session'), 401);
     if (context.userId !== null) {

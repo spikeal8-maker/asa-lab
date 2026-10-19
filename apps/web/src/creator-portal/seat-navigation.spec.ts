@@ -15,6 +15,7 @@ describe('Seat navigation', () => {
       { section: 'learning', label: 'Моё обучение' },
       { section: 'projects', label: 'Мои проекты' },
       { section: 'games', label: 'Игры' },
+      { section: 'ai', label: 'ИИ' },
       { section: 'help', label: 'Помощь' },
       { section: 'account', label: 'Настройки учебного профиля' },
     ]);

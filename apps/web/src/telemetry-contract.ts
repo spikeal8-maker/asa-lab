@@ -157,7 +157,12 @@ export function confirmedAnalytics(value: unknown, envelope: AnalyticsEnvelope):
     !time(value.persistedAt)
   )
     return false;
-  if (!envelope.operation) return uuid(value.recordId);
+  if (!envelope.operation)
+    return (
+      typeof value.recordId === 'number' &&
+      Number.isSafeInteger(value.recordId) &&
+      value.recordId > 0
+    );
   if (value.sessionId !== envelope.sessionId || !record(value.result)) return false;
   const r = value.result;
   if (

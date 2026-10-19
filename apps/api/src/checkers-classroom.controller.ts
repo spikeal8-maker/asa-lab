@@ -29,6 +29,7 @@ import { randomUUID } from 'node:crypto';
 import { withTenantContext } from '@asa-lab/database';
 import type { ActiveContext, ActiveContextUseCase } from '@asa-lab/identity';
 import { SESSION_COOKIE, TOKENS } from './tokens.js';
+import { STUDENT_SESSION_COOKIE } from './seat-context.js';
 import { checkBodyShape } from './validation.js';
 
 function error(code: string, message: string): { error: { code: string; message: string } } {
@@ -126,6 +127,15 @@ export class CheckersClassroomController {
   private async requireContext(
     request: FastifyRequest,
   ): Promise<ActiveContext & { userId: string }> {
+    if (Object.prototype.hasOwnProperty.call(request.cookies, STUDENT_SESSION_COOKIE)) {
+      throw new HttpException(
+        error(
+          'student_offline_only',
+          'В ученическом режиме доступны только игры без сетевых соперников.',
+        ),
+        403,
+      );
+    }
     const context = await this.activeContext.resolve(request.cookies[SESSION_COOKIE]);
     if (!context) throw new HttpException(error('unauthorized', 'no active session'), 401);
     if (context.userId === null || context.workspaceKind !== 'organization') {

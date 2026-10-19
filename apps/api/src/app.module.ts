@@ -1,6 +1,7 @@
 import { PgPresentationPreferences, PresentationPreferencesUseCase } from '@asa-lab/identity';
 import { PresentationPreferencesController } from './presentation-preferences.controller.js';
 import { Module, type DynamicModule } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import type pg from 'pg';
 import { runSessionContextQuery } from './session-database-diagnostics.js';
 import {
@@ -84,6 +85,8 @@ import { createRuntimeMetrics, type RuntimeMetrics } from '@asa-lab/observabilit
 import { HealthController } from './health.controller.js';
 import { ModulesController } from './modules.controller.js';
 import { ProjectsController } from './projects.controller.js';
+import { GamesAccessController } from './games-access.controller.js';
+import { gamesProjectGuard } from './games-project-guard.js';
 import { BlocksRuntimeSessionController } from './blocks-runtime-session.controller.js';
 import { BlocksRuntimeController } from './blocks-runtime.controller.js';
 import { BlocksRuntimeSessionIssuer } from './blocks-runtime-session-issuer.js';
@@ -94,6 +97,9 @@ import { SeatContextUseCase } from './seat-context.js';
 import { ProjectFeedbackService } from './project-feedback.js';
 import { BotChallengeService } from './bot-challenge.js';
 import { MaxAuthService } from './max-auth.service.js';
+import { TelegramAuthService } from './telegram-auth.service.js';
+import { AccountVerificationService } from './account-verification.service.js';
+import { AccountVerificationGuard } from './account-verification.guard.js';
 import { RefreshSessionService } from './refresh-session.service.js';
 import { TOKENS } from './tokens.js';
 import { ProductAnalyticsV2Controller } from './product-analytics-v2.controller.js';
@@ -123,9 +129,15 @@ export class AppModule {
       pool && typeof pool.connect === 'function' ? runSessionContextQuery : undefined;
     const runtimeMetrics = options.runtimeMetrics ?? createRuntimeMetrics();
     const maxAuthService = new MaxAuthService(requirePool());
+    const telegramAuthService = new TelegramAuthService(requirePool());
+    const accountVerification = new AccountVerificationService(requirePool(), [
+      maxAuthService,
+      telegramAuthService,
+    ]);
     const aiChatService = new AiChatService(requirePool());
     const productAnalytics = options.productAnalytics ?? new ProductAnalyticsService(pool);
-    const projectRepository = (): PgProjectRepository => new PgProjectRepository(requirePool());
+    const projectRepository = (): PgProjectRepository =>
+      new PgProjectRepository(requirePool(), undefined, gamesProjectGuard);
     const moduleRegistry = createApiModuleRegistry();
     // Health-only composition may be built without a DB. Every normal runtime
     // with APP_DATABASE_URL uses the durable RLS-protected repository.
@@ -194,6 +206,7 @@ export class AppModule {
         ClassroomTeacherInvitationsController,
         ModulesController,
         ProjectsController,
+        GamesAccessController,
         BlocksRuntimeSessionController,
         BlocksRuntimeController,
         CheckersClassroomController,
@@ -202,6 +215,7 @@ export class AppModule {
         ProductAnalyticsController,
       ],
       providers: [
+        { provide: APP_GUARD, useClass: AccountVerificationGuard },
         { provide: AdminLogsService, useFactory: () => new AdminLogsService() },
         LearningRemindersService,
         { provide: TOKENS.pool, useValue: pool },
@@ -213,6 +227,8 @@ export class AppModule {
         { provide: TOKENS.runtimeMetrics, useValue: runtimeMetrics },
         { provide: TOKENS.botChallengeService, useFactory: () => new BotChallengeService() },
         { provide: TOKENS.maxAuthService, useValue: maxAuthService },
+        { provide: TOKENS.telegramAuthService, useValue: telegramAuthService },
+        { provide: TOKENS.accountVerification, useValue: accountVerification },
         { provide: TOKENS.aiChatService, useValue: aiChatService },
         { provide: TOKENS.productAnalytics, useValue: productAnalytics },
         {

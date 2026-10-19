@@ -25,7 +25,11 @@ import {
   type AdminListCursor,
   type ResolvedAdminAccess,
 } from './admin-control-plane.service.js';
-import { MaxAuthService, MaxConfigurationError } from './max-auth.service.js';
+import { MaxAuthService } from './max-auth.service.js';
+import { TelegramAuthService } from './telegram-auth.service.js';
+import { ProviderConfigurationError } from './auth-provider-availability.js';
+import { AccountVerificationService } from './account-verification.service.js';
+import { AllowUnverifiedAccount } from './account-verification.guard.js';
 
 const DASHBOARD_RANGES = new Set<AdminDashboardRange>([
   '1h',
@@ -51,6 +55,8 @@ export class AdminController {
     @Inject(TOKENS.adminControlPlane)
     private readonly controlPlane: AdminControlPlaneService,
     @Inject(TOKENS.maxAuthService) private readonly maxAuth: MaxAuthService,
+    @Inject(TOKENS.telegramAuthService) private readonly telegramAuth: TelegramAuthService,
+    @Inject(TOKENS.accountVerification) private readonly verification: AccountVerificationService,
   ) {}
 
   private async requireContext(request: FastifyRequest): Promise<ActiveContext> {
@@ -74,6 +80,7 @@ export class AdminController {
   }
 
   @Get('me')
+  @AllowUnverifiedAccount()
   async me(@Req() request: FastifyRequest) {
     const { context, access } = await this.requireAdmin(request);
     return {
@@ -87,6 +94,7 @@ export class AdminController {
   }
 
   @Get('scopes')
+  @AllowUnverifiedAccount()
   async scopes(@Req() request: FastifyRequest) {
     const { access } = await this.requireAdmin(request);
     return { items: access.scopes };
@@ -318,7 +326,83 @@ export class AdminController {
     }
   }
 
+  @Get('auth/verification-policy')
+  @AllowUnverifiedAccount()
+  async verificationPolicy(@Req() request: FastifyRequest) {
+    const { context } = await this.requireAdmin(request);
+    try {
+      return await this.verification.adminPolicy(context.principalId);
+    } catch (failure) {
+      this.rethrowAdminFailure(failure);
+    }
+  }
+
+  @Post('auth/verification-policy')
+  @HttpCode(200)
+  @AllowUnverifiedAccount()
+  async updateVerificationPolicy(@Req() request: FastifyRequest, @Body() body: unknown) {
+    const { context } = await this.requireAdmin(request);
+    const value = this.object(body);
+    if (
+      typeof value['enabled'] !== 'boolean' ||
+      Object.keys(value).some((key) => key !== 'enabled')
+    )
+      throw new HttpException(error('validation_error', 'enabled must be boolean'), 400);
+    try {
+      return await this.verification.updatePolicy(
+        context.principalId,
+        value['enabled'],
+        request.id,
+      );
+    } catch (failure) {
+      this.rethrowAdminFailure(failure);
+    }
+  }
+
+  @Get('integrations/telegram')
+  @AllowUnverifiedAccount()
+  async telegramConfiguration(@Req() request: FastifyRequest) {
+    const { context } = await this.requireAdmin(request);
+    try {
+      return await this.telegramAuth.adminConfig(context.principalId);
+    } catch (failure) {
+      this.rethrowMaxConfigurationFailure(failure);
+    }
+  }
+
+  @Put('integrations/telegram')
+  @AllowUnverifiedAccount()
+  async updateTelegramConfiguration(@Req() request: FastifyRequest, @Body() body: unknown) {
+    const { context } = await this.requireAdmin(request);
+    const value = this.object(body);
+    if (typeof value['enabled'] !== 'boolean')
+      throw new HttpException(error('validation_error', 'enabled must be boolean'), 400);
+    if (value['clearToken'] !== undefined && typeof value['clearToken'] !== 'boolean')
+      throw new HttpException(error('validation_error', 'clearToken must be boolean'), 400);
+    const token = value['botToken'];
+    if (token !== undefined && (typeof token !== 'string' || token.trim().length > 2048))
+      throw new HttpException(error('validation_error', 'botToken is invalid'), 400);
+    try {
+      return await this.telegramAuth.updateAdminConfig(
+        context.principalId,
+        {
+          enabled: value['enabled'],
+          botUsername: this.text(value['botUsername'], 'botUsername', value['enabled'] ? 3 : 0, 64),
+          miniAppUrl: this.text(value['miniAppUrl'], 'miniAppUrl', value['enabled'] ? 12 : 0, 2048),
+          ...(typeof token === 'string' && token.trim().length > 0
+            ? { botToken: token.trim() }
+            : {}),
+          clearToken: value['clearToken'] === true,
+        },
+        request.id,
+      );
+    } catch (failure) {
+      this.rethrowMaxConfigurationFailure(failure);
+    }
+  }
+
   @Get('integrations/max')
+  @AllowUnverifiedAccount()
   async maxConfiguration(@Req() request: FastifyRequest) {
     const { context } = await this.requireAdmin(request);
     try {
@@ -329,6 +413,7 @@ export class AdminController {
   }
 
   @Put('integrations/max')
+  @AllowUnverifiedAccount()
   async updateMaxConfiguration(@Req() request: FastifyRequest, @Body() body: unknown) {
     const { context } = await this.requireAdmin(request);
     const value = this.object(body);
@@ -347,8 +432,8 @@ export class AdminController {
         context.principalId,
         {
           enabled: value['enabled'],
-          botUsername: this.text(value['botUsername'], 'botUsername', 3, 65),
-          miniAppUrl: this.text(value['miniAppUrl'], 'miniAppUrl', 12, 2048),
+          botUsername: this.text(value['botUsername'], 'botUsername', value['enabled'] ? 3 : 0, 64),
+          miniAppUrl: this.text(value['miniAppUrl'], 'miniAppUrl', value['enabled'] ? 12 : 0, 2048),
           ...(typeof token === 'string' && token.trim().length > 0
             ? { botToken: token.trim() }
             : {}),
@@ -631,27 +716,28 @@ export class AdminController {
   }
 
   private rethrowMaxConfigurationFailure(failure: unknown): never {
-    if (failure instanceof MaxConfigurationError) {
-      const responses: Record<
-        MaxConfigurationError['code'],
-        { readonly status: number; readonly message: string }
-      > = {
-        max_encryption_key_missing: {
+    if (failure instanceof ProviderConfigurationError) {
+      const suffix = failure.code.replace(/^(max|telegram)_/, '');
+      const responses: Record<string, { status: number; message: string }> = {
+        encryption_key_missing: {
           status: 503,
           message: 'Серверное хранилище секретов ещё не подготовлено.',
         },
-        max_token_missing: { status: 409, message: 'Для включения MAX нужен новый токен.' },
-        max_token_invalid: { status: 422, message: 'MAX отклонил этот токен.' },
-        max_token_bot_mismatch: {
+        token_missing: { status: 409, message: 'Для включения нужен токен бота.' },
+        token_invalid: { status: 422, message: 'Сервис отклонил этот токен.' },
+        token_bot_mismatch: {
           status: 422,
           message: 'Имя бота не совпадает с ботом, которому принадлежит токен.',
         },
-        max_service_unavailable: {
+        service_unavailable: {
           status: 503,
-          message: 'MAX сейчас не отвечает. Настройки не изменены.',
+          message: 'Сервис сейчас не отвечает. Проверьте состояние подключения.',
         },
       };
-      const response = responses[failure.code];
+      const response = responses[suffix] ?? {
+        status: 503,
+        message: 'Настройки подключения не сохранены.',
+      };
       throw new HttpException(error(failure.code, response.message), response.status);
     }
     this.rethrowAdminFailure(failure);

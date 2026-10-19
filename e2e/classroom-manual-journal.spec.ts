@@ -279,7 +279,7 @@ test('real manual date journal survives retries, corrections, presets and both l
     await learner.goto(`/#/join-class?code=${encodeURIComponent(joinCode)}`);
     await learner.getByLabel('Код ученика', { exact: true }).fill(pupil.studentCode);
     await learner.getByRole('button', { name: 'Войти', exact: true }).click();
-    await learner.goto('/#/learning');
+    await learner.goto('/#/learning?view=results');
     const grades = learner.getByRole('region', { name: 'Мои оценки по датам' });
     await grades.getByLabel('Месяц журнала', { exact: true }).fill('2026-10');
     await expect(grades.locator('li')).toHaveCount(1);
@@ -319,7 +319,7 @@ test('real manual date journal survives retries, corrections, presets and both l
       });
       expect(disabled.ok()).toBe(true);
       await setGrade(page, pupil.name, '5', 'Оценка после отключения оповещений');
-      await learner.goto('/#/learning');
+      await learner.goto('/#/learning?view=results');
       await grades.getByLabel('Месяц журнала', { exact: true }).fill('2026-10');
       await expect(grades.locator('li b')).toHaveText('5');
       const loggedOut = await post(learner, '/api/class-join/logout', {});
@@ -334,7 +334,7 @@ test('real manual date journal survives retries, corrections, presets and both l
       await learner.goto(`/#/join-class?code=${encodeURIComponent(joinCode)}`);
       await learner.getByLabel('Код ученика', { exact: true }).fill(pupil.studentCode);
       await learner.getByRole('button', { name: 'Войти', exact: true }).click();
-      await learner.goto('/#/learning');
+      await learner.goto('/#/learning?view=results');
       await grades.getByLabel('Месяц журнала', { exact: true }).fill('2026-10');
       await expect(grades.locator('li b')).toHaveText('5');
     }
@@ -373,7 +373,7 @@ test('real manual date journal survives retries, corrections, presets and both l
       })
     ).ok(),
   ).toBe(true);
-  await accountPage.goto('/#/learning');
+  await accountPage.goto('/#/learning?view=results');
   const accountGrades = accountPage.getByRole('region', { name: 'Мои оценки по датам' });
   await accountGrades.getByLabel('Месяц журнала', { exact: true }).fill('2026-10');
   await expect(accountGrades.locator('li')).toHaveCount(1);
