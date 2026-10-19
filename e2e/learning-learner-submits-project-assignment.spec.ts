@@ -746,6 +746,10 @@ test('old Direct and lesson-level Course handouts cannot create an orphan Projec
   await expect(directRow.getByText('Начать новую работу')).toBeVisible();
   await expect(directRow.getByRole('button', { name: 'Открыть', exact: true })).toHaveCount(0);
   await directRow.screenshot({ path: `${legacyStartEvidenceDir}/direct-unstarted.png` });
+  await learner.page
+    .getByRole('navigation', { name: 'Разделы моего обучения' })
+    .getByRole('link', { name: 'Курсы', exact: true })
+    .click();
   const courseRow = learner.page
     .getByTestId('seat-courses')
     .locator('li')
@@ -805,9 +809,17 @@ test('old Direct and lesson-level Course handouts cannot create an orphan Projec
     );
   }
   await learner.page.reload();
+  await learner.page
+    .getByRole('navigation', { name: 'Разделы моего обучения' })
+    .getByRole('link', { name: 'Задания', exact: true })
+    .click();
   await expect(
     assignmentRow(learner.page, directTitle).getByRole('button', { name: 'Открыть работу' }),
   ).toBeVisible();
+  await learner.page
+    .getByRole('navigation', { name: 'Разделы моего обучения' })
+    .getByRole('link', { name: 'Курсы', exact: true })
+    .click();
   await learner.page
     .getByTestId('seat-courses')
     .locator('li')

@@ -23,6 +23,10 @@ test.afterAll(async () => {
 
 async function openLearnerLearning(page: import('@playwright/test').Page): Promise<void> {
   await openPortalSection(page, 'Моё обучение');
+  await page
+    .getByRole('navigation', { name: 'Разделы моего обучения' })
+    .getByRole('link', { name: 'Задания', exact: true })
+    .click();
 }
 
 test('legacy, revision and selected-result semantics stay equal across learner and teacher surfaces', async ({
