@@ -277,12 +277,21 @@ new browser evidence and independent acceptance. Selection is not deployment.
 ## Gates and independent acceptance
 
 First use short source checks. Fresh local/CI evidence uses literal
-NX_SKIP_NX_CACHE=true. Required final commands remain:
+NX_SKIP_NX_CACHE=true. Required classroom acceptance commands are:
 
 - pnpm gate:electronics-m1
 - pnpm benchmark:electronics:ci
-- pnpm gate:electronics-m1:browser
+- pnpm gate:electronics-classroom-d13:browser
 - pnpm gate:repository
+
+The separately named classroom command is now composed with the complete suite
+and the reviewed focused workflow. Also run pnpm gate:electronics-m1:browser
+under strict-real-time on the same exact source and preserve its actual result.
+The explicit revision-2 qualifications above are the entire separation allowed;
+a strict non-realtime failure remains a finding to resolve, not a waived result.
+All binding classroom assertions must execute and pass, including the downstream
+assertions that a strict absolute-rate failure may have prevented from running.
+This composition checkpoint is not browser acceptance or permission to deploy.
 
 The classroom journey must be registered in the canonical browser command.
 Keep prior real-time assertions executable and their real conclusions visible.
