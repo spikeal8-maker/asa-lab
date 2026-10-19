@@ -4810,6 +4810,104 @@ parallel_lanes:
           Coverage Diagnostics workflow on the new SHA, including both platform collectors
           and downstream real PostgreSQL integration. No migration, collector algorithm,
           auth policy, rate-limit, timeout/retry, workflow or deployment/live DB change.
+      - id: TASK-PROJ-PUBLICATION-LEARNING-DECLARATION-ISOLATION-001
+        status: in_progress
+        branch: codex/projects-learning-declaration-isolation
+        prepared_source: 7f4d87d3c5a361b25db2bc4f05b62501db856d52
+        scope:
+          - .github/workflows/learning-e1-focused.yml
+        selection: >-
+          Separate bounded successor to the failed per-file isolation experiment.
+          Actual Learning39234380988 on7f4d87d executed courses2/2 and preview7/7,
+          then all14 course cases with12 PASS/2 fresh-login429 FAIL; first23 is21/23
+          and the complete second group is NOT_RUN. Captured login requests have no
+          Cookie/Authorization and Retry-After116/114, supporting the common mutation
+          guard within the separate course lifetime; internal counters were not read.
+          Source-only success and successful evidence preservation are not a repair.
+        author_coordination: >-
+          One separate workflow author starts from the completed frozen7f4d87d source.
+          Preserve PR634 and its failure evidence. The current-main three-spec
+          destination repair is exclusively AI-BASELINE-LEARNING-006 on
+          assistant/ai-learning-compatibility-20261019, selected in main e503d00f and
+          acknowledged in Issue373 comment6264966785; do not assign another writer
+          or modify those specs. Keep all application, config, fixture, package,
+          diagnostic630, Scratch, QR and exclusive GC1 paths unchanged.
+        acceptance: >-
+          Keep the first full courses-sharing and learning-author-preview invocations.
+          Partition only the full14-case course spec by its12 actual declaration
+          locations, preserving declaration order and both two-case loop groups.
+          Each group uses the ordinary unchanged Playwright-managed fresh API.
+          Preserve loop orders three-d then electronics, and electronics then three-d.
+          Normal fresh invocations repeat beforeAll/afterAll, teacher/pool creation
+          and module teacher/sequence/keys state; do not modify those fixtures or seeds.
+          Independently check that groups need no earlier invocation's state.
+          Derive current locations from exact candidate CLI discovery matched to
+          the approved ordered case-identity manifest, not only a count. Pre-discover
+          every location selector and prove its exact expected group and the full
+          ordered14-case union. Do not freeze obsolete line numbers, use text-grep
+          guesses, add fullyParallel, or rely on shards that keep the file together.
+          Save structured actual execution IDs/statuses for every invocation; missing,
+          duplicate, extra, skipped, interrupted, hook-unexecuted or ambiguous cases
+          cannot count as PASS. Missing/invalid execution reports fail coverage.
+          Run every selected group after earlier failures, retain the first nonzero
+          exit even after reporting failure, and run the unchanged complete15-case
+          second group only after all23 first-group cases actually pass. Preserve workers1,
+          retries0, all test/job timeouts, original assertions and actions, script
+          drift rejection, Node22/pnpm9.15.9/frozen install/uncached build/PG16/
+          restricted role/upgrade/Scratch setup/cleanup. No sleep, limiter reset,
+          proxy identity, privilege or product-policy change. Extra startup/hooks/
+          cleanup must fit the unchanged30-minute job timeout; exceeding it means
+          incomplete verification, never permission to raise it or infer remaining PASS.
+          No local application/server, PostgreSQL, Docker or browser journeys;
+          local source/CLI discovery and bounded synthetic checks may not start ASA.
+          Require independent
+          exact-source review with actual discovery and failure/coverage challenges,
+          then changed-source full Learning and required General CI. This is
+          per-declaration isolation, not one process per individual test; remaining
+          failures require their actual cause and never justify an unchanged rerun.
+      - id: TASK-PROJ-PUBLICATION-SCRATCH-RECOVERY-TIMING-001
+        status: in_progress
+        branch: codex/projects-scratch-recovery-timing
+        prepared_source: 8f2cc69835cb7cf135d2390319651c315c496e54
+        scope:
+          - e2e/blocks-recovery.spec.ts
+        selection: >-
+          Bounded evidence successor after Scratch39232051458 on8f2cc698 completed
+          56/57 cumulative cases, with only failed server autosave retains recovery
+          timing out at150000ms. General39232051363 passed. Both Abby/Pop cases passed
+          and are NOT_REPRODUCED, not proven repaired. Recovery JSON records checkpoint73,
+          HTTP503 with recoveryReadyAtResponse=true, response-completion-enter, then
+          finally-enter and legacy-attachment-enter. Later retention assertions and
+          teardown were not reached. No trace or monotonic timing exists, so neither
+          sole response.finished nor sole attachment hang is established.
+        author_coordination: >-
+          One separate diagnostic author owns only this failed-autosave case after
+          completed frozen8f2 handoff and independent actual QA. Preserve both original
+          diagnostic files and PR632 history, editing only this one case and required
+          local declarations/imports. Existing Issue601/599 runtime/unit authors retain
+          their lanes. Do not modify protocol fixture, product/runtime, workflow,
+          other Scratch cases, Learning, QR or the exclusive GC1 guard.
+        acceptance: >-
+          Add bounded monotonic Node timestamps and closed fixed-enum events for the
+          exact existing draft requestfinished/requestfailed, response.finished call,
+          normal/null or Error-value return and rejection, and existing attachment
+          payload preparation, call, return and rejection. Distinguish method call
+          return from Promise settlement. Preserve original invocation counts, arguments,
+          this/return/throw, await order, every assertion, clock/actions and150000ms
+          timeout. Preserve the attachment's existing rejection handling and rethrow
+          originally propagated errors unchanged; diagnostic failures cannot replace
+          those errors or bypass cleanup. Observe only already-existing events; do
+          not consume bodies or invoke save, retry, reschedule or add a timeout.
+          Retain existing safe JSON and durable writes before waits, numeric bounds,
+          event caps and failure counters. No URLs, tokens, cookies, bodies or raw
+          errors in new evidence. Missing callback/return/settlement evidence remains
+          UNKNOWN or NOT_OBSERVED; loss or write failures make capture incomplete.
+          No local application/server, PostgreSQL, Docker or browser journeys;
+          local source/discovery and bounded synthetic checks may not start ASA.
+          Independently challenge actual callback/error/
+          persistence behavior and privacy, then run changed-source Scratch CI with
+          exact pinned build identity and all original cases. A timeout remains FAIL;
+          nonreproduction is NOT_REPRODUCED and does not establish a runtime repair.
     accepted_foundation:
       accepted_r7_01b_merge_sha: 65316c50873e28a5effd7b6e603b5289e37e2fac
       accepted_r3_merge_sha: 5fa616045b16d2720418eb7945f7bef968dd9389
