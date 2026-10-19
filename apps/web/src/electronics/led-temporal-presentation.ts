@@ -346,7 +346,9 @@ export class LedTemporalPresentation {
         // it on HIGH and adding it back on LOW would make the older cursor appear
         // uncovered and prematurely move every indicator to the new LOW endpoint.
         (electrical.junctionState === 'reverse_blocking' &&
-          (component.samples.some((sample) => sample.brightness !== 0 || sample.current > 0) ||
+          (component.samples.some(
+            (sample: ElectronicsLedTemporalSample) => sample.brightness !== 0 || sample.current > 0,
+          ) ||
             previous?.some((sample) => sample.brightness !== 0 || sample.current > 0))) ||
         electrical.presentationState === 'failed' ||
         electrical.deviceHealth === 'failed_open' ||
