@@ -1,7 +1,7 @@
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type pg from 'pg';
 import { NestFactory } from '@nestjs/core';
 import { EventEmitter } from 'node:events';
@@ -199,65 +199,81 @@ describe('API application factory', () => {
     expect(unknownApi.statusCode).toBe(404);
   });
 
-  it('constructs a health-only app without a database and reports 503 readiness', async () => {
-    const app = await createApiApp({ pool: null, webDist: null });
-    apps.push(app);
-    const fastify = app.getHttpAdapter().getInstance();
-
-    const live = await fastify.inject({ method: 'GET', url: '/health/live' });
-    expect(live.statusCode).toBe(200);
-    expect(live.json()).toEqual({ status: 'live' });
-    expect(live.headers['x-request-id']).toBeTruthy();
-    expect(live.headers['content-security-policy']).toContain("frame-ancestors 'none'");
-    expect(live.headers['content-security-policy']).toContain(
-      "script-src 'self' https://st.max.ru",
-    );
-    expect(live.headers['content-security-policy']).toContain("connect-src 'self' blob:");
-    expect(live.headers['content-security-policy']).toContain("worker-src 'self' blob:");
-    expect(live.headers['strict-transport-security']).toBe('max-age=31536000; includeSubDomains');
-    expect(live.headers['x-content-type-options']).toBe('nosniff');
-    expect(live.headers['x-frame-options']).toBe('DENY');
-
-    const ready = await fastify.inject({ method: 'GET', url: '/health/ready' });
-    expect(ready.statusCode).toBe(503);
-    expect(ready.json()).toEqual({
-      status: 'not_ready',
-      dependencies: { database: 'down' },
-      deployment: {
-        revision: 'development',
-        builtAt: null,
-        schemaVersion: null,
-        expectedSchemaVersion: null,
-        synchronized: null,
-        artifactIntegrity: 'unknown',
-        artifactVerifiedAt: null,
-      },
+  describe('readiness without deployment build metadata', () => {
+    beforeEach(() => {
+      // CI supplies real build metadata. These two cases exercise the explicit
+      // development defaults; other factory/metadata cases keep their own env.
+      for (const name of [
+        'ASA_BUILD_REVISION',
+        'ASA_BUILT_AT',
+        'ASA_EXPECTED_SCHEMA_VERSION',
+        'ASA_ARTIFACT_INTEGRITY',
+        'ASA_ARTIFACT_VERIFIED_AT',
+      ])
+        vi.stubEnv(name, undefined);
     });
-  });
+    afterEach(() => vi.unstubAllEnvs());
 
-  it('reports ready when the configured database probe succeeds', async () => {
-    const pool = {
-      query: vi.fn(async () => ({ rows: [{ '?column?': 1 }] })),
-      end: vi.fn(async () => undefined),
-    } as unknown as pg.Pool;
-    const app = await createApiApp({ pool, webDist: null });
-    apps.push(app);
-    const fastify = app.getHttpAdapter().getInstance();
+    it('constructs a health-only app without a database and reports 503 readiness', async () => {
+      const app = await createApiApp({ pool: null, webDist: null });
+      apps.push(app);
+      const fastify = app.getHttpAdapter().getInstance();
 
-    const ready = await fastify.inject({ method: 'GET', url: '/health/ready' });
-    expect(ready.statusCode).toBe(200);
-    expect(ready.json()).toEqual({
-      status: 'ready',
-      dependencies: { database: 'up' },
-      deployment: {
-        revision: 'development',
-        builtAt: null,
-        schemaVersion: null,
-        expectedSchemaVersion: null,
-        synchronized: null,
-        artifactIntegrity: 'unknown',
-        artifactVerifiedAt: null,
-      },
+      const live = await fastify.inject({ method: 'GET', url: '/health/live' });
+      expect(live.statusCode).toBe(200);
+      expect(live.json()).toEqual({ status: 'live' });
+      expect(live.headers['x-request-id']).toBeTruthy();
+      expect(live.headers['content-security-policy']).toContain("frame-ancestors 'none'");
+      expect(live.headers['content-security-policy']).toContain(
+        "script-src 'self' https://st.max.ru",
+      );
+      expect(live.headers['content-security-policy']).toContain("connect-src 'self' blob:");
+      expect(live.headers['content-security-policy']).toContain("worker-src 'self' blob:");
+      expect(live.headers['strict-transport-security']).toBe('max-age=31536000; includeSubDomains');
+      expect(live.headers['x-content-type-options']).toBe('nosniff');
+      expect(live.headers['x-frame-options']).toBe('DENY');
+
+      const ready = await fastify.inject({ method: 'GET', url: '/health/ready' });
+      expect(ready.statusCode).toBe(503);
+      expect(ready.json()).toEqual({
+        status: 'not_ready',
+        dependencies: { database: 'down' },
+        deployment: {
+          revision: 'development',
+          builtAt: null,
+          schemaVersion: null,
+          expectedSchemaVersion: null,
+          synchronized: null,
+          artifactIntegrity: 'unknown',
+          artifactVerifiedAt: null,
+        },
+      });
+    });
+
+    it('reports ready when the configured database probe succeeds', async () => {
+      const pool = {
+        query: vi.fn(async () => ({ rows: [{ '?column?': 1 }] })),
+        end: vi.fn(async () => undefined),
+      } as unknown as pg.Pool;
+      const app = await createApiApp({ pool, webDist: null });
+      apps.push(app);
+      const fastify = app.getHttpAdapter().getInstance();
+
+      const ready = await fastify.inject({ method: 'GET', url: '/health/ready' });
+      expect(ready.statusCode).toBe(200);
+      expect(ready.json()).toEqual({
+        status: 'ready',
+        dependencies: { database: 'up' },
+        deployment: {
+          revision: 'development',
+          builtAt: null,
+          schemaVersion: null,
+          expectedSchemaVersion: null,
+          synchronized: null,
+          artifactIntegrity: 'unknown',
+          artifactVerifiedAt: null,
+        },
+      });
     });
   });
 

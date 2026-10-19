@@ -26,6 +26,19 @@ only for this result. Existing rating computation, assignment lifecycle, online
 game authorization and tenant/RLS identity are preserved. The navigation and
 My Learning slices have different authors.
 
+Fresh overlap checks also hand off four narrowly bounded entry seams.
+`apps/api/src/gallery.controller.ts` may reject any present StudentSeat cookie
+in `copy()` before Account resolution, preserving public reads and Account-only
+copy behavior. `apps/web/src/modules/ModuleEditorHost.tsx` must obtain current
+server game admission and project authorization before mounting either game,
+including direct URLs; preserve the existing non-game editor path.
+`apps/web/src/chess/ChessModuleExperience.tsx` and
+`apps/web/src/chess/ChessHome.tsx` may carry the existing Seat identity into the
+UI and prevent mounting or launching online play for Seats. Existing Account
+play, offline engines, other Gallery operations and project ACL remain intact.
+These seams require direct both-cookie, denied/revoked URL and Account
+regressions; they grant no general Gallery or editor redesign.
+
 For any shared file, inspect current main and actual pending changes before
 writing; an unresolved overlap still blocks that file. Add precise missing
 surface/control mappings alongside the corresponding implementation, using

@@ -4,6 +4,7 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { BlocksAssetFormat } from '@asa-lab/blocks';
 import type { ProjectErrorCode } from '@asa-lab/projects';
 import { TOKENS } from './tokens.js';
+import { AccountVerificationService } from './account-verification.service.js';
 import {
   BlocksAssetStorageIntegrityError,
   BlocksAssetWriteMayHavePersistedError,
@@ -79,6 +80,8 @@ export class BlocksRuntimeController {
   constructor(
     @Inject(TOKENS.blocksRuntimePersistence)
     private readonly runtime: BlocksRuntimePersistenceService,
+    @Inject(TOKENS.accountVerification)
+    private readonly verification: AccountVerificationService,
   ) {}
 
   private async authorize(
@@ -99,6 +102,7 @@ export class BlocksRuntimeController {
         runtimeStatus(result.code),
       );
     }
+    await this.verification.requirePrincipal(result.value.actor.principalId);
     const requestBudget = this.runtime.consumeRequest(result.value.grant);
     if (!requestBudget.allowed) {
       void reply.header('Retry-After', requestBudget.retryAfterSeconds);

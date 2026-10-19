@@ -107,7 +107,7 @@ parallel_lanes:
       owner_acceptance: pending
       change_class: L3_CRITICAL
       owner_authorization: >-
-        Owner instruction on 2026-10-19 explicitly continues Issue618 and existing
+        Owner instruction on 2026-10-18 explicitly continues Issue618 and existing
         PR621/622/624/626 through independent executor/reviewer work, actual tests,
         ordinary merge of accepted changes to main, and a backed-up review582
         preview on 127.0.0.1:4620. Installation4610 is excluded.
@@ -1014,8 +1014,8 @@ parallel_lanes:
       base_branch: main
       pr: null
       pr_draft: false
-      status: in_progress
-      checkpoint: account_confirmation_frozen_header_verification_dependency
+      status: in_review
+      checkpoint: account_confirmation_technical_verified_owner_review_pending
       owner_acceptance: pending
       normative_refs:
         - document: IDENTITY-ACCESS-V22
@@ -1025,17 +1025,112 @@ parallel_lanes:
     programme:
       document: docs/product/ASA_ACCOUNT_CONFIRMATION_SPEC.md
       owner_authorization: implement_account_confirmation_with_admin_switch_max_telegram_and_server_verified_outage_fallback
-      status: in_progress
+      status: technical_accepted
       target_revision: '1.0'
-      selected_slice: AUTH-C4-ACCEPTANCE
+      verified_revision: '1.0'
+      final_source_sha: 5353dcbc8f60a4867aaf9fe4126fe2caaad31fdc
+      exact_final_focused_run: 39171454030
+      exact_final_focused_conclusion: success
+      exact_final_general_run: 39171454021
+      exact_final_general_conclusion: success
+      selected_slice: null
       dependency_order: [AUTH-C1-PROVIDERS, AUTH-C2-POLICY, AUTH-C3-UI, AUTH-C4-ACCEPTANCE]
-      completed_slices: []
+      remaining_slices: []
+      completed_slices:
+        - id: AUTH-C1-PROVIDERS
+          status: technical_accepted
+          verification_sha: 5353dcbc8f60a4867aaf9fe4126fe2caaad31fdc
+          donor_repository: spikeal8-maker/IZO_ASA
+          donor_source_sha: d1ee3a0ac5114ec08f4a8daee9cf6e41e97d6a7a
+          result: max_telegram_browser_bound_single_use_confirmation_and_server_verified_provider_health
+          live_provider_delivery: not_run
+        - id: AUTH-C2-POLICY
+          status: technical_accepted
+          verification_sha: 5353dcbc8f60a4867aaf9fe4126fe2caaad31fdc
+          result: persistent_admin_switch_one_time_confirmation_after_24_hours_and_correct_password_outage_fallback
+          default_enabled: false
+          email_delivery: unavailable
+        - id: AUTH-C3-UI
+          status: technical_accepted
+          verification_sha: 5353dcbc8f60a4867aaf9fe4126fe2caaad31fdc
+          result: conditional_sign_in_buttons_same_account_confirmation_and_responsive_admin_controls
+          auth_browser_passed: 18
+          existing_account_r3_passed: 8
+          independent_visual_review: approved
+          security_visual_review_sha: 74cf0768d04f77149c55b83509fbbfa1566c6e58
+          security_visual_png_inspected: 8
+          other_unchanged_visual_review_sha: e5e01f87304582f1755e9b7cb3374468b9aede50
+          other_unchanged_visual_png_inspected: 24
+          visual_widths: [1440, 1024, 390, 320]
+          visual_font_scales: [normal, font150]
+          visual_basis: reviewed_ui_blobs_unchanged_in_final_source
+        - id: AUTH-C4-ACCEPTANCE
+          status: technical_accepted
+          verification_sha: 5353dcbc8f60a4867aaf9fe4126fe2caaad31fdc
+          independent_review: approved
+          independent_review_sha: 5353dcbc8f60a4867aaf9fe4126fe2caaad31fdc
+          independent_reviewer: auth_independent_review
+          independent_review_received_at: '2026-10-18T22:45:05Z'
+          independent_review_record: controller_received_separate_agent_final_verdict
+          exact_focused_run: 39171454030
+          exact_focused_conclusion: success
+          exact_focused_server_job: 117805196610
+          exact_focused_ui_job: 117805196823
+          focused_unit_passed: 158
+          focused_integration_passed: 54
+          focused_native_postgres_passed: 47
+          focused_pglite_passed: 7
+          focused_auth_browser_passed: 18
+          focused_existing_account_r3_passed: 8
+          focused_existing_classroom_owner_header_passed: 1
+          focused_api_build_nx_tasks_executed_uncached: 16
+          focused_web_typecheck_nx_tasks_executed_uncached: 6
+          focused_web_build_nx_tasks_executed_uncached: 6
+          focused_existing_browser_commands:
+            - "pnpm e2e:settings-ui --grep 'R3 Account compact composition'"
+            - "pnpm e2e:settings-ui e2e/classroom-owner-ui.spec.ts --grep 'single header keeps all global actions and a working drawer$'"
+          focused_ui_artifact_id: 12152791281
+          focused_ui_artifact_sha256: f5d7b8d26f02680f8890ef7311065f52c78765499fba5961f7d8986f46b60c8e
+          exact_general_run: 39171454021
+          exact_general_conclusion: success
+          general_data_tests_passed: 4560
+          general_data_tests_skipped: 2
+          general_data_files_passed: 464
+          general_data_files_skipped: 1
+          separate_rls_tests_passed: 16
+          general_access_tests_passed: 943
+          general_access_tests_skipped: 1
+          general_real_access_browser_passed: 22
+          general_settings_browser_passed: 417
+          general_observability_tests_passed: 511
+          general_release_tests_passed: 10
+          general_code_nx_tasks_executed_uncached: 96
+          general_data_build_nx_tasks_executed_uncached: 43
+          general_browser_build_nx_tasks_executed_uncached: 27
+          general_compose_check: pass
+          resolved_integration_dependencies:
+            - TASK-AUTH-HEADER-COMPATIBILITY-001
+            - TASK-AUTH-ACCESS-AI-COMPATIBILITY-DEPENDENCY-001
+            - TASK-AUTH-CLASSROOM-OWNER-HEADER-COMPATIBILITY-001
+          verification_note: >-
+            Actual terminal workflows and all test counts belong to source 5353dcbc8f60a4867aaf9fe4126fe2caaad31fdc.
+            Focused and General suites overlap and are not additive. Separate source and
+            visual review were completed; unchanged UI blob identity permits the recorded
+            visual evidence. This receipt does not claim CI for its later integration commit.
       owner_acceptance: pending
       deployment_authorized: false
       working_database_actions_authorized: false
+      deployment: not_performed
+      working_database_actions: not_performed
+      live_provider_delivery: not_run
     integration_dependencies:
       - id: TASK-AUTH-HEADER-COMPATIBILITY-001
-        status: in_progress
+        status: resolved
+        verification_sha: 5353dcbc8f60a4867aaf9fe4126fe2caaad31fdc
+        exact_verification_general_run: 39171454021
+        exact_verification_general_conclusion: success
+        independent_review: approved
+        independent_review_sha: 5353dcbc8f60a4867aaf9fe4126fe2caaad31fdc
         branch: codex/auth-header-ci-baseline-20261018
         scope:
           - e2e/classroom-profile-completion.spec.ts
@@ -1057,8 +1152,16 @@ parallel_lanes:
           new independent review of the final source and successful actual Access and complete
           General CI are required.
       - id: TASK-AUTH-ACCESS-AI-COMPATIBILITY-DEPENDENCY-001
-        status: in_progress
+        status: resolved
+        verification_sha: 5353dcbc8f60a4867aaf9fe4126fe2caaad31fdc
+        exact_verification_general_run: 39171454021
+        exact_verification_general_conclusion: success
+        independent_review: approved
+        independent_review_sha: 5353dcbc8f60a4867aaf9fe4126fe2caaad31fdc
         source_task: TASK-PROJ-PUBLICATION-SHELL-AI-COMPATIBILITY-001
+        reused_completed_handoff_base_sha: 7db13b9ecce77139866708353e4f418f37141e3c
+        reused_completed_handoff_sha: ad5464d04e9e93b5cff151a0ce5305e158fb153d
+        reuse_scope: completed_eight_hunk_native_ai_header_compatibility_only
         prepared_branch: codex/projects-shell-ai-compatibility
         scope:
           - e2e/access-account-ui.spec.ts
@@ -1074,6 +1177,37 @@ parallel_lanes:
           Full changed-source settings and required General CI must pass; R3-only success cannot
           replace the skipped full settings suite. Owner acceptance, deployment and working
           database actions remain unperformed.
+      - id: TASK-AUTH-CLASSROOM-OWNER-HEADER-COMPATIBILITY-001
+        status: resolved
+        verification_sha: 5353dcbc8f60a4867aaf9fe4126fe2caaad31fdc
+        exact_verification_general_run: 39171454021
+        exact_verification_general_conclusion: success
+        independent_review: approved
+        independent_review_sha: 5353dcbc8f60a4867aaf9fe4126fe2caaad31fdc
+        scope:
+          - e2e/classroom-owner-ui.spec.ts
+          - .github/workflows/account-confirmation-focused.yml
+        observed_source_sha: 4b7ea198edf7331b53972a19c9e428dd9adc94fb
+        observed_general_run: 39168676146
+        observed_settings_passed: 416
+        observed_settings_failed: 1
+        selection: >-
+          Controller selects a separate bounded category C baseline repair under AGENTS.md
+          section 7 after the complete settings suite exposed its last stale mobile header
+          observer. The candidate passed all focused checks, General governance, code and Data,
+          22 real Access journeys and 416 settings cases. The unchanged classroom owner test
+          expects five controls excluding the brand, while accepted AI navigation makes six.
+          Independent review verified identical test and fixture on pre-AI main, current main
+          and the authentication candidate. Authentication and portal runtime remain frozen.
+        acceptance: >-
+          Update only the existing single-header case to require six controls and three named
+          native Gallery, Knowledge and AI links. Preserve the 56px header, every 44px target,
+          320px bounds, roster assertion, drawer opening, Escape, restored focus and error check.
+          Add that existing case to the focused workflow by exact grep and include its path in
+          triggers; preserve all existing checks, fixtures, runtime, timeouts and retries.
+          Require a separate author, independent exact-source review, the actual changed-case
+          focused run and complete General CI. This selection grants no owner acceptance,
+          deployment or working-database authorization.
     previous_task:
       id: TASK-PORTAL-SHELL-UX-001
       issue: 520
@@ -1461,18 +1595,18 @@ parallel_lanes:
       kind: observed_snapshot
       convergence_baseline_sha: 78da596b3e27a5bd396d195f8d1348b7f8b8cb00
       head_sha: null
-      observed_at: '2026-10-08T01:40:05Z'
+      observed_at: '2026-10-18T22:45:05Z'
       main:
         branch: main
-        sha: 7744cebbe92f7b7155ac280d875fdc1abecb51a8
+        sha: 685762419fd829ce18e4695988d721f4659183b0
       observation_note: >-
-        Dated published main contains the final Portal shell delivery candidate.
-        This is a historical observation, not a live HEAD claim. Fetch main and
-        read exact-SHA GitHub CI before writes. Slice evidence is recorded in the
-        programme; it grants no owner acceptance or deployment authority.
-        Account and StudentSeat scopes, permissions, MAX, API, SQL and the working
-        database are unchanged. The load protocol is unexecuted; calculated bundle
-        compression does not establish network performance or 3000-user capacity.
+        Dated main observation before integrating the technically accepted account confirmation
+        source 5353dcbc8f60a4867aaf9fe4126fe2caaad31fdc. Both successful workflows and independent source approval belong
+        to that exact source; this receipt does not claim CI for the later integration commit.
+        The separately reviewed main delta preserves all authentication source blobs.
+        This is not a live HEAD claim: fetch main and inspect exact-SHA GitHub CI before writes.
+        Owner acceptance, deployment, working database actions and live bot delivery remain
+        unperformed; this programme grants no authority to perform them.
     execution_lease:
       executor_id: codex-admin-auth-max
       holder: unassigned
@@ -1481,9 +1615,14 @@ parallel_lanes:
       reviewer_role_requires_lease: false
     gates:
       focused:
-        workflow: ASA Lab Governance and Code Gates
+        workflow: Account Confirmation Focused
         commands:
-          - pnpm test:access-a
+          - pnpm test:auth-confirmation
+          - pnpm test:auth-confirmation:pg
+      authentication_browser:
+        workflow: Account Confirmation Focused
+        commands:
+          - pnpm e2e:auth-confirmation
       browser:
         workflow: ASA Lab Governance and Code Gates
         commands:
@@ -1493,7 +1632,6 @@ parallel_lanes:
         workflow: ASA Lab Governance and Code Gates
         commands:
           - pnpm gate:repository
-
     accepted_slices:
       - task_id: TASK-ACCOUNT-SETTINGS-UX-002
         status: technical_accepted

@@ -1,0 +1,523 @@
+/* Auth-only slots: provider mark | text, policy copy | switch, and labelled
+   channel forms. Existing portal, settings tabs and button primitives are kept. */
+.login-card form[hidden] {
+  display: none;
+}
+
+.auth-social {
+  min-width: 0;
+  margin-top: 1.2rem;
+}
+
+.auth-social-label {
+  margin: 0 0 0.65rem;
+  color: var(--ink-muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.auth-social-buttons {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr));
+  gap: 0.65rem;
+}
+
+.auth-social .auth-provider-button {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.7rem;
+  min-width: 0;
+  min-height: 48px;
+  padding: 0.65rem 0.8rem;
+  text-align: left;
+  white-space: normal;
+  font-weight: 650;
+  line-height: 1.4;
+}
+
+.auth-provider-mark {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 30px;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  background: #3057d5;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 750;
+}
+
+.auth-provider-telegram .auth-provider-mark,
+.auth-provider-mark.auth-provider-telegram {
+  background: #167299;
+}
+
+.auth-social .auth-provider-button:disabled {
+  cursor: default;
+  opacity: 0.65;
+}
+
+.auth-social-pending,
+.auth-social-registration,
+.auth-confirmation-account {
+  margin-top: 0.8rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #f6f8fc;
+  line-height: 1.5;
+}
+
+.auth-social-pending p,
+.auth-social-registration > p {
+  margin: 0.5rem 0 0.8rem;
+  color: var(--ink-muted);
+  font-size: 0.9rem;
+}
+
+.auth-social-actions,
+.auth-social-form-actions,
+.auth-confirmation-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.8rem 1rem;
+}
+
+.auth-social-actions a {
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.auth-social-registration h2 {
+  margin: 0;
+  font-size: 1.1rem;
+  line-height: 1.4;
+}
+
+.auth-social-registration input,
+.auth-social-registration select {
+  min-width: 0;
+}
+
+.auth-social-profile-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.8rem;
+}
+
+.auth-social-form-actions {
+  margin-top: 0.8rem;
+}
+
+.auth-social-form-actions .btn-primary {
+  flex: 1 1 190px;
+  margin: 0;
+}
+
+.auth-provider-feedback,
+.auth-settings-notice {
+  margin: 0.9rem 0 0;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid #cad8ea;
+  border-radius: 8px;
+  background: #edf3fb;
+  color: #1f4267;
+  font-size: 0.88rem;
+  line-height: 1.5;
+  overflow-wrap: break-word;
+}
+
+.auth-settings-notice.is-error {
+  border-color: #e4bcb7;
+  background: #fff1ef;
+  color: #92271e;
+}
+
+.auth-settings-notice.is-success {
+  border-color: #aed5be;
+  background: var(--success-bg);
+  color: var(--success-text);
+}
+
+.login-card.auth-confirmation-card {
+  max-width: 480px;
+}
+
+.auth-confirmation-kicker {
+  display: block;
+  margin: 1.1rem 0 0.5rem;
+  color: var(--primary);
+  font-size: 0.75rem;
+  font-weight: 750;
+  letter-spacing: 0.025em;
+}
+
+.auth-confirmation-copy {
+  margin: 0;
+  color: var(--ink-muted);
+  line-height: 1.55;
+}
+
+.auth-confirmation-account {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.auth-confirmation-account strong,
+.auth-confirmation-account span {
+  overflow-wrap: anywhere;
+}
+
+.auth-confirmation-account small {
+  margin-top: 0.35rem;
+  color: var(--ink-muted);
+}
+
+.auth-confirmation-actions {
+  margin-top: 1.25rem;
+}
+
+.auth-confirmation-actions .btn-secondary {
+  flex: 1 1 200px;
+}
+
+.auth-confirmation-admin {
+  min-height: 44px;
+  margin-top: 0.6rem;
+  text-align: left;
+}
+
+.auth-policy-control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 1rem 2rem;
+  padding: 1.3rem 1.5rem;
+  border: 1px solid #bdcdeb;
+  border-radius: 12px;
+  background: #f6f9ff;
+}
+
+.auth-policy-copy .auth-confirmation-kicker {
+  margin-top: 0;
+}
+
+.auth-policy-copy h3 {
+  margin: 0;
+  font-size: 1.15rem;
+  line-height: 1.4;
+}
+
+.auth-policy-copy p {
+  max-width: 75ch;
+  margin: 0.55rem 0 0;
+  color: var(--ink-muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.auth-policy-copy .auth-policy-fallback {
+  color: #174f39;
+  font-weight: 600;
+}
+
+.auth-policy-switch {
+  position: relative;
+  display: grid;
+  grid-template-columns: 46px auto;
+  align-items: center;
+  gap: 0.7rem;
+  margin: 0.2rem 0 0;
+  min-height: 44px;
+  cursor: pointer;
+}
+
+.auth-policy-switch input {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.auth-policy-switch-track {
+  width: 46px;
+  height: 28px;
+  padding: 3px;
+  border-radius: 20px;
+  background: #75818d;
+}
+
+.auth-policy-switch-track::after {
+  content: '';
+  display: block;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.15s ease;
+}
+
+.auth-policy-switch input:checked + .auth-policy-switch-track {
+  background: var(--primary);
+}
+
+.auth-policy-switch input:checked + .auth-policy-switch-track::after {
+  transform: translateX(18px);
+}
+
+.auth-policy-switch input:focus-visible + .auth-policy-switch-track {
+  outline: 3px solid #769bea;
+  outline-offset: 3px;
+}
+
+.auth-policy-switch input:disabled + .auth-policy-switch-track {
+  opacity: 0.65;
+}
+
+.auth-policy-date,
+.auth-policy-control > .auth-settings-notice {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.auth-admin-providers {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 1rem;
+}
+
+.auth-admin-provider {
+  min-width: 0;
+  padding: 1.2rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.auth-admin-provider > header,
+.auth-admin-provider > header > div {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+}
+
+.auth-admin-provider > header {
+  flex-wrap: wrap;
+  justify-content: space-between;
+}
+
+.auth-admin-provider h3 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.auth-admin-provider .admin-channel-switch input {
+  width: 22px;
+  flex: 0 0 22px;
+}
+
+.auth-admin-provider .admin-channel-switch {
+  min-height: 44px;
+}
+
+.auth-channel-health {
+  margin: 0.9rem 0 0;
+  font-size: 0.85rem;
+  font-weight: 650;
+  line-height: 1.4;
+}
+
+.auth-channel-health.is-ready {
+  color: var(--success-text);
+}
+
+.auth-channel-health.is-unavailable {
+  color: var(--ink-muted);
+}
+
+.auth-admin-provider-fields input {
+  min-width: 0;
+}
+
+.auth-admin-provider-facts {
+  display: grid;
+  gap: 0.5rem;
+  margin: 1rem 0;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.auth-admin-provider-facts > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.1rem 0.6rem;
+  justify-content: space-between;
+}
+
+.auth-admin-provider-facts dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+.auth-admin-provider > footer {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+}
+
+.auth-admin-provider > footer .btn-primary {
+  flex: 1 1 180px;
+  margin: 0;
+}
+
+.auth-email-status {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.auth-admin-recovery {
+  width: 100%;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 1.5rem;
+}
+
+.auth-admin-recovery > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.auth-admin-recovery > header h1 {
+  font-size: 1.3rem;
+  line-height: 1.4;
+}
+
+/* The regular admin breadcrumb is one flex row. In the compact recovery
+   surface its title must wrap rather than impose a wider minimum page size. */
+.auth-admin-recovery .admin-title-line,
+.auth-admin-recovery .admin-title-line h1 {
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.account-sign-in-methods {
+  min-width: 0;
+  margin: 1.25rem 0;
+}
+
+.account-sign-in-methods > p {
+  margin: 0.4rem 0 0.9rem;
+  color: var(--ink-muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.account-sign-in-methods .account-field-heading {
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+.account-sign-in-methods h3 {
+  margin: 0;
+}
+
+.account-sign-in-method-list {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.account-sign-in-method {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.65rem 1rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+}
+
+.account-sign-in-method > div {
+  display: grid;
+  flex: 1 1 150px;
+  gap: 0.2rem;
+}
+
+.account-sign-in-method span,
+.account-sign-in-method small,
+.account-sign-in-method-note {
+  color: var(--ink-muted);
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+
+.account-sign-in-method-note {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+@media (max-width: 900px) {
+  .auth-admin-providers {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 600px) {
+  .auth-policy-control {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 1rem;
+  }
+
+  .auth-policy-switch {
+    justify-self: start;
+  }
+
+  .auth-confirmation-settings > .admin-section-heading {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.8rem;
+  }
+
+  .auth-admin-recovery {
+    padding: 0.75rem;
+  }
+}
+
+@media (max-width: 390px) {
+  .auth-social-profile-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+
+  .auth-social-registration,
+  .auth-social-pending {
+    padding: 0.75rem;
+  }
+
+  .auth-admin-provider {
+    padding: 0.9rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-policy-switch-track::after {
+    transition: none;
+  }
+}
