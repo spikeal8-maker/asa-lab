@@ -11,6 +11,7 @@ let second: pg.Pool;
 let platformAdmin: string;
 let owners: string[];
 let originalConfig: Record<string, unknown> | undefined;
+let originalProviders: Record<string, unknown>[] | undefined;
 let unlockSuite: (() => Promise<void>) | undefined;
 
 async function identity(elevated = false): Promise<string> {
@@ -74,11 +75,15 @@ beforeAll(async () => {
   second = new pg.Pool({ connectionString: urls[1]!.href, max: 6 });
   unlockSuite = await lockAiPostgresSuite(admin);
   originalConfig = (await admin.query('SELECT * FROM ai_assistant_config')).rows[0];
-  // SQL-only fake key; never used to call an upstream provider.
-  await admin.query(`UPDATE ai_assistant_config SET enabled = true,
-    api_key_ciphertext = 'quota-test-ciphertext', api_key_iv = 'quota-test-iv',
-    api_key_auth_tag = 'quota-test-auth-tag', key_fingerprint = 'quota-hash' WHERE singleton_key`);
+  originalProviders = (await admin.query('SELECT * FROM ai_provider_settings')).rows;
   platformAdmin = await identity(true);
+  // SQL-only fake key; never used to call an upstream provider.
+  await first.query(
+    `SELECT ai_admin_set_config($1, true, 'openai', 'gpt-6-luna', 'replace',
+      'quota-test-ciphertext', 'quota-test-iv', 'quota-test-auth-tag', 'quota-hash',
+      'quota-fixture-setup')`,
+    [platformAdmin],
+  );
   owners = [await identity(), await identity()];
 }, 60000);
 
@@ -92,10 +97,22 @@ afterAll(async () => {
           api_key_auth_tag = saved.api_key_auth_tag, key_fingerprint = saved.key_fingerprint,
           paid_operations_per_hour = saved.paid_operations_per_hour,
           configuration_version = saved.configuration_version,
+          migrated_from_model = saved.migrated_from_model,
           updated_by_principal = saved.updated_by_principal, updated_at = saved.updated_at
          FROM json_populate_record(NULL::ai_assistant_config, $1::json) saved
          WHERE c.singleton_key`,
         [JSON.stringify(originalConfig)],
+      );
+    }
+    if (originalProviders) {
+      await admin.query(
+        `UPDATE ai_provider_settings p SET
+          model = saved.model, api_key_ciphertext = saved.api_key_ciphertext,
+          api_key_iv = saved.api_key_iv, api_key_auth_tag = saved.api_key_auth_tag,
+          key_fingerprint = saved.key_fingerprint, updated_at = saved.updated_at
+         FROM json_populate_recordset(NULL::ai_provider_settings, $1::json) saved
+         WHERE p.provider = saved.provider`,
+        [JSON.stringify(originalProviders)],
       );
     }
   } finally {

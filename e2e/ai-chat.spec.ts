@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { expect, test, type Page, type Route } from '@playwright/test';
+import { aiAdminFixture } from '../apps/web/src/admin/testing/ai-admin-config.fixture';
 
 const ACCOUNT_ID = '20000000-0000-4000-8000-000000000001';
 const WORKSPACE_ID = '10000000-0000-4000-8000-000000000001';
@@ -77,6 +78,7 @@ async function fixture(page: Page, answer = 'Arduino — это платформ
       });
     if (path === '/api/auth/max/config') return respond(route, { enabled: false, launchUrl: null });
     if (path === '/api/class-join/me') return respond(route, { authenticated: false });
+    if (path === '/api/ai/scopes') return respond(route, { personal: true, items: [] });
     if (path === '/api/ai/status')
       return respond(route, {
         enabled,
@@ -196,17 +198,20 @@ async function fixture(page: Page, answer = 'Arduino — это платформ
         hasKey = keyWasSubmitted;
         enabled = payload.enabled;
       }
-      return respond(route, {
-        enabled,
-        provider: 'openai',
-        model: 'gpt-5-mini',
-        apiKeyConfigured: hasKey,
-        paidOperationsPerHour: 1000,
-        encryptionReady: true,
-        keyFingerprint: hasKey ? 'abcdef123456' : null,
-        configurationVersion: hasKey ? 2 : 1,
-        updatedAt: NOW,
-      });
+      return respond(
+        route,
+        aiAdminFixture({
+          enabled,
+          provider: 'openai',
+          model: 'gpt-5-mini',
+          apiKeyConfigured: hasKey,
+          paidOperationsPerHour: 1000,
+          encryptionReady: true,
+          keyFingerprint: hasKey ? 'abcdef123456' : null,
+          configurationVersion: hasKey ? 2 : 1,
+          updatedAt: NOW,
+        }),
+      );
     }
     if (method === 'GET') return respond(route, { items: [], meta: { total: 0 } });
     return respond(route, { error: { code: 'unexpected_mutation', message: path } }, 400);
@@ -914,8 +919,10 @@ test('AI history drawer traps focus, paginates and closes after selection on nar
   const pages: (string | null)[] = [];
   await page.route(/\/api\/ai\/threads(?:\?.*)?$/, (route) => {
     if (route.request().method() !== 'GET') return route.fallback();
-    const cursor = new URL(route.request().url()).searchParams.get('beforeId');
+    const params = new URL(route.request().url()).searchParams;
+    const cursor = params.get('beforeId');
     pages.push(cursor);
+    if (params.get('q')) return route.fulfill({ json: { items: [], nextCursor: null } });
     return route.fulfill({
       json: cursor
         ? { items: [{ id: olderId, title: 'Ранний диалог', updatedAt: NOW }], nextCursor: null }
@@ -939,7 +946,7 @@ test('AI history drawer traps focus, paginates and closes after selection on nar
   // its exact cursor once and must not create a second page request.
   expect(pages.filter((cursor) => cursor !== null)).toEqual([id]);
   await dialog.getByRole('searchbox', { name: 'Найти диалог' }).fill('Не существует');
-  await expect(dialog.getByText('Ничего не найдено в загруженной истории')).toBeVisible();
+  await expect(dialog.getByText('Ничего не найдено в истории')).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(dialog).toBeHidden();
   await expect(toggle).toBeFocused();

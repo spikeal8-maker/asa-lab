@@ -12,6 +12,7 @@ import {
 import type { FastifyRequest } from 'fastify';
 import type { ActiveContextUseCase } from '@asa-lab/identity';
 import { AiChatService, AiServiceError, type AiProvider, type AiModel } from './ai-chat.service.js';
+import { isAiProvider, isModelForProvider } from './ai-model-catalog.js';
 import { AdminControlPlaneService } from './admin-control-plane.service.js';
 import { SESSION_COOKIE, TOKENS } from './tokens.js';
 
@@ -113,16 +114,19 @@ export class AiAdminController {
     const clearApiKey = value['clearApiKey'];
     const apiKey = value['apiKey'];
     const paidOperationsPerHour = value['paidOperationsPerHour'];
+    const configurationVersion = value['configurationVersion'];
     if (
-      (provider !== 'openai' && provider !== 'deepseek') ||
-      (model !== 'gpt-5-mini' && model !== 'gpt-4.1-mini' && model !== 'deepseek-chat') ||
+      !isAiProvider(provider) ||
+      !isModelForProvider(provider, model) ||
       typeof enabled !== 'boolean' ||
       (paidOperationsPerHour !== undefined &&
         (!Number.isInteger(paidOperationsPerHour) ||
           Number(paidOperationsPerHour) < 0 ||
           Number(paidOperationsPerHour) > 2147483647)) ||
       (clearApiKey !== undefined && typeof clearApiKey !== 'boolean') ||
-      (apiKey !== undefined && typeof apiKey !== 'string')
+      (apiKey !== undefined && typeof apiKey !== 'string') ||
+      (configurationVersion !== undefined &&
+        (!Number.isSafeInteger(configurationVersion) || Number(configurationVersion) < 1))
     ) {
       return reject('ai_config_invalid', 'Неверные настройки ИИ.', 400);
     }
@@ -134,6 +138,7 @@ export class AiAdminController {
           model: model as AiModel,
           enabled,
           ...(typeof paidOperationsPerHour === 'number' ? { paidOperationsPerHour } : {}),
+          ...(typeof configurationVersion === 'number' ? { configurationVersion } : {}),
           ...(typeof apiKey === 'string' ? { apiKey } : {}),
           ...(typeof clearApiKey === 'boolean' ? { clearApiKey } : {}),
         },

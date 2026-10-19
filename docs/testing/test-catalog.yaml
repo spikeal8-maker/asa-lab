@@ -26,6 +26,66 @@ suites:
   accessibility:
     description: Доступность критических пользовательских путей.
 tests:
+  - id: TST-AI-TEXT-CORE-001
+    title: Complete owner history, archive, immutable answer receipts, safe math and forward upgrade
+    suite: authorization
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm test:ai-chat
+    timeout_seconds: 300
+    owner: ai-assistant
+    artifacts: [vitest-report, embedded-postgresql-report]
+  - id: TST-AI-TEXT-PG-001
+    title: Restricted PostgreSQL owner history, non-refundable regeneration and concurrent admission or archive
+    suite: authorization
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec vitest run tests/admin/ai-text-history.pg.spec.ts
+    timeout_seconds: 300
+    owner: ai-assistant
+    artifacts: [vitest-report, postgresql-isolation-report]
+  - id: TST-AI-TEXT-E2E-001
+    title: Responsive search, archive, independent requests, true new answers, school scope and safe mathematical content
+    suite: e2e
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm e2e:ai-chat
+    timeout_seconds: 600
+    owner: ai-assistant
+    artifacts: [playwright-report, text-chat-screenshots]
+  - id: TST-AI-ACCESS-CORE-001
+    title: AI trusted Account/Seat access, immutable ownership, exact replay and migration preservation
+    suite: authorization
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm test:ai-chat
+    timeout_seconds: 300
+    owner: ai-assistant
+    artifacts: [vitest-report, embedded-postgresql-report]
+  - id: TST-AI-ACCESS-PG-001
+    title: Teacher admission, stable school history and restricted PostgreSQL ownership
+    suite: authorization
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec vitest run tests/admin/ai-student-access.pg.spec.ts
+    timeout_seconds: 300
+    owner: ai-assistant
+    artifacts: [vitest-report, postgresql-isolation-report]
+  - id: TST-AI-ACCESS-E2E-001
+    title: Student and teacher AI access, separate personal/school state and responsive settings
+    suite: e2e
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm e2e:ai-chat
+    timeout_seconds: 600
+    owner: ai-assistant
+    artifacts: [playwright-report, student-chat-screenshots, teacher-access-screenshots]
   - id: TST-OBS-DATABASE-PROGRESS-001
     title: Bounded database pages preserve same-time progress, retry, mutable rereads and truthful backlog
     suite: integration

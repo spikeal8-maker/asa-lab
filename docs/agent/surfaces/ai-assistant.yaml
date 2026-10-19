@@ -1,0 +1,54 @@
+schema_version: 1.0.0
+context: ai-assistant
+surfaces:
+  - id: SURF-AI-TEXT-HISTORY
+    routes: ['#/ai', /api/ai/threads, '/api/ai/threads/:threadId/archive', '/api/ai/threads/:threadId/requests/:requestId', '/api/ai/threads/:threadId/regenerations/stream']
+    implementation:
+      files: [apps/api/src/ai-chat.controller.ts, apps/api/src/ai-chat.service.ts, apps/api/src/ai-text-history.ts, apps/api/src/account-verification.guard.ts, migrations/0227_ai_text_history.sql, apps/web/src/ai/AiChatPage.tsx, apps/web/src/ai/use-ai-thread-history.ts, apps/web/src/ai/AiMessageContent.tsx, apps/web/src/ai/stream-ai-request.ts, apps/web/src/ai/ai-text-complete.css]
+    invariants: [AI-OWNER-001, AI-SESSION-001, AI-REPLAY-001, AI-HISTORY-001, AI-VARIANT-001, AI-CONTENT-001]
+    tests: [TST-AI-TEXT-CORE-001, TST-AI-TEXT-PG-001, TST-AI-TEXT-E2E-001]
+    controls:
+      - id: CTRL-AI-TEXT-HISTORY-VARIANT
+        label: Search all own history, archive or restore without data loss and generate a separate source-bound paid answer
+        change_class: L3_CRITICAL
+        files: [apps/api/src/ai-chat.controller.ts, apps/api/src/ai-chat.service.ts, apps/api/src/ai-text-history.ts, apps/api/src/account-verification.guard.ts, migrations/0227_ai_text_history.sql]
+        invariants: [AI-OWNER-001, AI-SESSION-001, AI-REPLAY-001, AI-HISTORY-001, AI-VARIANT-001]
+        tests: [TST-AI-TEXT-CORE-001, TST-AI-TEXT-PG-001]
+      - id: CTRL-AI-TEXT-CONTENT
+        label: Preserve selected conversation and draft while searching, checking a saved variant and safely rendering mathematical Markdown
+        change_class: L1_UI_BEHAVIOR
+        files: [apps/web/src/ai/AiChatPage.tsx, apps/web/src/ai/use-ai-thread-history.ts, apps/web/src/ai/AiMessageContent.tsx, apps/web/src/ai/stream-ai-request.ts, apps/web/src/ai/ai-text-complete.css]
+        invariants: [AI-HISTORY-001, AI-VARIANT-001, AI-CONTENT-001, AI-UI-SCOPE-001]
+        tests: [TST-AI-TEXT-CORE-001, TST-AI-TEXT-E2E-001]
+  - id: SURF-AI-CHAT-ACCESS
+    routes: ['#/ai', /api/ai/scopes, /api/ai/status, /api/ai/threads, '/api/ai/threads/:threadId/messages', '/api/ai/threads/:threadId/messages/stream', '/api/ai/threads/:threadId/requests/:requestId/stop']
+    implementation:
+      files: [apps/api/src/ai-chat.controller.ts, apps/api/src/ai-chat.service.ts, apps/api/src/ai-access.service.ts, apps/api/src/ai-access.controller.ts, apps/api/src/seat-context.ts, apps/api/src/account-verification.guard.ts, apps/api/src/app.module.ts, apps/api/src/tokens.ts, migrations/0225_ai_student_admission.sql, apps/web/src/App.tsx, apps/web/src/ai/AiChatWorkspace.tsx, apps/web/src/ai/AiChatPage.tsx, apps/web/src/ai/ai-scope-api.ts, apps/web/src/ai/stream-ai-request.ts, apps/web/src/ai/ai-chat-scope.css]
+    invariants: [AI-OWNER-001, AI-ADMISSION-001, AI-REPLAY-001, AI-SESSION-001, AI-UI-SCOPE-001]
+    tests: [TST-AI-ACCESS-CORE-001, TST-AI-ACCESS-PG-001, TST-AI-ACCESS-E2E-001]
+    controls:
+      - id: CTRL-AI-CHAT-AUTHORIZED-OWNER
+        label: Resolve existing signed Seat or Account, prove selected school linkage and enforce immutable chat owner, replay and paid admission
+        change_class: L3_CRITICAL
+        files: [apps/api/src/ai-chat.controller.ts, apps/api/src/ai-chat.service.ts, apps/api/src/ai-access.service.ts, apps/api/src/ai-access.controller.ts, apps/api/src/seat-context.ts, apps/api/src/account-verification.guard.ts, apps/api/src/app.module.ts, apps/api/src/tokens.ts, migrations/0225_ai_student_admission.sql]
+        invariants: [AI-OWNER-001, AI-ADMISSION-001, AI-REPLAY-001, AI-SESSION-001]
+        tests: [TST-AI-ACCESS-CORE-001, TST-AI-ACCESS-PG-001]
+      - id: CTRL-AI-CHAT-SCOPE-SWITCH
+        label: Select personal or school chat, reset conversation state and refresh teacher admission
+        change_class: L1_UI_BEHAVIOR
+        files: [apps/web/src/App.tsx, apps/web/src/ai/AiChatWorkspace.tsx, apps/web/src/ai/AiChatPage.tsx, apps/web/src/ai/ai-scope-api.ts, apps/web/src/ai/stream-ai-request.ts, apps/web/src/ai/ai-chat-scope.css]
+        invariants: [AI-OWNER-001, AI-SESSION-001, AI-UI-SCOPE-001]
+        tests: [TST-AI-ACCESS-CORE-001, TST-AI-ACCESS-E2E-001]
+  - id: SURF-AI-CLASSROOM-POLICY
+    routes: ['#/classrooms/:classroomId', '/api/ai/classrooms/:classroomId/access']
+    implementation:
+      files: [apps/api/src/ai-access.controller.ts, apps/api/src/ai-access.service.ts, migrations/0225_ai_student_admission.sql, apps/web/src/pages/ClassroomPage.tsx, apps/web/src/components/ClassroomAiAccess.tsx, apps/web/src/components/classroom-ai-access.css]
+    invariants: [AI-ADMISSION-001, AI-REPLAY-001, AI-UI-SCOPE-001]
+    tests: [TST-AI-ACCESS-CORE-001, TST-AI-ACCESS-PG-001, TST-AI-ACCESS-E2E-001]
+    controls:
+      - id: CTRL-AI-CLASSROOM-POLICY-WRITE
+        label: Exact-class teacher settings and individual Seat overrides with revision and lost-response receipt; no chat-content projection
+        change_class: L3_CRITICAL
+        files: [apps/api/src/ai-access.controller.ts, apps/api/src/ai-access.service.ts, migrations/0225_ai_student_admission.sql, apps/web/src/pages/ClassroomPage.tsx, apps/web/src/components/ClassroomAiAccess.tsx, apps/web/src/components/classroom-ai-access.css]
+        invariants: [AI-ADMISSION-001, AI-REPLAY-001, AI-UI-SCOPE-001]
+        tests: [TST-AI-ACCESS-CORE-001, TST-AI-ACCESS-PG-001, TST-AI-ACCESS-E2E-001]

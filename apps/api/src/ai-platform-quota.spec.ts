@@ -1,3 +1,4 @@
+import { aiAdminFixture } from './testing/ai-admin-config.fixture';
 import { createCipheriv } from 'node:crypto';
 import type pg from 'pg';
 import { describe, expect, it, vi } from 'vitest';
@@ -15,8 +16,10 @@ function fixture(admission: 'allow' | 'replay' | Error = 'allow') {
   const config = {
     enabled: true,
     provider: 'openai',
-    model: 'gpt-5-mini',
+    model: 'gpt-6-luna',
     api_key_configured: true,
+    provider_configurations: aiAdminFixture({ apiKeyConfigured: true }).providerConfigurations,
+    migrated_from_model: null,
     key_fingerprint: null,
     configuration_version: 2,
     updated_at: null,
@@ -31,7 +34,13 @@ function fixture(admission: 'allow' | 'replay' | Error = 'allow') {
     if (sql.includes('ai_runtime_config') || sql.includes('ai_admin_get_config')) {
       return { rows: [config] };
     }
-    if (sql.includes('ai_chat_begin') || sql.includes('ai_admin_test_begin')) {
+    if (sql.includes('ai_text_generation_context'))
+      return { rows: [{ role: 'user', content: 'Hello' }] };
+    if (sql.includes('ai_admin_set_config')) {
+      config.configuration_version += 1;
+      return { rows: [{ ai_admin_set_config: config.configuration_version }] };
+    }
+    if (sql.includes('ai_text_begin') || sql.includes('ai_admin_test_begin')) {
       if (admission instanceof Error) throw admission;
       return { rows: [{ admitted: admission === 'allow' }] };
     }
@@ -64,7 +73,7 @@ const operations = {
       REQUEST,
       () => undefined,
       new AbortController().signal,
-      'gpt-5-mini',
+      'gpt-6-luna',
     ),
   test: (service: AiChatService) => service.testConnection(PRINCIPAL, 2),
 };
@@ -89,7 +98,7 @@ describe('platform-wide paid operation admission at every upstream path', () => 
     it(`${name}: awaits durable SQL admission before its one fetch`, async () => {
       const f = fixture();
       await run(f.service);
-      const index = f.order.findIndex((sql) => /ai_chat_begin|ai_admin_test_begin/.test(sql));
+      const index = f.order.findIndex((sql) => /ai_text_begin|ai_admin_test_begin/.test(sql));
       expect(index).toBeGreaterThanOrEqual(0);
       expect(f.order.indexOf('fetch')).toBeGreaterThan(index);
       expect(f.fetchImpl).toHaveBeenCalledTimes(1);
@@ -101,7 +110,7 @@ describe('platform-wide paid operation admission at every upstream path', () => 
       const f = fixture();
       await operations[name](f.service);
       expect(f.query).toHaveBeenCalledWith(
-        'SELECT ai_chat_begin_paid($1,$2,$3,$4::varchar,$5::bigint) AS admitted',
+        'SELECT ai_text_begin_paid($1,$2,$3,$4::varchar,$5::bigint) AS admitted',
         [PRINCIPAL, THREAD, REQUEST, 'Hello', f.config.configuration_version],
       );
     });
@@ -154,11 +163,11 @@ describe('platform-wide paid operation admission at every upstream path', () => 
       REQUEST,
       () => undefined,
       abort.signal,
-      'gpt-5-mini',
+      'gpt-6-luna',
     );
     expect(f.fetchImpl).not.toHaveBeenCalled();
     expect(f.query.mock.calls.some(([sql]) => sql.includes('ai_chat_abort'))).toBe(true);
-    expect(f.query.mock.calls.filter(([sql]) => sql.includes('ai_chat_begin'))).toHaveLength(1);
+    expect(f.query.mock.calls.filter(([sql]) => sql.includes('ai_text_begin'))).toHaveLength(1);
   });
 
   it.each([-1, 1.5, NaN, Infinity, 2147483648, '10', null])(
@@ -171,7 +180,7 @@ describe('platform-wide paid operation admission at every upstream path', () => 
           {
             enabled: false,
             provider: 'openai',
-            model: 'gpt-5-mini',
+            model: 'gpt-6-luna',
             paidOperationsPerHour: limit,
           } as AiAdminUpdate,
           'settings',
@@ -190,7 +199,7 @@ describe('platform-wide paid operation admission at every upstream path', () => 
         {
           enabled: false,
           provider: 'openai',
-          model: 'gpt-5-mini',
+          model: 'gpt-6-luna',
           paidOperationsPerHour: limit,
         },
         'settings',
