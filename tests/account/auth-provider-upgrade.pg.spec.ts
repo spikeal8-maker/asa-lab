@@ -1,7 +1,12 @@
-import { randomBytes, randomUUID } from 'node:crypto';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { createCipheriv, createHash, createHmac, randomBytes, randomUUID } from 'node:crypto';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import pg from 'pg';
 import { hashPassword, hashSessionToken } from '../../contexts/identity/dist/index.js';
+import { MaxAuthService } from '../../apps/api/dist/max-auth.service.js';
+import {
+  BotProviderIngress,
+  IngressProbeRegistry,
+} from '../../apps/api/dist/bot-provider-ingress.js';
 import { testAdminPool } from '../portal/helpers';
 import { planMigrations } from '../../tools/migrate.mjs';
 import { applyIsolatedTestPlan as applyPlan } from '../migration/isolated-postgres-plan';
@@ -12,6 +17,7 @@ interface Account {
   account_id: string;
   principal_id: string;
   workspace_id: string;
+  sessionHash: string;
 }
 interface HistoricalIdentity extends Account {
   subject: string;
@@ -30,14 +36,22 @@ let runtime: pg.Pool;
 let passwordHash: string;
 let platformAdmin: Account;
 let configurationVersion: string;
+const LEGACY_KEY = Buffer.alloc(32, 29);
+const LEGACY_TOKEN = 'synthetic-legacy-max-only-token';
+const LEGACY_USERNAME = 'synthetic_legacy_max_bot';
+let legacyAccount: Account;
+let legacySubject: string;
+let legacySessionSnapshot: Record<string, unknown>;
+let legacyIdentitySnapshot: Record<string, unknown>;
 
 async function account(): Promise<Account> {
   const unique = randomUUID().replaceAll('-', '');
+  const sessionHash = hash();
   const result = await runtime.query<Account>(
     "SELECT * FROM auth_register_account($1,$2,'Historical provider',$3,DATE '1990-04-12','RU','provider-upgrade-test',$4,24)",
-    [`${unique}@provider-upgrade.test`, passwordHash, `p${unique.slice(0, 28)}`, hash()],
+    [`${unique}@provider-upgrade.test`, passwordHash, `p${unique.slice(0, 28)}`, sessionHash],
   );
-  return result.rows[0]!;
+  return { ...result.rows[0]!, sessionHash };
 }
 
 async function grantAdministrator(user: Account) {
@@ -151,15 +165,52 @@ beforeAll(async () => {
   passwordHash = hashPassword('Known-historical-provider-fallback-Password-1');
   platformAdmin = await account();
   await grantAdministrator(platformAdmin);
+  // Build a real pre-0218 MAX-only Account, whose generated password is not
+  // known to a user. The old runtime's valid encrypted token is retained.
+  legacyAccount = await account();
+  legacySubject = String(Number.parseInt(randomBytes(6).toString('hex'), 16));
+  await admin.query('UPDATE accounts SET password_configured=false,password_hash=$2 WHERE id=$1', [
+    legacyAccount.account_id,
+    hashPassword(randomBytes(48).toString('base64url')),
+  ]);
+  const oldLink = await runtime.query(
+    'SELECT * FROM auth_max_link($1,$2,$3,extract(epoch FROM now())::bigint,NULL,NULL)',
+    [legacyAccount.account_id, legacySubject, `historical-active:${randomUUID()}`],
+  );
+  expect(oldLink.rows[0].result).toBe('linked');
+  const iv = Buffer.alloc(12, 17);
+  const cipher = createCipheriv('aes-256-gcm', LEGACY_KEY, iv);
+  const ciphertext = Buffer.concat([cipher.update(LEGACY_TOKEN), cipher.final()]).toString(
+    'base64url',
+  );
+  await runtime.query(
+    "SELECT admin_set_max_runtime_config($1,true,$2,'https://legacy-provider.test/max-login','replace',$3,$4,$5,$6,'1001','Synthetic legacy bot','Historical MAX configuration',$7)",
+    [
+      platformAdmin.principal_id,
+      LEGACY_USERNAME,
+      ciphertext,
+      iv.toString('base64url'),
+      cipher.getAuthTag().toString('base64url'),
+      createHash('sha256').update(LEGACY_TOKEN).digest('hex').slice(0, 12),
+      randomUUID(),
+    ],
+  );
+  legacySessionSnapshot = (
+    await admin.query(
+      'SELECT id,principal_id,token_hash,expires_at::text,revoked_at::text FROM sessions_v2 WHERE token_hash=$1',
+      [legacyAccount.sessionHash],
+    )
+  ).rows[0];
+  legacyIdentitySnapshot = await identitySnapshot(legacyAccount);
   for (const { kind, flow } of cases) {
     identities.set(`${kind}:${flow}`, await historicalIdentity(kind));
   }
-  const upgradePlan = plan.filter((migration) => Number(migration.version) <= 219);
+  const upgradePlan = plan.filter((migration) => Number(migration.version) <= 220);
   expect(
     upgradePlan
       .filter((migration) => Number(migration.version) > 217)
       .map((migration) => Number(migration.version)),
-  ).toEqual([218, 219]);
+  ).toEqual([218, 219, 220]);
   const upgradeClient = await admin.connect();
   try {
     await applyPlan(upgradeClient, upgradePlan);
@@ -169,12 +220,15 @@ beforeAll(async () => {
   await expect(runtime.query('SELECT * FROM auth_verification_policy()')).resolves.toMatchObject({
     rows: [{ enabled: false, activated_at: null }],
   });
-  // Synthetic encrypted fields exercise SQL authority only; no bot or network call.
-  const configuration = await runtime.query<{ version: string }>(
-    "SELECT admin_set_auth_provider_config($1,'max',true,'synthetic_test_bot','https://example.test/sign-in','replace','synthetic-ciphertext','synthetic-iv','synthetic-tag','synthetic123','1001','Synthetic provider','Upgrade fixture configuration',$2) AS version",
-    [platformAdmin.principal_id, randomUUID()],
+  const configuration = await runtime.query(
+    "SELECT configuration_version,enabled,webhook_verified_at,native_confirmation_verified_at FROM auth_provider_runtime_config('max')",
   );
-  configurationVersion = configuration.rows[0]!.version;
+  expect(configuration.rows[0]).toMatchObject({
+    enabled: true,
+    webhook_verified_at: null,
+    native_confirmation_verified_at: null,
+  });
+  configurationVersion = configuration.rows[0].configuration_version;
 }, 120_000);
 
 afterAll(async () => {
@@ -213,7 +267,83 @@ async function relink(identity: HistoricalIdentity, flow: Flow) {
   return { approval: approved.rows[0]!.result, result: consumed.rows[0]!.result };
 }
 
-describe('historical MAX revocation provenance across 0217 → 0219', () => {
+describe('historical MAX revocation provenance across 0217 → 0220', () => {
+  it('preserves a legacy MAX-only Account and signed Mini App access before any native webhook test', async () => {
+    const fetchImpl = vi.fn(async (url: string | URL | Request) => {
+      expect(String(url)).toBe('https://platform-api2.max.ru/me');
+      return new Response(
+        JSON.stringify({ user_id: 1001, username: LEGACY_USERNAME, is_bot: true }),
+        { status: 200 },
+      );
+    });
+    const networkRequest = vi.fn();
+    const ingress = new BotProviderIngress({
+      registry: new IngressProbeRegistry(),
+      resolve: async () => {
+        throw new Error('Synthetic missing ingress DNS');
+      },
+      request: networkRequest,
+    });
+    const service = new MaxAuthService(runtime, {
+      encryptionKey: LEGACY_KEY.toString('base64url'),
+      fetchImpl,
+      ingress,
+      publicWebOrigins: ['https://legacy-provider.test'],
+    });
+    await expect(service.config()).resolves.toMatchObject({ enabled: true });
+    await expect(service.availability()).resolves.toMatchObject({
+      available: false,
+      enforcementEligible: false,
+    });
+    const proof = () => {
+      const fields = new Map<string, string>([
+        ['auth_date', String(Math.floor(Date.now() / 1000))],
+        ['query_id', `legacy-miniapp:${randomUUID()}`],
+        ['user', JSON.stringify({ id: Number(legacySubject), first_name: 'Legacy MAX user' })],
+      ]);
+      const text = [...fields.entries()]
+        .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+        .map(([key, value]) => `${key}=${value}`)
+        .join('\n');
+      const secret = createHmac('sha256', 'WebAppData').update(LEGACY_TOKEN).digest();
+      fields.set('hash', createHmac('sha256', secret).update(text).digest('hex'));
+      return new URLSearchParams(fields).toString();
+    };
+    await expect(service.signIn(proof())).resolves.toMatchObject({
+      status: 'authenticated',
+      accountId: legacyAccount.account_id,
+    });
+    await expect(service.link(legacyAccount.account_id, proof())).resolves.toMatchObject({
+      status: 'already_linked',
+    });
+    const accountState = await admin.query(
+      'SELECT password_configured,status FROM accounts WHERE id=$1',
+      [legacyAccount.account_id],
+    );
+    expect(accountState.rows[0]).toEqual({ password_configured: false, status: 'active' });
+    const session = (
+      await admin.query(
+        'SELECT id,principal_id,token_hash,expires_at::text,revoked_at::text FROM sessions_v2 WHERE token_hash=$1',
+        [legacyAccount.sessionHash],
+      )
+    ).rows[0];
+    expect(session).toEqual(legacySessionSnapshot);
+    expect((await identitySnapshot(legacyAccount)).id).toBe(legacyIdentitySnapshot.id);
+    const runtimeState = await runtime.query(
+      "SELECT native_confirmation_configuration_version,native_confirmation_verified_at FROM auth_provider_runtime_config('max')",
+    );
+    expect(runtimeState.rows[0]).toEqual({
+      native_confirmation_configuration_version: null,
+      native_confirmation_verified_at: null,
+    });
+    await expect(service.status(legacyAccount.account_id)).resolves.toMatchObject({
+      linked: true,
+      canUnlink: false,
+    });
+    expect(networkRequest).not.toHaveBeenCalled();
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
   it.each(cases)(
     'preserves $kind authority when relinking through $flow after upgrade',
     async ({ kind, flow }) => {

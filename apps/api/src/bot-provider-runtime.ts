@@ -7,7 +7,15 @@ import {
   type BotAuthProvider,
   type ProviderAdminConfig,
   type ProviderAdminUpdateInput,
+  type ProviderReadinessCheck,
+  type ProviderReadinessDiagnostics,
 } from './auth-provider-availability.js';
+import {
+  BotProviderIngress,
+  providerWebhookUrl,
+  type IngressProbeResponse,
+} from './bot-provider-ingress.js';
+import { resolveAdditionalWebOrigins } from './origin-policy.js';
 import { providerText } from './provider-init-data.js';
 import {
   BotProviderTransport,
@@ -27,6 +35,8 @@ export interface BotProviderAuthOptions {
   readonly now?: () => number;
   readonly encryptionKey?: string;
   readonly fetchImpl?: typeof fetch;
+  readonly ingress?: BotProviderIngress;
+  readonly publicWebOrigins?: readonly string[];
 }
 
 export interface RuntimeRow {
@@ -45,6 +55,8 @@ export interface RuntimeRow {
   readonly webhook_url: string | null;
   readonly webhook_verified_at: Date | string | null;
   readonly webhook_last_error: string | null;
+  readonly native_confirmation_configuration_version: number | string | null;
+  readonly native_confirmation_verified_at: Date | string | null;
 }
 
 function normalizedReturnUrl(value: unknown): string | null {
@@ -79,19 +91,38 @@ function version(row: RuntimeRow): number {
   return Number.isSafeInteger(value) && value > 0 ? value : 1;
 }
 
+interface ReadinessProbe {
+  readonly reason: AuthProviderAvailabilityReason;
+  readonly checkedAt: string | null;
+  readonly token: ProviderReadinessCheck;
+  readonly subscription: ProviderReadinessCheck;
+  readonly ingress: ProviderReadinessCheck;
+}
+const notChecked = (): ProviderReadinessCheck => ({
+  state: 'not_checked',
+  reason: null,
+  checkedAt: null,
+});
+
 /** Database settings and bounded health probes are versioned together. */
 export class BotProviderRuntime extends BotProviderTransport {
   readonly now: () => number;
   private readonly key: Buffer | null;
   private readonly staticRuntime: RuntimeRow | null;
+  private readonly ingress: BotProviderIngress;
+  private readonly publicWebOrigins: readonly string[];
+  private credentialCache: { key: string; until: number; value: ProviderReadinessCheck } | null =
+    null;
+  private credentialFlight: { key: string; promise: Promise<ProviderReadinessCheck> } | null = null;
   private healthCache: {
     key: string;
     until: number;
-    value: AuthProviderAvailability;
+    value: ReadinessProbe;
+    enforcementEligible?: boolean;
   } | null = null;
   private healthFlight: {
     key: string;
-    promise: Promise<AuthProviderAvailability>;
+    promise: Promise<ReadinessProbe>;
   } | null = null;
   private webhookFlight: Promise<void> | null = null;
 
@@ -102,6 +133,10 @@ export class BotProviderRuntime extends BotProviderTransport {
   ) {
     super(provider, options.fetchImpl ?? fetch);
     this.now = options.now ?? Date.now;
+    this.ingress = options.ingress ?? new BotProviderIngress({ now: this.now });
+    this.publicWebOrigins =
+      options.publicWebOrigins ??
+      resolveAdditionalWebOrigins(process.env['ASA_PUBLIC_WEB_ORIGINS']);
     this.key = readEncryptionKey(
       options.encryptionKey ?? process.env['ASA_SETTINGS_ENCRYPTION_KEY'],
     );
@@ -138,6 +173,8 @@ export class BotProviderRuntime extends BotProviderTransport {
           webhook_url: null,
           webhook_verified_at: new Date(this.now()),
           webhook_last_error: null,
+          native_confirmation_configuration_version: null,
+          native_confirmation_verified_at: null,
         }
       : null;
   }
@@ -200,8 +237,27 @@ export class BotProviderRuntime extends BotProviderTransport {
   }
 
   private webhookUrl(runtime: RuntimeRow): string | null {
-    const returnUrl = normalizedReturnUrl(runtime.mini_app_url);
-    return returnUrl ? `${new URL(returnUrl).origin}/api/auth/${this.provider}/webhook` : null;
+    return (
+      providerWebhookUrl(runtime.mini_app_url, this.provider, this.publicWebOrigins)?.toString() ??
+      null
+    );
+  }
+
+  async answerIngressProbe(
+    suppliedSignature: unknown,
+    body: unknown,
+  ): Promise<IngressProbeResponse | 'unauthorized' | null> {
+    if (!this.ingress.accepts(body)) return null;
+    const runtime = await this.runtime();
+    const url = this.webhookUrl(runtime);
+    if (!runtime.enabled || !this.key || !url) return 'unauthorized';
+    return (
+      this.ingress.answer(
+        { provider: this.provider, configurationVersion: version(runtime), url, key: this.key },
+        suppliedSignature,
+        body,
+      ) ?? 'unauthorized'
+    );
   }
 
   webhookSecret(runtime: RuntimeRow): string | null {
@@ -213,52 +269,142 @@ export class BotProviderRuntime extends BotProviderTransport {
       .digest('base64url');
   }
 
-  private async deliveryAvailable(
+  private checkResult(reason: ProviderReadinessCheck['reason']): ProviderReadinessCheck {
+    return {
+      state: reason === null ? 'ok' : 'failed',
+      reason,
+      checkedAt: new Date(this.now()).toISOString(),
+    };
+  }
+
+  private runtimeKey(runtime: RuntimeRow): string {
+    return `${version(runtime)}:${runtime.token_fingerprint ?? ''}`;
+  }
+
+  /** Raw signed Mini App authentication has no dependency on webhook delivery. */
+  async credentialReadiness(
+    runtime: RuntimeRow,
+    force = false,
+    signal = AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
+  ): Promise<ProviderReadinessCheck> {
+    const token = this.runtimeToken(runtime);
+    if (!runtime.enabled) return this.checkResult('disabled');
+    if (!token || !this.launchUrl(runtime)) return this.checkResult('not_configured');
+    const key = this.runtimeKey(runtime);
+    if (!force && this.credentialCache?.key === key && this.credentialCache.until > this.now())
+      return this.credentialCache.value;
+    if (this.credentialFlight?.key === key) return this.credentialFlight.promise;
+    const promise = (async () => {
+      let result: ProviderReadinessCheck;
+      try {
+        const bot = await this.verifyBotToken(token, signal);
+        result = this.checkResult(
+          bot.username.toLowerCase() === runtime.bot_username.toLowerCase() &&
+            (!runtime.verified_bot_id || bot.id === runtime.verified_bot_id)
+            ? null
+            : 'bot_mismatch',
+        );
+      } catch (failure) {
+        result = this.checkResult(
+          failure instanceof ProviderConfigurationError && failure.code.endsWith('_token_invalid')
+            ? 'invalid_token'
+            : 'unavailable',
+        );
+      }
+      this.credentialCache = { key, until: this.now() + HEALTH_CACHE_MS, value: result };
+      return result;
+    })();
+    this.credentialFlight = { key, promise };
+    try {
+      return await promise;
+    } finally {
+      if (this.credentialFlight?.promise === promise) this.credentialFlight = null;
+    }
+  }
+
+  private async subscriptionCheck(
     runtime: RuntimeRow,
     token: string,
     signal: AbortSignal,
-  ): Promise<boolean> {
+  ): Promise<ProviderReadinessCheck> {
     const expectedUrl = this.webhookUrl(runtime);
-    if (
-      !expectedUrl ||
-      !this.webhookSecret(runtime) ||
-      !runtime.webhook_verified_at ||
-      runtime.webhook_last_error
-    )
-      return false;
-    const value = asRecord(
-      await this.request(
-        token,
-        this.provider === 'max' ? 'subscriptions' : 'getWebhookInfo',
-        undefined,
-        signal,
-      ),
-    );
-    if (this.provider === 'max') {
-      const subscriptions = value?.['subscriptions'];
-      return (
-        Array.isArray(subscriptions) &&
-        subscriptions.some((subscription) => {
-          const row = asRecord(subscription);
-          const updates = row?.['update_types'];
-          return (
-            row?.['url'] === expectedUrl &&
-            Array.isArray(updates) &&
-            updates.includes('bot_started') &&
-            updates.includes('message_callback')
-          );
-        })
+    if (!expectedUrl || !this.webhookSecret(runtime)) return this.checkResult('not_configured');
+    if (!runtime.webhook_verified_at || runtime.webhook_last_error)
+      return this.checkResult('subscription_missing');
+    try {
+      const value = asRecord(
+        await this.request(
+          token,
+          this.provider === 'max' ? 'subscriptions' : 'getWebhookInfo',
+          undefined,
+          signal,
+        ),
       );
+      if (this.provider === 'max') {
+        const subscriptions = value?.['subscriptions'];
+        if (!Array.isArray(subscriptions) || subscriptions.length === 0)
+          return this.checkResult('subscription_missing');
+        const valid =
+          subscriptions.length === 1 &&
+          subscriptions.some((subscription) => {
+            const row = asRecord(subscription);
+            const updates = row?.['update_types'];
+            return (
+              row?.['url'] === expectedUrl &&
+              Array.isArray(updates) &&
+              updates.includes('bot_started') &&
+              updates.includes('message_callback')
+            );
+          });
+        return this.checkResult(valid ? null : 'subscription_mismatch');
+      }
+      if (!value?.['url']) return this.checkResult('subscription_missing');
+      const updates = value['allowed_updates'];
+      const requiredUpdates =
+        !Array.isArray(updates) ||
+        updates.length === 0 ||
+        (updates.includes('message') && updates.includes('callback_query'));
+      const recentError =
+        Number(value['pending_update_count'] ?? 0) > 0 &&
+        Number(value['last_error_date'] ?? 0) > Math.floor(this.now() / 1000) - 300;
+      return this.checkResult(
+        value['url'] === expectedUrl && requiredUpdates && !recentError
+          ? null
+          : 'subscription_mismatch',
+      );
+    } catch {
+      return this.checkResult('unavailable');
     }
-    const updates = value?.['allowed_updates'];
-    const requiredUpdates =
-      !Array.isArray(updates) ||
-      updates.length === 0 ||
-      (updates.includes('message') && updates.includes('callback_query'));
-    const hasRecentDeliveryError =
-      Number(value?.['pending_update_count'] ?? 0) > 0 &&
-      Number(value?.['last_error_date'] ?? 0) > Math.floor(this.now() / 1000) - 300;
-    return value?.['url'] === expectedUrl && requiredUpdates && !hasRecentDeliveryError;
+  }
+
+  private nativeConfirmation(
+    runtime: RuntimeRow,
+  ): ProviderReadinessDiagnostics['nativeConfirmation'] {
+    const received = Number(runtime.native_confirmation_configuration_version);
+    const verifiedAt = iso(runtime.native_confirmation_verified_at);
+    return {
+      current: runtime.enabled && received === version(runtime) && verifiedAt !== null,
+      configurationVersion: Number.isSafeInteger(received) && received > 0 ? received : null,
+      verifiedAt,
+    };
+  }
+
+  private availabilityFrom(runtime: RuntimeRow, probe: ReadinessProbe): AuthProviderAvailability {
+    const available = probe.reason === 'ready';
+    const enforcementEligible = available && this.nativeConfirmation(runtime).current;
+    return {
+      id: this.provider,
+      available,
+      reason: probe.reason,
+      checkedAt: probe.checkedAt,
+      launchUrl: available ? this.launchUrl(runtime) : null,
+      enforcementEligible,
+      enforcementReason: !available
+        ? probe.reason
+        : enforcementEligible
+          ? 'ready'
+          : 'delivery_unverified',
+    };
   }
 
   private async saveHealth(runtime: RuntimeRow, result: AuthProviderAvailability): Promise<void> {
@@ -267,10 +413,42 @@ export class BotProviderRuntime extends BotProviderTransport {
       .query('SELECT auth_provider_health_set($1,$2,$3,$4)', [
         this.provider,
         version(runtime),
-        result.available,
-        result.reason,
+        result.enforcementEligible,
+        result.available && !result.enforcementEligible ? 'delivery_unavailable' : result.reason,
       ])
       .catch(() => undefined);
+  }
+
+  private async probe(runtime: RuntimeRow, token: string, force: boolean): Promise<ReadinessProbe> {
+    const signal = AbortSignal.timeout(PROVIDER_TIMEOUT_MS);
+    const [credential, subscription, ingress] = await Promise.all([
+      this.credentialReadiness(runtime, force, signal),
+      this.subscriptionCheck(runtime, token, signal),
+      this.ingress.check(
+        {
+          provider: this.provider,
+          configurationVersion: version(runtime),
+          url: this.webhookUrl(runtime)!,
+          key: this.key!,
+        },
+        signal,
+      ),
+    ]);
+    const reason =
+      credential.state !== 'ok'
+        ? credential.reason === 'invalid_token' || credential.reason === 'bot_mismatch'
+          ? 'invalid_token'
+          : 'unavailable'
+        : subscription.state !== 'ok' || ingress.state !== 'ok'
+          ? 'delivery_unavailable'
+          : 'ready';
+    return {
+      reason,
+      checkedAt: new Date(this.now()).toISOString(),
+      token: credential,
+      subscription,
+      ingress,
+    };
   }
 
   async availability(force = false): Promise<AuthProviderAvailability> {
@@ -284,80 +462,103 @@ export class BotProviderRuntime extends BotProviderTransport {
         reason: 'unavailable',
         checkedAt: null,
         launchUrl: null,
+        enforcementEligible: false,
+        enforcementReason: 'unavailable',
       };
     }
     const token = this.runtimeToken(runtime) ?? '';
-    const base = (reason: AuthProviderAvailabilityReason): AuthProviderAvailability => ({
-      id: this.provider,
-      available: reason === 'ready',
-      reason,
-      checkedAt: new Date(this.now()).toISOString(),
-      launchUrl: reason === 'ready' ? this.launchUrl(runtime) : null,
-    });
-    const key = `${version(runtime)}:${runtime.token_fingerprint ?? ''}`;
+    const key = this.runtimeKey(runtime);
     const localFailure = !runtime.enabled
       ? 'disabled'
-      : !token || !this.launchUrl(runtime) || !this.webhookUrl(runtime) || !this.key
+      : !token || !this.launchUrl(runtime) || !this.key
         ? 'not_configured'
-        : null;
+        : !this.webhookUrl(runtime)
+          ? 'delivery_unavailable'
+          : null;
+    let probe: ReadinessProbe;
     if (localFailure) {
-      if (
+      probe =
         !force &&
         this.healthCache?.key === key &&
         this.healthCache.until > this.now() &&
         this.healthCache.value.reason === localFailure
-      )
-        return this.healthCache.value;
-      const result = base(localFailure);
-      this.healthCache = { key, until: this.now() + HEALTH_CACHE_MS, value: result };
-      // Clear the SQL last-method projection even when no network probe can run.
-      await this.saveHealth(runtime, result);
-      return result;
-    }
-    if (!force && this.healthCache?.key === key && this.healthCache.until > this.now()) {
-      return this.healthCache.value;
-    }
-    if (this.healthFlight?.key === key) return this.healthFlight.promise;
-    const promise = (async (): Promise<AuthProviderAvailability> => {
-      let result: AuthProviderAvailability;
+          ? this.healthCache.value
+          : {
+              reason: localFailure,
+              checkedAt: new Date(this.now()).toISOString(),
+              token:
+                localFailure === 'delivery_unavailable'
+                  ? notChecked()
+                  : this.checkResult(localFailure),
+              subscription: notChecked(),
+              ingress:
+                localFailure === 'delivery_unavailable'
+                  ? this.checkResult('ingress_invalid_url')
+                  : notChecked(),
+            };
+    } else if (!force && this.healthCache?.key === key && this.healthCache.until > this.now()) {
+      probe = this.healthCache.value;
+    } else {
+      if (!this.healthFlight || this.healthFlight.key !== key)
+        this.healthFlight = { key, promise: this.probe(runtime, token, force) };
+      const flight = this.healthFlight;
       try {
-        const signal = AbortSignal.timeout(PROVIDER_TIMEOUT_MS);
-        const [bot, delivery] = await Promise.all([
-          this.verifyBotToken(token, signal),
-          this.deliveryAvailable(runtime, token, signal),
-        ]);
-        const matches =
-          bot.username.toLowerCase() === runtime.bot_username.toLowerCase() &&
-          (!runtime.verified_bot_id || bot.id === runtime.verified_bot_id);
-        result = base(!matches ? 'invalid_token' : delivery ? 'ready' : 'delivery_unavailable');
-      } catch (failure) {
-        result = base(
-          failure instanceof ProviderConfigurationError && failure.code.endsWith('_token_invalid')
-            ? 'invalid_token'
-            : 'unavailable',
-        );
+        probe = await flight.promise;
+      } finally {
+        if (this.healthFlight === flight) this.healthFlight = null;
       }
-      this.healthCache = { key, until: this.now() + HEALTH_CACHE_MS, value: result };
-      await this.saveHealth(runtime, result);
-      return result;
-    })();
-    this.healthFlight = { key, promise };
-    try {
-      return await promise;
-    } finally {
-      if (this.healthFlight?.promise === promise) this.healthFlight = null;
+      // A configuration write during a probe invalidates all of its evidence.
+      const current = await this.runtime();
+      if (
+        !current.enabled ||
+        this.runtimeKey(current) !== key ||
+        this.runtimeToken(current) !== token
+      ) {
+        return {
+          id: this.provider,
+          available: false,
+          reason: 'unavailable',
+          checkedAt: null,
+          launchUrl: null,
+          enforcementEligible: false,
+          enforcementReason: 'unavailable',
+        };
+      }
+      runtime = current;
     }
+    const result = this.availabilityFrom(runtime, probe);
+    const previous = this.healthCache;
+    const publish =
+      force ||
+      previous?.key !== key ||
+      previous.value !== probe ||
+      previous.enforcementEligible !== result.enforcementEligible;
+    this.healthCache = {
+      key,
+      until:
+        previous?.key === key && previous.value === probe
+          ? previous.until
+          : this.now() + HEALTH_CACHE_MS,
+      value: probe,
+      enforcementEligible: result.enforcementEligible,
+    };
+    if (publish) await this.saveHealth(runtime, result);
+    return result;
   }
 
   async config(): Promise<{ enabled: boolean; launchUrl: string | null }> {
-    const readiness = await this.availability();
-    return { enabled: readiness.available, launchUrl: readiness.launchUrl ?? null };
+    const runtime = await this.runtime();
+    const credential = await this.credentialReadiness(runtime);
+    return {
+      enabled: credential.state === 'ok',
+      launchUrl: credential.state === 'ok' ? this.launchUrl(runtime) : null,
+    };
   }
 
-  /** A destructive unlink must not rely on the public availability cache. */
+  /** A destructive unlink requires current native proof and an uncached transport check. */
   async availableConfigurationVersion(): Promise<number | null> {
     const before = await this.runtime();
-    if (!(await this.availability(true)).available) return null;
+    if (!(await this.availability(true)).enforcementEligible) return null;
     const after = await this.runtime();
     const generation = Number(before.configuration_version);
     return after.enabled &&
@@ -387,12 +588,21 @@ export class BotProviderRuntime extends BotProviderTransport {
       tokenConfigured = row.token_ciphertext !== null;
     }
     const readiness = await this.availability();
+    const probe = this.healthCache?.key === this.runtimeKey(row) ? this.healthCache.value : null;
     return {
       enabled: readiness.available,
       featureEnabled: row.enabled,
       available: readiness.available,
       availabilityReason: readiness.reason,
       healthCheckedAt: readiness.checkedAt,
+      enforcementEligible: readiness.enforcementEligible,
+      enforcementReason: readiness.enforcementReason,
+      diagnostics: {
+        token: probe?.token ?? notChecked(),
+        subscription: probe?.subscription ?? notChecked(),
+        ingress: probe?.ingress ?? notChecked(),
+        nativeConfirmation: this.nativeConfirmation(row),
+      },
       tokenConfigured,
       botUsername: row.bot_username || null,
       launchUrl: this.launchUrl(row),
@@ -410,6 +620,41 @@ export class BotProviderRuntime extends BotProviderTransport {
     };
   }
 
+  async checkAdminConfig(actorPrincipalId: string): Promise<ProviderAdminConfig> {
+    // RBAC must run before external I/O, even when this method is called without HTTP.
+    await this.pool.query('SELECT * FROM admin_get_auth_provider_config($1,$2)', [
+      actorPrincipalId,
+      this.provider,
+    ]);
+    await this.availability(true);
+    return this.adminConfig(actorPrincipalId);
+  }
+
+  private async assertWebhookOwnership(
+    token: string,
+    expectedUrl: string,
+    signal = AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
+  ): Promise<void> {
+    const value = asRecord(
+      await this.request(
+        token,
+        this.provider === 'max' ? 'subscriptions' : 'getWebhookInfo',
+        undefined,
+        signal,
+      ),
+    );
+    if (this.provider === 'max') {
+      const subscriptions = value?.['subscriptions'];
+      if (!Array.isArray(subscriptions)) throw this.failure('service_unavailable');
+      if (subscriptions.some((item) => asRecord(item)?.['url'] !== expectedUrl))
+        throw this.failure('webhook_conflict');
+    } else {
+      if (typeof value?.['url'] !== 'string') throw this.failure('service_unavailable');
+      if (value['url'] !== '' && value['url'] !== expectedUrl)
+        throw this.failure('webhook_conflict');
+    }
+  }
+
   async updateAdminConfig(
     actorPrincipalId: string,
     input: ProviderAdminUpdateInput,
@@ -422,24 +667,33 @@ export class BotProviderRuntime extends BotProviderTransport {
       this.provider,
     ]);
     const current = await this.runtime();
-    const botUsername = normalizedUsername(input.botUsername);
-    const miniAppUrl = normalizedReturnUrl(input.miniAppUrl);
-    const suppliedToken = providerText(input.botToken, 2048);
-    if ((input.enabled || suppliedToken) && (!botUsername || !miniAppUrl))
-      throw this.failure('token_bot_mismatch');
+    const botUsername = input.enabled
+      ? normalizedUsername(input.botUsername)
+      : current.bot_username;
+    const miniAppUrl = input.enabled ? normalizedReturnUrl(input.miniAppUrl) : current.mini_app_url;
+    // Disabling is an unconditional recovery operation. It neither rotates nor verifies a token.
+    const suppliedToken = input.enabled ? providerText(input.botToken, 2048) : null;
+    if (input.enabled && !botUsername) throw this.failure('token_bot_mismatch');
+    const targetUrl = miniAppUrl
+      ? providerWebhookUrl(miniAppUrl, this.provider, this.publicWebOrigins)
+      : null;
+    if (input.enabled && !targetUrl) throw this.failure('webhook_url_invalid');
     if (input.clearToken && input.enabled) throw this.failure('token_missing');
-    if ((input.enabled || suppliedToken) && !this.key) throw this.failure('encryption_key_missing');
+    if (input.enabled && !this.key) throw this.failure('encryption_key_missing');
     const candidate = suppliedToken ?? this.runtimeToken(current);
     let bot: VerifiedBot | null = null;
-    if (input.enabled || suppliedToken) {
+    if (input.enabled) {
       if (!candidate) throw this.failure('token_missing');
-      bot = await this.verifyBotToken(candidate);
+      const signal = AbortSignal.timeout(PROVIDER_TIMEOUT_MS);
+      bot = await this.verifyBotToken(candidate, signal);
       if (bot.username.toLowerCase() !== botUsername?.toLowerCase())
         throw this.failure('token_bot_mismatch');
+      // A foreign active webhook must leave the previous local configuration intact.
+      await this.assertWebhookOwnership(candidate, targetUrl!.toString(), signal);
     }
     const encrypted = suppliedToken ? this.encryptToken(suppliedToken) : null;
     await this.pool.query(
-      'SELECT admin_set_auth_provider_config($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)',
+      'SELECT admin_set_auth_provider_config($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)',
       [
         actorPrincipalId,
         this.provider,
@@ -455,9 +709,11 @@ export class BotProviderRuntime extends BotProviderTransport {
         bot?.name ?? current.verified_bot_name,
         `Настройка ${this.provider === 'max' ? 'MAX' : 'Telegram'}: ${input.enabled ? 'подключение и проверка' : 'выключение'}`,
         requestId,
+        version(current),
       ],
     );
     this.healthCache = null;
+    this.credentialCache = null;
     if (input.enabled) await this.ensureWebhookSubscription(true).catch(() => undefined);
     await this.availability(true);
     return this.adminConfig(actorPrincipalId);
@@ -483,6 +739,7 @@ export class BotProviderRuntime extends BotProviderTransport {
     const url = this.webhookUrl(runtime);
     if (!token || !secret || !url) return;
     try {
+      await this.assertWebhookOwnership(token, url);
       const result = await this.request(
         token,
         this.provider === 'max' ? 'subscriptions' : 'setWebhook',

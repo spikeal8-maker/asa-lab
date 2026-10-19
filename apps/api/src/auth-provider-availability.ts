@@ -10,12 +10,43 @@ export type AuthProviderAvailabilityReason =
   | 'delivery_unavailable'
   | 'unavailable';
 
+export type AuthProviderEnforcementReason = AuthProviderAvailabilityReason | 'delivery_unverified';
+export type ProviderReadinessDiagnosticReason =
+  | 'disabled'
+  | 'not_configured'
+  | 'invalid_token'
+  | 'bot_mismatch'
+  | 'subscription_missing'
+  | 'subscription_mismatch'
+  | 'ingress_invalid_url'
+  | 'ingress_dns_unavailable'
+  | 'ingress_network_unavailable'
+  | 'ingress_invalid_response'
+  | 'unavailable';
+export interface ProviderReadinessCheck {
+  readonly state: 'not_checked' | 'ok' | 'failed';
+  readonly reason: ProviderReadinessDiagnosticReason | null;
+  readonly checkedAt: string | null;
+}
+export interface ProviderReadinessDiagnostics {
+  readonly token: ProviderReadinessCheck;
+  readonly subscription: ProviderReadinessCheck;
+  readonly ingress: ProviderReadinessCheck;
+  readonly nativeConfirmation: {
+    readonly current: boolean;
+    readonly configurationVersion: number | null;
+    readonly verifiedAt: string | null;
+  };
+}
+
 export interface AuthProviderAvailability {
   readonly id: AuthProviderId;
   readonly available: boolean;
   readonly reason: AuthProviderAvailabilityReason;
   readonly checkedAt: string | null;
   readonly launchUrl?: string | null;
+  readonly enforcementEligible: boolean;
+  readonly enforcementReason: AuthProviderEnforcementReason;
 }
 
 export type ProviderInitDataErrorCode =
@@ -35,6 +66,8 @@ export type ProviderConfigurationErrorCode =
   | `${BotAuthProvider}_token_missing`
   | `${BotAuthProvider}_token_invalid`
   | `${BotAuthProvider}_token_bot_mismatch`
+  | `${BotAuthProvider}_webhook_url_invalid`
+  | `${BotAuthProvider}_webhook_conflict`
   | `${BotAuthProvider}_service_unavailable`;
 
 export class ProviderConfigurationError extends Error {
@@ -119,6 +152,9 @@ export interface ProviderAdminConfig {
   readonly webhookUrl: string | null;
   readonly webhookVerifiedAt: string | null;
   readonly webhookLastError: string | null;
+  readonly enforcementEligible: boolean;
+  readonly enforcementReason: AuthProviderEnforcementReason;
+  readonly diagnostics: ProviderReadinessDiagnostics;
 }
 
 export interface ProviderAdminUpdateInput {
