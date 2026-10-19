@@ -67,18 +67,43 @@ async function fixture(count = 2) {
   }
   const classId = await createClass();
   async function seat(targetClass = classId, accountId: string | null = null) {
-    const id = (
-      await admin.query('SELECT id FROM classroom_management_add_seat($1,$2,$3,$4,true)', [
-        actor.account_id,
-        targetClass,
-        `Ученик ${randomUUID().slice(0, 6)}`,
-        randomUUID().replaceAll('-', '').slice(0, 8),
-      ])
-    ).rows[0].id as string;
-    await admin.query(
-      "UPDATE classroom_student_seats SET status='active',account_id=$2 WHERE id=$1",
-      [id, accountId],
-    );
+    let id: string;
+    if (accountId) {
+      // Account materialization starts with account_id and an independent Seat
+      // principal; it never retrofits an initialized StudentCode learner link.
+      id = (
+        await admin.query(
+          `WITH inserted AS (
+             INSERT INTO classroom_student_seats(
+               tenant_id,classroom_id,display_label,login_handle,
+               normalized_login_handle,safe_mode,status,created_by,account_id)
+             SELECT access.tenant_id,$2,$3,$4,$4,true,'active',access.user_id,$5
+               FROM classroom_teacher_access($1,$2) access
+              WHERE access.user_id IS NOT NULL
+             RETURNING id
+           )
+           INSERT INTO principals(kind,seat_id)
+           SELECT 'student_seat',id FROM inserted RETURNING seat_id AS id`,
+          [
+            actor.account_id,
+            targetClass,
+            `Ученик ${randomUUID().slice(0, 6)}`,
+            `acc:${accountId.replaceAll('-', '').slice(0, 20)}`,
+            accountId,
+          ],
+        )
+      ).rows[0].id as string;
+    } else {
+      id = (
+        await admin.query('SELECT id FROM classroom_management_add_seat($1,$2,$3,$4,true)', [
+          actor.account_id,
+          targetClass,
+          `Ученик ${randomUUID().slice(0, 6)}`,
+          randomUUID().replaceAll('-', '').slice(0, 8),
+        ])
+      ).rows[0].id as string;
+      await admin.query("UPDATE classroom_student_seats SET status='active' WHERE id=$1", [id]);
+    }
     expect(await read('classroom_participant_prepare', [actor.principal_id, [targetClass]])).toBe(
       true,
     );

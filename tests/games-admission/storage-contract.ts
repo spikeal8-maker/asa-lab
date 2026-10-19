@@ -151,7 +151,7 @@ export function storageContract(clients: () => { admin: SqlClient; runtime: SqlC
           await f.admin.query(
             `INSERT INTO course_versions(tenant_id,course_id,version_number,title,outline,content_hash,published_by_principal_id)
            VALUES($1,$2,1,'Principal lifecycle course','{"sections":[]}'::jsonb,$3,$4) RETURNING id`,
-            [f.teacher.tenantId, courseId, randomUUID(), f.actor],
+            [f.teacher.tenantId, courseId, randomUUID().replaceAll('-', ''), f.actor],
           )
         ).rows[0]!['id'] as string;
         runId = (

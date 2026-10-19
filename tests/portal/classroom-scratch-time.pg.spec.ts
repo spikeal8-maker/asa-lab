@@ -57,6 +57,38 @@ async function fixture() {
   });
   const code = classInfo.json().classroom.joinCode as string;
   async function seat(label: string, accountId: string | null = null) {
+    if (accountId) {
+      // Seed the Account creation contract before any learner materialization.
+      // StudentCode issuance below creates a distinct identity and must not be
+      // repurposed by writing account_id afterward.
+      const id = (
+        await admin.query(
+          `WITH inserted AS (
+             INSERT INTO classroom_student_seats(
+               tenant_id,classroom_id,display_label,login_handle,
+               normalized_login_handle,safe_mode,status,created_by,account_id)
+             SELECT access.tenant_id,$2,$3,$4,$4,true,'active',access.user_id,$5
+               FROM classroom_teacher_access($1,$2) access
+              WHERE access.user_id IS NOT NULL
+             RETURNING id
+           )
+           INSERT INTO principals(kind,seat_id)
+           SELECT 'student_seat',id FROM inserted RETURNING seat_id AS id`,
+          [
+            identity.account_id,
+            classId,
+            label,
+            `acc:${accountId.replaceAll('-', '').slice(0, 20)}`,
+            accountId,
+          ],
+        )
+      ).rows[0].id as string;
+      await runtime.query('SELECT classroom_participant_prepare($1,$2::uuid[])', [
+        identity.principal_id,
+        [classId],
+      ]);
+      return { id, cookie };
+    }
     const response = await inject(app, {
       method: 'POST',
       url: `/api/classrooms/${classId}/seats`,
@@ -65,19 +97,6 @@ async function fixture() {
     });
     expect(response.statusCode, response.body).toBe(201);
     const student = response.json().student as { id: string; studentCode: string };
-    // Seed the canonical Account link before identity materialization, as in
-    // the existing participant PG fixture. No name/old ownership inference.
-    if (accountId) {
-      await admin.query(
-        "UPDATE classroom_student_seats SET status='active',account_id=$2 WHERE id=$1",
-        [student.id, accountId],
-      );
-      await runtime.query('SELECT classroom_participant_prepare($1,$2::uuid[])', [
-        identity.principal_id,
-        [classId],
-      ]);
-      return { id: student.id, cookie };
-    }
     const signed = await inject(app, {
       method: 'POST',
       url: '/api/class-join/studentseat',

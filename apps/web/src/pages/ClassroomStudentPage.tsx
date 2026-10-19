@@ -766,7 +766,7 @@ export function ClassroomStudentPage({
       ) : null}
       {readOnly ? <p role="status">Класс в архиве. Изменения недоступны.</p> : null}
       <ClassroomGamesSettings
-        key={`${classroomId}:${seatId}`}
+        key={`${classroomId}:${seatId}:games`}
         classroomId={classroomId}
         seatId={seatId}
         readOnly={settingsLocked || controlsBusy}
