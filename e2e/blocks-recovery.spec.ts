@@ -773,16 +773,18 @@ test('failed server autosave retains recovery', async () => {
     recordStage('legacy-attachment-enter');
     let attachmentInfo: ReturnType<typeof test.info>;
     let attach: ReturnType<typeof test.info>['attach'];
+    let attachmentSetupReturned = false;
     try {
       // Preserve info -> method lookup -> payload preparation -> invocation.
       attachmentInfo = test.info();
       attach = attachmentInfo.attach;
-    } catch (error) {
-      recordStage('legacy-attachment-setup-throw');
-      throw error;
+      attachmentSetupReturned = true;
+    } finally {
+      if (!attachmentSetupReturned) recordStage('legacy-attachment-setup-throw');
     }
     recordStage('legacy-attachment-payload-enter');
     let attachmentOptions: Parameters<typeof attach>[1];
+    let attachmentPayloadReturned = false;
     try {
       attachmentOptions = {
         contentType: 'application/json',
@@ -801,26 +803,28 @@ test('failed server autosave retains recovery', async () => {
           })),
         }),
       };
-    } catch (error) {
-      recordStage('legacy-attachment-payload-throw');
-      throw error;
+      attachmentPayloadReturned = true;
+    } finally {
+      if (!attachmentPayloadReturned) recordStage('legacy-attachment-payload-throw');
     }
     recordStage('legacy-attachment-payload-ready');
     recordStage('legacy-attachment-call-enter');
     let attachmentPromise: ReturnType<typeof attach>;
+    let attachmentCallReturned = false;
     try {
       attachmentPromise = Reflect.apply(attach, attachmentInfo, [
         'failed-autosave-outcome',
         attachmentOptions,
       ]);
-    } catch (error) {
-      recordStage('legacy-attachment-call-throw');
-      throw error;
+      attachmentCallReturned = true;
+    } finally {
+      if (!attachmentCallReturned) recordStage('legacy-attachment-call-throw');
     }
     recordPromiseReturn('legacy-attachment-call-return', attachmentPromise);
     let attachmentRejected = false;
     let attachmentAwaitable: Promise<void | undefined>;
     recordStage('legacy-attachment-catch-enter');
+    let attachmentCatchReturned = false;
     try {
       // This is the original rejection handler: it still resolves to undefined.
       attachmentAwaitable = attachmentPromise.catch(() => {
@@ -828,18 +832,19 @@ test('failed server autosave retains recovery', async () => {
         recordStage('legacy-attachment-reject');
         return undefined;
       });
-    } catch (error) {
-      recordStage('legacy-attachment-catch-throw');
-      throw error;
+      attachmentCatchReturned = true;
+    } finally {
+      if (!attachmentCatchReturned) recordStage('legacy-attachment-catch-throw');
     }
     recordPromiseReturn('legacy-attachment-catch-return', attachmentAwaitable);
     recordStage('legacy-attachment-await-enter');
+    let attachmentAwaitReturned = false;
     try {
       await attachmentAwaitable;
-    } catch (error) {
-      // Only an error propagated by the original catch/await is rethrown.
-      recordStage('legacy-attachment-await-reject');
-      throw error;
+      attachmentAwaitReturned = true;
+    } finally {
+      // Only an error propagated by the original catch/await reaches this marker.
+      if (!attachmentAwaitReturned) recordStage('legacy-attachment-await-reject');
     }
     if (!attachmentRejected) recordStage('legacy-attachment-fulfilled');
     recordStage('legacy-attachment-return');
