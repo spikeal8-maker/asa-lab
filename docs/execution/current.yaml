@@ -101,7 +101,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: text_integrated_access_models_history_in_progress
+      checkpoint: combined_text_reviewed_files_foundation_in_progress
       owner_acceptance: pending
       change_class: L3_CRITICAL
       owner_authorization: >-
@@ -141,8 +141,14 @@ parallel_lanes:
           scope: teacher-controlled Seat admission, stable student chat ownership and focused access regressions
           status: in_progress
           source_pr: 633
-          reviewed_candidate_sha: 81e9ff5cd0a0c6fb4076932dfbb36702adbafb5f
-          independent_review: changes_requested
+          candidate_sha: 13588db0998104fc396aba3165a8618c3e27357a
+          closure_review: approved
+          reviewed_runtime_sha: bcfb54cb9aaccf50ed78c07c7b1be9ef274dfe3f
+          reviewed_header_source_sha: 98295cbb6c29a6932369c39c2ee4a6361fa428dc
+          independent_review: approved
+          runtime_focused_run: 39241612226
+          general_gate: external_baseline_failure
+          integration_candidate: AI-TEXT-COMPLETE-005
           acceptance_dependency: AI-BASELINE-SEAT-CONSTRUCTOR-007
           reserved_migration: migrations/0225_ai_student_admission.sql
           integration_after: [AI-TEXT-API-002, AI-TEXT-UI-001]
@@ -154,6 +160,13 @@ parallel_lanes:
         - id: AI-MODEL-CAPABILITIES-004
           scope: current provider model catalog, capability descriptors and compatible encrypted configuration
           status: in_progress
+          source_pr: 637
+          candidate_sha: ca68be2419641511fb051e67b1dc94e2866b7dd5
+          independent_review: approved
+          exact_head_focused_run: 39240760712
+          exact_head_general_run: 39240760662
+          general_gate: external_baseline_failure
+          integration_candidate: AI-TEXT-COMPLETE-005
           reserved_migration: migrations/0226_ai_model_catalog_and_provider_credentials.sql
           integration_after: [AI-TEXT-API-002]
           coordination: >-
@@ -163,26 +176,50 @@ parallel_lanes:
         - id: AI-TEXT-COMPLETE-005
           scope: server history search, archive, fresh answer regeneration and safe mathematical rendering
           status: in_progress
+          source_pr: 642
+          candidate_sha: 0a7423080feff135ca90e904617201440992e6f1
+          candidate_tree: d4648c55c2f3dc64a1327771752ec72e4f5bd6c7
+          frozen_author_sha: 26294d323181c1e0d1c0f58ed138ba89112e8f4e
+          independent_review: approved
+          author_unit_cases: 346
+          author_browser_cases: 93
+          exact_head_focused_run: 39251837416
+          exact_head_general_run: 39251837619
+          combined_gate: in_progress
           reserved_migration: migrations/0227_ai_text_history.sql
-          integration_after: [AI-TEXT-UI-001, AI-TEXT-API-002, AI-STUDENT-ACCESS-003]
+          integration_after:
+            - AI-TEXT-UI-001
+            - AI-TEXT-API-002
+            - AI-STUDENT-ACCESS-003
+            - AI-MODEL-CAPABILITIES-004
           coordination: >-
             Preserve accepted interaction and identity fixes. New answer generation
             uses a new paid operation while replay retains the original request.
             Search and archive remain scoped to the canonical Account or Seat owner.
+            The combined candidate retains published 003 and 004 ancestry; ordinary
+            integration must verify actual parent inclusion and PR closure. Reuse
+            approved unchanged blobs while requiring the combined exact-SHA gates.
         - id: AI-FILES-FOUNDATION-008
           scope: private attachment storage, bounded byte validation, text extraction and durable ownership APIs
-          status: pending
+          status: in_progress
+          author_branch: assistant/ai-private-attachments-20261019
+          candidate_dependency_sha: 0a7423080feff135ca90e904617201440992e6f1
+          dependency_acceptance: pending_combined_gates
           reserved_migration: migrations/0228_ai_private_attachments.sql
           integration_after: [AI-STUDENT-ACCESS-003, AI-TEXT-COMPLETE-005]
           selected_scope:
             - apps/api/src/ai-attachments/**
             - apps/api/src/app.module.ts
             - apps/api/src/app.factory.ts
+            - apps/api/src/abuse-protection.ts
+            - apps/api/src/abuse-protection.spec.ts
             - apps/api/src/tokens.ts
             - apps/api/src/account-verification.guard.ts
             - apps/api/src/account-verification.guard.spec.ts
             - migrations/0228_ai_private_attachments.sql
             - tests/ai-attachments/**
+            - tests/admin/ai-attachments.embedded.spec.ts
+            - tests/admin/ai-attachments.pg.spec.ts
             - tests/migration/course-structure-forward-upgrade.pg.spec.ts
             - docs/agent/contracts/ai-assistant.yaml
             - docs/agent/surfaces/ai-assistant.yaml
@@ -200,10 +237,13 @@ parallel_lanes:
             and reservation until reconciled. Atomic message binding must preserve
             the 005 request/source receipt and reject foreign or reused attachments.
           coordination: >-
-            This pending selection does not start an author automatically. The
-            controller assigns the bounded author after the current handoffs and
-            supplies the exact candidate dependency snapshot. Use a dedicated AI
-            streaming content type so existing Blocks parsers and ACL stay intact.
+            The controller explicitly assigned the isolated author on the frozen
+            published 005 dependency after its independent approval. This permits
+            bounded implementation; integration still requires accepted dependencies.
+            Use a dedicated AI streaming content type so existing Blocks parsers
+            and ACL stay intact. Preserve every global mutation budget and window;
+            the exact AI mutation routes must use an existing-only Seat resolver
+            even after the shared IP budget saturates, never legacy initialization.
             Do not edit AiChatPage, provider adapters, the 005 package/lock changes,
             old migrations, existing Blocks formats, Compose, ports or live storage.
             PDF parsing and the visible send/Vision integration follow separately;
@@ -216,7 +256,13 @@ parallel_lanes:
             call or working-installation data action is part of this slice.
       integration_dependencies:
         - id: AI-BASELINE-LEARNING-006
-          status: in_progress
+          status: technical_accepted
+          source_pr: 636
+          accepted_candidate_sha: 7e7ba2fc083bf09e003a52d8f1234d4c5d5b634a
+          integrated_sha: 896d1c6ba23e119784c7ef63351d97a43be1ede2
+          independent_review: approved
+          exact_head_learning_run: 39242480208
+          exact_head_general_run: 39242480216
           author_branch: assistant/ai-learning-compatibility-20261019
           selected_scope:
             - e2e/learning-learner-submits-project-assignment.spec.ts
@@ -231,9 +277,9 @@ parallel_lanes:
             repository and AI-focused gates pass on the exact accepted heads.
           selection: >-
             Controller selects a separate bounded compatibility repair for the
-            existing seven failing journeys: open the accepted assignments or
-            courses workspace tab before inspecting its list. Preserve every
-            original case, API/identity/data assertion and the default Overview
+            existing seven failing journeys: open the accepted assignments,
+            courses or results workspace tab before inspecting its list. Preserve
+            every original case, API/identity/data assertion and the default Overview
             product behavior. Do not change runtime, fixtures, workflow, retries,
             timeouts, rate limits or authorization to obtain a passing result.
           coordination: >-
@@ -246,21 +292,29 @@ parallel_lanes:
             and browser journeys. Record any unrelated failure by its actual
             cause; this test companion does not accept the Learning programme.
         - id: AI-BASELINE-SEAT-CONSTRUCTOR-007
-          status: awaiting_accepted_baseline
+          status: technical_accepted
           source_pr: 626
+          integrated_baseline_sha: 9f8170134bdd7884990938fb81a1e6cb63bab097
+          exact_constructor_general_run: 39235509514
+          combined_first_chat_verification: passed
+          verified_ai_candidate_sha: bcfb54cb9aaccf50ed78c07c7b1be9ef274dfe3f
+          exact_ai_focused_run: 39241612226
+          independent_review: approved
           observed_candidate_sha: a01966507e1a7bdcae1f01a0eecd1161ff230bca
           required_migration: migrations/0224_classroom_new_seat_learner_identity.sql
           classification: B
           cause: >-
-            Independent review of 003 reproduced canonical new-Seat creation,
+            Independent review of the original 003 candidate reproduced canonical
+            new-Seat creation,
             credentials, successful sign-in/session and teacher AI allow, while
             the stable principal remained absent. The current AI reader correctly
             refuses missing identity, so the first chat depends on an unrelated
             materializing path until the canonical constructor is integrated.
           coordination: >-
-            The Games programme already owns the INSERT-only constructor correction
-            in PR626. Preserve that author and adopt its independently accepted
-            baseline; do not copy its mutable draft or initialize/repair historical
+            The Games programme integrated the INSERT-only constructor correction
+            in PR626 after its exact-candidate general gate passed. Adopt that
+            accepted baseline for the complete 003 first-chat verification. Do not
+            copy its mutable draft or initialize/repair historical
             identity from an AI read, sign-in retry or automatic session refresh.
             This dependency blocks technical acceptance of the complete 003 first
             school-entry journey, not unrelated model work or isolated candidate
@@ -271,6 +325,39 @@ parallel_lanes:
             first-chat HTTP journey without optional analytics. Recheck historical
             missing identity, revoked sessions, no Account fallback and zero identity
             writes from AI reads across the complete browser/API request chain.
+        - id: AI-BASELINE-GENERAL-009
+          status: selected
+          classification: C
+          owner_area: shared-test-tooling-and-account-settings
+          evidence_runs: [39241612253, 39240760662]
+          evidence_jobs: [118027411136, 118023541044]
+          selected_scope:
+            - e2e/access-account-ui.spec.ts
+            - playwright.access-a.config.ts
+            - tools/testing/ai-access-baseline.mjs
+            - package.json
+            - .github/workflows/spec-validation.yml
+          cause: >-
+            Unchanged Access tests share a 900 mutations per IP five-minute window;
+            the final complete NAT admission case can inherit prior consumption and
+            fail with too_many_requests. The independent settings fixture supplies
+            non-UUID Seat/class identities, so strict telemetry quality validation
+            rejects its background report and the fallback records a business write.
+          selection: >-
+            Select a separate bounded test-tooling repair. Run the complete unchanged
+            NAT admission case in a fresh ordinary Playwright/API invocation while
+            preserving the other cases, failure status and distinct evidence. Keep
+            all production rates, windows, credentials, case assertions and retries.
+            Give the synthetic settings Seat coherent valid UUIDs and retain strict
+            telemetry validation and the empty business-mutation assertion. Assign
+            the fixture repair and common launcher repair as separate author turns;
+            preserve explicit caller CLI overrides such as the profile workflow.
+            No product or authentication behavior is part of these baseline repairs.
+          acceptance: >-
+            Require independent exact-source review, unchanged complete case names,
+            real browser runs and General success. Do not silently repair this C
+            baseline inside the 003, 004 or 005 product candidate. Accepted Learning
+            006 and the earlier classroom-owner UUID fixture remain intact.
       dependency_sequence:
         - text_convergence_and_focused_ci
         - teacher_controlled_student_admission
@@ -292,20 +379,23 @@ parallel_lanes:
       live_provider_verification: not_run
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: c2d41028f29c041d3b8df1215bb81d0479dbecd5
+      convergence_baseline_sha: 896d1c6ba23e119784c7ef63351d97a43be1ede2
       head_sha: null
-      observed_at: '2026-10-19T09:30:42Z'
+      observed_at: '2026-10-19T12:26:12Z'
       main:
         branch: main
-        sha: c2d41028f29c041d3b8df1215bb81d0479dbecd5
+        sha: 15de68aaa075e224a8afaa2e8045ef964f5af0a5
       observation_note: >-
-        PR623 and PR631 are integrated after independent approval and passing
-        exact-head AI-focused and general repository gates. Combined main CI is
-        in progress at this dated observation; do not infer its conclusion from
-        the accepted candidate runs. Student access, provider configuration and
-        complete text history remain in implementation. Preserve concurrent
-        Learning and authentication work. Fetch main again and actual exact-SHA
-        CI before the next integration. No deployment or live paid call ran.
+        PR623, PR631 and the separately reviewed Learning compatibility PR636 are
+        integrated after their required exact-candidate gates. School access 003,
+        model configuration 004 and combined text 005 have independent approval;
+        combined PR642 is awaiting its actual-SHA CI and separate General baseline
+        repairs. Source approval does not replace these gates. The isolated private
+        attachment author is assigned on the frozen published 005 candidate; its
+        integration awaits dependency acceptance. Fresh main adds only unrelated
+        Electronics governance since the combined candidate baseline. Preserve all
+        concurrent work. Fetch main again and inspect actual exact-SHA CI before
+        integration. No deployment, working DB action or live paid provider call ran.
     execution_lease:
       executor_id: chatgpt-ai-programme-controller
       holder: unassigned
