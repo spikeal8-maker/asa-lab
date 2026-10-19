@@ -634,7 +634,7 @@ export class CoursesController {
 
   @Post('courses')
   async create(@Req() request: FastifyRequest, @Body() rawBody: unknown) {
-    return { id: await this.save(request, null, rawBody) };
+    return this.save(request, null, rawBody);
   }
 
   /**
@@ -681,14 +681,14 @@ export class CoursesController {
     @Body() rawBody: unknown,
   ) {
     this.requireUuid(courseId, 'course');
-    return { id: await this.save(request, courseId, rawBody) };
+    return this.save(request, courseId, rawBody);
   }
 
   private async save(
     request: FastifyRequest,
     courseId: string | null,
     rawBody: unknown,
-  ): Promise<string> {
+  ): Promise<{ id: string; draftRevision: number }> {
     const context = await this.requireAuthor(request);
     const shape = checkBodyShape(rawBody, [
       'title',
@@ -735,7 +735,14 @@ export class CoursesController {
         ),
         409,
       );
-    return id;
+    const draftRevision = Number(result.rows[0]?.draft_revision);
+    if (!Number.isSafeInteger(draftRevision) || draftRevision < 1) {
+      throw new HttpException(
+        error('draft_revision_missing', 'Не удалось подтвердить версию курса.'),
+        503,
+      );
+    }
+    return { id, draftRevision };
   }
 
   /**
@@ -1244,7 +1251,7 @@ export class CoursesController {
     @Param('courseId') courseId: string,
     @Body() rawBody: unknown,
   ) {
-    return { id: await this.saveSection(request, courseId, null, rawBody) };
+    return this.saveSection(request, courseId, null, rawBody);
   }
 
   @Patch('courses/:courseId/sections/:sectionId')
@@ -1255,7 +1262,7 @@ export class CoursesController {
     @Body() rawBody: unknown,
   ) {
     this.requireUuid(sectionId, 'section');
-    return { id: await this.saveSection(request, courseId, sectionId, rawBody) };
+    return this.saveSection(request, courseId, sectionId, rawBody);
   }
 
   private async saveSection(
@@ -1263,7 +1270,7 @@ export class CoursesController {
     courseId: string,
     sectionId: string | null,
     rawBody: unknown,
-  ): Promise<string> {
+  ): Promise<{ id: string; draftRevision: number }> {
     const context = await this.requireAuthor(request);
     this.requireUuid(courseId, 'course');
     const shape = checkBodyShape(rawBody, ['title', 'summary', 'expectedRevision']);
@@ -1282,10 +1289,11 @@ export class CoursesController {
       shape.body['expectedRevision'],
       'SELECT course_section_save($1, $2, $3, $4, $5) AS id',
       [context.principalId, courseId, sectionId, title, summary],
+      true,
     );
     const id = (result.rows[0] as { id: string | null } | undefined)?.id ?? null;
     if (!id) throw new HttpException(error('course_not_found', 'Курс не найден.'), 404);
-    return id;
+    return { id, draftRevision: Number(result.draftRevision) };
   }
 
   @Post('courses/:courseId/sections/:sectionId/move')

@@ -1091,3 +1091,255 @@ so obtain its current unpublished migration handoff and re-read all published an
 reserved IDs before choosing the publication number. Do not assume0229 is free.
 PR 613 source 662 remains unchanged; stage 2, its final composition and stages3-7
 are not accepted by this checkpoint. No deployment or live-database operation.
+
+## Controller checkpoint: accepted General009 and actual Games coverage
+
+This checkpoint supersedes the pending status of General009 PR 643 and the
+pre-publication Games selection above. Historical receipts and failures remain
+attributed to their original sources. The controller changes only this card and
+the Projects lane of `docs/execution/current.yaml`; no product or test repair is
+selected by this status update.
+
+The fresh remote observation at 2026-10-19T17:53:55Z is main
+`cc6c4bf1e753ef617e11932fd36a9fb85b4c5e70`, single parent main475 and tree
+`7f1676db9d2770df35ff5dd72a2f3a1934567ccb`. Its eight Learning course/section-save
+paths do not overlap either controller document. This checkpoint is carried
+once onto that baseline and preserves all eight source blobs, including the
+new metadata-race spec, API changes and course editor changes. At the observed
+time General 39297710485 and Learning 39297755737 are in progress; that is
+metadata, not acceptance. The earlier exact-source results below do not
+accept cc6. Publishing the controller checkpoint waits for the current main
+CI to become terminal so that it does not interrupt that verification.
+
+### General009 is integrated and independently checked after the merge
+
+Exact PR 643 source `632691d7215a41b0141df0c8a3d57c7ccac44462` has independent
+[SOURCE review 5574033961](https://github.com/spikeal8-maker/asa-lab/pull/643#pullrequestreview-5574033961)
+and [ACTUAL review 5574134455](https://github.com/spikeal8-maker/asa-lab/pull/643#pullrequestreview-5574134455),
+both PASS. General 39274158221 completed all four jobs with 220 migrations,
+Data 4818 PASS / 34 SKIP / 0 FAIL, separate RLS 16 PASS, 22 unique real Access
+journeys without skips or retries and 418 unique settings cases. The current
+actual receipt is 55839 bytes, SHA256
+`e9dd669b58154d45e99a2ce989b456d781a361942d583cdf4daa903d4fbfb666`.
+
+The normal merge is `47524e08f14a1c7c6c11b213063103e652a32c3d`, parents
+`fcc9e4c0f61cbc12a260e83e62e8107263bf9a2a` and exact `632691d7`. Its tree
+`f1d5e2b3a820f9fbbc023368764bdb561ef438ce` independently matches the expected
+full-tree union: six reviewed source paths change; the two controller documents,
+accepted Auth C5 and all other source files are preserved. No force operation
+or unreviewed source edit was used.
+
+The separate new post-main General
+[39280683031](https://github.com/spikeal8-maker/asa-lab/actions/runs/39280683031),
+push attempt 1 on exact `47524e08`, is independently ACTUAL PASS. The full
+[post-main report is published on PR 643](https://github.com/spikeal8-maker/asa-lab/pull/643#issuecomment-6272837347).
+
+| Post-main job | Actual result |
+| --- | --- |
+| Governance 118155047513 | PASS; 205 Python PASS + 3 declared SKIP, control-plane 102, registry 61, asset validation 21 |
+| Code 118155761910 | PASS; format/lint/types/build, 533 observability, 114 Node routing and 10 release tests |
+| Data 118157749096 | 4818 PASS / 34 SKIP / 0 FAIL in 476 unique files; separate RLS 16 PASS / 0 SKIP |
+| Access 118157749125 | 971 unit PASS + 1 opt-in SKIP, launcher 7 PASS, 22 unique real journeys PASS and 418 unique settings PASS |
+
+Both full validation catalogs match the 220 published migration filenames;
+Data and Access each apply all 220, including immutable Auth 0225. Restricted
+roles, PG17.7 manifest/config/all 14 ordered rootfs, exact source475 API/test
+images and all five Node base layers are verified. Actual container, volume
+and network removal records prove the disposable environment cleanup. The
+original six Access artifact paths, `always()`, 14-day retention and separate
+summary coverage are preserved.
+
+The post-main reviewer retrieved four new complete terminal logs once each
+and only the new summary artifact 12203030714, 4261 bytes, SHA256
+`0e5488f69fa892d5b93447bc3f95803dc1ead4e17cc2bc42fb47a73701baadfb`.
+The large browser and full-data archives were not downloaded. Final post-main
+safe receipt: 53646 bytes, SHA256
+`2920460cbc822fe5b6545b92461115f323cb93395ebf92a773c23fd2158e4246`.
+This is bounded General009 consumer acceptance. Both 632 and 475 still show
+Games 0 PASS / 32 SKIP; the following new candidate supplies different evidence.
+
+### PR 645 proves all 32 Games cases; complete General remains blocked
+
+The separate author froze local source
+`262370b52584ab1076904970ac5243dcafda6318` on the accepted fcc selection.
+The controller mechanically copied its exact Compose blob onto accepted main475,
+creating [draft PR 645](https://github.com/spikeal8-maker/asa-lab/pull/645), source
+`94f2e18b8e76543f0f6ee5a7eceb0fb6791df54d`, single parent main475 and tree
+`071397f47eb7395b452c1d8e34473351e9743bfe`. Only `CI:` was added to the existing
+test-runner environment; all 4282 other files are preserved.
+
+The authored file is 1925 bytes, Git blob
+`924d5f597bdf9e95a10664d14f336ad6bc92e5f9`, SHA256
+`299989ca509d7dcf3c728edbc39f6b7cd7e48994e9a38d52cd6e3fe660ba43af`.
+Independent [SOURCE review 5574299924](https://github.com/spikeal8-maker/asa-lab/pull/645#pullrequestreview-5574299924)
+is PASS; its 42987-byte receipt has SHA256
+`36c06e5724dd60564a3277c257957151d49e35f7c5fcd8a8ba215f64825c3737`.
+Host true/false/empty/unresolved semantics and the original guard/assertions,
+roles, images, networks, commands and four old environment values are retained.
+
+New exact-source General
+[39282065316](https://github.com/spikeal8-maker/asa-lab/actions/runs/39282065316),
+pull_request attempt 1, is terminal FAILURE. Independent
+[ACTUAL review 5575121886](https://github.com/spikeal8-maker/asa-lab/pull/645#pullrequestreview-5575121886)
+records the following distinct results.
+
+| New General job | Actual result |
+| --- | --- |
+| Governance 118158171994 | PASS |
+| Code 118159126910 | PASS; observability 533, Node TAP 114, release 10, lint/types/build 27 projects |
+| Data 118161372311 | 4849 PASS / 1 FAIL / 2 SKIP; 4852 cases across 476 unique files |
+| Access 118161372327 | 971 unit PASS + 1 opt-in SKIP, launcher 7 PASS, 22 unique real journeys without skips/retries and all 418 unique settings PASS |
+
+The actual parsed test-runner model has `CI: "true"` at Data log L1178.
+The preserved unfiltered `vitest run` executes the original Games file:
+**32 PASS / 0 FAIL / 0 SKIP, 10740 ms**, L4112. The exact source manifest retains
+16 SQL, 10 HTTP, two list-revocation, two Gallery-copy, one new-Seat lifecycle
+and one concurrency case. The default reporter does not print every fast case
+separately; no individual log coordinates are invented for those cases.
+
+The validation model initially prints `asa-lab-test:local` before assignment of
+`ASA_IMAGE_TAG`. Later actual build attestations and the Data invocation identify
+exact94 API/test images; the earlier printed model is not relabeled. Both full
+migration validation lists match all 220 source names and hash prefixes, real
+application reports Applied 220, and Auth0225 retains its immutable source hash.
+The actual PG17.7 config and all 14 ordered rootfs, source image identities and
+five Node base layers are preserved. Games setup and fresh RLS checks establish
+the restricted application role. The separate administrative setup owner is
+not described as a restricted runtime role.
+
+RLS has two precise results: **16 PASS inside the full Vitest command**, L3787,
+368 ms, and **NOT_RUN for the separate trailing `pnpm test:rls`**. The unchanged
+`db:migrate:check && pnpm test && pnpm test:rls` chain stops after Vitest exits 1.
+The passing inline suite does not turn that incomplete chain into a full PASS.
+Actual PostgreSQL container, both networks and test-volume removals are logged;
+Access service/network removal is also explicit. Games private database cleanup
+is supported by the strict successful `afterAll`, without a separately printed
+SQL DROP transcript. The log-observer stop is a successful best-effort step
+using `kill ... || true`; actual observer PID termination is NOT_ATTESTED.
+
+Final safe General receipt: 102488 bytes, SHA256
+`3986bbaf482452046b51375f5370ad231f5e589af911606d58c6b7c4773ae73d`.
+All four new General logs were retrieved once. Only the new Access summary
+artifact 12201984329 was downloaded: 4257 bytes, SHA256
+`70ccbede8ae9b1c38e97eefcf91f241a83dc470bc649e8d03e80711aa839de5b`.
+Its 22 unique results match discovery and actual execution, with one result,
+retry 0 and no errors per case. Browser/full-data archives remain undownloaded;
+their upload/size/digest metadata and original six Access paths are verified.
+
+### Electronics timeout: ownership is known; causal category is unresolved
+
+The sole Data failure is
+`contexts/electronics/testing/engine-trace-replay.spec.ts:468:5`,
+`observation-arduino-led: preserves full state and result through bounded complete horizons`.
+The 16-case file has 15 PASS / 1 FAIL. The case reports 5119 ms and
+`Test timed out in 5000ms`; no physical equality assertion failure is reported.
+Completion of all assertions in that timed-out case is not claimed.
+
+| Exact source and run | Same named case | Full replay file |
+| --- | --- | --- |
+| 632 / General 39274158221 | PASS, 4536 ms | 16 PASS, 16243 ms |
+| 475 / General 39280683031 | PASS, 3126 ms | 16 PASS, 12452 ms |
+| 94 / General 39282065316 | FAIL, timeout at 5119 ms | 15 PASS / 1 FAIL |
+
+The 632 comparison used its already cached log; no old log was downloaded again.
+These two earlier successes and unchanged source bytes do not prove causal
+independence from newly executed Games or other workload. Under AGENTS.md's
+actual legend, C requires an independent other-module defect. The recorded
+**causal classification is UNRESOLVED; A/B/C are not established. Owner scope
+is Electronics.** No runtime repair or longer timeout follows from ownership.
+
+A separate source-only audit covers the exact replay's 41 local files and
+103 import edges, with no unresolved or nonliteral dynamic local imports and
+no direct CI/environment/runner-setting references. Locked Vitest 4.1.11 and
+std-env 4.3.0 package tarballs match the lockfile SHA512 integrity values; they
+were read as text, without install/import/test execution. For the explicit
+Node `vitest run`, run forces watch false, worker defaults depend on available
+CPU/watch state, the default pool is forks and the 5000 ms test / 10000 ms hook
+timeouts have no CI branch. Other runner defaults do depend on CI. Actual
+worker allocation, scheduling/resource contention and the cause of 5119 ms
+remain unknown. Runner source receipt: 36735 bytes, SHA256
+`6121fecbc7659e926954c7ca2be7fffd1f8bf46543cafaf60a0e99296da280fc`.
+
+The existing external Electronics owner must provide the bounded causal
+handoff and any separately reviewed source correction within its selected
+ownership. This one-file Games task does not authorize an Electronics test,
+solver, workflow or timeout edit. Full new General and its complete required
+chain remain necessary before accepting the Games candidate. No unchanged
+rerun, filter, skipped assertion or higher timeout is selected.
+
+The concrete causal handoff is published in
+[Issue 638 comment 6273706695](https://github.com/spikeal8-maker/asa-lab/issues/638#issuecomment-6273706695),
+with the exact source/run/job, three-source timing comparison, locked runner
+audit, UNRESOLVED classification and the complete inline/trailing RLS boundary.
+The PR body records the terminal result above its retained creation history.
+
+### Portable Delivery passes within its active transition contract
+
+Independent [Portable ACTUAL review 5575032133](https://github.com/spikeal8-maker/asa-lab/pull/645#pullrequestreview-5575032133)
+accepts only exact94
+[Portable Delivery 39282065291](https://github.com/spikeal8-maker/asa-lab/actions/runs/39282065291),
+pull_request attempt 1. All three complete jobs pass.
+
+| Portable job | Actual result |
+| --- | --- |
+| Linux contracts 118158171617 | Deployment 81 PASS + 1 Windows-only SKIP; collector 58 PASS + 3 declared SKIP; seven shell wrappers PASS |
+| Windows contracts 118158171836 | Deployment 80 PASS + 2 platform SKIP; collector 59 PASS + 2 PG opt-in SKIP; six PowerShell wrappers PASS |
+| Images 118158584147 | Four source images, actual Linux boot, PG/MinIO backup/restore, restricted-role HTTP login, collector/provenance/privacy and scoped cleanup PASS |
+
+All 82 deployment identities pass on an applicable OS; all ten Auth
+bootstrap/provision/staging cases pass on both. The actual restored isolated
+database contains 220 migration rows. Real object deletion/byte restoration,
+table ACL/RLS-flag equality and restricted-role HTTP login are checked. Explicit
+removal records cover seven containers, two volumes and three networks, plus
+the owned collector cleanup. Three new full terminal logs were read once;
+the workflow has zero artifacts and no archive was downloaded.
+
+Safe Portable receipt: 41728 bytes, SHA256
+`224c40a937ca1d7d6ea02b2e9a155aa2caee96316bd17661b6e9704bd1627466`.
+The active deployment transition ADR still says ACTIVE TRANSITION EXCEPTION
+and TRANSITIONAL_NON_COMPLIANT. Full Standard compliance is not accepted.
+This workflow does not execute browser save/reopen, fresh ZIP, Windows image
+boot, second-device LAN or real public ingress, and cannot replace General RLS.
+
+### Separate focused infrastructure failure and existing external handoffs
+
+Exact94 Electronics Focused
+[39282065304](https://github.com/spikeal8-maker/asa-lab/actions/runs/39282065304),
+job 118159158463, has a distinct proven **D** failure. Its unchanged immutable
+public.ecr.aws Caddy and Node manifest requests return HTTP429, Too Many
+Requests / Data limit exceeded (L620/L623). Build exits 1 at L646-L648.
+PostgreSQL, migrations, API/web and browser steps are skipped. No browser
+assertion runs, and that transport cause is not assigned to the General timeout.
+The new complete target log was read once. Safe receipt: 18885 bytes, SHA256
+`c3b5514a93546fc44061b98e4694682e928ce1fb4a9194b62fc95be43176df01`.
+GC1 retains exclusive shared-guard/transport ownership and the existing
+LF/CRLF continuation and complete ordered build-argument findings.
+The concrete new infrastructure handoff is published in
+[Issue 280 comment 6273695392](https://github.com/spikeal8-maker/asa-lab/issues/280#issuecomment-6273695392).
+
+D13 remains exact `f9679b90fc184dee61a9da99dec15b5a1c5bce36`. Independent actual
+triage of its two complete new browser logs established Classroom
+39271296982: 164 PASS / 6 FAIL, and Strict 39271290925: 161 PASS / 9 FAIL,
+each with 170 unique cases, no skips or retries. Image/PG/migration startup
+completed before these assertions and disposable cleanup was verified. The
+complete failure matrix and limits were handed to the existing owner in
+[Issue 638 comment 6271625706](https://github.com/spikeal8-maker/asa-lab/issues/638#issuecomment-6271625706).
+Safe receipt: 53634 bytes, SHA256
+`d96c75c2d3879385758b59dcc3988f419c16e4c81689d215a29a3539e15b61b5`.
+Product versus observer cause and any causal role of the last type annotation
+remain unproved; no old browser PASS or new Projects writer is substituted.
+
+The AI candidate remains PR 642 exact `0a7423080feff135ca90e904617201440992e6f1`.
+Its unmerged AI 0225 collides with published Auth 0225, and the stale 0225-0228
+reservation needs the existing AI owner's fresh numbering handoff. Published
+Auth 0225 and all earlier migration checksums remain immutable; 0229 is not
+assumed free. The General009 post-main PASS does not resolve this collision.
+
+Scratch PR 644 retains its independent focused ACTUAL review 5573987710:
+57/57 host cases, Recovery real IndexedDB retention and both Abby
+NOT_REPRODUCED results. Its old General failure remains recorded; accepted
+General009 addresses the proven UUID fixture cause without inventing a new
+combined-source PASS. Scratch644, Learning639 and QR629 stay held for their
+controlled combined acceptance. PR 613 remains source662, with no final
+composition started. Stage 2 is open; stages 3-7, deployment and live database
+actions are not activated by this checkpoint.
