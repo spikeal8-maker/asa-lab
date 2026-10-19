@@ -2,7 +2,12 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import type { AuthProviderAvailability } from './api';
-import { availableSocialProviders, SocialAuthButtons, socialLaunchUrl } from './auth-providers';
+import {
+  availableSocialProviders,
+  SocialAuthButtons,
+  socialLaunchUrl,
+  providerWebhookUrl,
+} from './auth-providers';
 
 vi.mock('./api', () => ({ api: {} }));
 
@@ -36,6 +41,26 @@ describe('available sign-in methods', () => {
     expect(html).toBe('');
   });
 
+  it('allows the first native check without claiming enforcement eligibility', () => {
+    const html = renderToStaticMarkup(
+      createElement(SocialAuthButtons, {
+        providers: [
+          {
+            ...provider('max', true),
+            enforcementEligible: false,
+            enforcementReason: 'delivery_unverified',
+          },
+        ],
+        purpose: 'link',
+        linkActionLabel: 'Подтвердить в боте',
+        onAuthenticated: vi.fn(),
+      }),
+    );
+    expect(html).toContain('Подтвердить в боте MAX');
+    expect(html).not.toContain('disabled');
+    expect(html).not.toContain('Вход проверен');
+  });
+
   it('keeps visible button text specific to login, registration and same-account linking', () => {
     for (const [purpose, label] of [
       ['login', 'Войти через Telegram'],
@@ -57,6 +82,17 @@ describe('available sign-in methods', () => {
 });
 
 describe('messenger launch destinations', () => {
+  it('formats a public callback without inferring browser-origin trust', () => {
+    expect(providerWebhookUrl('max', 'https://asa.example.test/max-login')).toBe(
+      'https://asa.example.test/api/auth/max/webhook',
+    );
+    expect(providerWebhookUrl('telegram', 'https://192.0.2.20:8443/')).toBe(
+      'https://192.0.2.20:8443/api/auth/telegram/webhook',
+    );
+    expect(providerWebhookUrl('telegram', 'http://192.0.2.20/')).toBeNull();
+    expect(providerWebhookUrl('max', 'https://name:secret@asa.example.test/')).toBeNull();
+    expect(providerWebhookUrl('max', '')).toBeNull();
+  });
   it('accepts HTTPS native bot links for their matching provider', () => {
     expect(socialLaunchUrl('max', 'https://max.ru/fixture_bot?start=opaque')).toBe(
       'https://max.ru/fixture_bot?start=opaque',

@@ -7,6 +7,8 @@ import { telemetryReceipt } from './fixtures/telemetry-receipts';
 const evidence = 'e2e/artifacts/owner-preview/access-a-ui';
 const r3Evidence = 'reports/playwright/portal-compact-settings-r3-20261008';
 const r3Visual = `${r3Evidence}/candidate-final-own-fix`;
+const fixtureSeatId = '40000000-0000-4000-8000-000000000001';
+const fixtureClassId = '10000000-0000-4000-8000-000000000001';
 test.beforeAll(() => mkdirSync(evidence, { recursive: true }));
 async function serveBuiltApp(page: Page) {
   const dist = resolve('apps/web/dist');
@@ -338,6 +340,48 @@ for (const width of [1440, 1024, 390, 320])
         expect(state.mutations).toEqual([]);
       });
 
+test('Seat settings receives a persisted quality receipt without business mutations', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 568 });
+  const state = await fixture(page, { seat: true });
+  const qualityResponse = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === '/api/analytics/v2/quality' &&
+      response.request().method() === 'POST',
+  );
+  await page.goto('/#/account/notifications');
+  await expect(page.getByLabel('Получать учебные оповещения')).toBeVisible();
+
+  // Exercise the real emitter and strict receipt handler, including its timer.
+  const response = await qualityResponse;
+  expect(response.status()).toBe(200);
+  const snapshot = response.request().postDataJSON();
+  expect(snapshot).toMatchObject({
+    schemaVersion: 2,
+    pipeline: 'product-analytics',
+    acknowledgementStage: 'persisted',
+  });
+  expect(snapshot.actorExpectation).toEqual({
+    kind: 'student',
+    seatId: fixtureSeatId,
+    classId: fixtureClassId,
+  });
+  expect(await response.json()).toMatchObject({
+    accepted: true,
+    state: 'persisted',
+    schemaVersion: 2,
+    eventId: snapshot.eventId,
+    receiptId: snapshot.eventId,
+    streamId: snapshot.streamId,
+    sequence: snapshot.sequence,
+    pipeline: 'product-analytics',
+    acknowledgementStage: 'persisted',
+    operation: 'quality',
+  });
+  expect(state.mutations).toEqual([]);
+});
+
 test('R3 stationary pointer after avatar modal close cannot obstruct reopening the avatar', async ({
   page,
 }) => {
@@ -599,7 +643,7 @@ for (const width of [1440, 1024, 390, 320])
       await expect.poll(() => writes.length).toBe(1);
       expect(writes[0]!.categories.NC02).toBe(true);
       expect(writes[0]!.categories.NC08).toBe(true);
-      expect(writes[0]!.classOverrides['class-1']).toEqual({
+      expect(writes[0]!.classOverrides[fixtureClassId]).toEqual({
         mode: 'custom',
         categories: { NC01: 'off' },
       });
@@ -681,7 +725,7 @@ async function fixture(
     classOverrides: {},
     classes: [
       {
-        id: 'class-1',
+        id: fixtureClassId,
         title: 'Длинное название класса для проверки переносов и настроек уведомлений',
       },
     ],
@@ -786,13 +830,13 @@ async function fixture(
           ? {
               authenticated: true,
               student: {
-                seatId: 'seat-1',
+                seatId: fixtureSeatId,
                 displayName: 'Ученик с длинным именем',
                 safeMode: true,
                 avatarKey: seatAvatarKey,
               },
               classroom: {
-                id: 'class-1',
+                id: fixtureClassId,
                 title: 'Учебный класс',
                 teacherDisplayName: 'Преподаватель',
               },
@@ -805,12 +849,16 @@ async function fixture(
       return reply({
         authenticated: true,
         student: {
-          seatId: 'seat-1',
+          seatId: fixtureSeatId,
           displayName: 'Ученик с длинным именем',
           safeMode: true,
           avatarKey: seatAvatarKey,
         },
-        classroom: { id: 'class-1', title: 'Учебный класс', teacherDisplayName: 'Преподаватель' },
+        classroom: {
+          id: fixtureClassId,
+          title: 'Учебный класс',
+          teacherDisplayName: 'Преподаватель',
+        },
         expiresAt: '2030-01-01T00:00:00Z',
       });
     }
@@ -831,9 +879,9 @@ async function fixture(
           timeZone: 'Europe/Moscow',
         },
       });
-    if (path === '/api/classrooms/class-1/journal/settings')
+    if (path === `/api/classrooms/${fixtureClassId}/journal/settings`)
       return reply({ status: 'active', scale: { preset: 'five', version: 0 } });
-    if (path === '/api/classrooms/class-1/participants')
+    if (path === `/api/classrooms/${fixtureClassId}/participants`)
       return reply({
         settings: {
           periodDays: 30,
@@ -848,8 +896,8 @@ async function fixture(
       return reply({
         items: [
           {
-            seatId: 'seat-1',
-            classroomId: 'class-1',
+            seatId: fixtureSeatId,
+            classroomId: fixtureClassId,
             classroomTitle: 'Учебный класс',
             teacherDisplayName: 'Преподаватель',
             openCount: 0,
@@ -857,10 +905,10 @@ async function fixture(
           },
         ],
       });
-    if (path === '/api/classrooms/class-1')
+    if (path === `/api/classrooms/${fixtureClassId}`)
       return reply({
         classroom: {
-          id: 'class-1',
+          id: fixtureClassId,
           title: 'Учебный класс',
           status: 'active',
           ageBand: 'mixed',
@@ -877,7 +925,7 @@ async function fixture(
           archivedAt: null,
         },
       });
-    if (path === '/api/learning/notifications/classes/class-1/reminders')
+    if (path === `/api/learning/notifications/classes/${fixtureClassId}/reminders`)
       return reply({ revision: 0, due: true, overdue: true });
     if (path === '/api/learning/notifications/read') {
       const input = request.postDataJSON();
@@ -988,17 +1036,17 @@ async function fixture(
         reviews: [
           {
             key: 'review-1',
-            classroomId: 'class-1',
+            classroomId: fixtureClassId,
             classroomTitle: 'Класс с длинным названием',
             assignmentId: 'assignment-1',
             assignmentTitle: 'Учебная работа, ожидающая проверки преподавателем',
-            seatId: 'seat-1',
+            seatId: fixtureSeatId,
             learnerName: 'Ученик с длинным именем',
             attemptId: null,
           },
         ],
         joinRequests: [],
-        classrooms: [{ id: 'class-1', title: 'Класс с длинным названием' }],
+        classrooms: [{ id: fixtureClassId, title: 'Класс с длинным названием' }],
         joinRequestsMayBeLimited: false,
       });
     if (path === '/api/classrooms/awaiting-review') return reply({ total: 0 });
@@ -1055,11 +1103,11 @@ const inboxItems: LearningNotification[] = [
     id: 'notification-1',
     kind: 'NF01',
     category: 'NC01',
-    classroomId: 'class-1',
+    classroomId: fixtureClassId,
     classroomTitle: 'Класс с очень длинным названием для проверки учебных оповещений',
     title: 'Назначена работа с длинным названием и подробным описанием учебной задачи',
     assignmentId: 'assignment-1',
-    seatId: 'seat-1',
+    seatId: fixtureSeatId,
     attemptId: null,
     courseRunId: null,
     joinRequestId: null,
@@ -1148,7 +1196,7 @@ for (const role of ['account', 'seat', 'teacher', 'author', 'admin'] as const)
       await assertInboxGeometry(page, width, `${role}-populated`);
       await expect(events.getByRole('link', { name: 'Открыть' }).nth(0)).toHaveAttribute(
         'href',
-        '#/learning?assignment=assignment-1&learner=seat-1',
+        `#/learning?assignment=assignment-1&learner=${fixtureSeatId}`,
       );
       await expect(events.getByRole('link', { name: 'Открыть' }).nth(1)).toHaveAttribute(
         'href',
@@ -1324,7 +1372,9 @@ for (const seat of [false, true])
       ),
     ).not.toContain('Непрочитанных: 999');
     await events.getByRole('link', { name: 'Открыть', exact: true }).click();
-    await expect(page).toHaveURL(/#\/learning\?assignment=assignment-1&learner=seat-1$/);
+    await expect(page).toHaveURL(
+      new RegExp(`#/learning\\?assignment=assignment-1&learner=${fixtureSeatId}$`),
+    );
     await expect.poll(() => writes.length).toBe(2);
     expect(writes[1]).toEqual({ ids: ['notification-1'], asOf: '2026-01-01T00:00:00Z' });
     await expect(events).toHaveCount(0);
@@ -2054,7 +2104,7 @@ for (const width of [1440, 1024, 390, 320])
   }) => {
     await fixture(page, { educator: true });
     await page.setViewportSize({ width, height: 900 });
-    for (const route of ['/#/attending', '/#/classrooms/class-1']) {
+    for (const route of ['/#/attending', `/#/classrooms/${fixtureClassId}`]) {
       await page.goto(route);
       if (route.includes('/classrooms/')) {
         // Wait for the lazy page before choosing its rendered responsive control.
@@ -3497,13 +3547,13 @@ async function delayedAvatarWrite(page: Page, seat: boolean) {
           ? {
               authenticated: true,
               student: {
-                seatId: 'seat-1',
+                seatId: fixtureSeatId,
                 displayName: 'Ученик с длинным именем',
                 safeMode: true,
                 avatarKey: saved,
               },
               classroom: {
-                id: 'class-1',
+                id: fixtureClassId,
                 title: 'Учебный класс',
                 teacherDisplayName: 'Преподаватель',
               },
@@ -4108,7 +4158,7 @@ for (const width of [1440, 1024, 390, 320])
     await page.setViewportSize({ width, height: 568 });
     await fixture(page, { educator: true });
     const student = {
-      id: 'seat-1',
+      id: fixtureSeatId,
       displayLabel: 'Ученица с длинным именем',
       studentCode: 'AbC123',
       loginHandle: 'AbC123',
@@ -4119,16 +4169,16 @@ for (const width of [1440, 1024, 390, 320])
       createdAt: '2026-01-01T00:00:00Z',
     };
     const writes: unknown[] = [];
-    await page.route('**/api/classrooms/class-1/roster', (route) =>
+    await page.route(`**/api/classrooms/${fixtureClassId}/roster`, (route) =>
       route.fulfill({ json: { items: [student] } }),
     );
-    await page.route('**/api/classrooms/class-1/seats/seat-1', (route) => {
+    await page.route(`**/api/classrooms/${fixtureClassId}/seats/${fixtureSeatId}`, (route) => {
       writes.push(route.request().postDataJSON());
       return route.fulfill({
         json: { student: { ...student, ...route.request().postDataJSON() } },
       });
     });
-    await page.goto('/#/classrooms/class-1');
+    await page.goto(`/#/classrooms/${fixtureClassId}`);
     await expect(
       page.getByRole('button', { name: 'Действия: Ученица с длинным именем', exact: true }),
     ).toBeVisible();
@@ -4345,7 +4395,7 @@ test('S2 teacher optional catalogue failure preserves parent draft and retries l
   await fixture(page, { educator: true });
   let fail = true;
   const student = {
-    id: 'seat-1',
+    id: fixtureSeatId,
     displayLabel: 'Ученица',
     studentCode: 'AbC123',
     loginHandle: 'AbC123',
@@ -4355,11 +4405,11 @@ test('S2 teacher optional catalogue failure preserves parent draft and retries l
     lastActiveAt: null,
     createdAt: '2026-01-01T00:00:00Z',
   };
-  await page.route('**/api/classrooms/class-1/roster', (route) =>
+  await page.route(`**/api/classrooms/${fixtureClassId}/roster`, (route) =>
     route.fulfill({ json: { items: [student] } }),
   );
   await page.route('**/AvatarChooser-*.js*', (route) => (fail ? route.abort() : route.fallback()));
-  await page.goto('/#/classrooms/class-1');
+  await page.goto(`/#/classrooms/${fixtureClassId}`);
   await page.getByRole('button', { name: 'Действия: Ученица', exact: true }).click();
   await page.getByRole('button', { name: 'Изменить данные', exact: true }).click();
   const parent = page.locator('.classroom-student-dialog');
@@ -4467,7 +4517,7 @@ async function invitationStartup(page: Page, acceptFailure = false) {
     route.fulfill({
       json: {
         invitation: {
-          classroomId: 'class-1',
+          classroomId: fixtureClassId,
           classroomTitle: 'Учебный класс',
           ownerDisplayName: 'Преподаватель',
           status: 'pending',
@@ -4484,7 +4534,9 @@ async function invitationStartup(page: Page, acceptFailure = false) {
             status: 403,
             json: { error: { code: 'forbidden', message: 'Проверьте возможности аккаунта' } },
           }
-        : { json: { classroom: { id: 'class-1', title: 'Учебный класс', role: 'co_teacher' } } },
+        : {
+            json: { classroom: { id: fixtureClassId, title: 'Учебный класс', role: 'co_teacher' } },
+          },
     );
   });
   return accepted;
@@ -4637,7 +4689,7 @@ for (const authenticated of [false, true]) {
     ).toBeVisible();
     if (authenticated) {
       await page.getByRole('button', { name: 'Принять приглашение', exact: true }).click();
-      await expect(page).toHaveURL(/#\/classrooms\/class-1/);
+      await expect(page).toHaveURL(new RegExp(`#/classrooms/${fixtureClassId}`));
       expect(accepted).toEqual([{}]);
     } else {
       await page.getByRole('button', { name: 'Войти и продолжить', exact: true }).click();
@@ -4891,7 +4943,7 @@ for (const seat of [false, true])
         expect(init.projectJson).toEqual(projectJson);
         expect(init.draftRevision).toBe(7);
         expect(init.recoveryPrincipalKey).toBe(
-          seat ? 'seat-1' : '20000000-0000-4000-8000-000000000001',
+          seat ? fixtureSeatId : '20000000-0000-4000-8000-000000000001',
         );
         expect(reads).toHaveLength(known ? 0 : 1);
         await expect(

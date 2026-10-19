@@ -370,6 +370,18 @@ export class AdminController {
     }
   }
 
+  @Post('integrations/telegram/check')
+  @HttpCode(200)
+  @AllowUnverifiedAccount()
+  async checkTelegramConfiguration(@Req() request: FastifyRequest) {
+    const { context } = await this.requireAdmin(request);
+    try {
+      return await this.telegramAuth.checkAdminConfig(context.principalId);
+    } catch (failure) {
+      this.rethrowMaxConfigurationFailure(failure);
+    }
+  }
+
   @Put('integrations/telegram')
   @AllowUnverifiedAccount()
   async updateTelegramConfiguration(@Req() request: FastifyRequest, @Body() body: unknown) {
@@ -387,8 +399,12 @@ export class AdminController {
         context.principalId,
         {
           enabled: value['enabled'],
-          botUsername: this.text(value['botUsername'], 'botUsername', value['enabled'] ? 3 : 0, 64),
-          miniAppUrl: this.text(value['miniAppUrl'], 'miniAppUrl', value['enabled'] ? 12 : 0, 2048),
+          botUsername: value['enabled']
+            ? this.text(value['botUsername'], 'botUsername', 3, 64)
+            : '',
+          miniAppUrl: value['enabled']
+            ? this.text(value['miniAppUrl'], 'miniAppUrl', 12, 2048)
+            : '',
           ...(typeof token === 'string' && token.trim().length > 0
             ? { botToken: token.trim() }
             : {}),
@@ -407,6 +423,18 @@ export class AdminController {
     const { context } = await this.requireAdmin(request);
     try {
       return await this.maxAuth.adminConfig(context.principalId);
+    } catch (failure) {
+      this.rethrowMaxConfigurationFailure(failure);
+    }
+  }
+
+  @Post('integrations/max/check')
+  @HttpCode(200)
+  @AllowUnverifiedAccount()
+  async checkMaxConfiguration(@Req() request: FastifyRequest) {
+    const { context } = await this.requireAdmin(request);
+    try {
+      return await this.maxAuth.checkAdminConfig(context.principalId);
     } catch (failure) {
       this.rethrowMaxConfigurationFailure(failure);
     }
@@ -432,8 +460,12 @@ export class AdminController {
         context.principalId,
         {
           enabled: value['enabled'],
-          botUsername: this.text(value['botUsername'], 'botUsername', value['enabled'] ? 3 : 0, 64),
-          miniAppUrl: this.text(value['miniAppUrl'], 'miniAppUrl', value['enabled'] ? 12 : 0, 2048),
+          botUsername: value['enabled']
+            ? this.text(value['botUsername'], 'botUsername', 3, 64)
+            : '',
+          miniAppUrl: value['enabled']
+            ? this.text(value['miniAppUrl'], 'miniAppUrl', 12, 2048)
+            : '',
           ...(typeof token === 'string' && token.trim().length > 0
             ? { botToken: token.trim() }
             : {}),
@@ -729,6 +761,14 @@ export class AdminController {
           status: 422,
           message: 'Имя бота не совпадает с ботом, которому принадлежит токен.',
         },
+        webhook_url_invalid: {
+          status: 400,
+          message: 'Нужен разрешённый публичный HTTPS-адрес и поддерживаемый порт.',
+        },
+        webhook_conflict: {
+          status: 409,
+          message: 'Этот бот уже подключён к другому адресу. Прежние настройки сохранены.',
+        },
         service_unavailable: {
           status: 503,
           message: 'Сервис сейчас не отвечает. Проверьте состояние подключения.',
@@ -740,6 +780,11 @@ export class AdminController {
       };
       throw new HttpException(error(failure.code, response.message), response.status);
     }
+    if ((failure as { code?: string })?.code === '40001')
+      throw new HttpException(
+        error('configuration_changed', 'Настройки уже изменены. Обновите страницу и повторите.'),
+        409,
+      );
     this.rethrowAdminFailure(failure);
   }
 

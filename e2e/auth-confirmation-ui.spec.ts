@@ -22,13 +22,30 @@ type PairingOutcome =
 
 function healthyProviders(): AuthProviderAvailability[] {
   return [
-    { id: 'max', available: true, reason: 'ready', checkedAt: '2026-10-18T09:00:00Z' },
-    { id: 'telegram', available: true, reason: 'ready', checkedAt: '2026-10-18T09:00:00Z' },
+    {
+      id: 'max',
+      available: true,
+      reason: 'ready',
+      enforcementEligible: true,
+      enforcementReason: 'ready',
+      checkedAt: '2026-10-18T09:00:00Z',
+    },
+    {
+      id: 'telegram',
+      available: true,
+      reason: 'ready',
+      enforcementEligible: true,
+      enforcementReason: 'ready',
+      checkedAt: '2026-10-18T09:00:00Z',
+    },
     { id: 'email', available: false, reason: 'not_configured', checkedAt: null },
   ];
 }
 
+type FixtureIdentity = { id: string; email: string; displayName: string };
+
 interface UiState {
+  identity: FixtureIdentity | null;
   signedIn: boolean;
   admin: boolean;
   policyEnabled: boolean;
@@ -38,6 +55,10 @@ interface UiState {
   providersFailure: boolean;
   verificationFailure: boolean;
   policySaveFailure: boolean;
+  adminReadFailure: boolean;
+  emptyProviderUrl: boolean;
+  localPreviewEnabled: boolean;
+  pairingExpiresAt: string | null;
   nextPairing: PairingOutcome;
   passwordConfigured: boolean;
   linked: Record<SocialAuthProvider, boolean>;
@@ -50,6 +71,7 @@ async function fixture(
   options: Partial<Omit<UiState, 'requests'>> = {},
 ): Promise<UiState> {
   const state: UiState = {
+    identity: null,
     signedIn: false,
     admin: false,
     policyEnabled: false,
@@ -59,6 +81,10 @@ async function fixture(
     providersFailure: false,
     verificationFailure: false,
     policySaveFailure: false,
+    adminReadFailure: false,
+    emptyProviderUrl: false,
+    localPreviewEnabled: false,
+    pairingExpiresAt: null,
     nextPairing: 'pending',
     passwordConfigured: true,
     linked: { max: false, telegram: false },
@@ -80,11 +106,13 @@ async function fixture(
       featureEnabled: true,
       botUsername: 'asa_fixture_max_bot',
       miniAppUrl: 'https://asa.example.test/max-login',
+      configurationVersion: 1,
     },
     telegram: {
       featureEnabled: true,
       botUsername: 'asa_fixture_telegram_bot',
-      miniAppUrl: 'https://asa.example.test/',
+      miniAppUrl: state.emptyProviderUrl ? '' : 'https://asa.example.test/',
+      configurationVersion: 1,
     },
   };
   const pairings = new Map<string, { provider: SocialAuthProvider; purpose: string }>();
@@ -114,27 +142,34 @@ async function fixture(
   ];
   const verification = (): AccountVerificationState => {
     const healthy = state.providers.some((provider) => provider.available);
+    const eligible = state.providers.some(
+      (provider) => provider.available && provider.enforcementEligible === true,
+    );
     return {
       policyEnabled: state.policyEnabled,
-      required: state.policyEnabled && state.overdue && !state.verifiedProvider && healthy,
+      required: state.policyEnabled && state.overdue && !state.verifiedProvider && eligible,
       reason: !state.policyEnabled
         ? 'disabled'
         : state.verifiedProvider
           ? 'verified'
-          : !healthy
-            ? 'providers_unavailable'
-            : state.overdue
-              ? 'verification_required'
-              : 'grace_period',
+          : !state.overdue
+            ? 'grace_period'
+            : !healthy
+              ? 'providers_unavailable'
+              : !eligible
+                ? 'providers_unverified'
+                : 'verification_required',
       dueAt: state.overdue ? '2026-10-17T09:00:00Z' : '2030-01-01T00:00:00Z',
       verifiedProvider: state.verifiedProvider,
       providers: state.providers,
     };
   };
+  const identity = () =>
+    state.identity ?? { id: ACCOUNT_ID, email: profile.email, displayName: profile.displayName };
   const session = () => ({
     authenticated: true,
-    user: { id: ACCOUNT_ID, email: profile.email, displayName: profile.displayName },
-    account: { id: ACCOUNT_ID, email: profile.email, displayName: profile.displayName },
+    user: identity(),
+    account: identity(),
     capabilities: verification().required ? [] : capabilities(),
     actions: [],
     workspaces,
@@ -152,10 +187,32 @@ async function fixture(
   };
   const providerConfig = (provider: SocialAuthProvider) => {
     const health = state.providers.find((entry) => entry.id === provider);
+    const nativeCurrent = health?.enforcementEligible === true;
+    const available = health?.available === true;
+    const verifiedAt = '2026-10-18T09:00:00Z';
+    const checked = { state: 'ok', reason: null, checkedAt: verifiedAt };
     return {
       ...providerSettings[provider],
-      enabled: health?.available === true,
-      available: health?.available === true,
+      miniAppUrl: providerSettings[provider].miniAppUrl || null,
+      enabled: available,
+      available,
+      enforcementEligible: available && nativeCurrent,
+      enforcementReason: available && !nativeCurrent ? 'delivery_unverified' : health?.reason,
+      diagnostics: {
+        token:
+          health?.reason === 'invalid_token'
+            ? { state: 'failed', reason: 'invalid_token', checkedAt: verifiedAt }
+            : checked,
+        subscription: available ? checked : { state: 'not_checked', reason: null, checkedAt: null },
+        ingress: available ? checked : { state: 'not_checked', reason: null, checkedAt: null },
+        nativeConfirmation: {
+          current: nativeCurrent,
+          configurationVersion: nativeCurrent
+            ? providerSettings[provider].configurationVersion
+            : null,
+          verifiedAt: nativeCurrent ? verifiedAt : null,
+        },
+      },
       availabilityReason: health?.reason ?? 'unavailable',
       healthCheckedAt: health?.checkedAt ?? null,
       tokenConfigured: true,
@@ -164,13 +221,14 @@ async function fixture(
       verifiedBotId: 'synthetic-bot',
       verifiedBotName: provider,
       tokenVerifiedAt: '2026-10-18T09:00:00Z',
-      configurationVersion: 1,
       updatedAt: '2026-10-18T09:00:00Z',
       launchUrl:
         provider === 'max'
           ? 'https://max.ru/asa_fixture_max_bot'
           : 'https://t.me/asa_fixture_telegram_bot',
-      webhookUrl: null,
+      webhookUrl: providerSettings[provider].miniAppUrl
+        ? `${new URL(providerSettings[provider].miniAppUrl).origin}/api/auth/${provider}/webhook`
+        : null,
       webhookVerifiedAt: '2026-10-18T09:00:00Z',
       webhookLastError:
         health?.reason === 'delivery_unavailable' ? 'synthetic delivery failure' : null,
@@ -204,7 +262,8 @@ async function fixture(
     if (path === '/api/auth/me')
       return reply(state.signedIn ? session() : { authenticated: false });
     if (path === '/api/class-join/me') return reply({ authenticated: false });
-    if (path === '/api/auth/local-preview/config') return reply({ enabled: false });
+    if (path === '/api/auth/local-preview/config')
+      return reply({ enabled: state.localPreviewEnabled });
     if (path === '/api/auth/max/config') return reply({ enabled: false, launchUrl: null });
     if (path === '/api/auth/providers')
       return state.providersFailure
@@ -240,8 +299,8 @@ async function fixture(
         ? reply({
             administrator: true,
             principalId: 'fixture-admin',
-            accountId: ACCOUNT_ID,
-            displayName: profile.displayName,
+            accountId: identity().id,
+            displayName: identity().displayName,
             activeWorkspaceId: WORKSPACE_ID,
             scopes: [scope],
           })
@@ -250,6 +309,8 @@ async function fixture(
     if (path === '/api/admin/v1/dashboard')
       return error('account_verification_required', 'Подтвердите аккаунт', 403);
     if (path === '/api/admin/v1/auth/verification-policy') {
+      if (method === 'GET' && state.adminReadFailure)
+        return error('unavailable', 'Статус пока недоступен', 503);
       if (method === 'POST') {
         if (state.policySaveFailure)
           return error('unavailable', 'Не удалось сохранить правило. Повторите попытку.', 503);
@@ -262,12 +323,17 @@ async function fixture(
       });
     }
     for (const provider of METHODS) {
+      if (path === `/api/admin/v1/integrations/${provider}/check` && method === 'POST')
+        return reply(providerConfig(provider));
       if (path === `/api/admin/v1/integrations/${provider}`) {
+        if (method === 'GET' && state.adminReadFailure)
+          return error('unavailable', 'Статус пока недоступен', 503);
         if (method === 'PUT') {
           providerSettings[provider] = {
             featureEnabled: body.enabled === true,
             botUsername: String(body.botUsername),
             miniAppUrl: String(body.miniAppUrl),
+            configurationVersion: providerSettings[provider].configurationVersion + 1,
           };
           state.providers = state.providers.map((entry) =>
             entry.id !== provider
@@ -275,6 +341,8 @@ async function fixture(
               : {
                   ...entry,
                   available: body.enabled === true && body.botToken !== 'fixture-invalid-token',
+                  enforcementEligible: false,
+                  enforcementReason: 'delivery_unverified',
                   reason:
                     body.enabled !== true
                       ? 'disabled'
@@ -302,7 +370,7 @@ async function fixture(
         return reply({
           pairingToken,
           launchUrl: `https://${provider === 'max' ? 'max.ru' : 't.me'}/asa_fixture_bot?start=${pairingToken}`,
-          expiresAt: new Date(Date.now() + 600_000).toISOString(),
+          expiresAt: state.pairingExpiresAt ?? new Date(Date.now() + 600_000).toISOString(),
         });
       }
       if (path === `/api/auth/${provider}/pairing/complete`) {
@@ -327,6 +395,11 @@ async function fixture(
           expect(pairing.purpose).toBe('link');
           state.linked[provider] = true;
           state.verifiedProvider = provider;
+          state.providers = state.providers.map((entry) =>
+            entry.id === provider
+              ? { ...entry, enforcementEligible: true, enforcementReason: 'ready' }
+              : entry,
+          );
           return reply({ status: 'linked', linked: true });
         }
         if (state.nextPairing === 'authenticated') {
@@ -359,7 +432,13 @@ async function fixture(
       }
     }
     if (path === '/api/account/profile')
-      return reply({ ...profile, capabilities: capabilities(), workspaces });
+      return reply({
+        ...profile,
+        email: identity().email,
+        displayName: identity().displayName,
+        capabilities: capabilities(),
+        workspaces,
+      });
     if (path === '/api/account/avatar') return reply({ avatarDataUrl: null });
     if (path === '/api/account/sessions') return reply({ items: [] });
     if (path === '/api/account/password')
@@ -385,6 +464,41 @@ async function visit(page: Page, route: string): Promise<void> {
 }
 
 async function screenshot(page: Page, name: string): Promise<void> {
+  const overflow = await page.evaluate(() => {
+    const viewport = document.documentElement.clientWidth;
+    if (document.documentElement.scrollWidth <= viewport) return null;
+    return {
+      viewport,
+      scrollWidth: document.documentElement.scrollWidth,
+      elements: Array.from(document.querySelectorAll<HTMLElement>('body *')).flatMap((node) => {
+        const rect = node.getBoundingClientRect();
+        if (rect.right <= viewport && rect.left >= 0 && node.scrollWidth <= node.clientWidth)
+          return [];
+        const style = getComputedStyle(node);
+        return [
+          {
+            tag: node.tagName,
+            className: node.className,
+            text: node.textContent?.slice(0, 180),
+            left: rect.left,
+            right: rect.right,
+            width: rect.width,
+            clientWidth: node.clientWidth,
+            scrollWidth: node.scrollWidth,
+            fontSize: style.fontSize,
+            minWidth: style.minWidth,
+            whiteSpace: style.whiteSpace,
+            display: style.display,
+          },
+        ];
+      }),
+    };
+  });
+  if (overflow)
+    await test.info().attach(`${name}-overflow`, {
+      body: JSON.stringify(overflow, null, 2),
+      contentType: 'application/json',
+    });
   await expect
     .poll(() =>
       page.evaluate(
@@ -396,8 +510,75 @@ async function screenshot(page: Page, name: string): Promise<void> {
   await page.screenshot({ path: test.info().outputPath(`${name}-viewport.png`) });
 }
 
-async function passwordLogin(page: Page): Promise<void> {
-  await page.getByLabel('Email или имя пользователя', { exact: true }).fill('auth-review-account');
+async function enlargeText(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const sizes = Array.from(document.querySelectorAll<HTMLElement>('body *')).map(
+      (node) => [node, parseFloat(getComputedStyle(node).fontSize) * 1.5] as const,
+    );
+    for (const [node, size] of sizes) node.style.fontSize = `${size}px`;
+  });
+}
+
+// Deliberately ignore AbortSignal, so late-result fences are tested in addition
+// to normal fetch cancellation. No request reaches a bot or a real backend.
+async function holdAuthRequest(page: Page, path: string, method: string): Promise<void> {
+  await page.addInitScript(
+    ({ path, method }) => {
+      type Hold = { calls: number; aborted: number; release: (body: unknown) => void };
+      const target = window as typeof window & { __authUiHold: Hold };
+      const original = window.fetch.bind(window);
+      const pending: ((response: Response) => void)[] = [];
+      target.__authUiHold = {
+        calls: 0,
+        aborted: 0,
+        release: (body) => {
+          for (const resolve of pending.splice(0)) resolve(Response.json(body));
+        },
+      };
+      window.fetch = (input, init) => {
+        const url = new URL(input instanceof Request ? input.url : String(input), location.href);
+        const verb = init?.method ?? (input instanceof Request ? input.method : 'GET');
+        if (url.pathname !== path || verb !== method) return original(input, init);
+        target.__authUiHold.calls += 1;
+        init?.signal?.addEventListener(
+          'abort',
+          () => {
+            target.__authUiHold.aborted += 1;
+          },
+          { once: true },
+        );
+        return new Promise<Response>((resolve) => pending.push(resolve));
+      };
+    },
+    { path, method },
+  );
+}
+
+async function heldRequests(page: Page): Promise<number> {
+  return page.evaluate(
+    () =>
+      (
+        window as typeof window & {
+          __authUiHold: { calls: number };
+        }
+      ).__authUiHold.calls,
+  );
+}
+
+async function releaseHeldRequest(page: Page, body: unknown): Promise<void> {
+  await page.evaluate(
+    (value) =>
+      (
+        window as typeof window & {
+          __authUiHold: { release: (body: unknown) => void };
+        }
+      ).__authUiHold.release(value),
+    body,
+  );
+}
+
+async function passwordLogin(page: Page, identifier = 'auth-review-account'): Promise<void> {
+  await page.getByLabel('Email или имя пользователя', { exact: true }).fill(identifier);
   await page.getByLabel('Пароль', { exact: true }).fill('synthetic-password-2026');
   await page.getByRole('checkbox', { name: 'Я не робот' }).focus();
   await page.keyboard.press('Space');
@@ -718,7 +899,9 @@ test('invalid token health is visible in admin and hides the public button', asy
   await max.getByRole('button', { name: 'Проверить и сохранить', exact: true }).click();
   await expect(max).toContainText('Токен недействителен');
   await expect(max).toContainText('кнопка входа скрыта');
-  await expect(max.getByRole('link', { name: 'Открыть бота', exact: true })).toHaveCount(0);
+  await expect(
+    max.getByRole('button', { name: 'Подтвердить в боте MAX', exact: true }),
+  ).toHaveCount(0);
   state.signedIn = false;
   await visit(page, '/sign-in');
   await expect(
@@ -746,3 +929,830 @@ test('the account UI prevents removal of the last server-declared sign-in method
   ).toBeVisible();
   expect(state.requests.filter((request) => request.path.endsWith('/unlink'))).toHaveLength(0);
 });
+
+test('an administrator checks transport then confirms the current configuration on the same linked account', async ({
+  page,
+}) => {
+  const state = await fixture(page, {
+    signedIn: true,
+    admin: true,
+    linked: { max: true, telegram: false },
+    nextPairing: 'linked',
+    providers: healthyProviders().map((provider) =>
+      provider.id === 'max'
+        ? { ...provider, enforcementEligible: false, enforcementReason: 'delivery_unverified' }
+        : provider,
+    ),
+  });
+  await visit(page, '/admin/confirmations');
+  const max = page.getByRole('form', { name: 'MAX', exact: true });
+  const native = max.locator('dl > div').filter({ hasText: 'Подтверждение человеком' });
+  await expect(native).toContainText('Ещё не проверено');
+  await expect(max).toContainText('https://asa.example.test/api/auth/max/webhook');
+  await max.getByRole('button', { name: 'Проверить подключение', exact: true }).click();
+  await expect
+    .poll(
+      () =>
+        state.requests.filter((request) => request.path === '/api/admin/v1/integrations/max/check')
+          .length,
+    )
+    .toBe(1);
+  await expect(native).toContainText('Ещё не проверено');
+  expect(state.providers.find((provider) => provider.id === 'max')?.enforcementEligible).toBe(
+    false,
+  );
+  await max.getByRole('button', { name: 'Подтвердить в боте MAX', exact: true }).click();
+  await expect(native).toContainText('Проверено —');
+  expect(state.providers.find((provider) => provider.id === 'max')?.enforcementEligible).toBe(true);
+  expect(
+    state.requests.find((request) => request.path === '/api/auth/max/pairing/start')?.body,
+  ).toEqual({ purpose: 'link' });
+  expect(state.requests.filter((request) => request.path.endsWith('/check'))).toHaveLength(2);
+  expect(
+    state.requests.filter(
+      (request) =>
+        request.method === 'PUT' ||
+        request.path.endsWith('/logout') ||
+        request.path.endsWith('/register'),
+    ),
+  ).toHaveLength(0);
+  expect(state.signedIn).toBe(true);
+  const current = await page.evaluate(async () => (await fetch('/api/auth/me')).json());
+  expect(current.account.id).toBe(ACCOUNT_ID);
+});
+
+test('an HTTP administration address is not prefilled as the public HTTPS receiver', async ({
+  page,
+}) => {
+  const state = await fixture(page, {
+    signedIn: true,
+    admin: true,
+    emptyProviderUrl: true,
+    providers: healthyProviders().map((provider) =>
+      provider.id === 'telegram'
+        ? { ...provider, available: false, reason: 'not_configured', enforcementEligible: false }
+        : provider,
+    ),
+  });
+  await visit(page, '/admin/confirmations');
+  const telegram = page.getByRole('form', { name: 'Telegram', exact: true });
+  const receiver = telegram.getByLabel('Публичный HTTPS-адрес ASA Lab', { exact: true });
+  await expect(receiver).toHaveValue('');
+  await receiver.fill('http://192.0.2.15:8080');
+  await telegram.getByRole('button', { name: 'Проверить и сохранить', exact: true }).click();
+  await expect(telegram.getByRole('alert')).toContainText('HTTPS');
+  expect(state.requests.filter((request) => request.method === 'PUT')).toHaveLength(0);
+});
+
+test('unknown policy and provider reads do not claim that confirmation is disabled', async ({
+  page,
+}) => {
+  await fixture(page, { signedIn: true, admin: true, adminReadFailure: true });
+  await visit(page, '/admin/confirmations');
+  const policy = page.locator('.auth-policy-control');
+  await expect(policy.getByRole('switch')).toBeDisabled();
+  await expect(policy).toContainText('Статус недоступен');
+  await expect(policy).not.toContainText('Выключено');
+  const max = page.getByRole('form', { name: 'MAX', exact: true });
+  await expect(max.getByRole('switch')).toBeDisabled();
+  await expect(max).toContainText('Статус недоступен');
+  await expect(max).not.toContainText('Выключен');
+  await expect(
+    max.getByRole('button', { name: 'Подтвердить в боте MAX', exact: true }),
+  ).toHaveCount(0);
+});
+
+test('a stalled pairing start can be cancelled and its late success is ignored', async ({
+  page,
+}) => {
+  const state = await fixture(page);
+  await holdAuthRequest(page, '/api/auth/max/pairing/start', 'POST');
+  await visit(page, '/sign-in');
+  await page.getByLabel('Email или имя пользователя', { exact: true }).fill('kept-account');
+  await page.getByRole('button', { name: 'Войти через MAX', exact: true }).click();
+  await expect.poll(() => heldRequests(page)).toBe(1);
+  await page.getByRole('button', { name: 'Отмена', exact: true }).click();
+  await releaseHeldRequest(page, {
+    pairingToken: 'late-start',
+    launchUrl: 'https://max.ru/asa_fixture_bot?start=late-start',
+    expiresAt: new Date(Date.now() + 600_000).toISOString(),
+  });
+  await expect(page.getByRole('button', { name: 'Войти через MAX', exact: true })).toBeEnabled();
+  await expect(page.getByLabel('Email или имя пользователя', { exact: true })).toHaveValue(
+    'kept-account',
+  );
+  await expect(page.locator('.auth-social-pending')).toHaveCount(0);
+  expect(
+    state.requests.filter((request) => request.path.endsWith('/pairing/complete')),
+  ).toHaveLength(0);
+});
+
+test('pairing expiry remains independent of a stalled completion request', async ({ page }) => {
+  await page.clock.install();
+  const state = await fixture(page);
+  await holdAuthRequest(page, '/api/auth/max/pairing/complete', 'POST');
+  await visit(page, '/sign-in');
+  state.pairingExpiresAt = await page.evaluate(() => new Date(Date.now() + 5_000).toISOString());
+  await page.getByRole('button', { name: 'Войти через MAX', exact: true }).click();
+  await expect(page.locator('.auth-social-pending')).toBeVisible();
+  await page.clock.runFor(1_600);
+  await expect.poll(() => heldRequests(page)).toBe(1);
+  await page.clock.runFor(3_500);
+  await expect(page.getByRole('alert')).toContainText('Время подтверждения истекло');
+  await releaseHeldRequest(page, {
+    status: 'authenticated',
+    session: {
+      authenticated: true,
+      account: { id: 'late-other-account' },
+      user: { id: 'late-other-account' },
+    },
+  });
+  await expect(page.getByLabel('Пароль', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Войти через MAX', exact: true })).toBeEnabled();
+  expect(state.signedIn).toBe(false);
+});
+
+test('a stalled registration can return to password login without accepting its late result', async ({
+  page,
+}) => {
+  const state = await fixture(page, { nextPairing: 'registration_required' });
+  await holdAuthRequest(page, '/api/auth/telegram/pairing/register', 'POST');
+  await visit(page, '/sign-in');
+  await page.getByRole('button', { name: 'Войти через Telegram', exact: true }).click();
+  const form = page.locator('.auth-social-registration');
+  await form.getByLabel('Email', { exact: true }).fill('new-account@example.test');
+  await form.getByLabel('Имя пользователя', { exact: true }).fill('new-account');
+  await form.getByLabel('Дата рождения', { exact: true }).fill('1988-03-01');
+  await form.getByLabel('Пароль для входа', { exact: true }).fill('backup-password-2026');
+  await form.getByLabel('Повторите пароль', { exact: true }).fill('backup-password-2026');
+  await form.getByRole('button', { name: 'Создать аккаунт и войти', exact: true }).click();
+  await expect.poll(() => heldRequests(page)).toBe(1);
+  await form
+    .getByRole('button', { name: 'У меня уже есть аккаунт — войти по паролю', exact: true })
+    .click();
+  await releaseHeldRequest(page, {
+    authenticated: true,
+    account: { id: 'late-other-account' },
+    user: { id: 'late-other-account' },
+  });
+  await expect(page.getByLabel('Пароль', { exact: true })).toBeVisible();
+  await expect(page.locator('.auth-social-registration')).toHaveCount(0);
+  expect(await heldRequests(page)).toBe(1);
+  expect(state.signedIn).toBe(false);
+});
+
+test('confirmation checks are single flight and logout remains usable during a stalled check', async ({
+  page,
+}) => {
+  const state = await fixture(page, { signedIn: true, policyEnabled: true, overdue: true });
+  await holdAuthRequest(page, '/api/auth/verification', 'GET');
+  await visit(page, '/account/security');
+  await expect.poll(() => heldRequests(page)).toBe(1);
+  await page.evaluate(() => {
+    window.dispatchEvent(new Event('focus'));
+    window.dispatchEvent(new Event('focus'));
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  expect(await heldRequests(page)).toBe(1);
+  await page.getByRole('button', { name: 'Выйти', exact: true }).click();
+  await expect.poll(() => state.signedIn).toBe(false);
+  // The shared logout event returns App to public Home. Use its normal entry
+  // action to check that a late result cannot restore the authenticated view.
+  const publicSignIn = page.getByRole('banner').getByRole('button', { name: 'Войти', exact: true });
+  await expect(publicSignIn).toBeVisible();
+  await releaseHeldRequest(page, {
+    policyEnabled: false,
+    required: false,
+    reason: 'disabled',
+    dueAt: null,
+    verifiedProvider: null,
+    providers: healthyProviders(),
+  });
+  await publicSignIn.click();
+  await expect(page.getByLabel('Пароль', { exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Подтвердите аккаунт', exact: true })).toHaveCount(
+    0,
+  );
+  expect(state.signedIn).toBe(false);
+  expect(await heldRequests(page)).toBe(1);
+  expect(state.requests.filter((request) => request.path === '/api/auth/logout')).toHaveLength(1);
+});
+
+test('a pairing timeout restores controls without retrying the unknown start result', async ({
+  page,
+}) => {
+  await page.clock.install();
+  await fixture(page);
+  await holdAuthRequest(page, '/api/auth/max/pairing/start', 'POST');
+  await visit(page, '/sign-in');
+  await page.getByRole('button', { name: 'Войти через MAX', exact: true }).click();
+  await expect.poll(() => heldRequests(page)).toBe(1);
+  await page.clock.runFor(15_100);
+  await expect(page.getByRole('alert')).toContainText('Сервер не ответил вовремя');
+  await expect(page.getByRole('button', { name: 'Войти через MAX', exact: true })).toBeEnabled();
+  await expect(page.getByLabel('Пароль', { exact: true })).toBeVisible();
+  expect(await heldRequests(page)).toBe(1);
+});
+
+test('password sign-in cancels the pending social attempt and ignores its late account result', async ({
+  page,
+}) => {
+  const state = await fixture(page);
+  await holdAuthRequest(page, '/api/auth/max/pairing/complete', 'POST');
+  await visit(page, '/sign-in');
+  await page.getByRole('button', { name: 'Войти через MAX', exact: true }).click();
+  await expect.poll(() => heldRequests(page)).toBe(1);
+  await passwordLogin(page);
+  expect(
+    await page.evaluate(
+      () =>
+        (
+          window as typeof window & {
+            __authUiHold: { aborted: number };
+          }
+        ).__authUiHold.aborted,
+    ),
+  ).toBe(1);
+  const current = await page.evaluate(async () => (await fetch('/api/auth/me')).json());
+  await releaseHeldRequest(page, {
+    status: 'authenticated',
+    session: {
+      ...current,
+      account: { ...current.account, id: 'late-other-account', displayName: 'Late other Account' },
+      user: { ...current.user, id: 'late-other-account', displayName: 'Late other Account' },
+    },
+  });
+  await page.evaluate(() => {
+    location.hash = '#/account/security';
+  });
+  await expect(page.getByRole('region', { name: 'Способы входа', exact: true })).toBeVisible();
+  await expect(page.getByText('Late other Account', { exact: true })).toHaveCount(0);
+  await expect(page.locator('.auth-social-pending')).toHaveCount(0);
+  expect(state.signedIn).toBe(true);
+  expect(state.verifiedProvider).toBeNull();
+  expect(state.requests.filter((request) => request.path === '/api/auth/login')).toHaveLength(1);
+  expect(await heldRequests(page)).toBe(1);
+});
+
+async function submitRegistration(page: Page): Promise<void> {
+  await page.getByLabel('Email', { exact: true }).fill('pending-a@example.test');
+  await page.getByLabel('Имя пользователя', { exact: true }).fill('pending-account-a');
+  await page.getByLabel('Дата рождения', { exact: true }).fill('1988-03-01');
+  await page.getByLabel('Пароль', { exact: true }).fill('pending-password-2026');
+  await page.getByRole('checkbox', { name: 'Я не робот', exact: true }).focus();
+  await page.keyboard.press('Space');
+  const submit = page.getByRole('button', { name: 'Создать аккаунт', exact: true });
+  await expect(submit).toBeEnabled();
+  await submit.click();
+}
+
+for (const attempt of ['register', 'local-preview'] as const) {
+  test(`leaving ${attempt} preserves the password account and its capabilities after a late response`, async ({
+    page,
+  }) => {
+    const state = await fixture(page, {
+      admin: true,
+      localPreviewEnabled: attempt === 'local-preview',
+    });
+    const path = attempt === 'register' ? '/api/auth/register' : '/api/auth/local-preview/session';
+    await holdAuthRequest(page, path, 'POST');
+    await visit(page, '/sign-up');
+    if (attempt === 'register') await submitRegistration(page);
+    else await page.getByRole('button', { name: 'Войти в тестовый стенд', exact: true }).click();
+    await expect.poll(() => heldRequests(page)).toBe(1);
+    await page.getByRole('button', { name: '← К входу', exact: true }).click();
+    expect(
+      await page.evaluate(
+        () =>
+          (
+            window as typeof window & {
+              __authUiHold: { aborted: number };
+            }
+          ).__authUiHold.aborted,
+      ),
+    ).toBe(1);
+    await passwordLogin(page);
+    const current = await page.evaluate(async () => (await fetch('/api/auth/me')).json());
+    expect(current.account.id).toBe(ACCOUNT_ID);
+    expect(current.capabilities).toContainEqual({
+      capability: 'platform_admin',
+      state: 'verified',
+    });
+    await releaseHeldRequest(page, {
+      ...current,
+      account: {
+        ...current.account,
+        id: 'late-register-account-a',
+        displayName: 'Late registration A',
+      },
+      user: { ...current.user, id: 'late-register-account-a', displayName: 'Late registration A' },
+      capabilities: [],
+    });
+    const accountMenu = page.locator('.portal-account > summary');
+    await expect(accountMenu).toBeVisible();
+    await expect(accountMenu).toHaveAttribute(
+      'aria-label',
+      `Меню аккаунта ${current.user.displayName}`,
+    );
+    const retained = await page.evaluate(async () => (await fetch('/api/auth/me')).json());
+    expect(retained.account.id).toBe(ACCOUNT_ID);
+    expect(retained.capabilities).toEqual(current.capabilities);
+    await page.evaluate(() => {
+      location.hash = '#/admin/confirmations';
+    });
+    await expect(
+      page.getByRole('switch', {
+        name: 'Обязательное подтверждение входа',
+        exact: true,
+      }),
+    ).toBeEnabled();
+    await expect(page.getByText('Late registration A', { exact: true })).toHaveCount(0);
+    expect(await heldRequests(page)).toBe(1);
+    expect(state.requests.filter((request) => request.path === '/api/auth/login')).toHaveLength(1);
+    expect(state.signedIn).toBe(true);
+  });
+}
+
+test('registration timeout retains unknown-result guidance and does not repeat the write', async ({
+  page,
+}) => {
+  await fixture(page);
+  await holdAuthRequest(page, '/api/auth/register', 'POST');
+  await visit(page, '/sign-up');
+  // Complete the anti-bot interaction normally, then control only the request deadline.
+  await page.getByLabel('Email', { exact: true }).fill('pending-a@example.test');
+  await page.getByLabel('Имя пользователя', { exact: true }).fill('pending-account-a');
+  await page.getByLabel('Дата рождения', { exact: true }).fill('1988-03-01');
+  await page.getByLabel('Пароль', { exact: true }).fill('pending-password-2026');
+  await page.getByRole('checkbox', { name: 'Я не робот', exact: true }).focus();
+  await page.keyboard.press('Space');
+  const submit = page.getByRole('button', { name: 'Создать аккаунт', exact: true });
+  await expect(submit).toBeEnabled();
+  await page.clock.install();
+  await submit.click();
+  await expect.poll(() => heldRequests(page)).toBe(1);
+  await page.clock.runFor(15_100);
+  await expect(page.getByRole('alert')).toContainText('Результат действия пока неизвестен');
+  await expect(page.getByRole('alert')).toContainText('Проверьте состояние перед повтором');
+  await expect(page.getByRole('alert')).not.toContainText('Попробуйте ещё раз');
+  await expect(page.getByRole('button', { name: '← К входу', exact: true })).toBeEnabled();
+  expect(await heldRequests(page)).toBe(1);
+});
+
+async function expectReadableProviderSaveActions(page: Page, width: number): Promise<void> {
+  const buttons = page
+    .locator('.auth-admin-provider > footer')
+    .getByRole('button', { name: 'Проверить и сохранить', exact: true });
+  await expect(buttons).toHaveCount(2);
+  const measurements = await buttons.evaluateAll((elements) =>
+    elements.map((button) => {
+      const lines = (range: Range): number =>
+        new Set(
+          Array.from(range.getClientRects())
+            .filter((rect) => rect.width > 0 && rect.height > 0)
+            .map((rect) => Math.round(rect.top)),
+        ).size;
+      const label = document.createRange();
+      label.selectNodeContents(button);
+      const brokenWords: string[] = [];
+      const walker = document.createTreeWalker(button, NodeFilter.SHOW_TEXT);
+      let node = walker.nextNode();
+      while (node) {
+        for (const word of (node.nodeValue ?? '').matchAll(/\S+/gu)) {
+          if (word.index === undefined) continue;
+          const range = document.createRange();
+          range.setStart(node, word.index);
+          range.setEnd(node, word.index + word[0].length);
+          if (lines(range) > 1) brokenWords.push(word[0]);
+        }
+        node = walker.nextNode();
+      }
+      const rect = button.getBoundingClientRect();
+      return {
+        provider: button.closest('form')?.getAttribute('aria-label'),
+        text: button.textContent?.trim(),
+        width: rect.width,
+        height: rect.height,
+        fontSize: getComputedStyle(button).fontSize,
+        lineCount: lines(label),
+        brokenWords,
+      };
+    }),
+  );
+  await test.info().attach(`admin-primary-labels-${width}-font150`, {
+    body: JSON.stringify(measurements, null, 2),
+    contentType: 'application/json',
+  });
+  for (const measurement of measurements) {
+    // Readable labels may wrap at spaces on mobile; words must stay intact.
+    expect(measurement.brokenWords, `${measurement.provider}: whole CTA words`).toEqual([]);
+    expect(measurement.lineCount).toBeGreaterThan(0);
+    expect(
+      measurement.lineCount,
+      `${measurement.provider}: primary label lines`,
+    ).toBeLessThanOrEqual(width >= 1024 ? 1 : 2);
+  }
+}
+
+for (const width of [1440, 1024, 390, 320]) {
+  test(`confirmation and provider readiness remain usable at ${width}px font150`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: width < 600 ? 720 : 900 });
+    const state = await fixture(page, {
+      signedIn: true,
+      admin: true,
+      policyEnabled: true,
+      overdue: true,
+      providers: healthyProviders().map((provider) =>
+        provider.id === 'max'
+          ? { ...provider, enforcementEligible: false, enforcementReason: 'delivery_unverified' }
+          : provider,
+      ),
+    });
+    await visit(page, '/account/security');
+    await expect(
+      page.getByRole('heading', { name: 'Подтвердите аккаунт', exact: true }),
+    ).toBeVisible();
+    await enlargeText(page);
+    await screenshot(page, `required-${width}-font150`);
+    await visit(page, '/admin/confirmations');
+    const max = page.getByRole('form', { name: 'MAX', exact: true });
+    await expect(
+      max.getByRole('button', { name: 'Подтвердить в боте MAX', exact: true }),
+    ).toBeEnabled();
+    await expect(
+      max.locator('dl > div').filter({ hasText: 'Подтверждение человеком' }),
+    ).toContainText('Ещё не проверено');
+    await screenshot(page, `admin-readiness-${width}-normal`);
+    await enlargeText(page);
+    await screenshot(page, `admin-readiness-${width}-font150`);
+    await expectReadableProviderSaveActions(page, width);
+    expect(state.requests.filter((request) => request.method === 'PUT')).toHaveLength(0);
+  });
+}
+
+const METHOD_ACCOUNT_A: FixtureIdentity = {
+  id: ACCOUNT_ID,
+  email: 'method-account-a@example.test',
+  displayName: 'Аккаунт A — способы входа',
+};
+const METHOD_ACCOUNT_B: FixtureIdentity = {
+  id: '20000000-0000-4000-8000-000000000002',
+  email: 'password-account-b@example.test',
+  displayName: 'Аккаунт B — парольный вход',
+};
+const PASSWORD_ACCOUNT_CAPABILITIES = [
+  { capability: 'creator', state: 'verified' },
+  { capability: 'platform_admin', state: 'verified' },
+];
+
+// Install after A is loaded. Only the next matching request is held, so B's
+// password login and current-session reads use the normal fixture. Deliberately
+// keep the old promise alive after abort to exercise the complete late path.
+async function holdNextMethodRequest(page: Page, path: string, method: string): Promise<void> {
+  await page.evaluate(
+    ({ path, method }) => {
+      type Hold = {
+        calls: number;
+        aborted: number;
+        meCalls: number;
+        release: (body: unknown) => void;
+        settle: () => Promise<void>;
+      };
+      const target = window as typeof window & { __authUiHold: Hold };
+      const original = window.fetch.bind(window);
+      let release: ((response: Response) => void) | null = null;
+      const pending = new Set<Promise<Response>>();
+      let forwarded = 0;
+      const forward: typeof fetch = (input, init) => {
+        forwarded += 1;
+        const response = original(input, init);
+        pending.add(response);
+        void response.then(
+          () => pending.delete(response),
+          () => pending.delete(response),
+        );
+        return response;
+      };
+      const hold: Hold = {
+        calls: 0,
+        aborted: 0,
+        meCalls: 0,
+        release: (body) => {
+          release?.(Response.json(body));
+          release = null;
+        },
+        settle: async () => {
+          // Drain requests caused by the released continuation too (unlink can
+          // refresh two statuses before it starts /me). No polling delay/retry.
+          for (;;) {
+            const version = forwarded;
+            await Promise.allSettled([...pending]);
+            await new Promise<void>((resolve) => {
+              requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+            });
+            if (pending.size === 0 && version === forwarded) return;
+          }
+        },
+      };
+      target.__authUiHold = hold;
+      window.fetch = (input, init) => {
+        const url = new URL(input instanceof Request ? input.url : String(input), location.href);
+        const verb = init?.method ?? (input instanceof Request ? input.method : 'GET');
+        if (url.pathname === '/api/auth/me') hold.meCalls += 1;
+        if (hold.calls > 0 || url.pathname !== path || verb !== method) return forward(input, init);
+        hold.calls += 1;
+        const signal = init?.signal ?? (input instanceof Request ? input.signal : undefined);
+        signal?.addEventListener(
+          'abort',
+          () => {
+            hold.aborted += 1;
+          },
+          { once: true },
+        );
+        return new Promise<Response>((resolve) => {
+          release = resolve;
+        });
+      };
+    },
+    { path, method },
+  );
+}
+
+async function methodRequestState(
+  page: Page,
+): Promise<{ calls: number; aborted: number; meCalls: number }> {
+  return page.evaluate(() => {
+    const { calls, aborted, meCalls } = (
+      window as typeof window & {
+        __authUiHold: { calls: number; aborted: number; meCalls: number };
+      }
+    ).__authUiHold;
+    return { calls, aborted, meCalls };
+  });
+}
+
+async function releaseMethodRequest(page: Page, body: unknown): Promise<void> {
+  await releaseHeldRequest(page, body);
+  // Observe the render caused by the released promise, rather than accepting
+  // the already-visible B header before an old continuation gets to run.
+  await page.evaluate(() =>
+    (
+      window as typeof window & { __authUiHold: { settle: () => Promise<void> } }
+    ).__authUiHold.settle(),
+  );
+}
+
+function authWrites(state: UiState): UiState['requests'] {
+  return state.requests.filter(
+    (request) => request.path.startsWith('/api/auth/') && request.method === 'POST',
+  );
+}
+
+async function enterMethodAccount(page: Page, state: UiState): Promise<void> {
+  await visit(page, '/account/security');
+  await expect(page.locator('.portal-account > summary')).toHaveAttribute(
+    'aria-label',
+    `Меню аккаунта ${METHOD_ACCOUNT_A.displayName}`,
+  );
+  const methods = page.getByRole('region', { name: 'Способы входа', exact: true });
+  await expect(methods).toBeVisible();
+  for (const provider of METHODS) {
+    const label = provider === 'max' ? 'MAX' : 'Telegram';
+    await expect(methods.getByRole('article', { name: label, exact: true })).toContainText(
+      state.linked[provider] ? 'Подтверждён' : 'Не подключён',
+    );
+  }
+  await expect(page.locator('.account-private-facts')).toContainText('Настроен');
+}
+
+async function startMethodAction(
+  page: Page,
+  provider: SocialAuthProvider,
+  action: 'link' | 'unlink',
+): Promise<void> {
+  const label = provider === 'max' ? 'MAX' : 'Telegram';
+  if (action === 'unlink') page.once('dialog', (dialog) => void dialog.accept());
+  await page
+    .getByRole('region', { name: 'Способы входа', exact: true })
+    .getByRole('button', {
+      name: `${action === 'link' ? 'Подключить' : 'Отключить'} ${label}`,
+      exact: true,
+    })
+    .click();
+}
+
+async function replaceWithPasswordAccount(page: Page, state: UiState): Promise<void> {
+  await page.locator('.portal-account > summary').click();
+  await page
+    .locator('.portal-account-menu')
+    .getByRole('button', { name: 'Выход', exact: true })
+    .click();
+  const signIn = page.getByRole('banner').getByRole('button', { name: 'Войти', exact: true });
+  await expect(signIn).toBeVisible();
+  expect(state.signedIn).toBe(false);
+  state.identity = { ...METHOD_ACCOUNT_B };
+  state.admin = true;
+  state.verifiedProvider = null;
+  state.linked = { max: false, telegram: false };
+  await signIn.click();
+  await passwordLogin(page, METHOD_ACCOUNT_B.email);
+  await expect(page.locator('.portal-account > summary')).toHaveAttribute(
+    'aria-label',
+    `Меню аккаунта ${METHOD_ACCOUNT_B.displayName}`,
+  );
+  const current = await page.evaluate(async () => (await fetch('/api/auth/me')).json());
+  expect(current.account).toEqual(METHOD_ACCOUNT_B);
+  expect(current.user).toEqual(METHOD_ACCOUNT_B);
+  expect(current.capabilities).toEqual(PASSWORD_ACCOUNT_CAPABILITIES);
+  await page.evaluate(() => {
+    location.hash = '#/account/security';
+  });
+  await expect(page.getByRole('region', { name: 'Способы входа', exact: true })).toBeVisible();
+  for (const label of ['MAX', 'Telegram']) {
+    await expect(
+      page.getByRole('button', { name: `Подключить ${label}`, exact: true }),
+    ).toBeEnabled();
+  }
+}
+
+async function expectPasswordMethodAccount(page: Page, state: UiState): Promise<void> {
+  const summary = page.locator('.portal-account > summary');
+  await expect(summary).toBeVisible();
+  await expect(summary).toHaveAttribute(
+    'aria-label',
+    `Меню аккаунта ${METHOD_ACCOUNT_B.displayName}`,
+  );
+  await expect(summary.locator('.portal-user-copy > strong')).toHaveText(
+    METHOD_ACCOUNT_B.displayName,
+  );
+  const retained = await page.evaluate(async () => (await fetch('/api/auth/me')).json());
+  expect(retained.account).toEqual(METHOD_ACCOUNT_B);
+  expect(retained.user).toEqual(METHOD_ACCOUNT_B);
+  expect(retained.capabilities).toEqual(PASSWORD_ACCOUNT_CAPABILITIES);
+  // This is a real App capability gate, in addition to the server identity read.
+  await page.evaluate(() => {
+    location.hash = '#/admin/confirmations';
+  });
+  await expect(
+    page.getByRole('switch', { name: 'Обязательное подтверждение входа', exact: true }),
+  ).toBeEnabled();
+  await expect(page.getByText(METHOD_ACCOUNT_A.displayName, { exact: true })).toHaveCount(0);
+  expect(state.signedIn).toBe(true);
+  expect(state.identity).toEqual(METHOD_ACCOUNT_B);
+  expect(state.linked).toEqual({ max: false, telegram: false });
+  expect(state.verifiedProvider).toBeNull();
+  expect(state.requests.filter((request) => request.path === '/api/auth/login')).toHaveLength(1);
+  expect(state.requests.filter((request) => request.path === '/api/auth/logout')).toHaveLength(1);
+}
+
+for (const provider of METHODS) {
+  for (const action of ['link', 'unlink'] as const) {
+    test(`account method lifecycle: ${provider} post-${action} read cannot replace password Account B`, async ({
+      page,
+    }) => {
+      const state = await fixture(page, {
+        signedIn: true,
+        identity: { ...METHOD_ACCOUNT_A },
+        nextPairing: 'linked',
+        linked: {
+          max: action === 'unlink' && provider === 'max',
+          telegram: action === 'unlink' && provider === 'telegram',
+        },
+      });
+      await enterMethodAccount(page, state);
+      const oldIdentity = await page.evaluate(async () => (await fetch('/api/auth/me')).json());
+      await holdNextMethodRequest(page, '/api/auth/me', 'GET');
+      await startMethodAction(page, provider, action);
+      await expect.poll(() => heldRequests(page)).toBe(1);
+      await replaceWithPasswordAccount(page, state);
+      const writes = authWrites(state);
+      await releaseMethodRequest(page, oldIdentity);
+      await expectPasswordMethodAccount(page, state);
+      expect(authWrites(state)).toEqual(writes);
+      expect(await methodRequestState(page)).toMatchObject({ calls: 1, aborted: 1 });
+    });
+  }
+
+  for (const stage of ['link-refresh', 'unlink-mutation', 'unlink-refresh'] as const) {
+    test(`account method lifecycle: ${provider} cancelled ${stage} starts no later identity read`, async ({
+      page,
+    }) => {
+      const action = stage === 'link-refresh' ? 'link' : 'unlink';
+      const state = await fixture(page, {
+        signedIn: true,
+        identity: { ...METHOD_ACCOUNT_A },
+        nextPairing: 'linked',
+        linked: {
+          max: action === 'unlink' && provider === 'max',
+          telegram: action === 'unlink' && provider === 'telegram',
+        },
+      });
+      await enterMethodAccount(page, state);
+      const mutation = stage === 'unlink-mutation';
+      await holdNextMethodRequest(
+        page,
+        `/api/auth/${provider}/${mutation ? 'unlink' : 'status'}`,
+        mutation ? 'POST' : 'GET',
+      );
+      await startMethodAction(page, provider, action);
+      await expect.poll(() => heldRequests(page)).toBe(1);
+      await replaceWithPasswordAccount(page, state);
+      const writes = authWrites(state);
+      const reads = (await methodRequestState(page)).meCalls;
+      await releaseMethodRequest(
+        page,
+        mutation
+          ? { unlinked: true }
+          : {
+              linked: action === 'link',
+              verifiedAt: action === 'link' ? '2026-10-18T09:00:00Z' : null,
+              firstAuthenticatedAt: '2026-10-16T09:00:00Z',
+              promptDue: false,
+              promptDismissedUntil: null,
+              available: true,
+              canUnlink: true,
+            },
+      );
+      expect((await methodRequestState(page)).meCalls).toBe(reads);
+      await expectPasswordMethodAccount(page, state);
+      expect(authWrites(state)).toEqual(writes);
+      expect(await methodRequestState(page)).toMatchObject({ calls: 1, aborted: 1 });
+    });
+  }
+
+  test(`account method lifecycle: ${provider} finishing read rejects a different Account while A stays active`, async ({
+    page,
+  }) => {
+    const state = await fixture(page, {
+      signedIn: true,
+      identity: { ...METHOD_ACCOUNT_A },
+      nextPairing: 'linked',
+    });
+    await enterMethodAccount(page, state);
+    const current = await page.evaluate(async () => (await fetch('/api/auth/me')).json());
+    await holdNextMethodRequest(page, '/api/auth/me', 'GET');
+    await startMethodAction(page, provider, 'link');
+    await expect.poll(() => heldRequests(page)).toBe(1);
+    const writes = authWrites(state);
+    await releaseMethodRequest(page, {
+      ...current,
+      user: METHOD_ACCOUNT_B,
+      account: METHOD_ACCOUNT_B,
+      capabilities: PASSWORD_ACCOUNT_CAPABILITIES,
+    });
+    const summary = page.locator('.portal-account > summary');
+    await expect(summary).toHaveAttribute(
+      'aria-label',
+      `Меню аккаунта ${METHOD_ACCOUNT_A.displayName}`,
+    );
+    const retained = await page.evaluate(async () => (await fetch('/api/auth/me')).json());
+    expect(retained.account).toEqual(METHOD_ACCOUNT_A);
+    expect(retained.capabilities).toEqual(current.capabilities);
+    expect(state.admin).toBe(false);
+    expect(authWrites(state)).toEqual(writes);
+    expect(await heldRequests(page)).toBe(1);
+  });
+
+  test(`account method lifecycle: ${provider} current Account accepts successful link and unlink`, async ({
+    page,
+  }) => {
+    const state = await fixture(page, {
+      signedIn: true,
+      identity: { ...METHOD_ACCOUNT_A },
+      nextPairing: 'linked',
+    });
+    await enterMethodAccount(page, state);
+    const label = provider === 'max' ? 'MAX' : 'Telegram';
+    state.identity = { ...METHOD_ACCOUNT_A, displayName: `Аккаунт A — ${label} подключён` };
+    await startMethodAction(page, provider, 'link');
+    await expect(page.locator('.portal-account > summary')).toHaveAttribute(
+      'aria-label',
+      `Меню аккаунта ${state.identity.displayName}`,
+    );
+    await expect(
+      page.getByRole('button', { name: `Отключить ${label}`, exact: true }),
+    ).toBeEnabled();
+    state.identity = { ...METHOD_ACCOUNT_A, displayName: `Аккаунт A — ${label} отключён` };
+    await startMethodAction(page, provider, 'unlink');
+    await expect(page.locator('.portal-account > summary')).toHaveAttribute(
+      'aria-label',
+      `Меню аккаунта ${state.identity.displayName}`,
+    );
+    await expect(
+      page.getByRole('button', { name: `Подключить ${label}`, exact: true }),
+    ).toBeEnabled();
+    expect(state.linked[provider]).toBe(false);
+    expect(
+      state.requests.filter((request) => request.path === `/api/auth/${provider}/pairing/start`),
+    ).toHaveLength(1);
+    expect(
+      state.requests.filter((request) => request.path === `/api/auth/${provider}/pairing/complete`),
+    ).toHaveLength(1);
+    expect(
+      state.requests.filter((request) => request.path === `/api/auth/${provider}/unlink`),
+    ).toHaveLength(1);
+    expect(state.requests.filter((request) => request.path.endsWith('/register'))).toHaveLength(0);
+  });
+}

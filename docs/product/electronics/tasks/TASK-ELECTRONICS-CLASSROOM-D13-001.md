@@ -274,6 +274,181 @@ and strict as a separate reported qualification. Focused, benchmark and fresh
 General remain required. Both acceptance blockers stay open pending complete
 new browser evidence and independent acceptance. Selection is not deployment.
 
+## Causal product repair selection, revision 3
+
+This is a bounded repair selection after actual failure, not product acceptance.
+It supersedes only the revision-2 production freeze where explicitly stated
+below. Every earlier source, original strict/classroom failure and the fixed D13
+acceptance criteria above remain intact.
+
+Exact candidate f9679b90fc184dee61a9da99dec15b5a1c5bce36 has actual classroom
+run39271296982 FAIL (164 passed, 6 failed, 170 total), strict run39271290925
+FAIL (161 passed, 9 failed), and General39271287365 FAIL. The complete classroom
+artifact12197017328 has ZIP SHA256
+fe1462c2730ee5a3af4fd1dda49897fd7a2fcd2d5e94fe53863ce577023d8063.
+Its independent actual review remains NOT_ACCEPTED. Preserve the unchanged
+honest R2 BEFORE source51259f7b12d6aa10102751fdb3232500409a66da,
+run39265672111, and observer SHA256
+ca71a1fb21a958507dc33250a1858bce0ee55e1e9a144fb5f742c162662c6436.
+
+The initial delay100 lifecycle stage has HIGH87.10ms / LOW117.20ms, before
+correction or Reset. Actual-receipt presenter replay reproduces the independent
+ports' short175.7ms HIGH interval despite a300.011ms electrical period. Past
+held-time recovery compresses subsequent phases; deleting recovery alone can
+cause a new expiry reanchor. The sustained run retains627 electrical but617
+binding-stable painted transitions, maximum backlog11. Two original native
+image sequences show L HIGH before the external LED's new artwork is loaded.
+These are product failures, not grounds to delete a native-image guard.
+
+### Product authors and common clock
+
+The phase author owns the existing led-temporal-presentation.ts,
+use-electronics-workbench.ts, necessary WorkbenchStage.tsx prop wiring and the
+mapped led-temporal-presentation.spec.ts. The renderer author owns only
+ProductionComponentVisual.tsx and testing/asset-recovery.spec.ts. One author
+per path; neither authors its independent review.
+
+Select a single nominal model/wall pace of0.5 for all editor programmes.
+This is the owner's intermediate common slowdown, never a rate inferred from
+delay text, pin, colour or a known lesson. Keep the physical instruction clock,
+solver tolerances, event budgets, loaded-source proof and electrical model.
+
+Result receipt ingests quality-passed history without independently advancing
+the optical scene. Use one common animation-frame path, remove past held-time
+catch-up and never skip or compress later phases to recover a stall. Bound
+producer demand by the actually committed presentation cursor plus the existing
+25ms MODEL quantum, with one real in-flight request and target coalescing.
+Allow bounded initial-zero admission when no cursor exists. Keep the genuine
+quality-passed canonical endpoint path for non-temporal/static circuits; do not
+fabricate an Arduino history when temporal admission fails.
+
+Freeze one immutable prepare/ready/commit frame identity shared by the host and
+renderer. Retain the previous complete visible frame while assets are pending.
+Prepare native mounted SVG assets using the unchanged owner artwork. Keep at
+most three resident keyed nodes per ordinary LED: permanent OFF, active and
+pending, deduplicated when assets coincide. OFF must already be native-ready
+before the first nonzero commit, so Stop does not require another load.
+
+Promotion must preserve the exact prepared native element, React key and href.
+Keep the active image first in the DOM for both unchanged browser observers.
+Native readiness includes component, frame token, generation, asset, exact
+element/href and binding revision, and is invalidated by error, replacement,
+href change or lifecycle cancellation. Detached decode is diagnostic only.
+No newer pending frame may replace an unpainted distinct electrical phase.
+
+A native load callback reports readiness; it does not publish brightness, L or
+a new clock. All relevant assets must be ready before one complete LED/L state
+commit, including image, brightness and lit class. Only the matching actual
+layout commit acknowledgement permits presented-cursor advancement. A layout
+acknowledgement proves DOM commit, not paint; subsequent advancement stays on
+the shared rAF, with two completed rAF observations before another distinct
+joint optical state. Stop/Reset/error cancel stale pending work immediately.
+
+Meaningful mapped regressions cover delayed receipts, held native loads,
+retained exact native nodes, OFF readiness, generation/error cancellation,
+actual commit acknowledgement, frame gaps and null-cursor startup. Preserve
+all admission, physical-negative, quality, finite-value, continuity, current,
+history-integral and fast optical-mean guards. Replaced legacy unit expectations
+must be inventoried as old1x/catch-up/reanchor expectations, not removed silently.
+No RGB, seven-segment, runtime, solver or GPIO implementation is selected here.
+
+### Separately frozen qualification amendment
+
+The common0.5 pace requires a separately authored, explicitly inventoried
+classroom-d13-v3 qualification. Before editing browser qualification, freeze
+every affected exact case, comparison and acquisition site with its original
+source hash, expression, value/limit and strict outcome. A single common
+normalization may apply to listed wall-duration comparisons; no new timing
+tolerance, per-programme rate or implicit waiver is selected.
+
+Keep the current strict default and complete browser suite executable. Preserve
+v2 history. The existing named classroom gate still runs its composed v2
+implementation until a separately reviewed v3 proposal and its guards are
+composed coherently. Record the active and planned profiles honestly.
+The same final source must run strict and classroom, with their actual separate
+conclusions and a complete mandatory qualification ledger. No filters, retries,
+skips, continue-on-error, swallowed child failure or successful relabelling.
+
+All D13 phase/order/duty/ratio, model/current/wiring, native-image, loaded-source,
+error/Reset/Save/cookies-only reopen, first activity5s, scenario45s, sustained60s,
+case100s, one in-flight request, transition backlog2 and Stop1s bounds remain
+unchanged. The existing50ms supersession/publication bound is functional and
+remains binding. Extend a legacy acquisition bound only where the declared
+common pace requires it, finitely and explicitly, retaining the original
+strict-deadline result from the original wait boundary. Every downstream
+functional assertion must still execute.
+
+### Existing independent baseline dependency and composition
+
+The Access failures are the already selected AI-BASELINE-GENERAL-009 fixture
+defect: non-UUID Seat/class identities emitted an invalid quality envelope after
+the existing1000ms timer. Do not duplicate its issue or implementation. The
+separately authored fixture commit28034d46f53bdd5b6cb6c472d9b40d95329a42c0,
+exact fixture blob1c43346e2a289dedbafe79c8a7180bbe6ca69e42, is now part of
+accepted main47524e08f14a1c7c6c11b213063103e652a32c3d through PR643.
+Its independently reviewed source632691d7215a41b0141df0c8a3d57c7ccac44462
+has actual General39274158221 SUCCESS, including418 settings cases.
+Use normal convergence with accepted main and preserve its complete separately
+accepted changes. No duplicate cherry-pick, foreign task closure or new
+launcher/authentication/workflow repair is selected in D13. Fresh General on
+the composed D13 source is still mandatory.
+
+Carry the independently source-approved two-call test-spy retention repair in
+engine-timed-api.spec.ts: clear only unused advance spy history after completed
+outer steps. Preserve every original executable assertion, snapshot, double
+read, materialization, null boundary,2050-step horizon, all four budgets and
+the5000ms timeout. The actual paired4/4 cases passed and retained-call counts
+fell6155 to3 in budget1, but this is not a General PASS or guaranteed CI margin.
+
+Refresh main, selected task, exact-head CI, index and foreign target overlaps
+before applying the authored composition. The 2026-10-19 recovery observed
+main47524e08, clean candidatef967, divergence12 behind/8 ahead, SAFE_TO_START,
+and no foreign edits in the selected paths across67 worktrees. A read-only
+merge-tree was conflict-free. These are dated observations, not a perpetual
+permission or acceptance. Preserve every unrelated current.yaml lane/blocker,
+accepted dependency and foreign worktree; use normal Git without rewriting
+published history.
+
+Require fresh focused source/build/types/tests, benchmark, complete classroom
+browser evidence, separately reported strict qualification, General, and a NEW
+independent source-and-actual-browser review on the final composed SHA. The D13
+and full-realtime blockers remain open until their respective real evidence.
+No school installation, live database, local Docker, network, origin/port,
+backup or protected-data operation is selected. Main is not deployment.
+After accepted D13 integration continue the selected visible D2-D4 slice and
+then the rest of the owner's programme.
+
+## Active native-image regression consumers, revision 3 addendum
+
+Controller selection before source edits: the bounded three-node native image
+pool keeps the active node first and retains the existing mounted-load observers.
+The exact f967 consumer inventory SHA256
+5b1b54566d1688746452d7dbeadbf15bf89a6f3ea4de5a131d1b177e32e86276
+identifies nine strict Playwright image assertions in four existing cases.
+They previously addressed a single image; the new pool requires selecting its
+active first image. This is a functional consumer amendment, not a rate waiver.
+
+The renderer author may add only .first() to those exact nine image locators in
+e2e/electronics-interactions.spec.ts (two assertions) and
+e2e/electronics-simulation.spec.ts (seven assertions). Preserve each original
+assertion, regular expression, negation, the10000ms recovery bound, setup,
+network-failure/retry stimulus and every existing case. The diagnostic
+querySelector at simulation line2110 already observes the first node and stays
+unchanged. Require an exact inverse check proving that removal of the nine
+insertions restores both original source files byte for byte.
+
+Preserve original source SHA256 values
+5ae61ec0de147a32e7f08de57151a4339f9f76d35bcb34b4013e466141ada6c8
+(interactions) and
+b043374395b1a94809dee39535a041342ccd0862263c2c6993335340f504a9c9
+(simulation). The R2 classroom observer ca71a1fb21a958507dc33250a1858bce0ee55e1e9a144fb5f742c162662c6436
+and ready-cadence native observer remain unchanged. Do not remove the pending
+node's observed class, disguise it with a filter or synthesize a load event to
+avoid strict selector ambiguity. The first node must actually be the committed
+visible image, verified by renderer identity/lifecycle regressions and the
+unchanged full browser and native-image checks. Independent review and all four
+real browser cases remain required on the final composed source.
+
 ## Gates and independent acceptance
 
 First use short source checks. Fresh local/CI evidence uses literal
@@ -287,8 +462,10 @@ NX_SKIP_NX_CACHE=true. Required classroom acceptance commands are:
 The separately named classroom command is now composed with the complete suite
 and the reviewed focused workflow. Also run pnpm gate:electronics-m1:browser
 under strict-real-time on the same exact source and preserve its actual result.
-The explicit revision-2 qualifications above are the entire separation allowed;
-a strict non-realtime failure remains a finding to resolve, not a waived result.
+The active implementation remains the explicit revision-2 qualification until
+the separately frozen revision-3 inventory and source are composed. Each
+version permits only its enumerated separation; a strict non-realtime failure
+remains a finding to resolve, not a waived result.
 All binding classroom assertions must execute and pass, including the downstream
 assertions that a strict absolute-rate failure may have prevented from running.
 This composition checkpoint is not browser acceptance or permission to deploy.

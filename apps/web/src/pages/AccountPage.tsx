@@ -981,6 +981,7 @@ export function AccountPage({
               </div>
               <AccountSignInMethods
                 key={session.account.id}
+                accountId={session.account.id}
                 passwordConfigured={passwordStatus?.configured ?? false}
                 onSessionChanged={onSessionChanged}
               />

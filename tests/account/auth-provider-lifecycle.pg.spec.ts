@@ -224,6 +224,30 @@ async function registerPair(
   return result.rows[0]!;
 }
 
+async function nativeReceipt(provider: Provider) {
+  const proofAccount = await account();
+  const pair = await start(provider, proofAccount);
+  expect(await approve(pair, subject())).toBe('approved');
+  expect((await consume(pair, { current: proofAccount })).result).toBe('linked');
+  // SQL fixture represents the separate server network check; receipt itself
+  // comes from the real approval/nonce/same-Account consume functions.
+  await runtime.query("SELECT auth_provider_health_set($1,$2,true,'ready')", [
+    provider,
+    await configurationVersion(provider),
+  ]);
+}
+
+async function deliveryReceipt(provider: Provider) {
+  const result = await runtime.query(
+    'SELECT native_confirmation_configuration_version, native_confirmation_verified_at FROM auth_provider_runtime_config($1)',
+    [provider],
+  );
+  return result.rows[0] as {
+    native_confirmation_configuration_version: string | null;
+    native_confirmation_verified_at: Date | null;
+  };
+}
+
 beforeAll(async () => {
   if (!/^asa_provider_isolated_[a-f0-9]{32}_test$/.test(databaseName))
     throw new Error('Unsafe generated test database name');
@@ -257,7 +281,8 @@ beforeEach(async () => {
     bot_username='synthetic_test_bot', mini_app_url='https://example.test/sign-in',
     token_ciphertext='synthetic-ciphertext', token_iv='synthetic-iv', token_auth_tag='synthetic-tag',
     token_fingerprint='synthetic123', token_verified_at=now(), configuration_version=configuration_version+1,
-    health_available=true, health_reason='ready', health_checked_at=now()`);
+    health_available=false, health_reason='delivery_unavailable', health_checked_at=now(),
+    native_confirmation_configuration_version=NULL, native_confirmation_verified_at=NULL`);
 });
 
 afterAll(async () => {
@@ -271,6 +296,120 @@ afterAll(async () => {
 });
 
 describe('provider lifecycle PostgreSQL authority and atomicity', () => {
+  it.each(['max', 'telegram'] as const)(
+    'records %s delivery only after successful native browser consumption and clears it on every config write',
+    async (provider) => {
+      const user = await account();
+      const identity = subject();
+      expect(await link(user, provider, identity)).toBe('linked');
+      expect(await deliveryReceipt(provider)).toEqual({
+        native_confirmation_configuration_version: null,
+        native_confirmation_verified_at: null,
+      });
+      const pair = await start(provider, user);
+      expect(await approve(pair, identity)).toBe('approved');
+      expect((await deliveryReceipt(provider)).native_confirmation_verified_at).toBeNull();
+      expect((await consume(pair, { nonce: hash(), current: user })).result).toBe('invalid');
+      expect((await consume(pair, { current: await account() })).result).toBe('invalid');
+      expect((await deliveryReceipt(provider)).native_confirmation_verified_at).toBeNull();
+      expect((await consume(pair, { current: user })).result).toBe('linked');
+      const receipt = await deliveryReceipt(provider);
+      expect(receipt).toEqual({
+        native_confirmation_configuration_version: await configurationVersion(provider),
+        native_confirmation_verified_at: expect.any(Date),
+      });
+      expect((await consume(pair, { current: user })).result).toBe('consumed');
+      expect(await deliveryReceipt(provider)).toEqual(receipt);
+      // The original 14-argument writer remains authorized and must clear receipts too.
+      await changeConfiguration(provider, true);
+      expect(await deliveryReceipt(provider)).toEqual({
+        native_confirmation_configuration_version: null,
+        native_confirmation_verified_at: null,
+      });
+      expect((await consume(pair, { current: user })).result).toBe('invalid');
+      expect((await deliveryReceipt(provider)).native_confirmation_verified_at).toBeNull();
+    },
+  );
+
+  it('requires a native receipt even if stale stored health and a version argument are positive', async () => {
+    const user = await account(false);
+    await link(user, 'max', subject());
+    await link(user, 'telegram', subject());
+    await runtime.query("SELECT auth_provider_health_set('telegram',$1,true,'ready')", [
+      await configurationVersion('telegram'),
+    ]);
+    expect(
+      (
+        await admin.query(
+          "SELECT health_available FROM auth_provider_settings WHERE provider='telegram'",
+        )
+      ).rows[0].health_available,
+    ).toBe(false);
+    // Simulate a historical positive projection without any current receipt.
+    await admin.query(
+      "UPDATE auth_provider_settings SET health_available=true,health_reason='ready',health_checked_at=now() WHERE provider='telegram'",
+    );
+    expect(await revoke(user, 'max')).toBe('last_sign_in_method');
+    const state = await runtime.query("SELECT can_unlink FROM auth_provider_status('max',$1)", [
+      user.account_id,
+    ]);
+    expect(state.rows[0].can_unlink).toBe(false);
+    await nativeReceipt('telegram');
+    expect(await revoke(user, 'max')).toBe('unlinked');
+  });
+
+  it('binds an externally checked admin save to its original local configuration version', async () => {
+    const oldVersion = await configurationVersion('max');
+    const current = await changeConfiguration('max', true);
+    await expect(
+      runtime.query(
+        "SELECT admin_set_auth_provider_config($1,'max',true,'synthetic_test_bot','https://example.test/sign-in','keep',NULL,NULL,NULL,NULL,NULL,NULL,'stale external preflight',$2,$3)",
+        [platformAdmin.principal_id, randomUUID(), oldVersion],
+      ),
+    ).rejects.toMatchObject({ code: '40001' });
+    expect(await configurationVersion('max')).toBe(current);
+    expect((await deliveryReceipt('max')).native_confirmation_verified_at).toBeNull();
+  });
+
+  it('serializes native consume behind config rotation and never attaches a stale delivery receipt', async () => {
+    const user = await account();
+    const pair = await start('max', user);
+    expect(await approve(pair, subject())).toBe('approved');
+    const before = await authorityCounts();
+    const configClient = await admin.connect();
+    const writerClient = await runtime.connect();
+    let mutation: Promise<pg.QueryResult<{ result: string }>> | undefined;
+    try {
+      const configPid = (await configClient.query('SELECT pg_backend_pid() AS pid')).rows[0].pid;
+      const writerPid = (await writerClient.query('SELECT pg_backend_pid() AS pid')).rows[0].pid;
+      await configClient.query('BEGIN');
+      await changeConfiguration('max', true, configClient);
+      mutation = writerClient.query(
+        'SELECT * FROM auth_provider_pairing_consume($1,$2,$3,$4,24,NULL,$5)',
+        ['max', pair.tokenHash, pair.nonceHash, hash(), user.account_id],
+      );
+      let blocked = false;
+      for (let attempt = 0; attempt < 50; attempt++) {
+        const blockers = await admin.query('SELECT pg_blocking_pids($1) AS pids', [writerPid]);
+        if (blockers.rows[0].pids.includes(configPid)) {
+          blocked = true;
+          break;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+      expect(blocked).toBe(true);
+      await configClient.query('COMMIT');
+      expect((await mutation).rows[0]?.result).toBe('invalid');
+      expect((await deliveryReceipt('max')).native_confirmation_verified_at).toBeNull();
+      expect(await authorityCounts()).toEqual(before);
+    } finally {
+      await configClient.query('ROLLBACK');
+      await mutation?.catch(() => undefined);
+      writerClient.release();
+      configClient.release();
+    }
+  });
+
   it('denies raw provider tables, private session creation and unauthorized administration', async () => {
     const ordinary = await account();
     await expect(runtime.query('SELECT * FROM auth_provider_settings')).rejects.toMatchObject({
@@ -547,8 +686,17 @@ describe('provider lifecycle PostgreSQL authority and atomicity', () => {
     expect((await registerPair(pair, { birthDate: null })).result).toBe('validation_error');
     expect((await registerPair(pair, { birthDate: '2020-01-01' })).result).toBe('age_routed');
     expect(await count()).toBe(initial);
+    expect(await deliveryReceipt('telegram')).toMatchObject({
+      native_confirmation_configuration_version: null,
+      native_confirmation_verified_at: null,
+    });
     const registered = await registerPair(pair);
     expect(registered.result).toBe('authenticated');
+    const receipt = await deliveryReceipt('telegram');
+    expect(receipt).toMatchObject({
+      native_confirmation_configuration_version: await configurationVersion('telegram'),
+      native_confirmation_verified_at: expect.any(Date),
+    });
     expect(await count()).toBe(initial + 1);
     const stored = await admin.query(
       'SELECT email,password_hash,password_configured,email_verification_state,birth_date::text,country FROM accounts WHERE id=$1',
@@ -567,6 +715,7 @@ describe('provider lifecycle PostgreSQL authority and atomicity', () => {
       true,
     );
     expect((await registerPair(pair)).result).toBe('unavailable');
+    expect(await deliveryReceipt('telegram')).toEqual(receipt);
   });
 
   it('does not allow provider proof to merge Accounts or replace a different bound identity', async () => {
@@ -590,6 +739,7 @@ describe('provider lifecycle PostgreSQL authority and atomicity', () => {
       "UPDATE auth_provider_settings SET health_available=false WHERE provider='telegram'",
     );
     expect(await revoke(user, 'max')).toBe('last_sign_in_method');
+    await nativeReceipt('telegram');
     await admin.query(
       "UPDATE auth_provider_settings SET health_available=true,health_checked_at=now() WHERE provider='telegram'",
     );
@@ -623,6 +773,7 @@ describe('provider lifecycle PostgreSQL authority and atomicity', () => {
     expect(unhealthy.rows[0]).toEqual({ health_available: false, health_reason: 'not_configured' });
     expect(await revoke(user, 'max', 'self', oldVersion)).toBe('last_sign_in_method');
     const newVersion = await changeConfiguration('telegram', true);
+    await nativeReceipt('telegram');
     await runtime.query("SELECT auth_provider_health_set($1,$2,true,'ready')", [
       'telegram',
       newVersion,

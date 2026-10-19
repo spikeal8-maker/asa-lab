@@ -917,3 +917,177 @@ all original 57 cases and fresh ZIP, plus required General. Both Abby variants
 must produce safe durable evidence. Any failure remains FAIL; nonreproduction
 is NOT_REPRODUCED and does not prove an underlying runtime repair. This evidence
 task does not complete stage 2 or start the final PR613 composition.
+
+
+## 2026-10-19 — reviewed Scratch composition, General009 consumer and Games CI selection
+
+This dated controller checkpoint records the exact-source dependency handoffs and
+selects one separate Games coverage repair. Live execution remains exclusively in
+`docs/execution/current.yaml`; stage 2 and the single final PR 613 composition are
+still open. The original contents of this card are preserved as dated evidence.
+
+### Recovery and Abby source reviews, and the new full Scratch run
+
+The terminal 813 host ended with 55 PASS and two FAIL among 57 cases: native Pop
+Abby stayed at revision 23 and failed-autosave timed out before the final IndexedDB
+assertions. Clean Pop passed on that source. Independent actual review 5571993942
+and the preserved artifact 12187812064 (143278048 bytes, SHA256
+`d745d1f980e2819d584f234e9b03a97ab878baef2d10eb760de590ba0060f979`)
+complete the old artifact barrier. General and standard fresh ZIP passed on813;
+this does not change its host NEEDS_FIX verdict.
+
+Recovery author source `55bb05a5e88bafe0e74eee6b692d38e9970fda6a` changes only
+`e2e/blocks-recovery.spec.ts`, reviewed blob
+`7d96cbde33fa246f57dff5a21dbfc224a69a7278`, 40025 bytes, SHA256
+`b21806e0e5181785284609cdc7404c22c286c987ee86d3bc5c4ae17891713d8e`.
+Independent source review passed 67 bounded scenarios, all 118 original assertion
+ASTs, the six neighboring cases, exact ESLint and all 57 discovery identities.
+Receipt: 14800 bytes, SHA256
+`3d183da8ed7a47506c7aa9addb2b4112e158ba1907afa7a00e4089131fd9b08a`.
+
+First Abby source `1f57457e314afea0c0e4d2e4d0432200e20c7e6e` was rejected for two
+observer lifecycle defects: stale shared method identity after product replacement
+and hook installation through a retained callback after unmount. Preserve that
+review and its receipt SHA256
+`d33b9d3719516900a430ba9e0e1317ccaea162e02cc13a96ce026862f6876eae`.
+The same author corrected those findings in child
+`65f5ac6185c3643f57b36c479f907abe6eb0eb96`, exact product-spec blob
+`4d0a545dab176dca885935e8065b0cddab843fc8`, 147233 bytes, SHA256
+`23882983be0b8fbdd70bad55f6b539ef057ecb6faf41012036f83d76a7fbf1c7`.
+Independent correction review passed 30 checks and 96 thrown-value scenarios;
+all 880 expect-rooted ASTs, the110201-byte suffix and original passivity contracts
+are preserved. Receipt 15223 bytes, SHA256
+`4de1ae1018b50c10950ecae33d3770ae11261925b607b5f06a98442d0f30af30`.
+
+The controller mechanically composed those exact two blobs into normal child
+`ffc10d1ba602880ee0ea3dc42ee3cabff2c5fa0a` of 813, tree
+`b30e020bd1b565350ca19ef0fcf868799971b716`, without additional feature edits.
+Independent review verified 4209 paths: two replacements,4207 unchanged files.
+Receipt 14193 bytes, SHA256
+`df4d3389ada18ef09d6999fefb2b387de41d23ee45c3be5246e82d946ce6c252`.
+SOURCE review 5573134896 is anchored to that exact head in draft PR 644.
+
+New Scratch 39269655871 is terminal SUCCESS. Its full host log proves57 unique
+file/title cases,57 PASS, no skip/failure/retry and one worker; the separate
+activity proof is1/1 and is not counted as a58th case. Contracts and standard
+fresh ZIP passed. The new artifact is preserved and verifies exact ASA source
+and pinned upstream 82c5. Recovery schema3 observes the same Request FAILED after
+intentional503, then real IndexedDB reread with one Steps73 record, every original
+assertion, listener removal, attachment and fixture teardown; server revision 23
+and one draft are preserved. Retired Response.finished boundaries remain
+NOT_OBSERVED; the underlying network cause remains UNKNOWN.
+
+Both durable Abby schema2 reports have60 events, revision 24, five assets, one
+draft and one commit. Their callback/root identity, dispatch and original VM
+calls are observed. Both outcomes are NOT_REPRODUCED, not proof of an underlying
+runtime repair. Redux state does not prove React props; original VM calls and
+synchronous context do not prove ProjectSaver serialization or asynchronous
+Promise settlement. Those causal limits remain explicit in the reports.
+
+General 39269657333 on the same ffc is separately FAILURE. Governance, Code and
+Data passed; Access real journeys passed 22/22, while settings synthetic had
+407 PASS and two no-mutation failures after analytics quality requests. The
+Access spec, telemetry fixture and quality producer are unchanged from813.
+Both exact traces prove HTTP 400 for quality requests whose fixture seatId and
+classId are not UUIDs; eventId and streamId are valid. The AST-extracted original
+validator rejects both bodies. Replacing only those two fields with the frozen
+a23 fixture UUIDs makes both valid and produces receipt HTTP 200; the original
+R3 test call/assertion is byte-identical. The existing external PR 643 UUID slice
+therefore addresses this observed cause. No endpoint exclusion, second author,
+assertion weakening or unchanged rerun is selected. Scratch acceptance does not
+waive the General failure. PR 644 remains unmerged pending that dependency.
+
+### General009 consumer handoff and its moving external candidate
+
+Independent source reviewer and independent actual QA both passed the bounded
+General009 adoption contract on PR 643 source
+`a23b2cf50f8e1035097967ef80095ca9bb5f33bc`, review 5573429524.
+The original six Access artifact paths, their always condition and 14-day retention
+are restored; summary has its own additive always upload with missing-file error.
+The original four-job matrix, failure propagation, CLI caller, PG17.7 identity and
+cleanup are preserved. Source receipt 21422 bytes, SHA256
+`ac188c2d4e7566af06bf6a224d40e2253a8d60a16f639b14b5cb6ceec2926837`.
+
+Exact General 39265326066 has219 migrations,4739 PASS plus 34 SKIP, separate
+RLS16/16, Access22/22 and settings418/418. The downloaded summary proves22 unique
+passed IDs with retry0 and no skip/flaky; original browser upload also succeeded.
+Actual image-only model, accepted PG17.7 config and all 14 ordered rootfs entries,
+API/Test source labels and isolated cleanup were checked. Actual receipt 19429
+bytes, SHA256
+`01385c51b673b469a2c94018b0c1220993de3eca72a930b93c43cbbe54f9991a`.
+This is consumer acceptance, not a repeated whole-AI product review.
+
+External PR 643 moved to `632691d7215a41b0141df0c8a3d57c7ccac44462`, merging
+d193 into a23. Its full six-file list and unchanged Compose blob were rechecked.
+The old a23 PASS is not new-head evidence; require its own final owner handoff
+and actual gates. General009 workflow and GC1/D13 guard remain externally owned.
+
+### TASK-PROJ-PUBLICATION-GAMES-CI-ENVIRONMENT-001
+
+The new exact-a23 Data log again reports all 32 tests in
+`tests/games-admission/student-game-admission.pg.spec.ts` SKIPPED. The suite
+requires `process.env.CI === 'true'` and both isolated database URLs. Host CI=true
+is absent from the test-runner container environment. Embedded16 cases are not
+a substitute for these32 PostgreSQL/HTTP/concurrency cases.
+
+Independent read-only eligibility on main
+`d1937f7c63c25dbe6551209000f49d2283e9a046` checked both open-PR pages and all 48
+complete file lists, canonical scopes, four coordination issues, current GC1
+fe70, D13 f967 and latest General009632. None changes `compose.test.yaml`;
+its exact blob remains `10387a7bf26f860670205f42cd0de7e420ab59fa`,1915 bytes,
+SHA256 `1c58f77edce487445efdacf02e729cce825602cef217c0ad7de80c7365347789`.
+Prior requests to identify the owner were dated controller observations. No
+current execution blocker or separate active Compose author was found. Unpublished
+local work still requires the normal pre-write overlap check. Eligibility receipt:
+61177 bytes, SHA256
+`51779a585592942760b6615c6474e9d6ab08da681112de11065b492f3d42f34f`.
+
+The selected author changes **only `compose.test.yaml`**, adding pass-through of
+one key, `services.test-runner.environment.CI`. Preserve host true/false/empty/unset
+semantics; never force or default true. The existing image comparison renders
+baseline and transport from this same file, so the one-key addition affects both
+equally and requires no shared guard edit. Source feasibility is not execution
+proof. No source author starts before this selection is accepted on main.
+
+Preserve the existing suite guard and every assertion; four original env values,
+isolated database names/admin/runtime roles, read-only user, networks, capabilities,
+mounts/tmpfs, commands, ordered overlays, all image/config/rootfs identities,
+revision checks and cleanup. No product, Games tests, Dockerfile, production
+Compose, migration, package, workflow, GC1 guard, Learning, QR, Scratch or Auth
+edit is selected. If implementation requires one of those files, return the
+concrete finding for a separately bounded decision instead of widening this task.
+
+Require a separate independent exact-source review and a new full General run
+whose actual test-runner model has CI=true and whose32 original Games cases all
+execute and pass with no skip/retry/substitute. Keep all published migrations,
+including Auth 0225, full Data, separate RLS, restricted-role proof, source image
+identity, unchanged General matrix and actual isolated cleanup. New unrelated
+failures remain separate C findings. No local ASA/server/browser/PG/Docker run,
+timeout increase, silent skip, assertion relaxation or unchanged CI rerun.
+
+### Updated main preservation boundary
+
+Main d193 incorporates accepted Auth C5 source 4e4ea950. Independent read-only
+intake verifies54 exact source blobs preserved; source Focused 39267688751 and
+General 39267688763 successes and independent lifecycle review are read from
+published handoff/metadata. This is not new local Auth runtime QA. Post-main General 39272633626 is terminal
+FAILURE at 15:04:29 UTC: Access browser failed, settings skipped, other three jobs
+succeeded, by metadata only. No current main General run is cancelled for this
+checkpoint. Intake receipt
+32734 bytes, SHA256
+`34dac1073c55bb46df9d284ededff0038a8275925d90240f21eb584d58b2de3f`.
+
+The future single PR 613 composition must preserve current app.module, Auth
+cancellation/session behavior, global verification403 handling, Games controllers
+and transactions, Seat navigation and cookie precedence. Mixed Account/Seat
+cookies and anonymous/verified/unverified/Seat public-read/mutation behavior need
+explicit security checks; the three public GET routes are not solved by a generic
+verification bypass. Preserve Learning data, Projects, drafts, versions, personal
+Collections and Safe Mode. Updated installer and staging-origin behavior requires
+fresh final ZIP evidence; old813/ffc ZIP does not cover these new Auth sources.
+
+Auth 0225 is published and immutable. The AI reservation still includes0225-0228,
+so obtain its current unpublished migration handoff and re-read all published and
+reserved IDs before choosing the publication number. Do not assume0229 is free.
+PR 613 source 662 remains unchanged; stage 2, its final composition and stages3-7
+are not accepted by this checkpoint. No deployment or live-database operation.

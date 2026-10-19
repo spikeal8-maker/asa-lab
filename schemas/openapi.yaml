@@ -261,7 +261,7 @@ paths:
     post:
       operationId: postMaxWebhook
       summary: Receive authenticated Max bot updates
-      description: The configured provider webhook secret is required; this is not a browser login endpoint.
+      description: The configured secret authenticates provider updates. A registered one-use ingress challenge uses a separate HMAC in the same header; it cannot approve any Account or pairing.
       parameters:
         - in: header
           name: x-max-bot-api-secret
@@ -278,9 +278,29 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AuthOkResponse'
+                oneOf:
+                  - $ref: '#/components/schemas/AuthOkResponse'
+                  - $ref: '#/components/schemas/ProviderIngressProbeResponse'
         '401':
           $ref: '#/components/responses/AuthUnauthorized'
+  /api/admin/v1/integrations/max/check:
+    post:
+      operationId: checkAdminMaxConfiguration
+      summary: Refresh redacted provider readiness diagnostics
+      description: Platform administrator only. Bounded network checks do not rotate settings, set a webhook, or record native Account confirmation.
+      responses:
+        '200':
+          description: Current readiness, including failures and unverified native delivery
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderAdminConfig'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+        '403':
+          $ref: '#/components/responses/AuthForbidden'
+        '503':
+          $ref: '#/components/responses/AuthProviderUnavailable'
   /api/admin/v1/integrations/max:
     get:
       operationId: getAdminMaxConfiguration
@@ -484,7 +504,7 @@ paths:
     post:
       operationId: postTelegramWebhook
       summary: Receive authenticated Telegram bot updates
-      description: The configured provider webhook secret is required; this is not a browser login endpoint.
+      description: The configured secret authenticates provider updates. A registered one-use ingress challenge uses a separate HMAC in the same header; it cannot approve any Account or pairing.
       parameters:
         - in: header
           name: x-telegram-bot-api-secret-token
@@ -501,9 +521,29 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AuthOkResponse'
+                oneOf:
+                  - $ref: '#/components/schemas/AuthOkResponse'
+                  - $ref: '#/components/schemas/ProviderIngressProbeResponse'
         '401':
           $ref: '#/components/responses/AuthUnauthorized'
+  /api/admin/v1/integrations/telegram/check:
+    post:
+      operationId: checkAdminTelegramConfiguration
+      summary: Refresh redacted provider readiness diagnostics
+      description: Platform administrator only. Bounded network checks do not rotate settings, set a webhook, or record native Account confirmation.
+      responses:
+        '200':
+          description: Current readiness, including failures and unverified native delivery
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderAdminConfig'
+        '401':
+          $ref: '#/components/responses/AuthUnauthorized'
+        '403':
+          $ref: '#/components/responses/AuthForbidden'
+        '503':
+          $ref: '#/components/responses/AuthProviderUnavailable'
   /api/admin/v1/integrations/telegram:
     get:
       operationId: getAdminTelegramConfiguration
@@ -6826,13 +6866,14 @@ components:
     AuthProviderAvailability:
       type: object
       additionalProperties: false
-      required: [id, available, reason, checkedAt]
+      required: [id, available, reason, checkedAt, enforcementEligible, enforcementReason]
       properties:
         id:
           type: string
           enum: [max, telegram, email]
         available:
           type: boolean
+          description: Native pairing may start; this alone is not evidence for mandatory confirmation.
         reason:
           type: string
           enum: [ready, disabled, not_configured, invalid_token, delivery_unavailable, unavailable]
@@ -6842,6 +6883,11 @@ components:
         launchUrl:
           type: [string, 'null']
           format: uri
+        enforcementEligible:
+          type: boolean
+          description: Startable and a native callback completed in its initiating browser for this configuration version.
+        enforcementReason:
+          $ref: '#/components/schemas/ProviderEnforcementReason'
     AuthProvidersEnvelope:
       type: object
       additionalProperties: false
@@ -6885,7 +6931,15 @@ components:
           description: When true, the session is restricted to identity confirmation and recovery.
         reason:
           type: string
-          enum: [disabled, verified, grace_period, providers_unavailable, verification_required]
+          enum:
+            [
+              disabled,
+              verified,
+              grace_period,
+              providers_unavailable,
+              providers_unverified,
+              verification_required,
+            ]
         dueAt:
           type: [string, 'null']
           format: date-time
@@ -7028,7 +7082,8 @@ components:
     ProviderAdminConfigUpdate:
       type: object
       additionalProperties: false
-      required: [enabled, botUsername, miniAppUrl]
+      required: [enabled]
+      description: Enabling requires botUsername and miniAppUrl. Disabling preserves existing settings and needs no external provider check.
       properties:
         enabled: { type: boolean }
         botUsername: { type: string, maxLength: 64 }
@@ -7038,6 +7093,12 @@ components:
           maxLength: 2048
           writeOnly: true
         clearToken: { type: boolean }
+      allOf:
+        - if:
+            properties:
+              enabled: { const: true }
+          then:
+            required: [botUsername, miniAppUrl]
     AuthPairingRegistrationRequest:
       type: object
       additionalProperties: false
@@ -7085,6 +7146,9 @@ components:
           featureEnabled,
           available,
           availabilityReason,
+          enforcementEligible,
+          enforcementReason,
+          diagnostics,
           healthCheckedAt,
           tokenConfigured,
           botUsername,
@@ -7126,6 +7190,79 @@ components:
         webhookUrl: { type: [string, 'null'], format: uri }
         webhookVerifiedAt: { type: [string, 'null'], format: date-time }
         webhookLastError: { type: [string, 'null'] }
+        enforcementEligible: { type: boolean }
+        enforcementReason:
+          $ref: '#/components/schemas/ProviderEnforcementReason'
+        diagnostics:
+          $ref: '#/components/schemas/ProviderReadinessDiagnostics'
+    ProviderEnforcementReason:
+      type: string
+      enum:
+        [
+          ready,
+          disabled,
+          not_configured,
+          invalid_token,
+          delivery_unavailable,
+          unavailable,
+          delivery_unverified,
+        ]
+    ProviderReadinessCheck:
+      type: object
+      additionalProperties: false
+      required: [state, reason, checkedAt]
+      properties:
+        state:
+          type: string
+          enum: [not_checked, ok, failed]
+        reason:
+          type: [string, 'null']
+          enum:
+            [
+              disabled,
+              not_configured,
+              invalid_token,
+              bot_mismatch,
+              subscription_missing,
+              subscription_mismatch,
+              ingress_invalid_url,
+              ingress_dns_unavailable,
+              ingress_network_unavailable,
+              ingress_invalid_response,
+              unavailable,
+              null,
+            ]
+        checkedAt: { type: [string, 'null'], format: date-time }
+    ProviderReadinessDiagnostics:
+      type: object
+      additionalProperties: false
+      required: [token, subscription, ingress, nativeConfirmation]
+      properties:
+        token: { $ref: '#/components/schemas/ProviderReadinessCheck' }
+        subscription: { $ref: '#/components/schemas/ProviderReadinessCheck' }
+        ingress: { $ref: '#/components/schemas/ProviderReadinessCheck' }
+        nativeConfirmation:
+          type: object
+          additionalProperties: false
+          required: [current, configurationVersion, verifiedAt]
+          properties:
+            current: { type: boolean }
+            configurationVersion: { type: [integer, 'null'], minimum: 1 }
+            verifiedAt: { type: [string, 'null'], format: date-time }
+    ProviderIngressProbeResponse:
+      type: object
+      additionalProperties: false
+      description: A one-use HMAC response for a challenge registered by this process. Not a provider callback or Account proof.
+      required: [type, protocol, instance, provider, configurationVersion, issuedAt, nonce, proof]
+      properties:
+        type: { type: string, const: asa_ingress_probe }
+        protocol: { type: integer, const: 1 }
+        instance: { type: string, pattern: '^[A-Za-z0-9_-]{43}$' }
+        provider: { type: string, enum: [max, telegram] }
+        configurationVersion: { type: integer, minimum: 1 }
+        issuedAt: { type: integer }
+        nonce: { type: string, pattern: '^[A-Za-z0-9_-]{43}$' }
+        proof: { type: string, pattern: '^[A-Za-z0-9_-]{43}$' }
     ManualJournalRange:
       type: object
       additionalProperties: false
