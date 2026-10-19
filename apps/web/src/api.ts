@@ -1823,10 +1823,15 @@ export const api = {
     }),
   accountVerification: (signal?: AbortSignal) =>
     call<AccountVerificationState>('/api/auth/verification', { ...(signal ? { signal } : {}) }),
-  socialStatus: (provider: SocialAuthProvider) =>
-    call<MaxAccountStatus>(`/api/auth/${provider}/status`),
-  unlinkSocial: (provider: SocialAuthProvider) =>
-    call<{ unlinked: boolean }>(`/api/auth/${provider}/unlink`, { method: 'POST' }),
+  socialStatus: (provider: SocialAuthProvider, signal?: AbortSignal) =>
+    call<MaxAccountStatus>(`/api/auth/${provider}/status`, {
+      ...(signal ? { signal } : {}),
+    }),
+  unlinkSocial: (provider: SocialAuthProvider, signal?: AbortSignal) =>
+    call<{ unlinked: boolean }>(`/api/auth/${provider}/unlink`, {
+      method: 'POST',
+      ...(signal ? { signal } : {}),
+    }),
   startSocialPairing: (
     provider: SocialAuthProvider,
     purpose: 'login' | 'register' | 'link',

@@ -42,7 +42,10 @@ function healthyProviders(): AuthProviderAvailability[] {
   ];
 }
 
+type FixtureIdentity = { id: string; email: string; displayName: string };
+
 interface UiState {
+  identity: FixtureIdentity | null;
   signedIn: boolean;
   admin: boolean;
   policyEnabled: boolean;
@@ -68,6 +71,7 @@ async function fixture(
   options: Partial<Omit<UiState, 'requests'>> = {},
 ): Promise<UiState> {
   const state: UiState = {
+    identity: null,
     signedIn: false,
     admin: false,
     policyEnabled: false,
@@ -160,10 +164,12 @@ async function fixture(
       providers: state.providers,
     };
   };
+  const identity = () =>
+    state.identity ?? { id: ACCOUNT_ID, email: profile.email, displayName: profile.displayName };
   const session = () => ({
     authenticated: true,
-    user: { id: ACCOUNT_ID, email: profile.email, displayName: profile.displayName },
-    account: { id: ACCOUNT_ID, email: profile.email, displayName: profile.displayName },
+    user: identity(),
+    account: identity(),
     capabilities: verification().required ? [] : capabilities(),
     actions: [],
     workspaces,
@@ -293,8 +299,8 @@ async function fixture(
         ? reply({
             administrator: true,
             principalId: 'fixture-admin',
-            accountId: ACCOUNT_ID,
-            displayName: profile.displayName,
+            accountId: identity().id,
+            displayName: identity().displayName,
             activeWorkspaceId: WORKSPACE_ID,
             scopes: [scope],
           })
@@ -426,7 +432,13 @@ async function fixture(
       }
     }
     if (path === '/api/account/profile')
-      return reply({ ...profile, capabilities: capabilities(), workspaces });
+      return reply({
+        ...profile,
+        email: identity().email,
+        displayName: identity().displayName,
+        capabilities: capabilities(),
+        workspaces,
+      });
     if (path === '/api/account/avatar') return reply({ avatarDataUrl: null });
     if (path === '/api/account/sessions') return reply({ items: [] });
     if (path === '/api/account/password')
@@ -565,8 +577,8 @@ async function releaseHeldRequest(page: Page, body: unknown): Promise<void> {
   );
 }
 
-async function passwordLogin(page: Page): Promise<void> {
-  await page.getByLabel('Email или имя пользователя', { exact: true }).fill('auth-review-account');
+async function passwordLogin(page: Page, identifier = 'auth-review-account'): Promise<void> {
+  await page.getByLabel('Email или имя пользователя', { exact: true }).fill(identifier);
   await page.getByLabel('Пароль', { exact: true }).fill('synthetic-password-2026');
   await page.getByRole('checkbox', { name: 'Я не робот' }).focus();
   await page.keyboard.press('Space');
@@ -1377,5 +1389,370 @@ for (const width of [1440, 1024, 390, 320]) {
     await screenshot(page, `admin-readiness-${width}-font150`);
     await expectReadableProviderSaveActions(page, width);
     expect(state.requests.filter((request) => request.method === 'PUT')).toHaveLength(0);
+  });
+}
+
+const METHOD_ACCOUNT_A: FixtureIdentity = {
+  id: ACCOUNT_ID,
+  email: 'method-account-a@example.test',
+  displayName: 'Аккаунт A — способы входа',
+};
+const METHOD_ACCOUNT_B: FixtureIdentity = {
+  id: '20000000-0000-4000-8000-000000000002',
+  email: 'password-account-b@example.test',
+  displayName: 'Аккаунт B — парольный вход',
+};
+const PASSWORD_ACCOUNT_CAPABILITIES = [
+  { capability: 'creator', state: 'verified' },
+  { capability: 'platform_admin', state: 'verified' },
+];
+
+// Install after A is loaded. Only the next matching request is held, so B's
+// password login and current-session reads use the normal fixture. Deliberately
+// keep the old promise alive after abort to exercise the complete late path.
+async function holdNextMethodRequest(page: Page, path: string, method: string): Promise<void> {
+  await page.evaluate(
+    ({ path, method }) => {
+      type Hold = {
+        calls: number;
+        aborted: number;
+        meCalls: number;
+        release: (body: unknown) => void;
+        settle: () => Promise<void>;
+      };
+      const target = window as typeof window & { __authUiHold: Hold };
+      const original = window.fetch.bind(window);
+      let release: ((response: Response) => void) | null = null;
+      const pending = new Set<Promise<Response>>();
+      let forwarded = 0;
+      const forward: typeof fetch = (input, init) => {
+        forwarded += 1;
+        const response = original(input, init);
+        pending.add(response);
+        void response.then(
+          () => pending.delete(response),
+          () => pending.delete(response),
+        );
+        return response;
+      };
+      const hold: Hold = {
+        calls: 0,
+        aborted: 0,
+        meCalls: 0,
+        release: (body) => {
+          release?.(Response.json(body));
+          release = null;
+        },
+        settle: async () => {
+          // Drain requests caused by the released continuation too (unlink can
+          // refresh two statuses before it starts /me). No polling delay/retry.
+          for (;;) {
+            const version = forwarded;
+            await Promise.allSettled([...pending]);
+            await new Promise<void>((resolve) => {
+              requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+            });
+            if (pending.size === 0 && version === forwarded) return;
+          }
+        },
+      };
+      target.__authUiHold = hold;
+      window.fetch = (input, init) => {
+        const url = new URL(input instanceof Request ? input.url : String(input), location.href);
+        const verb = init?.method ?? (input instanceof Request ? input.method : 'GET');
+        if (url.pathname === '/api/auth/me') hold.meCalls += 1;
+        if (hold.calls > 0 || url.pathname !== path || verb !== method) return forward(input, init);
+        hold.calls += 1;
+        const signal = init?.signal ?? (input instanceof Request ? input.signal : undefined);
+        signal?.addEventListener(
+          'abort',
+          () => {
+            hold.aborted += 1;
+          },
+          { once: true },
+        );
+        return new Promise<Response>((resolve) => {
+          release = resolve;
+        });
+      };
+    },
+    { path, method },
+  );
+}
+
+async function methodRequestState(
+  page: Page,
+): Promise<{ calls: number; aborted: number; meCalls: number }> {
+  return page.evaluate(() => {
+    const { calls, aborted, meCalls } = (
+      window as typeof window & {
+        __authUiHold: { calls: number; aborted: number; meCalls: number };
+      }
+    ).__authUiHold;
+    return { calls, aborted, meCalls };
+  });
+}
+
+async function releaseMethodRequest(page: Page, body: unknown): Promise<void> {
+  await releaseHeldRequest(page, body);
+  // Observe the render caused by the released promise, rather than accepting
+  // the already-visible B header before an old continuation gets to run.
+  await page.evaluate(() =>
+    (
+      window as typeof window & { __authUiHold: { settle: () => Promise<void> } }
+    ).__authUiHold.settle(),
+  );
+}
+
+function authWrites(state: UiState): UiState['requests'] {
+  return state.requests.filter(
+    (request) => request.path.startsWith('/api/auth/') && request.method === 'POST',
+  );
+}
+
+async function enterMethodAccount(page: Page, state: UiState): Promise<void> {
+  await visit(page, '/account/security');
+  await expect(page.locator('.portal-account > summary')).toHaveAttribute(
+    'aria-label',
+    `Меню аккаунта ${METHOD_ACCOUNT_A.displayName}`,
+  );
+  const methods = page.getByRole('region', { name: 'Способы входа', exact: true });
+  await expect(methods).toBeVisible();
+  for (const provider of METHODS) {
+    const label = provider === 'max' ? 'MAX' : 'Telegram';
+    await expect(methods.getByRole('article', { name: label, exact: true })).toContainText(
+      state.linked[provider] ? 'Подтверждён' : 'Не подключён',
+    );
+  }
+  await expect(page.locator('.account-private-facts')).toContainText('Настроен');
+}
+
+async function startMethodAction(
+  page: Page,
+  provider: SocialAuthProvider,
+  action: 'link' | 'unlink',
+): Promise<void> {
+  const label = provider === 'max' ? 'MAX' : 'Telegram';
+  if (action === 'unlink') page.once('dialog', (dialog) => void dialog.accept());
+  await page
+    .getByRole('region', { name: 'Способы входа', exact: true })
+    .getByRole('button', {
+      name: `${action === 'link' ? 'Подключить' : 'Отключить'} ${label}`,
+      exact: true,
+    })
+    .click();
+}
+
+async function replaceWithPasswordAccount(page: Page, state: UiState): Promise<void> {
+  await page.locator('.portal-account > summary').click();
+  await page
+    .locator('.portal-account-menu')
+    .getByRole('button', { name: 'Выход', exact: true })
+    .click();
+  const signIn = page.getByRole('banner').getByRole('button', { name: 'Войти', exact: true });
+  await expect(signIn).toBeVisible();
+  expect(state.signedIn).toBe(false);
+  state.identity = { ...METHOD_ACCOUNT_B };
+  state.admin = true;
+  state.verifiedProvider = null;
+  state.linked = { max: false, telegram: false };
+  await signIn.click();
+  await passwordLogin(page, METHOD_ACCOUNT_B.email);
+  await expect(page.locator('.portal-account > summary')).toHaveAttribute(
+    'aria-label',
+    `Меню аккаунта ${METHOD_ACCOUNT_B.displayName}`,
+  );
+  const current = await page.evaluate(async () => (await fetch('/api/auth/me')).json());
+  expect(current.account).toEqual(METHOD_ACCOUNT_B);
+  expect(current.user).toEqual(METHOD_ACCOUNT_B);
+  expect(current.capabilities).toEqual(PASSWORD_ACCOUNT_CAPABILITIES);
+  await page.evaluate(() => {
+    location.hash = '#/account/security';
+  });
+  await expect(page.getByRole('region', { name: 'Способы входа', exact: true })).toBeVisible();
+  for (const label of ['MAX', 'Telegram']) {
+    await expect(
+      page.getByRole('button', { name: `Подключить ${label}`, exact: true }),
+    ).toBeEnabled();
+  }
+}
+
+async function expectPasswordMethodAccount(page: Page, state: UiState): Promise<void> {
+  const summary = page.locator('.portal-account > summary');
+  await expect(summary).toBeVisible();
+  await expect(summary).toHaveAttribute(
+    'aria-label',
+    `Меню аккаунта ${METHOD_ACCOUNT_B.displayName}`,
+  );
+  await expect(summary.locator('.portal-user-copy > strong')).toHaveText(
+    METHOD_ACCOUNT_B.displayName,
+  );
+  const retained = await page.evaluate(async () => (await fetch('/api/auth/me')).json());
+  expect(retained.account).toEqual(METHOD_ACCOUNT_B);
+  expect(retained.user).toEqual(METHOD_ACCOUNT_B);
+  expect(retained.capabilities).toEqual(PASSWORD_ACCOUNT_CAPABILITIES);
+  // This is a real App capability gate, in addition to the server identity read.
+  await page.evaluate(() => {
+    location.hash = '#/admin/confirmations';
+  });
+  await expect(
+    page.getByRole('switch', { name: 'Обязательное подтверждение входа', exact: true }),
+  ).toBeEnabled();
+  await expect(page.getByText(METHOD_ACCOUNT_A.displayName, { exact: true })).toHaveCount(0);
+  expect(state.signedIn).toBe(true);
+  expect(state.identity).toEqual(METHOD_ACCOUNT_B);
+  expect(state.linked).toEqual({ max: false, telegram: false });
+  expect(state.verifiedProvider).toBeNull();
+  expect(state.requests.filter((request) => request.path === '/api/auth/login')).toHaveLength(1);
+  expect(state.requests.filter((request) => request.path === '/api/auth/logout')).toHaveLength(1);
+}
+
+for (const provider of METHODS) {
+  for (const action of ['link', 'unlink'] as const) {
+    test(`account method lifecycle: ${provider} post-${action} read cannot replace password Account B`, async ({
+      page,
+    }) => {
+      const state = await fixture(page, {
+        signedIn: true,
+        identity: { ...METHOD_ACCOUNT_A },
+        nextPairing: 'linked',
+        linked: {
+          max: action === 'unlink' && provider === 'max',
+          telegram: action === 'unlink' && provider === 'telegram',
+        },
+      });
+      await enterMethodAccount(page, state);
+      const oldIdentity = await page.evaluate(async () => (await fetch('/api/auth/me')).json());
+      await holdNextMethodRequest(page, '/api/auth/me', 'GET');
+      await startMethodAction(page, provider, action);
+      await expect.poll(() => heldRequests(page)).toBe(1);
+      await replaceWithPasswordAccount(page, state);
+      const writes = authWrites(state);
+      await releaseMethodRequest(page, oldIdentity);
+      await expectPasswordMethodAccount(page, state);
+      expect(authWrites(state)).toEqual(writes);
+      expect(await methodRequestState(page)).toMatchObject({ calls: 1, aborted: 1 });
+    });
+  }
+
+  for (const stage of ['link-refresh', 'unlink-mutation', 'unlink-refresh'] as const) {
+    test(`account method lifecycle: ${provider} cancelled ${stage} starts no later identity read`, async ({
+      page,
+    }) => {
+      const action = stage === 'link-refresh' ? 'link' : 'unlink';
+      const state = await fixture(page, {
+        signedIn: true,
+        identity: { ...METHOD_ACCOUNT_A },
+        nextPairing: 'linked',
+        linked: {
+          max: action === 'unlink' && provider === 'max',
+          telegram: action === 'unlink' && provider === 'telegram',
+        },
+      });
+      await enterMethodAccount(page, state);
+      const mutation = stage === 'unlink-mutation';
+      await holdNextMethodRequest(
+        page,
+        `/api/auth/${provider}/${mutation ? 'unlink' : 'status'}`,
+        mutation ? 'POST' : 'GET',
+      );
+      await startMethodAction(page, provider, action);
+      await expect.poll(() => heldRequests(page)).toBe(1);
+      await replaceWithPasswordAccount(page, state);
+      const writes = authWrites(state);
+      const reads = (await methodRequestState(page)).meCalls;
+      await releaseMethodRequest(
+        page,
+        mutation
+          ? { unlinked: true }
+          : {
+              linked: action === 'link',
+              verifiedAt: action === 'link' ? '2026-10-18T09:00:00Z' : null,
+              firstAuthenticatedAt: '2026-10-16T09:00:00Z',
+              promptDue: false,
+              promptDismissedUntil: null,
+              available: true,
+              canUnlink: true,
+            },
+      );
+      expect((await methodRequestState(page)).meCalls).toBe(reads);
+      await expectPasswordMethodAccount(page, state);
+      expect(authWrites(state)).toEqual(writes);
+      expect(await methodRequestState(page)).toMatchObject({ calls: 1, aborted: 1 });
+    });
+  }
+
+  test(`account method lifecycle: ${provider} finishing read rejects a different Account while A stays active`, async ({
+    page,
+  }) => {
+    const state = await fixture(page, {
+      signedIn: true,
+      identity: { ...METHOD_ACCOUNT_A },
+      nextPairing: 'linked',
+    });
+    await enterMethodAccount(page, state);
+    const current = await page.evaluate(async () => (await fetch('/api/auth/me')).json());
+    await holdNextMethodRequest(page, '/api/auth/me', 'GET');
+    await startMethodAction(page, provider, 'link');
+    await expect.poll(() => heldRequests(page)).toBe(1);
+    const writes = authWrites(state);
+    await releaseMethodRequest(page, {
+      ...current,
+      user: METHOD_ACCOUNT_B,
+      account: METHOD_ACCOUNT_B,
+      capabilities: PASSWORD_ACCOUNT_CAPABILITIES,
+    });
+    const summary = page.locator('.portal-account > summary');
+    await expect(summary).toHaveAttribute(
+      'aria-label',
+      `Меню аккаунта ${METHOD_ACCOUNT_A.displayName}`,
+    );
+    const retained = await page.evaluate(async () => (await fetch('/api/auth/me')).json());
+    expect(retained.account).toEqual(METHOD_ACCOUNT_A);
+    expect(retained.capabilities).toEqual(current.capabilities);
+    expect(state.admin).toBe(false);
+    expect(authWrites(state)).toEqual(writes);
+    expect(await heldRequests(page)).toBe(1);
+  });
+
+  test(`account method lifecycle: ${provider} current Account accepts successful link and unlink`, async ({
+    page,
+  }) => {
+    const state = await fixture(page, {
+      signedIn: true,
+      identity: { ...METHOD_ACCOUNT_A },
+      nextPairing: 'linked',
+    });
+    await enterMethodAccount(page, state);
+    const label = provider === 'max' ? 'MAX' : 'Telegram';
+    state.identity = { ...METHOD_ACCOUNT_A, displayName: `Аккаунт A — ${label} подключён` };
+    await startMethodAction(page, provider, 'link');
+    await expect(page.locator('.portal-account > summary')).toHaveAttribute(
+      'aria-label',
+      `Меню аккаунта ${state.identity.displayName}`,
+    );
+    await expect(
+      page.getByRole('button', { name: `Отключить ${label}`, exact: true }),
+    ).toBeEnabled();
+    state.identity = { ...METHOD_ACCOUNT_A, displayName: `Аккаунт A — ${label} отключён` };
+    await startMethodAction(page, provider, 'unlink');
+    await expect(page.locator('.portal-account > summary')).toHaveAttribute(
+      'aria-label',
+      `Меню аккаунта ${state.identity.displayName}`,
+    );
+    await expect(
+      page.getByRole('button', { name: `Подключить ${label}`, exact: true }),
+    ).toBeEnabled();
+    expect(state.linked[provider]).toBe(false);
+    expect(
+      state.requests.filter((request) => request.path === `/api/auth/${provider}/pairing/start`),
+    ).toHaveLength(1);
+    expect(
+      state.requests.filter((request) => request.path === `/api/auth/${provider}/pairing/complete`),
+    ).toHaveLength(1);
+    expect(
+      state.requests.filter((request) => request.path === `/api/auth/${provider}/unlink`),
+    ).toHaveLength(1);
+    expect(state.requests.filter((request) => request.path.endsWith('/register'))).toHaveLength(0);
   });
 }

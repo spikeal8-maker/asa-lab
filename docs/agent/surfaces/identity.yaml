@@ -428,6 +428,7 @@ surfaces:
     - apps/web/src/auth-request.ts
     - apps/web/src/session-fetch.ts
     - apps/web/src/pages/AccountConfirmationPage.tsx
+    - apps/web/src/pages/AccountPage.tsx
     - apps/web/src/components/AccountSignInMethods.tsx
     - apps/web/src/admin/VerificationPolicyControl.tsx
     - apps/web/src/admin/AdminAuthProviderCard.tsx
@@ -489,6 +490,7 @@ surfaces:
     change_class: L3_CRITICAL
     files:
     - apps/web/src/admin/AdminAuthProviderCard.tsx
+    - apps/web/src/pages/AccountPage.tsx
     - apps/web/src/components/AccountSignInMethods.tsx
     - apps/web/src/auth-providers.tsx
     - apps/api/src/admin.controller.ts
