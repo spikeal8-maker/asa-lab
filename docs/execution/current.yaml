@@ -8730,7 +8730,7 @@ parallel_lanes:
         sha: e098d0c9a6e7724f3ed74a9c326afab7ad05ea7f
       convergence_baseline_sha: e098d0c9a6e7724f3ed74a9c326afab7ad05ea7f
       head_sha: null
-      observation_note: Dated source selection after bacd D13 was independently accepted only on that candidate; complete classroom155PASS15FAIL, strict151PASS19FAIL and General DataFAIL remain historical failures. Fresh scoped preflight found main e098 with two accepted nonoverlapping Scratch specs and no foreign selected edits across67 worktrees. All bounded repair sources and throughput revision are independently reviewed; actual coherent browser/CI and main integration remain pending. Preserve every unrelated lane and blocker.
+      observation_note: Dated source selection after bacd D13 was independently accepted only on that candidate; complete classroom155PASS15FAIL, strict151PASS19FAIL and General DataFAIL remain historical failures. Fresh scoped preflight found main e098 with two accepted nonoverlapping Scratch specs and no foreign selected edits across67 worktrees. All bounded repair sources and throughput revision are independently reviewed; actual coherent browser/CI and main integration remain pending. Preserve every unrelated lane and blocker. Fresh fetch main is required before execution and integration.
 
   - id: electronics-classroom-hygiene
     parent_lane: electronics
