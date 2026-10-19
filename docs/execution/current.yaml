@@ -135,6 +135,22 @@ parallel_lanes:
             Classroom changes during final convergence. Reuse trusted Seat context
             and existing teacher authority; do not require a personal Account for
             school access, expose private chats to teachers or redesign tenant/RLS.
+        - id: AI-MODEL-CAPABILITIES-004
+          scope: current provider model catalog, capability descriptors and compatible encrypted configuration
+          status: in_progress
+          integration_after: [AI-TEXT-API-002]
+          coordination: >-
+            Verify official provider documentation; retain configured credentials
+            and historical messages. Replace retired runtime aliases explicitly,
+            advertise only implemented capabilities and preserve platform quotas.
+        - id: AI-TEXT-COMPLETE-005
+          scope: server history search, archive, fresh answer regeneration and safe mathematical rendering
+          status: in_progress
+          integration_after: [AI-TEXT-UI-001, AI-TEXT-API-002, AI-STUDENT-ACCESS-003]
+          coordination: >-
+            Preserve accepted interaction and identity fixes. New answer generation
+            uses a new paid operation while replay retains the original request.
+            Search and archive remain scoped to the canonical Account or Seat owner.
       dependency_sequence:
         - text_convergence_and_focused_ci
         - complete_text_search_regeneration_and_math

@@ -26,7 +26,7 @@
     "release:verify": "node tools/release-artifact.mjs --verify",
     "release:start": "node tools/release-start.mjs",
     "test:release": "vitest run tests/production",
-    "test:ai-chat": "vitest run apps/api/src/ai-chat.service.spec.ts apps/api/src/ai-provider-stream.spec.ts apps/web/src/ai/stream-ai-request.spec.ts apps/api/src/ai-platform-quota.spec.ts apps/web/src/admin/testing/ai-platform-quota.spec.ts apps/web/src/admin/testing/ai-admin-focused.spec.ts tests/admin/ai-platform-quota.embedded.spec.ts",
+    "test:ai-chat": "vitest run apps/api/src/ai- apps/web/src/ai/ apps/web/src/admin/testing/ai- tests/admin/ai- --exclude '**/*.pg.spec.ts'",
     "e2e:ai-chat": "playwright test --config playwright.ai-chat.config.ts",
     "db:migrate": "node tools/migrate.mjs --apply",
     "db:migrate:check": "node tools/migrate.mjs --check",
