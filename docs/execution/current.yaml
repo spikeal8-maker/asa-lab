@@ -81,6 +81,106 @@ primary_lane:
     - docs/architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md
 
 parallel_lanes:
+  - id: ai-assistant
+    worktree_id: ai-assistant-programme
+    owned_paths:
+      - apps/api/src/ai-chat.service.ts
+      - apps/api/src/ai-chat.controller.ts
+      - apps/api/src/ai-provider-stream.ts
+      - apps/api/src/ai-chat.service.spec.ts
+      - apps/api/src/ai-provider-stream.spec.ts
+      - apps/api/src/ai-platform-quota.spec.ts
+      - apps/web/src/ai/**
+      - e2e/ai-chat.spec.ts
+      - docs/product/ASA_AI_ASSISTANT_SPEC.md
+    task:
+      id: TASK-AI-ASSISTANT-PROGRAMME-001
+      issue: 373
+      branch: main
+      base_branch: main
+      pr: null
+      pr_draft: false
+      status: in_progress
+      checkpoint: owner_selected_full_ai_programme_text_convergence
+      owner_acceptance: pending
+      change_class: L3_CRITICAL
+      owner_authorization: >-
+        On 2026-10-19 the owner instructed the controller to split and complete
+        the planned AI Assistant, finish the existing AI branches and integrate
+        their accepted implementation. Continue the existing main foundation and
+        PR623 through bounded authors, independent reviewers and actual tests.
+        The controller continues the dependency sequence after each accepted
+        slice; author/reviewer STOP does not end the requested programme.
+        Preserve concurrent non-AI work, personal Account independence, Seat
+        access without mandatory Account, existing tenant/RLS boundaries and
+        protected data. Ordinary integration and closure of superseded AI drafts
+        follow evidence; no force-push or destructive history/data action.
+      context_hints:
+        - docs/product/ASA_AI_ASSISTANT_SPEC.md
+        - docs/agent/contracts/identity.yaml
+      selected_slices:
+        - id: AI-TEXT-UI-001
+          source_pr: 623
+          scope: existing chat screen, styles and AI browser regressions
+          status: in_progress
+        - id: AI-TEXT-API-002
+          scope: terminal response state, UUID identity, precise history cursors and focused regressions
+          status: in_progress
+        - id: AI-STUDENT-ACCESS-003
+          scope: teacher-controlled Seat admission, stable student chat ownership and focused access regressions
+          status: in_progress
+          integration_after: [AI-TEXT-API-002, AI-TEXT-UI-001]
+          coordination: >-
+            Implement in an isolated checkout; preserve the text repair and shared
+            Classroom changes during final convergence. Reuse trusted Seat context
+            and existing teacher authority; do not require a personal Account for
+            school access, expose private chats to teachers or redesign tenant/RLS.
+      dependency_sequence:
+        - text_convergence_and_focused_ci
+        - complete_text_search_regeneration_and_math
+        - teacher_controlled_student_admission
+        - attachments_and_text_extraction
+        - image_vision_and_pdf_documents
+        - image_generation
+        - explicit_authorized_asa_context
+        - combined_verification_and_ai_branch_closeout
+      accepted_foundation_prs: [567, 588, 600, 616, 627]
+      superseded_draft_prs: [514, 515]
+      deployment: not_run
+      live_provider_verification: not_run
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: 61f301c3385d7bc0ceeb1f3b293fabd52e0bdcd8
+      head_sha: null
+      observed_at: '2026-10-19T08:05:14Z'
+      main:
+        branch: main
+        sha: 61f301c3385d7bc0ceeb1f3b293fabd52e0bdcd8
+      observation_note: >-
+        Dated source observation only. PR623 has passing unit/PostgreSQL jobs and
+        44 passed / 15 failed browser cases; it is not accepted or deployed.
+        Fresh main CI is in progress; fetch main and actual exact-SHA evidence
+        before integration; preserve the separately owned header/Access repairs.
+    execution_lease:
+      executor_id: chatgpt-ai-programme-controller
+      holder: unassigned
+      acquired_at: null
+      expires_at: null
+      reviewer_role_requires_lease: false
+    gates:
+      focused:
+        workflow: ASA AI Chat Focused
+        commands:
+          - pnpm test:ai-chat
+      browser:
+        workflow: ASA AI Chat Focused
+        commands:
+          - pnpm e2e:ai-chat
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
+
   - id: student-game-admission
     parent_lane: games
     worktree_id: student-games-access-scope-618

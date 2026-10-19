@@ -25,8 +25,13 @@ import {
  */
 export function SeatAssignments({
   onOpenProject,
+  reloadSignal = 0,
+  onLoad,
 }: {
   readonly onOpenProject: (projectId: string, moduleKey: string) => void;
+  readonly reloadSignal?: number;
+  /** undefined: pending, null: failed, number: successfully loaded row count. */
+  readonly onLoad?: (count: number | null | undefined) => void;
 }): JSX.Element | null {
   const [items, setItems] = useState<SeatAssignment[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -39,15 +44,35 @@ export function SeatAssignments({
   }, [destination.assignment]);
   const [error, setError] = useState<string | null>(null);
   const time = useSchoolTime();
+  const live = useRef(false);
+  const request = useRef(0);
+  const [loadError, setLoadError] = useState(false);
 
   const reload = useCallback(async () => {
-    const result = await api.seatAssignments();
-    setItems(result.ok ? result.data.items : []);
-  }, []);
+    if (!live.current) return;
+    const current = ++request.current;
+    onLoad?.(undefined);
+    try {
+      const result = await api.seatAssignments();
+      if (!live.current || current !== request.current) return;
+      setLoadError(!result.ok);
+      if (result.ok) setItems(result.data.items);
+      onLoad?.(result.ok ? result.data.items.length : null);
+    } catch {
+      if (!live.current || current !== request.current) return;
+      setLoadError(true);
+      onLoad?.(null);
+    }
+  }, [onLoad]);
 
   useEffect(() => {
+    live.current = true;
     void reload();
-  }, [reload]);
+    return () => {
+      live.current = false;
+      request.current++;
+    };
+  }, [reload, reloadSignal]);
 
   async function start(assignment: SeatAssignment): Promise<void> {
     setBusy(assignment.id);
@@ -63,11 +88,13 @@ export function SeatAssignments({
     onOpenProject(started.data.projectId, assignment.moduleKey);
   }
 
-  if (items === null || items.length === 0) return null;
+  const loadAlert = loadError && !onLoad ? <p role="alert">Не удалось загрузить задания.</p> : null;
+  if (items === null || items.length === 0) return loadAlert;
 
   return (
     <section className="seat-assignments" aria-labelledby="seat-assignments-title">
       <h2 id="seat-assignments-title">Задания от преподавателя</h2>
+      {loadAlert}
       {error ? (
         <p className="form-error" role="alert">
           {error}

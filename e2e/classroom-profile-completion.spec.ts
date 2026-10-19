@@ -364,6 +364,20 @@ async function assertLayout(page: Page, width: number, file: string) {
       '.portal-menu-toggle, .portal-brand, .portal-global-nav a, .portal-header-create, .portal-account > summary',
     );
     await expect(headerControls).toHaveCount(7);
+    const publicNavigation = header.getByRole('navigation', {
+      name: 'Разделы ASA Lab',
+      exact: true,
+    });
+    await expect(publicNavigation.locator('a')).toHaveCount(3);
+    for (const [name, href] of [
+      ['Проекты', '/#/gallery'],
+      ['Знания', '/#/knowledge'],
+      ['ИИ', '/#/ai'],
+    ] as const) {
+      const link = publicNavigation.getByRole('link', { name, exact: true });
+      await expect(link).toHaveJSProperty('tagName', 'A');
+      await expect(link).toHaveAttribute('href', href);
+    }
     let previousRight = 0;
     for (const control of await headerControls.all()) {
       await expect(control).toBeVisible();
@@ -692,7 +706,7 @@ test('assigned without a project stays one row through start, submission and rev
     );
     expect(seatRoleDenied.status()).toBe(401);
     expect(await seatRoleDenied.json()).toMatchObject({ error: { code: 'unauthorized' } });
-    await pupil.goto('/#/learning');
+    await pupil.goto('/#/learning?view=results');
     await expect(pupil.getByRole('heading', { name: 'Мои заслуги', exact: true })).toBeVisible();
     await expect(pupil.getByRole('heading', { name: 'Заслуги преподавателя' })).toHaveCount(0);
     await expect(pupil.getByRole('region', { name: 'Мои показатели' })).not.toContainText('API');
@@ -856,7 +870,7 @@ test('real full Account and Seat manual history preserves zero and all five leve
     });
     for (const [learner, route, profilePath] of [
       [account, '/#/attending', `/api/classrooms/${classroom.id}/participants/${ownId}/profile`],
-      [seat, '/#/learning', '/api/class-join/participants/me'],
+      [seat, '/#/learning?view=results', '/api/class-join/participants/me'],
     ] as const) {
       await learner.goto(route);
       if (learner === account)

@@ -154,7 +154,7 @@ export function portalNavigation(
     return [
       { section: 'home', label: 'Главная' },
       { section: 'learning', label: 'Моё обучение' },
-      { section: 'projects', label: 'Мои учебные работы' },
+      { section: 'projects', label: 'Мои проекты' },
       // Discoverability is not an access grant: App keeps the locked seat view.
       { section: 'ai', label: 'ИИ' },
       { section: 'help', label: 'Помощь' },

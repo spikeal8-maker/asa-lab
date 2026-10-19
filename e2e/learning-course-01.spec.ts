@@ -478,6 +478,10 @@ test('author-only content keeps exact ID and versions after teaching activation;
   await events.screenshot({ path: evidenceDir + '/muted-inbox-queue-independent.png' });
   await learner.page.goto('/#/learning');
   // The profile repeats a grade in its summary and history; assert the actual result region.
+  await learner.page
+    .getByRole('navigation', { name: 'Разделы моего обучения' })
+    .getByRole('link', { name: 'Результаты', exact: true })
+    .click();
   await expect(
     learner.page
       .getByRole('region', { name: 'Мои результаты', exact: true })
@@ -506,6 +510,10 @@ test('author-only content keeps exact ID and versions after teaching activation;
   expect(gradedAssignment?.canonicalState?.selectedResult?.rawPoints).toBe(8);
   expect(gradedAssignment?.canonicalState?.selectedResult?.maxPoints).toBe(10);
 
+  await learner.page
+    .getByRole('navigation', { name: 'Разделы моего обучения' })
+    .getByRole('link', { name: 'Задания', exact: true })
+    .click();
   const gradedRow = learner.page
     .getByTestId('seat-assignments')
     .locator('li')
@@ -845,6 +853,10 @@ test('Teacher queue: exact review, settings read/OFF, return/resubmit, accept an
   await expect(detail.getByText('Ревизия 1 · На доработке')).toBeVisible();
   await waitReviews(0);
   await learner.page.goto('/#/learning');
+  await learner.page
+    .getByRole('navigation', { name: 'Разделы моего обучения' })
+    .getByRole('link', { name: 'Задания', exact: true })
+    .click();
   await work.getByRole('button', { name: 'Открыть работу', exact: true }).click();
   await editRealProject(learner.page, 'three-d');
   await submit('Отправить повторно');
@@ -1036,6 +1048,10 @@ async function learnerAssignments(
   await page.getByLabel('Код ученика', { exact: true }).fill(keys.get(handle)!);
   await page.getByRole('button', { name: 'Войти', exact: true }).click();
   await openPortalSection(page, 'Моё обучение');
+  await page
+    .getByRole('navigation', { name: 'Разделы моего обучения' })
+    .getByRole('link', { name: 'Задания', exact: true })
+    .click();
   return { context, page };
 }
 
@@ -1057,6 +1073,10 @@ test('V3 Direct Seat double Start, lost response, second tab and reload keep one
   const secondTab = await learner.context.newPage();
   await secondTab.goto('/#/learning');
   await openPortalSection(secondTab, 'Моё обучение');
+  await secondTab
+    .getByRole('navigation', { name: 'Разделы моего обучения' })
+    .getByRole('link', { name: 'Задания', exact: true })
+    .click();
   const assignmentRow = (tab: Page) =>
     tab.getByTestId('seat-assignments').locator('li').filter({ hasText: title });
   const firstStart = assignmentRow(learner.page).getByRole('button', {
@@ -1163,6 +1183,10 @@ test('V3 Direct Seat double Start, lost response, second tab and reload keep one
   expect(courseActivityProjectId(learner.page, 'electronics')).toBe(committed.projectId);
   await learner.page.goto('/#/learning');
   await openPortalSection(learner.page, 'Моё обучение');
+  await learner.page
+    .getByRole('navigation', { name: 'Разделы моего обучения' })
+    .getByRole('link', { name: 'Задания', exact: true })
+    .click();
   const continueWork = assignmentRow(learner.page).getByRole('button', {
     name: 'Открыть работу',
     exact: true,
@@ -1411,6 +1435,10 @@ for (const module of ['three-d', 'electronics'])
     await expect(detail.getByText('Ревизия 1 · На доработке')).toBeVisible();
     await learner.page.goto('/#/learning');
     await openPortalSection(learner.page, 'Моё обучение');
+    await learner.page
+      .getByRole('navigation', { name: 'Разделы моего обучения' })
+      .getByRole('link', { name: 'Задания', exact: true })
+      .click();
     await expect(row).toContainText('Нужна доработка');
     await expect(row.getByRole('button', { name: 'Начать доработку', exact: true })).toBeVisible();
     await row.getByRole('button', { name: 'Открыть работу', exact: true }).click();
@@ -1508,6 +1536,10 @@ for (const module of ['three-d', 'electronics'])
 
     await learner.page.goto('/#/learning');
     await openPortalSection(learner.page, 'Моё обучение');
+    await learner.page
+      .getByRole('navigation', { name: 'Разделы моего обучения' })
+      .getByRole('link', { name: 'Задания', exact: true })
+      .click();
     const completedRow = learner.page
       .getByTestId('seat-assignments')
       .locator('li')
@@ -1589,6 +1621,10 @@ test('Course Builder duplicates a section and excludes hidden lesson only from f
   await page.getByRole('button', { name: 'Назначить курс', exact: true }).click();
 
   await oldLearner.page.reload();
+  await oldLearner.page
+    .getByRole('navigation', { name: 'Разделы моего обучения' })
+    .getByRole('link', { name: 'Курсы', exact: true })
+    .click();
   const oldCourses = oldLearner.page.getByTestId('seat-courses');
   await oldCourses.getByRole('button').filter({ hasText: courseTitle }).click();
   await expect(
@@ -1684,6 +1720,10 @@ test('Course Builder duplicates a section and excludes hidden lesson only from f
   await page.getByRole('button', { name: 'Назначить курс', exact: true }).click();
 
   await newLearner.page.reload();
+  await newLearner.page
+    .getByRole('navigation', { name: 'Разделы моего обучения' })
+    .getByRole('link', { name: 'Курсы', exact: true })
+    .click();
   const newCourses = newLearner.page.getByTestId('seat-courses');
   await newCourses.getByRole('button').filter({ hasText: courseTitle }).click();
   await expect(
@@ -1703,6 +1743,10 @@ test('Course Builder duplicates a section and excludes hidden lesson only from f
   ).toHaveCount(3);
 
   await oldLearner.page.reload();
+  await oldLearner.page
+    .getByRole('navigation', { name: 'Разделы моего обучения' })
+    .getByRole('link', { name: 'Курсы', exact: true })
+    .click();
   const oldCoursesAfterV2 = oldLearner.page.getByTestId('seat-courses');
   await oldCoursesAfterV2.getByRole('button').filter({ hasText: courseTitle }).click();
   await expect(
@@ -1774,6 +1818,10 @@ test('Course Builder persists informational block structural controls into futur
   await page.getByRole('button', { name: 'Назначить курс', exact: true }).click();
 
   await oldLearner.page.reload();
+  await oldLearner.page
+    .getByRole('navigation', { name: 'Разделы моего обучения' })
+    .getByRole('link', { name: 'Курсы', exact: true })
+    .click();
   await oldLearner.page
     .getByTestId('seat-courses')
     .getByRole('button')
@@ -1878,6 +1926,10 @@ test('Course Builder persists informational block structural controls into futur
 
   await newLearner.page.reload();
   await newLearner.page
+    .getByRole('navigation', { name: 'Разделы моего обучения' })
+    .getByRole('link', { name: 'Курсы', exact: true })
+    .click();
+  await newLearner.page
     .getByTestId('seat-courses')
     .getByRole('button')
     .filter({ hasText: courseTitle })
@@ -1892,6 +1944,10 @@ test('Course Builder persists informational block structural controls into futur
   await expect(newPlayer.getByText('Исходный B', { exact: true })).toHaveCount(0);
 
   await oldLearner.page.reload();
+  await oldLearner.page
+    .getByRole('navigation', { name: 'Разделы моего обучения' })
+    .getByRole('link', { name: 'Курсы', exact: true })
+    .click();
   await oldLearner.page
     .getByTestId('seat-courses')
     .getByRole('button')
@@ -2169,6 +2225,10 @@ for (const module of ['electronics', 'three-d'])
     await learner.getByRole('button', { name: 'Войти в класс', exact: true }).click();
     await expect(learner.getByText(/Заявка в класс.*отправлена/)).toBeVisible();
     await learner.goto('/#/learning');
+    await learner
+      .getByRole('navigation', { name: 'Разделы моего обучения' })
+      .getByRole('link', { name: 'Курсы', exact: true })
+      .click();
     await expect(learner.getByTestId('seat-courses')).toHaveCount(0);
     await page.goto(classUrl);
     await page
@@ -2409,6 +2469,10 @@ for (const module of ['electronics', 'three-d'])
     await detail.getByRole('button', { name: 'Принять выполнение', exact: true }).click();
     await expect(detail.getByText('Ревизия 1 · Принято', { exact: true })).toBeVisible();
     await learner.goto('/#/learning');
+    await learner
+      .getByRole('navigation', { name: 'Разделы моего обучения' })
+      .getByRole('link', { name: 'Курсы', exact: true })
+      .click();
     await expect(
       learner.getByTestId('seat-courses').locator('li').filter({ hasText: courseTitle }),
     ).toContainText('Пройдено 2 из 2');
@@ -2516,6 +2580,10 @@ for (const module of ['electronics', 'three-d'])
       await learner.setViewportSize({ width: 1440, height: 900 });
       await switchAccountWorkspace(learner, organizationWorkspaceId);
       await learner.goto('/#/learning');
+      await learner
+        .getByRole('navigation', { name: 'Разделы моего обучения' })
+        .getByRole('link', { name: 'Курсы', exact: true })
+        .click();
       await learner
         .getByTestId('seat-courses')
         .getByRole('button')
