@@ -1735,6 +1735,9 @@ parallel_lanes:
           status: unverified
           evidence: docs/testing/ACCESS_A_WINDOWS_TOUCH_REPRO.md
     revisions:
+      convergence_baseline_sha: 185f43e1618848da5db14f7223b059395fd85408
+      head_sha: 2fb1761437f5fded8bcfbc475d72d9b448ec0640
+    prior_auth_delivery_revisions:
       kind: observed_snapshot
       convergence_baseline_sha: 78da596b3e27a5bd396d195f8d1348b7f8b8cb00
       head_sha: null
