@@ -8,7 +8,7 @@ import {
 } from '../../apps/web/src/creator-portal/navigation';
 
 describe('capability-aware Portal navigation', () => {
-  it('keeps Seat My Projects on the existing projects route without Games or staff links', () => {
+  it('keeps Seat My Projects and Games on their routes without staff links', () => {
     const navigation = portalNavigation(true, {
       seat: true,
       classes: true,
@@ -20,11 +20,12 @@ describe('capability-aware Portal navigation', () => {
     expect(view).toEqual({ kind: 'my-projects' });
     expect(sectionForView(view, false)).toBe(projects?.section);
     expect(creatorViewToHash(view)).toBe('#/projects');
-    // Games stays absent until a server-side Seat game access policy is approved.
+    // The destination is discoverable; current server admission governs game actions.
     expect(navigation.map((item) => item.section)).toEqual([
       'home',
       'learning',
       'projects',
+      'games',
       'ai',
       'help',
       'account',
@@ -80,7 +81,7 @@ describe('capability-aware Portal navigation', () => {
       portalNavigation(true, { seat: true, classes: true, contentAuthoring: true }).map(
         (item) => item.section,
       ),
-    ).toEqual(['home', 'learning', 'projects', 'ai', 'help', 'account']);
+    ).toEqual(['home', 'learning', 'projects', 'games', 'ai', 'help', 'account']);
   });
 
   it('keeps personal work and one settings destination distinct from public top navigation', () => {
