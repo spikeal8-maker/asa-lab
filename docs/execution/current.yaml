@@ -348,7 +348,7 @@ parallel_lanes:
       pr: null
       pr_draft: true
       status: in_progress
-      checkpoint: games_enforcement_integrated_navigation_continuation_selected
+      checkpoint: all_four_issue618_prs_integrated_preview_verification_selected
       owner_acceptance: pending
       change_class: L3_CRITICAL
       owner_authorization: >-
@@ -386,42 +386,61 @@ parallel_lanes:
         independent_review: approved
         exact_candidate_general_run: 39235509514
         candidate_governance_code_postgresql_rls: success
-        candidate_access_browser: in_progress_at_observation
+        candidate_access_browser: success
+        candidate_access_real: 22_passed
+        candidate_access_interface: 417_passed
         local_final_analytics: 14_passed
         local_final_rls: 16_passed
         local_final_governance: pass
         result: Current server game admission and INSERT-only new Seat identity
+      - pr: 621
+        accepted_candidate_sha: 0ead26b83c8c8f72913efb3686913794a09e21c5
+        integrated_sha: 1b0db2964045cd0a9b1c60f4b603e24aaf1982c5
+        independent_review: approved
+        exact_candidate_general_run: 39240798011
+        candidate_governance_code: success
+        candidate_postgresql_access: pending_at_observation
+        local_unit_dom: 14_passed
+        local_uncached_api_web: pass
+        local_built_chrome: 7_passed
+        result: Native Seat destinations with active modules and current server admission
     selected_issue618_continuation:
       pr: 621
       branch: codex/student-navigation-projects-games-618
       starting_head: 9c1ef6eaa13325ef42a1b9b02116597b5dde8204
       accepted_main: 9f8170134bdd7884990938fb81a1e6cb63bab097
-      status: in_progress
+      status: integrated
+      accepted_candidate_sha: 0ead26b83c8c8f72913efb3686913794a09e21c5
+      integrated_sha: 1b0db2964045cd0a9b1c60f4b603e24aaf1982c5
       scope: >-
         Continue the existing navigation PR after accepted server enforcement.
         Preserve the accepted My Projects label and locked AI link; add one Seat
         Games destination. Keep game admission and project guards unchanged.
         Verify active module metadata with allowed, denied, pending, unavailable
         and revoked admission in the seven existing navigation browser cases.
-      independent_review: required_on_final_sha
+      independent_review: approved_on_final_sha
       shared_learning_followup: >-
         Preserve AI-BASELINE-LEARNING-006 and its separate three-file author.
         Its seven historical default-tab journeys need explicit accepted Learning
         destinations; do not weaken assertions or duplicate that concurrent patch.
+        The published 981114855c13ca352edcc7b6b41b2b3bdc506439 still queries
+        seat-results after selecting Assignments in learning-surface-convergence.
+        Select the native Results tab before that existing result assertion.
+        This is an independent source finding; its hosted Learning run is pending.
       final_preview:
         target: http://127.0.0.1:4620/
-        status: not_deployed
+        status: build_backup_restore_and_shadow_proof_pending
         prerequisite: Fresh exact runtime inspection, verified backup, actual restore and exact shadow migration
         excluded_installation: 4610
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 9f8170134bdd7884990938fb81a1e6cb63bab097
+      convergence_baseline_sha: 1b0db2964045cd0a9b1c60f4b603e24aaf1982c5
       head_sha: null
-      observed_at: '2026-10-19T10:36:00Z'
+      observed_at: '2026-10-19T11:02:49Z'
       main:
         branch: main
-        sha: 9f8170134bdd7884990938fb81a1e6cb63bab097
-      observation_note: Dated integration observation. Candidate a019 has successful hosted governance, code and full PostgreSQL/RLS; Access browser and main CI are tracked separately. Owner acceptance and final preview are pending. Fresh fetch main and exact refs before continuation.
+        sha: 1b0db2964045cd0a9b1c60f4b603e24aaf1982c5
+      observation_note: Dated accepted four-PR integration observation. Candidate a019 full General succeeded; final 621 candidate has independent source acceptance, 14 unit/DOM, uncached API/Web and 7 actual Chrome passes. Final 621 hosted PostgreSQL/Access and the separately owned Learning compatibility workflow remain tracked. Owner acceptance and preview proof are pending. Fresh fetch main and exact refs before continuation.
     execution_lease:
       executor_id: student-games-access-scope-618
       holder: unassigned
