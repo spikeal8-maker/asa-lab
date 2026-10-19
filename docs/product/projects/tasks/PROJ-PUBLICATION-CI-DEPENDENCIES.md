@@ -590,3 +590,47 @@ course cases and the complete original second batch. Full success may support
 accepting this bounded CI repair; any remaining failure requires its actual
 cause. Do not repeat an unchanged failed run or claim a product-policy repair.
 GC1 and the single final PR613 convergence remain separate required dependencies.
+
+## Auth audit action compatibility for Coverage
+
+TASK-PROJ-PUBLICATION-AUTH-AUDIT-COVERAGE-001.
+Author branch: `codex/projects-auth-audit-coverage`.
+Prepared base: `33a2790cc8a95181f6fcff613e3a6ec6eaca78fe`.
+Only authored path: `apps/api/src/database-diagnostic-contract.json`.
+
+Independent read-only triage of actual Coverage run39174033312 on f562bee found
+the same failure in Windows job117812883707/step5 and Linux117812883939/step8:
+the existing dynamic migration regression at tools/test_coverage_diagnostics.py:136
+expects the action-only projection for administration.verification_policy.update
+but gets an empty object. Downstream PostgreSQL integration was NOT_RUN.
+
+Accepted Auth migration0219, introduced by d6972337018ff6836aebc2773605c0e31db9d14e,
+emits this audit action. It is missing from the existing closed diagnostic enum.
+A pure exact-source scan finds12 distinct real migration actions and exactly one
+missing value. Current33a2790 retains contract037200e44399b77df439dcf72ad2f4c7094182b7
+and regression testff28c77830ed56797e79af45b6a02040bb110285 unchanged.
+Relative to Public Projects this is a separate C baseline dependency.
+
+Coverage Issue610 owner handed off point8 source90e09831 and STOP in6251702346.
+Fresh Auth AUTH-C5-READINESS selection and published branch4614349 do not select
+or modify this JSON path. Issue135 comment6264235551 coordinates one separate
+author for this narrow compatibility repair and preserves all current Auth
+provider/backend/UI/installation ownership. Do not assign a duplicate writer.
+
+Add only the existing literal administration.verification_policy.update to
+sources.administrative_audit_events.fields.action.values. Keep every other value
+and closed projection unchanged. Existing tests must prove the original failure,
+all real audit actions, unknown-action rejection and omission of private reason
+and payload data. The dynamic regression already covers the omission; changing
+its source or weakening its assertions is outside scope.
+
+Require an independent review of the frozen one-file source before its PR starts
+the unchanged full Coverage Diagnostics workflow. Both platform collectors and
+the downstream actual PostgreSQL integration must pass on that exact source.
+A local environment-only resource/host collection failure is not evidence of a
+product regression and cannot replace the actual Windows/Linux CI result.
+
+No migration, audit writer, collector algorithm, Auth policy, rate-limit,
+timeout/retry, workflow, Learning, Scratch or GC1 modification is selected.
+No deployment or working database action. This repair does not close the separate
+Scratch, Learning or GC1 acceptance gates or select final PR613 convergence.
