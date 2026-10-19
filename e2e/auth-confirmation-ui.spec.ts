@@ -1236,12 +1236,15 @@ for (const attempt of ['register', 'local-preview'] as const) {
       user: { ...current.user, id: 'late-register-account-a', displayName: 'Late registration A' },
       capabilities: [],
     });
-    await expect(
-      page.getByRole('button', {
-        name: `Меню аккаунта ${current.user.displayName}`,
-        exact: true,
-      }),
-    ).toBeVisible();
+    const accountMenu = page.locator('.portal-account > summary');
+    await expect(accountMenu).toBeVisible();
+    await expect(accountMenu).toHaveAttribute(
+      'aria-label',
+      `Меню аккаунта ${current.user.displayName}`,
+    );
+    const retained = await page.evaluate(async () => (await fetch('/api/auth/me')).json());
+    expect(retained.account.id).toBe(ACCOUNT_ID);
+    expect(retained.capabilities).toEqual(current.capabilities);
     await page.evaluate(() => {
       location.hash = '#/admin/confirmations';
     });

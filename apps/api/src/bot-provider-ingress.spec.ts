@@ -27,7 +27,6 @@ function fixture(
   ) => Promise<IngressTransportResponse>,
 ) {
   const registry = new IngressProbeRegistry();
-  let ingress: BotProviderIngress;
   const request = vi.fn(async (input: IngressRequest) => {
     if (transform) return transform(input, ingress);
     const result = ingress.answer(
@@ -38,7 +37,7 @@ function fixture(
     return { status: result ? 200 : 401, body: JSON.stringify(result) };
   });
   const resolve = vi.fn(async () => [publicAddress]);
-  ingress = new BotProviderIngress({ registry, now: () => NOW, resolve, request });
+  const ingress = new BotProviderIngress({ registry, now: () => NOW, resolve, request });
   return { ingress, registry, request, resolve };
 }
 
