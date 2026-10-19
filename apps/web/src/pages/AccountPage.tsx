@@ -1,4 +1,5 @@
 import { LearningInbox } from '../components/LearningInbox';
+import { AccountSignInMethods } from '../components/AccountSignInMethods';
 import { PresentationControls, usePresentation } from '../components/PresentationPreferences';
 import { LearningNotificationPreferences } from '../components/LearningNotificationPreferences';
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
@@ -7,8 +8,6 @@ import {
   type AccountProfile,
   type AccountPasswordStatus,
   type AccountSession,
-  type MaxAccountStatus,
-  type MaxAuthConfig,
   type SessionPayload,
   type WorkspaceRef,
 } from '../api';
@@ -83,8 +82,6 @@ export function AccountPage({
     window.location.hash.startsWith('#/account/') ? settingsPanelFromLocation() : initialPanel,
   );
   const [profile, setProfile] = useState<AccountProfile | null>(null);
-  const [maxStatus, setMaxStatus] = useState<MaxAccountStatus | null>(null);
-  const [maxConfig, setMaxConfig] = useState<MaxAuthConfig | null>(null);
   const [passwordStatus, setPasswordStatus] = useState<AccountPasswordStatus | null>(null);
   const [sessions, setSessions] = useState<AccountSession[]>([]);
   const [avatarDataUrl, setAvatarDataUrl] = useState<string | null>(null);
@@ -104,8 +101,6 @@ export function AccountPage({
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [maxPairingToken, setMaxPairingToken] = useState<string | null>(null);
-  const [maxPairingUrl, setMaxPairingUrl] = useState<string | null>(null);
   const notificationControl = useRef<SettingsDraft | null>(null);
   const [notificationsDirty, setNotificationsDirty] = useState(false);
   const deviceZone = useMemo(() => deviceTimeZone(), []);
@@ -206,28 +201,6 @@ export function AccountPage({
       })(),
       (async () => {
         try {
-          const result = await api.maxStatus();
-          if (!current()) return;
-          setMaxStatus(result.ok ? result.data : null);
-          if (!result.ok) failed('Статус MAX');
-        } catch {
-          if (current()) setMaxStatus(null);
-          failed('Статус MAX');
-        }
-      })(),
-      (async () => {
-        try {
-          const result = await api.maxConfig();
-          if (!current()) return;
-          setMaxConfig(result.ok ? result.data : null);
-          if (!result.ok) failed('Подключение MAX');
-        } catch {
-          if (current()) setMaxConfig(null);
-          failed('Подключение MAX');
-        }
-      })(),
-      (async () => {
-        try {
           const result = await api.accountPasswordStatus();
           if (!current()) return;
           setPasswordStatus(result.ok ? result.data : null);
@@ -246,40 +219,6 @@ export function AccountPage({
       loadGeneration.current += 1;
     };
   }, [refresh]);
-
-  useEffect(() => {
-    if (!maxPairingToken) return;
-    let active = true;
-    let timer: number | null = null;
-    const check = async (): Promise<void> => {
-      const result = await api.completeMaxPairing(maxPairingToken);
-      if (!active) return;
-      if (result.ok && result.data.status === 'authenticated') {
-        setMaxPairingToken(null);
-        setBusyAction(null);
-        onSessionChanged(result.data.session);
-        setNotice('MAX подключён.');
-        await refresh();
-        return;
-      }
-      if (!result.ok && result.status !== 0) {
-        setMaxPairingToken(null);
-        setBusyAction(null);
-        setError(
-          result.error.code === 'max_pairing_expired'
-            ? 'Время подтверждения истекло. Откройте MAX ещё раз.'
-            : 'Не удалось подтвердить MAX.',
-        );
-        return;
-      }
-      timer = window.setTimeout(() => void check(), 6_000);
-    };
-    timer = window.setTimeout(() => void check(), 2_000);
-    return () => {
-      active = false;
-      if (timer !== null) window.clearTimeout(timer);
-    };
-  }, [maxPairingToken, onSessionChanged, refresh]);
 
   const isEducator = educatorEnabled(profile);
   const schoolWorkspaces = useMemo(
@@ -472,41 +411,6 @@ export function AccountPage({
         ? 'Других активных входов нет.'
         : `Завершено входов: ${result.data.revoked}.`,
     );
-  }
-
-  async function unlinkMax(): Promise<void> {
-    if (!window.confirm('Отключить MAX и завершить все входы, выполненные через MAX?')) return;
-    setBusyAction('max-unlink');
-    setError(null);
-    const result = await api.unlinkMax();
-    setBusyAction(null);
-    if (!result.ok) {
-      setError('Не удалось отключить MAX. Повторите попытку.');
-      return;
-    }
-    setNotice(result.data.unlinked ? 'MAX отключён.' : 'MAX уже был отключён.');
-    await refresh();
-  }
-
-  async function startMaxPairing(): Promise<void> {
-    const popup = window.open('', '_blank');
-    if (popup) popup.opener = null;
-    setBusyAction('max-pairing');
-    setError(null);
-    setNotice(null);
-    const result = await api.startMaxPairing('link');
-    if (!result.ok) {
-      popup?.close();
-      setBusyAction(null);
-      setError('Не удалось открыть MAX. Попробуйте ещё раз.');
-      return;
-    }
-    setMaxPairingToken(result.data.pairingToken);
-    setMaxPairingUrl(result.data.launchUrl);
-    setNotice(
-      'В MAX нажмите «Начать». Ничего вводить не нужно — привязка завершится автоматически.',
-    );
-    if (popup) popup.location.href = result.data.launchUrl;
   }
 
   async function changePassword(event: FormEvent<HTMLFormElement>): Promise<void> {
@@ -1059,55 +963,28 @@ export function AccountPage({
                   </div>
                   <strong>{profile.country}</strong>
                 </div>
-
                 <div>
                   <div className="account-field-heading">
-                    <span>MAX</span>
-                    <InfoHint label="Информация о MAX">
-                      Подключённый MAX используется для подтверждения аккаунта и входа без пароля.
-                      Действие подключения доступно, когда MAX настроен для этого портала.
+                    <span>Пароль</span>
+                    <InfoHint label="Информация о входе по паролю">
+                      Настроенный пароль позволяет войти, если MAX и Telegram временно недоступны.
                     </InfoHint>
                   </div>
                   <strong>
-                    {maxStatus === null
+                    {passwordStatus === null
                       ? 'Статус недоступен'
-                      : maxStatus.linked
-                        ? 'Подтверждён'
-                        : 'Не подключён'}
+                      : passwordStatus.configured
+                        ? 'Настроен'
+                        : 'Не настроен'}
                   </strong>
-                  {maxStatus?.verifiedAt ? (
-                    <small>Связан {formatDate(maxStatus.verifiedAt, timeZone)}</small>
-                  ) : null}
-                  {maxStatus?.linked ? (
-                    <button
-                      type="button"
-                      className="account-revoke"
-                      disabled={busyAction !== null}
-                      onClick={() => void unlinkMax()}
-                    >
-                      {busyAction === 'max-unlink' ? 'Отключаем…' : 'Отключить MAX'}
-                    </button>
-                  ) : null}
-                  {maxStatus && !maxStatus.linked && maxConfig?.enabled && maxConfig.launchUrl ? (
-                    <div className="account-max-connect">
-                      <button
-                        type="button"
-                        className="btn-secondary"
-                        disabled={busyAction !== null}
-                        onClick={() => void startMaxPairing()}
-                      >
-                        {maxPairingToken ? 'Ждём MAX…' : 'Подключить MAX'}
-                      </button>
-                      <small>Откройте бота MAX и нажмите «Начать»</small>
-                      {maxPairingUrl && maxPairingToken ? (
-                        <a href={maxPairingUrl} target="_blank" rel="noreferrer">
-                          Открыть MAX ещё раз
-                        </a>
-                      ) : null}
-                    </div>
-                  ) : null}
                 </div>
               </div>
+              <AccountSignInMethods
+                key={session.account.id}
+                accountId={session.account.id}
+                passwordConfigured={passwordStatus?.configured ?? false}
+                onSessionChanged={onSessionChanged}
+              />
 
               {passwordStatus ? (
                 <form
@@ -1120,7 +997,7 @@ export function AccountPage({
                       Не меньше 10 символов. После сохранения остальные активные входы будут
                       завершены.
                       {passwordStatus?.canResetWithoutCurrent
-                        ? ' Вход через MAX подтверждён: текущий пароль не требуется.'
+                        ? ' Вход через мессенджер подтверждён: текущий пароль не требуется.'
                         : ' Укажите текущий пароль, чтобы подтвердить изменение.'}
                     </InfoHint>
                   </div>

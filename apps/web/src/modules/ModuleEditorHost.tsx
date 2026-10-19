@@ -11,6 +11,7 @@ import { ProjectSaveEvidence } from './project-save-evidence';
 import { AppBootShell } from '../components/AppBootShell';
 import { beginDiagnosticContext } from '../client-diagnostics';
 import { isGameModule } from '../games/game-catalog';
+import { gameAccessApi, gameAccessMessage } from '../games/game-access-api';
 import { BlocksEditor } from '../blocks/BlocksEditor';
 import { analyticsSessionTransport } from '../analytics-runtime';
 import { actorKey, type TelemetryActor } from '../telemetry-contract';
@@ -86,16 +87,29 @@ function canonicalEditorHash(
 /** Shared editor host. Project Core selects a module by manifest key; the host
  * mounts the registered subject editor without putting subject branches in App. */
 export function ModuleEditorHost(props: ModuleEditorHostProps): JSX.Element {
+  // A receipt belongs to one project and identity. Changing either unmounts the
+  // previous editor synchronously, before the next asynchronous check starts.
+  const contextKey = JSON.stringify([
+    props.projectId,
+    props.moduleKey ?? null,
+    props.user.id,
+    props.seatLearner ?? false,
+    actorKey(props.telemetryActor ?? null),
+  ]);
+  return <ModuleEditorHostContent key={contextKey} {...props} />;
+}
+
+function ModuleEditorHostContent(props: ModuleEditorHostProps): JSX.Element {
   const recordedOpen = useRef<string | null>(null);
   const [state, setState] = useState<HostState>(() =>
-    props.moduleKey
+    props.moduleKey && !isGameModule(props.moduleKey)
       ? { kind: 'ready', moduleKey: props.moduleKey, projectTitle: null }
       : { kind: 'loading' },
   );
 
   useEffect(() => {
     let active = true;
-    if (props.moduleKey) {
+    if (props.moduleKey && !isGameModule(props.moduleKey)) {
       const canonicalHash = canonicalEditorHash(props.moduleKey, props.projectId, props.returnTo);
       if (canonicalHash && window.location.hash !== canonicalHash) {
         window.history.replaceState(null, '', canonicalHash);
@@ -106,7 +120,21 @@ export function ModuleEditorHost(props: ModuleEditorHostProps): JSX.Element {
       };
     }
     setState({ kind: 'loading' });
-    void api.openProject(props.projectId).then((result) => {
+    const open = async (): Promise<void> => {
+      if (isGameModule(props.moduleKey)) {
+        const admission = await gameAccessApi.read(props.moduleKey);
+        if (!active) return;
+        if (!admission.ok || !admission.data.granted) {
+          setState({
+            kind: 'error',
+            message: admission.ok ? gameAccessMessage(admission.data) : admission.error.message,
+          });
+          return;
+        }
+      }
+      // Project Core independently rechecks current admission and its original
+      // Project ACL. A catalogue receipt alone never mounts a game surface.
+      const result = await api.openProject(props.projectId);
       if (!active) return;
       if (!result.ok) {
         setState({ kind: 'error', message: result.error.message || 'Не удалось открыть проект.' });
@@ -119,6 +147,13 @@ export function ModuleEditorHost(props: ModuleEditorHostProps): JSX.Element {
         window.history.replaceState(null, '', canonicalHash);
       }
       setState({ kind: 'ready', moduleKey, projectTitle: result.data.project.title });
+    };
+    void open().catch(() => {
+      if (active)
+        setState({
+          kind: 'error',
+          message: 'Не удалось проверить доступ к проекту. Повторите вход.',
+        });
     });
     return () => {
       active = false;

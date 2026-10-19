@@ -1,5 +1,127 @@
 # Student game admission — bounded delivery contract
 
+## Current continuation boundary
+
+The selected task in canonical main authorizes completion of the existing
+foundation through the coordinated controller and teacher UI seams below.
+The former proposal-only restrictions and pending ownership/mapping handoff in
+this document are retained as foundation provenance and are superseded by this
+bounded continuation; they do not relax any authorization, data, review or
+deployment invariant. Execution status and observed revisions remain only in
+current.yaml.
+
+The controller assigns one author for the Games slice. Its coordinated scope is
+limited to the existing ProjectsController admission seams, AppModule DI,
+ModulesController session-scoped game catalogue if necessary, authenticated
+game-access transport, GamesPage/open-game, class and student policy controls,
+and their exact regression tests. The required project transaction boundary is
+limited to `contexts/projects/application/ports.ts`, `contexts/projects/application/project.usecases.ts`,
+`contexts/projects/infrastructure/pg-project.repository.ts` and the bounded type export
+from `contexts/projects/index.ts`: carry only server-resolved Seat
+context and enforce current admission in the same transaction as protected
+reads/writes. The existing `apps/api/src/chess-live.controller.ts` and
+`apps/api/src/checkers-classroom.controller.ts` may receive minimal Seat-first/online-deny
+repairs if direct bypass tests demonstrate the need. New small helpers/components are permitted
+only for this result. Existing rating computation, assignment lifecycle, online
+game authorization and tenant/RLS identity are preserved. The navigation and
+My Learning slices have different authors.
+
+Fresh overlap checks also hand off four narrowly bounded entry seams.
+`apps/api/src/gallery.controller.ts` may reject any present StudentSeat cookie
+in `copy()` before Account resolution, preserving public reads and Account-only
+copy behavior. `apps/web/src/modules/ModuleEditorHost.tsx` must obtain current
+server game admission and project authorization before mounting either game,
+including direct URLs; preserve the existing non-game editor path.
+`apps/web/src/chess/ChessModuleExperience.tsx` and
+`apps/web/src/chess/ChessHome.tsx` may carry the existing Seat identity into the
+UI and prevent mounting or launching online play for Seats. Existing Account
+play, offline engines, other Gallery operations and project ACL remain intact.
+These seams require direct both-cookie, denied/revoked URL and Account
+regressions; they grant no general Gallery or editor redesign.
+
+
+Fresh real browser evidence identifies a missing learner identity link when a
+new StudentCode Seat is issued. The controller hands off only the additive
+`migrations/0224_classroom_new_seat_learner_identity.sql` change to the current
+`classroom_management_add_seat` definition from migration0148. Initialize the
+canonical learner identity only immediately after a genuinely new Seat INSERT,
+in the same transaction and exact active classroom/tenant, with no existing Seat
+link. Preserve the case-sensitive StudentCode validation, teacher authorization,
+signature, audit, return shape and existing function privileges. Use the existing
+private factories without new runtime grants. In this same genuinely new INSERT
+branch, initialize the canonical Seat principal even when the existing active
+audience trigger has already created its learner link. This preserves immediate
+teacher metrics and participant profiles before learner login. Do not modify
+participant preparation or either private factory. Both canonical batch paths
+use this constructor. Existing Seats, raw historical inserts, batch replay and duplicates,
+credential reissue, login, reads and admission never initialize or repair links.
+There is no trigger, backfill or change to missing, deleted, unlinked and revoked
+identity denial. Admission migrations and guards remain intact. The bounded
+regression paths are `tests/games-admission/storage-contract.ts`,
+`tests/games-admission/reviewer-new-seat-lifecycle.ts`,
+`tests/games-admission/student-game-admission.pg.spec.ts` and the existing
+`docs/agent/surfaces/student-game-admission.yaml` mapping. Verify real issuance
+without teacher preparation, case-sensitive batch creation, no resurrection on
+replay/duplicate/reissue/read/update/create, no unauthorized project writes and
+private factory denial on real PostgreSQL.
+
+CI integration additionally permits only the two focused Games build scripts in
+`package.json` to build their actual identity dependency, and the existing
+`apps/web/src/analytics-runtime.spec.ts` host fixture to serve the new admission
+and Project authorization reads. Preserve the real keyed editor, strict
+telemetry lifecycle assertions, all admission denials and the full focused gates. The existing
+`tests/migration/course-structure-forward-upgrade.pg.spec.ts` may add precisely
+0222, 0223 and 0224 to its expected complete migration ledger while preserving
+all forward-upgrade data and schema assertions. The existing
+`tests/portal/boot-shell.spec.ts` may distinguish the preserved immediate
+non-game editor path from the required game admission loading shell, including
+real server-rendered first-frame assertions for both games.
+
+Observed Owner and Blocks integration also hands off only the existing
+`tests/portal/classroom-participants.pg.spec.ts`,
+`tests/portal/classroom-observation.pg.spec.ts` and
+`tests/portal/classroom-scratch-time.pg.spec.ts` Account fixture constructors,
+and `apps/api/src/blocks-project-persistence.spec.ts` controller test contexts.
+Account fixture issuance must match the canonical Account join: initial Account
+binding and its Seat principal before participant preparation. Keep StudentCode
+fixtures on their canonical constructor and never delete, rebind or repair
+existing learner links. The Blocks tests must distinguish an Account-only cookie
+from a complete server-resolved Seat context; assert the canonical Seat actor's
+null Account user and bound student session. Preserve dependency failures,
+exact retry/durable bytes, cross-identity denial and all learning assertions.
+These are bounded fixture/contract repairs with independent review and actual
+focused reruns, not permission to modify Scratch behavior or weaken admission.
+
+For any shared file, inspect current main and actual pending changes before
+writing; an unresolved overlap still blocks that file. Add precise missing
+surface/control mappings alongside the corresponding implementation, using
+existing identity/learning invariants. A scoped green preflight never replaces
+that mapping, focused tests or independent review. Do not edit execution state
+inside the product branch.
+
+Completion requires real PostgreSQL/runtime-role/RLS and revocation/concurrency
+evidence; direct API bypass tests, both cookies, linked learners and independent
+Account regressions; teacher and learner browser journeys at 1440/1024/390/320;
+and independent L3 review of the exact final SHA. Preserve the complete
+storage/authorization/decision and negative-test requirements below. No game
+navigation may grant playable access before those server checks are active.
+
+The product author does not operate either existing Docker installation.
+The controller may update the explicitly selected review582 test installation
+at 127.0.0.1:4620 only after checking concurrent operation/identity, making a
+verified backup, and verifying rollback/compatibility. Installation4610,
+production databases, DNS, VPN, hosts and firewall are outside this work.
+No release, owner acceptance or completed-game claim follows from foundation
+tests alone. Ordinary merge occurs only after the required exact-SHA evidence
+and independent review.
+
+## Foundation proposal and original handoff record
+
+The remaining proposal-stage wording records why the original foundation was
+kept unregistered. The current continuation boundary above controls the work;
+all substantive safety and verification requirements below remain binding.
+
+
 Execution task, branch, status and evidence live only in
 [`current.yaml`](../../execution/current.yaml). This contract selects no work by
 itself. A selector proposal must be accepted on `main` before the product branch

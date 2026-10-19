@@ -3,10 +3,12 @@ import { api } from './api';
 import { reportClientDiagnostic } from './client-diagnostics';
 import { fetchWithSessionRefresh, onSessionLoggedOut } from './session-fetch';
 import { setTelemetryContext } from './telemetry-context';
+import { AUTH_REQUEST_TIMEOUT_MS } from './auth-request';
 
 vi.mock('./client-diagnostics', () => ({ reportClientDiagnostic: vi.fn() }));
 
 afterEach(() => {
+  vi.useRealTimers();
   setTelemetryContext(null, false, 'public');
   vi.clearAllMocks();
   vi.unstubAllGlobals();
@@ -536,5 +538,100 @@ describe('session-aware fetch', () => {
 
     expect(response.status).toBe(401);
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('authentication deadlines preserve shared refresh', () => {
+  it('lets a live waiter finish when another waiter cancels', async () => {
+    vi.useFakeTimers();
+    const controller = new AbortController();
+    let finishRefresh!: (response: Response) => void;
+    const observed: { signal?: AbortSignal | null | undefined } = {};
+    const counts = new Map<string, number>();
+    const transport = vi.fn<typeof fetch>().mockImplementation(async (url, init) => {
+      const path = String(url);
+      counts.set(path, (counts.get(path) ?? 0) + 1);
+      if (path === '/api/auth/refresh') {
+        observed.signal = init?.signal;
+        return new Promise<Response>((resolve) => {
+          finishRefresh = resolve;
+        });
+      }
+      return new Response(null, { status: counts.get(path) === 1 ? 401 : 200 });
+    });
+    vi.stubGlobal('fetch', transport);
+    const cancelled = fetchWithSessionRefresh('/api/projects/cancelled', {
+      signal: controller.signal,
+    }).then(
+      () => 'unexpected-success',
+      () => 'cancelled',
+    );
+    const live = fetchWithSessionRefresh('/api/projects/live');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(counts.get('/api/auth/refresh')).toBe(1);
+    controller.abort();
+    await expect(cancelled).resolves.toBe('cancelled');
+    expect(observed.signal?.aborted).toBe(false);
+    finishRefresh(Response.json({ refreshed: true }));
+    expect((await live).status).toBe(200);
+    expect(counts.get('/api/projects/cancelled')).toBe(1);
+    expect(counts.get('/api/projects/live')).toBe(2);
+  });
+
+  it('clears a stalled refresh and never retries the expired auth request after a late success', async () => {
+    vi.useFakeTimers();
+    let finishLate!: (response: Response) => void;
+    let refreshCount = 0;
+    let refreshed = false;
+    const paths: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn<typeof fetch>().mockImplementation(async (url) => {
+        const path = String(url);
+        paths.push(path);
+        if (path === '/api/auth/refresh') {
+          refreshCount += 1;
+          if (refreshCount === 1)
+            return new Promise<Response>((resolve) => {
+              finishLate = resolve;
+            });
+          refreshed = true;
+          return Response.json({ refreshed: true });
+        }
+        return refreshed
+          ? Response.json({ authenticated: true })
+          : new Response(null, { status: 401 });
+      }),
+    );
+    const timedOut = api.accountVerification();
+    await vi.advanceTimersByTimeAsync(AUTH_REQUEST_TIMEOUT_MS + 1);
+    await expect(timedOut).resolves.toMatchObject({ ok: false, error: { code: 'auth_timeout' } });
+    await expect(api.me()).resolves.toMatchObject({ ok: true, data: { authenticated: true } });
+    finishLate(Response.json({ refreshed: true }));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(refreshCount).toBe(2);
+    expect(paths.filter((path) => path === '/api/auth/verification')).toHaveLength(1);
+    expect(paths.filter((path) => path === '/api/auth/me')).toHaveLength(2);
+  });
+
+  it('bounds a stalled refresh error body without replaying a mutation', async () => {
+    vi.useFakeTimers();
+    const response = new Response(null, { status: 409 });
+    const clone = response.clone();
+    vi.spyOn(clone, 'json').mockImplementation(() => new Promise<never>(() => undefined));
+    vi.spyOn(response, 'clone').mockReturnValue(clone);
+    const transport = vi
+      .fn<typeof fetch>()
+      .mockImplementation(async (url) =>
+        String(url) === '/api/auth/refresh' ? response : new Response(null, { status: 401 }),
+      );
+    vi.stubGlobal('fetch', transport);
+    const result = fetchWithSessionRefresh('/api/projects/id/snapshot', { method: 'PUT' });
+    await vi.advanceTimersByTimeAsync(AUTH_REQUEST_TIMEOUT_MS);
+    expect((await result).status).toBe(401);
+    expect(transport.mock.calls.map(([path]) => path)).toEqual([
+      '/api/projects/id/snapshot',
+      '/api/auth/refresh',
+    ]);
   });
 });

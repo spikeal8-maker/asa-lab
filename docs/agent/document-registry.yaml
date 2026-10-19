@@ -21,6 +21,16 @@ context_role_values:
   - review
 
 documents:
+  - id: AI-ASSISTANT-SPEC
+    path: docs/product/ASA_AI_ASSISTANT_SPEC.md
+    scope: ai-assistant
+    lanes: [ai-assistant]
+    kind: product_spec
+    status: canonical
+    authority: owner_ai_assistant_product_target
+    context_role: target
+    read_when: [ai_assistant_implementation, ai_assistant_review]
+
   - id: POLICY-AGENTS
     path: AGENTS.md
     scope: global
@@ -380,9 +390,19 @@ documents:
     kind: target
     status: canonical
     authority: account_confirmation_policy
-    revision: '1.0'
+    revision: '1.1'
     context_role: task
     read_when: [account_confirmation, authentication_provider, provider_availability, admin_confirmation_policy]
+
+  - id: ACCOUNT-CONFIRMATION-READINESS
+    path: docs/deployment/ACCOUNT_CONFIRMATION_READINESS.md
+    scope: identity
+    lanes: [admin-auth]
+    kind: runbook
+    status: supporting
+    authority: none
+    context_role: task
+    read_when: [account_confirmation, authentication_provider, provider_readiness, deployment]
 
   - id: ADMIN-AUTH-MAX-BLUEPRINT
     path: docs/execution/ADMIN_AUTH_MAX_EXECUTION_PLAN.md

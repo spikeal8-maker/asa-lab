@@ -15,6 +15,7 @@ import pg from 'pg';
 import { createRuntimeMetrics } from '@asa-lab/observability';
 import type { ActiveContextUseCase } from '@asa-lab/identity';
 import { SeatContextUseCase } from './seat-context.js';
+import type { BotProviderAuthOptions } from './bot-provider-runtime.js';
 import { AppModule } from './app.module.js';
 import { ProductAnalyticsService } from './product-analytics.service.js';
 import { OwnedPools, SafeNestLogger, boundedClose } from './owned-pool-lifecycle.js';
@@ -128,7 +129,12 @@ export function cacheControlFor(fileName: string): string {
 
 export function shouldServeSpaDocument(path: string): boolean {
   return (
-    path === '/' || path === '/max-login' || path === '/max-login/' || path.startsWith('/projects/')
+    path === '/' ||
+    path === '/max-login' ||
+    path === '/max-login/' ||
+    path === '/telegram-login' ||
+    path === '/telegram-login/' ||
+    path.startsWith('/projects/')
   );
 }
 
@@ -149,6 +155,7 @@ function shouldLogRequests(explicit: boolean | undefined): boolean {
 }
 
 export interface ApiFactoryOptions {
+  readonly authProviderOptions?: Pick<BotProviderAuthOptions, 'ingress' | 'publicWebOrigins'>;
   /** Injected pool (tests); otherwise built from APP_DATABASE_URL only. */
   readonly pool?: pg.Pool | null;
   /** Explicit test/embedding dependency; null disables telemetry with no fallback. */
@@ -283,7 +290,13 @@ export async function createApiApp(
     ];
     const adapter = new FastifyAdapter({ genReqId: () => randomUUID(), logger: false });
     const app = await NestFactory.create<NestFastifyApplication>(
-      AppModule.forPool(pool, { productAnalytics: analytics, runtimeMetrics: metrics }),
+      AppModule.forPool(pool, {
+        productAnalytics: analytics,
+        runtimeMetrics: metrics,
+        ...(options.authProviderOptions
+          ? { authProviderOptions: options.authProviderOptions }
+          : {}),
+      }),
       adapter,
       {
         logger: new SafeNestLogger(),
@@ -474,7 +487,11 @@ export async function createApiApp(
       // Runtime mutations use short-lived bearer authority and their own bounded
       // capability/upload budgets. Do not collapse a whole classroom behind one
       // school-NAT IP into the generic browser mutation limiter.
-      if (!runtimePath && path !== '/api/auth/max/webhook') {
+      if (
+        !runtimePath &&
+        path !== '/api/auth/max/webhook' &&
+        path !== '/api/auth/telegram/webhook'
+      ) {
         const allowed = isAllowedMutationOrigin({
           origin: request.headers.origin,
           allowedWebOrigin,

@@ -58,18 +58,44 @@ async function fixture() {
   }
   const classId = await createClass('Участники');
   async function seat(name: string, accountId: string | null = null, targetClass = classId) {
-    const id = (
-      await admin.query(`SELECT id FROM classroom_management_add_seat($1,$2,$3,$4,true)`, [
-        account,
-        targetClass,
-        name,
-        randomUUID().replaceAll('-', '').slice(0, 8),
-      ])
-    ).rows[0].id as string;
-    await admin.query(
-      `UPDATE classroom_student_seats SET status='active',account_id=$2 WHERE id=$1`,
-      [id, accountId],
-    );
+    let id: string;
+    if (accountId) {
+      // Seed an already linked Account as the canonical Account materializer
+      // does: account_id is present at INSERT and the Seat has its own principal.
+      // Adding it later to an initialized StudentCode Seat is not a link command.
+      id = (
+        await admin.query(
+          `WITH inserted AS (
+             INSERT INTO classroom_student_seats(
+               tenant_id,classroom_id,display_label,login_handle,
+               normalized_login_handle,safe_mode,status,created_by,account_id)
+             SELECT access.tenant_id,$2,$3,$4,$4,true,'active',access.user_id,$5
+               FROM classroom_teacher_access($1,$2) access
+              WHERE access.user_id IS NOT NULL
+             RETURNING id
+           )
+           INSERT INTO principals(kind,seat_id)
+           SELECT 'student_seat',id FROM inserted RETURNING seat_id AS id`,
+          [
+            account,
+            targetClass,
+            name,
+            `acc:${accountId.replaceAll('-', '').slice(0, 20)}`,
+            accountId,
+          ],
+        )
+      ).rows[0].id as string;
+    } else {
+      id = (
+        await admin.query(`SELECT id FROM classroom_management_add_seat($1,$2,$3,$4,true)`, [
+          account,
+          targetClass,
+          name,
+          randomUUID().replaceAll('-', '').slice(0, 8),
+        ])
+      ).rows[0].id as string;
+      await admin.query(`UPDATE classroom_student_seats SET status='active' WHERE id=$1`, [id]);
+    }
     await read('classroom_participant_prepare', [actor, [targetClass]]);
     const principal = (await admin.query(`SELECT id FROM principals WHERE seat_id=$1`, [id]))
       .rows[0].id as string;

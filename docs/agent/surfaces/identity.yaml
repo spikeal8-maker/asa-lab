@@ -357,13 +357,20 @@ surfaces:
     - TST-ASA-ACCESS-A-CORE-001
     - TST-ASA-ACCESS-A-E2E-001
   - id: CTRL-AUTH-MAX-PAIRING
-    label: Sign in through the supported MAX pairing flow
+    label: Sign in through an available MAX provider with browser-bound confirmation
     change_class: L3_CRITICAL
     files:
     - apps/web/src/pages/LoginPage.tsx
     - apps/web/src/api.ts
     - apps/api/src/auth.controller.ts
     - apps/api/src/max-auth.service.ts
+    - apps/api/src/bot-provider-auth.service.ts
+    - apps/api/src/bot-provider-runtime.ts
+    - apps/api/src/bot-provider-transport.ts
+    - apps/api/src/bot-provider-webhook.ts
+    - apps/api/src/provider-init-data.ts
+    - apps/web/src/auth-providers.tsx
+    - migrations/0218_auth_provider_lifecycle.sql
     commands:
     - max_pairing_start
     - max_pairing_complete
@@ -373,6 +380,156 @@ surfaces:
     tests:
     - TST-ASA-ACCESS-A-CORE-001
     - TST-ASA-ACCESS-A-E2E-001
+    - TST-ACCOUNT-CONFIRMATION-UNIT-001
+    - TST-ACCOUNT-CONFIRMATION-PG-001
+    - TST-ACCOUNT-CONFIRMATION-UI-001
+  - id: CTRL-AUTH-TELEGRAM-PAIRING
+    label: Sign in or register through available Telegram with explicit browser-bound confirmation
+    change_class: L3_CRITICAL
+    files:
+    - apps/web/src/auth-providers.tsx
+    - apps/web/src/pages/LoginPage.tsx
+    - apps/web/src/pages/RegisterPage.tsx
+    - apps/web/src/api.ts
+    - apps/api/src/auth.controller.ts
+    - apps/api/src/telegram-auth.service.ts
+    - apps/api/src/bot-provider-auth.service.ts
+    - apps/api/src/bot-provider-runtime.ts
+    - apps/api/src/bot-provider-transport.ts
+    - apps/api/src/bot-provider-webhook.ts
+    - apps/api/src/provider-init-data.ts
+    - migrations/0218_auth_provider_lifecycle.sql
+    commands:
+    - telegram_pairing_start
+    - telegram_pairing_complete
+    - telegram_pairing_register
+    invariants:
+    - IDA-ACC-001
+    - IDA-AUTH-001
+    - IDA-SESSION-001
+    - IDA-REV-001
+    tests:
+    - TST-ACCOUNT-CONFIRMATION-UNIT-001
+    - TST-ACCOUNT-CONFIRMATION-PG-001
+    - TST-ACCOUNT-CONFIRMATION-UI-001
+- id: SURF-ACCOUNT-CONFIRMATION
+  routes:
+  - /api/auth/providers
+  - /api/auth/verification
+  - /api/admin/v1/integrations/max/check
+  - /api/admin/v1/integrations/telegram/check
+  - '#/admin/confirmations'
+  implementation:
+    files:
+    - apps/web/src/App.tsx
+    - apps/web/src/auth-verification.ts
+    - apps/web/src/auth-verification.css
+    - apps/web/src/api-call.ts
+    - apps/web/src/auth-request.ts
+    - apps/web/src/session-fetch.ts
+    - apps/web/src/pages/AccountConfirmationPage.tsx
+    - apps/web/src/pages/AccountPage.tsx
+    - apps/web/src/components/AccountSignInMethods.tsx
+    - apps/web/src/admin/VerificationPolicyControl.tsx
+    - apps/web/src/admin/AdminAuthProviderCard.tsx
+    - apps/web/src/admin/AdminDashboard.tsx
+    - apps/web/src/admin/admin-api.ts
+    - apps/api/src/account-verification.service.ts
+    - apps/api/src/account-verification.guard.ts
+    - apps/api/src/auth-provider-availability.ts
+    - apps/api/src/bot-provider-ingress.ts
+    - apps/api/src/auth.controller.ts
+    - apps/api/src/admin.controller.ts
+    - apps/api/src/blocks-runtime.controller.ts
+    - apps/api/src/refresh-session.service.ts
+    - apps/api/src/app.factory.ts
+    - apps/api/src/app.module.ts
+    - apps/api/src/tokens.ts
+    - migrations/0219_account_verification_policy.sql
+    - migrations/0225_auth_provider_readiness.sql
+    - schemas/openapi.yaml
+    - compose.staging.yaml
+    - .env.example
+    - tools/asa-lab.sh
+    - tools/asa-lab.ps1
+    - tools/provision-settings-key.mjs
+  invariants:
+    [IDA-ACC-001, IDA-AUTH-001, IDA-CAP-001, IDA-SESSION-001, IDA-REV-001, IDA-SEAT-001]
+  tests:
+  - TST-ACCOUNT-CONFIRMATION-UNIT-001
+  - TST-ACCOUNT-CONFIRMATION-PG-001
+  - TST-ACCOUNT-CONFIRMATION-UI-001
+  - TST-ASA-ACCESS-A-REPOSITORY-001
+  - TST-ACCOUNT-CONFIRMATION-INSTALL-001
+  controls:
+  - id: CTRL-ACCOUNT-CONFIRMATION-POLICY
+    label: Persist the admin confirmation switch and enforce the 24-hour deadline with server-verified provider outage fallback
+    change_class: L3_CRITICAL
+    files:
+    - apps/web/src/admin/VerificationPolicyControl.tsx
+    - apps/api/src/admin.controller.ts
+    - apps/api/src/account-verification.service.ts
+    - apps/api/src/account-verification.guard.ts
+    - apps/api/src/blocks-runtime.controller.ts
+    - migrations/0219_account_verification_policy.sql
+    commands:
+    - account_verification_policy_read
+    - account_verification_policy_write
+    - account_verification_state_read
+    invariants:
+    - IDA-AUTH-001
+    - IDA-CAP-001
+    - IDA-SESSION-001
+    - IDA-SEAT-001
+    tests:
+    - TST-ACCOUNT-CONFIRMATION-UNIT-001
+    - TST-ACCOUNT-CONFIRMATION-PG-001
+    - TST-ACCOUNT-CONFIRMATION-UI-001
+  - id: CTRL-ACCOUNT-CONFIRMATION-PROVIDERS
+    label: Configure MAX and Telegram, hide unavailable sign-in methods and protect the last usable credential
+    change_class: L3_CRITICAL
+    files:
+    - apps/web/src/admin/AdminAuthProviderCard.tsx
+    - apps/web/src/pages/AccountPage.tsx
+    - apps/web/src/components/AccountSignInMethods.tsx
+    - apps/web/src/auth-providers.tsx
+    - apps/api/src/admin.controller.ts
+    - apps/api/src/bot-provider-auth.service.ts
+    - apps/api/src/bot-provider-runtime.ts
+    - apps/api/src/bot-provider-ingress.ts
+    - apps/api/src/max-auth.service.ts
+    - apps/api/src/telegram-auth.service.ts
+    - migrations/0218_auth_provider_lifecycle.sql
+    - migrations/0225_auth_provider_readiness.sql
+    commands:
+    - auth_provider_configuration_read
+    - auth_provider_configuration_write
+    - auth_provider_configuration_check
+    - auth_provider_link
+    - auth_provider_unlink
+    invariants:
+    - IDA-AUTH-001
+    - IDA-SESSION-001
+    - IDA-REV-001
+    tests:
+    - TST-ACCOUNT-CONFIRMATION-UNIT-001
+    - TST-ACCOUNT-CONFIRMATION-PG-001
+    - TST-ACCOUNT-CONFIRMATION-UI-001
+  - id: CTRL-ACCOUNT-CONFIRMATION-INSTALLATION
+    label: Preserve integration secrets and forward trusted public origins during installation
+    change_class: L3_CRITICAL
+    files:
+    - compose.staging.yaml
+    - .env.example
+    - tools/asa-lab.sh
+    - tools/asa-lab.ps1
+    - tools/provision-settings-key.mjs
+    commands:
+    - auth_installation_validate
+    invariants:
+      [IDA-AUTH-001, IDA-SESSION-001]
+    tests:
+    - TST-ACCOUNT-CONFIRMATION-INSTALL-001
 - id: SURF-CLASSROOM-ROSTER
   routes:
   - '#/classrooms/:classroomId'

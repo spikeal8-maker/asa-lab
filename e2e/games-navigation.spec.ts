@@ -81,6 +81,8 @@ async function fixture(page: Page, failList = false) {
       return json(route, { error: { code: 'forbidden', message: 'forbidden' } }, 403);
     if (path === '/api/account/avatar') return json(route, { avatarDataUrl: null });
     if (path === '/api/modules') return json(route, { items: modules });
+    if (path === '/api/games/access')
+      return json(route, { granted: true, reason: 'allowed', threshold: null });
     if (path === '/api/gallery/mine') return json(route, { projectIds: [] });
     if (path === '/api/projects/title-suggestion')
       return json(route, { title: 'Новый проект', sequence: 1 });

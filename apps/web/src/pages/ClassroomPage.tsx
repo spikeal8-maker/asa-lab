@@ -20,6 +20,7 @@ import {
 import { useLearningDestination } from '../learning/use-learning-destination';
 import { ClassroomGradebook } from '../components/ClassroomGradebook';
 import { ClassroomStudentPage } from './ClassroomStudentPage';
+import { ClassroomGamesSettings } from '../components/ClassroomGamesSettings';
 import { ClassShareScreen } from '../components/ClassShareScreen';
 import { Dropdown } from '../components/Dropdown';
 import { ClassroomPropertiesModal } from '../components/ClassroomPropertiesModal';
@@ -1051,6 +1052,10 @@ function ClassroomPageContent({
                     <i aria-hidden="true" />
                   </label>
                 </fieldset>
+                <ClassroomGamesSettings
+                  classroomId={classroomId}
+                  readOnly={archived || Boolean(busy)}
+                />
                 <ClassroomRatingSettings
                   classroomId={classroomId}
                   readOnly={archived}

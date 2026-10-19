@@ -746,6 +746,10 @@ test('named Library exact mixed v1 copy survives source v2 and lost response the
       await learner.goto('/#/learning');
       // The same hash keeps the mounted player; refresh its lifecycle and server state.
       await learner.reload();
+      await learner
+        .getByRole('navigation', { name: 'Разделы моего обучения' })
+        .getByRole('link', { name: 'Курсы', exact: true })
+        .click();
       const list = learner.getByTestId('seat-courses');
       await expect(list).toBeVisible();
       const copiedCourse = list.getByRole('button').filter({ hasText: title });
@@ -928,6 +932,29 @@ test('named Library exact mixed v1 copy survives source v2 and lost response the
     await expect(
       player.locator('.lesson-activity-block').filter({ hasText: practice }),
     ).toContainText('Выполнено');
+    if (learner === seatPage) {
+      await learner.goto('/#/learning?view=completed&journalMonth=2026-10');
+      const completedWork = learner
+        .getByRole('region', { name: 'Завершённые задания', exact: true })
+        .getByRole('link', { name: practice, exact: true });
+      await expect(completedWork).toBeVisible();
+      await completedWork.click();
+      const sections = learner.getByRole('navigation', { name: 'Разделы моего обучения' });
+      await expect(sections.getByRole('link', { name: 'Курсы', exact: true })).toHaveAttribute(
+        'aria-current',
+        'page',
+      );
+      await expect(
+        learner
+          .getByTestId('seat-course-player')
+          .locator('.lesson-activity-block')
+          .filter({ hasText: practice }),
+      ).toContainText('Выполнено');
+      await learner.goBack();
+      await expect(completedWork).toBeVisible();
+      await learner.goForward();
+      await expect(learner.getByTestId('seat-course-player')).toContainText(practice);
+    }
     await learner.screenshot({ path: `${evidenceDir}/library-${module}-submitted.png` });
     await detail.screenshot({ path: `${evidenceDir}/library-${module}-accepted.png` });
   }

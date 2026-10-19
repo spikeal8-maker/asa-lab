@@ -4,6 +4,50 @@ registry_scope: supplemental_execution_tests
 source_of_truth: docs/testing/active-task-tests.yaml
 result_states: [PASS, FAIL, NOT_RUN, BLOCKED]
 tests:
+  - id: TST-ACCOUNT-CONFIRMATION-UNIT-001
+    title: Confirmation deadline, outage fallback, provider proofs and browser state
+    suite: authorization
+    level: unit
+    phase_available: PHASE-12
+    required_for: [TASK-ACCOUNT-CONFIRMATION-001]
+    command: pnpm test:auth-confirmation
+    timeout_seconds: 300
+    owner: admin-auth
+    artifacts: [auth-confirmation-unit.json]
+
+  - id: TST-ACCOUNT-CONFIRMATION-PG-001
+    title: Real PostgreSQL policy, pairing lifecycle, session restrictions and HTTP access
+    suite: authorization
+    level: system
+    phase_available: PHASE-12
+    required_for: [TASK-ACCOUNT-CONFIRMATION-001]
+    command: pnpm test:auth-confirmation:pg
+    timeout_seconds: 600
+    owner: admin-auth
+    artifacts: [auth-confirmation-postgres.json]
+
+  - id: TST-ACCOUNT-CONFIRMATION-UI-001
+    title: Built sign-in and admin confirmation interface at 1440, 1024, 390 and 320 pixels
+    suite: e2e
+    level: system
+    phase_available: PHASE-12
+    required_for: [TASK-ACCOUNT-CONFIRMATION-001]
+    command: pnpm e2e:auth-confirmation
+    timeout_seconds: 1200
+    owner: admin-auth
+    artifacts: [playwright-report, auth-confirmation-screenshots, exact-build-metadata]
+
+  - id: TST-ACCOUNT-CONFIRMATION-INSTALL-001
+    title: Preserve authentication secrets during Windows and Linux installation
+    suite: authorization
+    level: system
+    phase_available: PHASE-12
+    required_for: [TASK-ACCOUNT-CONFIRMATION-001]
+    command: pnpm test:auth-confirmation:installation
+    timeout_seconds: 300
+    owner: admin-auth
+    artifacts: [installer-fixture-test-output]
+
   - id: TST-ASA-ACCESS-A-CORE-001
     title: Access A identity, account, authorization, fresh schema and supported upgrade
     suite: authorization

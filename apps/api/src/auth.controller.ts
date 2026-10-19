@@ -12,7 +12,7 @@ import {
 } from '@nestjs/common';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { effectiveAccountActions } from '@asa-lab/identity';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import type {
   AccountDirectoryPort,
   AccountLoginUseCase,
@@ -28,7 +28,19 @@ import { checkBodyShape } from './validation.js';
 import { FixedWindowRateLimiter } from './rate-limit.js';
 import { clientAddress, clientConnection, type ClientNetworkKind } from './client-address.js';
 import { BotChallengeService, type BotAction } from './bot-challenge.js';
-import { MaxAuthService, MaxInitDataError } from './max-auth.service.js';
+import type { IngressProbeResponse } from './bot-provider-ingress.js';
+import { MaxAuthService } from './max-auth.service.js';
+import { TelegramAuthService } from './telegram-auth.service.js';
+import {
+  ProviderConfigurationError,
+  ProviderInitDataError,
+  ProviderOperationError,
+} from './auth-provider-availability.js';
+import {
+  AccountVerificationService,
+  type VerificationState,
+} from './account-verification.service.js';
+import { AllowUnverifiedAccount } from './account-verification.guard.js';
 import {
   REFRESH_TTL_DAYS,
   RefreshSessionService,
@@ -60,6 +72,10 @@ export const REGISTER_PER_ADDRESS = 60;
 export const BOT_CHALLENGE_WINDOW_MS = 5 * 60 * 1000;
 export const BOT_CHALLENGE_PER_ADDRESS = 60;
 export const MAX_AUTH_PER_ADDRESS = 60;
+// A pending bot confirmation is polled repeatedly. It must not exhaust the
+// credential budget and prevent a user from completing the same request.
+export const PAIRING_POLL_PER_ADDRESS = 1800;
+export const PAIRING_POLL_PER_CHALLENGE = 90;
 const AUTH_FLOW_COOKIE = 'asa_auth_flow';
 const AUTH_FLOW_MAX_AGE_SECONDS = 20 * 60;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -72,6 +88,7 @@ interface PublicUser {
 
 interface SessionPayload {
   authenticated: true;
+  verification: VerificationState;
   user: PublicUser;
   account: PublicUser;
   capabilities: { capability: string; state: string }[];
@@ -177,6 +194,14 @@ export class AuthController {
     limit: MAX_AUTH_PER_ADDRESS,
     windowMs: LOGIN_WINDOW_MS,
   });
+  private readonly pairingPollByAddress = new FixedWindowRateLimiter({
+    limit: PAIRING_POLL_PER_ADDRESS,
+    windowMs: 60_000,
+  });
+  private readonly pairingPollByChallenge = new FixedWindowRateLimiter({
+    limit: PAIRING_POLL_PER_CHALLENGE,
+    windowMs: 60_000,
+  });
 
   constructor(
     @Inject(TOKENS.loginUseCase) private readonly legacyLoginUseCase: LoginUseCase,
@@ -186,6 +211,8 @@ export class AuthController {
     @Inject(TOKENS.accountDirectory) private readonly accounts: AccountDirectoryPort,
     @Inject(TOKENS.botChallengeService) private readonly botChallenges: BotChallengeService,
     @Inject(TOKENS.maxAuthService) private readonly maxAuth: MaxAuthService,
+    @Inject(TOKENS.telegramAuthService) private readonly telegramAuth: TelegramAuthService,
+    @Inject(TOKENS.accountVerification) private readonly verification: AccountVerificationService,
     @Inject(TOKENS.refreshSessionService)
     private readonly refreshSessions: RefreshSessionService,
     @Inject(TOKENS.productAnalytics)
@@ -281,12 +308,16 @@ export class AuthController {
   }
 
   private async payload(context: ActiveContext): Promise<SessionPayload> {
-    const [capabilities, workspaces, timeZone] = await Promise.all([
+    const [capabilities, workspaces, timeZone, verification] = await Promise.all([
       this.accounts.capabilities(context.accountId),
       this.accounts.workspaces(context.accountId),
       this.accounts.timeZone(context.accountId),
+      this.verification.forAccount(context.accountId),
     ]);
-    const actions = effectiveAccountActions(context, capabilities, workspaces);
+    if (!verification) throw new HttpException(error('unauthorized', 'account is not active'), 401);
+    const actions = verification.required
+      ? []
+      : effectiveAccountActions(context, capabilities, workspaces);
     const account = {
       id: context.accountId,
       displayName: context.displayName,
@@ -294,9 +325,10 @@ export class AuthController {
     };
     return {
       authenticated: true,
+      verification,
       user: account,
       account,
-      capabilities: capabilities.map((entry) => ({
+      capabilities: (verification.required ? [] : capabilities).map((entry) => ({
         capability: entry.capability,
         state: entry.state,
       })),
@@ -345,89 +377,138 @@ export class AuthController {
   }
 
   private throwMaxValidation(problem: unknown): never {
-    if (problem instanceof MaxInitDataError) {
-      if (problem.code === 'max_auth_disabled') {
-        throw new HttpException(
-          error('max_auth_disabled', 'Вход через MAX пока не подключён.'),
-          503,
-        );
-      }
-      if (problem.code === 'max_init_data_expired') {
-        throw new HttpException(
-          error('max_init_data_expired', 'Ссылка MAX устарела. Откройте бота заново.'),
-          401,
-        );
-      }
+    this.throwProviderFailure(problem, 'max');
+  }
+
+  @Get('max/config')
+  @AllowUnverifiedAccount()
+  async maxConfig(): Promise<{ enabled: boolean; launchUrl: string | null }> {
+    return this.maxAuth.config();
+  }
+
+  @Get('providers')
+  @AllowUnverifiedAccount()
+  async providers(@Res({ passthrough: true }) reply: FastifyReply) {
+    void reply.header('Cache-Control', 'no-store');
+    return { providers: await this.verification.getProviders() };
+  }
+
+  @Get('verification')
+  @AllowUnverifiedAccount()
+  async verificationStatus(
+    @Req() request: FastifyRequest,
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ) {
+    void reply.header('Cache-Control', 'no-store');
+    const context = await this.requireContext(request);
+    const state = await this.verification.forAccount(context.accountId);
+    if (!state) throw new HttpException(error('unauthorized', 'account is not active'), 401);
+    return state;
+  }
+
+  private providerService(provider: 'max' | 'telegram') {
+    return provider === 'max' ? this.maxAuth : this.telegramAuth;
+  }
+
+  private pairingCookieName(provider: 'max' | 'telegram', pairingToken: string): string {
+    return `asa_pairing_${provider}_${createHash('sha256').update(pairingToken).digest('hex').slice(0, 24)}`;
+  }
+
+  private validPairingToken(value: unknown): string {
+    if (typeof value !== 'string' || !/^[A-Za-z0-9_-]{32,128}$/.test(value))
+      throw new HttpException(error('validation_error', 'pairingToken is invalid'), 400);
+    return value;
+  }
+
+  private throwProviderFailure(problem: unknown, _provider: 'max' | 'telegram'): never {
+    if (problem instanceof ProviderConfigurationError)
       throw new HttpException(
-        error('max_init_data_invalid', 'MAX не подтвердил данные входа.'),
-        401,
+        error(
+          `${_provider}_auth_unavailable`,
+          'Этот способ входа временно недоступен. Используйте пароль.',
+        ),
+        503,
+      );
+    if (problem instanceof ProviderOperationError) {
+      const messages: Record<ProviderOperationError['code'], string> = {
+        last_sign_in_method: 'Сначала настройте пароль или подключите другой способ входа.',
+        identity_revoked: 'Эта привязка отозвана администратором. Обратитесь к администратору.',
+        identity_taken: 'Этот профиль уже связан с другим аккаунтом ASA Lab.',
+        account_already_linked: 'К вашему аккаунту уже привязан другой профиль этого сервиса.',
+        account_suspended: 'Доступ к аккаунту приостановлен.',
+      };
+      throw new HttpException(
+        error(problem.code, messages[problem.code]),
+        problem.code === 'account_suspended' ? 403 : 409,
+      );
+    }
+    if (problem instanceof ProviderInitDataError) {
+      const unavailable =
+        problem.code.endsWith('_auth_disabled') || problem.code.endsWith('_auth_unavailable');
+      throw new HttpException(
+        error(
+          problem.code,
+          unavailable
+            ? 'Этот способ входа сейчас недоступен. Используйте пароль.'
+            : 'Не удалось подтвердить данные входа. Откройте приложение заново.',
+        ),
+        unavailable ? 503 : 401,
       );
     }
     throw problem;
   }
 
-  @Get('max/config')
-  async maxConfig(): Promise<{ enabled: boolean; launchUrl: string | null }> {
-    return this.maxAuth.config();
-  }
-
-  @Post('max/pairing/start')
-  @HttpCode(200)
-  async startMaxPairing(
-    @Body() rawBody: unknown,
-    @Req() request: FastifyRequest,
-    @Res({ passthrough: true }) reply: FastifyReply,
-  ): Promise<{ pairingToken: string; launchUrl: string }> {
+  private async startProviderPairing(
+    provider: 'max' | 'telegram',
+    rawBody: unknown,
+    request: FastifyRequest,
+    reply: FastifyReply,
+  ) {
     this.enforce(this.maxAuthByAddress, clientAddress(request));
     this.authFlow(request, reply);
-    const purpose =
-      rawBody && typeof rawBody === 'object' && !Array.isArray(rawBody)
-        ? (rawBody as Record<string, unknown>)['purpose']
-        : undefined;
-    if (purpose !== undefined && purpose !== 'login' && purpose !== 'link') {
-      throw new HttpException(error('validation_error', 'unknown MAX pairing purpose'), 400);
-    }
+    const shape = checkBodyShape(rawBody ?? {}, ['purpose']);
+    if (!shape.ok) throw new HttpException(error('validation_error', shape.message), 400);
+    const purpose = shape.body['purpose'] ?? 'login';
+    if (purpose !== 'login' && purpose !== 'register' && purpose !== 'link')
+      throw new HttpException(error('validation_error', 'unknown pairing purpose'), 400);
     const requestedAccountId =
       purpose === 'link' ? (await this.requireContext(request)).accountId : undefined;
     try {
-      return await this.maxAuth.startPairing(requestedAccountId);
+      const result = await this.providerService(provider).startPairing(requestedAccountId, purpose);
+      reply.setCookie(this.pairingCookieName(provider, result.pairingToken), result.browserNonce, {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/api/auth',
+        secure:
+          process.env['NODE_ENV'] === 'production' || process.env['ASA_SECURE_COOKIES'] === '1',
+        maxAge: 10 * 60,
+      });
+      void reply.header('Cache-Control', 'no-store');
+      return {
+        pairingToken: result.pairingToken,
+        launchUrl: result.launchUrl,
+        expiresAt: result.expiresAt,
+      };
     } catch (problem) {
-      this.throwMaxValidation(problem);
+      this.throwProviderFailure(problem, provider);
     }
   }
 
-  @Post('max/pairing/complete')
-  @HttpCode(200)
-  async completeMaxPairing(
-    @Body() rawBody: unknown,
-    @Req() request: FastifyRequest,
-    @Res({ passthrough: true }) reply: FastifyReply,
-  ): Promise<{ status: 'pending' } | { status: 'authenticated'; session: SessionPayload }> {
-    const connection = clientConnection(request);
-    this.enforce(this.maxAuthByAddress, connection.address);
-    const shape = checkBodyShape(rawBody, ['pairingToken']);
-    if (!shape.ok) throw new HttpException(error('validation_error', shape.message), 400);
-    const result = await this.maxAuth.consumePairing(
-      shape.body['pairingToken'],
-      summarizeUserAgent(request.headers['user-agent']),
-    );
-    if (result.status === 'pending') return { status: 'pending' };
-    if (result.status === 'expired' || result.status === 'consumed') {
-      throw new HttpException(
-        error('max_pairing_expired', 'Запрос входа истёк. Откройте MAX заново.'),
-        410,
-      );
-    }
-    if (result.status !== 'authenticated') {
-      throw new HttpException(error('max_pairing_invalid', 'Запрос входа недействителен.'), 400);
-    }
-    await this.establishSession(reply, result.token, 'max');
-    const context = await this.activeContext.resolve(result.token);
+  private async finishProviderSession(
+    provider: 'max' | 'telegram',
+    token: string,
+    request: FastifyRequest,
+    reply: FastifyReply,
+    registration = false,
+  ): Promise<SessionPayload> {
+    await this.establishSession(reply, token, provider);
+    const context = await this.activeContext.resolve(token);
     if (!context) throw new HttpException(error('server_error', 'session was not created'), 500);
+    const connection = clientConnection(request);
     this.recordAuth({
       receivedAt: requestReceivedAt(request),
-      eventType: 'auth.max',
-      method: 'max',
+      eventType: registration ? 'auth.register' : provider === 'max' ? 'auth.max' : 'auth.telegram',
+      method: provider,
       outcome: 'succeeded',
       flowId: this.authFlow(request, reply),
       address: connection.address,
@@ -436,15 +517,247 @@ export class AuthController {
       context,
     });
     this.closeAuthFlow(reply);
-    return { status: 'authenticated', session: await this.payload(context) };
+    return this.payload(context);
+  }
+
+  private async completeProviderPairing(
+    provider: 'max' | 'telegram',
+    rawBody: unknown,
+    request: FastifyRequest,
+    reply: FastifyReply,
+  ) {
+    this.enforce(this.pairingPollByAddress, clientAddress(request));
+    const shape = checkBodyShape(rawBody, ['pairingToken']);
+    if (!shape.ok) throw new HttpException(error('validation_error', shape.message), 400);
+    const token = this.validPairingToken(shape.body['pairingToken']);
+    const cookie = this.pairingCookieName(provider, token);
+    this.enforce(this.pairingPollByChallenge, cookie);
+    const context = await this.activeContext.resolve(request.cookies[SESSION_COOKIE]);
+    let result;
+    try {
+      result = await this.providerService(provider).consumePairing(
+        token,
+        summarizeUserAgent(request.headers['user-agent']),
+        request.cookies[cookie],
+        context?.accountId,
+      );
+    } catch (problem) {
+      if (problem instanceof ProviderOperationError)
+        reply.clearCookie(cookie, { path: '/api/auth' });
+      this.throwProviderFailure(problem, provider);
+    }
+    if (result.status === 'pending') return { status: 'pending' as const };
+    if (result.status === 'registration_required')
+      return { status: 'registration_required' as const, profile: result.profile };
+    reply.clearCookie(cookie, { path: '/api/auth' });
+    if (result.status === 'expired' || result.status === 'consumed')
+      throw new HttpException(
+        error(`${provider}_pairing_expired`, 'Запрос входа истёк. Начните вход заново.'),
+        410,
+      );
+    if (result.status === 'unavailable')
+      throw new HttpException(
+        error(
+          `${provider}_auth_unavailable`,
+          'Этот способ входа временно недоступен. Используйте пароль.',
+        ),
+        503,
+      );
+    if (result.status === 'linked') {
+      if (context?.accountId !== result.accountId)
+        throw new HttpException(
+          error('unauthorized', 'link requires the original account session'),
+          401,
+        );
+      return { status: 'linked' as const, linked: true as const };
+    }
+    if (result.status !== 'authenticated')
+      throw new HttpException(
+        error(`${provider}_pairing_invalid`, 'Запрос входа недействителен.'),
+        400,
+      );
+    return {
+      status: 'authenticated' as const,
+      session: await this.finishProviderSession(provider, result.token, request, reply),
+    };
+  }
+
+  private registrationFailure(
+    result: { status: string; message?: string; routes?: readonly unknown[] },
+    provider: 'max' | 'telegram',
+  ): never {
+    if (result.status === 'age_routed')
+      throw new HttpException(
+        { error: { code: result.status, message: result.message, routes: result.routes } },
+        422,
+      );
+    const messages: Record<string, string> = {
+      email_taken:
+        'Аккаунт с таким email уже существует. Войдите с паролем и подключите этот способ к нему.',
+      username_taken: 'Это имя пользователя уже занято.',
+      identity_taken: 'Этот профиль уже связан с другим аккаунтом ASA Lab.',
+      assertion_replayed: 'Запрос уже использован. Начните вход заново.',
+      unavailable: 'Регистрация этим способом временно недоступна.',
+      expired: 'Запрос регистрации истёк. Начните заново.',
+      invalid: 'Запрос регистрации недействителен.',
+    };
+    const status = [
+      'email_taken',
+      'username_taken',
+      'identity_taken',
+      'assertion_replayed',
+    ].includes(result.status)
+      ? 409
+      : result.status === 'unavailable'
+        ? 503
+        : result.status === 'expired'
+          ? 410
+          : 400;
+    throw new HttpException(
+      error(
+        result.status === 'unavailable' ? `${provider}_auth_unavailable` : result.status,
+        result.message ?? messages[result.status] ?? 'Проверьте данные профиля.',
+      ),
+      status,
+    );
+  }
+
+  private async registerProviderPairing(
+    provider: 'max' | 'telegram',
+    rawBody: unknown,
+    request: FastifyRequest,
+    reply: FastifyReply,
+  ): Promise<SessionPayload> {
+    this.enforce(this.registerByAddress, clientAddress(request));
+    this.enforce(this.maxAuthByAddress, clientAddress(request));
+    const shape = checkBodyShape(rawBody, [
+      'pairingToken',
+      'email',
+      'username',
+      'displayName',
+      'birthDate',
+      'country',
+      'password',
+    ]);
+    if (!shape.ok) throw new HttpException(error('validation_error', shape.message), 400);
+    const token = this.validPairingToken(shape.body['pairingToken']);
+    const cookie = this.pairingCookieName(provider, token);
+    // Registration belongs to the anonymous attempt. A later password login
+    // must not be replaced by a delayed profile submission from that attempt.
+    const context = await this.activeContext.resolve(request.cookies[SESSION_COOKIE]);
+    if (context) {
+      reply.clearCookie(cookie, { path: '/api/auth' });
+      throw new HttpException(
+        error(`${provider}_pairing_invalid`, 'Запрос регистрации недействителен.'),
+        400,
+      );
+    }
+    let result;
+    try {
+      result = await this.providerService(provider).registerPairing(
+        token,
+        request.cookies[cookie],
+        {
+          email: shape.body['email'],
+          username: shape.body['username'],
+          displayName: shape.body['displayName'],
+          birthDate: shape.body['birthDate'],
+          country: shape.body['country'],
+          password: shape.body['password'],
+        },
+        summarizeUserAgent(request.headers['user-agent']),
+      );
+    } catch (problem) {
+      if (problem instanceof ProviderOperationError)
+        reply.clearCookie(cookie, { path: '/api/auth' });
+      this.throwProviderFailure(problem, provider);
+    }
+    if (result.status !== 'authenticated') {
+      // Profile corrections can reuse the approved proof until its expiry.
+      // Invalid/used proofs and provider failures require a new browser challenge.
+      if (
+        !['validation_error', 'age_routed', 'email_taken', 'username_taken'].includes(result.status)
+      )
+        reply.clearCookie(cookie, { path: '/api/auth' });
+      this.registrationFailure(result, provider);
+    }
+    reply.clearCookie(cookie, { path: '/api/auth' });
+    return this.finishProviderSession(provider, result.token, request, reply, true);
+  }
+
+  @Post('max/pairing/start')
+  @HttpCode(200)
+  @AllowUnverifiedAccount()
+  async startMaxPairing(
+    @Body() body: unknown,
+    @Req() request: FastifyRequest,
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ) {
+    return this.startProviderPairing('max', body, request, reply);
+  }
+
+  @Post('telegram/pairing/start')
+  @HttpCode(200)
+  @AllowUnverifiedAccount()
+  async startTelegramPairing(
+    @Body() body: unknown,
+    @Req() request: FastifyRequest,
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ) {
+    return this.startProviderPairing('telegram', body, request, reply);
+  }
+
+  @Post('max/pairing/complete')
+  @HttpCode(200)
+  @AllowUnverifiedAccount()
+  async completeMaxPairing(
+    @Body() body: unknown,
+    @Req() request: FastifyRequest,
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ) {
+    return this.completeProviderPairing('max', body, request, reply);
+  }
+
+  @Post('telegram/pairing/complete')
+  @HttpCode(200)
+  @AllowUnverifiedAccount()
+  async completeTelegramPairing(
+    @Body() body: unknown,
+    @Req() request: FastifyRequest,
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ) {
+    return this.completeProviderPairing('telegram', body, request, reply);
+  }
+
+  @Post('max/pairing/register')
+  @HttpCode(201)
+  @AllowUnverifiedAccount()
+  async registerMaxPairing(
+    @Body() body: unknown,
+    @Req() request: FastifyRequest,
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ) {
+    return this.registerProviderPairing('max', body, request, reply);
+  }
+
+  @Post('telegram/pairing/register')
+  @HttpCode(201)
+  @AllowUnverifiedAccount()
+  async registerTelegramPairing(
+    @Body() body: unknown,
+    @Req() request: FastifyRequest,
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ) {
+    return this.registerProviderPairing('telegram', body, request, reply);
   }
 
   @Get('max/status')
+  @AllowUnverifiedAccount()
   async maxStatus(@Req() request: FastifyRequest) {
     const context = await this.requireContext(request);
     const status = await this.maxAuth.status(context.accountId);
     if (!status) throw new HttpException(error('unauthorized', 'account is not active'), 401);
-    return { ...status, available: (await this.maxAuth.config()).enabled };
+    return { ...status, available: (await this.maxAuth.availability()).available };
   }
 
   @Post('max/prompt/dismiss')
@@ -458,12 +771,15 @@ export class AuthController {
   @HttpCode(200)
   async unlinkMax(@Req() request: FastifyRequest) {
     const context = await this.requireContext(request);
-    return {
-      unlinked: await this.maxAuth.unlink(context.accountId, context.principalId),
-    };
+    try {
+      return { unlinked: await this.maxAuth.unlink(context.accountId, context.principalId) };
+    } catch (problem) {
+      this.throwProviderFailure(problem, 'max');
+    }
   }
 
   @Post('max/session')
+  @AllowUnverifiedAccount()
   @HttpCode(200)
   async maxSession(
     @Body() rawBody: unknown,
@@ -506,6 +822,8 @@ export class AuthController {
       if (result.status === 'account_suspended') {
         throw new HttpException(error('account_suspended', 'Учётная запись приостановлена.'), 403);
       }
+      if (result.status === 'identity_revoked')
+        this.throwProviderFailure(new ProviderOperationError('identity_revoked'), 'max');
       if (result.status !== 'authenticated') {
         throw new HttpException(
           error('max_auth_unavailable', 'Вход через MAX временно недоступен.'),
@@ -547,6 +865,7 @@ export class AuthController {
   }
 
   @Post('max/register')
+  @AllowUnverifiedAccount()
   @HttpCode(201)
   async maxRegister(
     @Body() rawBody: unknown,
@@ -566,6 +885,7 @@ export class AuthController {
         'displayName',
         'birthDate',
         'country',
+        'password',
       ]);
       if (!shape.ok || typeof shape.body['initData'] !== 'string') {
         throw new HttpException(
@@ -581,6 +901,7 @@ export class AuthController {
           displayName: shape.body['displayName'],
           birthDate: shape.body['birthDate'],
           country: shape.body['country'],
+          password: shape.body['password'],
         });
       } catch (problem) {
         this.throwMaxValidation(problem);
@@ -645,16 +966,26 @@ export class AuthController {
   }
 
   @Post('max/webhook')
+  @AllowUnverifiedAccount()
   @HttpCode(200)
-  async maxWebhook(@Body() body: unknown, @Req() request: FastifyRequest): Promise<{ ok: true }> {
-    const result = await this.maxAuth.handleWebhook(request.headers['x-max-bot-api-secret'], body);
+  async maxWebhook(
+    @Body() body: unknown,
+    @Req() request: FastifyRequest,
+  ): Promise<{ ok: true } | IngressProbeResponse> {
+    let result;
+    try {
+      result = await this.maxAuth.handleWebhook(request.headers['x-max-bot-api-secret'], body);
+    } catch (problem) {
+      this.throwProviderFailure(problem, 'max');
+    }
     if (result === 'unauthorized') {
       throw new HttpException(error('unauthorized', 'invalid MAX webhook secret'), 401);
     }
-    return { ok: true };
+    return typeof result === 'object' ? result : { ok: true };
   }
 
   @Post('max/link')
+  @AllowUnverifiedAccount()
   @HttpCode(200)
   async maxLink(
     @Body() rawBody: unknown,
@@ -699,13 +1030,186 @@ export class AuthController {
     if (result.status === 'account_suspended') {
       throw new HttpException(error('account_suspended', 'Учётная запись приостановлена.'), 403);
     }
+    if (result.status === 'identity_revoked')
+      this.throwProviderFailure(new ProviderOperationError('identity_revoked'), 'max');
     throw new HttpException(
       error('max_auth_unavailable', 'Привязка MAX временно недоступна.'),
       503,
     );
   }
 
+  @Get('telegram/config')
+  @AllowUnverifiedAccount()
+  async telegramConfig() {
+    return this.telegramAuth.config();
+  }
+
+  @Get('telegram/status')
+  @AllowUnverifiedAccount()
+  async telegramStatus(@Req() request: FastifyRequest) {
+    const context = await this.requireContext(request);
+    const status = await this.telegramAuth.status(context.accountId);
+    if (!status) throw new HttpException(error('unauthorized', 'account is not active'), 401);
+    return { ...status, available: (await this.telegramAuth.availability()).available };
+  }
+
+  @Post('telegram/unlink')
+  @HttpCode(200)
+  async unlinkTelegram(@Req() request: FastifyRequest) {
+    const context = await this.requireContext(request);
+    try {
+      return { unlinked: await this.telegramAuth.unlink(context.accountId, context.principalId) };
+    } catch (problem) {
+      this.throwProviderFailure(problem, 'telegram');
+    }
+  }
+
+  @Post('telegram/webhook')
+  @HttpCode(200)
+  @AllowUnverifiedAccount()
+  async telegramWebhook(
+    @Body() body: unknown,
+    @Req() request: FastifyRequest,
+  ): Promise<{ ok: true } | IngressProbeResponse> {
+    let result;
+    try {
+      result = await this.telegramAuth.handleWebhook(
+        request.headers['x-telegram-bot-api-secret-token'],
+        body,
+      );
+    } catch (problem) {
+      this.throwProviderFailure(problem, 'telegram');
+    }
+    if (result === 'unauthorized')
+      throw new HttpException(error('unauthorized', 'invalid Telegram webhook secret'), 401);
+    return typeof result === 'object' ? result : { ok: true };
+  }
+
+  @Post('telegram/session')
+  @HttpCode(200)
+  @AllowUnverifiedAccount()
+  async telegramSession(
+    @Body() body: unknown,
+    @Req() request: FastifyRequest,
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ): Promise<SessionPayload> {
+    this.enforce(this.maxAuthByAddress, clientAddress(request));
+    const shape = checkBodyShape(body, ['initData']);
+    if (!shape.ok || typeof shape.body['initData'] !== 'string')
+      throw new HttpException(error('validation_error', 'initData is required'), 400);
+    let result;
+    try {
+      result = await this.telegramAuth.signIn(
+        shape.body['initData'],
+        summarizeUserAgent(request.headers['user-agent']),
+      );
+    } catch (problem) {
+      this.throwProviderFailure(problem, 'telegram');
+    }
+    if (result.status === 'link_required')
+      throw new HttpException(
+        error(
+          'telegram_link_required',
+          'Войдите в существующий аккаунт или завершите регистрацию профиля.',
+        ),
+        409,
+      );
+    if (result.status === 'account_suspended')
+      throw new HttpException(error('account_suspended', 'Доступ к аккаунту приостановлен.'), 403);
+    if (result.status === 'identity_revoked')
+      this.throwProviderFailure(new ProviderOperationError('identity_revoked'), 'telegram');
+    if (result.status === 'assertion_replayed')
+      throw new HttpException(
+        error('telegram_assertion_replayed', 'Запрос уже использован. Откройте приложение заново.'),
+        409,
+      );
+    if (result.status !== 'authenticated')
+      throw new HttpException(
+        error('telegram_auth_unavailable', 'Telegram сейчас недоступен. Используйте пароль.'),
+        503,
+      );
+    return this.finishProviderSession('telegram', result.token, request, reply);
+  }
+
+  @Post('telegram/register')
+  @HttpCode(201)
+  @AllowUnverifiedAccount()
+  async telegramRegister(
+    @Body() body: unknown,
+    @Req() request: FastifyRequest,
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ): Promise<SessionPayload> {
+    this.enforce(this.registerByAddress, clientAddress(request));
+    this.enforce(this.maxAuthByAddress, clientAddress(request));
+    const shape = checkBodyShape(body, [
+      'initData',
+      'email',
+      'username',
+      'displayName',
+      'birthDate',
+      'country',
+      'password',
+    ]);
+    if (!shape.ok || typeof shape.body['initData'] !== 'string')
+      throw new HttpException(error('validation_error', 'initData is required'), 400);
+    let result;
+    try {
+      result = await this.telegramAuth.register(shape.body['initData'], {
+        email: shape.body['email'],
+        username: shape.body['username'],
+        displayName: shape.body['displayName'],
+        birthDate: shape.body['birthDate'],
+        country: shape.body['country'],
+        password: shape.body['password'],
+      });
+    } catch (problem) {
+      this.throwProviderFailure(problem, 'telegram');
+    }
+    if (result.status !== 'authenticated') this.registrationFailure(result, 'telegram');
+    return this.finishProviderSession('telegram', result.token, request, reply, true);
+  }
+
+  @Post('telegram/link')
+  @HttpCode(200)
+  @AllowUnverifiedAccount()
+  async telegramLink(
+    @Body() body: unknown,
+    @Req() request: FastifyRequest,
+  ): Promise<{ linked: true }> {
+    this.enforce(this.maxAuthByAddress, clientAddress(request));
+    const context = await this.requireContext(request);
+    const shape = checkBodyShape(body, ['initData']);
+    if (!shape.ok || typeof shape.body['initData'] !== 'string')
+      throw new HttpException(error('validation_error', 'initData is required'), 400);
+    let result;
+    try {
+      result = await this.telegramAuth.link(context.accountId, shape.body['initData']);
+    } catch (problem) {
+      this.throwProviderFailure(problem, 'telegram');
+    }
+    if (result.status === 'linked' || result.status === 'already_linked') return { linked: true };
+    if (result.status === 'account_suspended')
+      throw new HttpException(error('account_suspended', 'Доступ к аккаунту приостановлен.'), 403);
+    if (result.status === 'identity_revoked')
+      this.throwProviderFailure(new ProviderOperationError('identity_revoked'), 'telegram');
+    if (result.status === 'unavailable')
+      throw new HttpException(
+        error('telegram_auth_unavailable', 'Привязка Telegram временно недоступна.'),
+        503,
+      );
+    const messages: Record<string, string> = {
+      identity_taken: 'Этот Telegram уже привязан к другому аккаунту.',
+      account_already_linked: 'К аккаунту уже подключён другой Telegram.',
+      assertion_replayed: 'Запрос уже использован. Откройте приложение заново.',
+    };
+    throw new HttpException(
+      error(`telegram_${result.status}`, messages[result.status] ?? 'Привязка не выполнена.'),
+      409,
+    );
+  }
+
   @Get('bot-challenge')
+  @AllowUnverifiedAccount()
   botChallenge(@Query('action') action: string | undefined, @Req() request: FastifyRequest) {
     if (action !== 'login' && action !== 'register' && action !== 'class_join') {
       throw new HttpException(error('validation_error', 'unknown bot-check action'), 400);
@@ -719,11 +1223,13 @@ export class AuthController {
   }
 
   @Get('local-preview/config')
+  @AllowUnverifiedAccount()
   localPreviewConfig(@Req() request: FastifyRequest): { enabled: boolean } {
     return { enabled: localPreviewCredentials(request) !== null };
   }
 
   @Post('local-preview/session')
+  @AllowUnverifiedAccount()
   @HttpCode(200)
   async localPreviewSession(
     @Req() request: FastifyRequest,
@@ -770,6 +1276,7 @@ export class AuthController {
   }
 
   @Post('register')
+  @AllowUnverifiedAccount()
   @HttpCode(201)
   async register(
     @Body() rawBody: unknown,
@@ -855,6 +1362,7 @@ export class AuthController {
   }
 
   @Get('username-available')
+  @AllowUnverifiedAccount()
   async usernameAvailable(
     @Query('username') username: string | undefined,
   ): Promise<{ available: boolean }> {
@@ -865,6 +1373,7 @@ export class AuthController {
   }
 
   @Post('login')
+  @AllowUnverifiedAccount()
   @HttpCode(200)
   async login(
     @Body() rawBody: unknown,
@@ -981,6 +1490,7 @@ export class AuthController {
   }
 
   @Post('logout')
+  @AllowUnverifiedAccount()
   @HttpCode(200)
   async logout(
     @Req() request: FastifyRequest,
@@ -997,6 +1507,7 @@ export class AuthController {
   }
 
   @Post('refresh')
+  @AllowUnverifiedAccount()
   @HttpCode(200)
   async refresh(
     @Req() request: FastifyRequest,
@@ -1063,6 +1574,7 @@ export class AuthController {
   }
 
   @Get('me')
+  @AllowUnverifiedAccount()
   async me(@Req() request: FastifyRequest): Promise<SessionPayload | { authenticated: false }> {
     if (request.cookies[SESSION_COOKIE] === undefined) {
       return { authenticated: false };
