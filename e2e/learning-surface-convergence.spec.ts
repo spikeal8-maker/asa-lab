@@ -285,6 +285,10 @@ test('legacy, revision and selected-result semantics stay equal across learner a
   await student.reload();
   await openLearnerLearning(student);
   await expect(assignment).toContainText('В работе');
+  await student
+    .getByRole('navigation', { name: 'Разделы моего обучения' })
+    .getByRole('link', { name: 'Результаты', exact: true })
+    .click();
   const learnerResult = student
     .locator('.seat-results li')
     .filter({ hasText: 'Canonical project' });
