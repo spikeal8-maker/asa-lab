@@ -7878,6 +7878,69 @@ parallel_lanes:
       reason: 'Preserve full owner-approved R2 composition b813 and all originals. NEW independent source
         REQUEST_CHANGES: only built conditional regression witness missing, no new product defect. Select
         one test-only R3 repair.'
+  - id: electronics-classroom
+    parent_lane: electronics
+    worktree_id: electronics-classroom-d13
+    owned_paths:
+    - contexts/electronics/domain/arduino-circuit-scheduler.ts
+    - contexts/electronics/testing/engine-timed-api.spec.ts
+    - e2e/electronics-classroom-timing.spec.ts
+    - docs/product/electronics/tasks/TASK-ELECTRONICS-CLASSROOM-D13-001.md
+    task:
+      id: TASK-ELECTRONICS-CLASSROOM-D13-001
+      issue: 638
+      parent_issue: 546
+      branch: main
+      base_branch: main
+      pr: null
+      pr_draft: false
+      status: in_progress
+      checkpoint: d13_classroom_release_selected
+      owner_acceptance: pending
+      programme_issue: 452
+      acceptance_revision: classroom-d13-v1
+      selected_at: '2026-10-19T11:10:21Z'
+      owner_authorization: Explicit 2026-10-19 instruction permits a first visible D13 slice with common measured slowdown, normal integration after browser/review/CI, and continued later slices; no deployment or live data action.
+      preserved_r26_sha: cdad26c361cb4cf8ed2d095fae3c087b5d2abb2d
+      preserved_r27_sha: 1669d7b2f1f630b3c4da045147500a343e139ca9
+      full_realtime_task: TASK-ELECTRONICS-SOLVER-PREPARATION-001
+      context_hints:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-CLASSROOM-D13-001.md
+      - docs/product/electronics/components/engine-worker-clock.yaml
+      next_action: Compose preserved coherent Electronics dependencies on current main; repair R27, verify real D13 delay100/150/200/300, asymmetric phases, L, edit/error/Reset/Save/reopen; independent final review and required exact CI before integration. Continue next visible slice after acceptance.
+    execution_lease:
+      executor_id: electronics-classroom-d13
+      holder: unassigned
+      acquired_at: null
+      expires_at: null
+      reviewer_role_requires_lease: false
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+        - pnpm gate:electronics-m1
+      benchmark:
+        workflow: Electronics R4-M1 Focused
+        commands:
+        - pnpm benchmark:electronics:ci
+      browser:
+        workflow: Electronics R4-M1 Focused
+        commands:
+        - pnpm gate:electronics-m1:browser
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+        - pnpm gate:repository
+    revisions:
+      kind: observed_snapshot
+      observed_at: '2026-10-19T11:10:21Z'
+      main:
+        branch: main
+        sha: 095080febc0450fd01efa21950c8f5ba024aa166
+      convergence_baseline_sha: 095080febc0450fd01efa21950c8f5ba024aa166
+      head_sha: null
+      observation_note: Selection only; no classroom product or browser acceptance yet. R26/R27 source reviews and historical failures preserved. Fresh fetch main and actual refs plus exact CI are required before edits and integration.
+
 integration:
   owner_lane: visual-programming
   shared_paths:
@@ -8006,6 +8069,13 @@ blocking:
       Required exact-head gates and independent acceptance must be satisfied before integration or closure.
     evidence: docs/product/electronics/tasks/TASK-ELECTRONICS-CROSS-TAB-DRAFT-SAFETY-001.md
   - id: ELECTRONICS-546-R9-ACCEPTANCE
+    owner_classroom_boundary: >-
+      Explicit owner2026-10-19 permits separately verified classroom-d13-v1 under
+      TASK-ELECTRONICS-CLASSROOM-D13-001 and its own acceptance blocker. Preserve
+      every historical GPIO/phase/physical failure and this original task's full
+      acceptance/Issue-closure restriction. Only measured absolute wall/model
+      throughput may differ under the new reviewed classroom contract; no old
+      assertion is silently weakened and no source-only result is accepted.
     kind: acceptance_blocker
     lane: electronics-arduino
     task_id: TASK-ELECTRONICS-SOLVER-PREPARATION-001
@@ -8056,4 +8126,22 @@ blocking:
     unblock_requires: Actual required exact-SHA gates plus complete native/visual and whole-document
       Save/CAS/reopen evidence and NEW independent runtime/visual approval; text changes alone cannot close this blocker.
     evidence: docs/product/electronics/evidence/mobile-add-connect-6184f331-review.md
+  - id: ELECTRONICS-CLASSROOM-D13-ACCEPTANCE
+    kind: acceptance_blocker
+    lane: electronics-classroom
+    task_id: TASK-ELECTRONICS-CLASSROOM-D13-001
+    blocks:
+    - technical_acceptance
+    - integration
+    - owner_acceptance
+    - release_claim
+    allows:
+    - bounded_repair
+    - documentation_update
+    - focused_verification
+    - independent_source_review
+    - independent_product_review
+    reason: Owner explicitly selected intermediate classroom-d13-v1 acceptance with measured common slowdown. Require coherent preserved-source composition, genuine painted D13 delay ratios, physical negative cases, loaded-code/error/Reset/Save/reopen, exact required gates and NEW independent acceptance. No old source approval or blocker text change constitutes acceptance; full-realtime Issue546 remains blocked separately.
+    evidence: docs/product/electronics/tasks/TASK-ELECTRONICS-CLASSROOM-D13-001.md
+
 next_task: null
