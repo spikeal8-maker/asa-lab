@@ -48,8 +48,12 @@ canonical learner identity only immediately after a genuinely new Seat INSERT,
 in the same transaction and exact active classroom/tenant, with no existing Seat
 link. Preserve the case-sensitive StudentCode validation, teacher authorization,
 signature, audit, return shape and existing function privileges. Use the existing
-private factory without new runtime grants. Both canonical batch paths use this
-constructor. Existing Seats, raw historical inserts, batch replay and duplicates,
+private factories without new runtime grants. In this same genuinely new INSERT
+branch, initialize the canonical Seat principal even when the existing active
+audience trigger has already created its learner link. This preserves immediate
+teacher metrics and participant profiles before learner login. Do not modify
+participant preparation or either private factory. Both canonical batch paths
+use this constructor. Existing Seats, raw historical inserts, batch replay and duplicates,
 credential reissue, login, reads and admission never initialize or repair links.
 There is no trigger, backfill or change to missing, deleted, unlinked and revoked
 identity denial. Admission migrations and guards remain intact. The bounded
@@ -60,6 +64,18 @@ regression paths are `tests/games-admission/storage-contract.ts`,
 without teacher preparation, case-sensitive batch creation, no resurrection on
 replay/duplicate/reissue/read/update/create, no unauthorized project writes and
 private factory denial on real PostgreSQL.
+
+CI integration additionally permits only the two focused Games build scripts in
+`package.json` to build their actual identity dependency, and the existing
+`apps/web/src/analytics-runtime.spec.ts` host fixture to serve the new admission
+and Project authorization reads. Preserve the real keyed editor, strict
+telemetry lifecycle assertions, all admission denials and the full focused gates. The existing
+`tests/migration/course-structure-forward-upgrade.pg.spec.ts` may add precisely
+0222, 0223 and 0224 to its expected complete migration ledger while preserving
+all forward-upgrade data and schema assertions. The existing
+`tests/portal/boot-shell.spec.ts` may distinguish the preserved immediate
+non-game editor path from the required game admission loading shell, including
+real server-rendered first-frame assertions for both games.
 
 For any shared file, inspect current main and actual pending changes before
 writing; an unresolved overlap still blocks that file. Add precise missing
