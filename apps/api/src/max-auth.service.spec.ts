@@ -1,6 +1,11 @@
 import { createHmac } from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
 import type pg from 'pg';
+import {
+  BotProviderIngress,
+  IngressProbeRegistry,
+  providerSecretHeader,
+} from './bot-provider-ingress.js';
 import { SESSION_TTL_HOURS, verifyPasswordAsync } from '@asa-lab/identity';
 import { MaxAuthService, MaxInitDataError, validateMaxInitData } from './max-auth.service.js';
 import { ProviderOperationError } from './auth-provider-availability.js';
@@ -11,6 +16,28 @@ const KEY = Buffer.alloc(32, 7);
 const NOW_SECONDS = 1_800_000_000;
 const PAIRING = 'p'.repeat(43);
 const NONCE = 'n'.repeat(43);
+
+function testIngress() {
+  const ingress = new BotProviderIngress({
+    registry: new IngressProbeRegistry(),
+    resolve: async () => [{ address: '8.8.8.8', family: 4 }],
+    request: async (input) => {
+      const challenge = JSON.parse(input.body);
+      const result = ingress.answer(
+        {
+          provider: challenge.provider,
+          configurationVersion: challenge.configurationVersion,
+          url: input.url.href,
+          key: KEY,
+        },
+        input.headers[providerSecretHeader(challenge.provider)],
+        challenge,
+      );
+      return { status: result ? 200 : 401, body: JSON.stringify(result) };
+    },
+  });
+  return ingress;
+}
 
 function signedInitData(
   options: {
@@ -77,6 +104,8 @@ function readyService(
     encryptionKey: KEY.toString('base64url'),
     now: () => NOW_SECONDS * 1000,
     fetchImpl,
+    ingress: testIngress(),
+    publicWebOrigins: ['https://asa.example'],
   });
   return { service, query, fetchImpl };
 }
@@ -199,6 +228,8 @@ describe('MAX WebApp authentication boundary', () => {
       botToken: BOT_TOKEN,
       enabled: false,
       fetchImpl,
+      ingress: testIngress(),
+      publicWebOrigins: ['https://asa.example'],
     });
     await expect(disabled.signIn(signedInitData())).rejects.toThrowError('max_auth_disabled');
     await expect(disabled.config()).resolves.toEqual({ enabled: false, launchUrl: null });
@@ -206,6 +237,8 @@ describe('MAX WebApp authentication boundary', () => {
       miniAppUrl: 'javascript:alert(1)',
       enabled: true,
       fetchImpl,
+      ingress: testIngress(),
+      publicWebOrigins: ['https://asa.example'],
     });
     await expect(invalid.adminConfig()).resolves.toMatchObject({
       miniAppUrl: null,
@@ -366,5 +399,81 @@ describe('MAX browser capability and account lifecycle', () => {
         /auth_provider_(link|register|session_create)/.test(String(call[0])),
       ),
     ).toBe(false);
+  });
+  it('keeps the existing signed Mini App session/link entry usable when native delivery is absent', async () => {
+    const { service, query, fetchImpl } = readyService(
+      vi.fn(async (sql: string) => ({
+        rows: [
+          {
+            result: sql.includes('auth_provider_login') ? 'authenticated' : 'linked',
+            account_id: 'legacy-account',
+          },
+        ],
+      })),
+    );
+    fetchImpl.mockImplementation(
+      async (url) =>
+        new Response(
+          JSON.stringify(
+            String(url).endsWith('/me')
+              ? { user_id: 1001, username: BOT_NAME, is_bot: true }
+              : { subscriptions: [] },
+          ),
+          { status: 200 },
+        ),
+    );
+    await expect(service.availability()).resolves.toMatchObject({
+      available: false,
+      enforcementEligible: false,
+    });
+    await expect(service.config()).resolves.toMatchObject({ enabled: true });
+    await expect(
+      service.signIn(signedInitData({ queryId: 'legacy-session' })),
+    ).resolves.toMatchObject({ status: 'authenticated', accountId: 'legacy-account' });
+    await expect(
+      service.link('legacy-account', signedInitData({ queryId: 'legacy-link' })),
+    ).resolves.toMatchObject({ status: 'linked' });
+    expect(
+      query.mock.calls.some(([sql]) => /pairing_(approve|consume|register)/.test(String(sql))),
+    ).toBe(false);
+    expect(
+      query.mock.calls
+        .filter(([sql]) => /auth_provider_(login|link)/.test(String(sql)))
+        .every((call) => call[1]?.at(-1) === 1),
+    ).toBe(true);
+  });
+
+  it('acknowledges MAX success:false callback responses without corrupting global health', async () => {
+    const { service, query, fetchImpl } = readyService(
+      vi.fn(async (sql: string) => ({
+        rows: [sql.includes('event_claim') ? { claimed: true } : { result: 'approved' }],
+      })),
+    );
+    const previous = fetchImpl.getMockImplementation()!;
+    fetchImpl.mockImplementation(async (url, options) =>
+      String(url).includes('/answers?')
+        ? new Response(JSON.stringify({ success: false, message: 'Synthetic stale callback' }), {
+            status: 200,
+          })
+        : previous(url, options),
+    );
+    const secret = createHmac('sha256', KEY)
+      .update('max-webhook:asa_test_bot:1')
+      .digest('base64url');
+    await expect(
+      service.handleWebhook(secret, {
+        update_type: 'message_callback',
+        callback: {
+          callback_id: 'synthetic-expired',
+          user: { user_id: 123 },
+          payload: `approve:pair_${PAIRING}`,
+        },
+      }),
+    ).resolves.toBe('accepted');
+    await expect(service.availability()).resolves.toMatchObject({
+      available: true,
+      enforcementEligible: false,
+    });
+    expect(query.mock.calls.some(([sql]) => String(sql).includes('event_release'))).toBe(false);
   });
 });

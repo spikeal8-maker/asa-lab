@@ -1,5 +1,6 @@
 import { fetchWithSessionRefresh } from './session-fetch';
 import { notifyAccountVerificationRequired } from './auth-verification';
+import { authRequest, authRequestFailure } from './auth-request';
 
 export interface ApiError {
   code: string;
@@ -10,35 +11,37 @@ export interface ApiError {
 export type ApiResult<T> =
   { ok: true; status: number; data: T } | { ok: false; status: number; error: ApiError };
 
-export async function call<T>(path: string, init?: RequestInit): Promise<ApiResult<T>> {
-  let response: Response;
-  const headers: Record<string, string> = {
-    ...(init?.body === undefined ? {} : { 'content-type': 'application/json' }),
-    ...((init?.headers as Record<string, string> | undefined) ?? {}),
-  };
+export async function call<T>(path: string, init: RequestInit = {}): Promise<ApiResult<T>> {
   try {
-    response = await fetchWithSessionRefresh(path, {
-      ...init,
-      headers,
+    return await authRequest(path, init, async (request): Promise<ApiResult<T>> => {
+      const response = await fetchWithSessionRefresh(path, {
+        ...request,
+        headers: {
+          ...(request.body === undefined ? {} : { 'content-type': 'application/json' }),
+          ...((request.headers as Record<string, string> | undefined) ?? {}),
+        },
+      });
+      let body: unknown = null;
+      try {
+        body = await response.json();
+      } catch {
+        // Malformed JSON retains the existing stable error handling.
+      }
+      request.signal?.throwIfAborted();
+      if (response.ok) return { ok: true, status: response.status, data: body as T };
+      const error =
+        (body as { error?: ApiError } | null)?.error ??
+        ({ code: 'server_error', message: 'ошибка сервера' } satisfies ApiError);
+      if (response.status === 403 && error.code === 'account_verification_required') {
+        notifyAccountVerificationRequired();
+      }
+      return { ok: false, status: response.status, error };
     });
-  } catch {
-    return { ok: false, status: 0, error: { code: 'network', message: 'сервер недоступен' } };
+  } catch (error) {
+    return {
+      ok: false,
+      status: 0,
+      error: authRequestFailure(error) ?? { code: 'network', message: 'сервер недоступен' },
+    };
   }
-
-  let body: unknown;
-  try {
-    body = await response.json();
-  } catch {
-    body = null;
-  }
-  if (response.ok) {
-    return { ok: true, status: response.status, data: body as T };
-  }
-  const error =
-    (body as { error?: ApiError } | null)?.error ??
-    ({ code: 'server_error', message: 'ошибка сервера' } satisfies ApiError);
-  if (response.status === 403 && error.code === 'account_verification_required') {
-    notifyAccountVerificationRequired();
-  }
-  return { ok: false, status: response.status, error };
 }

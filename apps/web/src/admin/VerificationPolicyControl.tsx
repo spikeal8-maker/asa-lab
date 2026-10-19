@@ -13,31 +13,56 @@ export function VerificationPolicyControl({
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<{ kind: 'error' | 'success'; text: string } | null>(null);
+  const pending = useRef<AbortController | null>(null);
+  const generation = useRef(0);
   const denied = useRef(onAccessDenied);
   denied.current = onAccessDenied;
   useEffect(() => {
-    let active = true;
+    if (pending.current) return;
+    const controller = new AbortController();
+    pending.current = controller;
+    const current = ++generation.current;
     setLoading(true);
-    void adminApi.verificationPolicy().then((result) => {
-      if (!active) return;
+    void adminApi.verificationPolicy(controller.signal).then((result) => {
+      if (pending.current === controller) pending.current = null;
+      if (current !== generation.current || controller.signal.aborted) return;
       setLoading(false);
       if (result.ok) {
         setPolicy(result.data);
         setNotice(null);
-      } else if (result.status === 401 || result.status === 403) denied.current();
-      else setNotice({ kind: 'error', text: result.error.message });
+      } else {
+        setPolicy(null);
+        if (result.status === 401 || result.status === 403) denied.current();
+        else setNotice({ kind: 'error', text: result.error.message });
+      }
     });
     return () => {
-      active = false;
+      controller.abort();
+      if (pending.current === controller) pending.current = null;
     };
   }, [refreshKey]);
 
+  useEffect(
+    () => () => {
+      generation.current += 1;
+      pending.current?.abort();
+    },
+    [],
+  );
+
   async function change(enabled: boolean): Promise<void> {
+    if (pending.current) return;
+    const controller = new AbortController();
+    pending.current = controller;
+    const current = ++generation.current;
     setSaving(true);
     setNotice(null);
-    const result = await adminApi.updateVerificationPolicy(enabled);
+    const result = await adminApi.updateVerificationPolicy(enabled, controller.signal);
+    if (pending.current === controller) pending.current = null;
+    if (current !== generation.current || controller.signal.aborted) return;
     setSaving(false);
     if (!result.ok) {
+      if (result.error.code === 'auth_timeout') setPolicy(null);
       if (result.status === 401 || result.status === 403) denied.current();
       else setNotice({ kind: 'error', text: result.error.message });
       return;
@@ -66,7 +91,8 @@ export function VerificationPolicyControl({
           подтверждения.
         </p>
         <p className="auth-policy-fallback">
-          Если все каналы недоступны, вход по паролю остаётся доступным.
+          Если все каналы недоступны или ещё не прошли настоящее подтверждение, вход по паролю
+          остаётся доступным.
         </p>
       </div>
       <label className="auth-policy-switch">
@@ -84,9 +110,11 @@ export function VerificationPolicyControl({
             ? 'Сохраняем…'
             : loading && !policy
               ? 'Проверяем…'
-              : policy?.enabled
-                ? 'Включено'
-                : 'Выключено'}
+              : !policy
+                ? 'Статус недоступен'
+                : policy.enabled
+                  ? 'Включено'
+                  : 'Выключено'}
         </strong>
       </label>
       {policy?.activatedAt ? (

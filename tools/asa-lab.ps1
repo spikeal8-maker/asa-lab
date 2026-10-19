@@ -86,12 +86,42 @@ function Assert-StartupIdentity {
   Assert-AsaInstallationIdentity -Root $RepoRoot -DefaultProject $defaultProject -ComposeArguments $ComposeFiles
 }
 
+function Assert-SettingsEncryptionKey {
+  param([string]$Content)
+  $source = [string]$Content
+  $assignments = [regex]::Matches(
+    $source.TrimStart([char]0xFEFF),
+    '(?m)^[ \t]*(?:export[ \t]+)?ASA_SETTINGS_ENCRYPTION_KEY(?=[ \t=\r\n]|$)[^\r\n]*'
+  )
+  $problem = if ($assignments.Count -eq 0) { 'missing' } elseif ($assignments.Count -gt 1) { 'duplicated' } else { 'invalid' }
+  $valid = $false
+  if ($assignments.Count -eq 1 -and $assignments[0].Value -match '^[ \t]*(?:export[ \t]+)?ASA_SETTINGS_ENCRYPTION_KEY[ \t]*=[ \t]*(.*?)[ \t]*$') {
+    $value = $Matches[1]
+    if ($value.StartsWith('"') -or $value.StartsWith("'")) {
+      $quote = $value.Substring(0, 1)
+      $closing = $value.IndexOf($quote, 1, [StringComparison]::Ordinal)
+      if ($closing -ge 1 -and $value.Substring($closing + 1) -match '^[ \t]*(?:#.*)?$') {
+        $value = $value.Substring(1, $closing - 1)
+      } else {
+        $value = ''
+      }
+    } else {
+      $value = [regex]::Replace($value, '[ \t]+#.*$', '').TrimEnd([char[]]@(32, 9))
+    }
+    $valid = $value -match '^(?:[a-fA-F0-9]{64}|[A-Za-z0-9_-]{43})$'
+  }
+  if (-not $valid) {
+    throw "Existing .env has a $problem ASA_SETTINGS_ENCRYPTION_KEY; no file changes were made. Restore the original key from the protected installation backup. Do not generate a replacement for stored integration credentials."
+  }
+}
+
 function New-PrivateEnvironment {
   $productionLike = $Profile -in @('staging', 'production')
   if (Test-Path -LiteralPath $EnvPath) {
     $existing = Get-Content -Raw -LiteralPath $EnvPath
+    Assert-SettingsEncryptionKey -Content $existing
     if ($existing -match 'replace-with|CHANGE_ME|change-me') {
-      throw '.env still contains placeholder credentials; replace them or remove .env and rerun.'
+      throw '.env still contains placeholder credentials; correct them in the saved configuration and preserve the existing ASA_SETTINGS_ENCRYPTION_KEY. Do not delete .env or generate a replacement key.'
     }
     $requiredMigrationSettings = @(
       'MIGRATION_DATABASE_URL',
@@ -103,10 +133,6 @@ function New-PrivateEnvironment {
     )
     if ($missingMigrationSettings.Count -gt 0) {
       throw "Legacy .env is missing the dedicated migration target guard ($($missingMigrationSettings -join ', ')). Add all three settings and use MIGRATION_CONFIRM=APPLY:<exact-database-name>; generic DATABASE_URL is not accepted."
-    }
-    if ($existing -notmatch '(?m)^ASA_SETTINGS_ENCRYPTION_KEY=(?:[a-fA-F0-9]{64}|[A-Za-z0-9_-]{43})\s*$') {
-      Add-Content -LiteralPath $EnvPath -Value "`nASA_SETTINGS_ENCRYPTION_KEY=$(New-RandomHex -ByteCount 32)"
-      Write-Host 'Added a private runtime settings encryption key to .env.'
     }
     if ($existing -notmatch '(?m)^ASA_BLOCKS_RUNTIME_SIGNING_KEY=[a-fA-F0-9]{64}\s*$') {
       Add-Content -LiteralPath $EnvPath -Value "`nASA_BLOCKS_RUNTIME_SIGNING_KEY=$(New-RandomHex -ByteCount 32)"

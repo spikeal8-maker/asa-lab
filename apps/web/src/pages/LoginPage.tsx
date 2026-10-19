@@ -33,6 +33,7 @@ export function LoginPage({
   const [localPreviewEnabled, setLocalPreviewEnabled] = useState(false);
   const messageId = useId();
   const identifierRef = useRef<HTMLInputElement>(null);
+  const pending = useRef<AbortController | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -41,11 +42,13 @@ export function LoginPage({
     });
     return () => {
       active = false;
+      pending.current?.abort();
     };
   }, []);
 
   async function submit(event: FormEvent): Promise<void> {
     event.preventDefault();
+    if (pending.current) return;
     setMessage(null);
     if (!identifier.trim() || !password) {
       setMessage('Введите email или имя пользователя и пароль.');
@@ -57,7 +60,11 @@ export function LoginPage({
       return;
     }
     setBusy(true);
-    const result = await api.login(identifier.trim(), password, botProof);
+    const controller = new AbortController();
+    pending.current = controller;
+    const result = await api.login(identifier.trim(), password, botProof, controller.signal);
+    if (pending.current === controller) pending.current = null;
+    if (controller.signal.aborted) return;
     setBusy(false);
     if (result.ok) {
       onSignedIn(result.data);
@@ -68,7 +75,11 @@ export function LoginPage({
     if (result.status === 400 || result.status === 401) {
       setMessage('Неверные данные для входа.');
     } else if (result.status === 0) {
-      setMessage('Сервер недоступен. Попробуйте ещё раз.');
+      setMessage(
+        result.error.code === 'auth_timeout'
+          ? result.error.message
+          : 'Сервер недоступен. Попробуйте ещё раз.',
+      );
     } else {
       setMessage('Ошибка сервера. Попробуйте ещё раз.');
     }
@@ -76,9 +87,14 @@ export function LoginPage({
   }
 
   async function enterLocalPreview(): Promise<void> {
+    if (pending.current) return;
     setBusy(true);
     setMessage(null);
-    const result = await api.localPreviewSession();
+    const controller = new AbortController();
+    pending.current = controller;
+    const result = await api.localPreviewSession(controller.signal);
+    if (pending.current === controller) pending.current = null;
+    if (controller.signal.aborted) return;
     setBusy(false);
     if (result.ok) {
       onSignedIn(result.data);
@@ -157,7 +173,9 @@ export function LoginPage({
             providers={providers}
             purpose="login"
             disabled={busy}
-            onAuthenticated={onSignedIn}
+            onAuthenticated={(session) => {
+              if (!pending.current) onSignedIn(session);
+            }}
             onUnavailable={() => void refreshProviders()}
             onUsePassword={() => {
               setSocialRegistration(false);
@@ -171,7 +189,8 @@ export function LoginPage({
             <strong>Как восстановить доступ</strong>
             <p>
               Если MAX или Telegram уже связан с аккаунтом и его кнопка доступна выше, подтвердите
-              вход через него. После входа можно настроить пароль в разделе «Учётная запись». Если
+              вход через него. Если пароль ещё не задан, его можно создать в разделе «Учётная
+              запись». Для изменения уже заданного пароля потребуется текущий пароль. Если
               доступного способа нет, обратитесь к администратору портала.
             </p>
           </section>

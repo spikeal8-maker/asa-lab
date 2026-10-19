@@ -27,32 +27,46 @@ export function AccountConfirmationPage({
     setState(verification);
   }, [verification]);
 
+  const pending = useRef<AbortController | null>(null);
+  const [signingOut, setSigningOut] = useState(false);
+
   const check = useCallback(async (): Promise<void> => {
+    if (pending.current) return;
+    const controller = new AbortController();
+    pending.current = controller;
     const current = ++request.current;
     setChecking(true);
-    const result = await api.accountVerification();
-    if (current !== request.current) return;
-    setChecking(false);
-    if (!result.ok) {
-      // A client/network error cannot waive a server requirement.
-      setState((previous) => ({ ...previous, providers: [] }));
-      setMessage('Не удалось проверить способы подтверждения. Проверьте соединение и повторите.');
-      if (result.status === 401) callbacks.current.onSignedOut();
-      return;
+    try {
+      const result = await api.accountVerification(controller.signal);
+      if (current !== request.current || controller.signal.aborted) return;
+      if (!result.ok) {
+        // A client/network error cannot waive a server requirement.
+        setState((previous) => ({ ...previous, providers: [] }));
+        setMessage('Не удалось проверить способы подтверждения. Проверьте соединение и повторите.');
+        if (result.status === 401) callbacks.current.onSignedOut();
+        return;
+      }
+      setState(result.data);
+      setMessage(null);
+      if (result.data.required) return;
+      const identity = await api.me(controller.signal);
+      if (current !== request.current || controller.signal.aborted) return;
+      if (identity.ok && identity.data.authenticated) {
+        if (identity.data.account.id !== session.account.id) {
+          setMessage('Аккаунт в браузере изменился. Выйдите и войдите в нужный аккаунт.');
+          return;
+        }
+        callbacks.current.onSessionChanged(identity.data);
+      } else if (identity.ok || identity.status === 401) {
+        callbacks.current.onSignedOut();
+      } else {
+        setMessage('Не удалось продолжить вход. Проверьте соединение и повторите.');
+      }
+    } finally {
+      if (pending.current === controller) pending.current = null;
+      if (current === request.current) setChecking(false);
     }
-    setState(result.data);
-    setMessage(null);
-    if (result.data.required) return;
-    const identity = await api.me();
-    if (current !== request.current) return;
-    if (identity.ok && identity.data.authenticated) {
-      callbacks.current.onSessionChanged(identity.data);
-    } else if (identity.ok || identity.status === 401) {
-      callbacks.current.onSignedOut();
-    } else {
-      setMessage('Подтверждение проверено. Не удалось продолжить вход — повторите попытку.');
-    }
-  }, []);
+  }, [session.account.id]);
 
   useEffect(() => {
     void check();
@@ -64,6 +78,8 @@ export function AccountConfirmationPage({
     document.addEventListener('visibilitychange', checkVisible);
     return () => {
       request.current += 1;
+      pending.current?.abort();
+      pending.current = null;
       window.clearInterval(timer);
       window.removeEventListener('focus', checkVisible);
       document.removeEventListener('visibilitychange', checkVisible);
@@ -71,11 +87,22 @@ export function AccountConfirmationPage({
   }, [check]);
 
   async function signOut(): Promise<void> {
-    setChecking(true);
-    const result = await api.logout();
+    // Logout is available while a status check waits; that check loses authority.
+    const current = ++request.current;
+    pending.current?.abort();
+    const controller = new AbortController();
+    pending.current = controller;
     setChecking(false);
-    if (result.ok) callbacks.current.onSignedOut();
-    else setMessage('Не удалось завершить вход. Попробуйте ещё раз.');
+    setSigningOut(true);
+    try {
+      const result = await api.logout(controller.signal);
+      if (current !== request.current || controller.signal.aborted) return;
+      if (result.ok) callbacks.current.onSignedOut();
+      else setMessage('Не удалось завершить вход. Проверьте соединение и повторите.');
+    } finally {
+      if (pending.current === controller) pending.current = null;
+      if (current === request.current) setSigningOut(false);
+    }
   }
 
   return (
@@ -115,7 +142,7 @@ export function AccountConfirmationPage({
           <button
             type="button"
             className="btn-secondary"
-            disabled={checking}
+            disabled={checking || signingOut}
             onClick={() => void check()}
           >
             {checking ? 'Проверяем…' : 'Проверить и продолжить'}
@@ -123,10 +150,10 @@ export function AccountConfirmationPage({
           <button
             type="button"
             className="link-button"
-            disabled={checking}
+            disabled={signingOut}
             onClick={() => void signOut()}
           >
-            Выйти
+            {signingOut ? 'Выходим…' : 'Выйти'}
           </button>
         </div>
         {onAdminSettings ? (

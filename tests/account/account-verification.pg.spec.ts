@@ -29,6 +29,8 @@ const ready = (id: 'max' | 'telegram'): AuthProviderAvailability => ({
   id,
   available: true,
   reason: 'ready',
+  enforcementEligible: true,
+  enforcementReason: 'ready',
   checkedAt: new Date().toISOString(),
   launchUrl: id === 'max' ? 'https://max.ru/synthetic_test_bot' : 'https://t.me/synthetic_test_bot',
 });
@@ -36,6 +38,8 @@ const down = (id: 'max' | 'telegram'): AuthProviderAvailability => ({
   id,
   available: false,
   reason: 'invalid_token',
+  enforcementEligible: false,
+  enforcementReason: 'invalid_token',
   checkedAt: new Date().toISOString(),
 });
 let maxAvailability = ready('max');

@@ -83,6 +83,8 @@ export class BotProviderAuthService {
         encryptionKey: options.encryptionKey ?? process.env['ASA_SETTINGS_ENCRYPTION_KEY'] ?? '',
         fetchImpl: options.fetchImpl ?? fetch,
         now: options.now ?? Date.now,
+        ...(options.ingress ? { ingress: options.ingress } : {}),
+        ...(options.publicWebOrigins ? { publicWebOrigins: options.publicWebOrigins } : {}),
       },
     );
     this.webhook = new BotProviderWebhook(pool, this.runtimeProvider);
@@ -98,6 +100,10 @@ export class BotProviderAuthService {
 
   adminConfig(actorPrincipalId?: string): Promise<ProviderAdminConfig> {
     return this.runtimeProvider.adminConfig(actorPrincipalId);
+  }
+
+  checkAdminConfig(actorPrincipalId: string): Promise<ProviderAdminConfig> {
+    return this.runtimeProvider.checkAdminConfig(actorPrincipalId);
   }
 
   updateAdminConfig(
@@ -119,12 +125,12 @@ export class BotProviderAuthService {
   private async identity(
     rawInitData: unknown,
   ): Promise<ValidatedProviderIdentity & { readonly configurationVersion: number }> {
-    const readiness = await this.availability();
     const runtime = await this.runtimeProvider.runtime();
+    const credential = await this.runtimeProvider.credentialReadiness(runtime);
     const token = this.runtimeProvider.runtimeToken(runtime);
     const configurationVersion = Number(runtime.configuration_version);
     if (
-      !readiness.available ||
+      credential.state !== 'ok' ||
       !runtime.enabled ||
       !token ||
       !Number.isSafeInteger(configurationVersion) ||
