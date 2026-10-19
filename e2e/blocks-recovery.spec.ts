@@ -1,6 +1,8 @@
 import { expect, test } from '@playwright/test';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
+import { performance } from 'node:perf_hooks';
+import { types as nodeTypes } from 'node:util';
 
 let createProtocolFixture: typeof import('../tools/blocks/browser/fixture.mjs').createProtocolFixture;
 let installMinuteAutosaveClock: typeof import('../tools/blocks/browser/fixture.mjs').installMinuteAutosaveClock;
@@ -413,67 +415,161 @@ test('failed server autosave retains recovery', async () => {
   let observedDraftStatus: number | null = null;
   const stageDirectory = 'reports/blocks/recovery';
   const stagePath = `${stageDirectory}/failed-autosave-stages.json`;
+  const stageNames = [
+    'fixture-ready',
+    'page-create-enter',
+    'page-create-return',
+    'open-enter',
+    'open-return',
+    'editor-ready-wait-enter',
+    'editor-ready-observed',
+    'save-and-checkpoint-wait-enter',
+    'save-and-checkpoint-wait-return',
+    'edit-enter',
+    'checkpoint-wait-enter',
+    'checkpoint-observed',
+    'draft-request-observed',
+    'draft-response-request-matched',
+    'draft-request-selection-ambiguous',
+    'draft-requestfinished',
+    'draft-requestfailed',
+    'draft-observer-failed',
+    'response-headers',
+    'response-completion-enter',
+    'response-completion-call-return',
+    'response-completion-call-throw',
+    'response-completion-return',
+    'response-completion-error-return',
+    'response-completion-unknown-return',
+    'response-completion-reject',
+    'recovery-read-enter',
+    'recovery-read-return',
+    'assertions-completed',
+    'finally-enter',
+    'legacy-attachment-enter',
+    'legacy-attachment-setup-throw',
+    'legacy-attachment-payload-enter',
+    'legacy-attachment-payload-ready',
+    'legacy-attachment-payload-throw',
+    'legacy-attachment-call-enter',
+    'legacy-attachment-call-return',
+    'legacy-attachment-call-throw',
+    'legacy-attachment-catch-enter',
+    'legacy-attachment-catch-return',
+    'legacy-attachment-catch-throw',
+    'legacy-attachment-reject',
+    'legacy-attachment-await-enter',
+    'legacy-attachment-await-reject',
+    'legacy-attachment-fulfilled',
+    'legacy-attachment-return',
+    'teardown-enter',
+    'teardown-return',
+    'teardown-interrupted',
+    'diagnostic-observation-failed',
+  ] as const;
+  type Stage = (typeof stageNames)[number];
   type StageDetail = {
     recoveryReadyAtResponse?: boolean;
     retainedCount?: number;
     retainedStepsMatch73?: boolean;
+    returnKind?: 'PROMISE' | 'UNKNOWN';
   };
   const stageEvents: Array<
-    { sequence: number; stage: string; responseStatus: number | null } & StageDetail
+    {
+      sequence: number;
+      stage: Stage;
+      elapsedMs: number | null;
+      responseStatus: number | null;
+    } & StageDetail
   > = [];
-  const observedStages = new Set<string>();
+  const observedStages = new Set<Stage>();
   let stageSequence = 0;
   let droppedStageEvents = 0;
   let stageWriteFailures = 0;
+  let stageTimingFailures = 0;
+  let stageObservationFailures = 0;
+  let clockOriginMs: number | null = null;
+  let lastClockMs = 0;
+  const maxElapsedMs = 600_000;
+  let draftRequest: import('@playwright/test').Request | null = null;
+  let draftRequestState: 'NOT_OBSERVED' | 'REQUEST_OBSERVED' | 'RESPONSE_MATCHED' | 'AMBIGUOUS' =
+    'NOT_OBSERVED';
   let assertionsCompleted = false;
   let teardownCompleted = false;
+  const incrementCount = (value: number) => Math.min(value + 1, Number.MAX_SAFE_INTEGER);
   const safeCount = (value: unknown) =>
     typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : null;
-  const recordStage = (stage: string, detail: StageDetail = {}) => {
-    stageSequence += 1;
-    observedStages.add(stage);
-    if (stage === 'assertions-completed') assertionsCompleted = true;
-    if (stage === 'teardown-return') teardownCompleted = true;
-    const safeDetail: StageDetail = {};
-    if (typeof detail.recoveryReadyAtResponse === 'boolean')
-      safeDetail.recoveryReadyAtResponse = detail.recoveryReadyAtResponse;
-    if (typeof detail.retainedStepsMatch73 === 'boolean')
-      safeDetail.retainedStepsMatch73 = detail.retainedStepsMatch73;
-    if (typeof detail.retainedCount === 'number' && safeCount(detail.retainedCount) !== null)
-      safeDetail.retainedCount = detail.retainedCount;
-    if (stageEvents.length < 64) {
-      stageEvents.push({
-        sequence: stageSequence,
-        stage,
-        responseStatus: safeCount(observedDraftStatus),
-        ...safeDetail,
-      });
-    } else droppedStageEvents += 1;
+  const sampleElapsedMs = (): number | null => {
     try {
+      const now = performance.now();
+      if (Number.isFinite(now) && now >= lastClockMs && now <= Number.MAX_SAFE_INTEGER) {
+        if (clockOriginMs === null) clockOriginMs = now;
+        const elapsed = Math.floor(now - clockOriginMs);
+        if (safeCount(elapsed) !== null && elapsed <= maxElapsedMs) {
+          lastClockMs = now;
+          return elapsed;
+        }
+      }
+    } catch {
+      // A clock failure leaves the boundary time unknown.
+    }
+    stageTimingFailures = incrementCount(stageTimingFailures);
+    return null;
+  };
+  const recordStage = (stage: Stage, detail: StageDetail = {}) => {
+    try {
+      if (!stageNames.includes(stage)) {
+        stageObservationFailures = incrementCount(stageObservationFailures);
+        stage = 'diagnostic-observation-failed';
+      }
+      stageSequence = incrementCount(stageSequence);
+      const elapsedMs = sampleElapsedMs();
+      const safeDetail: StageDetail = {};
+      if (typeof detail.recoveryReadyAtResponse === 'boolean')
+        safeDetail.recoveryReadyAtResponse = detail.recoveryReadyAtResponse;
+      if (typeof detail.retainedStepsMatch73 === 'boolean')
+        safeDetail.retainedStepsMatch73 = detail.retainedStepsMatch73;
+      if (typeof detail.retainedCount === 'number' && safeCount(detail.retainedCount) !== null)
+        safeDetail.retainedCount = detail.retainedCount;
+      if (detail.returnKind === 'PROMISE' || detail.returnKind === 'UNKNOWN')
+        safeDetail.returnKind = detail.returnKind;
+      if (stageEvents.length < 64) {
+        stageEvents.push({
+          sequence: stageSequence,
+          stage,
+          elapsedMs,
+          responseStatus: safeCount(observedDraftStatus),
+          ...safeDetail,
+        });
+        observedStages.add(stage);
+      } else droppedStageEvents = incrementCount(droppedStageEvents);
+      if (stage === 'assertions-completed') assertionsCompleted = true;
+      if (stage === 'teardown-return') teardownCompleted = true;
       fs.mkdirSync(stageDirectory, { recursive: true });
       fs.writeFileSync(
         `${stagePath}.tmp`,
         JSON.stringify(
           {
-            schemaVersion: 1,
+            schemaVersion: 2,
             lastStage: stage,
             outcome: assertionsCompleted && teardownCompleted ? 'NOT_REPRODUCED' : 'INCOMPLETE',
             captureState:
-              stageWriteFailures === 0 && droppedStageEvents === 0 ? 'OBSERVED' : 'INCOMPLETE',
+              stageWriteFailures === 0 &&
+              droppedStageEvents === 0 &&
+              stageTimingFailures === 0 &&
+              stageObservationFailures === 0
+                ? 'OBSERVED'
+                : 'INCOMPLETE',
+            clock: 'NODE_MONOTONIC',
+            timeOrigin: 'FIRST_VALID_NODE_SAMPLE',
+            timeObservation: 'NODE_STAGE_ENTRY_OR_AWAIT_CONTINUATION',
+            maxElapsedMs,
             responseStatus: safeCount(observedDraftStatus),
             serverRevision: safeCount(fixture.getServerRevision()),
             draftCount: safeCount(fixture.runtimeDraftEvidence.length),
+            draftRequestState,
             boundaries: Object.fromEntries(
-              [
-                'response-headers',
-                'response-completion-enter',
-                'response-completion-return',
-                'response-completion-error-return',
-                'recovery-read-enter',
-                'recovery-read-return',
-                'teardown-enter',
-                'teardown-return',
-              ].map((boundary) => [
+              stageNames.map((boundary) => [
                 boundary,
                 observedStages.has(boundary) ? 'OBSERVED' : 'NOT_OBSERVED',
               ]),
@@ -481,6 +577,8 @@ test('failed server autosave retains recovery', async () => {
             events: stageEvents,
             droppedEvents: droppedStageEvents,
             writeFailures: stageWriteFailures,
+            timingFailures: stageTimingFailures,
+            observationFailures: stageObservationFailures,
           },
           null,
           2,
@@ -489,7 +587,54 @@ test('failed server autosave retains recovery', async () => {
       fs.renameSync(`${stagePath}.tmp`, stagePath);
     } catch {
       // Diagnostic I/O cannot replace the original failure or skip cleanup.
-      stageWriteFailures += 1;
+      stageWriteFailures = incrementCount(stageWriteFailures);
+    }
+  };
+  const recordPromiseReturn = (
+    stage:
+      | 'response-completion-call-return'
+      | 'legacy-attachment-call-return'
+      | 'legacy-attachment-catch-return',
+    value: unknown,
+  ) => {
+    let returnKind: 'PROMISE' | 'UNKNOWN' = 'UNKNOWN';
+    try {
+      // Native branding does not read .then or add a Promise reaction.
+      if (nodeTypes.isPromise(value)) returnKind = 'PROMISE';
+    } catch {
+      // Do not inspect a returned value to explain a diagnostic failure.
+    }
+    if (returnKind === 'UNKNOWN')
+      stageObservationFailures = incrementCount(stageObservationFailures);
+    recordStage(stage, { returnKind });
+  };
+  const recordResponseCompletion = (value: unknown) => {
+    let stage: Stage = 'response-completion-unknown-return';
+    try {
+      if (value === null) stage = 'response-completion-return';
+      else if (nodeTypes.isNativeError(value)) stage = 'response-completion-error-return';
+    } catch {
+      // Only the fixed classification is evidence, never the Error value.
+    }
+    if (stage === 'response-completion-unknown-return')
+      stageObservationFailures = incrementCount(stageObservationFailures);
+    recordStage(stage);
+  };
+  const selectDraftRequest = (
+    request: import('@playwright/test').Request,
+    fromResponse: boolean,
+  ) => {
+    if (draftRequest === null) {
+      draftRequest = request;
+      draftRequestState = fromResponse ? 'RESPONSE_MATCHED' : 'REQUEST_OBSERVED';
+      recordStage(fromResponse ? 'draft-response-request-matched' : 'draft-request-observed');
+    } else if (draftRequest !== request) {
+      draftRequestState = 'AMBIGUOUS';
+      stageObservationFailures = incrementCount(stageObservationFailures);
+      recordStage('draft-request-selection-ambiguous');
+    } else if (fromResponse && draftRequestState !== 'AMBIGUOUS') {
+      draftRequestState = 'RESPONSE_MATCHED';
+      recordStage('draft-response-request-matched');
     }
   };
   recordStage('fixture-ready');
@@ -506,15 +651,53 @@ test('failed server autosave retains recovery', async () => {
     recordStage('editor-ready-wait-enter');
     await waitReady(frame);
     recordStage('editor-ready-observed');
+    const registerDraftObserver = (
+      event: 'request' | 'requestfinished' | 'requestfailed',
+      callback: (request: import('@playwright/test').Request) => void,
+    ) => {
+      try {
+        if (event === 'request') page.on('request', callback);
+        else if (event === 'requestfinished') page.on('requestfinished', callback);
+        else page.on('requestfailed', callback);
+      } catch {
+        stageObservationFailures = incrementCount(stageObservationFailures);
+        recordStage('draft-observer-failed');
+      }
+    };
+    registerDraftObserver('request', (request) => {
+      try {
+        if (
+          request.method() === 'PUT' &&
+          request.url() === `${parentOrigin}/api/blocks/runtime/projects/${projectId}/draft`
+        ) {
+          selectDraftRequest(request, false);
+        }
+      } catch {
+        stageObservationFailures = incrementCount(stageObservationFailures);
+        recordStage('draft-observer-failed');
+      }
+    });
+    // Terminal events are associated by object identity, never by a similar URL.
+    registerDraftObserver('requestfinished', (request) => {
+      if (request === draftRequest) recordStage('draft-requestfinished');
+    });
+    registerDraftObserver('requestfailed', (request) => {
+      if (request === draftRequest) recordStage('draft-requestfailed');
+    });
     let recoveryReady = false;
     let recoveryReadyAtResponse = false;
     recordStage('save-and-checkpoint-wait-enter');
     const [response] = await Promise.all([
       page
         .waitForResponse(
-          (candidate) =>
-            candidate.request().method() === 'PUT' &&
-            candidate.url() === `${parentOrigin}/api/blocks/runtime/projects/${projectId}/draft`,
+          (candidate) => {
+            const request = candidate.request();
+            const matches =
+              request.method() === 'PUT' &&
+              candidate.url() === `${parentOrigin}/api/blocks/runtime/projects/${projectId}/draft`;
+            if (matches) selectDraftRequest(request, true);
+            return matches;
+          },
           { timeout: 90_000 },
         )
         .then((candidate) => {
@@ -536,12 +719,23 @@ test('failed server autosave retains recovery', async () => {
     ]);
     recordStage('save-and-checkpoint-wait-return');
     recordStage('response-completion-enter');
-    const responseCompletion = await response.finished();
-    recordStage(
-      responseCompletion === null
-        ? 'response-completion-return'
-        : 'response-completion-error-return',
-    );
+    let responseCompletionPromise: ReturnType<import('@playwright/test').Response['finished']>;
+    try {
+      responseCompletionPromise = response.finished();
+    } catch (error) {
+      recordStage('response-completion-call-throw');
+      throw error;
+    }
+    recordPromiseReturn('response-completion-call-return', responseCompletionPromise);
+    let responseCompletion: Awaited<typeof responseCompletionPromise>;
+    try {
+      // Await the original returned Promise without adding an observer reaction.
+      responseCompletion = await responseCompletionPromise;
+    } catch (error) {
+      recordStage('response-completion-reject');
+      throw error;
+    }
+    recordResponseCompletion(responseCompletion);
     expect(recoveryReadyAtResponse).toBe(true);
     expect(observedDraftStatus).toBe(503);
     expect(fixture.runtimeDraftEvidence).toHaveLength(1);
@@ -577,9 +771,20 @@ test('failed server autosave retains recovery', async () => {
   } finally {
     recordStage('finally-enter');
     recordStage('legacy-attachment-enter');
-    await test
-      .info()
-      .attach('failed-autosave-outcome', {
+    let attachmentInfo: ReturnType<typeof test.info>;
+    let attach: ReturnType<typeof test.info>['attach'];
+    try {
+      // Preserve info -> method lookup -> payload preparation -> invocation.
+      attachmentInfo = test.info();
+      attach = attachmentInfo.attach;
+    } catch (error) {
+      recordStage('legacy-attachment-setup-throw');
+      throw error;
+    }
+    recordStage('legacy-attachment-payload-enter');
+    let attachmentOptions: Parameters<typeof attach>[1];
+    try {
+      attachmentOptions = {
         contentType: 'application/json',
         body: JSON.stringify({
           observedDraftStatus,
@@ -595,8 +800,48 @@ test('failed server autosave retains recovery', async () => {
             text: typeof text === 'string' ? text.slice(0, 500) : undefined,
           })),
         }),
-      })
-      .catch(() => undefined);
+      };
+    } catch (error) {
+      recordStage('legacy-attachment-payload-throw');
+      throw error;
+    }
+    recordStage('legacy-attachment-payload-ready');
+    recordStage('legacy-attachment-call-enter');
+    let attachmentPromise: ReturnType<typeof attach>;
+    try {
+      attachmentPromise = Reflect.apply(attach, attachmentInfo, [
+        'failed-autosave-outcome',
+        attachmentOptions,
+      ]);
+    } catch (error) {
+      recordStage('legacy-attachment-call-throw');
+      throw error;
+    }
+    recordPromiseReturn('legacy-attachment-call-return', attachmentPromise);
+    let attachmentRejected = false;
+    let attachmentAwaitable: Promise<void | undefined>;
+    recordStage('legacy-attachment-catch-enter');
+    try {
+      // This is the original rejection handler: it still resolves to undefined.
+      attachmentAwaitable = attachmentPromise.catch(() => {
+        attachmentRejected = true;
+        recordStage('legacy-attachment-reject');
+        return undefined;
+      });
+    } catch (error) {
+      recordStage('legacy-attachment-catch-throw');
+      throw error;
+    }
+    recordPromiseReturn('legacy-attachment-catch-return', attachmentAwaitable);
+    recordStage('legacy-attachment-await-enter');
+    try {
+      await attachmentAwaitable;
+    } catch (error) {
+      // Only an error propagated by the original catch/await is rethrown.
+      recordStage('legacy-attachment-await-reject');
+      throw error;
+    }
+    if (!attachmentRejected) recordStage('legacy-attachment-fulfilled');
     recordStage('legacy-attachment-return');
     recordStage('teardown-enter');
     let closeReturned = false;
