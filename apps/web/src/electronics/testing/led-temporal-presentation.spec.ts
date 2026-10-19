@@ -1291,6 +1291,110 @@ describe('Arduino L and ordinary LED share one presentation cursor', () => {
     },
   );
 
+  it('retains a solved dark reverse channel across junction changes without moving the D13 cursor', () => {
+    const presenter = new LedTemporalPresentation();
+    const first = indicatorWindow(
+      0,
+      25_000,
+      [
+        [0, 0],
+        [10_000, 5],
+        [25_000, 5],
+      ],
+      'dark',
+    );
+    const reverse = solved(first);
+    Object.assign(
+      reverse.components.find((entry) => entry.componentId === 'led')!,
+      {
+        junctionState: 'reverse_blocking',
+      },
+    );
+    const originalReverse = JSON.stringify(reverse);
+    presenter.accept(reverse, first, 0);
+    presenter.sample(15_000);
+    expect(presenter.arduinoLStates().get('uno')).toBe(true);
+
+    const second = indicatorWindow(
+      25_000,
+      50_000,
+      [
+        [25_000, 5],
+        [40_000, 0],
+        [50_000, 0],
+      ],
+      'dark',
+    );
+    const forward = solved(second);
+    Object.assign(
+      forward.components.find((entry) => entry.componentId === 'led')!,
+      {
+        junctionState: 'forward_blocking',
+      },
+    );
+    const originalForward = JSON.stringify(forward);
+    // This complete LOW-ending window arrives while the joint cursor is still
+    // before its from25ms boundary. The LED stayed physically dark in both windows;
+    // its junction label cannot erase the earlier coverage or shorten D13 HIGH.
+    expect(presenter.accept(forward, second, 16_000).get('led')).toBe(0);
+    expect(presenter.arduinoLStates().get('uno')).toBe(true);
+    expect(presenter.reanchorCount).toBe(0);
+    expect(presenter.sample(39_999).get('led')).toBe(0);
+    expect(presenter.arduinoLStates().get('uno')).toBe(true);
+    expect(presenter.sample(40_000).get('led')).toBe(0);
+    expect(presenter.arduinoLStates().get('uno')).toBe(false);
+    expect(JSON.stringify(reverse)).toBe(originalReverse);
+    expect(JSON.stringify(forward)).toBe(originalForward);
+  });
+
+  it('does not carry a former fast-cycle mean into a dark reverse window', () => {
+    const presenter = new LedTemporalPresentation();
+    // A LOW endpoint is a continuous join, but the older accepted samples still
+    // contain light. A newly reverse-blocking channel cannot inherit that mean.
+    const fast = window(0, 11_000);
+    expect(presenter.accept(electrical(fast), fast).get('led')).toBe(40);
+    const dark = window(11_000, 12_000, [channel('led', [point(11_000, 0), point(12_000, 0)])]);
+    const reverse = electrical(dark);
+    Object.assign(reverse.components[0]!, { junctionState: 'reverse_blocking' });
+    expect(presenter.accept(reverse, dark).has('led')).toBe(false);
+  });
+
+  it.each(['brightness', 'positive current'] as const)(
+    'does not admit a reverse channel with historical %s even when its endpoint is dark',
+    (inconsistent) => {
+      const presenter = new LedTemporalPresentation();
+      const observation = indicatorWindow(
+        0,
+        25_000,
+        [
+          [0, 0],
+          [10_000, 5],
+          [20_000, 0],
+          [25_000, 0],
+        ],
+        'dark',
+      );
+      const led = channel('led', [
+        point(0, 0),
+        inconsistent === 'brightness' ? point(10_000, 80) : { ...point(10_000, 0), current: 0.01 },
+        point(20_000, 0),
+        point(25_000, 0),
+      ]);
+      const changed = { ...observation, components: [led] };
+      const result = solved(changed);
+      Object.assign(
+        result.components.find((entry) => entry.componentId === 'led')!,
+        {
+          junctionState: 'reverse_blocking',
+        },
+      );
+      presenter.accept(result, changed, 0);
+      expect(presenter.sample(15_000).has('led')).toBe(false);
+      // Rejecting that LED must not invent a dependency for the independent board.
+      expect(presenter.arduinoLStates().get('uno')).toBe(true);
+    },
+  );
+
   it('does not recover a dark external LED hold across unpresented D13 edges', () => {
     const presenter = new LedTemporalPresentation();
     const first = indicatorWindow(

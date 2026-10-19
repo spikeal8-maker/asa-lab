@@ -337,17 +337,22 @@ export class LedTemporalPresentation {
         (entry) => entry.componentId === component.componentId,
       );
       const final = component.samples.at(-1)!;
+      const previous = this.histories.get(component.componentId);
       if (
         !electrical ||
         electrical.brightness !== final.brightness ||
         electrical.current !== final.current ||
-        electrical.junctionState === 'reverse_blocking' ||
+        // A proved dark reverse channel remains part of the joint history. Dropping
+        // it on HIGH and adding it back on LOW would make the older cursor appear
+        // uncovered and prematurely move every indicator to the new LOW endpoint.
+        (electrical.junctionState === 'reverse_blocking' &&
+          (component.samples.some((sample) => sample.brightness !== 0 || sample.current > 0) ||
+            previous?.some((sample) => sample.brightness !== 0 || sample.current > 0))) ||
         electrical.presentationState === 'failed' ||
         electrical.deviceHealth === 'failed_open' ||
         electrical.damageState === 'failed'
       )
         continue;
-      const previous = this.histories.get(component.componentId);
       const previousEnd = previous?.at(-1);
       const first = component.samples[0]!;
       const continuous =
