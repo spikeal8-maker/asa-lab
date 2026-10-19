@@ -827,3 +827,101 @@ required full same-SHA classroom, separate strict, focused, benchmark and
 General gates, then obtain NEW actual native acceptance before normal main
 integration. Current observed main remains e098d0c9a6e7724f3ed74a9c326afab7ad05ea7f.
 Continue D2-D4 after accepted D13; integration and deployment remain separate.
+
+## Prospective eighth-pace revision after exact d0c915e
+
+At 2026-10-19 22:46:24 UTC the controller selected the bounded common 0.125
+MODEL/WALL revision under the owner's existing permission for a slower teaching
+release. This prospective selection does not accept an earlier failed candidate.
+
+Exact `d0c915e57557909f70f15ed6002f745912a54a19` recorded classroom run
+39333133924 with 168 PASS / 2 FAIL and strict run 39333137481 with
+160 PASS / 10 FAIL. All four General jobs passed. All five dedicated D13 cases
+passed in each browser run; independent native acceptance is separate. The
+classroom core ledger reached 41 of 42 entries: 38 binding PASS, three measured
+nonbinding entries, and the binding Blockly1 clock comparison unreached. All
+eight prior discovery invocations passed. These actual outcomes remain intact.
+
+Both canonical GPIO discovery waits passed at 8277.668 and 8302.141 ms. The
+original 30-second whole case expired at Stop after full per-row assertions;
+1366 ready rows and 14188 assertion callbacks consumed 14247.229 ms. Blockly1
+reached only H914100 in 4940.7 ms, with a quarter-normalized 321.075 ms clock
+difference beyond the unchanged 250 ms bound. Extending that wait alone would
+not repair the binding clock failure. Preserve the original raw records.
+
+### Selected source and immutable qualification
+
+The product author changes only the common event-history pace to 0.125 and
+proportional lookahead to 6250 model microseconds, preserving the 50 ms wall
+lookahead. Generic profiles remain 1x, and the original 25000 microsecond
+optical phase limit and worker request ceiling remain. No instruction, solver,
+source-text animation, per-program factor, native lease or joint-commit change
+is selected.
+
+The existing named runner remains `pnpm gate:electronics-classroom-d13-v3:browser`.
+Every new ledger identifies the sealed contract revision
+`a794578587a78ead87eea54c20c4d486ba0561368bd4a8bbe194693ed4545c10`.
+The previous quarter revision59a2 and all earlier revisions retain their exact
+historical meaning. The single normalization is raw wall milliseconds times
+0.125, with every original numeric bound, operator and sample retained.
+
+There are still 38 timing sites, 35 binding and the same three mandatory
+nonbinding measurements, plus four binding acquisitions: 42 core entries.
+There are zero new nonbinding exceptions. All eight prior discoveries remain
+mandatory; the existing Blockly100/50/1 H1000000 waits add three mandatory
+discovery receipts. Every completed predicate sample uses the original Node
+performance clock; original 5-second outcomes, actual errors, unknown provenance
+and reached-but-empty evidence remain explicit. Missing, duplicate, unknown or
+tampered records cannot pass.
+
+### Prospective finite budgets
+
+| Existing acquisition or discovery | New v3 limit |
+| --- | ---: |
+| Delay2000 H4050000 and subsequent H8100000 acquisition | 40 s each |
+| Delay1 H1500000 acquisition | 20 s |
+| Millis H2250000 acquisition | 30 s |
+| GPIO initial and cookies-only reopen discoveries | 20 s each |
+| Blink100/50, no-delay/independent execution, Reset before/restarted discoveries | 16 s each |
+| Blockly100/50/1 H1000000 discoveries | 12 s each |
+
+| Exact selected v3 whole case | New limit |
+| --- | ---: |
+| Canonical GPIO, including both observations and full per-row verification | 90 s |
+| Owner blink100 and blink50 | 45 s each |
+| No-delay and independent-ports execution | 45 s each |
+| Blockly visible edits100/50/1 and cookies-only reopen | 90 s |
+| Delay2000, two complete electrical and loaded-image cycles | 100 s |
+| Delay1 | 60 s |
+| Millis independent outputs | 60 s |
+| Arduino Reset | 60 s |
+
+At the common 0.125 pace, H1000000 requires nominally 8 s, H1250000 10 s,
+H1500000 12 s and H2250000 18 s. Each delay2000 increment H4050000 requires
+32.4 s. The whole GPIO budget is 40 s for both discoveries, 30 s for unchanged
+complete per-row verification and 20 s for UI/transport/Save/reopen/Stop service.
+Its preliminary 60-second proposal was refined to 90 seconds before any new
+source implementation or execution. Blockly allocates 36 s to its three waits
+and 54 s to existing editing, oracle and lifecycle service. Delay2000 allocates
+80 s to two finite acquisitions and 20 s to service. These are prospective
+finite allowances, not newly measured performance or retroactive PASS results.
+
+Only the ten exact names in the v3 beforeEach receive these whole-case budgets.
+Strict/v2 default bounds remain; the historical v2 millis-specific 60-second
+case and 45-second acquisition also remain. The other v3 cases retain their
+original limits. All original per-row assertions remain separate and in order;
+there is no aggregate shortcut. Full wire/temporal JSON transfer is unchanged.
+Raw50ms/native/startup/source/generation/electrical/phase/duty/Reset/Save/final-read
+predicates and the primary D13 observer remain unchanged. Its startup, 45-second
+per-observation, sustained and responsive Stop requirements still bind.
+
+This amendment owns only ready-cadence, its mapped qualification tests, the
+current classroom lane/blocker and this appended task record. Preserve all
+foreign lanes, gates, historical receipts and the complete 170-case browser
+roster, without retries, skips or filters. Require independent exact-source
+review, official focused/benchmark/General and complete classroom execution,
+separate strict results, and NEW native acceptance before normal main
+integration. Owner acceptance remains pending; observed main is
+e098d0c9a6e7724f3ed74a9c326afab7ad05ea7f. Continue D2-D4 immediately after accepted
+D13. No school installation, DB, Docker, network, protected data or deployment
+action is selected; main integration and site update remain separate facts.

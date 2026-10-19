@@ -91,6 +91,7 @@ const functionNames = new Set([
   'ownerV3TemporalProvenance',
   'assertOwnerV3TemporalClock',
   'waitForOwnerV3Horizon',
+  'waitForTemporalHorizon',
   'ownerV3DiscoveryDefinition',
   'evaluateOwnerV3Discovery',
   'requireOwnerV3DiscoveriesComplete',
@@ -115,6 +116,7 @@ const constantNames = new Set([
   'OWNER_V3_TIMING_SITES',
   'OWNER_V3_ACQUISITION_SITES',
   'OWNER_V3_CASES',
+  'OWNER_V3_CASE_BUDGETS',
   'OWNER_V3_DISCOVERY_SITES',
   'OWNER_TEMPORAL_PUBLICATION_LAG_MS',
 ]);
@@ -148,7 +150,7 @@ const oracleJavaScript = ts.transpileModule(
    millis: recordOwnerMillisAcquisition, mounted: createOwnerMountedImageWitness,
    clock: assertTemporalWallClock,
    v3: { sites: OWNER_V3_TIMING_SITES, acquisitions: OWNER_V3_ACQUISITION_SITES,
-     cases: OWNER_V3_CASES, pace: OWNER_V3_PACE, registry: OWNER_V3_REGISTRY_REVISION,
+     cases: OWNER_V3_CASES, caseBudgets: OWNER_V3_CASE_BUDGETS, pace: OWNER_V3_PACE, registry: OWNER_V3_REGISTRY_REVISION,
      evaluate: evaluateOwnerV3Timing, record: recordOwnerV3Timing,
      required: ownerV3RequiredSites, complete: requireOwnerV3Complete,
      acquisition: evaluateOwnerV3Acquisition, recordAcquisition: recordOwnerV3Acquisition,
@@ -159,7 +161,7 @@ const oracleJavaScript = ts.transpileModule(
      discoveriesComplete: requireOwnerV3DiscoveriesComplete,
      discover: withOwnerV3Discovery, discoverySample: ownerV3DiscoverySample,
      discoveryOptions: ownerV3DiscoveryOptions,
-     observation, temporalObservation } });`,
+     observation, temporalObservation, waitForTemporalHorizon } });`,
   {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
   },
@@ -655,6 +657,7 @@ type V3Definition = {
 };
 type V3AcquisitionDefinition = Omit<V3Definition, 'kind' | 'bounds' | 'binding'> & {
   horizonMicroseconds: number;
+  timeoutMs: number;
 };
 type V3Provenance = {
   sourceSha256: string;
@@ -724,6 +727,7 @@ type V3Oracle = {
   sites: V3Definition[];
   acquisitions: V3AcquisitionDefinition[];
   cases: string[];
+  caseBudgets: Array<{ title: string; timeoutMs: number }>;
   pace: number;
   registry: string;
   discoverySites: V3DiscoveryDefinition[];
@@ -738,6 +742,12 @@ type V3Oracle = {
   discoveryOptions: (input: V3DiscoveryInput | null) => { timeout: number } | undefined;
   observation: (page: unknown) => Promise<Record<string, unknown>>;
   temporalObservation: (page: unknown) => Promise<Record<string, unknown>>;
+  waitForTemporalHorizon: (
+    page: unknown,
+    source: string,
+    horizon: number,
+    discoverySite?: string,
+  ) => Promise<void>;
   evaluate: (
     value: V3Ledger | null,
     title: string,
@@ -782,7 +792,7 @@ type V3Oracle = {
     };
   };
 };
-const v3RegistryRevision = '59a2e0eb270735abc5e40862a304ae36f7fc8d2858d38700c4c60f4137159993';
+const v3RegistryRevision = 'a794578587a78ead87eea54c20c4d486ba0561368bd4a8bbe194693ed4545c10';
 function v3Ledger(title: string): V3Ledger {
   return {
     schema: 'electronics-classroom-qualification-v3',
@@ -791,7 +801,7 @@ function v3Ledger(title: string): V3Ledger {
     title,
     expectedSourceSha: 'a'.repeat(40),
     observerSha256: 'b'.repeat(64),
-    expectedPace: 0.25,
+    expectedPace: 0.125,
     registryRevision: v3RegistryRevision,
     stages: [],
     entries: [],
@@ -830,8 +840,8 @@ function populateV3(value: V3Ledger): V3Oracle {
     const absolute = definition.kind === 'absolute-wall-model';
     const model = absolute ? 1000 : null;
     const raw = absolute
-      ? 4000
-      : ((definition.bounds.minimumMs ?? 0) + definition.bounds.maximumMs!) / 2 / 0.25;
+      ? 8000
+      : ((definition.bounds.minimumMs ?? 0) + definition.bounds.maximumMs!) / 2 / 0.125;
     actual.record(value, value.title, definition.site, v3Provenance(definition), [raw], model);
   }
   for (const definition of actual.acquisitions.filter((entry) => entry.title === value.title)) {
@@ -851,7 +861,7 @@ function populateV3(value: V3Ledger): V3Oracle {
 describe('fixed v3 normalization over the frozen exhaustive registry', () => {
   it('requires all 38 timing records and 4 acquisitions in the unchanged 12 ready cases', () => {
     const actual = oracle().v3;
-    expect(actual.pace).toBe(0.25);
+    expect(actual.pace).toBe(0.125);
     expect(actual.registry).toBe(v3RegistryRevision);
     expect(actual.sites).toHaveLength(38);
     expect(actual.acquisitions).toHaveLength(4);
@@ -908,6 +918,7 @@ describe('fixed v3 normalization over the frozen exhaustive registry', () => {
         'Owner Arduino temporal: delay 1 ms, independent optical integrals and stable loaded-image brightness',
       stage: 'blink-1',
       horizonMicroseconds: 1500000,
+      timeoutMs: 20000,
       dimensions: {},
     });
     for (const definition of [...actual.sites, ...actual.acquisitions]) {
@@ -1354,7 +1365,7 @@ describe('fixed v3 normalization over the frozen exhaustive registry', () => {
       const value = v3Ledger(definition.title);
       const provenance = v3Provenance(definition);
       if (definition.kind === 'absolute-wall-model') {
-        for (const raw of [3000, 5000]) {
+        for (const raw of [6000, 10000]) {
           const measured = actual.evaluate(
             value,
             value.title,
@@ -1366,7 +1377,7 @@ describe('fixed v3 normalization over the frozen exhaustive registry', () => {
           expect(measured.v3Outcome, definition.site).toBe('PASS');
           expect(measured.strictOutcome, definition.site).toBe('FAIL');
         }
-        for (const raw of [2999.999, 5000.001])
+        for (const raw of [5999.999, 10000.001])
           expect(
             actual.evaluate(value, value.title, definition.site, provenance, [raw], 1000).v3Outcome,
           ).toBe('FAIL');
@@ -1385,17 +1396,18 @@ describe('fixed v3 normalization over the frozen exhaustive registry', () => {
         const upper = definition.bounds.maximumMs!;
         for (const bound of [lower, upper])
           expect(
-            actual.evaluate(value, value.title, definition.site, provenance, [bound / 0.25])
+            actual.evaluate(value, value.title, definition.site, provenance, [bound / 0.125])
               .v3Outcome,
           ).toBe('PASS');
         expect(
-          actual.evaluate(value, value.title, definition.site, provenance, [(upper + 0.001) / 0.25])
-            .v3Outcome,
+          actual.evaluate(value, value.title, definition.site, provenance, [
+            (upper + 0.001) / 0.125,
+          ]).v3Outcome,
         ).toBe('FAIL');
         if (lower > 0)
           expect(
             actual.evaluate(value, value.title, definition.site, provenance, [
-              (lower - 0.001) / 0.25,
+              (lower - 0.001) / 0.125,
             ]).v3Outcome,
           ).toBe('FAIL');
       }
@@ -1415,21 +1427,21 @@ describe('fixed v3 normalization over the frozen exhaustive registry', () => {
         value.title,
         definition.site,
         v3Provenance(definition),
-        [8000],
+        [16000],
         1000,
       );
       expect(measured).toMatchObject({
         binding: false,
         bounds: { absoluteDeltaMaximumMs: 250 },
-        rawWallMs: [8000],
+        rawWallMs: [16000],
         modelMs: 1000,
         strictOutcome: 'FAIL',
         v3Outcome: 'FAIL',
         samples: [
           {
-            rawWallMs: 8000,
+            rawWallMs: 16000,
             normalizedWallMs: 2000,
-            strictComparedMs: 7000,
+            strictComparedMs: 15000,
             v3ComparedMs: 1000,
             strictPassed: false,
             v3Passed: false,
@@ -1438,7 +1450,7 @@ describe('fixed v3 normalization over the frozen exhaustive registry', () => {
       });
       actual.complete(value, value.title);
       expect(() =>
-        actual.record(value, value.title, definition.site, v3Provenance(definition), [8000], 1000),
+        actual.record(value, value.title, definition.site, v3Provenance(definition), [16000], 1000),
       ).toThrow('Duplicate');
       const missing = structuredClone(value);
       missing.entries = missing.entries.filter((entry) => entry.site !== definition.site);
@@ -1472,7 +1484,7 @@ describe('fixed v3 normalization over the frozen exhaustive registry', () => {
     for (const definition of definitions) {
       const value = v3Ledger(definition.title);
       const absolute = definition.kind === 'absolute-wall-model';
-      const raw = absolute ? 8000 : (definition.bounds.maximumMs! + 1) / 0.25;
+      const raw = absolute ? 16000 : (definition.bounds.maximumMs! + 1) / 0.125;
       expect(() =>
         actual.record(
           value,
@@ -1492,14 +1504,14 @@ describe('fixed v3 normalization over the frozen exhaustive registry', () => {
     const actual = oracle().v3;
     for (const definition of actual.sites.filter((entry) => entry.kind.endsWith('-array'))) {
       const value = v3Ledger(definition.title);
-      const good = ((definition.bounds.minimumMs ?? 0) + definition.bounds.maximumMs!) / 2 / 0.25;
-      const raw = [good, (definition.bounds.maximumMs! + 0.01) / 0.25, good];
+      const good = ((definition.bounds.minimumMs ?? 0) + definition.bounds.maximumMs!) / 2 / 0.125;
+      const raw = [good, (definition.bounds.maximumMs! + 0.01) / 0.125, good];
       expect(() =>
         actual.record(value, value.title, definition.site, v3Provenance(definition), raw),
       ).toThrow('fixed-pace');
       const entry = value.entries[0] as V3Timing;
       expect(entry.rawWallMs).toEqual(raw);
-      expect(raw).toEqual([good, (definition.bounds.maximumMs! + 0.01) / 0.25, good]);
+      expect(raw).toEqual([good, (definition.bounds.maximumMs! + 0.01) / 0.125, good]);
       expect(entry.samples.map((sample) => sample.index)).toEqual([0, 1, 2]);
       expect(entry.samples.map((sample) => sample.v3Passed)).toEqual([true, false, true]);
       expect(entry.v3Outcome).toBe('FAIL');
@@ -1522,7 +1534,7 @@ describe('fixed v3 normalization over the frozen exhaustive registry', () => {
     const value = v3Ledger(definition.title);
     for (const site of ['', '__proto__', 'constructor', 'owner-blink-200-dom-wall-model'])
       expect(() =>
-        actual.record(value, value.title, site, v3Provenance(definition), [4000], 1000),
+        actual.record(value, value.title, site, v3Provenance(definition), [8000], 1000),
       ).toThrow();
     for (const changed of [
       { stage: 'another-stage' },
@@ -1542,7 +1554,7 @@ describe('fixed v3 normalization over the frozen exhaustive registry', () => {
           value.title,
           definition.site,
           { ...v3Provenance(definition), ...changed } as V3Provenance,
-          [4000],
+          [8000],
           1000,
         ),
       ).toThrow();
@@ -1552,7 +1564,7 @@ describe('fixed v3 normalization over the frozen exhaustive registry', () => {
         value.title,
         definition.site,
         v3Provenance(definition),
-        [4000],
+        [8000],
         1000,
         { pace: 1 },
       ]),
@@ -1563,7 +1575,7 @@ describe('fixed v3 normalization over the frozen exhaustive registry', () => {
         millisTitle,
         definition.site,
         v3Provenance(definition),
-        [4000],
+        [8000],
         1000,
       ),
     ).toThrow();
@@ -1599,7 +1611,7 @@ describe('fixed v3 normalization over the frozen exhaustive registry', () => {
         blockly,
         definition.site,
         v3Provenance(definition),
-        [definition.kind === 'absolute-wall-model' ? 4000 : 400],
+        [definition.kind === 'absolute-wall-model' ? 8000 : 800],
         definition.kind === 'absolute-wall-model' ? 1000 : null,
       );
     }
@@ -1620,7 +1632,7 @@ describe('fixed v3 normalization over the frozen exhaustive registry', () => {
           definition.title,
           definition.site,
           v3Provenance(definition),
-          [4000],
+          [8000],
           1000,
         ),
       ).toThrow();
@@ -1646,8 +1658,8 @@ describe('v3 original acquisition boundary and complete real prefix', () => {
       expect(measured.entry).toMatchObject({
         waitStartedAt: 100,
         originalDeadlineAt: 5100,
-        activeDeadlineAt: 20100,
-        acquisitionLimitMs: 20000,
+        activeDeadlineAt: 100 + definition.timeoutMs,
+        acquisitionLimitMs: definition.timeoutMs,
         strictLimitMs: 5000,
         observedAt: 6600,
         firstHorizonAt: 6100,
@@ -1723,13 +1735,13 @@ describe('v3 original acquisition boundary and complete real prefix', () => {
         actual.acquisition(value, value.title, first.site, v3Provenance(first), notCompleted),
       ),
     ).toThrow('incomplete');
-    for (const firstAt of [20100, 20100.001]) {
+    for (const firstAt of [40100, 40100.001]) {
       const last = validV3Input(first);
-      last.observedAt = 20300;
+      last.observedAt = 40300;
       last.readyTimestamps[1]!.at = firstAt;
-      last.readyTimestamps[2]!.at = 20200;
+      last.readyTimestamps[2]!.at = 40200;
       const entry = actual.acquisition(value, value.title, first.site, v3Provenance(first), last);
-      expect(entry.ok && entry.entry.v3Outcome).toBe(firstAt === 20100 ? 'PASS' : 'FAIL');
+      expect(entry.ok && entry.entry.v3Outcome).toBe(firstAt === 40100 ? 'PASS' : 'FAIL');
     }
   });
 
@@ -2263,6 +2275,74 @@ type V3LifecycleInfo = {
 };
 const v3LifecycleSource = 'void loop() { delay(2000); }';
 const v3LifecycleSourceSha256 = createHash('sha256').update(v3LifecycleSource).digest('hex');
+const actualBeforeEachStatements = readySource.statements.filter(
+  (statement) =>
+    ts.isExpressionStatement(statement) &&
+    ts.isCallExpression(statement.expression) &&
+    statement.expression.expression.getText(readySource) === 'test.beforeEach',
+);
+if (actualBeforeEachStatements.length !== 1)
+  throw new Error('Expected exactly one actual ready-cadence beforeEach callback.');
+const v3BeforeEachJavaScript = ts.transpileModule(
+  `${declarations.join('\n')}\n${actualBeforeEachStatements[0]!.getText(readySource)}`,
+  { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } },
+).outputText;
+
+async function runV3BeforeEach(title: string, profile: string) {
+  let before:
+    | ((
+        fixtures: { browserName: string },
+        info: { title: string; workerIndex: number; retry: number },
+      ) => Promise<void>)
+    | null = null;
+  const timeouts: number[] = [];
+  let seedCalls = 0;
+  // Only the external seed and source read are fixtures; execute the complete
+  // actual beforeEach to prove strict/v2 do not receive classroom case budgets.
+  const context = {
+    createHash,
+    resolve,
+    readFileSync: () => readyText,
+    admin: {},
+    teacher: null,
+    ownerQualificationLedger: null,
+    ownerV3Ledger: null,
+    ownerV3Discoveries: [],
+    seedTeacher: async () => {
+      seedCalls++;
+      return {};
+    },
+    process: {
+      env: {
+        ASA_ELECTRONICS_QUALIFICATION_PROFILE: profile,
+        ASA_ELECTRONICS_QUALIFICATION_ENTRYPOINT:
+          profile === 'classroom-d13-v3'
+            ? v3Entrypoint
+            : profile === 'classroom-d13-v2'
+              ? entrypoint
+              : undefined,
+        ASA_ELECTRONICS_EXPECTED_SHA: 'a'.repeat(40),
+      },
+    },
+    test: {
+      beforeEach: (callback: typeof before) => {
+        before = callback;
+      },
+      setTimeout: (timeout: number) => {
+        timeouts.push(timeout);
+      },
+    },
+  };
+  runInNewContext(v3BeforeEachJavaScript, context);
+  if (!before) throw new Error('Actual beforeEach did not register.');
+  const callback = before as (
+    fixtures: { browserName: string },
+    info: { title: string; workerIndex: number; retry: number },
+  ) => Promise<void>;
+  await callback({ browserName: 'chromium' }, { title, workerIndex: 0, retry: 0 });
+  return { timeouts, seedCalls, ledger: context.ownerV3Ledger };
+}
+
 const actualAfterEachStatements = readySource.statements.filter(
   (statement) =>
     ts.isExpressionStatement(statement) &&
@@ -2295,7 +2375,7 @@ async function runV3Lifecycle(
   const value = options.value ?? v3Ledger(definition.title);
   value.observerSha256 = createHash('sha256').update(readyText).digest('hex');
   const waitStartedAt = options.waitStartedAt ?? 100;
-  const observedAt = options.observedAt ?? 20101;
+  const observedAt = options.observedAt ?? waitStartedAt + definition.timeoutMs + 1;
   let browserNow = waitStartedAt;
   let evaluateCalls = 0;
   let afterEachCallback:
@@ -2409,7 +2489,7 @@ describe('actual v3 acquisition and afterEach preserve reached failures without 
       expect(result.acquisitionError).toBe(primary);
       expect(result.afterEachError).toBeNull();
       expect(result.polls).toEqual([
-        { timeout: 20000, intervals: [100], predicateResult: false, expected: true },
+        { timeout: definition.timeoutMs, intervals: [100], predicateResult: false, expected: true },
       ]);
       expect(result.evaluateCalls).toBe(3);
       expect(result.value.entries).toEqual([]);
@@ -2423,15 +2503,15 @@ describe('actual v3 acquisition and afterEach preserve reached failures without 
         dimensions: definition.dimensions,
         expectedSourceSha256: v3LifecycleSourceSha256,
         observedProvenance: null,
-        expectedPace: 0.25,
+        expectedPace: 0.125,
         horizonMicroseconds: definition.horizonMicroseconds,
         waitStartedAt: 100,
         originalDeadlineAt: 5100,
-        activeDeadlineAt: 20100,
-        observedAt: 20101,
+        activeDeadlineAt: 100 + definition.timeoutMs,
+        observedAt: 100 + definition.timeoutMs + 1,
         firstHorizonAt: null,
         strictLimitMs: 5000,
-        acquisitionLimitMs: 20000,
+        acquisitionLimitMs: definition.timeoutMs,
         strictOutcome: 'FAIL',
         v3Outcome: 'FAIL',
         expectationCompleted: false,
@@ -2462,8 +2542,8 @@ describe('actual v3 acquisition and afterEach preserve reached failures without 
         [900, 'INCOMPLETE', 'INCOMPLETE'],
         [4999.999, 'INCOMPLETE', 'INCOMPLETE'],
         [5000, 'FAIL', 'INCOMPLETE'],
-        [19999.999, 'FAIL', 'INCOMPLETE'],
-        [20000, 'FAIL', 'FAIL'],
+        [definition.timeoutMs - 0.001, 'FAIL', 'INCOMPLETE'],
+        [definition.timeoutMs, 'FAIL', 'FAIL'],
       ] as const) {
         const primary = new Error('cancelled or expired actual acquisition');
         const result = await runV3Lifecycle(definition, {
@@ -2476,7 +2556,7 @@ describe('actual v3 acquisition and afterEach preserve reached failures without 
           waitStartedAt: start,
           observedAt: start + elapsed,
           originalDeadlineAt: start + 5000,
-          activeDeadlineAt: start + 20000,
+          activeDeadlineAt: start + definition.timeoutMs,
           strictOutcome,
           v3Outcome,
           observedProvenance: null,
@@ -2491,7 +2571,7 @@ describe('actual v3 acquisition and afterEach preserve reached failures without 
     const row = v3LifecycleFrame(6100, definition.horizonMicroseconds);
     const candidates = [
       { frames: [{ ...row, at: NaN }] },
-      { frames: [{ ...row, at: 20102 }] },
+      { frames: [{ ...row, at: 40102 }] },
       { frames: [{ ...row, committedHorizonMicroseconds: 1.5 }] },
       { frames: [row, { ...row, at: 6000 }] },
       { frames: [{ ...row, generationId: null }] },
@@ -2521,9 +2601,9 @@ describe('actual v3 acquisition and afterEach preserve reached failures without 
         site: definition.site,
         invocation: 'REACHED',
         waitStartedAt: 100,
-        observedAt: 20101,
+        observedAt: 100 + definition.timeoutMs + 1,
         originalDeadlineAt: 5100,
-        activeDeadlineAt: 20100,
+        activeDeadlineAt: 100 + definition.timeoutMs,
         firstHorizonAt: null,
         strictOutcome: 'FAIL',
         v3Outcome: 'FAIL',
@@ -2569,7 +2649,7 @@ describe('actual v3 acquisition and afterEach preserve reached failures without 
       invocation: 'REACHED',
       waitStartedAt: 100,
       originalDeadlineAt: 5100,
-      activeDeadlineAt: 20100,
+      activeDeadlineAt: 100 + definition.timeoutMs,
       observedAt: null,
       observedProvenance: null,
       readyTimestamps: null,
@@ -2601,8 +2681,8 @@ describe('actual v3 acquisition and afterEach preserve reached failures without 
     for (const timing of actual.sites.filter((entry) => entry.title === value.title)) {
       const absolute = timing.kind === 'absolute-wall-model';
       const raw = absolute
-        ? 4000
-        : ((timing.bounds.minimumMs ?? 0) + timing.bounds.maximumMs!) / 2 / 0.25;
+        ? 8000
+        : ((timing.bounds.minimumMs ?? 0) + timing.bounds.maximumMs!) / 2 / 0.125;
       actual.record(
         value,
         value.title,
@@ -2634,7 +2714,7 @@ describe('actual v3 acquisition and afterEach preserve reached failures without 
       v3Outcome: 'PASS',
       firstHorizonAt: 6100,
       originalDeadlineAt: 5100,
-      activeDeadlineAt: 20100,
+      activeDeadlineAt: 100 + definition.timeoutMs,
     });
     expect(result.report.qualificationStatus).toBe('PASS');
     expect(result.report.missingSites).toEqual([]);
@@ -2761,8 +2841,131 @@ async function runDiscoveryLifecycle(operations: DiscoveryOperation[], afterStat
   };
 }
 
-describe('prospective quarter-pace discovery and lossless transport', () => {
-  it('seals exactly eight finite existing discoveries without changing the 42 core records', () => {
+describe('prospective eighth-pace discovery and lossless transport', () => {
+  it('applies exactly the selected finite case and acquisition budgets only in the named v3 beforeEach', async () => {
+    const actual = oracle().v3;
+    expect(actual.acquisitions.map(({ site, timeoutMs }) => [site, timeoutMs])).toEqual([
+      ['delay-2000-ready-horizon-4050000', 40000],
+      ['delay-2000-ready-horizon-8100000', 40000],
+      ['millis-ready-horizon-2250000', 30000],
+      ['delay-1-ready-horizon-1500000', 20000],
+    ]);
+    expect(actual.caseBudgets).toEqual([
+      { title: actual.cases[1], timeoutMs: 90000 },
+      { title: actual.cases[3], timeoutMs: 45000 },
+      { title: actual.cases[4], timeoutMs: 45000 },
+      { title: actual.cases[5], timeoutMs: 45000 },
+      { title: actual.cases[6], timeoutMs: 45000 },
+      { title: actual.cases[7], timeoutMs: 90000 },
+      { title: actual.cases[8], timeoutMs: 100000 },
+      { title: actual.cases[9], timeoutMs: 60000 },
+      { title: actual.cases[10], timeoutMs: 60000 },
+      { title: actual.cases[11], timeoutMs: 60000 },
+    ]);
+    expect(Object.isFrozen(actual.caseBudgets)).toBe(true);
+    for (const budget of actual.caseBudgets) expect(Object.isFrozen(budget)).toBe(true);
+    for (const title of actual.cases) {
+      const result = await runV3BeforeEach(title, 'classroom-d13-v3');
+      const budget = actual.caseBudgets.find((entry) => entry.title === title);
+      expect(result.timeouts).toEqual(budget ? [budget.timeoutMs] : []);
+      expect(result.seedCalls).toBe(1);
+      expect(result.ledger).toMatchObject({
+        title,
+        expectedPace: 0.125,
+        registryRevision: v3RegistryRevision,
+      });
+      for (const profile of ['strict-real-time', 'classroom-d13-v2']) {
+        const original = await runV3BeforeEach(title, profile);
+        expect(original.timeouts).toEqual([]);
+        expect(original.seedCalls).toBe(1);
+      }
+    }
+    for (const title of ['', '__proto__', actual.cases[1] + ' ', actual.cases[7] + ' extra']) {
+      const [result] = await Promise.allSettled([runV3BeforeEach(title, 'classroom-d13-v3')]);
+      expect(result.status).toBe('rejected');
+      if (result.status !== 'rejected')
+        throw new Error('Unknown case acquired a classroom budget.');
+      expect(String(result.reason)).toContain('invalid v3 ledger');
+    }
+  });
+
+  it('executes all three actual Blockly discovery waits with the original source/horizon predicate and retains original5s failure', async () => {
+    const definitions = oracle().v3.discoverySites.filter((entry) =>
+      entry.site.startsWith('blockly-'),
+    );
+    expect(definitions.map((entry) => entry.site)).toEqual([
+      'blockly-100-ready-1000000',
+      'blockly-50-ready-1000000',
+      'blockly-1-ready-1000000',
+    ]);
+    const value = v3Ledger(definitions[0]!.title);
+    const records: V3DiscoveryRecord[] = [];
+    let now = 100;
+    let source = '';
+    const frames: Array<{
+      source: string;
+      executionStatus: string;
+      committedHorizonMicroseconds: number;
+    }> = [];
+    const options: unknown[] = [];
+    const actual = runInNewContext(oracleJavaScript, {
+      createHash,
+      ownerQualificationLedger: null,
+      ownerV3Ledger: value,
+      ownerV3Discoveries: records,
+      performance: { now: () => now },
+      window: { __ownerTemporal: { frames } },
+      test: { info: () => ({ title: value.title }) },
+      expect: {
+        poll: (predicate: () => Promise<boolean>, configuration: unknown) => ({
+          toBe: async (expected: boolean) => {
+            options.push(configuration);
+            expect(await predicate()).toBe(false);
+            now += 8000;
+            frames.push({
+              source,
+              executionStatus: 'ready',
+              committedHorizonMicroseconds: 1000000,
+            });
+            expect(await predicate()).toBe(expected);
+          },
+        }),
+      },
+    }) as { v3: V3Oracle };
+    const page = {
+      evaluate: async (callback: (argument: unknown) => unknown, argument: unknown) =>
+        callback(argument),
+    };
+    for (const definition of definitions) {
+      source = `generated source ${definition.stage}`;
+      frames.length = 0;
+      frames.push(
+        {
+          source: 'foreign source',
+          executionStatus: 'ready',
+          committedHorizonMicroseconds: 2000000,
+        },
+        { source, executionStatus: 'yielded', committedHorizonMicroseconds: 2000000 },
+        { source, executionStatus: 'ready', committedHorizonMicroseconds: 999999 },
+      );
+      await actual.v3.waitForTemporalHorizon(page, source, 1000000, definition.site);
+      now += 100;
+    }
+    expect(options).toEqual(definitions.map(() => ({ intervals: [100], timeout: 12000 })));
+    expect(records).toHaveLength(3);
+    for (const record of records) {
+      expect(record.input.samples.map((sample) => sample.value)).toEqual([false, true]);
+      expect(record.evaluation).toMatchObject({
+        originalTimeoutMs: 5000,
+        activeTimeoutMs: 12000,
+        originalOutcome: 'FAIL',
+        activeOutcome: 'PASS',
+      });
+    }
+    actual.v3.discoveriesComplete(value.title, records);
+  });
+
+  it('seals exactly eleven finite existing discoveries without changing the 42 core records', () => {
     const actual = oracle().v3;
     expect(actual.sites.length + actual.acquisitions.length).toBe(42);
     expect(
@@ -2776,49 +2979,67 @@ describe('prospective quarter-pace discovery and lossless transport', () => {
       {
         site: 'gpio-initial-complete-indices',
         stage: 'gpio-initial',
-        timeoutMs: 10000,
+        timeoutMs: 20000,
         expected: [0, 1, 2, 3, 4, 5, 6, 7],
       },
       {
         site: 'gpio-reopened-complete-indices',
         stage: 'gpio-reopened',
-        timeoutMs: 10000,
+        timeoutMs: 20000,
         expected: [0, 1, 2, 3, 4, 5, 6, 7],
       },
       {
         site: 'owner-blink-100-ready-and-light',
         stage: 'blink-100',
-        timeoutMs: 8000,
+        timeoutMs: 16000,
         expected: true,
       },
       {
         site: 'owner-blink-50-ready-and-light',
         stage: 'blink-50',
-        timeoutMs: 8000,
+        timeoutMs: 16000,
         expected: true,
       },
       {
         site: 'no-delay-execution-ready-1250000',
         stage: 'no-delay realtime',
-        timeoutMs: 8000,
+        timeoutMs: 16000,
         expected: true,
       },
       {
         site: 'independent-ports-execution-ready-1250000',
         stage: 'independent ports',
-        timeoutMs: 8000,
+        timeoutMs: 16000,
         expected: true,
       },
       {
         site: 'reset-before-ready-1250000',
         stage: 'reset-before',
-        timeoutMs: 8000,
+        timeoutMs: 16000,
         expected: true,
       },
       {
         site: 'reset-restarted-ready-1250000',
         stage: 'reset-restarted',
-        timeoutMs: 8000,
+        timeoutMs: 16000,
+        expected: true,
+      },
+      {
+        site: 'blockly-100-ready-1000000',
+        stage: 'blockly-100',
+        timeoutMs: 12000,
+        expected: true,
+      },
+      {
+        site: 'blockly-50-ready-1000000',
+        stage: 'blockly-50',
+        timeoutMs: 12000,
+        expected: true,
+      },
+      {
+        site: 'blockly-1-ready-1000000',
+        stage: 'blockly-1',
+        timeoutMs: 12000,
         expected: true,
       },
     ]);
@@ -2826,10 +3047,10 @@ describe('prospective quarter-pace discovery and lossless transport', () => {
       actual.cases.map(
         (title) => actual.discoverySites.filter((site) => site.title === title).length,
       ),
-    ).toEqual([0, 2, 0, 1, 1, 1, 1, 0, 0, 0, 0, 2]);
+    ).toEqual([0, 2, 0, 1, 1, 1, 1, 3, 0, 0, 0, 2]);
     expect(Object.isFrozen(actual.discoverySites)).toBe(true);
     for (const definition of actual.discoverySites) expect(Object.isFrozen(definition)).toBe(true);
-    expect(readyCompact).toContain('if (ownerV3Ledger) test.setTimeout(60_000);');
+    expect(readyCompact).toContain('if (caseBudget) test.setTimeout(caseBudget.timeoutMs);');
     expect(readyCompact).toContain(
       "if (ownerQualificationLedger?.profile === 'classroom-d13-v2') test.setTimeout(60_000);",
     );
@@ -2956,7 +3177,7 @@ describe('prospective quarter-pace discovery and lossless transport', () => {
     const success = await runDiscoveryLifecycle(operations);
     expect(success.errors).toEqual([]);
     expect(success.afterError).toBeNull();
-    expect(success.observedOptions).toEqual([{ timeout: 10000 }, { timeout: 10000 }]);
+    expect(success.observedOptions).toEqual([{ timeout: 20000 }, { timeout: 20000 }]);
     expect(success.report.qualificationStatus).toBe('PASS');
     expect(success.report.discoveryEvidence.unreached).toEqual([]);
     expect(success.report.discoveryEvidence.records.map((record) => record.evaluation)).toEqual(
@@ -2969,7 +3190,7 @@ describe('prospective quarter-pace discovery and lossless transport', () => {
     expect(missing.report.qualificationStatus).toBe('FAIL_OR_INCOMPLETE');
     for (const [endedAt, originalOutcome, activeOutcome] of [
       [1000, 'INCOMPLETE', 'INCOMPLETE'],
-      [10101, 'FAIL', 'FAIL'],
+      [20101, 'FAIL', 'FAIL'],
     ] as const) {
       const primary = new Error('original actual discovery rejection');
       const failed = await runDiscoveryLifecycle([

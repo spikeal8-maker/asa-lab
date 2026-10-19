@@ -262,9 +262,9 @@ function recordOwnerMillisAcquisition(
 // Raw browser timestamps, native witnesses and electrical times stay untouched.
 const OWNER_V3_PROFILE = 'classroom-d13-v3';
 const OWNER_V3_ENTRYPOINT = 'gate:electronics-classroom-d13-v3:browser';
-const OWNER_V3_PACE = 0.25;
+const OWNER_V3_PACE = 0.125;
 const OWNER_V3_REGISTRY_REVISION =
-  '59a2e0eb270735abc5e40862a304ae36f7fc8d2858d38700c4c60f4137159993';
+  'a794578587a78ead87eea54c20c4d486ba0561368bd4a8bbe194693ed4545c10';
 type OwnerV3Dimensions = Readonly<Record<string, string | number | readonly number[]>>;
 type OwnerV3Site = {
   site: string;
@@ -281,6 +281,7 @@ type OwnerV3AcquisitionSite = {
   title: string;
   stage: string;
   horizonMicroseconds: number;
+  timeoutMs: 20000 | 30000 | 40000;
   dimensions: OwnerV3Dimensions;
 };
 function freezeOwnerV3<T>(value: T): T {
@@ -631,6 +632,7 @@ const OWNER_V3_ACQUISITION_SITES: readonly OwnerV3AcquisitionSite[] = freezeOwne
     title: 'Owner Arduino temporal: delay 2000 ms, two complete electrical and loaded-image cycles',
     stage: 'blink-2000',
     horizonMicroseconds: 4050000,
+    timeoutMs: 40000,
     dimensions: {},
   },
   {
@@ -638,6 +640,7 @@ const OWNER_V3_ACQUISITION_SITES: readonly OwnerV3AcquisitionSite[] = freezeOwne
     title: 'Owner Arduino temporal: delay 2000 ms, two complete electrical and loaded-image cycles',
     stage: 'blink-2000',
     horizonMicroseconds: 8100000,
+    timeoutMs: 40000,
     dimensions: {},
   },
   {
@@ -646,6 +649,7 @@ const OWNER_V3_ACQUISITION_SITES: readonly OwnerV3AcquisitionSite[] = freezeOwne
       'Owner Arduino temporal: independent millis 500/200/100 ms outputs with different initial phases',
     stage: 'millis-independent',
     horizonMicroseconds: 2250000,
+    timeoutMs: 30000,
     dimensions: {},
   },
   {
@@ -654,6 +658,7 @@ const OWNER_V3_ACQUISITION_SITES: readonly OwnerV3AcquisitionSite[] = freezeOwne
       'Owner Arduino temporal: delay 1 ms, independent optical integrals and stable loaded-image brightness',
     stage: 'blink-1',
     horizonMicroseconds: 1500000,
+    timeoutMs: 20000,
     dimensions: {},
   },
 ]);
@@ -672,6 +677,57 @@ const OWNER_V3_CASES: readonly string[] = freezeOwnerV3([
   'Owner Arduino temporal: real Arduino Reset restarts setup and clears fast optical history',
 ]);
 
+// Prospective finite service budgets apply only to these exact named v3 cases.
+const OWNER_V3_CASE_BUDGETS = freezeOwnerV3([
+  {
+    title:
+      'Canonical ready cadence: gpio sketch saved, observed completely and reopened with cookies only',
+    timeoutMs: 90000,
+  },
+  {
+    title:
+      'Owner Arduino timing: blink delay 100 ms, complete ready frames and real LED transitions',
+    timeoutMs: 45000,
+  },
+  {
+    title:
+      'Owner Arduino timing: blink delay 50 ms, complete ready frames and real LED transitions',
+    timeoutMs: 45000,
+  },
+  {
+    title: 'Owner Arduino execution: no-delay realtime, production frames and painted LEDs',
+    timeoutMs: 45000,
+  },
+  {
+    title: 'Owner Arduino execution: independent ports, production frames and painted LEDs',
+    timeoutMs: 45000,
+  },
+  {
+    title:
+      'Owner Arduino Blockly: visible default wait edits 100/50/1 ms, real light and cookies-only reopen',
+    timeoutMs: 90000,
+  },
+  {
+    title: 'Owner Arduino temporal: delay 2000 ms, two complete electrical and loaded-image cycles',
+    timeoutMs: 100000,
+  },
+  {
+    title:
+      'Owner Arduino temporal: delay 1 ms, independent optical integrals and stable loaded-image brightness',
+    timeoutMs: 60000,
+  },
+  {
+    title:
+      'Owner Arduino temporal: independent millis 500/200/100 ms outputs with different initial phases',
+    timeoutMs: 60000,
+  },
+  {
+    title:
+      'Owner Arduino temporal: real Arduino Reset restarts setup and clears fast optical history',
+    timeoutMs: 60000,
+  },
+]);
+
 type OwnerV3Provenance = {
   sourceSha256: string;
   observedSourceSha256: string;
@@ -685,7 +741,7 @@ type OwnerV3TimingEntry = {
   title: string;
   provenance: OwnerV3Provenance;
   bounds: OwnerV3Site['bounds'];
-  expectedPace: 0.25;
+  expectedPace: 0.125;
   modelMs: number | null;
   rawWallMs: number[];
   samples: Array<{
@@ -719,7 +775,7 @@ type OwnerV3AcquisitionEntry = {
   site: string;
   title: string;
   provenance: OwnerV3Provenance;
-  expectedPace: 0.25;
+  expectedPace: 0.125;
   horizonMicroseconds: number;
   strictLimitMs: 5000;
   acquisitionLimitMs: number;
@@ -744,7 +800,7 @@ type OwnerV3ReachedAcquisition = {
   dimensions: OwnerV3Dimensions;
   expectedSourceSha256: string;
   observedProvenance: OwnerV3Provenance | null;
-  expectedPace: 0.25;
+  expectedPace: 0.125;
   horizonMicroseconds: number;
   strictLimitMs: 5000;
   acquisitionLimitMs: number;
@@ -776,7 +832,7 @@ type OwnerV3Ledger = {
   title: string;
   expectedSourceSha: string;
   observerSha256: string;
-  expectedPace: 0.25;
+  expectedPace: 0.125;
   registryRevision: string;
   stages: Array<Omit<OwnerV3Provenance, 'dimensions'>>;
   entries: Array<OwnerV3TimingEntry | OwnerV3AcquisitionEntry>;
@@ -789,7 +845,7 @@ type OwnerV3Ledger = {
 };
 let ownerV3Ledger: OwnerV3Ledger | null = null;
 
-// Prospective quarter-pace discovery budgets for eight existing invocations.
+// Prospective eighth-pace discovery budgets for eleven existing invocations.
 // These retain their original predicates and the original five-second outcome.
 // They supplement, and never replace, the unchanged 38 + 4 core registry.
 const OWNER_V3_DISCOVERY_SITES = freezeOwnerV3([
@@ -797,56 +853,77 @@ const OWNER_V3_DISCOVERY_SITES = freezeOwnerV3([
     site: 'gpio-initial-complete-indices',
     title: OWNER_V3_CASES[1]!,
     stage: 'gpio-initial',
-    timeoutMs: 10000,
+    timeoutMs: 20000,
     expected: [0, 1, 2, 3, 4, 5, 6, 7],
   },
   {
     site: 'gpio-reopened-complete-indices',
     title: OWNER_V3_CASES[1]!,
     stage: 'gpio-reopened',
-    timeoutMs: 10000,
+    timeoutMs: 20000,
     expected: [0, 1, 2, 3, 4, 5, 6, 7],
   },
   {
     site: 'owner-blink-100-ready-and-light',
     title: OWNER_V3_CASES[3]!,
     stage: 'blink-100',
-    timeoutMs: 8000,
+    timeoutMs: 16000,
     expected: true,
   },
   {
     site: 'owner-blink-50-ready-and-light',
     title: OWNER_V3_CASES[4]!,
     stage: 'blink-50',
-    timeoutMs: 8000,
+    timeoutMs: 16000,
     expected: true,
   },
   {
     site: 'no-delay-execution-ready-1250000',
     title: OWNER_V3_CASES[5]!,
     stage: 'no-delay realtime',
-    timeoutMs: 8000,
+    timeoutMs: 16000,
     expected: true,
   },
   {
     site: 'independent-ports-execution-ready-1250000',
     title: OWNER_V3_CASES[6]!,
     stage: 'independent ports',
-    timeoutMs: 8000,
+    timeoutMs: 16000,
     expected: true,
   },
   {
     site: 'reset-before-ready-1250000',
     title: OWNER_V3_CASES[11]!,
     stage: 'reset-before',
-    timeoutMs: 8000,
+    timeoutMs: 16000,
     expected: true,
   },
   {
     site: 'reset-restarted-ready-1250000',
     title: OWNER_V3_CASES[11]!,
     stage: 'reset-restarted',
-    timeoutMs: 8000,
+    timeoutMs: 16000,
+    expected: true,
+  },
+  {
+    site: 'blockly-100-ready-1000000',
+    title: OWNER_V3_CASES[7]!,
+    stage: 'blockly-100',
+    timeoutMs: 12000,
+    expected: true,
+  },
+  {
+    site: 'blockly-50-ready-1000000',
+    title: OWNER_V3_CASES[7]!,
+    stage: 'blockly-50',
+    timeoutMs: 12000,
+    expected: true,
+  },
+  {
+    site: 'blockly-1-ready-1000000',
+    title: OWNER_V3_CASES[7]!,
+    stage: 'blockly-1',
+    timeoutMs: 12000,
     expected: true,
   },
 ]);
@@ -874,7 +951,7 @@ let ownerV3Discoveries: OwnerV3DiscoveryRecord[] = [];
 function ownerV3DiscoveryDefinition(title: string, site: string) {
   const definition = OWNER_V3_DISCOVERY_SITES.find((entry) => entry.site === site);
   if (!definition || definition.title !== title)
-    throw new Error('Unknown or mismatched quarter-pace discovery invocation.');
+    throw new Error('Unknown or mismatched classroom discovery invocation.');
   return definition;
 }
 
@@ -910,7 +987,7 @@ function evaluateOwnerV3Discovery(input: OwnerV3DiscoveryInput) {
           : typeof sample.value !== 'boolean'),
     )
   )
-    throw new Error('Invalid quarter-pace discovery clock, provenance or complete samples.');
+    throw new Error('Invalid classroom discovery clock, provenance or complete samples.');
   const firstSatisfiedAt =
     input.samples.find(
       (sample) => JSON.stringify(sample.value) === JSON.stringify(definition.expected),
@@ -944,7 +1021,7 @@ function evaluateOwnerV3Discovery(input: OwnerV3DiscoveryInput) {
 
 function requireOwnerV3DiscoveriesComplete(title: string, records: OwnerV3DiscoveryRecord[]): void {
   const expected = OWNER_V3_DISCOVERY_SITES.filter((entry) => entry.title === title);
-  if (!Array.isArray(records)) throw new Error('Missing quarter-pace discovery records.');
+  if (!Array.isArray(records)) throw new Error('Missing classroom discovery records.');
   const seen = new Set<string>();
   for (const record of records) {
     if (
@@ -953,16 +1030,16 @@ function requireOwnerV3DiscoveriesComplete(title: string, records: OwnerV3Discov
       seen.has(record.input.site) ||
       record.evaluationError
     )
-      throw new Error('Unknown, duplicate or invalid quarter-pace discovery record.');
+      throw new Error('Unknown, duplicate or invalid classroom discovery record.');
     const actual = evaluateOwnerV3Discovery(record.input);
     if (JSON.stringify(record.evaluation) !== JSON.stringify(actual))
-      throw new Error('Missing or tampered quarter-pace discovery outcome.');
+      throw new Error('Missing or tampered classroom discovery outcome.');
     if (actual.activeOutcome !== 'PASS' || !record.input.expectationCompleted)
-      throw new Error('Quarter-pace discovery did not pass its finite original predicate.');
+      throw new Error('Classroom discovery did not pass its finite original predicate.');
     seen.add(record.input.site);
   }
   if (expected.some((entry) => !seen.has(entry.site)))
-    throw new Error('Required quarter-pace discovery invocation not reached.');
+    throw new Error('Required classroom discovery invocation not reached.');
 }
 
 function ownerV3DiscoverySample<T extends boolean | number[]>(
@@ -990,7 +1067,7 @@ async function withOwnerV3Discovery(
   assertOwnerV3Identity(ownerV3Ledger, test.info().title);
   const definition = ownerV3DiscoveryDefinition(ownerV3Ledger.title, site);
   if (ownerV3Discoveries.some((record) => record.input.site === site))
-    throw new Error('Duplicate quarter-pace discovery invocation.');
+    throw new Error('Duplicate classroom discovery invocation.');
   const input: OwnerV3DiscoveryInput = {
     invocation: 'REACHED',
     registryRevision: OWNER_V3_REGISTRY_REVISION,
@@ -1022,7 +1099,7 @@ async function withOwnerV3Discovery(
   if (execution.status === 'rejected') throw execution.reason;
   if (retention.status === 'rejected') throw retention.reason;
   if (record.evaluation?.activeOutcome !== 'PASS')
-    throw new Error('Quarter-pace discovery did not pass its finite original predicate.');
+    throw new Error('Classroom discovery did not pass its finite original predicate.');
 }
 
 function ownerV3IdentityError(ledger: OwnerV3Ledger | null, title: string): string | null {
@@ -1245,7 +1322,7 @@ function evaluateOwnerV3Acquisition(
       error: 'Invalid v3 acquisition boundary or complete ordered ready prefix.',
     };
   const { waitStartedAt, observedAt, readyTimestamps, expectationCompleted } = input;
-  const acquisitionLimitMs = 5000 / OWNER_V3_PACE;
+  const acquisitionLimitMs = definition.timeoutMs;
   const originalDeadlineAt = waitStartedAt + 5000;
   const activeDeadlineAt = waitStartedAt + acquisitionLimitMs;
   const firstHorizonAt =
@@ -1332,7 +1409,7 @@ function retainOwnerV3AcquisitionFailure(
     input.observedAt >= waitStartedAt
       ? input.observedAt
       : null;
-  const acquisitionLimitMs = 5000 / OWNER_V3_PACE;
+  const acquisitionLimitMs = definition.timeoutMs;
   const originalDeadlineAt = waitStartedAt === null ? null : waitStartedAt + 5000;
   const activeDeadlineAt = waitStartedAt === null ? null : waitStartedAt + acquisitionLimitMs;
   const outcomeAt = (deadlineAt: number | null): 'FAIL' | 'INCOMPLETE' =>
@@ -1541,7 +1618,7 @@ async function waitForOwnerV3Horizon(page: Page, source: string, site: string): 
                 .at(-1)?.committedHorizonMicroseconds ?? 0) >= horizon,
             { source, horizon: definition.horizonMicroseconds },
           ),
-        { intervals: [100], timeout: 5000 / OWNER_V3_PACE },
+        { intervals: [100], timeout: definition.timeoutMs },
       )
       .toBe(true),
   ]);
@@ -2377,6 +2454,8 @@ test.beforeEach(async ({ browserName }, info) => {
       invalidAcquisitions: [],
     };
     assertOwnerV3Identity(ownerV3Ledger, info.title);
+    const caseBudget = OWNER_V3_CASE_BUDGETS.find((entry) => entry.title === info.title);
+    if (caseBudget) test.setTimeout(caseBudget.timeoutMs);
   } else {
     ownerQualificationLedger = {
       schema: 'electronics-classroom-qualification-v2',
@@ -3849,7 +3928,7 @@ async function waitForTemporalHorizon(
   page: Page,
   source: string,
   horizon: number,
-  discoverySite?: 'reset-before-ready-1250000',
+  discoverySite?: 'reset-before-ready-1250000' | `blockly-${number}-ready-1000000`,
 ) {
   // Strict/v2 and unselected waits retain the original five-second deadline.
   const observe = async (input: OwnerV3DiscoveryInput | null) => {
@@ -4054,7 +4133,7 @@ test('Owner Arduino Blockly: visible default wait edits 100/50/1 ms, real light 
     let raw: TemporalProbe | undefined;
     try {
       await page.getByRole('button', { name: 'Начать моделирование', exact: true }).click();
-      await waitForTemporalHorizon(page, source, 1_000_000);
+      await waitForTemporalHorizon(page, source, 1_000_000, `blockly-${half}-ready-1000000`);
       raw = await temporalObservation(page);
       const ready = assertTemporalFrames(raw, source);
       if (ownerV3Ledger)
@@ -4674,7 +4753,6 @@ function assertTemporalWallClock(
 test('Owner Arduino temporal: delay 2000 ms, two complete electrical and loaded-image cycles', async ({
   page,
 }) => {
-  if (ownerV3Ledger) test.setTimeout(60_000);
   const session = await openOwnerTemporalSketch(page, threeLedSource(2000), 'blink-2000');
   let metrics: unknown;
   try {
