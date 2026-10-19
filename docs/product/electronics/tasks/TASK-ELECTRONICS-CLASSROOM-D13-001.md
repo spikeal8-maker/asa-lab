@@ -14,7 +14,7 @@ review: independent
 
 # Classroom D13: visible programme-controlled blinking
 
-## Product decision and boundary, revision 1
+## Product decision and boundary, revision 2
 
 The owner explicitly requests a first independently useful D13 result, integration
 in main after real browser evidence, independent review and required CI, followed
@@ -172,6 +172,107 @@ unrelated Classroom WAITING_HANDOFF and its bounded exception remain unchanged.
 This amendment selects preparation only. D13 numerical acceptance, the old
 full-real-time blocker, required product gates and deployment boundary remain
 unchanged.
+
+## Qualification repair selection, revision 2
+
+This amendment selects preparation before implementation, not acceptance.
+Candidate 8b5178a363f830c9fbfae3ebee60ec255ae6a7da passed focused source/build
+and benchmark gates, but actual browser run39252235295 is FAIL (161 passed,
+9 failed; 170 total),
+and General run39252233058 is FAIL in one owned runtime-view test; RLS did not
+run. Preserve original BEFORE run39248589743 and every original AFTER failure.
+Actual visible median periods about200/307/404/606 ms for delay100/150/200/300
+are partial evidence only. All numerical D13 criteria above remain unchanged.
+
+The bounded production repair retains a solved dark reverse LED in joint
+history only when incoming AND retained samples prove zero brightness and no
+positive current. Dropping this channel caused premature shared-L reanchors.
+Keep all finite-value, endpoint, quality, failed-health, continuity, expiry and
+timing guards. Test both junction continuity and the retained fast-cycle-mean
+counterexample. Only the existing temporal presenter and its mapped test may
+change; no product clock, rate, Reset, tolerance or event-budget change.
+The owned runtime-view test may aggregate identical ownership predicates while
+retaining every snapshot, double read, materialization, null boundary, all four
+budgets and its original5000 ms timeout.
+
+The classroom observer author owns e2e/electronics-classroom-timing.spec.ts.
+Repair the proved pre-click Reset boundary error while preserving the entire
+pre-action prefix and rejecting every post-action stale result; classify native
+pixels/joint L and LED rather than screenshot transport duration or filenames;
+and transfer immutable new trace rows by checked offsets and checksums with
+complete prefix assembly outside the page. Preserve all rows including late
+Worker responses, source/generation/image/error evidence, sustained60 s,
+case100 s, existing phase/duty limits, one-in-flight, transition backlog and
+Stop1 s. Repeat BEFORE and AFTER with the same frozen observer. Missing or
+incomplete evidence remains FAIL.
+
+A separate qualification author owns exactly six future paths:
+
+- e2e/electronics-ready-cadence.spec.ts
+- package.json (additive named script only)
+- .github/workflows/electronics-r4-m1-focused.yml
+- tools/test_ci_image_transport.py
+- tools/run-electronics-classroom-browser.mjs (new)
+- tests/electronics/classroom-qualification.spec.ts (new)
+
+Package/workflow remain shared paths coordinated by the controller. Refresh
+main and actual foreign worktrees, preserving the GC1 candidate and all other
+owners. No competing GC1 implementation, other workflow family, image,
+Dockerfile, Compose or infrastructure change is selected.
+
+Keep pnpm gate:electronics-m1:browser and both existing complete Electronics
+suite aliases unchanged and strict by default. Add separately named
+pnpm gate:electronics-classroom-d13:browser through a cross-platform Node runner
+of the same complete suite with no filters, retries, skips or swallowed child
+failures. Its explicit profile is classroom-d13-v2. The existing focused
+workflow may select strict-real-time or classroom-d13-v2 by validated
+workflow_dispatch choice, strict by default, with explicit profile in run name
+and concurrency identity. Run both on the same final SHA and preserve the
+actual strict conclusion. No continue-on-error or green relabelling.
+
+Only three already-measured absolute250 ms wall/model comparison sites may
+be recorded non-blocking strict outcomes in the explicit classroom profile:
+
+- Owner Arduino execution: no-delay realtime, production frames and painted LEDs
+- Owner Arduino temporal: delay 1 ms, independent optical integrals and stable loaded-image brightness
+- Owner Arduino temporal: real Arduino Reset restarts setup and clears fast optical history
+
+Allowlist exact case identities AND comparison sites. Compute original values
+and limit, record actual strict PASS/FAIL in a mandatory qualification ledger,
+then execute every remaining assertion. Missing/unknown profile, site, value
+or required ledger cannot pass. All other rate, duty, phase, physical, image,
+integral, generation, order, Reset, Save and reopen assertions remain binding.
+The existing50 ms supersession/publication bound is functional and unchanged.
+
+The millis case may use a separately declared classroom acquisition45 s for
+the unchanged2.25 s model horizon within a finite classroom case60 s. Strict
+keeps original acquisition5 s and case30 s. Record the original5 s outcome
+from complete measured ready timestamps relative to the original wait boundary;
+a later horizon cannot turn it into PASS. Execute every unchanged downstream
+millis assertion, including its currently unwaived250 ms comparison. No other
+timeout or retry change is selected.
+
+Repair the old Blockly observer's detached Image.decode proxy in the same
+ready-cadence file: observe actual SVG element/current href, native load/error
+and href changes. Never reuse a witness after element replacement or asset
+change. Keep detached decode separately as diagnostic. Missing actual mounted
+readiness remains failure. Preserve every paint row and all visibility,
+opacity, occlusion, brightness, first-frame and publication checks. No warmup
+exclusion, cache warming or deletion of the image guard.
+
+Focused adversarial qualification tests must verify the three-site allowlist,
+unknown-profile rejection, strict default, other binding comparisons, complete
+suite identity, child-failure propagation and native-image invalidation.
+The shared guard must validate the exact new profile, commands, dependencies
+and mandatory test step while preserving immutable images, receipts, security
+and cleanup. Require official guard/self-test and independent source review.
+
+Until the named script/workflow are composed, current.yaml retains the existing
+strict browser command and records the classroom command only as planned.
+Final coherent integration must register the new classroom acceptance gate
+and strict as a separate reported qualification. Focused, benchmark and fresh
+General remain required. Both acceptance blockers stay open pending complete
+new browser evidence and independent acceptance. Selection is not deployment.
 
 ## Gates and independent acceptance
 

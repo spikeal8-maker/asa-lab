@@ -289,9 +289,16 @@ jobs:
           path: |
             e2e/artifacts/owner-preview/access-a
             reports/playwright/access-a
-            reports/playwright/access-a-summary.json
             reports/playwright/settings-ui
             e2e/artifacts/owner-preview/access-a-ui
             reports/playwright/portal-compact-shell-r2-20261008/
             e2e/artifacts/owner-preview/classroom-profile-completion/
           retention-days: 14
+      - name: Preserve Access A aggregate receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: access-a-summary-${{ github.event.pull_request.head.sha || github.sha }}
+          path: reports/playwright/access-a-summary.json
+          retention-days: 14
+          if-no-files-found: error
