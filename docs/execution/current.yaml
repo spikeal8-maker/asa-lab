@@ -140,6 +140,10 @@ parallel_lanes:
         - id: AI-STUDENT-ACCESS-003
           scope: teacher-controlled Seat admission, stable student chat ownership and focused access regressions
           status: in_progress
+          source_pr: 633
+          reviewed_candidate_sha: 81e9ff5cd0a0c6fb4076932dfbb36702adbafb5f
+          independent_review: changes_requested
+          acceptance_dependency: AI-BASELINE-SEAT-CONSTRUCTOR-007
           reserved_migration: migrations/0225_ai_student_admission.sql
           integration_after: [AI-TEXT-API-002, AI-TEXT-UI-001]
           coordination: >-
@@ -165,6 +169,51 @@ parallel_lanes:
             Preserve accepted interaction and identity fixes. New answer generation
             uses a new paid operation while replay retains the original request.
             Search and archive remain scoped to the canonical Account or Seat owner.
+        - id: AI-FILES-FOUNDATION-008
+          scope: private attachment storage, bounded byte validation, text extraction and durable ownership APIs
+          status: pending
+          reserved_migration: migrations/0228_ai_private_attachments.sql
+          integration_after: [AI-STUDENT-ACCESS-003, AI-TEXT-COMPLETE-005]
+          selected_scope:
+            - apps/api/src/ai-attachments/**
+            - apps/api/src/app.module.ts
+            - apps/api/src/app.factory.ts
+            - apps/api/src/tokens.ts
+            - apps/api/src/account-verification.guard.ts
+            - apps/api/src/account-verification.guard.spec.ts
+            - migrations/0228_ai_private_attachments.sql
+            - tests/ai-attachments/**
+            - tests/migration/course-structure-forward-upgrade.pg.spec.ts
+            - docs/agent/contracts/ai-assistant.yaml
+            - docs/agent/surfaces/ai-assistant.yaml
+            - docs/testing/test-catalog.yaml
+            - docs/product/ASA_AI_ASSISTANT_SPEC.md
+          selection: >-
+            Prepare an independently reviewed backend boundary for Account and Seat
+            attachments using the existing ASA object-storage configuration and a
+            private AI prefix. Validate actual PNG/JPEG/WebP signatures and bounded
+            dimensions, and strictly decode allowlisted UTF-8 text/Markdown/source
+            files without execution. Enforce byte, count and owner storage budgets;
+            retain immutable upload identity, content digest and exact ownership.
+            Add authenticated no-store reads, explicit unsent removal/expiry and
+            recoverable deletion. Unknown storage outcomes must retain their receipt
+            and reservation until reconciled. Atomic message binding must preserve
+            the 005 request/source receipt and reject foreign or reused attachments.
+          coordination: >-
+            This pending selection does not start an author automatically. The
+            controller assigns the bounded author after the current handoffs and
+            supplies the exact candidate dependency snapshot. Use a dedicated AI
+            streaming content type so existing Blocks parsers and ACL stay intact.
+            Do not edit AiChatPage, provider adapters, the 005 package/lock changes,
+            old migrations, existing Blocks formats, Compose, ports or live storage.
+            PDF parsing and the visible send/Vision integration follow separately;
+            do not advertise unsupported formats or an incomplete upload capability.
+          acceptance: >-
+            Require bounded byte/signature/encoding and uncertain-storage tests,
+            real PostgreSQL runtime-role ownership/quota/binding races, the existing
+            AI regressions and independent L3 review of the exact source. Register
+            necessary focused CI commands through the controller. No paid provider
+            call or working-installation data action is part of this slice.
       integration_dependencies:
         - id: AI-BASELINE-LEARNING-006
           status: in_progress
@@ -196,6 +245,32 @@ parallel_lanes:
             Learning E1 workflow on the new SHA, including its real PostgreSQL
             and browser journeys. Record any unrelated failure by its actual
             cause; this test companion does not accept the Learning programme.
+        - id: AI-BASELINE-SEAT-CONSTRUCTOR-007
+          status: awaiting_accepted_baseline
+          source_pr: 626
+          observed_candidate_sha: a01966507e1a7bdcae1f01a0eecd1161ff230bca
+          required_migration: migrations/0224_classroom_new_seat_learner_identity.sql
+          classification: B
+          cause: >-
+            Independent review of 003 reproduced canonical new-Seat creation,
+            credentials, successful sign-in/session and teacher AI allow, while
+            the stable principal remained absent. The current AI reader correctly
+            refuses missing identity, so the first chat depends on an unrelated
+            materializing path until the canonical constructor is integrated.
+          coordination: >-
+            The Games programme already owns the INSERT-only constructor correction
+            in PR626. Preserve that author and adopt its independently accepted
+            baseline; do not copy its mutable draft or initialize/repair historical
+            identity from an AI read, sign-in retry or automatic session refresh.
+            This dependency blocks technical acceptance of the complete 003 first
+            school-entry journey, not unrelated model work or isolated candidate
+            verification of 005. Keep any AI-triggered refresh/identity side effect
+            as a separate bounded 003 repair finding when confirmed.
+          acceptance: >-
+            Require the accepted constructor SHA and a real canonical new-Seat to
+            first-chat HTTP journey without optional analytics. Recheck historical
+            missing identity, revoked sessions, no Account fallback and zero identity
+            writes from AI reads across the complete browser/API request chain.
       dependency_sequence:
         - text_convergence_and_focused_ci
         - teacher_controlled_student_admission
