@@ -634,3 +634,123 @@ No migration, audit writer, collector algorithm, Auth policy, rate-limit,
 timeout/retry, workflow, Learning, Scratch or GC1 modification is selected.
 No deployment or working database action. This repair does not close the separate
 Scratch, Learning or GC1 acceptance gates or select final PR613 convergence.
+
+## Learning: bounded declaration isolation after the first experiment
+
+TASK-PROJ-PUBLICATION-LEARNING-DECLARATION-ISOLATION-001 starts from frozen
+7f4d87d3c5a361b25db2bc4f05b62501db856d52 and changes only
+`.github/workflows/learning-e1-focused.yml`.
+
+Actual Learning39234380988/job117999794208 executed all original first23 cases:
+courses2/2 and preview7/7 passed; course12/14 passed and two fresh logins returned
+429. The complete second group correctly did not run. Per-invocation exit receipts
+are0/0,0/0,1/0; artifact12178582125 is66162305 bytes with SHA256
+2c3a093ae0db2ed6b28c76ef713b0ee62fab7d74dfd73f13c240e79b77d2bc33.
+Preserved evidence and correct failure propagation do not establish a repair.
+
+Both failed POST /api/auth/login requests have no Cookie or Authorization.
+Retry-After116/114 and the exact guard source support a remaining common mutation
+budget within the separate course invocation. This is an inference from captured
+headers and source; response bodies, internal counters and process PID were not
+observed. No authentication policy change is selected.
+
+Keep full courses-sharing and learning-author-preview calls. Partition only the
+full14-case course spec by its12 actual declaration locations, in declaration
+order. The two loops each contain two cases and stay together, retaining their
+three-d then electronics, and electronics then three-d orders. This does not claim
+one process per individual test. Each group gets the same ordinary Playwright
+server lifecycle. Normal fresh invocations repeat beforeAll/afterAll, teacher/pool
+creation and module teacher/sequence/keys state. Fixtures, seeds and specs remain
+unchanged; independent review must check that a group needs no previous invocation's
+state. Extra startup/setup/cleanup must fit the unchanged30-minute job timeout.
+Exceeding it is incomplete verification, not permission to increase the limit or
+claim that remaining cases ran.
+
+Exact candidate CLI discovery must match the approved ordered case-identity
+manifest, not only a count, and derive current locations. Pre-discover every
+location selector: each result must equal its expected group, and the ordered
+union must equal all14 original course cases without omissions or duplicates.
+Accepted main PR622 moved declaration lines, so old hardcoded line numbers are
+not a valid final-main selector. Unchanged fullyParallel:false does not shard one
+file into individual cases; do not add fullyParallel or text-grep guesses.
+
+Preserve all first23 cases and original full15-case second group. Execute every
+selected first-group invocation even after failure, aggregate the first nonzero
+exit, and keep every invocation's structured actual execution IDs/statuses and
+evidence. Missing/duplicate/extra/skipped/interrupted/hook-unexecuted/ambiguous
+cases cannot count as PASS. Missing or invalid execution reports fail coverage,
+without replacing an earlier nonzero exit. Run the second group only after all23
+actually pass. Keep the entire original test matrix, assertions/actions, workers1/retries0,
+test and job timeouts, package-script drift rejection, config/server/fixtures,
+Node22/pnpm9.15.9/frozen install, uncached build, PG16 restricted role, populated
+upgrade, pinned Scratch preparation and cleanup. No sleep, limiter reset, proxy
+identity, new privilege or application-policy change.
+
+Require independent final-source review and actual discovery/coverage/order/error
+challenges, followed by full changed-source Learning and required General CI.
+No local application/server, PostgreSQL, Docker or browser journeys. Local source,
+CLI discovery and bounded synthetic checks are allowed without starting ASA;
+the actual runtime runs only in the selected GitHub CI.
+Preserve PR634 and its failed experiment as history; no unchanged rerun.
+
+### Current-main navigation remains an external dependency
+
+Main e503d00fc3b045a65df0793e6a17b0d163833577 selected
+AI-BASELINE-LEARNING-006 with the existing author branch
+`assistant/ai-learning-compatibility-20261019`. That author exclusively changes
+the three current-main learner-submit, surface-convergence and teacher-activity
+specs for explicit native Assignments/Courses navigation. Projects' earlier
+unpublished competing doc selection was rejected by independent review and
+withdrawn before any author or source change. Ownership is acknowledged in
+Issue373 comment6264966785. Require its completed frozen handoff, independent
+combined review and actual newer23+15 matrix; do not create a second writer.
+
+## Scratch: bounded timing at the unresolved recovery boundary
+
+TASK-PROJ-PUBLICATION-SCRATCH-RECOVERY-TIMING-001 starts from frozen
+8f2cc69835cb7cf135d2390319651c315c496e54. One separate author may edit only
+`e2e/blocks-recovery.spec.ts`, specifically the failed-autosave case and required
+local declarations/imports.
+
+Actual Scratch39232051458/job117992095550 has56 PASS/1 FAIL among57 cumulative
+cases, retries0. Only failed server autosave retains recovery times out at150000ms.
+General39232051363 and standard fresh ZIP passed. The build is exact8f2 and pinned
+Scratch82c5fea6d3e60c781f25c09b375045f9b46a43f7, version15.1.1. Both Abby/Pop cases
+completed all original assertions and teardown, revision24, five assets, one draft
+and one commit: their result is NOT_REPRODUCED, not proof of an underlying repair.
+
+Recovery JSON has16 events: checkpoint73 observed, HTTP503 with
+recoveryReadyAtResponse=true, response-completion-enter, finally-enter, then
+legacy-attachment-enter. The marker precedes argument preparation and the actual
+attachment call. Neither normal response.finished return, retention assertions nor
+teardown entry was observed. The ZIP contains no trace/HAR/API-call trace and the
+JSON has no timestamps. The error snapshot shows Project could not save, but
+does not measure HTTP completion. Neither a sole response wait nor a sole
+attachment hang is proven.
+
+Add bounded monotonic Node times and fixed-enum stages for the exact draft's
+requestfinished/requestfailed events, response.finished call/return/settlement/
+rejection, and existing attachment preparation/call/settlement/rejection. Preserve
+the response method's one invocation and original error propagation. Preserve
+attachment rejection handling exactly, including its existing catch, every
+assertion and original await order. Distinguish the returned Promise from its
+settlement; do not introduce additional Promise reactions into product paths.
+
+Keep safe durable JSON before waits, numeric/event limits and I/O-failure
+counters. New evidence excludes raw URLs, bodies, cookies, tokens and raw errors.
+Observe existing events without consuming response bodies, triggering save,
+adding retries/timeouts or rescheduling. Keep150000ms and all existing recovery,
+revision, media, authorization, origin and no-mutation assertions. Preserve all
+other Scratch cases, protocol fixtures, product/runtime and workflow.
+
+Require independent exact-source privacy and callback/error/persistence challenges,
+then the complete changed-source Scratch CI with exact build identity. The next
+capture targets when HTTP completed, how the existing completion wait ended and
+whether attachment preparation/call settled. Missing callback/return/settlement
+evidence leaves that boundary UNKNOWN or NOT_OBSERVED. Loss or write failures make
+capture incomplete; they never justify inferring a successful boundary. No local
+application/server, PostgreSQL, Docker or browser journeys. Local source/discovery
+and bounded synthetic checks may not start ASA; actual runtime runs only in CI.
+A timeout remains FAIL;
+NOT_REPRODUCED never establishes a runtime repair. GC1 remains exclusively owned
+by its external author; final PR613 convergence and stages3–7 remain pending.
