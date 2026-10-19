@@ -7910,6 +7910,8 @@ parallel_lanes:
     - contexts/electronics/testing/engine-timed-api.spec.ts
     - e2e/electronics-classroom-timing.spec.ts
     - docs/product/electronics/tasks/TASK-ELECTRONICS-CLASSROOM-D13-001.md
+    - tools/test_ci_image_transport.py
+    - docs/product/electronics/evidence/ci-image-transport-classroom-d13-receipt.json
     task:
       id: TASK-ELECTRONICS-CLASSROOM-D13-001
       issue: 638
@@ -7964,6 +7966,66 @@ parallel_lanes:
       convergence_baseline_sha: 095080febc0450fd01efa21950c8f5ba024aa166
       head_sha: null
       observation_note: Selection only; no classroom product or browser acceptance yet. R26/R27 source reviews and historical failures preserved. Fresh fetch main and actual refs plus exact CI are required before edits and integration.
+
+  - id: electronics-classroom-hygiene
+    parent_lane: electronics
+    worktree_id: electronics-classroom-hygiene
+    owned_paths:
+    - docs/product/electronics/tasks/TASK-ELECTRONICS-CLASSROOM-HYGIENE-001.md
+    - docs/product/electronics/evidence/hygiene-baseline.yaml
+    - docs/product/electronics/evidence/classroom-retained-source-responsibility-641-20261019.md
+    task:
+      id: TASK-ELECTRONICS-CLASSROOM-HYGIENE-001
+      issue: 641
+      parent_issue: 638
+      dependency_for_task: TASK-ELECTRONICS-CLASSROOM-D13-001
+      branch: main
+      base_branch: main
+      pr: null
+      pr_draft: false
+      status: in_progress
+      kind: maintenance
+      semantic_change: 'no'
+      checkpoint: bounded_retained_source_growth_review_selected
+      owner_acceptance: pending
+      programme_issue: 452
+      full_hygiene_checkpoint: false
+      production_source_changed: false
+      selected_at: '2026-10-19T12:01:48Z'
+      owner_authorization: Explicit owner 2026-10-19 classroom implementation and checked integration programme authorizes this necessary bounded maintenance dependency; no new product semantics or installation action.
+      selection_contract: docs/product/electronics/contracts/ENGINEERING_HYGIENE_CONTRACT.md
+      reviewed_production_scope:
+      - contexts/electronics/domain/arduino-circuit-scheduler.ts
+      - contexts/electronics/domain/arduino-program-runtime.ts
+      context_hints:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-CLASSROOM-HYGIENE-001.md
+      - docs/product/electronics/contracts/ENGINEERING_HYGIENE_CONTRACT.md
+      - docs/product/electronics/evidence/hygiene-baseline.yaml
+      next_action: Review actual formatted D13 scheduler/runtime source responsibility and exact growth; record retained bridges, routes, generated/protected material and residual debt; update only the two reviewed baseline entries after independent review, with actual bytes and unchanged policy; validate routing/governance. Keep D13 separately selected and unaccepted, with all product gates and old blockers intact.
+    execution_lease:
+      executor_id: electronics-classroom-hygiene
+      holder: unassigned
+      acquired_at: null
+      expires_at: null
+      reviewer_role_requires_lease: false
+    gates:
+      focused:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+        - pnpm validate:electronics-agent-docs
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+        - pnpm gate:governance
+    revisions:
+      kind: observed_snapshot
+      observed_at: '2026-10-19T12:01:48Z'
+      main:
+        branch: main
+        sha: 4c4bbed5c575122fdaa366a033e72f63ef0e96d6
+      convergence_baseline_sha: 4c4bbed5c575122fdaa366a033e72f63ef0e96d6
+      head_sha: null
+      observation_note: Fresh fetch main is required before execution and integration. The recorded authenticated fetch confirmed main and a clean control checkout before this additive selection. Baseline review and every D13 acceptance gate remain pending.
 
 integration:
   owner_lane: visual-programming

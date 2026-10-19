@@ -72,6 +72,22 @@ Test author owns only e2e/electronics-classroom-timing.spec.ts until separately
 coordinated additive package/workflow registration. Preserve all existing tests.
 One author per path; final source author does not independently review itself.
 
+## Selected maintenance prerequisite
+
+TASK-ELECTRONICS-CLASSROOM-HYGIENE-001, Issue641, is separately selected as a
+bounded maintenance dependency of this task under ENGINEERING_HYGIENE_CONTRACT
+sections 6 and 8. It reviews the actual formatted retained scheduler/runtime
+source and may update only their evidenced baseline entries, with the existing
+policy and decomposition classes preserved. Its three owned documentation paths
+are coordinated separately from D13 source authorship.
+
+D13 remains selected and its acceptance criteria are unchanged. Integration
+requires the maintenance evidence, independent review and routing/governance
+validation on the matching composed source, in addition to every D13 product gate.
+The maintenance outcome does not accept D13, clear Issue546, reset the full hygiene
+checkpoint ledger or authorize deployment. Baseline and source must reach main as
+a coherent accepted composition; selection metadata may precede that integration.
+
 ## Acceptance fixed before measurement
 
 Use one real UNO-D13-resistor-ordinary-LED-GND project in the built editor.
@@ -116,6 +132,46 @@ Observe actual loaded artwork, visibility/occlusion and painted states; GPIO log
 or one screenshot alone do not pass. Compare the same scenario/observer before
 and after and identify the actual source/build SHA for each. A before failure
 is evidence, not a silently passing expected outcome for the repaired source.
+
+## Bounded CI transport dependency
+
+The actual BEFORE job 118040468715 in run 39246763798 failed before building
+the editor because the pinned Node/Caddy registry returned HTTP 429. The owner
+has authorized the required isolated CI and checked classroom integration.
+The controller therefore selects this necessary CI-only dependency within the
+current D13 task, coordinated with the existing package/workflow registration.
+
+The additional exact write scope is
+tools/test_ci_image_transport.py,
+.github/workflows/electronics-r4-m1-focused.yml and
+docs/product/electronics/evidence/ci-image-transport-classroom-d13-receipt.json.
+Reuse preserved 02ae08a82eb8ad65eda52a47c2100ef7830e45d5 identity evidence and
+the accepted General PostgreSQL transport. Permit only identical pinned
+Linux/amd64 Node/Caddy manifests in Electronics browser/review-images and the
+identical PostgreSQL manifest in the browser's disposable RUNNER_TEMP overlay.
+Register the exact classroom source-SHA environment forwarding explicitly.
+
+Keep the original receipt, General workflow/receipt, all image-content and
+security checks, original gates, test coverage, timeouts, dependencies and
+cleanup. The shared guard must validate the precise new scope and reject other
+images, versions, jobs, workflow changes or weaker proof. Require independent
+source review and the official frozen-Node-backed guard plus its self-test,
+followed by the actual CI image-identity and browser evidence. No local Docker,
+daemon, network, credential, production configuration or installation operation
+is selected. The BEFORE diagnostic workflow stays outside product integration.
+
+This is a shared path with the separately selected mobile GC1 work. Preserve
+its saved fe70fa3203a5d88458550b7faf64553dd878cbcb candidate and foreign
+worktrees. The controller's fresh read-only worktree check found no foreign
+uncommitted edits to the shared guard or focused workflow. Refresh main and
+actual selected-path state before writes and integration; compose any newly
+accepted shared change through the normal reviewed Git route. This record does
+not claim SAFE_TO_START or override a new actual path conflict. The existing
+unrelated Classroom WAITING_HANDOFF and its bounded exception remain unchanged.
+
+This amendment selects preparation only. D13 numerical acceptance, the old
+full-real-time blocker, required product gates and deployment boundary remain
+unchanged.
 
 ## Gates and independent acceptance
 
