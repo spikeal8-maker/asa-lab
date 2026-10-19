@@ -136,13 +136,89 @@ test('teacher class and individual controls govern real offline games and direct
     await expect(
       learner.getByTestId('asa-chess-board').locator('[data-square="e4"]'),
     ).toHaveAttribute('data-piece', 'white-pawn');
-    await learner.screenshot({ path: `${evidenceDir}/chess-real-move.png`, fullPage: true });
+    await captureLayouts(learner, 'chess-real-move');
     await learner.goto(`${origin}/#/games`);
     await learner.getByRole('button', { name: 'Играть: Шашки', exact: true }).click();
     await expect(
       learner.getByRole('button', { name: 'Вернуться к играм ASA Lab', exact: true }),
     ).toBeVisible();
-    await learner.screenshot({ path: `${evidenceDir}/checkers-real-open.png`, fullPage: true });
+    for (const name of ['Играть с другом', 'Играть в классе']) {
+      await expect(
+        learner
+          .getByRole('article')
+          .filter({ has: learner.getByRole('heading', { name, exact: true }) })
+          .getByRole('button'),
+      ).toBeDisabled();
+    }
+    const savedCheckers = await learner.request.get('/api/projects?scope=personal&module=checkers');
+    expect(savedCheckers.status(), await savedCheckers.text()).toBe(200);
+    const checkersIds = (await savedCheckers.json()).items.map(
+      (item: { id: string }) => item.id,
+    ) as string[];
+    expect(checkersIds).toHaveLength(1);
+    const checkersId = checkersIds[0]!;
+    await expect(learner).toHaveURL(`${origin}/#/games/checkers/${checkersId}`);
+    await learner.getByRole('button', { name: 'Играть на одном устройстве', exact: true }).click();
+    await expect(
+      learner.getByRole('heading', { name: 'Два игрока за одним устройством', exact: true }),
+    ).toBeVisible();
+    await learner.getByRole('button', { name: 'Начать локальную партию', exact: true }).click();
+    const checkersBoard = learner.getByLabel('Доска для русских шашек, 8 на 8', { exact: true });
+    await expect(checkersBoard).toHaveAttribute('data-orientation', 'light');
+    await expect(checkersBoard.locator('[data-square="c3"]')).toHaveAttribute(
+      'data-movable',
+      'true',
+    );
+    const movingChecker = await checkersBoard
+      .locator('[data-piece-square="c3"]')
+      .getAttribute('data-piece-id');
+    expect(movingChecker).toBeTruthy();
+    await checkersBoard.locator('[data-square="c3"]').click();
+    await checkersBoard.locator('[data-square="b4"]').click();
+    await expect(checkersBoard.locator(`[data-piece-id="${movingChecker}"]`)).toHaveAttribute(
+      'data-piece-square',
+      'b4',
+    );
+    await expect(checkersBoard).toHaveAttribute('data-orientation', 'dark');
+    await expect
+      .poll(
+        async () => {
+          const saved = await learner.request.get(`/api/projects/${checkersId}`);
+          return saved.ok() ? (await saved.json()).draft.document : null;
+        },
+        { timeout: 15_000 },
+      )
+      .toMatchObject({
+        schemaVersion: 1,
+        kind: 'asa-checkers-project',
+        activeMatch: { mode: 'local' },
+        game: {
+          sideToMove: 'dark',
+          moveHistory: [{ pieceId: movingChecker, path: ['c3', 'b4'] }],
+          pieces: expect.arrayContaining([
+            expect.objectContaining({ id: movingChecker, side: 'light', square: 'b4' }),
+          ]),
+        },
+      });
+    await learner.reload();
+    await expect(learner).toHaveURL(`${origin}/#/games/checkers/${checkersId}`);
+    await expect(
+      learner.getByRole('heading', { name: 'Локальная партия', exact: true }),
+    ).toBeVisible();
+    await learner.getByRole('button', { name: 'Продолжить партию', exact: true }).click();
+    await expect(checkersBoard).toHaveAttribute('data-orientation', 'dark');
+    await expect(checkersBoard.locator(`[data-piece-id="${movingChecker}"]`)).toHaveAttribute(
+      'data-piece-square',
+      'b4',
+    );
+    const resumedCheckers = await learner.request.get(
+      '/api/projects?scope=personal&module=checkers',
+    );
+    expect(resumedCheckers.status(), await resumedCheckers.text()).toBe(200);
+    expect((await resumedCheckers.json()).items.map((item: { id: string }) => item.id)).toEqual([
+      checkersId,
+    ]);
+    await captureLayouts(learner, 'checkers-real-move');
     await learner.goto(`${origin}/#/games`);
 
     await page.goto(`${origin}/#/classrooms/${classroomId}`);

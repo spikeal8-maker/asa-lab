@@ -55,12 +55,19 @@ export function storageContract(clients: () => { admin: SqlClient; runtime: SqlC
         )
       ).rows[0]?.['n'],
     ).toBe(1);
+    // The creation command must also make the principal available immediately.
+    // A fixture must not conceal a teacher-first lifecycle defect by calling
+    // student_seat_principal or participant_prepare before checking its result.
+    const principals = await admin.query(
+      'SELECT id,kind,account_id FROM principals WHERE seat_id=$1',
+      [seatId],
+    );
+    expect(principals.rows).toEqual([
+      expect.objectContaining({ kind: 'student_seat', account_id: null }),
+    ]);
+    const principal = principals.rows[0]!['id'] as string;
+    expect(typeof principal).toBe('string');
     await admin.query(`UPDATE classroom_student_seats SET status='active' WHERE id=$1`, [seatId]);
-    // Trusted session resolution may create the Project principal, never repair
-    // an existing missing or disabled learner identity/link.
-    await runtime.query('SELECT principal_id FROM student_seat_principal($1)', [seatId]);
-    const principal = (await admin.query('SELECT id FROM principals WHERE seat_id=$1', [seatId]))
-      .rows[0]!['id'] as string;
     const token = randomUUID().replaceAll('-', '').repeat(2);
     const hash = hashSessionToken(token);
     await admin.query(
@@ -122,6 +129,154 @@ export function storageContract(clients: () => { admin: SqlClient; runtime: SqlC
       decision,
     };
   }
+
+  it.each([false, true])(
+    'makes a new issued Seat immediately visible to teacher metrics/profile (dynamic audience=%s)',
+    async (dynamicAudience) => {
+      const f = await fixture();
+      let audienceId: string | null = null;
+      let runId: string | null = null;
+      if (dynamicAudience) {
+        // Use the existing whole-class audience command and its real AFTER INSERT
+        // lifecycle. The new Seat below must receive a principal even when that
+        // trigger has already materialized the learner before INSERT returns.
+        const courseId = (
+          await f.admin.query(
+            `INSERT INTO courses(tenant_id,owner_principal_id,title,visibility)
+           VALUES($1,$2,'Principal lifecycle course','private') RETURNING id`,
+            [f.teacher.tenantId, f.actor],
+          )
+        ).rows[0]!['id'] as string;
+        const versionId = (
+          await f.admin.query(
+            `INSERT INTO course_versions(tenant_id,course_id,version_number,title,outline,content_hash,published_by_principal_id)
+           VALUES($1,$2,1,'Principal lifecycle course','{"sections":[]}'::jsonb,$3,$4) RETURNING id`,
+            [f.teacher.tenantId, courseId, randomUUID(), f.actor],
+          )
+        ).rows[0]!['id'] as string;
+        runId = (
+          await f.admin.query(
+            `INSERT INTO classroom_course_runs(tenant_id,classroom_id,course_id,course_version_id,title,version_number,assigned_by_principal_id)
+           VALUES($1,$2,$3,$4,'Principal lifecycle course',1,$5) RETURNING id`,
+            [f.teacher.tenantId, f.classroomId, courseId, versionId, f.actor],
+          )
+        ).rows[0]!['id'] as string;
+        // The explicit dependency on scope also orders set_config before the
+        // restricted runtime command within this one SQL statement/transaction.
+        const created = await f.runtime.query(
+          `WITH scope AS MATERIALIZED (SELECT set_config('app.tenant_id',$1,true) tenant_id)
+         SELECT result.* FROM scope CROSS JOIN LATERAL public.learning_audience_create(
+           $2,'course_run',$3,'whole_class','dynamic',ARRAY[]::uuid[],
+           scope.tenant_id || ':games:' || $4::text) result`,
+          [f.teacher.tenantId, f.actor, runId, randomUUID()],
+        );
+        expect(created.rows[0]).toMatchObject({ result_code: 'ok', reused: false });
+        audienceId = created.rows[0]!['audience_id'] as string;
+        expect(typeof audienceId).toBe('string');
+      }
+      const issued = (
+        await f.runtime.query(
+          `SELECT id,status FROM public.classroom_management_add_seat($1,$2,'Teacher-first learner',$3,true)`,
+          [f.account, f.classroomId, randomUUID().slice(0, 8)],
+        )
+      ).rows[0]!;
+      const seatId = issued['id'] as string;
+      expect(issued['status']).toBe('issued');
+      const identityState = async () =>
+        (
+          await f.admin.query(
+            `SELECT
+          (SELECT jsonb_agg(jsonb_build_object('id',principal.id,'kind',principal.kind,'accountId',principal.account_id) ORDER BY principal.id)
+             FROM principals principal WHERE principal.seat_id=$1) principals,
+          (SELECT jsonb_agg(jsonb_build_object('id',link.id,'learnerId',learner.id,'kind',link.link_kind,
+              'status',link.status,'disabledAt',link.disabled_at,'state',learner.state,
+              'tenantId',link.tenant_id,'schoolId',link.school_id,
+              'learnerTenantId',learner.tenant_id,'learnerSchoolId',learner.school_id) ORDER BY link.id)
+             FROM learner_identity_links link JOIN learner_identities learner ON learner.id=link.learner_identity_id
+             WHERE link.seat_id=$1) links,
+          (SELECT count(*)::int FROM classroom_student_sessions WHERE seat_id=$1) sessions,
+          (SELECT count(*)::int FROM classroom_seat_credentials WHERE seat_id=$1) credentials`,
+            [seatId],
+          )
+        ).rows[0]!;
+      const before = await identityState();
+      expect(before).toEqual({
+        principals: [{ id: expect.any(String), kind: 'student_seat', accountId: null }],
+        links: [
+          {
+            id: expect.any(String),
+            learnerId: expect.any(String),
+            kind: 'student_seat',
+            status: 'active',
+            disabledAt: null,
+            state: 'active',
+            tenantId: f.teacher.tenantId,
+            schoolId: f.teacher.schoolId,
+            learnerTenantId: f.teacher.tenantId,
+            learnerSchoolId: f.teacher.schoolId,
+          },
+        ],
+        sessions: 0,
+        credentials: 0,
+      });
+      // These are teacher-authorized reads before prepare, principal resolution,
+      // credential issuance or the pupil's first login. Zero work must be real.
+      const roster = (
+        await f.runtime.query('SELECT public.classroom_participant_roster($1,$2) data', [
+          f.actor,
+          f.classroomId,
+        ])
+      ).rows[0]!['data'] as { items: Record<string, unknown>[] };
+      expect(roster.items.find((item) => item['seatId'] === seatId)).toMatchObject({
+        seatId,
+        totalWorks: 0,
+        archivedWorks: 0,
+      });
+      const profile = (
+        await f.runtime.query('SELECT public.classroom_participant_profile($1,$2,$3) data', [
+          f.actor,
+          f.classroomId,
+          seatId,
+        ])
+      ).rows[0]!['data'];
+      expect(profile).toMatchObject({
+        student: { id: seatId, status: 'issued' },
+        metrics: { seatId, totalWorks: 0, archivedWorks: 0 },
+        submittedCount: 0,
+        awaitingReview: 0,
+      });
+      expect(await identityState()).toEqual(before);
+      const membershipState = async () =>
+        (
+          await f.admin.query(
+            `SELECT claim.id,claim.learner_identity_id,claim.course_enrollment_id,
+          enrollment.status,enrollment.assignment_source
+         FROM learning_audience_membership_claims claim
+         JOIN course_enrollments enrollment ON enrollment.id=claim.course_enrollment_id
+         JOIN learner_identity_links link ON link.learner_identity_id=claim.learner_identity_id
+         WHERE claim.audience_id=$1 AND enrollment.course_run_id=$2 AND link.seat_id=$3`,
+            [audienceId, runId, seatId],
+          )
+        ).rows;
+      const membership = dynamicAudience ? await membershipState() : [];
+      if (dynamicAudience)
+        expect(membership).toEqual([
+          expect.objectContaining({ status: 'assigned', assignment_source: 'whole_class_dynamic' }),
+        ]);
+      expect(
+        (
+          await f.runtime.query(
+            'SELECT public.classroom_participant_prepare($1,$2::uuid[]) prepared',
+            [f.actor, [f.classroomId]],
+          )
+        ).rows[0]!['prepared'],
+      ).toBe(true);
+      // A subsequent canonical teacher preparation preserves the exact identities
+      // and audience materialization, rather than repairing or duplicating them.
+      expect(await identityState()).toEqual(before);
+      if (dynamicAudience) expect(await membershipState()).toEqual(membership);
+    },
+  );
 
   it('defaults new class/Seat to allow/inherit for both SafeMode values, without storing a policy', async () => {
     const f = await fixture();
@@ -206,6 +361,17 @@ export function storageContract(clients: () => { admin: SqlClient; runtime: SqlC
       ['ok', false, 'created', codes[1], false],
     ]);
     const seatIds = created.map((row) => row['seat_id'] as string);
+    const batchPrincipals = (
+      await f.admin.query(
+        'SELECT id,seat_id,kind,account_id FROM principals WHERE seat_id=ANY($1::uuid[])',
+        [seatIds],
+      )
+    ).rows;
+    expect(batchPrincipals).toHaveLength(2);
+    expect(new Set(batchPrincipals.map((row) => row['seat_id']))).toEqual(new Set(seatIds));
+    expect(new Set(batchPrincipals.map((row) => row['id'])).size).toBe(2);
+    for (const principal of batchPrincipals)
+      expect(principal).toMatchObject({ kind: 'student_seat', account_id: null });
     const links = async (targetSeats = seatIds) =>
       (
         await f.admin.query(

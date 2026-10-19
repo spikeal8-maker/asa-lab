@@ -35,6 +35,18 @@ export function newSeatLifecycleContract(
     expect(await links()).toEqual([
       { status: 'active', disabled_at: null, learner_state: 'active' },
     ]);
+    // Teacher-visible readiness must precede credentials and any HTTP request:
+    // SeatContext would lazily create a missing principal and hide this defect.
+    expect(
+      (
+        await admin.query(
+          `SELECT principal.kind,principal.account_id,seat.tenant_id
+           FROM principals principal JOIN classroom_student_seats seat ON seat.id=principal.seat_id
+           WHERE principal.seat_id=$1`,
+          [seatId],
+        )
+      ).rows,
+    ).toEqual([{ kind: 'student_seat', account_id: null, tenant_id: f.teacher.tenantId }]);
     await admin.query(`UPDATE classroom_student_seats SET status='active' WHERE id=$1`, [seatId]);
     const token = randomUUID().replaceAll('-', '').repeat(2);
     const hash = hashSessionToken(token);

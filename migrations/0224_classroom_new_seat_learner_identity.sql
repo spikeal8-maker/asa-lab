@@ -26,17 +26,22 @@ BEGIN
   ) RETURNING classroom_student_seats.id INTO v_seat_id;
 
   -- This command has just inserted a new StudentCode Seat. Initialize its
-  -- canonical learner once; never repair existing, removed or disabled links
-  -- from sign-in, admission reads, batch replay, code rotation or Seat updates.
-  -- A dynamic Learning audience may already have initialized this new row.
+  -- canonical learner and Project principal before the teacher can read it.
+  -- Never repair existing, removed or disabled links from sign-in, admission
+  -- reads, batch replay, code rotation or Seat updates.
   IF EXISTS (
     SELECT 1 FROM public.classrooms classroom
     WHERE classroom.id=p_classroom_id AND classroom.tenant_id=v_access.tenant_id
       AND classroom.status='active'
-  ) AND NOT EXISTS (
-    SELECT 1 FROM public.learner_identity_links link WHERE link.seat_id=v_seat_id
   ) THEN
-    PERFORM public.learning_audience_ensure_seat_identity(v_seat_id);
+    -- A dynamic Learning audience may already have initialized the learner
+    -- during INSERT; the new Seat still needs its own canonical principal.
+    IF NOT EXISTS (
+      SELECT 1 FROM public.learner_identity_links link WHERE link.seat_id=v_seat_id
+    ) THEN
+      PERFORM public.learning_audience_ensure_seat_identity(v_seat_id);
+    END IF;
+    PERFORM public.student_seat_principal(v_seat_id);
   END IF;
   INSERT INTO public.audit_events(
     tenant_id,actor_user_id,entity_type,entity_id,action,payload_json

@@ -1,3 +1,53 @@
+# Issue #618 admission — continuation handoff
+
+## Current integration
+
+The PR #626 continuation extends the accepted foundation into runnable offline
+Seat Games. The current scope is selected in `docs/execution/current.yaml` and
+`docs/product/student-game-admission/STUDENT_GAME_ADMISSION.md`.
+
+- `AppModule` registers `GamesAccessController` and injects the Games transaction
+  guard into the PostgreSQL Project repository. Catalogue, create/replay, open,
+  mutation, save and history paths recheck admission while preserving Project and
+  Assignment ACL. Mixed project lists retain ordinary work and exclude denied games.
+- Global identity middleware rejects two non-empty session cookies with
+  `409/session_conflict`. Presence of a Student cookie selects the fail-closed
+  Seat path at the controller boundary; invalid or empty Seat context never falls
+  back to Account authority. Gallery copy and online controllers preserve that boundary.
+- Teacher class policy and individual inherit/allow/deny controls are connected.
+  GamesPage, open-game and the module host obtain current server admission before
+  starting a game; the host also checks actual Project access before mounting.
+  SafeMode remains independent. Online matchmaking and chat are not enabled.
+- Migration `0224_classroom_new_seat_learner_identity.sql` initializes an exact
+  canonical learner identity only after a genuinely new `classroom_management_add_seat`
+  INSERT. Single and batch issuance share this constructor. It does not backfill
+  existing Seats or restore a deleted/disabled identity during login, reads or replay.
+
+## Evidence boundary
+
+The isolated PostgreSQL contracts now exercise the assembled API as the real
+`asalab_app` role, including policy/revocation races, Gallery copy, list filtering,
+batch replay and the independent new-Seat/no-resurrection regression. The browser
+contract is `e2e/games-admission.spec.ts`: canonical StudentCode login, teacher
+class/individual controls, both offline boards, real saved moves and reloads,
+direct-link denial, and 1440/1024/390/320 viewport checks. API responses are real.
+
+Acceptance attaches to the exact candidate and its recorded test results.
+Embedded tests do not replace the isolated runtime-role or browser checks.
+The browser contract refuses installations 4610/4620; deployment and preview
+acceptance remain the controller's separate coordinated work.
+
+## Historical foundation handoff
+
+The original handoff below describes revision
+`505f766f7920c47233a8d703d2f319a3ba30961c`. Its statements about an unregistered
+controller, Account-first Project resolution, missing UI guards, uncompleted
+handoffs and limited authorization are historical, not the current implementation
+or current task selection. Its original policy contract and review history are retained.
+
+<details>
+<summary>Original foundation handoff at 505f766</summary>
+
 # Issue #618 admission foundation — integration boundary
 
 This candidate implements policy storage, a pure evaluator and an **unregistered**
@@ -108,3 +158,5 @@ pnpm gate:governance
 The PostgreSQL suite is explicitly skipped without its isolated CI environment.
 `pnpm gate:repository` and `pnpm e2e:games` remain separate evidence; the existing
 Games tests alone do not demonstrate admission enforcement.
+
+</details>
