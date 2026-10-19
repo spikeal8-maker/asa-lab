@@ -348,7 +348,7 @@ parallel_lanes:
       pr: null
       pr_draft: true
       status: in_progress
-      checkpoint: owner_selected_full_enforcement_and_teacher_ui_continuation
+      checkpoint: games_enforcement_integrated_navigation_continuation_selected
       owner_acceptance: pending
       change_class: L3_CRITICAL
       owner_authorization: >-
@@ -369,15 +369,59 @@ parallel_lanes:
         checks. Controller alone handles integration and preview operations after
         independent L3 review, exact-SHA gates and verified backup. No live
         production SQL, protected-data deletion, force-push or security bypass.
+    integrated_issue618_slices:
+      - pr: 624
+        accepted_candidate_sha: 4cffc08dc5f803d132ea910342340ec53b23553b
+        integrated_sha: 61f301c3385d7bc0ceeb1f3b293fabd52e0bdcd8
+        independent_review: approved
+        result: Seat My Projects label and class scope preserved
+      - pr: 622
+        accepted_candidate_sha: 3f37a8c63fa9c74455e3584ce404adde35d42ec4
+        integrated_sha: 185f43e1618848da5db14f7223b059395fd85408
+        independent_review: approved
+        result: Explicit Learning workspaces and real Account or Seat class lists
+      - pr: 626
+        accepted_candidate_sha: a01966507e1a7bdcae1f01a0eecd1161ff230bca
+        integrated_sha: 9f8170134bdd7884990938fb81a1e6cb63bab097
+        independent_review: approved
+        exact_candidate_general_run: 39235509514
+        candidate_governance_code_postgresql_rls: success
+        candidate_access_browser: in_progress_at_observation
+        local_final_analytics: 14_passed
+        local_final_rls: 16_passed
+        local_final_governance: pass
+        result: Current server game admission and INSERT-only new Seat identity
+    selected_issue618_continuation:
+      pr: 621
+      branch: codex/student-navigation-projects-games-618
+      starting_head: 9c1ef6eaa13325ef42a1b9b02116597b5dde8204
+      accepted_main: 9f8170134bdd7884990938fb81a1e6cb63bab097
+      status: in_progress
+      scope: >-
+        Continue the existing navigation PR after accepted server enforcement.
+        Preserve the accepted My Projects label and locked AI link; add one Seat
+        Games destination. Keep game admission and project guards unchanged.
+        Verify active module metadata with allowed, denied, pending, unavailable
+        and revoked admission in the seven existing navigation browser cases.
+      independent_review: required_on_final_sha
+      shared_learning_followup: >-
+        Preserve AI-BASELINE-LEARNING-006 and its separate three-file author.
+        Its seven historical default-tab journeys need explicit accepted Learning
+        destinations; do not weaken assertions or duplicate that concurrent patch.
+      final_preview:
+        target: http://127.0.0.1:4620/
+        status: not_deployed
+        prerequisite: Fresh exact runtime inspection, verified backup, actual restore and exact shadow migration
+        excluded_installation: 4610
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: ccb97048d8b846798978c85eb8b544a04ffe057c
+      convergence_baseline_sha: 9f8170134bdd7884990938fb81a1e6cb63bab097
       head_sha: null
-      observed_at: '2026-10-18T18:18:37Z'
+      observed_at: '2026-10-19T10:36:00Z'
       main:
         branch: main
-        sha: ccb97048d8b846798978c85eb8b544a04ffe057c
-      observation_note: Dated baseline only; fresh fetch main and exact refs/CI required before edits. No product implementation or acceptance evidence.
+        sha: 9f8170134bdd7884990938fb81a1e6cb63bab097
+      observation_note: Dated integration observation. Candidate a019 has successful hosted governance, code and full PostgreSQL/RLS; Access browser and main CI are tracked separately. Owner acceptance and final preview are pending. Fresh fetch main and exact refs before continuation.
     execution_lease:
       executor_id: student-games-access-scope-618
       holder: unassigned
