@@ -630,3 +630,125 @@ reopen, wiring/current controls and sustained behavior before normal main
 integration. Historical f967 classroom164PASS/6FAIL, strict161PASS/9FAIL and
 GeneralFAIL remain unchanged. After accepted D13 integration immediately select
 D2-D4; main and installation deployment remain separate actions.
+
+## Post-bacd regression repair and prospective classroom throughput amendment
+
+Selected by the controller under the owner's explicit measured-slowdown release
+instruction. Contract06fa47e2744f9c1389e3a709d6b33c88d12a9a25024993afece62b483d0e14dd
+was frozen at2026-10-19T19:55:00Z before its source amendment and future CI.
+This section supersedes only the three absolute scalar bindings and the one
+delay1 acquisition specified below. Every other earlier acceptance bound remains.
+
+Candidate bacd4cf8ffe2979fd7e7a3096f42ce1a47e35549 has actual independent D13
+acceptance7fc955b47d7b27e2f23da4bb63283416376c963c42cfd93800c67cd6efc9ce0f.
+All five D13 cases passed in both complete browser runs. Native video, the full
+electrical/source/paint prefix, twelve run records and Save/reopen evidence were
+reviewed. Measured symmetric100/150/200/300 median periods were447.70/642.40/
+872.15/1249.45ms; asymmetric100/300 preserved its two phases. This acceptance
+is confined to that exact candidate and is not acceptance of the whole release.
+Classroom39303877850 remained155PASS15FAIL; strict39303883006 remained151PASS19FAIL.
+General39303875214 Data failed both original and its single retry at the existing
+5000ms ownership test limit, and its chained RLS command did not execute.
+No original result is reclassified as a passing build or an integrated release.
+
+### Bounded source repairs selected from those actual failures
+
+The existing renderer and asset test repair selects a loaded dark resident
+image for a stopped reverse/burned preview and retains the bounded three-node
+pool. Independent review7bb1ccc563444ef2ffbf94cd8a9654377af5ef8eab517521374205646250b541.
+The old ready observer retains its entire ordered prefix instead of shifting
+its four capped arrays; no original assertion, timing or source criterion is
+removed. Reviewda75443c1f26f821c5f85fec64befd6b4eae55778449355b25b6378bb3ced033.
+
+The worker controller floors requested horizon at committed model time when
+an input has already advanced the evaluator by1us. It preserves input FIFO,
+single-flight, startup and generation rules. Its real evaluator regression
+failed with invalid_clock_continuation before the repair; full55 cases pass.
+Review2fe4a6dfe63de2fe4183d6fc359181f64d644ebb41d19884e31ae89ffca4e11a.
+
+The existing ownership test avoids duplicate serialization and success-only
+assertion overhead while still calling every validator and performing every
+original ownership/mutation check over2050 boundaries and all four budgets.
+Its5000ms limit is unchanged. Full82 cases pass; the single paired diagnostic
+is not a guarantee of General timing. Review1b9e9fe877d63a814e2c9072893ad5dcd9cf35ec444969e5a5ac6edbd499d49d.
+
+The legacy ready observer retains every pre-H0 row and requires loaded, visible,
+unoccluded native UNO/L and external LED darkness at the same RAF before the
+first valid matching H0. Such rows are DARK_STARTUP, never electrical witnesses.
+Missing H0, missing native proof, light or stale identity still fail. All post-H0
+electrical/native/source/raw50ms checks remain. Reviewa7e0172ea0ec4ccf87b578ca17f3d8abcefd27e2b734433d0905c070fb73e2c5;
+actual47 qualification cases passed before the following two additional guards.
+
+The workbench uses its normal1x clock only for actually accepted no-history
+dc-inputs-v1, rc-inputs-v2 or electrothermal-v1 continuation profiles. Temporal
+history and unknown profiles retain the selected0.5 clock and25ms display cap;
+all six lifecycle resets clear clock selection. Real motor H0-to100ms and all
+25 mounted clock cases pass. Final review746ca6f653f6b7b47077945c89da0a1204fff38068efe72457852bd46705e5a0.
+
+The separately authored native preparation repair flushes existing React layout
+within its RAF and republishes only after renewed current/active session,
+exact pending/frame, native lease and distinct-frame eligibility checks.
+Parent layout remains the sole ACK and rollback owner. One prepare per RAF,
+two full RAF before distinct vectors and actual load waiting remain unchanged.
+Review58a20224b45a894a99b77eb5d32ac0f939db3d4361bf99d58f39ce547732acb2.
+The real old-host resident regression retains brightness80 when0 is required;
+the repaired source passes all29 mounted cases. Actual native raw50ms browser
+acceptance remains a separate gate on the final source.
+
+These source repairs are limited to the existing host/renderer/controller,
+their mapped tests, engine ownership test and ready/qualification tests.
+No new kernel, physics shortcut, source-text animation, separate LED timer,
+numerical tolerance, instruction cost, L alias policy or programme-specific
+speed is selected. All complete suite cases remain executable.
+
+### Precisely separated performance outcomes
+
+The active entrypoint remains pnpm gate:electronics-classroom-d13-v3:browser;
+its immutable registry revision is the complete contract SHA above. Only
+delay-1-temporal-wall-model, millis-temporal-wall-model and
+reset-temporal-wall-model have binding:false. Each still records its actual
+raw strict and0.5-normalized v3 outcome, including FAIL, with the original
+expression and250ms bound. This records legacy throughput debt permitted by
+the owner's intermediate classroom decision. It does not waive physical state,
+native publication, GPIO order, relative delays, readiness or lifecycle errors.
+
+The one added delay-1-ready-horizon-1500000 acquisition uses the existing finite
+wrapper at10seconds for this classroom revision. It retains the original5second
+deadline from the original wait boundary, actual outcome, full ordered prefix
+and original wait error. Strict and v2 retain their previous behavior.
+The original38 timing records remain mandatory;35 are still binding. All four
+acquisition records are mandatory and binding. Across the complete run, the
+twelve case ledgers require42 entries in total; each ledger requires its exact
+declared subset. They reject missing, unknown, duplicate,
+nonfinite, mismatched or tampered records, including nonbinding performance
+records. No old FAIL or UNREACHED is converted into evidence of success.
+
+Exact independent source reviewb773db68ac90a6f57c36a6c44aae3f5162cfdfe159ef98c224c65619c83fc0ee
+approves this two-file implementation. All227 browser assertions, full170-case
+roster, native/startup/joint electrical observations and raw50ms constraints
+are preserved; all49 official qualification cases passed with the29 mounted
+cases in the coherent78-case run. Fresh web typecheck and build also passed.
+
+### Measured lazy-editor bundle maintenance
+
+The coherent repaired build measured217259 bytes for SchematicEditor, compared
+with216667 on bacd:592 added bytes, approximately0.273percent. The existing
+217000-byte lazy-editor ceiling failed by259 bytes; preserve that actual FAIL.
+Select the existing tools/check-web-bundle-budget.mjs only to document this
+owned-checkout measurement and set its Electronics editor ceiling to218000,
+leaving741 bytes of headroom. Preserve every other ceiling, initial import-graph
+calculation, missing-asset rejection and failure exit. No product extraction,
+size concealment, startup relaxation or timing/test-bound change is selected.
+Require independent exact diff review and the same built artifact's bundle
+check before publication. Required new CI remains a separate actual result.
+
+Compose this complete repair with current main through ordinary Git, preserving
+the two separately accepted Scratch specifications in e098d0c9 and every other
+unrelated file. New exact-SHA focused, benchmark, complete classroom browser,
+separately reported strict and General including Data/RLS remain mandatory.
+Require new independent actual native-browser acceptance before integration;
+old bacd D13 evidence does not transfer to this changed source automatically.
+The existing D13 and full-realtime blockers remain until their own evidence.
+After normally integrating the accepted D13 slice continue D2-D4 immediately.
+No school installation, live DB, local Docker, network, backup or protected
+data operation is selected. Code in main and deployment remain separate facts.

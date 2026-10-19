@@ -982,9 +982,13 @@ describe('event execution request ownership and physical barriers', () => {
             ...context,
             advance(...parameters) {
               const advanced = context.advance(...parameters);
-              expect(arduinoRuntime.arduinoRuntimeStateMatchesProgram(source, advanced.state)).toBe(
-                true,
+              // Validate and materialize every view at the original boundary.
+              // Allocate a matcher only when that exact boolean check fails.
+              const matchesProgram = arduinoRuntime.arduinoRuntimeStateMatchesProgram(
+                source,
+                advanced.state,
               );
+              if (matchesProgram !== true) expect(matchesProgram).toBe(true);
               last = advanced.state;
               saved.push({ state: advanced.state, bytes: JSON.stringify(advanced.state) });
               return advanced;
@@ -1058,12 +1062,19 @@ describe('event execution request ownership and physical barriers', () => {
           saved.some(({ state }) => state.scopes.some((scope) => scope.pending?.value === null)),
         ).toBe(true);
         const first = saved[0]!.state;
-        const later = saved.slice(1).map(({ state }) => JSON.stringify(state));
         Object.assign(first.variables, { zero: 123 });
         Object.assign(first.scopes[0]!.zero!, { value: 123 });
         expect(first.variables).toBe(first.variables);
         expect(first.scopes).toBe(first.scopes);
-        expect(saved.slice(1).map(({ state }) => JSON.stringify(state))).toEqual(later);
+        // Every saved byte string was freshly verified above after both APIs
+        // finished. Compare every later state freshly again after the mutation,
+        // without retaining another complete array of those serialized views.
+        const mutationFailures: number[] = [];
+        for (let index = 1; index < saved.length; index++) {
+          const snapshot = saved[index]!;
+          if (JSON.stringify(snapshot.state) !== snapshot.bytes) mutationFailures.push(index);
+        }
+        expect(mutationFailures).toEqual([]);
       } finally {
         create.mockRestore();
         advance.mockRestore();

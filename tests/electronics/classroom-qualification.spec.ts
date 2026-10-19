@@ -94,6 +94,7 @@ const functionNames = new Set([
   'validTemporalPaint',
   'temporalPhysicalBrightness',
   'temporalJointWitness',
+  'temporalStartupBoundary',
   'temporalPaintCausality',
 ]);
 const constantNames = new Set([
@@ -624,8 +625,9 @@ type V3Definition = {
   kind: string;
   dimensions: Record<string, string | number | number[]>;
   bounds: { minimumMs?: number; maximumMs?: number; absoluteDeltaMaximumMs?: number };
+  binding?: false;
 };
-type V3AcquisitionDefinition = Omit<V3Definition, 'kind' | 'bounds'> & {
+type V3AcquisitionDefinition = Omit<V3Definition, 'kind' | 'bounds' | 'binding'> & {
   horizonMicroseconds: number;
 };
 type V3Provenance = {
@@ -706,9 +708,17 @@ type V3Oracle = {
     generation: number,
     from: number,
     to?: number,
-  ) => { witnesses: unknown[]; violations: Array<{ reason: string }> };
+  ) => {
+    witnesses: unknown[];
+    violations: Array<{ at: number; reason: string }>;
+    startup: {
+      h0ReadyAt: number | null;
+      h0RequestId: string | null;
+      frames: Array<{ at: number; brightness: number[]; status: string; reason: string | null }>;
+    };
+  };
 };
-const v3RegistryRevision = 'e0e6b912853c5c5650f2dc2d6eab4ecb234f73b14c7491a631154e30b956b017';
+const v3RegistryRevision = '06fa47e2744f9c1389e3a709d6b33c88d12a9a25024993afece62b483d0e14dd';
 function v3Ledger(title: string): V3Ledger {
   return {
     schema: 'electronics-classroom-qualification-v3',
@@ -775,19 +785,67 @@ function populateV3(value: V3Ledger): V3Oracle {
 }
 
 describe('fixed v3 normalization over the frozen exhaustive registry', () => {
-  it('binds all 38 timing sites and 3 acquisitions in the unchanged 12 ready cases', () => {
+  it('requires all 38 timing records and 4 acquisitions in the unchanged 12 ready cases', () => {
     const actual = oracle().v3;
     expect(actual.pace).toBe(0.5);
     expect(actual.registry).toBe(v3RegistryRevision);
     expect(actual.sites).toHaveLength(38);
-    expect(actual.acquisitions).toHaveLength(3);
+    expect(actual.acquisitions).toHaveLength(4);
     expect(actual.cases).toHaveLength(12);
     expect(new Set([...actual.sites, ...actual.acquisitions].map((entry) => entry.site)).size).toBe(
-      41,
+      42,
     );
     expect(actual.cases.map((title) => actual.required(title).length)).toEqual([
-      0, 0, 0, 6, 6, 1, 4, 5, 9, 1, 8, 1,
+      0, 0, 0, 6, 6, 1, 4, 5, 9, 2, 8, 1,
     ]);
+    expect(
+      actual.sites
+        .filter((entry) => entry.binding === false)
+        .map(({ site, title, stage, kind, dimensions, bounds }) => ({
+          site,
+          title,
+          stage,
+          kind,
+          dimensions,
+          bounds,
+        })),
+    ).toEqual([
+      {
+        site: 'delay-1-temporal-wall-model',
+        title:
+          'Owner Arduino temporal: delay 1 ms, independent optical integrals and stable loaded-image brightness',
+        stage: 'blink-1',
+        kind: 'absolute-wall-model',
+        dimensions: {},
+        bounds: { absoluteDeltaMaximumMs: 250 },
+      },
+      {
+        site: 'millis-temporal-wall-model',
+        title:
+          'Owner Arduino temporal: independent millis 500/200/100 ms outputs with different initial phases',
+        stage: 'millis-independent',
+        kind: 'absolute-wall-model',
+        dimensions: {},
+        bounds: { absoluteDeltaMaximumMs: 250 },
+      },
+      {
+        site: 'reset-temporal-wall-model',
+        title:
+          'Owner Arduino temporal: real Arduino Reset restarts setup and clears fast optical history',
+        stage: 'reset-restarted',
+        kind: 'absolute-wall-model',
+        dimensions: {},
+        bounds: { absoluteDeltaMaximumMs: 250 },
+      },
+    ]);
+    expect(actual.acquisitions[3]).toEqual({
+      site: 'delay-1-ready-horizon-1500000',
+      title:
+        'Owner Arduino temporal: delay 1 ms, independent optical integrals and stable loaded-image brightness',
+      stage: 'blink-1',
+      horizonMicroseconds: 1500000,
+      dimensions: {},
+    });
     for (const definition of [...actual.sites, ...actual.acquisitions]) {
       expect(actual.cases).toContain(definition.title);
       expect(Object.isFrozen(definition)).toBe(true);
@@ -1226,7 +1284,7 @@ describe('fixed v3 normalization over the frozen exhaustive registry', () => {
     ]);
   });
 
-  it('enforces every original inclusive boundary after the one fixed factor, without extra tolerance', () => {
+  it('measures every original inclusive boundary after the one fixed factor, without extra tolerance', () => {
     const actual = oracle().v3;
     for (const definition of actual.sites) {
       const value = v3Ledger(definition.title);
@@ -1277,6 +1335,92 @@ describe('fixed v3 normalization over the frozen exhaustive registry', () => {
             ]).v3Outcome,
           ).toBe('FAIL');
       }
+    }
+  });
+
+  it('retains actual FAIL and mandatory completeness for exactly three prospective throughput findings', () => {
+    const actual = oracle().v3;
+    // Induced future measurements only. The old delay-1 scalar was UNREACHED;
+    // this test does not manufacture a scalar in any historical browser ledger.
+    for (const definition of actual.sites.filter((entry) => entry.binding === false)) {
+      const value = v3Ledger(definition.title);
+      populateV3(value);
+      value.entries = value.entries.filter((entry) => entry.site !== definition.site);
+      const measured = actual.record(
+        value,
+        value.title,
+        definition.site,
+        v3Provenance(definition),
+        [4000],
+        1000,
+      );
+      expect(measured).toMatchObject({
+        binding: false,
+        bounds: { absoluteDeltaMaximumMs: 250 },
+        rawWallMs: [4000],
+        modelMs: 1000,
+        strictOutcome: 'FAIL',
+        v3Outcome: 'FAIL',
+        samples: [
+          {
+            rawWallMs: 4000,
+            normalizedWallMs: 2000,
+            strictComparedMs: 3000,
+            v3ComparedMs: 1000,
+            strictPassed: false,
+            v3Passed: false,
+          },
+        ],
+      });
+      actual.complete(value, value.title);
+      expect(() =>
+        actual.record(value, value.title, definition.site, v3Provenance(definition), [4000], 1000),
+      ).toThrow('Duplicate');
+      const missing = structuredClone(value);
+      missing.entries = missing.entries.filter((entry) => entry.site !== definition.site);
+      expect(() => actual.complete(missing, value.title)).toThrow('not reached');
+      for (const change of [
+        { binding: true },
+        { v3Outcome: 'PASS' },
+        { strictOutcome: 'PASS' },
+        { bounds: { absoluteDeltaMaximumMs: 1000 } },
+        { rawWallMs: [3000] },
+      ]) {
+        const forged = structuredClone(value);
+        Object.assign(
+          forged.entries.find((entry) => entry.site === definition.site)!,
+          change,
+        );
+        expect(() => actual.complete(forged, value.title)).toThrow('Mismatched');
+      }
+      const priorRevision = {
+        ...value,
+        registryRevision: 'e0e6b912853c5c5650f2dc2d6eab4ecb234f73b14c7491a631154e30b956b017',
+      };
+      expect(() => actual.complete(priorRevision, value.title)).toThrow('invalid v3 ledger');
+    }
+  });
+
+  it('keeps all other 35 scalar and range failures binding with their original outcomes', () => {
+    const actual = oracle().v3;
+    const definitions = actual.sites.filter((entry) => entry.binding !== false);
+    expect(definitions).toHaveLength(35);
+    for (const definition of definitions) {
+      const value = v3Ledger(definition.title);
+      const absolute = definition.kind === 'absolute-wall-model';
+      const raw = absolute ? 4000 : (definition.bounds.maximumMs! + 1) / 0.5;
+      expect(() =>
+        actual.record(
+          value,
+          value.title,
+          definition.site,
+          v3Provenance(definition),
+          [raw],
+          absolute ? 1000 : null,
+        ),
+      ).toThrow('fixed-pace');
+      expect(value.entries).toHaveLength(1);
+      expect(value.entries[0]).toMatchObject({ binding: true, v3Outcome: 'FAIL' });
     }
   });
 
@@ -1375,7 +1519,7 @@ describe('fixed v3 normalization over the frozen exhaustive registry', () => {
       duplicate.entries.push(duplicate.entries[0]!);
       expect(() => actual.complete(duplicate, title)).toThrow('duplicate');
       const forged = JSON.parse(JSON.stringify(value)) as V3Ledger;
-      forged.entries[0]!.binding = false;
+      forged.entries[0]!.binding = !forged.entries[0]!.binding;
       expect(() => actual.complete(forged, title)).toThrow('Mismatched');
       const differentGeneration = JSON.parse(JSON.stringify(value)) as V3Ledger;
       differentGeneration.stages[0]!.generationId += 1;
@@ -1420,7 +1564,7 @@ describe('fixed v3 normalization over the frozen exhaustive registry', () => {
 });
 
 describe('v3 original acquisition boundary and complete real prefix', () => {
-  it('retains original5s FAIL beside later v3 PASS at all three finite acquisition sites', () => {
+  it('retains original5s FAIL beside later v3 PASS at all four finite acquisition sites', () => {
     const actual = oracle().v3;
     for (const definition of actual.acquisitions) {
       const value = v3Ledger(definition.title);
@@ -1559,7 +1703,7 @@ describe('v3 original acquisition boundary and complete real prefix', () => {
           ),
         ),
       ).toThrow();
-    for (const site of ['__proto__', 'constructor', 'delay-1-ready-horizon-1500000'])
+    for (const site of ['__proto__', 'constructor', 'delay-1-ready-horizon-1500001'])
       expect(() =>
         actual.requireAcquisition(
           actual.acquisition(value, value.title, site, v3Provenance(definition), input),
@@ -1581,6 +1725,301 @@ describe('v3 original acquisition boundary and complete real prefix', () => {
 });
 
 describe('v3 preserves real functional publication and native observations', () => {
+  // Analytic input for the actual extracted oracle. These induced records are
+  // not a browser receipt and never fill missing fields in historical evidence.
+  function startupFixture() {
+    const frame = (at: number, model: number, brightness: number) => ({
+      at,
+      requestAt: at - 10,
+      source: 'source',
+      generationId: 7,
+      responseGenerationId: 7,
+      requestId: String(at),
+      executionStatus: 'ready',
+      solved: true,
+      qualityPassed: true,
+      committedHorizonMicroseconds: model,
+      requestedHorizonMicroseconds: model,
+      continuationHorizonMicroseconds: model,
+      components: [0, 1, 2].map((index) => ({
+        componentId: `led${index}`,
+        brightness,
+        current: brightness > 0 ? 0.01 : 0,
+      })),
+    });
+    const evidence = () => ({
+      ledHrefs: [0, 1, 2].map(() => '/assets/led/red/led_red_i000.svg'),
+      simulationStatus: 'starting',
+      timeText: 'Время моделирования: 00:00:00',
+      board: {
+        href: '/assets/arduino/uno.svg',
+        mountedLoadAt: 5 as number | null,
+        visible: true,
+        unoccluded: true,
+        opacity: 1,
+      },
+      l: { activeAttribute: 'false', opacity: 0, visible: true },
+    });
+    const paint = (at: number, brightness: number) => ({
+      at,
+      brightness: [brightness, brightness, brightness],
+      imagesReady: true,
+      startupEvidence: evidence() as ReturnType<typeof evidence> | undefined,
+    });
+    const run = (at: number, brightness: number) => ({
+      first: {
+        at: at + 16,
+        previousFrameAt: at,
+        brightness: [brightness, brightness, brightness],
+        images: [0, 1, 2].map(() => ({
+          decoded: true,
+          visible: true,
+          unoccluded: true,
+          opacity: 1,
+          lit: brightness > 0,
+        })),
+      },
+      lastAt: at,
+      witnessAt: [at],
+    });
+    const raw = {
+      frames: [frame(100, 0, 0), frame(120, 1000, 80)],
+      // The third startup sample is deliberately unstable and has no paintRun.
+      paintFrames: [paint(20, 0), paint(95, 0), paint(99, 0), paint(150, 80)],
+      paintRuns: [run(20, 0), run(95, 0), run(150, 80)],
+    };
+    raw.paintFrames[0]!.startupEvidence!.simulationStatus = 'stopped';
+    raw.paintFrames[0]!.startupEvidence!.timeText = '';
+    raw.paintFrames[3]!.startupEvidence!.simulationStatus = 'running';
+    return raw;
+  }
+
+  it('classifies every complete dark native startup row without inventing an electrical witness', () => {
+    const raw = startupFixture();
+    const original = structuredClone(raw);
+    const result = oracle().v3.causality(raw, 'source', 7, 0);
+    expect(result.violations).toEqual([]);
+    expect(result.startup.h0ReadyAt).toBe(100);
+    expect(result.startup.h0RequestId).toBe('100');
+    expect(result.startup.frames).toEqual(
+      [20, 95, 99].map((at) => ({
+        at,
+        brightness: [0, 0, 0],
+        status: 'DARK_STARTUP',
+        reason: null,
+      })),
+    );
+    expect(result.witnesses).toEqual([expect.objectContaining({ at: 150, readyAt: 120 })]);
+    expect(raw).toEqual(original);
+  });
+
+  it('rejects lit, unready, obscured or incomplete native startup and advertised model state', () => {
+    type Fixture = ReturnType<typeof startupFixture>;
+    const changes: Array<[string, (raw: Fixture) => void]> = [
+      [
+        'unstable lit LED',
+        (raw) => {
+          raw.paintFrames[2]!.brightness[0] = 80;
+        },
+      ],
+      [
+        'unready LED',
+        (raw) => {
+          raw.paintFrames[2]!.imagesReady = false;
+        },
+      ],
+      [
+        'active LED asset',
+        (raw) => {
+          raw.paintFrames[2]!.startupEvidence!.ledHrefs[0] = '/assets/led/red/led_red_i070.svg';
+        },
+      ],
+      [
+        'missing LED asset',
+        (raw) => {
+          raw.paintFrames[2]!.startupEvidence!.ledHrefs.pop();
+        },
+      ],
+      [
+        'missing joint evidence',
+        (raw) => {
+          raw.paintFrames[2]!.startupEvidence = undefined;
+        },
+      ],
+      [
+        'L active',
+        (raw) => {
+          raw.paintFrames[2]!.startupEvidence!.l.activeAttribute = 'true';
+        },
+      ],
+      [
+        'L opacity',
+        (raw) => {
+          raw.paintFrames[2]!.startupEvidence!.l.opacity = 1;
+        },
+      ],
+      [
+        'L hidden',
+        (raw) => {
+          raw.paintFrames[2]!.startupEvidence!.l.visible = false;
+        },
+      ],
+      [
+        'native board not loaded',
+        (raw) => {
+          raw.paintFrames[2]!.startupEvidence!.board.mountedLoadAt = null;
+        },
+      ],
+      [
+        'native board load in future',
+        (raw) => {
+          raw.paintFrames[2]!.startupEvidence!.board.mountedLoadAt = 100;
+        },
+      ],
+      [
+        'native board obscured',
+        (raw) => {
+          raw.paintFrames[2]!.startupEvidence!.board.unoccluded = false;
+        },
+      ],
+      [
+        'native board hidden',
+        (raw) => {
+          raw.paintFrames[2]!.startupEvidence!.board.visible = false;
+        },
+      ],
+      [
+        'native board faded',
+        (raw) => {
+          raw.paintFrames[2]!.startupEvidence!.board.opacity = 0.5;
+        },
+      ],
+      [
+        'nonzero advertised time',
+        (raw) => {
+          raw.paintFrames[2]!.startupEvidence!.timeText = 'Время моделирования: 00:00:01';
+        },
+      ],
+      [
+        'unknown advertised time',
+        (raw) => {
+          raw.paintFrames[2]!.startupEvidence!.timeText = '';
+        },
+      ],
+      [
+        'modeled running status',
+        (raw) => {
+          raw.paintFrames[2]!.startupEvidence!.simulationStatus = 'running';
+        },
+      ],
+      [
+        'unknown simulation status',
+        (raw) => {
+          raw.paintFrames[2]!.startupEvidence!.simulationStatus = '';
+        },
+      ],
+    ];
+    for (const [name, change] of changes) {
+      const raw = startupFixture();
+      change(raw);
+      const original = structuredClone(raw);
+      const result = oracle().v3.causality(raw, 'source', 7, 0);
+      expect(result.violations, name).toEqual([expect.objectContaining({ at: 99 })]);
+      expect(result.startup.frames[2]!.status, name).toBe('FAIL');
+      expect(result.witnesses, name).toHaveLength(1);
+      expect(raw, name).toEqual(original);
+    }
+  });
+
+  it('rejects absent or invalid H0 instead of accepting an indefinitely dark startup', () => {
+    for (const invalid of ['absent', 'positive-first', 'wrong-generation', 'bad-request-clock']) {
+      const raw = startupFixture();
+      if (invalid === 'absent') raw.frames.length = 0;
+      if (invalid === 'positive-first') raw.frames.shift();
+      if (invalid === 'wrong-generation') raw.frames[0]!.responseGenerationId = 8;
+      if (invalid === 'bad-request-clock') raw.frames[0]!.requestAt = 101;
+      const result = oracle().v3.causality(raw, 'source', 7, 0);
+      expect(result.startup.h0ReadyAt, invalid).toBe(null);
+      expect(result.violations, invalid).toContainEqual(
+        expect.objectContaining({ reason: 'initial electrical H0 is missing or invalid' }),
+      );
+      expect(
+        result.startup.frames.every((row) => row.status === 'FAIL'),
+        invalid,
+      ).toBe(true);
+    }
+  });
+
+  it('does not exempt foreign requests or an already received ready state before H0', () => {
+    for (const kind of ['source', 'generation', 'earlier-ready']) {
+      const raw = startupFixture();
+      const foreign = {
+        ...raw.frames[1]!,
+        at: kind === 'earlier-ready' ? 94 : 200,
+        requestAt: kind === 'earlier-ready' ? 75 : 92,
+        requestId: 'foreign',
+        source: kind === 'source' || kind === 'earlier-ready' ? 'foreign' : 'source',
+        generationId: kind === 'generation' ? 8 : 7,
+        executionStatus: kind === 'earlier-ready' ? 'ready' : 'yielded',
+      };
+      raw.frames.splice(0, 0, foreign);
+      const result = oracle().v3.causality(raw, 'source', 7, 0);
+      expect(result.violations, kind).toContainEqual(
+        expect.objectContaining({
+          reason:
+            kind === 'earlier-ready'
+              ? 'electrical ready state already received before initial H0'
+              : 'foreign source or inactive generation before H0',
+        }),
+      );
+      expect(
+        result.startup.frames.some((row) => row.at === 95 && row.status === 'FAIL'),
+        kind,
+      ).toBe(true);
+    }
+  });
+
+  it('requires an exact same-RAF startup record and retains post-H0 source and supersession failures', () => {
+    const missing = startupFixture();
+    missing.paintFrames.splice(1, 1);
+    expect(oracle().v3.causality(missing, 'source', 7, 0).violations).toContainEqual(
+      expect.objectContaining({ at: 95, reason: 'missing or mismatched same-RAF startup witness' }),
+    );
+    for (const kind of ['stale', 'source', 'generation']) {
+      const raw = startupFixture();
+      if (kind === 'stale') {
+        raw.paintRuns[2]!.witnessAt = [171];
+        raw.paintRuns[2]!.lastAt = 171;
+        raw.paintRuns[2]!.first.previousFrameAt = 171;
+        raw.paintRuns[2]!.first.brightness = [0, 0, 0];
+        for (const image of raw.paintRuns[2]!.first.images) image.lit = false;
+      } else {
+        raw.frames.push({
+          ...raw.frames[1]!,
+          at: 200,
+          requestAt: 130,
+          requestId: 'new-active',
+          source: kind === 'source' ? 'foreign' : 'source',
+          generationId: kind === 'generation' ? 8 : 7,
+          executionStatus: 'yielded',
+        });
+      }
+      const result = oracle().v3.causality(raw, 'source', 7, 0);
+      expect(
+        result.startup.frames.every((row) => row.status === 'DARK_STARTUP'),
+        kind,
+      ).toBe(true);
+      expect(result.violations, kind).toEqual([
+        expect.objectContaining({
+          reason:
+            kind === 'stale'
+              ? 'electrical state superseded more than 50 ms ago'
+              : 'foreign source or inactive generation',
+        }),
+      ]);
+    }
+  });
+
   it('keeps the actual supersession allowance at 50 raw wall milliseconds', () => {
     const actual = oracle().v3;
     const frame = (at: number, brightness: number) => ({
@@ -1599,7 +2038,7 @@ describe('v3 preserves real functional publication and native observations', () 
       components: [0, 1, 2].map((index) => ({ componentId: `led${index}`, brightness })),
     });
     const raw = (at: number) => ({
-      frames: [frame(100, 80), frame(200, 0)],
+      frames: [{ ...frame(0, 0), requestAt: 0 }, frame(100, 80), frame(200, 0)],
       paintRuns: [
         {
           first: {
@@ -1657,6 +2096,7 @@ describe('v3 preserves real functional publication and native observations', () 
     ).toEqual([
       "'delay-2000-ready-horizon-4050000'",
       "'delay-2000-ready-horizon-8100000'",
+      "'delay-1-ready-horizon-1500000'",
       "'millis-ready-horizon-2250000'",
     ]);
     expect(

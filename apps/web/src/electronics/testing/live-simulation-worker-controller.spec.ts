@@ -11,7 +11,15 @@ import {
   ElectronicsLiveSimulationWorkerController,
   type ElectronicsSimulationWorkerExecutor,
 } from '../live-simulation-worker-controller';
-import type { SimulationTimedAdvancePayload } from '../simulation-worker-protocol';
+import {
+  ELECTRONICS_SIMULATION_ENGINE_REVISION,
+  ELECTRONICS_SIMULATION_WORKER_PROTOCOL,
+  type SimulationTimedAdvancePayload,
+} from '../simulation-worker-protocol';
+import {
+  evaluateSimulationWorkerRequest,
+  evaluateSimulationWorkerRequestBatched,
+} from '../simulation-worker-evaluator';
 import { SimulationWorkerError } from '../simulation-failure';
 
 const circuit: SchematicDocument = {
@@ -1250,6 +1258,136 @@ describe('Electronics canonical Worker controller', () => {
     expect(onResult).toHaveBeenCalledWith(result(3), undefined, 'dc-inputs-v1');
     expect(executor.advances).toHaveLength(4);
     expect(executor.advances[3]).toMatchObject({ requestedHorizonMicroseconds: 30_000 });
+  });
+
+  it('keeps real input transitions and forward progress when bounded host demand trails an input commit', async () => {
+    const base: SchematicDocument = {
+      ...circuit,
+      components: [
+        circuit.components[0]!,
+        circuit.components[1]!,
+        { id: 'button', kind: 'button', value: 1, position: { x: 40, y: 0 }, state: false },
+        { id: 'switched', kind: 'resistor', value: 1000, position: { x: 60, y: 0 } },
+      ],
+      connections: [
+        ['source', 'a', 'resistor', 'a'],
+        ['resistor', 'b', 'source', 'b'],
+        ['source', 'a', 'button', 'a'],
+        ['button', 'b', 'switched', 'a'],
+        ['switched', 'b', 'source', 'b'],
+      ].map(([from, a, to, b], index) => ({
+        id: `bounded-${index}`,
+        from: { componentId: from!, terminal: a! },
+        to: { componentId: to!, terminal: b! },
+      })),
+    };
+    const executor = new FakeExecutor();
+    const onFailure = vi.fn();
+    const controller = new ElectronicsLiveSimulationWorkerController(executor);
+    const requestBase = {
+      protocolVersion: ELECTRONICS_SIMULATION_WORKER_PROTOCOL,
+      engineRevision: ELECTRONICS_SIMULATION_ENGINE_REVISION,
+      requestId: 'bounded-host-preflight',
+      generationId: 1,
+      projectSessionId: 'bounded-host-input',
+    };
+    const complete = async (call: AdvanceCall) => {
+      const response = await evaluateSimulationWorkerRequestBatched(
+        {
+          ...requestBase,
+          kind: 'advance',
+          requestId: `bounded-host-${executor.advances.length}`,
+          generationId: call.generationId,
+          document: call.document,
+          state: call.state,
+          requestedHorizonMicroseconds: call.requestedHorizonMicroseconds,
+          inputEvents: call.inputEvents,
+        },
+        () => true,
+      );
+      expect(response?.ok, JSON.stringify(response)).toBe(true);
+      if (!response || !response.ok || response.kind !== 'advance')
+        throw new Error('Expected real advance');
+      expect(response.advance.executionStatus, JSON.stringify(response.advance.diagnostics)).toBe(
+        'ready',
+      );
+      expect(response.advance.result?.solved).toBe(true);
+      expect(response.advance.result?.quality?.passed).toBe(true);
+      call.deferred.resolve(response.advance);
+      await flush();
+      return response.advance;
+    };
+    try {
+      controller.start(requestBase.projectSessionId, base, { onResult: vi.fn(), onFailure });
+      const preflight = evaluateSimulationWorkerRequest({
+        ...requestBase,
+        kind: 'preflight',
+        document: base,
+      });
+      if (!preflight.ok || preflight.kind !== 'preflight')
+        throw new Error('Expected real preflight');
+      executor.preflights[0]!.resolve(preflight.result);
+      await flush();
+      await complete(executor.advances.at(-1)!);
+      controller.update(base, 25_000);
+      await complete(executor.advances.at(-1)!);
+      const pressed: SchematicDocument = {
+        ...base,
+        components: base.components.map((component) =>
+          component.id === 'button' ? { ...component, state: true } : component,
+        ),
+      };
+      controller.update(pressed, 25_000);
+      const input = executor.advances.at(-1)!;
+      expect(input.inputEvents).toEqual([
+        { atMicroseconds: 25_001, targetId: 'button', operation: 'state', payload: true },
+      ]);
+      const closed = await complete(input);
+      expect(closed.committedHorizonMicroseconds).toBe(25_001);
+      expect(
+        closed.result?.components.find((component) => component.componentId === 'switched')
+          ?.current,
+      ).toBeGreaterThan(0.0049);
+
+      controller.update(pressed, 25_000);
+      const held = executor.advances.at(-1)!;
+      const count = executor.advances.length;
+      // These inputs and newer demand must survive the one in-flight observation.
+      controller.update(base, 25_000);
+      controller.update(base, 50_000);
+      expect(executor.advances).toHaveLength(count);
+      const sameTime = await complete(held);
+      expect(held.requestedHorizonMicroseconds).toBe(25_001);
+      expect(held.state).toBe(closed.state);
+      expect(held.inputEvents).toEqual([]);
+      expect(sameTime.state).toEqual(closed.state);
+
+      const released = executor.advances.at(-1)!;
+      expect(released.inputEvents).toEqual([
+        { atMicroseconds: 25_002, targetId: 'button', operation: 'state', payload: false },
+      ]);
+      const opened = await complete(released);
+      expect(
+        opened.result?.components.find((component) => component.componentId === 'switched')
+          ?.current,
+      ).toBeCloseTo(0, 9);
+      const continued = await complete(executor.advances.at(-1)!);
+      expect(continued.committedHorizonMicroseconds).toBe(50_000);
+      expect(
+        continued.result?.components.find((component) => component.componentId === 'switched')
+          ?.current,
+      ).toBeCloseTo(0, 9);
+      const canonical = JSON.parse(continued.state.continuation!.serializedState);
+      expect(canonical.inputs).toEqual([
+        { atMicroseconds: 25_001, componentId: 'button', property: 'state', value: true },
+        { atMicroseconds: 25_002, componentId: 'button', property: 'state', value: false },
+      ]);
+      expect(canonical.nextInputIndex).toBe(2);
+      expect(executor.generation).toBe(1);
+      expect(onFailure).not.toHaveBeenCalled();
+    } finally {
+      controller.dispose();
+    }
   });
 
   it('retimes unsent input events beyond progress committed by an in-flight advance', async () => {

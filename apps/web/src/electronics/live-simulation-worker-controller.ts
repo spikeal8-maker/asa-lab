@@ -445,12 +445,17 @@ export class ElectronicsLiveSimulationWorkerController {
     if (generationId === null || !document || this.inFlight || !pendingTarget) return;
     const committed = this.timedState.continuation?.committedHorizonMicroseconds ?? 0;
     const isStartup = pendingTarget === this.startupTarget;
+    // An input can commit beyond the presentation-limited host tick. Older
+    // demand may observe the same committed time but must never rewind it.
     const target = isStartup
       ? pendingTarget
       : {
-          requestedHorizonMicroseconds: Math.min(
-            pendingTarget.requestedHorizonMicroseconds,
-            committed + this.observationWindowMicroseconds,
+          requestedHorizonMicroseconds: Math.max(
+            committed,
+            Math.min(
+              pendingTarget.requestedHorizonMicroseconds,
+              committed + this.observationWindowMicroseconds,
+            ),
           ),
         };
     // Complete time zero before pursuing host ticks or inputs queued after Start.

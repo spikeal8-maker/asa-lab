@@ -8652,16 +8652,23 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: d13_classroom_v3_composed_pending_actual
+      checkpoint: d13_post_bacd_repairs_pending_exact_ci
       owner_acceptance: pending
       programme_issue: 452
-      acceptance_revision: classroom-d13-v3
+      acceptance_revision: classroom-d13-v3-throughput-r1
       active_qualification_profile: classroom-d13-v3
       planned_qualification_profile: classroom-d13-v3
       selected_nominal_model_per_wall_pace: 0.5
+      measured_throughput_boundary: Three exact legacy scalar comparisons remain measured performance outcomes; every other35 timing comparison and all4 finite acquisitions remain binding. Native raw50ms, D13 relative-delay and electrical/lifecycle bounds remain binding.
+      qualification_amendment_review: b773db68ac90a6f57c36a6c44aae3f5162cfdfe159ef98c224c65619c83fc0ee
+      previous_candidate_sha: bacd4cf8ffe2979fd7e7a3096f42ce1a47e35549
+      previous_candidate_d13_review: 7fc955b47d7b27e2f23da4bb63283416376c963c42cfd93800c67cd6efc9ce0f
       expected_write_paths:
       - apps/web/src/electronics/led-temporal-presentation.ts
       - apps/web/src/electronics/use-electronics-workbench.ts
+      - apps/web/src/electronics/live-simulation-worker-controller.ts
+      - apps/web/src/electronics/testing/live-simulation-worker-controller.spec.ts
+      - tools/check-web-bundle-budget.mjs
       - apps/web/src/electronics/WorkbenchStage.tsx
       - apps/web/src/electronics/testing/led-temporal-presentation.spec.ts
       - apps/web/src/electronics/ProductionComponentVisual.tsx
@@ -8680,9 +8687,9 @@ parallel_lanes:
       path_coordination: The existing Electronics-field owned-path labels and global shared-path classifications remain unchanged. Explicit revision3 taskcard selects the host/renderer and nine active-image consumer changes with one author per path. Preserve the unchanged R2 observer and every foreign worktree; require fresh fetch main and actual scoped overlap checks before writes. Labels confer no exclusive write permission under direct_main.
       reported_strict_qualification: pnpm gate:electronics-m1:browser on the same exact source under strict-real-time; preserve its actual conclusion separately from the required classroom gate.
       qualification_inventory_review: 2af8f74ccd5cbe2c557fec44890e141a33652457c62d0140abb70eab59998738
-      qualification_contract_sha256: 933b377f6cb2149ee388d36a68600e3a729274793f94620ad1b70baed1454399
-      qualification_author_status: independently_reviewed_r2_composed
-      qualification_selection_at: '2026-10-19T15:56:52Z'
+      qualification_contract_sha256: 06fa47e2744f9c1389e3a709d6b33c88d12a9a25024993afece62b483d0e14dd
+      qualification_author_status: independently_reviewed_throughput_r1_composed_pending_actual
+      qualification_selection_at: '2026-10-19T19:55:00Z'
       selected_at: '2026-10-19T11:10:21Z'
       owner_authorization: Explicit 2026-10-19 instruction permits a first visible D13 slice with common measured slowdown, normal integration after browser/review/CI, and continued later slices; no deployment or live data action.
       preserved_r26_sha: cdad26c361cb4cf8ed2d095fae3c087b5d2abb2d
@@ -8691,7 +8698,7 @@ parallel_lanes:
       context_hints:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-CLASSROOM-D13-001.md
       - docs/product/electronics/components/engine-worker-clock.yaml
-      next_action: Publish the exact reviewed product/native and qualification-v3-r2 composition for full same-SHA focused, benchmark, complete classroom-v3, separately reported strict and General CI. Obtain NEW independent actual native-browser acceptance before normal D13 integration, then select visible D2-D4. Preserve all historical failures and full-realtime Issue546 restrictions.
+      next_action: Finish exact reviewed post-bacd composition on current main, run full same-SHA focused/benchmark/classroom-v3 and separately reported strict plus required General including Data/RLS. Obtain new actual native-browser acceptance and normally integrate the complete D13 slice, then continue visible D2-D4. Preserve original failures, all unrelated main work and full-realtime Issue546; main is not deployment.
     execution_lease:
       executor_id: electronics-classroom-d13
       holder: unassigned
@@ -8717,13 +8724,13 @@ parallel_lanes:
         - pnpm gate:repository
     revisions:
       kind: observed_snapshot
-      observed_at: '2026-10-19T17:33:23.339Z'
+      observed_at: '2026-10-19T20:11:00Z'
       main:
         branch: main
-        sha: 47524e08f14a1c7c6c11b213063103e652a32c3d
-      convergence_baseline_sha: 47524e08f14a1c7c6c11b213063103e652a32c3d
+        sha: e098d0c9a6e7724f3ed74a9c326afab7ad05ea7f
+      convergence_baseline_sha: e098d0c9a6e7724f3ed74a9c326afab7ad05ea7f
       head_sha: null
-      observation_note: Dated reviewed composition on controller HEAD01d431d2 and accepted main47524e08, with verified source manifestbc4b37b8, full six-file patch1391c53a and exact independent source review linked in the taskcard. The active named qualification is now classroom-d13-v3; strict and v2 remain executable. Actual product238 tests and fresh web types passed; bounded641 routing and Governance passed. Actual new browser and final-SHA repository conclusions remain pending. Historical f967 classroom164pass6fail, strict161pass9fail and GeneralFAIL remain unchanged; no acceptance or deployment. Fresh fetch main is required before execution and integration.
+      observation_note: Dated source selection after bacd D13 was independently accepted only on that candidate; complete classroom155PASS15FAIL, strict151PASS19FAIL and General DataFAIL remain historical failures. Fresh scoped preflight found main e098 with two accepted nonoverlapping Scratch specs and no foreign selected edits across67 worktrees. All bounded repair sources and throughput revision are independently reviewed; actual coherent browser/CI and main integration remain pending. Preserve every unrelated lane and blocker.
 
   - id: electronics-classroom-hygiene
     parent_lane: electronics

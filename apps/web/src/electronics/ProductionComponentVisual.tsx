@@ -802,16 +802,24 @@ function OwnerPreparedLedImage({
   };
   const targetSlot = committed?.asset === asset ? currentLeaseSlot(committed) : undefined;
   const rollbackSlot = currentLeaseSlot(rollback);
+  const previewSlot = !running ? slots.find((slot) => slot.asset === asset)?.id : undefined;
   // Clearing the committed token is an explicit Stop/Reset/source cancellation.
   // The host retains the previous lease until its layout ACK. If a proposed
   // node becomes invalid after render selected it, rollback can still select
   // the previous exact node; the renderer never decides that an ACK occurred.
-  const active = !running || !committed ? 0 : (targetSlot ?? lastActive.current);
+  // A stopped editor may preview a configured fault, always at zero brightness.
+  // This does not issue a simulation lease or replace the resident OFF resource.
+  const active = !running
+    ? (previewSlot ?? 0)
+    : !committed
+      ? 0
+      : (targetSlot ?? lastActive.current);
   const activeToken = running && targetSlot !== undefined ? committed?.token : undefined;
 
   useLayoutEffect(() => {
     current.current = { prepared, committed, rollback, running, componentId, onReadiness };
-    if (targetSlot !== undefined || !running || !committed) lastActive.current = active;
+    if (targetSlot !== undefined || !running || !committed)
+      lastActive.current = running ? active : 0;
     publish.current = () => {
       if (publishing.current) return;
       publishing.current = true;
@@ -894,18 +902,19 @@ function OwnerPreparedLedImage({
         publishing.current = false;
       }
     };
-    if (running && prepared && !slots.some((slot) => slot.asset === prepared.asset)) {
+    const requestedAsset = running ? prepared?.asset : asset;
+    if (requestedAsset !== undefined && !slots.some((slot) => slot.asset === requestedAsset)) {
       const reusable = slots.find(
         (slot) => slot.id !== 0 && slot.id !== active && slot.id !== rollbackSlot,
       );
       if (reusable) {
         setSlots(
           slots.map((slot) =>
-            slot.id === reusable.id ? { ...slot, asset: prepared.asset } : slot,
+            slot.id === reusable.id ? { ...slot, asset: requestedAsset } : slot,
           ),
         );
       } else if (slots.length < 3) {
-        setSlots([...slots, { id: slots.length, asset: prepared.asset }]);
+        setSlots([...slots, { id: slots.length, asset: requestedAsset }]);
       }
     }
     publish.current();
@@ -2271,7 +2280,7 @@ export function ProductionComponentVisual({
           ) : entry.key === 'led-5mm' && onLedAssetReadiness ? (
             <OwnerPreparedLedImage
               key={`${component.id}:${offAsset}`}
-              asset={asset}
+              asset={simulationRunning ? asset : visualAsset(entry, component, 'off')}
               offAsset={offAsset}
               componentId={component.id}
               running={simulationRunning}

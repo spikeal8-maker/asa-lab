@@ -8,6 +8,7 @@ import {
   type PointerEvent,
   type WheelEvent,
 } from 'react';
+import { flushSync } from 'react-dom';
 import type { ElectronicsArduinoSerialProjection } from '@asa-lab/electronics/engine';
 import { reportClientDiagnostic } from '../client-diagnostics';
 import type {
@@ -371,6 +372,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
 
   const simulationStartedAtRef = useRef<number | null>(null);
   const simulationHostOffsetMicrosecondsRef = useRef(0);
+  const normalHostClockRef = useRef(false);
   // Host demand is not a new electrical frame. Keep the clock out of React
   // state so a pending Worker does not redraw the whole editor every 10 ms.
   const requestedHorizonMicrosecondsRef = useRef(0);
@@ -464,6 +466,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
     resetSimulation();
     setRuntimeOverrides({});
     simulationStartedAtRef.current = null;
+    normalHostClockRef.current = false;
     requestedHorizonMicrosecondsRef.current = 0;
     setCommittedHorizonMicroseconds(0);
     setSimulationMessage(null);
@@ -482,6 +485,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
   useEffect(() => {
     if (!simulationRunning) {
       simulationStartedAtRef.current = null;
+      normalHostClockRef.current = false;
       requestedHorizonMicrosecondsRef.current = 0;
       setCommittedHorizonMicroseconds(0);
       ledTemporalPresentationRef.current.reset();
@@ -494,6 +498,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
     // Initialization does not advance model time. The first complete time-zero
     // observation below starts this generation's host clock exactly once.
     simulationStartedAtRef.current = null;
+    normalHostClockRef.current = false;
     simulationHostOffsetMicrosecondsRef.current = 0;
     requestedHorizonMicrosecondsRef.current = 0;
     const session = committedHostSessionRef.current;
@@ -505,11 +510,17 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
       const startedAt = simulationStartedAtRef.current;
       const currentDocument = runtimeDocumentRef.current;
       if (startedAt !== null && currentDocument) {
-        const horizon = classroomRequestedHorizon(
-          simulationHostOffsetMicrosecondsRef.current,
+        const elapsedMicroseconds = Math.max(
+          0,
           Math.round((window.performance.now() - startedAt) * 1000),
-          ledTemporalPresentationRef.current.presentedMicroseconds,
         );
+        const horizon = normalHostClockRef.current
+          ? simulationHostOffsetMicrosecondsRef.current + elapsedMicroseconds
+          : classroomRequestedHorizon(
+              simulationHostOffsetMicrosecondsRef.current,
+              elapsedMicroseconds,
+              ledTemporalPresentationRef.current.presentedMicroseconds,
+            );
         requestedHorizonMicrosecondsRef.current = horizon;
         simulationWorkerRef.current?.update(currentDocument, horizon);
       }
@@ -630,6 +641,23 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
       setRollbackLedAssets(displayed?.ledAssets ?? null);
       setLiveObservation(next);
     };
+    const publishReady = (candidate: PendingOpticalObservation) => {
+      const ready = () =>
+        currentSession() &&
+        session?.active === true &&
+        !publishing &&
+        pending === candidate &&
+        ledTemporalPresentationRef.current.preparedFrame === candidate.frame &&
+        ledTemporalPresentationRef.current.canPublishDistinctFrame &&
+        opticalAssetLeasesReady(candidate);
+      if (!ready()) return;
+      // A flush may also commit a pending Stop/source change or Suspense work.
+      // Recheck the exact pending frame and native leases inside publication;
+      // the unchanged parent layout effect still owns ACK or whole-vector rollback.
+      flushSync(() => {
+        if (ready()) publish(candidate);
+      });
+    };
     const presentLeds = () => {
       if (!currentSession()) return;
       animationFrame = window.requestAnimationFrame(presentLeds);
@@ -664,11 +692,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
             return;
           }
         } else {
-          if (
-            ledTemporalPresentationRef.current.canPublishDistinctFrame &&
-            opticalAssetLeasesReady(pending)
-          )
-            publish(pending);
+          publishReady(pending);
           return;
         }
       }
@@ -690,9 +714,30 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
         }
         return;
       }
-      pending = { frame, result: latestResult, assets, readiness: new Map() };
-      setLedAssetPreparation({ token: frame.token, assets });
-      if (assets.size === 0) publish(pending);
+      const candidate: PendingOpticalObservation = {
+        frame,
+        result: latestResult,
+        assets,
+        readiness: new Map(),
+      };
+      pending = candidate;
+      if (assets.size === 0) {
+        setLedAssetPreparation({ token: frame.token, assets });
+        publish(candidate);
+        return;
+      }
+      // Resident native resources can issue their new lease in this layout.
+      // A genuinely unready resource keeps the same pending frame for a later RAF.
+      flushSync(() => {
+        if (
+          currentSession() &&
+          session?.active &&
+          pending === candidate &&
+          ledTemporalPresentationRef.current.preparedFrame === frame
+        )
+          setLedAssetPreparation({ token: frame.token, assets });
+      });
+      publishReady(candidate);
     };
     animationFrame = window.requestAnimationFrame(presentLeds);
     // Only committed document updates and explicit user commands enter this
@@ -715,6 +760,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
       });
       setGenerationPending(false);
       simulationStartedAtRef.current = null;
+      normalHostClockRef.current = false;
       requestedHorizonMicrosecondsRef.current = 0;
       resetSimulationRef.current();
       ledTemporalPresentationRef.current.reset();
@@ -732,6 +778,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
         onGenerationPending: () => {
           if (!currentSession()) return;
           simulationStartedAtRef.current = null;
+          normalHostClockRef.current = false;
           setGenerationPending(true);
           setCommittedHorizonMicroseconds(0);
           ledTemporalPresentationRef.current.reset();
@@ -751,6 +798,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
           setGenerationPending(false);
           latestResult = nextResult;
           if (ledTemporal) {
+            normalHostClockRef.current = false;
             ledTemporalPresentationRef.current.accept(
               nextResult,
               ledTemporal,
@@ -775,6 +823,13 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
               );
               return;
             }
+            // Accepted generic profiles retain their original host clock. The
+            // classroom pace/cap belongs to an event-history producer; an
+            // unknown capability remains bounded until explicitly supported.
+            normalHostClockRef.current =
+              clockProfileId === 'dc-inputs-v1' ||
+              clockProfileId === 'rc-inputs-v2' ||
+              clockProfileId === 'electrothermal-v1';
             // Generic clock profiles (including mixed Arduino circuits) have
             // real canonical endpoints without event histories. Publish those
             // through the same RAF/native-asset barrier, without inventing samples.
@@ -1790,6 +1845,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
     const currentRuntimeDocument = runtimeDocumentRef.current;
     if (!currentRuntimeDocument) return;
     simulationStartedAtRef.current = null;
+    normalHostClockRef.current = false;
     simulationHostOffsetMicrosecondsRef.current = 0;
     requestedHorizonMicrosecondsRef.current = 0;
     ledTemporalPresentationRef.current.reset();

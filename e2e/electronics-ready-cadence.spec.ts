@@ -264,7 +264,7 @@ const OWNER_V3_PROFILE = 'classroom-d13-v3';
 const OWNER_V3_ENTRYPOINT = 'gate:electronics-classroom-d13-v3:browser';
 const OWNER_V3_PACE = 0.5;
 const OWNER_V3_REGISTRY_REVISION =
-  'e0e6b912853c5c5650f2dc2d6eab4ecb234f73b14c7491a631154e30b956b017';
+  '06fa47e2744f9c1389e3a709d6b33c88d12a9a25024993afece62b483d0e14dd';
 type OwnerV3Dimensions = Readonly<Record<string, string | number | readonly number[]>>;
 type OwnerV3Site = {
   site: string;
@@ -273,6 +273,8 @@ type OwnerV3Site = {
   kind: 'absolute-wall-model' | 'wall-range' | 'wall-range-array' | 'wall-upper-bound-array';
   dimensions: OwnerV3Dimensions;
   bounds: { minimumMs?: number; maximumMs?: number; absoluteDeltaMaximumMs?: number };
+  // Only the three prospective throughput findings in the sealed registry.
+  binding?: false;
 };
 type OwnerV3AcquisitionSite = {
   site: string;
@@ -546,6 +548,7 @@ const OWNER_V3_TIMING_SITES: readonly OwnerV3Site[] = freezeOwnerV3([
     kind: 'absolute-wall-model',
     dimensions: {},
     bounds: { absoluteDeltaMaximumMs: 250 },
+    binding: false,
   },
   {
     site: 'millis-temporal-wall-model',
@@ -555,6 +558,7 @@ const OWNER_V3_TIMING_SITES: readonly OwnerV3Site[] = freezeOwnerV3([
     kind: 'absolute-wall-model',
     dimensions: {},
     bounds: { absoluteDeltaMaximumMs: 250 },
+    binding: false,
   },
   {
     site: 'millis-led0-paint-half-durations',
@@ -618,6 +622,7 @@ const OWNER_V3_TIMING_SITES: readonly OwnerV3Site[] = freezeOwnerV3([
     kind: 'absolute-wall-model',
     dimensions: {},
     bounds: { absoluteDeltaMaximumMs: 250 },
+    binding: false,
   },
 ]);
 const OWNER_V3_ACQUISITION_SITES: readonly OwnerV3AcquisitionSite[] = freezeOwnerV3([
@@ -641,6 +646,14 @@ const OWNER_V3_ACQUISITION_SITES: readonly OwnerV3AcquisitionSite[] = freezeOwne
       'Owner Arduino temporal: independent millis 500/200/100 ms outputs with different initial phases',
     stage: 'millis-independent',
     horizonMicroseconds: 2250000,
+    dimensions: {},
+  },
+  {
+    site: 'delay-1-ready-horizon-1500000',
+    title:
+      'Owner Arduino temporal: delay 1 ms, independent optical integrals and stable loaded-image brightness',
+    stage: 'blink-1',
+    horizonMicroseconds: 1500000,
     dimensions: {},
   },
 ]);
@@ -686,7 +699,7 @@ type OwnerV3TimingEntry = {
   }>;
   strictOutcome: 'PASS' | 'FAIL';
   v3Outcome: 'PASS' | 'FAIL';
-  binding: true;
+  binding: boolean;
 };
 type OwnerV3ReadyTimestamp = {
   at: number;
@@ -915,7 +928,7 @@ function evaluateOwnerV3Timing(
     samples,
     strictOutcome: samples.every((entry) => entry.strictPassed) ? 'PASS' : 'FAIL',
     v3Outcome: samples.every((entry) => entry.v3Passed) ? 'PASS' : 'FAIL',
-    binding: true,
+    binding: definition.binding !== false,
   });
 }
 
@@ -934,8 +947,10 @@ function recordOwnerV3Timing(
     throw new Error('Duplicate v3 timing site.');
   rememberOwnerV3Stage(ledger, provenance);
   ledger.entries.push(entry);
-  // Preserve original strict and active outcomes before enforcing v3.
-  if (entry.v3Outcome !== 'PASS') throw new Error(`V3 fixed-pace timing failed at ${site}.`);
+  // Preserve both measured outcomes, including the three nonbinding throughput
+  // findings. Their bounds and raw values never become a synthetic PASS.
+  if (entry.binding && entry.v3Outcome !== 'PASS')
+    throw new Error(`V3 fixed-pace timing failed at ${site}.`);
   return entry;
 }
 
@@ -1157,7 +1172,10 @@ function requireOwnerV3Complete(ledger: OwnerV3Ledger | null, title: string): vo
         entry.rawWallMs,
         entry.modelMs,
       );
-      if (original.v3Outcome !== 'PASS' || JSON.stringify(original) !== JSON.stringify(entry))
+      if (
+        (original.binding && original.v3Outcome !== 'PASS') ||
+        JSON.stringify(original) !== JSON.stringify(entry)
+      )
         throw new Error('Mismatched v3 timing record, bounds or outcomes.');
     }
     const { dimensions, ...stage } = entry.provenance;
@@ -1416,6 +1434,19 @@ type WorkerReceipt = {
   computeMs: number | null;
 };
 type UiReceipt = { at: number; time: string; brightness: number[]; serial: string[] };
+type StartupPaintEvidence = {
+  ledHrefs: string[];
+  simulationStatus: string | null;
+  timeText: string;
+  board: {
+    href: string;
+    mountedLoadAt: number | null;
+    visible: boolean;
+    unoccluded: boolean;
+    opacity: number;
+  } | null;
+  l: { activeAttribute: string | null; opacity: number | null; visible: boolean } | null;
+};
 type PaintReceipt = {
   at: number;
   previousFrameAt: number | null;
@@ -1432,6 +1463,7 @@ type PaintReceipt = {
   }>;
   imageDiagnostics: Array<{ href: string; resourceDecoded: boolean; mountedLoadAt: number | null }>;
   stablePreviousFrame: boolean;
+  startupEvidence?: StartupPaintEvidence;
 };
 type ProbeWindow = Window & {
   __bitwiseWorker?: WorkerReceipt[];
@@ -1517,6 +1549,8 @@ function fixture(): SchematicDocument {
 async function observeRealWorkerAndUi(page: Page, ledCount = 8): Promise<void> {
   await page.addInitScript((ledCount) => {
     const probe = window as ProbeWindow;
+    // Prefix assertions need every original receipt, UI frame and generation.
+    // Keep page-local histories lossless; polling still returns compact summaries.
     const workers: WorkerReceipt[] = [];
     const ui: UiReceipt[] = [];
     probe.__bitwiseWorker = workers;
@@ -1530,7 +1564,6 @@ async function observeRealWorkerAndUi(page: Page, ledCount = 8): Promise<void> {
           at: entry.startTime,
           count: Number((entry as PerformanceMark).detail?.count),
         });
-        if (reanchors.length > 128) reanchors.shift();
       }
     }).observe({ type: 'mark', buffered: true });
     let workerId = 0;
@@ -1592,7 +1625,6 @@ async function observeRealWorkerAndUi(page: Page, ledCount = 8): Promise<void> {
               typeof response.metrics?.computeMs === 'number' ? response.metrics.computeMs : null,
           });
           sources.delete(response.requestId);
-          if (workers.length > 200) workers.shift();
         });
         return worker;
       },
@@ -1614,7 +1646,6 @@ async function observeRealWorkerAndUi(page: Page, ledCount = 8): Promise<void> {
           Number(element!.getAttribute('data-led-brightness') ?? '0'),
         ),
       });
-      if (ui.length > 200) ui.shift();
     };
     new MutationObserver(collect).observe(document, {
       subtree: true,
@@ -1678,7 +1709,13 @@ async function observeRealWorkerAndUi(page: Page, ledCount = 8): Promise<void> {
         'load',
         (event) => {
           const image = event.target;
-          if (!(image instanceof SVGImageElement) || !image.matches('.workbench-led-asset')) return;
+          if (
+            !(image instanceof SVGImageElement) ||
+            (!image.matches('.workbench-led-asset') &&
+              (!image.closest('[data-component-id="uno"] .workbench-production-visual') ||
+                image.closest('.workbench-selection-silhouette')))
+          )
+            return;
           observeHrefChanges(hrefChanges.takeRecords());
           mounted.nativeLoad(
             image,
@@ -1698,6 +1735,89 @@ async function observeRealWorkerAndUi(page: Page, ledCount = 8): Promise<void> {
         },
         true,
       );
+      // A separate same-RAF startup witness; it never changes the modeled-paint
+      // signature, physical timing, source identity or supersession allowance.
+      const readStartupEvidence = (ledHrefs: string[]): StartupPaintEvidence => {
+        const simulationStatus =
+          document
+            .querySelector('.workbench-pill.simulate')
+            ?.getAttribute('data-simulation-status') ?? null;
+        const timeText = document.querySelector('.workbench-simulation-time')?.textContent ?? '';
+        // Modeled frames retain their original native observer. Do not add board
+        // hit tests to steady-state timing; a pre-H0 running/missing status fails.
+        if (simulationStatus !== 'stopped' && simulationStatus !== 'starting')
+          return { ledHrefs, simulationStatus, timeText, board: null, l: null };
+        const board = document.querySelector<SVGSVGElement>(
+          '[data-component-id="uno"] .workbench-production-visual',
+        );
+        const image = [...(board?.querySelectorAll<SVGImageElement>('image') ?? [])].find(
+          (candidate) => !candidate.closest('.workbench-selection-silhouette'),
+        );
+        const visibleStyle = (element: Element | null) => {
+          let visible = !!element;
+          let opacity = 1;
+          for (let current = element; current; current = current.parentElement) {
+            const style = getComputedStyle(current);
+            visible &&= style.display !== 'none' && style.visibility === 'visible';
+            opacity *= Number(style.opacity);
+          }
+          return { visible, opacity };
+        };
+        const inViewport = (box: DOMRect | undefined) =>
+          !!box &&
+          box.width > 0 &&
+          box.height > 0 &&
+          box.left >= 0 &&
+          box.top >= 0 &&
+          box.right <= innerWidth &&
+          box.bottom <= innerHeight;
+        const style = visibleStyle(image ?? null);
+        const box = image?.getBoundingClientRect();
+        const component = board?.closest('[data-component-id]');
+        const hits: Array<Element | undefined> = [];
+        if (image && box) {
+          const originalStyle = image.getAttribute('style');
+          try {
+            image.style.setProperty('pointer-events', 'all', 'important');
+            for (const fraction of [0.35, 0.5, 0.65])
+              hits.push(
+                document.elementsFromPoint(
+                  box.left + box.width * fraction,
+                  box.top + box.height * 0.5,
+                )[0],
+              );
+          } finally {
+            image.setAttribute('style', originalStyle ?? '');
+            if (originalStyle === null) image.removeAttribute('style');
+          }
+        }
+        const l = board?.querySelector<SVGRectElement>('[data-testid="arduino-led-l"]');
+        const lStyle = visibleStyle(l?.parentElement ?? null);
+        observeHrefChanges(hrefChanges.takeRecords());
+        const href = image?.href.baseVal ?? '';
+        return {
+          ledHrefs,
+          simulationStatus,
+          timeText,
+          board: {
+            href,
+            mountedLoadAt: image ? mounted.current(image, href, image.isConnected) : null,
+            visible:
+              style.visible &&
+              inViewport(box) &&
+              image?.getAttribute('data-owner-image-status') !== 'failed',
+            unoccluded:
+              hits.length === 3 && hits.every((hit) => !!hit && !!component?.contains(hit)),
+            opacity: style.opacity,
+          },
+          l: {
+            activeAttribute: l?.getAttribute('data-active') ?? null,
+            opacity: l ? Number(getComputedStyle(l).opacity) : null,
+            visible:
+              lStyle.visible && lStyle.opacity === 1 && inViewport(l?.getBoundingClientRect()),
+          },
+        };
+      };
       let previous = '';
       let previousFrameAt: number | null = null;
       const paint = () => {
@@ -1803,6 +1923,7 @@ async function observeRealWorkerAndUi(page: Page, ledCount = 8): Promise<void> {
             };
           });
           const signature = JSON.stringify({ brightness, images });
+          const startupEvidence = readStartupEvidence(images.map((image) => image.href));
           const at = performance.now();
           paints.push({
             at,
@@ -1811,10 +1932,10 @@ async function observeRealWorkerAndUi(page: Page, ledCount = 8): Promise<void> {
             images,
             imageDiagnostics,
             stablePreviousFrame: signature === previous,
+            startupEvidence,
           });
           previous = signature;
           previousFrameAt = at;
-          if (paints.length > 400) paints.shift();
         }
         requestAnimationFrame(paint);
       };
@@ -3138,7 +3259,12 @@ type TemporalPaintRun = {
 type TemporalProbe = {
   frames: TemporalFrame[];
   paintRuns: TemporalPaintRun[];
-  paintFrames: Array<{ at: number; brightness: number[]; imagesReady: boolean }>;
+  paintFrames: Array<{
+    at: number;
+    brightness: number[];
+    imagesReady: boolean;
+    startupEvidence?: StartupPaintEvidence;
+  }>;
   resetClicks: Array<{ at: number; trusted: boolean }>;
   errors: Array<{ at: number; code: string; requestId: string }>;
   reanchors: NonNullable<ProbeWindow['__ledPlayoutReanchors']>;
@@ -3158,8 +3284,8 @@ async function observeOwnerTemporal(page: Page): Promise<void> {
       reanchors: probe.__ledPlayoutReanchors!,
     };
     probe.__ownerTemporal = captured;
-    // Capture compact, actual response envelopes on delivery, before the old
-    // 200-row ring can evict the beginning of an eight-second observation.
+    // Capture the complete compact response stream on delivery, independently
+    // of the canonical-state history consumed by the generic journeys.
     // No canonical matrix/state is copied or polled for each intermediate frame.
     window.Worker = new Proxy(window.Worker, {
       construct(target, args, newTarget) {
@@ -3260,6 +3386,7 @@ async function observeOwnerTemporal(page: Page): Promise<void> {
         captured.paintFrames.push({
           at: row.at,
           brightness: row.brightness,
+          startupEvidence: row.startupEvidence,
           imagesReady:
             row.images.length === 3 &&
             row.images.every(
@@ -3994,6 +4121,102 @@ function temporalJointWitness(
   return undefined;
 }
 
+function temporalStartupBoundary(
+  raw: TemporalProbe,
+  ready: readonly TemporalFrame[],
+  source: string,
+  generationId: number,
+  from: number,
+  to: number,
+) {
+  const first = ready[0];
+  const initial =
+    first &&
+    Number.isFinite(first.at) &&
+    first.requestAt !== null &&
+    Number.isFinite(first.requestAt) &&
+    first.requestAt >= 0 &&
+    first.requestAt <= first.at &&
+    first.committedHorizonMicroseconds === 0 &&
+    temporalJointWitness(first, [0, 0, 0]) === 0
+      ? first
+      : null;
+  const violations: Array<{ at: number; brightness: number[]; reason: string }> = [];
+  if (!initial)
+    violations.push({
+      at: from,
+      brightness: [],
+      reason: 'initial electrical H0 is missing or invalid',
+    });
+  // Keep every compact RAF sample, including unstable/unready ones. Historical
+  // records without this joint native LED/L/header witness cannot become PASS.
+  const frames = (raw.paintFrames ?? [])
+    .filter((row) => row.at >= from && row.at <= to && (!initial || row.at < initial.at))
+    .map((row) => {
+      const evidence = row.startupEvidence;
+      const active = raw.frames
+        .filter((frame) => frame.requestAt !== null && frame.requestAt <= row.at)
+        .reduce<TemporalFrame | undefined>(
+          (latest, frame) => (!latest || frame.requestAt! > latest.requestAt! ? frame : latest),
+          undefined,
+        );
+      let reason: string | null = null;
+      if (!initial) reason = 'initial electrical H0 is missing or invalid';
+      else if (active && (active.source !== source || active.generationId !== generationId))
+        reason = 'foreign source or inactive generation before H0';
+      else if (
+        raw.frames.some(
+          (frame) => frame.executionStatus === 'ready' && frame.at >= from && frame.at <= row.at,
+        )
+      )
+        reason = 'electrical ready state already received before initial H0';
+      else if (!evidence) reason = 'insufficient native LED/L/header startup evidence';
+      else if (
+        row.brightness.length !== 3 ||
+        row.brightness.some((value) => value !== 0) ||
+        !row.imagesReady ||
+        evidence.ledHrefs.length !== 3 ||
+        evidence.ledHrefs.some((href) => !/_i000\.svg(?:\?|$)/.test(href))
+      )
+        reason = 'native LEDs are not completely dark and ready before H0';
+      else if (!(
+        (evidence.simulationStatus === 'stopped' && evidence.timeText === '') ||
+        (evidence.simulationStatus === 'starting' &&
+          evidence.timeText.replace(/\s+/g, ' ').trim() === 'Время моделирования: 00:00:00')
+      ))
+        reason = 'modeled status or nonzero/unknown advertised clock before H0';
+      else if (
+        !evidence.board ||
+        !evidence.board.href ||
+        evidence.board.mountedLoadAt === null ||
+        !Number.isFinite(evidence.board.mountedLoadAt) ||
+        evidence.board.mountedLoadAt < 0 ||
+        evidence.board.mountedLoadAt > row.at ||
+        !evidence.board.visible ||
+        !evidence.board.unoccluded ||
+        evidence.board.opacity !== 1 ||
+        !evidence.l ||
+        evidence.l.activeAttribute !== 'false' ||
+        evidence.l.opacity !== 0 ||
+        !evidence.l.visible
+      )
+        reason = 'native board/L is not completely dark and ready before H0';
+      if (reason) violations.push({ at: row.at, brightness: row.brightness, reason });
+      return {
+        at: row.at,
+        brightness: row.brightness,
+        status: reason ? 'FAIL' : 'DARK_STARTUP',
+        reason,
+      };
+    });
+  return {
+    h0ReadyAt: initial?.at ?? null,
+    h0RequestId: initial?.requestId ?? null,
+    frames,
+    violations,
+  };
+}
+
 function temporalPaintCausality(
   raw: TemporalProbe,
   source: string,
@@ -4021,10 +4244,25 @@ function temporalPaintCausality(
     readyAt: number;
     supersededAt: number | null;
   }> = [];
-  const violations: Array<{ at: number; brightness: number[]; reason: string }> = [];
+  const startup = temporalStartupBoundary(raw, ready, source, generationId, from, to);
+  const startupByAt = new Map(startup.frames.map((row) => [row.at, row]));
+  const violations: Array<{ at: number; brightness: number[]; reason: string }> = [
+    ...startup.violations,
+  ];
   for (const run of validTemporalPaint(raw, from, to)) {
     for (const at of run.witnessAt.filter((at) => at >= from && at <= to)) {
       const brightness = run.first.brightness;
+      if (startup.h0ReadyAt !== null && at < startup.h0ReadyAt) {
+        const row = startupByAt.get(at);
+        if (!row || row.brightness.some((value, index) => value !== brightness[index]))
+          violations.push({
+            at,
+            brightness,
+            reason: 'missing or mismatched same-RAF startup witness',
+          });
+        // The row was explicitly assessed above; it is not an electrical witness.
+        continue;
+      }
       // Use the actual request clock to establish the active generation. A late
       // old-generation response cannot become current merely by arriving last.
       const active = raw.frames
@@ -4072,7 +4310,7 @@ function temporalPaintCausality(
       });
     }
   }
-  return { witnesses, violations };
+  return { witnesses, violations, startup };
 }
 
 function resetSetupPaintViolations(
@@ -4224,7 +4462,9 @@ test('Owner Arduino temporal: delay 1 ms, independent optical integrals and stab
   let metrics: unknown;
   try {
     await page.getByRole('button', { name: 'Начать моделирование', exact: true }).click();
-    await waitForTemporalHorizon(page, session.source, 1_500_000);
+    if (ownerV3Ledger)
+      await waitForOwnerV3Horizon(page, session.source, 'delay-1-ready-horizon-1500000');
+    else await waitForTemporalHorizon(page, session.source, 1_500_000);
     const raw = await temporalObservation(page);
     const ready = assertTemporalFrames(raw, session.source);
     const clock = ownerV3Ledger

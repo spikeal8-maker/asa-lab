@@ -773,6 +773,7 @@ describe('resident LED body preparation and joint DOM commit', () => {
       running: boolean;
       id: string;
       colour: string;
+      fault: string;
       prepared: LedAssetPreparation | undefined;
       committed: LedAssetReadiness | undefined;
       rollback: LedAssetReadiness | undefined;
@@ -781,6 +782,7 @@ describe('resident LED body preparation and joint DOM commit', () => {
       running: true,
       id: 'resident-led',
       colour: 'red',
+      fault: 'none',
       prepared: undefined,
       committed: undefined,
       rollback: undefined,
@@ -798,7 +800,7 @@ describe('resident LED body preparation and joint DOM commit', () => {
       position: { x: 0, y: 0 },
       value: led.defaultValue,
       rotation: 0,
-      stateProperties: { ledColour: view.colour },
+      stateProperties: { ledColour: view.colour, ledFault: view.fault },
     });
     const asset = (brightness: number) =>
       visualAsset(
@@ -916,6 +918,93 @@ describe('resident LED body preparation and joint DOM commit', () => {
       boundaryOutcomes,
     };
   }
+
+  it('recovers a failed stopped fault preview on its mounted body without issuing a simulation lease', async () => {
+    const probes: string[] = [];
+    class RetryImage {
+      naturalWidth = 10;
+      naturalHeight = 10;
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      set src(href: string) {
+        probes.push(href);
+        queueMicrotask(() => this.onload?.());
+      }
+    }
+    vi.stubGlobal('Image', RetryImage);
+    const f = fixture();
+    await f.render({ running: false });
+    const offAsset = f.asset(0);
+    const off = f.imageFor(offAsset);
+    await f.load(off);
+    await f.render({ fault: 'reverse', brightness: 70 });
+    const faultAsset = f.asset(0);
+    expect(faultAsset).toMatch(/led_red_reverse_polarity\.svg$/);
+    const preview = f.imageFor(faultAsset);
+    expect(f.images()[0]).toBe(preview);
+    expect(f.images()).toHaveLength(2);
+    expect(preview.getAttribute('data-led-asset-token')).toBeNull();
+    // Induce the mounted error delivered for an invalid HTTP image body.
+    // The unchanged browser test supplies the actual HTTP 200 HTML response.
+    await act(async () => nativeCallback(preview, 'error')());
+    expect(probes).toHaveLength(1);
+    const retry = new URL(probes[0]!);
+    expect(retry.pathname).toBe(faultAsset);
+    expect(retry.searchParams.get('asa-image-retry')).toBe('0');
+    expect(f.images()[0]).toBe(preview);
+    expect(preview.getAttribute('href')).toBe(retry.href);
+    await f.load(preview);
+    expect(f.imageFor(offAsset)).toBe(off);
+    expect(f.events.filter((event) => event.status === 'ready')).toHaveLength(0);
+    expect(f.host.querySelector('.workbench-led-visual')?.getAttribute('data-led-brightness')).toBe(
+      '0',
+    );
+    expect(f.host.querySelector('.workbench-led-visual')?.classList.contains('is-lit')).toBe(false);
+    expect(f.lActive()).toBe('0');
+  });
+
+  it('keeps stopped previews out of Run admission and returns to resident OFF on Stop despite stale brightness', async () => {
+    const f = fixture();
+    await f.render({ running: false });
+    const offAsset = f.asset(0);
+    const highAsset = f.asset(70);
+    const off = f.imageFor(offAsset);
+    await f.render({ fault: 'burned' });
+    const preview = f.imageFor(f.asset(0));
+    await f.load(preview);
+    const latePreviewLoad = loadCallback(preview);
+    const request = { token: 'preview-to-run:high', asset: highAsset };
+    await f.render({ running: true, fault: 'none', prepared: request });
+    expect(f.images()[0]).toBe(off);
+    const high = f.imageFor(highAsset);
+    await f.load(high);
+    await act(async () => latePreviewLoad());
+    expect(f.events.filter((event) => event.status === 'ready')).toHaveLength(0);
+    await f.load(off);
+    const lease = f.ready(request.token);
+    expect(lease.isCurrent()).toBe(true);
+    expect(lease.isActive()).toBe(false);
+    await f.render({ brightness: 70, committed: lease });
+    expect(f.images()[0]).toBe(high);
+    expect(lease.isActive()).toBe(true);
+    await f.render({ running: false, prepared: undefined, committed: undefined });
+    expect(f.images()[0]).toBe(off);
+    expect(off.getAttribute('href')).toBe(offAsset);
+    expect(lease.isCurrent()).toBe(false);
+    expect(f.images().length).toBeLessThanOrEqual(3);
+    expect(f.host.querySelector('.workbench-led-visual')?.getAttribute('data-led-brightness')).toBe(
+      '0',
+    );
+    expect(f.host.querySelector('.workbench-led-visual')?.classList.contains('is-lit')).toBe(false);
+    expect(f.lActive()).toBe('0');
+    await f.render({ fault: 'burned' });
+    expect(f.images()[0]).toBe(f.imageFor(f.asset(0)));
+    // A stopped preview never becomes the fallback for a revoked running lease.
+    await f.render({ running: true, brightness: 0, fault: 'none', committed: lease });
+    expect(lease.isCurrent()).toBe(false);
+    expect(f.images()[0]).toBe(off);
+    expect(f.lActive()).toBe('0');
+  });
 
   it('waits for native OFF and HIGH, then moves the loaded keyed node with the same href in a joint LED/L commit', async () => {
     const f = fixture();
