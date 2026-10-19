@@ -1,7 +1,8 @@
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { expect, test, type Page, type TestInfo } from '@playwright/test';
+import { PNG } from 'pngjs';
 import type pg from 'pg';
 import type { SchematicDocument } from '../apps/web/src/api';
 import type { ArduinoRuntimeState } from '../contexts/electronics/domain/arduino-program-runtime';
@@ -30,6 +31,7 @@ const sourcePaths = [
   'contexts/electronics/domain/simulation.ts',
   'apps/web/src/electronics/use-electronics-workbench.ts',
   'apps/web/src/electronics/ProductionComponentVisual.tsx',
+  'apps/web/src/electronics/led-temporal-presentation.ts',
   'contexts/electronics/domain/led-temporal-observation.ts',
   'e2e/electronics-classroom-timing.spec.ts',
 ];
@@ -91,6 +93,7 @@ type Paint = {
   led: ImageWitness;
   board: ImageWitness;
   lVisible: boolean;
+  lRect: ImageWitness['rect'];
   assetsReady: boolean;
   running: string | null;
   timeText: string;
@@ -109,7 +112,43 @@ type Probe = {
   observerErrors: string[];
   finishedAt: number | null;
 };
-type ProbeWindow = Window & { __classroomD13?: Probe };
+const probeArrayKeys = [
+  'frames',
+  'paints',
+  'gpio',
+  'clicks',
+  'errors',
+  'inflight',
+  'observerErrors',
+] as const;
+type ProbeArrayKey = (typeof probeArrayKeys)[number];
+type ProbeOffsets = Record<ProbeArrayKey, number>;
+type ProbeHeader = Omit<Probe, ProbeArrayKey>;
+// Frames contain growing runtime history. Encode each receipt exactly once;
+// returning nested history through Playwright on every poll expands the trace
+// and blocks the very renderer being measured. These strings are observation
+// records only, never inputs to the simulator.
+type BrowserProbe = Omit<Probe, 'frames'> & { frames: string[] };
+type TransferCut = {
+  token: string;
+  header: ProbeHeader;
+  from: ProbeOffsets;
+  to: ProbeOffsets;
+  characters: number;
+};
+type ProbeWindow = Window & {
+  __classroomD13?: BrowserProbe;
+  __classroomD13Transfer?: {
+    probe: BrowserProbe;
+    cut: TransferCut;
+    text: string;
+  };
+};
+type ProbeArchive = {
+  raw: Probe;
+  cuts: Array<TransferCut & { path: string; sha256: string }>;
+};
+const probeArchives = new WeakMap<Page, ProbeArchive>();
 type Edge = { at: number; level: number; receivedAt?: number };
 type Metrics = {
   findings: string[];
@@ -227,7 +266,24 @@ function circuit(wiring: 'normal' | 'open' | 'reversed' = 'normal'): SchematicDo
 async function installObserver(page: Page): Promise<void> {
   await page.addInitScript(() => {
     const host = window as ProbeWindow;
-    host.__classroomD13 = {
+    const append = <T>(rows: T[], value: T): void => {
+      const copy = typeof value === 'string' ? value : structuredClone(value);
+      const freeze = (item: unknown): void => {
+        if (!item || typeof item !== 'object' || Object.isFrozen(item)) return;
+        for (const child of Object.values(item)) freeze(child);
+        Object.freeze(item);
+      };
+      freeze(copy);
+      // A previously recorded row cannot be changed, deleted or truncated.
+      // The next array index remains appendable. Never freeze a product object.
+      Object.defineProperty(rows, rows.length, {
+        value: copy,
+        enumerable: true,
+        writable: false,
+        configurable: false,
+      });
+    };
+    host.__classroomD13 = Object.freeze({
       epoch: 0,
       label: 'page-startup',
       source: '',
@@ -240,7 +296,7 @@ async function installObserver(page: Page): Promise<void> {
       inflight: [],
       observerErrors: [],
       finishedAt: null,
-    };
+    });
     let workerCounter = 0;
     const pending = new Set<string>();
     const eventKeys = new Set<string>();
@@ -289,7 +345,7 @@ async function installObserver(page: Page): Promise<void> {
         worker.terminate = () => {
           for (const id of requests.keys()) pending.delete(workerId + ':' + id);
           requests.clear();
-          host.__classroomD13!.inflight.push({
+          append(host.__classroomD13!.inflight, {
             at: performance.now(),
             count: pending.size,
             reason: 'actual-worker-termination',
@@ -312,7 +368,7 @@ async function installObserver(page: Page): Promise<void> {
               epoch: probe.epoch,
             });
             pending.add(workerId + ':' + request.requestId);
-            probe.inflight.push({
+            append(probe.inflight, {
               at: performance.now(),
               count: pending.size,
               reason: 'post-advance',
@@ -326,16 +382,22 @@ async function installObserver(page: Page): Promise<void> {
           requests.delete(response.requestId);
           const probe = host.__classroomD13!;
           if (pending.delete(workerId + ':' + response.requestId))
-            probe.inflight.push({ at: performance.now(), count: pending.size, reason: 'response' });
+            append(probe.inflight, {
+              at: performance.now(),
+              count: pending.size,
+              reason: 'response',
+            });
           if (!response.ok) {
-            probe.errors.push({
+            append(probe.errors, {
               at: performance.now(),
               requestId: response.requestId,
               code: response.code,
             });
             return;
           }
-          if (response.kind !== 'advance' || !request || request.epoch !== probe.epoch) return;
+          // Keep late responses from a pre-mark request. Analysis must reject
+          // every stale post-click frame, rather than hiding it by request epoch.
+          if (response.kind !== 'advance' || !request) return;
           const advance = response.advance;
           let board:
             | { componentId: string; loadedSource?: string | null; runtime: ArduinoRuntimeState }
@@ -347,48 +409,51 @@ async function installObserver(page: Page): Promise<void> {
                 JSON.parse(serialized) as { boards: NonNullable<typeof board>[] }
               ).boards.find((row) => row.componentId === 'uno');
           } catch (error) {
-            probe.observerErrors.push('continuation decode: ' + String(error));
+            append(probe.observerErrors, 'continuation decode: ' + String(error));
           }
           const receivedAt = performance.now();
-          probe.frames.push({
-            at: receivedAt,
-            workerId,
-            requestId: response.requestId,
-            requestAt: request.at,
-            source: request.source,
-            generationId: response.generationId,
-            requestedGenerationId: request.generationId,
-            projectSessionId: response.projectSessionId,
-            engineRevision: request.engineRevision,
-            metricsRevision: response.metrics.solverRevision,
-            protocolVersion: response.protocolVersion,
-            status: advance.executionStatus,
-            requestedUs: advance.requestedHorizonMicroseconds,
-            committedUs: advance.committedHorizonMicroseconds,
-            continuationUs: advance.state.continuation?.committedHorizonMicroseconds ?? null,
-            computeMs: response.metrics.computeMs,
-            hasResult: advance.result !== null,
-            solved: advance.result?.solved === true,
-            quality: advance.result?.quality ?? null,
-            diagnostics: advance.diagnostics,
-            components:
-              advance.result?.components.filter((row) =>
-                ['uno', 'r0', 'led0'].includes(row.componentId),
-              ) ?? [],
-            optical: advance.ledTemporal ?? null,
-            loadedSource: board?.loadedSource ?? null,
-            fingerprint: board?.runtime.programFingerprint ?? null,
-            d13Voltage: board?.runtime.outputVoltages.d13 ?? null,
-            runtimeEvents: [...(board?.runtime.eventQueue ?? [])],
-            nextEventSequence: board?.runtime.nextEventSequence ?? null,
-          });
+          append(
+            probe.frames,
+            JSON.stringify({
+              at: receivedAt,
+              workerId,
+              requestId: response.requestId,
+              requestAt: request.at,
+              source: request.source,
+              generationId: response.generationId,
+              requestedGenerationId: request.generationId,
+              projectSessionId: response.projectSessionId,
+              engineRevision: request.engineRevision,
+              metricsRevision: response.metrics.solverRevision,
+              protocolVersion: response.protocolVersion,
+              status: advance.executionStatus,
+              requestedUs: advance.requestedHorizonMicroseconds,
+              committedUs: advance.committedHorizonMicroseconds,
+              continuationUs: advance.state.continuation?.committedHorizonMicroseconds ?? null,
+              computeMs: response.metrics.computeMs,
+              hasResult: advance.result !== null,
+              solved: advance.result?.solved === true,
+              quality: advance.result?.quality ?? null,
+              diagnostics: advance.diagnostics,
+              components:
+                advance.result?.components.filter((row) =>
+                  ['uno', 'r0', 'led0'].includes(row.componentId),
+                ) ?? [],
+              optical: advance.ledTemporal ?? null,
+              loadedSource: board?.loadedSource ?? null,
+              fingerprint: board?.runtime.programFingerprint ?? null,
+              d13Voltage: board?.runtime.outputVoltages.d13 ?? null,
+              runtimeEvents: [...(board?.runtime.eventQueue ?? [])],
+              nextEventSequence: board?.runtime.nextEventSequence ?? null,
+            } satisfies Frame),
+          );
           for (const item of board?.runtime.eventQueue ?? []) {
             if (item.kind !== 'output-change' || item.terminal !== 'd13') continue;
             const key =
               probe.epoch + ':' + workerId + ':' + response.generationId + ':' + item.sequence;
             if (!eventKeys.has(key)) {
               eventKeys.add(key);
-              probe.gpio.push({
+              append(probe.gpio, {
                 at: receivedAt,
                 generationId: response.generationId,
                 workerId,
@@ -412,7 +477,7 @@ async function installObserver(page: Page): Promise<void> {
               ? 'stop'
               : null;
         if (action)
-          host.__classroomD13!.clicks.push({
+          append(host.__classroomD13!.clicks, {
             at: performance.now(),
             action,
             trusted: event.isTrusted,
@@ -544,7 +609,7 @@ async function installObserver(page: Page): Promise<void> {
           running,
         ]);
         const at = performance.now();
-        probe.paints.push({
+        append(probe.paints, {
           at,
           previousAt: lastAt,
           stable: previousEpoch === probe.epoch && previousSignature === signature,
@@ -555,6 +620,7 @@ async function installObserver(page: Page): Promise<void> {
           led,
           board: boardImage,
           lVisible,
+          lRect: { x: lBox.x, y: lBox.y, width: lBox.width, height: lBox.height },
           assetsReady,
           running,
           timeText: document.querySelector('.workbench-simulation-time')?.textContent ?? '',
@@ -574,7 +640,7 @@ async function mark(page: Page, label: string, source: string): Promise<void> {
     ({ label, source }) => {
       const host = window as ProbeWindow;
       const previous = host.__classroomD13!;
-      host.__classroomD13 = {
+      host.__classroomD13 = Object.freeze({
         epoch: previous.epoch + 1,
         label,
         source,
@@ -587,16 +653,202 @@ async function mark(page: Page, label: string, source: string): Promise<void> {
         inflight: [],
         observerErrors: [],
         finishedAt: null,
-      };
+      });
+      delete host.__classroomD13Transfer;
     },
     { label, source },
   );
+  probeArchives.delete(page);
 }
 async function snapshot(page: Page): Promise<Probe> {
-  return page.evaluate(() => ({
-    ...(window as ProbeWindow).__classroomD13!,
-    finishedAt: performance.now(),
-  }));
+  let archive = probeArchives.get(page);
+  const from = Object.fromEntries(
+    probeArrayKeys.map((key) => [key, archive?.raw[key].length ?? 0]),
+  ) as ProbeOffsets;
+  const expected = archive
+    ? {
+        epoch: archive.raw.epoch,
+        label: archive.raw.label,
+        source: archive.raw.source,
+        markedAt: archive.raw.markedAt,
+      }
+    : null;
+  const cut = await page.evaluate(
+    ({ keys, from, expected }) => {
+      const host = window as ProbeWindow;
+      const probe = host.__classroomD13;
+      if (!probe) throw new Error('MISSING_HISTORY: observer was not installed');
+      if (
+        expected &&
+        (probe.epoch !== expected.epoch ||
+          probe.label !== expected.label ||
+          probe.source !== expected.source ||
+          probe.markedAt !== expected.markedAt)
+      )
+        throw new Error('MISSING_HISTORY: transfer epoch/source changed');
+      const same = (a: ProbeOffsets, b: ProbeOffsets) => keys.every((key) => a[key] === b[key]);
+      const previous = host.__classroomD13Transfer;
+      if (previous) {
+        if (previous.probe !== probe) throw new Error('MISSING_HISTORY: probe was replaced');
+        // An interrupted transfer can request the identical immutable cut again.
+        if (same(from, previous.cut.from) && !same(from, previous.cut.to)) return previous.cut;
+        if (!same(from, previous.cut.to))
+          throw new Error('MISSING_HISTORY: transfer skipped, repeated or reversed an offset');
+      } else if (keys.some((key) => from[key] !== 0)) {
+        throw new Error('MISSING_HISTORY: transfer did not begin at row zero');
+      }
+      const to = Object.fromEntries(keys.map((key) => [key, probe[key].length])) as ProbeOffsets;
+      if (
+        keys.some((key) => !Number.isSafeInteger(from[key]) || from[key] < 0 || to[key] < from[key])
+      )
+        throw new Error('MISSING_HISTORY: append-only prefix was truncated');
+      const header: ProbeHeader = {
+        epoch: probe.epoch,
+        label: probe.label,
+        source: probe.source,
+        markedAt: probe.markedAt,
+        finishedAt: performance.now(),
+      };
+      // The fixed lengths and timestamp are one cut. Rendering continues while
+      // its already recorded text is delivered; later rows belong to the next cut.
+      const text =
+        '{' +
+        keys
+          .map(
+            (key) =>
+              JSON.stringify(key) +
+              ':' +
+              (key === 'frames'
+                ? '[' + probe.frames.slice(from.frames, to.frames).join(',') + ']'
+                : JSON.stringify(probe[key].slice(from[key], to[key]))),
+          )
+          .join(',') +
+        '}';
+      const cut: TransferCut = {
+        token: probe.epoch + ':' + JSON.stringify(from) + ':' + JSON.stringify(to),
+        header,
+        from,
+        to,
+        characters: text.length,
+      };
+      host.__classroomD13Transfer = { probe, cut, text };
+      return cut;
+    },
+    { keys: probeArrayKeys, from, expected },
+  );
+  if (
+    probeArrayKeys.some((key) => cut.from[key] !== from[key]) ||
+    (expected &&
+      (cut.header.epoch !== expected.epoch ||
+        cut.header.source !== expected.source ||
+        cut.header.label !== expected.label ||
+        cut.header.markedAt !== expected.markedAt))
+  )
+    throw new Error('MISSING_HISTORY: returned transfer boundary does not match host prefix');
+  const cutIndex = archive?.cuts.length ?? 0;
+  const path = resolve(
+    artifactRoot,
+    cut.header.label + '-epoch-' + cut.header.epoch + '-cut-' + cutIndex + '.wire.json',
+  );
+  const receiptPath = path.replace('.wire.json', '.receipt.json');
+  writeFileSync(path, '');
+  const chunks: Array<{ fromCharacter: number; toCharacter: number; bytes: number }> = [];
+  const pieces: string[] = [];
+  const digest = createHash('sha256');
+  writeFileSync(receiptPath, JSON.stringify({ cut, complete: false, chunks }) + '\n');
+  let offset = 0;
+  while (offset < cut.characters) {
+    const chunk = await page.evaluate(
+      ({ token, offset }) => {
+        const host = window as ProbeWindow;
+        const transfer = host.__classroomD13Transfer;
+        if (!transfer || transfer.cut.token !== token || transfer.probe !== host.__classroomD13)
+          throw new Error('MISSING_HISTORY: transfer token/epoch changed');
+        if (!Number.isSafeInteger(offset) || offset < 0 || offset >= transfer.text.length)
+          throw new Error('MISSING_HISTORY: invalid character offset');
+        let end = Math.min(offset + 256 * 1024, transfer.text.length);
+        // Do not split a UTF-16 surrogate pair when writing separate UTF-8 chunks.
+        const last = transfer.text.charCodeAt(end - 1);
+        if (end < transfer.text.length && last >= 0xd800 && last <= 0xdbff) end--;
+        return {
+          token,
+          fromCharacter: offset,
+          toCharacter: end,
+          text: transfer.text.slice(offset, end),
+        };
+      },
+      { token: cut.token, offset },
+    );
+    if (
+      chunk.token !== cut.token ||
+      chunk.fromCharacter !== offset ||
+      chunk.toCharacter !== offset + chunk.text.length ||
+      chunk.text.length === 0 ||
+      chunk.text.length > 256 * 1024 ||
+      chunk.toCharacter > cut.characters
+    )
+      throw new Error('MISSING_HISTORY: character chunk was lost, duplicated or reordered');
+    appendFileSync(path, chunk.text);
+    digest.update(chunk.text);
+    pieces.push(chunk.text);
+    chunks.push({
+      fromCharacter: offset,
+      toCharacter: chunk.toCharacter,
+      bytes: Buffer.byteLength(chunk.text),
+    });
+    offset = chunk.toCharacter;
+  }
+  const delta = JSON.parse(pieces.join('')) as Pick<Probe, ProbeArrayKey>;
+  if (
+    Object.keys(delta).length !== probeArrayKeys.length ||
+    probeArrayKeys.some(
+      (key) => !Array.isArray(delta[key]) || delta[key].length !== cut.to[key] - cut.from[key],
+    )
+  )
+    throw new Error('MISSING_HISTORY: decoded row counts differ from the fixed cut');
+  if (!archive) {
+    archive = {
+      raw: {
+        ...cut.header,
+        frames: [],
+        paints: [],
+        gpio: [],
+        clicks: [],
+        errors: [],
+        inflight: [],
+        observerErrors: [],
+      },
+      cuts: [],
+    };
+    probeArchives.set(page, archive);
+  }
+  const freeze = (value: unknown): void => {
+    if (!value || typeof value !== 'object' || Object.isFrozen(value)) return;
+    for (const child of Object.values(value)) freeze(child);
+    Object.freeze(value);
+  };
+  for (const key of probeArrayKeys) {
+    if (archive.raw[key].length !== cut.from[key])
+      throw new Error('MISSING_HISTORY: host prefix changed during transfer');
+    for (const row of delta[key]) {
+      freeze(row);
+      (archive.raw[key] as unknown[]).push(row);
+    }
+  }
+  archive.raw.finishedAt = cut.header.finishedAt;
+  const sha256 = digest.digest('hex');
+  archive.cuts.push({ ...cut, path, sha256 });
+  writeFileSync(receiptPath, JSON.stringify({ cut, complete: true, chunks, sha256 }) + '\n');
+  persist(cut.header.label + '-transport-index', {
+    format: 'classroom-lossless-append-cuts-v1',
+    cuts: archive.cuts,
+    counts: cut.to,
+  });
+  // A snapshot is a fixed host prefix, not an alias that later appends can grow.
+  return {
+    ...archive.raw,
+    ...Object.fromEntries(probeArrayKeys.map((key) => [key, archive!.raw[key].slice()])),
+  } as Probe;
 }
 function persist(label: string, value: unknown): string {
   const path = resolve(artifactRoot, label + '.json');
@@ -781,10 +1033,20 @@ function analyse(
   const check = (condition: boolean, message: string) => {
     if (!condition && findings.length < 100) findings.push(message);
   };
-  const click = raw.clicks.find((row) => row.action === 'start' || row.action === 'reset');
+  const click = raw.clicks.find(
+    (row) => row.trusted && (row.action === 'start' || row.action === 'reset'),
+  );
   check(!!click?.trusted, 'no actual trusted Run/Reset click');
   check(raw.observerErrors.length === 0, 'observer errors: ' + raw.observerErrors.join('; '));
-  const relevant = raw.frames.filter((frame) => frame.source === raw.source);
+  // mark() starts retention; the actual trusted input starts acceptance. Keep
+  // every pre-click row in raw, and inspect every post-click response regardless
+  // of source or generation so that a genuinely late stale frame cannot vanish.
+  const actionAt = click?.at ?? raw.markedAt;
+  const relevant = raw.frames.filter((frame) => frame.at >= actionAt);
+  check(
+    relevant.every((frame) => frame.source === raw.source),
+    'stale source response after actual Run/Reset click',
+  );
   const ready = relevant.filter((frame) => frame.status === 'ready');
   check(ready.length >= 2, 'no complete electrical progression');
   check(
@@ -795,7 +1057,10 @@ function analyse(
     new Set(ready.map((frame) => frame.projectSessionId)).size === 1,
     'unexpected project session change inside one observation',
   );
-  check(!raw.errors.some((error) => error.code !== 'cancelled'), 'worker failure occurred');
+  check(
+    !raw.errors.some((error) => error.at >= actionAt && error.code !== 'cancelled'),
+    'worker failure occurred',
+  );
   let previous: Frame | undefined;
   for (const frame of relevant) {
     check(
@@ -950,9 +1215,9 @@ function analyse(
     'MISSING_HISTORY: complete runtime event prefix was not observed from sequence zero',
   );
   check(
-    raw.gpio.every(
-      (row) => typeof row.event.voltage === 'number' && Number.isFinite(row.event.voltage),
-    ),
+    raw.gpio
+      .filter((row) => row.at >= actionAt)
+      .every((row) => typeof row.event.voltage === 'number' && Number.isFinite(row.event.voltage)),
     'missing finite D13 voltage in actual GPIO history',
   );
   const completeGpio = new Map<number, { event: RuntimeEvent; receivedAt: number }>();
@@ -1121,9 +1386,10 @@ function analyse(
     'painted prefix contains an uncompleted electrical transition',
   );
   const maxBacklog = backlog.length ? Math.max(...backlog.map((row) => row.unpresented)) : null;
-  const maxInflight = raw.inflight.length
-    ? Math.max(...raw.inflight.map((row) => row.count))
-    : null;
+  const inflight = raw.inflight.filter((row) => row.at >= actionAt);
+  const inflightAtAction = raw.inflight.filter((row) => row.at < actionAt).at(-1);
+  if (inflightAtAction) inflight.unshift(inflightAtAction);
+  const maxInflight = inflight.length ? Math.max(...inflight.map((row) => row.count)) : null;
   check(maxInflight !== null && maxInflight <= 1, 'more than one actual Worker advance in flight');
   const modelMedian = median(physicalPeriods.full.slice(0, completeCycles));
   return {
@@ -1174,7 +1440,7 @@ async function capture(
         let last = false,
           rises = 0;
         const clicked = raw.clicks.find(
-          (row) => row.action === 'start' || row.action === 'reset',
+          (row) => row.trusted && (row.action === 'start' || row.action === 'reset'),
         )?.at;
         if (clicked === undefined) return false;
         for (const paint of raw.paints) {
@@ -1274,8 +1540,344 @@ async function stop(page: Page, label: string): Promise<number> {
   });
   return elapsed;
 }
-async function nativeSamples(page: Page, label: string): Promise<string[]> {
+type NativePixelReference = {
+  x: number;
+  y: number;
+  low: number[];
+  high: number[];
+};
+type NativeAssetProof = { state: string; href: string; sha256: string };
+type NativeElectricalReceipt = {
+  requestId: string;
+  generationId: number;
+  at: number;
+  committedUs: number;
+  brightness: number;
+  current: number;
+};
+type NativeAssetBasis = {
+  proof: {
+    catalogSha256: string;
+    sourceSha256: string;
+    epoch: number;
+    low: NativeAssetProof;
+    high: NativeAssetProof;
+    board: NativeAssetProof;
+    physicalLow: NativeElectricalReceipt;
+    physicalHigh: NativeElectricalReceipt;
+    lHighRgb: [number, number, number];
+  };
+  encoded: { low: string; high: string; board: string };
+};
+function nativeAssetBasis(raw: Probe): NativeAssetBasis {
+  const click = raw.clicks.find(
+    (row) => row.trusted && (row.action === 'start' || row.action === 'reset'),
+  );
+  if (!click) throw new Error('native basis has no trusted run action');
+  // The semantic reference comes from the solved electrical fixture and the
+  // retained catalog, independently of the renderer's href, class or data label.
+  // No temporal extension is required, so this also observes the old BEFORE.
+  const frames = raw.frames.filter((frame) => frame.at >= click.at && frame.status === 'ready');
+  if (!frames.length) throw new Error('native basis has no post-action electrical receipt');
+  const states: NativeElectricalReceipt[] = frames.map((frame) => {
+    if (
+      !frame.solved ||
+      frame.quality?.passed !== true ||
+      frame.source !== raw.source ||
+      frame.loadedSource !== raw.source ||
+      frame.generationId !== frames[0]!.generationId
+    )
+      throw new Error(
+        'native basis contains failed, stale or mixed-generation electrical evidence',
+      );
+    const led = frame.components.find((component) => component.componentId === 'led0');
+    const brightness = led?.brightness,
+      current = led?.current;
+    if (
+      typeof brightness !== 'number' ||
+      typeof current !== 'number' ||
+      !Number.isFinite(brightness) ||
+      !Number.isFinite(current) ||
+      brightness < 0 ||
+      brightness > 100 ||
+      (brightness > 0 ? !(current > 0.001 && current < 0.02) : Math.abs(current) >= 0.000001)
+    )
+      throw new Error('native basis light is inconsistent with solved forward current');
+    return {
+      requestId: frame.requestId,
+      generationId: frame.generationId,
+      at: frame.at,
+      committedUs: frame.committedUs,
+      brightness,
+      current,
+    };
+  });
+  const physicalLow = states.find((state) => state.brightness === 0);
+  const physicalHigh = states.find((state) => state.brightness > 0);
+  if (!physicalLow || !physicalHigh)
+    throw new Error('native basis requires both solved LOW and HIGH');
+  const level = Math.round(physicalHigh.brightness);
+  if (
+    level < 1 ||
+    states.some((state) => state.brightness > 0 && Math.round(state.brightness) !== level)
+  )
+    throw new Error('native constant-current fixture has ambiguous HIGH asset level');
+  type CatalogAsset = { state?: string; runtimePath: string; runtimeSha256: string };
+  const catalogBytes = readFileSync(
+    resolve('apps/web/public/assets/electronics/component-database/catalog.json'),
+  );
+  const catalog = JSON.parse(catalogBytes.toString('utf8')) as {
+    components: Array<
+      CatalogAsset & {
+        componentId: string;
+        stateAssets: CatalogAsset[];
+        stateContract: { type: string; brightness?: { min: number; max: number; step: number } };
+      }
+    >;
+  };
+  const led = catalog.components.find((component) => component.componentId === 'led-5mm');
+  const board = catalog.components.find((component) => component.componentId === 'arduino-uno');
+  if (
+    led?.stateContract.type !== 'ordinary_led' ||
+    led.stateContract.brightness?.min !== 0 ||
+    led.stateContract.brightness.max !== 100 ||
+    led.stateContract.brightness.step !== 1
+  )
+    throw new Error('native basis requires the retained one-percent ordinary LED catalog contract');
+  const ledState = (state: string) => {
+    const matches = led.stateAssets.filter((asset) => asset.state === state);
+    if (matches.length !== 1)
+      throw new Error('native catalog state is missing or ambiguous: ' + state);
+    return matches[0]!;
+  };
+  const read = (asset: CatalogAsset | undefined, state: string, href: string) => {
+    if (!asset || asset.runtimePath !== href || !/^[a-f0-9]{64}$/.test(asset.runtimeSha256))
+      throw new Error('native catalog asset disagrees with the canonical fixture state: ' + state);
+    const bytes = readFileSync(resolve('apps/web/public' + href));
+    const sha256 = createHash('sha256').update(bytes).digest('hex');
+    if (sha256 !== asset.runtimeSha256)
+      throw new Error('native canonical asset SHA mismatch: ' + state);
+    return {
+      proof: { state, href, sha256 },
+      encoded: 'data:image/svg+xml;base64,' + bytes.toString('base64'),
+    };
+  };
+  const ledRoot = '/assets/electronics/component-database/components/led/red/led_red_i';
+  const low = read(ledState('red:0'), 'red:0', ledRoot + '000.svg');
+  const high = read(
+    ledState('red:' + level),
+    'red:' + level,
+    ledRoot + String(level).padStart(3, '0') + '.svg',
+  );
+  const uno = read(
+    board,
+    'arduino-uno:static',
+    '/assets/electronics/component-database/components/arduino-uno/arduino-uno/component.svg',
+  );
+  return {
+    proof: {
+      catalogSha256: createHash('sha256').update(catalogBytes).digest('hex'),
+      sourceSha256: createHash('sha256').update(raw.source).digest('hex'),
+      epoch: raw.epoch,
+      low: low.proof,
+      high: high.proof,
+      board: uno.proof,
+      physicalLow,
+      physicalHigh,
+      // Fixed retained UNO L overlay colour, never sampled from live DOM styles.
+      lHighRgb: [255, 241, 106],
+    },
+    encoded: { low: low.encoded, high: high.encoded, board: uno.encoded },
+  };
+}
+type NativeReferences = {
+  width: number;
+  height: number;
+  lowHref: string;
+  highHref: string;
+  boardHref: string;
+  basis: NativeAssetBasis['proof'];
+  led: NativePixelReference[];
+  l: NativePixelReference[];
+};
+async function nativeReferences(
+  page: Page,
+  geometry: Paint,
+  width: number,
+  height: number,
+  basis: NativeAssetBasis,
+): Promise<NativeReferences> {
+  return page.evaluate(
+    async ({ geometry, width, height, basis }) => {
+      if (
+        ![basis.proof.low.href, basis.proof.high.href].includes(geometry.led.href) ||
+        geometry.board.href !== basis.proof.board.href ||
+        !geometry.led.rect ||
+        !geometry.board.rect ||
+        !geometry.lRect
+      )
+        throw new Error(
+          'native reference requires canonical body/board assets and actual L geometry',
+        );
+      const load = async (href: string) => {
+        const image = new Image();
+        image.src = href;
+        await image.decode();
+        if (!image.naturalWidth || !image.naturalHeight)
+          throw new Error('native reference asset did not decode');
+        return image;
+      };
+      const [lowImage, highImage, boardImage] = await Promise.all([
+        load(basis.encoded.low),
+        load(basis.encoded.high),
+        load(basis.encoded.board),
+      ]);
+      // A detached canvas supplies the original asset colours at the actual image
+      // geometry. It is never mounted and never changes the editor, LED or clock.
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const context = canvas.getContext('2d', { willReadFrequently: true });
+      if (!context) throw new Error('native reference canvas unavailable');
+      const scaleX = width / innerWidth,
+        scaleY = height / innerHeight;
+      const points = (rect: NonNullable<ImageWitness['rect']>, vertical: number[]) => {
+        const result: Array<{ x: number; y: number }> = [];
+        for (const v of vertical)
+          for (const u of [0.35, 0.5, 0.65]) {
+            const point = {
+              x: Math.floor((rect.x + rect.width * u) * scaleX),
+              y: Math.floor((rect.y + rect.height * v) * scaleY),
+            };
+            if (!result.some((row) => row.x === point.x && row.y === point.y)) result.push(point);
+          }
+        if (result.length < 4)
+          throw new Error('native body/L is too small for independent pixel evidence');
+        return result;
+      };
+      const read = (points: Array<{ x: number; y: number }>) =>
+        points.map(({ x, y }) => {
+          if (x < 0 || y < 0 || x >= width || y >= height)
+            throw new Error('native reference point outside screenshot');
+          const pixel = [...context.getImageData(x, y, 1, 1).data];
+          if (pixel[3] !== 255)
+            throw new Error('native reference point is not an opaque body pixel');
+          return pixel.slice(0, 3);
+        });
+      const draw = (image: HTMLImageElement, rect: NonNullable<ImageWitness['rect']>) => {
+        context.clearRect(0, 0, width, height);
+        const fit = Math.min(rect.width / image.naturalWidth, rect.height / image.naturalHeight);
+        const drawnWidth = image.naturalWidth * fit,
+          drawnHeight = image.naturalHeight * fit;
+        context.drawImage(
+          image,
+          (rect.x + (rect.width - drawnWidth) / 2) * scaleX,
+          (rect.y + (rect.height - drawnHeight) / 2) * scaleY,
+          drawnWidth * scaleX,
+          drawnHeight * scaleY,
+        );
+      };
+      const ledPoints = points(geometry.led.rect, [0.3, 0.4, 0.5]);
+      draw(lowImage, geometry.led.rect);
+      const ledLow = read(ledPoints);
+      draw(highImage, geometry.led.rect);
+      const ledHigh = read(ledPoints);
+      const lPoints = points(geometry.lRect, [0.35, 0.5, 0.65]);
+      draw(boardImage, geometry.board.rect);
+      const lLow = read(lPoints);
+      // Both states use canonical source bytes / a fixed renderer contract.
+      // Even swapped hrefs or wrong live CSS cannot relabel the pixel reference.
+      context.fillStyle = 'rgb(' + basis.proof.lHighRgb.join(',') + ')';
+      context.fillRect(
+        geometry.lRect.x * scaleX,
+        geometry.lRect.y * scaleY,
+        geometry.lRect.width * scaleX,
+        geometry.lRect.height * scaleY,
+      );
+      const lHigh = read(lPoints);
+      return {
+        width,
+        height,
+        lowHref: basis.proof.low.href,
+        highHref: basis.proof.high.href,
+        boardHref: basis.proof.board.href,
+        basis: basis.proof,
+        led: ledPoints.map((point, index) => ({
+          ...point,
+          low: ledLow[index]!,
+          high: ledHigh[index]!,
+        })),
+        l: lPoints.map((point, index) => ({ ...point, low: lLow[index]!, high: lHigh[index]! })),
+      };
+    },
+    { geometry, width, height, basis },
+  );
+}
+function classifyNativePng(png: PNG, references: NativeReferences) {
+  const classify = (points: NativePixelReference[]) => {
+    const actual = points.map(({ x, y }) => {
+      const index = (y * png.width + x) * 4;
+      return [...png.data.subarray(index, index + 4)];
+    });
+    const score = (key: 'low' | 'high') => {
+      const perPixel = points.map((point, index) =>
+        point[key].map((value, channel) => Math.abs(value - actual[index]![channel]!)),
+      );
+      const errors = perPixel.flat();
+      return {
+        mean: errors.reduce((sum, value) => sum + value, 0) / errors.length,
+        maximum: Math.max(...errors),
+        matchingPixels: perPixel.filter((channels) => channels.every((error) => error <= 24))
+          .length,
+      };
+    };
+    const low = score('low'),
+      high = score('high');
+    const separation = points.flatMap((point) =>
+      point.low.map((value, channel) => Math.abs(value - point.high[channel]!)),
+    );
+    const meanSeparation = separation.reduce((sum, value) => sum + value, 0) / separation.length;
+    const valid =
+      points.length >= 4 &&
+      png.width === references.width &&
+      png.height === references.height &&
+      points.every(
+        (point) => point.x >= 0 && point.y >= 0 && point.x < png.width && point.y < png.height,
+      ) &&
+      actual.every((pixel) => pixel.length === 4 && pixel[3] === 255) &&
+      meanSeparation >= 30;
+    const matches = (own: typeof low, other: typeof low) =>
+      valid &&
+      own.mean <= 12 &&
+      own.matchingPixels >= Math.ceil(points.length * 0.8) &&
+      other.mean - own.mean >= 24;
+    const state = matches(high, low) ? 'HIGH' : matches(low, high) ? 'LOW' : 'UNKNOWN';
+    return { state, low, high, meanSeparation, actual };
+  };
+  const led = classify(references.led),
+    l = classify(references.l);
+  const observedPhase =
+    led.state === 'UNKNOWN' || l.state === 'UNKNOWN'
+      ? 'UNKNOWN'
+      : led.state === l.state
+        ? led.state
+        : 'MISMATCH';
+  return {
+    observedPhase,
+    led,
+    l,
+    limits: {
+      meanError: 12,
+      perChannelError: 24,
+      matchingPixelFraction: 0.8,
+      minimumSeparation: 30,
+      winningMargin: 24,
+    },
+  };
+}
+async function nativeSamples(page: Page, label: string, raw: Probe): Promise<string[]> {
   const findings: string[] = [];
+  const basis = nativeAssetBasis(raw);
   for (const active of [true, false]) {
     let unambiguous = false;
     for (let attempt = 0; attempt < 3 && !unambiguous; attempt++) {
@@ -1297,18 +1899,55 @@ async function nativeSamples(page: Page, label: string): Promise<string[]> {
       );
       const name = label + (active ? '-high-' : '-low-') + attempt;
       const path = resolve(artifactRoot, name + '.png');
-      await page.screenshot({ path });
+      const bytes = await page.screenshot({ path });
       const during = await page.evaluate(
         (start) =>
           (window as ProbeWindow).__classroomD13!.paints.filter((paint) => paint.at >= start),
         beforeShot.at,
       );
-      unambiguous =
+      const png = PNG.sync.read(bytes);
+      const references = await nativeReferences(page, beforeShot, png.width, png.height, basis);
+      const pixels = classifyNativePng(png, references);
+      const requestedPhase = active ? 'HIGH' : 'LOW';
+      const rects = (paint: Paint) => [paint.led.rect, paint.board.rect, paint.lRect];
+      const fixedGeometry =
         during.length >= 2 &&
-        during.every(
-          (paint) => paint.assetsReady && paint.ledLit === active && paint.lActive === active,
+        during.every((paint) =>
+          rects(paint).every((rect, index) => {
+            const expected = rects(beforeShot)[index];
+            return (
+              rect !== null &&
+              expected !== null &&
+              expected !== undefined &&
+              ['x', 'y', 'width', 'height'].every(
+                (key) =>
+                  Math.abs(
+                    rect[key as keyof typeof rect] - expected[key as keyof typeof expected],
+                  ) <= 0.25,
+              )
+            );
+          }),
         );
-      persist(name + '-image', { beforeShot, during, path, unambiguousPhase: unambiguous });
+      const coherentWitness = during.some(
+        (paint) =>
+          paint.stable && paint.assetsReady && paint.ledLit === active && paint.lActive === active,
+      );
+      unambiguous = fixedGeometry && coherentWitness && pixels.observedPhase === requestedPhase;
+      if (pixels.observedPhase === 'MISMATCH')
+        findings.push(name + ': actual native PNG shows different body/L phases');
+      persist(name + '-image', {
+        beforeShot,
+        during,
+        path,
+        requestedPhase,
+        references,
+        pixels,
+        fixedGeometry,
+        coherentWitness,
+        unambiguousPhase: unambiguous,
+        interpretation:
+          'PNG pixels determine the observed phase; the requested phase and filename do not. Screenshot transport can span multiple phases.',
+      });
       await test.info().attach(name + '-native', { path, contentType: 'image/png' });
     }
     if (!unambiguous)
@@ -1386,7 +2025,7 @@ test('Classroom D13: visible 100, 200, 300, 150 and asymmetric phases on one cir
       findings.push(...result.metrics.findings.map((message) => half + ' ms: ' + message));
       results.set(half, result.metrics);
       if (half === 300 && result.metrics.cycles >= completeCycles)
-        findings.push(...(await nativeSamples(page, 'matrix-300')));
+        findings.push(...(await nativeSamples(page, 'matrix-300', result.raw)));
       if ((await stop(page, 'matrix-' + half)) > 1_000)
         findings.push(half + ' ms: Stop exceeded 1 second');
     }
@@ -1459,16 +2098,19 @@ test('Classroom D13: failed edit, correction, Reset and cookies-only saved reope
     .at(-1)?.generationId;
   const reset = await capture(page, 'lifecycle-reset', corrected, 150, 150, 'normal', 'reset');
   findings.push(...reset.metrics.findings.map((message) => 'Reset: ' + message));
-  const firstReady = reset.raw.frames.find((frame) => frame.status === 'ready');
+  const resetClick = reset.raw.clicks.find((click) => click.trusted && click.action === 'reset');
+  const resetFrames = reset.raw.frames.filter(
+    (frame) => resetClick !== undefined && frame.at >= resetClick.at,
+  );
+  const firstReady = resetFrames.find((frame) => frame.status === 'ready');
   if (
     !firstReady ||
     firstReady.generationId === oldGeneration ||
     firstReady.optical?.fromMicroseconds !== 0
   )
     findings.push('Reset did not start a new generation at model time zero');
-  const resetClick = reset.raw.clicks.find((click) => click.action === 'reset');
   if (!resetClick?.trusted) findings.push('Reset was not an actual trusted UI action');
-  const setup = reset.raw.frames.filter(
+  const setup = resetFrames.filter(
     (frame) =>
       frame.status === 'ready' &&
       frame.generationId === firstReady?.generationId &&
@@ -1560,9 +2202,14 @@ test('Classroom D13: sixty-second bounded running and responsive Stop', async ({
       second,
       { timeout: 7_000, polling: 100 },
     );
+    const progress = await snapshot(page);
     persist('sustained-progress-complete-prefix', {
       throughSeconds: second,
-      raw: await snapshot(page),
+      finishedAt: progress.finishedAt,
+      counts: Object.fromEntries(probeArrayKeys.map((key) => [key, progress[key].length])),
+      // Each referenced cut is already on disk, including all source/ready/GPIO/
+      // paint/error/inflight rows. The complete prefix is assembled on the host.
+      losslessCuts: probeArchives.get(page)!.cuts,
     });
   }
   const raw = await snapshot(page);
