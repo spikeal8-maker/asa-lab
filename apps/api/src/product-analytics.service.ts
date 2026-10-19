@@ -11,11 +11,12 @@ export type AnalyticsEventType =
   | 'auth.login'
   | 'auth.register'
   | 'auth.max'
+  | 'auth.telegram'
   | 'auth.class_join'
   | 'session.observed'
   | 'module.opened';
 export type AnalyticsOutcome = 'succeeded' | 'failed' | 'blocked';
-export type AnalyticsAuthMethod = 'password' | 'organization' | 'max' | 'class_code';
+export type AnalyticsAuthMethod = 'password' | 'organization' | 'max' | 'telegram' | 'class_code';
 export type AnalyticsModuleKey = 'electronics' | 'three-d' | 'chess' | 'checkers' | 'blocks';
 export type AnalyticsActor =
   | { readonly kind: 'anonymous' }

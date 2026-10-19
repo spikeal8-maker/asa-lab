@@ -39,6 +39,28 @@ play, offline engines, other Gallery operations and project ACL remain intact.
 These seams require direct both-cookie, denied/revoked URL and Account
 regressions; they grant no general Gallery or editor redesign.
 
+
+Fresh real browser evidence identifies a missing learner identity link when a
+new StudentCode Seat is issued. The controller hands off only the additive
+`migrations/0224_classroom_new_seat_learner_identity.sql` change to the current
+`classroom_management_add_seat` definition from migration0148. Initialize the
+canonical learner identity only immediately after a genuinely new Seat INSERT,
+in the same transaction and exact active classroom/tenant, with no existing Seat
+link. Preserve the case-sensitive StudentCode validation, teacher authorization,
+signature, audit, return shape and existing function privileges. Use the existing
+private factory without new runtime grants. Both canonical batch paths use this
+constructor. Existing Seats, raw historical inserts, batch replay and duplicates,
+credential reissue, login, reads and admission never initialize or repair links.
+There is no trigger, backfill or change to missing, deleted, unlinked and revoked
+identity denial. Admission migrations and guards remain intact. The bounded
+regression paths are `tests/games-admission/storage-contract.ts`,
+`tests/games-admission/reviewer-new-seat-lifecycle.ts`,
+`tests/games-admission/student-game-admission.pg.spec.ts` and the existing
+`docs/agent/surfaces/student-game-admission.yaml` mapping. Verify real issuance
+without teacher preparation, case-sensitive batch creation, no resurrection on
+replay/duplicate/reissue/read/update/create, no unauthorized project writes and
+private factory denial on real PostgreSQL.
+
 For any shared file, inspect current main and actual pending changes before
 writing; an unresolved overlap still blocks that file. Add precise missing
 surface/control mappings alongside the corresponding implementation, using

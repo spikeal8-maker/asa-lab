@@ -1,12 +1,14 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   adminApi,
   type AdminDashboardRange,
   type AdminIpActivity,
   type AdminProductDashboard,
-  type AdminMaxConfiguration,
   type AdminScope,
 } from './admin-api';
+
+import { AdminAuthProviderCard } from './AdminAuthProviderCard';
+import { VerificationPolicyControl } from './VerificationPolicyControl';
 
 const RANGE_OPTIONS: readonly { readonly value: AdminDashboardRange; readonly label: string }[] = [
   { value: '1h', label: '1 час' },
@@ -461,281 +463,48 @@ export function VerificationMethodsSection({
   readonly scope: AdminScope;
   readonly onAccessDenied: () => void;
 }): JSX.Element {
-  type ConfirmationState =
-    | { readonly kind: 'loading' }
-    | { readonly kind: 'error'; readonly message: string }
-    | {
-        readonly kind: 'ready';
-        readonly config: AdminMaxConfiguration;
-        readonly linkedAccounts: number;
-        readonly promptDueAccounts: number;
-      };
-  const [state, setState] = useState<ConfirmationState>({ kind: 'loading' });
-  const [enabled, setEnabled] = useState(false);
-  const [botUsername, setBotUsername] = useState('id231408577954_3_bot');
-  const [miniAppUrl, setMiniAppUrl] = useState('https://asa-lab.ru/max-login');
-  const [botToken, setBotToken] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [notice, setNotice] = useState<string | null>(null);
-  const load = useCallback(async (): Promise<void> => {
-    setState({ kind: 'loading' });
-    const [configuration, dashboard] = await Promise.all([
-      adminApi.maxConfiguration(),
-      adminApi.dashboard({ scope, range: '30d' }),
-    ]);
-    if (!configuration.ok) {
-      if (configuration.status === 401 || configuration.status === 403) onAccessDenied();
-      else setState({ kind: 'error', message: configuration.error.message });
-      return;
-    }
-    if (!dashboard.ok) {
-      if (dashboard.status === 401 || dashboard.status === 403) onAccessDenied();
-      else setState({ kind: 'error', message: dashboard.error.message });
-      return;
-    }
-    setEnabled(configuration.data.featureEnabled);
-    setBotUsername(configuration.data.botUsername ?? 'id231408577954_3_bot');
-    setMiniAppUrl(configuration.data.miniAppUrl ?? 'https://asa-lab.ru/max-login');
-    setState({
-      kind: 'ready',
-      config: configuration.data,
-      linkedAccounts: dashboard.data.max.linkedAccounts,
-      promptDueAccounts: dashboard.data.max.promptDueAccounts,
-    });
-  }, [onAccessDenied, scope]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  const max = state.kind === 'ready' ? state.config : null;
-  const linkedAccounts = state.kind === 'ready' ? state.linkedAccounts : 0;
-  const promptDueAccounts = state.kind === 'ready' ? state.promptDueAccounts : 0;
-  async function save(event: FormEvent<HTMLFormElement>): Promise<void> {
-    event.preventDefault();
-    setNotice(null);
-    setSaving(true);
-    const result = await adminApi.updateMaxConfiguration({
-      enabled,
-      botUsername,
-      miniAppUrl,
-      ...(botToken.trim() ? { botToken: botToken.trim() } : {}),
-    });
-    setSaving(false);
-    if (!result.ok) {
-      if (result.status === 401 || result.status === 403) onAccessDenied();
-      else {
-        if (result.error.code === 'max_token_missing' && state.kind === 'ready') {
-          setEnabled(state.config.featureEnabled);
-        }
-        setNotice(result.error.message);
-      }
-      return;
-    }
-    setBotToken('');
-    setState((current) =>
-      current.kind === 'ready' ? { ...current, config: result.data } : current,
-    );
-    setEnabled(result.data.featureEnabled);
-    setBotUsername(result.data.botUsername ?? botUsername);
-    setMiniAppUrl(result.data.miniAppUrl ?? miniAppUrl);
-    setNotice(
-      result.data.enabled ? 'MAX проверен и включён.' : 'Настройки сохранены. MAX выключен.',
-    );
-  }
-
+  const [refreshKey, setRefreshKey] = useState(0);
   return (
-    <section className="admin-integrations" aria-labelledby="admin-confirmations-title">
+    <section
+      className="admin-integrations auth-confirmation-settings"
+      aria-labelledby="admin-confirmations-title"
+    >
       <div className="admin-section-heading">
         <div>
           <h2 id="admin-confirmations-title">Подтверждения</h2>
-          <p>Каналы входа и подтверждения учётной записи.</p>
+          <p>Правило входа и доступные способы подтверждения аккаунта.</p>
         </div>
         <button
           type="button"
           className="btn-secondary"
-          disabled={state.kind === 'loading'}
-          onClick={() => void load()}
+          onClick={() => setRefreshKey((value) => value + 1)}
         >
-          Обновить
+          Обновить состояние
         </button>
       </div>
-      {state.kind === 'loading' ? <p>Проверяем настройки…</p> : null}
-      {state.kind === 'error' ? <p role="alert">{state.message}</p> : null}
-      {max ? (
-        <div className="admin-confirmation-layout">
-          <form
-            className="admin-confirmation-channel admin-confirmation-max"
-            onSubmit={(event) => void save(event)}
-          >
-            <header>
-              <div>
-                <span>Основной канал</span>
-                <h3>MAX Bot</h3>
-              </div>
-              <label className="admin-channel-switch">
-                <input
-                  type="checkbox"
-                  checked={enabled}
-                  disabled={saving || !max.encryptionReady}
-                  onChange={(event) => setEnabled(event.target.checked)}
-                />
-                <span>{enabled ? 'Включён' : 'Выключен'}</span>
-              </label>
-            </header>
-            <div className="admin-confirmation-settings">
-              <section aria-labelledby="max-server-settings">
-                <h4 id="max-server-settings">Подключение</h4>
-                <label htmlFor="max-bot-username">Имя бота</label>
-                <input
-                  id="max-bot-username"
-                  value={botUsername}
-                  disabled={saving}
-                  spellCheck={false}
-                  onChange={(event) => setBotUsername(event.target.value)}
-                />
-                <label htmlFor="max-bot-token">Новый токен</label>
-                <input
-                  id="max-bot-token"
-                  type="password"
-                  value={botToken}
-                  disabled={saving || !max.encryptionReady}
-                  autoComplete="new-password"
-                  placeholder={
-                    max.tokenConfigured
-                      ? 'Оставьте пустым, чтобы не менять'
-                      : 'Вставьте новый токен'
-                  }
-                  onChange={(event) => setBotToken(event.target.value)}
-                />
-                <p className="admin-field-note">
-                  {max.tokenConfigured
-                    ? `Токен сохранён${max.tokenFingerprint ? ` · …${max.tokenFingerprint}` : ''}`
-                    : 'Токен пока не сохранён'}
-                </p>
-                <label htmlFor="max-mini-app-url">Адрес ASA Lab для возврата</label>
-                <input
-                  id="max-mini-app-url"
-                  type="url"
-                  value={miniAppUrl}
-                  disabled={saving}
-                  spellCheck={false}
-                  onChange={(event) => setMiniAppUrl(event.target.value)}
-                />
-                <p className="admin-field-note">
-                  Тот же HTTPS-адрес указывается в настройках бота MAX.
-                </p>
-              </section>
-              <section aria-labelledby="max-account-settings">
-                <h4 id="max-account-settings">Состояние</h4>
-                <dl>
-                  <div>
-                    <dt>Предложение подтвердить</dt>
-                    <dd>Через 24 часа после первого входа</dd>
-                  </div>
-                  <div>
-                    <dt>Связано аккаунтов</dt>
-                    <dd>{linkedAccounts}</dd>
-                  </div>
-                  <div>
-                    <dt>Ожидают предложения</dt>
-                    <dd>{promptDueAccounts}</dd>
-                  </div>
-                  <div>
-                    <dt>Ссылка запуска</dt>
-                    <dd>{max.launchUrl ? 'Сформирована' : 'Недоступна'}</dd>
-                  </div>
-                  <div>
-                    <dt>Проверка токена</dt>
-                    <dd>
-                      {max.tokenVerifiedAt
-                        ? DATE_TIME.format(new Date(max.tokenVerifiedAt))
-                        : 'Не выполнялась'}
-                    </dd>
-                  </div>
-                </dl>
-                <dl>
-                  <div>
-                    <dt>Связь с ботом</dt>
-                    <dd>
-                      {max.webhookVerifiedAt
-                        ? `Подключена ${DATE_TIME.format(new Date(max.webhookVerifiedAt))}`
-                        : max.webhookLastError
-                          ? 'Требует проверки'
-                          : 'Подключается автоматически'}
-                    </dd>
-                  </div>
-                </dl>
-                {max.webhookLastError ? (
-                  <p className="admin-field-note" role="status">
-                    Бот сохранён, но MAX не подтвердил канал сообщений. Повторите сохранение позже.
-                  </p>
-                ) : null}
-                <button
-                  type="submit"
-                  className="btn-primary admin-max-save"
-                  disabled={saving || !max.encryptionReady}
-                >
-                  {saving ? 'Проверяем…' : 'Проверить и сохранить'}
-                </button>
-                {notice ? (
-                  <p className="admin-max-notice" role="status">
-                    {notice}
-                  </p>
-                ) : null}
-              </section>
-            </div>
-            <footer>
-              <p>
-                Токен проверяется MAX, шифруется на сервере и никогда не возвращается в браузер.
-                Изменения применяются сразу.
-              </p>
-              {max.launchUrl ? (
-                <a className="btn-secondary" href={max.launchUrl} rel="noreferrer">
-                  Открыть бота
-                </a>
-              ) : null}
-            </footer>
-          </form>
-
-          <div className="admin-confirmation-secondary">
-            <article className="admin-confirmation-channel">
-              <header>
-                <h3>Электронная почта</h3>
-                <b className="not-ready">Без отправки</b>
-              </header>
-              <dl>
-                <div>
-                  <dt>Письма подтверждения</dt>
-                  <dd>Не отправляются</dd>
-                </div>
-                <div>
-                  <dt>Вход без подтверждения</dt>
-                  <dd>Разрешён</dd>
-                </div>
-              </dl>
-              <p>Раздел подготовлен. Сервис отправки подключим отдельным этапом.</p>
-            </article>
-            <article className="admin-confirmation-channel">
-              <header>
-                <h3>Telegram</h3>
-                <b className="planned">Запланирован</b>
-              </header>
-              <dl>
-                <div>
-                  <dt>Бот</dt>
-                  <dd>Не создан</dd>
-                </div>
-                <div>
-                  <dt>Вход и привязка</dt>
-                  <dd>Не реализованы</dd>
-                </div>
-              </dl>
-              <p>Раздел подготовлен. Канал скрыт от пользователей до реализации.</p>
-            </article>
+      {scope.kind === 'platform' ? (
+        <>
+          <VerificationPolicyControl refreshKey={refreshKey} onAccessDenied={onAccessDenied} />
+          <div className="auth-admin-providers">
+            <AdminAuthProviderCard
+              provider="max"
+              refreshKey={refreshKey}
+              onAccessDenied={onAccessDenied}
+            />
+            <AdminAuthProviderCard
+              provider="telegram"
+              refreshKey={refreshKey}
+              onAccessDenied={onAccessDenied}
+            />
           </div>
-        </div>
-      ) : null}
+          <p className="auth-email-status">
+            Подтверждение по электронной почте пока недоступно. Пользователям показываются только
+            работающие способы.
+          </p>
+        </>
+      ) : (
+        <p role="status">Подключение способов входа доступно администратору платформы.</p>
+      )}
     </section>
   );
 }
