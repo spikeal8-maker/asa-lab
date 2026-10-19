@@ -1,5 +1,8 @@
 import { expect, test } from '@playwright/test';
 import { createHash } from 'node:crypto';
+import fs from 'node:fs';
+import { performance } from 'node:perf_hooks';
+import { types as nodeTypes } from 'node:util';
 
 let createProtocolFixture: typeof import('../tools/blocks/browser/fixture.mjs').createProtocolFixture;
 let installMinuteAutosaveClock: typeof import('../tools/blocks/browser/fixture.mjs').installMinuteAutosaveClock;
@@ -410,37 +413,402 @@ test('failed server autosave retains recovery', async () => {
     draftWriteStatus: 503,
   });
   let observedDraftStatus: number | null = null;
+  const stageDirectory = 'reports/blocks/recovery';
+  const stagePath = `${stageDirectory}/failed-autosave-stages.json`;
+  const stageNames = [
+    'fixture-ready',
+    'page-create-enter',
+    'page-create-return',
+    'open-enter',
+    'open-return',
+    'editor-ready-wait-enter',
+    'editor-ready-observed',
+    'save-and-checkpoint-wait-enter',
+    'save-and-checkpoint-wait-return',
+    'edit-enter',
+    'checkpoint-wait-enter',
+    'checkpoint-observed',
+    'draft-request-observed',
+    'draft-response-request-matched',
+    'draft-request-selection-ambiguous',
+    'draft-requestfinished',
+    'draft-requestfailed',
+    'draft-terminal-ambiguous',
+    'draft-terminal-page-close',
+    'draft-terminal-page-crash',
+    'draft-terminal-wait-enter',
+    'draft-terminal-wait-finished',
+    'draft-terminal-wait-failed',
+    'draft-terminal-wait-reject',
+    'draft-observer-failed',
+    'draft-observer-cleanup-enter',
+    'draft-observer-cleanup-return',
+    'draft-observer-cleanup-failed',
+    'response-headers',
+    'response-completion-enter',
+    'response-completion-call-return',
+    'response-completion-call-throw',
+    'response-completion-return',
+    'response-completion-error-return',
+    'response-completion-unknown-return',
+    'response-completion-reject',
+    'recovery-read-enter',
+    'recovery-read-return',
+    'assertions-completed',
+    'finally-enter',
+    'legacy-attachment-enter',
+    'legacy-attachment-setup-throw',
+    'legacy-attachment-payload-enter',
+    'legacy-attachment-payload-ready',
+    'legacy-attachment-payload-throw',
+    'legacy-attachment-call-enter',
+    'legacy-attachment-call-return',
+    'legacy-attachment-call-throw',
+    'legacy-attachment-catch-enter',
+    'legacy-attachment-catch-return',
+    'legacy-attachment-catch-throw',
+    'legacy-attachment-reject',
+    'legacy-attachment-await-enter',
+    'legacy-attachment-await-reject',
+    'legacy-attachment-fulfilled',
+    'legacy-attachment-return',
+    'teardown-enter',
+    'teardown-return',
+    'teardown-interrupted',
+    'diagnostic-observation-failed',
+  ] as const;
+  type Stage = (typeof stageNames)[number];
+  type StageDetail = {
+    recoveryReadyAtResponse?: boolean;
+    retainedCount?: number;
+    retainedStepsMatch73?: boolean;
+    returnKind?: 'PROMISE' | 'UNKNOWN';
+  };
+  const stageEvents: Array<
+    {
+      sequence: number;
+      stage: Stage;
+      elapsedMs: number | null;
+      responseStatus: number | null;
+    } & StageDetail
+  > = [];
+  const observedStages = new Set<Stage>();
+  let stageSequence = 0;
+  let droppedStageEvents = 0;
+  let stageWriteFailures = 0;
+  let stageTimingFailures = 0;
+  let stageObservationFailures = 0;
+  let clockOriginMs: number | null = null;
+  let lastClockMs = 0;
+  const maxElapsedMs = 600_000;
+  let draftRequest: import('@playwright/test').Request | null = null;
+  let draftRequestState: 'NOT_OBSERVED' | 'REQUEST_OBSERVED' | 'RESPONSE_MATCHED' | 'AMBIGUOUS' =
+    'NOT_OBSERVED';
+  type DraftTerminal = 'FINISHED' | 'FAILED';
+  let draftTerminalState: 'NOT_OBSERVED' | DraftTerminal | 'AMBIGUOUS' = 'NOT_OBSERVED';
+  const draftTerminalEvents = new WeakMap<
+    import('@playwright/test').Request,
+    DraftTerminal | 'AMBIGUOUS'
+  >();
+  let terminalFailure: { error: unknown } | null = null;
+  let releaseTerminalSignal: () => void = () => undefined;
+  // This signal only fulfills. A setup failure can leave it unconsumed without
+  // an orphan rejected Promise; waitForDraftTerminal propagates failures later.
+  const terminalSignal = new Promise<void>((resolve) => {
+    releaseTerminalSignal = resolve;
+  });
+  const removeDraftObservers: Array<() => void> = [];
+  let observerCleanupFailure: { error: unknown } | null = null;
+  let draftObserversRemoved = false;
+  let assertionsCompleted = false;
+  let teardownCompleted = false;
+  const incrementCount = (value: number) => Math.min(value + 1, Number.MAX_SAFE_INTEGER);
+  const safeCount = (value: unknown) =>
+    typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : null;
+  const sampleElapsedMs = (): number | null => {
+    try {
+      const now = performance.now();
+      if (Number.isFinite(now) && now >= lastClockMs && now <= Number.MAX_SAFE_INTEGER) {
+        if (clockOriginMs === null) clockOriginMs = now;
+        const elapsed = Math.floor(now - clockOriginMs);
+        if (safeCount(elapsed) !== null && elapsed <= maxElapsedMs) {
+          lastClockMs = now;
+          return elapsed;
+        }
+      }
+    } catch {
+      // A clock failure leaves the boundary time unknown.
+    }
+    stageTimingFailures = incrementCount(stageTimingFailures);
+    return null;
+  };
+  const recordStage = (stage: Stage, detail: StageDetail = {}) => {
+    try {
+      if (!stageNames.includes(stage)) {
+        stageObservationFailures = incrementCount(stageObservationFailures);
+        stage = 'diagnostic-observation-failed';
+      }
+      stageSequence = incrementCount(stageSequence);
+      const elapsedMs = sampleElapsedMs();
+      const safeDetail: StageDetail = {};
+      if (typeof detail.recoveryReadyAtResponse === 'boolean')
+        safeDetail.recoveryReadyAtResponse = detail.recoveryReadyAtResponse;
+      if (typeof detail.retainedStepsMatch73 === 'boolean')
+        safeDetail.retainedStepsMatch73 = detail.retainedStepsMatch73;
+      if (typeof detail.retainedCount === 'number' && safeCount(detail.retainedCount) !== null)
+        safeDetail.retainedCount = detail.retainedCount;
+      if (detail.returnKind === 'PROMISE' || detail.returnKind === 'UNKNOWN')
+        safeDetail.returnKind = detail.returnKind;
+      if (stageEvents.length < 64) {
+        stageEvents.push({
+          sequence: stageSequence,
+          stage,
+          elapsedMs,
+          responseStatus: safeCount(observedDraftStatus),
+          ...safeDetail,
+        });
+        observedStages.add(stage);
+      } else droppedStageEvents = incrementCount(droppedStageEvents);
+      if (stage === 'assertions-completed') assertionsCompleted = true;
+      if (stage === 'teardown-return') teardownCompleted = true;
+      fs.mkdirSync(stageDirectory, { recursive: true });
+      fs.writeFileSync(
+        `${stagePath}.tmp`,
+        JSON.stringify(
+          {
+            schemaVersion: 3,
+            lastStage: stage,
+            outcome:
+              assertionsCompleted && teardownCompleted && draftObserversRemoved
+                ? 'NOT_REPRODUCED'
+                : 'INCOMPLETE',
+            captureState:
+              stageWriteFailures === 0 &&
+              droppedStageEvents === 0 &&
+              stageTimingFailures === 0 &&
+              stageObservationFailures === 0
+                ? 'OBSERVED'
+                : 'INCOMPLETE',
+            clock: 'NODE_MONOTONIC',
+            timeOrigin: 'FIRST_VALID_NODE_SAMPLE',
+            timeObservation: 'NODE_STAGE_ENTRY_OR_AWAIT_CONTINUATION',
+            maxElapsedMs,
+            responseStatus: safeCount(observedDraftStatus),
+            serverRevision: safeCount(fixture.getServerRevision()),
+            draftCount: safeCount(fixture.runtimeDraftEvidence.length),
+            draftRequestState,
+            draftTerminalState,
+            draftObserversRemoved,
+            completionStrategy: 'PUBLIC_REQUEST_TERMINAL',
+            boundaries: Object.fromEntries(
+              stageNames.map((boundary) => [
+                boundary,
+                observedStages.has(boundary) ? 'OBSERVED' : 'NOT_OBSERVED',
+              ]),
+            ),
+            events: stageEvents,
+            droppedEvents: droppedStageEvents,
+            writeFailures: stageWriteFailures,
+            timingFailures: stageTimingFailures,
+            observationFailures: stageObservationFailures,
+          },
+          null,
+          2,
+        ),
+      );
+      fs.renameSync(`${stagePath}.tmp`, stagePath);
+    } catch {
+      // Diagnostic I/O cannot replace the original failure or skip cleanup.
+      stageWriteFailures = incrementCount(stageWriteFailures);
+    }
+  };
+  const recordPromiseReturn = (
+    stage: 'legacy-attachment-call-return' | 'legacy-attachment-catch-return',
+    value: unknown,
+  ) => {
+    let returnKind: 'PROMISE' | 'UNKNOWN' = 'UNKNOWN';
+    try {
+      // Native branding does not read .then or add a Promise reaction.
+      if (nodeTypes.isPromise(value)) returnKind = 'PROMISE';
+    } catch {
+      // Do not inspect a returned value to explain a diagnostic failure.
+    }
+    if (returnKind === 'UNKNOWN')
+      stageObservationFailures = incrementCount(stageObservationFailures);
+    recordStage(stage, { returnKind });
+  };
+  const failDraftTerminal = (error: unknown) => {
+    if (terminalFailure === null) terminalFailure = { error };
+    releaseTerminalSignal();
+  };
+  const throwDraftTerminalFailure = () => {
+    if (terminalFailure !== null) throw terminalFailure.error;
+  };
+  const observeSelectedTerminal = () => {
+    if (draftRequest === null) return;
+    const terminal = draftTerminalEvents.get(draftRequest);
+    if (terminal === undefined) return;
+    if (draftTerminalState !== terminal) {
+      draftTerminalState = terminal;
+      if (terminal === 'AMBIGUOUS') {
+        stageObservationFailures = incrementCount(stageObservationFailures);
+        recordStage('draft-terminal-ambiguous');
+        failDraftTerminal(new Error('Ambiguous terminal events for the selected draft Request'));
+      } else recordStage(terminal === 'FINISHED' ? 'draft-requestfinished' : 'draft-requestfailed');
+    }
+    if (draftRequestState === 'RESPONSE_MATCHED') releaseTerminalSignal();
+  };
+  const observeDraftTerminal = (
+    request: import('@playwright/test').Request,
+    terminal: DraftTerminal,
+  ) => {
+    // Retain early events weakly, including those before response/request selection.
+    // A similar URL is never sufficient to associate a terminal event.
+    draftTerminalEvents.set(request, draftTerminalEvents.has(request) ? 'AMBIGUOUS' : terminal);
+    if (request === draftRequest) observeSelectedTerminal();
+  };
+  const selectDraftRequest = (
+    request: import('@playwright/test').Request,
+    fromResponse: boolean,
+  ) => {
+    if (draftRequest === null) {
+      draftRequest = request;
+      draftRequestState = fromResponse ? 'RESPONSE_MATCHED' : 'REQUEST_OBSERVED';
+      recordStage(fromResponse ? 'draft-response-request-matched' : 'draft-request-observed');
+    } else if (draftRequest !== request) {
+      draftRequestState = 'AMBIGUOUS';
+      stageObservationFailures = incrementCount(stageObservationFailures);
+      recordStage('draft-request-selection-ambiguous');
+      failDraftTerminal(new Error('Multiple draft Request identities were observed'));
+    } else if (fromResponse && draftRequestState !== 'AMBIGUOUS') {
+      draftRequestState = 'RESPONSE_MATCHED';
+      recordStage('draft-response-request-matched');
+    }
+    observeSelectedTerminal();
+  };
+  const waitForDraftTerminal = async (
+    request: import('@playwright/test').Request,
+  ): Promise<DraftTerminal> => {
+    throwDraftTerminalFailure();
+    if (request !== draftRequest || draftRequestState !== 'RESPONSE_MATCHED')
+      throw new Error('The response did not identify one observed draft Request');
+    await terminalSignal;
+    // Recheck after continuation: ambiguity or page close/crash may have arrived
+    // after the signal fulfilled. None is a successful Request terminal event.
+    throwDraftTerminalFailure();
+    if (request !== draftRequest || draftRequestState !== 'RESPONSE_MATCHED')
+      throw new Error('The selected draft Request association changed');
+    const terminal = draftTerminalEvents.get(request);
+    if (terminal !== 'FINISHED' && terminal !== 'FAILED')
+      throw new Error('The selected draft Request has no unambiguous terminal event');
+    return terminal;
+  };
+  recordStage('fixture-ready');
   try {
     // Exercise the real failed-save boundary; minute-deadline behavior has its
     // own clock-controlled acceptance case in blocks-product-integration.
+    recordStage('page-create-enter');
     const page = await fixture.context.newPage();
+    recordStage('page-create-return');
+    recordStage('open-enter');
     await page.goto(`${parentOrigin}/product`, { waitUntil: 'domcontentloaded' });
+    recordStage('open-return');
     const frame = page.frameLocator('iframe[title="Scratch runtime"]');
+    recordStage('editor-ready-wait-enter');
     await waitReady(frame);
+    recordStage('editor-ready-observed');
+    const registerDraftObserver = (
+      event: 'request' | 'requestfinished' | 'requestfailed',
+      callback: (request: import('@playwright/test').Request) => void,
+    ) => {
+      // Register removal first, so even an on() failure after registration is
+      // cleaned up without replacing that original setup error.
+      removeDraftObservers.push(() => page.off(event, callback));
+      if (event === 'request') page.on('request', callback);
+      else if (event === 'requestfinished') page.on('requestfinished', callback);
+      else page.on('requestfailed', callback);
+    };
+    registerDraftObserver('request', (request) => {
+      try {
+        if (
+          request.method() === 'PUT' &&
+          request.url() === `${parentOrigin}/api/blocks/runtime/projects/${projectId}/draft`
+        ) {
+          selectDraftRequest(request, false);
+        }
+      } catch (error) {
+        stageObservationFailures = incrementCount(stageObservationFailures);
+        recordStage('draft-observer-failed');
+        failDraftTerminal(error);
+      }
+    });
+    // Terminal events are associated by object identity, never by a similar URL.
+    registerDraftObserver('requestfinished', (request) => {
+      observeDraftTerminal(request, 'FINISHED');
+    });
+    registerDraftObserver('requestfailed', (request) => {
+      observeDraftTerminal(request, 'FAILED');
+    });
+    const onPageClose = () => {
+      recordStage('draft-terminal-page-close');
+      failDraftTerminal(new Error('Page closed before the draft terminal wait completed'));
+    };
+    const onPageCrash = () => {
+      recordStage('draft-terminal-page-crash');
+      failDraftTerminal(new Error('Page crashed before the draft terminal wait completed'));
+    };
+    removeDraftObservers.push(() => page.off('close', onPageClose));
+    page.on('close', onPageClose);
+    removeDraftObservers.push(() => page.off('crash', onPageCrash));
+    page.on('crash', onPageCrash);
+    if (page.isClosed()) onPageClose();
     let recoveryReady = false;
     let recoveryReadyAtResponse = false;
+    recordStage('save-and-checkpoint-wait-enter');
     const [response] = await Promise.all([
       page
         .waitForResponse(
-          (candidate) =>
-            candidate.request().method() === 'PUT' &&
-            candidate.url() === `${parentOrigin}/api/blocks/runtime/projects/${projectId}/draft`,
+          (candidate) => {
+            const request = candidate.request();
+            const matches =
+              request.method() === 'PUT' &&
+              candidate.url() === `${parentOrigin}/api/blocks/runtime/projects/${projectId}/draft`;
+            if (matches) selectDraftRequest(request, true);
+            return matches;
+          },
           { timeout: 90_000 },
         )
         .then((candidate) => {
           observedDraftStatus = candidate.status();
           recoveryReadyAtResponse = recoveryReady;
+          recordStage('response-headers', { recoveryReadyAtResponse });
           return candidate;
         }),
       (async () => {
+        recordStage('edit-enter');
         await setSteps(frame, '10', '73');
+        recordStage('checkpoint-wait-enter');
         await expect
           .poll(async () => recoverySteps((await readRecoveryRecords(frame))[0]))
           .toBe('73');
         recoveryReady = true;
+        recordStage('checkpoint-observed');
       })(),
     ]);
-    await response.finished();
+    recordStage('save-and-checkpoint-wait-return');
+    recordStage('draft-terminal-wait-enter');
+    try {
+      // Playwright 1.55.1 does not settle Response.finished() on requestfailed.
+      // Either actual terminal kind proceeds only to this case's original 503,
+      // authorization, no-mutation and real IndexedDB retention assertions.
+      const terminal = await waitForDraftTerminal(response.request());
+      recordStage(
+        terminal === 'FINISHED' ? 'draft-terminal-wait-finished' : 'draft-terminal-wait-failed',
+      );
+    } catch (error) {
+      recordStage('draft-terminal-wait-reject');
+      throw error;
+    }
     expect(recoveryReadyAtResponse).toBe(true);
     expect(observedDraftStatus).toBe(503);
     expect(fixture.runtimeDraftEvidence).toHaveLength(1);
@@ -464,13 +832,50 @@ test('failed server autosave retains recovery', async () => {
       ]),
     );
     expect(fixture.getServerRevision()).toBe(23);
+    recordStage('recovery-read-enter');
     const retainedRecovery = await readRecoveryRecords(frame);
+    recordStage('recovery-read-return', {
+      retainedCount: retainedRecovery.length,
+      retainedStepsMatch73: recoverySteps(retainedRecovery[0]) === '73',
+    });
     expect(retainedRecovery).toHaveLength(1);
     expect(recoverySteps(retainedRecovery[0])).toBe('73');
+    recordStage('assertions-completed');
   } finally {
-    await test
-      .info()
-      .attach('failed-autosave-outcome', {
+    recordStage('finally-enter');
+    recordStage('draft-observer-cleanup-enter');
+    let observersRemoved = true;
+    for (const remove of removeDraftObservers.splice(0)) {
+      try {
+        remove();
+      } catch (error) {
+        // Attempt every removal; a cleanup observation cannot replace the
+        // original setup/assertion or legacy attachment/fixture error.
+        observersRemoved = false;
+        if (observerCleanupFailure === null) observerCleanupFailure = { error };
+        stageObservationFailures = incrementCount(stageObservationFailures);
+        recordStage('draft-observer-cleanup-failed');
+      }
+    }
+    draftObserversRemoved = observersRemoved;
+    if (observersRemoved) recordStage('draft-observer-cleanup-return');
+    recordStage('legacy-attachment-enter');
+    let attachmentInfo: ReturnType<typeof test.info>;
+    let attach: ReturnType<typeof test.info>['attach'];
+    let attachmentSetupReturned = false;
+    try {
+      // Preserve info -> method lookup -> payload preparation -> invocation.
+      attachmentInfo = test.info();
+      attach = attachmentInfo.attach;
+      attachmentSetupReturned = true;
+    } finally {
+      if (!attachmentSetupReturned) recordStage('legacy-attachment-setup-throw');
+    }
+    recordStage('legacy-attachment-payload-enter');
+    let attachmentOptions: Parameters<typeof attach>[1];
+    let attachmentPayloadReturned = false;
+    try {
+      attachmentOptions = {
         contentType: 'application/json',
         body: JSON.stringify({
           observedDraftStatus,
@@ -486,10 +891,64 @@ test('failed server autosave retains recovery', async () => {
             text: typeof text === 'string' ? text.slice(0, 500) : undefined,
           })),
         }),
-      })
-      .catch(() => undefined);
-    await fixture.close();
+      };
+      attachmentPayloadReturned = true;
+    } finally {
+      if (!attachmentPayloadReturned) recordStage('legacy-attachment-payload-throw');
+    }
+    recordStage('legacy-attachment-payload-ready');
+    recordStage('legacy-attachment-call-enter');
+    let attachmentPromise: ReturnType<typeof attach>;
+    let attachmentCallReturned = false;
+    try {
+      attachmentPromise = Reflect.apply(attach, attachmentInfo, [
+        'failed-autosave-outcome',
+        attachmentOptions,
+      ]);
+      attachmentCallReturned = true;
+    } finally {
+      if (!attachmentCallReturned) recordStage('legacy-attachment-call-throw');
+    }
+    recordPromiseReturn('legacy-attachment-call-return', attachmentPromise);
+    let attachmentRejected = false;
+    let attachmentAwaitable: Promise<void | undefined>;
+    recordStage('legacy-attachment-catch-enter');
+    let attachmentCatchReturned = false;
+    try {
+      // This is the original rejection handler: it still resolves to undefined.
+      attachmentAwaitable = attachmentPromise.catch(() => {
+        attachmentRejected = true;
+        recordStage('legacy-attachment-reject');
+        return undefined;
+      });
+      attachmentCatchReturned = true;
+    } finally {
+      if (!attachmentCatchReturned) recordStage('legacy-attachment-catch-throw');
+    }
+    recordPromiseReturn('legacy-attachment-catch-return', attachmentAwaitable);
+    recordStage('legacy-attachment-await-enter');
+    let attachmentAwaitReturned = false;
+    try {
+      await attachmentAwaitable;
+      attachmentAwaitReturned = true;
+    } finally {
+      // Only an error propagated by the original catch/await reaches this marker.
+      if (!attachmentAwaitReturned) recordStage('legacy-attachment-await-reject');
+    }
+    if (!attachmentRejected) recordStage('legacy-attachment-fulfilled');
+    recordStage('legacy-attachment-return');
+    recordStage('teardown-enter');
+    let closeReturned = false;
+    try {
+      await fixture.close();
+      closeReturned = true;
+    } finally {
+      recordStage(closeReturned ? 'teardown-return' : 'teardown-interrupted');
+    }
   }
+  // Reached only if the original body, attachment and fixture close all returned.
+  // Their errors retain precedence; a cleanup failure alone must still fail.
+  if (observerCleanupFailure !== null) throw observerCleanupFailure.error;
 });
 
 test('different account cannot restore or autosave another principal recovery', async () => {
