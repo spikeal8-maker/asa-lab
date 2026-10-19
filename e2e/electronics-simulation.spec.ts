@@ -4,6 +4,11 @@ import { createHash } from 'node:crypto';
 import { expect, test, type Page } from '@playwright/test';
 import pg from 'pg';
 import type { SchematicDocument } from '../apps/web/src/api';
+import {
+  localProjectDraftFingerprint,
+  localProjectDraftKey,
+  readLocalProjectDraftEntry,
+} from '../apps/web/src/modules/project-local-draft';
 import { collectBrowserFailures } from './browser-failures';
 import { loginWithOrganization } from './organization-login';
 import { e2eAdminPool, seedTeacher, type SeededTeacher } from './seed';
@@ -5471,7 +5476,7 @@ async function leaveSavedWorkbench(page: Page, projectId: string): Promise<void>
   expect(
     await page.evaluate((id) => localStorage.getItem(`asa-project-local-draft:${id}`), projectId),
   ).toBeNull();
-  expect(await e01LocalDraft(page, projectId)).toBeNull();
+  expect(await e01PendingLocalDraft(page, projectId)).toBeNull();
   await page.goto('/#/projects');
 }
 
@@ -5500,6 +5505,77 @@ async function e01LocalDraft(page: Page, projectId: string): Promise<string | nu
   expect(session.authenticated).toBe(true);
   const key = `asa-project-local-draft:user:account:${encodeURIComponent(session.user!.id)}:${encodeURIComponent(projectId)}`;
   return page.evaluate((key) => localStorage.getItem(key), key);
+}
+
+function pendingElectronicsLocalDraft(
+  entries: ReadonlyArray<readonly [string, string]>,
+  projectId: string,
+  userId: string,
+): string | null {
+  const snapshot = new Map(entries);
+  const baseKey = localProjectDraftKey(projectId, userId, 'account');
+  const writerPrefix = baseKey + ':electronics-editor:';
+  const storage = (withoutAckFor?: string) => ({
+    getItem: (key: string) => (key === `${withoutAckFor}:ack` ? null : (snapshot.get(key) ?? null)),
+    setItem: () => {
+      throw new Error('Recovery evidence is read-only');
+    },
+    removeItem: () => {
+      throw new Error('Recovery evidence is read-only');
+    },
+  });
+  let pending: string | null = null;
+  for (const [key, raw] of snapshot) {
+    if (key !== baseKey && (!key.startsWith(writerPrefix) || key.endsWith(':ack'))) continue;
+    // Validate the actual bytes without their ACK first. Malformed recovery
+    // must never be mistaken for a successful acknowledgement.
+    expect(
+      readLocalProjectDraftEntry(storage(key), projectId, 'electronics', userId, 'account', key)
+        ?.raw,
+    ).toBe(raw);
+    const entry = readLocalProjectDraftEntry(
+      storage(),
+      projectId,
+      'electronics',
+      userId,
+      'account',
+      key,
+    );
+    if (entry) pending ??= entry.raw;
+    else expect(snapshot.get(`${key}:ack`)).toBe(localProjectDraftFingerprint(raw));
+  }
+  return pending;
+}
+
+async function e01PendingLocalDraft(
+  page: Page,
+  projectId: string,
+  userId?: string,
+): Promise<string | null> {
+  if (userId === undefined) {
+    const me = await page.context().request.get('/api/auth/me');
+    const session = (await me.json()) as { authenticated: boolean; user?: { id: string } };
+    expect(session.authenticated).toBe(true);
+    userId = session.user!.id;
+  }
+  const baseKey = localProjectDraftKey(projectId, userId, 'account');
+  const entries = await page.evaluate((baseKey) => {
+    const entries: Array<[string, string]> = [];
+    for (let index = 0; index < localStorage.length; index++) {
+      const key = localStorage.key(index);
+      if (
+        key !== null &&
+        (key === baseKey ||
+          key === `${baseKey}:ack` ||
+          key.startsWith(`${baseKey}:electronics-editor:`))
+      ) {
+        const raw = localStorage.getItem(key);
+        if (raw !== null) entries.push([key, raw]);
+      }
+    }
+    return entries;
+  }, baseKey);
+  return pendingElectronicsLocalDraft(entries, projectId, userId);
 }
 
 async function e01Server(page: Page, projectId: string) {
@@ -7104,7 +7180,7 @@ for (const action of ['manual Save', 'genuine departure'] as const) {
     await page.getByRole('button', { name: 'Закрыть редактор кода', exact: true }).click();
     await component(page, 'resistor-axial').locator('.workbench-part').press('Enter');
     await expect(resistance).toHaveValue('333.3');
-    expect(await page.evaluate((key) => localStorage.getItem(key), localKey)).toBeNull();
+    expect(await e01PendingLocalDraft(page, projectId, userId)).toBeNull();
     const report = { projectId, action, elapsedMs, receipt, expected, puts, server };
     await test.info().attach(`sketch-529-${action.replaceAll(' ', '-')}.json`, {
       body: Buffer.from(JSON.stringify(report, null, 2)),
@@ -8788,7 +8864,7 @@ for (const width of [1440, 1024, 390, 320]) {
         expect(latest.draft.revision).toBe(manual.draft.revision + 1);
         expect(puts[1]!.document).toEqual(latest.draft.document);
       }
-      expect(await e01LocalDraft(page, id)).toBeNull();
+      expect(await e01PendingLocalDraft(page, id)).toBeNull();
       profile = await browser.newContext({
         baseURL: new URL(page.url()).origin,
         viewport: { width, height: 900 },
@@ -9351,7 +9427,7 @@ test('Electronics automatic save retry waits a minute and preserves latest work'
   expect(
     automaticServer.draft.document.components.find((item) => item.id === 'resistor')?.value,
   ).toBe(220.5);
-  expect(await e01LocalDraft(page, projectId)).toBeNull();
+  expect(await e01PendingLocalDraft(page, projectId)).toBeNull();
 
   // A deliberate save remains immediate after another pupil edit.
   await value.fill('330.5');

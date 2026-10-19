@@ -12,6 +12,10 @@ checkpoint_policy:
     - repair:production-source-change
 
 large_sources:
+  - path: contexts/electronics/domain/arduino-circuit-scheduler.ts
+    class: decomposition-candidate
+    reviewed_bytes: 71720
+    rationale: Canonical coupled-clock orchestration keeps continuation validation, producer eligibility, pre-event physics, simultaneous board updates and failure rollback in one ordered boundary. The retained preparation/runtime composition and bounded D13 amendments are reviewed in evidence/classroom-retained-source-responsibility-641-20261019.md; future decomposition requires full-return, event-order and physical-quality parity rather than a size-only split.
   - path: contexts/electronics/domain/solver.ts
     class: decomposition-candidate
     reviewed_bytes: 179752
@@ -30,8 +34,8 @@ large_sources:
     rationale: Active workbench controller coordinates interaction and simulation concerns; E-OPT-3 is complete, while any structural extraction remains a separately selected E-OPT-7/maintenance responsibility change.
   - path: contexts/electronics/domain/arduino-program-runtime.ts
     class: decomposition-candidate
-    reviewed_bytes: 84928
-    rationale: Reviewed parsing, scopes, resumable execution and new peripheral dispatch responsibilities in evidence/release-baseline-hygiene.md; remains a decomposition candidate requiring timing/state parity, not cleanup-by-size.
+    reviewed_bytes: 106392
+    rationale: Parsing, typed scopes, prepared instructions, resumable execution and peripheral dispatch remain one programme-state boundary. The earlier review in evidence/release-baseline-hygiene.md is preserved and the retained runtime responsibility/growth is reviewed in evidence/classroom-retained-source-responsibility-641-20261019.md. Future extraction must preserve source/state validation, instruction timing, diagnostics and ordered events; the active legacy bridge and its retirement condition remain unchanged.
   - path: apps/web/src/electronics/ArduinoCodePanel.tsx
     class: decomposition-candidate
     reviewed_bytes: 63884

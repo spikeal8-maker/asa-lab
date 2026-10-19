@@ -1,4 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import * as linearSystem from '../domain/linear-system';
+import * as linearDcModels from '../domain/models/linear-dc-models';
 import {
   parseElectronicsDocument,
   type ComponentKind,
@@ -22,7 +24,25 @@ import {
   type OrdinaryLedColour,
   type RgbLedChannel,
 } from '../domain/led-model';
-import { solveCircuit } from '../domain/solver';
+import {
+  prepareCircuitSolve,
+  createArduinoOperatingPointReuse,
+  createArduinoQualityLayoutOwner,
+  takeArduinoQualityReceipt,
+  arduinoQualityDictionaryKeys,
+  releaseArduinoQualityReceipt,
+  solveCircuit,
+  solveCircuitWithHeldArduino,
+  solveRcCircuitWithHeldArduino,
+} from '../domain/solver';
+import { arduinoSnapshotFromState } from '../domain/arduino-model';
+import { advanceArduinoRuntime } from '../domain/arduino-program-runtime';
+import {
+  compileCircuit,
+  createArduinoQualityTraversal,
+  verifyCircuitQuality,
+} from '../domain/simulation';
+import type { ArduinoRuntimeState } from '../domain/arduino-program-runtime';
 import {
   canonicalPhotoresistorProfileRegistry,
   photoresistorIlluminanceLux,
@@ -42,6 +62,874 @@ import {
   incandescentLampResistanceOhm,
   INCANDESCENT_LAMP_PROFILE,
 } from '../domain/models/incandescent-lamp-model';
+
+describe('advance-local immutable solve preparation', () => {
+  const bytes = (value: unknown) =>
+    JSON.stringify(value, (_key, entry) =>
+      typeof entry === 'number' && Object.is(entry, -0) ? { negativeZero: true } : entry,
+    );
+
+  it.each([
+    [
+      'ordinary LED colour',
+      component('load', 'led', 2),
+      { stateProperties: { ledColour: 'blue' } },
+    ],
+    ['legacy diode knee', component('load', 'diode', 0.7), { value: 0.9 }],
+    [
+      'diode model profile',
+      component('load', 'diode', 0.7, {
+        componentTypeId: 'diode-do35',
+        pinIds: ['anode', 'cathode'],
+      }),
+      { componentTypeId: 'diode-do41', modelProfileId: 'generic-rectifier-diode-do41' },
+    ],
+    [
+      'RGB common terminal',
+      component('load', 'rgb-led', 0, {
+        componentTypeId: 'rgb-led',
+        pinIds: ['red', 'common', 'green', 'blue'],
+        stateProperties: { commonMode: 'common-cathode' },
+      }),
+      { stateProperties: { commonMode: 'common-anode' } },
+    ],
+    [
+      'seven-segment common terminal',
+      component('load', 'seven-segment', 0, {
+        componentTypeId: 'seven-segment-display',
+        pinIds: [
+          'top-1',
+          'top-2',
+          'top-3',
+          'top-4',
+          'top-5',
+          'bottom-1',
+          'bottom-2',
+          'bottom-3',
+          'bottom-4',
+          'bottom-5',
+        ],
+        stateProperties: { commonMode: 'common-cathode' },
+      }),
+      { stateProperties: { commonMode: 'common-anode' } },
+    ],
+  ] as const)('invalidates observation routing after changing %s', (_name, load, change) => {
+    const [anode, cathode] =
+      load.kind === 'rgb-led'
+        ? ['red', 'common']
+        : load.kind === 'seven-segment'
+          ? ['top-4', 'top-3']
+          : load.componentTypeId
+            ? ['anode', 'cathode']
+            : ['a', 'b'];
+    const original = doc(
+      [component('source', 'source', 5), component('resistor', 'resistor', 330), load],
+      [
+        connect('a', 'source', 'a', 'resistor', 'a'),
+        connect('b', 'resistor', 'b', 'load', anode),
+        connect('c', 'load', cathode, 'source', 'b'),
+      ],
+    );
+    const preparation = prepareCircuitSolve(original);
+    const solve = (document: ElectronicsDocument, prepared = false) =>
+      solveCircuitWithHeldArduino(
+        document,
+        0,
+        new Map(),
+        undefined,
+        undefined,
+        undefined,
+        prepared ? preparation : undefined,
+      );
+    expect(bytes(solve(original, true))).toBe(bytes(solve(original)));
+    const changed: ElectronicsDocument = {
+      ...original,
+      components: original.components.map((entry) =>
+        entry.id === 'load' ? { ...entry, ...change } : entry,
+      ),
+    };
+    expect(preparation(changed)).toBeUndefined();
+    expect(bytes(solve(changed, true))).toBe(bytes(solve(changed)));
+    expect(bytes(solve(changed))).not.toBe(bytes(solve(original)));
+  });
+
+  it('does not freeze or rewrite caller-owned terminal arrays during preparation', () => {
+    const original = series([component('load', 'resistor', 470, { pinIds: ['a', 'b'] })], 5);
+    const terminals = original.components.find((entry) => entry.id === 'load')!.pinIds!;
+    const before = bytes(original);
+    expect(Object.isFrozen(terminals)).toBe(false);
+    prepareCircuitSolve(original);
+    expect(bytes(original)).toBe(before);
+    expect(Object.isFrozen(terminals)).toBe(false);
+  });
+
+  it('rejects a stale token after parameter, topology, terminal or model changes', () => {
+    const original = series([component('load', 'resistor', 470)], 5);
+    const preparation = prepareCircuitSolve(original);
+    const changes: ElectronicsDocument[] = [
+      {
+        ...original,
+        components: original.components.map((entry) =>
+          entry.id === 'load' ? { ...entry, value: 220 } : entry,
+        ),
+      },
+      { ...original, connections: original.connections.slice(0, 1) },
+      {
+        ...original,
+        components: original.components.map((entry) =>
+          entry.id === 'load' ? { ...entry, pinIds: ['a'] } : entry,
+        ),
+      },
+      {
+        ...original,
+        components: original.components.map((entry) =>
+          entry.id === 'load' ? { ...entry, value: -1 } : entry,
+        ),
+      },
+      {
+        ...original,
+        components: original.components.map((entry) =>
+          entry.id === 'load'
+            ? { ...entry, kind: 'visual', componentTypeId: 'unknown-model' }
+            : entry,
+        ),
+      },
+    ];
+    for (const changed of changes) {
+      const direct = solveCircuitWithHeldArduino(changed, 0, new Map());
+      const stale = solveCircuitWithHeldArduino(
+        changed,
+        0,
+        new Map(),
+        undefined,
+        undefined,
+        undefined,
+        preparation,
+      );
+      expect(bytes(stale)).toBe(bytes(direct));
+      expect(bytes(stale)).not.toBe(bytes(solveCircuitWithHeldArduino(original, 0, new Map())));
+    }
+  });
+
+  it('recomputes generator voltage and Arduino output/high-Z/runtime fault for every frame', () => {
+    const generator = component('generator', 'source', 100, {
+      componentTypeId: 'signal-generator',
+      pinIds: ['signal', 'ground'],
+      stateProperties: {
+        waveform: 'sine',
+        frequencyHz: 100,
+        amplitudeVpp: 4,
+        dcOffsetVolt: 1,
+        outputEnabled: true,
+      },
+    });
+    const source =
+      'void setup(){pinMode(13,OUTPUT);digitalWrite(13,HIGH);}void loop(){delay(1000);}';
+    const uno = component('uno', 'visual', 5, {
+      componentTypeId: 'arduino-uno',
+      pinIds: ['d13', 'power-5v', 'power-3v3', 'power-gnd-1'],
+      stateProperties: { arduinoSource: source },
+    });
+    const document = doc(
+      [generator, uno, component('load', 'resistor', 1000)],
+      [
+        connect('a', 'generator', 'signal', 'load', 'a'),
+        connect('b', 'load', 'b', 'generator', 'ground'),
+        connect('gnd', 'uno', 'power-gnd-1', 'generator', 'ground'),
+      ],
+    );
+    const preparation = prepareCircuitSolve(document);
+    const initial = advanceArduinoRuntime(source).state;
+    const variants = [
+      initial,
+      { ...initial, outputVoltages: { d13: 0 } },
+      { ...initial, pinModes: { d13: 'INPUT' as const }, outputVoltages: {} },
+      { ...initial, faults: [{ code: 'arithmetic_error' as const, message: 'division by zero' }] },
+    ];
+    const frames = variants.flatMap((state) =>
+      [0, 2.5].map((time) => {
+        const snapshots = new Map([['uno', arduinoSnapshotFromState(state)]]);
+        const direct = solveCircuitWithHeldArduino(document, time, snapshots);
+        const prepared = solveCircuitWithHeldArduino(
+          document,
+          time,
+          snapshots,
+          undefined,
+          undefined,
+          undefined,
+          preparation,
+        );
+        expect(bytes(prepared)).toBe(bytes(direct));
+        return prepared;
+      }),
+    );
+    expect(frames[0]!.solved, JSON.stringify(frames[0]!.diagnostics)).toBe(true);
+    expect(
+      frames[0]!.components.find((entry) => entry.componentId === 'load')!.voltageDrop,
+    ).not.toBe(frames[1]!.components.find((entry) => entry.componentId === 'load')!.voltageDrop);
+    expect(
+      frames[0]!.components.find((entry) => entry.componentId === 'uno')!.terminalVoltages['d13'],
+    ).toBeCloseTo(5, 8);
+    expect(
+      frames[2]!.components.find((entry) => entry.componentId === 'uno')!.terminalVoltages['d13'],
+    ).toBe(0);
+    expect(
+      frames[4]!.components.find((entry) => entry.componentId === 'uno')!.terminalVoltages['d13'],
+    ).toBe(0);
+    expect(frames[6]!.status).toBe('invalid');
+    expect(frames[6]!.diagnostics.some((entry) => entry.code === 'arduino_arithmetic_error')).toBe(
+      true,
+    );
+  });
+
+  it('keeps carried meter fuse and thermal failure dynamic even at the same physical time', () => {
+    const source = component('source', 'source', 3);
+    const load = component('load', 'resistor', 100);
+    const meter = component('meter', 'visual', 0, {
+      componentTypeId: 'multimeter',
+      pinIds: ['com', 'v-ohm-ma'],
+      stateProperties: { measurementMode: 'dc-current', meterRange: '400ma' },
+    });
+    const document = doc(
+      [source, load, meter],
+      [
+        connect('a', 'source', 'a', 'load', 'a'),
+        connect('b', 'load', 'b', 'meter', 'v-ohm-ma'),
+        connect('c', 'meter', 'com', 'source', 'b'),
+      ],
+    );
+    const preparation = prepareCircuitSolve(document);
+    const initial = solveRcCircuitWithHeldArduino(document, 0, new Map());
+    expect(initial.solved).toBe(true);
+    const history = initial.transientState!;
+    const blown = {
+      ...history,
+      multimeterFuses: history.multimeterFuses!.map((entry) => ({
+        ...entry,
+        fuseState: 'blown' as const,
+      })),
+    };
+    const failed = {
+      ...history,
+      thermal: history.thermal.map((entry) => ({ ...entry, failureMode: 'open' as const })),
+    };
+    for (const state of [history, blown, failed]) {
+      const direct = solveRcCircuitWithHeldArduino(document, 0, new Map(), state);
+      const prepared = solveRcCircuitWithHeldArduino(
+        document,
+        0,
+        new Map(),
+        state,
+        undefined,
+        undefined,
+        undefined,
+        preparation,
+      );
+      expect(bytes(prepared)).toBe(bytes(direct));
+    }
+    const fused = solveRcCircuitWithHeldArduino(
+      document,
+      0,
+      new Map(),
+      blown,
+      undefined,
+      undefined,
+      undefined,
+      preparation,
+    );
+    expect(fused.components.find((entry) => entry.componentId === 'meter')!.meterFuseState).toBe(
+      'blown',
+    );
+    const failedFrame = solveRcCircuitWithHeldArduino(
+      document,
+      0,
+      new Map(),
+      failed,
+      undefined,
+      undefined,
+      undefined,
+      preparation,
+    );
+    expect(bytes(failedFrame)).not.toBe(bytes(initial));
+  });
+});
+
+describe('advance-local Arduino algebraic operating point', () => {
+  const source = 'void setup(){pinMode(13,OUTPUT);digitalWrite(13,HIGH);}void loop(){delay(1000);}';
+  const fixture = () =>
+    doc(
+      [
+        component('uno', 'visual', 5, {
+          componentTypeId: 'arduino-uno',
+          pinIds: ['d13', 'power-5v', 'power-3v3', 'power-gnd-1'],
+          stateProperties: { arduinoSource: source },
+        }),
+        component('r', 'resistor', 330, {
+          componentTypeId: 'resistor-axial',
+          pinIds: ['lead-1', 'lead-2'],
+        }),
+        component('led', 'led', 2, {
+          componentTypeId: 'led-5mm',
+          pinIds: ['anode', 'cathode'],
+        }),
+      ],
+      [
+        connect('a', 'uno', 'd13', 'r', 'lead-1'),
+        connect('b', 'r', 'lead-2', 'led', 'anode'),
+        connect('c', 'led', 'cathode', 'uno', 'power-gnd-1'),
+      ],
+    );
+  const snapshots = (state: ArduinoRuntimeState) =>
+    new Map([['uno', arduinoSnapshotFromState(state)]]);
+  const encode = (value: unknown) =>
+    JSON.stringify(value, (_key, entry) =>
+      entry === undefined
+        ? { undefined: true }
+        : typeof entry === 'number'
+          ? Object.is(entry, -0)
+            ? { number: '-0' }
+            : !Number.isFinite(entry)
+              ? { number: String(entry) }
+              : entry
+          : entry,
+    );
+
+  it('binds a one-use quality receipt to the final physical overlay and exact document', () => {
+    const document = fixture();
+    const reuse = createArduinoOperatingPointReuse();
+    const layout = createArduinoQualityLayoutOwner(reuse);
+    const state = snapshots(advanceArduinoRuntime(source).state);
+    const solve = () =>
+      solveRcCircuitWithHeldArduino(
+        document,
+        0,
+        state,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        reuse,
+      );
+    try {
+      const frame = solve();
+      expect(frame.transientState).toBeDefined();
+      expect(takeArduinoQualityReceipt(layout.owner, frame, { ...document })).toBeUndefined();
+      expect(takeArduinoQualityReceipt(layout.owner, frame, document)).toBeUndefined();
+      const current = solve();
+      const receipt = takeArduinoQualityReceipt(layout.owner, current, document);
+      expect(receipt).toBeDefined();
+      expect(takeArduinoQualityReceipt(layout.owner, current, document)).toBeUndefined();
+      const record = current.components.find(
+        (entry) => entry.componentId === 'led',
+      )!.terminalVoltages;
+      expect(arduinoQualityDictionaryKeys(receipt!, record)).toStrictEqual(Object.keys(record));
+      releaseArduinoQualityReceipt(receipt!);
+      expect(arduinoQualityDictionaryKeys(receipt!, record)).toBeUndefined();
+    } finally {
+      layout.dispose();
+    }
+  });
+
+  it('checks fresh thermal-open records instead of borrowing the closed template layout', () => {
+    const document = fixture();
+    const compiled = compileCircuit(document);
+    const reuse = createArduinoOperatingPointReuse();
+    const layout = createArduinoQualityLayoutOwner(reuse);
+    const quality = createArduinoQualityTraversal(document, compiled, layout.owner);
+    const state = snapshots(advanceArduinoRuntime(source).state);
+    const solve = (time: number, physical?: Parameters<typeof solveRcCircuitWithHeldArduino>[3]) =>
+      solveRcCircuitWithHeldArduino(
+        document,
+        time,
+        state,
+        physical,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        reuse,
+      );
+    try {
+      const first = solve(0);
+      quality.verify(first, {});
+      const saved = encode(first);
+      const failedState = {
+        ...first.transientState!,
+        thermal: first.transientState!.thermal.map((entry) =>
+          entry.componentId === 'led'
+            ? { ...entry, failureMode: 'open' as const, accumulatedDamage: 1 }
+            : entry,
+        ),
+      };
+      const open = solve(1, failedState);
+      const led = open.components.find((entry) => entry.componentId === 'led')!;
+      expect(led.current).toBe(0);
+      expect(led.terminalCurrents).not.toBe(
+        first.components.find((entry) => entry.componentId === 'led')!.terminalCurrents,
+      );
+      expect(quality.verify(open, { simulationTimeMs: 1 })).toStrictEqual(
+        verifyCircuitQuality(document, compiled, open, { simulationTimeMs: 1 }),
+      );
+      expect(encode(first)).toBe(saved);
+      const next = solve(2, open.transientState);
+      expect(quality.verify(next, { simulationTimeMs: 2 })).toStrictEqual(
+        verifyCircuitQuality(document, compiled, next, { simulationTimeMs: 2 }),
+      );
+      expect(next.components.find((entry) => entry.componentId === 'led')!.current).toBe(0);
+    } finally {
+      quality.dispose();
+      layout.dispose();
+    }
+  });
+
+  it('releases pending receipt references on disposal without a solve or replay', () => {
+    const document = fixture();
+    const reuse = createArduinoOperatingPointReuse();
+    const layout = createArduinoQualityLayoutOwner(reuse);
+    const frame = solveCircuitWithHeldArduino(
+      document,
+      1,
+      snapshots(advanceArduinoRuntime(source).state),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      reuse,
+    );
+    const saved = encode(frame);
+    const solve = vi.spyOn(linearSystem, 'solveLinear');
+    try {
+      layout.dispose();
+      layout.dispose();
+      expect(takeArduinoQualityReceipt(layout.owner, frame, document)).toBeUndefined();
+      expect(solve).not.toHaveBeenCalled();
+      expect(encode(frame)).toBe(saved);
+    } finally {
+      solve.mockRestore();
+    }
+  });
+
+  it('reuses numerical work while rebuilding current controller and independent result objects', () => {
+    const document = fixture();
+    const reuse = createArduinoOperatingPointReuse();
+    const state = advanceArduinoRuntime(source).state;
+    const solve = (time: number, current = state) =>
+      solveCircuitWithHeldArduino(
+        document,
+        time,
+        snapshots(current),
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        reuse,
+      );
+    const spy = vi.spyOn(linearSystem, 'solveLinear');
+    try {
+      const first = solve(1);
+      expect(first.solved).toBe(true);
+      expect(spy).toHaveBeenCalled();
+      spy.mockClear();
+      const current = { ...state, programCounter: 19, variables: { pupilCounter: 23 } };
+      const second = solve(2, current);
+      expect(spy).not.toHaveBeenCalled();
+      expect(second).not.toBe(first);
+      expect(second.components).not.toBe(first.components);
+      expect(second.controllerState?.simulationTimeMs).toBe(2);
+      expect(second.controllerState?.boards[0]?.runtime).toEqual(current);
+      expect(second.iterations).toBe(first.iterations);
+      const uncached = solveCircuitWithHeldArduino(document, 2, snapshots(current));
+      expect(encode(second)).toBe(encode(uncached));
+      spy.mockClear();
+      // A new scheduler advance owns a new cache, even for the same document.
+      solveCircuitWithHeldArduino(
+        document,
+        2,
+        snapshots(current),
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        createArduinoOperatingPointReuse(),
+      );
+      expect(spy).toHaveBeenCalled();
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('returns before generic model reconstruction and shares only frozen electrical subtrees', () => {
+    const document = fixture();
+    const reuse = createArduinoOperatingPointReuse();
+    const state = advanceArduinoRuntime(source).state;
+    const solve = (time: number) =>
+      solveCircuitWithHeldArduino(
+        document,
+        time,
+        snapshots({ ...state, variables: { currentTime: time } }),
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        reuse,
+      );
+    const first = solve(1);
+    const spy = vi.spyOn(linearDcModels, 'createLinearDcDevice');
+    try {
+      const second = solve(2);
+      expect(spy).not.toHaveBeenCalled();
+      const third = solve(3);
+      expect(third).not.toBe(second);
+      expect(third.components).not.toBe(second.components);
+      expect(third.components[0]).not.toBe(second.components[0]);
+      expect(third.nodes).toBe(second.nodes);
+      expect(third.controllerState?.simulationTimeMs).toBe(3);
+      expect(third.controllerState?.boards[0]?.runtime.variables).toEqual({ currentTime: 3 });
+      for (const result of [first, second, third])
+        for (const component of result.components)
+          for (const key of [
+            'terminalVoltages',
+            'terminalCurrents',
+            'branchCurrents',
+            'branchBrightness',
+          ] as const) {
+            const values = component[key];
+            if (!values) continue;
+            expect(Object.isFrozen(values)).toBe(true);
+            expect(Reflect.set(values, Object.keys(values)[0] ?? 'newTerminal', 12345)).toBe(false);
+          }
+      expect(Object.isFrozen(second.nodes)).toBe(true);
+      for (const node of second.nodes) {
+        expect(Object.isFrozen(node)).toBe(true);
+        expect(Object.isFrozen(node.terminals)).toBe(true);
+        expect(Reflect.set(node, 'voltage', 12345)).toBe(false);
+      }
+      // A caller violating a root object's readonly type cannot poison the template.
+      Reflect.set(first.components[0]!, 'voltageDrop', 12345);
+      Reflect.set(second.components[0]!, 'voltageDrop', 12345);
+      const expected = solveCircuitWithHeldArduino(
+        document,
+        4,
+        snapshots({ ...state, variables: { currentTime: 4 } }),
+      );
+      expect(encode(solve(4))).toBe(encode(expected));
+      expect(first.controllerState?.simulationTimeMs).toBe(1);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it.each([330, 150, 149.9999, 100, 10])(
+    'preserves original raw stress and diagnostic decisions at resistance %s',
+    (resistance) => {
+      const original = fixture();
+      const document = {
+        ...original,
+        components: original.components.map((entry) =>
+          entry.id === 'r' ? { ...entry, value: resistance } : entry,
+        ),
+      };
+      const snapshot = snapshots(advanceArduinoRuntime(source).state);
+      const expected = solveCircuitWithHeldArduino(document, 1, snapshot);
+      const reuse = createArduinoOperatingPointReuse();
+      for (let repeat = 0; repeat < 3; repeat++)
+        expect(
+          encode(
+            solveCircuitWithHeldArduino(
+              document,
+              1,
+              snapshot,
+              undefined,
+              undefined,
+              undefined,
+              undefined,
+              reuse,
+            ),
+          ),
+        ).toBe(encode(expected));
+      if (expected.diagnostics.some((entry) => entry.code !== 'circuit_ok')) {
+        const spy = vi.spyOn(linearDcModels, 'createLinearDcDevice');
+        try {
+          expect(
+            encode(
+              solveCircuitWithHeldArduino(
+                document,
+                1,
+                snapshot,
+                undefined,
+                undefined,
+                undefined,
+                undefined,
+                reuse,
+              ),
+            ),
+          ).toBe(encode(expected));
+          expect(spy).toHaveBeenCalled();
+        } finally {
+          spy.mockRestore();
+        }
+      }
+    },
+  );
+
+  it('reuses recurring independent three-port states with exact fresh-solve results', () => {
+    const original = fixture();
+    const document = {
+      ...original,
+      components: [
+        ...original.components.map((entry) =>
+          entry.id === 'uno' ? { ...entry, pinIds: [...entry.pinIds!, 'd12', 'd11'] } : entry,
+        ),
+        ...[12, 11].flatMap((pin) => [
+          component(`r${pin}`, 'resistor', pin === 12 ? 680 : 1000, {
+            componentTypeId: 'resistor-axial',
+            pinIds: ['lead-1', 'lead-2'],
+          }),
+          component(`led${pin}`, 'led', 2, {
+            componentTypeId: 'led-5mm',
+            pinIds: ['anode', 'cathode'],
+          }),
+        ]),
+      ],
+      connections: [
+        ...original.connections,
+        ...[12, 11].flatMap((pin) => [
+          connect(`a${pin}`, 'uno', `d${pin}`, `r${pin}`, 'lead-1'),
+          connect(`b${pin}`, `r${pin}`, 'lead-2', `led${pin}`, 'anode'),
+          connect(`c${pin}`, `led${pin}`, 'cathode', 'uno', 'power-gnd-1'),
+        ]),
+      ],
+    };
+    const state = advanceArduinoRuntime(source).state;
+    const reuse = createArduinoOperatingPointReuse();
+    const solve = (bits: number, prepared: boolean) =>
+      solveCircuitWithHeldArduino(
+        document,
+        bits,
+        snapshots({
+          ...state,
+          variables: { independentPattern: bits },
+          pinModes: { d13: 'OUTPUT', d12: 'OUTPUT', d11: 'OUTPUT' },
+          outputVoltages: { d13: bits & 1 ? 5 : 0, d12: bits & 2 ? 5 : 0, d11: bits & 4 ? 5 : 0 },
+        }),
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        prepared ? reuse : undefined,
+      );
+    const expected = Array.from({ length: 8 }, (_, bits) => solve(bits, false));
+    for (let bits = 0; bits < 8; bits++) {
+      expect(expected[bits]?.solved).toBe(true);
+      expect(encode(solve(bits, true))).toBe(encode(expected[bits]));
+    }
+    const spy = vi.spyOn(linearSystem, 'solveLinear');
+    try {
+      // Revisit all combinations in reverse, then repeat the original order.
+      for (const bits of [7, 6, 5, 4, 3, 2, 1, 0, 0, 1, 2, 3, 4, 5, 6, 7])
+        expect(encode(solve(bits, true))).toBe(encode(expected[bits]));
+      expect(spy).not.toHaveBeenCalled();
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('bounds recurring numerical points and evicts the least recently used exact state', () => {
+    const document = fixture();
+    const state = advanceArduinoRuntime(source).state;
+    const reuse = createArduinoOperatingPointReuse();
+    const solve = (index: number, prepared: boolean) =>
+      solveCircuitWithHeldArduino(
+        document,
+        10,
+        snapshots({ ...state, outputVoltages: { d13: index / 10 } }),
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        prepared ? reuse : undefined,
+      );
+    const expected = Array.from({ length: 33 }, (_, index) => solve(index, false));
+    for (let index = 0; index < 32; index++)
+      expect(encode(solve(index, true))).toBe(encode(expected[index]));
+    expect(encode(solve(0, true))).toBe(encode(expected[0]));
+    expect(encode(solve(32, true))).toBe(encode(expected[32]));
+    const spy = vi.spyOn(linearSystem, 'solveLinear');
+    try {
+      expect(encode(solve(0, true))).toBe(encode(expected[0]));
+      expect(spy).not.toHaveBeenCalled();
+      expect(encode(solve(1, true))).toBe(encode(expected[1]));
+      expect(spy).toHaveBeenCalled();
+      spy.mockClear();
+      expect(encode(solve(0, true))).toBe(encode(expected[0]));
+      expect(spy).not.toHaveBeenCalled();
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('invalidates GPIO, high impedance, pull-up, signed zero, tone and runtime faults', () => {
+    const document = fixture();
+    const reuse = createArduinoOperatingPointReuse();
+    const state = advanceArduinoRuntime(source).state;
+    const variants: ArduinoRuntimeState[] = [
+      state,
+      { ...state, outputVoltages: { d13: 0 } },
+      { ...state, outputVoltages: { d13: -0 } },
+      { ...state, outputVoltages: {} },
+      { ...state, pinModes: { d13: 'INPUT' }, outputVoltages: {} },
+      { ...state, pinModes: { d13: 'INPUT_PULLUP' }, outputVoltages: {} },
+      { ...state, tones: { d13: { frequencyHz: 500 } } },
+      { ...state, faults: [{ code: 'arithmetic_error', message: 'division by zero' }] },
+      { ...state, outputVoltages: { d13: NaN } },
+      { ...state, outputVoltages: { d13: Infinity } },
+      state,
+    ];
+    for (const [index, current] of [...variants, ...[...variants].reverse()].entries()) {
+      const expected = solveCircuitWithHeldArduino(document, index, snapshots(current));
+      for (let repeat = 0; repeat < 2; repeat++)
+        expect(
+          encode(
+            solveCircuitWithHeldArduino(
+              document,
+              index,
+              snapshots(current),
+              undefined,
+              undefined,
+              undefined,
+              undefined,
+              reuse,
+            ),
+          ),
+        ).toBe(encode(expected));
+    }
+  });
+
+  it('drops retained points when supplied diagnostics or a changed document', () => {
+    const document = fixture();
+    const state = advanceArduinoRuntime(source).state;
+    const reuse = createArduinoOperatingPointReuse();
+    const solve = (currentDocument = document, current = state) =>
+      solveCircuitWithHeldArduino(
+        currentDocument,
+        10,
+        snapshots(current),
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        reuse,
+      );
+    const expected = solveCircuitWithHeldArduino(document, 10, snapshots(state));
+    const spy = vi.spyOn(linearSystem, 'solveLinear');
+    try {
+      for (const invalidate of [
+        () =>
+          reuse(
+            document,
+            [],
+            snapshots({ ...state, faults: [{ code: 'arithmetic_error', message: 'fault' }] }),
+            new Set(),
+          ),
+        () => solve({ ...document, connections: document.connections.slice(1) }),
+      ]) {
+        solve();
+        solve(document, { ...state, outputVoltages: { d13: 0 } });
+        invalidate();
+        spy.mockClear();
+        expect(encode(solve())).toBe(encode(expected));
+        expect(spy).toHaveBeenCalled();
+      }
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('rebuilds carried temperature, damage and failed-open observations', () => {
+    const document = fixture();
+    const snapshot = snapshots(advanceArduinoRuntime(source).state);
+    const reuse = createArduinoOperatingPointReuse();
+    const initial = solveRcCircuitWithHeldArduino(document, 1, snapshot).transientState!;
+    expect(initial.thermal.length).toBeGreaterThan(0);
+    for (const thermal of [
+      initial.thermal,
+      initial.thermal.map((entry) => ({
+        ...entry,
+        temperatureCelsius: 80,
+        accumulatedDamage: 0.123,
+      })),
+      initial.thermal.map((entry) => ({ ...entry, failureMode: 'open' as const })),
+      initial.thermal,
+    ]) {
+      const carried = { ...initial, thermal };
+      const expected = solveRcCircuitWithHeldArduino(document, 2, snapshot, carried);
+      const actual = solveRcCircuitWithHeldArduino(
+        document,
+        2,
+        snapshot,
+        carried,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        reuse,
+      );
+      expect(encode(actual)).toBe(encode(expected));
+    }
+  });
+
+  it('rejects stale document identity, unknown model versions and other electrical models', () => {
+    const original = fixture();
+    const reuse = createArduinoOperatingPointReuse();
+    const snapshot = snapshots(advanceArduinoRuntime(source).state);
+    const documents = [
+      original,
+      {
+        ...original,
+        components: original.components.map((entry) =>
+          entry.id === 'r' ? { ...entry, value: 470 } : entry,
+        ),
+      },
+      { ...original, connections: original.connections.slice(1) },
+      {
+        ...original,
+        components: original.components.map((entry) =>
+          entry.id === 'r'
+            ? {
+                ...entry,
+                ...electricalModelIdentityForComponent(entry),
+                electricalModelVersion: 999,
+              }
+            : entry,
+        ),
+      },
+      ...['capacitor', 'lamp', 'photoresistor', 'potentiometer', 'source'].map((kind) => ({
+        ...original,
+        components: [...original.components, component('other', kind as ComponentKind, 1)],
+      })),
+      original,
+    ];
+    for (const document of documents) {
+      const expected = solveCircuitWithHeldArduino(document, 0, snapshot);
+      for (let repeat = 0; repeat < 2; repeat++)
+        expect(
+          encode(
+            solveCircuitWithHeldArduino(
+              document,
+              0,
+              snapshot,
+              undefined,
+              undefined,
+              undefined,
+              undefined,
+              reuse,
+            ),
+          ),
+        ).toBe(encode(expected));
+    }
+  });
+});
 
 function component(
   id: string,

@@ -1,0 +1,293 @@
+{
+  "schema_version": 1,
+  "task": "TASK-ELECTRONICS-CLASSROOM-D13-001",
+  "workflow": ".github/workflows/electronics-r4-m1-focused.yml",
+  "build_jobs": [
+    "browser",
+    "review-images"
+  ],
+  "postgres_jobs": [
+    "browser"
+  ],
+  "platform": {
+    "os": "linux",
+    "architecture": "amd64"
+  },
+  "original_receipt_sha256": "9b3b516e257aa31d3feb4a64c9dc8bfe7c33c9ad7d1be448245d8df044f7f273",
+  "boundary": "Only selected disposable Electronics Actions jobs; original image content and production defaults unchanged; no login, credentials, retry or mutable fallback.",
+  "evidence_source": {
+    "commit": "02ae08a82eb8ad65eda52a47c2100ef7830e45d5",
+    "path": "docs/product/electronics/evidence/ci-image-transport-429-receipt.json",
+    "receipt_sha256": "a03b90d5f94a801010c52067b5440e2bb3066ed2d16753c856f65306fa610bb3",
+    "probe_receipt_sha256": "c1264a738e5a0ed29de2b25626ce9642f1a4d561f3f86282f4a1ca9ebdddd989"
+  },
+  "postgres_evidence_source": {
+    "commit": "4c4bbed5c575122fdaa366a033e72f63ef0e96d6",
+    "path": "docs/product/projects/evidence/ci-node-transport-429-receipt.json",
+    "blob": "b75ff681e6f289fe38af352e19f4c219f05529c1",
+    "successful_run": 39242480216,
+    "successful_job": 118028998663
+  },
+  "failure": {
+    "candidate_sha": "719e57459c4da02b596034ffe7f12469151623e4",
+    "run": 39246763798,
+    "job": 118040468715,
+    "observed_utc": "2026-10-19T11:44:16Z",
+    "reason": "Both pinned Node and Caddy ECR manifest requests returned 429 Data limit exceeded before any product build or browser test."
+  },
+  "limitation": "Prior Node/PostgreSQL Actions success and Node/Caddy metadata establish a preserved route, not candidate acceptance. Exact-source new build, image identity proof, browser evidence and required gates still must pass.",
+  "images": {
+    "node": {
+      "manifest_digest": "sha256:43aeff40f4afc22e83f7589a2f37e111cff5ca84529571f1c8415bcc5fcc21b2",
+      "source_identity": {
+        "index": "sha256:48e4b67d85f87bd551df43704e24d252f56cc5f8e9718841aace50f19948f0f9",
+        "manifest": "sha256:43aeff40f4afc22e83f7589a2f37e111cff5ca84529571f1c8415bcc5fcc21b2",
+        "config": "sha256:c72861c6705868ed7f08e1cf22ef4f7ba07a82c19a54ba65d931c442d3575889"
+      },
+      "transport_identity": {
+        "index": "sha256:48e4b67d85f87bd551df43704e24d252f56cc5f8e9718841aace50f19948f0f9",
+        "manifest": "sha256:43aeff40f4afc22e83f7589a2f37e111cff5ca84529571f1c8415bcc5fcc21b2",
+        "config": "sha256:c72861c6705868ed7f08e1cf22ef4f7ba07a82c19a54ba65d931c442d3575889"
+      },
+      "config": {
+        "mediaType": "application/vnd.oci.image.config.v1+json",
+        "digest": "sha256:c72861c6705868ed7f08e1cf22ef4f7ba07a82c19a54ba65d931c442d3575889",
+        "size": 6872
+      },
+      "layers": [
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:774043ccc8ccd0d0833a9ee0792142ab7ad93df971e59dd248fbf82db16d0150",
+          "size": 28238443
+        },
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:d456d1aa143e47912621240cd8e79286732dc069a35b0e02b03449f60df966df",
+          "size": 3311
+        },
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:60f37e2c93ec479af36bf1f7a41277e572d820f3b1abbea47d8073b1f01aa502",
+          "size": 49938232
+        },
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:e53f92c42dd657487b7f7f027b206c996cd3760cda60adda79e44449b2753a29",
+          "size": 1713012
+        },
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:b571db164614a1290b74286b3e4f7ad934430b830515f81e922b39c75cf1dc7e",
+          "size": 447
+        }
+      ],
+      "rootfs_diff_ids": [
+        "sha256:34467cc93912af891dfee8a3902adf9b4f355a9bca4eaa46f658d1181a21de0d",
+        "sha256:fa308e2890c6e8792de63890c6311ed9fd21e6390db51e340b6085a1b23852e1",
+        "sha256:e05e1884319cd6aba2cbbc7a2afb655ca032bc83988020a9088439cac50dca76",
+        "sha256:c518045d8fcb97604685082962ab1cf5647e0baa5d33dd8e4c7ac5e05118a513",
+        "sha256:a483d4ed4858cfb9b72c8b6175ad924777e38b5695f4e26b860ace4d652273ad"
+      ],
+      "reference": "mirror.gcr.io/library/node@sha256:43aeff40f4afc22e83f7589a2f37e111cff5ca84529571f1c8415bcc5fcc21b2",
+      "raw_provenance": {
+        "mirror": {
+          "manifest_file": "node-mirror-manifest.json",
+          "manifest_bytes": 1929,
+          "manifest_sha256": "43aeff40f4afc22e83f7589a2f37e111cff5ca84529571f1c8415bcc5fcc21b2",
+          "config_file": "node-mirror-config.json",
+          "config_bytes": 6872,
+          "config_sha256": "c72861c6705868ed7f08e1cf22ef4f7ba07a82c19a54ba65d931c442d3575889"
+        },
+        "source": {
+          "manifest_file": "node-source-manifest.json",
+          "manifest_bytes": 1929,
+          "manifest_sha256": "43aeff40f4afc22e83f7589a2f37e111cff5ca84529571f1c8415bcc5fcc21b2",
+          "config_file": "node-source-config.json",
+          "config_bytes": 6872,
+          "config_sha256": "c72861c6705868ed7f08e1cf22ef4f7ba07a82c19a54ba65d931c442d3575889"
+        }
+      }
+    },
+    "caddy": {
+      "manifest_digest": "sha256:d8c17a862962def15cde69863a3a463f25a2664942eafd7bdbf050e9c3116b83",
+      "source_identity": {
+        "index": "sha256:4c6e91c6ed0e2fa03efd5b44747b625fec79bc9cd06ac5235a779726618e530d",
+        "manifest": "sha256:d8c17a862962def15cde69863a3a463f25a2664942eafd7bdbf050e9c3116b83",
+        "config": "sha256:aac61abc4024c323602ccb9ee38bd68b147601f518626b2a055e06944e01c510"
+      },
+      "transport_identity": {
+        "index": "sha256:4c6e91c6ed0e2fa03efd5b44747b625fec79bc9cd06ac5235a779726618e530d",
+        "manifest": "sha256:d8c17a862962def15cde69863a3a463f25a2664942eafd7bdbf050e9c3116b83",
+        "config": "sha256:aac61abc4024c323602ccb9ee38bd68b147601f518626b2a055e06944e01c510"
+      },
+      "config": {
+        "mediaType": "application/vnd.oci.image.config.v1+json",
+        "digest": "sha256:aac61abc4024c323602ccb9ee38bd68b147601f518626b2a055e06944e01c510",
+        "size": 6961
+      },
+      "layers": [
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:d49a2dee86fb12766dd648402d010ca105846a41bd58738454e53780d4bb8e97",
+          "size": 3804875
+        },
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:15dab9c579893913f1dde3163b96d3e03f06a907b3ddfe78f71ca73f5f5eceb4",
+          "size": 2765852
+        },
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:c108b7dc59eb05d618e1ee8803e793ce44eed9e2967c6cef39210d81d8a4b4fc",
+          "size": 7502
+        },
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:0f5b2460369730f1bee18fea5bf1b63d3d5f17fda1aabbdbbd86cf5ae49ab9f7",
+          "size": 15923972
+        },
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:4f4fb700ef54461cfa02571ae0db9a0dc1e0cdb5577484a6d75e68dc38e8acc1",
+          "size": 32
+        }
+      ],
+      "rootfs_diff_ids": [
+        "sha256:cce92674e98722970ab3fdce76a2566f54db535beeb24f0b4397f070ab5f6987",
+        "sha256:140bf5211f1c52d6180d8e58e95c0010edc7237fc6744510a3c95fcd0955b1e0",
+        "sha256:f7ceed6effbebf7ab30f32d1d14fdb8790c01a08e4585239620caa9204fc35bd",
+        "sha256:0c3ed47d1e80ab755e312649e1777a324e85401671d88025b804c3a6c8685d35",
+        "sha256:5f70bf18a086007016e948b04aed3b82103a36bea41755b6cddfaf10ace3c6ef"
+      ],
+      "reference": "mirror.gcr.io/library/caddy@sha256:d8c17a862962def15cde69863a3a463f25a2664942eafd7bdbf050e9c3116b83",
+      "raw_provenance": {
+        "mirror": {
+          "manifest_file": "caddy-mirror-manifest.json",
+          "manifest_bytes": 1917,
+          "manifest_sha256": "d8c17a862962def15cde69863a3a463f25a2664942eafd7bdbf050e9c3116b83",
+          "config_file": "caddy-mirror-config.json",
+          "config_bytes": 6961,
+          "config_sha256": "aac61abc4024c323602ccb9ee38bd68b147601f518626b2a055e06944e01c510"
+        },
+        "source": {
+          "manifest_file": "caddy-source-manifest.json",
+          "manifest_bytes": 1917,
+          "manifest_sha256": "d8c17a862962def15cde69863a3a463f25a2664942eafd7bdbf050e9c3116b83",
+          "config_file": "caddy-source-config.json",
+          "config_bytes": 6961,
+          "config_sha256": "aac61abc4024c323602ccb9ee38bd68b147601f518626b2a055e06944e01c510"
+        }
+      }
+    },
+    "postgres": {
+      "source": "registry-1.docker.io/library/postgres:17.7-bookworm",
+      "reference": "mirror.gcr.io/library/postgres@sha256:e9243ab06e47223dedeb3c129fa9ece8d37f506bdc6ee943afb9335f98bb4854",
+      "manifest_digest": "sha256:e9243ab06e47223dedeb3c129fa9ece8d37f506bdc6ee943afb9335f98bb4854",
+      "source_identity": {
+        "index": "sha256:86e0b703649d7a792bd9243ee28afc9d8f7c6b2b5638077c9d6882d4d472bbfd",
+        "manifest": "sha256:e9243ab06e47223dedeb3c129fa9ece8d37f506bdc6ee943afb9335f98bb4854",
+        "config": "sha256:52d5e34fcf5c882a859c1269963b35bdc7dcc2814ef0a0de6b8b408b2eb09db1"
+      },
+      "transport_identity": {
+        "index": "sha256:86e0b703649d7a792bd9243ee28afc9d8f7c6b2b5638077c9d6882d4d472bbfd",
+        "manifest": "sha256:e9243ab06e47223dedeb3c129fa9ece8d37f506bdc6ee943afb9335f98bb4854",
+        "config": "sha256:52d5e34fcf5c882a859c1269963b35bdc7dcc2814ef0a0de6b8b408b2eb09db1"
+      },
+      "config": {
+        "mediaType": "application/vnd.oci.image.config.v1+json",
+        "digest": "sha256:52d5e34fcf5c882a859c1269963b35bdc7dcc2814ef0a0de6b8b408b2eb09db1",
+        "size": 10137
+      },
+      "layers": [
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:4831516dd0cb86845f5f902cb9b9d25b5c853152c337eb57e4737a9b7e2a2eb9",
+          "size": 28228487
+        },
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:badb97e81c14b81b2e2ea2912cb28b229bd2be4f4ee7b27a468f1621731ca29d",
+          "size": 1168
+        },
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:5a76629586bf0afd9ae5c4b8c3c8d7cfe34b6c806f3540d7b97188e53018a026",
+          "size": 4534276
+        },
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:53c3a76086712838cd89353d2fe77556798565d2b2c97013bb55587f2c20cb62",
+          "size": 1249555
+        },
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:e89503f3fc88281c3edb3b6700fe95f1af1fcf27663b80bc81971f3ef58682d1",
+          "size": 8066462
+        },
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:0ad97e848d7bf5fc9fff15d6164f032a12f73c10a898b4e2b117528045b5587c",
+          "size": 1196381
+        },
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:acd32fbeaa7e64cde5974450d0da365dd0e569354f661b5fb0f50476f4695768",
+          "size": 116
+        },
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:175a5455594588f0126a154fd246bd3365a88e0836017cd979e581d9458f06d9",
+          "size": 3141
+        },
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:2862a781b6b96ce69cf5295d9a897914e1d6f45b6a0cf5a6bfaf170c3d163cb6",
+          "size": 112722862
+        },
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:f24480079ff229803d6194c238a7af2cc06569014bdc288413b4e6ffb055b2cb",
+          "size": 10239
+        },
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:69908cc7142f4a0018e7014dba9c70d4e1e8a518bc43aacf8500acb67fa80ca0",
+          "size": 128
+        },
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:073fedf2a066795a9066be7970b45a6b7a8b720af86ec1b67614e86813b3ab4e",
+          "size": 167
+        },
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:f4d95e72779e8825021e0500e6f494d86131ef7a633d82e5a13ac43119e2ecbb",
+          "size": 5838
+        },
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:cd77705f6bb6ab7e90bb4c7c1175e7caea546538aa76befdd2f4ea22af7b8f81",
+          "size": 187
+        }
+      ],
+      "rootfs_diff_ids": [
+        "sha256:e48af84b2108a5d73effd9e16685b42ac33e7994e606398c46690918f5f3604a",
+        "sha256:287fb1f473b2e1923bc3281be892641447378d38b58af7a59293823a04dfe0f8",
+        "sha256:d04b5335b095eee01a408dcaadbc480201219107ccc4214ce3f96e43eaeeb521",
+        "sha256:fce3803060adb77c26ed905dd34539711c4df933d5a1123e2e2a18215d09609c",
+        "sha256:a20164dabfca37537c0d112767045692b36e03669611993e1048b264d7af0856",
+        "sha256:bb726e5d0dde0be979588961a94c60340032f71b724c82a79f0f5ae7b6f7f442",
+        "sha256:b8e0869aa786e888603af1febf8e4882885a321f6a25f1e24bd81e3d740968b0",
+        "sha256:f4255b2a14fa1625a8f6f1f643757dc963ec7691e658fecef2f3e05fa795cad1",
+        "sha256:896150bb028306fe64b50c81cf780c2e201a83b94a1a92fa1f71b88a4642558c",
+        "sha256:8867ba12ef286751e500edced6441c40e748934e1b2e0229ee676e0b826ae24f",
+        "sha256:def223b045fa4c8a20a31e2b7c7df9e72b04d1a46661c5e5089defa0fc86e1db",
+        "sha256:636a299207abc037c24b1c03304bb853c831d5661f26e3ce1105f2d33c4cf08e",
+        "sha256:9fc1d5047d06f700449c3f8e87f716930e73c220f34b59c281259f4d3df31fa7",
+        "sha256:09b37072635700e0a3fbd521bea5543f997e944df6363dd74aa5b69daeda97f1"
+      ],
+      "raw_source_prefix": "postgres-17.7-bookworm-hub",
+      "raw_transport_prefix": "postgres-17.7-bookworm-ecr"
+    }
+  }
+}

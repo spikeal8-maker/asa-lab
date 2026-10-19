@@ -1009,6 +1009,7 @@ export function WorkbenchStage({
             height={baseSize.height}
             visualState={visualState}
             effectiveBrightness={c.componentLedBrightness(component)}
+            effectiveArduinoLActive={c.componentArduinoLActive(component)}
             result={c.runtimePresentationResultByComponent.get(component.id)}
             selected={selected}
             selectionOffset={1.6 / c.viewport.zoom}

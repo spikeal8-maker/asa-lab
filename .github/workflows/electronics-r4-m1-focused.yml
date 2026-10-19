@@ -5,6 +5,8 @@ on:
     paths:
       - 'compose.test.yaml'
       - '.github/compose.registry-ci.yaml'
+      - 'tools/test_ci_image_transport.py'
+      - 'docs/product/electronics/evidence/ci-image-transport-classroom-d13-receipt.json'
       - 'apps/api/src/origin-policy.ts'
       - 'apps/api/src/app.factory.ts'
       - 'AGENTS.md'
@@ -18,6 +20,8 @@ on:
       - 'e2e/electronics-interactions.spec.ts'
       - 'e2e/electronics-piezo-clock.spec.ts'
       - 'e2e/electronics-native-wheel.spec.ts'
+      - 'e2e/electronics-ready-cadence.spec.ts'
+      - 'e2e/electronics-classroom-timing.spec.ts'
       - 'tests/electronics/**'
       - 'tools/run-electronics-benchmark.mjs'
       - 'tools/run-electronics-browser-benchmark.mjs'
@@ -133,6 +137,7 @@ jobs:
     env:
       CI: 'true'
       ASA_BUILD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
+      ASA_ELECTRONICS_EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
       ASA_IMAGE_TAG: ${{ github.event.pull_request.head.sha || github.sha }}
       COMPOSE_PROJECT_NAME: asa-lab-electronics-${{ github.run_id }}
       ASA_TEST_UID: '1000'
@@ -150,24 +155,35 @@ jobs:
           mkdir -p e2e/artifacts/electronics-simulation reports
           chmod -R 0777 e2e/artifacts reports
 
+      - name: Prepare and verify image-only PostgreSQL transport
+        run: |
+          python3 tools/test_ci_image_transport.py --prepare-electronics-postgres
+          python3 tools/test_ci_image_transport.py --electronics-compose-model-check
+
       - name: Build isolated Electronics browser images
         run: >-
-          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml --profile test
-          build --build-arg NODE_IMAGE=public.ecr.aws/docker/library/node@sha256:43aeff40f4afc22e83f7589a2f37e111cff5ca84529571f1c8415bcc5fcc21b2 --build-arg CADDY_IMAGE=public.ecr.aws/docker/library/caddy@sha256:d8c17a862962def15cde69863a3a463f25a2664942eafd7bdbf050e9c3116b83 --build-arg BUILDKIT_SYNTAX=mirror.gcr.io/docker/dockerfile@sha256:b5f3b260a9678e1d83d2fce86eeddf79420b79147eaba2a25986f47133d73720 migration api web test-runner
+          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test
+          build --build-arg NODE_IMAGE=mirror.gcr.io/library/node@sha256:43aeff40f4afc22e83f7589a2f37e111cff5ca84529571f1c8415bcc5fcc21b2 --build-arg CADDY_IMAGE=mirror.gcr.io/library/caddy@sha256:d8c17a862962def15cde69863a3a463f25a2664942eafd7bdbf050e9c3116b83 --build-arg BUILDKIT_SYNTAX=mirror.gcr.io/docker/dockerfile@sha256:b5f3b260a9678e1d83d2fce86eeddf79420b79147eaba2a25986f47133d73720 migration api web test-runner
+
+      - name: Verify original base layers and exact source revision
+        run: python3 tools/test_ci_image_transport.py --electronics-built-images
 
       - name: Start isolated PostgreSQL
         run: >-
-          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml --profile test
+          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test
           up -d --wait --wait-timeout 120 postgres
+
+      - name: Verify original PostgreSQL image identity
+        run: python3 tools/test_ci_image_transport.py --electronics-pulled-postgres
 
       - name: Apply isolated migrations
         run: >-
-          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml --profile test
+          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test
           run --rm --no-deps migration
 
       - name: Start Electronics API and Web without unrelated media services
         run: >-
-          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml --profile test
+          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test
           up -d --wait --wait-timeout 240 --no-deps api web
 
       # Identical to the command registered in docs/testing/active-task-tests.yaml.
@@ -175,13 +191,13 @@ jobs:
       # include it: that gate needs no browser stack, this one does.
       - name: Electronics M1 browser gate
         run: >-
-          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml --profile test
-          run --rm --no-deps test-runner
+          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test
+          run --rm --no-deps -e NX_SKIP_NX_CACHE=true -e ASA_ELECTRONICS_EXPECTED_SHA test-runner
           pnpm gate:electronics-m1:browser
 
       - name: Show isolated stack state
         if: always()
-        run: docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml --profile test ps -a
+        run: docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test ps -a
 
       - name: Upload browser evidence
         if: always()
@@ -197,7 +213,7 @@ jobs:
       - name: Remove isolated test stack
         if: always()
         run: >-
-          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml --profile test
+          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-electronics-postgres.yaml" --profile test
           down -v --remove-orphans
 
   review-images:
@@ -216,7 +232,10 @@ jobs:
           persist-credentials: false
 
       - name: Build exact API and Web review images
-        run: docker compose -f compose.yaml -f .github/compose.registry-ci.yaml build --build-arg NODE_IMAGE=public.ecr.aws/docker/library/node@sha256:43aeff40f4afc22e83f7589a2f37e111cff5ca84529571f1c8415bcc5fcc21b2 --build-arg CADDY_IMAGE=public.ecr.aws/docker/library/caddy@sha256:d8c17a862962def15cde69863a3a463f25a2664942eafd7bdbf050e9c3116b83 --build-arg BUILDKIT_SYNTAX=mirror.gcr.io/docker/dockerfile@sha256:b5f3b260a9678e1d83d2fce86eeddf79420b79147eaba2a25986f47133d73720 api web
+        run: docker compose -f compose.yaml -f .github/compose.registry-ci.yaml build --build-arg NODE_IMAGE=mirror.gcr.io/library/node@sha256:43aeff40f4afc22e83f7589a2f37e111cff5ca84529571f1c8415bcc5fcc21b2 --build-arg CADDY_IMAGE=mirror.gcr.io/library/caddy@sha256:d8c17a862962def15cde69863a3a463f25a2664942eafd7bdbf050e9c3116b83 --build-arg BUILDKIT_SYNTAX=mirror.gcr.io/docker/dockerfile@sha256:b5f3b260a9678e1d83d2fce86eeddf79420b79147eaba2a25986f47133d73720 api web
+
+      - name: Verify original base layers for review images
+        run: python3 tools/test_ci_image_transport.py --electronics-built-images
 
       - name: Verify exact revision labels
         shell: bash

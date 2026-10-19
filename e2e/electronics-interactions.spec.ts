@@ -3,6 +3,7 @@ import { resolve } from 'node:path';
 import { test, expect, type Locator, type Page, type Request } from '@playwright/test';
 import { buildNetlist, terminalKey } from '../contexts/electronics/domain/netlist';
 import type { SchematicDocument } from '../apps/web/src/api';
+import { localProjectDraftKey } from '../apps/web/src/modules/project-local-draft';
 import {
   configureProductionLibrary,
   productionBreadboard,
@@ -1154,16 +1155,48 @@ async function openEditor(
     revision,
     updatedAt: '2026-09-09T00:00:00Z',
   });
-  await page.addInitScript(() => {
-    const original = Storage.prototype.setItem;
-    (window as unknown as { draftWrites: number }).draftWrites = 0;
-    Storage.prototype.setItem = function (key, value) {
-      if (key.includes('draft')) {
-        (window as unknown as { draftWrites: number }).draftWrites++;
-      }
-      return original.call(this, key, value);
-    };
-  });
+  await page.addInitScript(
+    ({ prefix, projectId, userId }) => {
+      const original = Storage.prototype.setItem;
+      (window as unknown as { draftWrites: number }).draftWrites = 0;
+      Storage.prototype.setItem = function (key, value) {
+        const result = original.call(this, key, value);
+        // One durable writer record is one local commit. Reload hints, mirrors
+        // and byte acknowledgements are separate storage operations.
+        if (
+          this === window.localStorage &&
+          key.startsWith(prefix) &&
+          key.length > prefix.length &&
+          !key.endsWith(':ack') &&
+          this.getItem(key) === value
+        ) {
+          try {
+            const draft = JSON.parse(value) as Record<string, unknown>;
+            if (
+              draft['schemaVersion'] === 3 &&
+              draft['projectId'] === projectId &&
+              draft['userId'] === userId &&
+              draft['identityKind'] === 'account' &&
+              draft['moduleKey'] === 'electronics' &&
+              Number.isSafeInteger(draft['baseRevision']) &&
+              typeof draft['document'] === 'object' &&
+              draft['document'] !== null &&
+              !Array.isArray(draft['document'])
+            )
+              (window as unknown as { draftWrites: number }).draftWrites++;
+          } catch {
+            // An invalid or unconfirmed write cannot prove a document commit.
+          }
+        }
+        return result;
+      };
+    },
+    {
+      prefix: localProjectDraftKey(ID, user.id, 'account') + ':electronics-editor:',
+      projectId: ID,
+      userId: user.id,
+    },
+  );
   await page.route('**/api/**', async (route) => {
     const path = new URL(route.request().url()).pathname;
     let body: unknown;

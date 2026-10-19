@@ -66,6 +66,7 @@ interface Props {
   readonly height: number;
   readonly visualState: ComponentVisualState;
   readonly effectiveBrightness?: number;
+  readonly effectiveArduinoLActive?: boolean | undefined;
   readonly result?: ComponentResult | undefined;
   readonly selected?: boolean;
   readonly selectionOffset?: number;
@@ -1259,6 +1260,7 @@ export function ProductionComponentVisual({
   height,
   visualState,
   effectiveBrightness,
+  effectiveArduinoLActive,
   result,
   selected = false,
   selectionOffset = 2,
@@ -1364,7 +1366,7 @@ export function ProductionComponentVisual({
   const arduinoLActive =
     entry.key === 'arduino-uno' &&
     simulationRunning &&
-    Number(result?.terminalVoltages['d13'] ?? 0) >= 2.5;
+    (effectiveArduinoLActive ?? Number(result?.terminalVoltages['d13'] ?? 0) >= 2.5);
   const arduinoTxActive =
     entry.key === 'arduino-uno' &&
     simulationRunning &&

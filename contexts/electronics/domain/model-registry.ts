@@ -1,5 +1,6 @@
 import type { ComponentKind, SchematicComponent, Terminal } from './document.js';
 import { isArduinoUno } from './arduino-model.js';
+import { captureDeviceModelDefinition } from './models/device-model.js';
 import {
   componentModelIdentityIsInstalled,
   electricalModelIdentityForComponent,
@@ -213,6 +214,17 @@ const ARDUINO_UNO_MODEL: ElectricalModelDescriptor = {
   topology: 'multi-junction',
   requiredTerminals: ['d13', 'power-5v', 'power-3v3', 'power-gnd-1'],
 };
+
+const strictTerminalDefinitionsAreOriginal = captureDeviceModelDefinition([
+  ARDUINO_UNO_MODEL.requiredTerminals,
+  MODELS.resistor.requiredTerminals,
+  MODELS.led.requiredTerminals,
+]);
+
+/** Only the three arrays exposed by canonical UNO/resistor/ordinary LED metadata. */
+export function strictElectricalTerminalsHaveOriginalDefinition(): boolean {
+  return strictTerminalDefinitionsAreOriginal();
+}
 
 const DC_MOTOR_MODEL: ElectricalModelDescriptor = {
   id: 'dc-motor',
