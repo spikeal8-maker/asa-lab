@@ -10,7 +10,10 @@ import {
   configureProductionLibrary,
   type OwnerCatalogManifest,
 } from '../production-manifest-adapter';
-import { evaluateSimulationWorkerRequest } from '../simulation-worker-evaluator';
+import {
+  evaluateSimulationWorkerRequest,
+  evaluateSimulationWorkerRequestBatched,
+} from '../simulation-worker-evaluator';
 import type {
   ElectronicsSimulationWorkerRequest,
   ElectronicsSimulationWorkerResponse,
@@ -28,18 +31,66 @@ vi.mock('../use-piezo-audio', () => ({
   globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
 ).IS_REACT_ACT_ENVIRONMENT = true;
 
+let omitEventHistoryInTransit = false;
+const deliveredAdvances: Array<{
+  clockProfileId: string | undefined;
+  committedMicroseconds: number;
+  solved: boolean;
+  qualityPassed: boolean;
+  hadTemporalHistory: boolean;
+  deliveredTemporalHistory: boolean;
+}> = [];
+
 class InProcessWorker {
   onmessage: ((event: MessageEvent<ElectronicsSimulationWorkerResponse>) => void) | null = null;
   onerror = null;
   onmessageerror = null;
   stopped = false;
+  private activeGeneration = 0;
+  private activeRequest = 0;
   postMessage(request: ElectronicsSimulationWorkerRequest) {
-    if (request.kind === 'cancel-generation') return;
-    queueMicrotask(() => {
-      if (!this.stopped)
-        this.onmessage?.({
-          data: evaluateSimulationWorkerRequest(request),
-        } as MessageEvent<ElectronicsSimulationWorkerResponse>);
+    if (request.kind === 'cancel-generation') {
+      this.activeGeneration = Math.max(this.activeGeneration, request.generationId + 1);
+      return;
+    }
+    if (request.generationId < this.activeGeneration) return;
+    this.activeGeneration = Math.max(this.activeGeneration, request.generationId);
+    const token = ++this.activeRequest;
+    const isCurrent = () =>
+      !this.stopped &&
+      request.generationId >= this.activeGeneration &&
+      token === this.activeRequest;
+    queueMicrotask(async () => {
+      if (!isCurrent()) return;
+      // Match simulation.worker.ts: preflight is synchronous, but actual
+      // advances use the cancellable session with observeLedTemporal:true.
+      let response =
+        request.kind === 'preflight'
+          ? evaluateSimulationWorkerRequest(request)
+          : await evaluateSimulationWorkerRequestBatched(request, isCurrent);
+      if (response && isCurrent()) {
+        if (response.ok && response.kind === 'advance') {
+          const original = response.advance;
+          if (omitEventHistoryInTransit) {
+            const { ledTemporal, ...advance } = original;
+            if (
+              original.state.continuation?.clockProfileId !== 'electrothermal-events-v2' ||
+              !ledTemporal
+            )
+              throw new Error('The negative probe requires a genuine event-history response.');
+            response = { ...response, advance };
+          }
+          deliveredAdvances.push({
+            clockProfileId: original.state.continuation?.clockProfileId,
+            committedMicroseconds: original.committedHorizonMicroseconds,
+            solved: original.result?.solved === true,
+            qualityPassed: original.result?.quality?.passed === true,
+            hadTemporalHistory: original.ledTemporal !== undefined,
+            deliveredTemporalHistory: response.advance.ledTemporal !== undefined,
+          });
+        }
+        this.onmessage?.({ data: response } as MessageEvent<ElectronicsSimulationWorkerResponse>);
+      }
     });
   }
   terminate() {
@@ -144,7 +195,9 @@ beforeAll(() => {
   );
   initial = normalizeLoadedDocument(fixture);
 });
-async function prepare() {
+async function prepare(projectDocument: SchematicDocument = initial) {
+  omitEventHistoryInTransit = false;
+  deliveredAdvances.length = 0;
   vi.useFakeTimers({
     toFake: ['Date', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'],
   });
@@ -152,7 +205,7 @@ async function prepare() {
   vi.stubGlobal('Worker', InProcessWorker);
   localStorage.clear();
   revision = 1;
-  saved = structuredClone(initial);
+  saved = structuredClone(projectDocument);
   vi.spyOn(api, 'me').mockResolvedValue({
     ok: true,
     status: 200,
@@ -253,10 +306,48 @@ afterEach(async () => {
 });
 
 describe('PSU pupil settings use the real document/recovery/save queue', () => {
+  it.each([false, true])(
+    'retains mandatory genuine D13 event history when transport drops it = %s',
+    async (dropHistory) => {
+      const uno = initial.components.find((component) => component.id === 'uno');
+      if (!uno) throw new Error('Missing unchanged Uno fixture.');
+      await prepare({ ...initial, components: [uno], connections: [] });
+      omitEventHistoryInTransit = dropHistory;
+      await toggle();
+      expect(deliveredAdvances).toEqual([
+        {
+          clockProfileId: 'electrothermal-events-v2',
+          committedMicroseconds: 0,
+          solved: true,
+          qualityPassed: true,
+          hadTemporalHistory: true,
+          deliveredTemporalHistory: !dropHistory,
+        },
+      ]);
+      expect(c().simulationRunning).toBe(!dropHistory);
+      expect(c().document!.simulation.running).toBe(!dropHistory);
+      if (dropHistory) {
+        expect(c().simulationMessage?.code).toBe('invalid-response');
+        expect(c().result).toBeNull();
+      } else {
+        expect(c().simulationStatus).toBe('running');
+        expect(c().simulationMessage?.code).not.toBe('invalid-response');
+      }
+    },
+  );
+
   it('persists only U/I/value during Run and retains the whole document across Stop/Run and manual Save', async () => {
     const save = await prepare();
     await toggle();
     expect(c().simulationRunning).toBe(true);
+    expect(deliveredAdvances[0]).toEqual({
+      clockProfileId: 'electrothermal-v1',
+      committedMicroseconds: 0,
+      solved: true,
+      qualityPassed: true,
+      hadTemporalHistory: false,
+      deliveredTemporalHistory: false,
+    });
     await act(async () =>
       c().setRegulatedPowerSupplyControls('supply', {
         voltageSetpointVolt: 7.5,

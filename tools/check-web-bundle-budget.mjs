@@ -14,10 +14,12 @@ const javascript = await Promise.all(
 
 const budgets = [
   { label: 'initial application', prefix: 'index-', maximum: 570_000 },
-  // MATH-1 moved stamping, observations, diagnostics and terminal currents
-  // behind DeviceModel, then added DC power-balance verification. The measured
-  // slices total 208672 bytes (+1.80% from 204980); retain a narrow hard ceiling.
-  { label: 'electronics editor', prefix: 'SchematicEditor-', maximum: 209_000 },
+  // MATH-1 recorded 208672 bytes (+1.80% from 204980) after DeviceModel
+  // and DC power-balance work, with a 209000-byte ceiling.
+  // Classroom D13 adds joint clock/native-image commit and lifecycle handling.
+  // CI 86f112b5 measured 216616 bytes; the original ceiling failed.
+  // Keep only 384 bytes of headroom for this lazy editor. Startup caps stay intact.
+  { label: 'electronics editor', prefix: 'SchematicEditor-', maximum: 217_000 },
   { label: 'chess editor', prefix: 'ChessModuleExperience-', maximum: 255_000 },
   { label: 'checkers editor', prefix: 'CheckersModuleExperience-', maximum: 160_000 },
   { label: '3D editor', prefix: 'ThreeDEditor-', maximum: 2_900_000 },

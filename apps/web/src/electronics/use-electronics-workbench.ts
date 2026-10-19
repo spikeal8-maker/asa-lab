@@ -746,7 +746,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
           requestedHorizonMicrosecondsRef.current = hostOffsetMicroseconds;
           simulationStartedAtRef.current = window.performance.now();
         },
-        onResult: (nextResult, ledTemporal) => {
+        onResult: (nextResult, ledTemporal, clockProfileId) => {
           if (!currentSession()) return;
           setGenerationPending(false);
           latestResult = nextResult;
@@ -758,11 +758,13 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
             );
           } else {
             if (
-              runtimeDocumentRef.current?.components.some(
-                (component) =>
-                  component.componentTypeId === 'arduino-uno' ||
-                  component.variantId === 'arduino-uno',
-              )
+              clockProfileId === 'electrothermal-events-v2' ||
+              (clockProfileId === undefined &&
+                runtimeDocumentRef.current?.components.some(
+                  (component) =>
+                    component.componentTypeId === 'arduino-uno' ||
+                    component.variantId === 'arduino-uno',
+                ))
             ) {
               fail(
                 new SimulationFailure(
@@ -773,9 +775,9 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
               );
               return;
             }
-            // Static/non-clocked circuits have real canonical endpoints, not
-            // temporal samples. Keep that distinction explicit and use the same
-            // RAF/native-asset publication barrier without inventing a history.
+            // Generic clock profiles (including mixed Arduino circuits) have
+            // real canonical endpoints without event histories. Publish those
+            // through the same RAF/native-asset barrier, without inventing samples.
             ledTemporalPresentationRef.current.acceptSnapshot(nextResult, latestCommittedHorizon);
           }
           observeReanchor();

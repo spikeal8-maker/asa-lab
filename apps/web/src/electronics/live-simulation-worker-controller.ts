@@ -33,7 +33,11 @@ export interface ElectronicsSimulationWorkerExecutor {
 export interface LiveSimulationWorkerCallbacks {
   readonly onGenerationPending?: () => void;
   readonly onInitialReady?: (hostHorizonOffsetMicroseconds: number) => void;
-  readonly onResult: (result: SolveResult, ledTemporal?: ElectronicsLedTemporalObservation) => void;
+  readonly onResult: (
+    result: SolveResult,
+    ledTemporal?: ElectronicsLedTemporalObservation,
+    clockProfileId?: NonNullable<ElectronicsTimedState['continuation']>['clockProfileId'],
+  ) => void;
   readonly onCommittedHorizon?: (committedHorizonMicroseconds: number) => void;
   readonly onSerialProjection?: (serial: readonly ElectronicsArduinoSerialProjection[]) => void;
   readonly onFailure: (failure: SimulationFailure) => void;
@@ -555,10 +559,13 @@ export class ElectronicsLiveSimulationWorkerController {
     }
     if (isStartup || this.pendingInputEvents.length === 0) {
       this.callbacks?.onCommittedHorizon?.(advance.committedHorizonMicroseconds);
+      // The accepted continuation owns clock capability. Merely containing an
+      // Arduino does not make a mixed circuit an event-history producer.
+      const clockProfileId = advance.state.continuation?.clockProfileId;
       if (advance.ledTemporal?.toMicroseconds === advance.committedHorizonMicroseconds) {
-        this.callbacks?.onResult(advance.result, advance.ledTemporal);
+        this.callbacks?.onResult(advance.result, advance.ledTemporal, clockProfileId);
       } else {
-        this.callbacks?.onResult(advance.result);
+        this.callbacks?.onResult(advance.result, undefined, clockProfileId);
       }
     }
     this.pump();

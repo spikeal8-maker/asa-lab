@@ -224,6 +224,37 @@ async function completeCanonicalStart(
 }
 
 describe('Electronics canonical Worker controller', () => {
+  it('forwards the accepted clock profile even when that profile has no temporal history', async () => {
+    for (const clockProfileId of [
+      'dc-inputs-v1',
+      'rc-inputs-v2',
+      'electrothermal-v1',
+      'electrothermal-events-v2',
+    ]) {
+      const executor = new FakeExecutor();
+      const controller = new ElectronicsLiveSimulationWorkerController(executor);
+      const onResult = vi.fn();
+      controller.start('project-a', circuit, { onResult, onFailure: vi.fn() });
+      executor.preflights[0]!.resolve(result(1));
+      await flush();
+      const startup = timedAdvance('ready', 0, 0);
+      executor.advances[0]!.deferred.resolve({
+        ...startup,
+        state: {
+          ...startup.state,
+          continuation: {
+            ...timedState(1).continuation!,
+            committedHorizonMicroseconds: 0,
+            clockProfileId,
+          },
+        },
+      });
+      await flush();
+      expect(onResult).toHaveBeenCalledExactlyOnceWith(result(1), undefined, clockProfileId);
+      controller.stop();
+    }
+  });
+
   it('publishes optical metadata only with its accepted complete ready horizon', async () => {
     const executor = new FakeExecutor();
     const controller = new ElectronicsLiveSimulationWorkerController(executor);
@@ -243,7 +274,7 @@ describe('Electronics canonical Worker controller', () => {
       ledTemporal: optical,
     });
     await flush();
-    expect(onResult).toHaveBeenCalledExactlyOnceWith(result(2), optical);
+    expect(onResult).toHaveBeenCalledExactlyOnceWith(result(2), optical, 'dc-inputs-v1');
 
     controller.update(circuit, 50_000);
     executor.advances.at(-1)!.deferred.resolve({
@@ -251,7 +282,7 @@ describe('Electronics canonical Worker controller', () => {
       ledTemporal: optical,
     });
     await flush();
-    expect(onResult).toHaveBeenLastCalledWith(result(3));
+    expect(onResult).toHaveBeenLastCalledWith(result(3), undefined, 'dc-inputs-v1');
 
     controller.update(circuit, 75_000);
     const stale = executor.advances.at(-1)!;
@@ -290,7 +321,7 @@ describe('Electronics canonical Worker controller', () => {
     controller.update(circuit, 75_000);
     executor.advances[0]!.deferred.resolve(timedAdvance('ready', 0, 0, 1));
     await flush();
-    expect(onResult).toHaveBeenCalledExactlyOnceWith(result(1));
+    expect(onResult).toHaveBeenCalledExactlyOnceWith(result(1), undefined, undefined);
     expect(onInitialReady).toHaveBeenCalledExactlyOnceWith(0);
     expect(executor.advances[1]).toMatchObject({ requestedHorizonMicroseconds: 25_000 });
     executor.advances[1]!.deferred.resolve(timedAdvance('yielded', 25_000, 15_000));
@@ -299,7 +330,7 @@ describe('Electronics canonical Worker controller', () => {
     expect(executor.advances[2]).toMatchObject({ requestedHorizonMicroseconds: 15_000 });
     executor.advances[2]!.deferred.resolve(timedAdvance('ready', 15_000, 15_000, 2));
     await flush();
-    expect(onResult).toHaveBeenLastCalledWith(result(2));
+    expect(onResult).toHaveBeenLastCalledWith(result(2), undefined, 'dc-inputs-v1');
     expect(onInitialReady).toHaveBeenCalledExactlyOnceWith(0);
   });
 
@@ -381,7 +412,7 @@ describe('Electronics canonical Worker controller', () => {
     });
     executor.advances[1]!.deferred.resolve(timedAdvance('ready', 0, 0, 1));
     await flush();
-    expect(onResult).toHaveBeenCalledExactlyOnceWith(result(1));
+    expect(onResult).toHaveBeenCalledExactlyOnceWith(result(1), undefined, undefined);
     expect(onInitialReady).toHaveBeenCalledExactlyOnceWith(0);
     expect(onCommittedHorizon).toHaveBeenLastCalledWith(0);
     expect(executor.advances[2]!.inputEvents).toEqual([
@@ -393,7 +424,7 @@ describe('Electronics canonical Worker controller', () => {
     expect(executor.advances[2]).toMatchObject({ requestedHorizonMicroseconds: 25_000 });
     executor.advances[2]!.deferred.resolve(timedAdvance('ready', 25_000, 25_000, 2));
     await flush();
-    expect(onResult).toHaveBeenLastCalledWith(result(2));
+    expect(onResult).toHaveBeenLastCalledWith(result(2), undefined, 'dc-inputs-v1');
     expect(executor.advances[3]).toMatchObject({
       requestedHorizonMicroseconds: 50_000,
       inputEvents: [],
@@ -420,7 +451,7 @@ describe('Electronics canonical Worker controller', () => {
     await flush();
     expect(onResult).not.toHaveBeenCalled();
     await completeCanonicalStart(executor, 2, 2);
-    expect(onResult).toHaveBeenCalledExactlyOnceWith(result(2));
+    expect(onResult).toHaveBeenCalledExactlyOnceWith(result(2), undefined, undefined);
     expect(executor.advances.at(-1)).toMatchObject({
       generationId: 2,
       requestedHorizonMicroseconds: 25_000,
@@ -430,7 +461,7 @@ describe('Electronics canonical Worker controller', () => {
     controller.start('project-a', changed, { onResult, onFailure: vi.fn() });
     controller.update(changed, 50_000);
     await completeCanonicalStart(executor, 3, 3);
-    expect(onResult).toHaveBeenLastCalledWith(result(3));
+    expect(onResult).toHaveBeenLastCalledWith(result(3), undefined, undefined);
     expect(executor.advances.at(-1)).toMatchObject({
       generationId: 3,
       requestedHorizonMicroseconds: 25_000,
@@ -1103,7 +1134,7 @@ describe('Electronics canonical Worker controller', () => {
 
     executor.advances[2]!.deferred.resolve(timedAdvance('ready', 256, 256, 3));
     await flush();
-    expect(onResult).toHaveBeenCalledWith(result(3));
+    expect(onResult).toHaveBeenCalledWith(result(3), undefined, 'dc-inputs-v1');
     expect(onCommittedHorizon).toHaveBeenCalledWith(256);
     expect(executor.advances[3]!.requestedHorizonMicroseconds).toBe(512);
   });
@@ -1166,7 +1197,7 @@ describe('Electronics canonical Worker controller', () => {
       continuation.deferred.resolve(timedAdvance('ready', reached, reached, completed + 2));
       await flush();
       expect(onCommittedHorizon).toHaveBeenLastCalledWith(reached);
-      expect(onResult).toHaveBeenLastCalledWith(result(completed + 2));
+      expect(onResult).toHaveBeenLastCalledWith(result(completed + 2), undefined, 'dc-inputs-v1');
       committed = reached;
       window /= 2;
     }
@@ -1216,7 +1247,7 @@ describe('Electronics canonical Worker controller', () => {
     executor.advances[2]!.deferred.resolve(timedAdvance('ready', 15_000, 15_000, 3));
     await flush();
 
-    expect(onResult).toHaveBeenCalledWith(result(3));
+    expect(onResult).toHaveBeenCalledWith(result(3), undefined, 'dc-inputs-v1');
     expect(executor.advances).toHaveLength(4);
     expect(executor.advances[3]).toMatchObject({ requestedHorizonMicroseconds: 30_000 });
   });
@@ -1371,7 +1402,7 @@ describe('Electronics canonical Worker controller', () => {
 
     resetAdvance!.deferred.resolve(timedAdvance('ready', 0, 0, 2));
     await flush();
-    expect(onResult).toHaveBeenCalledWith(result(2));
+    expect(onResult).toHaveBeenCalledWith(result(2), undefined, undefined);
     expect(onCommittedHorizon).toHaveBeenLastCalledWith(0);
 
     controller.update(circuit, 50_000);
@@ -1587,7 +1618,7 @@ describe('Electronics canonical Worker controller', () => {
     controller.start('project-a', changed, { onResult: nextResult, onFailure: nextFailure });
     await completeCanonicalStart(executor, 2, 2);
     expect(executor.advances.find((call) => call.generationId === 2)?.document).toBe(changed);
-    expect(nextResult).toHaveBeenCalledWith(result(2));
+    expect(nextResult).toHaveBeenCalledWith(result(2), undefined, undefined);
     expect(nextResult).toHaveBeenCalledTimes(1);
     expect(nextFailure).not.toHaveBeenCalled();
   });
@@ -1617,7 +1648,7 @@ describe('Electronics canonical Worker controller', () => {
     await flush();
     expect(firstResult).not.toHaveBeenCalled();
     await completeCanonicalStart(executor, 2, 2);
-    expect(secondResult).toHaveBeenCalledWith(result(2));
+    expect(secondResult).toHaveBeenCalledWith(result(2), undefined, undefined);
 
     controller.dispose();
     expect(executor.disposeCount).toBe(1);
