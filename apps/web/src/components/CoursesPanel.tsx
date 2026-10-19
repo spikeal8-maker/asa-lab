@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type
 import {
   api,
   visibilityLabel,
+  type ApiResult,
   type Course,
   type CourseLesson,
   type CourseLessonInput,
@@ -27,6 +28,152 @@ interface CourseFormValue {
   summary: string | null;
 }
 
+interface MetadataSaveReceipt {
+  id: string;
+  draftRevision: number;
+}
+
+interface MetadataSaveTarget {
+  id: string | null;
+  draftRevision: number | null;
+}
+
+type SaveMetadata = (
+  value: CourseFormValue,
+  target: MetadataSaveTarget,
+) => Promise<ApiResult<MetadataSaveReceipt>>;
+
+function metadataReceiptIsValid(
+  receipt: unknown,
+  target: MetadataSaveTarget,
+): receipt is MetadataSaveReceipt {
+  if (receipt === null || typeof receipt !== 'object') return false;
+  const value = receipt as Partial<MetadataSaveReceipt>;
+  // course_save_v2 creates revision 1 (outline_ensure only inserts a section).
+  // A creation replay can return a later writer's current revision instead;
+  // that revision is not a base for continuing this form's newer input.
+  const initialCourse = target.id === null && target.draftRevision === null;
+  return (
+    typeof value.id === 'string' &&
+    value.id.length > 0 &&
+    (target.id === null || value.id === target.id) &&
+    typeof value.draftRevision === 'number' &&
+    Number.isSafeInteger(value.draftRevision) &&
+    value.draftRevision > (target.draftRevision ?? 0) &&
+    (!initialCourse || value.draftRevision === 1)
+  );
+}
+
+function useMetadataForm({
+  initial,
+  target,
+  unavailable,
+  onSave,
+  onClose,
+  onWorkChange,
+}: {
+  initial: CourseFormValue | null;
+  target: MetadataSaveTarget;
+  unavailable: boolean;
+  onSave: SaveMetadata;
+  onClose: (receipt?: MetadataSaveReceipt) => void;
+  onWorkChange: ((value: boolean) => void) | undefined;
+}) {
+  const [title, setTitleValue] = useState(initial?.title ?? '');
+  const [summary, setSummaryValue] = useState(initial?.summary ?? '');
+  const [savedValue, setSavedValue] = useState({
+    title: initial?.title ?? '',
+    summary: initial?.summary ?? '',
+  });
+  const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
+  const [saveBlocked, setSaveBlocked] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const editGeneration = useRef(0);
+  // This form's base advances only with its own save receipt. An outline/list
+  // refresh can include somebody else's later edit and must not rebase this input.
+  const targetRef = useRef(target);
+  const dirty = title !== savedValue.title || summary !== savedValue.summary;
+
+  useEffect(() => {
+    onWorkChange?.(dirty || saving);
+    return () => onWorkChange?.(false);
+  }, [dirty, saving, onWorkChange]);
+
+  function setTitle(value: string): void {
+    editGeneration.current += 1;
+    setTitleValue(value);
+  }
+
+  function setSummary(value: string): void {
+    editGeneration.current += 1;
+    setSummaryValue(value);
+  }
+
+  async function submit(event: FormEvent): Promise<void> {
+    event.preventDefault();
+    if (!title.trim() || savingRef.current || saveBlocked || unavailable) return;
+    savingRef.current = true;
+    setSaving(true);
+    setError(null);
+    setNotice(null);
+    const generation = editGeneration.current;
+    const sent = { title, summary };
+    const savingTarget = targetRef.current;
+    try {
+      const result = await onSave(
+        { title: sent.title.trim(), summary: sent.summary.trim() || null },
+        savingTarget,
+      );
+      if (!result.ok) {
+        setError(result.error.message);
+        return;
+      }
+      const receipt = result.data;
+      if (!metadataReceiptIsValid(receipt, savingTarget)) {
+        const changedCreationReplay =
+          savingTarget.id === null &&
+          savingTarget.draftRevision === null &&
+          Number((receipt as Partial<MetadataSaveReceipt> | null | undefined)?.draftRevision) > 1;
+        setSaveBlocked(true);
+        setError(
+          changedCreationReplay
+            ? 'Курс уже существует и был изменён после создания. Скопируйте последние изменения, затем откройте курс заново и проверьте его содержание.'
+            : 'Не удалось подтвердить сохранение. Скопируйте последние изменения и обновите страницу перед повторной попыткой.',
+        );
+        return;
+      }
+      targetRef.current = receipt;
+      setSavedValue(sent);
+      if (editGeneration.current !== generation) {
+        setNotice('Отправленные данные сохранены. Последние изменения ещё не сохранены.');
+      } else {
+        onClose(receipt);
+      }
+    } catch {
+      setError('Не удалось сохранить. Последние изменения остались в форме. Повторите попытку.');
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
+    }
+  }
+
+  return {
+    title,
+    summary,
+    setTitle,
+    setSummary,
+    saving,
+    saveBlocked,
+    dirty,
+    error,
+    notice,
+    existing: targetRef.current.id !== null,
+    submit,
+  };
+}
+
 function publicationLabel(course: Course): string {
   if (course.publicationState === 'draft') return 'Черновик';
   if (course.publicationState === 'changed') {
@@ -43,36 +190,28 @@ function publicationClass(course: Course): string {
 
 function CourseFormDialog({
   course,
+  unavailableMessage,
   onClose,
   onSave,
   onWorkChange,
 }: {
   readonly course: Course | null;
-  readonly onClose: () => void;
-  readonly onSave: (value: CourseFormValue) => Promise<void>;
+  readonly unavailableMessage: string | null;
+  readonly onClose: (receipt?: MetadataSaveReceipt) => void;
+  readonly onSave: SaveMetadata;
   readonly onWorkChange?: (value: boolean) => void;
 }): JSX.Element {
-  const [title, setTitle] = useState(course?.title ?? '');
-  const [summary, setSummary] = useState(course?.summary ?? '');
-  const [saving, setSaving] = useState(false);
-  const dirty = title !== (course?.title ?? '') || summary !== (course?.summary ?? '');
-  useEffect(() => {
-    onWorkChange?.(dirty || saving);
-    return () => onWorkChange?.(false);
-  }, [dirty, saving, onWorkChange]);
+  const form = useMetadataForm({
+    initial: course,
+    target: { id: course?.id ?? null, draftRevision: course?.draftRevision ?? null },
+    unavailable: unavailableMessage !== null,
+    onSave,
+    onClose,
+    onWorkChange,
+  });
+  const { title, summary, setTitle, setSummary, saving, dirty } = form;
   function close(): void {
     if (!saving && (!dirty || window.confirm('Отменить несохранённые настройки курса?'))) onClose();
-  }
-
-  async function submit(event: FormEvent): Promise<void> {
-    event.preventDefault();
-    if (!title.trim() || saving) return;
-    setSaving(true);
-    try {
-      await onSave({ title: title.trim(), summary: summary.trim() || null });
-    } finally {
-      setSaving(false);
-    }
   }
 
   return (
@@ -82,9 +221,9 @@ function CourseFormDialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby="course-form-title"
-        onSubmit={(event) => void submit(event)}
+        onSubmit={(event) => void form.submit(event)}
       >
-        <h2 id="course-form-title">{course ? 'Настройки курса' : 'Новый курс'}</h2>
+        <h2 id="course-form-title">{form.existing ? 'Настройки курса' : 'Новый курс'}</h2>
         <label className="course-field">
           <span>Название</span>
           <input
@@ -105,12 +244,20 @@ function CourseFormDialog({
             placeholder="Что освоит ученик и для кого этот курс"
           />
         </label>
+        {unavailableMessage || form.error ? (
+          <p role="alert">{unavailableMessage ?? form.error}</p>
+        ) : null}
+        {form.notice ? <p role="status">{form.notice}</p> : null}
         <div className="modal-actions">
           <button type="button" className="btn-secondary" disabled={saving} onClick={close}>
             Отмена
           </button>
-          <button type="submit" className="btn-primary" disabled={!title.trim() || saving}>
-            {saving ? 'Сохраняем…' : course ? 'Сохранить' : 'Создать курс'}
+          <button
+            type="submit"
+            className="btn-primary"
+            disabled={!title.trim() || saving || form.saveBlocked || unavailableMessage !== null}
+          >
+            {saving ? 'Сохраняем…' : form.existing ? 'Сохранить' : 'Создать курс'}
           </button>
         </div>
       </form>
@@ -120,36 +267,30 @@ function CourseFormDialog({
 
 function SectionFormDialog({
   section,
+  draftRevision,
+  unavailableMessage,
   onClose,
   onSave,
   onWorkChange,
 }: {
   readonly section: CourseSection | null;
-  readonly onClose: () => void;
-  readonly onSave: (value: { title: string; summary: string | null }) => Promise<void>;
+  readonly draftRevision: number;
+  readonly unavailableMessage: string | null;
+  readonly onClose: (receipt?: MetadataSaveReceipt) => void;
+  readonly onSave: SaveMetadata;
   readonly onWorkChange?: (value: boolean) => void;
 }): JSX.Element {
-  const [title, setTitle] = useState(section?.title ?? '');
-  const [summary, setSummary] = useState(section?.summary ?? '');
-  const [saving, setSaving] = useState(false);
-  const dirty = title !== (section?.title ?? '') || summary !== (section?.summary ?? '');
-  useEffect(() => {
-    onWorkChange?.(dirty || saving);
-    return () => onWorkChange?.(false);
-  }, [dirty, saving, onWorkChange]);
+  const form = useMetadataForm({
+    initial: section,
+    target: { id: section?.id ?? null, draftRevision },
+    unavailable: unavailableMessage !== null,
+    onSave,
+    onClose,
+    onWorkChange,
+  });
+  const { title, summary, setTitle, setSummary, saving, dirty } = form;
   function close(): void {
     if (!saving && (!dirty || window.confirm('Отменить несохранённый раздел?'))) onClose();
-  }
-
-  async function submit(event: FormEvent): Promise<void> {
-    event.preventDefault();
-    if (!title.trim() || saving) return;
-    setSaving(true);
-    try {
-      await onSave({ title: title.trim(), summary: summary.trim() || null });
-    } finally {
-      setSaving(false);
-    }
   }
 
   return (
@@ -159,9 +300,9 @@ function SectionFormDialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby="section-form-title"
-        onSubmit={(event) => void submit(event)}
+        onSubmit={(event) => void form.submit(event)}
       >
-        <h2 id="section-form-title">{section ? 'Раздел курса' : 'Новый раздел'}</h2>
+        <h2 id="section-form-title">{form.existing ? 'Раздел курса' : 'Новый раздел'}</h2>
         <label className="course-field">
           <span>Название</span>
           <input
@@ -172,6 +313,10 @@ function SectionFormDialog({
             placeholder="Например, Базовые формы"
           />
         </label>
+        {unavailableMessage || form.error ? (
+          <p role="alert">{unavailableMessage ?? form.error}</p>
+        ) : null}
+        {form.notice ? <p role="status">{form.notice}</p> : null}
         <label className="course-field">
           <span>Описание, если нужно</span>
           <textarea
@@ -185,7 +330,11 @@ function SectionFormDialog({
           <button type="button" className="btn-secondary" disabled={saving} onClick={close}>
             Отмена
           </button>
-          <button type="submit" className="btn-primary" disabled={!title.trim() || saving}>
+          <button
+            type="submit"
+            className="btn-primary"
+            disabled={!title.trim() || saving || form.saveBlocked || unavailableMessage !== null}
+          >
             {saving ? 'Сохраняем…' : 'Сохранить'}
           </button>
         </div>
@@ -493,6 +642,7 @@ export function publishedCourseSections(version: PublishedAuthorVersion): Course
 
 function CourseEditor({
   course,
+  unavailableMessage,
   assignments,
   onBack,
   onEditCourse,
@@ -500,8 +650,10 @@ function CourseEditor({
   onChanged,
   canTeach,
   onRegisterLeaveGuard,
+  onSectionWorkChange,
 }: {
   readonly course: Course;
+  readonly unavailableMessage: string | null;
   readonly assignments: readonly LibraryAssignment[];
   readonly onBack: () => void;
   readonly onEditCourse: () => void;
@@ -509,6 +661,7 @@ function CourseEditor({
   readonly onChanged: () => void;
   readonly canTeach: boolean;
   readonly onRegisterLeaveGuard?: (guard: (() => boolean) | null) => void;
+  readonly onSectionWorkChange: (value: boolean) => void;
 }): JSX.Element {
   const [localDirty, setLocalDirty] = useState(false);
   const localDirtyRef = useRef(false);
@@ -546,7 +699,13 @@ function CourseEditor({
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const setSectionWorkState = useCallback((value: boolean) => setSectionWork(value), []);
+  const setSectionWorkState = useCallback(
+    (value: boolean) => {
+      setSectionWork(value);
+      onSectionWorkChange(value);
+    },
+    [onSectionWorkChange],
+  );
   function canLeave(): boolean {
     if (writing || publishing || previewBusy || assignBusy || restoreBusy) return false;
     if (localDirtyRef.current || sectionWork)
@@ -1296,19 +1455,57 @@ function CourseEditor({
         {sectionForm ? (
           <SectionFormDialog
             section={sectionForm === 'new' ? null : sectionForm}
+            draftRevision={draftRevision}
+            unavailableMessage={unavailableMessage}
             onWorkChange={setSectionWorkState}
             onClose={() => setSectionForm(null)}
-            onSave={async (value) => {
-              const id = sectionForm === 'new' ? null : sectionForm.id;
-              const saved = await act(
-                () =>
-                  api.saveCourseSection(course.id, id, {
-                    ...value,
-                    expectedRevision: draftRevision,
-                  }),
-                id ? 'Раздел сохранён.' : 'Раздел добавлен.',
-              );
-              if (saved) setSectionForm(null);
+            onSave={async (value, target) => {
+              if (
+                localDirtyRef.current ||
+                writing ||
+                publishing ||
+                assignBusy ||
+                revisionRefreshRef.current ||
+                target.draftRevision === null
+              ) {
+                return {
+                  ok: false,
+                  status: 409,
+                  error: {
+                    code: 'course_busy',
+                    message: 'Дождитесь сохранения и обновления курса, затем повторите действие.',
+                  },
+                };
+              }
+              setWriting(true);
+              try {
+                const result = await api.saveCourseSection(course.id, target.id, {
+                  ...value,
+                  expectedRevision: target.draftRevision,
+                });
+                if (!result.ok) {
+                  setError(result.error.message);
+                  return result;
+                }
+                if (!metadataReceiptIsValid(result.data, target)) return result;
+                if (result.data.draftRevision > draftRevisionRef.current) {
+                  draftRevisionRef.current = result.data.draftRevision;
+                  setDraftRevision(result.data.draftRevision);
+                }
+                setError(null);
+                setNotice(target.id ? 'Раздел сохранён.' : 'Раздел добавлен.');
+                try {
+                  await loadOutline();
+                  onChanged();
+                } catch {
+                  setError(
+                    'Не удалось обновить содержание курса. Последние изменения остались в форме.',
+                  );
+                }
+                return result;
+              } finally {
+                setWriting(false);
+              }
             }}
           />
         ) : null}
@@ -1348,6 +1545,7 @@ export function CoursesPanel({
 }): JSX.Element {
   const [courses, setCourses] = useState<Course[] | null>(null);
   const [openId, setOpenId] = useState<string | null>(initialCourseId ?? null);
+  const [openSnapshot, setOpenSnapshot] = useState<Course | null>(null);
   const [courseForm, setCourseForm] = useState<Course | null | 'new'>(null);
   const [sharing, setSharing] = useState<Course | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -1358,6 +1556,7 @@ export function CoursesPanel({
 
   const editorGuard = useRef<(() => boolean) | null>(null);
   const [formWork, setFormWork] = useState(false);
+  const [sectionFormWork, setSectionFormWork] = useState(false);
   const setFormWorkState = useCallback((value: boolean) => setFormWork(value), []);
   const registerEditorGuard = useCallback((guard: (() => boolean) | null) => {
     editorGuard.current = guard;
@@ -1383,13 +1582,19 @@ export function CoursesPanel({
   }, [formWork]);
 
   const reload = useCallback(async () => {
-    const result = await api.listCourses();
-    if (result.ok) {
-      setCourses(result.data.items);
-      setError(null);
-    } else {
-      setCourses([]);
-      setError(result.error.message);
+    try {
+      const result = await api.listCourses();
+      if (result.ok && Array.isArray(result.data?.items)) {
+        setCourses(result.data.items);
+        setError(null);
+        return;
+      }
+      // A refresh failure must not unmount an open course or its unsaved form.
+      setCourses((current) => current ?? []);
+      setError(result.ok ? 'Не удалось обновить список курсов.' : result.error.message);
+    } catch {
+      setCourses((current) => current ?? []);
+      setError('Не удалось обновить список курсов. Последние изменения остались в форме.');
     }
   }, []);
 
@@ -1408,6 +1613,39 @@ export function CoursesPanel({
     await reload();
     onChanged();
     return true;
+  }
+
+  async function saveCourseMetadata(
+    value: CourseFormValue,
+    target: MetadataSaveTarget,
+  ): Promise<ApiResult<MetadataSaveReceipt>> {
+    let requestId: string | undefined;
+    if (!target.id) {
+      const payload = JSON.stringify(value);
+      if (creationRequest.current?.payload !== payload)
+        creationRequest.current = { payload, id: crypto.randomUUID() };
+      requestId = creationRequest.current.id;
+    }
+    const result = await api.saveCourse(target.id, {
+      ...value,
+      ...(target.draftRevision !== null ? { expectedRevision: target.draftRevision } : {}),
+      ...(requestId ? { requestId } : {}),
+    });
+    if (!result.ok) {
+      setError(result.error.message);
+      return result;
+    }
+    if (!metadataReceiptIsValid(result.data, target)) return result;
+    setError(null);
+    setNotice(target.id ? 'Настройки курса сохранены.' : 'Курс создан.');
+    creationRequest.current = null;
+    try {
+      await reload();
+      onChanged();
+    } catch {
+      setError('Не удалось обновить список курсов. Последние изменения остались в форме.');
+    }
+    return result;
   }
 
   async function ensureDemoCourse(): Promise<void> {
@@ -1434,14 +1672,36 @@ export function CoursesPanel({
   const visibleCourses = (courses ?? []).filter(
     (course) => (course.archivedAt !== null) === showArchived,
   );
-  const open =
+  const listedOpen =
     courses?.find((course) => course.id === openId && course.archivedAt === null) ?? null;
+  const hasMetadataWork = formWork || sectionFormWork;
+  useEffect(() => {
+    if (listedOpen) {
+      setOpenSnapshot(listedOpen);
+    } else if (courses !== null && !hasMetadataWork) {
+      setOpenSnapshot(null);
+      setOpenId(null);
+    }
+  }, [listedOpen, courses, hasMetadataWork]);
+  // Retain only the already open presentation while its metadata form has work.
+  // The server list stays unchanged; this snapshot never restores an entity.
+  const open = listedOpen ?? (hasMetadataWork && openSnapshot?.id === openId ? openSnapshot : null);
+  const unavailableMessage =
+    'Курс больше недоступен для редактирования. Последние изменения остались в форме. Скопируйте их перед закрытием.';
+  const courseFormUnavailable =
+    courseForm &&
+    courseForm !== 'new' &&
+    courses !== null &&
+    !courses.some((course) => course.id === courseForm.id && course.archivedAt === null)
+      ? unavailableMessage
+      : null;
   if (open) {
     return (
       <>
         {error ? <p role="alert">{error}</p> : null}
         <CourseEditor
           course={open}
+          unavailableMessage={listedOpen ? null : unavailableMessage}
           assignments={assignments}
           onBack={() => setOpenId(null)}
           onEditCourse={() => setCourseForm(open)}
@@ -1449,24 +1709,15 @@ export function CoursesPanel({
           onChanged={() => void reload()}
           canTeach={canTeach}
           onRegisterLeaveGuard={registerEditorGuard}
+          onSectionWorkChange={setSectionFormWork}
         />
         {courseForm ? (
           <CourseFormDialog
             onWorkChange={setFormWorkState}
             course={courseForm === 'new' ? null : courseForm}
+            unavailableMessage={courseFormUnavailable}
             onClose={() => setCourseForm(null)}
-            onSave={async (value) => {
-              const saved = await act(
-                () =>
-                  api.saveCourse(open.id, {
-                    ...value,
-                    expectedRevision:
-                      courseForm === 'new' ? open.draftRevision : courseForm.draftRevision,
-                  }),
-                'Настройки курса сохранены.',
-              );
-              if (saved) setCourseForm(null);
-            }}
+            onSave={saveCourseMetadata}
           />
         ) : null}
         {sharing ? (
@@ -1686,29 +1937,12 @@ export function CoursesPanel({
         <CourseFormDialog
           onWorkChange={setFormWorkState}
           course={courseForm === 'new' ? null : courseForm}
-          onClose={() => setCourseForm(null)}
-          onSave={async (value) => {
-            const existing = courseForm === 'new' ? null : courseForm;
-            const payload = JSON.stringify(value);
-            if (creationRequest.current?.payload !== payload)
-              creationRequest.current = { payload, id: crypto.randomUUID() };
-            const result = await api.saveCourse(existing?.id ?? null, {
-              ...value,
-              ...(existing ? { expectedRevision: existing.draftRevision } : {}),
-              requestId: creationRequest.current.id,
-            });
-            if (!result.ok) {
-              setError(result.error.message);
-              return;
-            }
-            setError(null);
-            setNotice(existing ? 'Настройки курса сохранены.' : 'Курс создан.');
+          unavailableMessage={courseFormUnavailable}
+          onClose={(receipt) => {
             setCourseForm(null);
-            creationRequest.current = null;
-            await reload();
-            if (!existing) setOpenId(result.data.id);
-            onChanged();
+            if (receipt && courseForm === 'new') setOpenId(receipt.id);
           }}
+          onSave={saveCourseMetadata}
         />
       ) : null}
 
