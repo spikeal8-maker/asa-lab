@@ -119,7 +119,8 @@
             "administration.max_identity.revoke",
             "administration.platform_admin.grant",
             "administration.platform_admin.revoke",
-            "administration.session.revoke"
+            "administration.session.revoke",
+            "administration.verification_policy.update"
           ]
         },
         "reason_code": {
