@@ -135,6 +135,22 @@ parallel_lanes:
             Classroom changes during final convergence. Reuse trusted Seat context
             and existing teacher authority; do not require a personal Account for
             school access, expose private chats to teachers or redesign tenant/RLS.
+        - id: AI-MODEL-CAPABILITIES-004
+          scope: current provider model catalog, capability descriptors and compatible encrypted configuration
+          status: in_progress
+          integration_after: [AI-TEXT-API-002]
+          coordination: >-
+            Verify official provider documentation; retain configured credentials
+            and historical messages. Replace retired runtime aliases explicitly,
+            advertise only implemented capabilities and preserve platform quotas.
+        - id: AI-TEXT-COMPLETE-005
+          scope: server history search, archive, fresh answer regeneration and safe mathematical rendering
+          status: in_progress
+          integration_after: [AI-TEXT-UI-001, AI-TEXT-API-002, AI-STUDENT-ACCESS-003]
+          coordination: >-
+            Preserve accepted interaction and identity fixes. New answer generation
+            uses a new paid operation while replay retains the original request.
+            Search and archive remain scoped to the canonical Account or Seat owner.
       dependency_sequence:
         - text_convergence_and_focused_ci
         - complete_text_search_regeneration_and_math
@@ -1110,32 +1126,75 @@ parallel_lanes:
     task:
       id: TASK-ACCOUNT-CONFIRMATION-001
       issue: 135
-      branch: main
+      branch: codex/auth-readiness-20261019
       base_branch: main
       pr: null
       pr_draft: false
-      status: in_review
-      checkpoint: account_confirmation_technical_verified_owner_review_pending
+      status: in_progress
+      checkpoint: account_confirmation_readiness_repair_selected
       owner_acceptance: pending
       normative_refs:
         - document: IDENTITY-ACCESS-V22
           revision: '2.2'
         - document: ACCOUNT-CONFIRMATION-SPEC
-          revision: '1.0'
+          revision: '1.1'
     programme:
       document: docs/product/ASA_ACCOUNT_CONFIRMATION_SPEC.md
       owner_authorization: implement_account_confirmation_with_admin_switch_max_telegram_and_server_verified_outage_fallback
-      status: technical_accepted
-      target_revision: '1.0'
+      status: in_progress
+      target_revision: '1.1'
       verified_revision: '1.0'
       final_source_sha: 5353dcbc8f60a4867aaf9fe4126fe2caaad31fdc
       exact_final_focused_run: 39171454030
       exact_final_focused_conclusion: success
       exact_final_general_run: 39171454021
       exact_final_general_conclusion: success
-      selected_slice: null
-      dependency_order: [AUTH-C1-PROVIDERS, AUTH-C2-POLICY, AUTH-C3-UI, AUTH-C4-ACCEPTANCE]
-      remaining_slices: []
+      selected_slice: AUTH-C5-READINESS
+      dependency_order: [AUTH-C1-PROVIDERS, AUTH-C2-POLICY, AUTH-C3-UI, AUTH-C4-ACCEPTANCE, AUTH-C5-READINESS]
+      remaining_slices: [AUTH-C5-READINESS]
+      readiness_repair:
+        id: AUTH-C5-READINESS
+        status: in_progress
+        baseline_sha: 185f43e1618848da5db14f7223b059395fd85408
+        owner_request_date: '2026-10-19'
+        owner_request: audit_and_prepare_reliable_max_telegram_login_before_update_with_domain_or_ip
+        selected_scope: >-
+          Correct only confirmed authentication readiness gaps: distinguish saved webhook,
+          reachable installation and real current-version delivery; preserve authenticated
+          legacy MAX Mini App access independently from webhook readiness; reject wrong
+          callback origins and conflicting bot deployments; bound auth UI requests and
+          preserve cancel/password recovery; forward staging public origins and preserve
+          existing encryption keys in bootstrap. No polling worker, network changes,
+          live tokens, webhook registration, deployment or working database writes.
+        delegated_parts: [provider_backend, auth_ui, installation_preflight]
+        required_review: independent_final_source_and_fault_matrix
+        required_gates: [auth_confirmation_focused, repository]
+        live_provider_delivery: not_run
+        known_verification_limit: >-
+          A request to the public ingress from this server does not prove reachability
+          specifically from a provider network. Live start/approve/browser-consume on the
+          intended installation is separate acceptance; historical CI is not deployment.
+        findings:
+          - id: AUTH-READINESS-DELIVERY
+            severity: high
+            status: repair_selected
+            cause: registered_webhook_can_remain_ready_when_delivery_to_this_installation_fails
+          - id: AUTH-READINESS-LEGACY-MAX
+            severity: high
+            status: repair_selected
+            cause: webhook_readiness_blocks_existing_signed_mini_app_login_after_upgrade
+          - id: AUTH-READINESS-UI-TIMEOUT
+            severity: medium
+            status: repair_selected
+            cause: unresolved_auth_transport_can_hold_sign_in_actions_indefinitely
+          - id: AUTH-READINESS-PUBLIC-ORIGIN
+            severity: medium
+            status: repair_selected
+            cause: staging_does_not_forward_saved_public_origin_and_bot_address_errors_are_misleading
+          - id: AUTH-READINESS-KEY-PRESERVATION
+            severity: medium
+            status: repair_selected
+            cause: legacy_bootstrap_can_append_a_replacement_for_an_invalid_existing_key
       completed_slices:
         - id: AUTH-C1-PROVIDERS
           status: technical_accepted
@@ -1692,6 +1751,9 @@ parallel_lanes:
           status: unverified
           evidence: docs/testing/ACCESS_A_WINDOWS_TOUCH_REPRO.md
     revisions:
+      convergence_baseline_sha: 185f43e1618848da5db14f7223b059395fd85408
+      head_sha: 2fb1761437f5fded8bcfbc475d72d9b448ec0640
+    prior_auth_delivery_revisions:
       kind: observed_snapshot
       convergence_baseline_sha: 78da596b3e27a5bd396d195f8d1348b7f8b8cb00
       head_sha: null
@@ -4475,6 +4537,56 @@ parallel_lanes:
           independent source review before starting this workflow, and actual isolated
           CI with exact identities and preserved failure status. Counts are observed HTTP
           traffic, not internal limiter state; no429 is NOT_REPRODUCED, never a repair PASS.
+        observed_evidence: >-
+          Diagnostic PR630 fb7a7b215096afd989a8b42635a14ffdd592259c completed actual
+          run39168489103 on separately pinned product4343b88b. Independent capture QA
+          PASS: COMPLETE,7055 unique five-field records,faults0,23 cases18 PASS/5 login429
+          FAIL,second batch NOT_RUN. Before first429,934 successful non-runtime mutations
+          passed the common guard within256.006 seconds; the first two specs contributed331
+          mutations. Internal limiter counters/resetAt and raw receipt bodies were not
+          observed. Artifact12151514511 SHA256e56fccf3bfdfa02d25dfda2dcf2dd1c4c7a29a3fbf1ec98e497fa08014182f6c.
+          This establishes cumulative test-window interference, not a product-policy verdict
+          or accepted repair. Main later accepted analytics4343 through merge685762419.
+      - id: TASK-PROJ-PUBLICATION-LEARNING-BATCH-ISOLATION-001
+        status: in_progress
+        branch: codex/projects-learning-batch-isolation
+        prepared_base: 4343b88b788f02a279fd18df3789582994cb6b9e
+        scope:
+          - .github/workflows/learning-e1-focused.yml
+        selection: >-
+          Bounded CI isolation experiment from the completed exact-product capture above.
+          The original first23-case batch shares one API process and its900/5min address
+          budget. Verified requests also consume that budget; later new no-cookie logins
+          fail after successful fixtures accumulated across files. Keep the application
+          policy intact and test whether fresh ordinary Playwright-managed API processes
+          between the three original first-batch specs remove their hidden order dependency.
+          This changes all inter-file API memory lifetime, not just limiter state; sufficient
+          isolation and underlying repair acceptance remain unproven until changed-source CI.
+        author_coordination: >-
+          One separate CI author owns only this workflow after canonical main acceptance.
+          Fork the exact analytics4343 product for causal comparison; this is not the final
+          publication convergence. Fresh main185f43e has merged Learning PR6223f37a8c,
+          including newer journey tests; no unfinished writer on this workflow was found.
+          Preserve all accepted main auth/AI/Learning changes in final composition. This
+          causal first23-case experiment does not accept the newer main journey matrix.
+          Do not edit package.json, specs, config/server, application limits, shared fixtures,
+          diagnostic630, Scratch evidence, completed QR629 or the GC1 guard/receipts.
+        acceptance: >-
+          Preserve the effective order courses-sharing then learning-author-preview then
+          learning-course-01, every original case/assertion, one worker, zero retries and
+          existing timeouts. Run all three specs even if one fails, aggregate a nonzero exit,
+          and run the original complete second batch only after first-batch success. Keep
+          Node22,pnpm9.15.9,frozen install,uncached build,PG16 restricted role,all unit/upgrade
+          gates and exact pinned Scratch preparation unchanged. Keep original browser config
+          and ordinary server lifecycle; no external-server reuse, limiter reset API, sleeps,
+          proxy identity, session privilege or auth bypass. Reject drift of the original
+          package script/spec matrix instead of silently omitting cases; preserve artifacts
+          from each invocation below existing uploaded paths. Independently challenge actual
+          shell failure aggregation/order/coverage before the PR triggers any changed CI.
+          Require all23 cases including the previously failing five and the complete original
+          second batch on the new exact SHA. The observed627 course mutations included five
+          early failures and are not a bound on the full14-case suite. Any remaining failure
+          stays a failure and requires its actual cause; no repeat of an unchanged run.
       - id: TASK-PROJ-PUBLICATION-SHELL-AI-COMPATIBILITY-001
         status: in_progress
         branch: codex/projects-shell-ai-compatibility
@@ -4540,6 +4652,35 @@ parallel_lanes:
           Require independent source review and actual changed-source Scratch CI with
           exact build identity and durable JSON artifacts. Existing failures remain failures;
           no reproduction is NOT_REPRODUCED and does not establish an underlying repair.
+      - id: TASK-PROJ-PUBLICATION-AUTH-AUDIT-COVERAGE-001
+        status: in_progress
+        branch: codex/projects-auth-audit-coverage
+        prepared_base: 33a2790cc8a95181f6fcff613e3a6ec6eaca78fe
+        scope:
+          - apps/api/src/database-diagnostic-contract.json
+        selection: >-
+          Separate C baseline compatibility repair for accepted Auth0219. Actual Coverage
+          run39174033312 fails on both Windows and Linux because the real audit action
+          administration.verification_policy.update is missing from the closed diagnostic
+          enum. Exact current source scans12 migration actions with only this value missing.
+          Preserve the completed Coverage point8 projection and accepted Auth policy.
+        author_coordination: >-
+          One separate author owns this single JSON path after canonical main acceptance.
+          Coverage Issue610 owner handed off source90e09831 and STOP in6251702346.
+          Fresh AUTH-C5-READINESS scope and published4614349 do not change this path;
+          coordination and the single-writer boundary are recorded in Issue1356264235551.
+          Keep provider/backend/UI/installation work with its existing Auth authors and
+          do not modify their files, the existing regression test, Learning, Scratch or GC1.
+        acceptance: >-
+          Add only administration.verification_policy.update to the existing action enum
+          under sources.administrative_audit_events.fields.action.values. Preserve every
+          other enum member and closed projection, unknown-action rejection and omission
+          of private reason/payload fields. The existing dynamic real-migration regression
+          must demonstrate baseline FAIL and candidate PASS without changing its assertions.
+          Require a separate independent exact-source review and the unchanged full
+          Coverage Diagnostics workflow on the new SHA, including both platform collectors
+          and downstream real PostgreSQL integration. No migration, collector algorithm,
+          auth policy, rate-limit, timeout/retry, workflow or deployment/live DB change.
     accepted_foundation:
       accepted_r7_01b_merge_sha: 65316c50873e28a5effd7b6e603b5289e37e2fac
       accepted_r3_merge_sha: 5fa616045b16d2720418eb7945f7bef968dd9389

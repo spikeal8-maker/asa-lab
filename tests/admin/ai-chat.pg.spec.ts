@@ -1,7 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import type pg from 'pg';
-import { AiChatService } from '../../apps/api/src/ai-chat.service';
+import {
+  AiChatService,
+  type AiCursor,
+  type AiMessage,
+  type AiPage,
+} from '../../apps/api/src/ai-chat.service';
 import { hashSessionToken } from '../../contexts/identity/dist/index.js';
 import { buildTestApp, inject } from '../portal/app';
 import { testAdminPool, testAppPool } from '../portal/helpers';
@@ -80,6 +85,7 @@ beforeAll(async () => {
       expect(posted.input.at(-1)?.content).toBe('Что такое Arduino?');
       return new Response(
         JSON.stringify({
+          status: 'completed',
           output: [
             { content: [{ type: 'output_text', text: 'Arduino — платформа для электроники.' }] },
           ],
@@ -173,10 +179,10 @@ describe('AI Chat PostgreSQL access and request replay', () => {
     ).rejects.toMatchObject({ code: 'ai_thread_busy', status: 409 });
 
     const response = await service.send(
-      owner.principalId,
-      thread.id,
+      owner.principalId.toUpperCase(),
+      thread.id.toUpperCase(),
       'Что такое Arduino?',
-      operation,
+      operation.toUpperCase(),
     );
     expect(response.replayed).toBe(false);
     expect(response.messages.map((m) => m.role)).toEqual(['user', 'assistant']);
@@ -232,6 +238,7 @@ describe('AI Chat PostgreSQL access and request replay', () => {
       async () =>
         new Response(
           JSON.stringify({
+            status: 'completed',
             output: [{ content: [{ type: 'output_text', text: 'Тестовый ответ' }] }],
           }),
           { status: 200 },
@@ -355,6 +362,7 @@ describe('AI Chat PostgreSQL access and request replay', () => {
       }
       return new Response(
         JSON.stringify({
+          status: 'completed',
           output: [{ content: [{ type: 'output_text', text: 'HTTP GPT успешно ответил' }] }],
         }),
         { status: 200, headers: { 'content-type': 'application/json' } },
@@ -536,6 +544,52 @@ describe('AI Chat PostgreSQL access and request replay', () => {
         payload: {},
       });
       expect(wrongOrigin.statusCode).toBe(403);
+
+      // The HTTP boundary must accept the exact microsecond cursor returned by SQL.
+      await admin.query(
+        `INSERT INTO ai_assistant_messages
+          (thread_id, account_id, request_id, role, content, created_at)
+         SELECT $1, $2, gen_random_uuid(), 'user', 'precise-http-' || n,
+           TIMESTAMPTZ '2000-01-01 10:00:00.123000+00' + n * interval '1 microsecond'
+           FROM generate_series(1,57) n`,
+        [threadId, owner.accountId],
+      );
+      const firstPage = await inject(app, {
+        method: 'GET',
+        url: msgUrl,
+        headers: { host },
+        cookies: { asa_session: ownerToken },
+      });
+      expect(firstPage.statusCode).toBe(200);
+      const firstHistory = firstPage.json() as AiPage<AiMessage>;
+      expect(firstHistory.items).toHaveLength(50);
+      expect(firstHistory.nextCursor?.at).toBe('2000-01-01T10:00:00.123012Z');
+      const before = new URLSearchParams({
+        beforeAt: firstHistory.nextCursor!.at,
+        beforeId: firstHistory.nextCursor!.id.toUpperCase(),
+      });
+      const secondPage = await inject(app, {
+        method: 'GET',
+        url: msgUrl + '?' + before,
+        headers: { host },
+        cookies: { asa_session: ownerToken },
+      });
+      expect(secondPage.statusCode).toBe(200);
+      const secondHistory = secondPage.json() as AiPage<AiMessage>;
+      expect(secondHistory.items).toHaveLength(11);
+      expect(secondHistory.nextCursor).toBeNull();
+      expect(secondHistory.items[0]?.content).toBe('precise-http-1');
+      expect(
+        new Set([...firstHistory.items, ...secondHistory.items].map((item) => item.id)).size,
+      ).toBe(61);
+      const outsiderPage = await inject(app, {
+        method: 'GET',
+        url: msgUrl + '?' + before,
+        headers: { host },
+        cookies: { asa_session: strangerToken },
+      });
+      expect(outsiderPage.statusCode).toBe(200);
+      expect(outsiderPage.json()).toMatchObject({ items: [], nextCursor: null });
     } finally {
       await app.close();
       vi.unstubAllGlobals();
@@ -693,4 +747,212 @@ describe('AI Chat PostgreSQL access and request replay', () => {
     );
     expect(upstream).toHaveBeenCalledTimes(1);
   });
+
+  it('paginates exact microseconds and UUID ties through all 107 rows', async () => {
+    const actor = await makeIdentity('microseconds', false);
+    await admin.query(
+      `INSERT INTO ai_assistant_threads (account_id, title, updated_at)
+       SELECT $1, 'precise-thread-' || n,
+         TIMESTAMPTZ '2026-10-19 10:00:00.123400+00' + (n / 3) * interval '1 microsecond'
+         FROM generate_series(1,107) n`,
+      [actor.accountId],
+    );
+    const expectedThreads = await admin.query<{ id: string }>(
+      `SELECT id FROM ai_assistant_threads WHERE account_id = $1
+         ORDER BY updated_at DESC, id DESC`,
+      [actor.accountId],
+    );
+    let cursor: AiCursor | null = null;
+    const threadIds: string[] = [];
+    let pages = 0;
+    do {
+      const page = await service.threadPage(actor.principalId, cursor);
+      expect(page.items.length).toBeGreaterThan(0);
+      expect(page.items.length).toBeLessThanOrEqual(50);
+      threadIds.push(...page.items.map((item) => item.id));
+      cursor = page.nextCursor;
+      if (cursor) expect(cursor.at).toMatch(/^2026-10-19T10:00:00\.1234\d{2}Z$/);
+      pages += 1;
+    } while (cursor && pages < 5);
+    expect(cursor).toBeNull();
+    expect(pages).toBe(3);
+    expect(threadIds).toEqual(expectedThreads.rows.map((row) => row.id));
+    expect(new Set(threadIds).size).toBe(107);
+
+    const threadId = threadIds[0]!;
+    await admin.query(
+      `INSERT INTO ai_assistant_messages
+        (thread_id, account_id, request_id, role, content, created_at)
+       SELECT $1, $2, gen_random_uuid(), 'user', 'precise-message-' || n,
+         TIMESTAMPTZ '2026-10-19 10:00:00.123400+00' + (n / 3) * interval '1 microsecond'
+         FROM generate_series(1,107) n`,
+      [threadId, actor.accountId],
+    );
+    const expectedMessages = await admin.query<{ id: string }>(
+      `SELECT id FROM ai_assistant_messages WHERE thread_id = $1
+         ORDER BY created_at ASC, id ASC`,
+      [threadId],
+    );
+    const messageIds: string[] = [];
+    pages = 0;
+    do {
+      const page = await service.messagePage(actor.principalId, threadId, cursor);
+      expect(page.items.length).toBeGreaterThan(0);
+      expect(page.items.length).toBeLessThanOrEqual(50);
+      messageIds.unshift(...page.items.map((item) => item.id));
+      cursor = page.nextCursor;
+      if (cursor) {
+        expect(cursor.at).toMatch(/^2026-10-19T10:00:00\.1234\d{2}Z$/);
+        expect((await service.messagePage(stranger.principalId, threadId, cursor)).items).toEqual(
+          [],
+        );
+      }
+      pages += 1;
+    } while (cursor && pages < 5);
+    expect(cursor).toBeNull();
+    expect(pages).toBe(3);
+    expect(messageIds).toEqual(expectedMessages.rows.map((row) => row.id));
+    expect(new Set(messageIds).size).toBe(107);
+  });
+
+  it('stops mixed-case UUID streams and replays the persisted stopped answer without another charge', async () => {
+    const thread = await service.createThread(owner.principalId);
+    const request = randomUUID();
+    const upstream = vi.fn<typeof fetch>(
+      async () =>
+        new Response(
+          'event: response.output_text.delta\ndata: {"delta":"Остановленная часть"}\n\n',
+        ),
+    );
+    const adapter = new AiChatService(runtime, { encryptionKey: requestKey, fetchImpl: upstream });
+    const result = await adapter.sendStream(
+      owner.principalId.toUpperCase(),
+      thread.id.toUpperCase(),
+      'Стоп',
+      request.toUpperCase(),
+      () => {
+        expect(adapter.stopStream(stranger.principalId, thread.id, request)).toEqual({
+          stopped: false,
+        });
+        expect(adapter.stopStream(owner.principalId, thread.id, request)).toEqual({
+          stopped: true,
+        });
+      },
+      new AbortController().signal,
+    );
+    expect(result.stopped).toBe(true);
+    expect(result.messages).toContainEqual(
+      expect.objectContaining({
+        content: 'Остановленная часть',
+        requestId: request,
+        state: 'stopped',
+      }),
+    );
+    expect(adapter.stopStream(owner.principalId, thread.id, request)).toEqual({ stopped: false });
+    const replay = await adapter.sendStream(
+      owner.principalId,
+      thread.id,
+      'Стоп',
+      request,
+      () => undefined,
+      new AbortController().signal,
+    );
+    expect(replay.replayed).toBe(true);
+    expect(replay.messages).toEqual(result.messages);
+    expect(upstream).toHaveBeenCalledTimes(1);
+    const quota = await admin.query<{ count: number }>(
+      'SELECT count(*)::integer FROM ai_assistant_request_quota WHERE account_id = $1 AND request_id = $2',
+      [owner.accountId, request],
+    );
+    expect(quota.rows[0]?.count).toBe(1);
+  });
+
+  it.each(['openai', 'deepseek'] as const)(
+    'persists a partial legacy %s result as stopped and retains paid replay idempotency',
+    async (provider) => {
+      const actor = await makeIdentity('partial-' + provider, false);
+      await service.saveAdminConfig(
+        platformAdmin.principalId,
+        {
+          enabled: true,
+          provider,
+          model: provider === 'openai' ? 'gpt-5-mini' : 'deepseek-chat',
+          apiKey: 'sk-ai-private-integration-key-001',
+          paidOperationsPerHour: 1000,
+        },
+        randomUUID(),
+      );
+      try {
+        const thread = await service.createThread(actor.principalId);
+        const operation = randomUUID();
+        const upstream = vi.fn<typeof fetch>(
+          async () =>
+            new Response(
+              JSON.stringify(
+                provider === 'openai'
+                  ? { status: 'incomplete', output_text: 'Сохранённая часть' }
+                  : {
+                      choices: [
+                        { finish_reason: 'length', message: { content: 'Сохранённая часть' } },
+                      ],
+                    },
+              ),
+            ),
+        );
+        const adapter = new AiChatService(runtime, {
+          encryptionKey: requestKey,
+          fetchImpl: upstream,
+        });
+        const paidBefore = await admin.query<{ count: number }>(
+          'SELECT count(*)::integer FROM ai_paid_operation_quota',
+        );
+        const sending = adapter.send(actor.principalId, thread.id, 'Вопрос', operation);
+        if (provider === 'openai') {
+          await expect(sending).rejects.toMatchObject({
+            code: 'ai_response_incomplete',
+            status: 503,
+          });
+        } else {
+          expect((await sending).replayed).toBe(false);
+        }
+        const stored = await service.messages(actor.principalId, thread.id);
+        expect(stored).toHaveLength(2);
+        expect(stored[1]).toMatchObject({
+          role: 'assistant',
+          content: 'Сохранённая часть',
+          state: 'stopped',
+        });
+        const replay = await adapter.send(
+          actor.principalId.toUpperCase(),
+          thread.id.toUpperCase(),
+          'Вопрос',
+          operation.toUpperCase(),
+        );
+        expect(replay).toEqual({ replayed: true, messages: stored });
+        expect(upstream).toHaveBeenCalledTimes(1);
+        const paidAfter = await admin.query<{ count: number }>(
+          'SELECT count(*)::integer FROM ai_paid_operation_quota',
+        );
+        expect(paidAfter.rows[0]!.count - paidBefore.rows[0]!.count).toBe(1);
+        const lease = await admin.query<{ released: boolean }>(
+          'SELECT busy_until IS NULL AS released FROM ai_assistant_threads WHERE id = $1',
+          [thread.id],
+        );
+        expect(lease.rows).toEqual([{ released: true }]);
+        expect(await service.messages(stranger.principalId, thread.id)).toEqual([]);
+      } finally {
+        await service.saveAdminConfig(
+          platformAdmin.principalId,
+          {
+            enabled: true,
+            provider: 'openai',
+            model: 'gpt-5-mini',
+            apiKey: 'sk-ai-private-integration-key-001',
+            paidOperationsPerHour: 1000,
+          },
+          randomUUID(),
+        );
+      }
+    },
+  );
 });

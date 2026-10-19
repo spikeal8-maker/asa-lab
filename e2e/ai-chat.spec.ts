@@ -63,6 +63,8 @@ async function fixture(page: Page, answer = 'Arduino — это платформ
     const method = req.method();
     if (path === '/api/auth/me') return respond(route, authSession);
     if (path === '/api/admin/v1/me') return respond(route, profile);
+    if (path === '/api/account/presentation')
+      return respond(route, { motion: 'system', sidebar: 'expanded', revision: 0 });
     if (path === '/api/account/avatar') return respond(route, { avatarDataUrl: null });
     if (path === '/api/auth/max/status')
       return respond(route, {
@@ -501,14 +503,568 @@ for (const scenario of ['empty', 'existing', 'server-error', 'network-error'] as
   });
 }
 
-for (const width of [1440, 1024, 390, 320]) {
+for (const outcome of ['current', 'other', 'server-error', 'network-error'] as const) {
+  test(`AI pending deletion serializes chat actions and preserves unrelated state: ${outcome}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 750 });
+    const fake = await fixture(page);
+    const currentId = randomUUID();
+    const otherId = randomUUID();
+    fake.threads.push(
+      { id: currentId, title: 'Текущий проект', updatedAt: NOW },
+      { id: otherId, title: 'Другой проект', updatedAt: NOW },
+    );
+    fake.messages.set(currentId, []);
+    fake.messages.set(otherId, []);
+    const deleteId = outcome === 'other' ? otherId : currentId;
+    let releaseDelete = (): void => undefined;
+    const pendingDelete = new Promise<void>((resolve) => {
+      releaseDelete = resolve;
+    });
+    let deleteCalls = 0;
+    let createCalls = 0;
+    await page.route(`**/api/ai/threads/${deleteId}`, async (route) => {
+      if (route.request().method() !== 'DELETE') return route.fallback();
+      deleteCalls++;
+      await pendingDelete;
+      if (outcome === 'network-error') return route.abort('failed');
+      if (outcome === 'server-error') {
+        return route.fulfill({
+          status: 503,
+          json: { error: { code: 'delete_unavailable', message: 'Удаление временно недоступно' } },
+        });
+      }
+      return route.fallback();
+    });
+    await page.route('**/api/ai/threads', async (route) => {
+      if (route.request().method() === 'POST') createCalls++;
+      return route.fallback();
+    });
+    await page.goto('/#/ai');
+    const sidebar = page.getByRole('dialog', { name: 'История диалогов' });
+    await sidebar.getByRole('button', { name: 'Текущий проект', exact: true }).click();
+    const composer = page.getByRole('textbox', { name: 'Сообщение ИИ' });
+    await composer.fill('Сохранить черновик проекта');
+    const send = page.getByRole('button', { name: 'Отправить сообщение' });
+    await expect(send).toBeEnabled();
+    const newChat = page.getByRole('button', { name: 'Создать новый диалог' });
+    await sidebar
+      .getByRole('button', {
+        name: 'Удалить: ' + (outcome === 'other' ? 'Другой проект' : 'Текущий проект'),
+      })
+      .click();
+    const confirmation = sidebar.getByRole('button', { name: 'Удалить', exact: true });
+    try {
+      // The same task attempts duplicate deletion, creation and form submission
+      // before React can make all affected controls disabled.
+      await confirmation.evaluate((button: HTMLButtonElement) => {
+        button.click();
+        button.click();
+        document.querySelector<HTMLButtonElement>('.asa-ai-new-chat')!.click();
+        document.querySelector<HTMLButtonElement>('.chat-sidebar-actions > button')!.click();
+        document.querySelector<HTMLFormElement>('.chat-composer')!.requestSubmit();
+      });
+      await expect.poll(() => deleteCalls).toBe(1);
+      await expect(confirmation).toBeDisabled();
+      await expect(newChat).toBeDisabled();
+      await expect(composer).toBeDisabled();
+      await expect(send).toBeDisabled();
+      await expect(composer).toHaveValue('Сохранить черновик проекта');
+      await composer.evaluate((input: HTMLTextAreaElement) => input.form!.requestSubmit());
+      expect(createCalls).toBe(0);
+      expect(fake.requests).toHaveLength(0);
+      releaseDelete();
+      await expect(newChat).toBeEnabled();
+      await expect(composer).toBeEnabled();
+      expect(deleteCalls).toBe(1);
+      expect(createCalls).toBe(0);
+      if (outcome === 'current') {
+        await expect(page.locator('.asa-ai-current-title')).toHaveText('Новый диалог');
+        await expect(composer).toHaveValue('');
+        await expect(
+          sidebar.getByRole('button', { name: 'Текущий проект', exact: true }),
+        ).toHaveCount(0);
+      } else {
+        await expect(page.locator('.asa-ai-current-title')).toHaveText('Текущий проект');
+        await expect(composer).toHaveValue('Сохранить черновик проекта');
+        await expect(send).toBeEnabled();
+      }
+      if (outcome.endsWith('error')) {
+        await expect(page.locator('.chat-main').getByRole('alert')).toBeVisible();
+        expect(fake.threads).toHaveLength(2);
+        await sidebar.getByRole('button', { name: 'Отмена', exact: true }).click();
+      } else {
+        expect(fake.threads.map((thread) => thread.id)).not.toContain(deleteId);
+      }
+      // Completion unlocks the normal creation/send flow; a previous DELETE
+      // must not clear the newly selected conversation or its response.
+      await newChat.click();
+      await expect(composer).toBeEnabled();
+      const createdId = fake.threads[0]!.id;
+      expect(createCalls).toBe(1);
+      await composer.fill('Сообщение нового диалога');
+      fake.release();
+      await send.click();
+      await expect(page.getByText('Arduino — это платформа для электроники.')).toBeVisible();
+      expect(fake.requestThreads).toEqual([createdId]);
+      await expect(page.locator('.asa-ai-current-title')).toHaveText('Сообщение нового диалога');
+    } finally {
+      releaseDelete();
+      fake.release();
+    }
+  });
+}
+
+async function expectChatFits(page: Page): Promise<void> {
+  await expect
+    .poll(() =>
+      page.locator('.asa-ai-layout').evaluate((root) => {
+        const main = root.querySelector('.chat-main')!;
+        const conversations = root.querySelectorAll('.chat-scroll, .chat-start-state');
+        const toolbar = root.querySelector('.chat-toolbar')!.getBoundingClientRect();
+        const dock = root.querySelector('.chat-composer-dock')!.getBoundingClientRect();
+        const textarea = root.querySelector('textarea')!.getBoundingClientRect();
+        const body = root.querySelector('.chat-scroll, .chat-start-state')!.getBoundingClientRect();
+        const bounds = root.getBoundingClientRect();
+        const viewportBottom = visualViewport
+          ? visualViewport.offsetTop + visualViewport.height
+          : innerHeight;
+        const checks = {
+          pageWidth: document.documentElement.scrollWidth <= innerWidth,
+          chatWidth: root.scrollWidth <= root.clientWidth + 1,
+          mainWidth: main.scrollWidth <= main.clientWidth + 1,
+          conversationWidth: [...conversations].every(
+            (node) => node.scrollWidth <= node.clientWidth,
+          ),
+          chatLeft: bounds.left >= 0,
+          chatRight: bounds.right <= innerWidth + 1,
+          composerBottom: dock.bottom <= viewportBottom + 1,
+          conversationBottom: body.bottom <= dock.top + 1,
+          inputTop: textarea.top >= toolbar.bottom,
+          inputLeft: textarea.left >= bounds.left,
+          inputRight: textarea.right <= bounds.right,
+          inputBottom: textarea.bottom <= dock.bottom,
+        };
+        return Object.entries(checks)
+          .filter(([, passed]) => !passed)
+          .map(([check]) => check);
+      }),
+    )
+    .toEqual([]);
+}
+
+for (const theme of ['light', 'dark'] as const) {
+  for (const width of [320, 390, 600, 768, 1024, 1120, 1440]) {
+    test(`AI creation workspace fits ${width}px in ${theme} theme`, async ({ page }) => {
+      await page.emulateMedia({ colorScheme: theme });
+      await page.setViewportSize({ width, height: 750 });
+      const fake = await fixture(page);
+      await page.goto('/#/ai');
+      await expect(
+        page.getByRole('heading', { name: 'От идеи к работающему проекту' }),
+      ).toBeVisible();
+      await expect(page.getByRole('combobox', { name: 'Модель ИИ' })).toBeVisible();
+      await expect(page.getByRole('button', { name: /Прикреп/ })).toHaveCount(0);
+      await expect(page.locator('.asa-ai-layout')).toHaveCSS(
+        'background-color',
+        theme === 'dark' ? 'rgb(18, 33, 45)' : 'rgb(255, 255, 255)',
+      );
+      await expectChatFits(page);
+      await page.screenshot({ path: test.info().outputPath(`ai-empty-${theme}-${width}.png`) });
+      await page.getByRole('button', { name: /Написать код/ }).click();
+      const composer = page.getByRole('textbox', { name: 'Сообщение ИИ' });
+      await expect(composer).toBeFocused();
+      await expect(composer).toHaveValue('Помоги написать или улучшить код. Я хочу сделать: ');
+      expect(fake.requests).toHaveLength(0);
+      expect(fake.threads).toHaveLength(0);
+      await composer.fill('Черновик\n' + 'Строка проекта\n'.repeat(14));
+      const inputBounds = await composer.boundingBox();
+      expect(inputBounds!.height).toBeLessThanOrEqual(160);
+      expect(await composer.evaluate((node) => node.scrollHeight > node.clientHeight)).toBe(true);
+      await expectChatFits(page);
+      if (width >= 1120) {
+        const expanded = await page.locator('.chat-main').boundingBox();
+        await page.getByRole('button', { name: 'Свернуть историю', exact: true }).click();
+        const toggle = page.getByRole('button', { name: 'Открыть историю диалогов' });
+        await expect(toggle).toBeFocused();
+        const collapsed = await page.locator('.chat-main').boundingBox();
+        expect(collapsed!.width).toBeGreaterThan(expanded!.width + 250);
+        await expectChatFits(page);
+        await toggle.click();
+        await expect(page.getByRole('button', { name: 'Свернуть историю' })).toBeVisible();
+      }
+    });
+  }
+}
+
+test('AI long draft contracts with the keyboard visual viewport and remains editable', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 750 });
+  const fake = await fixture(page);
+  await page.goto('/#/ai');
+  const composer = page.getByRole('textbox', { name: 'Сообщение ИИ' });
+  const send = page.getByRole('button', { name: 'Отправить сообщение' });
+  const draft = 'Строка проекта\n'.repeat(40);
+  await composer.fill(draft);
+  await expect(composer).toHaveCSS('height', '160px');
+  for (const height of [350, 300]) {
+    // Desktop automation has no OS keyboard. Shrink only visualViewport to
+    // exercise the keyboard listener while the layout viewport stays at 750px.
+    await page.evaluate((height) => {
+      const viewport = window.visualViewport!;
+      Object.defineProperty(viewport, 'height', { configurable: true, value: height });
+      viewport.dispatchEvent(new Event('resize'));
+    }, height);
+    await expectChatFits(page);
+    await expect.poll(() => composer.evaluate((node) => node.clientHeight)).toBeLessThan(160);
+    expect(await composer.evaluate((node) => node.clientHeight)).toBeGreaterThanOrEqual(32);
+    expect(await composer.evaluate((node) => node.scrollHeight > node.clientHeight)).toBe(true);
+    await composer.press('ControlOrMeta+End');
+    await composer.press('x');
+    await expect(composer).toHaveValue(draft + 'x');
+    expect(await composer.evaluate((node) => node.scrollTop)).toBeGreaterThan(0);
+    const button = await send.boundingBox();
+    expect(button!.y + button!.height).toBeLessThanOrEqual(height);
+    expect(button!.y).toBeGreaterThanOrEqual(0);
+    await expect(send).toBeInViewport({ ratio: 1 });
+    await composer.fill(draft);
+  }
+  await page.evaluate(() => {
+    Reflect.deleteProperty(window.visualViewport!, 'height');
+    window.visualViewport!.dispatchEvent(new Event('resize'));
+  });
+  await expect(composer).toHaveCSS('height', '160px');
+  await expectChatFits(page);
+  expect(fake.requests).toHaveLength(0);
+});
+
+for (const width of [320, 600, 1440]) {
+  for (const action of ['rename', 'delete', 'pagination', 'new-chat'] as const) {
+    test(`AI history ${action} failure stays accessible at ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 750 });
+      const fake = await fixture(page);
+      const id = randomUUID();
+      fake.threads.push({ id, title: 'Схема проекта', updatedAt: NOW });
+      fake.messages.set(id, []);
+      const failure = `Не удалось выполнить действие: ${action}`;
+      await page.route(/\/api\/ai\/threads(?:\?.*)?$/, (route) => {
+        const request = route.request();
+        if (
+          (action === 'new-chat' && request.method() === 'POST') ||
+          (action === 'pagination' && new URL(request.url()).searchParams.has('beforeId'))
+        ) {
+          return route.fulfill({
+            status: 503,
+            json: { error: { code: 'history_action_failed', message: failure } },
+          });
+        }
+        if (request.method() !== 'GET') return route.fallback();
+        return route.fulfill({ json: { items: fake.threads, nextCursor: { at: NOW, id } } });
+      });
+      await page.route(`**/api/ai/threads/${id}`, (route) =>
+        route.fulfill({
+          status: 503,
+          json: { error: { code: 'history_action_failed', message: failure } },
+        }),
+      );
+      await page.goto('/#/ai');
+      const composer = page.getByRole('textbox', { name: 'Сообщение ИИ' });
+      await composer.fill('Сохранить черновик');
+      const toggle = page.getByRole('button', { name: 'Открыть историю диалогов' });
+      const dialog = page.getByRole('dialog', { name: 'История диалогов' });
+      if (width < 1120) await toggle.click();
+      await expect(dialog).toBeVisible();
+      if (action === 'rename') {
+        await dialog.getByRole('button', { name: 'Переименовать: Схема проекта' }).click();
+        await dialog.getByRole('textbox', { name: 'Новое название диалога' }).fill('Новое имя');
+        await dialog.getByRole('button', { name: 'Сохранить', exact: true }).click();
+      } else if (action === 'delete') {
+        await dialog.getByRole('button', { name: 'Удалить: Схема проекта' }).click();
+        await dialog.getByRole('button', { name: 'Удалить', exact: true }).click();
+      } else if (action === 'pagination') {
+        await dialog.getByRole('button', { name: 'Показать больше диалогов' }).click();
+      } else {
+        await dialog.getByRole('button', { name: 'Новый чат', exact: true }).click();
+      }
+      if (width < 1120) {
+        const alert = dialog.getByRole('alert');
+        await expect(alert).toHaveText(failure);
+        await expect(alert).toBeInViewport({ ratio: 1 });
+        expect(await dialog.evaluate((node) => node.matches(':modal'))).toBe(true);
+        await page.keyboard.press('Tab');
+        expect(await dialog.evaluate((node) => node.contains(document.activeElement))).toBe(true);
+        await page.keyboard.press('Escape');
+        await expect(dialog).toBeHidden();
+        await expect(toggle).toBeFocused();
+        await expect(page.locator('.chat-main').getByRole('alert')).toContainText(failure);
+        await toggle.click();
+        await expect(dialog.getByRole('alert')).toHaveText(failure);
+        await dialog.getByRole('button', { name: 'Закрыть историю', exact: true }).click();
+        await expect(toggle).toBeFocused();
+      } else {
+        await expect(dialog.getByRole('alert')).toHaveCount(0);
+        await expect(page.locator('.chat-main').getByRole('alert')).toContainText(failure);
+      }
+      await expect(composer).toHaveValue('Сохранить черновик');
+      expect(fake.threads).toEqual([{ id, title: 'Схема проекта', updatedAt: NOW }]);
+      expect(fake.requests).toHaveLength(0);
+    });
+  }
+}
+
+test('AI composer sends with Enter, adds a line with Shift+Enter and respects IME', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 600, height: 750 });
+  const fake = await fixture(page, 'Ответ на многострочный вопрос');
+  fake.release();
+  await page.goto('/#/ai');
+  const composer = page.getByRole('textbox', { name: 'Сообщение ИИ' });
+  await composer.fill('Первая строка');
+  await composer.press('End');
+  await composer.press('Shift+Enter');
+  await composer.press('x');
+  await expect(composer).toHaveValue('Первая строка\nx');
+  expect(fake.requests).toHaveLength(0);
+  await composer.dispatchEvent('compositionstart', { data: '' });
+  const prevented = await composer.evaluate((node) => {
+    const event = new KeyboardEvent('keydown', {
+      key: 'Enter',
+      code: 'Enter',
+      isComposing: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    node.dispatchEvent(event);
+    return event.defaultPrevented;
+  });
+  expect(prevented).toBe(false);
+  await composer.dispatchEvent('compositionend', { data: 'x' });
+  await expect(composer).toBeEnabled();
+  await expect(composer).toHaveValue('Первая строка\nx');
+  expect(fake.requests).toHaveLength(0);
+  expect(fake.threads).toHaveLength(0);
+  await composer.press('Enter');
+  await expect(composer).toHaveValue('');
+  await expect(page.locator('.chat-user-bubble')).toHaveText('Первая строка\nx');
+  await expect(page.locator('.chat-turn-assistant')).toContainText('Ответ на многострочный вопрос');
+  expect(fake.requests).toHaveLength(1);
+});
+
+test.describe('AI history touch backdrop', () => {
+  test.use({ hasTouch: true });
+
+  test('tap dismisses without activating the send control underneath and allows reopening', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 750 });
+    const fake = await fixture(page);
+    await page.goto('/#/ai');
+    const composer = page.getByRole('textbox', { name: 'Сообщение ИИ' });
+    await composer.fill('Черновик под историей');
+    const send = page.getByRole('button', { name: 'Отправить сообщение' });
+    await expect(send).toBeEnabled();
+    const button = (await send.boundingBox())!;
+    const toggle = page.getByRole('button', { name: 'Открыть историю диалогов' });
+    const dialog = page.getByRole('dialog', { name: 'История диалогов' });
+    await toggle.tap();
+    await expect(dialog).toBeVisible();
+    const drawer = (await dialog.boundingBox())!;
+    const point = { x: button.x + button.width - 4, y: button.y + button.height / 2 };
+    expect(point.x).toBeGreaterThan(drawer.x + drawer.width);
+    // Record any event delivered through the modal to the actual underlying UI.
+    await page.locator('.chat-main').evaluate((main) => {
+      main.setAttribute('data-backdrop-actions', '0');
+      for (const type of ['touchstart', 'pointerdown', 'click', 'submit']) {
+        main.addEventListener(type, () => {
+          main.setAttribute(
+            'data-backdrop-actions',
+            String(Number(main.getAttribute('data-backdrop-actions')) + 1),
+          );
+        });
+      }
+    });
+    await page.touchscreen.tap(point.x, point.y);
+    await expect(dialog).toBeHidden();
+    await expect(toggle).toBeFocused();
+    await expect(page.locator('.chat-main')).toHaveAttribute('data-backdrop-actions', '0');
+    await expect(composer).toHaveValue('Черновик под историей');
+    expect(fake.requests).toHaveLength(0);
+    expect(fake.threads).toHaveLength(0);
+    await toggle.tap();
+    await expect(dialog).toBeVisible();
+    await expect(
+      dialog.getByRole('button', { name: 'Закрыть историю', exact: true }),
+    ).toBeFocused();
+  });
+});
+
+test('AI history drawer traps focus, paginates and closes after selection on narrow screens', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 640 });
+  const fake = await fixture(page);
+  const id = randomUUID();
+  fake.threads.push({ id, title: 'Схема проекта', updatedAt: NOW });
+  fake.messages.set(id, []);
+  const olderId = randomUUID();
+  fake.messages.set(olderId, []);
+  const pages: (string | null)[] = [];
+  await page.route(/\/api\/ai\/threads(?:\?.*)?$/, (route) => {
+    if (route.request().method() !== 'GET') return route.fallback();
+    const cursor = new URL(route.request().url()).searchParams.get('beforeId');
+    pages.push(cursor);
+    return route.fulfill({
+      json: cursor
+        ? { items: [{ id: olderId, title: 'Ранний диалог', updatedAt: NOW }], nextCursor: null }
+        : { items: fake.threads, nextCursor: { at: NOW, id } },
+    });
+  });
+  await page.goto('/#/ai');
+  const toggle = page.getByRole('button', { name: 'Открыть историю диалогов' });
+  const dialog = page.getByRole('dialog', { name: 'История диалогов' });
+  await expect(dialog).toBeHidden();
+  await toggle.click();
+  const close = dialog.getByRole('button', { name: 'Закрыть историю', exact: true });
+  await expect(close).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
+  await expect(dialog.getByRole('button', { name: 'Показать больше диалогов' })).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(close).toBeFocused();
+  await dialog.getByRole('button', { name: 'Показать больше диалогов' }).click();
+  await expect(dialog.getByRole('button', { name: 'Ранний диалог', exact: true })).toBeVisible();
+  // React StrictMode can replay the initial read. Pagination must still request
+  // its exact cursor once and must not create a second page request.
+  expect(pages.filter((cursor) => cursor !== null)).toEqual([id]);
+  await dialog.getByRole('searchbox', { name: 'Найти диалог' }).fill('Не существует');
+  await expect(dialog.getByText('Ничего не найдено в загруженной истории')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(dialog).toBeHidden();
+  await expect(toggle).toBeFocused();
+  await toggle.click();
+  await dialog.getByRole('searchbox', { name: 'Найти диалог' }).fill('');
+  await page.screenshot({ path: test.info().outputPath('ai-history-drawer-320.png') });
+  await dialog.getByRole('button', { name: 'Схема проекта', exact: true }).click();
+  await expect(dialog).toBeHidden();
+  await expect(page.locator('.asa-ai-current-title')).toHaveText('Схема проекта');
+  await expectChatFits(page);
+  await toggle.click();
+  // A native dialog backdrop receives outside clicks, including the narrow
+  // strip left available on a 320px screen.
+  await page.mouse.click(315, 400);
+  await expect(dialog).toBeHidden();
+  await expect(toggle).toBeFocused();
+});
+
+test('AI preserves automatic portal collapse as chat history closes and the screen shrinks', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 850 });
+  await fixture(page);
+  await page.goto('/#/ai');
+  await expect(page.locator('.portal-sidebar')).toHaveClass(/collapsed/);
+  await expect(page.locator('.portal-sidebar-collapse')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Свернуть историю' }).click();
+  for (const viewport of [
+    { width: 1024, height: 750 },
+    { width: 600, height: 750 },
+    { width: 390, height: 640 },
+    { width: 320, height: 480 },
+    { width: 768, height: 400 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await expectChatFits(page);
+    await page
+      .getByRole('textbox', { name: 'Сообщение ИИ' })
+      .fill('Черновик после изменения ширины');
+    await page.getByRole('button', { name: 'Открыть историю диалогов' }).click();
+    await expect(page.getByRole('dialog', { name: 'История диалогов' })).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expectChatFits(page);
+    await page.screenshot({ path: test.info().outputPath(`ai-collapsed-${viewport.width}.png`) });
+  }
+});
+
+test('AI confines long code and tables to message scrollers and copies the original source', async ({
+  page,
+  context,
+}) => {
+  await page.setViewportSize({ width: 320, height: 640 });
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  const source = `const project = "${'x'.repeat(400)}";`;
+  const answer = [
+    '```js',
+    source,
+    '```',
+    '',
+    '| Компонент | ' + 'Название | '.repeat(12),
+    '| --- | ' + '--- | '.repeat(12),
+    '| Arduino | ' + 'Значение | '.repeat(12),
+    '',
+    'https://example.test/' + 'long-path'.repeat(60),
+  ].join('\n');
+  const fake = await fixture(page, answer);
+  fake.release();
+  await page.goto('/#/ai');
+  await page.getByRole('textbox', { name: 'Сообщение ИИ' }).fill('Покажи исходный код');
+  await page.getByRole('button', { name: 'Отправить сообщение' }).click();
+  const copyCode = page.getByRole('button', { name: 'Копировать код' });
+  await expect(copyCode).toBeVisible();
+  await expectChatFits(page);
+  expect(
+    await page
+      .locator('.asa-ai-code-block pre')
+      .evaluate((node) => node.scrollWidth > node.clientWidth),
+  ).toBe(true);
+  expect(
+    await page
+      .locator('.asa-ai-table-scroll')
+      .evaluate((node) => node.scrollWidth > node.clientWidth),
+  ).toBe(true);
+  await copyCode.click();
+  await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(source);
+  await page.getByRole('button', { name: 'Копировать', exact: true }).click();
+  await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(answer);
+  await page.screenshot({ path: test.info().outputPath('ai-long-source-320.png') });
+});
+
+test('AI stop control saves a stopped reply and unlocks the composer', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 640 });
+  const fake = await fixture(page, 'Сохранённая часть ответа');
+  let stopRequests = 0;
+  await page.route('**/requests/*/stop', async (route) => {
+    stopRequests += 1;
+    fake.setCompletion('stopped');
+    fake.release();
+    await route.fulfill({ json: { stopped: true } });
+  });
+  await page.goto('/#/ai');
+  const composer = page.getByRole('textbox', { name: 'Сообщение ИИ' });
+  await composer.fill('Придумай проект');
+  await page.getByRole('button', { name: 'Отправить сообщение' }).click();
+  await expect(page.getByTestId('ai-pending-message')).toBeVisible();
+  await expect.poll(() => fake.requests.length).toBe(1);
+  await expectChatFits(page);
+  await page.getByRole('button', { name: 'Остановить генерацию' }).click();
+  await expect(page.getByText('Ответ остановлен.')).toBeVisible();
+  await expect(composer).toBeEnabled();
+  expect(stopRequests).toBe(1);
+  expect(fake.requests).toHaveLength(1);
+  await expectChatFits(page);
+});
+
+for (const width of [1440, 1024, 600, 390, 320]) {
   test(`AI text chat shows pending, model reply and saved history at ${width}px`, async ({
     page,
   }) => {
     await page.setViewportSize({ width, height: 750 });
     const fake = await fixture(page);
     await page.goto('/#/ai');
-    await expect(page.getByRole('heading', { name: 'Чем я могу помочь?' })).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: 'От идеи к работающему проекту' }),
+    ).toBeVisible();
     await page.getByRole('textbox', { name: 'Сообщение ИИ' }).fill('Что такое Arduino?');
     await page.getByRole('button', { name: 'Отправить сообщение' }).click();
     await expect(page.getByTestId('ai-pending-message')).toContainText('Что такое Arduino?');
@@ -579,7 +1135,7 @@ test('AI conversation rename and delete update the sidebar without phantom histo
   await expect(
     sidebar.getByRole('button', { name: 'Робототехника и Arduino', exact: true }),
   ).toHaveCount(0);
-  await expect(page.getByRole('heading', { name: 'Чем я могу помочь?' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'От идеи к работающему проекту' })).toBeVisible();
   await expect
     .poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
     .toBe(true);
@@ -641,7 +1197,7 @@ test('AI model picker uses only admin-allowed OpenAI models', async ({ page }) =
   expect(fake.models).toEqual(['gpt-4.1-mini']);
 });
 
-for (const width of [1440, 390, 320]) {
+for (const width of [1440, 600, 390, 320]) {
   test(`Admin tests the saved provider only with explicit paid consent at ${width}px`, async ({
     page,
   }) => {

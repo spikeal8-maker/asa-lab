@@ -45,7 +45,7 @@ function fixture(admission: 'allow' | 'replay' | Error = 'allow') {
           'event: response.completed\ndata: {"type":"response.completed"}\n\n',
       );
     }
-    return new Response(JSON.stringify({ output_text: 'OK' }));
+    return new Response(JSON.stringify({ status: 'completed', output_text: 'OK' }));
   });
   const service = new AiChatService({ query } as unknown as pg.Pool, {
     encryptionKey: ROOT,

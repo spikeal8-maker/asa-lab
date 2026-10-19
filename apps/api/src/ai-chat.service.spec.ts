@@ -192,6 +192,7 @@ describe('ASA native AI Chat', () => {
       async () =>
         new Response(
           JSON.stringify({
+            status: 'completed',
             output: [
               {
                 content: [{ type: 'output_text', text: 'Arduino — микроконтроллерная платформа.' }],
@@ -316,6 +317,257 @@ describe('ASA native AI Chat', () => {
     expect(finish?.params).toEqual([PRINCIPAL, THREAD, REQUEST, 'Не потерять', 'stopped']);
     expect(calls.some(({ sql }) => sql.includes('ai_chat_abort'))).toBe(false);
     expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(['openai', 'deepseek'] as const)(
+    'persists a partial legacy %s answer as stopped and does not recharge replay',
+    async (provider) => {
+      let admitted = false;
+      let answer: Record<string, unknown> | null = null;
+      const calls: Array<{ sql: string; params: unknown[] }> = [];
+      const query = vi.fn(async (sql: string, params: unknown[] = []) => {
+        calls.push({ sql, params });
+        if (sql.includes('ai_runtime_config')) {
+          return {
+            rows: [
+              {
+                ...secureRuntime(),
+                provider,
+                model: provider === 'openai' ? 'gpt-5-mini' : 'deepseek-chat',
+              },
+            ],
+          };
+        }
+        if (sql.includes('ai_chat_begin')) {
+          const replayed = admitted;
+          admitted = true;
+          return { rows: [{ admitted: !replayed }] };
+        }
+        if (sql.includes('ai_chat_messages')) {
+          return {
+            rows: [
+              {
+                id: 'user',
+                role: 'user',
+                content: 'Вопрос',
+                request_id: REQUEST,
+                created_at: new Date(1),
+              },
+              ...(answer ? [answer] : []),
+            ],
+          };
+        }
+        if (sql.includes('ai_chat_finish')) {
+          answer = {
+            id: 'answer',
+            role: 'assistant',
+            content: params[3],
+            state: params[4],
+            request_id: REQUEST,
+            created_at: new Date(2),
+          };
+        }
+        return { rows: [] };
+      });
+      const fetchImpl = vi.fn<typeof fetch>(
+        async () =>
+          new Response(
+            JSON.stringify(
+              provider === 'openai'
+                ? { status: 'incomplete', output_text: 'Частичный ответ' }
+                : {
+                    choices: [{ finish_reason: 'length', message: { content: 'Частичный ответ' } }],
+                  },
+            ),
+          ),
+      );
+      const service = new AiChatService({ query } as unknown as pg.Pool, {
+        encryptionKey: ROOT,
+        fetchImpl,
+      });
+      const sending = service.send(PRINCIPAL, THREAD, 'Вопрос', REQUEST);
+      if (provider === 'openai') {
+        await expect(sending).rejects.toMatchObject({
+          code: 'ai_response_incomplete',
+          status: 503,
+        });
+      } else {
+        expect((await sending).replayed).toBe(false);
+      }
+      const replay = await service.send(PRINCIPAL, THREAD, 'Вопрос', REQUEST);
+      expect(replay.replayed).toBe(true);
+      expect(replay.messages).toContainEqual(
+        expect.objectContaining({
+          content: 'Частичный ответ',
+          role: 'assistant',
+          state: 'stopped',
+        }),
+      );
+      expect(calls.filter(({ sql }) => sql.includes('ai_chat_finish'))).toEqual([
+        {
+          sql: 'SELECT ai_chat_finish($1,$2,$3,$4::varchar,$5::varchar)',
+          params: [PRINCIPAL, THREAD, REQUEST, 'Частичный ответ', 'stopped'],
+        },
+      ]);
+      expect(calls.some(({ sql }) => sql.includes('ai_chat_abort'))).toBe(false);
+      expect(fetchImpl).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it('uses the same digital-laboratory instruction for JSON and streaming requests', async () => {
+    const query = vi.fn(async (sql: string) => {
+      if (sql.includes('ai_runtime_config')) return { rows: [secureRuntime()] };
+      if (sql.includes('ai_chat_begin')) return { rows: [{ admitted: true }] };
+      return { rows: [] };
+    });
+    const fetchImpl = vi.fn<typeof fetch>(async (_url, options) => {
+      const body = JSON.parse(String(options?.body)) as { stream?: boolean };
+      return body.stream
+        ? new Response(
+            'event: response.output_text.delta\ndata: {"delta":"Ответ"}\n\n' +
+              'event: response.completed\ndata: {"type":"response.completed"}\n\n',
+          )
+        : new Response(JSON.stringify({ status: 'completed', output_text: 'Ответ' }));
+    });
+    const service = new AiChatService({ query } as unknown as pg.Pool, {
+      encryptionKey: ROOT,
+      fetchImpl,
+    });
+    await service.send(PRINCIPAL, THREAD, 'Вопрос', REQUEST);
+    await service.sendStream(
+      PRINCIPAL,
+      THREAD,
+      'Вопрос',
+      REQUEST,
+      () => undefined,
+      new AbortController().signal,
+    );
+    const prompts = fetchImpl.mock.calls.map(
+      ([, options]) => (JSON.parse(String(options?.body)) as { instructions: string }).instructions,
+    );
+    expect(prompts[0]).toBe(prompts[1]);
+    expect(prompts[0]).toContain('цифровой лаборатории ASA Lab');
+    expect(prompts[0]).toContain('создавать проекты');
+  });
+
+  it('stops an owned stream across UUID casing without stopping another owner or thread', async () => {
+    const principal = 'abcdefab-cdef-4abc-8abc-abcdefabcdef';
+    const thread = 'bcdefabc-defa-4bcd-9bcd-bcdefabcdefa';
+    const request = 'cdefabcd-efab-4cde-acde-cdefabcdefab';
+    const query = vi.fn(async (sql: string) => {
+      if (sql.includes('ai_runtime_config')) return { rows: [secureRuntime()] };
+      if (sql.includes('ai_chat_begin')) return { rows: [{ admitted: true }] };
+      return { rows: [] };
+    });
+    const fetchImpl = vi.fn<typeof fetch>(
+      async () => new Response('event: response.output_text.delta\ndata: {"delta":"Часть"}\n\n'),
+    );
+    const service = new AiChatService({ query } as unknown as pg.Pool, {
+      encryptionKey: ROOT,
+      fetchImpl,
+    });
+    const result = await service.sendStream(
+      principal.toUpperCase(),
+      thread.toUpperCase(),
+      'Вопрос',
+      request.toUpperCase(),
+      () => {
+        expect(service.stopStream(PRINCIPAL, thread, request)).toEqual({ stopped: false });
+        expect(service.stopStream(principal, THREAD, request)).toEqual({ stopped: false });
+        expect(service.stopStream(principal, thread, request)).toEqual({ stopped: true });
+      },
+      new AbortController().signal,
+    );
+    expect(result.stopped).toBe(true);
+    expect(query).toHaveBeenCalledWith('SELECT ai_chat_finish($1,$2,$3,$4::varchar,$5::varchar)', [
+      principal,
+      thread,
+      request,
+      'Часть',
+      'stopped',
+    ]);
+    expect(service.stopStream(principal, thread, request)).toEqual({ stopped: false });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps PostgreSQL microseconds in thread and message cursors', async () => {
+    const rows = Array.from({ length: 51 }, (_, index) => ({
+      id: `12345678-1234-4234-8234-${String(index).padStart(12, '0')}`,
+      title: 'Диалог',
+      role: 'user',
+      content: 'Сообщение',
+      request_id: REQUEST,
+      updated_at: new Date('2026-10-19T10:00:00.123Z'),
+      created_at: new Date('2026-10-19T10:00:00.123Z'),
+      cursor_at: `2026-10-19T10:00:00.123${String(index).padStart(3, '0')}Z`,
+    }));
+    const query = vi.fn(async () => ({ rows }));
+    const service = new AiChatService({ query } as unknown as pg.Pool);
+    const threads = await service.threadPage(PRINCIPAL);
+    expect(threads.items).toHaveLength(50);
+    expect(threads.items.at(-1)?.updatedAt).toBe('2026-10-19T10:00:00.123Z');
+    expect(threads.nextCursor).toEqual({ at: '2026-10-19T10:00:00.123049Z', id: rows[49]!.id });
+    const messages = await service.messagePage(PRINCIPAL, THREAD);
+    expect(messages.items).toHaveLength(50);
+    expect(messages.nextCursor).toEqual({ at: '2026-10-19T10:00:00.123001Z', id: rows[1]!.id });
+  });
+
+  it.each(['2026-10-19T10:00:00.123Z', '2026-10-19T10:00:00.123456Z'])(
+    'accepts a canonical timestamp cursor without rounding %s',
+    async (at) => {
+      const beforeId = 'ABCDEFAB-CDEF-4ABC-8ABC-ABCDEFABCDEF';
+      const ai = {
+        threadPage: vi.fn(async () => ({ items: [], nextCursor: null })),
+        messagePage: vi.fn(async () => ({ items: [], nextCursor: null })),
+      };
+      const controller = new AiChatController(
+        {
+          resolve: vi.fn(async () => ({
+            principalId: PRINCIPAL,
+            accountId: PRINCIPAL,
+          })),
+        } as unknown as ActiveContextUseCase,
+        ai as unknown as AiChatService,
+      );
+      const req = { cookies: {} } as unknown as FastifyRequest;
+      await controller.threads(req, at, beforeId);
+      await controller.messages(req, beforeId, at, beforeId);
+      expect(ai.threadPage).toHaveBeenCalledWith(PRINCIPAL, { at, id: beforeId.toLowerCase() });
+      expect(ai.messagePage).toHaveBeenCalledWith(PRINCIPAL, beforeId.toLowerCase(), {
+        at,
+        id: beforeId.toLowerCase(),
+      });
+    },
+  );
+
+  it.each([
+    '2026-02-30T10:00:00.123456Z',
+    '2026-10-19T24:00:00.123456Z',
+    '2026-10-19T10:00:00.1234Z',
+    '2026-10-19T10:00:00.1234567Z',
+    '2026-10-19T10:00:00.123456+00:00',
+    '2026-10-19T10:00:00.123456',
+  ])('rejects a noncanonical timestamp cursor %s before SQL', async (at) => {
+    const ai = { threadPage: vi.fn(), messagePage: vi.fn() };
+    const controller = new AiChatController(
+      {
+        resolve: vi.fn(async () => ({
+          principalId: PRINCIPAL,
+          accountId: PRINCIPAL,
+        })),
+      } as unknown as ActiveContextUseCase,
+      ai as unknown as AiChatService,
+    );
+    const req = { cookies: {} } as unknown as FastifyRequest;
+    await expect(controller.threads(req, at, THREAD)).rejects.toMatchObject({
+      status: 400,
+      response: { error: { code: 'ai_cursor_invalid' } },
+    });
+    await expect(controller.messages(req, THREAD, at, REQUEST)).rejects.toMatchObject({
+      status: 400,
+    });
+    expect(ai.threadPage).not.toHaveBeenCalled();
+    expect(ai.messagePage).not.toHaveBeenCalled();
   });
 
   it('explicit admin connection test verifies one response without enabling chat or storing a thread', async () => {

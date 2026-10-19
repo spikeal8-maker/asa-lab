@@ -506,3 +506,131 @@ workflow starts, and actual isolated CI with both exact identities. HTTP counts
 are observed traffic, not reads of the internal byAddress counter. If429 does
 not recur, report NOT_REPRODUCED and keep the cause unresolved. Existing Learning
 PR622 files, runtime/config/server, analytics11, QR629 and GC1 are outside scope.
+
+## Learning capture result and bounded batch-isolation experiment
+
+TASK-PROJ-PUBLICATION-LEARNING-BATCH-ISOLATION-001.
+Author branch: `codex/projects-learning-batch-isolation`.
+Only authored path: `.github/workflows/learning-e1-focused.yml`.
+
+The first authorized diagnostic completed on exact diagnostic
+`fb7a7b215096afd989a8b42635a14ffdd592259c` and independently pinned product
+`4343b88b788f02a279fd18df3789582994cb6b9e`: run39168489103, attempt1,
+job117796390954. Independent actual capture QA passed. The browser retained
+18 PASS / 5 login429 FAIL across all23 cases, with no skipped/interrupted cases
+or capture faults; the second batch was NOT_RUN and repair NOT_EVALUATED.
+
+The artifact contains only the allowed metadata and7055 unique five-field HTTP
+observations. Of these6097 were GET and958 were mutations. Before the first429,
+953 non-runtime mutations were observed, including934 successful2xx responses
+within256.006 seconds. Those successful requests passed the common guard; the
+remaining19 failures/disconnects cannot automatically be counted in its internal
+address counter. All293 analytics requests returned200, all164 diagnostics202,
+and no analytics409 occurred. Receipt bodies/event IDs were deliberately omitted,
+so HTTP200 alone cannot rule out every invalid-receipt retry.
+
+The actual Playwright execution order differs from the argument order shown in
+the original command above: courses-sharing (2 cases,222 mutations), then
+learning-author-preview (7 cases,109), then learning-course-01 (14 cases,627).
+The first two files accumulated331 mutations before the course suite. By the
+end of ordinal18,953 mutations had been observed; ordinals19-23 each stopped at
+their first login429. The course total627 includes five early failures and is
+not an upper bound for its complete14-case successful run.
+
+Exact source gives the address budget900/5min, session600/5min and shared-address
+ceiling9000/5min. Verified requests also consume the ordinary address budget;
+they may continue through aggregate allowance after it is exceeded, while a
+fresh login without cookies cannot. This supports cumulative fixture interaction
+through one API process. It does not establish whether the product policy should
+change. The observed five-minute interval is anchored to the first API timestamp;
+internal limiter counters and resetAt were NOT_OBSERVED.
+
+Artifact12151514511 is195071 bytes, SHA256
+`e56fccf3bfdfa02d25dfda2dcf2dd1c4c7a29a3fbf1ec98e497fa08014182f6c`.
+Real Node22.23.3, pnpm9.15.9, PostgreSQL16.15, both exact checkouts and all setup,
+build, migrations, restricted-role, focused Learning and Scratch stages passed.
+Individual PG counts were not saved by this diagnostic whitelist. Its nonzero
+browser exit remained the nonzero workflow result.
+
+### Selected experiment and unchanged acceptance boundary
+
+One CI author may now isolate the three original first-batch files with fresh
+ordinary Playwright-managed API processes, using only the existing Learning
+workflow. Start from the exact4343 analytics product to preserve causal comparison.
+Main later accepted that analytics source through685762419; this diagnostic fork
+does not compose the publication or replace the newer auth/AI changes in main.
+Fresh main185f43e scope inspection found no unfinished author on the Learning
+workflow. PR622 has since merged with frozen source3f37a8c, including newer
+Learning journeys. Preserve these accepted tests and all main auth/AI changes in
+final composition; this causal first23-case experiment cannot establish their
+acceptance. Keep all other owners and require the current main journey matrix in
+combined Learning CI.
+
+Preserve the effective courses-sharing, author-preview, course-01 order, all23
+cases and every assertion. Keep the original config, one worker, zero retries
+and all timeouts. All three files must execute even when an earlier file fails;
+aggregate their failure into a nonzero result. The original complete second
+batch runs only if the first batch succeeds. Keep every second-batch selector,
+assertion and existing setup/PG/unit/upgrade/build/Scratch gate. Reject changes
+to the original package script/spec matrix rather than silently dropping future
+cases. Preserve each invocation's artifacts under already-uploaded directories.
+
+No package.json, test, config/server, runtime, auth policy, limit, fixture or
+diagnostic630 edit is selected. No external-server reuse, artificial delay,
+limiter reset endpoint, proxy-identity substitution or session privilege change.
+The existing server lifecycle must remain responsible for setup and teardown.
+Per-file isolation changes all API memory lifetime between files, including
+caches and queues; it is a CI experiment, not a claim that only one counter resets.
+
+Require a separate independent source review and meaningful shell control-flow
+challenges for first/middle/last failure, complete first-batch execution, second-
+batch gating, matrix drift and preserved artifact paths before opening the PR.
+Then run actual changed-source Learning CI with all23 original cases, the full14
+course cases and the complete original second batch. Full success may support
+accepting this bounded CI repair; any remaining failure requires its actual
+cause. Do not repeat an unchanged failed run or claim a product-policy repair.
+GC1 and the single final PR613 convergence remain separate required dependencies.
+
+## Auth audit action compatibility for Coverage
+
+TASK-PROJ-PUBLICATION-AUTH-AUDIT-COVERAGE-001.
+Author branch: `codex/projects-auth-audit-coverage`.
+Prepared base: `33a2790cc8a95181f6fcff613e3a6ec6eaca78fe`.
+Only authored path: `apps/api/src/database-diagnostic-contract.json`.
+
+Independent read-only triage of actual Coverage run39174033312 on f562bee found
+the same failure in Windows job117812883707/step5 and Linux117812883939/step8:
+the existing dynamic migration regression at tools/test_coverage_diagnostics.py:136
+expects the action-only projection for administration.verification_policy.update
+but gets an empty object. Downstream PostgreSQL integration was NOT_RUN.
+
+Accepted Auth migration0219, introduced by d6972337018ff6836aebc2773605c0e31db9d14e,
+emits this audit action. It is missing from the existing closed diagnostic enum.
+A pure exact-source scan finds12 distinct real migration actions and exactly one
+missing value. Current33a2790 retains contract037200e44399b77df439dcf72ad2f4c7094182b7
+and regression testff28c77830ed56797e79af45b6a02040bb110285 unchanged.
+Relative to Public Projects this is a separate C baseline dependency.
+
+Coverage Issue610 owner handed off point8 source90e09831 and STOP in6251702346.
+Fresh Auth AUTH-C5-READINESS selection and published branch4614349 do not select
+or modify this JSON path. Issue135 comment6264235551 coordinates one separate
+author for this narrow compatibility repair and preserves all current Auth
+provider/backend/UI/installation ownership. Do not assign a duplicate writer.
+
+Add only the existing literal administration.verification_policy.update to
+sources.administrative_audit_events.fields.action.values. Keep every other value
+and closed projection unchanged. Existing tests must prove the original failure,
+all real audit actions, unknown-action rejection and omission of private reason
+and payload data. The dynamic regression already covers the omission; changing
+its source or weakening its assertions is outside scope.
+
+Require an independent review of the frozen one-file source before its PR starts
+the unchanged full Coverage Diagnostics workflow. Both platform collectors and
+the downstream actual PostgreSQL integration must pass on that exact source.
+A local environment-only resource/host collection failure is not evidence of a
+product regression and cannot replace the actual Windows/Linux CI result.
+
+No migration, audit writer, collector algorithm, Auth policy, rate-limit,
+timeout/retry, workflow, Learning, Scratch or GC1 modification is selected.
+No deployment or working database action. This repair does not close the separate
+Scratch, Learning or GC1 acceptance gates or select final PR613 convergence.

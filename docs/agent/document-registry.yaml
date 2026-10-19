@@ -390,7 +390,7 @@ documents:
     kind: target
     status: canonical
     authority: account_confirmation_policy
-    revision: '1.0'
+    revision: '1.1'
     context_role: task
     read_when: [account_confirmation, authentication_provider, provider_availability, admin_confirmation_policy]
 
