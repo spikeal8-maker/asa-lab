@@ -2508,7 +2508,7 @@ for (const role of ['account', 'seat', 'teacher', 'author', 'admin'] as const)
     );
     await expect(
       sidebar.getByRole('link', {
-        name: role === 'seat' ? 'Мои учебные работы' : 'Мои проекты',
+        name: 'Мои проекты',
         exact: true,
       }),
     ).toBeVisible();
