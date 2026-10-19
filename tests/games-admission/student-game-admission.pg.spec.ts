@@ -8,6 +8,7 @@ import { buildTestApp, type NestApp } from '../portal/app';
 import { httpContract } from './http-contract';
 import { listRevocationContract } from './reviewer-list-revocation';
 import { galleryGameCopyContract } from './reviewer-gallery-game-copy';
+import { newSeatLifecycleContract } from './reviewer-new-seat-lifecycle';
 
 // Opt-in only on isolated CI. Never silently use an application/dev DB URL.
 // Embedded tests above remain executable without any PostgreSQL service.
@@ -79,6 +80,7 @@ describe.skipIf(!enabled)(
     httpContract(() => ({ admin, runtime, app }), fixture);
     listRevocationContract(() => ({ admin, runtime, app }), fixture);
     galleryGameCopyContract(() => ({ admin, runtime, app }), fixture);
+    newSeatLifecycleContract(() => ({ admin, runtime, app }), fixture);
     it('serializes competing initial updates on the existing class row', async () => {
       // Fresh class with no policy row, two actual runtime connections.
       const f = await fixture();

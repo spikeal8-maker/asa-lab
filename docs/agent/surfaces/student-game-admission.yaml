@@ -38,6 +38,7 @@ surfaces:
         - contexts/projects/index.ts
         - migrations/0222_classroom_games_policy.sql
         - migrations/0223_classroom_games_admission_transaction.sql
+        - migrations/0224_classroom_new_seat_learner_identity.sql
         - apps/web/src/games/game-access-api.ts
         - apps/web/src/games/open-game.ts
         - apps/web/src/pages/GamesPage.tsx
@@ -63,6 +64,14 @@ surfaces:
       - TST-GAMES-ADMISSION-E2E-001
       - TST-PROJECT-SLICE-001
     controls:
+      - id: CTRL-GAMES-NEW-SEAT-IDENTITY
+        label: Initialize canonical learner identity only when issuing a genuinely new StudentCode Seat
+        change_class: L3_CRITICAL
+        files:
+          - migrations/0224_classroom_new_seat_learner_identity.sql
+        commands: [classroom_management_add_seat]
+        invariants: [IDA-SEAT-001, IDA-SCOPE-001, IDA-REV-001]
+        tests: [TST-GAMES-ADMISSION-CORE-001, TST-GAMES-ADMISSION-PG-001, TST-GAMES-ADMISSION-E2E-001]
       - id: CTRL-GAMES-CURRENT-ADMISSION
         label: Resolve current Seat before Account and open only verified offline game surfaces
         change_class: L3_CRITICAL

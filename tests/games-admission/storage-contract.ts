@@ -40,11 +40,25 @@ export function storageContract(clients: () => { admin: SqlClient; runtime: SqlC
         randomUUID().slice(0, 8),
       ])
     ).rows[0]!['id'] as string;
+    // The canonical creation command materializes a genuinely new StudentCode
+    // Seat, before sign-in or any teacher roster/participant preparation.
+    expect(
+      (
+        await admin.query(
+          `SELECT count(*)::int n FROM learner_identity_links link
+       JOIN learner_identities learner ON learner.id=link.learner_identity_id
+       WHERE link.seat_id=$1 AND link.link_kind='student_seat' AND link.status='active'
+         AND link.disabled_at IS NULL AND learner.state='active'
+         AND link.tenant_id=$2 AND learner.tenant_id=$2
+         AND link.school_id=$3 AND learner.school_id=$3`,
+          [seatId, teacher.tenantId, teacher.schoolId],
+        )
+      ).rows[0]?.['n'],
+    ).toBe(1);
     await admin.query(`UPDATE classroom_student_seats SET status='active' WHERE id=$1`, [seatId]);
-    await runtime.query('SELECT classroom_participant_prepare($1,$2::uuid[])', [
-      actor,
-      [classroomId],
-    ]);
+    // Trusted session resolution may create the Project principal, never repair
+    // an existing missing or disabled learner identity/link.
+    await runtime.query('SELECT principal_id FROM student_seat_principal($1)', [seatId]);
     const principal = (await admin.query('SELECT id FROM principals WHERE seat_id=$1', [seatId]))
       .rows[0]!['id'] as string;
     const token = randomUUID().replaceAll('-', '').repeat(2);
@@ -137,6 +151,117 @@ export function storageContract(clients: () => { admin: SqlClient; runtime: SqlC
         )
       ).rows[0]?.['n'],
     ).toBe(0);
+  });
+  it('materializes new batch Seats once, preserving code case and no repair on replay, duplicate or reissue', async () => {
+    const f = await fixture();
+    const requestId = randomUUID();
+    const students = JSON.stringify([
+      { displayLabel: 'First batch learner', loginHandle: 'AbC234', safeMode: true },
+      { displayLabel: 'Second batch learner', loginHandle: 'aBc234', safeMode: false },
+    ]);
+    const commit = async (request = requestId) =>
+      (
+        await f.runtime.query(
+          'SELECT * FROM public.classroom_student_seat_batch_commit_v2($1,$2,$3,$4::jsonb)',
+          [f.account, f.classroomId, request, students],
+        )
+      ).rows;
+    const created = await commit();
+    expect(created).toHaveLength(2);
+    expect(
+      created.map((row) => [
+        row['result_code'],
+        row['reused'],
+        row['row_status'],
+        row['login_handle'],
+      ]),
+    ).toEqual([
+      ['ok', false, 'created', 'AbC234'],
+      ['ok', false, 'created', 'aBc234'],
+    ]);
+    const seatIds = created.map((row) => row['seat_id'] as string);
+    const links = async () =>
+      (
+        await f.admin.query(
+          `SELECT link.seat_id,link.learner_identity_id FROM learner_identity_links link
+       JOIN learner_identities learner ON learner.id=link.learner_identity_id
+       WHERE link.seat_id=ANY($1::uuid[]) AND link.status='active' AND link.disabled_at IS NULL
+         AND learner.state='active' AND link.tenant_id=$2 AND learner.tenant_id=$2
+         AND link.school_id=$3 AND learner.school_id=$3`,
+          [seatIds, f.teacher.tenantId, f.teacher.schoolId],
+        )
+      ).rows;
+    const initialLinks = await links();
+    expect(initialLinks).toHaveLength(2);
+    expect(new Set(initialLinks.map((row) => row['learner_identity_id'])).size).toBe(2);
+    await f.admin.query('DELETE FROM learner_identity_links WHERE seat_id=$1', [seatIds[0]]);
+    expect((await commit()).map((row) => [row['reused'], row['seat_id']])).toEqual([
+      [true, seatIds[0]],
+      [true, seatIds[1]],
+    ]);
+    expect(await links()).toHaveLength(1);
+    expect((await commit(randomUUID())).map((row) => row['row_status'])).toEqual([
+      'duplicate',
+      'duplicate',
+    ]);
+    expect(await links()).toHaveLength(1);
+    const issued = await f.runtime.query(
+      'SELECT result_code FROM public.classroom_seat_credential_issue($1,$2,$3,$4,$5)',
+      [
+        f.account,
+        f.classroomId,
+        seatIds[0],
+        hashSessionToken('ReissuedNewCredential'),
+        randomUUID(),
+      ],
+    );
+    expect(issued.rows[0]?.['result_code']).toBe('issued');
+    expect(await links()).toHaveLength(1);
+    expect(
+      (
+        await f.admin.query('SELECT count(*)::int n FROM learner_identity_links WHERE seat_id=$1', [
+          seatIds[0],
+        ])
+      ).rows[0]?.['n'],
+    ).toBe(0);
+  });
+  it('keeps raw historical Seat rows unmaterialized and preserves the reserved Account-code validation', async () => {
+    const f = await fixture();
+    const rawId = randomUUID();
+    const code = `raw${randomUUID().slice(0, 6)}`;
+    await f.admin.query(
+      `INSERT INTO classroom_student_seats(id,tenant_id,classroom_id,display_label,
+       login_handle,normalized_login_handle,safe_mode,status,created_by)
+       VALUES($1,$2,$3,'Existing raw Seat',$4,$4,true,'issued',$5)`,
+      [rawId, f.teacher.tenantId, f.classroomId, code, f.teacher.teacherId],
+    );
+    await f.admin.query(`UPDATE classroom_student_seats SET status='active' WHERE id=$1`, [rawId]);
+    await f.runtime.query('SELECT principal_id FROM public.student_seat_principal($1)', [rawId]);
+    expect(
+      (
+        await f.admin.query('SELECT count(*)::int n FROM learner_identity_links WHERE seat_id=$1', [
+          rawId,
+        ])
+      ).rows[0]?.['n'],
+    ).toBe(0);
+    const countSeats = async () =>
+      (
+        await f.admin.query(
+          'SELECT count(*)::int n FROM classroom_student_seats WHERE classroom_id=$1',
+          [f.classroomId],
+        )
+      ).rows[0]?.['n'];
+    const before = await countSeats();
+    await expect(
+      f.runtime.query(
+        `SELECT * FROM public.classroom_management_add_seat($1,$2,'Invalid Account handle','acc:abcd',true)`,
+        [f.account, f.classroomId],
+      ),
+    ).rejects.toThrow('invalid student code');
+    expect(await countSeats()).toBe(before);
+    await expect(
+      f.runtime.query('SELECT public.learning_audience_ensure_seat_identity($1)', [rawId]),
+    ).rejects.toMatchObject({ code: '42501' });
   });
   it('persists class deny, explicit Seat allow/deny/inherit, audit/version and soft revoke', async () => {
     const f = await fixture();
