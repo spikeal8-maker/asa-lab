@@ -506,3 +506,87 @@ workflow starts, and actual isolated CI with both exact identities. HTTP counts
 are observed traffic, not reads of the internal byAddress counter. If429 does
 not recur, report NOT_REPRODUCED and keep the cause unresolved. Existing Learning
 PR622 files, runtime/config/server, analytics11, QR629 and GC1 are outside scope.
+
+## Learning capture result and bounded batch-isolation experiment
+
+TASK-PROJ-PUBLICATION-LEARNING-BATCH-ISOLATION-001.
+Author branch: `codex/projects-learning-batch-isolation`.
+Only authored path: `.github/workflows/learning-e1-focused.yml`.
+
+The first authorized diagnostic completed on exact diagnostic
+`fb7a7b215096afd989a8b42635a14ffdd592259c` and independently pinned product
+`4343b88b788f02a279fd18df3789582994cb6b9e`: run39168489103, attempt1,
+job117796390954. Independent actual capture QA passed. The browser retained
+18 PASS / 5 login429 FAIL across all23 cases, with no skipped/interrupted cases
+or capture faults; the second batch was NOT_RUN and repair NOT_EVALUATED.
+
+The artifact contains only the allowed metadata and7055 unique five-field HTTP
+observations. Of these6097 were GET and958 were mutations. Before the first429,
+953 non-runtime mutations were observed, including934 successful2xx responses
+within256.006 seconds. Those successful requests passed the common guard; the
+remaining19 failures/disconnects cannot automatically be counted in its internal
+address counter. All293 analytics requests returned200, all164 diagnostics202,
+and no analytics409 occurred. Receipt bodies/event IDs were deliberately omitted,
+so HTTP200 alone cannot rule out every invalid-receipt retry.
+
+The actual Playwright execution order differs from the argument order shown in
+the original command above: courses-sharing (2 cases,222 mutations), then
+learning-author-preview (7 cases,109), then learning-course-01 (14 cases,627).
+The first two files accumulated331 mutations before the course suite. By the
+end of ordinal18,953 mutations had been observed; ordinals19-23 each stopped at
+their first login429. The course total627 includes five early failures and is
+not an upper bound for its complete14-case successful run.
+
+Exact source gives the address budget900/5min, session600/5min and shared-address
+ceiling9000/5min. Verified requests also consume the ordinary address budget;
+they may continue through aggregate allowance after it is exceeded, while a
+fresh login without cookies cannot. This supports cumulative fixture interaction
+through one API process. It does not establish whether the product policy should
+change. The observed five-minute interval is anchored to the first API timestamp;
+internal limiter counters and resetAt were NOT_OBSERVED.
+
+Artifact12151514511 is195071 bytes, SHA256
+`e56fccf3bfdfa02d25dfda2dcf2dd1c4c7a29a3fbf1ec98e497fa08014182f6c`.
+Real Node22.23.3, pnpm9.15.9, PostgreSQL16.15, both exact checkouts and all setup,
+build, migrations, restricted-role, focused Learning and Scratch stages passed.
+Individual PG counts were not saved by this diagnostic whitelist. Its nonzero
+browser exit remained the nonzero workflow result.
+
+### Selected experiment and unchanged acceptance boundary
+
+One CI author may now isolate the three original first-batch files with fresh
+ordinary Playwright-managed API processes, using only the existing Learning
+workflow. Start from the exact4343 analytics product to preserve causal comparison.
+Main later accepted that analytics source through685762419; this diagnostic fork
+does not compose the publication or replace the newer auth/AI changes in main.
+Fresh main185f43e scope inspection found no unfinished author on the Learning
+workflow. PR622 has since merged with frozen source3f37a8c, including newer
+Learning journeys. Preserve these accepted tests and all main auth/AI changes in
+final composition; this causal first23-case experiment cannot establish their
+acceptance. Keep all other owners and require the current main journey matrix in
+combined Learning CI.
+
+Preserve the effective courses-sharing, author-preview, course-01 order, all23
+cases and every assertion. Keep the original config, one worker, zero retries
+and all timeouts. All three files must execute even when an earlier file fails;
+aggregate their failure into a nonzero result. The original complete second
+batch runs only if the first batch succeeds. Keep every second-batch selector,
+assertion and existing setup/PG/unit/upgrade/build/Scratch gate. Reject changes
+to the original package script/spec matrix rather than silently dropping future
+cases. Preserve each invocation's artifacts under already-uploaded directories.
+
+No package.json, test, config/server, runtime, auth policy, limit, fixture or
+diagnostic630 edit is selected. No external-server reuse, artificial delay,
+limiter reset endpoint, proxy-identity substitution or session privilege change.
+The existing server lifecycle must remain responsible for setup and teardown.
+Per-file isolation changes all API memory lifetime between files, including
+caches and queues; it is a CI experiment, not a claim that only one counter resets.
+
+Require a separate independent source review and meaningful shell control-flow
+challenges for first/middle/last failure, complete first-batch execution, second-
+batch gating, matrix drift and preserved artifact paths before opening the PR.
+Then run actual changed-source Learning CI with all23 original cases, the full14
+course cases and the complete original second batch. Full success may support
+accepting this bounded CI repair; any remaining failure requires its actual
+cause. Do not repeat an unchanged failed run or claim a product-policy repair.
+GC1 and the single final PR613 convergence remain separate required dependencies.

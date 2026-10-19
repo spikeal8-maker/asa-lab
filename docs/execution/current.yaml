@@ -4537,6 +4537,56 @@ parallel_lanes:
           independent source review before starting this workflow, and actual isolated
           CI with exact identities and preserved failure status. Counts are observed HTTP
           traffic, not internal limiter state; no429 is NOT_REPRODUCED, never a repair PASS.
+        observed_evidence: >-
+          Diagnostic PR630 fb7a7b215096afd989a8b42635a14ffdd592259c completed actual
+          run39168489103 on separately pinned product4343b88b. Independent capture QA
+          PASS: COMPLETE,7055 unique five-field records,faults0,23 cases18 PASS/5 login429
+          FAIL,second batch NOT_RUN. Before first429,934 successful non-runtime mutations
+          passed the common guard within256.006 seconds; the first two specs contributed331
+          mutations. Internal limiter counters/resetAt and raw receipt bodies were not
+          observed. Artifact12151514511 SHA256e56fccf3bfdfa02d25dfda2dcf2dd1c4c7a29a3fbf1ec98e497fa08014182f6c.
+          This establishes cumulative test-window interference, not a product-policy verdict
+          or accepted repair. Main later accepted analytics4343 through merge685762419.
+      - id: TASK-PROJ-PUBLICATION-LEARNING-BATCH-ISOLATION-001
+        status: in_progress
+        branch: codex/projects-learning-batch-isolation
+        prepared_base: 4343b88b788f02a279fd18df3789582994cb6b9e
+        scope:
+          - .github/workflows/learning-e1-focused.yml
+        selection: >-
+          Bounded CI isolation experiment from the completed exact-product capture above.
+          The original first23-case batch shares one API process and its900/5min address
+          budget. Verified requests also consume that budget; later new no-cookie logins
+          fail after successful fixtures accumulated across files. Keep the application
+          policy intact and test whether fresh ordinary Playwright-managed API processes
+          between the three original first-batch specs remove their hidden order dependency.
+          This changes all inter-file API memory lifetime, not just limiter state; sufficient
+          isolation and underlying repair acceptance remain unproven until changed-source CI.
+        author_coordination: >-
+          One separate CI author owns only this workflow after canonical main acceptance.
+          Fork the exact analytics4343 product for causal comparison; this is not the final
+          publication convergence. Fresh main185f43e has merged Learning PR6223f37a8c,
+          including newer journey tests; no unfinished writer on this workflow was found.
+          Preserve all accepted main auth/AI/Learning changes in final composition. This
+          causal first23-case experiment does not accept the newer main journey matrix.
+          Do not edit package.json, specs, config/server, application limits, shared fixtures,
+          diagnostic630, Scratch evidence, completed QR629 or the GC1 guard/receipts.
+        acceptance: >-
+          Preserve the effective order courses-sharing then learning-author-preview then
+          learning-course-01, every original case/assertion, one worker, zero retries and
+          existing timeouts. Run all three specs even if one fails, aggregate a nonzero exit,
+          and run the original complete second batch only after first-batch success. Keep
+          Node22,pnpm9.15.9,frozen install,uncached build,PG16 restricted role,all unit/upgrade
+          gates and exact pinned Scratch preparation unchanged. Keep original browser config
+          and ordinary server lifecycle; no external-server reuse, limiter reset API, sleeps,
+          proxy identity, session privilege or auth bypass. Reject drift of the original
+          package script/spec matrix instead of silently omitting cases; preserve artifacts
+          from each invocation below existing uploaded paths. Independently challenge actual
+          shell failure aggregation/order/coverage before the PR triggers any changed CI.
+          Require all23 cases including the previously failing five and the complete original
+          second batch on the new exact SHA. The observed627 course mutations included five
+          early failures and are not a bound on the full14-case suite. Any remaining failure
+          stays a failure and requires its actual cause; no repeat of an unchanged run.
       - id: TASK-PROJ-PUBLICATION-SHELL-AI-COMPATIBILITY-001
         status: in_progress
         branch: codex/projects-shell-ai-compatibility
