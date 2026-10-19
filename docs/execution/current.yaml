@@ -167,7 +167,12 @@ parallel_lanes:
             Search and archive remain scoped to the canonical Account or Seat owner.
       integration_dependencies:
         - id: AI-BASELINE-LEARNING-006
-          status: pending_selection
+          status: in_progress
+          author_branch: assistant/ai-learning-compatibility-20261019
+          selected_scope:
+            - e2e/learning-learner-submits-project-assignment.spec.ts
+            - e2e/learning-surface-convergence.spec.ts
+            - e2e/learning-teacher-assigns-activity.spec.ts
           classification: C
           evidence_runs: [39226475997, 39226473852]
           cause: >-
@@ -175,11 +180,22 @@ parallel_lanes:
             lists on the former default tab after PR622. Both independent AI
             candidates reproduce the same failures; their required general
             repository and AI-focused gates pass on the exact accepted heads.
-          required_followup: >-
-            Before combined programme acceptance, select a separate bounded
-            compatibility repair for explicit Learning destinations and verify
-            those journeys without weakening assertions or changing Learning
-            product behavior. Preserve any concurrent Learning repair.
+          selection: >-
+            Controller selects a separate bounded compatibility repair for the
+            existing seven failing journeys: open the accepted assignments or
+            courses workspace tab before inspecting its list. Preserve every
+            original case, API/identity/data assertion and the default Overview
+            product behavior. Do not change runtime, fixtures, workflow, retries,
+            timeouts, rate limits or authorization to obtain a passing result.
+          coordination: >-
+            The Projects controller separately owns Learning workflow batch
+            isolation and Auth audit coverage. Preserve those authors and paths;
+            this selection changes only the three existing browser specs above.
+          acceptance: >-
+            Require independent exact-source review and the unchanged complete
+            Learning E1 workflow on the new SHA, including its real PostgreSQL
+            and browser journeys. Record any unrelated failure by its actual
+            cause; this test companion does not accept the Learning programme.
       dependency_sequence:
         - text_convergence_and_focused_ci
         - teacher_controlled_student_admission
