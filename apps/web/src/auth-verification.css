@@ -382,6 +382,7 @@
   align-items: center;
   flex-wrap: wrap;
   gap: 0.7rem;
+  overflow-wrap: normal;
 }
 
 .auth-admin-provider > footer .btn-primary {

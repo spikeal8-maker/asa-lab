@@ -1287,6 +1287,61 @@ test('registration timeout retains unknown-result guidance and does not repeat t
   expect(await heldRequests(page)).toBe(1);
 });
 
+async function expectReadableProviderSaveActions(page: Page, width: number): Promise<void> {
+  const buttons = page
+    .locator('.auth-admin-provider > footer')
+    .getByRole('button', { name: 'Проверить и сохранить', exact: true });
+  await expect(buttons).toHaveCount(2);
+  const measurements = await buttons.evaluateAll((elements) =>
+    elements.map((button) => {
+      const lines = (range: Range): number =>
+        new Set(
+          Array.from(range.getClientRects())
+            .filter((rect) => rect.width > 0 && rect.height > 0)
+            .map((rect) => Math.round(rect.top)),
+        ).size;
+      const label = document.createRange();
+      label.selectNodeContents(button);
+      const brokenWords: string[] = [];
+      const walker = document.createTreeWalker(button, NodeFilter.SHOW_TEXT);
+      let node = walker.nextNode();
+      while (node) {
+        for (const word of (node.nodeValue ?? '').matchAll(/\S+/gu)) {
+          if (word.index === undefined) continue;
+          const range = document.createRange();
+          range.setStart(node, word.index);
+          range.setEnd(node, word.index + word[0].length);
+          if (lines(range) > 1) brokenWords.push(word[0]);
+        }
+        node = walker.nextNode();
+      }
+      const rect = button.getBoundingClientRect();
+      return {
+        provider: button.closest('form')?.getAttribute('aria-label'),
+        text: button.textContent?.trim(),
+        width: rect.width,
+        height: rect.height,
+        fontSize: getComputedStyle(button).fontSize,
+        lineCount: lines(label),
+        brokenWords,
+      };
+    }),
+  );
+  await test.info().attach(`admin-primary-labels-${width}-font150`, {
+    body: JSON.stringify(measurements, null, 2),
+    contentType: 'application/json',
+  });
+  for (const measurement of measurements) {
+    // Readable labels may wrap at spaces on mobile; words must stay intact.
+    expect(measurement.brokenWords, `${measurement.provider}: whole CTA words`).toEqual([]);
+    expect(measurement.lineCount).toBeGreaterThan(0);
+    expect(
+      measurement.lineCount,
+      `${measurement.provider}: primary label lines`,
+    ).toBeLessThanOrEqual(width >= 1024 ? 1 : 2);
+  }
+}
+
 for (const width of [1440, 1024, 390, 320]) {
   test(`confirmation and provider readiness remain usable at ${width}px font150`, async ({
     page,
@@ -1320,6 +1375,7 @@ for (const width of [1440, 1024, 390, 320]) {
     await screenshot(page, `admin-readiness-${width}-normal`);
     await enlargeText(page);
     await screenshot(page, `admin-readiness-${width}-font150`);
+    await expectReadableProviderSaveActions(page, width);
     expect(state.requests.filter((request) => request.method === 'PUT')).toHaveLength(0);
   });
 }
