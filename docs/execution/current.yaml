@@ -4959,9 +4959,19 @@ parallel_lanes:
           exact build identity and durable JSON artifacts. Existing failures remain failures;
           no reproduction is NOT_REPRODUCED and does not establish an underlying repair.
       - id: TASK-PROJ-PUBLICATION-AUTH-AUDIT-COVERAGE-001
-        status: in_progress
+        status: done
         branch: codex/projects-auth-audit-coverage
         prepared_base: 33a2790cc8a95181f6fcff613e3a6ec6eaca78fe
+        accepted_source: fc618912663932a84b6766214abff0769ff65a0d
+        accepted_merge: 0775369238e768780f1fb4ba80a1c72a606498c4
+        accepted_evidence: >-
+          PR635 added only the existing administration.verification_policy.update enum
+          value. Independent source, exact-source Coverage 39234778016 and General 39234463164
+          passed before normal merge. Post-main Coverage 39239866711 on exact 07753692
+          passed both Linux/Windows collectors and actual PostgreSQL/HTTP 4/4 with no skips;
+          the unchanged dynamic regression and cleanup passed. Review 5570412528 and
+          post-main receipt comment 6265787927 preserve identity and scope. General 39239866474
+          on 077 was cancelled, not PASS; the focused post-main result does not close other gates.
         scope:
           - apps/api/src/database-diagnostic-contract.json
         selection: >-
@@ -4991,6 +5001,31 @@ parallel_lanes:
         status: in_progress
         branch: codex/projects-learning-declaration-isolation
         prepared_source: 7f4d87d3c5a361b25db2bc4f05b62501db856d52
+        checkpoint: source_and_actual_pass_final_composition_pending
+        reviewed_source: 4a651e236e2e7b97aa7c61c59243e92da21b3bf3
+        reviewed_pr: 639
+        observed_evidence: >-
+          Independent source review 5570996802 passed 43 fresh challenges. Actual review 5571335619
+          confirms Learning 39246261889 and General 39246261874 SUCCESS on exact 4a651e23,
+          pull_request attempt 1. All 23 first cases and original 15 second cases actually passed,
+          with no missing/extra/duplicate/skipped/interrupted/retried results. Independent raw
+          evidence checks 246/246 passed across 17 discovery reports and 15 execution/coverage/exit
+          receipts; all 45 exit fields are 0. Runtime 19m43s fits the unchanged 30-minute job limit.
+          General Data 4410 PASS plus 2 explicit opt-in skips and RLS 16/16; Access 897 PASS plus 1
+          explicit opt-in skip, real browser 22/22 and synthetic 409/409. Setup/pin/upgrade/cleanup
+          passed. Artifact 12184038478 SHA256 601bd2aef5391c25ad20a69d8d4f3624ee9c84b82ff0cbe9c0e46ff580d23108.
+          This accepts the workflow slice on its causal source, not current-main composition,
+          universal 429 repair, GC1 or stage 2 completion. No unchanged rerun or local runtime.
+        external_navigation_evidence: >-
+          Exclusive AI-owned PR636 source 7e7ba2fc083bf09e003a52d8f1234d4c5d5b634a passed
+          independent source review 5570795930 and actual review 5571072163. Learning 39242480208
+          executed all 23+15 cases without skips/retries; General 39242480216 passed all 4 jobs.
+          Three specs retain their original 15 cases and assertions with 7 native navigation
+          clicks. Normal merge 896d1c6ba23e119784c7ef63351d97a43be1ede2 accepted PR636
+          at 2026-10-19T12:14:35Z with parents 4c4bbed5 and exact 7e7. The diff from main
+          contains only the three authored specs, 28 additions and no deletions. The source
+          and actual receipts are separate from PR639 and do not replace a combined final-main gate.
+          Preserve the external author and do not create a second writer on these specs.
         scope:
           - .github/workflows/learning-e1-focused.yml
         selection: >-
@@ -5046,6 +5081,36 @@ parallel_lanes:
         status: in_progress
         branch: codex/projects-scratch-recovery-timing
         prepared_source: 8f2cc69835cb7cf135d2390319651c315c496e54
+        checkpoint: lint_correction_source_general_zip_pass_host_pending_successors_selected
+        reviewed_source: 7855e044cd78d113995a5063aa2773cbdadbc0ad
+        reviewed_pr: 640
+        observed_evidence: >-
+          Independent source review 5570997001 passed 41 fresh checks, but actual Scratch 39246461068
+          contracts job 118039465899 failed with five no-unsafe-finally findings at lines
+          782/806/818/833/842 after 120/120 Node contracts passed. This is a source-specific
+          category A lint defect; General 39246461203 SUCCESS does not cover that Scratch
+          ESLint command and does not negate the failure. PR640 comment 6266559709 records
+          the bounded correction. The same author froze local f7fec4998706dd241fe6834978e18d187a40aeba
+          as a child of 12f6a67c, whose full tree equals published 7855. Only the selected finally
+          changes 21+/16- to natural error propagation with completion flags. Exact CI ESLint
+          and 38 author incremental checks pass. Independent review 5571458754 adds 5 AST,
+          189 paired differential and 16 writer-fault PASS checks, including a baseline
+          positive control reproducing all five lint errors with both lint rules active.
+          Normal child 8136084149cc0831e7aa8d6edcfaa1abc15af895 has the exact reviewed full
+          tree 353cd1c56a8b64670d4256a9f003b966a3c0f543. New Scratch 39251440320 and General
+          39251440341 are separate attempt 1 runs. General is terminal SUCCESS on exact 813:
+          Data 4410 PASS plus 2 opt-in skips and RLS 16/16; Access 897 PASS plus 1 opt-in skip,
+          real browser 22/22 and synthetic 409/409, with required cleanup. Scratch contracts
+          and fresh ZIP jobs passed; safe ZIP proof confirms exact source, first autosave
+          revision 1 to 2 and fresh reopen/no-op persistence. The host gate remains in progress
+          at this observation; complete actual acceptance remains pending.
+          The old host is terminal: independent actual review 5571616550 confirms 55 PASS and 2 FAIL
+          among 57 cases, with clean-Pop Abby and failed autosave failing. Artifact 12185785480
+          is preserved once, 143276549 bytes, SHA256 d5742f870282facacf382f6c9ec7778dca87646f79d64de9fc0ed20d0c758b16.
+          Schema 2 validation passed with 22 monotonic events and zero capture counters;
+          the test outcome is INCOMPLETE. The old exact-source verdict is NEEDS_FIX.
+          The artifact preservation barrier precedes any child ref update. No gate suppression,
+          schema/assertion/timeout/runtime change is selected; failures are not accepted as PASS.
         scope:
           - e2e/blocks-recovery.spec.ts
         selection: >-
@@ -5085,6 +5150,104 @@ parallel_lanes:
           persistence behavior and privacy, then run changed-source Scratch CI with
           exact pinned build identity and all original cases. A timeout remains FAIL;
           nonreproduction is NOT_REPRODUCED and does not establish a runtime repair.
+      - id: TASK-PROJ-PUBLICATION-SCRATCH-RECOVERY-TERMINAL-001
+        status: in_progress
+        branch: codex/projects-scratch-recovery-terminal
+        prepared_source: 8136084149cc0831e7aa8d6edcfaa1abc15af895
+        checkpoint: bounded_negative_503_terminal_synchronization_selected
+        scope:
+          - e2e/blocks-recovery.spec.ts
+        selection: >-
+          Separate C test/dependency repair after independent exact-source investigation
+          of old 7855 actual evidence. The same Request emitted requestfailed at 59286 ms,
+          but the selected Response.finished await continued only at 150040 ms. Pinned
+          Playwright 1.55.1 client _onRequestFailed emits the terminal event without
+          completing Response._finishedPromise; only _onRequestFinished completes that
+          client wait. This inherited synchronization boundary is distinct from the fixed
+          five lint findings. The source of Chromium loadingFailed remains UNKNOWN.
+          Fixture intentionally returns HTTP 503 and ends before revision mutation;
+          no fixture, product, protocol or dependency-version repair is selected.
+        author_coordination: >-
+          One separate bounded author starts from exact 81360841 or its tree-identical
+          frozen local f7fec499 on a new branch. The previous timing author has completed
+          and frozen its source; the active reviewers only read it. Preserve PR632 and
+          PR640, both diagnostic files and their actual evidence. Do not update or cancel
+          the existing 813 runs. Modify only completion synchronization in this selected
+          failed-autosave case and necessary local declarations/imports; no Abby, fixture,
+          runtime, workflow, Learning, QR or external GC1/D13 shared-source edits.
+        acceptance: >-
+          Register public Request terminal observations before the triggering edit/request.
+          Associate the selected response and terminal FINISHED or FAILED by strict object
+          identity, including events that arrive before response selection. Foreign requests,
+          headers alone, ambiguous matching, page close/crash, timeout and arbitrary promise
+          rejection cannot count as a successful terminal observation. Preserve FINISHED
+          versus FAILED in evidence; do not report a fabricated Response.finished success.
+          For this intentional 503 negative case, either actual terminal kind must be
+          followed by every original status/security/origin/content-type/baseRevision/payload/
+          request-count/no-mutation and IndexedDB recovery assertion. Require actual final
+          recovery Steps 73, one recovery record and unchanged server revision 23.
+          Preserve all 118 assertion ASTs, actions, 150000 ms test timeout, 90000 ms response
+          timeout, one worker, zero retries, current lint correction, attachment suppression
+          and fixture.close semantics. Remove listeners on all exits without suppressing
+          the original error or creating an unhandled deferred rejection. Keep bounded safe
+          diagnostics and I/O-failure behavior. No catch(ignore), success-valued timeout,
+          retries, sleeps, extra save trigger, private Playwright fields or weaker assertion.
+          Require meaningful independent event-order/identity/early-failure/cleanup/error/
+          privacy challenges and exact Scratch ESLint, then full changed-source Scratch
+          with all original 57 cases and required General CI. A source PASS is not runtime
+          acceptance; a remaining Abby failure stays a separate finding. No local ASA,
+          server, browser journeys, PostgreSQL or Docker. Controller integrates only after
+          the final source review and actual gates; stage 2 and PR613 composition remain pending.
+      - id: TASK-PROJ-PUBLICATION-SCRATCH-ABBY-CALLBACK-EVIDENCE-001
+        status: in_progress
+        branch: codex/projects-scratch-abby-callback-evidence
+        prepared_source: 8136084149cc0831e7aa8d6edcfaa1abc15af895
+        checkpoint: passive_callback_dispatch_serialization_observation_selected
+        scope:
+          - e2e/blocks-product-integration.spec.ts
+        selection: >-
+          Separate passive test-evidence task after independent investigation of exact
+          7855 actual artifacts and its built pinned Scratch 82c5fea6 / 15.1.1 source map.
+          Clean Pop has timer entry/return but no asset-store or save-project entry and
+          remains revision 23; native Pop reaches revision 24. The fired callback is not
+          linked to the registered ProjectSaver, and dispatch/serialization are not observed.
+          A timer return does not establish guard passage, save start or Promise settlement.
+          The clean fixture adds an async load wrapper as well as the clean bit, and actual
+          valid timer intervals differ. Product, fixture and clock causes remain UNKNOWN;
+          no repair to any of them is selected. Recovery serialization is a separate call.
+        author_coordination: >-
+          Assign a separate author on exact 81360841 or its tree-identical local f7fec499,
+          using a new branch and only the two existing Abby cases and their local observer.
+          The recovery-terminal author owns the other spec; neither edits the other's file.
+          Preserve PR632/PR640 and their pending or completed actual evidence. The controller
+          may compose the independently frozen nonoverlapping slices into one new child of
+          813 only after independent source review and preservation of the terminal 813
+          host artifact. Do not update/cancel existing runs or copy other mutable branches.
+        acceptance: >-
+          Use existing mountEditor/createStandaloneRoot/root.render embedding boundaries,
+          original onSetProjectSaver/onVmInit callbacks and the public EditorState store;
+          add no runtime debug export. Keep the original registered ProjectSaver function
+          unchanged and associate raw scheduled callback by strict reference identity,
+          including replacement/unmount, multiple registrations and unknown states.
+          Observe bounded Redux state and the original START_AUTO_UPDATING dispatch/state
+          transition without calling dispatch or invoking a save. Redux state is not proof
+          of the live React instance props. Observe only original vm.toJSON entry/return/throw,
+          with bounded identity and call ordinal; never call it extra or store its result.
+          Recovery/unattributed VM calls are not relabeled ProjectSaver serialization.
+          Preserve original this, arguments, call counts, synchronous returns, Promise
+          identity and thrown values, descriptors, registration and teardown behavior.
+          No additional product Promise reactions, awaits, serialization, retry, delay,
+          reschedule, save trigger, clean/cache/media change or weaker assertion.
+          Retain every original assertion AST, case, action, clock and timeout. Metadata
+          stays closed, bounded and credential/payload/error-text free; capture failures
+          remain fail-open and distinguish UNKNOWN/NOT_OBSERVED/INCOMPLETE from PASS.
+          Require independent passivity, identity, registration replacement, descriptor,
+          error, cleanup, causality-label and writer-fault challenges, plus exact ESLint.
+          Actual evidence must come from full changed-source Scratch with all 57 original
+          cases and fresh ZIP, and required General on the reviewed final source. Both
+          Abby variants need durable safe reports; nonreproduction is NOT_REPRODUCED and
+          does not prove an underlying fix. No local ASA/server/browser/PostgreSQL/Docker.
+          This selected observation does not accept stage 2 or start PR613 composition.
     accepted_foundation:
       accepted_r7_01b_merge_sha: 65316c50873e28a5effd7b6e603b5289e37e2fac
       accepted_r3_merge_sha: 5fa616045b16d2720418eb7945f7bef968dd9389
@@ -5093,19 +5256,40 @@ parallel_lanes:
       kind: observed_snapshot
       convergence_baseline_sha: d2b623f3c59b504e60738d24cc8b627dfc7a04d2
       head_sha: null
-      observed_at: '2026-10-18T19:15:00Z'
+      observed_at: '2026-10-19T12:49:32Z'
       main:
         branch: main
-        sha: e2677c3735b8a14b99691c59a38b050f685f10b3
+        sha: 62c45f6fc5a44ab0d73e5f31e6c1c406a2833c08
       observation_note: >-
-        Draft PR613 on codex/projects-visible-publication has exact662c8af4 source review PASS;
-        publication39154885397 passed142 code/real-PG,
-        48portal and8browser checks, with37 exact-revision screenshots independently read.
-        General39154885429 Code/Governance/Data PASS, including4445 Data and16 RLS checks.
-        Access rating timeout and Learning analytics failures remain external blockers.
-        Main e267 has a newer General PG/artifact guard contract under independent review;
-        require fresh fetch main and overlap check, preserve shared GC1 ownership and
-        require one controlled final composition.
+        Fresh remote main at 12:49:32Z is 62c45f6fc5a44ab0d73e5f31e6c1c406a2833c08;
+        preserve its AI governance changes and the preceding accepted AI specs and
+        Electronics D13/hygiene selection when publishing this bounded Projects selection.
+        General 39251827920 on preceding 15de was cancelled at 12:41:20Z, not PASS;
+        historical 4c General 39245418869 is SUCCESS by API metadata only, not new main acceptance.
+        Coverage635 is merged with focused post-main PASS. Learning639 has independent source
+        and causal actual PASS; external AI636 has its own source/actual PASS. QR629 remains
+        frozen at 9a3c82237730fa710c671522ad1e0662ad9aea3f with its completed source/Classroom/General
+        evidence, held for the controlled combined acceptance. Scratch640 has the exact lint
+        failure and a reviewed lint child 81360841 with General/fresh ZIP PASS and host
+        actual QA pending. Separate bounded recovery terminal-wait repair and passive Abby
+        callback evidence successors are selected from that frozen source. PR613 remains
+        unchanged at 662c8af4fbffead0f71b2fb95a4e9768d0c4b9fb; final composition has not started.
+        Its historical publication 39154885397 passed 142 code/real-PG, 48 portal and 8 browser
+        checks with 37 exact-revision screenshots independently read; this is not current-main
+        acceptance. Require fresh fetch main and overlap checks before the one final composition.
+        GC1 remains external without a completed newer frozen handoff. New D13 selection
+        shares the guard; Issue638 comment 6267233192 and Issue280 comment 6267242925 request
+        one coordinated external owner/handoff and preserve the LF/CRLF/duplicate finding.
+        A separate actual General 39242480216 finding has 32 Games PG cases SKIPPED: host CI=true
+        is not propagated into the Compose test-runner, whose source guard requires it and
+        both isolated DB URLs. Embedded 16 cases do not replace these 32 PG/HTTP/concurrency
+        checks. Issue618 comment 6266610073 and Issue280 comment 6266614605 coordinate the gap
+        with existing Games/CI and GC1 owners; no competing author, shared-file edit or new
+        runtime was selected. All 32 require actual execution before a final preservation claim.
+        Keep accepted Auth/AI/Games/Seat and all Learning data, Projects, drafts, versions,
+        Collections and Safe Mode. Re-read migration ownership/free IDs immediately before
+        final composition; do not reuse accepted 0218/0219 or reserved AI 0225-0228. Stages 3-7
+        remain pending after stage 2; no deployment or working-database action is authorized.
     execution_lease:
       executor_id: codex-projects-r7-01
       holder: unassigned

@@ -754,3 +754,166 @@ and bounded synthetic checks may not start ASA; actual runtime runs only in CI.
 A timeout remains FAIL;
 NOT_REPRODUCED never establishes a runtime repair. GC1 remains exclusively owned
 by its external author; final PR613 convergence and stages3–7 remain pending.
+
+## Recovery: terminal synchronization for the intentional 503 case
+
+TASK-PROJ-PUBLICATION-SCRATCH-RECOVERY-TERMINAL-001 is a separate C test/dependency
+repair. It starts from frozen published 8136084149cc0831e7aa8d6edcfaa1abc15af895,
+whose full tree equals the completed local f7fec499 lint correction. The sole
+write path is `e2e/blocks-recovery.spec.ts`: completion synchronization in the
+failed-autosave case and its necessary local declarations/imports. Preserve
+the prior timing and lint sources, PR632/PR640 and their actual failure evidence.
+
+### Evidence and selected boundary
+
+Actual old 7855 schema 2 observes the same draft Request failing at 59286 ms,
+after `response.finished()` returned its Promise at 59281 ms. Its original
+await continues through rejection only at 150040 ms; final recovery assertions
+were not reached. Capture counters are zero. Artifact 12185785480 and independent
+actual review 5571616550 preserve this failure, not a successful recovery test.
+
+Independent source investigation of pinned Playwright 1.55.1 explains the wait:
+client `Response.finished()` awaits `_finishedPromise`; `_onRequestFinished()`
+resolves it, but `_onRequestFailed()` records timing/failure and emits the
+terminal event without completing that client Promise. Chromium's server-side
+response timing completion is not the client requestFinished event. The wait
+was already present before timing instrumentation, so this is a separate
+inherited test/dependency boundary, not one of its five lint defects.
+
+The cause of the underlying Chromium loadingFailed remains UNKNOWN: no trace,
+HAR, raw failure text or close/crash reason was captured. Do not claim CORS,
+ERR_ABORTED, product abort or socket failure. The fixture intentionally sends
+HTTP 503 and ends before any revision mutation. Neither fixture/product repair
+nor a Playwright version change is supported or selected.
+
+### Fixed repair contract
+
+Observe public requestfinished/requestfailed before the triggering edit/request.
+Select the existing draft response and associate its Request with the terminal
+event by strict object identity, including terminal events delivered before
+response selection. A foreign request, headers alone or ambiguous association
+must not release the successful path. Preserve distinct FINISHED and FAILED
+outcomes. Page close/crash, timeout and arbitrary promise rejection are failures,
+not substitutes for an observed terminal Request.
+
+Both genuine terminal outcomes may continue this intentional negative-503 case
+only into every original assertion. Keep the status 503 and recovery-ready-before-
+response checks; the single draft write; authorization, cookie, capability,
+origin and content-type checks; baseRevision 23 and payload Steps 73; unchanged
+server revision 23; and the real IndexedDB reread of exactly one recovery record
+with Steps 73. The fixture is a protocol HTTP fixture, not a real API/PG transaction;
+the acceptance record must preserve that distinction.
+
+Retain all 118 existing assertion ASTs and original actions, test timeout
+150000 ms, response timeout 90000 ms, one worker and zero retries. Preserve the
+accepted lint correction, original attachment rejection suppression and
+fixture.close error/cleanup semantics. Remove newly introduced listeners on
+every exit. Registration and early failures must not create an unhandled
+deferred rejection or replace an original setup/assertion error.
+
+Keep bounded safe durable diagnostics and fail-open I/O behavior. Any new
+terminal-wait markers must describe that actual operation. Do not label a
+missing or omitted Response.finished call as successful; absent observations
+remain NOT_OBSERVED. No raw URLs, credentials, payloads or error text. Do not use
+private Playwright fields, catch(ignore), timeout-as-success, extra save,
+retries, sleeps, clock changes, fixture changes or weaker assertions.
+
+### Review and actual acceptance
+
+Require independent exact-source review with meaningful early/late terminal,
+foreign identity, ambiguous selection, FINISHED/FAILED, page close/crash,
+setup/await/attachment failure, listener cleanup and diagnostic-fault challenges.
+The exact Scratch ESLint command must pass with its rules active. Local source,
+CLI discovery and bounded synthetic checks may not start ASA or a browser.
+
+Then run full changed-source Scratch, including all original 57 cases and the
+fresh ZIP gate, and required General CI on the exact source. The formerly
+unreached recovery/security assertions and cleanup must actually execute.
+Source PASS does not predict actual PASS. Any remaining Abby/Pop failure remains
+a separate finding; this author does not edit that case or its runtime.
+
+No unchanged rerun or cancellation of the existing 813 CI is selected. No local
+ASA/server/browser/PostgreSQL/Docker, deployment or working database action.
+The controller continues the authorized programme after this bounded author and
+independent reviewer stop; final PR613 composition and stages 3-7 remain pending.
+
+## Abby: link the observed callback to the original save path
+
+TASK-PROJ-PUBLICATION-SCRATCH-ABBY-CALLBACK-EVIDENCE-001 selects passive evidence
+only. A separate author starts from exact published
+8136084149cc0831e7aa8d6edcfaa1abc15af895 or its tree-identical frozen local
+f7fec499. The only write path is `e2e/blocks-product-integration.spec.ts`, within
+the two existing Abby cases and their local observer. The recovery-terminal
+author owns `e2e/blocks-recovery.spec.ts`; these scopes do not overlap.
+
+### Established evidence and unresolved cause
+
+The independent investigation used the preserved exact 7855 host artifact and
+the source map of its actual pinned Scratch 82c5fea6 / 15.1.1 build. Native Pop
+reached revision 24 with five asset writes, one draft and one commit. Clean Pop
+remained revision 23 without asset-store or save-project entry, despite observed
+timer entry/return and the original clean-load assertion passing. Neither capture
+links that raw timer callback to the registered ProjectSaver. The original
+START_AUTO_UPDATING dispatch/state transition and ProjectSaver serialization
+remain unobserved. Receipt SHA256 is
+`8d918e6f30074393fe10c797bec2646693b4fe190b5229840ea60d9bb7a27e30`.
+
+Pinned source establishes that the bound tryToAutoSave reference is supplied
+to onSetProjectSaver and scheduled by ProjectSaver. Its guard can return without
+dispatch, and the callback does not return the save Promise. Therefore a callback
+return proves neither save start nor async completion. The observed recovery
+asset capture follows a different serialization call. Do not relabel it as the
+ProjectSaver serialization that precedes dirty asset handling.
+
+The two actual variants do not isolate the clean bit: the clean fixture also
+adds an async load wrapper and their valid timer intervals were 63000 and 58000
+ms. The existing helper observes a 55-65 second timer and advances 66000 ms.
+No fixture, runtime, clock, retry, media or cache repair is justified or selected.
+
+### Bounded observation contract
+
+Use the existing test interception of mountEditor. Its standalone factory gets
+the original EditorState with public store, and root.render receives the original
+onSetProjectSaver and onVmInit callbacks. These are available embedding APIs;
+they are not already implemented observers. Add no product debug surface.
+
+Keep the raw function registered through onSetProjectSaver unchanged. Associate
+it with the scheduled raw timer callback by strict reference identity. Record
+replacement, unmount and unavailable/ambiguous association honestly. At linked
+callback boundaries observe bounded Boolean/closed-enum Redux state and the
+original START_AUTO_UPDATING dispatch/state transition. Never invoke dispatch or
+save for observation, and never call a Redux snapshot the React instance props.
+
+Through the original onVmInit path, observe original vm.toJSON entry, synchronous
+return or throw using bounded VM identity and call ordinal. Do not invoke extra
+serialization or retain its result. A recovery or unclassified invocation is not
+ProjectSaver serialization without an observed causal link. Existing storage
+boundaries remain distinct; no extra Promise reactions are needed or selected.
+
+Preserve descriptors and forwarding: original this, arguments, call count,
+immediate return and Promise identity, exact thrown values, callback registration
+and teardown behavior. Observation setup and reporting failures must remain
+fail-open without skipping or repeating an original operation. Metadata is
+closed and bounded with no project payload, URL, credential or raw error text.
+Unavailable observations remain UNKNOWN/NOT_OBSERVED; capture loss is INCOMPLETE.
+
+Preserve all original assertions by AST, all case identities and actions, clock,
+timeouts, zero retries, the clean load wrapper and cache/media behavior. No extra
+await, product then/catch/finally reaction, timer, reschedule, save trigger,
+serialization or fixture action may be introduced to help the case pass.
+
+### Independent review and one changed-source gate
+
+Require independent passivity, raw identity, replacement/unmount, descriptor,
+return/error, cleanup, causality-label and writer-fault challenges. Run the exact
+Scratch ESLint command with its rules enabled. Local verification is source,
+discovery and bounded synthetic work only; no local app/server/browser/PG/Docker.
+
+After both authors freeze and separate independent reviews pass, the controller
+may mechanically compose their nonoverlapping files into a new child of 813.
+First preserve the terminal 813 host artifact; do not update or cancel its run.
+Review the exact composed source, then require full changed-source Scratch with
+all original 57 cases and fresh ZIP, plus required General. Both Abby variants
+must produce safe durable evidence. Any failure remains FAIL; nonreproduction
+is NOT_REPRODUCED and does not prove an underlying runtime repair. This evidence
+task does not complete stage 2 or start the final PR613 composition.
