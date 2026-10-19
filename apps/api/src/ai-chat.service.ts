@@ -1,6 +1,15 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
 import type pg from 'pg';
 import {
+  AI_PRODUCT_FEATURES,
+  buildAiTextRequest,
+  getAiModelCatalog,
+  isModelForProvider,
+  type AiModel,
+  type AiModelCatalog,
+  type AiProvider,
+} from './ai-model-catalog.js';
+import {
   parseProviderText,
   ProviderStreamError,
   streamProviderText,
@@ -13,10 +22,21 @@ const ASSISTANT_INSTRUCTIONS =
   'Отвечай на русском, если пользователь не выбрал другой язык. ' +
   'Объясняй решения и не выдавай неподтверждённые результаты за факты.';
 
-export type AiProvider = 'openai' | 'deepseek';
-export type AiModel = 'gpt-5-mini' | 'gpt-4.1-mini' | 'deepseek-chat';
+export type { AiProvider, AiModel } from './ai-model-catalog.js';
+
+export interface AiProviderConfiguration {
+  readonly provider: AiProvider;
+  readonly model: AiModel;
+  readonly apiKeyConfigured: boolean;
+  readonly keyFingerprint: string | null;
+  readonly updatedAt: string | null;
+}
 
 export interface AiAdminConfig {
+  readonly schemaVersion: 2;
+  readonly modelCatalog: AiModelCatalog;
+  readonly providerConfigurations: readonly AiProviderConfiguration[];
+  readonly migratedFromModel: string | null;
   readonly enabled: boolean;
   readonly paidOperationsPerHour: number;
   readonly provider: AiProvider;
@@ -35,6 +55,7 @@ export interface AiAdminUpdate {
   readonly model: AiModel;
   readonly apiKey?: string;
   readonly clearApiKey?: boolean;
+  readonly configurationVersion?: number;
 }
 
 export interface AiThread {
@@ -63,6 +84,8 @@ export interface AiPage<T> {
 }
 
 interface AdminRow {
+  readonly provider_configurations: readonly AiProviderConfiguration[];
+  readonly migrated_from_model: string | null;
   readonly enabled: boolean;
   readonly paid_operations_per_hour: number;
   readonly provider: AiProvider;
@@ -109,12 +132,6 @@ function rootKey(value: string | undefined): Buffer | null {
   return bytes.length === 32 ? bytes : null;
 }
 
-function validModel(provider: AiProvider, model: string): model is AiModel {
-  return provider === 'openai'
-    ? model === 'gpt-5-mini' || model === 'gpt-4.1-mini'
-    : model === 'deepseek-chat';
-}
-
 function iso(value: Date | string | null): string | null {
   return value === null ? null : new Date(value).toISOString();
 }
@@ -145,7 +162,24 @@ export class AiChatService {
     ]);
     const row = result.rows[0];
     if (!row) throw new AiServiceError('ai_config_unavailable', 503, 'Настройки ИИ недоступны.');
+    if (!Array.isArray(row.provider_configurations)) {
+      throw new AiServiceError(
+        'ai_config_schema_unsupported',
+        503,
+        'Требуется обновление схемы настроек ИИ.',
+      );
+    }
     return {
+      schemaVersion: 2,
+      modelCatalog: getAiModelCatalog(),
+      providerConfigurations: row.provider_configurations.map((slot) => ({
+        provider: slot.provider,
+        model: slot.model,
+        apiKeyConfigured: slot.apiKeyConfigured,
+        keyFingerprint: slot.keyFingerprint,
+        updatedAt: iso(slot.updatedAt),
+      })),
+      migratedFromModel: row.migrated_from_model,
       enabled: row.enabled,
       paidOperationsPerHour: row.paid_operations_per_hour ?? 0,
       provider: row.provider,
@@ -175,10 +209,23 @@ export class AiChatService {
         'Лимит должен быть целым числом от 0 до 2147483647.',
       );
     }
-    if (!validModel(input.provider, input.model)) {
+    if (!isModelForProvider(input.provider, input.model)) {
       throw new AiServiceError('ai_model_invalid', 400, 'Модель не соответствует провайдеру.');
     }
     const before = await this.adminConfig(principalId);
+    const expectedVersion = input.configurationVersion ?? before.configurationVersion;
+    if (
+      !Number.isSafeInteger(expectedVersion) ||
+      expectedVersion < 1 ||
+      expectedVersion !== before.configurationVersion
+    ) {
+      throw new AiServiceError(
+        'ai_config_changed',
+        409,
+        'Настройки изменились. Перезагрузите страницу.',
+      );
+    }
+    const target = before.providerConfigurations.find((slot) => slot.provider === input.provider);
     const candidate = input.apiKey?.trim() ?? '';
     if (
       input.apiKey !== undefined &&
@@ -194,14 +241,14 @@ export class AiChatService {
         'Нельзя заменить и очистить ключ одновременно.',
       );
     }
-    if (before.provider !== input.provider && !candidate) {
+    if (before.provider !== input.provider && !candidate && !target?.apiKeyConfigured) {
       throw new AiServiceError(
         'ai_key_required',
         409,
-        'Для другого провайдера нужен новый API-ключ.',
+        'Сначала добавьте API-ключ выбранного провайдера.',
       );
     }
-    if (input.enabled && (input.clearApiKey || (!candidate && !before.apiKeyConfigured))) {
+    if (input.enabled && (input.clearApiKey || (!candidate && !target?.apiKeyConfigured))) {
       throw new AiServiceError('ai_key_required', 409, 'Сначала добавьте API-ключ.');
     }
     if ((candidate || input.enabled) && !this.key) {
@@ -216,7 +263,7 @@ export class AiChatService {
     const action = input.clearApiKey ? 'clear' : encrypted ? 'replace' : 'keep';
     try {
       await this.pool.query(
-        'SELECT ai_admin_set_config($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::integer)',
+        'SELECT ai_admin_set_config($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::integer,$12::bigint)',
         [
           principalId,
           input.enabled,
@@ -229,9 +276,11 @@ export class AiChatService {
           encrypted?.fingerprint ?? null,
           requestId,
           input.paidOperationsPerHour ?? null,
+          expectedVersion,
         ],
       );
     } catch (problem) {
+      this.rethrowAdmissionError(problem);
       if ((problem as { code?: string }).code === '42501') {
         throw new AiServiceError('ai_admin_denied', 403, 'Нет доступа к настройкам ИИ.');
       }
@@ -240,7 +289,15 @@ export class AiChatService {
       }
       throw problem;
     }
-    return this.adminConfig(principalId);
+    const after = await this.adminConfig(principalId);
+    if (after.configurationVersion !== expectedVersion + 1) {
+      throw new AiServiceError(
+        'ai_config_changed',
+        409,
+        'После сохранения настройки снова изменились. Перезагрузите страницу.',
+      );
+    }
+    return after;
   }
 
   async testConnection(
@@ -262,6 +319,7 @@ export class AiChatService {
       );
     }
     const runtime = await this.runtime();
+    this.requireSupportedModel(runtime);
     const key = this.decrypt(runtime);
     if (!key) {
       throw new AiServiceError(
@@ -327,14 +385,23 @@ export class AiChatService {
     provider: AiProvider;
     model: AiModel;
     availableModels: readonly AiModel[];
+    modelCatalog: AiModelCatalog;
+    productFeatures: typeof AI_PRODUCT_FEATURES;
   }> {
     const config = await this.runtime();
+    const modelCatalog = getAiModelCatalog();
     return {
-      enabled: config.enabled && this.decrypt(config) !== null,
+      enabled:
+        config.enabled &&
+        isModelForProvider(config.provider, config.model) &&
+        this.decrypt(config) !== null,
       provider: config.provider,
       model: config.model,
-      availableModels:
-        config.provider === 'openai' ? ['gpt-5-mini', 'gpt-4.1-mini'] : ['deepseek-chat'],
+      availableModels: modelCatalog.models
+        .filter((model) => model.provider === config.provider && model.selectable)
+        .map((model) => model.id),
+      modelCatalog,
+      productFeatures: AI_PRODUCT_FEATURES,
     };
   }
 
@@ -488,6 +555,7 @@ export class AiChatService {
       );
     }
     const runtime = await this.runtime();
+    this.requireSupportedModel(runtime);
     const apiKey = this.decrypt(runtime);
     if (!runtime.enabled || !apiKey) {
       throw new AiServiceError(
@@ -602,7 +670,7 @@ export class AiChatService {
     }
     const runtime = await this.runtime();
     const model = selectedModel ?? runtime.model;
-    if (!validModel(runtime.provider, model)) {
+    if (!isModelForProvider(runtime.provider, model)) {
       throw new AiServiceError(
         'ai_model_invalid',
         400,
@@ -741,6 +809,16 @@ export class AiChatService {
     return row;
   }
 
+  private requireSupportedModel(runtime: RuntimeRow): void {
+    if (!isModelForProvider(runtime.provider, runtime.model)) {
+      throw new AiServiceError(
+        'ai_model_unavailable',
+        503,
+        'Сохранённая модель больше не поддерживается. Выберите актуальную модель в админке.',
+      );
+    }
+  }
+
   private rethrowAdmissionError(problem: unknown): void {
     const message = problem instanceof Error ? problem.message : '';
     if (message.includes('AI_DISABLED')) {
@@ -762,6 +840,13 @@ export class AiChatService {
         'ai_config_changed',
         409,
         'Настройки изменились. Перезагрузите страницу.',
+      );
+    }
+    if (message.includes('AI_MODEL_UNAVAILABLE')) {
+      throw new AiServiceError(
+        'ai_model_unavailable',
+        503,
+        'Выберите актуальную модель в админке.',
       );
     }
   }
@@ -810,35 +895,22 @@ export class AiChatService {
     apiKey: string,
     context: readonly { role: 'user' | 'assistant'; content: string }[],
   ): Promise<ProviderStreamResult> {
-    const openai = runtime.provider === 'openai';
-    const url = openai
-      ? 'https://api.openai.com/v1/responses'
-      : 'https://api.deepseek.com/chat/completions';
-    const instructions = ASSISTANT_INSTRUCTIONS;
+    const request = buildAiTextRequest(
+      runtime.provider,
+      runtime.model,
+      context,
+      ASSISTANT_INSTRUCTIONS,
+      false,
+    );
     let response: Response;
     try {
-      response = await this.fetchImpl(url, {
+      response = await this.fetchImpl(request.url, {
         method: 'POST',
         headers: {
           authorization: 'Bearer ' + apiKey,
           'content-type': 'application/json',
         },
-        body: JSON.stringify(
-          openai
-            ? {
-                model: runtime.model,
-                instructions,
-                input: context,
-                max_output_tokens: 1600,
-                store: false,
-              }
-            : {
-                model: runtime.model,
-                messages: [{ role: 'system', content: instructions }, ...context],
-                max_tokens: 1600,
-                stream: false,
-              },
-        ),
+        body: JSON.stringify(request.body),
         signal: AbortSignal.timeout(65000),
       });
     } catch {

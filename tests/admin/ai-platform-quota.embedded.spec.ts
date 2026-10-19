@@ -41,7 +41,7 @@ async function runtime<T>(sql: string, params: unknown[] = []) {
 
 async function setLimit(limit: number | null, principal = platformAdmin) {
   return runtime<{ ai_admin_set_config: string }>(
-    `SELECT ai_admin_set_config($1, true, 'openai', 'gpt-5-mini', 'replace',
+    `SELECT ai_admin_set_config($1, true, 'openai', 'gpt-6-luna', 'replace',
        'quota-test-ciphertext', 'quota-test-iv', 'quota-test-auth-tag', 'quota-hash',
        'quota-test', $2::integer)`,
     [principal, limit],
@@ -202,7 +202,7 @@ describe('chat runtime configuration changes before durable admission', () => {
     ['replace key', { apiKey: 'replacement-provider-test-key' }],
     [
       'switch provider',
-      { provider: 'deepseek', model: 'deepseek-chat', apiKey: 'new-deepseek-test-key' },
+      { provider: 'deepseek', model: 'deepseek-flash', apiKey: 'new-deepseek-test-key' },
     ],
     ['switch model', { model: 'gpt-4.1-mini' }],
   ];
@@ -215,7 +215,7 @@ describe('chat runtime configuration changes before durable admission', () => {
         const settings: AiAdminUpdate = {
           enabled: true,
           provider: 'openai',
-          model: 'gpt-5-mini',
+          model: 'gpt-6-luna',
           paidOperationsPerHour: 100,
           apiKey: 'initial-provider-test-key',
         };

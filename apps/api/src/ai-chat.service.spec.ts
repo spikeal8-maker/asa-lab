@@ -1,3 +1,4 @@
+import { aiAdminFixture } from './testing/ai-admin-config.fixture';
 import { createCipheriv, randomBytes } from 'node:crypto';
 import type pg from 'pg';
 import type { FastifyReply, FastifyRequest } from 'fastify';
@@ -22,7 +23,7 @@ function secureRuntime() {
     enabled: true,
     configuration_version: 1,
     provider: 'openai' as const,
-    model: 'gpt-5-mini' as const,
+    model: 'gpt-6-luna' as const,
     api_key_ciphertext: ciphertext.toString('base64url'),
     api_key_iv: iv.toString('base64url'),
     api_key_auth_tag: cipher.getAuthTag().toString('base64url'),
@@ -103,8 +104,11 @@ describe('ASA native AI Chat', () => {
         {
           enabled: true,
           provider: 'openai',
-          model: 'gpt-5-mini',
+          model: 'gpt-6-luna',
           api_key_configured: true,
+          provider_configurations: aiAdminFixture({ apiKeyConfigured: true })
+            .providerConfigurations,
+          migrated_from_model: null,
           key_fingerprint: 'a1b2c3d4e5f6',
           configuration_version: 3,
           updated_at: new Date('2026-10-14T00:00:00Z'),
@@ -122,6 +126,7 @@ describe('ASA native AI Chat', () => {
 
   it('encrypts a replaced GPT key without submitting raw credentials to SQL', async () => {
     const calls: unknown[][] = [];
+    let configurationVersion = 1;
     const query = vi.fn(async (sql: string, params: unknown[] = []) => {
       calls.push([sql, ...params]);
       if (sql.includes('ai_admin_get_config')) {
@@ -130,16 +135,20 @@ describe('ASA native AI Chat', () => {
             {
               enabled: false,
               provider: 'openai',
-              model: 'gpt-5-mini',
+              model: 'gpt-6-luna',
               api_key_configured: false,
+              provider_configurations: aiAdminFixture({ apiKeyConfigured: false })
+                .providerConfigurations,
+              migrated_from_model: null,
               key_fingerprint: null,
-              configuration_version: 1,
+              configuration_version: configurationVersion,
               updated_at: null,
             },
           ],
         };
       }
-      return { rows: [{ ai_admin_set_config: 2 }] };
+      configurationVersion += 1;
+      return { rows: [{ ai_admin_set_config: configurationVersion }] };
     });
     const service = new AiChatService({ query } as unknown as pg.Pool, {
       encryptionKey: ROOT,
@@ -149,7 +158,7 @@ describe('ASA native AI Chat', () => {
       {
         enabled: true,
         provider: 'openai',
-        model: 'gpt-5-mini',
+        model: 'gpt-6-luna',
         apiKey: 'sk-test-private-key-123456',
       },
       'test-admin-request',
@@ -220,7 +229,7 @@ describe('ASA native AI Chat', () => {
       input: unknown[];
     };
     expect(body.store).toBe(false);
-    expect(body.model).toBe('gpt-5-mini');
+    expect(body.model).toBe('gpt-6-luna');
     expect(body.input).toHaveLength(1);
   });
 
@@ -333,7 +342,7 @@ describe('ASA native AI Chat', () => {
               {
                 ...secureRuntime(),
                 provider,
-                model: provider === 'openai' ? 'gpt-5-mini' : 'deepseek-chat',
+                model: provider === 'openai' ? 'gpt-6-luna' : 'deepseek-flash',
               },
             ],
           };
@@ -578,8 +587,11 @@ describe('ASA native AI Chat', () => {
             {
               enabled: false,
               provider: 'openai',
-              model: 'gpt-5-mini',
+              model: 'gpt-6-luna',
               api_key_configured: true,
+              provider_configurations: aiAdminFixture({ apiKeyConfigured: true })
+                .providerConfigurations,
+              migrated_from_model: null,
               key_fingerprint: 'test-hash',
               configuration_version: 7,
               updated_at: null,
@@ -605,7 +617,7 @@ describe('ASA native AI Chat', () => {
     const result = await service.testConnection(PRINCIPAL, 7);
     expect(result).toMatchObject({
       provider: 'openai',
-      model: 'gpt-5-mini',
+      model: 'gpt-6-luna',
       configurationVersion: 7,
     });
     expect(JSON.stringify(result)).not.toContain('sk-test-private-key');
@@ -624,8 +636,11 @@ describe('ASA native AI Chat', () => {
               {
                 enabled: true,
                 provider: 'openai',
-                model: 'gpt-5-mini',
+                model: 'gpt-6-luna',
                 api_key_configured: true,
+                provider_configurations: aiAdminFixture({ apiKeyConfigured: true })
+                  .providerConfigurations,
+                migrated_from_model: null,
                 configuration_version: 2,
                 updated_at: null,
               },

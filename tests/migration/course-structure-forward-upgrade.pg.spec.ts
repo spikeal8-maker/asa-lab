@@ -95,6 +95,7 @@ describe('Course Builder structure forward upgrade', () => {
         '0222', // Server-checked classroom games policy without historical backfill.
         '0223', // Atomic server-side game admission and project creation.
         '0224', // Canonical identity initialization for newly created classroom Seats.
+        '0226', // AI model catalog and isolated provider credentials; preserves course and learner history.
       ];
       const pre153 = plan.filter((item) => Number(item.version) <= 152);
       const upgradePlan = plan.filter((item) => Number(item.version) > 152);
@@ -349,6 +350,7 @@ describe('Course Builder structure forward upgrade', () => {
           '0222',
           '0223',
           '0224',
+          '0226',
         ]);
         expect(
           await applyIsolatedTestPlan(

@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { expect, test, type Page, type Route } from '@playwright/test';
+import { aiAdminFixture } from '../apps/web/src/admin/testing/ai-admin-config.fixture';
 
 const ACCOUNT_ID = '20000000-0000-4000-8000-000000000001';
 const WORKSPACE_ID = '10000000-0000-4000-8000-000000000001';
@@ -196,17 +197,20 @@ async function fixture(page: Page, answer = 'Arduino — это платформ
         hasKey = keyWasSubmitted;
         enabled = payload.enabled;
       }
-      return respond(route, {
-        enabled,
-        provider: 'openai',
-        model: 'gpt-5-mini',
-        apiKeyConfigured: hasKey,
-        paidOperationsPerHour: 1000,
-        encryptionReady: true,
-        keyFingerprint: hasKey ? 'abcdef123456' : null,
-        configurationVersion: hasKey ? 2 : 1,
-        updatedAt: NOW,
-      });
+      return respond(
+        route,
+        aiAdminFixture({
+          enabled,
+          provider: 'openai',
+          model: 'gpt-5-mini',
+          apiKeyConfigured: hasKey,
+          paidOperationsPerHour: 1000,
+          encryptionReady: true,
+          keyFingerprint: hasKey ? 'abcdef123456' : null,
+          configurationVersion: hasKey ? 2 : 1,
+          updatedAt: NOW,
+        }),
+      );
     }
     if (method === 'GET') return respond(route, { items: [], meta: { total: 0 } });
     return respond(route, { error: { code: 'unexpected_mutation', message: path } }, 400);

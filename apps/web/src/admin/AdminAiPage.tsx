@@ -1,21 +1,11 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { call } from './admin-api';
+import {
+  isAiAdminConfig,
+  type AiAdminConfig,
+  type AiProvider as Provider,
+} from './ai-model-config';
 import './ai-admin.css';
-
-type Provider = 'openai' | 'deepseek';
-type Model = 'gpt-5-mini' | 'gpt-4.1-mini' | 'deepseek-chat';
-
-interface AiAdminConfig {
-  readonly enabled: boolean;
-  readonly paidOperationsPerHour: number;
-  readonly provider: Provider;
-  readonly model: Model;
-  readonly apiKeyConfigured: boolean;
-  readonly encryptionReady: boolean;
-  readonly keyFingerprint: string | null;
-  readonly configurationVersion: number;
-  readonly updatedAt: string | null;
-}
 
 const CONFIG_UNAVAILABLE =
   'Настройки ИИ не загрузились. Проверьте версию API и миграции базы в «Админ → Система», затем повторите загрузку.';
@@ -25,24 +15,6 @@ const CONFIG_REJECTED =
   'Сохранение не подтверждено: сервер отклонил настройки ИИ. Проверьте модель и целочисленный лимит, затем повторите сохранение.';
 const TEST_RESULT_UNCERTAIN =
   'Результат проверки не получен. Запрос мог быть оплачен; проверьте соединение перед повтором.';
-
-function isAiAdminConfig(value: unknown): value is AiAdminConfig {
-  if (!value || typeof value !== 'object') return false;
-  const config = value as AiAdminConfig;
-  return (
-    typeof config.enabled === 'boolean' &&
-    typeof config.apiKeyConfigured === 'boolean' &&
-    typeof config.encryptionReady === 'boolean' &&
-    Number.isSafeInteger(config.configurationVersion) &&
-    config.configurationVersion > 0 &&
-    Number.isInteger(config.paidOperationsPerHour) &&
-    config.paidOperationsPerHour >= 0 &&
-    config.paidOperationsPerHour <= 2147483647 &&
-    ((config.provider === 'deepseek' && config.model === 'deepseek-chat') ||
-      (config.provider === 'openai' &&
-        (config.model === 'gpt-5-mini' || config.model === 'gpt-4.1-mini')))
-  );
-}
 
 function failureMessage(status: number, code: string, message: string): string {
   if (status === 401) return 'Сессия истекла. Войдите снова в аккаунт администратора платформы.';
@@ -75,8 +47,8 @@ export function AiAdminPage({
   readonly onAccessDenied: () => void;
 }): JSX.Element {
   const [config, setConfig] = useState<AiAdminConfig | null>(null);
-  const [provider, setProvider] = useState<Provider>('deepseek');
-  const [model, setModel] = useState<Model>('deepseek-chat');
+  const [provider, setProvider] = useState<Provider>('openai');
+  const [model, setModel] = useState('');
   const [enabled, setEnabled] = useState(false);
   const [paidOperationsPerHour, setPaidOperationsPerHour] = useState('0');
   const [apiKey, setApiKey] = useState('');
@@ -85,10 +57,11 @@ export function AiAdminPage({
   const [loadAttempt, setLoadAttempt] = useState(0);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
+  const requestBusy = useRef(false);
   const [acknowledgeTest, setAcknowledgeTest] = useState(false);
   const [connectionTest, setConnectionTest] = useState<{
     provider: Provider;
-    model: Model;
+    model: string;
     elapsedMs: number;
     testedAt: string;
     configurationVersion: number;
@@ -118,12 +91,8 @@ export function AiAdminPage({
           return;
         }
         setConfig(result.data);
-        const firstSetup =
-          result.data.configurationVersion === 1 &&
-          !result.data.apiKeyConfigured &&
-          !result.data.enabled;
-        setProvider(firstSetup ? 'deepseek' : result.data.provider);
-        setModel(firstSetup ? 'deepseek-chat' : result.data.model);
+        setProvider(result.data.provider);
+        setModel(result.data.model);
         setEnabled(result.data.enabled);
         setPaidOperationsPerHour(String(result.data.paidOperationsPerHour ?? 0));
       })
@@ -157,7 +126,9 @@ export function AiAdminPage({
 
   async function save(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
-    if (!config || saving || testing || !validQuota || (switched && !apiKey.trim())) return;
+    if (!config || requestBusy.current || !validQuota || !selectedModel?.selectable || needsNewKey)
+      return;
+    requestBusy.current = true;
     setSaving(true);
     setConnectionTest(null);
     setAcknowledgeTest(false);
@@ -171,6 +142,7 @@ export function AiAdminPage({
           paidOperationsPerHour: Number(paidOperationsPerHour),
           provider,
           model,
+          configurationVersion: config.configurationVersion,
           ...(apiKey.trim() ? { apiKey: apiKey.trim() } : {}),
           ...(clearKey ? { clearApiKey: true } : {}),
         }),
@@ -196,11 +168,22 @@ export function AiAdminPage({
     } catch {
       setError('Сохранение не подтверждено. Проверьте соединение и повторите загрузку настроек.');
     } finally {
+      requestBusy.current = false;
       setSaving(false);
     }
   }
 
   const switched = config !== null && provider !== config.provider;
+  const selectedProvider = config?.providerConfigurations.find(
+    (item) => item.provider === provider,
+  );
+  const selectedModel = config?.modelCatalog.models.find(
+    (item) => item.id === model && item.provider === provider,
+  );
+  const savedModel = config?.modelCatalog.models.find(
+    (item) => item.id === config.model && item.provider === config.provider,
+  );
+  const needsNewKey = switched && !selectedProvider?.apiKeyConfigured && !apiKey.trim();
   const validQuota =
     paidOperationsPerHour.trim() !== '' &&
     Number.isInteger(Number(paidOperationsPerHour)) &&
@@ -220,10 +203,12 @@ export function AiAdminPage({
     !unsaved &&
     config.paidOperationsPerHour > 0 &&
     config.apiKeyConfigured &&
-    config.encryptionReady;
+    config.encryptionReady &&
+    selectedModel?.selectable === true;
 
   async function testConnection(): Promise<void> {
-    if (!config || !canTest || !acknowledgeTest || testing || saving) return;
+    if (!config || !canTest || !acknowledgeTest || requestBusy.current) return;
+    requestBusy.current = true;
     setTesting(true);
     setConnectionTest(null);
     setError(null);
@@ -236,12 +221,26 @@ export function AiAdminPage({
           configurationVersion: config.configurationVersion,
         }),
       });
-      if (result.ok) setConnectionTest(result.data);
-      else if (result.status === 0) setError(TEST_RESULT_UNCERTAIN);
+      if (result.ok) {
+        const data = result.data;
+        if (
+          data &&
+          data.provider === config.provider &&
+          data.model === config.model &&
+          data.configurationVersion === config.configurationVersion &&
+          Number.isFinite(data.elapsedMs) &&
+          data.elapsedMs >= 0 &&
+          typeof data.testedAt === 'string' &&
+          Number.isFinite(Date.parse(data.testedAt))
+        )
+          setConnectionTest(data);
+        else setError(TEST_RESULT_UNCERTAIN);
+      } else if (result.status === 0) setError(TEST_RESULT_UNCERTAIN);
       else handleFailure(result);
     } catch {
       setError(TEST_RESULT_UNCERTAIN);
     } finally {
+      requestBusy.current = false;
       setTesting(false);
       setAcknowledgeTest(false);
     }
@@ -310,6 +309,34 @@ export function AiAdminPage({
               <strong>{config.encryptionReady ? 'Готово' : 'Требует настройки сервера'}</strong>
             </div>
           </div>
+          {config.migratedFromModel ? (
+            <p className="asa-ai-admin-warning" role="alert">
+              Модель {config.migratedFromModel} снята с обслуживания.{' '}
+              {config.apiKeyConfigured ? 'Сохранённый ключ перенесён на' : 'Выбрана новая модель'}{' '}
+              {config.model}; ИИ-запросы отключены. Выберите модель и сохраните настройки. Доступ к
+              новой модели подтверждается отдельной платной проверкой.
+            </p>
+          ) : null}
+          {savedModel && !savedModel.selectable ? (
+            <p className="asa-ai-admin-warning" role="alert">
+              Модель {savedModel.label} больше недоступна. Запросы к ней заблокированы. Выберите
+              доступную модель и сохраните настройки; ключ провайдера сохранится.
+            </p>
+          ) : null}
+          <section className="asa-ai-provider-slots" aria-label="Сохранённые ключи провайдеров">
+            {config.providerConfigurations.map((slot) => (
+              <p key={slot.provider}>
+                <strong>
+                  {config.modelCatalog.providers.find((item) => item.id === slot.provider)?.label}
+                </strong>
+                <span>{slot.apiKeyConfigured ? 'Ключ сохранён' : 'Ключ не задан'}</span>
+                {slot.keyFingerprint ? <code>{slot.keyFingerprint}</code> : null}
+              </p>
+            ))}
+            <small>
+              Ключи хранятся отдельно. Переключение провайдера сохраняет остальные ключи.
+            </small>
+          </section>
           <label>
             <span>Провайдер</span>
             <select
@@ -318,15 +345,29 @@ export function AiAdminPage({
               disabled={saving || testing}
               onChange={(event) => {
                 const next = event.target.value as Provider;
+                const catalogProvider = config.modelCatalog.providers.find(
+                  (item) => item.id === next,
+                );
+                if (!catalogProvider) return;
+                const saved = config.providerConfigurations.find((item) => item.provider === next);
                 setProvider(next);
-                setModel(next === 'openai' ? 'gpt-5-mini' : 'deepseek-chat');
+                setModel(
+                  config.modelCatalog.models.some(
+                    (item) => item.id === saved?.model && item.provider === next && item.selectable,
+                  )
+                    ? saved!.model
+                    : catalogProvider.defaultModel,
+                );
                 setEnabled(false);
                 setClearKey(false);
                 setApiKey('');
               }}
             >
-              <option value="openai">OpenAI (GPT)</option>
-              <option value="deepseek">DeepSeek</option>
+              {config.modelCatalog.providers.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.label}
+                </option>
+              ))}
             </select>
           </label>
           <label>
@@ -335,18 +376,52 @@ export function AiAdminPage({
               aria-label="Модель"
               value={model}
               disabled={saving || testing}
-              onChange={(event) => setModel(event.target.value as Model)}
+              onChange={(event) => setModel(event.target.value)}
             >
-              {provider === 'openai' ? (
-                <>
-                  <option value="gpt-5-mini">GPT-5 mini</option>
-                  <option value="gpt-4.1-mini">GPT-4.1 mini</option>
-                </>
-              ) : (
-                <option value="deepseek-chat">DeepSeek Chat (deepseek-chat)</option>
-              )}
+              {config.modelCatalog.models
+                .filter((item) => item.provider === provider)
+                .map((item) => (
+                  <option key={item.id} value={item.id} disabled={!item.selectable}>
+                    {item.label}
+                    {item.shutdownDate ? ` · до ${item.shutdownDate}` : ''}
+                  </option>
+                ))}
             </select>
           </label>
+          {selectedModel ? (
+            <div className="asa-ai-model-capabilities" aria-label="Возможности выбранной модели">
+              <p>
+                Модель принимает{' '}
+                {selectedModel.inputModalities.includes('image')
+                  ? 'текст и изображения'
+                  : 'только текст'}
+                .
+              </p>
+              <dl>
+                {(
+                  [
+                    ['textChat', 'Текстовый чат'],
+                    ['streaming', 'Потоковые ответы'],
+                    ['imageInput', 'Загрузка изображений'],
+                    ['fileAttachments', 'Загрузка файлов'],
+                    ['imageGeneration', 'Генерация изображений'],
+                  ] as const
+                ).map(([feature, label]) => (
+                  <div key={feature}>
+                    <dt>{label} в ASA Lab</dt>
+                    <dd>
+                      {config.modelCatalog.productFeatures[feature]
+                        ? 'Подключено'
+                        : 'Ещё не подключено'}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+              <small>
+                Каталог описывает возможности модели. Доступ вашего ключа проверяется отдельно.
+              </small>
+            </div>
+          ) : null}
           {provider === 'deepseek' ? (
             <p id="ai-provider-help">
               Официальный DeepSeek API: https://api.deepseek.com/chat/completions. Используйте ключ
@@ -357,7 +432,10 @@ export function AiAdminPage({
           )}
           <label>
             <span>
-              Новый API-ключ {switched ? '(обязателен при смене провайдера)' : '(по необходимости)'}
+              Новый API-ключ{' '}
+              {switched && !selectedProvider?.apiKeyConfigured
+                ? '(для выбранного провайдера)'
+                : '(по необходимости)'}
             </span>
             <input
               type="password"
@@ -369,9 +447,9 @@ export function AiAdminPage({
               }}
               autoComplete="new-password"
               aria-describedby="ai-provider-help"
-              required={switched || (enabled && !config.apiKeyConfigured)}
+              required={(switched || enabled) && !selectedProvider?.apiKeyConfigured}
               placeholder={
-                config.apiKeyConfigured
+                selectedProvider?.apiKeyConfigured
                   ? 'Оставьте пустым, чтобы сохранить прежний ключ'
                   : 'Введите ключ API'
               }
@@ -379,9 +457,9 @@ export function AiAdminPage({
               spellCheck={false}
             />
           </label>
-          {config.keyFingerprint ? (
+          {selectedProvider?.keyFingerprint ? (
             <p className="asa-ai-admin-fingerprint">
-              Отпечаток сохранённого ключа: {config.keyFingerprint}
+              Отпечаток сохранённого ключа: {selectedProvider.keyFingerprint}
             </p>
           ) : null}
           <label>
@@ -415,7 +493,7 @@ export function AiAdminPage({
                   setEnabled(false);
                 }
               }}
-              disabled={saving || testing || !config.apiKeyConfigured}
+              disabled={saving || testing || !selectedProvider?.apiKeyConfigured}
             />
             <span>Удалить сохранённый API-ключ</span>
           </label>
@@ -438,7 +516,14 @@ export function AiAdminPage({
             <button
               type="submit"
               className="btn-primary"
-              disabled={saving || testing || loading || !validQuota || (switched && !apiKey.trim())}
+              disabled={
+                saving ||
+                testing ||
+                loading ||
+                !validQuota ||
+                !selectedModel?.selectable ||
+                needsNewKey
+              }
             >
               {saving ? 'Сохраняем…' : 'Сохранить настройки'}
             </button>

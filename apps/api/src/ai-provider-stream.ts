@@ -1,5 +1,6 @@
 /** Bounded upstream SSE decoder for OpenAI Responses and DeepSeek Chat Completions.
  * No provider credentials, request URLs, or response bodies are logged. */
+import { buildAiTextRequest, isModelForProvider } from './ai-model-catalog.js';
 export type StreamProvider = 'openai' | 'deepseek';
 
 export class ProviderStreamError extends Error {
@@ -122,41 +123,24 @@ export async function streamProviderText({
   onDelta,
 }: StreamArgs): Promise<ProviderStreamResult> {
   if (signal.aborted) return { text: '', stopped: true };
+  if (!isModelForProvider(provider, model)) {
+    throw new ProviderStreamError('ai_model_invalid', 400, 'Выберите поддерживаемую модель.');
+  }
+  const request = buildAiTextRequest(provider, model, context, instructions, true);
   const timeout = AbortSignal.timeout(65000);
   const combined = AbortSignal.any([signal, timeout]);
   let response: Response;
   try {
-    response = await fetchImpl(
-      provider === 'openai'
-        ? 'https://api.openai.com/v1/responses'
-        : 'https://api.deepseek.com/chat/completions',
-      {
-        method: 'POST',
-        headers: {
-          authorization: 'Bearer ' + apiKey,
-          'content-type': 'application/json',
-          accept: 'text/event-stream',
-        },
-        body: JSON.stringify(
-          provider === 'openai'
-            ? {
-                model,
-                instructions,
-                input: context,
-                max_output_tokens: 1600,
-                store: false,
-                stream: true,
-              }
-            : {
-                model,
-                messages: [{ role: 'system', content: instructions }, ...context],
-                max_tokens: 1600,
-                stream: true,
-              },
-        ),
-        signal: combined,
+    response = await fetchImpl(request.url, {
+      method: 'POST',
+      headers: {
+        authorization: 'Bearer ' + apiKey,
+        'content-type': 'application/json',
+        accept: 'text/event-stream',
       },
-    );
+      body: JSON.stringify(request.body),
+      signal: combined,
+    });
   } catch {
     if (signal.aborted) return { text: '', stopped: true };
     throw new ProviderStreamError(

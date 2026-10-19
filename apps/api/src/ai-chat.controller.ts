@@ -14,6 +14,7 @@ import {
   Res,
 } from '@nestjs/common';
 import type { FastifyReply, FastifyRequest } from 'fastify';
+import { isAiModel } from './ai-model-catalog.js';
 import type { ActiveContext, ActiveContextUseCase } from '@asa-lab/identity';
 import { AiChatService, AiServiceError, type AiCursor, type AiModel } from './ai-chat.service.js';
 import { SESSION_COOKIE, TOKENS } from './tokens.js';
@@ -196,12 +197,7 @@ export class AiChatController {
     const message = body['message'] as string;
     const requestId = (body['requestId'] as string).toLowerCase();
     const model = body['model'];
-    if (
-      model !== undefined &&
-      model !== 'gpt-5-mini' &&
-      model !== 'gpt-4.1-mini' &&
-      model !== 'deepseek-chat'
-    ) {
+    if (model !== undefined && !isAiModel(model)) {
       return reject('ai_model_invalid', 'Выберите поддерживаемую модель.', 400);
     }
 

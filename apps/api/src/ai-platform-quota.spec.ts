@@ -1,3 +1,4 @@
+import { aiAdminFixture } from './testing/ai-admin-config.fixture';
 import { createCipheriv } from 'node:crypto';
 import type pg from 'pg';
 import { describe, expect, it, vi } from 'vitest';
@@ -15,8 +16,10 @@ function fixture(admission: 'allow' | 'replay' | Error = 'allow') {
   const config = {
     enabled: true,
     provider: 'openai',
-    model: 'gpt-5-mini',
+    model: 'gpt-6-luna',
     api_key_configured: true,
+    provider_configurations: aiAdminFixture({ apiKeyConfigured: true }).providerConfigurations,
+    migrated_from_model: null,
     key_fingerprint: null,
     configuration_version: 2,
     updated_at: null,
@@ -30,6 +33,10 @@ function fixture(admission: 'allow' | 'replay' | Error = 'allow') {
     order.push(sql);
     if (sql.includes('ai_runtime_config') || sql.includes('ai_admin_get_config')) {
       return { rows: [config] };
+    }
+    if (sql.includes('ai_admin_set_config')) {
+      config.configuration_version += 1;
+      return { rows: [{ ai_admin_set_config: config.configuration_version }] };
     }
     if (sql.includes('ai_chat_begin') || sql.includes('ai_admin_test_begin')) {
       if (admission instanceof Error) throw admission;
@@ -64,7 +71,7 @@ const operations = {
       REQUEST,
       () => undefined,
       new AbortController().signal,
-      'gpt-5-mini',
+      'gpt-6-luna',
     ),
   test: (service: AiChatService) => service.testConnection(PRINCIPAL, 2),
 };
@@ -154,7 +161,7 @@ describe('platform-wide paid operation admission at every upstream path', () => 
       REQUEST,
       () => undefined,
       abort.signal,
-      'gpt-5-mini',
+      'gpt-6-luna',
     );
     expect(f.fetchImpl).not.toHaveBeenCalled();
     expect(f.query.mock.calls.some(([sql]) => sql.includes('ai_chat_abort'))).toBe(true);
@@ -171,7 +178,7 @@ describe('platform-wide paid operation admission at every upstream path', () => 
           {
             enabled: false,
             provider: 'openai',
-            model: 'gpt-5-mini',
+            model: 'gpt-6-luna',
             paidOperationsPerHour: limit,
           } as AiAdminUpdate,
           'settings',
@@ -190,7 +197,7 @@ describe('platform-wide paid operation admission at every upstream path', () => 
         {
           enabled: false,
           provider: 'openai',
-          model: 'gpt-5-mini',
+          model: 'gpt-6-luna',
           paidOperationsPerHour: limit,
         },
         'settings',

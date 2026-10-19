@@ -4,22 +4,23 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AiAdminPage } from '../AdminAiPage';
 import { call } from '../admin-api';
+import { aiAdminFixture } from './ai-admin-config.fixture';
 
 vi.mock('../admin-api', () => ({ call: vi.fn() }));
 
 let root: Root;
 let host: HTMLDivElement;
-const config = {
+const config = aiAdminFixture({
   enabled: true,
   provider: 'openai',
-  model: 'gpt-5-mini',
+  model: 'gpt-6-luna',
   paidOperationsPerHour: 0,
   apiKeyConfigured: true,
   encryptionReady: true,
   keyFingerprint: null,
   configurationVersion: 1,
   updatedAt: null,
-};
+});
 
 beforeEach(() => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
