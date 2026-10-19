@@ -30,6 +30,7 @@ import { ParticipantAssignmentsList } from '../components/ParticipantAssignments
 import type { ClassroomStudentNavigation } from '../components/classroom-student-navigation';
 import { canonicalLearningLabel } from '../learning/canonical-learning-presentation';
 import './classroom-student.css';
+import { ClassroomGamesSettings } from '../components/ClassroomGamesSettings';
 import '../modules/classroom-mobile.css';
 
 export const BADGE_LABELS: Readonly<Record<string, string>> = {
@@ -764,6 +765,12 @@ export function ClassroomStudentPage({
         </section>
       ) : null}
       {readOnly ? <p role="status">Класс в архиве. Изменения недоступны.</p> : null}
+      <ClassroomGamesSettings
+        key={`${classroomId}:${seatId}:games`}
+        classroomId={classroomId}
+        seatId={seatId}
+        readOnly={settingsLocked || controlsBusy}
+      />
       {seatActions?.error && seatActions.error !== profileError ? (
         <p role="alert">{seatActions.error}</p>
       ) : null}

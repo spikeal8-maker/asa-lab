@@ -240,6 +240,27 @@ async function mountTrackers(apis?: ActivityTransport[], input = true) {
 }
 describe('OBS007 repair actual ModuleEditorHost startup observation', () => {
   async function mountHost(strict = false) {
+    // The real game host checks current admission and Project Core before it is ready.
+    // Keep those reads separate from the unchanged analytics receipt transport.
+    const analyticsTransport = transport.getMockImplementation()!;
+    transport.mockImplementation(async (path, init) => {
+      if (path === '/api/games/access?game=chess') {
+        expect(init?.method ?? 'GET').toBe('GET');
+        return new Response(JSON.stringify({ granted: true, reason: 'allowed', threshold: null }), {
+          status: 200,
+        });
+      }
+      if (path === `/api/projects/${projectId}`) {
+        expect(init?.method ?? 'GET').toBe('GET');
+        return new Response(
+          JSON.stringify({
+            project: { id: projectId, moduleKey: 'chess', title: 'Observed game' },
+          }),
+          { status: 200 },
+        );
+      }
+      return analyticsTransport(path, init);
+    });
     vi.doMock('./chess/load-chess-editor', () => ({
       loadChessEditor: async () => ({ default: () => null }),
     }));
@@ -256,6 +277,9 @@ describe('OBS007 repair actual ModuleEditorHost startup observation', () => {
       onBack: () => undefined,
     });
     await act(async () => root!.render(strict ? createElement(StrictMode, null, host) : host));
+    expect(transport.mock.calls.map(([path]) => path)).toEqual(
+      expect.arrayContaining(['/api/games/access?game=chess', `/api/projects/${projectId}`]),
+    );
   }
 
   afterEach(() => {

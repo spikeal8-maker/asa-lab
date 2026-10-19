@@ -85,6 +85,8 @@ import { createRuntimeMetrics, type RuntimeMetrics } from '@asa-lab/observabilit
 import { HealthController } from './health.controller.js';
 import { ModulesController } from './modules.controller.js';
 import { ProjectsController } from './projects.controller.js';
+import { GamesAccessController } from './games-access.controller.js';
+import { gamesProjectGuard } from './games-project-guard.js';
 import { BlocksRuntimeSessionController } from './blocks-runtime-session.controller.js';
 import { BlocksRuntimeController } from './blocks-runtime.controller.js';
 import { BlocksRuntimeSessionIssuer } from './blocks-runtime-session-issuer.js';
@@ -134,7 +136,8 @@ export class AppModule {
     ]);
     const aiChatService = new AiChatService(requirePool());
     const productAnalytics = options.productAnalytics ?? new ProductAnalyticsService(pool);
-    const projectRepository = (): PgProjectRepository => new PgProjectRepository(requirePool());
+    const projectRepository = (): PgProjectRepository =>
+      new PgProjectRepository(requirePool(), undefined, gamesProjectGuard);
     const moduleRegistry = createApiModuleRegistry();
     // Health-only composition may be built without a DB. Every normal runtime
     // with APP_DATABASE_URL uses the durable RLS-protected repository.
@@ -203,6 +206,7 @@ export class AppModule {
         ClassroomTeacherInvitationsController,
         ModulesController,
         ProjectsController,
+        GamesAccessController,
         BlocksRuntimeSessionController,
         BlocksRuntimeController,
         CheckersClassroomController,
