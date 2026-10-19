@@ -15,6 +15,303 @@ const evidenceDir = 'reports/blocks/product-integration';
 const barkAssetId = 'cd8fa8390b0efdd281882533fbfcfcfb';
 const popAssetId = '83a9787d4cb6f3b7632b4ddfebf74367';
 
+const abbyObserverStages = [
+  'observer-ready',
+  'observer-unavailable',
+  'observer-limit-reached',
+  'timer-scheduled',
+  'timer-enter',
+  'timer-return',
+  'timer-throw',
+  'asset-store-enter',
+  'asset-store-return',
+  'asset-store-throw',
+  'save-project-enter',
+  'save-project-return',
+  'save-project-throw',
+  'recovery-assets-enter',
+  'recovery-assets-return',
+  'recovery-assets-throw',
+] as const;
+type AbbyObserverStage = (typeof abbyObserverStages)[number];
+type AbbyStageEvent = {
+  sequence: number;
+  stage: string;
+  callbackId?: number;
+  delayMs?: number;
+  timerHandle?: number;
+  observerSequence?: number;
+};
+
+function createAbbySaveStageEvidence(
+  cleanPop: boolean,
+  fixture: Awaited<ReturnType<typeof createProtocolFixture>>,
+) {
+  const path = `${evidenceDir}/abby-pop-${cleanPop ? 'clean' : 'native'}-save-stages.json`;
+  const events: AbbyStageEvent[] = [];
+  let sequence = 0;
+  let rejectedObserverEvents = 0;
+  let droppedEvents = 0;
+  let writeFailures = 0;
+  let assertionsCompleted = false;
+  let teardownCompleted = false;
+  const observed = new Set<string>();
+  const count = (value: unknown) =>
+    typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : null;
+  const record = (stage: string, detail: Omit<AbbyStageEvent, 'sequence' | 'stage'> = {}) => {
+    sequence += 1;
+    if (stage === 'assertions-completed') assertionsCompleted = true;
+    if (stage === 'teardown-return') teardownCompleted = true;
+    observed.add(stage);
+    if (events.length < 256) events.push({ sequence, stage, ...detail });
+    else droppedEvents += 1;
+    try {
+      fs.mkdirSync(evidenceDir, { recursive: true });
+      fs.writeFileSync(
+        `${path}.tmp`,
+        JSON.stringify(
+          {
+            schemaVersion: 1,
+            variant: cleanPop ? 'clean-pop' : 'default-cached-pop',
+            lastStage: stage,
+            outcome: assertionsCompleted && teardownCompleted ? 'NOT_REPRODUCED' : 'INCOMPLETE',
+            captureState:
+              observed.has('observer-ready') &&
+              !observed.has('observer-unavailable') &&
+              !observed.has('observer-limit-reached') &&
+              rejectedObserverEvents === 0 &&
+              droppedEvents === 0 &&
+              writeFailures === 0
+                ? 'OBSERVED'
+                : 'INCOMPLETE',
+            eventOrder: 'node-receive-order-with-separate-browser-observer-sequence',
+            callbackIdentityScope: 'function-reference-within-first-runtime-realm',
+            projectSaverCallbackLink: 'NOT_OBSERVED',
+            vmSerialization: 'NOT_OBSERVED',
+            asynchronousReturnSettlement: 'NOT_OBSERVED',
+            boundaries: Object.fromEntries(
+              [
+                'timer-enter',
+                'asset-store-enter',
+                'save-project-enter',
+                'recovery-assets-enter',
+              ].map((boundary) => [boundary, observed.has(boundary) ? 'OBSERVED' : 'NOT_OBSERVED']),
+            ),
+            revision: count(fixture.getServerRevision()),
+            assetRequests: count(fixture.runtimePersistenceMetrics.assetRequests),
+            draftRequests: count(fixture.runtimePersistenceMetrics.draftRequests),
+            revisionCommits: count(fixture.runtimePersistenceMetrics.revisionCommits),
+            events,
+            droppedEvents,
+            rejectedObserverEvents,
+            writeFailures,
+          },
+          null,
+          2,
+        ),
+      );
+      fs.renameSync(`${path}.tmp`, path);
+    } catch {
+      // A diagnostic write cannot replace an assertion or prevent teardown.
+      writeFailures += 1;
+    }
+  };
+  const observer = (input: unknown) => {
+    // Browser values never become artifact fields without this second allowlist.
+    const event = input as {
+      stage?: unknown;
+      callbackId?: unknown;
+      delayMs?: unknown;
+      timerHandle?: unknown;
+      observerSequence?: unknown;
+    } | null;
+    if (!event || !abbyObserverStages.includes(event.stage as AbbyObserverStage)) {
+      rejectedObserverEvents += 1;
+      record('observer-event-rejected');
+      return;
+    }
+    const detail: Omit<AbbyStageEvent, 'sequence' | 'stage'> = {};
+    if (typeof event.callbackId === 'number' && count(event.callbackId) !== null) {
+      detail.callbackId = event.callbackId;
+    }
+    if (
+      typeof event.delayMs === 'number' &&
+      Number.isFinite(event.delayMs) &&
+      event.delayMs >= 55_000 &&
+      event.delayMs <= 65_000
+    ) {
+      detail.delayMs = event.delayMs;
+    }
+    for (const key of ['timerHandle', 'observerSequence'] as const) {
+      const value = event[key];
+      if (typeof value === 'number' && count(value) !== null) detail[key] = value;
+    }
+    record(event.stage as AbbyObserverStage, detail);
+  };
+  record('fixture-ready');
+  return { record, observer };
+}
+
+async function installAbbySaveStageObserver(
+  page: import('@playwright/test').Page,
+  observer: (input: unknown) => void,
+) {
+  const binding = '__asaAbbySaveStageEvidence';
+  await page.exposeBinding(binding, (_source, input: unknown) => observer(input));
+  await page.addInitScript((bindingName) => {
+    if (!globalThis.location.pathname.startsWith('/internal/blocks/')) return;
+    type Callable = (...args: unknown[]) => unknown;
+    type Storage = {
+      saveProject: Callable;
+      captureRecoveryAssets: Callable;
+      scratchStorage: { store: Callable };
+    };
+    type StorageApi = { createReadOnlyStorage: (...args: unknown[]) => Storage };
+    type EditorApi = { mountEditor: Callable };
+    const globals = globalThis as unknown as Record<string, unknown> & {
+      AsaBlocksStorage?: StorageApi;
+    };
+    let emitted = 0;
+    const emit = (
+      stage: string,
+      detail: { callbackId?: number; delayMs?: number; timerHandle?: number } = {},
+    ) => {
+      if (emitted > 128) return;
+      const event = emitted === 128 ? { stage: 'observer-limit-reached' } : { stage, ...detail };
+      emitted += 1;
+      try {
+        // No browser callback waits on diagnostic I/O or on an observed promise.
+        const send = globals[bindingName] as (value: unknown) => Promise<void>;
+        void send({ ...event, observerSequence: emitted }).catch(() => undefined);
+      } catch {
+        // Observation cannot replace the original callback's outcome.
+      }
+    };
+    const wrap = (callback: Callable, prefix: string, detail = {}) =>
+      new Proxy(callback, {
+        apply(target, receiver, args) {
+          emit(`${prefix}-enter`, detail);
+          try {
+            const result = Reflect.apply(target, receiver, args);
+            emit(`${prefix}-return`, detail);
+            return result;
+          } catch (error) {
+            emit(`${prefix}-throw`, detail);
+            throw error;
+          }
+        },
+      });
+    const observeMethod = (object: object, key: string, prefix: string) => {
+      const descriptor = Object.getOwnPropertyDescriptor(object, key);
+      if (!descriptor || typeof descriptor.value !== 'function' || !descriptor.writable) {
+        emit('observer-unavailable');
+        return;
+      }
+      Object.defineProperty(object, key, { ...descriptor, value: wrap(descriptor.value, prefix) });
+    };
+    let installed = false;
+    const install = () => {
+      if (installed) return;
+      installed = true;
+      const storageApi = globals.AsaBlocksStorage;
+      if (typeof storageApi?.createReadOnlyStorage !== 'function') {
+        emit('observer-unavailable');
+        return;
+      }
+      const observedStorages = new WeakSet<object>();
+      storageApi.createReadOnlyStorage = new Proxy(storageApi.createReadOnlyStorage, {
+        apply(target, receiver, args) {
+          const storage = Reflect.apply(target, receiver, args) as Storage;
+          try {
+            if (!observedStorages.has(storage)) {
+              observedStorages.add(storage);
+              observeMethod(storage, 'saveProject', 'save-project');
+              observeMethod(storage, 'captureRecoveryAssets', 'recovery-assets');
+              observeMethod(storage.scratchStorage, 'store', 'asset-store');
+            }
+          } catch {
+            emit('observer-unavailable');
+          }
+          return storage;
+        },
+      });
+      // Install after all init scripts, at the real mount boundary. This retains
+      // the existing fixture clock and the clean-Pop fixture's storage wrapper.
+      const callbacks = new WeakMap<Callable, { id: number; observed: Callable }>();
+      let nextCallbackId = 0;
+      globalThis.setTimeout = new Proxy(globalThis.setTimeout, {
+        apply(target, receiver, args) {
+          const [callback, delay] = args;
+          if (
+            typeof callback !== 'function' ||
+            typeof delay !== 'number' ||
+            !Number.isFinite(delay) ||
+            delay < 55_000 ||
+            delay > 65_000
+          ) {
+            return Reflect.apply(target, receiver, args);
+          }
+          const original = callback as Callable;
+          let entry = callbacks.get(original);
+          if (!entry) {
+            const id = ++nextCallbackId;
+            entry = { id, observed: wrap(original, 'timer', { callbackId: id }) };
+            callbacks.set(original, entry);
+          }
+          const detail = { callbackId: entry.id, delayMs: delay };
+          const result = Reflect.apply(target, receiver, [entry.observed, ...args.slice(1)]);
+          emit('timer-scheduled', {
+            ...detail,
+            ...(typeof result === 'number' && Number.isSafeInteger(result)
+              ? { timerHandle: result }
+              : {}),
+          });
+          return result;
+        },
+      });
+      emit('observer-ready');
+    };
+    if (Object.getOwnPropertyDescriptor(globalThis, 'AsaBlocksEditor')) {
+      emit('observer-unavailable');
+      return;
+    }
+    Object.defineProperty(globalThis, 'AsaBlocksEditor', {
+      configurable: true,
+      enumerable: true,
+      set(value: EditorApi) {
+        Object.defineProperty(globalThis, 'AsaBlocksEditor', {
+          configurable: true,
+          enumerable: true,
+          writable: true,
+          value,
+        });
+        if (value === null || (typeof value !== 'object' && typeof value !== 'function')) {
+          emit('observer-unavailable');
+          return;
+        }
+        const descriptor = Object.getOwnPropertyDescriptor(value, 'mountEditor');
+        if (!descriptor || typeof descriptor.value !== 'function' || !descriptor.writable) {
+          emit('observer-unavailable');
+          return;
+        }
+        Object.defineProperty(value, 'mountEditor', {
+          ...descriptor,
+          value: new Proxy(descriptor.value as Callable, {
+            apply(target, receiver, args) {
+              try {
+                install();
+              } catch {
+                emit('observer-unavailable');
+              }
+              return Reflect.apply(target, receiver, args);
+            },
+          }),
+        });
+      },
+    });
+  }, binding);
+}
+
 async function realRuntimeBootstrapFixture() {
   const imageBytes = Buffer.from(
     '<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96"><rect width="96" height="96" rx="16" fill="#ff5f57"/><circle cx="48" cy="48" r="23" fill="#0877b3"/></svg>',
@@ -460,7 +757,10 @@ for (const cleanPop of [false, true]) {
       },
       runtimeAssets: serverProject.runtimeAssets,
     });
+    const saveStages = createAbbySaveStageEvidence(cleanPop, fixture);
+    saveStages.record('page-create-enter');
     let page = await minuteClockPage(fixture);
+    saveStages.record('page-create-return');
     let stage = 'opening';
     let savedTiming: unknown = null;
     const reloadedAssets: Array<{ assetFile: string; sha256: string; sizeBytes: number }> = [];
@@ -473,6 +773,11 @@ for (const cleanPop of [false, true]) {
         saveErrors.push(message.text());
       }
     });
+    saveStages.record('observer-install-enter');
+    await installAbbySaveStageObserver(page, saveStages.observer).catch(() => {
+      saveStages.record('observer-unavailable');
+    });
+    saveStages.record('observer-install-return');
     if (cleanPop) {
       // Exercise Scratch's valid clean=true media state without invoking a save
       // or changing the minute timer: only ASA's acknowledgement is durability.
@@ -508,14 +813,19 @@ for (const cleanPop of [false, true]) {
       }, popAssetId);
     }
     try {
+      saveStages.record('open-enter');
       await page.goto(`${parentOrigin}/product`, { waitUntil: 'domcontentloaded' });
+      saveStages.record('open-return');
       let frame = page.frameLocator('iframe[title="Scratch runtime"]');
+      saveStages.record('editor-ready-wait-enter');
       await expect(frame.locator('[data-asa-host-shell]')).toHaveAttribute(
         'data-editor-state',
         'ready',
         { timeout: 45000 },
       );
 
+      saveStages.record('editor-ready-observed');
+      saveStages.record('add-abby-enter');
       await frame.getByRole('button', { name: 'Choose a Sprite' }).first().click();
       await frame.getByText('Abby', { exact: true }).click();
       await expect(frame.getByPlaceholder('Name', { exact: true })).toHaveValue('Abby');
@@ -529,10 +839,15 @@ for (const cleanPop of [false, true]) {
         ).toBeGreaterThan(0);
       }
 
+      saveStages.record('add-abby-return');
       stage = 'first-checkpoint';
       expect(fixture.getServerRevision()).toBe(23);
+      saveStages.record('clock-advance-enter');
       await advanceMinuteCheckpoint(page);
+      saveStages.record('clock-advance-return');
+      saveStages.record('revision-24-wait-enter');
       await expect.poll(() => fixture.getServerRevision(), { timeout: 30000 }).toBe(24);
+      saveStages.record('revision-24-observed');
 
       const popFile = `${popAssetId}.wav`;
       const popPuts = fixture.runtimeAssetPutEvidence.filter((item) => item.assetFile === popFile);
@@ -546,12 +861,14 @@ for (const cleanPop of [false, true]) {
         contentTypeOk: true,
       });
       expect(fixture.runtimeDraftEvidence.length).toBeGreaterThan(0);
+      saveStages.record('saved-timing-read-enter');
       savedTiming = await frame.locator('body').evaluate(() => ({
         timers:
           (globalThis as unknown as { __asaMinuteAutosaveTimers?: unknown[] })
             .__asaMinuteAutosaveTimers ?? [],
         shell: { ...(document.querySelector('[data-asa-host-shell]') as HTMLElement)?.dataset },
       }));
+      saveStages.record('saved-timing-read-return');
       stage = 'saved';
 
       const savedDocument = fixture.runtimeDraftEvidence.at(-1)?.body?.document?.projectJson as
@@ -575,11 +892,18 @@ for (const cleanPop of [false, true]) {
       const uploaded = new Set(fixture.runtimeAssetPutEvidence.map((item) => item.assetFile));
       for (const assetFile of abbyAssetFiles) expect(uploaded.has(assetFile)).toBe(true);
 
+      saveStages.record('reopen-context-enter');
       await fixture.reopenContextWithIndexedDB();
+      saveStages.record('reopen-context-return');
       stage = 'reopen';
+      saveStages.record('reopen-page-enter');
       page = await fixture.context.newPage();
+      saveStages.record('reopen-page-return');
+      saveStages.record('reopen-navigation-enter');
       await page.goto(`${parentOrigin}/product`, { waitUntil: 'domcontentloaded' });
+      saveStages.record('reopen-navigation-return');
       frame = page.frameLocator('iframe[title="Scratch runtime"]');
+      saveStages.record('reopen-ready-wait-enter');
       await expect(frame.locator('[data-asa-host-shell]')).toHaveAttribute(
         'data-editor-state',
         'ready',
@@ -589,6 +913,7 @@ for (const cleanPop of [false, true]) {
         'data-project-source',
         'runtime-session',
       );
+      saveStages.record('reopen-ready-observed');
       const abbyButton = frame.getByRole('button', { name: 'Abby', exact: true });
       await expect(abbyButton).toBeVisible();
       await abbyButton.click();
@@ -644,7 +969,10 @@ for (const cleanPop of [false, true]) {
       });
       expect(scratchFoundationWrites).toEqual([]);
       expect(fixture.pageErrors).toEqual([]);
+      saveStages.record('assertions-completed');
     } finally {
+      saveStages.record('finally-enter');
+      saveStages.record('legacy-timing-read-enter');
       const timing = await page
         .frameLocator('iframe[title="Scratch runtime"]')
         .locator('body')
@@ -655,6 +983,8 @@ for (const cleanPop of [false, true]) {
           shell: { ...(document.querySelector('[data-asa-host-shell]') as HTMLElement)?.dataset },
         }))
         .catch(() => null);
+      saveStages.record('legacy-timing-read-return');
+      saveStages.record('legacy-evidence-write-enter');
       fs.writeFileSync(
         `${evidenceDir}/abby-pop-${cleanPop ? 'clean' : 'native'}-autosave.json`,
         JSON.stringify(
@@ -674,7 +1004,15 @@ for (const cleanPop of [false, true]) {
           2,
         ),
       );
-      await fixture.close();
+      saveStages.record('legacy-evidence-write-return');
+      saveStages.record('teardown-enter');
+      let teardownCompleted = false;
+      try {
+        await fixture.close();
+        teardownCompleted = true;
+      } finally {
+        saveStages.record(teardownCompleted ? 'teardown-return' : 'teardown-interrupted');
+      }
     }
   });
 }

@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { createHash } from 'node:crypto';
+import fs from 'node:fs';
 
 let createProtocolFixture: typeof import('../tools/blocks/browser/fixture.mjs').createProtocolFixture;
 let installMinuteAutosaveClock: typeof import('../tools/blocks/browser/fixture.mjs').installMinuteAutosaveClock;
@@ -410,15 +411,104 @@ test('failed server autosave retains recovery', async () => {
     draftWriteStatus: 503,
   });
   let observedDraftStatus: number | null = null;
+  const stageDirectory = 'reports/blocks/recovery';
+  const stagePath = `${stageDirectory}/failed-autosave-stages.json`;
+  type StageDetail = {
+    recoveryReadyAtResponse?: boolean;
+    retainedCount?: number;
+    retainedStepsMatch73?: boolean;
+  };
+  const stageEvents: Array<
+    { sequence: number; stage: string; responseStatus: number | null } & StageDetail
+  > = [];
+  const observedStages = new Set<string>();
+  let stageSequence = 0;
+  let droppedStageEvents = 0;
+  let stageWriteFailures = 0;
+  let assertionsCompleted = false;
+  let teardownCompleted = false;
+  const safeCount = (value: unknown) =>
+    typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : null;
+  const recordStage = (stage: string, detail: StageDetail = {}) => {
+    stageSequence += 1;
+    observedStages.add(stage);
+    if (stage === 'assertions-completed') assertionsCompleted = true;
+    if (stage === 'teardown-return') teardownCompleted = true;
+    const safeDetail: StageDetail = {};
+    if (typeof detail.recoveryReadyAtResponse === 'boolean')
+      safeDetail.recoveryReadyAtResponse = detail.recoveryReadyAtResponse;
+    if (typeof detail.retainedStepsMatch73 === 'boolean')
+      safeDetail.retainedStepsMatch73 = detail.retainedStepsMatch73;
+    if (typeof detail.retainedCount === 'number' && safeCount(detail.retainedCount) !== null)
+      safeDetail.retainedCount = detail.retainedCount;
+    if (stageEvents.length < 64) {
+      stageEvents.push({
+        sequence: stageSequence,
+        stage,
+        responseStatus: safeCount(observedDraftStatus),
+        ...safeDetail,
+      });
+    } else droppedStageEvents += 1;
+    try {
+      fs.mkdirSync(stageDirectory, { recursive: true });
+      fs.writeFileSync(
+        `${stagePath}.tmp`,
+        JSON.stringify(
+          {
+            schemaVersion: 1,
+            lastStage: stage,
+            outcome: assertionsCompleted && teardownCompleted ? 'NOT_REPRODUCED' : 'INCOMPLETE',
+            captureState:
+              stageWriteFailures === 0 && droppedStageEvents === 0 ? 'OBSERVED' : 'INCOMPLETE',
+            responseStatus: safeCount(observedDraftStatus),
+            serverRevision: safeCount(fixture.getServerRevision()),
+            draftCount: safeCount(fixture.runtimeDraftEvidence.length),
+            boundaries: Object.fromEntries(
+              [
+                'response-headers',
+                'response-completion-enter',
+                'response-completion-return',
+                'response-completion-error-return',
+                'recovery-read-enter',
+                'recovery-read-return',
+                'teardown-enter',
+                'teardown-return',
+              ].map((boundary) => [
+                boundary,
+                observedStages.has(boundary) ? 'OBSERVED' : 'NOT_OBSERVED',
+              ]),
+            ),
+            events: stageEvents,
+            droppedEvents: droppedStageEvents,
+            writeFailures: stageWriteFailures,
+          },
+          null,
+          2,
+        ),
+      );
+      fs.renameSync(`${stagePath}.tmp`, stagePath);
+    } catch {
+      // Diagnostic I/O cannot replace the original failure or skip cleanup.
+      stageWriteFailures += 1;
+    }
+  };
+  recordStage('fixture-ready');
   try {
     // Exercise the real failed-save boundary; minute-deadline behavior has its
     // own clock-controlled acceptance case in blocks-product-integration.
+    recordStage('page-create-enter');
     const page = await fixture.context.newPage();
+    recordStage('page-create-return');
+    recordStage('open-enter');
     await page.goto(`${parentOrigin}/product`, { waitUntil: 'domcontentloaded' });
+    recordStage('open-return');
     const frame = page.frameLocator('iframe[title="Scratch runtime"]');
+    recordStage('editor-ready-wait-enter');
     await waitReady(frame);
+    recordStage('editor-ready-observed');
     let recoveryReady = false;
     let recoveryReadyAtResponse = false;
+    recordStage('save-and-checkpoint-wait-enter');
     const [response] = await Promise.all([
       page
         .waitForResponse(
@@ -430,17 +520,28 @@ test('failed server autosave retains recovery', async () => {
         .then((candidate) => {
           observedDraftStatus = candidate.status();
           recoveryReadyAtResponse = recoveryReady;
+          recordStage('response-headers', { recoveryReadyAtResponse });
           return candidate;
         }),
       (async () => {
+        recordStage('edit-enter');
         await setSteps(frame, '10', '73');
+        recordStage('checkpoint-wait-enter');
         await expect
           .poll(async () => recoverySteps((await readRecoveryRecords(frame))[0]))
           .toBe('73');
         recoveryReady = true;
+        recordStage('checkpoint-observed');
       })(),
     ]);
-    await response.finished();
+    recordStage('save-and-checkpoint-wait-return');
+    recordStage('response-completion-enter');
+    const responseCompletion = await response.finished();
+    recordStage(
+      responseCompletion === null
+        ? 'response-completion-return'
+        : 'response-completion-error-return',
+    );
     expect(recoveryReadyAtResponse).toBe(true);
     expect(observedDraftStatus).toBe(503);
     expect(fixture.runtimeDraftEvidence).toHaveLength(1);
@@ -464,10 +565,18 @@ test('failed server autosave retains recovery', async () => {
       ]),
     );
     expect(fixture.getServerRevision()).toBe(23);
+    recordStage('recovery-read-enter');
     const retainedRecovery = await readRecoveryRecords(frame);
+    recordStage('recovery-read-return', {
+      retainedCount: retainedRecovery.length,
+      retainedStepsMatch73: recoverySteps(retainedRecovery[0]) === '73',
+    });
     expect(retainedRecovery).toHaveLength(1);
     expect(recoverySteps(retainedRecovery[0])).toBe('73');
+    recordStage('assertions-completed');
   } finally {
+    recordStage('finally-enter');
+    recordStage('legacy-attachment-enter');
     await test
       .info()
       .attach('failed-autosave-outcome', {
@@ -488,7 +597,15 @@ test('failed server autosave retains recovery', async () => {
         }),
       })
       .catch(() => undefined);
-    await fixture.close();
+    recordStage('legacy-attachment-return');
+    recordStage('teardown-enter');
+    let closeReturned = false;
+    try {
+      await fixture.close();
+      closeReturned = true;
+    } finally {
+      recordStage(closeReturned ? 'teardown-return' : 'teardown-interrupted');
+    }
   }
 });
 
