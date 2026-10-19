@@ -42,7 +42,20 @@ const INDEPENDENT_ROUTES = new Set([
 // The audited handlers on these routes select a Seat before an Account. A
 // genuine Seat session must not acquire an unrelated Account's verification
 // requirement. A fabricated Seat cookie never bypasses the Account gate.
+const AI_SEAT_FIRST_ROUTES = new Set([
+  'GET /api/ai/scopes',
+  'GET /api/ai/status',
+  'GET /api/ai/threads',
+  'POST /api/ai/threads',
+  'PATCH /api/ai/threads/:threadId',
+  'DELETE /api/ai/threads/:threadId',
+  'GET /api/ai/threads/:threadId/messages',
+  'POST /api/ai/threads/:threadId/messages',
+  'POST /api/ai/threads/:threadId/messages/stream',
+  'POST /api/ai/threads/:threadId/requests/:requestId/stop',
+]);
 const SEAT_FIRST_ROUTES = new Set([
+  ...AI_SEAT_FIRST_ROUTES,
   'GET /api/class-join/course-runs/:runId/lessons/:lessonId/sample',
   'GET /api/class-join/course-runs/:runId/lessons/:lessonId/materials/:blockId',
   'GET /api/class-join/course-runs/:runId/lessons/:lessonId/materials/:blockId/:role/:contentHash',
@@ -85,7 +98,9 @@ export class AccountVerificationGuard implements CanActivate {
     if (
       SEAT_FIRST_ROUTES.has(route) &&
       request.cookies['asa_student_session'] &&
-      (await this.seats.resolve(request.cookies['asa_student_session']))
+      (await (AI_SEAT_FIRST_ROUTES.has(route)
+        ? this.seats.resolveExisting(request.cookies['asa_student_session'])
+        : this.seats.resolve(request.cookies['asa_student_session'])))
     )
       return true;
     const identity = await this.activeContext.resolve(token);

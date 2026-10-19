@@ -77,6 +77,7 @@ async function fixture(page: Page, answer = 'Arduino — это платформ
       });
     if (path === '/api/auth/max/config') return respond(route, { enabled: false, launchUrl: null });
     if (path === '/api/class-join/me') return respond(route, { authenticated: false });
+    if (path === '/api/ai/scopes') return respond(route, { personal: true, items: [] });
     if (path === '/api/ai/status')
       return respond(route, {
         enabled,

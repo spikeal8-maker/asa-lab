@@ -2,6 +2,7 @@ import {
   isValidElement,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type FormEvent,
@@ -9,7 +10,7 @@ import {
 } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { call } from '../api-call';
+import { aiAdmissionMessage, aiScopeHeaders, createAiScopeCall } from './ai-scope-api';
 import { AsaLabMark } from '../brand/AsaLabBrand';
 import { AiStreamClientError, streamAiRequest } from './stream-ai-request';
 import './izo-chat-design.css';
@@ -54,6 +55,9 @@ function cursorQuery(cursor: AiCursor): string {
 }
 
 interface AiStatus {
+  readonly reason?: string | null;
+  readonly canGenerate?: boolean;
+  readonly providerEnabled?: boolean;
   readonly enabled: boolean;
   readonly provider: 'openai' | 'deepseek';
   readonly model: string;
@@ -133,7 +137,11 @@ function Content({ content }: { readonly content: string }): JSX.Element {
   );
 }
 
-export function AiChatPage(): JSX.Element {
+export function AiChatPage({
+  seatId,
+  scopeControl,
+}: { seatId?: string; scopeControl?: ReactNode } = {}): JSX.Element {
+  const call = useMemo(() => createAiScopeCall(seatId), [seatId]);
   const [status, setStatus] = useState<AiStatus | null>(null);
   const [selectedModel, setSelectedModel] = useState('');
   const [threads, setThreads] = useState<readonly AiThread[]>([]);
@@ -288,7 +296,7 @@ export function AiChatPage(): JSX.Element {
       selectedVersion.current += 1;
       activeStream.current?.controller.abort();
     };
-  }, []);
+  }, [call]);
 
   useLayoutEffect(() => {
     const node = chatScroll.current;
@@ -301,6 +309,16 @@ export function AiChatPage(): JSX.Element {
       node.scrollTo({ top: node.scrollHeight });
     }
   }, [messages, busy, streamedText]);
+
+  async function refreshAdmission() {
+    const version = selectedVersion.current;
+    const result = await call<AiStatus>('/api/ai/status');
+    if (version !== selectedVersion.current) return;
+    if (result.ok) {
+      setStatus(result.data);
+      setError(null);
+    } else setError(result.error.message);
+  }
 
   async function refreshThreads(): Promise<void> {
     const result = await call<AiPage<AiThread>>('/api/ai/threads');
@@ -555,6 +573,7 @@ export function AiChatPage(): JSX.Element {
           },
           controller.signal,
           selectedModel || status.model,
+          aiScopeHeaders(seatId),
         );
         if (version !== selectedVersion.current) return;
         setStreamedText('');
@@ -572,6 +591,9 @@ export function AiChatPage(): JSX.Element {
           setError('Запрос уже был принят. Повторная платная генерация не выполнялась.');
         }
       } catch (problem) {
+        if (problem instanceof AiStreamClientError && problem.code === 'ai_student_denied') {
+          void refreshAdmission();
+        }
         if (version !== selectedVersion.current) return;
         setError(
           problem instanceof AiStreamClientError
@@ -800,7 +822,9 @@ export function AiChatPage(): JSX.Element {
             ) : null}
           </nav>
           <footer className="chat-sidebar-bottom">
-            <span className="asa-ai-privacy">Диалоги доступны только вашему аккаунту.</span>
+            <span className="asa-ai-privacy">
+              История доступна только вам в выбранном контексте.
+            </span>
           </footer>
         </dialog>
 
@@ -843,7 +867,13 @@ export function AiChatPage(): JSX.Element {
                 </select>
               ) : (
                 <span>
-                  {loading ? 'Подключение…' : status?.enabled ? status.model : 'Не подключён'}
+                  {loading
+                    ? 'Подключение…'
+                    : status?.enabled
+                      ? status.model
+                      : status?.providerEnabled
+                        ? 'Доступ закрыт'
+                        : 'Не подключён'}
                 </span>
               )}
             </div>
@@ -858,6 +888,7 @@ export function AiChatPage(): JSX.Element {
               <span aria-hidden="true">+</span>
             </button>
           </header>
+          {scopeControl}
 
           {!historyReady && !error ? (
             <div className="chat-start-state" role="status">
@@ -911,11 +942,6 @@ export function AiChatPage(): JSX.Element {
                     </button>
                   ))}
                 </div>
-                {!status?.enabled && !loading ? (
-                  <p className="chat-start-note" role="status">
-                    ИИ пока выключен. Администратор должен подключить модель в разделе «Админ → ИИ».
-                  </p>
-                ) : null}
               </div>
             </div>
           ) : (
@@ -1005,9 +1031,18 @@ export function AiChatPage(): JSX.Element {
               </div>
             </div>
           )}
-          {error ? (
-            <div className="asa-ai-error" role="alert">
-              {error}
+          {error || (!status?.enabled && !loading) ? (
+            <div className="asa-ai-error" role={error ? 'alert' : 'status'}>
+              {error ?? aiAdmissionMessage(status?.reason)}
+              {!status?.enabled ? (
+                <button
+                  className="btn-secondary"
+                  type="button"
+                  onClick={() => void refreshAdmission()}
+                >
+                  Проверить доступ
+                </button>
+              ) : null}
               {currentId && !interactionBusy ? (
                 <button
                   className="btn-secondary"
@@ -1039,7 +1074,11 @@ export function AiChatPage(): JSX.Element {
                   }}
                   rows={2}
                   placeholder={
-                    status?.enabled ? 'Опишите идею или задачу…' : 'ИИ пока не подключён'
+                    status?.enabled
+                      ? 'Опишите идею или задачу…'
+                      : seatId
+                        ? 'Доступ к ИИ-чату закрыт'
+                        : 'ИИ пока не подключён'
                   }
                   disabled={!status?.enabled || interactionBusy}
                   aria-label="Сообщение ИИ"
@@ -1051,7 +1090,7 @@ export function AiChatPage(): JSX.Element {
                   type={busy ? 'button' : 'submit'}
                   className="chat-send-button"
                   disabled={
-                    !status?.enabled ||
+                    (!busy && !status?.enabled) ||
                     creatingChat ||
                     threadActionBusy ||
                     (!busy && (!historyReady || !draft.trim()))

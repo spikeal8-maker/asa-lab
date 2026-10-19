@@ -36,6 +36,7 @@ export const TOKENS = {
   telegramAuthService: 'TELEGRAM_AUTH_SERVICE',
   accountVerification: 'ACCOUNT_VERIFICATION_SERVICE',
   aiChatService: 'AI_CHAT_SERVICE',
+  aiAccessService: 'AI_ACCESS_SERVICE',
   refreshSessionService: 'REFRESH_SESSION_SERVICE',
   adminControlPlane: 'ADMIN_CONTROL_PLANE',
   productAnalytics: 'PRODUCT_ANALYTICS',

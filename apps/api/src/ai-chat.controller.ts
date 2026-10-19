@@ -14,9 +14,11 @@ import {
   Res,
 } from '@nestjs/common';
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import type { ActiveContext, ActiveContextUseCase } from '@asa-lab/identity';
+import type { ActiveContextUseCase } from '@asa-lab/identity';
 import { AiChatService, AiServiceError, type AiCursor, type AiModel } from './ai-chat.service.js';
-import { SESSION_COOKIE, TOKENS } from './tokens.js';
+import { AiAccessService, aiRequestActor, aiSeatSelector } from './ai-access.service.js';
+import type { SeatContextUseCase } from './seat-context.js';
+import { TOKENS } from './tokens.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -29,14 +31,17 @@ export class AiChatController {
   constructor(
     @Inject(TOKENS.activeContextUseCase) private readonly activeContext: ActiveContextUseCase,
     @Inject(TOKENS.aiChatService) private readonly ai: AiChatService,
+    @Inject(TOKENS.seatContextUseCase) private readonly seats: SeatContextUseCase,
+    @Inject(TOKENS.aiAccessService) private readonly access: AiAccessService,
   ) {}
 
-  private async requireAccount(request: FastifyRequest): Promise<ActiveContext> {
-    const context = await this.activeContext.resolve(request.cookies[SESSION_COOKIE]);
-    if (!context || !context.accountId) {
-      return reject('ai_account_required', 'Для чата нужен вход в личный аккаунт.', 401);
-    }
-    return context;
+  private async requireOwner(request: FastifyRequest): Promise<{ principalId: string }> {
+    return this.safe(async () => ({
+      principalId: await this.access.owner(
+        await aiRequestActor(request, this.activeContext, this.seats),
+        aiSeatSelector(request),
+      ),
+    }));
   }
 
   private requireSameOrigin(request: FastifyRequest): void {
@@ -91,8 +96,20 @@ export class AiChatController {
 
   @Get('status')
   async status(@Req() request: FastifyRequest) {
-    await this.requireAccount(request);
-    return this.safe(() => this.ai.status());
+    const owner = await this.requireOwner(request);
+    return this.safe(async () => {
+      const [runtime, admission] = await Promise.all([
+        this.ai.status(),
+        this.access.admission(owner.principalId),
+      ]);
+      return {
+        ...runtime,
+        ...admission,
+        providerEnabled: runtime.enabled,
+        enabled: runtime.enabled && admission.canGenerate,
+        reason: runtime.enabled ? admission.reason : 'ai_disabled',
+      };
+    });
   }
 
   @Get('threads')
@@ -101,7 +118,7 @@ export class AiChatController {
     @Query('beforeAt') beforeAt?: string,
     @Query('beforeId') beforeId?: string,
   ) {
-    const account = await this.requireAccount(request);
+    const account = await this.requireOwner(request);
     const cursor = this.cursor(beforeAt, beforeId);
     return this.safe(() => this.ai.threadPage(account.principalId, cursor));
   }
@@ -113,7 +130,7 @@ export class AiChatController {
     @Body() raw: unknown,
   ) {
     this.requireSameOrigin(request);
-    const account = await this.requireAccount(request);
+    const account = await this.requireOwner(request);
     const threadId = this.threadId(rawId);
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
       return reject('ai_title_invalid', 'Нужно название диалога.', 400);
@@ -129,7 +146,7 @@ export class AiChatController {
   @HttpCode(200)
   async delete(@Req() request: FastifyRequest, @Param('threadId') rawId: string) {
     this.requireSameOrigin(request);
-    const account = await this.requireAccount(request);
+    const account = await this.requireOwner(request);
     const threadId = this.threadId(rawId);
     return this.safe(() => this.ai.deleteThread(account.principalId, threadId));
   }
@@ -138,7 +155,7 @@ export class AiChatController {
   @HttpCode(201)
   async create(@Req() request: FastifyRequest) {
     this.requireSameOrigin(request);
-    const account = await this.requireAccount(request);
+    const account = await this.requireOwner(request);
     return this.safe(() => this.ai.createThread(account.principalId));
   }
 
@@ -149,7 +166,7 @@ export class AiChatController {
     @Query('beforeAt') beforeAt?: string,
     @Query('beforeId') beforeId?: string,
   ) {
-    const account = await this.requireAccount(request);
+    const account = await this.requireOwner(request);
     const threadId = this.threadId(rawId);
     const cursor = this.cursor(beforeAt, beforeId);
     return this.safe(() => this.ai.messagePage(account.principalId, threadId, cursor));
@@ -163,7 +180,7 @@ export class AiChatController {
     @Param('requestId') rawRequestId: string,
   ) {
     this.requireSameOrigin(request);
-    const account = await this.requireAccount(request);
+    const account = await this.requireOwner(request);
     const threadId = this.threadId(rawThreadId);
     if (!UUID.test(rawRequestId)) {
       return reject('ai_request_id_invalid', 'Неверный идентификатор запроса.', 400);
@@ -180,7 +197,7 @@ export class AiChatController {
     @Body() raw: unknown,
   ): Promise<void> {
     this.requireSameOrigin(request);
-    const account = await this.requireAccount(request);
+    const account = await this.requireOwner(request);
     const threadId = this.threadId(rawId);
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
       return reject('ai_input_invalid', 'Нужен текст сообщения.', 400);
@@ -257,7 +274,7 @@ export class AiChatController {
     @Body() raw: unknown,
   ) {
     this.requireSameOrigin(request);
-    const account = await this.requireAccount(request);
+    const account = await this.requireOwner(request);
     const threadId = this.threadId(rawId);
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
       return reject('ai_input_invalid', 'Нужен текст сообщения.', 400);

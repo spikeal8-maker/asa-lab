@@ -92,6 +92,7 @@ describe('Course Builder structure forward upgrade', () => {
         '0217', // Future-write diagnostic address provenance; preserves historical observations.
         '0218', // Generation-bound MAX/Telegram identities, pairing and provider availability.
         '0219', // Optional Account verification policy; preserves course and learner history.
+        '0225', // StudentSeat AI admission preserves existing course and learner history.
       ];
       const pre153 = plan.filter((item) => Number(item.version) <= 152);
       const upgradePlan = plan.filter((item) => Number(item.version) > 152);
@@ -343,6 +344,7 @@ describe('Course Builder structure forward upgrade', () => {
           '0217',
           '0218',
           '0219',
+          '0225',
         ]);
         expect(
           await applyIsolatedTestPlan(

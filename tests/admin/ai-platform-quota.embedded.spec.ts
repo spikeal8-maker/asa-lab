@@ -313,6 +313,10 @@ it('0215 upgrades an enabled 0214 installation to zero and backfills prior chat 
       `INSERT INTO accounts (email,password_hash,birth_date,country)
        VALUES ('quota-upgrade@example.test','test',DATE '1990-01-01','RU') RETURNING id`,
     );
+    // A real 0214 admission always has the Account principal that authorized it.
+    await upgrade.query("INSERT INTO principals(kind,account_id) VALUES('account',$1)", [
+      account.rows[0]!.id,
+    ]);
     await upgrade.query(
       'INSERT INTO ai_assistant_request_quota(account_id,request_id) VALUES ($1,$2)',
       [account.rows[0]!.id, randomUUID()],

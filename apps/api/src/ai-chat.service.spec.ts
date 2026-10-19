@@ -3,6 +3,8 @@ import type pg from 'pg';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { ActiveContextUseCase } from '@asa-lab/identity';
 import { describe, expect, it, vi } from 'vitest';
+import type { AiAccessService } from './ai-access.service';
+import type { SeatContextUseCase } from './seat-context';
 import { AiChatController } from './ai-chat.controller';
 import { AiChatService, AiServiceError } from './ai-chat.service';
 
@@ -71,6 +73,8 @@ describe('ASA native AI Chat', () => {
           resolve: vi.fn(async () => ({ principalId: PRINCIPAL, accountId: PRINCIPAL })),
         } as unknown as ActiveContextUseCase,
         ai as unknown as AiChatService,
+        { resolveExisting: vi.fn(async () => null) } as unknown as SeatContextUseCase,
+        { owner: vi.fn(async () => PRINCIPAL) } as unknown as AiAccessService,
       );
       const write = vi.fn();
       const raw = { writeHead: vi.fn(), once: vi.fn(), write, end: vi.fn() };
@@ -528,8 +532,10 @@ describe('ASA native AI Chat', () => {
           })),
         } as unknown as ActiveContextUseCase,
         ai as unknown as AiChatService,
+        { resolveExisting: vi.fn(async () => null) } as unknown as SeatContextUseCase,
+        { owner: vi.fn(async () => PRINCIPAL) } as unknown as AiAccessService,
       );
-      const req = { cookies: {} } as unknown as FastifyRequest;
+      const req = { cookies: {}, headers: {} } as unknown as FastifyRequest;
       await controller.threads(req, at, beforeId);
       await controller.messages(req, beforeId, at, beforeId);
       expect(ai.threadPage).toHaveBeenCalledWith(PRINCIPAL, { at, id: beforeId.toLowerCase() });
@@ -557,8 +563,10 @@ describe('ASA native AI Chat', () => {
         })),
       } as unknown as ActiveContextUseCase,
       ai as unknown as AiChatService,
+      { resolveExisting: vi.fn(async () => null) } as unknown as SeatContextUseCase,
+      { owner: vi.fn(async () => PRINCIPAL) } as unknown as AiAccessService,
     );
-    const req = { cookies: {} } as unknown as FastifyRequest;
+    const req = { cookies: {}, headers: {} } as unknown as FastifyRequest;
     await expect(controller.threads(req, at, THREAD)).rejects.toMatchObject({
       status: 400,
       response: { error: { code: 'ai_cursor_invalid' } },

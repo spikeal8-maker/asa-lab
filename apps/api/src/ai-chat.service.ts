@@ -411,12 +411,17 @@ export class AiChatService {
   }
 
   async createThread(principalId: string): Promise<{ id: string }> {
-    const result = await this.pool.query<{ id: string }>('SELECT ai_chat_create($1) AS id', [
-      principalId,
-    ]);
-    const id = result.rows[0]?.id;
-    if (!id) throw new AiServiceError('ai_thread_unavailable', 503, 'Не удалось создать диалог.');
-    return { id };
+    try {
+      const result = await this.pool.query<{ id: string }>('SELECT ai_chat_create($1) AS id', [
+        principalId,
+      ]);
+      const id = result.rows[0]?.id;
+      if (!id) throw new AiServiceError('ai_thread_unavailable', 503, 'Не удалось создать диалог.');
+      return { id };
+    } catch (problem) {
+      this.rethrowAdmissionError(problem);
+      throw problem;
+    }
   }
 
   async messages(principalId: string, threadId: string): Promise<readonly AiMessage[]> {
@@ -505,6 +510,7 @@ export class AiChatService {
       );
       accepted = admitted.rows[0]?.admitted === true;
     } catch (problem) {
+      this.rethrowAdmissionError(problem);
       if ((problem as { code?: string }).code === '42501') {
         throw new AiServiceError('ai_access_denied', 403, 'Доступ к диалогу запрещён.');
       }
@@ -512,9 +518,12 @@ export class AiChatService {
         throw new AiServiceError('ai_input_invalid', 400, 'Сообщение слишком длинное.');
       }
       const message = (problem as Error).message;
-      this.rethrowAdmissionError(problem);
       if (message.includes('AI_RATE_LIMIT')) {
-        throw new AiServiceError('ai_rate_limit', 429, 'Лимит: 30 сообщений в час на аккаунт.');
+        throw new AiServiceError(
+          'ai_rate_limit',
+          429,
+          'Лимит: 30 сообщений в час в выбранном контексте чата.',
+        );
       }
       if (message.includes('AI_THREAD_BUSY_OR_MISSING')) {
         throw new AiServiceError(
@@ -636,7 +645,11 @@ export class AiChatService {
         throw new AiServiceError('ai_input_invalid', 400, 'Неверный запрос или его идентификатор.');
       }
       if (message.includes('AI_RATE_LIMIT')) {
-        throw new AiServiceError('ai_rate_limit', 429, 'Лимит: 30 сообщений в час на аккаунт.');
+        throw new AiServiceError(
+          'ai_rate_limit',
+          429,
+          'Лимит: 30 сообщений в час в выбранном контексте чата.',
+        );
       }
       if (message.includes('AI_THREAD_BUSY_OR_MISSING')) {
         throw new AiServiceError(
@@ -743,6 +756,27 @@ export class AiChatService {
 
   private rethrowAdmissionError(problem: unknown): void {
     const message = problem instanceof Error ? problem.message : '';
+    if (message.includes('AI_STUDENT_DENIED')) {
+      throw new AiServiceError(
+        'ai_student_denied',
+        403,
+        'Доступ к школьному ИИ-чату закрыт. Проверьте разрешение преподавателя и рейтинг.',
+      );
+    }
+    if (message.includes('AI_SCOPE_DENIED')) {
+      throw new AiServiceError(
+        'ai_scope_denied',
+        403,
+        'Этот школьный контекст больше недоступен. Войдите в действующий класс.',
+      );
+    }
+    if (message.includes('AI_REQUEST_ID_REUSED')) {
+      throw new AiServiceError(
+        'ai_request_id_reused',
+        409,
+        'Этот запрос уже использован. Начните новое сообщение.',
+      );
+    }
     if (message.includes('AI_DISABLED')) {
       throw new AiServiceError(
         'ai_disabled',

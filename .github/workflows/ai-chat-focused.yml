@@ -9,14 +9,17 @@ name: ASA AI Chat Focused
       - 'apps/api/src/ai-*'
       - 'apps/api/src/app.module.ts'
       - 'apps/api/src/tokens.ts'
+      - 'apps/api/src/seat-context.ts'
       - 'apps/api/src/account-verification.guard*'
+      - 'apps/web/src/pages/ClassroomPage.tsx'
+      - 'apps/web/src/components/ClassroomAiAccess.tsx'
+      - 'apps/web/src/components/classroom-ai-access.css'
       - 'apps/web/src/ai/**'
       - 'apps/web/src/admin/AdminAiPage.tsx'
       - 'apps/web/src/admin/ai-admin.css'
       - 'apps/web/src/admin/testing/ai-*.spec.ts'
       - 'apps/web/src/admin/admin-navigation.ts'
       - 'apps/web/src/App.tsx'
-      - 'apps/web/src/pages/ClassroomPage.tsx'
       - 'e2e/ai-*.spec.ts'
       - 'migrations/*_ai_*.sql'
       - 'tests/admin/ai-*.ts'
@@ -30,14 +33,17 @@ name: ASA AI Chat Focused
       - 'apps/api/src/ai-*'
       - 'apps/api/src/app.module.ts'
       - 'apps/api/src/tokens.ts'
+      - 'apps/api/src/seat-context.ts'
       - 'apps/api/src/account-verification.guard*'
+      - 'apps/web/src/pages/ClassroomPage.tsx'
+      - 'apps/web/src/components/ClassroomAiAccess.tsx'
+      - 'apps/web/src/components/classroom-ai-access.css'
       - 'apps/web/src/ai/**'
       - 'apps/web/src/admin/AdminAiPage.tsx'
       - 'apps/web/src/admin/ai-admin.css'
       - 'apps/web/src/admin/testing/ai-*.spec.ts'
       - 'apps/web/src/admin/admin-navigation.ts'
       - 'apps/web/src/App.tsx'
-      - 'apps/web/src/pages/ClassroomPage.tsx'
       - 'e2e/ai-*.spec.ts'
       - 'migrations/*_ai_*.sql'
       - 'tests/admin/ai-*.ts'
@@ -75,7 +81,7 @@ jobs:
       - name: AI Chat unit regression
         run: pnpm test:ai-chat
       - name: No unformatted files
-        run: pnpm exec prettier --check apps/api/src/ai-* apps/web/src/ai apps/web/src/admin/testing/ai-*.spec.ts e2e/ai-*.spec.ts tests/admin/ai-*.ts
+        run: pnpm exec prettier --check apps/api/src/ai-* apps/api/src/seat-context.ts apps/api/src/account-verification.guard* apps/web/src/components/ClassroomAiAccess.tsx apps/web/src/components/classroom-ai-access.css apps/web/src/ai apps/web/src/admin/testing/ai-*.spec.ts e2e/ai-*.spec.ts tests/admin/ai-*.ts
       - name: API TypeScript
         run: pnpm exec nx run api:typecheck --skip-nx-cache
       - name: Web TypeScript

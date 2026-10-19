@@ -43,6 +43,34 @@ interface SeatPrincipalRow {
 export class SeatContextUseCase {
   constructor(private readonly pool: pg.Pool | null) {}
 
+  /** AI reads/admission require an already materialized principal. Resolving
+   * a session here never initializes or repairs a historical Seat identity. */
+  async resolveExisting(token: string | undefined): Promise<SeatContext | null> {
+    if (!token || !this.pool) return null;
+    const session = await this.pool.query<SeatSessionRow>(
+      `SELECT seat_id, classroom_id, display_label, safe_mode
+         FROM classroom_student_session_context($1)`,
+      [hashSessionToken(token)],
+    );
+    const seat = session.rows[0];
+    if (!seat) return null;
+    const principal = await this.pool.query<SeatPrincipalRow>(
+      'SELECT principal_id, tenant_id, classroom_id FROM ai_student_principal_existing($1)',
+      [seat.seat_id],
+    );
+    const row = principal.rows[0];
+    if (!row || row.classroom_id !== seat.classroom_id) return null;
+    return {
+      tenantId: row.tenant_id,
+      principalId: row.principal_id,
+      userId: null,
+      seatId: seat.seat_id,
+      classroomId: row.classroom_id,
+      displayName: seat.display_label,
+      safeMode: seat.safe_mode,
+    };
+  }
+
   /**
    * Resolves a student cookie, giving the seat its identity the first time it
    * is needed. Returns null for an absent, expired or revoked session, and for

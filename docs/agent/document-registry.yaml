@@ -21,6 +21,16 @@ context_role_values:
   - review
 
 documents:
+  - id: AI-ASSISTANT-DOMAIN-CONTRACT
+    path: docs/agent/contracts/ai-assistant.yaml
+    scope: ai-assistant
+    lanes: [ai-assistant]
+    kind: domain_contract
+    status: canonical
+    authority: ai_assistant_access_invariants
+    context_role: compact
+    read_when: [ai_assistant_implementation, ai_assistant_review]
+
   - id: AI-ASSISTANT-SPEC
     path: docs/product/ASA_AI_ASSISTANT_SPEC.md
     scope: ai-assistant
