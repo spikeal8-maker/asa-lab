@@ -1110,32 +1110,75 @@ parallel_lanes:
     task:
       id: TASK-ACCOUNT-CONFIRMATION-001
       issue: 135
-      branch: main
+      branch: codex/auth-readiness-20261019
       base_branch: main
       pr: null
       pr_draft: false
-      status: in_review
-      checkpoint: account_confirmation_technical_verified_owner_review_pending
+      status: in_progress
+      checkpoint: account_confirmation_readiness_repair_selected
       owner_acceptance: pending
       normative_refs:
         - document: IDENTITY-ACCESS-V22
           revision: '2.2'
         - document: ACCOUNT-CONFIRMATION-SPEC
-          revision: '1.0'
+          revision: '1.1'
     programme:
       document: docs/product/ASA_ACCOUNT_CONFIRMATION_SPEC.md
       owner_authorization: implement_account_confirmation_with_admin_switch_max_telegram_and_server_verified_outage_fallback
-      status: technical_accepted
-      target_revision: '1.0'
+      status: in_progress
+      target_revision: '1.1'
       verified_revision: '1.0'
       final_source_sha: 5353dcbc8f60a4867aaf9fe4126fe2caaad31fdc
       exact_final_focused_run: 39171454030
       exact_final_focused_conclusion: success
       exact_final_general_run: 39171454021
       exact_final_general_conclusion: success
-      selected_slice: null
-      dependency_order: [AUTH-C1-PROVIDERS, AUTH-C2-POLICY, AUTH-C3-UI, AUTH-C4-ACCEPTANCE]
-      remaining_slices: []
+      selected_slice: AUTH-C5-READINESS
+      dependency_order: [AUTH-C1-PROVIDERS, AUTH-C2-POLICY, AUTH-C3-UI, AUTH-C4-ACCEPTANCE, AUTH-C5-READINESS]
+      remaining_slices: [AUTH-C5-READINESS]
+      readiness_repair:
+        id: AUTH-C5-READINESS
+        status: in_progress
+        baseline_sha: 185f43e1618848da5db14f7223b059395fd85408
+        owner_request_date: '2026-10-19'
+        owner_request: audit_and_prepare_reliable_max_telegram_login_before_update_with_domain_or_ip
+        selected_scope: >-
+          Correct only confirmed authentication readiness gaps: distinguish saved webhook,
+          reachable installation and real current-version delivery; preserve authenticated
+          legacy MAX Mini App access independently from webhook readiness; reject wrong
+          callback origins and conflicting bot deployments; bound auth UI requests and
+          preserve cancel/password recovery; forward staging public origins and preserve
+          existing encryption keys in bootstrap. No polling worker, network changes,
+          live tokens, webhook registration, deployment or working database writes.
+        delegated_parts: [provider_backend, auth_ui, installation_preflight]
+        required_review: independent_final_source_and_fault_matrix
+        required_gates: [auth_confirmation_focused, repository]
+        live_provider_delivery: not_run
+        known_verification_limit: >-
+          A request to the public ingress from this server does not prove reachability
+          specifically from a provider network. Live start/approve/browser-consume on the
+          intended installation is separate acceptance; historical CI is not deployment.
+        findings:
+          - id: AUTH-READINESS-DELIVERY
+            severity: high
+            status: repair_selected
+            cause: registered_webhook_can_remain_ready_when_delivery_to_this_installation_fails
+          - id: AUTH-READINESS-LEGACY-MAX
+            severity: high
+            status: repair_selected
+            cause: webhook_readiness_blocks_existing_signed_mini_app_login_after_upgrade
+          - id: AUTH-READINESS-UI-TIMEOUT
+            severity: medium
+            status: repair_selected
+            cause: unresolved_auth_transport_can_hold_sign_in_actions_indefinitely
+          - id: AUTH-READINESS-PUBLIC-ORIGIN
+            severity: medium
+            status: repair_selected
+            cause: staging_does_not_forward_saved_public_origin_and_bot_address_errors_are_misleading
+          - id: AUTH-READINESS-KEY-PRESERVATION
+            severity: medium
+            status: repair_selected
+            cause: legacy_bootstrap_can_append_a_replacement_for_an_invalid_existing_key
       completed_slices:
         - id: AUTH-C1-PROVIDERS
           status: technical_accepted
