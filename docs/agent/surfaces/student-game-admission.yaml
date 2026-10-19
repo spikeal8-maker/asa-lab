@@ -50,6 +50,7 @@ surfaces:
         - apps/web/src/modules/ModuleEditorHost.tsx
         - apps/web/src/chess/ChessModuleExperience.tsx
         - apps/web/src/chess/ChessHome.tsx
+        - tests/portal/analytics-delivery.pg.spec.ts
     invariants:
       - IDA-AUTH-001
       - IDA-SCOPE-001
@@ -63,15 +64,18 @@ surfaces:
       - TST-GAMES-ADMISSION-PG-001
       - TST-GAMES-ADMISSION-E2E-001
       - TST-PROJECT-SLICE-001
+      - TST-OBS-ANALYTICS-DELIVERY-001
     controls:
       - id: CTRL-GAMES-NEW-SEAT-IDENTITY
         label: Initialize canonical learner identity only when issuing a genuinely new StudentCode Seat
         change_class: L3_CRITICAL
         files:
           - migrations/0224_classroom_new_seat_learner_identity.sql
+          # Historical denial and first-use principal races remain unchanged.
+          - tests/portal/analytics-delivery.pg.spec.ts
         commands: [classroom_management_add_seat]
         invariants: [IDA-SEAT-001, IDA-SCOPE-001, IDA-REV-001]
-        tests: [TST-GAMES-ADMISSION-CORE-001, TST-GAMES-ADMISSION-PG-001, TST-GAMES-ADMISSION-E2E-001]
+        tests: [TST-GAMES-ADMISSION-CORE-001, TST-GAMES-ADMISSION-PG-001, TST-GAMES-ADMISSION-E2E-001, TST-OBS-ANALYTICS-DELIVERY-001]
       - id: CTRL-GAMES-CURRENT-ADMISSION
         label: Resolve current Seat before Account and open only verified offline game surfaces
         change_class: L3_CRITICAL

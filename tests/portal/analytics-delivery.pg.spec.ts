@@ -145,6 +145,42 @@ async function makeSeat(materialize: boolean, targetClass = classId) {
     : null;
   return { seatId, principal, studentCode: result.json().student.studentCode as string };
 }
+// Historical rows predate new-Seat identity initialization. Preserve that state
+// explicitly; issuing another current Seat or deleting its principal would not
+// exercise the retained denial and first-use allocation contracts.
+async function historicalSeatWithoutPrincipal() {
+  const studentCode = randomUUID().replaceAll('-', '').slice(0, 8);
+  const created = await admin.query(
+    `INSERT INTO public.classroom_student_seats(
+       tenant_id,classroom_id,display_label,login_handle,normalized_login_handle,
+       safe_mode,status,created_by)
+     SELECT access.tenant_id,$2,'Historical receipt fixture',$3,$3,true,'issued',access.user_id
+       FROM public.classroom_teacher_access($1,$2) access
+      WHERE access.user_id IS NOT NULL RETURNING id`,
+    [owner.accountId, classId, studentCode],
+  );
+  expect(created.rows).toHaveLength(1);
+  const seatId = created.rows[0].id as string;
+  // The existing teacher credential command does not initialize the Seat principal.
+  const issued = await runtime.query(
+    'SELECT result_code,code_version FROM classroom_student_code_set($1,$2,$3,$4,$5)',
+    [owner.accountId, classId, seatId, studentCode, randomUUID()],
+  );
+  expect(issued.rows).toEqual([{ result_code: 'ok', code_version: 1 }]);
+  // The real teacher promotion route also supports enforced protected-code storage.
+  const protectedCode = await inject(app, {
+    method: 'POST',
+    url: `/api/classrooms/${classId}/seats/${seatId}/code`,
+    headers: { cookie },
+    payload: { studentCode, requestId: randomUUID() },
+  });
+  expect(protectedCode.statusCode, protectedCode.body).toBe(201);
+  expect(protectedCode.json()).toMatchObject({ studentCode, version: 1 });
+  expect(
+    (await admin.query('SELECT id FROM principals WHERE seat_id=$1', [seatId])).rows,
+  ).toHaveLength(0);
+  return { seatId, studentCode };
+}
 async function project(asCookie = cookie) {
   const result = await inject(app, {
     method: 'POST',
@@ -688,7 +724,7 @@ describe('real PostgreSQL observability delivery receipts', () => {
     expect(rows.map((r) => r.occurrence_count)).toEqual([1, 2]);
     expect(rows[1].first_occurred_at.toISOString()).toBe(new Date(late).toISOString());
     expect(rows[1].occurred_at.toISOString()).toBe(new Date(later).toISOString());
-    const noPrincipal = await makeSeat(false);
+    const noPrincipal = await historicalSeatWithoutPrincipal();
     await admin.query("UPDATE classroom_student_seats SET status='suspended' WHERE id=$1", [
       noPrincipal.seatId,
     ]);
@@ -958,7 +994,7 @@ describe('real PostgreSQL observability delivery receipts', () => {
   });
 
   it('materializes one canonical Seat principal under independent connection and first product request races', async () => {
-    const seat = await makeSeat(false);
+    const seat = await historicalSeatWithoutPrincipal();
     const isolatedMain = testAppPool();
     const isolatedApp = await createApiApp({
       pool: isolatedMain,
