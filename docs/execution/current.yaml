@@ -8183,6 +8183,11 @@ parallel_lanes:
     - contexts/electronics/domain/arduino-circuit-scheduler.ts
     - contexts/electronics/testing/engine-timed-api.spec.ts
     - e2e/electronics-classroom-timing.spec.ts
+    - e2e/electronics-ready-cadence.spec.ts
+    - apps/web/src/electronics/led-temporal-presentation.ts
+    - apps/web/src/electronics/testing/led-temporal-presentation.spec.ts
+    - tools/run-electronics-classroom-browser.mjs
+    - tests/electronics/classroom-qualification.spec.ts
     - docs/product/electronics/tasks/TASK-ELECTRONICS-CLASSROOM-D13-001.md
     - tools/test_ci_image_transport.py
     - docs/product/electronics/evidence/ci-image-transport-classroom-d13-receipt.json
@@ -8195,10 +8200,12 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: d13_classroom_release_selected
+      checkpoint: d13_classroom_qualification_v2_selected
       owner_acceptance: pending
       programme_issue: 452
-      acceptance_revision: classroom-d13-v1
+      acceptance_revision: classroom-d13-v2
+      planned_browser_gate: pnpm gate:electronics-classroom-d13:browser
+      qualification_selection_at: '2026-10-19T13:40:00Z'
       selected_at: '2026-10-19T11:10:21Z'
       owner_authorization: Explicit 2026-10-19 instruction permits a first visible D13 slice with common measured slowdown, normal integration after browser/review/CI, and continued later slices; no deployment or live data action.
       preserved_r26_sha: cdad26c361cb4cf8ed2d095fae3c087b5d2abb2d
@@ -8207,7 +8214,7 @@ parallel_lanes:
       context_hints:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-CLASSROOM-D13-001.md
       - docs/product/electronics/components/engine-worker-clock.yaml
-      next_action: Compose preserved coherent Electronics dependencies on current main; repair R27, verify real D13 delay100/150/200/300, asymmetric phases, L, edit/error/Reset/Save/reopen; independent final review and required exact CI before integration. Continue next visible slice after acceptance.
+      next_action: Apply reviewed dark-reverse and unchanged-predicate ownership-test repairs; freeze corrected observer and separately authored qualification-v2 profile; same-observer BEFORE/AFTER, strict and classroom runs on one exact source, fresh General and NEW independent acceptance before normal main integration. Preserve first failures and continue D2-D4 after accepted D13.
     execution_lease:
       executor_id: electronics-classroom-d13
       holder: unassigned
@@ -8233,13 +8240,13 @@ parallel_lanes:
         - pnpm gate:repository
     revisions:
       kind: observed_snapshot
-      observed_at: '2026-10-19T11:10:21Z'
+      observed_at: '2026-10-19T13:38:27Z'
       main:
         branch: main
-        sha: 095080febc0450fd01efa21950c8f5ba024aa166
-      convergence_baseline_sha: 095080febc0450fd01efa21950c8f5ba024aa166
+        sha: 72309e79ae2c59ebf93e09490fefe6534eb01899
+      convergence_baseline_sha: 72309e79ae2c59ebf93e09490fefe6534eb01899
       head_sha: null
-      observation_note: Selection only; no classroom product or browser acceptance yet. R26/R27 source reviews and historical failures preserved. Fresh fetch main and actual refs plus exact CI are required before edits and integration.
+      observation_note: Qualification-v2 selection only on main72309; preserve concurrent AI/Projects and GC1. Candidate8b focused and benchmark PASS, browser39252235295 FAIL:161passed/9failed/170total, General39252233058 DataFAIL with RLS not run. Original BEFORE/AFTER and full-realtime blocker preserved. Planned script is not active; no product acceptance or deployment. Fresh fetch main and actual refs are required before writes and integration. Exact CI, final composition and independent actual review remain required.
 
   - id: electronics-classroom-hygiene
     parent_lane: electronics
@@ -8430,7 +8437,7 @@ blocking:
     evidence: docs/product/electronics/tasks/TASK-ELECTRONICS-CROSS-TAB-DRAFT-SAFETY-001.md
   - id: ELECTRONICS-546-R9-ACCEPTANCE
     owner_classroom_boundary: >-
-      Explicit owner2026-10-19 permits separately verified classroom-d13-v1 under
+      Explicit owner2026-10-19 permits separately verified classroom-d13-v2 under
       TASK-ELECTRONICS-CLASSROOM-D13-001 and its own acceptance blocker. Preserve
       every historical GPIO/phase/physical failure and this original task's full
       acceptance/Issue-closure restriction. Only measured absolute wall/model
@@ -8501,7 +8508,7 @@ blocking:
     - focused_verification
     - independent_source_review
     - independent_product_review
-    reason: Owner explicitly selected intermediate classroom-d13-v1 acceptance with measured common slowdown. Require coherent preserved-source composition, genuine painted D13 delay ratios, physical negative cases, loaded-code/error/Reset/Save/reopen, exact required gates and NEW independent acceptance. No old source approval or blocker text change constitutes acceptance; full-realtime Issue546 remains blocked separately.
+    reason: Owner selected intermediate classroom-d13-v2 with common slowdown and explicit qualification separation. First candidate browser and General remain FAIL. Require same-observer complete new BEFORE/AFTER, coherent preserved source, genuine painted D13 ratios/duty/order, physical negatives, loaded-code/error/Reset/Save/reopen/sustained, exact required gates and NEW independent acceptance. No source review or selection text accepts this slice; full-realtime Issue546 remains blocked separately.
     evidence: docs/product/electronics/tasks/TASK-ELECTRONICS-CLASSROOM-D13-001.md
 
 next_task: null
