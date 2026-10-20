@@ -55,6 +55,220 @@ BEGIN
 END;
 $$;
 
+-- The existing validator keeps its category and lesson priority. Only fresh
+-- publication requires active Activity pins: author preview deliberately allows
+-- immutable versions of archived activities for historical reads. CREATE OR
+-- REPLACE preserves the existing function owner and restricted execution ACL.
+CREATE OR REPLACE FUNCTION public.course_prepublication_validation(
+  p_principal uuid,
+  p_course uuid
+)
+RETURNS TABLE(
+  result_code varchar,
+  problem_kind varchar,
+  problem_id uuid,
+  problem_path varchar,
+  problem_message varchar
+)
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
+DECLARE
+  v_course record;
+  v_problem record;
+BEGIN
+  SELECT id,tenant_id,archived_at INTO v_course
+    FROM public.courses
+   WHERE id=p_course AND owner_principal_id=p_principal;
+  IF v_course.id IS NULL THEN
+    RETURN QUERY SELECT 'course_not_found'::varchar,NULL::varchar,NULL::uuid,NULL::varchar,NULL::varchar;
+    RETURN;
+  END IF;
+  IF v_course.archived_at IS NOT NULL THEN
+    RETURN QUERY SELECT 'prepublish_invalid'::varchar,'course'::varchar,p_course,
+      'Курс'::varchar,'Восстановите курс из архива перед публикацией.'::varchar;
+    RETURN;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+      FROM public.course_lessons lesson
+      JOIN public.course_sections section ON section.id=lesson.section_id
+     WHERE lesson.course_id=p_course
+       AND NOT lesson.hidden
+       AND NOT section.hidden
+  ) THEN
+    RETURN QUERY SELECT 'course_empty'::varchar,'course'::varchar,p_course,
+      'Курс'::varchar,'Покажите хотя бы один урок перед публикацией.'::varchar;
+    RETURN;
+  END IF;
+
+  SELECT section.title AS section_title,lesson.id,lesson.title
+    INTO v_problem
+    FROM public.course_lessons lesson
+    JOIN public.course_sections section ON section.id=lesson.section_id
+   WHERE lesson.course_id=p_course
+     AND NOT lesson.hidden
+     AND NOT section.hidden
+     AND NOT public.course_lesson_blocks_valid(lesson.blocks)
+   ORDER BY section.position,lesson.position,lesson.id
+   LIMIT 1;
+  IF v_problem.id IS NOT NULL THEN
+    RETURN QUERY SELECT 'prepublish_invalid'::varchar,'lesson'::varchar,v_problem.id,
+      ('Раздел «'||v_problem.section_title||'» → урок «'||v_problem.title||'»')::varchar,
+      'Исправьте некорректный блок урока.'::varchar;
+    RETURN;
+  END IF;
+
+  v_problem:=NULL;
+  SELECT section.title AS section_title,lesson.id,lesson.title
+    INTO v_problem
+    FROM public.course_lessons lesson
+    JOIN public.course_sections section ON section.id=lesson.section_id
+   WHERE lesson.course_id=p_course
+     AND NOT lesson.hidden
+     AND NOT section.hidden
+     AND lesson.kind='material'
+     AND jsonb_array_length(lesson.blocks)=0
+     AND NULLIF(btrim(lesson.content),'') IS NULL
+   ORDER BY section.position,lesson.position,lesson.id
+   LIMIT 1;
+  IF v_problem.id IS NOT NULL THEN
+    RETURN QUERY SELECT 'prepublish_invalid'::varchar,'lesson'::varchar,v_problem.id,
+      ('Раздел «'||v_problem.section_title||'» → урок «'||v_problem.title||'»')::varchar,
+      'Добавьте содержание в материал.'::varchar;
+    RETURN;
+  END IF;
+
+  v_problem:=NULL;
+  SELECT section.title AS section_title,lesson.id,lesson.title
+    INTO v_problem
+    FROM public.course_lessons lesson
+    JOIN public.course_sections section ON section.id=lesson.section_id
+    JOIN public.teacher_assignments task ON task.id=lesson.assignment_id
+   WHERE lesson.course_id=p_course
+     AND NOT lesson.hidden
+     AND NOT section.hidden
+     AND lesson.kind='assignment'
+     AND lesson.assignment_id IS NOT NULL
+   ORDER BY section.position,lesson.position,lesson.id
+   LIMIT 1;
+  IF v_problem.id IS NOT NULL THEN
+    RETURN QUERY SELECT 'prepublish_invalid'::varchar,'lesson'::varchar,v_problem.id,
+      ('Раздел «'||v_problem.section_title||'» → урок «'||v_problem.title||'»')::varchar,
+      'Замените старое задание из банка на опубликованный материал из вашей библиотеки.'::varchar;
+    RETURN;
+  END IF;
+
+  -- A previously valid Activity block can lose assignability after a
+  -- module capability change. Recheck visible blocks at publication.
+  v_problem:=NULL;
+  SELECT section.title AS section_title,lesson.id,lesson.title
+    INTO v_problem
+    FROM public.course_lessons lesson
+    JOIN public.course_sections section ON section.id=lesson.section_id
+    JOIN public.courses course ON course.id=lesson.course_id
+   WHERE lesson.course_id=p_course
+     AND NOT lesson.hidden
+     AND NOT section.hidden
+     AND EXISTS (
+       SELECT 1
+         FROM jsonb_array_elements(lesson.blocks) entry
+        WHERE entry ->> 'type'='activity'
+          AND NOT COALESCE((entry ->> 'hidden')::boolean,false)
+     )
+     AND (
+       NOT public.course_activity_blocks_authorized(
+         p_principal,course.tenant_id,
+         COALESCE((
+           SELECT jsonb_agg(entry.value)
+             FROM jsonb_array_elements(lesson.blocks) entry(value)
+            WHERE NOT COALESCE((entry.value ->> 'hidden')::boolean,false)
+         ),'[]'::jsonb)
+       )
+       OR EXISTS (
+         SELECT 1
+           FROM jsonb_array_elements(lesson.blocks) entry
+           JOIN public.learning_activity_versions version
+             ON version.id=(entry->>'learningActivityVersionId')::uuid
+           JOIN public.learning_activities activity ON activity.id=version.activity_id
+             AND activity.tenant_id=version.tenant_id
+          WHERE entry->>'type'='activity'
+            AND entry->>'hidden' IS DISTINCT FROM 'true'
+            AND version.tenant_id=course.tenant_id
+            AND activity.archived_at IS NOT NULL
+       )
+     )
+   ORDER BY section.position,lesson.position,lesson.id
+   LIMIT 1;
+  IF v_problem.id IS NOT NULL THEN
+    RETURN QUERY SELECT 'prepublish_invalid'::varchar,'lesson'::varchar,v_problem.id,
+      ('Раздел «'||v_problem.section_title||'» → урок «'||v_problem.title||'»')::varchar,
+      'Практика в уроке больше недоступна для нового выпуска. Выберите актуальный опубликованный материал.'::varchar;
+    RETURN;
+  END IF;
+
+  v_problem:=NULL;
+  SELECT section.title AS section_title,lesson.id,lesson.title
+    INTO v_problem
+    FROM public.course_lessons lesson
+    JOIN public.course_sections section ON section.id=lesson.section_id
+   WHERE lesson.course_id=p_course
+     AND NOT lesson.hidden
+     AND NOT section.hidden
+     AND lesson.kind='assignment'
+     AND lesson.learning_activity_version_id IS NOT NULL
+     AND NOT EXISTS (
+       SELECT 1
+         FROM public.learning_activity_versions version
+         JOIN public.learning_activities activity ON activity.id=version.activity_id
+        WHERE version.id=lesson.learning_activity_version_id
+          AND version.canonical_contract_version=1
+          AND version.canonical_kind='project'
+          AND public.module_learning_assignable(version.module_key)
+          AND version.tenant_id=v_course.tenant_id
+          AND activity.tenant_id=v_course.tenant_id
+          AND activity.owner_principal_id=p_principal
+          AND activity.reusable_authored_content
+          AND activity.archived_at IS NULL
+          AND NOT EXISTS (
+            SELECT 1
+              FROM public.learning_migration_compatibility_activity_versions compat
+             WHERE compat.learning_activity_version_id=version.id
+          )
+     )
+   ORDER BY section.position,lesson.position,lesson.id
+   LIMIT 1;
+  IF v_problem.id IS NOT NULL THEN
+    RETURN QUERY SELECT 'prepublish_invalid'::varchar,'lesson'::varchar,v_problem.id,
+      ('Раздел «'||v_problem.section_title||'» → урок «'||v_problem.title||'»')::varchar,
+      'Закреплённый материал больше недоступен для нового выпуска. Выберите актуальную опубликованную версию.'::varchar;
+    RETURN;
+  END IF;
+
+  -- Visible manual material pins must still belong to this course author.
+  v_problem:=NULL;
+  SELECT section.title AS section_title,lesson.id,lesson.title
+    INTO v_problem
+    FROM public.course_lessons lesson
+    JOIN public.course_sections section ON section.id=lesson.section_id
+   WHERE lesson.course_id=p_course AND NOT lesson.hidden AND NOT section.hidden
+     AND EXISTS (SELECT 1 FROM jsonb_array_elements(lesson.blocks) block
+                 WHERE block->>'type'='manual-material'
+                   AND block->>'hidden' IS DISTINCT FROM 'true')
+     AND NOT public.course_manual_material_blocks_authorized(
+       p_principal,v_course.tenant_id,
+       COALESCE((SELECT jsonb_agg(block.value) FROM jsonb_array_elements(lesson.blocks) block(value)
+                 WHERE block.value->>'hidden' IS DISTINCT FROM 'true'),'[]'::jsonb))
+   ORDER BY section.position,lesson.position,lesson.id LIMIT 1;
+  IF v_problem.id IS NOT NULL THEN
+    RETURN QUERY SELECT 'prepublish_invalid'::varchar,'lesson'::varchar,v_problem.id,
+      ('Раздел «'||v_problem.section_title||'» → урок «'||v_problem.title||'»')::varchar,
+      'Закреплённый материал больше недоступен для нового выпуска.'::varchar;
+    RETURN;
+  END IF;
+  RETURN QUERY SELECT 'ok'::varchar,NULL::varchar,NULL::uuid,NULL::varchar,NULL::varchar;
+END;
+$$;
+
 CREATE FUNCTION public.course_prepublication_validation_v2(p_principal uuid,p_course uuid)
 RETURNS TABLE(
   result_code varchar,problem_kind varchar,problem_id uuid,
@@ -140,7 +354,15 @@ BEGIN
      ORDER BY entry.ordinality
   LOOP
     IF NOT public.course_activity_blocks_authorized(
-        p_principal,v_course.tenant_id,jsonb_build_array(v_entry.value)) THEN
+        p_principal,v_course.tenant_id,jsonb_build_array(v_entry.value))
+       OR EXISTS (
+         SELECT 1 FROM public.learning_activity_versions version
+         JOIN public.learning_activities activity ON activity.id=version.activity_id
+           AND activity.tenant_id=version.tenant_id
+          WHERE version.id=(v_entry.value->>'learningActivityVersionId')::uuid
+            AND version.tenant_id=v_course.tenant_id
+            AND activity.archived_at IS NOT NULL
+       ) THEN
       problem_block_id:=v_entry.value->>'id'; problem_field:='learningActivityVersionId';
       problem_reason:='pin_unavailable';
       problem_path:=(problem_path||' → блок '||v_entry.ordinality)::varchar;

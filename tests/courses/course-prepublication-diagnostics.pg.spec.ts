@@ -172,6 +172,16 @@ describe('exact course prepublication diagnostics under the restricted app role'
         [target.id],
       );
       await client.query('UPDATE learning_activities SET archived_at=now() WHERE id=$1', [pin.id]);
+      const historical = await restricted(
+        client,
+        "SELECT * FROM learning_activity_preview_as_author($1,$2,$3,'published',$4,NULL)",
+        [owner.principalId, owner.tenantId, pin.id, pin.versionId],
+      );
+      expect(historical.rows[0]).toMatchObject({
+        result_code: 'ok',
+        source_kind: 'published',
+        source_id: pin.versionId,
+      });
       const denied = await publish(
         client,
         target.id,
@@ -211,6 +221,196 @@ describe('exact course prepublication diagnostics under the restricted app role'
           ).rows[0].count,
         ),
       ).toBe(1);
+    }));
+
+  it.each(['block', 'lesson', 'section'] as const)(
+    'ignores an archived practice in a hidden %s when publishing visible content',
+    async (hidden) =>
+      fixture(async (client) => {
+        const pin = await practice(client);
+        const target = await course(client);
+        await lesson(client, target, [textBlock]);
+        let hiddenTarget = target;
+        if (hidden === 'section') {
+          const section = await restricted(
+            client,
+            "SELECT course_section_save($1,$2,NULL,'Скрытый раздел',NULL) AS id",
+            [owner.principalId, target.id],
+          );
+          hiddenTarget = { ...target, sectionId: section.rows[0].id as string };
+        }
+        const id = await lesson(client, hiddenTarget, [
+          textBlock,
+          {
+            id: 'hidden-practice',
+            type: 'activity',
+            learningActivityVersionId: pin.versionId,
+            ...(hidden === 'block' ? { hidden: true } : {}),
+          },
+        ]);
+        if (hidden === 'lesson') {
+          await client.query('UPDATE course_lessons SET hidden=true WHERE id=$1', [id]);
+        } else if (hidden === 'section') {
+          await client.query('UPDATE course_sections SET hidden=true WHERE id=$1', [
+            hiddenTarget.sectionId,
+          ]);
+        }
+        await client.query('UPDATE learning_activities SET archived_at=now() WHERE id=$1', [
+          pin.id,
+        ]);
+        expect(
+          await publish(
+            client,
+            target.id,
+            await revision(client, target.id),
+            'fix07:hidden:' + hidden + ':' + serial,
+          ),
+        ).toMatchObject({ result_code: 'ok', version_number: 1, reused: false });
+      }),
+  );
+
+  it.each(['archive', 'module'] as const)(
+    'locates the first unavailable activity block when %s comes first',
+    async (first) =>
+      fixture(async (client) => {
+        const module = 'fix07-order';
+        await client.query(
+          "INSERT INTO module_learning_capabilities(module_key,creatable,assignable,editable_evidence,submit_project_version,preview) VALUES($1,true,true,true,true,'snapshot')",
+          [module],
+        );
+        const archived = await practice(client);
+        const disabled = await practice(client, 'project', module);
+        const target = await course(client);
+        const pins = {
+          archive: {
+            id: 'archived-practice',
+            type: 'activity',
+            learningActivityVersionId: archived.versionId,
+          },
+          module: {
+            id: 'disabled-practice',
+            type: 'activity',
+            learningActivityVersionId: disabled.versionId,
+          },
+        };
+        const second = first === 'archive' ? 'module' : 'archive';
+        const id = await lesson(client, target, [textBlock, pins[first], pins[second]]);
+        await client.query('UPDATE learning_activities SET archived_at=now() WHERE id=$1', [
+          archived.id,
+        ]);
+        await client.query(
+          "UPDATE module_learning_capabilities SET assignable=false, editable_evidence=false, submit_project_version=false, preview='none' WHERE module_key=$1",
+          [module],
+        );
+        const denied = await publish(
+          client,
+          target.id,
+          await revision(client, target.id),
+          'fix07:order:' + first + ':' + serial,
+        );
+        expect(denied).toMatchObject({
+          result_code: 'prepublish_invalid',
+          problem_section_id: target.sectionId,
+          problem_lesson_id: id,
+          problem_block_id: pins[first].id,
+          problem_field: 'learningActivityVersionId',
+          problem_reason: first === 'archive' ? 'pin_unavailable' : 'module_unavailable',
+          version_id: null,
+        });
+        expect(denied.problem_path).toContain('блок 2');
+      }),
+  );
+
+  it('keeps category and lesson priority for archived activity, direct and manual pins', async () =>
+    fixture(async (client) => {
+      const project = await practice(client);
+      const direct = await practice(client);
+      const manual = await practice(client, 'manual', null);
+      const target = await course(client);
+      const firstActivity = await lesson(client, target, [
+        { id: 'first-activity', type: 'activity', learningActivityVersionId: project.versionId },
+      ]);
+      const secondActivity = await lesson(client, target, [
+        { id: 'second-activity', type: 'activity', learningActivityVersionId: project.versionId },
+      ]);
+      const directId = await lesson(client, target, [], null, direct.versionId);
+      const manualId = await lesson(client, target, [
+        { id: 'manual-last', type: 'manual-material', learningActivityVersionId: manual.versionId },
+      ]);
+      const emptyId = await lesson(client, target, []);
+      const old = await client.query(
+        "INSERT INTO teacher_assignments(tenant_id,owner_principal_id,title,brief,module_key,visibility) VALUES($1,$2,'Старый банк','Не преобразовывать молча','electronics','private') RETURNING id",
+        [owner.tenantId, owner.principalId],
+      );
+      const legacyId = await lesson(client, target, [], old.rows[0].id);
+      await client.query(
+        'UPDATE learning_activities SET archived_at=now() WHERE id=ANY($1::uuid[])',
+        [[project.id, direct.id, manual.id]],
+      );
+      const expectedProblems = [
+        { id: emptyId, block: null, field: 'blocks', reason: 'content_required' },
+        {
+          id: legacyId,
+          block: null,
+          field: 'learningActivityVersionId',
+          reason: 'legacy_assignment',
+        },
+        {
+          id: firstActivity,
+          block: 'first-activity',
+          field: 'learningActivityVersionId',
+          reason: 'pin_unavailable',
+        },
+        {
+          id: secondActivity,
+          block: 'second-activity',
+          field: 'learningActivityVersionId',
+          reason: 'pin_unavailable',
+        },
+        {
+          id: directId,
+          block: null,
+          field: 'learningActivityVersionId',
+          reason: 'pin_unavailable',
+        },
+        {
+          id: manualId,
+          block: 'manual-last',
+          field: 'learningActivityVersionId',
+          reason: 'pin_unavailable',
+        },
+      ];
+      for (const problem of expectedProblems) {
+        const denied = await publish(
+          client,
+          target.id,
+          await revision(client, target.id),
+          'fix07:priority:' + serial + ':' + problem.id,
+        );
+        expect(denied).toMatchObject({
+          result_code: 'prepublish_invalid',
+          problem_section_id: target.sectionId,
+          problem_lesson_id: problem.id,
+          problem_block_id: problem.block,
+          problem_field: problem.field,
+          problem_reason: problem.reason,
+          version_id: null,
+        });
+        if (problem.id !== manualId) {
+          await client.query('UPDATE course_lessons SET hidden=true WHERE id=$1', [problem.id]);
+        }
+      }
+      expect(
+        (await client.query('SELECT id FROM course_versions WHERE course_id=$1', [target.id])).rows,
+      ).toEqual([]);
+      expect(
+        (
+          await client.query(
+            "SELECT id FROM audit_events WHERE entity_id=$1 AND action='course.publication.confirmed'",
+            [target.id],
+          )
+        ).rows,
+      ).toEqual([]);
     }));
 
   it('identifies the disabled module of the second block without changing global module state outside its transaction', async () =>
@@ -416,14 +616,16 @@ describe('exact course prepublication diagnostics under the restricted app role'
   ])(
     'maps invalid asset/content metadata to its precise field without fetching external URLs: %j',
     async (block, field) => {
-      expect(
-        (
-          await app.query(
-            'SELECT course_lesson_blocks_valid($1::jsonb) AS valid, course_block_problem_field($2::jsonb) AS field',
-            [JSON.stringify([textBlock, block]), JSON.stringify(block)],
-          )
-        ).rows[0],
-      ).toEqual({ valid: false, field });
+      const validity = await admin.query('SELECT course_lesson_blocks_valid($1::jsonb) AS valid', [
+        JSON.stringify([textBlock, block]),
+      ]);
+      const diagnostic = await app.query('SELECT course_block_problem_field($1::jsonb) AS field', [
+        JSON.stringify(block),
+      ]);
+      expect({ valid: validity.rows[0].valid, field: diagnostic.rows[0].field }).toEqual({
+        valid: false,
+        field,
+      });
     },
   );
 
@@ -441,5 +643,12 @@ describe('exact course prepublication diagnostics under the restricted app role'
       diagnose: true,
       public_execute: false,
     });
+    expect(
+      (
+        await app.query(
+          "SELECT has_function_privilege('public.course_lesson_blocks_valid(jsonb)'::regprocedure,'EXECUTE') AS private_validator",
+        )
+      ).rows[0],
+    ).toEqual({ private_validator: false });
   });
 });
