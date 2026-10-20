@@ -4931,8 +4931,18 @@ test.describe('owner D3-D6 acceptance', () => {
 test.describe('ELECTRONICS-E03 native field boundary real API', () => {
   test.use({ hasTouch: true });
   let pool: ReturnType<typeof e2eAdminPool>;
-  test.beforeAll(() => {
+  let authCookies: import('@playwright/test').Cookie[];
+  test.beforeAll(async ({ browser, baseURL }, info) => {
     pool = e2eAdminPool();
+    const bootstrap = await browser.newContext({ baseURL });
+    try {
+      const loginPage = await bootstrap.newPage();
+      const actor = await seedTeacher(pool, `field-auth-${info.workerIndex}`);
+      await loginWithOrganization(loginPage, actor);
+      authCookies = await bootstrap.cookies();
+    } finally {
+      await bootstrap.close();
+    }
   });
   test.afterAll(async () => pool.end());
 
@@ -4951,9 +4961,9 @@ test.describe('ELECTRONICS-E03 native field boundary real API', () => {
         page,
         browser,
       }, info) => {
-        const actor = await seedTeacher(pool, `field-${info.workerIndex}-${info.testId.slice(-8)}`);
+        await page.context().addCookies(authCookies);
         await page.setViewportSize({ width: 1440, height: 900 });
-        await loginWithOrganization(page, actor);
+        await page.goto('/#/home');
         await page.setViewportSize({ width, height: 900 });
         const origin = new URL(page.url()).origin;
         const created = await page.context().request.post('/api/projects', {

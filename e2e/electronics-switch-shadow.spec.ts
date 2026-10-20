@@ -588,8 +588,18 @@ async function serverDraft(page: Page, projectId: string) {
 }
 
 let admin: pg.Pool;
-test.beforeAll(() => {
+let authCookies: import('@playwright/test').Cookie[];
+test.beforeAll(async ({ browser, baseURL }, info) => {
   admin = e2eAdminPool();
+  const bootstrap = await browser.newContext({ baseURL });
+  try {
+    const loginPage = await bootstrap.newPage();
+    const teacher = await seedTeacher(admin, `e2e-spdt-shadow-auth-${info.workerIndex}`);
+    await loginWithOrganization(loginPage, teacher);
+    authCookies = await bootstrap.cookies();
+  } finally {
+    await bootstrap.close();
+  }
 });
 test.afterAll(async () => {
   await admin.end();
@@ -603,15 +613,12 @@ for (const width of [1440, 1024, 390, 320]) {
     }, info) => {
       const samples: unknown[] = [];
       const puts: unknown[] = [];
-      const teacher = await seedTeacher(
-        admin,
-        `e2e-spdt-shadow-${width}-${colorScheme}-${info.workerIndex}-${info.retry}`,
-      );
+      await page.context().addCookies(authCookies);
       const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
       await page.setViewportSize({ width: 1440, height: 900 });
       await page.emulateMedia({ colorScheme });
       await installObserver(page);
-      await loginWithOrganization(page, teacher);
+      await page.goto('/#/home');
       const sessionResponse = await page.context().request.get('/api/auth/me');
       expect(sessionResponse.status()).toBe(200);
       const session = (await sessionResponse.json()) as {
