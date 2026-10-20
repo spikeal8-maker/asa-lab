@@ -26,6 +26,36 @@ suites:
   accessibility:
     description: Доступность критических пользовательских путей.
 tests:
+  - id: TST-AI-ATTACHMENTS-CORE-001
+    title: Private bounded attachment bytes, native early errors and response lifetime, actual HTTP owner boundary, shared mutation proof and immutable embedded SQL receipts
+    suite: authorization
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec vitest run apps/api/src/ai-attachments apps/api/src/abuse-protection.spec.ts apps/api/src/account-verification.guard.spec.ts tests/admin/ai-attachments.embedded.spec.ts
+    timeout_seconds: 300
+    owner: ai-assistant
+    artifacts: [vitest-report, embedded-postgresql-report]
+  - id: TST-AI-ATTACHMENTS-PG-001
+    title: Restricted runtime role attachment ownership, reservation quotas, binding races and leased lifecycle concurrency
+    suite: authorization
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec vitest run tests/admin/ai-attachments.pg.spec.ts
+    timeout_seconds: 300
+    owner: ai-assistant
+    artifacts: [vitest-report, postgresql-isolation-report]
+  - id: TST-AI-ATTACHMENTS-S3-001
+    title: Opt-in owned CI MinIO private immutable blobs, bounded digest verification and lost-write or delete reply reconciliation
+    suite: integration
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm exec vitest run tests/ai-attachments/storage.s3.spec.ts
+    timeout_seconds: 180
+    owner: ai-assistant
+    artifacts: [vitest-report, private-storage-reconciliation-report]
   - id: TST-AI-TEXT-CORE-001
     title: Complete owner history, archive, immutable answer receipts, safe math and forward upgrade
     suite: authorization

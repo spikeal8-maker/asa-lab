@@ -42,6 +42,7 @@ import {
   resolveLocalApiOrigin,
 } from './origin-policy.js';
 import { createMutationSessionResolver, MutationAbuseProtection } from './abuse-protection.js';
+import { registerAiAttachmentTransport } from './ai-attachments/transport.js';
 import { assertTrustedProxyConfiguration } from './client-address.js';
 import {
   applyBlocksRuntimeCors,
@@ -329,6 +330,7 @@ export async function createApiApp(
     fastify.addHook('onClose', cleanup);
     const blocksRuntimeOrigin = optionalBlocksRuntimeOrigin();
     registerBlocksRuntimeTransport(fastify, blocksRuntimeOrigin);
+    registerAiAttachmentTransport(fastify);
     await fastify.register(fastifyCookie);
 
     fastify.addHook('onSend', async (request, reply, payload) => {

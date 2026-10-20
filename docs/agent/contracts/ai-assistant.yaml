@@ -4,6 +4,75 @@ domain: ai-assistant
 registry_document_id: AI-ASSISTANT-DOMAIN-CONTRACT
 master_documents: [AI-ASSISTANT-SPEC, IDENTITY-ACCESS-V22]
 invariants:
+  - id: AI-ATTACHMENT-OWNER-001
+    statement: Each private attachment belongs to the same immutable canonical Account or Seat principal as chat history. Every HTTP read or mutation proves that owner; teacher permission never exposes private bytes. Exact AI routes use existing-only Seat identity even after the shared mutation budget saturates; proof caches follow resolver policy and the actual credential while all rate-budget keys and limits remain unchanged.
+    master_refs:
+      - document: AI-ASSISTANT-SPEC
+        section: 5.3. Серверная основа приватных вложений
+      - document: AI-ASSISTANT-SPEC
+        section: 12. Privacy и безопасность
+    applies_to:
+      [attachment_authorization, attachment_download, attachment_scope, mutation_proof_cache]
+    forbid:
+      [
+        teacher_private_file_read,
+        attachment_public_url,
+        identity_initializer,
+        account_fallback_for_seat,
+        cached_proof_policy_substitution,
+        doubled_rate_budget,
+      ]
+  - id: AI-ATTACHMENT-BYTES-001
+    statement: A dedicated AI vendor stream is captured privately and bounded by actual bytes, immutable size and SHA-256 before any conditional S3 write. PNG/JPEG/WebP container structure and dimensions, or strict allowlisted UTF-8 text, must validate. Native input cancellation closes capture before unlink; excess bytes receive a typed early error without waiting for EOF, retaining the permit through native response termination under the original input deadline. Validated capture clears that deadline before the separate storage budget. Existing ASA object storage uses a private AI prefix; authenticated no-store downloads verify size and full digest in one bounded buffer and keep their transfer permit through native finish, close or error, without late sends to a closed response. Storage readiness alone advertises no visible file, PDF or Vision capability.
+    master_refs:
+      - document: AI-ASSISTANT-SPEC
+        section: 5.3. Серверная основа приватных вложений
+    applies_to:
+      [
+        attachment_capture,
+        attachment_validation,
+        immutable_blob_write,
+        bounded_download,
+        file_capability,
+      ]
+    forbid:
+      [
+        extension_only_validation,
+        unbounded_body_buffer,
+        widened_blocks_parser,
+        executable_source_download,
+        unsigned_public_read,
+        storage_ready_as_model_support,
+        image_container_as_full_pixel_decode,
+      ]
+  - id: AI-ATTACHMENT-LIFETIME-001
+    statement: One durable attempt owns each immutable upload UUID. Unknown PUT outcomes retain the receipt and owner reservation, and a later missing-object read never proves that no write can arrive. Unsent removal and expiry retain recoverable deletion until confirmed absence. Message binding atomically creates the exact source, ordered file manifest and both existing paid ledgers; free replay and regeneration preserve the original source files. Archive preserves bytes, while source deletion queues cleanup without refunding paid history.
+    master_refs:
+      - document: AI-ASSISTANT-SPEC
+        section: 5.3. Серверная основа приватных вложений
+      - document: AI-ASSISTANT-SPEC
+        section: 13. Поведение при ошибках
+    applies_to:
+      [
+        attachment_reservation,
+        uncertain_put,
+        storage_reconcile,
+        expiry,
+        deletion,
+        atomic_message_binding,
+        regeneration_files,
+      ]
+    forbid:
+      [
+        automatic_put_retry,
+        unknown_outcome_releases_quota,
+        bind_after_paid_commit,
+        foreign_attachment_binding,
+        reused_file_in_new_source,
+        late_file_in_regeneration,
+        archive_deletes_files,
+        deletion_refunds_paid_quota,
+      ]
   - id: AI-HISTORY-001
     statement: Search covers the selected canonical owner's entire title and message history, with literal case-insensitive terms and precise microsecond keyset pages. Archive and restore preserve every message and paid ledger, deny fresh archived generation and retain read/replay access. Independent list request versions preserve the current conversation and draft.
     master_refs:

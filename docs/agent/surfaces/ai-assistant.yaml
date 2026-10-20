@@ -1,6 +1,80 @@
 schema_version: 1.0.0
 context: ai-assistant
 surfaces:
+  - id: SURF-AI-PRIVATE-ATTACHMENTS
+    routes:
+      [
+        /api/ai/attachments,
+        '/api/ai/attachments/:uploadId',
+        '/api/ai/attachments/:uploadId/bytes',
+        '/api/ai/attachments/:uploadId/reconcile',
+      ]
+    implementation:
+      files:
+        [
+          apps/api/src/ai-attachments/contracts.ts,
+          apps/api/src/ai-attachments/controller.ts,
+          apps/api/src/ai-attachments/service.ts,
+          apps/api/src/ai-attachments/store.ts,
+          apps/api/src/ai-attachments/transport.ts,
+          apps/api/src/ai-attachments/capture.ts,
+          apps/api/src/ai-attachments/blob-store.ts,
+          apps/api/src/ai-attachments/validation.ts,
+          apps/api/src/abuse-protection.ts,
+          apps/api/src/account-verification.guard.ts,
+          apps/api/src/app.factory.ts,
+          apps/api/src/app.module.ts,
+          apps/api/src/tokens.ts,
+          migrations/0229_ai_private_attachments.sql,
+        ]
+    invariants:
+      [
+        AI-OWNER-001,
+        AI-SESSION-001,
+        AI-ADMISSION-001,
+        AI-REPLAY-001,
+        AI-VARIANT-001,
+        AI-ATTACHMENT-OWNER-001,
+        AI-ATTACHMENT-BYTES-001,
+        AI-ATTACHMENT-LIFETIME-001,
+      ]
+    tests: [TST-AI-ATTACHMENTS-CORE-001, TST-AI-ATTACHMENTS-PG-001, TST-AI-ATTACHMENTS-S3-001]
+    controls:
+      - id: CTRL-AI-PRIVATE-ATTACHMENT-BYTES
+        label: Authorize exact canonical owner and validate bounded immutable private bytes without changing Blocks transport or public model capabilities
+        change_class: L3_CRITICAL
+        files:
+          [
+            apps/api/src/ai-attachments/controller.ts,
+            apps/api/src/ai-attachments/transport.ts,
+            apps/api/src/ai-attachments/capture.ts,
+            apps/api/src/ai-attachments/blob-store.ts,
+            apps/api/src/ai-attachments/validation.ts,
+            apps/api/src/abuse-protection.ts,
+            apps/api/src/account-verification.guard.ts,
+            apps/api/src/app.factory.ts,
+          ]
+        invariants: [AI-SESSION-001, AI-ATTACHMENT-OWNER-001, AI-ATTACHMENT-BYTES-001]
+        tests: [TST-AI-ATTACHMENTS-CORE-001, TST-AI-ATTACHMENTS-S3-001]
+      - id: CTRL-AI-PRIVATE-ATTACHMENT-RECEIPTS
+        label: Reserve owner quota, reconcile uncertain storage, lease recoverable deletion and atomically preserve original message and file receipts
+        change_class: L3_CRITICAL
+        files:
+          [
+            apps/api/src/ai-attachments/contracts.ts,
+            apps/api/src/ai-attachments/service.ts,
+            apps/api/src/ai-attachments/store.ts,
+            migrations/0229_ai_private_attachments.sql,
+          ]
+        invariants:
+          [
+            AI-OWNER-001,
+            AI-ADMISSION-001,
+            AI-REPLAY-001,
+            AI-VARIANT-001,
+            AI-ATTACHMENT-LIFETIME-001,
+          ]
+        tests: [TST-AI-ATTACHMENTS-CORE-001, TST-AI-ATTACHMENTS-PG-001, TST-AI-ATTACHMENTS-S3-001]
   - id: SURF-AI-TEXT-HISTORY
     routes: ['#/ai', /api/ai/threads, '/api/ai/threads/:threadId/archive', '/api/ai/threads/:threadId/requests/:requestId', '/api/ai/threads/:threadId/regenerations/stream']
     implementation:

@@ -56,6 +56,12 @@ const AI_SEAT_FIRST_ROUTES = new Set([
   'PATCH /api/ai/threads/:threadId/archive',
   'GET /api/ai/threads/:threadId/requests/:requestId',
   'POST /api/ai/threads/:threadId/regenerations/stream',
+  'POST /api/ai/attachments',
+  'GET /api/ai/attachments/:uploadId',
+  'PUT /api/ai/attachments/:uploadId/bytes',
+  'GET /api/ai/attachments/:uploadId/bytes',
+  'DELETE /api/ai/attachments/:uploadId',
+  'POST /api/ai/attachments/:uploadId/reconcile',
 ]);
 const SEAT_FIRST_ROUTES = new Set([
   ...AI_SEAT_FIRST_ROUTES,

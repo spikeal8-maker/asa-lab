@@ -108,6 +108,10 @@ describe('AI mutation budget identity boundary', () => {
     ['PUT', '/api/ai/classrooms/:classroomId/access'],
     ['PUT', '/api/admin/v1/ai'],
     ['POST', '/api/admin/v1/ai/test'],
+    ['POST', '/api/ai/attachments'],
+    ['PUT', '/api/ai/attachments/:uploadId/bytes'],
+    ['DELETE', '/api/ai/attachments/:uploadId'],
+    ['POST', '/api/ai/attachments/:uploadId/reconcile'],
   ];
   function aiRequest(method: string, route: string, token = 'seat-current') {
     const candidate = request();

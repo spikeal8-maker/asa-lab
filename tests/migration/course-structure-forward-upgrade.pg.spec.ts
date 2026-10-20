@@ -99,6 +99,7 @@ describe('Course Builder structure forward upgrade', () => {
         '0226', // StudentSeat AI admission preserves existing course and learner history.
         '0227', // AI model catalog and isolated provider credentials; preserves course and learner history.
         '0228', // Searchable AI archives and immutable answer variants preserve course and learner history.
+        '0229', // Private AI attachment storage preserves existing messages, receipts and course history.
       ];
       const pre153 = plan.filter((item) => Number(item.version) <= 152);
       const upgradePlan = plan.filter((item) => Number(item.version) > 152);
@@ -357,6 +358,7 @@ describe('Course Builder structure forward upgrade', () => {
           '0226',
           '0227',
           '0228',
+          '0229',
         ]);
         expect(
           await applyIsolatedTestPlan(

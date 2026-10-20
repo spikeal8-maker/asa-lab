@@ -37,6 +37,7 @@ export const TOKENS = {
   accountVerification: 'ACCOUNT_VERIFICATION_SERVICE',
   aiChatService: 'AI_CHAT_SERVICE',
   aiAccessService: 'AI_ACCESS_SERVICE',
+  aiAttachmentService: 'AI_ATTACHMENT_SERVICE',
   refreshSessionService: 'REFRESH_SESSION_SERVICE',
   adminControlPlane: 'ADMIN_CONTROL_PLANE',
   productAnalytics: 'PRODUCT_ANALYTICS',

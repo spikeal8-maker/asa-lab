@@ -27,6 +27,10 @@ const AI_MUTATION_ROUTES = new Set([
   'PUT /api/ai/classrooms/:classroomId/access',
   'PUT /api/admin/v1/ai',
   'POST /api/admin/v1/ai/test',
+  'POST /api/ai/attachments',
+  'PUT /api/ai/attachments/:uploadId/bytes',
+  'DELETE /api/ai/attachments/:uploadId',
+  'POST /api/ai/attachments/:uploadId/reconcile',
 ]);
 
 export function isAiMutationRoute(request: FastifyRequest): boolean {
