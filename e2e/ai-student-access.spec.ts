@@ -349,12 +349,12 @@ async function openTeacherSettings(page: Page) {
 }
 
 for (const invalid of ['generic fixture', 'non-JSON', 'invalid student'] as const) {
-  test(`Malformed AI class read (${invalid}) stays local and explicitly recovers on built UI`, async ({
+  test(`Malformed AI class read (${invalid}) stays local and explicitly recovers on focused UI`, async ({
     page,
   }) => {
     await page.setViewportSize({ width: 390, height: 900 });
-    // Keep the existing fixture's production-built asset routing and strict API fallback.
     const fixture = await classroomFixture(page, 1, { classroomTitle, sidebar: 'collapsed' });
+    await page.unroute('**/*'); // Use the focused Vite server, keeping fixture API routes.
     let valid = false;
     let reads = 0;
     const writes: string[] = [];
@@ -410,11 +410,12 @@ for (const invalid of ['generic fixture', 'non-JSON', 'invalid student'] as cons
 }
 
 for (const invalid of ['wrong revision', 'non-JSON'] as const) {
-  test(`Unconfirmed AI class save (${invalid}) retries the exact mutation on built UI`, async ({
+  test(`Unconfirmed AI class save (${invalid}) retries the exact mutation on focused UI`, async ({
     page,
   }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     const fixture = await classroomFixture(page, 1, { classroomTitle, sidebar: 'collapsed' });
+    await page.unroute('**/*'); // Use the focused Vite server, keeping fixture API routes.
     let revision = 4;
     let mode = 'deny';
     let reads = 0;

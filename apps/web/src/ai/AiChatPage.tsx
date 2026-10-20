@@ -519,6 +519,9 @@ export function AiChatPage({
           method: 'POST',
           body: JSON.stringify({}),
         });
+        // Scope changes or navigation invalidate this send before a stream
+        // exists for cleanup to abort. Never start one for that stale owner.
+        if (version !== selectedVersion.current) return;
         if (!created.ok) {
           setError(created.error.message);
           return;
