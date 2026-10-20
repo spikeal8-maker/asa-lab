@@ -1,12 +1,39 @@
 import { createCipheriv, createDecipheriv, createHash } from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
 import type pg from 'pg';
+import {
+  BotProviderIngress,
+  IngressProbeRegistry,
+  providerSecretHeader,
+} from './bot-provider-ingress.js';
 import { BotProviderRuntime, type RuntimeRow } from './bot-provider-runtime.js';
 import type { BotAuthProvider } from './auth-provider-availability.js';
 
 const KEY = Buffer.alloc(32, 5);
 const TOKEN = '1001:test_only_telegram_token_000000';
 const NOW = 1_800_000_000_000;
+
+function testIngress() {
+  const ingress = new BotProviderIngress({
+    registry: new IngressProbeRegistry(),
+    resolve: async () => [{ address: '8.8.8.8', family: 4 }],
+    request: async (input) => {
+      const challenge = JSON.parse(input.body);
+      const result = ingress.answer(
+        {
+          provider: challenge.provider,
+          configurationVersion: challenge.configurationVersion,
+          url: input.url.href,
+          key: KEY,
+        },
+        input.headers[providerSecretHeader(challenge.provider)],
+        challenge,
+      );
+      return { status: result ? 200 : 401, body: JSON.stringify(result) };
+    },
+  });
+  return ingress;
+}
 
 function body(value: unknown, status = 200): Response {
   return new Response(JSON.stringify(value), { status });
@@ -20,6 +47,8 @@ function fixture(fetchImpl: typeof fetch, provider: BotAuthProvider = 'telegram'
     enabled: true,
     encryptionKey: KEY.toString('base64url'),
     fetchImpl,
+    ingress: testIngress(),
+    publicWebOrigins: ['https://asa.example'],
     now,
   });
 }
@@ -56,6 +85,8 @@ function encryptedRuntime(): RuntimeRow {
     webhook_url: 'https://asa.example/api/auth/telegram/webhook',
     webhook_verified_at: new Date(NOW),
     webhook_last_error: null,
+    native_confirmation_configuration_version: null,
+    native_confirmation_verified_at: null,
   };
 }
 
@@ -179,6 +210,8 @@ describe('bounded provider runtime availability', () => {
     const runtime = new BotProviderRuntime({ query } as unknown as pg.Pool, 'telegram', {
       encryptionKey: KEY.toString('base64url'),
       fetchImpl,
+      ingress: testIngress(),
+      publicWebOrigins: ['https://asa.example'],
       now: () => NOW,
     });
     await expect(runtime.availability()).resolves.toMatchObject({ available: true });
@@ -207,6 +240,8 @@ describe('bounded provider runtime availability', () => {
       const runtime = new BotProviderRuntime({ query } as unknown as pg.Pool, 'telegram', {
         encryptionKey: problem === 'missing' ? '' : Buffer.alloc(32, 8).toString('base64url'),
         fetchImpl,
+        ingress: testIngress(),
+        publicWebOrigins: ['https://asa.example'],
         now: () => NOW,
       });
       await expect(runtime.availableConfigurationVersion()).resolves.toBeNull();
@@ -240,7 +275,11 @@ describe('bounded provider runtime availability', () => {
   });
 
   it('does not certify availability from a generation changed during the forced probe', async () => {
-    let row = encryptedRuntime();
+    let row = {
+      ...encryptedRuntime(),
+      native_confirmation_configuration_version: 1,
+      native_confirmation_verified_at: new Date(NOW),
+    };
     const query = vi.fn(async (sql: string) => {
       if (sql.includes('health_set')) row = { ...row, configuration_version: 2 };
       return { rows: sql.includes('runtime_config') ? [row] : [] };
@@ -248,6 +287,8 @@ describe('bounded provider runtime availability', () => {
     const runtime = new BotProviderRuntime({ query } as unknown as pg.Pool, 'telegram', {
       encryptionKey: KEY.toString('base64url'),
       fetchImpl: vi.fn(async (url) => healthyTelegram(url)),
+      ingress: testIngress(),
+      publicWebOrigins: ['https://asa.example'],
       now: () => NOW,
     });
     await expect(runtime.availableConfigurationVersion()).resolves.toBeNull();
@@ -270,6 +311,8 @@ describe('bounded provider runtime availability', () => {
       webhook_url: null,
       webhook_verified_at: null,
       webhook_last_error: null,
+      native_confirmation_configuration_version: null,
+      native_confirmation_verified_at: null,
     };
     const query = vi.fn(async (sql: string, args: unknown[] = []) => {
       if (sql.includes('admin_set_auth_provider_config'))
@@ -300,6 +343,8 @@ describe('bounded provider runtime availability', () => {
     const runtime = new BotProviderRuntime({ query } as unknown as pg.Pool, 'telegram', {
       encryptionKey: KEY.toString('base64url'),
       fetchImpl,
+      ingress: testIngress(),
+      publicWebOrigins: ['https://asa.example'],
       now: () => NOW,
     });
     const config = await runtime.updateAdminConfig(
@@ -332,5 +377,150 @@ describe('bounded provider runtime availability', () => {
     expect(payload.url).toBe('https://asa.example/api/auth/telegram/webhook');
     expect(payload.secret_token).toMatch(/^[A-Za-z0-9_-]{43}$/);
     expect(payload.allowed_updates).toEqual(['message', 'callback_query']);
+  });
+  it('permits the first native test but never certifies mandatory confirmation or unlink without a receipt', async () => {
+    const runtime = fixture(vi.fn(async (url) => healthyTelegram(url)));
+    await expect(runtime.availability()).resolves.toMatchObject({
+      available: true,
+      enforcementEligible: false,
+      enforcementReason: 'delivery_unverified',
+    });
+    await expect(runtime.adminConfig()).resolves.toMatchObject({
+      diagnostics: {
+        token: { state: 'ok' },
+        subscription: { state: 'ok' },
+        ingress: { state: 'ok' },
+        nativeConfirmation: { current: false, configurationVersion: null, verifiedAt: null },
+      },
+    });
+    await expect(runtime.availableConfigurationVersion()).resolves.toBeNull();
+  });
+
+  it('requires a current receipt and rereads it even within the network cache', async () => {
+    let row = encryptedRuntime();
+    const query = vi.fn(async (sql: string) => ({
+      rows: sql.includes('runtime_config') ? [row] : [],
+    }));
+    const fetchImpl = vi.fn(async (url) => healthyTelegram(url));
+    const runtime = new BotProviderRuntime({ query } as unknown as pg.Pool, 'telegram', {
+      encryptionKey: KEY.toString('base64url'),
+      fetchImpl,
+      now: () => NOW,
+      ingress: testIngress(),
+      publicWebOrigins: ['https://asa.example'],
+    });
+    await expect(runtime.availability()).resolves.toMatchObject({
+      available: true,
+      enforcementEligible: false,
+    });
+    row = {
+      ...row,
+      native_confirmation_configuration_version: 1,
+      native_confirmation_verified_at: new Date(NOW),
+    };
+    await expect(runtime.availability()).resolves.toMatchObject({
+      available: true,
+      enforcementEligible: true,
+    });
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(query).toHaveBeenLastCalledWith('SELECT auth_provider_health_set($1,$2,$3,$4)', [
+      'telegram',
+      1,
+      true,
+      'ready',
+    ]);
+    row = { ...row, configuration_version: 2 };
+    await expect(runtime.availability()).resolves.toMatchObject({
+      available: true,
+      enforcementEligible: false,
+      enforcementReason: 'delivery_unverified',
+    });
+    await expect(runtime.availableConfigurationVersion()).resolves.toBeNull();
+  });
+
+  it('rejects a foreign webhook before replacing any local token or configuration version', async () => {
+    const row = encryptedRuntime();
+    const query = vi.fn(async () => ({ rows: [{ ...row, token_configured: true }] }));
+    const fetchImpl = vi.fn(async (url) =>
+      String(url).endsWith('/getMe')
+        ? healthyTelegram(url)
+        : body({ ok: true, result: { url: 'https://foreign.example/api/auth/telegram/webhook' } }),
+    );
+    const runtime = new BotProviderRuntime({ query } as unknown as pg.Pool, 'telegram', {
+      encryptionKey: KEY.toString('base64url'),
+      fetchImpl,
+      ingress: testIngress(),
+      publicWebOrigins: ['https://asa.example'],
+    });
+    await expect(
+      runtime.updateAdminConfig(
+        'admin',
+        {
+          enabled: true,
+          botUsername: 'asa_test_bot',
+          miniAppUrl: 'https://asa.example/sign-in',
+          botToken: TOKEN,
+        },
+        'request',
+      ),
+    ).rejects.toThrow('telegram_webhook_conflict');
+    expect(
+      query.mock.calls.every(([sql]) => !String(sql).includes('admin_set_auth_provider_config')),
+    ).toBe(true);
+    expect(fetchImpl.mock.calls.some(([url]) => String(url).endsWith('/setWebhook'))).toBe(false);
+  });
+
+  it('disables a broken provider without validating its URL, key or token or calling its network', async () => {
+    let row = encryptedRuntime();
+    const query = vi.fn(async (sql: string, args: unknown[] = []) => {
+      if (sql.includes('admin_set_auth_provider_config')) {
+        expect(args[3]).toBe(row.bot_username);
+        expect(args[4]).toBe(row.mini_app_url);
+        expect(args[5]).toBe('keep');
+        expect(args[14]).toBe(1);
+        row = { ...row, enabled: false, configuration_version: 2 };
+      }
+      return { rows: [{ ...row, token_configured: true }] };
+    });
+    const fetchImpl = vi.fn();
+    const runtime = new BotProviderRuntime({ query } as unknown as pg.Pool, 'telegram', {
+      encryptionKey: '',
+      fetchImpl,
+      publicWebOrigins: [],
+    });
+    await expect(
+      runtime.updateAdminConfig(
+        'admin',
+        {
+          enabled: false,
+          botUsername: 'invalid!',
+          miniAppUrl: 'http://127.0.0.1',
+          botToken: 'invalid',
+        },
+        'request',
+      ),
+    ).resolves.toMatchObject({ featureEnabled: false, available: false, tokenConfigured: true });
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('checks an authorized configuration without setting a webhook or writing a config version', async () => {
+    const row = encryptedRuntime();
+    const query = vi.fn(async () => ({ rows: [{ ...row, token_configured: true }] }));
+    const fetchImpl = vi.fn(async (url) => healthyTelegram(url));
+    const runtime = new BotProviderRuntime({ query } as unknown as pg.Pool, 'telegram', {
+      encryptionKey: KEY.toString('base64url'),
+      fetchImpl,
+      ingress: testIngress(),
+      publicWebOrigins: ['https://asa.example'],
+    });
+    await expect(runtime.checkAdminConfig('admin')).resolves.toMatchObject({
+      available: true,
+      enforcementEligible: false,
+    });
+    expect(String(query.mock.calls[0]?.[0])).toContain('admin_get_auth_provider_config');
+    expect(
+      query.mock.calls.some(([sql]) => String(sql).includes('admin_set_auth_provider_config')),
+    ).toBe(false);
+    expect(fetchImpl.mock.calls.some(([url]) => String(url).endsWith('/setWebhook'))).toBe(false);
   });
 });

@@ -32,7 +32,7 @@ beforeAll(async () => {
   const plan = planMigrations('migrations');
   await applyPlan(
     adapter,
-    plan.filter((m) => m.version < '0225'),
+    plan.filter((m) => m.version < '0226'),
   );
   const identity = await aiIdentity(admin);
   const thread = (
@@ -57,7 +57,7 @@ afterAll(async () => {
   await db?.close();
 });
 
-it('0225 preserves Account history, request IDs and quota through the forward upgrade', async () => {
+it('0226 preserves Account history, request IDs and quota through the forward upgrade', async () => {
   const rows = await admin.query(
     'SELECT t.id,t.account_id,t.owner_principal_id,m.id AS message_id,m.content FROM ai_assistant_threads t JOIN ai_assistant_messages m ON m.thread_id=t.id WHERE t.id=$1',
     [prior.thread],

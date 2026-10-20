@@ -1,6 +1,7 @@
 import {
   resetElectronicsTimedState,
   type ElectronicsArduinoSerialProjection,
+  type ElectronicsLedTemporalObservation,
   type ElectronicsTimedInputEvent,
   type ElectronicsTimedState,
 } from '@asa-lab/electronics/engine';
@@ -13,6 +14,7 @@ import {
 } from './simulation-failure';
 import { ElectronicsSimulationWorkerClient } from './simulation-worker-client';
 import type { SimulationTimedAdvancePayload } from './simulation-worker-protocol';
+import { LED_PRESENTATION_PHASE_LIMIT_MICROSECONDS } from './led-temporal-presentation';
 
 export interface ElectronicsSimulationWorkerExecutor {
   beginGeneration(projectSessionId: string): number;
@@ -30,7 +32,14 @@ export interface ElectronicsSimulationWorkerExecutor {
 
 export interface LiveSimulationWorkerCallbacks {
   readonly onGenerationPending?: () => void;
-  readonly onResult: (result: SolveResult) => void;
+  readonly onInitialReady?: (hostHorizonOffsetMicroseconds: number) => void;
+  /** Read current bounded host demand at dispatch; null pauses ordinary host work. */
+  readonly readHostHorizonMicroseconds?: () => number | null;
+  readonly onResult: (
+    result: SolveResult,
+    ledTemporal?: ElectronicsLedTemporalObservation,
+    clockProfileId?: NonNullable<ElectronicsTimedState['continuation']>['clockProfileId'],
+  ) => void;
   readonly onCommittedHorizon?: (committedHorizonMicroseconds: number) => void;
   readonly onSerialProjection?: (serial: readonly ElectronicsArduinoSerialProjection[]) => void;
   readonly onFailure: (failure: SimulationFailure) => void;
@@ -59,9 +68,10 @@ const ARDUINO_SOURCE_PROPERTY = 'arduinoSource' as const;
 const RUNTIME_INPUT_OBSERVATION_WINDOW_MICROSECONDS = 100_000;
 // Presentation requests are finite even when host demand accumulates faster than
 // physics can advance. This does not change the engine's barriers/work budget.
-// The cap is half a second of model time, not a wall-time/throughput promise.
-// Yielded work still finishes this exact target before another window is chosen.
-const COMPLETE_OBSERVATION_WINDOW_MICROSECONDS = 500_000;
+// At most 25 ms separates complete observations, including during catch-up.
+// A 100 ms observation grid aliases a 50 ms HIGH / 50 ms LOW sketch.
+// This is a model-time bound, not a wall-time/throughput promise.
+const COMPLETE_OBSERVATION_WINDOW_MICROSECONDS = LED_PRESENTATION_PHASE_LIMIT_MICROSECONDS;
 
 function boundedInputObservationHorizon(
   eventAtMicroseconds: number,
@@ -222,6 +232,7 @@ export class ElectronicsLiveSimulationWorkerController {
   private pendingInputEvents: ElectronicsTimedInputEvent[] = [];
   private lastInputEventAtMicroseconds = -1;
   private horizonOffsetMicroseconds = 0;
+  private observationWindowMicroseconds = COMPLETE_OBSERVATION_WINDOW_MICROSECONDS;
   private inFlight = false;
   private inFlightKind: 'preflight' | 'advance' | null = null;
 
@@ -357,6 +368,7 @@ export class ElectronicsLiveSimulationWorkerController {
     this.inputTarget = null;
     this.pendingInputEvents = [];
     this.lastInputEventAtMicroseconds = -1;
+    this.observationWindowMicroseconds = COMPLETE_OBSERVATION_WINDOW_MICROSECONDS;
     this.callbacks?.onSerialProjection?.([]);
     const generationId = this.executor.beginGeneration(projectSessionId);
     this.generationId = generationId;
@@ -430,20 +442,46 @@ export class ElectronicsLiveSimulationWorkerController {
   private pump(): void {
     const generationId = this.generationId;
     const document = this.canonicalDocument;
-    const pendingTarget =
+    let pendingTarget =
       this.startupTarget ?? this.inputTarget ?? this.continuationTarget ?? this.latestTarget;
     if (generationId === null || !document || this.inFlight || !pendingTarget) return;
+    if (pendingTarget === this.latestTarget && this.callbacks?.readHostHorizonMicroseconds) {
+      // A native RAF may acknowledge new progress between the last host tick
+      // and this serial dispatch. Refresh the same bounded demand at its use.
+      const hostHorizon = this.callbacks.readHostHorizonMicroseconds();
+      if (
+        generationId !== this.generationId ||
+        document !== this.canonicalDocument ||
+        this.inFlight ||
+        pendingTarget !== this.latestTarget ||
+        hostHorizon === null ||
+        !Number.isSafeInteger(hostHorizon) ||
+        hostHorizon < 0
+      )
+        return;
+      pendingTarget = {
+        requestedHorizonMicroseconds: Math.max(
+          pendingTarget.requestedHorizonMicroseconds,
+          hostHorizon - this.horizonOffsetMicroseconds,
+        ),
+      };
+      this.latestTarget = pendingTarget;
+    }
     const committed = this.timedState.continuation?.committedHorizonMicroseconds ?? 0;
-    const target =
-      pendingTarget === this.latestTarget
-        ? {
-            requestedHorizonMicroseconds: Math.min(
+    const isStartup = pendingTarget === this.startupTarget;
+    // An input can commit beyond the presentation-limited host tick. Older
+    // demand may observe the same committed time but must never rewind it.
+    const target = isStartup
+      ? pendingTarget
+      : {
+          requestedHorizonMicroseconds: Math.max(
+            committed,
+            Math.min(
               pendingTarget.requestedHorizonMicroseconds,
-              committed + COMPLETE_OBSERVATION_WINDOW_MICROSECONDS,
+              committed + this.observationWindowMicroseconds,
             ),
-          }
-        : pendingTarget;
-    const isStartup = target === this.startupTarget;
+          ),
+        };
     // Complete time zero before pursuing host ticks or inputs queued after Start.
     if (!isStartup) {
       if (this.inputTarget) this.inputTarget = null;
@@ -490,6 +528,18 @@ export class ElectronicsLiveSimulationWorkerController {
       this.fail(generationId, timedAdvanceFailure(advance));
       return;
     }
+    if (
+      advance.executionStatus === 'ready' &&
+      target === this.startupTarget &&
+      (advance.requestedHorizonMicroseconds !== 0 || advance.committedHorizonMicroseconds !== 0)
+    ) {
+      this.fail(
+        generationId,
+        new Error('Initial Electronics observation must be complete at zero.'),
+      );
+      return;
+    }
+    const previouslyCommitted = this.timedState.continuation?.committedHorizonMicroseconds ?? 0;
     this.timedState = advance.state;
     this.callbacks?.onSerialProjection?.(advance.serial);
     this.retimePendingInputsAfterCommitted(
@@ -497,7 +547,20 @@ export class ElectronicsLiveSimulationWorkerController {
       target.requestedHorizonMicroseconds,
     );
     if (advance.executionStatus === 'yielded') {
-      if (target !== this.startupTarget) this.continuationTarget = target;
+      if (target !== this.startupTarget) {
+        const progress = advance.committedHorizonMicroseconds - previouslyCommitted;
+        if (progress > 0)
+          this.observationWindowMicroseconds = Math.min(
+            this.observationWindowMicroseconds,
+            progress,
+          );
+        // A yielded checkpoint is not a frame. Ask the same engine to complete
+        // an observation at C instead of withholding frames until the old H.
+        // latestTarget still retains all outstanding host/input demand.
+        this.continuationTarget = {
+          requestedHorizonMicroseconds: advance.committedHorizonMicroseconds,
+        };
+      }
       this.pump();
       return;
     }
@@ -518,10 +581,21 @@ export class ElectronicsLiveSimulationWorkerController {
       return;
     }
     const isStartup = target === this.startupTarget;
-    if (isStartup) this.startupTarget = null;
+    if (isStartup) {
+      this.startupTarget = null;
+      this.callbacks?.onInitialReady?.(this.horizonOffsetMicroseconds);
+      if (generationId !== this.generationId) return;
+    }
     if (isStartup || this.pendingInputEvents.length === 0) {
       this.callbacks?.onCommittedHorizon?.(advance.committedHorizonMicroseconds);
-      this.callbacks?.onResult(advance.result);
+      // The accepted continuation owns clock capability. Merely containing an
+      // Arduino does not make a mixed circuit an event-history producer.
+      const clockProfileId = advance.state.continuation?.clockProfileId;
+      if (advance.ledTemporal?.toMicroseconds === advance.committedHorizonMicroseconds) {
+        this.callbacks?.onResult(advance.result, advance.ledTemporal, clockProfileId);
+      } else {
+        this.callbacks?.onResult(advance.result, undefined, clockProfileId);
+      }
     }
     this.pump();
   }

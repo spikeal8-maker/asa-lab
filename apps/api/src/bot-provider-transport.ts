@@ -27,6 +27,15 @@ export function normalizedUsername(value: unknown): string | null {
   return /^[A-Za-z0-9_]{3,64}$/.test(text) ? text : null;
 }
 
+function bounded<T>(operation: Promise<T>, signal: AbortSignal): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const aborted = () => reject(new Error('provider deadline'));
+    if (signal.aborted) return aborted();
+    signal.addEventListener('abort', aborted, { once: true });
+    operation.then(resolve, reject).finally(() => signal.removeEventListener('abort', aborted));
+  });
+}
+
 /** Only documented provider endpoints are constructed here; errors never retain URLs or tokens. */
 export class BotProviderTransport {
   constructor(
@@ -40,6 +49,8 @@ export class BotProviderTransport {
       | 'token_missing'
       | 'token_invalid'
       | 'token_bot_mismatch'
+      | 'webhook_url_invalid'
+      | 'webhook_conflict'
       | 'service_unavailable',
   ): ProviderConfigurationError {
     return new ProviderConfigurationError(`${this.provider}_${suffix}`);
@@ -77,16 +88,19 @@ export class BotProviderTransport {
         : `https://api.telegram.org/bot${token}/${method}`;
     let response: Response;
     try {
-      response = await this.fetchImpl(url, {
-        method: body ? 'POST' : 'GET',
-        headers: {
-          accept: 'application/json',
-          ...(this.provider === 'max' ? { authorization: token } : {}),
-          ...(body ? { 'content-type': 'application/json' } : {}),
-        },
-        ...(body ? { body: JSON.stringify(body) } : {}),
+      response = await bounded(
+        this.fetchImpl(url, {
+          method: body ? 'POST' : 'GET',
+          headers: {
+            accept: 'application/json',
+            ...(this.provider === 'max' ? { authorization: token } : {}),
+            ...(body ? { 'content-type': 'application/json' } : {}),
+          },
+          ...(body ? { body: JSON.stringify(body) } : {}),
+          signal,
+        }),
         signal,
-      });
+      );
     } catch {
       // Do not propagate fetch messages: Telegram carries its token in the URL.
       throw this.failure('service_unavailable');
@@ -94,7 +108,7 @@ export class BotProviderTransport {
     if (!response.ok) throw this.requestFailure(method, response.status);
     let value: unknown;
     try {
-      value = await response.json();
+      value = await bounded(response.json(), signal);
     } catch {
       throw this.failure('service_unavailable');
     }
@@ -104,6 +118,10 @@ export class BotProviderTransport {
         throw this.requestFailure(method, Number(envelope?.['error_code']));
       }
       return envelope['result'];
+    }
+    // MAX may report a rejected callback as HTTP 200 with success:false.
+    if (method.split('?')[0] === 'answers' && asRecord(value)?.['success'] === false) {
+      throw new ProviderDeliveryError('callback');
     }
     return value;
   }

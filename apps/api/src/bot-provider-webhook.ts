@@ -4,6 +4,7 @@ import { hashSessionToken } from '@asa-lab/identity';
 import { type BotAuthProvider } from './auth-provider-availability.js';
 import { providerText, providerUserId } from './provider-init-data.js';
 import { asRecord, ProviderDeliveryError } from './bot-provider-transport.js';
+import type { IngressProbeResponse } from './bot-provider-ingress.js';
 import { BotProviderRuntime } from './bot-provider-runtime.js';
 
 interface BotUpdate {
@@ -122,7 +123,9 @@ export class BotProviderWebhook {
   async handleWebhook(
     suppliedSecret: unknown,
     body: unknown,
-  ): Promise<'accepted' | 'duplicate' | 'unauthorized'> {
+  ): Promise<'accepted' | 'duplicate' | 'unauthorized' | IngressProbeResponse> {
+    const ingress = await this.runtimeProvider.answerIngressProbe(suppliedSecret, body);
+    if (ingress !== null) return ingress;
     const runtime = await this.runtimeProvider.runtime();
     const expected = this.runtimeProvider.webhookSecret(runtime);
     if (typeof suppliedSecret !== 'string' || !expected) return 'unauthorized';

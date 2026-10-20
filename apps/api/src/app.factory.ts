@@ -15,6 +15,7 @@ import pg from 'pg';
 import { createRuntimeMetrics } from '@asa-lab/observability';
 import type { ActiveContextUseCase } from '@asa-lab/identity';
 import { SeatContextUseCase } from './seat-context.js';
+import type { BotProviderAuthOptions } from './bot-provider-runtime.js';
 import { AppModule } from './app.module.js';
 import { ProductAnalyticsService } from './product-analytics.service.js';
 import { OwnedPools, SafeNestLogger, boundedClose } from './owned-pool-lifecycle.js';
@@ -40,7 +41,7 @@ import {
   resolveIsolatedTestWebOrigin,
   resolveLocalApiOrigin,
 } from './origin-policy.js';
-import { MutationAbuseProtection } from './abuse-protection.js';
+import { createMutationSessionResolver, MutationAbuseProtection } from './abuse-protection.js';
 import { assertTrustedProxyConfiguration } from './client-address.js';
 import {
   applyBlocksRuntimeCors,
@@ -154,6 +155,7 @@ function shouldLogRequests(explicit: boolean | undefined): boolean {
 }
 
 export interface ApiFactoryOptions {
+  readonly authProviderOptions?: Pick<BotProviderAuthOptions, 'ingress' | 'publicWebOrigins'>;
   /** Injected pool (tests); otherwise built from APP_DATABASE_URL only. */
   readonly pool?: pg.Pool | null;
   /** Explicit test/embedding dependency; null disables telemetry with no fallback. */
@@ -288,7 +290,13 @@ export async function createApiApp(
     ];
     const adapter = new FastifyAdapter({ genReqId: () => randomUUID(), logger: false });
     const app = await NestFactory.create<NestFastifyApplication>(
-      AppModule.forPool(pool, { productAnalytics: analytics, runtimeMetrics: metrics }),
+      AppModule.forPool(pool, {
+        productAnalytics: analytics,
+        runtimeMetrics: metrics,
+        ...(options.authProviderOptions
+          ? { authProviderOptions: options.authProviderOptions }
+          : {}),
+      }),
       adapter,
       {
         logger: new SafeNestLogger(),
@@ -355,10 +363,18 @@ export async function createApiApp(
       if (!requestFailures.has(request))
         recordServerFailure(error, request, error.statusCode ?? 500, logRevision, pool);
     });
-    const mutationAbuseProtection = new MutationAbuseProtection(async (kind, token) =>
-      kind === 'account'
-        ? (await app.get<ActiveContextUseCase>(TOKENS.activeContextUseCase).resolve(token)) !== null
-        : (await app.get<SeatContextUseCase>(TOKENS.seatContextUseCase).resolve(token)) !== null,
+    const mutationAbuseProtection = new MutationAbuseProtection(
+      createMutationSessionResolver(
+        {
+          resolve: (token) =>
+            app.get<ActiveContextUseCase>(TOKENS.activeContextUseCase).resolve(token),
+        },
+        {
+          resolve: (token) => app.get<SeatContextUseCase>(TOKENS.seatContextUseCase).resolve(token),
+          resolveExisting: (token) =>
+            app.get<SeatContextUseCase>(TOKENS.seatContextUseCase).resolveExisting(token),
+        },
+      ),
     );
     const blocksRuntimeAddressBudget = new BlocksRuntimeAddressBudget();
 

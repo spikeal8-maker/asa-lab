@@ -5,7 +5,7 @@
  * https://developers.openai.com/api/docs/changelog (2025-08-07: minimal effort)
  * https://api-docs.deepseek.com/quick_start/pricing/
  * https://api-docs.deepseek.com/guides/thinking_mode/
- * Migration 0226 mirrors only the closed SQL boundary; a regression checks parity.
+ * Migration 0227 mirrors only the closed SQL boundary; a regression checks parity.
  */
 const MODELS = [
   {

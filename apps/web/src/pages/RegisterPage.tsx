@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { api, type BotProof, type SessionPayload } from '../api';
 import { AuthHomeBrand } from '../components/AuthHomeBrand';
 import { BotCheck } from '../components/BotCheck';
@@ -31,31 +31,60 @@ export function RegisterPage({
   const { providers, refresh: refreshProviders } = useAuthProviders();
   const [socialRegistration, setSocialRegistration] = useState(false);
   const [localPreviewEnabled, setLocalPreviewEnabled] = useState(false);
+  const alive = useRef(true);
+  const generation = useRef(0);
+  const pending = useRef<AbortController | null>(null);
 
   useEffect(() => {
+    alive.current = true;
+    setBusy(false);
     let active = true;
     void api.localPreviewConfig().then((result) => {
       if (active && result.ok) setLocalPreviewEnabled(result.data.enabled);
     });
     return () => {
       active = false;
+      alive.current = false;
+      generation.current += 1;
+      pending.current?.abort();
+      pending.current = null;
     };
   }, [maxInitData]);
 
+  function leave(action: () => void): void {
+    alive.current = false;
+    generation.current += 1;
+    pending.current?.abort();
+    pending.current = null;
+    setBusy(false);
+    action();
+  }
+
   async function enterLocalPreview(): Promise<void> {
+    if (!alive.current || pending.current) return;
+    const controller = new AbortController();
+    const current = ++generation.current;
+    pending.current = controller;
     setBusy(true);
     setMessage(null);
-    const result = await api.localPreviewSession();
+    const result = await api.localPreviewSession(controller.signal);
+    if (pending.current === controller) pending.current = null;
+    if (!alive.current || current !== generation.current || controller.signal.aborted) return;
     setBusy(false);
     if (result.ok) {
       onRegistered(result.data);
       return;
     }
-    setMessage('Не удалось войти в локальный preview. Обновите страницу и попробуйте ещё раз.');
+    setMessage(
+      result.error.code === 'auth_timeout'
+        ? result.error.message
+        : 'Не удалось войти в локальный preview. Обновите страницу и попробуйте ещё раз.',
+    );
   }
 
   async function submit(event: FormEvent): Promise<void> {
     event.preventDefault();
+    if (!alive.current || pending.current) return;
     setMessage(null);
     if (!email.trim() || !username.trim() || !password || !birthDate) {
       setMessage('Заполните email, имя пользователя, пароль и дату рождения.');
@@ -74,25 +103,36 @@ export function RegisterPage({
       return;
     }
     setBusy(true);
+    const controller = new AbortController();
+    const current = ++generation.current;
+    pending.current = controller;
     const result = maxInitData
-      ? await api.maxRegister({
-          initData: maxInitData,
-          email: email.trim(),
-          username: username.trim().toLowerCase(),
-          displayName: displayName.trim(),
-          birthDate,
-          country,
-          password,
-        })
-      : await api.register({
-          email: email.trim(),
-          username: username.trim().toLowerCase(),
-          displayName: displayName.trim(),
-          password,
-          birthDate,
-          country,
-          botProof: botProof as BotProof,
-        });
+      ? await api.maxRegister(
+          {
+            initData: maxInitData,
+            email: email.trim(),
+            username: username.trim().toLowerCase(),
+            displayName: displayName.trim(),
+            birthDate,
+            country,
+            password,
+          },
+          controller.signal,
+        )
+      : await api.register(
+          {
+            email: email.trim(),
+            username: username.trim().toLowerCase(),
+            displayName: displayName.trim(),
+            password,
+            birthDate,
+            country,
+            botProof: botProof as BotProof,
+          },
+          controller.signal,
+        );
+    if (pending.current === controller) pending.current = null;
+    if (!alive.current || current !== generation.current || controller.signal.aborted) return;
     setBusy(false);
     if (result.ok) {
       (maxInitData ? (onMaxRegistered ?? onRegistered) : onRegistered)(result.data);
@@ -102,7 +142,9 @@ export function RegisterPage({
     setBotReset((value) => value + 1);
     setMessage(
       result.status === 0
-        ? 'Сервер недоступен. Попробуйте ещё раз.'
+        ? result.error.code === 'auth_timeout'
+          ? result.error.message
+          : 'Ответ сервера не получен. Результат регистрации неизвестен. Проверьте, создан ли аккаунт, через страницу входа.'
         : result.error.message || 'Не удалось создать аккаунт.',
     );
   }
@@ -110,10 +152,10 @@ export function RegisterPage({
   return (
     <div className="page-center">
       <main className="login-card auth-register-card" aria-busy={busy}>
-        <button type="button" className="btn-ghost entry-back" onClick={onBackToLogin}>
+        <button type="button" className="btn-ghost entry-back" onClick={() => leave(onBackToLogin)}>
           ← К входу
         </button>
-        <AuthHomeBrand onHome={onHome} />
+        <AuthHomeBrand onHome={() => leave(onHome)} />
         <h1 className="auth-title">{maxInitData ? 'Продолжить с MAX' : 'Создать аккаунт'}</h1>
         {maxInitData ? (
           <p className="max-link-copy">
@@ -230,9 +272,11 @@ export function RegisterPage({
             providers={providers}
             purpose="register"
             disabled={busy}
-            onAuthenticated={onRegistered}
+            onAuthenticated={(session) => {
+              if (alive.current && !pending.current) onRegistered(session);
+            }}
             onUnavailable={() => void refreshProviders()}
-            onUsePassword={onBackToLogin}
+            onUsePassword={() => leave(onBackToLogin)}
             onRegistrationActiveChange={setSocialRegistration}
           />
         ) : null}

@@ -8,6 +8,9 @@ name: ASA AI Chat Focused
     paths:
       - 'apps/api/src/ai-*'
       - 'apps/api/src/app.module.ts'
+      - 'apps/api/src/app.factory.ts'
+      - 'apps/api/src/abuse-protection.ts'
+      - 'apps/api/src/abuse-protection.spec.ts'
       - 'apps/api/src/tokens.ts'
       - 'apps/api/src/seat-context.ts'
       - 'apps/api/src/account-verification.guard*'
@@ -32,6 +35,9 @@ name: ASA AI Chat Focused
     paths:
       - 'apps/api/src/ai-*'
       - 'apps/api/src/app.module.ts'
+      - 'apps/api/src/app.factory.ts'
+      - 'apps/api/src/abuse-protection.ts'
+      - 'apps/api/src/abuse-protection.spec.ts'
       - 'apps/api/src/tokens.ts'
       - 'apps/api/src/seat-context.ts'
       - 'apps/api/src/account-verification.guard*'
@@ -83,7 +89,7 @@ jobs:
       - name: AI Chat unit regression
         run: pnpm test:ai-chat
       - name: No unformatted files
-        run: pnpm exec prettier --check apps/api/src/ai-* apps/api/src/seat-context.ts apps/api/src/account-verification.guard* apps/web/src/components/ClassroomAiAccess.tsx apps/web/src/components/classroom-ai-access.css apps/web/src/ai apps/web/src/admin/testing/ai-*.spec.ts e2e/ai-*.spec.ts tests/admin/ai-*.ts
+        run: pnpm exec prettier --check apps/api/src/ai-* apps/api/src/app.factory.ts apps/api/src/abuse-protection.ts apps/api/src/abuse-protection.spec.ts apps/api/src/seat-context.ts apps/api/src/account-verification.guard* apps/web/src/components/ClassroomAiAccess.tsx apps/web/src/components/classroom-ai-access.css apps/web/src/ai apps/web/src/admin/testing/ai-*.spec.ts e2e/ai-*.spec.ts tests/admin/ai-*.ts
       - name: API TypeScript
         run: pnpm exec nx run api:typecheck --skip-nx-cache
       - name: Web TypeScript

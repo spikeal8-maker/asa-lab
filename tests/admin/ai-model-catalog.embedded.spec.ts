@@ -79,13 +79,13 @@ async function used(db: PGlite): Promise<number> {
   ).rows[0]!.n;
 }
 
-describe('0226 forward upgrade from the published configuration', () => {
+describe('0227 forward upgrade from the published configuration', () => {
   it('migrates retired DeepSeek explicitly, preserves exact ciphertext/history/quota and does not claim key verification', async () => {
     const upgrade = new PGlite();
     try {
       await applyPlan(
         client(upgrade),
-        plan.filter((migration) => migration.version < '0226'),
+        plan.filter((migration) => migration.version < '0227'),
       );
       const owner = await identity(upgrade);
       const administrator = await identity(upgrade, true);
@@ -115,7 +115,7 @@ describe('0226 forward upgrade from the published configuration', () => {
       ).rows;
       const ledger = (await upgrade.query('SELECT * FROM ai_paid_operation_quota')).rows;
       expect(await applyPlan(client(upgrade), plan)).toBe(
-        plan.filter((migration) => migration.version >= '0226').length,
+        plan.filter((migration) => migration.version >= '0227').length,
       );
       const stored = (await upgrade.query('SELECT * FROM ai_assistant_config')).rows[0];
       expect(stored).toMatchObject({
@@ -186,7 +186,7 @@ describe('0226 forward upgrade from the published configuration', () => {
       try {
         await applyPlan(
           client(upgrade),
-          plan.filter((migration) => migration.version < '0226'),
+          plan.filter((migration) => migration.version < '0227'),
         );
         const bundle = encrypted('test-openai-original-credential');
         await upgrade.query(
@@ -228,7 +228,7 @@ beforeAll(async () => {
 }, 30000);
 afterAll(async () => db?.close());
 
-describe('0226 credential isolation and persistence guards', () => {
+describe('0227 credential isolation and persistence guards', () => {
   it('uses current defaults only for a new installation and keeps paid operations closed', async () => {
     const config = (await runtime(db, 'SELECT * FROM ai_admin_get_config($1)', [administrator]))
       .rows[0];

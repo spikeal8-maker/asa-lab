@@ -348,3 +348,5 @@ Timeout не подтверждает Account, не снимает сервер�
 независимый review финального исходного кода и штатные focused/repository gates.
 Настоящие боты, домен/TLS целевого сервера, deployment и owner acceptance
 фиксируются отдельно и не подменяются синтетическими проверками.
+
+Порядок подготовки и проверки конкретной установки: [ACCOUNT_CONFIRMATION_READINESS.md](../deployment/ACCOUNT_CONFIRMATION_READINESS.md).

@@ -1,6 +1,7 @@
 const REFRESH_PATH = '/api/auth/refresh';
 const SESSION_CHANNEL = 'asa-lab-session';
 const LOCAL_LOGOUT_EVENT = 'asa-session-logout';
+import { abortable, authRequest } from './auth-request';
 
 let refreshInFlight: { continuity: number; promise: Promise<boolean> } | null = null;
 
@@ -72,30 +73,43 @@ function canRefresh(path: string): boolean {
 async function refreshSession(expected: number): Promise<boolean> {
   if (refreshInFlight?.continuity === expected) return refreshInFlight.promise;
   const flight = { continuity: expected, promise: Promise.resolve(false) };
-  flight.promise = (async () => {
+  flight.promise = authRequest(REFRESH_PATH, {}, async (refreshRequest) => {
     const attempt = async (): Promise<Response | null> => {
       try {
-        return await fetch(REFRESH_PATH, {
-          method: 'POST',
-          credentials: 'same-origin',
-          cache: 'no-store',
-          headers: { accept: 'application/json' },
-        });
+        return await abortable(
+          () =>
+            fetch(REFRESH_PATH, {
+              method: 'POST',
+              credentials: 'same-origin',
+              cache: 'no-store',
+              headers: { accept: 'application/json' },
+              ...(refreshRequest.signal ? { signal: refreshRequest.signal } : {}),
+            }),
+          refreshRequest.signal,
+        );
       } catch {
         return null;
       }
     };
     let response = await attempt();
-    const code = response?.status === 409 ? await responseCode(response) : undefined;
+    refreshRequest.signal?.throwIfAborted();
+    const code =
+      response?.status === 409
+        ? await abortable(() => responseCode(response!), refreshRequest.signal)
+        : undefined;
     // A valid Seat cannot use Account rotation. This is a deliberate skip,
     // recorded by the server, not a failed Account recovery or logout signal.
     if (code === 'refresh_not_applicable') return false;
     if (code === 'refresh_stale') {
       if (continuity() !== expected) return false;
-      await new Promise((resolve) => window.setTimeout(resolve, 150));
+      await abortable(
+        () => new Promise((resolve) => window.setTimeout(resolve, 150)),
+        refreshRequest.signal,
+      );
       if (continuity() !== expected) return false;
       response = await attempt();
     }
+    refreshRequest.signal?.throwIfAborted();
     if (continuity() !== expected) return false;
     if (response?.ok) return true;
     reportClientDiagnostic('session_refresh_failed', 'auth', {
@@ -109,7 +123,7 @@ async function refreshSession(expected: number): Promise<boolean> {
     });
     if (
       response?.status === 401 &&
-      (await confirmSessionAbsent(expected)) &&
+      (await abortable(() => confirmSessionAbsent(expected), refreshRequest.signal)) &&
       continuity() === expected
     ) {
       applySessionLoggedOut();
@@ -118,9 +132,11 @@ async function refreshSession(expected: number): Promise<boolean> {
       broadcastSessionEvent('session-unavailable');
     }
     return false;
-  })().finally(() => {
-    if (refreshInFlight === flight) refreshInFlight = null;
-  });
+  })
+    .catch(() => false)
+    .finally(() => {
+      if (refreshInFlight === flight) refreshInFlight = null;
+    });
   refreshInFlight = flight;
   return flight.promise;
 }
@@ -132,10 +148,15 @@ export async function fetchWithSessionRefresh(
   const telemetryBeforeRequest = telemetryContext();
   const expected = continuity();
   const request = (): Promise<Response> =>
-    fetch(path, { credentials: 'same-origin', ...init, cache: 'no-store' });
+    abortable(
+      () => fetch(path, { credentials: 'same-origin', ...init, cache: 'no-store' }),
+      init.signal,
+    );
   const response = await request();
   if (response.status !== 401 || !canRefresh(path) || continuity() !== expected) return response;
-  if (!(await refreshSession(expected)) || continuity() !== expected) return response;
+  // A cancelled waiter leaves the shared refresh available to other callers.
+  if (!(await abortable(() => refreshSession(expected), init.signal)) || continuity() !== expected)
+    return response;
   const retried = await request();
   if (retried.ok) confirmTelemetryProductSession(telemetryBeforeRequest);
   return retried;

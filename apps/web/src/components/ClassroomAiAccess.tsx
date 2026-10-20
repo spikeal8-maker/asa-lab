@@ -1,22 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { call } from '../api-call';
+import {
+  isClassroomAccessSaved,
+  isClassroomAccessSettings,
+  type ClassroomAccessSettings as AccessSettings,
+} from '../ai/classroom-access-response';
 import './classroom-ai-access.css';
 
-interface AccessSettings {
-  mode: 'deny' | 'allow' | 'rating';
-  minimumRating: number;
-  revision: number;
-  readOnly: boolean;
-  students: Array<{
-    seatId: string;
-    displayName: string;
-    status: string;
-    override: 'inherit' | 'allow' | 'deny';
-    rating: number | null;
-    canGenerate: boolean;
-  }>;
-}
 type Mutation = Record<string, unknown> & { requestId: string; expectedRevision: number };
+const INVALID_SETTINGS = 'Не удалось прочитать правила доступа к ИИ. Обновите правила.';
+const UNCONFIRMED_SAVE =
+  'Не удалось подтвердить сохранение доступа к ИИ. Повторите сохранение для проверки результата.';
 
 export function ClassroomAiAccess({
   classroomId,
@@ -42,21 +36,37 @@ export function ClassroomAiAccess({
   const load = useCallback(async () => {
     const current = ++generation.current;
     setLoading(true);
-    const response = await call<AccessSettings>(path);
+    setError('');
+    const response = await call<unknown>(path);
     if (generation.current !== current) return;
     setLoading(false);
     if (!response.ok) {
-      setError(response.error.message);
+      setSettings(null);
+      setError(
+        typeof response.error?.message === 'string' && response.error.message.trim()
+          ? response.error.message
+          : INVALID_SETTINGS,
+      );
+      return;
+    }
+    if (!isClassroomAccessSettings(response.data, classroomId)) {
+      setSettings(null);
+      setError(INVALID_SETTINGS);
       return;
     }
     setSettings(response.data);
     setMode(response.data.mode);
     setMinimum(String(response.data.minimumRating));
     setOverrides({});
-    setRetry(null);
     setError('');
-  }, [path]);
+  }, [path, classroomId]);
   useEffect(() => {
+    setSettings(null);
+    setRetry(null);
+    setBusy(false);
+    setNotice('');
+    setFilter('');
+    setLimit(30);
     void load();
     return () => {
       generation.current += 1;
@@ -70,17 +80,26 @@ export function ClassroomAiAccess({
     setBusy(true);
     setError('');
     setNotice('');
-    const result = await call<{ saved: true; revision: number }>(path, {
+    const result = await call<unknown>(path, {
       method: 'PUT',
       body: JSON.stringify(input),
     });
     if (generation.current !== current) return;
     setBusy(false);
     if (!result.ok) {
-      setError(result.error.message);
+      setError(
+        typeof result.error?.message === 'string' && result.error.message.trim()
+          ? result.error.message
+          : UNCONFIRMED_SAVE,
+      );
       // A transport/server failure can follow a successful commit. Retry the
       // exact mutation, including revision and ID, instead of issuing another.
       setRetry(result.status === 0 || result.status >= 500 ? input : null);
+      return;
+    }
+    if (!isClassroomAccessSaved(result.data, input.expectedRevision)) {
+      setError(UNCONFIRMED_SAVE);
+      setRetry(input);
       return;
     }
     setRetry(null);
@@ -95,6 +114,7 @@ export function ClassroomAiAccess({
     settings?.students.filter((student) =>
       student.displayName.toLocaleLowerCase('ru').includes(filter.toLocaleLowerCase('ru')),
     ) ?? [];
+  const visibleError = error || (retry ? UNCONFIRMED_SAVE : '');
   return (
     <fieldset className="classroom-ai-access" aria-busy={loading || busy}>
       <legend>ИИ-чат учеников</legend>
@@ -239,12 +259,16 @@ export function ClassroomAiAccess({
           </details>
         </>
       ) : null}
-      {error ? (
+      {visibleError ? (
         <div className="classroom-ai-access__error" role="alert">
-          <p>{error}</p>
+          <p>{visibleError}</p>
           <div className="classroom-ai-access__actions">
             {retry ? (
-              <button type="button" disabled={busy} onClick={() => void save(retry)}>
+              <button
+                type="button"
+                disabled={busy || loading || readOnly || !settings || settings.readOnly}
+                onClick={() => void save(retry)}
+              >
                 Повторить сохранение
               </button>
             ) : null}

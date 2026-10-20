@@ -1,5 +1,5 @@
 import { addCourseBlock } from './learning-authoring-navigation';
-import { expect, test } from '@playwright/test';
+import { expect, test, type Dialog, type Route } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
 import { PNG } from 'pngjs';
 import {
@@ -843,11 +843,6 @@ test('published task image stays immutable across versions', async ({ page }) =>
   await previewAssignmentAs(page, 'published');
   const previewDrawer = page.getByRole('dialog', { name: 'Как увидит ученик' });
   const preview = previewDrawer.getByTestId('learner-preview');
-  const publishedButton = previewDrawer.getByRole('button', {
-    name: 'Опубликованная версия',
-    exact: true,
-  });
-  const draftButton = previewDrawer.getByRole('button', { name: 'Черновик', exact: true });
   const publishedV1Image = preview.getByRole('img', { name: `Образец: ${title}` });
   await expect(publishedV1Image).toBeVisible();
   const publishedV1Source = await publishedV1Image.getAttribute('src');
@@ -948,4 +943,253 @@ test('published task image stays immutable across versions', async ({ page }) =>
   );
   expect(exactV2Bytes.ok()).toBe(true);
   expect(Buffer.compare(await exactV2Bytes.body(), imageB)).toBe(0);
+});
+
+test('course and section forms preserve later edits after real save receipts without duplicates or rebasing competing changes', async ({
+  page,
+}) => {
+  test.setTimeout(150000);
+  const unique = crypto.randomUUID().replaceAll('-', '').slice(0, 18);
+  const browserErrors: string[] = [];
+  page.on('pageerror', (error) => browserErrors.push(error.message));
+  await page.goto('/#/');
+  await page.getByRole('button', { name: 'Создать аккаунт', exact: true }).first().click();
+  await page.getByLabel('Email', { exact: true }).fill(`${unique}@course-save.test`);
+  await page.getByLabel('Имя пользователя', { exact: true }).fill('m' + unique);
+  await page.getByLabel('Отображаемое имя', { exact: true }).fill('Автор курса');
+  await page.getByLabel('Дата рождения').fill('1990-04-12');
+  await page.getByLabel('Пароль', { exact: true }).fill('Strong-' + unique + '-Password');
+  await page.getByRole('checkbox', { name: 'Я не робот' }).press('Space');
+  await page.getByRole('button', { name: 'Создать аккаунт', exact: true }).click();
+  await expect(page.getByRole('main', { name: 'Главная', exact: true })).toBeVisible();
+  await page.goto('/#/account');
+  await page
+    .getByLabel('Разделы настроек')
+    .getByRole('button', { name: 'Материалы и классы', exact: true })
+    .click();
+  await page.getByRole('button', { name: 'Подключить авторство', exact: true }).click();
+  await page.goto('/#/challenges');
+  const courseTab = page
+    .getByRole('navigation', { name: 'Разделы курсов и заданий' })
+    .getByRole('button', { name: 'Курсы', exact: true });
+  await courseTab.click();
+
+  type Receipt = { id: string; draftRevision: number };
+  type Metadata = { id: string; title: string; summary: string | null };
+  const form = page.locator('form.course-form-dialog');
+  const editor = page.getByTestId('course-editor');
+  const evidence = 'e2e/artifacts/learning/course-metadata-save';
+  mkdirSync(evidence, { recursive: true });
+  let courseId = '';
+
+  async function readCourses(): Promise<Metadata[]> {
+    const response = await page.request.get('/api/courses');
+    expect(response.ok()).toBe(true);
+    return ((await response.json()) as { items: Metadata[] }).items;
+  }
+
+  async function readSections(): Promise<Metadata[]> {
+    const response = await page.request.get(`/api/courses/${courseId}/outline`);
+    expect(response.ok()).toBe(true);
+    return ((await response.json()) as { sections: Metadata[] }).sections;
+  }
+
+  async function checkLayout(kind: 'course' | 'section'): Promise<void> {
+    for (const [width, height] of [
+      [1440, 900],
+      [1024, 768],
+      [390, 844],
+      [320, 720],
+    ] as const) {
+      await page.setViewportSize({ width, height });
+      const dialogBounds = await form.boundingBox();
+      expect(dialogBounds).not.toBeNull();
+      expect(dialogBounds!.x).toBeGreaterThanOrEqual(0);
+      expect(dialogBounds!.x + dialogBounds!.width).toBeLessThanOrEqual(width);
+      for (const label of ['Сохранить', 'Отмена']) {
+        const control = form.getByRole('button', { name: label, exact: true });
+        await expect(control).toBeVisible();
+        await expect(control).toBeEnabled();
+        const bounds = await control.boundingBox();
+        expect(bounds).not.toBeNull();
+        expect(bounds!.x).toBeGreaterThanOrEqual(dialogBounds!.x);
+        expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(
+          dialogBounds!.x + dialogBounds!.width,
+        );
+        expect(bounds!.y).toBeGreaterThanOrEqual(0);
+        expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(height);
+      }
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        ),
+      ).toBeLessThanOrEqual(0);
+      if (width === 1440 || width === 390) {
+        await page.screenshot({ path: `${evidence}/${kind}-${width}.png`, fullPage: true });
+      }
+    }
+    await page.setViewportSize({ width: 1440, height: 900 });
+  }
+
+  async function saveWhileTyping(
+    kind: 'course' | 'section',
+    path: string,
+    method: 'POST' | 'PATCH',
+    label: string,
+    competing = false,
+  ): Promise<Receipt> {
+    const sent = { title: `${label} A`, summary: `${label} description A` };
+    const later = { title: `${label} B`, summary: `${label} description B` };
+    const remote = { title: `${label} in another window`, summary: 'Another author edit' };
+    const title = form.getByLabel('Название', { exact: true });
+    // React also updates the nested textarea's text node, so exact label text
+    // includes the current value. Its textbox accessible name stays unchanged.
+    const summary = form.getByRole('textbox', {
+      name: kind === 'course' ? 'Короткое описание' : 'Описание, если нужно',
+      exact: true,
+    });
+    await title.fill(sent.title);
+    await summary.fill(sent.summary);
+    let release!: () => void;
+    const delayed = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let accepted!: (receipt: Receipt) => void;
+    const serverSaved = new Promise<Receipt>((resolve) => {
+      accepted = resolve;
+    });
+    const matches = (url: URL) => url.pathname === path;
+    const delayResponse = async (route: Route) => {
+      if (route.request().method() !== method) return route.continue();
+      // The real mutation commits before input B. Only delivery of that exact
+      // server response is delayed; no accepted write or receipt is mocked.
+      const response = await route.fetch();
+      expect(response.status()).toBe(method === 'POST' ? 201 : 200);
+      const receipt = (await response.json()) as Receipt;
+      expect(receipt.id).toBeTruthy();
+      expect(Number.isSafeInteger(receipt.draftRevision)).toBe(true);
+      expect(receipt.draftRevision).toBeGreaterThan(0);
+      accepted(receipt);
+      await delayed;
+      await route.fulfill({ response });
+    };
+    await page.route(matches, delayResponse);
+    await form.locator('button[type="submit"]').click();
+    const receipt = await serverSaved;
+    if (kind === 'course') courseId = receipt.id;
+    const targetPath =
+      kind === 'course'
+        ? `/api/courses/${receipt.id}`
+        : `/api/courses/${courseId}/sections/${receipt.id}`;
+    await expect(form.locator('button[type="submit"]')).toBeDisabled();
+    await title.fill(later.title);
+    await summary.fill(later.summary);
+    const persistedA = kind === 'course' ? await readCourses() : await readSections();
+    expect(persistedA.find((entry) => entry.id === receipt.id)).toMatchObject(sent);
+    if (competing) {
+      const changed = await page.request.patch(targetPath, {
+        headers: { origin: new URL(page.url()).origin },
+        data: {
+          ...remote,
+          expectedRevision: receipt.draftRevision,
+          ...(kind === 'course' ? { requestId: crypto.randomUUID() } : {}),
+        },
+      });
+      expect(changed.ok()).toBe(true);
+      expect(((await changed.json()) as Receipt).draftRevision).toBeGreaterThan(
+        receipt.draftRevision,
+      );
+    }
+    release();
+    await expect(form.getByRole('status')).toContainText('Последние изменения ещё не сохранены');
+    await expect(title).toHaveValue(later.title);
+    await expect(summary).toHaveValue(later.summary);
+    await page.unroute(matches, delayResponse);
+
+    const dismissNavigation = (dialog: Dialog) => {
+      void dialog.dismiss();
+    };
+    page.on('dialog', dismissNavigation);
+    await page.goBack();
+    await expect(page).toHaveURL(/#\/challenges$/);
+    await expect(title).toHaveValue(later.title);
+    await expect(summary).toHaveValue(later.summary);
+    page.off('dialog', dismissNavigation);
+    if (method === 'POST') await checkLayout(kind);
+
+    const patchRequest = page.waitForRequest(
+      (request) => request.method() === 'PATCH' && new URL(request.url()).pathname === targetPath,
+    );
+    const patchResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'PATCH' && new URL(response.url()).pathname === targetPath,
+    );
+    await form.getByRole('button', { name: 'Сохранить', exact: true }).click();
+    expect((await patchRequest).postDataJSON()).toMatchObject({
+      ...later,
+      expectedRevision: receipt.draftRevision,
+    });
+    const response = await patchResponse;
+    expect(response.status()).toBe(competing ? 409 : 200);
+    if (competing) {
+      const failure = (await response.json()) as { error: { code: string; message: string } };
+      expect(failure.error.code).toBe('draft_conflict');
+      await expect(form.getByRole('alert')).toContainText(failure.error.message);
+      await expect(title).toHaveValue(later.title);
+      await expect(summary).toHaveValue(later.summary);
+      const persisted = kind === 'course' ? await readCourses() : await readSections();
+      expect(persisted.find((entry) => entry.id === receipt.id)).toMatchObject(remote);
+      page.once('dialog', (dialog) => {
+        void dialog.accept();
+      });
+      await form.getByRole('button', { name: 'Отмена', exact: true }).click();
+    } else {
+      const secondReceipt = (await response.json()) as Receipt;
+      expect(secondReceipt.id).toBe(receipt.id);
+      expect(secondReceipt.draftRevision).toBeGreaterThan(receipt.draftRevision);
+      await expect(form).toHaveCount(0);
+      const persisted = kind === 'course' ? await readCourses() : await readSections();
+      expect(persisted.find((entry) => entry.id === receipt.id)).toMatchObject(later);
+    }
+    await expect(form).toHaveCount(0);
+    return receipt;
+  }
+
+  await page.getByRole('button', { name: 'Создать курс', exact: true }).click();
+  await saveWhileTyping('course', '/api/courses', 'POST', 'New course');
+  expect(await readCourses()).toHaveLength(1);
+  await editor.getByRole('button', { name: 'Настройки', exact: true }).click();
+  await saveWhileTyping('course', `/api/courses/${courseId}`, 'PATCH', 'Existing course');
+  expect(await readCourses()).toHaveLength(1);
+  const initialSections = await readSections();
+  await editor.getByRole('button', { name: 'Добавить раздел', exact: true }).click();
+  const sectionReceipt = await saveWhileTyping(
+    'section',
+    `/api/courses/${courseId}/sections`,
+    'POST',
+    'New section',
+  );
+  expect(await readSections()).toHaveLength(initialSections.length + 1);
+  await editor.locator('.course-section-name').filter({ hasText: 'New section B' }).click();
+  const sectionPath = `/api/courses/${courseId}/sections/${sectionReceipt.id}`;
+  await saveWhileTyping('section', sectionPath, 'PATCH', 'Existing section');
+  expect(await readSections()).toHaveLength(initialSections.length + 1);
+
+  await page.reload();
+  await courseTab.click();
+  await page.locator('.course-row-main').filter({ hasText: 'Existing course B' }).click();
+  await expect(
+    editor.locator('.course-section-name').filter({ hasText: 'Existing section B' }),
+  ).toBeVisible();
+  await editor.getByRole('button', { name: 'Настройки', exact: true }).click();
+  await expect(form.getByLabel('Название', { exact: true })).toHaveValue('Existing course B');
+  await expect(form.getByRole('textbox', { name: 'Короткое описание', exact: true })).toHaveValue(
+    'Existing course description B',
+  );
+  await saveWhileTyping('course', `/api/courses/${courseId}`, 'PATCH', 'Conflict course', true);
+  await editor.locator('.course-section-name').filter({ hasText: 'Existing section B' }).click();
+  await saveWhileTyping('section', sectionPath, 'PATCH', 'Conflict section', true);
+  expect(await readCourses()).toHaveLength(1);
+  expect(await readSections()).toHaveLength(initialSections.length + 1);
+  expect(browserErrors).toEqual([]);
 });

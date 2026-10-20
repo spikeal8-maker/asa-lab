@@ -114,7 +114,7 @@ export function aiTextHistoryContract(database: () => { admin: pg.Pool; runtime:
     return aiTextFixture(db.admin, db.runtime);
   };
 
-  describe('0227 full owner history and immutable answer variants', () => {
+  describe('0228 full owner history and immutable answer variants', () => {
     it('searches all old messages and literal title text, beyond the latest history page, without crossing owners', async () => {
       const f = await fixture();
       await f.service.renameThread(f.owner.principal_id, f.thread.id, 'Схема проекта');

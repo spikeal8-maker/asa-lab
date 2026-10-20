@@ -316,3 +316,161 @@ for (const width of [1440, 1024, 390, 320]) {
     await page.screenshot({ path: info.outputPath(`teacher-access-${width}.png`), fullPage: true });
   });
 }
+
+const teacherAccess = (revision = 0, mode = 'deny') => ({
+  classroomId: classId,
+  mode,
+  minimumRating: 50,
+  revision,
+  readOnly: false,
+  students: [
+    {
+      seatId: SEAT,
+      displayName: name,
+      status: 'active',
+      override: 'inherit',
+      rating: 73.5,
+      canGenerate: mode === 'allow',
+    },
+  ],
+});
+
+async function openTeacherSettings(page: Page) {
+  await page.goto('/#/classrooms/' + classId);
+  await expect(page.getByRole('heading', { name: classroomTitle, exact: true })).toBeVisible();
+  const section = page.getByRole('combobox', { name: 'Раздел класса' });
+  if (await section.isVisible()) await section.selectOption('settings');
+  else
+    await page
+      .getByRole('navigation', { name: 'Разделы класса' })
+      .getByRole('button', { name: 'Настройки', exact: true })
+      .click();
+  return page.locator('.classroom-ai-access');
+}
+
+for (const invalid of ['generic fixture', 'non-JSON', 'invalid student'] as const) {
+  test(`Malformed AI class read (${invalid}) stays local and explicitly recovers on built UI`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 900 });
+    // Keep the existing fixture's production-built asset routing and strict API fallback.
+    const fixture = await classroomFixture(page, 1, { classroomTitle, sidebar: 'collapsed' });
+    let valid = false;
+    let reads = 0;
+    const writes: string[] = [];
+    await page.route('**/api/ai/classrooms/' + classId + '/access', async (route) => {
+      if (route.request().method() !== 'GET') {
+        writes.push(route.request().method());
+        return route.fulfill({ status: 400, json: { error: { code: 'unexpected_mutation' } } });
+      }
+      reads += 1;
+      if (valid) return route.fulfill({ json: teacherAccess() });
+      if (invalid === 'generic fixture') return route.fallback();
+      if (invalid === 'non-JSON')
+        return route.fulfill({
+          status: 200,
+          contentType: 'text/html',
+          body: '<html>Unavailable</html>',
+        });
+      return route.fulfill({ json: { ...teacherAccess(), students: [null] } });
+    });
+    const access = await openTeacherSettings(page);
+    await expect(access.getByRole('alert')).toContainText(
+      'Не удалось прочитать правила доступа к ИИ.',
+    );
+    await expect(access.getByLabel('Правило класса')).toHaveCount(0);
+    await expect(access.getByRole('button', { name: 'Сохранить правило класса' })).toHaveCount(0);
+    await expect(page.locator('.classroom-tab-panel')).toBeVisible();
+    const safeMode = page.getByLabel('Безопасный режим для всех');
+    await expect(safeMode).toBeEnabled();
+    await expect(safeMode).toBeChecked();
+    await safeMode.focus();
+    await expect(safeMode).toBeFocused();
+    const notifications = page.getByLabel('Получать учебные оповещения');
+    await expect(notifications).toBeEnabled();
+    await notifications.uncheck();
+    await expect(notifications).not.toBeChecked();
+    expect(writes).toEqual([]);
+    expect(fixture.mutations).toEqual([]);
+
+    const beforeRetry = reads;
+    valid = true;
+    await access.getByRole('button', { name: 'Обновить правила' }).click();
+    await expect(access.getByLabel('Правило класса')).toHaveValue('deny');
+    await expect(access.getByLabel('Правило класса')).toBeEnabled();
+    await expect(access.getByRole('alert')).toHaveCount(0);
+    expect(reads).toBe(beforeRetry + 1);
+    await expect(notifications).not.toBeChecked();
+    await expect(safeMode).toBeChecked();
+    expect(writes).toEqual([]);
+    expect(fixture.mutations).toEqual([]);
+    expect(fixture.errors).toEqual([]);
+    await noOverflow(page);
+  });
+}
+
+for (const invalid of ['wrong revision', 'non-JSON'] as const) {
+  test(`Unconfirmed AI class save (${invalid}) retries the exact mutation on built UI`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    const fixture = await classroomFixture(page, 1, { classroomTitle, sidebar: 'collapsed' });
+    let revision = 4;
+    let mode = 'deny';
+    let reads = 0;
+    const writes: Array<{
+      kind: string;
+      mode: string;
+      requestId: string;
+      expectedRevision: number;
+    }> = [];
+    await page.route('**/api/ai/classrooms/' + classId + '/access', async (route) => {
+      if (route.request().method() === 'GET') {
+        reads += 1;
+        return route.fulfill({ json: teacherAccess(revision, mode) });
+      }
+      expect(route.request().method()).toBe('PUT');
+      const input = route.request().postDataJSON();
+      writes.push(input);
+      if (writes.length === 1) {
+        revision += 1;
+        mode = input.mode;
+        if (invalid === 'non-JSON')
+          return route.fulfill({ status: 200, contentType: 'text/plain', body: 'OK' });
+        return route.fulfill({ json: { saved: true, revision: input.expectedRevision } });
+      }
+      return route.fulfill({ json: { saved: true, revision } });
+    });
+    const access = await openTeacherSettings(page);
+    await access.getByLabel('Правило класса').selectOption('allow');
+    await access.getByRole('button', { name: 'Сохранить правило класса' }).click();
+    await expect(access.getByRole('alert')).toContainText(
+      'Не удалось подтвердить сохранение доступа к ИИ.',
+    );
+    await expect(access.getByText(/Доступ к ИИ сохранён/)).toHaveCount(0);
+    await expect(access.getByLabel('Правило класса')).toBeDisabled();
+    expect(writes).toHaveLength(1);
+    expect(writes[0]).toMatchObject({ kind: 'classroom', mode: 'allow', expectedRevision: 4 });
+    expect(writes[0]!.requestId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+    );
+
+    // A fresh projection cannot acknowledge this mutation or discard its idempotency input.
+    const beforeRefresh = reads;
+    await access.getByRole('button', { name: 'Обновить правила' }).click();
+    await expect.poll(() => reads).toBe(beforeRefresh + 1);
+    await expect(access.getByRole('button', { name: 'Повторить сохранение' })).toBeEnabled();
+    await expect(access.getByLabel('Правило класса')).toBeDisabled();
+    await expect(access.getByText(/Доступ к ИИ сохранён/)).toHaveCount(0);
+    expect(writes).toHaveLength(1);
+
+    await access.getByRole('button', { name: 'Повторить сохранение' }).click();
+    await expect(access.getByText(/Доступ к ИИ сохранён/)).toBeVisible();
+    await expect(access.getByLabel('Правило класса')).toBeEnabled();
+    expect(writes).toHaveLength(2);
+    expect(writes[1]).toEqual(writes[0]);
+    expect(fixture.mutations).toEqual([]);
+    expect(fixture.errors).toEqual([]);
+    await noOverflow(page);
+  });
+}

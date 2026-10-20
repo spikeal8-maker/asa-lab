@@ -1,5 +1,5 @@
 -- AI-TEXT-COMPLETE-005. Forward-only extension of the canonical owner contract
--- in 0225. Archive never deletes history or either paid-operation ledger.
+-- in 0226. Archive never deletes history or either paid-operation ledger.
 ALTER TABLE ai_assistant_threads ADD COLUMN archived_at timestamptz;
 ALTER TABLE ai_assistant_threads ADD COLUMN next_message_ordinal bigint NOT NULL DEFAULT 0;
 ALTER TABLE ai_assistant_messages ADD COLUMN ordinal bigint;
@@ -222,7 +222,7 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
       AND m.request_id = p_request ORDER BY m.ordinal
 $$;
 
--- New workers require 0227 before any paid admission. This wrapper is not a
+-- New workers require 0228 before any paid admission. This wrapper is not a
 -- fallback: on an old schema the function is absent and the request fails
 -- before a ledger reservation or provider fetch.
 CREATE FUNCTION ai_text_begin_paid(

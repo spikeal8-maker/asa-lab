@@ -139,6 +139,8 @@ export type AuthProviderAvailabilityReason =
 export interface AuthProviderAvailability {
   id: AuthProviderId;
   available: boolean;
+  enforcementEligible?: boolean;
+  enforcementReason?: AuthProviderAvailabilityReason | 'delivery_unverified';
   reason: AuthProviderAvailabilityReason;
   checkedAt: string | null;
   launchUrl?: string | null;
@@ -148,7 +150,12 @@ export interface AccountVerificationState {
   policyEnabled: boolean;
   required: boolean;
   reason:
-    'disabled' | 'verified' | 'grace_period' | 'providers_unavailable' | 'verification_required';
+    | 'disabled'
+    | 'verified'
+    | 'grace_period'
+    | 'providers_unavailable'
+    | 'providers_unverified'
+    | 'verification_required';
   dueAt: string | null;
   verifiedProvider: AuthProviderId | null;
   providers: AuthProviderAvailability[];
@@ -1806,31 +1813,61 @@ export const api = {
       `/api/learning/notifications/classes/${id}/reminders`,
       { method: 'POST', body: JSON.stringify(input) },
     ),
-  me: () => call<SessionPayload | { authenticated: false }>('/api/auth/me'),
-  authProviders: () => call<{ providers: AuthProviderAvailability[] }>('/api/auth/providers'),
-  accountVerification: () => call<AccountVerificationState>('/api/auth/verification'),
-  socialStatus: (provider: SocialAuthProvider) =>
-    call<MaxAccountStatus>(`/api/auth/${provider}/status`),
-  unlinkSocial: (provider: SocialAuthProvider) =>
-    call<{ unlinked: boolean }>(`/api/auth/${provider}/unlink`, { method: 'POST' }),
-  startSocialPairing: (provider: SocialAuthProvider, purpose: 'login' | 'register' | 'link') =>
+  me: (signal?: AbortSignal) =>
+    call<SessionPayload | { authenticated: false }>('/api/auth/me', {
+      ...(signal ? { signal } : {}),
+    }),
+  authProviders: (signal?: AbortSignal) =>
+    call<{ providers: AuthProviderAvailability[] }>('/api/auth/providers', {
+      ...(signal ? { signal } : {}),
+    }),
+  accountVerification: (signal?: AbortSignal) =>
+    call<AccountVerificationState>('/api/auth/verification', { ...(signal ? { signal } : {}) }),
+  socialStatus: (provider: SocialAuthProvider, signal?: AbortSignal) =>
+    call<MaxAccountStatus>(`/api/auth/${provider}/status`, {
+      ...(signal ? { signal } : {}),
+    }),
+  unlinkSocial: (provider: SocialAuthProvider, signal?: AbortSignal) =>
+    call<{ unlinked: boolean }>(`/api/auth/${provider}/unlink`, {
+      method: 'POST',
+      ...(signal ? { signal } : {}),
+    }),
+  startSocialPairing: (
+    provider: SocialAuthProvider,
+    purpose: 'login' | 'register' | 'link',
+    signal?: AbortSignal,
+  ) =>
     call<SocialPairing>(`/api/auth/${provider}/pairing/start`, {
       method: 'POST',
       body: JSON.stringify({ purpose }),
+      ...(signal ? { signal } : {}),
     }),
-  completeSocialPairing: (provider: SocialAuthProvider, pairingToken: string) =>
+  completeSocialPairing: (
+    provider: SocialAuthProvider,
+    pairingToken: string,
+    signal?: AbortSignal,
+  ) =>
     call<SocialPairingResult>(`/api/auth/${provider}/pairing/complete`, {
       method: 'POST',
       body: JSON.stringify({ pairingToken }),
+      ...(signal ? { signal } : {}),
     }),
-  registerSocialPairing: (provider: SocialAuthProvider, input: SocialRegistrationInput) =>
+  registerSocialPairing: (
+    provider: SocialAuthProvider,
+    input: SocialRegistrationInput,
+    signal?: AbortSignal,
+  ) =>
     call<SessionPayload>(`/api/auth/${provider}/pairing/register`, {
       method: 'POST',
       body: JSON.stringify(input),
+      ...(signal ? { signal } : {}),
     }),
   localPreviewConfig: () => call<LocalPreviewAuthConfig>('/api/auth/local-preview/config'),
-  localPreviewSession: () =>
-    call<SessionPayload>('/api/auth/local-preview/session', { method: 'POST' }),
+  localPreviewSession: (signal?: AbortSignal) =>
+    call<SessionPayload>('/api/auth/local-preview/session', {
+      method: 'POST',
+      ...(signal ? { signal } : {}),
+    }),
   maxConfig: () => call<MaxAuthConfig>('/api/auth/max/config'),
   maxStatus: () => call<MaxAccountStatus>('/api/auth/max/status'),
   dismissMaxPrompt: () =>
@@ -1854,18 +1891,22 @@ export const api = {
         body: JSON.stringify({ pairingToken }),
       },
     ),
-  maxRegister: (input: {
-    initData: string;
-    email: string;
-    username: string;
-    displayName: string;
-    birthDate: string;
-    country: string;
-    password: string;
-  }) =>
+  maxRegister: (
+    input: {
+      initData: string;
+      email: string;
+      username: string;
+      displayName: string;
+      birthDate: string;
+      country: string;
+      password: string;
+    },
+    signal?: AbortSignal,
+  ) =>
     call<SessionPayload>('/api/auth/max/register', {
       method: 'POST',
       body: JSON.stringify(input),
+      ...(signal ? { signal } : {}),
     }),
   maxLink: (initData: string) =>
     call<{ linked: true }>('/api/auth/max/link', {
@@ -1876,36 +1917,44 @@ export const api = {
     call<{ required: boolean; challenge: BotChallenge }>(
       `/api/auth/bot-challenge?action=${encodeURIComponent(action)}`,
     ),
-  login: (identifier: string, password: string, botProof: BotProof) =>
+  login: (identifier: string, password: string, botProof: BotProof, signal?: AbortSignal) =>
     call<SessionPayload>('/api/auth/login', {
       method: 'POST',
       body: JSON.stringify({ identifier, password, botProof }),
+      ...(signal ? { signal } : {}),
     }),
   loginWithWorkspace: (workspace: string, email: string, password: string, botProof: BotProof) =>
     call<SessionPayload>('/api/auth/login', {
       method: 'POST',
       body: JSON.stringify({ workspace, email, password, botProof }),
     }),
-  register: (input: {
-    email: string;
-    password: string;
-    username: string;
-    displayName: string;
-    birthDate: string;
-    country: string;
-    botProof: BotProof;
-  }) =>
+  register: (
+    input: {
+      email: string;
+      password: string;
+      username: string;
+      displayName: string;
+      birthDate: string;
+      country: string;
+      botProof: BotProof;
+    },
+    signal?: AbortSignal,
+  ) =>
     call<SessionPayload>('/api/auth/register', {
       method: 'POST',
       body: JSON.stringify(input),
+      ...(signal ? { signal } : {}),
     }),
   usernameAvailable: (username: string) =>
     call<{ available: boolean }>(
       `/api/auth/username-available?username=${encodeURIComponent(username)}`,
     ),
-  logout: async () => {
-    const result = await call<{ ok: true }>('/api/auth/logout', { method: 'POST' });
-    if (result.ok) notifySessionLoggedOut();
+  logout: async (signal?: AbortSignal) => {
+    const result = await call<{ ok: true }>('/api/auth/logout', {
+      method: 'POST',
+      ...(signal ? { signal } : {}),
+    });
+    if (result.ok && !signal?.aborted) notifySessionLoggedOut();
     return result;
   },
   accountProfile: () => call<AccountProfile>('/api/account/profile'),
@@ -2541,7 +2590,7 @@ export const api = {
       requestId?: string;
     },
   ) =>
-    call<{ id: string }>(
+    call<{ id: string; draftRevision: number }>(
       courseId ? `/api/courses/${encodeURIComponent(courseId)}` : '/api/courses',
       {
         method: courseId ? 'PATCH' : 'POST',
@@ -2604,7 +2653,7 @@ export const api = {
     sectionId: string | null,
     input: { title: string; summary: string | null; expectedRevision: number },
   ) =>
-    call<{ id: string }>(
+    call<{ id: string; draftRevision: number }>(
       sectionId
         ? `/api/courses/${encodeURIComponent(courseId)}/sections/${encodeURIComponent(sectionId)}`
         : `/api/courses/${encodeURIComponent(courseId)}/sections`,

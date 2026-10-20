@@ -151,7 +151,7 @@ afterAll(async () => {
   }
 });
 
-describe('0226 catalog/config races on independent PostgreSQL connections', () => {
+describe('0227 catalog/config races on independent PostgreSQL connections', () => {
   it('uses separate runtime backends and exposes only slot fingerprints to a platform administrator', async () => {
     const a = (await first.query<{ pid: number }>('SELECT pg_backend_pid() AS pid')).rows[0]!.pid;
     const b = (await second.query<{ pid: number }>('SELECT pg_backend_pid() AS pid')).rows[0]!.pid;

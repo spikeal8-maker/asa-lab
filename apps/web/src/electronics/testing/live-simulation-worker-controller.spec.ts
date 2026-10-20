@@ -1,5 +1,6 @@
 import {
   advanceElectronicsToHorizon,
+  parseElectronicsEngineDocument,
   resetElectronicsTimedState,
   type ElectronicsTimedInputEvent,
   type ElectronicsTimedState,
@@ -10,8 +11,17 @@ import {
   ElectronicsLiveSimulationWorkerController,
   type ElectronicsSimulationWorkerExecutor,
 } from '../live-simulation-worker-controller';
-import type { SimulationTimedAdvancePayload } from '../simulation-worker-protocol';
+import {
+  ELECTRONICS_SIMULATION_ENGINE_REVISION,
+  ELECTRONICS_SIMULATION_WORKER_PROTOCOL,
+  type SimulationTimedAdvancePayload,
+} from '../simulation-worker-protocol';
+import {
+  evaluateSimulationWorkerRequest,
+  evaluateSimulationWorkerRequestBatched,
+} from '../simulation-worker-evaluator';
 import { SimulationWorkerError } from '../simulation-failure';
+import { classroomRequestedHorizon } from '../led-temporal-presentation';
 
 const circuit: SchematicDocument = {
   schemaVersion: 4,
@@ -223,19 +233,93 @@ async function completeCanonicalStart(
 }
 
 describe('Electronics canonical Worker controller', () => {
+  it('forwards the accepted clock profile even when that profile has no temporal history', async () => {
+    for (const clockProfileId of [
+      'dc-inputs-v1',
+      'rc-inputs-v2',
+      'electrothermal-v1',
+      'electrothermal-events-v2',
+    ]) {
+      const executor = new FakeExecutor();
+      const controller = new ElectronicsLiveSimulationWorkerController(executor);
+      const onResult = vi.fn();
+      controller.start('project-a', circuit, { onResult, onFailure: vi.fn() });
+      executor.preflights[0]!.resolve(result(1));
+      await flush();
+      const startup = timedAdvance('ready', 0, 0);
+      executor.advances[0]!.deferred.resolve({
+        ...startup,
+        state: {
+          ...startup.state,
+          continuation: {
+            ...timedState(1).continuation!,
+            committedHorizonMicroseconds: 0,
+            clockProfileId,
+          },
+        },
+      });
+      await flush();
+      expect(onResult).toHaveBeenCalledExactlyOnceWith(result(1), undefined, clockProfileId);
+      controller.stop();
+    }
+  });
+
+  it('publishes optical metadata only with its accepted complete ready horizon', async () => {
+    const executor = new FakeExecutor();
+    const controller = new ElectronicsLiveSimulationWorkerController(executor);
+    const onResult = vi.fn();
+    controller.start('project-a', circuit, { onResult, onFailure: vi.fn() });
+    await completeCanonicalStart(executor, 1);
+    onResult.mockClear();
+    controller.update(circuit, 25_000);
+    const optical = {
+      profile: 'ordinary-led-held-v1' as const,
+      fromMicroseconds: 0,
+      toMicroseconds: 25_000,
+      components: [],
+    };
+    executor.advances.at(-1)!.deferred.resolve({
+      ...timedAdvance('ready', 25_000, 25_000, 2),
+      ledTemporal: optical,
+    });
+    await flush();
+    expect(onResult).toHaveBeenCalledExactlyOnceWith(result(2), optical, 'dc-inputs-v1');
+
+    controller.update(circuit, 50_000);
+    executor.advances.at(-1)!.deferred.resolve({
+      ...timedAdvance('ready', 50_000, 50_000, 3),
+      ledTemporal: optical,
+    });
+    await flush();
+    expect(onResult).toHaveBeenLastCalledWith(result(3), undefined, 'dc-inputs-v1');
+
+    controller.update(circuit, 75_000);
+    const stale = executor.advances.at(-1)!;
+    controller.restart(circuit);
+    onResult.mockClear();
+    stale.deferred.resolve({
+      ...timedAdvance('ready', 75_000, 75_000, 4),
+      ledTemporal: { ...optical, fromMicroseconds: 50_000, toMicroseconds: 75_000 },
+    });
+    await flush();
+    expect(onResult).not.toHaveBeenCalled();
+  });
+
   it('publishes time zero before coalesced preflight horizons and later ready observations', async () => {
     const executor = new FakeExecutor();
     const onResult = vi.fn();
+    const onInitialReady = vi.fn();
     const controller = new ElectronicsLiveSimulationWorkerController(executor);
 
-    controller.start('project-a', circuit, { onResult, onFailure: vi.fn() });
-    controller.update(circuit, 100_000);
-    controller.update(circuit, 200_000);
+    controller.start('project-a', circuit, { onResult, onInitialReady, onFailure: vi.fn() });
+    controller.update(circuit, 25_000);
+    controller.update(circuit, 50_000);
     expect(executor.advances).toHaveLength(0);
 
     executor.preflights[0]!.resolve(result(1));
     await flush();
     expect(onResult).not.toHaveBeenCalled();
+    expect(onInitialReady).not.toHaveBeenCalled();
     expect(executor.advances).toHaveLength(1);
     expect(executor.advances[0]).toMatchObject({
       requestedHorizonMicroseconds: 0,
@@ -243,28 +327,66 @@ describe('Electronics canonical Worker controller', () => {
     });
     expect(executor.advances[0]!.state).toEqual(resetElectronicsTimedState());
 
-    controller.update(circuit, 300_000);
+    controller.update(circuit, 75_000);
     executor.advances[0]!.deferred.resolve(timedAdvance('ready', 0, 0, 1));
     await flush();
-    expect(onResult).toHaveBeenCalledExactlyOnceWith(result(1));
-    expect(executor.advances[1]).toMatchObject({ requestedHorizonMicroseconds: 300_000 });
-    executor.advances[1]!.deferred.resolve(timedAdvance('yielded', 300_000, 100_000));
+    expect(onResult).toHaveBeenCalledExactlyOnceWith(result(1), undefined, undefined);
+    expect(onInitialReady).toHaveBeenCalledExactlyOnceWith(0);
+    expect(executor.advances[1]).toMatchObject({ requestedHorizonMicroseconds: 25_000 });
+    executor.advances[1]!.deferred.resolve(timedAdvance('yielded', 25_000, 15_000));
     await flush();
     expect(onResult).toHaveBeenCalledTimes(1);
-    expect(executor.advances[2]).toMatchObject({ requestedHorizonMicroseconds: 300_000 });
-    executor.advances[2]!.deferred.resolve(timedAdvance('ready', 300_000, 300_000, 2));
+    expect(executor.advances[2]).toMatchObject({ requestedHorizonMicroseconds: 15_000 });
+    executor.advances[2]!.deferred.resolve(timedAdvance('ready', 15_000, 15_000, 2));
     await flush();
-    expect(onResult).toHaveBeenLastCalledWith(result(2));
+    expect(onResult).toHaveBeenLastCalledWith(result(2), undefined, 'dc-inputs-v1');
+    expect(onInitialReady).toHaveBeenCalledExactlyOnceWith(0);
   });
+
+  it.each(['stop', 'restart', 'replace', 'dispose'] as const)(
+    'withholds the old startup frame when initial-ready invokes %s',
+    async (action) => {
+      const executor = new FakeExecutor();
+      const controller = new ElectronicsLiveSimulationWorkerController(executor);
+      const onResult = vi.fn();
+      const onCommittedHorizon = vi.fn();
+      const replacementResult = vi.fn();
+      const onInitialReady = vi.fn(() => {
+        if (action === 'stop') controller.stop();
+        else if (action === 'restart') controller.restart(circuit);
+        else if (action === 'dispose') controller.dispose();
+        else
+          controller.start('project-b', circuit, {
+            onResult: replacementResult,
+            onCommittedHorizon,
+            onFailure: vi.fn(),
+          });
+      });
+      controller.start('project-a', circuit, {
+        onResult,
+        onCommittedHorizon,
+        onInitialReady,
+        onFailure: vi.fn(),
+      });
+      await completeCanonicalStart(executor, 1);
+      expect(onInitialReady).toHaveBeenCalledExactlyOnceWith(0);
+      expect(onResult).not.toHaveBeenCalled();
+      expect(replacementResult).not.toHaveBeenCalled();
+      expect(onCommittedHorizon).not.toHaveBeenCalled();
+      expect(executor.advances).toHaveLength(1);
+    },
+  );
 
   it('retains ordered runtime and serial inputs until after a complete zero-time observation', async () => {
     const executor = new FakeExecutor();
     const onResult = vi.fn();
     const onCommittedHorizon = vi.fn();
+    const onInitialReady = vi.fn();
     const controller = new ElectronicsLiveSimulationWorkerController(executor);
     controller.start('project-a', serialCircuit, {
       onResult,
       onCommittedHorizon,
+      onInitialReady,
       onFailure: vi.fn(),
     });
     const pressed = {
@@ -273,8 +395,8 @@ describe('Electronics canonical Worker controller', () => {
         component.id === 'button' ? { ...component, state: true } : component,
       ),
     };
-    controller.update(pressed, 200_000);
-    controller.sendSerialRx('uno', 'A', 200_000);
+    controller.update(pressed, 50_000);
+    controller.sendSerialRx('uno', 'A', 50_000);
     executor.preflights[0]!.resolve(result(1));
     await flush();
     expect(executor.advances[0]).toMatchObject({
@@ -287,18 +409,20 @@ describe('Electronics canonical Worker controller', () => {
         component.id === 'button' ? { ...component, state: false } : component,
       ),
     };
-    controller.update(released, 300_000);
-    controller.sendSerialRx('uno', 'B', 300_000);
+    controller.update(released, 75_000);
+    controller.sendSerialRx('uno', 'B', 75_000);
     executor.advances[0]!.deferred.resolve(timedAdvance('yielded', 0, 0));
     await flush();
     expect(onResult).not.toHaveBeenCalled();
+    expect(onInitialReady).not.toHaveBeenCalled();
     expect(executor.advances[1]).toMatchObject({
       requestedHorizonMicroseconds: 0,
       inputEvents: [],
     });
     executor.advances[1]!.deferred.resolve(timedAdvance('ready', 0, 0, 1));
     await flush();
-    expect(onResult).toHaveBeenCalledExactlyOnceWith(result(1));
+    expect(onResult).toHaveBeenCalledExactlyOnceWith(result(1), undefined, undefined);
+    expect(onInitialReady).toHaveBeenCalledExactlyOnceWith(0);
     expect(onCommittedHorizon).toHaveBeenLastCalledWith(0);
     expect(executor.advances[2]!.inputEvents).toEqual([
       { atMicroseconds: 1, targetId: 'button', operation: 'state', payload: true },
@@ -306,12 +430,12 @@ describe('Electronics canonical Worker controller', () => {
       { atMicroseconds: 3, targetId: 'button', operation: 'state', payload: false },
       { atMicroseconds: 4, targetId: 'uno', operation: 'serialRx', payload: 'B' },
     ]);
-    expect(executor.advances[2]).toMatchObject({ requestedHorizonMicroseconds: 100_004 });
-    executor.advances[2]!.deferred.resolve(timedAdvance('ready', 100_004, 100_004, 2));
+    expect(executor.advances[2]).toMatchObject({ requestedHorizonMicroseconds: 25_000 });
+    executor.advances[2]!.deferred.resolve(timedAdvance('ready', 25_000, 25_000, 2));
     await flush();
-    expect(onResult).toHaveBeenLastCalledWith(result(2));
+    expect(onResult).toHaveBeenLastCalledWith(result(2), undefined, 'dc-inputs-v1');
     expect(executor.advances[3]).toMatchObject({
-      requestedHorizonMicroseconds: 300_000,
+      requestedHorizonMicroseconds: 50_000,
       inputEvents: [],
     });
   });
@@ -330,43 +454,52 @@ describe('Electronics canonical Worker controller', () => {
         component.id === 'resistor' ? { ...component, value: 470 } : component,
       ),
     };
-    controller.update(changed, 500_000);
-    controller.update(changed, 600_000);
+    controller.update(changed, 125_000);
+    controller.update(changed, 150_000);
     firstStartup.deferred.resolve(timedAdvance('ready', 0, 0, 99));
     await flush();
     expect(onResult).not.toHaveBeenCalled();
     await completeCanonicalStart(executor, 2, 2);
-    expect(onResult).toHaveBeenCalledExactlyOnceWith(result(2));
+    expect(onResult).toHaveBeenCalledExactlyOnceWith(result(2), undefined, undefined);
     expect(executor.advances.at(-1)).toMatchObject({
       generationId: 2,
-      requestedHorizonMicroseconds: 100_000,
+      requestedHorizonMicroseconds: 25_000,
     });
 
     controller.stop();
     controller.start('project-a', changed, { onResult, onFailure: vi.fn() });
-    controller.update(changed, 200_000);
+    controller.update(changed, 50_000);
     await completeCanonicalStart(executor, 3, 3);
-    expect(onResult).toHaveBeenLastCalledWith(result(3));
+    expect(onResult).toHaveBeenLastCalledWith(result(3), undefined, undefined);
     expect(executor.advances.at(-1)).toMatchObject({
       generationId: 3,
-      requestedHorizonMicroseconds: 200_000,
+      requestedHorizonMicroseconds: 25_000,
     });
   });
 
-  it.each(['fault', 'missing-result', 'rejection'] as const)(
+  it.each(['fault', 'missing-result', 'rejection', 'nonzero-request', 'nonzero-commit'] as const)(
     'fails closed during the zero-time observation on %s',
     async (mode) => {
       const executor = new FakeExecutor();
       const onResult = vi.fn();
       const onFailure = vi.fn();
+      const onInitialReady = vi.fn();
       const controller = new ElectronicsLiveSimulationWorkerController(executor);
-      controller.start('project-a', circuit, { onResult, onFailure });
-      controller.update(circuit, 200_000);
+      controller.start('project-a', circuit, { onResult, onInitialReady, onFailure });
+      controller.update(circuit, 50_000);
       executor.preflights[0]!.resolve(result(1));
       await flush();
       const startup = executor.advances[0]!;
       if (mode === 'rejection')
         startup.deferred.reject(new SimulationWorkerError('worker-timeout', 'Timed out.'));
+      else if (mode === 'nonzero-request' || mode === 'nonzero-commit')
+        startup.deferred.resolve(
+          timedAdvance(
+            'ready',
+            mode === 'nonzero-request' ? 1 : 0,
+            mode === 'nonzero-commit' ? 1 : 0,
+          ),
+        );
       else
         startup.deferred.resolve({
           ...timedAdvance(mode === 'fault' ? 'fault' : 'ready', 0, 0),
@@ -375,8 +508,9 @@ describe('Electronics canonical Worker controller', () => {
       await flush();
       expect(onFailure).toHaveBeenCalledOnce();
       expect(onResult).not.toHaveBeenCalled();
+      expect(onInitialReady).not.toHaveBeenCalled();
       expect(executor.cancelCount).toBe(1);
-      controller.update(circuit, 300_000);
+      controller.update(circuit, 75_000);
       expect(executor.advances).toHaveLength(1);
     },
   );
@@ -997,19 +1131,21 @@ describe('Electronics canonical Worker controller', () => {
     onResult.mockClear();
     onCommittedHorizon.mockClear();
 
-    controller.update(circuit, 300_000);
-    executor.advances[1]!.deferred.resolve(timedAdvance('yielded', 300_000, 256_000));
+    controller.update(circuit, 75_000);
+    expect(executor.advances[1]!.requestedHorizonMicroseconds).toBe(25_000);
+    executor.advances[1]!.deferred.resolve(timedAdvance('yielded', 25_000, 256));
     await flush();
     expect(onResult).not.toHaveBeenCalled();
     expect(onCommittedHorizon).not.toHaveBeenCalled();
     expect(executor.advances).toHaveLength(3);
-    expect(executor.advances[2]).toMatchObject({ requestedHorizonMicroseconds: 300_000 });
-    expect(executor.advances[2]!.state.continuation?.committedHorizonMicroseconds).toBe(256_000);
+    expect(executor.advances[2]).toMatchObject({ requestedHorizonMicroseconds: 256 });
+    expect(executor.advances[2]!.state.continuation?.committedHorizonMicroseconds).toBe(256);
 
-    executor.advances[2]!.deferred.resolve(timedAdvance('ready', 300_000, 300_000, 3));
+    executor.advances[2]!.deferred.resolve(timedAdvance('ready', 256, 256, 3));
     await flush();
-    expect(onResult).toHaveBeenCalledWith(result(3));
-    expect(onCommittedHorizon).toHaveBeenCalledWith(300_000);
+    expect(onResult).toHaveBeenCalledWith(result(3), undefined, 'dc-inputs-v1');
+    expect(onCommittedHorizon).toHaveBeenCalledWith(256);
+    expect(executor.advances[3]!.requestedHorizonMicroseconds).toBe(512);
   });
 
   it('timestamps live inputs immediately after committed canonical time, not host wall time', async () => {
@@ -1018,8 +1154,8 @@ describe('Electronics canonical Worker controller', () => {
     controller.start('project-a', circuit, { onResult: vi.fn(), onFailure: vi.fn() });
     await completeCanonicalStart(executor, 1);
 
-    controller.update(circuit, 100_000);
-    executor.advances[1]!.deferred.resolve(timedAdvance('ready', 100_000, 100_000, 2));
+    controller.update(circuit, 25_000);
+    executor.advances[1]!.deferred.resolve(timedAdvance('ready', 25_000, 25_000, 2));
     await flush();
 
     const pressed = {
@@ -1028,17 +1164,17 @@ describe('Electronics canonical Worker controller', () => {
         component.id === 'button' ? { ...component, state: true } : component,
       ),
     };
-    controller.update(pressed, 1_000_000);
+    controller.update(pressed, 250_000);
     expect(executor.advances[2]!.inputEvents).toEqual([
-      { atMicroseconds: 100_001, targetId: 'button', operation: 'state', payload: true },
+      { atMicroseconds: 25_001, targetId: 'button', operation: 'state', payload: true },
     ]);
-    expect(executor.advances[2]).toMatchObject({ requestedHorizonMicroseconds: 200_001 });
-    executor.advances[2]!.deferred.resolve(timedAdvance('ready', 200_001, 200_001, 3));
+    expect(executor.advances[2]).toMatchObject({ requestedHorizonMicroseconds: 50_000 });
+    executor.advances[2]!.deferred.resolve(timedAdvance('ready', 50_000, 50_000, 3));
     await flush();
-    expect(executor.advances[3]).toMatchObject({ requestedHorizonMicroseconds: 700_001 });
-    executor.advances[3]!.deferred.resolve(timedAdvance('ready', 700_001, 700_001));
+    expect(executor.advances[3]).toMatchObject({ requestedHorizonMicroseconds: 75_000 });
+    executor.advances[3]!.deferred.resolve(timedAdvance('ready', 75_000, 75_000));
     await flush();
-    expect(executor.advances[4]).toMatchObject({ requestedHorizonMicroseconds: 1_000_000 });
+    expect(executor.advances[4]).toMatchObject({ requestedHorizonMicroseconds: 100_000 });
   });
 
   it('publishes repeated complete catch-up windows while retaining growing host demand', async () => {
@@ -1047,31 +1183,36 @@ describe('Electronics canonical Worker controller', () => {
     const onCommittedHorizon = vi.fn();
     const controller = new ElectronicsLiveSimulationWorkerController(executor);
     controller.start('project-a', circuit, { onResult, onCommittedHorizon, onFailure: vi.fn() });
-    controller.update(circuit, 20_000_000);
+    controller.update(circuit, 5_000_000);
     await completeCanonicalStart(executor, 1);
     expect(onCommittedHorizon.mock.calls).toEqual([[0]]);
 
+    let committed = 0;
+    let window = 25_000;
     for (let completed = 0; completed < 3; completed++) {
-      const horizon = (completed + 1) * 500_000;
+      const horizon = committed + window;
+      const reached = committed + window / 2;
       const chunk = executor.advances.at(-1)!;
       expect(chunk.requestedHorizonMicroseconds).toBe(horizon);
-      expect(chunk.state).toEqual(timedState(completed * 500_000));
-      controller.update(circuit, 30_000_000 + completed * 10_000_000);
-      chunk.deferred.resolve(timedAdvance('yielded', horizon, horizon - 200_000));
+      expect(chunk.state).toEqual(timedState(committed));
+      controller.update(circuit, 7_500_000 + completed * 2_500_000);
+      chunk.deferred.resolve(timedAdvance('yielded', horizon, reached));
       await flush();
       expect(onResult).toHaveBeenCalledTimes(completed + 1);
       expect(onCommittedHorizon).toHaveBeenCalledTimes(completed + 1);
       const continuation = executor.advances.at(-1)!;
-      expect(continuation.requestedHorizonMicroseconds).toBe(horizon);
-      expect(continuation.state).toEqual(timedState(horizon - 200_000));
-      continuation.deferred.resolve(timedAdvance('ready', horizon, horizon, completed + 2));
+      expect(continuation.requestedHorizonMicroseconds).toBe(reached);
+      expect(continuation.state).toEqual(timedState(reached));
+      continuation.deferred.resolve(timedAdvance('ready', reached, reached, completed + 2));
       await flush();
-      expect(onCommittedHorizon).toHaveBeenLastCalledWith(horizon);
-      expect(onResult).toHaveBeenLastCalledWith(result(completed + 2));
+      expect(onCommittedHorizon).toHaveBeenLastCalledWith(reached);
+      expect(onResult).toHaveBeenLastCalledWith(result(completed + 2), undefined, 'dc-inputs-v1');
+      committed = reached;
+      window /= 2;
     }
-    expect(executor.advances.at(-1)!.requestedHorizonMicroseconds).toBe(2_000_000);
+    expect(executor.advances.at(-1)!.requestedHorizonMicroseconds).toBe(25_000);
     controller.stop();
-    executor.advances.at(-1)!.deferred.resolve(timedAdvance('ready', 2_000_000, 2_000_000, 99));
+    executor.advances.at(-1)!.deferred.resolve(timedAdvance('ready', 25_000, 25_000, 99));
     await flush();
     expect(onResult).toHaveBeenCalledTimes(4);
   });
@@ -1086,17 +1227,18 @@ describe('Electronics canonical Worker controller', () => {
       onFailure: vi.fn(),
     });
     await completeCanonicalStart(executor, 1);
-    controller.update(circuit, 1_200_000);
-    for (const horizon of [500_000, 1_000_000, 1_200_000]) {
+    controller.update(circuit, 300_000);
+    const horizons = Array.from({ length: 12 }, (_, index) => (index + 1) * 25_000);
+    for (const horizon of horizons) {
       expect(executor.advances.at(-1)!.requestedHorizonMicroseconds).toBe(horizon);
       executor.advances.at(-1)!.deferred.resolve(timedAdvance('ready', horizon, horizon));
       await flush();
     }
-    expect(onCommittedHorizon.mock.calls).toEqual([[0], [500_000], [1_000_000], [1_200_000]]);
-    expect(executor.advances).toHaveLength(4);
+    expect(onCommittedHorizon.mock.calls).toEqual([[0], ...horizons.map((horizon) => [horizon])]);
+    expect(executor.advances).toHaveLength(13);
   });
 
-  it('finishes a yielded target before chasing newer host horizons', async () => {
+  it('observes a yielded checkpoint before draining retained newer host horizons', async () => {
     const executor = new FakeExecutor();
     const onResult = vi.fn();
     const controller = new ElectronicsLiveSimulationWorkerController(executor);
@@ -1104,19 +1246,149 @@ describe('Electronics canonical Worker controller', () => {
     await completeCanonicalStart(executor, 1);
     onResult.mockClear();
 
-    controller.update(circuit, 300_000);
-    controller.update(circuit, 500_000);
-    executor.advances[1]!.deferred.resolve(timedAdvance('yielded', 300_000, 160_000));
+    controller.update(circuit, 75_000);
+    controller.update(circuit, 125_000);
+    executor.advances[1]!.deferred.resolve(timedAdvance('yielded', 25_000, 15_000));
     await flush();
 
     expect(executor.advances).toHaveLength(3);
-    expect(executor.advances[2]).toMatchObject({ requestedHorizonMicroseconds: 300_000 });
-    executor.advances[2]!.deferred.resolve(timedAdvance('ready', 300_000, 300_000, 3));
+    expect(executor.advances[2]).toMatchObject({ requestedHorizonMicroseconds: 15_000 });
+    executor.advances[2]!.deferred.resolve(timedAdvance('ready', 15_000, 15_000, 3));
     await flush();
 
-    expect(onResult).toHaveBeenCalledWith(result(3));
+    expect(onResult).toHaveBeenCalledWith(result(3), undefined, 'dc-inputs-v1');
     expect(executor.advances).toHaveLength(4);
-    expect(executor.advances[3]).toMatchObject({ requestedHorizonMicroseconds: 500_000 });
+    expect(executor.advances[3]).toMatchObject({ requestedHorizonMicroseconds: 30_000 });
+  });
+
+  it('keeps real input transitions and forward progress when bounded host demand trails an input commit', async () => {
+    const base: SchematicDocument = {
+      ...circuit,
+      components: [
+        circuit.components[0]!,
+        circuit.components[1]!,
+        { id: 'button', kind: 'button', value: 1, position: { x: 40, y: 0 }, state: false },
+        { id: 'switched', kind: 'resistor', value: 1000, position: { x: 60, y: 0 } },
+      ],
+      connections: [
+        ['source', 'a', 'resistor', 'a'],
+        ['resistor', 'b', 'source', 'b'],
+        ['source', 'a', 'button', 'a'],
+        ['button', 'b', 'switched', 'a'],
+        ['switched', 'b', 'source', 'b'],
+      ].map(([from, a, to, b], index) => ({
+        id: `bounded-${index}`,
+        from: { componentId: from!, terminal: a! },
+        to: { componentId: to!, terminal: b! },
+      })),
+    };
+    const executor = new FakeExecutor();
+    const onFailure = vi.fn();
+    const controller = new ElectronicsLiveSimulationWorkerController(executor);
+    const requestBase = {
+      protocolVersion: ELECTRONICS_SIMULATION_WORKER_PROTOCOL,
+      engineRevision: ELECTRONICS_SIMULATION_ENGINE_REVISION,
+      requestId: 'bounded-host-preflight',
+      generationId: 1,
+      projectSessionId: 'bounded-host-input',
+    };
+    const complete = async (call: AdvanceCall) => {
+      const response = await evaluateSimulationWorkerRequestBatched(
+        {
+          ...requestBase,
+          kind: 'advance',
+          requestId: `bounded-host-${executor.advances.length}`,
+          generationId: call.generationId,
+          document: call.document,
+          state: call.state,
+          requestedHorizonMicroseconds: call.requestedHorizonMicroseconds,
+          inputEvents: call.inputEvents,
+        },
+        () => true,
+      );
+      expect(response?.ok, JSON.stringify(response)).toBe(true);
+      if (!response || !response.ok || response.kind !== 'advance')
+        throw new Error('Expected real advance');
+      expect(response.advance.executionStatus, JSON.stringify(response.advance.diagnostics)).toBe(
+        'ready',
+      );
+      expect(response.advance.result?.solved).toBe(true);
+      expect(response.advance.result?.quality?.passed).toBe(true);
+      call.deferred.resolve(response.advance);
+      await flush();
+      return response.advance;
+    };
+    try {
+      controller.start(requestBase.projectSessionId, base, { onResult: vi.fn(), onFailure });
+      const preflight = evaluateSimulationWorkerRequest({
+        ...requestBase,
+        kind: 'preflight',
+        document: base,
+      });
+      if (!preflight.ok || preflight.kind !== 'preflight')
+        throw new Error('Expected real preflight');
+      executor.preflights[0]!.resolve(preflight.result);
+      await flush();
+      await complete(executor.advances.at(-1)!);
+      controller.update(base, 25_000);
+      await complete(executor.advances.at(-1)!);
+      const pressed: SchematicDocument = {
+        ...base,
+        components: base.components.map((component) =>
+          component.id === 'button' ? { ...component, state: true } : component,
+        ),
+      };
+      controller.update(pressed, 25_000);
+      const input = executor.advances.at(-1)!;
+      expect(input.inputEvents).toEqual([
+        { atMicroseconds: 25_001, targetId: 'button', operation: 'state', payload: true },
+      ]);
+      const closed = await complete(input);
+      expect(closed.committedHorizonMicroseconds).toBe(25_001);
+      expect(
+        closed.result?.components.find((component) => component.componentId === 'switched')
+          ?.current,
+      ).toBeGreaterThan(0.0049);
+
+      controller.update(pressed, 25_000);
+      const held = executor.advances.at(-1)!;
+      const count = executor.advances.length;
+      // These inputs and newer demand must survive the one in-flight observation.
+      controller.update(base, 25_000);
+      controller.update(base, 50_000);
+      expect(executor.advances).toHaveLength(count);
+      const sameTime = await complete(held);
+      expect(held.requestedHorizonMicroseconds).toBe(25_001);
+      expect(held.state).toBe(closed.state);
+      expect(held.inputEvents).toEqual([]);
+      expect(sameTime.state).toEqual(closed.state);
+
+      const released = executor.advances.at(-1)!;
+      expect(released.inputEvents).toEqual([
+        { atMicroseconds: 25_002, targetId: 'button', operation: 'state', payload: false },
+      ]);
+      const opened = await complete(released);
+      expect(
+        opened.result?.components.find((component) => component.componentId === 'switched')
+          ?.current,
+      ).toBeCloseTo(0, 9);
+      const continued = await complete(executor.advances.at(-1)!);
+      expect(continued.committedHorizonMicroseconds).toBe(50_000);
+      expect(
+        continued.result?.components.find((component) => component.componentId === 'switched')
+          ?.current,
+      ).toBeCloseTo(0, 9);
+      const canonical = JSON.parse(continued.state.continuation!.serializedState);
+      expect(canonical.inputs).toEqual([
+        { atMicroseconds: 25_001, componentId: 'button', property: 'state', value: true },
+        { atMicroseconds: 25_002, componentId: 'button', property: 'state', value: false },
+      ]);
+      expect(canonical.nextInputIndex).toBe(2);
+      expect(executor.generation).toBe(1);
+      expect(onFailure).not.toHaveBeenCalled();
+    } finally {
+      controller.dispose();
+    }
   });
 
   it('retimes unsent input events beyond progress committed by an in-flight advance', async () => {
@@ -1125,27 +1397,27 @@ describe('Electronics canonical Worker controller', () => {
     controller.start('project-a', circuit, { onResult: vi.fn(), onFailure: vi.fn() });
     await completeCanonicalStart(executor, 1);
 
-    controller.update(circuit, 300_000);
+    controller.update(circuit, 75_000);
     const pressed = {
       ...circuit,
       components: circuit.components.map((component) =>
         component.id === 'button' ? { ...component, state: true } : component,
       ),
     };
-    controller.update(pressed, 100_000);
+    controller.update(pressed, 25_000);
 
-    executor.advances[1]!.deferred.resolve(timedAdvance('yielded', 300_000, 256_000));
+    executor.advances[1]!.deferred.resolve(timedAdvance('yielded', 25_000, 15_000));
     await flush();
 
     expect(executor.advances).toHaveLength(3);
-    expect(executor.advances[2]).toMatchObject({ requestedHorizonMicroseconds: 300_000 });
-    expect(executor.advances[2]!.state.continuation?.committedHorizonMicroseconds).toBe(256_000);
+    expect(executor.advances[2]).toMatchObject({ requestedHorizonMicroseconds: 30_000 });
+    expect(executor.advances[2]!.state.continuation?.committedHorizonMicroseconds).toBe(15_000);
     expect(executor.advances[2]!.inputEvents).toEqual([
-      { atMicroseconds: 256_001, targetId: 'button', operation: 'state', payload: true },
+      { atMicroseconds: 15_001, targetId: 'button', operation: 'state', payload: true },
     ]);
-    executor.advances[2]!.deferred.resolve(timedAdvance('ready', 300_000, 300_000, 3));
+    executor.advances[2]!.deferred.resolve(timedAdvance('ready', 30_000, 30_000, 3));
     await flush();
-    expect(executor.advances).toHaveLength(3);
+    expect(executor.advances).toHaveLength(4);
   });
 
   it('retimes pending input groups with one shared offset', async () => {
@@ -1168,7 +1440,7 @@ describe('Electronics canonical Worker controller', () => {
     controller.start('project-a', twoButtons, { onResult: vi.fn(), onFailure: vi.fn() });
     await completeCanonicalStart(executor, 1);
 
-    controller.update(twoButtons, 300_000);
+    controller.update(twoButtons, 75_000);
     const bothPressed: SchematicDocument = {
       ...twoButtons,
       components: twoButtons.components.map((component) =>
@@ -1177,23 +1449,23 @@ describe('Electronics canonical Worker controller', () => {
           : component,
       ),
     };
-    controller.update(bothPressed, 100_000);
+    controller.update(bothPressed, 25_000);
     const firstReleased: SchematicDocument = {
       ...bothPressed,
       components: bothPressed.components.map((component) =>
         component.id === 'button' ? { ...component, state: false } : component,
       ),
     };
-    controller.update(firstReleased, 100_000);
+    controller.update(firstReleased, 25_000);
 
-    executor.advances[1]!.deferred.resolve(timedAdvance('yielded', 300_000, 256_000));
+    executor.advances[1]!.deferred.resolve(timedAdvance('yielded', 25_000, 15_000));
     await flush();
 
     expect(executor.advances).toHaveLength(3);
     expect(executor.advances[2]!.inputEvents).toEqual([
-      { atMicroseconds: 256_001, targetId: 'button', operation: 'state', payload: true },
-      { atMicroseconds: 256_001, targetId: 'button-2', operation: 'state', payload: true },
-      { atMicroseconds: 256_002, targetId: 'button', operation: 'state', payload: false },
+      { atMicroseconds: 15_001, targetId: 'button', operation: 'state', payload: true },
+      { atMicroseconds: 15_001, targetId: 'button-2', operation: 'state', payload: true },
+      { atMicroseconds: 15_002, targetId: 'button', operation: 'state', payload: false },
     ]);
     expect(executor.advances[2]!.inputEvents[0]!.atMicroseconds).toBe(
       executor.advances[2]!.inputEvents[1]!.atMicroseconds,
@@ -1202,7 +1474,7 @@ describe('Electronics canonical Worker controller', () => {
       executor.advances[2]!.inputEvents[2]!.atMicroseconds -
         executor.advances[2]!.inputEvents[1]!.atMicroseconds,
     ).toBe(1);
-    expect(executor.advances[2]!.inputEvents.every((event) => event.atMicroseconds > 256_000)).toBe(
+    expect(executor.advances[2]!.inputEvents.every((event) => event.atMicroseconds > 15_000)).toBe(
       true,
     );
   });
@@ -1213,16 +1485,190 @@ describe('Electronics canonical Worker controller', () => {
     controller.start('project-a', circuit, { onResult: vi.fn(), onFailure: vi.fn() });
     await completeCanonicalStart(executor, 1);
 
+    controller.update(circuit, 25_000);
+    controller.update(circuit, 50_000);
     controller.update(circuit, 100_000);
-    controller.update(circuit, 200_000);
-    controller.update(circuit, 400_000);
     expect(executor.advances).toHaveLength(2);
 
-    executor.advances[1]!.deferred.resolve(timedAdvance('ready', 100_000, 100_000, 2));
+    executor.advances[1]!.deferred.resolve(timedAdvance('ready', 25_000, 25_000, 2));
     await flush();
     expect(executor.advances).toHaveLength(3);
-    expect(executor.advances[2]).toMatchObject({ requestedHorizonMicroseconds: 400_000 });
-    expect(executor.advances[2]!.state.continuation?.committedHorizonMicroseconds).toBe(100_000);
+    expect(executor.advances[2]).toMatchObject({ requestedHorizonMicroseconds: 50_000 });
+    expect(executor.advances[2]!.state.continuation?.committedHorizonMicroseconds).toBe(25_000);
+  });
+
+  it('refreshes classroom demand after an acknowledged cursor advances between tick and dispatch', async () => {
+    const executor = new FakeExecutor();
+    const controller = new ElectronicsLiveSimulationWorkerController(executor);
+    let elapsedWallMicroseconds = 80_000;
+    let presentedMicroseconds = 0;
+    const readHostHorizonMicroseconds = vi.fn(() =>
+      classroomRequestedHorizon(0, elapsedWallMicroseconds, presentedMicroseconds),
+    );
+    controller.start('project-a', circuit, {
+      onResult: vi.fn(),
+      onFailure: vi.fn(),
+      readHostHorizonMicroseconds,
+    });
+    await completeCanonicalStart(executor, 1);
+    expect(readHostHorizonMicroseconds).not.toHaveBeenCalled();
+
+    controller.update(circuit, 6_250);
+    expect(executor.advances[1]!.requestedHorizonMicroseconds).toBe(6_250);
+    elapsedWallMicroseconds = 96_000;
+    presentedMicroseconds = 2_000;
+    controller.update(circuit, 8_250);
+    expect(executor.advances).toHaveLength(2);
+    // The host fixture now represents an acknowledged cursor. Native leases
+    // and ACK are covered by the mounted/browser tests; no host tick is sent.
+    elapsedWallMicroseconds = 112_000;
+    presentedMicroseconds = 4_000;
+    executor.advances[1]!.deferred.resolve(timedAdvance('ready', 6_250, 6_250));
+    await flush();
+    expect(executor.advances).toHaveLength(3);
+    expect(executor.advances[2]!.requestedHorizonMicroseconds).toBe(10_250);
+    expect(executor.advances[2]!.requestedHorizonMicroseconds - presentedMicroseconds).toBe(6_250);
+    expect(executor.advances[2]!.state.continuation?.committedHorizonMicroseconds).toBe(6_250);
+
+    // A long native/RAF hold supplies no new acknowledgement. Fresh wall time
+    // cannot expand the cap or dispatch a second request alongside the first.
+    elapsedWallMicroseconds = 1_000_000;
+    controller.update(circuit, 10_250);
+    expect(executor.advances).toHaveLength(3);
+    executor.advances[2]!.deferred.resolve(timedAdvance('ready', 10_250, 10_250));
+    await flush();
+    expect(executor.advances).toHaveLength(3);
+    expect(readHostHorizonMicroseconds).toHaveBeenCalledTimes(2);
+    controller.stop();
+  });
+
+  it('retains refreshed host demand through the unchanged 25ms observation ceiling', async () => {
+    const executor = new FakeExecutor();
+    const controller = new ElectronicsLiveSimulationWorkerController(executor);
+    controller.start('project-a', circuit, {
+      onResult: vi.fn(),
+      onFailure: vi.fn(),
+      readHostHorizonMicroseconds: () => 75_000,
+    });
+    await completeCanonicalStart(executor, 1);
+    controller.update(circuit, 1_000);
+    for (const horizon of [25_000, 50_000, 75_000]) {
+      const request = executor.advances.at(-1)!;
+      expect(request.requestedHorizonMicroseconds).toBe(horizon);
+      expect(horizon - (request.state.continuation?.committedHorizonMicroseconds ?? 0)).toBe(
+        25_000,
+      );
+      request.deferred.resolve(timedAdvance('ready', horizon, horizon));
+      await flush();
+    }
+    expect(executor.advances).toHaveLength(4);
+    controller.stop();
+  });
+
+  it('leaves startup, yielded checkpoint observations and timed inputs independent of fresh host reads', async () => {
+    const executor = new FakeExecutor();
+    const controller = new ElectronicsLiveSimulationWorkerController(executor);
+    let hostHorizon: number | null = 6_250;
+    const readHostHorizonMicroseconds = vi.fn(() => hostHorizon);
+    controller.start('project-a', circuit, {
+      onResult: vi.fn(),
+      onFailure: vi.fn(),
+      readHostHorizonMicroseconds,
+    });
+    await completeCanonicalStart(executor, 1);
+    expect(readHostHorizonMicroseconds).not.toHaveBeenCalled();
+    controller.update(circuit, 6_250);
+    readHostHorizonMicroseconds.mockClear();
+    hostHorizon = null;
+    executor.advances[1]!.deferred.resolve(timedAdvance('yielded', 6_250, 2_000));
+    await flush();
+    expect(executor.advances.at(-1)!.requestedHorizonMicroseconds).toBe(2_000);
+    expect(readHostHorizonMicroseconds).not.toHaveBeenCalled();
+
+    const pressed: SchematicDocument = {
+      ...circuit,
+      components: circuit.components.map((component) =>
+        component.id === 'button' ? { ...component, state: true } : component,
+      ),
+    };
+    controller.update(pressed, 2_000);
+    executor.advances[2]!.deferred.resolve(timedAdvance('ready', 2_000, 2_000));
+    await flush();
+    const input = executor.advances[3]!;
+    expect(input.requestedHorizonMicroseconds).toBe(2_001);
+    expect(input.inputEvents).toEqual([
+      { atMicroseconds: 2_001, targetId: 'button', operation: 'state', payload: true },
+    ]);
+    expect(readHostHorizonMicroseconds).not.toHaveBeenCalled();
+    input.deferred.resolve(timedAdvance('ready', 2_001, 2_001));
+    await flush();
+    expect(executor.advances).toHaveLength(4);
+    expect(readHostHorizonMicroseconds).toHaveBeenCalledTimes(1);
+    controller.stop();
+  });
+
+  it.each(['stop', 'restart'] as const)(
+    'rejects a captured fresh horizon if its generation changes through %s before dispatch',
+    async (action) => {
+      const executor = new FakeExecutor();
+      const controller = new ElectronicsLiveSimulationWorkerController(executor);
+      let replaceGeneration = false;
+      controller.start('project-a', circuit, {
+        onResult: vi.fn(),
+        onFailure: vi.fn(),
+        readHostHorizonMicroseconds: () => {
+          if (replaceGeneration) {
+            if (action === 'stop') controller.stop();
+            else controller.restart(circuit);
+          }
+          return 10_250;
+        },
+      });
+      await completeCanonicalStart(executor, 1);
+      controller.update(circuit, 6_250);
+      controller.update(circuit, 12_250);
+      replaceGeneration = true;
+      const requested = executor.advances[1]!.requestedHorizonMicroseconds;
+      executor.advances[1]!.deferred.resolve(timedAdvance('ready', requested, requested));
+      await flush();
+      expect(executor.advances).toHaveLength(2);
+      if (action === 'restart') {
+        replaceGeneration = false;
+        await completeCanonicalStart(executor, 2);
+        expect(executor.advances).toHaveLength(3);
+        expect(executor.advances[2]!.generationId).toBe(2);
+        expect(executor.advances[2]!.requestedHorizonMicroseconds).toBe(0);
+      }
+      controller.stop();
+    },
+  );
+
+  it('normalizes a fresh host horizon against the current structural generation offset', async () => {
+    const executor = new FakeExecutor();
+    const controller = new ElectronicsLiveSimulationWorkerController(executor);
+    let hostHorizon = 0;
+    controller.start('project-a', circuit, {
+      onResult: vi.fn(),
+      onFailure: vi.fn(),
+      readHostHorizonMicroseconds: () => hostHorizon,
+    });
+    await completeCanonicalStart(executor, 1);
+    const changed: SchematicDocument = {
+      ...circuit,
+      components: circuit.components.map((component) =>
+        component.id === 'resistor' ? { ...component, value: 2_000 } : component,
+      ),
+    };
+    controller.update(changed, 1_000_000);
+    await completeCanonicalStart(executor, 2);
+    hostHorizon = 1_006_250;
+    controller.update(changed, 1_003_000);
+    expect(executor.advances.at(-1)!.generationId).toBe(2);
+    expect(executor.advances.at(-1)!.requestedHorizonMicroseconds).toBe(6_250);
+    expect(
+      executor.advances.at(-1)!.document.components.find((item) => item.id === 'resistor')?.value,
+    ).toBe(2_000);
+    controller.stop();
   });
 
   it('restarts the active canonical generation from time zero', async () => {
@@ -1238,25 +1684,25 @@ describe('Electronics canonical Worker controller', () => {
       onFailure: vi.fn(),
     });
     await completeCanonicalStart(executor, 1);
-    controller.update(circuit, 200_000);
-    executor.advances[1]!.deferred.resolve(timedAdvance('ready', 200_000, 200_000, 2));
+    controller.update(circuit, 25_000);
+    executor.advances[1]!.deferred.resolve(timedAdvance('ready', 25_000, 25_000, 2));
     await flush();
-    expect(onCommittedHorizon).toHaveBeenLastCalledWith(200_000);
+    expect(onCommittedHorizon).toHaveBeenLastCalledWith(25_000);
     onResult.mockClear();
 
-    controller.update(circuit, 300_000);
+    controller.update(circuit, 75_000);
     const oldAdvance = executor.advances[2]!;
     controller.restart(circuit);
 
     expect(executor.generation).toBe(2);
     expect(executor.preflights).toHaveLength(2);
     expect(onGenerationPending).toHaveBeenCalledTimes(2);
-    expect(onCommittedHorizon).toHaveBeenLastCalledWith(200_000);
+    expect(onCommittedHorizon).toHaveBeenLastCalledWith(25_000);
 
-    oldAdvance.deferred.resolve(timedAdvance('ready', 300_000, 300_000, 9));
+    oldAdvance.deferred.resolve(timedAdvance('ready', 50_000, 50_000, 9));
     await flush();
     expect(onResult).not.toHaveBeenCalled();
-    expect(onCommittedHorizon).toHaveBeenLastCalledWith(200_000);
+    expect(onCommittedHorizon).toHaveBeenLastCalledWith(25_000);
 
     executor.preflights[1]!.resolve(result(2));
     await flush();
@@ -1269,13 +1715,13 @@ describe('Electronics canonical Worker controller', () => {
 
     resetAdvance!.deferred.resolve(timedAdvance('ready', 0, 0, 2));
     await flush();
-    expect(onResult).toHaveBeenCalledWith(result(2));
+    expect(onResult).toHaveBeenCalledWith(result(2), undefined, undefined);
     expect(onCommittedHorizon).toHaveBeenLastCalledWith(0);
 
     controller.update(circuit, 50_000);
     expect(executor.advances.at(-1)).toMatchObject({
       generationId: 2,
-      requestedHorizonMicroseconds: 50_000,
+      requestedHorizonMicroseconds: 25_000,
       state: resetElectronicsTimedState(),
     });
   });
@@ -1315,7 +1761,7 @@ describe('Electronics canonical Worker controller', () => {
           : component,
       ),
     };
-    controller.update(edited, 100_000);
+    controller.update(edited, 25_000);
 
     expect(executor.generation).toBe(1);
     expect(executor.preflights).toHaveLength(1);
@@ -1330,6 +1776,7 @@ describe('Electronics canonical Worker controller', () => {
     const executor = new FakeExecutor();
     const onCommittedHorizon = vi.fn();
     const onGenerationPending = vi.fn();
+    const onInitialReady = vi.fn();
     const onResult = vi.fn();
     const controller = new ElectronicsLiveSimulationWorkerController(executor);
     controller.start('project-a', circuit, {
@@ -1337,13 +1784,14 @@ describe('Electronics canonical Worker controller', () => {
       onFailure: vi.fn(),
       onCommittedHorizon,
       onGenerationPending,
+      onInitialReady,
     });
     await completeCanonicalStart(executor, 1);
-    controller.update(circuit, 200_000);
-    executor.advances.at(-1)!.deferred.resolve(timedAdvance('ready', 200_000, 200_000, 2));
+    controller.update(circuit, 25_000);
+    executor.advances.at(-1)!.deferred.resolve(timedAdvance('ready', 25_000, 25_000, 2));
     await flush();
-    expect(onCommittedHorizon).toHaveBeenLastCalledWith(200_000);
-    controller.update(circuit, 400_000);
+    expect(onCommittedHorizon).toHaveBeenLastCalledWith(25_000);
+    controller.update(circuit, 100_000);
     const oldPendingAdvance = executor.advances.at(-1)!;
 
     const changed = {
@@ -1352,25 +1800,26 @@ describe('Electronics canonical Worker controller', () => {
         component.id === 'resistor' ? { ...component, value: 470 } : component,
       ),
     };
-    controller.update(changed, 500_000);
+    controller.update(changed, 125_000);
     expect(executor.generation).toBe(2);
     expect(executor.preflights).toHaveLength(2);
     expect(onGenerationPending).toHaveBeenCalledTimes(2);
-    expect(onCommittedHorizon).toHaveBeenLastCalledWith(200_000);
+    expect(onCommittedHorizon).toHaveBeenLastCalledWith(25_000);
     const resultCount = onResult.mock.calls.length;
     const confirmedCount = onCommittedHorizon.mock.calls.length;
-    oldPendingAdvance.deferred.resolve(timedAdvance('ready', 400_000, 400_000, 999));
+    oldPendingAdvance.deferred.resolve(timedAdvance('ready', 50_000, 50_000, 999));
     await flush();
     expect(onResult).toHaveBeenCalledTimes(resultCount);
     expect(onCommittedHorizon).toHaveBeenCalledTimes(confirmedCount);
     await completeCanonicalStart(executor, 2, 2);
     expect(onCommittedHorizon).toHaveBeenLastCalledWith(0);
+    expect(onInitialReady.mock.calls).toEqual([[0], [125_000]]);
 
-    controller.update(changed, 600_000);
-    expect(executor.advances.at(-1)).toMatchObject({ requestedHorizonMicroseconds: 100_000 });
-    executor.advances.at(-1)!.deferred.resolve(timedAdvance('ready', 100_000, 100_000, 3));
+    controller.update(changed, 150_000);
+    expect(executor.advances.at(-1)).toMatchObject({ requestedHorizonMicroseconds: 25_000 });
+    executor.advances.at(-1)!.deferred.resolve(timedAdvance('ready', 25_000, 25_000, 3));
     await flush();
-    expect(onCommittedHorizon).toHaveBeenLastCalledWith(100_000);
+    expect(onCommittedHorizon).toHaveBeenLastCalledWith(25_000);
   });
 
   it('keeps the canonical generation across presentation-only viewport changes', async () => {
@@ -1380,11 +1829,11 @@ describe('Electronics canonical Worker controller', () => {
     await completeCanonicalStart(executor, 1);
 
     const panned = { ...circuit, viewport: { x: 120, y: -40, zoom: 1.75 } };
-    controller.update(panned, 100_000);
+    controller.update(panned, 25_000);
 
     expect(executor.generation).toBe(1);
     expect(executor.preflights).toHaveLength(1);
-    expect(executor.advances.at(-1)).toMatchObject({ requestedHorizonMicroseconds: 100_000 });
+    expect(executor.advances.at(-1)).toMatchObject({ requestedHorizonMicroseconds: 25_000 });
   });
   it('fails closed on a canonical fault and ignores future updates', async () => {
     const executor = new FakeExecutor();
@@ -1393,13 +1842,13 @@ describe('Electronics canonical Worker controller', () => {
     controller.start('project-a', circuit, { onResult: vi.fn(), onFailure });
     await completeCanonicalStart(executor, 1);
 
-    controller.update(circuit, 100_000);
-    executor.advances[1]!.deferred.resolve(timedAdvance('fault', 100_000, 0));
+    controller.update(circuit, 25_000);
+    executor.advances[1]!.deferred.resolve(timedAdvance('fault', 25_000, 0));
     await flush();
     expect(onFailure).toHaveBeenCalledOnce();
     expect(executor.cancelCount).toBe(1);
 
-    controller.update(circuit, 200_000);
+    controller.update(circuit, 50_000);
     expect(executor.advances).toHaveLength(2);
   });
 
@@ -1445,9 +1894,9 @@ describe('Electronics canonical Worker controller', () => {
     await completeCanonicalStart(executor, 1);
     expect(onCommittedHorizon).toHaveBeenLastCalledWith(0);
 
-    controller.update(circuit, 100_000);
+    controller.update(circuit, 25_000);
     executor.advances[1]!.deferred.resolve({
-      ...timedAdvance('fault', 100_000, 0),
+      ...timedAdvance('fault', 25_000, 0),
       diagnostics: [{ code: 'physical_advance_failed', message: 'Physical step rejected.' }],
     });
     await flush();
@@ -1482,7 +1931,7 @@ describe('Electronics canonical Worker controller', () => {
     controller.start('project-a', changed, { onResult: nextResult, onFailure: nextFailure });
     await completeCanonicalStart(executor, 2, 2);
     expect(executor.advances.find((call) => call.generationId === 2)?.document).toBe(changed);
-    expect(nextResult).toHaveBeenCalledWith(result(2));
+    expect(nextResult).toHaveBeenCalledWith(result(2), undefined, undefined);
     expect(nextResult).toHaveBeenCalledTimes(1);
     expect(nextFailure).not.toHaveBeenCalled();
   });
@@ -1512,9 +1961,234 @@ describe('Electronics canonical Worker controller', () => {
     await flush();
     expect(firstResult).not.toHaveBeenCalled();
     await completeCanonicalStart(executor, 2, 2);
-    expect(secondResult).toHaveBeenCalledWith(result(2));
+    expect(secondResult).toHaveBeenCalledWith(result(2), undefined, undefined);
 
     controller.dispose();
     expect(executor.disposeCount).toBe(1);
   });
+});
+
+describe('Ready cadence preserves the production canonical engine', () => {
+  function physicalFixture(physical: boolean, source?: string) {
+    const components: SchematicDocument['components'][number][] = [
+      {
+        id: 'uno',
+        kind: 'visual',
+        value: 5,
+        position: { x: 0, y: 0 },
+        componentTypeId: 'arduino-uno',
+        pinIds: ['d2', 'd13', 'a0', 'power-5v', 'power-3v3', 'power-gnd-1'],
+        stateProperties: {
+          arduinoSource:
+            source ??
+            'int n=0;void setup(){pinMode(13,OUTPUT);pinMode(2,INPUT_PULLUP);Serial.begin(9600);}void loop(){n++;digitalWrite(13,n%2);Serial.println(n);delayMicroseconds(100);}',
+        },
+      },
+      { id: 'r', kind: 'resistor', value: 1000, position: { x: 0, y: 0 } },
+      {
+        id: 'cap',
+        kind: 'visual',
+        value: 10,
+        position: { x: 0, y: 0 },
+        componentTypeId: 'electrolytic-capacitor',
+        pinIds: ['positive', 'negative'],
+        stateProperties: { initialVoltageVolt: 0, voltageRatingVolt: 25 },
+      },
+      { id: 'key', kind: 'button', value: 1, position: { x: 0, y: 0 }, state: false },
+    ];
+    const wires = [
+      ['uno', 'd13', 'r', 'a'],
+      ['r', 'b', 'cap', 'positive'],
+      ['cap', 'negative', 'uno', 'power-gnd-1'],
+      ['cap', 'positive', 'uno', 'a0'],
+      ['uno', 'd2', 'key', 'a'],
+      ['key', 'b', 'uno', 'power-gnd-1'],
+    ];
+    if (physical) {
+      components.push(
+        { id: 'source', kind: 'source', value: 6, position: { x: 0, y: 0 } },
+        {
+          id: 'motor',
+          kind: 'visual',
+          value: 6,
+          position: { x: 0, y: 0 },
+          componentTypeId: 'dc-motor',
+          pinIds: ['positive', 'negative'],
+        },
+        {
+          id: 'led',
+          kind: 'led',
+          value: 2,
+          position: { x: 0, y: 0 },
+          componentTypeId: 'led-5mm',
+          pinIds: ['anode', 'cathode'],
+          stateProperties: { ledColour: 'red' },
+        },
+        { id: 'led-r', kind: 'resistor', value: 330, position: { x: 0, y: 0 } },
+      );
+      wires.push(
+        ['source', 'a', 'motor', 'positive'],
+        ['motor', 'negative', 'source', 'b'],
+        ['source', 'a', 'led-r', 'a'],
+        ['led-r', 'b', 'led', 'anode'],
+        ['led', 'cathode', 'source', 'b'],
+      );
+    }
+    const parsed = parseElectronicsEngineDocument({
+      ...circuit,
+      components,
+      connections: wires.map(([from, a, to, b], index) => ({
+        id: `w${index}`,
+        from: { componentId: from, terminal: a },
+        to: { componentId: to, terminal: b },
+      })),
+    });
+    if (!parsed.ok) throw new Error(parsed.message);
+    return parsed.document;
+  }
+
+  it.each([50, 100])(
+    '25ms completed observations expose both %sms blink phases without changing canonical state',
+    (delay) => {
+      const document = physicalFixture(
+        false,
+        `void setup(){pinMode(13,OUTPUT);}void loop(){digitalWrite(13,HIGH);delay(${delay});digitalWrite(13,LOW);delay(${delay});}`,
+      );
+      const whole = advanceElectronicsToHorizon(document, {
+        requestedHorizonMicroseconds: 500_000,
+        maxEvents: 1024,
+      });
+      expect(whole.executionStatus, JSON.stringify(whole.diagnostics)).toBe('ready');
+      let state = resetElectronicsTimedState();
+      let last;
+      const phases = new Set<number>();
+      for (let horizon = 0; horizon <= 500_000; horizon += 25_000) {
+        const complete = advanceElectronicsToHorizon(document, {
+          requestedHorizonMicroseconds: horizon,
+          state,
+        });
+        expect(complete.executionStatus).toBe('ready');
+        expect(complete.committedHorizonMicroseconds).toBe(horizon);
+        expect(complete.observation?.quality.passed).toBe(true);
+        state = JSON.parse(JSON.stringify(complete.state));
+        const canonical = JSON.parse(state.continuation!.serializedState);
+        const events = canonical.boards[0].runtime.eventQueue as Array<{
+          kind: string;
+          terminal: string;
+          voltage: number;
+        }>;
+        const lastOutput = events
+          .filter((event) => event.kind === 'output-change' && event.terminal === 'd13')
+          .at(-1);
+        if (lastOutput) phases.add(lastOutput.voltage);
+        last = complete;
+      }
+      expect([...phases].sort()).toEqual([0, 5]);
+      expect(state).toEqual(whole.state);
+      expect(last!.observation).toEqual(whole.observation);
+    },
+  );
+
+  it.each([false, true])(
+    'preserves all MCU/RC/heat/damage/motor state and ordered inputs across ready partitions (physical=%s)',
+    (physical) => {
+      const document = physicalFixture(physical);
+      const zero = advanceElectronicsToHorizon(document, { requestedHorizonMicroseconds: 0 });
+      expect(zero.executionStatus).toBe('ready');
+      const initial = structuredClone(zero.state);
+      // A controlled valid continuation proves nonzero history is carried, not reset.
+      const seeded = JSON.parse(initial.continuation!.serializedState);
+      seeded.physicalState.capacitors[0].voltageVolt = 1.25;
+      for (const thermal of seeded.physicalState.thermal) {
+        thermal.temperatureCelsius = 45;
+        thermal.accumulatedDamage = 0.25;
+      }
+      for (const motor of seeded.physicalState.motors ?? []) {
+        motor.temperatureCelsius = 42;
+        motor.accumulatedDamage = 0.125;
+      }
+      const start = {
+        ...initial,
+        continuation: { ...initial.continuation!, serializedState: JSON.stringify(seeded) },
+      };
+      const inputEvents: ElectronicsTimedInputEvent[] = [
+        { atMicroseconds: 51, targetId: 'key', operation: 'state', payload: true },
+        { atMicroseconds: 51, targetId: 'uno', operation: 'serialRx', payload: 'A' },
+        { atMicroseconds: 172, targetId: 'key', operation: 'state', payload: false },
+        { atMicroseconds: 172, targetId: 'uno', operation: 'serialRx', payload: 'B' },
+      ];
+      const run = (horizons: number[], budget: number, observeYielded: boolean) => {
+        let state = structuredClone(start);
+        let first = true;
+        let yielded = 0;
+        let last;
+        for (const horizon of horizons) {
+          for (let batch = 0; batch < 5000; batch++) {
+            const actual = advanceElectronicsToHorizon(document, {
+              requestedHorizonMicroseconds: horizon,
+              state,
+              maxEvents: budget,
+              ...(first ? { inputEvents } : {}),
+            });
+            first = false;
+            expect(actual.diagnostics).toEqual([]);
+            expect(actual.executionStatus).not.toBe('fault');
+            state = JSON.parse(JSON.stringify(actual.state));
+            if (actual.executionStatus === 'ready') {
+              expect(actual.committedHorizonMicroseconds).toBe(horizon);
+              expect(actual.observation.solved).toBe(true);
+              expect(actual.observation.quality.passed).toBe(true);
+              last = actual;
+              break;
+            }
+            yielded++;
+            expect(actual.observation).toBeNull();
+            if (observeYielded) {
+              const complete = advanceElectronicsToHorizon(document, {
+                requestedHorizonMicroseconds: actual.committedHorizonMicroseconds,
+                state,
+                maxEvents: budget,
+              });
+              expect(complete.executionStatus).toBe('ready');
+              if (complete.executionStatus !== 'ready')
+                throw new Error('Checkpoint observation is incomplete');
+              expect(complete.observation.quality.passed).toBe(true);
+              expect(complete.committedHorizonMicroseconds).toBe(
+                complete.requestedHorizonMicroseconds,
+              );
+              state = JSON.parse(JSON.stringify(complete.state));
+            }
+            if (batch === 4999) throw new Error('Bounded canonical horizon not reached');
+          }
+        }
+        return { state, observation: last!.observation, yielded };
+      };
+      const whole = run([300], 1024, false);
+      for (const budget of [1, 7, 31]) {
+        const partitioned = run([33, 171, 300], budget, true);
+        expect(partitioned.state).toEqual(whole.state);
+        expect(partitioned.observation).toEqual(whole.observation);
+        if (budget === 1) expect(partitioned.yielded).toBeGreaterThan(0);
+      }
+      const final = JSON.parse(whole.state.continuation!.serializedState);
+      expect(final.inputs).toHaveLength(4);
+      expect(final.nextInputIndex).toBe(4);
+      expect(final.boards[0].runtime.serial.rx).toEqual([
+        { sequence: 0, atMicroseconds: 51, byte: 65 },
+        { sequence: 1, atMicroseconds: 172, byte: 66 },
+      ]);
+      expect(final.boards[0].runtime.eventQueue.length).toBeGreaterThan(4);
+      expect(final.boards[0].runtime.eventQueue.length).toBeLessThan(256);
+      expect(final.physicalState.capacitors[0].voltageVolt).not.toBe(0);
+      if (physical) {
+        expect(
+          final.physicalState.thermal.find(
+            (row: { componentId: string }) => row.componentId === 'led',
+          ).accumulatedDamage,
+        ).toBeGreaterThan(0);
+        expect(final.physicalState.motors[0].accumulatedDamage).toBeGreaterThan(0);
+        expect(final.physicalState.motors[0].motorAngularVelocityRadPerSecond).toBeGreaterThan(0);
+      }
+    },
+  );
 });

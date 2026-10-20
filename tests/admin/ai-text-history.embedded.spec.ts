@@ -39,7 +39,7 @@ beforeAll(async () => {
   const plan = planMigrations('migrations');
   await applyPlan(
     adapter,
-    plan.filter((migration) => migration.version < '0227'),
+    plan.filter((migration) => migration.version < '0228'),
   );
   const identity = await aiIdentity(admin);
   const thread = (
@@ -74,7 +74,7 @@ afterAll(async () => {
   await db?.close();
 });
 
-it('0227 forward upgrade preserves original messages, microseconds, source relation and both paid ledgers', async () => {
+it('0228 forward upgrade preserves original messages, microseconds, source relation and both paid ledgers', async () => {
   expect(
     (
       await admin.query(

@@ -37,6 +37,17 @@ tests:
     owner: admin-auth
     artifacts: [playwright-report, auth-confirmation-screenshots, exact-build-metadata]
 
+  - id: TST-ACCOUNT-CONFIRMATION-INSTALL-001
+    title: Preserve authentication secrets during Windows and Linux installation
+    suite: authorization
+    level: system
+    phase_available: PHASE-12
+    required_for: [TASK-ACCOUNT-CONFIRMATION-001]
+    command: pnpm test:auth-confirmation:installation
+    timeout_seconds: 300
+    owner: admin-auth
+    artifacts: [installer-fixture-test-output]
+
   - id: TST-ASA-ACCESS-A-CORE-001
     title: Access A identity, account, authorization, fresh schema and supported upgrade
     suite: authorization
