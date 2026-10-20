@@ -75,6 +75,12 @@ def attest_backup_mounts(root, config):
     expected_store = (Path(root) / ".asa" / "diagnostics" / "store").resolve()
     for name, service in config["services"].items():
         for mount in service.get("volumes", []):
+            # The pinned Caddy ACME certificate store is regenerable after
+            # a host move; it is not user data and must stay attached.
+            if (name == "web" and mount.get("type") == "volume"
+                    and mount.get("target") == "/var/lib/asa-caddy"
+                    and mount.get("source") == "caddy-data"):
+                continue
             if (name == "api" and mount.get("type") == "bind"
                     and mount.get("target") == "/var/lib/asa-logs"
                     and mount.get("read_only") is True

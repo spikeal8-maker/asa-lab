@@ -37,7 +37,10 @@ ENV ASA_BUILD_REVISION="${ASA_BUILD_REVISION}"
 ENV XDG_CONFIG_HOME=/tmp/caddy-config
 ENV XDG_DATA_HOME=/tmp/caddy-data
 
-RUN setcap -r /usr/bin/caddy
+# Keep ACME certificates in the existing, unprivileged Web container.
+RUN mkdir -p /var/lib/asa-caddy \
+    && chown 65534:65534 /var/lib/asa-caddy \
+    && setcap -r /usr/bin/caddy
 
 COPY docker/web/Caddyfile /etc/caddy/Caddyfile
 COPY --chmod=0555 docker/web/start.sh /usr/local/bin/asa-web-start

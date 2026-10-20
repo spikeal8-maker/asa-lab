@@ -73,10 +73,17 @@ The helper records the exact Git revision in the image and derives the expected
 schema from the checked-out migration files. `/health/ready` then fails closed
 when the running database schema does not match that checkout.
 
-Only Web is published, by default on `127.0.0.1:4610`. PostgreSQL and API stay
-on private Compose networks. Put an operator-managed TLS reverse proxy in front
-of 4610 when remote access is required; do not switch to host networking and do
-not publish PostgreSQL.
+Only Web is published by default on `127.0.0.1:4610`. PostgreSQL, API and MinIO
+stay on private Compose networks. On a **fresh production server** the canonical
+manager can enable HTTPS directly in the **existing Web/Caddy** with
+`python tools/asa_manager.py install --profile production --public-domain asa-lab.ru`.
+This selects `compose.public.yaml`, serving public Web ports 80/443 while retaining
+loopback `4610` and using a named Caddy certificate volume. Do not add a second
+Caddy service or publish PostgreSQL. Existing FRP-based installations are not
+automatically switched; read [`PUBLIC_HTTPS_OPERATIONS.md`](PUBLIC_HTTPS_OPERATIONS.md)
+before changing an existing Compose project, persistent data or domain routing.
+The source-build `asa-lab.sh up` command in this section is a different operation
+from the pinned-image portable manager and must not replace a release-managed install.
 
 The lifecycle is:
 

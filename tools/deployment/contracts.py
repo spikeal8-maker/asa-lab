@@ -45,6 +45,15 @@ def exact_origin(value):
     return value
 
 
+def validate_public_domain(value):
+    """Only an exact lowercase hostname may become a Caddy site address."""
+    require(isinstance(value, str) and 4 <= len(value) <= 253
+            and re.fullmatch(r'(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?', value),
+            'PUBLIC_DOMAIN', 'A public domain must be lowercase DNS only, with no scheme, port or slash.',
+            'Use the canonical hostname, for example asa-lab.ru.')
+    return value
+
+
 def attest_proxy_policy(env):
     """Two distinct trust boundaries; values never become application identity."""
     for key, default, separator in (

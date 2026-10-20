@@ -18,6 +18,9 @@ AGENTS.md
 Для установки, расписания обновлений и полного экспорта данных входная точка —
 [`PORTABLE_OPERATIONS.md`](docs/deployment/PORTABLE_OPERATIONS.md). Сначала найдите
 канонический каталог PostgreSQL; не разворачивайте вторую копию из worktree.
+Для публичного HTTPS, переключения `asa-lab.ru`, миграции работающего Docker или переноса на другой компьютер также обязательно прочитать
+[`PUBLIC_HTTPS_OPERATIONS.md`](docs/deployment/PUBLIC_HTTPS_OPERATIONS.md).
+Сетевой вход должен оставаться в одной установке ASA Lab; не создавать ещё один Caddy/Compose-проект и не переносить пароли в GitHub.
 Для любых изменений install/update/backup/restore, сетевого входа, origin/ports,
 переноса на другой host или добавления нового self-hosted сервиса также обязательны
 [Portable Self-Hosted Deployment Standard](docs/architecture/PORTABLE_SELF_HOSTED_DEPLOYMENT_STANDARD.md)
