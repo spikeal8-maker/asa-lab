@@ -3967,7 +3967,9 @@ test('Course Activity blocks preserve mixed order, exact Electronics/3D work and
       )
     ).rows[0]?.count,
   ).toBe(0);
-  await expect(electronicsCard.getByRole('status')).toHaveText('На проверке');
+  await expect(electronicsCard.getByRole('status')).toHaveText(
+    'Сдано · результат ещё не опубликован',
+  );
   await expect(player.getByTestId('lesson-progress')).toContainText('Практики: 0 из 2');
 
   const afterElectronicsSubmit = await openCourse();
@@ -3979,7 +3981,7 @@ test('Course Activity blocks preserve mixed order, exact Electronics/3D work and
   expect(untouchedThreeD.canonicalState?.workflowState).toBe('not_started');
   electronicsCard = player.locator('.lesson-activity-block').filter({ hasText: electronicsTitle });
   threeDCard = player.locator('.lesson-activity-block').filter({ hasText: threeDTitle });
-  await expect(electronicsCard).toContainText('На проверке');
+  await expect(electronicsCard).toContainText('Сдано · результат ещё не опубликован');
   await expect(threeDCard).toContainText('Не начато');
   await expect(threeDCard.getByRole('button', { name: 'Начать', exact: true })).toBeVisible();
   await reviewExact(firstContext.workflow.attemptId);
@@ -4080,14 +4082,16 @@ test('Course Activity blocks preserve mixed order, exact Electronics/3D work and
   await threeDCard.getByRole('button', { name: 'Сдать', exact: true }).click();
   expect((await threeDSubmission).status()).toBe(200);
   await expect(player.getByTestId('lesson-progress')).toContainText('Практики: 1 из 2');
-  await expect(player.getByTestId('lesson-next-action')).toHaveText('Ожидайте проверки');
+  await expect(player.getByTestId('lesson-next-action')).toHaveText(
+    'Результат сданной работы ещё не опубликован. Обратитесь к преподавателю.',
+  );
   await learner.page.setViewportSize({ width: 320, height: 844 });
   await expect(player.getByTestId('lesson-next-action')).toBeVisible();
   expect(
     await learner.page.evaluate(() => document.documentElement.scrollWidth - innerWidth),
   ).toBeLessThanOrEqual(1);
   await learner.page.screenshot({
-    path: `${progressDirectory}/waiting-review-320.png`,
+    path: `${progressDirectory}/submitted-result-unavailable-320.png`,
     fullPage: true,
   });
   await reviewExact(secondContext.workflow.attemptId);
