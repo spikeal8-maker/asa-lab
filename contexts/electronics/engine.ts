@@ -1,5 +1,6 @@
 import {
   advanceArduinoCircuitClock,
+  createOwnedArduinoCircuitClockRequest,
   type ArduinoCircuitClockAdvance,
   type ArduinoCircuitClockState,
   type ArduinoCircuitInputEvent,
@@ -13,11 +14,21 @@ import {
 import {
   analyseCircuit,
   compileCircuit,
+  simulationModelSetDigest,
   type SimulationQuality,
   type SimulationResult,
   type SimulationStatus,
 } from './domain/simulation.js';
+import { simulationInputDigest } from './domain/simulation-input-digest.js';
 import type { ComponentResult, Diagnostic, NodeResult } from './domain/solver.js';
+import { type ElectronicsLedTemporalObservation } from './domain/led-temporal-observation.js';
+export type {
+  ElectronicsLedTemporalObservation,
+  ElectronicsLedTemporalComponent,
+  ElectronicsLedTemporalSample,
+  ElectronicsArduinoIndicatorSample,
+  ElectronicsArduinoIndicatorTemporal,
+} from './domain/led-temporal-observation.js';
 
 export const ELECTRONICS_ENGINE_CONTRACT_VERSION = 1 as const;
 export const ELECTRONICS_TIMED_ENGINE_CONTRACT_VERSION = 1 as const;
@@ -119,6 +130,7 @@ export interface ElectronicsTimedObservation {
   readonly numericalResidual: number;
   readonly numericalTolerance: number;
   readonly quality: SimulationQuality;
+  readonly ledTemporal?: ElectronicsLedTemporalObservation;
 }
 
 export type ElectronicsTimedAdvanceResult =
@@ -347,6 +359,47 @@ export function advanceElectronicsToHorizon(
   document: ElectronicsEngineDocument,
   request: ElectronicsTimedAdvanceRequest,
 ): ElectronicsTimedAdvanceResult {
+  return advanceElectronicsRequest(document, request, false).next().value!;
+}
+
+/** Each next() performs at most maxEvents canonical MCU/barrier work; null means pending. */
+export function createElectronicsAdvanceSession(
+  document: ElectronicsEngineDocument,
+  request: ElectronicsTimedAdvanceRequest,
+  options: { readonly observeLedTemporal?: boolean } = {},
+) {
+  // The caller can change its document/state while the Worker yields; own this request snapshot.
+  const ownedDocument = structuredClone(document);
+  const ownedRequest = structuredClone(request);
+  const ownership = createOwnedArduinoCircuitClockRequest(ownedDocument, ownedRequest);
+  const iterator = advanceElectronicsRequest(
+    ownedDocument,
+    ownedRequest,
+    true,
+    options.observeLedTemporal === true,
+    ownership,
+  );
+  let disposed = false;
+  const dispose = () => {
+    if (disposed) return;
+    disposed = true;
+    iterator.return(undefined as never);
+  };
+  return {
+    step: () => (disposed ? undefined : iterator.next().value!),
+    dispose,
+  };
+}
+
+function* advanceElectronicsRequest(
+  document: ElectronicsEngineDocument,
+  request: ElectronicsTimedAdvanceRequest,
+  internalBatches: boolean,
+  observeLedTemporal = false,
+  ownership?: ReturnType<typeof createOwnedArduinoCircuitClockRequest>,
+): Generator<null, ElectronicsTimedAdvanceResult, void> {
+  // Recheck before even the initial structural/model guards can call a producer.
+  ownership?.check();
   const state = request.state ?? resetElectronicsTimedState();
   const previousContinuation = state.continuation;
   const previousCommitted = previousContinuation?.committedHorizonMicroseconds ?? 0;
@@ -363,7 +416,11 @@ export function advanceElectronicsToHorizon(
     };
   }
 
-  const modelSetDigest = analyseCircuit(document).modelSetDigest;
+  // Preserve the old structural validation and exception priority before continuation guards.
+  // The registry identity itself does not require a separate numerical solve/quality check.
+  compileCircuit(document);
+  simulationInputDigest(document, 0);
+  const modelSetDigest = simulationModelSetDigest();
   let previous: ArduinoCircuitClockState | undefined;
   if (previousContinuation) {
     const decoded = decodeTimedContinuation(previousContinuation, modelSetDigest);
@@ -407,15 +464,41 @@ export function advanceElectronicsToHorizon(
   }
 
   const inputs = [...(previous?.inputs ?? []), ...appendedInputs];
-  const advanced = advanceArduinoCircuitClock(
-    document,
-    request.requestedHorizonMicroseconds,
-    previous,
-    {
-      inputs,
-      ...(request.maxEvents === undefined ? {} : { maxClockEvents: request.maxEvents }),
-    },
-  );
+  const options = {
+    inputs,
+    ...(request.maxEvents === undefined ? {} : { maxClockEvents: request.maxEvents }),
+  };
+  const driver =
+    internalBatches && ownership
+      ? ownership.create(
+          request.requestedHorizonMicroseconds,
+          previous,
+          options,
+          observeLedTemporal,
+        )
+      : null;
+  let opticalObservation: ElectronicsLedTemporalObservation | null | undefined;
+  let advanced: ArduinoCircuitClockAdvance;
+  try {
+    do {
+      if (driver) {
+        const next = driver.step()!;
+        advanced = next.advanced;
+        opticalObservation = next.ledTemporal;
+      } else
+        advanced = advanceArduinoCircuitClock(
+          document,
+          request.requestedHorizonMicroseconds,
+          previous,
+          options,
+        );
+      if (!internalBatches || advanced.executionStatus !== 'yielded') break;
+      previous = advanced.state ?? undefined;
+      yield null;
+    } while (true);
+  } finally {
+    driver?.dispose();
+  }
 
   if (advanced.executionStatus === 'fault' || !advanced.state) {
     return {
@@ -466,7 +549,10 @@ export function advanceElectronicsToHorizon(
     requestedHorizonMicroseconds: request.requestedHorizonMicroseconds,
     committedHorizonMicroseconds: advanced.state.reachedMicroseconds,
     state: nextState,
-    observation: timedObservation(advanced.result),
+    observation: {
+      ...timedObservation(advanced.result),
+      ...(opticalObservation ? { ledTemporal: opticalObservation } : {}),
+    },
     diagnostics: advanced.diagnostics,
   };
 }

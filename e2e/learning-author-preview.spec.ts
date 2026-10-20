@@ -1042,10 +1042,12 @@ test('course and section forms preserve later edits after real save receipts wit
     const later = { title: `${label} B`, summary: `${label} description B` };
     const remote = { title: `${label} in another window`, summary: 'Another author edit' };
     const title = form.getByLabel('Название', { exact: true });
-    const summary = form.getByLabel(
-      kind === 'course' ? 'Короткое описание' : 'Описание, если нужно',
-      { exact: true },
-    );
+    // React also updates the nested textarea's text node, so exact label text
+    // includes the current value. Its textbox accessible name stays unchanged.
+    const summary = form.getByRole('textbox', {
+      name: kind === 'course' ? 'Короткое описание' : 'Описание, если нужно',
+      exact: true,
+    });
     await title.fill(sent.title);
     await summary.fill(sent.summary);
     let release!: () => void;
@@ -1181,7 +1183,7 @@ test('course and section forms preserve later edits after real save receipts wit
   ).toBeVisible();
   await editor.getByRole('button', { name: 'Настройки', exact: true }).click();
   await expect(form.getByLabel('Название', { exact: true })).toHaveValue('Existing course B');
-  await expect(form.getByLabel('Короткое описание', { exact: true })).toHaveValue(
+  await expect(form.getByRole('textbox', { name: 'Короткое описание', exact: true })).toHaveValue(
     'Existing course description B',
   );
   await saveWhileTyping('course', `/api/courses/${courseId}`, 'PATCH', 'Conflict course', true);

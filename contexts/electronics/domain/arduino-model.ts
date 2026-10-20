@@ -1,6 +1,7 @@
 import type { SchematicComponent, Terminal } from './document.js';
 import { arduinoServoWaveforms } from './arduino-servo-runtime.js';
 import { arduinoWaveformLevel, isArduinoTimedWaveformState } from './arduino-waveform-runtime.js';
+import { captureDeviceModelDefinition } from './models/device-model.js';
 import {
   advanceArduinoRuntime,
   type ArduinoInputReader,
@@ -14,6 +15,13 @@ export const ARDUINO_GROUND_TERMINALS = [
   'power-gnd-2',
   'gnd-top',
 ] as const satisfies readonly Terminal[];
+
+const groundDefinitionIsOriginal = captureDeviceModelDefinition(ARDUINO_GROUND_TERMINALS);
+
+/** Package-internal origin of the shared ground array, including its own methods. */
+export function arduinoGroundTerminalsHaveOriginalDefinition(): boolean {
+  return groundDefinitionIsOriginal();
+}
 
 export interface ArduinoOutputBranch {
   readonly id: string;

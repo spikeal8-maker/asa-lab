@@ -108,3 +108,36 @@ the maintenance author stops. The controller continues the already authorized
 and separately selected D13 browser/review/CI integration work, then the owner's
 remaining visible classroom programme. This maintenance outcome grants no new
 E-OPT stage, deployment, school database, Docker, network or protected-data action.
+
+## Revision 3: selected native resource and host responsibility review
+
+This further bounded selection extends the earlier two-source growth review
+only because the frozen D13 native renderer proposal is88440bytes against its
+existing72432byte review, exceeding the unchanged20% growth limit.
+The companion host proposal is123931bytes against103385; its actual final
+formatted size must be checked, without rounding or adding headroom.
+
+Review ProductionComponentVisual.tsx's coherent native element/resource lifetime
+boundary and use-electronics-workbench.ts's prepared/ready/joint-commit/ACK
+boundary against the exact composed product and mapped regressions. Under
+ENGINEERING_HYGIENE_CONTRACT section6 crossing a size threshold requires this
+responsibility review, not automatic file splitting. Preserve existing generic
+asset handling, component rendering and host/domain boundaries; any product
+repair remains separately authored in the selected D13 scope.
+
+After independent responsibility review, update the renderer entry to exact
+actual final formatted bytes and its evidenced rationale. The host entry may
+change only if its exact final formatted bytes exceed the existing20% review
+limit. Otherwise retain it verbatim. No other baseline entry or policy,
+decomposition-candidate class, retirement condition or prior scheduler/runtime
+evidence changes. Append distinct R3 evidence; preserve original f967 failures
+and prior routing/governance receipts as historical matching-source evidence.
+
+Only this taskcard, hygiene-baseline.yaml and the existing
+classroom-retained-source-responsibility-641-20261019.md evidence record are
+selected maintenance author paths. production_source_changed=false and
+full_hygiene_checkpoint=false remain; the production-slice ledger is not reset.
+Final independent baseline/evidence diff review and actual targeted routing,
+full routing and governance on the matching composed source are required.
+This selection is not maintenance/product acceptance, a real-time waiver or an
+installation permission.

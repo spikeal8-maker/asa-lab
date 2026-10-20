@@ -2,6 +2,7 @@ import type { SchematicComponent } from '../document.js';
 import type { ComponentResult } from '../solver.js';
 import { isElectrolyticCapacitor } from './capacitor-transient-model.js';
 import { INCANDESCENT_LAMP_THERMAL_PROFILE } from './incandescent-lamp-model.js';
+import { captureDeviceModelDefinition } from './device-model.js';
 
 export interface ThermalProfile {
   readonly id: string;
@@ -90,6 +91,16 @@ const PROFILES = {
     failureDelayAtDestructiveSeconds: 1.5,
   },
 } as const satisfies Record<string, ThermalProfile>;
+
+const strictThermalDefinitionsAreOriginal = captureDeviceModelDefinition([
+  PROFILES.resistor,
+  PROFILES.junction,
+]);
+
+/** The strict Arduino/resistor/ordinary LED route reaches only these two profiles. */
+export function strictThermalProfilesHaveOriginalDefinition(): boolean {
+  return strictThermalDefinitionsAreOriginal();
+}
 
 export function thermalProfileFor(component: SchematicComponent): ThermalProfile | null {
   if (isElectrolyticCapacitor(component)) return PROFILES.capacitor;

@@ -3,6 +3,7 @@ import { resolve } from 'node:path';
 import { test, expect, type Locator, type Page, type Request } from '@playwright/test';
 import { buildNetlist, terminalKey } from '../contexts/electronics/domain/netlist';
 import type { SchematicDocument } from '../apps/web/src/api';
+import { localProjectDraftKey } from '../apps/web/src/modules/project-local-draft';
 import {
   configureProductionLibrary,
   productionBreadboard,
@@ -1154,16 +1155,48 @@ async function openEditor(
     revision,
     updatedAt: '2026-09-09T00:00:00Z',
   });
-  await page.addInitScript(() => {
-    const original = Storage.prototype.setItem;
-    (window as unknown as { draftWrites: number }).draftWrites = 0;
-    Storage.prototype.setItem = function (key, value) {
-      if (key.includes('draft')) {
-        (window as unknown as { draftWrites: number }).draftWrites++;
-      }
-      return original.call(this, key, value);
-    };
-  });
+  await page.addInitScript(
+    ({ prefix, projectId, userId }) => {
+      const original = Storage.prototype.setItem;
+      (window as unknown as { draftWrites: number }).draftWrites = 0;
+      Storage.prototype.setItem = function (key, value) {
+        const result = original.call(this, key, value);
+        // One durable writer record is one local commit. Reload hints, mirrors
+        // and byte acknowledgements are separate storage operations.
+        if (
+          this === window.localStorage &&
+          key.startsWith(prefix) &&
+          key.length > prefix.length &&
+          !key.endsWith(':ack') &&
+          this.getItem(key) === value
+        ) {
+          try {
+            const draft = JSON.parse(value) as Record<string, unknown>;
+            if (
+              draft['schemaVersion'] === 3 &&
+              draft['projectId'] === projectId &&
+              draft['userId'] === userId &&
+              draft['identityKind'] === 'account' &&
+              draft['moduleKey'] === 'electronics' &&
+              Number.isSafeInteger(draft['baseRevision']) &&
+              typeof draft['document'] === 'object' &&
+              draft['document'] !== null &&
+              !Array.isArray(draft['document'])
+            )
+              (window as unknown as { draftWrites: number }).draftWrites++;
+          } catch {
+            // An invalid or unconfirmed write cannot prove a document commit.
+          }
+        }
+        return result;
+      };
+    },
+    {
+      prefix: localProjectDraftKey(ID, user.id, 'account') + ':electronics-editor:',
+      projectId: ID,
+      userId: user.id,
+    },
+  );
   await page.route('**/api/**', async (route) => {
     const path = new URL(route.request().url()).pathname;
     let body: unknown;
@@ -1354,7 +1387,7 @@ test.describe('asset recovery in the built editor', () => {
     );
     await expect.poll(() => failedMaskRequests).toBe(1);
     await expect(part(page, 'battery')).toHaveAttribute('data-hit-mask-status', 'ready');
-    await expect(part(page, 'led').locator('image.workbench-led-asset')).toHaveAttribute(
+    await expect(part(page, 'led').locator('image.workbench-led-asset').first()).toHaveAttribute(
       'href',
       /\.svg$/,
     );
@@ -1902,7 +1935,7 @@ test.describe('asset recovery in the built editor', () => {
     const writes = await page.evaluate(
       () => (window as unknown as { draftWrites: number }).draftWrites,
     );
-    await expect(part(page, 'led').locator('image.workbench-led-asset')).toHaveAttribute(
+    await expect(part(page, 'led').locator('image.workbench-led-asset').first()).toHaveAttribute(
       'href',
       /asa-image-retry=0/,
       { timeout: 10_000 },
@@ -2548,6 +2581,24 @@ touchVideoTest.describe('interaction: native touch', () => {
     async ({ page, context }) => {
       await openEditor(page);
       const shelf = page.locator('.workbench-catalog-grid');
+      // The schematic can mount before its lazy catalog. Native CDP input has
+      // no locator auto-wait, so first prove that the actual gesture surface exists.
+      await expect(shelf).toBeVisible();
+      await expect(shelf.getByRole('button', { name: 'Резистор', exact: true })).toBeVisible();
+      await expect
+        .poll(() =>
+          shelf.evaluate((el) => {
+            const box = el.getBoundingClientRect();
+            return (
+              el.scrollWidth - el.clientWidth > 100 &&
+              box.left <= 340 &&
+              box.right > 340 &&
+              box.top <= 775 &&
+              box.bottom > 775
+            );
+          }),
+        )
+        .toBe(true);
       const session = await context.newCDPSession(page);
       const send = (
         type: 'touchStart' | 'touchMove' | 'touchEnd',

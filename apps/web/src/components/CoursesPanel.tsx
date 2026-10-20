@@ -23,6 +23,28 @@ import './courses-panel.css';
 
 type MutationResult = Promise<{ ok: boolean; error?: { message: string } }>;
 
+type VisibilityWriteState = 'pending' | 'unconfirmed' | null;
+const unconfirmedVisibilityMessage =
+  'Не удалось подтвердить изменение видимости. Несохранённые правки остались в форме. Для продолжения откройте «Задания», подтвердите отмену правок и снова откройте курс.';
+
+function visibilityReceiptIsValid(
+  receipt: unknown,
+  hidden: boolean,
+  expectedRevision: number,
+): receipt is { hidden: boolean; draftRevision: number } {
+  if (receipt === null || typeof receipt !== 'object') return false;
+  const value = receipt as { hidden?: unknown; draftRevision?: unknown };
+  // These endpoints lock the course and either do nothing or increment once.
+  // A later current revision is not a receipt for this visibility command.
+  return (
+    value.hidden === hidden &&
+    typeof value.draftRevision === 'number' &&
+    Number.isSafeInteger(value.draftRevision) &&
+    value.draftRevision > 0 &&
+    (value.draftRevision === expectedRevision || value.draftRevision === expectedRevision + 1)
+  );
+}
+
 interface CourseFormValue {
   title: string;
   summary: string | null;
@@ -350,6 +372,7 @@ function LessonEditor({
   onSave,
   onDirty,
   onDelete,
+  saveBlockedMessage,
 }: {
   readonly sections: readonly CourseSection[];
   readonly sectionId: string;
@@ -358,6 +381,7 @@ function LessonEditor({
   readonly onSave: (input: CourseLessonInput) => Promise<void>;
   readonly onDelete: (() => Promise<void>) | null;
   readonly onDirty: () => void;
+  readonly saveBlockedMessage: string | null;
 }): JSX.Element {
   const [targetSection, setTargetSection] = useState(sectionId);
   const [title, setTitle] = useState(lesson?.title ?? '');
@@ -383,6 +407,7 @@ function LessonEditor({
     title.trim().length > 0 &&
     (kind === 'material' || assignmentId.length > 0) &&
     lessonBlocksValid(blocks) &&
+    !saveBlockedMessage &&
     !saving;
 
   async function submit(event: FormEvent): Promise<void> {
@@ -525,7 +550,7 @@ function LessonEditor({
       </label>
 
       <div className="course-editor-actions">
-        <span>Изменения сохраняются после нажатия кнопки.</span>
+        <span>{saveBlockedMessage ?? 'Изменения сохраняются после нажатия кнопки.'}</span>
         <button type="submit" className="btn-primary" disabled={!valid}>
           {saving ? 'Сохраняем…' : lesson ? 'Сохранить урок' : 'Добавить урок'}
         </button>
@@ -651,6 +676,7 @@ function CourseEditor({
   canTeach,
   onRegisterLeaveGuard,
   onSectionWorkChange,
+  onEditorWorkChange,
 }: {
   readonly course: Course;
   readonly unavailableMessage: string | null;
@@ -662,6 +688,7 @@ function CourseEditor({
   readonly canTeach: boolean;
   readonly onRegisterLeaveGuard?: (guard: (() => boolean) | null) => void;
   readonly onSectionWorkChange: (value: boolean) => void;
+  readonly onEditorWorkChange: (value: boolean) => void;
 }): JSX.Element {
   const [localDirty, setLocalDirty] = useState(false);
   const localDirtyRef = useRef(false);
@@ -672,11 +699,14 @@ function CourseEditor({
     editGeneration.current += 1;
     localDirtyRef.current = true;
     setLocalDirty(true);
+    onEditorWorkChange(true);
   };
   const [sections, setSections] = useState<CourseSection[] | null>(null);
   const [draftRevision, setDraftRevision] = useState(course.draftRevision);
   const draftRevisionRef = useRef(course.draftRevision);
   const revisionRefreshRef = useRef<Promise<boolean> | null>(null);
+  const visibilityWriteRef = useRef<VisibilityWriteState>(null);
+  const [visibilityWrite, setVisibilityWrite] = useState<VisibilityWriteState>(null);
   const [selectedLessonId, setSelectedLessonId] = useState<string | null>(null);
   const [newLessonSectionId, setNewLessonSectionId] = useState<string | null>(null);
   const createdLessonIdRef = useRef<string | null>(null);
@@ -694,10 +724,25 @@ function CourseEditor({
     value: CourseAssignAttempt;
   } | null>(null);
   const [assignBusy, setAssignBusy] = useState(false);
-  const hasWork = localDirty || sectionWork || writing || previewBusy || restoreBusy;
+  const hasWork =
+    localDirty || sectionWork || writing || previewBusy || restoreBusy || visibilityWrite !== null;
   const [publishing, setPublishing] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const visibilitySaveBlock =
+    visibilityWrite === 'pending'
+      ? 'Изменяем видимость. Дождитесь подтверждения перед сохранением урока.'
+      : visibilityWrite === 'unconfirmed'
+        ? 'Сохранение недоступно: изменение видимости не подтверждено.'
+        : null;
+  const lessonSaveBlock = unavailableMessage
+    ? 'Курс недоступен. Сохранение урока остановлено.'
+    : visibilitySaveBlock;
+  useEffect(() => {
+    // Read the refs as well: an older effect must not clear work reported
+    // synchronously by input or by a just-started visibility command.
+    onEditorWorkChange(hasWork || localDirtyRef.current || visibilityWriteRef.current !== null);
+  }, [hasWork, onEditorWorkChange]);
 
   const setSectionWorkState = useCallback(
     (value: boolean) => {
@@ -707,11 +752,21 @@ function CourseEditor({
     [onSectionWorkChange],
   );
   function canLeave(): boolean {
-    if (writing || publishing || previewBusy || assignBusy || restoreBusy) return false;
+    if (
+      writing ||
+      publishing ||
+      previewBusy ||
+      assignBusy ||
+      restoreBusy ||
+      visibilityWriteRef.current === 'pending'
+    )
+      return false;
     if (localDirtyRef.current || sectionWork)
       return window.confirm(
         'Есть несохранённые изменения курса. Покинуть редактор без сохранения?',
       );
+    if (visibilityWriteRef.current === 'unconfirmed')
+      return window.confirm('Изменение видимости не подтверждено. Всё равно покинуть редактор?');
     if (assignmentAttempt.current?.value.submitted && !assignmentAttempt.current.value.completed)
       return window.confirm(
         'Назначение курса не подтверждено. Вернитесь и повторите попытку, чтобы избежать дубликата. Всё равно покинуть редактор?',
@@ -740,9 +795,12 @@ function CourseEditor({
 
   const loadOutline = useCallback(
     async (force = false) => {
+      if (unavailableMessage) return false;
+      if (visibilityWriteRef.current) return false;
       if (localDirtyRef.current && !force) return false;
       const generation = editGeneration.current;
       const result = await api.courseOutline(course.id);
+      if (visibilityWriteRef.current) return false;
       // A request started before a local edit must not replace the save
       // receipt's revision or report a stale fetch error. A newer remote
       // revision is still worth reporting while that edit remains unsaved.
@@ -791,7 +849,7 @@ function CourseEditor({
       });
       return true;
     },
-    [course.id, course.draftRevision],
+    [course.id, course.draftRevision, unavailableMessage],
   );
 
   useEffect(() => {
@@ -806,6 +864,20 @@ function CourseEditor({
     return null;
   }, [sections, selectedLessonId]);
   function withSavedDraft(action: () => void): void {
+    if (unavailableMessage) {
+      setNotice(null);
+      setError(unavailableMessage);
+      return;
+    }
+    if (visibilityWriteRef.current) {
+      setNotice(null);
+      setError(
+        visibilityWriteRef.current === 'unconfirmed'
+          ? unconfirmedVisibilityMessage
+          : 'Дождитесь подтверждения изменения видимости.',
+      );
+      return;
+    }
     if (localDirtyRef.current || sectionWork || writing || publishing || assignBusy) {
       setNotice(null);
       setError('Сначала сохраните изменения урока. Переход не выполнен, данные не потеряны.');
@@ -815,6 +887,20 @@ function CourseEditor({
   }
 
   async function act(run: () => MutationResult, done: string): Promise<boolean> {
+    if (unavailableMessage) {
+      setNotice(null);
+      setError(unavailableMessage);
+      return false;
+    }
+    if (visibilityWriteRef.current) {
+      setNotice(null);
+      setError(
+        visibilityWriteRef.current === 'unconfirmed'
+          ? unconfirmedVisibilityMessage
+          : 'Дождитесь подтверждения изменения видимости.',
+      );
+      return false;
+    }
     if (localDirtyRef.current || writing || publishing || assignBusy) {
       setNotice(null);
       setError('Сначала сохраните изменения урока. Структура курса не изменена.');
@@ -825,6 +911,7 @@ function CourseEditor({
       return false;
     }
     setWriting(true);
+    onEditorWorkChange(true);
     try {
       const result = await run();
       if (!result.ok) {
@@ -841,7 +928,89 @@ function CourseEditor({
     }
   }
 
+  async function setVisibility(
+    kind: 'lesson' | 'section',
+    id: string,
+    hidden: boolean,
+  ): Promise<void> {
+    const expectedRevision = draftRevisionRef.current;
+    const done =
+      kind === 'lesson'
+        ? hidden
+          ? 'Урок скрыт.'
+          : 'Урок показан.'
+        : hidden
+          ? 'Раздел скрыт.'
+          : 'Раздел показан.';
+    const completed = await act(async () => {
+      visibilityWriteRef.current = 'pending';
+      setVisibilityWrite('pending');
+      setNotice(null);
+      const unconfirmed = () => {
+        visibilityWriteRef.current = 'unconfirmed';
+        setVisibilityWrite('unconfirmed');
+        return { ok: false, error: { message: unconfirmedVisibilityMessage } };
+      };
+      try {
+        const result =
+          kind === 'lesson'
+            ? await api.setCourseLessonHidden(course.id, id, hidden, expectedRevision)
+            : await api.setCourseSectionHidden(course.id, id, hidden, expectedRevision);
+        if (!result.ok) {
+          if (result.status === 0 || result.status >= 500) return unconfirmed();
+          visibilityWriteRef.current = null;
+          setVisibilityWrite(null);
+          return result;
+        }
+        if (
+          !visibilityReceiptIsValid(result.data, hidden, expectedRevision) ||
+          draftRevisionRef.current !== expectedRevision
+        )
+          return unconfirmed();
+        // Retain the live lesson form and its generation. Only this command's
+        // exact revision and visibility flag may advance while the author types.
+        draftRevisionRef.current = result.data.draftRevision;
+        setDraftRevision(result.data.draftRevision);
+        setSections(
+          (current) =>
+            current?.map((section) =>
+              kind === 'section' && section.id === id
+                ? { ...section, hidden }
+                : kind === 'lesson'
+                  ? {
+                      ...section,
+                      lessons: section.lessons.map((lesson) =>
+                        lesson.id === id ? { ...lesson, hidden } : lesson,
+                      ),
+                    }
+                  : section,
+            ) ?? null,
+        );
+        visibilityWriteRef.current = null;
+        setVisibilityWrite(null);
+        return result;
+      } catch {
+        return unconfirmed();
+      }
+    }, done);
+    if (completed && localDirtyRef.current)
+      setNotice(done + ' Последние изменения урока ещё не сохранены.');
+  }
+
   async function saveLesson(lessonId: string | null, input: CourseLessonInput): Promise<void> {
+    if (unavailableMessage) {
+      setNotice(null);
+      setError(unavailableMessage);
+      return;
+    }
+    if (visibilityWriteRef.current) {
+      setError(
+        visibilityWriteRef.current === 'unconfirmed'
+          ? unconfirmedVisibilityMessage
+          : 'Дождитесь подтверждения изменения видимости.',
+      );
+      return;
+    }
     setWriting(true);
     try {
       const savingGeneration = editGeneration.current;
@@ -919,7 +1088,20 @@ function CourseEditor({
   const lessonCount = (sections ?? []).reduce((sum, section) => sum + section.lessons.length, 0);
 
   async function publishCourse(): Promise<void> {
-    if (publishing || localDirtyRef.current || sectionWork || writing || lessonCount === 0) return;
+    if (unavailableMessage) {
+      setNotice(null);
+      setError(unavailableMessage);
+      return;
+    }
+    if (
+      publishing ||
+      localDirtyRef.current ||
+      sectionWork ||
+      writing ||
+      visibilityWriteRef.current ||
+      lessonCount === 0
+    )
+      return;
     if (revisionRefreshRef.current) {
       setError('Дождитесь обновления содержания курса и повторите публикацию.');
       return;
@@ -981,6 +1163,11 @@ function CourseEditor({
     }
   }
   async function showPublished(assign = false): Promise<void> {
+    if (unavailableMessage) {
+      setNotice(null);
+      setError(unavailableMessage);
+      return;
+    }
     if (hasWork || publishing || assignBusy) {
       setError('Сначала сохраните изменения курса.');
       return;
@@ -1054,7 +1241,9 @@ function CourseEditor({
               <button
                 type="button"
                 className="btn-primary course-publish-button"
-                disabled={publishing || hasWork || sectionWork || lessonCount === 0}
+                disabled={
+                  publishing || hasWork || sectionWork || lessonCount === 0 || !!unavailableMessage
+                }
                 title={lessonCount === 0 ? 'Сначала добавьте хотя бы один урок' : undefined}
                 onClick={() => void publishCourse()}
               >
@@ -1111,9 +1300,9 @@ function CourseEditor({
             {notice}
           </p>
         ) : null}
-        {error ? (
+        {unavailableMessage || error ? (
           <p className="form-error course-inline-notice" role="alert">
-            {error}
+            {unavailableMessage ?? error}
           </p>
         ) : null}
 
@@ -1121,7 +1310,13 @@ function CourseEditor({
           kind="course"
           rootId={course.id}
           revision={draftRevision}
-          dirty={localDirty || sectionForm !== null || newLessonSectionId !== null}
+          dirty={
+            localDirty ||
+            sectionForm !== null ||
+            newLessonSectionId !== null ||
+            visibilityWrite !== null ||
+            unavailableMessage !== null
+          }
           onBusyChange={setRestoreBusy}
           onOpenDraft={async (sourceVersionNumber) => {
             setPreview(false);
@@ -1237,16 +1432,7 @@ function CourseEditor({
                               type="button"
                               onClick={() => {
                                 close();
-                                void act(
-                                  () =>
-                                    api.setCourseSectionHidden(
-                                      course.id,
-                                      section.id,
-                                      !section.hidden,
-                                      draftRevision,
-                                    ),
-                                  section.hidden ? 'Раздел показан.' : 'Раздел скрыт.',
-                                );
+                                void setVisibility('section', section.id, !section.hidden);
                               }}
                             >
                               {section.hidden ? 'Показать' : 'Скрыть'}
@@ -1336,16 +1522,7 @@ function CourseEditor({
                                   type="button"
                                   onClick={() => {
                                     close();
-                                    void act(
-                                      () =>
-                                        api.setCourseLessonHidden(
-                                          course.id,
-                                          lesson.id,
-                                          !lesson.hidden,
-                                          draftRevision,
-                                        ),
-                                      lesson.hidden ? 'Урок показан.' : 'Урок скрыт.',
-                                    );
+                                    void setVisibility('lesson', lesson.id, !lesson.hidden);
                                   }}
                                 >
                                   {lesson.hidden ? 'Показать' : 'Скрыть'}
@@ -1417,6 +1594,7 @@ function CourseEditor({
                   onSave={(input) => saveLesson(createdLessonIdRef.current, input)}
                   onDirty={markDirty}
                   onDelete={null}
+                  saveBlockedMessage={lessonSaveBlock}
                 />
               ) : selected ? (
                 <LessonEditor
@@ -1428,6 +1606,7 @@ function CourseEditor({
                   onSave={(input) => saveLesson(selected.lesson.id, input)}
                   onDirty={markDirty}
                   onDelete={deleteLesson}
+                  saveBlockedMessage={lessonSaveBlock}
                 />
               ) : (
                 <div className="course-workspace-empty">
@@ -1461,6 +1640,7 @@ function CourseEditor({
             onClose={() => setSectionForm(null)}
             onSave={async (value, target) => {
               if (
+                unavailableMessage ||
                 localDirtyRef.current ||
                 writing ||
                 publishing ||
@@ -1473,7 +1653,9 @@ function CourseEditor({
                   status: 409,
                   error: {
                     code: 'course_busy',
-                    message: 'Дождитесь сохранения и обновления курса, затем повторите действие.',
+                    message:
+                      unavailableMessage ??
+                      'Дождитесь сохранения и обновления курса, затем повторите действие.',
                   },
                 };
               }
@@ -1557,6 +1739,7 @@ export function CoursesPanel({
   const editorGuard = useRef<(() => boolean) | null>(null);
   const [formWork, setFormWork] = useState(false);
   const [sectionFormWork, setSectionFormWork] = useState(false);
+  const [editorWork, setEditorWork] = useState(false);
   const setFormWorkState = useCallback((value: boolean) => setFormWork(value), []);
   const registerEditorGuard = useCallback((guard: (() => boolean) | null) => {
     editorGuard.current = guard;
@@ -1674,18 +1857,18 @@ export function CoursesPanel({
   );
   const listedOpen =
     courses?.find((course) => course.id === openId && course.archivedAt === null) ?? null;
-  const hasMetadataWork = formWork || sectionFormWork;
+  const hasOpenWork = formWork || sectionFormWork || editorWork;
   useEffect(() => {
     if (listedOpen) {
       setOpenSnapshot(listedOpen);
-    } else if (courses !== null && !hasMetadataWork) {
+    } else if (courses !== null && !hasOpenWork) {
       setOpenSnapshot(null);
       setOpenId(null);
     }
-  }, [listedOpen, courses, hasMetadataWork]);
-  // Retain only the already open presentation while its metadata form has work.
+  }, [listedOpen, courses, hasOpenWork]);
+  // Retain the already open presentation while any editor/form has work.
   // The server list stays unchanged; this snapshot never restores an entity.
-  const open = listedOpen ?? (hasMetadataWork && openSnapshot?.id === openId ? openSnapshot : null);
+  const open = listedOpen ?? (hasOpenWork && openSnapshot?.id === openId ? openSnapshot : null);
   const unavailableMessage =
     'Курс больше недоступен для редактирования. Последние изменения остались в форме. Скопируйте их перед закрытием.';
   const courseFormUnavailable =
@@ -1710,6 +1893,7 @@ export function CoursesPanel({
           canTeach={canTeach}
           onRegisterLeaveGuard={registerEditorGuard}
           onSectionWorkChange={setSectionFormWork}
+          onEditorWorkChange={setEditorWork}
         />
         {courseForm ? (
           <CourseFormDialog

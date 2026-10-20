@@ -88,3 +88,73 @@ export interface DeviceModel<Parameters, Observation = never> {
   stampDc(context: DcStampContext, instance: NormalizedDevice<Parameters>): void;
   observe?(instance: NormalizedDevice<Parameters>, operatingPoint: DcOperatingPoint): Observation;
 }
+
+/**
+ * Capture only a defining module's original literal tree, before it is exported.
+ * This is a shape/origin check, not a freeze or authority for caller-supplied data.
+ * Checks inspect only captured objects; substituted values are never traversed.
+ */
+export function captureDeviceModelDefinition(root: object): () => boolean {
+  const originals = new Map<
+    object,
+    { prototype: object | null; properties: [PropertyKey, PropertyDescriptor][] }
+  >();
+  function capture(value: unknown): void {
+    if (
+      value === null ||
+      (typeof value !== 'object' && typeof value !== 'function') ||
+      originals.has(value)
+    )
+      return;
+    const properties = Reflect.ownKeys(value).map((key): [PropertyKey, PropertyDescriptor] => [
+      key,
+      Object.getOwnPropertyDescriptor(value, key)!,
+    ]);
+    originals.set(value, { prototype: Object.getPrototypeOf(value), properties });
+    for (const [, descriptor] of properties) {
+      if ('value' in descriptor) capture(descriptor.value);
+    }
+  }
+  capture(root);
+  return () => {
+    for (const [original, { prototype, properties }] of originals) {
+      if (Object.getPrototypeOf(original) !== prototype) return false;
+      const keys = Reflect.ownKeys(original);
+      if (keys.length !== properties.length) return false;
+      for (let index = 0; index < properties.length; index += 1) {
+        const [key, expected] = properties[index]!;
+        if (keys[index] !== key) return false;
+        const actual = Object.getOwnPropertyDescriptor(original, key);
+        if (
+          !actual ||
+          !('value' in actual) ||
+          !('value' in expected) ||
+          actual.enumerable !== expected.enumerable ||
+          actual.configurable !== expected.configurable ||
+          actual.writable !== expected.writable ||
+          !Object.is(actual.value, expected.value)
+        )
+          return false;
+      }
+    }
+    return true;
+  };
+}
+
+/** Capture one original own data selector without traversing unused model hooks. */
+export function captureDeviceModelOwnDataProperty(root: object, key: PropertyKey): () => boolean {
+  const expected = Object.getOwnPropertyDescriptor(root, key);
+  return () => {
+    const actual = Object.getOwnPropertyDescriptor(root, key);
+    return !!(
+      expected &&
+      'value' in expected &&
+      actual &&
+      'value' in actual &&
+      actual.enumerable === expected.enumerable &&
+      actual.configurable === expected.configurable &&
+      actual.writable === expected.writable &&
+      Object.is(actual.value, expected.value)
+    );
+  };
+}
