@@ -76,6 +76,7 @@ const manifest = {
     'teacher selects two learners and the third learner cannot see the assignment',
     'learner exact published task image stays pinned across v1 and v2',
     'A6 PDF material stays readable through exact direct assignment versions',
+    'A8.1 teacher reviews each exact mixed-lesson practice with history, navigation and revoked late responses',
   ],
 };
 const root = process.cwd();
@@ -534,7 +535,7 @@ function main() {
     write(path.join(evidence, 'summary.json'), {
       first: { cases: 30, exitCode: firstExitCode, status: firstExitCode ? 'FAIL' : 'PASS' },
       second: {
-        cases: 15,
+        cases: 16,
         exitCode: secondExitCode,
         status: secondExitCode === null ? 'NOT_RUN' : secondExitCode ? 'FAIL' : 'PASS',
       },
