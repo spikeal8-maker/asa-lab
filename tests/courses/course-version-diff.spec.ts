@@ -157,12 +157,14 @@ describe('courseVersionStructuralDiff', () => {
           category: 'Блоки',
           field: 'Блоки урока',
           kind: 'unavailable',
-          before: direction === 'forward'
-            ? { state: 'unavailable' }
-            : { state: 'value', value: lesson.blocks },
-          after: direction === 'forward'
-            ? { state: 'value', value: lesson.blocks }
-            : { state: 'unavailable' },
+          before:
+            direction === 'forward'
+              ? { state: 'unavailable' }
+              : { state: 'value', value: lesson.blocks },
+          after:
+            direction === 'forward'
+              ? { state: 'value', value: lesson.blocks }
+              : { state: 'unavailable' },
         }),
       ]);
       expect(JSON.stringify([before, after])).toBe(frozen);
@@ -247,7 +249,10 @@ describe('courseVersionStructuralDiff', () => {
     ])
       expect(changes).toContainEqual(expect.objectContaining({ category, field, kind: 'changed' }));
     expect(changes.filter((change) => change.category === 'Блоки')).toEqual([
-      expect.objectContaining({ kind: 'unavailable', path: expect.stringContaining('Новый урок 1') }),
+      expect.objectContaining({
+        kind: 'unavailable',
+        path: expect.stringContaining('Новый урок 1'),
+      }),
       expect.objectContaining({
         kind: 'changed',
         path: expect.stringContaining('Урок 2'),
@@ -266,7 +271,10 @@ describe('courseVersionStructuralDiff', () => {
       { id: 'practice', type: 'activity', learningActivityVersionId: 'lav1' },
     ];
     modern.pinnedActivities = [{ ...pin(), pointer: '/sections/0/lessons/0/blocks/0' }];
-    for (const [before, after] of [[legacy, modern], [modern, legacy]] as const)
+    for (const [before, after] of [
+      [legacy, modern],
+      [modern, legacy],
+    ] as const)
       expect(courseVersionChanges(before!, after!)).toEqual([
         expect.objectContaining({ category: 'Блоки', kind: 'unavailable' }),
       ]);
@@ -307,7 +315,9 @@ describe('courseVersionStructuralDiff', () => {
       [before, after, 'added'],
       [after, before, 'removed'],
     ] as const) {
-      const blocks = courseVersionChanges(left, right).filter((change) => change.category === 'Блоки');
+      const blocks = courseVersionChanges(left, right).filter(
+        (change) => change.category === 'Блоки',
+      );
       expect(blocks).toEqual([
         expect.objectContaining({ kind: 'unavailable' }),
         expect.objectContaining({ kind, path: expect.stringContaining('Новый урок') }),

@@ -443,7 +443,9 @@ export function courseVersionChanges(
   const previous = new Map(
     before.practices.filter(comparablePractice).map((item) => [item.id, item]),
   );
-  const current = new Map(after.practices.filter(comparablePractice).map((item) => [item.id, item]));
+  const current = new Map(
+    after.practices.filter(comparablePractice).map((item) => [item.id, item]),
+  );
   function exactPin(item: Practice | undefined): PublishedCoursePin | undefined {
     return item?.pin?.available && item.pin.versionId === item.reference ? item.pin : undefined;
   }
