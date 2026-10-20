@@ -230,7 +230,7 @@ describe('published copy / real HTTP and restricted PostgreSQL', () => {
       document_json: source.v1,
     });
     const ownership = await admin.query(
-      `SELECT id,tenant_id,owner_principal_id,scope,classroom_id FROM projects WHERE id=ANY($1::uuid[])`,
+      `SELECT id,tenant_id,owner_principal_id,project_scope AS scope,classroom_id FROM projects WHERE id=ANY($1::uuid[])`,
       [[source.id, id]],
     );
     const original = ownership.rows.find((row) => row.id === source.id);

@@ -488,7 +488,7 @@ async function assertPrivateCopy(
   publication: { title: string; authorLabel: string; publicationId: string; revisionId: string },
 ) {
   const ownership = await admin.query(
-    `SELECT id,scope,classroom_id,tenant_id,owner_principal_id,license,
+    `SELECT id,project_scope AS scope,classroom_id,tenant_id,owner_principal_id,license,
             copied_from_project_id,copied_from_title,copied_from_author
        FROM projects WHERE id=ANY($1::uuid[])`,
     [[sourceId, targetId]],
