@@ -9435,7 +9435,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: arduino_committed_horizon_deduplication_selected
+      checkpoint: d2_reset_acquisition_oracle_boundary_repair_selected
       owner_acceptance: pending
       acceptance_revision: classroom-d2-d4-eighth-pace-r1
       active_qualification_profile: classroom-d13-v3
@@ -9535,7 +9535,20 @@ parallel_lanes:
         scope_override: Supersede the completed private-field authoring instruction only for deduplicating unjustified already-committed-horizon requests in the existing host/controller. Preserve legitimate yielded continuation, H0 initialization, pending inputs, generation/source/document identity and canonical state. No presenter, solver, runtime interpreter, physical timing, workflow, dependency, artwork or foreign module change.
         required_verification: Meaningful regression must discriminate duplicate committed-ready requests from necessary yielded continuation and same-horizon input/lifecycle work. Preserve complete ready results and every canonical runtime state, native readiness and ACK, independent ports, Reset/Stop/cancellation and stale/failure guards. Reuse the saved request sequence for before/after request counts, reached model time and compute/elapsed evidence; no repeated measurements without a new reason. Then focused checks, NEW independent exact-SHA review and required exact-source built-editor evidence; no timeout, tolerance, precision or assertion weakening.
         preservation: Keep all historical source/reviews/failures, all gates and acceptance blockers,0.125 current pace,6250us cap,50ms publication and full raw evidence. Preserve the explicit teacher-workflow limited exception and stopped D13 handoff without changing either foreign tree. No school installation, Docker, network or database action.
-      next_action: Publish this canonical two-document selection on main before product writes; root then assigns one bounded host/controller author and a separate independent reviewer. Independently classify the final D2 Reset pre-H0 raw evidence without treating it as a proved50ms product defect. Freeze the deduplication candidate and review its actual diff and saved-sequence benefit before required exact-source gates. Do not claim1x or change pace until compute headroom is proved; source publication does not close649,546 or any acceptance blocker.
+      reset_oracle_boundary_selection:
+        selected_base_main: 39cd72afdd0291763eb18772f5d4dda9bd07623b
+        stage: one_separate_test_oracle_acquisition_boundary_repair
+        evidence: Temp/asa-final06-range/reset-cause.json SHA2565b45a8d4d62ab9d0d3f94ff1ba0472bab818e7f65599713c429f579ce219922d; exact06fdd raw shows pre-Reset generation9 receipt incorrectly selected as active before generation10 H0, while all11 dark/native startup fields pass.
+        deduplication_status: Candidatea37cc1c78163cc41dd0ba587a77e7e759fa5054b remains pending integration with independent source approval and63 own tests reviewed. Exact classroom39510050928 is219PASS19FAIL; all12 ordinary Arduino journeys pass at pace0.125, not1x. General remains blocked by known independent C baseline with3 HIGH findings. Do not merge this candidate into the oracle author's commit or treat source approval as product acceptance.
+        author: NEW bounded oracle author assigned by root after canonical publication
+        independent_reviewer: NEW independent exact-SHA reviewer assigned by root; never the oracle author
+        expected_test_paths:
+        - e2e/electronics-ready-cadence.spec.ts
+        - tests/electronics/classroom-qualification.spec.ts
+        scope: Repair only the existing D2 oracle's active request selection within the current acquisition boundary. Use the existing adversarial test only if it exercises that oracle; no unrelated qualification or product change. This is not a blanket skip of pre-H0 frames.
+        required_verification: Preserve all11 dark/native startup fields, H0 quality/source/generation and full request/receipt/paint causality plus existing50ms assertions. Positive actual Reset replay must pass without borrowing generation9. Negative old-generation receipt after Reset MUST FAIL; bright before new H0 MUST FAIL; missing new H0 MUST FAIL. Preserve original raw and every other assertion, acquisition, timeout, pace and native rule.
+        preservation: No product source, physics, precision, pace, lookahead, runtime state, dependency, workflow, observer pin or foreign lane change. Keep deduplication and oracle repair as separate commits, actors and independent reviews. Preserve all historical failures, blockers, teacher limited exception and D13 handoff; no Docker, network, database or deployment operation.
+      next_action: Root publishes this two-document canonical selection separately from the pending deduplication product candidate, then assigns one oracle author and NEW independent reviewer. Prove current-acquisition active selection using saved Reset raw and required positive/negative adversarial cases; freeze one separate exact test-repair SHA for independent review. Root alone selects subsequent composition and exact-source verification; do not claim1x, clear blockers or integrate the deduplication candidate as part of this oracle-author invocation.
     previous_task:
       id: TASK-ELECTRONICS-CLASSROOM-D13-001
       issue: 638
