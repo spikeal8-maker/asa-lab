@@ -131,6 +131,19 @@ function sameCanonicalStructure(left: SchematicDocument, right: SchematicDocumen
   );
 }
 
+function sameArduinoSources(left: SchematicDocument | null, right: SchematicDocument): boolean {
+  return (
+    left !== null &&
+    left.components.length === right.components.length &&
+    right.components.every(
+      (component, index) =>
+        component.id === left.components[index]?.id &&
+        component.stateProperties?.[ARDUINO_SOURCE_PROPERTY] ===
+          left.components[index]?.stateProperties?.[ARDUINO_SOURCE_PROPERTY],
+    )
+  );
+}
+
 function withEditorArduinoSources(
   canonical: SchematicDocument,
   editor: SchematicDocument,
@@ -224,6 +237,7 @@ export class ElectronicsLiveSimulationWorkerController {
   private callbacks: LiveSimulationWorkerCallbacks | null = null;
   private canonicalDocument: SchematicDocument | null = null;
   private lastRuntimeDocument: SchematicDocument | null = null;
+  private dispatchedDocument: SchematicDocument | null = null;
   private timedState: ElectronicsTimedState = resetElectronicsTimedState();
   private latestTarget: SimulationTarget | null = null;
   private startupTarget: SimulationTarget | null = null;
@@ -362,6 +376,7 @@ export class ElectronicsLiveSimulationWorkerController {
     this.canonicalDocument = document;
     this.lastRuntimeDocument = document;
     this.timedState = resetElectronicsTimedState();
+    this.dispatchedDocument = null;
     this.latestTarget = { requestedHorizonMicroseconds: canonicalHorizonMicroseconds };
     this.startupTarget = { requestedHorizonMicroseconds: 0 };
     this.continuationTarget = null;
@@ -387,6 +402,7 @@ export class ElectronicsLiveSimulationWorkerController {
     this.callbacks = null;
     this.canonicalDocument = null;
     this.lastRuntimeDocument = null;
+    this.dispatchedDocument = null;
     this.timedState = resetElectronicsTimedState();
     this.latestTarget = null;
     this.startupTarget = null;
@@ -469,6 +485,17 @@ export class ElectronicsLiveSimulationWorkerController {
     }
     const committed = this.timedState.continuation?.committedHorizonMicroseconds ?? 0;
     const isStartup = pendingTarget === this.startupTarget;
+    // A held presentation cursor is not new electrical work. Preserve equal-time
+    // yielded observations, live inputs and editor source synchronization.
+    if (
+      pendingTarget === this.latestTarget &&
+      this.pendingInputEvents.length === 0 &&
+      pendingTarget.requestedHorizonMicroseconds <= committed &&
+      sameArduinoSources(this.dispatchedDocument, document)
+    ) {
+      this.latestTarget = null;
+      return;
+    }
     // An input can commit beyond the presentation-limited host tick. Older
     // demand may observe the same committed time but must never rewind it.
     const target = isStartup
@@ -492,6 +519,7 @@ export class ElectronicsLiveSimulationWorkerController {
     if (!isStartup) this.pendingInputEvents = [];
     this.inFlight = true;
     this.inFlightKind = 'advance';
+    this.dispatchedDocument = document;
     void this.executor
       .advance(
         generationId,
@@ -566,7 +594,9 @@ export class ElectronicsLiveSimulationWorkerController {
     }
     if (
       this.latestTarget &&
-      this.latestTarget.requestedHorizonMicroseconds <= advance.committedHorizonMicroseconds
+      this.latestTarget.requestedHorizonMicroseconds <= advance.committedHorizonMicroseconds &&
+      this.canonicalDocument !== null &&
+      sameArduinoSources(this.dispatchedDocument, this.canonicalDocument)
     ) {
       this.latestTarget = null;
     }
