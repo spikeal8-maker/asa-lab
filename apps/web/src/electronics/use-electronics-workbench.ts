@@ -1912,7 +1912,10 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
     const currentDocument = getCurrentDocument();
     if (!currentDocument) return;
     const component = currentDocument.components.find((item) => item.id === componentId);
-    if (!component || !isArduinoUno(component)) {
+    if (
+      !component ||
+      (component.componentTypeId !== 'arduino-uno' && component.variantId !== 'arduino-uno')
+    ) {
       return;
     }
     // Initial Blockly publication may repeat an already saved program. Keep
