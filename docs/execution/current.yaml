@@ -8761,7 +8761,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: d2_d4_atomic_archive_rotation_selected
+      checkpoint: led_publication_conditional_barrier_repair_selected
       owner_acceptance: pending
       acceptance_revision: classroom-d2-d4-eighth-pace-r1
       active_qualification_profile: classroom-d13-v3
@@ -8814,7 +8814,23 @@ parallel_lanes:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-CLASSROOM-D2-D4-001.md
       - docs/product/electronics/tasks/TASK-ELECTRONICS-CLASSROOM-D13-001.md
       - docs/product/electronics/lessons/D2_D4_CLASSROOM.md
-      next_action: After canonical selection and author FET smoke STOP, implement only the card's bounded D2 orchestration repair. Five real autosaves overlap corresponding captures and must finish full PUT200/request/response/GET/source/revision proof before next edit or reopen. Take seven native PNGs within300 capture after real LOW/HIGH references. Preserve six existing Stops and fifth100/300 uninterrupted Run-to-Reset; close acquisition windows with explicit indices/time/generation, validate49states/eight cycles before Stop, retain active observer Stop1s and every late/Stop/Reset raw row through explicit cutoff in six lossless archive groups for seven captures. Use the selected atomic11-array capture-before-clear/pending-ACK protocol; fifth and Reset share one contiguous segment after Reset Stop without an intervening heavy clone. Never filter in-window causal failures, drop data or reset an unarchived buffer. Preserve all fixed criteria and run unchanged required exact-source gates/native review; strict reported separately. Forward PR652 only after independent review and root publication; no acceptance by historical evidence.
+      led_publication_selection:
+        date: '2026-10-20'
+        author: /root/led_publication_repair_author
+        independent_reviewer: NEW independent reviewer who did not author this slice
+        stage: deterministic_before_then_conditional_minimal_led_publication_repair
+        retained_candidate_head: 793fc599b2a2f0182147b06e0650c51fe386a993
+        diagnostic_evidence: GitHub run39455455432/artifact12283505079 selected-member receipts (not whole-ZIP digest verification), local receipt Temp/asa-39455455432-range/REPORT.txt; case200 generation3 firstHIGH64915.7 DOM65052.7 paint65075.4; asset already warm. Receipt/preparation/React/RAF/ACK causality remains to be separated, not a proved root cause.
+        separate_unresolved_failure: Blockly1ms delta375.7315ms exceeds250ms; not repaired or waived by this publication slice.
+        owner_exception: Owner explicitly permits this bounded LED publication work in a clean separate tree despite WAITING_HANDOFF on teacher-pr582-redesign/.github/workflows/classroom-owner.yml. Preserve that foreign file and tree; do not disable preflight or claim SAFE_TO_START.
+        stopped_d13_handoff: Owner confirmed stopped D13 author and accepted preserved handoff; keep dirty electronics-classroom-d13-candidate-20261019 tree untouched and retain24c4acf source in PR652. No competing writer or copying its uncommitted files.
+        expected_product_paths:
+        - apps/web/src/electronics/use-electronics-workbench.ts
+        - apps/web/src/electronics/led-temporal-presentation.ts
+        - apps/web/src/electronics/testing/led-temporal-presentation.spec.ts
+        scope_override: Only this bounded LED slice supersedes the earlier orchestration-only production freeze. First prove the actual-presenter BEFORE with H0 native/layout ACK at wall0, same-generation HIGH receipt at wall1ms/edge537us/window6250us and RAF40/80/120ms (predicted null/null/HIGH,119ms; not measured evidence). If discriminating regression confirms the barrier and NEW independent proposal review confirms the H0/native ACK invariant, permit ONLY canPublishDistinctFrame threshold >2 to >0 and targeted same-RAF blocked/next-RAF allowed/H0 not-ACK held/reset/foreign-generation/joint-frame regressions. Otherwise stop behavior edits; add passive boundary instrumentation only if the regression does not distinguish the cause. No hopeful unchanged CI rerun.
+        preservation: Preserve all171 cases, 50ms publication, pace0.125,6250us cap, all existing timeouts, physics and timing, gates, full raw evidence, archive protocol, histories and acceptance blockers. No workflow, core, renderer, assets, dependency, deployment or school-installation changes.
+      next_action: Publish and review this two-document selection on main before product writes. Assign one LED repair author to prove the deterministic BEFORE on actual presenter, then obtain NEW independent proposal review of H0/native ACK preservation. Only with both proofs implement the selected >2 to >0 threshold repair and targeted invariants in this same bounded slice; otherwise retain candidate and report the unresolved boundary. Require NEW independent exact-SHA review and unchanged applicable gates before root integration. Preserve PR652 and historical evidence; old approvals do not accept the new source.
     previous_task:
       id: TASK-ELECTRONICS-CLASSROOM-D13-001
       issue: 638
