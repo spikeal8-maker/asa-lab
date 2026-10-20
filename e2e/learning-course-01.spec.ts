@@ -1674,6 +1674,17 @@ test('Course Builder preserves typed lesson edits across real hide and show resp
         ),
       ).toBeLessThanOrEqual(0);
       if (width === 1440 || width === 390) {
+        // Preserve the focused viewport before a full-page capture changes its height.
+        await page.screenshot({
+          path: `${visibilityEvidenceDir}/${phase}-${width}-viewport.png`,
+          fullPage: false,
+        });
+        // Fixed headers must be captured from the document origin, not the focus scroll.
+        await page.evaluate(() => window.scrollTo({ top: 0, left: 0, behavior: 'instant' }));
+        expect(await page.evaluate(() => ({ x: window.scrollX, y: window.scrollY }))).toEqual({
+          x: 0,
+          y: 0,
+        });
         await page.screenshot({
           path: `${visibilityEvidenceDir}/${phase}-${width}.png`,
           fullPage: true,
@@ -1775,6 +1786,7 @@ test('Course Builder preserves typed lesson edits across real hide and show resp
     ).toBe(hidden);
     expect(persistedVisibility.sections[0].lessons[0].title).toBe(oldLesson.title);
 
+    let competingOutline: Awaited<ReturnType<typeof readOutline>> | undefined;
     if (outcome === 'conflict') {
       const remote = await page.request.patch(lessonPath, {
         headers: { origin: new URL(page.url()).origin },
@@ -1791,10 +1803,26 @@ test('Course Builder preserves typed lesson edits across real hide and show resp
           expectedRevision: receipt.draftRevision,
         },
       });
-      expect(remote.ok()).toBe(true);
-      expect(((await remote.json()) as { draftRevision: number }).draftRevision).toBe(
-        receipt.draftRevision + 1,
-      );
+      expect(remote.status()).toBe(200);
+      const remoteReceipt = (await remote.json()) as { id: string; draftRevision: number };
+      expect(remoteReceipt.id).toBe(lessonId);
+      expect(Number.isSafeInteger(remoteReceipt.draftRevision)).toBe(true);
+      // A lesson save can touch the course root more than once. Correlate its exact
+      // committed revision without rebasing the editor's held visibility receipt.
+      expect(remoteReceipt.draftRevision).toBeGreaterThan(receipt.draftRevision);
+      competingOutline = await readOutline();
+      expect(competingOutline.draftRevision).toBe(remoteReceipt.draftRevision);
+      expect(competingOutline.sections).toHaveLength(1);
+      expect(competingOutline.sections[0].id).toBe(sectionId);
+      expect(competingOutline.sections[0].hidden).toBe(persistedVisibility.sections[0].hidden);
+      expect(competingOutline.sections[0].lessons).toHaveLength(1);
+      expect(competingOutline.sections[0].lessons[0]).toMatchObject({
+        id: lessonId,
+        title: 'Чужие сохранённые правки C',
+        summary: 'Описание другого редактора C',
+        blocks: oldLesson.blocks,
+        hidden: persistedVisibility.sections[0].lessons[0].hidden,
+      });
     }
     if (outcome === 'archived') {
       const archived = await page.request.post(`/api/courses/${courseId}/archive`, {
@@ -1879,7 +1907,10 @@ test('Course Builder preserves typed lesson edits across real hide and show resp
       await expect(editor.getByRole('alert')).toContainText(failure.error.message);
       await expect(title).toHaveValue(laterTitle);
       await expect(summary).toHaveValue(laterSummary);
-      expect((await readOutline()).sections[0].lessons[0].title).toBe('Чужие сохранённые правки C');
+      expect(competingOutline).toBeDefined();
+      const afterConflict = await readOutline();
+      expect(afterConflict.draftRevision).toBe(competingOutline!.draftRevision);
+      expect(afterConflict.sections).toEqual(competingOutline!.sections);
       await discardAndReopen('Чужие сохранённые правки C');
       return;
     }
