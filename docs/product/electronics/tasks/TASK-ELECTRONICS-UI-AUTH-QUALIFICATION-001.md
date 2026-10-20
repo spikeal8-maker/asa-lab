@@ -12,6 +12,10 @@ review: independent
 
 # Reuse genuine UI authentication cookies in isolated UI qualification cases
 
+## Bounded actual qualification complete — 20 October 2026
+
+Source `b3672ff7e83c7e284d758354c871b0c8edf06b08` completed all 32 field and eight shadow journeys in strict run `39475449280`. NEW independent runtime/visual review approved those 40 cases with whole-document single PUT, CAS 2→3 and fresh cookies-only reopen evidence. The [dated actual receipt](../evidence/ui-qualification-b3672ff7-actual-20261020.md) pins raw artifacts and review identity. Only this authentication qualification is technically complete and eligible for controller closure of #666; no typed blocker targets this task. #544/#547/#548 boundaries remain unchanged. General Data and full Electronics browser are still FAIL for separately classified C/D failures; this is no repository PASS, product-task closure, owner/device/classroom acceptance or release claim.
+
 Qualification dependency: [#666](https://github.com/spikeal8-maker/asa-lab/issues/666).
 
 This qualification-only dependency supports the owner's programme to verify, publish and close unfinished electronics UI work, specifically #544 and #547. The dated [e142 evidence](../evidence/ui-auth-qualification-e142835e-20261020.md) distinguishes shared authentication capacity from product behavior. Historical task snapshots and receipts remain unchanged.

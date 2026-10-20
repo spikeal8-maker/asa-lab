@@ -12,6 +12,10 @@ review: independent
 
 # Publish the ordinary-image failure to the actual mounted catalog consumer
 
+## Mounted diagnostic checkpoint — 20 October 2026
+
+Test-only source `4b272ffcbd64896a615f1d7cba3fb27a652351dc` added the two selected mounted cases without production changes. Both pass within the 41-test asset-recovery suite, verified independently. Result: `NO_PROVEN_CAUSE`; this experiment stops. The [dated actual receipt](../evidence/ui-qualification-b3672ff7-actual-20261020.md) records the boundary. No #548 fix, acceptance-blocker closure or issue closure follows. A passive provenance investigation requires its own later canonical selection; none is selected by this checkpoint.
+
 ## Two-consumer quiet-cycle diagnostic selection — 20 October 2026
 
 This phase selects only two mounted regressions in `apps/web/src/electronics/testing/asset-recovery.spec.ts`, using existing `ProbeImage` and fake timers. All previous executable observation scopes above or below are historical for this phase; no production observer, browser harness, workflow or asset edit is selected. Preserve every existing test/assertion, timeout and recovery policy. The [new dated temporal evidence](../evidence/ordinary-image-548-consumer-cycle-selection-20261020.md) is a hypothesis, not a proven product cause.
