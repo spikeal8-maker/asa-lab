@@ -1,6 +1,7 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { randomUUID } from 'node:crypto';
 import { PNG } from 'pngjs';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, onTestFinished } from 'vitest';
 import type pg from 'pg';
 import { seedTeacher, testAdminPool, testAppPool } from './helpers';
 import { seedProfileProjectActivity, seedProfileTheory } from './classroom-profile-fixture';
@@ -12,9 +13,187 @@ import type {
 
 let admin: pg.Pool;
 let runtime: pg.Pool;
+// Passive diagnostic only. SQL arguments, row contents and error messages never enter the log.
+// Keep this file-local: the probe must not change production or shared PG helpers.
+type PgTimingCall = {
+  id: number;
+  pool: string;
+  phase: string;
+  functions: string[];
+  started: number;
+};
+type PgTimingState = {
+  caseId: string;
+  started: number;
+  timeoutMs: number;
+  phase: string;
+  testFinished: boolean;
+  bodyOutcome: 'pending' | 'fulfilled' | 'rejected';
+  sequence: number;
+  outstanding: Map<number, PgTimingCall>;
+};
+const pgTimingContext = new AsyncLocalStorage<PgTimingState>();
+const pgTimingPools = new Map<string, pg.Pool>();
+const pgTimingWrapped = new WeakSet<object>();
+const pgTimingFunctions =
+  /\b(classroom_list_for_account|classroom_gradebook_list|classroom_account_join_requests_for_actor|learning_canonical_evidence_for_teacher_account|learning_canonical_evidence_for_seat|learning_canonical_evidence_internal|learning_activity_create|learning_activity_publish|learning_direct_assignment_create|student_seat_principal|learning_direct_project_attempt_start|learning_direct_project_submission_create|learning_attempt_review_v2|learning_notification_preferences_get|learning_notification_preferences_save|learning_notifications_list|learning_notifications_mark_read|classroom_management_add_seat|classroom_participant_prepare|classroom_participant_write|classroom_participant_roster|classroom_participant_profile|classroom_participant_avatar_read|classroom_journal_write|classroom_journal_history|set_config)\s*\(/gi;
+
+function pgTimingEmit(state: PgTimingState, event: string, details: Record<string, unknown> = {}) {
+  // Observation must not turn a query fulfilment/rejection into another result.
+  try {
+    const now = performance.now();
+    console.info(
+      '[E1 PG timing]',
+      JSON.stringify({
+        caseId: state.caseId,
+        event,
+        elapsedMs: Math.round(now - state.started),
+        timeoutMs: state.timeoutMs,
+        phase: state.phase,
+        testFinished: state.testFinished,
+        bodyOutcome: state.bodyOutcome,
+        pools: Object.fromEntries(
+          [...pgTimingPools].map(([name, pool]) => [
+            name,
+            {
+              total: pool.totalCount,
+              idle: pool.idleCount,
+              waiting: pool.waitingCount,
+            },
+          ]),
+        ),
+        outstanding: [...state.outstanding.values()].map((call) => ({
+          id: call.id,
+          pool: call.pool,
+          phase: call.phase,
+          functions: call.functions,
+          elapsedMs: Math.round(now - call.started),
+        })),
+        ...details,
+      }),
+    );
+  } catch {
+    // A diagnostic sink failure must not change the original test/query outcome.
+  }
+}
+
+function pgTimingPhase(phase: string) {
+  const state = pgTimingContext.getStore();
+  if (!state) return;
+  state.phase = phase;
+  pgTimingEmit(state, 'phase');
+}
+
+function pgTimingQuery(target: pg.Pool | pg.PoolClient, poolName: string) {
+  if (pgTimingWrapped.has(target)) return;
+  pgTimingWrapped.add(target);
+  const original = target.query;
+  target.query = function (this: pg.Pool | pg.PoolClient, ...args: unknown[]) {
+    const state = pgTimingContext.getStore();
+    // pg.Pool.query uses a client callback internally. Its outer promise is already observed.
+    // Preserve callback APIs exactly; direct awaited client queries are observed below.
+    if (!state || typeof args.at(-1) === 'function') return Reflect.apply(original, this, args);
+    const call: PgTimingCall = {
+      id: ++state.sequence,
+      pool: poolName,
+      phase: state.phase,
+      functions:
+        typeof args[0] === 'string'
+          ? [
+              ...new Set(
+                [...args[0].matchAll(pgTimingFunctions)].map((match) => match[1]!.toLowerCase()),
+              ),
+            ]
+          : [],
+      started: performance.now(),
+    };
+    state.outstanding.set(call.id, call);
+    pgTimingEmit(state, 'query_start', {
+      operationId: call.id,
+      pool: call.pool,
+      functions: call.functions,
+    });
+    const finish = (outcome: string) => {
+      state.outstanding.delete(call.id);
+      pgTimingEmit(state, 'query_finish', {
+        operationId: call.id,
+        pool: call.pool,
+        functions: call.functions,
+        operationPhase: call.phase,
+        outcome,
+        durationMs: Math.round(performance.now() - call.started),
+        late: state.testFinished,
+      });
+    };
+    let result: unknown;
+    try {
+      result = Reflect.apply(original, this, args);
+    } catch (error) {
+      finish('threw');
+      throw error;
+    }
+    try {
+      if (typeof (result as Promise<unknown> | null)?.then === 'function') {
+        void (result as Promise<unknown>).then(
+          () => finish('fulfilled'),
+          () => finish('rejected'),
+        );
+      } else {
+        finish('returned');
+      }
+    } catch {
+      finish('observer_failed');
+    }
+    // In particular, return the original promise; never replace, retry or cancel it.
+    return result;
+  } as typeof target.query;
+}
+
+function installPgTimingPool(pool: pg.Pool, name: string) {
+  pgTimingPools.set(name, pool);
+  pgTimingQuery(pool, name);
+  pool.on('connect', (client) => pgTimingQuery(client, name));
+}
+
+function pgTimingCase(caseId: string, timeoutMs: number, body: () => Promise<void>) {
+  return () => {
+    const state: PgTimingState = {
+      caseId,
+      timeoutMs,
+      started: performance.now(),
+      phase: 'setup',
+      testFinished: false,
+      bodyOutcome: 'pending',
+      sequence: 0,
+      outstanding: new Map(),
+    };
+    return pgTimingContext.run(state, async () => {
+      const deadline = setTimeout(() => pgTimingEmit(state, 'deadline'), timeoutMs);
+      deadline.unref();
+      onTestFinished(() => {
+        state.testFinished = true;
+        clearTimeout(deadline);
+        pgTimingEmit(state, 'test_finish');
+      });
+      pgTimingEmit(state, 'test_start');
+      try {
+        await body();
+        state.bodyOutcome = 'fulfilled';
+      } catch (error) {
+        state.bodyOutcome = 'rejected';
+        throw error;
+      } finally {
+        pgTimingEmit(state, 'body_finish', { late: state.testFinished });
+      }
+    });
+  };
+}
+
 beforeAll(() => {
   admin = testAdminPool();
   runtime = testAppPool();
+  installPgTimingPool(admin, 'admin');
+  installPgTimingPool(runtime, 'runtime');
 });
 afterAll(async () => {
   await Promise.all([admin?.end(), runtime?.end()]);
@@ -833,109 +1012,158 @@ describe('participants with real PostgreSQL and the runtime role', () => {
     expect(blocks.filteredWorks).toBe(1);
     expect(blocks.items.map((p) => p.moduleKey)).toEqual(['blocks']);
   });
-  it('persists factors and period, changes scores, preserves zero, stable ties and disabled ratings', async () => {
-    const f = await fixture();
-    const b = await f.seat('Борис');
-    const a = await f.seat('Анна');
-    await f.project(b.principal);
-    expect(await f.settings(['projects'], 7)).toMatchObject({ periodDays: 7 });
-    let data = await f.roster();
-    expect(data.items.find((i) => i.seatId === b.id)?.score).toBe(20);
-    expect(data.items.find((i) => i.seatId === a.id)?.score).toBe(0);
-    await f.settings(['projects'], 30);
-    data = await f.roster();
-    expect(data.items.find((i) => i.seatId === b.id)?.score).toBe(4);
-    expect(data.settings.periodDays).toBe(30);
-    await admin.query(
-      "UPDATE projects SET created_at=now()-interval '91 days' WHERE owner_principal_id=$1",
-      [b.principal],
-    );
-    await f.settings(['projects'], 90);
-    expect((await f.roster()).items.find((i) => i.seatId === b.id)).toMatchObject({
-      totalWorks: 1,
-      score: 0,
-    });
-    await f.settings(['days']);
-    data = await f.roster();
-    expect(data.items.map((i) => [i.seatId, i.score, i.rank])).toEqual([
-      [a.id, 0, 1],
-      [b.id, 0, 1],
-    ]);
-    await f.settings([]);
-    data = await f.roster();
-    expect(data.items.every((i) => i.score === null && i.rank === null)).toBe(true);
-    expect(
-      await f.write('settings', {
-        expectedRevision: 0,
-        periodDays: 7,
-        factors: data.settings.factors,
-      }),
-    ).toMatchObject({ error: 'revision_conflict' });
-  });
-  it('counts only latest manual revisions on the pinned scale, including a zero and a retraction', async () => {
-    const f = await fixture();
-    const seat = await f.seat('Оценки');
-    await f.settings(['grades']);
-    const journalWrite = (action: string, input: Record<string, unknown>) =>
-      read<Record<string, unknown>>('classroom_journal_write', [
-        f.actor,
-        f.classId,
-        action,
-        JSON.stringify({ ...input, requestId: randomUUID() }),
+  it(
+    'persists factors and period, changes scores, preserves zero, stable ties and disabled ratings',
+    pgTimingCase('ratings', 5_000, async () => {
+      pgTimingPhase('ratings.L837');
+      const f = await fixture();
+      pgTimingPhase('ratings.L838');
+      const b = await f.seat('Борис');
+      pgTimingPhase('ratings.L839');
+      const a = await f.seat('Анна');
+      pgTimingPhase('ratings.L840');
+      await f.project(b.principal);
+      pgTimingPhase('ratings.L841');
+      expect(await f.settings(['projects'], 7)).toMatchObject({ periodDays: 7 });
+      pgTimingPhase('ratings.L842');
+      let data = await f.roster();
+      pgTimingPhase('ratings.L843');
+      expect(data.items.find((i) => i.seatId === b.id)?.score).toBe(20);
+      pgTimingPhase('ratings.L844');
+      expect(data.items.find((i) => i.seatId === a.id)?.score).toBe(0);
+      pgTimingPhase('ratings.L845');
+      await f.settings(['projects'], 30);
+      pgTimingPhase('ratings.L846');
+      data = await f.roster();
+      pgTimingPhase('ratings.L847');
+      expect(data.items.find((i) => i.seatId === b.id)?.score).toBe(4);
+      pgTimingPhase('ratings.L848');
+      expect(data.settings.periodDays).toBe(30);
+      pgTimingPhase('ratings.L849');
+      await admin.query(
+        "UPDATE projects SET created_at=now()-interval '91 days' WHERE owner_principal_id=$1",
+        [b.principal],
+      );
+      pgTimingPhase('ratings.L853');
+      await f.settings(['projects'], 90);
+      pgTimingPhase('ratings.L854');
+      expect((await f.roster()).items.find((i) => i.seatId === b.id)).toMatchObject({
+        totalWorks: 1,
+        score: 0,
+      });
+      pgTimingPhase('ratings.L858');
+      await f.settings(['days']);
+      pgTimingPhase('ratings.L859');
+      data = await f.roster();
+      pgTimingPhase('ratings.L860');
+      expect(data.items.map((i) => [i.seatId, i.score, i.rank])).toEqual([
+        [a.id, 0, 1],
+        [b.id, 0, 1],
       ]);
-    const col = await journalWrite('column', {
-      expectedRevision: 0,
-      date: new Date().toISOString().slice(0, 10),
-      category: 'Практика',
-    });
-    await journalWrite('grade', {
-      columnId: col.id,
-      seatId: seat.id,
-      expectedRevision: 0,
-      value: 0,
-    });
-    let metrics = (await f.roster()).items[0]!;
-    expect(metrics.score).toBe(0);
-    expect(metrics.sources.grades).toBe(1);
-    await journalWrite('scale', { expectedRevision: 1, preset: 'hundred' });
-    await journalWrite('grade', {
-      columnId: col.id,
-      seatId: seat.id,
-      expectedRevision: 1,
-      value: 5,
-      reason: 'Исправление',
-    });
-    metrics = (await f.roster()).items[0]!;
-    expect(metrics.score).toBe(100);
-    expect(metrics.sources.grades).toBe(1);
-    const history = await read<{ items: unknown[] }>('classroom_journal_history', [
-      f.actor,
-      f.classId,
-      col.id,
-      seat.id,
-    ]);
-    expect(history.items).toHaveLength(2);
-    await journalWrite('grade', {
-      columnId: col.id,
-      seatId: seat.id,
-      expectedRevision: 2,
-      value: null,
-      reason: 'Отзыв',
-    });
-    metrics = (await f.roster()).items[0]!;
-    expect(metrics.score).toBe(0);
-    expect(metrics.sources.grades).toBe(0);
-    expect(
-      (
-        await read<{ items: unknown[] }>('classroom_journal_history', [
+      pgTimingPhase('ratings.L864');
+      await f.settings([]);
+      pgTimingPhase('ratings.L865');
+      data = await f.roster();
+      pgTimingPhase('ratings.L866');
+      expect(data.items.every((i) => i.score === null && i.rank === null)).toBe(true);
+      pgTimingPhase('ratings.L867');
+      expect(
+        await f.write('settings', {
+          expectedRevision: 0,
+          periodDays: 7,
+          factors: data.settings.factors,
+        }),
+      ).toMatchObject({ error: 'revision_conflict' });
+    }),
+  );
+  it(
+    'counts only latest manual revisions on the pinned scale, including a zero and a retraction',
+    pgTimingCase('manual_revisions', 5_000, async () => {
+      pgTimingPhase('manual_revisions.L876');
+      const f = await fixture();
+      pgTimingPhase('manual_revisions.L877');
+      const seat = await f.seat('Оценки');
+      pgTimingPhase('manual_revisions.L878');
+      await f.settings(['grades']);
+      pgTimingPhase('manual_revisions.L879');
+      const journalWrite = (action: string, input: Record<string, unknown>) =>
+        read<Record<string, unknown>>('classroom_journal_write', [
           f.actor,
           f.classId,
-          col.id,
-          seat.id,
-        ])
-      ).items,
-    ).toHaveLength(3);
-  });
+          action,
+          JSON.stringify({ ...input, requestId: randomUUID() }),
+        ]);
+      pgTimingPhase('manual_revisions.L886');
+      const col = await journalWrite('column', {
+        expectedRevision: 0,
+        date: new Date().toISOString().slice(0, 10),
+        category: 'Практика',
+      });
+      pgTimingPhase('manual_revisions.L891');
+      await journalWrite('grade', {
+        columnId: col.id,
+        seatId: seat.id,
+        expectedRevision: 0,
+        value: 0,
+      });
+      pgTimingPhase('manual_revisions.L897');
+      let metrics = (await f.roster()).items[0]!;
+      pgTimingPhase('manual_revisions.L898');
+      expect(metrics.score).toBe(0);
+      pgTimingPhase('manual_revisions.L899');
+      expect(metrics.sources.grades).toBe(1);
+      pgTimingPhase('manual_revisions.L900');
+      await journalWrite('scale', { expectedRevision: 1, preset: 'hundred' });
+      pgTimingPhase('manual_revisions.L901');
+      await journalWrite('grade', {
+        columnId: col.id,
+        seatId: seat.id,
+        expectedRevision: 1,
+        value: 5,
+        reason: 'Исправление',
+      });
+      pgTimingPhase('manual_revisions.L908');
+      metrics = (await f.roster()).items[0]!;
+      pgTimingPhase('manual_revisions.L909');
+      expect(metrics.score).toBe(100);
+      pgTimingPhase('manual_revisions.L910');
+      expect(metrics.sources.grades).toBe(1);
+      pgTimingPhase('manual_revisions.L911');
+      const history = await read<{ items: unknown[] }>('classroom_journal_history', [
+        f.actor,
+        f.classId,
+        col.id,
+        seat.id,
+      ]);
+      pgTimingPhase('manual_revisions.L917');
+      expect(history.items).toHaveLength(2);
+      pgTimingPhase('manual_revisions.L918');
+      await journalWrite('grade', {
+        columnId: col.id,
+        seatId: seat.id,
+        expectedRevision: 2,
+        value: null,
+        reason: 'Отзыв',
+      });
+      pgTimingPhase('manual_revisions.L925');
+      metrics = (await f.roster()).items[0]!;
+      pgTimingPhase('manual_revisions.L926');
+      expect(metrics.score).toBe(0);
+      pgTimingPhase('manual_revisions.L927');
+      expect(metrics.sources.grades).toBe(0);
+      pgTimingPhase('manual_revisions.L928');
+      expect(
+        (
+          await read<{ items: unknown[] }>('classroom_journal_history', [
+            f.actor,
+            f.classId,
+            col.id,
+            seat.id,
+          ])
+        ).items,
+      ).toHaveLength(3);
+    }),
+  );
   it('does not score an idle tab, repeated login clicks or simultaneous activity intervals twice', async () => {
     const f = await fixture();
     const seat = await f.seat('Время');
@@ -1191,67 +1419,98 @@ describe('participants with real PostgreSQL and the runtime role', () => {
       ).items,
     ).toHaveLength(7);
   });
-  it('persists custom merit grants, secret avatar availability and choice, then hides a revoked secret', async () => {
-    const f = await fixture();
-    const learner = await f.learner();
-    const seat = await f.seat('Аватар', learner.id);
-    const merit = await f.write('merit', { title: 'Мастер', description: 'За аккуратность' });
-    const image = new PNG({ width: 32, height: 32 });
-    image.data.fill(255);
-    const personal = `data:image/png;base64,${PNG.sync.write(image).toString('base64')}`;
-    await admin.query('UPDATE profiles SET avatar_data_url=$2 WHERE account_id=$1', [
-      learner.id,
-      personal,
-    ]);
-    const avatar = await f.write('avatar', {
-      title: 'Секрет',
-      dataUrl: `data:image/png;base64,${PNG.sync.write(image).toString('base64')}`,
-      secret: true,
-      meritId: merit.id,
-      builtinAward: null,
-    });
-    const own = () =>
-      read<{ avatars: unknown[]; merits: unknown[]; metrics: { avatarUrl: string | null } }>(
-        'classroom_participant_profile',
-        [seat.principal, f.classId, seat.id],
-      );
-    expect((await own()).avatars).toEqual([]);
-    expect(
-      await f.write('avatar_choose', { seatId: seat.id, id: avatar.id }, seat.principal),
-    ).toMatchObject({ error: 'forbidden' });
-    await f.write('merit_grant', { seatId: seat.id, id: merit.id, granted: true });
-    expect((await own()).avatars).toHaveLength(1);
-    expect((await own()).merits).toHaveLength(1);
-    await f.write('avatar_choose', { seatId: seat.id, id: avatar.id }, seat.principal);
-    expect((await own()).metrics.avatarUrl).toContain('/api/class-join/participants/avatars/');
-    expect(
-      await read('classroom_participant_avatar_read', [
-        seat.principal,
-        f.classId,
-        seat.id,
-        avatar.id,
-      ]),
-    ).toMatch(/^data:image\/png/);
-    const original = (
-      await admin.query(`SELECT avatar_data_url FROM profiles WHERE account_id=$1`, [learner.id])
-    ).rows[0].avatar_data_url;
-    expect(original).toBe(personal);
-    await f.write('merit_grant', { seatId: seat.id, id: merit.id, granted: false });
-    expect((await own()).avatars).toEqual([]);
-    expect((await own()).metrics.avatarUrl).toBeNull();
-    expect(
-      await read('classroom_participant_avatar_read', [
-        seat.principal,
-        f.classId,
-        seat.id,
-        avatar.id,
-      ]),
-    ).toBeNull();
-    await f.write('avatar_grant', { seatId: seat.id, id: avatar.id, granted: true });
-    expect((await own()).avatars).toHaveLength(1);
-    await f.write('avatar_grant', { seatId: seat.id, id: avatar.id, granted: false });
-    expect((await own()).avatars).toEqual([]);
-  });
+  it(
+    'persists custom merit grants, secret avatar availability and choice, then hides a revoked secret',
+    pgTimingCase('custom_merits', 5_000, async () => {
+      pgTimingPhase('custom_merits.L1195');
+      const f = await fixture();
+      pgTimingPhase('custom_merits.L1196');
+      const learner = await f.learner();
+      pgTimingPhase('custom_merits.L1197');
+      const seat = await f.seat('Аватар', learner.id);
+      pgTimingPhase('custom_merits.L1198');
+      const merit = await f.write('merit', { title: 'Мастер', description: 'За аккуратность' });
+      pgTimingPhase('custom_merits.L1199');
+      const image = new PNG({ width: 32, height: 32 });
+      pgTimingPhase('custom_merits.L1200');
+      image.data.fill(255);
+      pgTimingPhase('custom_merits.L1201');
+      const personal = `data:image/png;base64,${PNG.sync.write(image).toString('base64')}`;
+      pgTimingPhase('custom_merits.L1202');
+      await admin.query('UPDATE profiles SET avatar_data_url=$2 WHERE account_id=$1', [
+        learner.id,
+        personal,
+      ]);
+      pgTimingPhase('custom_merits.L1206');
+      const avatar = await f.write('avatar', {
+        title: 'Секрет',
+        dataUrl: `data:image/png;base64,${PNG.sync.write(image).toString('base64')}`,
+        secret: true,
+        meritId: merit.id,
+        builtinAward: null,
+      });
+      pgTimingPhase('custom_merits.L1213');
+      const own = () =>
+        read<{ avatars: unknown[]; merits: unknown[]; metrics: { avatarUrl: string | null } }>(
+          'classroom_participant_profile',
+          [seat.principal, f.classId, seat.id],
+        );
+      pgTimingPhase('custom_merits.L1218');
+      expect((await own()).avatars).toEqual([]);
+      pgTimingPhase('custom_merits.L1219');
+      expect(
+        await f.write('avatar_choose', { seatId: seat.id, id: avatar.id }, seat.principal),
+      ).toMatchObject({ error: 'forbidden' });
+      pgTimingPhase('custom_merits.L1222');
+      await f.write('merit_grant', { seatId: seat.id, id: merit.id, granted: true });
+      pgTimingPhase('custom_merits.L1223');
+      expect((await own()).avatars).toHaveLength(1);
+      pgTimingPhase('custom_merits.L1224');
+      expect((await own()).merits).toHaveLength(1);
+      pgTimingPhase('custom_merits.L1225');
+      await f.write('avatar_choose', { seatId: seat.id, id: avatar.id }, seat.principal);
+      pgTimingPhase('custom_merits.L1226');
+      expect((await own()).metrics.avatarUrl).toContain('/api/class-join/participants/avatars/');
+      pgTimingPhase('custom_merits.L1227');
+      expect(
+        await read('classroom_participant_avatar_read', [
+          seat.principal,
+          f.classId,
+          seat.id,
+          avatar.id,
+        ]),
+      ).toMatch(/^data:image\/png/);
+      pgTimingPhase('custom_merits.L1235');
+      const original = (
+        await admin.query(`SELECT avatar_data_url FROM profiles WHERE account_id=$1`, [learner.id])
+      ).rows[0].avatar_data_url;
+      pgTimingPhase('custom_merits.L1238');
+      expect(original).toBe(personal);
+      pgTimingPhase('custom_merits.L1239');
+      await f.write('merit_grant', { seatId: seat.id, id: merit.id, granted: false });
+      pgTimingPhase('custom_merits.L1240');
+      expect((await own()).avatars).toEqual([]);
+      pgTimingPhase('custom_merits.L1241');
+      expect((await own()).metrics.avatarUrl).toBeNull();
+      pgTimingPhase('custom_merits.L1242');
+      expect(
+        await read('classroom_participant_avatar_read', [
+          seat.principal,
+          f.classId,
+          seat.id,
+          avatar.id,
+        ]),
+      ).toBeNull();
+      pgTimingPhase('custom_merits.L1250');
+      await f.write('avatar_grant', { seatId: seat.id, id: avatar.id, granted: true });
+      pgTimingPhase('custom_merits.L1251');
+      expect((await own()).avatars).toHaveLength(1);
+      pgTimingPhase('custom_merits.L1252');
+      await f.write('avatar_grant', { seatId: seat.id, id: avatar.id, granted: false });
+      pgTimingPhase('custom_merits.L1253');
+      expect((await own()).avatars).toEqual([]);
+    }),
+  );
   it('pages all dated manual grades and revision history without leaking another Seat', async () => {
     const f = await fixture();
     const seat = await f.seat('История');

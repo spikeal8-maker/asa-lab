@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { afterAll, beforeAll, describe, expect, it, onTestFinished } from 'vitest';
 import type pg from 'pg';
 import { PgClassroomRepository } from '../../contexts/classroom/index';
@@ -25,6 +26,188 @@ let teacherPrincipal: string;
 let teacherAccount: string;
 let sequence = 0;
 let releaseSubmissionSuiteLock: (() => Promise<void>) | undefined;
+
+// Passive diagnostic only. SQL arguments, row contents and error messages never enter the log.
+// Keep this file-local: the probe must not change production or shared PG helpers.
+type PgTimingCall = {
+  id: number;
+  pool: string;
+  phase: string;
+  functions: string[];
+  started: number;
+};
+type PgTimingState = {
+  caseId: string;
+  started: number;
+  timeoutMs: number;
+  phase: string;
+  testFinished: boolean;
+  bodyOutcome: 'pending' | 'fulfilled' | 'rejected';
+  sequence: number;
+  outstanding: Map<number, PgTimingCall>;
+};
+const pgTimingContext = new AsyncLocalStorage<PgTimingState>();
+const pgTimingPools = new Map<string, pg.Pool>();
+const pgTimingWrapped = new WeakSet<object>();
+const pgTimingFunctions =
+  /\b(classroom_list_for_account|classroom_gradebook_list|classroom_account_join_requests_for_actor|learning_canonical_evidence_for_teacher_account|learning_canonical_evidence_for_seat|learning_canonical_evidence_internal|learning_activity_create|learning_activity_publish|learning_direct_assignment_create|student_seat_principal|learning_direct_project_attempt_start|learning_direct_project_submission_create|learning_attempt_review_v2|learning_notification_preferences_get|learning_notification_preferences_save|learning_notifications_list|learning_notifications_mark_read|classroom_management_add_seat|classroom_participant_prepare|classroom_participant_write|classroom_participant_roster|classroom_participant_profile|classroom_participant_avatar_read|classroom_journal_write|classroom_journal_history|set_config)\s*\(/gi;
+
+function pgTimingEmit(state: PgTimingState, event: string, details: Record<string, unknown> = {}) {
+  // Observation must not turn a query fulfilment/rejection into another result.
+  try {
+    const now = performance.now();
+    console.info(
+      '[E1 PG timing]',
+      JSON.stringify({
+        caseId: state.caseId,
+        event,
+        elapsedMs: Math.round(now - state.started),
+        timeoutMs: state.timeoutMs,
+        phase: state.phase,
+        testFinished: state.testFinished,
+        bodyOutcome: state.bodyOutcome,
+        pools: Object.fromEntries(
+          [...pgTimingPools].map(([name, pool]) => [
+            name,
+            {
+              total: pool.totalCount,
+              idle: pool.idleCount,
+              waiting: pool.waitingCount,
+            },
+          ]),
+        ),
+        outstanding: [...state.outstanding.values()].map((call) => ({
+          id: call.id,
+          pool: call.pool,
+          phase: call.phase,
+          functions: call.functions,
+          elapsedMs: Math.round(now - call.started),
+        })),
+        ...details,
+      }),
+    );
+  } catch {
+    // A diagnostic sink failure must not change the original test/query outcome.
+  }
+}
+
+function pgTimingPhase(phase: string) {
+  const state = pgTimingContext.getStore();
+  if (!state) return;
+  state.phase = phase;
+  pgTimingEmit(state, 'phase');
+}
+
+function pgTimingClassCount<T extends unknown[]>(classes: T): T {
+  const state = pgTimingContext.getStore();
+  if (state) pgTimingEmit(state, 'class_count', { classCount: classes.length });
+  return classes;
+}
+
+function pgTimingQuery(target: pg.Pool | pg.PoolClient, poolName: string) {
+  if (pgTimingWrapped.has(target)) return;
+  pgTimingWrapped.add(target);
+  const original = target.query;
+  target.query = function (this: pg.Pool | pg.PoolClient, ...args: unknown[]) {
+    const state = pgTimingContext.getStore();
+    // pg.Pool.query uses a client callback internally. Its outer promise is already observed.
+    // Preserve callback APIs exactly; direct awaited client queries are observed below.
+    if (!state || typeof args.at(-1) === 'function') return Reflect.apply(original, this, args);
+    const call: PgTimingCall = {
+      id: ++state.sequence,
+      pool: poolName,
+      phase: state.phase,
+      functions:
+        typeof args[0] === 'string'
+          ? [
+              ...new Set(
+                [...args[0].matchAll(pgTimingFunctions)].map((match) => match[1]!.toLowerCase()),
+              ),
+            ]
+          : [],
+      started: performance.now(),
+    };
+    state.outstanding.set(call.id, call);
+    pgTimingEmit(state, 'query_start', {
+      operationId: call.id,
+      pool: call.pool,
+      functions: call.functions,
+    });
+    const finish = (outcome: string) => {
+      state.outstanding.delete(call.id);
+      pgTimingEmit(state, 'query_finish', {
+        operationId: call.id,
+        pool: call.pool,
+        functions: call.functions,
+        operationPhase: call.phase,
+        outcome,
+        durationMs: Math.round(performance.now() - call.started),
+        late: state.testFinished,
+      });
+    };
+    let result: unknown;
+    try {
+      result = Reflect.apply(original, this, args);
+    } catch (error) {
+      finish('threw');
+      throw error;
+    }
+    try {
+      if (typeof (result as Promise<unknown> | null)?.then === 'function') {
+        void (result as Promise<unknown>).then(
+          () => finish('fulfilled'),
+          () => finish('rejected'),
+        );
+      } else {
+        finish('returned');
+      }
+    } catch {
+      finish('observer_failed');
+    }
+    // In particular, return the original promise; never replace, retry or cancel it.
+    return result;
+  } as typeof target.query;
+}
+
+function installPgTimingPool(pool: pg.Pool, name: string) {
+  pgTimingPools.set(name, pool);
+  pgTimingQuery(pool, name);
+  pool.on('connect', (client) => pgTimingQuery(client, name));
+}
+
+function pgTimingCase(caseId: string, timeoutMs: number, body: () => Promise<void>) {
+  return () => {
+    const state: PgTimingState = {
+      caseId,
+      timeoutMs,
+      started: performance.now(),
+      phase: 'setup',
+      testFinished: false,
+      bodyOutcome: 'pending',
+      sequence: 0,
+      outstanding: new Map(),
+    };
+    return pgTimingContext.run(state, async () => {
+      const deadline = setTimeout(() => pgTimingEmit(state, 'deadline'), timeoutMs);
+      deadline.unref();
+      onTestFinished(() => {
+        state.testFinished = true;
+        clearTimeout(deadline);
+        pgTimingEmit(state, 'test_finish');
+      });
+      pgTimingEmit(state, 'test_start');
+      try {
+        await body();
+        state.bodyOutcome = 'fulfilled';
+      } catch (error) {
+        state.bodyOutcome = 'rejected';
+        throw error;
+      } finally {
+        pgTimingEmit(state, 'body_finish', { late: state.testFinished });
+      }
+    });
+  };
+}
 
 function traceGradedCase(policy: string): (stage: string) => void {
   const started = performance.now();
@@ -72,7 +255,7 @@ async function attention() {
   return teacherHomeAttention(
     app,
     teacherAccount,
-    await new PgClassroomRepository(app).listForAccount(teacherAccount),
+    pgTimingClassCount(await new PgClassroomRepository(app).listForAccount(teacherAccount)),
   );
 }
 
@@ -220,6 +403,8 @@ beforeAll(async () => {
   releaseSubmissionSuiteLock = await acquireLearningSubmissionSuiteLock();
   admin = testAdminPool();
   app = testAppPool();
+  installPgTimingPool(admin, 'admin');
+  installPgTimingPool(app, 'runtime');
   owner = await seedTeacher(admin, 'learning-vs-002');
   const identity = await admin.query(
     `SELECT account_id,principal_id FROM legacy_user_account_links
@@ -1246,244 +1431,312 @@ describe('LRN-VS-002 canonical direct project attempt', () => {
   });
 
   // The full lifecycle repeatedly queries Teacher Home and can be delayed by shared CI database load.
-  it('Teacher Home follows exact review and resubmission independently of notification read/OFF, preserving correction history', async () => {
-    const cls = await createClass();
-    const seat = await createSeat(cls, 'Доработка');
-    const version = await createActivity('Без числовой оценки');
-    const assignment = await assign(cls, version, 'whole_class');
-    const learner = await activateSeat(seat);
-    const project = await createProject(learner, 'Проект для проверки');
-    const start = async () =>
-      (
-        await inTenant((c) =>
-          c.query('SELECT * FROM learning_direct_project_attempt_start($1,$2,$3,$4)', [
-            learner,
-            seat,
-            assignment,
-            project,
-          ]),
-        )
-      ).rows[0];
-    const submit = async () =>
-      (
-        await inTenant((c) =>
-          c.query('SELECT * FROM learning_direct_project_submission_create($1,$2,$3,$4,1)', [
-            learner,
-            seat,
-            assignment,
-            'course01:submit:' + ++sequence,
-          ]),
-        )
-      ).rows[0];
-    const review = async (
-      attempt: string,
-      decision: string,
-      request: string,
-      prior: string | null = null,
-      points: number | null = null,
-    ) =>
-      (
-        await inTenant((c) =>
-          c.query('SELECT * FROM learning_attempt_review_v2($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)', [
-            teacherAccount,
-            teacherPrincipal,
-            cls,
-            attempt,
-            decision,
-            points,
-            'Проверьте соединение',
-            'Причина проверки',
-            prior,
-            request,
-          ]),
-        )
-      ).rows[0];
-    const a = await start();
-    expect(a.result_code).toBe('ok');
-    const preferences = (
-      await app.query('SELECT learning_notification_preferences_get($1) AS x', [teacherPrincipal])
-    ).rows[0].x;
-    expect(
-      (
-        await app.query(
-          'SELECT learning_notification_preferences_save($1,$2,true,$3::jsonb,$4::jsonb,$5) AS code',
-          [
-            teacherPrincipal,
-            preferences.revision,
-            JSON.stringify({ ...preferences.categories, NC02: true }),
-            '{}',
-            'home:enable:' + ++sequence,
-          ],
-        )
-      ).rows[0].code,
-    ).toBe('ok');
-    expect((await submit()).result_code).toBe('ok');
-    const reviewItems = async () =>
-      (await attention()).reviews.filter((r) => r.assignmentId === assignment);
-    expect(await reviewItems()).toMatchObject([
-      { attemptId: a.attempt_id, seatId: seat, classroomId: cls },
-    ]);
-    // A compatibility row and canonical attempt represent one work, not two.
-    await admin.query(
-      'INSERT INTO classroom_assignment_work(tenant_id,assignment_id,seat_id,project_id,started_at,submitted_at) VALUES($1,$2,$3,$4,now(),now()) ON CONFLICT DO NOTHING',
-      [owner.tenantId, assignment, seat, project],
-    );
-    expect(await reviewItems()).toHaveLength(1);
-    const notifications = (
-      await app.query('SELECT item FROM learning_notifications_list($1)', [teacherPrincipal])
-    ).rows
-      .map((r) => r.item)
-      .filter((n) => n.attemptId === a.attempt_id);
-    expect(notifications).toHaveLength(1);
-    await app.query('SELECT learning_notifications_mark_read($1,$2::uuid[],now())', [
-      teacherPrincipal,
-      notifications.map((n) => n.id),
-    ]);
-    expect(await reviewItems()).toHaveLength(1);
-    const currentPrefs = (
-      await app.query('SELECT learning_notification_preferences_get($1) AS x', [teacherPrincipal])
-    ).rows[0].x;
-    expect(
-      (
-        await app.query(
-          'SELECT learning_notification_preferences_save($1,$2,false,$3::jsonb,$4::jsonb,$5) AS code',
-          [
-            teacherPrincipal,
-            currentPrefs.revision,
-            JSON.stringify({ ...currentPrefs.categories, NC02: false }),
-            '{}',
-            'home:off:' + ++sequence,
-          ],
-        )
-      ).rows[0].code,
-    ).toBe('ok');
-    expect(await reviewItems()).toHaveLength(1);
-    const returned = await review(
-      a.attempt_id,
-      'changes_requested',
-      'course01:review:' + ++sequence,
-    );
-    expect(returned).toMatchObject({
-      result_code: 'ok',
-      attempt_state: 'closed',
-      percentage_basis_points: null,
-    });
-    expect(await reviewItems()).toHaveLength(0);
-    const retry = await review(a.attempt_id, 'changes_requested', 'course01:review:' + sequence);
-    expect(retry.assessment_result_id).toBe(returned.assessment_result_id);
-    const returnedLifecycle = (
+  it(
+    'Teacher Home follows exact review and resubmission independently of notification read/OFF, preserving correction history',
+    pgTimingCase('teacher_home', 60_000, async () => {
+      pgTimingPhase('teacher_home.L1250');
+      const cls = await createClass();
+      pgTimingPhase('teacher_home.L1251');
+      const seat = await createSeat(cls, 'Доработка');
+      pgTimingPhase('teacher_home.L1252');
+      const version = await createActivity('Без числовой оценки');
+      pgTimingPhase('teacher_home.L1253');
+      const assignment = await assign(cls, version, 'whole_class');
+      pgTimingPhase('teacher_home.L1254');
+      const learner = await activateSeat(seat);
+      pgTimingPhase('teacher_home.L1255');
+      const project = await createProject(learner, 'Проект для проверки');
+      pgTimingPhase('teacher_home.L1256');
+      const start = async () =>
+        (
+          await inTenant((c) =>
+            c.query('SELECT * FROM learning_direct_project_attempt_start($1,$2,$3,$4)', [
+              learner,
+              seat,
+              assignment,
+              project,
+            ]),
+          )
+        ).rows[0];
+      pgTimingPhase('teacher_home.L1267');
+      const submit = async () =>
+        (
+          await inTenant((c) =>
+            c.query('SELECT * FROM learning_direct_project_submission_create($1,$2,$3,$4,1)', [
+              learner,
+              seat,
+              assignment,
+              'course01:submit:' + ++sequence,
+            ]),
+          )
+        ).rows[0];
+      pgTimingPhase('teacher_home.L1278');
+      const review = async (
+        attempt: string,
+        decision: string,
+        request: string,
+        prior: string | null = null,
+        points: number | null = null,
+      ) =>
+        (
+          await inTenant((c) =>
+            c.query('SELECT * FROM learning_attempt_review_v2($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)', [
+              teacherAccount,
+              teacherPrincipal,
+              cls,
+              attempt,
+              decision,
+              points,
+              'Проверьте соединение',
+              'Причина проверки',
+              prior,
+              request,
+            ]),
+          )
+        ).rows[0];
+      pgTimingPhase('teacher_home.L1301');
+      const a = await start();
+      pgTimingPhase('teacher_home.L1302');
+      expect(a.result_code).toBe('ok');
+      pgTimingPhase('teacher_home.L1303');
+      const preferences = (
+        await app.query('SELECT learning_notification_preferences_get($1) AS x', [teacherPrincipal])
+      ).rows[0].x;
+      pgTimingPhase('teacher_home.L1306');
+      expect(
+        (
+          await app.query(
+            'SELECT learning_notification_preferences_save($1,$2,true,$3::jsonb,$4::jsonb,$5) AS code',
+            [
+              teacherPrincipal,
+              preferences.revision,
+              JSON.stringify({ ...preferences.categories, NC02: true }),
+              '{}',
+              'home:enable:' + ++sequence,
+            ],
+          )
+        ).rows[0].code,
+      ).toBe('ok');
+      pgTimingPhase('teacher_home.L1320');
+      expect((await submit()).result_code).toBe('ok');
+      pgTimingPhase('teacher_home.L1321');
+      const reviewItems = async () =>
+        (await attention()).reviews.filter((r) => r.assignmentId === assignment);
+      pgTimingPhase('teacher_home.L1323');
+      expect(await reviewItems()).toMatchObject([
+        { attemptId: a.attempt_id, seatId: seat, classroomId: cls },
+      ]);
+      // A compatibility row and canonical attempt represent one work, not two.
+      pgTimingPhase('teacher_home.L1327');
       await admin.query(
-        'SELECT attempt.state, result.review_decision FROM learning_attempts attempt JOIN assessment_results result ON result.attempt_id=attempt.id WHERE attempt.id=$1 ORDER BY result.revision_number DESC LIMIT 1',
-        [a.attempt_id],
-      )
-    ).rows[0];
-    expect(returnedLifecycle).toMatchObject({
-      state: 'closed',
-      review_decision: 'changes_requested',
-    });
-    expect(
-      (
-        await admin.query('SELECT extra_attempts FROM activity_participations WHERE id=$1', [
-          a.participation_id,
-        ])
-      ).rows[0].extra_attempts,
-    ).toBe(1);
-    const b = await start();
-    expect(b).toMatchObject({ result_code: 'ok', attempt_number: 2 });
-    expect(await reviewItems()).toHaveLength(0);
-    expect(b.attempt_id).not.toBe(a.attempt_id);
-    expect(
-      (
-        await admin.query('SELECT revision_of_attempt_id FROM learning_attempts WHERE id=$1', [
-          b.attempt_id,
-        ])
-      ).rows[0].revision_of_attempt_id,
-    ).toBe(a.attempt_id);
+        'INSERT INTO classroom_assignment_work(tenant_id,assignment_id,seat_id,project_id,started_at,submitted_at) VALUES($1,$2,$3,$4,now(),now()) ON CONFLICT DO NOTHING',
+        [owner.tenantId, assignment, seat, project],
+      );
+      pgTimingPhase('teacher_home.L1331');
+      expect(await reviewItems()).toHaveLength(1);
+      pgTimingPhase('teacher_home.L1332');
+      const notifications = (
+        await app.query('SELECT item FROM learning_notifications_list($1)', [teacherPrincipal])
+      ).rows
+        .map((r) => r.item)
+        .filter((n) => n.attemptId === a.attempt_id);
+      pgTimingPhase('teacher_home.L1337');
+      expect(notifications).toHaveLength(1);
+      pgTimingPhase('teacher_home.L1338');
+      await app.query('SELECT learning_notifications_mark_read($1,$2::uuid[],now())', [
+        teacherPrincipal,
+        notifications.map((n) => n.id),
+      ]);
+      pgTimingPhase('teacher_home.L1342');
+      expect(await reviewItems()).toHaveLength(1);
+      pgTimingPhase('teacher_home.L1343');
+      const currentPrefs = (
+        await app.query('SELECT learning_notification_preferences_get($1) AS x', [teacherPrincipal])
+      ).rows[0].x;
+      pgTimingPhase('teacher_home.L1346');
+      expect(
+        (
+          await app.query(
+            'SELECT learning_notification_preferences_save($1,$2,false,$3::jsonb,$4::jsonb,$5) AS code',
+            [
+              teacherPrincipal,
+              currentPrefs.revision,
+              JSON.stringify({ ...currentPrefs.categories, NC02: false }),
+              '{}',
+              'home:off:' + ++sequence,
+            ],
+          )
+        ).rows[0].code,
+      ).toBe('ok');
+      pgTimingPhase('teacher_home.L1360');
+      expect(await reviewItems()).toHaveLength(1);
+      pgTimingPhase('teacher_home.L1361');
+      const returned = await review(
+        a.attempt_id,
+        'changes_requested',
+        'course01:review:' + ++sequence,
+      );
+      pgTimingPhase('teacher_home.L1366');
+      expect(returned).toMatchObject({
+        result_code: 'ok',
+        attempt_state: 'closed',
+        percentage_basis_points: null,
+      });
+      pgTimingPhase('teacher_home.L1371');
+      expect(await reviewItems()).toHaveLength(0);
+      pgTimingPhase('teacher_home.L1372');
+      const retry = await review(a.attempt_id, 'changes_requested', 'course01:review:' + sequence);
+      pgTimingPhase('teacher_home.L1373');
+      expect(retry.assessment_result_id).toBe(returned.assessment_result_id);
+      pgTimingPhase('teacher_home.L1374');
+      const returnedLifecycle = (
+        await admin.query(
+          'SELECT attempt.state, result.review_decision FROM learning_attempts attempt JOIN assessment_results result ON result.attempt_id=attempt.id WHERE attempt.id=$1 ORDER BY result.revision_number DESC LIMIT 1',
+          [a.attempt_id],
+        )
+      ).rows[0];
+      pgTimingPhase('teacher_home.L1380');
+      expect(returnedLifecycle).toMatchObject({
+        state: 'closed',
+        review_decision: 'changes_requested',
+      });
+      pgTimingPhase('teacher_home.L1384');
+      expect(
+        (
+          await admin.query('SELECT extra_attempts FROM activity_participations WHERE id=$1', [
+            a.participation_id,
+          ])
+        ).rows[0].extra_attempts,
+      ).toBe(1);
+      pgTimingPhase('teacher_home.L1391');
+      const b = await start();
+      pgTimingPhase('teacher_home.L1392');
+      expect(b).toMatchObject({ result_code: 'ok', attempt_number: 2 });
+      pgTimingPhase('teacher_home.L1393');
+      expect(await reviewItems()).toHaveLength(0);
+      pgTimingPhase('teacher_home.L1394');
+      expect(b.attempt_id).not.toBe(a.attempt_id);
+      pgTimingPhase('teacher_home.L1395');
+      expect(
+        (
+          await admin.query('SELECT revision_of_attempt_id FROM learning_attempts WHERE id=$1', [
+            b.attempt_id,
+          ])
+        ).rows[0].revision_of_attempt_id,
+      ).toBe(a.attempt_id);
 
-    const revisionEvidence = (
-      await admin.query(
-        "SELECT evidence FROM learning_canonical_evidence_internal($1,$2,false) WHERE evidence->>'classroomAssignmentId'=$3",
-        [cls, seat, assignment],
-      )
-    ).rows[0].evidence;
-    expect(revisionEvidence.attempt).toMatchObject({
-      id: b.attempt_id,
-      state: 'in_progress',
-      revisionOfAttemptId: a.attempt_id,
-    });
-    const revisionProjection = (
-      await new LearningCanonicalProjectionService(app, {}).forSeat(seat)
-    ).get(canonicalProjectionKey(seat, assignment));
-    expect(revisionProjection?.surface.workflowState).toBe('in_progress');
-    expect(revisionProjection?.surface.flags).toContain('revision_in_progress');
-
-    expect((await submit()).result_code).toBe('ok');
-    expect(await reviewItems()).toMatchObject([{ attemptId: b.attempt_id }]);
-    expect(
-      (await review(b.attempt_id, 'accepted', 'course01:bad-points:' + ++sequence, null, 100))
-        .result_code,
-    ).toBe('invalid_points');
-    const accepted = await review(b.attempt_id, 'accepted', 'course01:accepted:' + ++sequence);
-    expect(accepted.result_code).toBe('ok');
-    expect(await reviewItems()).toHaveLength(0);
-    const closed = (
-      await admin.query('SELECT evaluated_at FROM learning_attempts WHERE id=$1', [b.attempt_id])
-    ).rows[0].evaluated_at;
-    const correction = await review(
-      b.attempt_id,
-      'accepted',
-      'course01:corrected:' + ++sequence,
-      accepted.assessment_result_id,
-    );
-    expect(correction.result_code).toBe('ok');
-    expect(
-      (
-        await review(
-          b.attempt_id,
-          'accepted',
-          'course01:stale:' + ++sequence,
-          accepted.assessment_result_id,
+      pgTimingPhase('teacher_home.L1403');
+      const revisionEvidence = (
+        await admin.query(
+          "SELECT evidence FROM learning_canonical_evidence_internal($1,$2,false) WHERE evidence->>'classroomAssignmentId'=$3",
+          [cls, seat, assignment],
         )
-      ).result_code,
-    ).toBe('result_revision_conflict');
-    const rows = (
+      ).rows[0].evidence;
+      pgTimingPhase('teacher_home.L1409');
+      expect(revisionEvidence.attempt).toMatchObject({
+        id: b.attempt_id,
+        state: 'in_progress',
+        revisionOfAttemptId: a.attempt_id,
+      });
+      pgTimingPhase('teacher_home.L1414');
+      const revisionProjection = (
+        await new LearningCanonicalProjectionService(app, {}).forSeat(seat)
+      ).get(canonicalProjectionKey(seat, assignment));
+      pgTimingPhase('teacher_home.L1417');
+      expect(revisionProjection?.surface.workflowState).toBe('in_progress');
+      pgTimingPhase('teacher_home.L1418');
+      expect(revisionProjection?.surface.flags).toContain('revision_in_progress');
+
+      pgTimingPhase('teacher_home.L1420');
+      expect((await submit()).result_code).toBe('ok');
+      pgTimingPhase('teacher_home.L1421');
+      expect(await reviewItems()).toMatchObject([{ attemptId: b.attempt_id }]);
+      pgTimingPhase('teacher_home.L1422');
+      expect(
+        (await review(b.attempt_id, 'accepted', 'course01:bad-points:' + ++sequence, null, 100))
+          .result_code,
+      ).toBe('invalid_points');
+      pgTimingPhase('teacher_home.L1426');
+      const accepted = await review(b.attempt_id, 'accepted', 'course01:accepted:' + ++sequence);
+      pgTimingPhase('teacher_home.L1427');
+      expect(accepted.result_code).toBe('ok');
+      pgTimingPhase('teacher_home.L1428');
+      expect(await reviewItems()).toHaveLength(0);
+      pgTimingPhase('teacher_home.L1429');
+      const closed = (
+        await admin.query('SELECT evaluated_at FROM learning_attempts WHERE id=$1', [b.attempt_id])
+      ).rows[0].evaluated_at;
+      pgTimingPhase('teacher_home.L1432');
+      const correction = await review(
+        b.attempt_id,
+        'accepted',
+        'course01:corrected:' + ++sequence,
+        accepted.assessment_result_id,
+      );
+      pgTimingPhase('teacher_home.L1438');
+      expect(correction.result_code).toBe('ok');
+      pgTimingPhase('teacher_home.L1439');
+      expect(
+        (
+          await review(
+            b.attempt_id,
+            'accepted',
+            'course01:stale:' + ++sequence,
+            accepted.assessment_result_id,
+          )
+        ).result_code,
+      ).toBe('result_revision_conflict');
+      pgTimingPhase('teacher_home.L1449');
+      const rows = (
+        await admin.query(
+          'SELECT * FROM assessment_results WHERE attempt_id=$1 ORDER BY revision_number',
+          [b.attempt_id],
+        )
+      ).rows;
+      pgTimingPhase('teacher_home.L1455');
+      expect(rows).toHaveLength(2);
+      pgTimingPhase('teacher_home.L1456');
+      expect(rows[1]).toMatchObject({
+        supersedes_result_id: rows[0].id,
+        max_points: null,
+        raw_points: null,
+        completion_value: true,
+      });
+      pgTimingPhase('teacher_home.L1462');
+      expect(
+        (
+          await admin.query('SELECT evaluated_at FROM learning_attempts WHERE id=$1', [
+            b.attempt_id,
+          ])
+        ).rows[0].evaluated_at,
+      ).toEqual(closed);
+      pgTimingPhase('teacher_home.L1466');
+      expect((await start()).result_code).toBe('attempt_limit_reached');
+      pgTimingPhase('teacher_home.L1467');
       await admin.query(
-        'SELECT * FROM assessment_results WHERE attempt_id=$1 ORDER BY revision_number',
-        [b.attempt_id],
-      )
-    ).rows;
-    expect(rows).toHaveLength(2);
-    expect(rows[1]).toMatchObject({
-      supersedes_result_id: rows[0].id,
-      max_points: null,
-      raw_points: null,
-      completion_value: true,
-    });
-    expect(
-      (await admin.query('SELECT evaluated_at FROM learning_attempts WHERE id=$1', [b.attempt_id]))
-        .rows[0].evaluated_at,
-    ).toEqual(closed);
-    expect((await start()).result_code).toBe('attempt_limit_reached');
-    await admin.query(
-      'UPDATE gradebook_entries SET assessment_result_id=$2 WHERE classroom_assignment_id=$1',
-      [assignment, accepted.assessment_result_id],
-    );
-    const evidence = (
-      await inTenant((c) =>
-        c.query('SELECT * FROM learning_canonical_evidence_for_seat($1)', [seat]),
-      )
-    ).rows[0].evidence;
-    expect(evidence).toMatchObject({
-      resultSelectionSource: 'canonical',
-      selectedAttemptId: b.attempt_id,
-      selectedRevision: {
-        id: correction.assessment_result_id,
-        rawPoints: null,
-        maxPoints: null,
-        completionValue: true,
-      },
-    });
-  }, 60_000);
+        'UPDATE gradebook_entries SET assessment_result_id=$2 WHERE classroom_assignment_id=$1',
+        [assignment, accepted.assessment_result_id],
+      );
+      pgTimingPhase('teacher_home.L1471');
+      const evidence = (
+        await inTenant((c) =>
+          c.query('SELECT * FROM learning_canonical_evidence_for_seat($1)', [seat]),
+        )
+      ).rows[0].evidence;
+      pgTimingPhase('teacher_home.L1476');
+      expect(evidence).toMatchObject({
+        resultSelectionSource: 'canonical',
+        selectedAttemptId: b.attempt_id,
+        selectedRevision: {
+          id: correction.assessment_result_id,
+          rawPoints: null,
+          maxPoints: null,
+          completionValue: true,
+        },
+      });
+    }),
+    60_000,
+  );
   it('returns an archived accepted original through exact append-only review without duplicate grants', async () => {
     const submittedWork = async (label: string, attachOrigin = true) => {
       const classroomId = await createClass();
