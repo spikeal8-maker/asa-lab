@@ -110,6 +110,8 @@ surfaces:
     - apps/web/src/components/AuthoredTaskBlocksEditor.tsx
     - apps/web/src/components/TaskBlocks.tsx
     - apps/web/src/components/CoursesPanel.tsx
+    - apps/web/src/components/LessonBlocks.tsx
+    - apps/web/src/components/lesson-blocks.css
     - apps/web/src/api.ts
     - apps/api/src/learning-activities.controller.ts
     - apps/api/src/assignments.controller.ts
@@ -145,6 +147,9 @@ surfaces:
     - apps/web/src/pages/AssignmentLibraryPage.tsx
     - apps/web/src/components/CoursesPanel.tsx
     - apps/web/src/components/LessonBlockEditor.tsx
+    - apps/web/src/components/LessonBlocks.tsx
+    - apps/web/src/components/lesson-blocks.css
+    - apps/web/src/learning/testing/lesson-blocks-media.spec.ts
     - apps/web/src/learning/course-prepublication-diagnostic.ts
     - apps/web/src/api-call.ts
     - apps/web/src/api.ts
@@ -262,6 +267,9 @@ surfaces:
     - apps/web/src/pages/LearningPage.tsx
     - apps/web/src/pages/AttendedClassesPage.tsx
     - apps/web/src/components/SeatCourses.tsx
+    - apps/web/src/components/LessonBlocks.tsx
+    - apps/web/src/components/lesson-blocks.css
+    - apps/web/src/learning/testing/lesson-blocks-media.spec.ts
     - apps/web/src/components/SeatAssignments.tsx
     - apps/web/src/components/AssignmentView.tsx
     - apps/web/src/components/TaskBlocks.tsx

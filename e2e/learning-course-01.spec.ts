@@ -4499,3 +4499,541 @@ test('Course archive rejects a stale assignment dialog, keeps exact replay and o
   await learner.context.close();
   await archiveTab.close();
 });
+
+test('Course media errors survive saved author preview and learner delivery with explicit retry', async ({
+  browser,
+  page,
+}) => {
+  test.setTimeout(180_000);
+  const suffix = crypto.randomUUID().slice(0, 8);
+  const directory = evidenceDir + '/media-errors';
+  mkdirSync(directory, { recursive: true });
+  const courseTitle = 'Медиа курса ' + suffix;
+  const classTitle = 'Класс медиа ' + suffix;
+  const lessonTitle = 'Материалы с повторной загрузкой';
+  const imageUrl = '/assets/course-media-' + suffix + '.png';
+  const videoUrl = '/assets/course-media-' + suffix + '.webm';
+  const audioUrl = '/assets/course-media-' + suffix + '.wav';
+  const fileUrl = 'https://example.test/course-guide-' + suffix + '.pdf';
+  const imageAlt = 'Схема с подписью после сохранения';
+  const imageCaption = 'Иллюстрация к сохранённому уроку';
+  const videoTitle = 'Сохранённое видео платформы';
+  const audioTitle = 'Сохранённое аудио платформы';
+  const fileLabel = 'Памятка к сохранённому уроку';
+  const media = [
+    {
+      url: imageUrl,
+      selector: '.lesson-media-block:has(img)',
+      message: 'Не удалось загрузить изображение',
+    },
+    {
+      url: videoUrl,
+      selector: '.lesson-media-block:has(video)',
+      message: 'Не удалось загрузить видео',
+    },
+    {
+      url: audioUrl,
+      selector: '.lesson-audio-block:has(audio)',
+      message: 'Не удалось загрузить аудио',
+    },
+  ] as const;
+  const imageBytes = readFileSync('apps/web/public/landing/electronics-simulation.png');
+
+  // Only these exact synthetic resource responses are controlled. Course,
+  // publication, assignment and learner responses always come from the API.
+  async function observeMedia(target: Page) {
+    const origin = new URL(target.url()).origin;
+    const expectedUrls = new Set(media.map((item) => new URL(item.url, origin).href));
+    const requestCounts = new Map<string, number>();
+    const responses = new Map<string, number[]>();
+    const consoleErrors: string[] = [];
+    const pageErrors: string[] = [];
+    const failedRequests: string[] = [];
+    const unexpectedHttpErrors: string[] = [];
+    let fileRequests = 0;
+    let imageAvailable = false;
+    let mediaGate: Promise<void> | null = null;
+    target.on('pageerror', (error) => pageErrors.push(error.message));
+    target.on('request', (request) => {
+      if (request.url() === fileUrl) fileRequests += 1;
+    });
+    target.on('console', (message) => {
+      if (message.type() !== 'error') return;
+      const source = message.location().url;
+      if (
+        expectedUrls.has(source) &&
+        message
+          .text()
+          .startsWith('Failed to load resource: the server responded with a status of 404')
+      )
+        return;
+      // Same exact signed-in non-admin probe allowed by collectBrowserFailures.
+      if (
+        source === origin + '/api/admin/v1/me' &&
+        message.text() ===
+          'Failed to load resource: the server responded with a status of 403 (Forbidden)'
+      )
+        return;
+      consoleErrors.push(message.text() + ' ' + source);
+    });
+    target.on('requestfailed', (request) => {
+      if (request.failure()?.errorText === 'net::ERR_ABORTED') return;
+      failedRequests.push(
+        request.method() + ' ' + request.url() + ' ' + request.failure()?.errorText,
+      );
+    });
+    target.on('response', (response) => {
+      if (expectedUrls.has(response.url())) {
+        const pathname = new URL(response.url()).pathname;
+        responses.set(pathname, [...(responses.get(pathname) ?? []), response.status()]);
+        if (response.status() === 404 || (pathname === imageUrl && response.status() === 200))
+          return;
+      }
+      if (response.status() < 400) return;
+      if (response.status() === 403 && response.url() === origin + '/api/admin/v1/me') return;
+      unexpectedHttpErrors.push(response.status() + ' ' + response.url());
+    });
+    await target.route(
+      (url) => expectedUrls.has(url.href),
+      async (route) => {
+        expect(route.request().method()).toBe('GET');
+        const pathname = new URL(route.request().url()).pathname;
+        requestCounts.set(pathname, (requestCounts.get(pathname) ?? 0) + 1);
+        if (mediaGate) await mediaGate;
+        if (pathname === imageUrl && imageAvailable) {
+          await route.fulfill({
+            status: 200,
+            contentType: 'image/png',
+            headers: { 'cache-control': 'no-store' },
+            body: imageBytes,
+          });
+        } else {
+          await route.fulfill({
+            status: 404,
+            contentType: 'text/plain',
+            headers: { 'cache-control': 'no-store' },
+            body: 'Synthetic resource unavailable',
+          });
+        }
+      },
+    );
+    return {
+      requestCounts,
+      recoverImage() {
+        imageAvailable = true;
+      },
+      holdMediaResponses() {
+        let release!: () => void;
+        mediaGate = new Promise<void>((resolve) => {
+          release = resolve;
+        });
+        return () => {
+          mediaGate = null;
+          release();
+        };
+      },
+      assertObservedFailuresAndNoUnexpectedErrors() {
+        for (const item of media) {
+          expect(
+            requestCounts.get(item.url),
+            'initial load and explicit retry: ' + item.url,
+          ).toBeGreaterThanOrEqual(2);
+          expect(
+            (responses.get(item.url) ?? []).filter((status) => status === 404).length,
+          ).toBeGreaterThanOrEqual(2);
+        }
+        expect(responses.get(imageUrl)).toContain(200);
+        expect(fileRequests, 'a file link must not trigger speculative loading').toBe(0);
+        expect(consoleErrors, 'unexpected browser console errors').toEqual([]);
+        expect(pageErrors, 'uncaught browser page errors').toEqual([]);
+        expect(failedRequests, 'unexpected failed browser requests').toEqual([]);
+        expect(unexpectedHttpErrors, 'unexpected HTTP errors').toEqual([]);
+      },
+    };
+  }
+
+  async function exerciseMedia(
+    target: Page,
+    scope: import('@playwright/test').Locator,
+    observer: Awaited<ReturnType<typeof observeMedia>>,
+    phase: 'preview' | 'learner',
+  ) {
+    const file = scope.getByRole('link', { name: new RegExp(fileLabel) });
+    await expect(file).toHaveAttribute('href', fileUrl);
+    await expect(file).toHaveAttribute('target', '_blank');
+    await expect(file).toHaveAttribute('rel', 'noreferrer');
+    await expect(scope.getByText(imageCaption, { exact: true })).toBeVisible();
+    await expect(scope.getByText(videoTitle, { exact: true })).toBeVisible();
+    await expect(scope.getByText(audioTitle, { exact: true })).toBeVisible();
+    await expect(scope.locator('img')).toHaveAttribute('alt', imageAlt);
+    await expect(scope.locator('img')).toHaveAttribute('loading', 'lazy');
+    for (const kind of ['video', 'audio']) {
+      await expect(scope.locator(kind)).toHaveAttribute('controls', '');
+      await expect(scope.locator(kind)).toHaveAttribute('preload', 'metadata');
+      await expect(scope.locator(kind)).not.toHaveAttribute('autoplay', '');
+    }
+    for (const item of media) {
+      const wrapper = scope.locator(item.selector);
+      await wrapper.scrollIntoViewIfNeeded();
+      await expect(wrapper.getByRole('alert')).toHaveText(item.message);
+      const open = wrapper.getByRole('link', { name: 'Открыть отдельно', exact: true });
+      await expect(open).toHaveAttribute('href', item.url);
+      await expect(open).toHaveAttribute('target', '_blank');
+      await expect(open).toHaveAttribute('rel', 'noreferrer');
+    }
+
+    for (const width of [1440, 390, 320]) {
+      await target.setViewportSize({ width, height: 900 });
+      for (const item of media) {
+        const fallback = scope.locator(item.selector).locator('.lesson-media-error');
+        await fallback.scrollIntoViewIfNeeded();
+        await expect(fallback.getByRole('alert')).toBeVisible();
+        for (const control of [
+          fallback.getByRole('alert'),
+          fallback.getByRole('button', { name: 'Повторить загрузку', exact: true }),
+          fallback.getByRole('link', { name: 'Открыть отдельно', exact: true }),
+        ]) {
+          const box = await control.boundingBox();
+          expect(box).not.toBeNull();
+          expect(box!.x, phase + ' left at ' + width).toBeGreaterThanOrEqual(0);
+          expect(box!.x + box!.width, phase + ' right at ' + width).toBeLessThanOrEqual(width);
+        }
+        const readable = await fallback.getByRole('alert').evaluate((element) => {
+          const box = element.getBoundingClientRect();
+          const range = document.createRange();
+          range.selectNodeContents(element);
+          const rects = Array.from(range.getClientRects());
+          return (
+            box.width >= 100 &&
+            rects.length > 0 &&
+            rects.every((rect) => rect.left >= box.left - 1 && rect.right <= box.right + 1)
+          );
+        });
+        expect(readable, phase + ' readable media error at ' + width).toBe(true);
+      }
+      expect(
+        await target.evaluate(
+          () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        ),
+      ).toBeLessThanOrEqual(0);
+      await target.screenshot({
+        path: directory + '/' + phase + '-error-' + width + '.png',
+        fullPage: true,
+      });
+    }
+    await target.setViewportSize({ width: 1440, height: 900 });
+
+    // Retry must issue another real request for the unchanged URL, including
+    // when the server still reports failure. No URL cache-busting or auto-play.
+    for (const item of media) {
+      const wrapper = scope.locator(item.selector);
+      const before = observer.requestCounts.get(item.url) ?? 0;
+      const retried = target.waitForResponse(
+        (response) =>
+          response.url() === new URL(item.url, target.url()).href &&
+          response.request().method() === 'GET',
+      );
+      await wrapper.getByRole('button', { name: 'Повторить загрузку', exact: true }).click();
+      expect((await retried).status()).toBe(404);
+      await expect(wrapper.getByRole('alert')).toHaveText(item.message);
+      expect(observer.requestCounts.get(item.url)).toBeGreaterThan(before);
+      await expect(wrapper).toBeFocused();
+    }
+
+    observer.recoverImage();
+    const imageWrapper = scope.locator(media[0].selector);
+    const recovered = target.waitForResponse(
+      (response) =>
+        response.url() === new URL(imageUrl, target.url()).href &&
+        response.request().method() === 'GET',
+    );
+    await imageWrapper.getByRole('button', { name: 'Повторить загрузку', exact: true }).click();
+    expect((await recovered).status()).toBe(200);
+    await expect
+      .poll(() =>
+        imageWrapper.locator('img').evaluate((element) => {
+          const image = element as HTMLImageElement;
+          return image.complete && image.naturalWidth > 0;
+        }),
+      )
+      .toBe(true);
+    await expect(imageWrapper.getByRole('alert')).toHaveCount(0);
+    await expect(imageWrapper.getByRole('button', { name: 'Повторить загрузку' })).toHaveCount(0);
+    await expect(scope.locator('.lesson-media-error')).toHaveCount(2);
+    await expect(imageWrapper).toBeFocused();
+    for (const width of [1440, 390, 320]) {
+      await target.setViewportSize({ width, height: 900 });
+      await imageWrapper.scrollIntoViewIfNeeded();
+      await expect(imageWrapper.locator('img')).toBeVisible();
+      expect(
+        await target.evaluate(
+          () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        ),
+      ).toBeLessThanOrEqual(0);
+      await target.screenshot({
+        path: directory + '/' + phase + '-recovered-' + width + '.png',
+        fullPage: true,
+      });
+    }
+    await target.setViewportSize({ width: 1440, height: 900 });
+  }
+
+  await loginWithOrganization(page, teacher);
+  const authorObserver = await observeMedia(page);
+  const handle = 'course-media-' + suffix;
+  const joinCode = await createClassWithStudents(page, classTitle, [
+    { label: 'Ученик медиа', handle },
+  ]);
+  const classroomId = /classrooms\/([a-f0-9-]+)/.exec(page.url())![1]!;
+  await page.goto('/#/challenges');
+  await page.getByRole('button', { name: 'Курсы', exact: true }).click();
+  await page.getByRole('button', { name: 'Создать курс', exact: true }).click();
+  const form = page.getByRole('dialog', { name: 'Новый курс' });
+  await form.getByLabel('Название', { exact: true }).fill(courseTitle);
+  const creation = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'POST' && new URL(response.url()).pathname === '/api/courses',
+  );
+  await form.getByRole('button', { name: 'Создать курс', exact: true }).click();
+  const created = await creation;
+  expect(created.status()).toBe(201);
+  const courseId = ((await created.json()) as { id: string }).id;
+  const editor = page.getByTestId('course-editor');
+  await editor.getByRole('button', { name: '+ Урок', exact: true }).click();
+  await editor.getByLabel('Название урока').fill(lessonTitle);
+  await editor
+    .getByLabel('Текст блока', { exact: true })
+    .fill('Материалы сохраняют свои подписи и адреса.');
+  await addCourseBlock(page, 'Картинка');
+  await editor.getByLabel('Ссылка на изображение').fill('/assets/initial-' + suffix + '.png');
+  await editor.getByLabel('Описание изображения').fill('Исходное изображение');
+  await editor.getByLabel('Подпись изображения').fill('Исходная подпись');
+  await addCourseBlock(page, 'Файл');
+  await editor.getByLabel('Ссылка на файл').fill('https://example.test/initial-' + suffix + '.pdf');
+  await editor.getByLabel('Название файла').fill('Исходная памятка');
+  await editor.getByRole('button', { name: 'Добавить урок', exact: true }).click();
+  await expect(editor.getByRole('status')).toHaveText('Урок добавлен.');
+  async function outline() {
+    const response = await page.request.get('/api/courses/' + courseId + '/outline');
+    expect(response.status()).toBe(200);
+    return (await response.json()) as { draftRevision: number; sections: CourseSection[] };
+  }
+  const initial = await outline();
+  const section = initial.sections[0]!;
+  const lesson = section.lessons[0]!;
+  const lessonPath = '/api/courses/' + courseId + '/lessons/' + lesson.id;
+  // The current author menu creates images and file/external-video links.
+  // Seed supported persisted platform video/audio through the ordinary
+  // authorized revision-checked draft API, then edit them using the real UI.
+  // This is not evidence of video/audio UI creation or an upload pipeline.
+  const seeded = await page.request.patch(lessonPath, {
+    headers: { origin: new URL(page.url()).origin },
+    data: {
+      sectionId: section.id,
+      title: lesson.title,
+      summary: lesson.summary,
+      content: null,
+      blocks: [
+        ...lesson.blocks,
+        {
+          id: crypto.randomUUID(),
+          type: 'video',
+          url: '/assets/initial-' + suffix + '.webm',
+          title: 'Исходное видео',
+        },
+        {
+          id: crypto.randomUUID(),
+          type: 'audio',
+          url: '/assets/initial-' + suffix + '.wav',
+          title: 'Исходное аудио',
+        },
+      ],
+      kind: 'material',
+      assignmentId: null,
+      learningActivityVersionId: null,
+      estimatedMinutes: null,
+      expectedRevision: initial.draftRevision,
+    },
+  });
+  expect(seeded.status()).toBe(200);
+  expect((await seeded.json()).id).toBe(lesson.id);
+  async function reopen() {
+    await page.reload();
+    await page.getByRole('button', { name: 'Курсы', exact: true }).click();
+    await page
+      .getByTestId('courses-list')
+      .getByRole('button')
+      .filter({ hasText: courseTitle })
+      .click();
+    await expect(editor.getByLabel('Название урока')).toHaveValue(lessonTitle);
+  }
+  await reopen();
+  await editor.getByLabel('Ссылка на изображение').fill(imageUrl);
+  await editor.getByLabel('Описание изображения').fill(imageAlt);
+  await editor.getByLabel('Подпись изображения').fill(imageCaption);
+  await editor.getByLabel('Ссылка на файл').fill(fileUrl);
+  await editor.getByLabel('Название файла').fill(fileLabel);
+  await editor.getByLabel('Ссылка на видео').fill(videoUrl);
+  await editor.getByLabel('Ссылка на аудио').fill(audioUrl);
+  await editor
+    .locator('.lesson-block-card')
+    .filter({ has: page.getByLabel('Ссылка на видео') })
+    .getByLabel('Название медиа')
+    .fill(videoTitle);
+  await editor
+    .locator('.lesson-block-card')
+    .filter({ has: page.getByLabel('Ссылка на аудио') })
+    .getByLabel('Название медиа')
+    .fill(audioTitle);
+  const save = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'PATCH' && new URL(response.url()).pathname === lessonPath,
+  );
+  await editor.getByRole('button', { name: 'Сохранить урок', exact: true }).click();
+  expect((await save).status()).toBe(200);
+  await expect(editor.getByRole('status')).toHaveText('Урок сохранён.');
+  await reopen();
+  for (const [label, value] of [
+    ['Ссылка на изображение', imageUrl],
+    ['Описание изображения', imageAlt],
+    ['Подпись изображения', imageCaption],
+    ['Ссылка на файл', fileUrl],
+    ['Название файла', fileLabel],
+    ['Ссылка на видео', videoUrl],
+    ['Ссылка на аудио', audioUrl],
+  ])
+    await expect(editor.getByLabel(label)).toHaveValue(value);
+  const saved = await outline();
+  expect(saved.sections[0]!.lessons[0]!.blocks.map((block) => block.type)).toEqual([
+    'paragraph',
+    'image',
+    'file',
+    'video',
+    'audio',
+  ]);
+  expect(saved.sections[0]!.lessons[0]!.blocks).toEqual([
+    lesson.blocks[0],
+    { ...lesson.blocks[1], url: imageUrl, alt: imageAlt, caption: imageCaption },
+    { ...lesson.blocks[2], url: fileUrl, label: fileLabel },
+    expect.objectContaining({ type: 'video', url: videoUrl, title: videoTitle }),
+    expect.objectContaining({ type: 'audio', url: audioUrl, title: audioTitle }),
+  ]);
+  await editor.getByRole('button', { name: 'Предпросмотр', exact: true }).click();
+  const preview = page.getByTestId('course-preview-page');
+  await expect(preview).toBeVisible();
+  await exerciseMedia(page, preview.locator('.lesson-blocks').first(), authorObserver, 'preview');
+  expect(await outline(), 'error, open affordance and retry do not write the draft').toEqual(saved);
+  authorObserver.assertObservedFailuresAndNoUnexpectedErrors();
+  await editor.getByRole('button', { name: 'Редактировать', exact: true }).click();
+  const lessonActions = editor.locator('details.course-outline-menu').filter({
+    has: page.getByRole('button', { name: 'Действия урока «' + lessonTitle + '»', exact: true }),
+  });
+  await lessonActions
+    .getByRole('button', { name: 'Действия урока «' + lessonTitle + '»', exact: true })
+    .click();
+  await lessonActions.getByRole('button', { name: 'Дублировать', exact: true }).click();
+  await expect(editor.getByRole('status')).toHaveText('Урок продублирован.');
+  const duplicated = await outline();
+  expect(duplicated.sections[0]!.lessons).toHaveLength(2);
+  expect(duplicated.sections[0]!.lessons[1]!.id).not.toBe(lesson.id);
+  expect(duplicated.sections[0]!.lessons[1]!.blocks).toEqual(saved.sections[0]!.lessons[0]!.blocks);
+  const publish = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'POST' &&
+      new URL(response.url()).pathname === '/api/courses/' + courseId + '/publish',
+  );
+  await editor.getByRole('button', { name: 'Опубликовать', exact: true }).click();
+  const published = await publish;
+  expect(published.status()).toBe(201);
+  const version = (await published.json()) as { id: string; versionNumber: number };
+  expect(version.versionNumber).toBe(1);
+  const historyResponse = await page.request.get('/api/courses/' + courseId + '/versions');
+  expect(historyResponse.status()).toBe(200);
+  const history = await historyResponse.json();
+  expect(history.items).toHaveLength(1);
+  await editor.getByRole('button', { name: 'Назначить курс', exact: true }).click();
+  const assignDialog = page.getByRole('dialog', { name: 'Назначить курс', exact: true });
+  await assignDialog.getByLabel('Класс для курса').selectOption({ label: classTitle });
+  const assignment = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'POST' &&
+      new URL(response.url()).pathname === '/api/classrooms/' + classroomId + '/course-runs',
+  );
+  await assignDialog.getByRole('button', { name: 'Назначить', exact: true }).click();
+  const assigned = await assignment;
+  expect(assigned.status()).toBe(201);
+  const receipt = (await assigned.json()) as {
+    runId: string;
+    versionNumber: number;
+    reused: boolean;
+  };
+  expect(receipt).toMatchObject({ versionNumber: 1, reused: false });
+  await expect(assignDialog.getByRole('status')).toContainText('Сервер подтвердил версию 1');
+  await assignDialog.getByRole('button', { name: 'Закрыть назначение', exact: true }).click();
+  const learner = await learnerAssignments(browser, joinCode, handle);
+  try {
+    const learnerObserver = await observeMedia(learner.page);
+    await learner.page.goto('/#/learning?courseRun=' + receipt.runId);
+    await learner.page.reload();
+    const player = learner.page.getByTestId('seat-course-player');
+    await expect(player.getByRole('heading', { name: lessonTitle, exact: true })).toBeVisible();
+    await exerciseMedia(
+      learner.page,
+      player.locator('.lesson-blocks').first(),
+      learnerObserver,
+      'learner',
+    );
+    const delivered = await learner.page.request.get('/api/class-join/me/course-runs');
+    expect(delivered.status()).toBe(200);
+    const run = (await delivered.json()).items.find(
+      (item: { id: string }) => item.id === receipt.runId,
+    );
+    expect(run).toMatchObject({ courseVersionId: version.id, versionNumber: 1 });
+    expect(run.sections[0].lessons).toHaveLength(2);
+    expect(run.sections[0].lessons[0].blocks).toEqual(saved.sections[0]!.lessons[0]!.blocks);
+    expect(run.sections[0].lessons[1].blocks).toEqual(saved.sections[0]!.lessons[0]!.blocks);
+    // Duplicated lessons deliberately preserve block IDs and resource URLs.
+    // Hold the real new loads to observe that the previous lesson's error is
+    // cleared before the new lesson receives its own resource outcome.
+    const beforeSwitch = new Map(learnerObserver.requestCounts);
+    const releaseMedia = learnerObserver.holdMediaResponses();
+    try {
+      const navigation = player.getByRole('navigation', { name: 'Переход между уроками' });
+      await expect(navigation).toContainText('1 из 2');
+      await player
+        .getByRole('complementary', { name: 'Содержание курса' })
+        .getByRole('button')
+        .nth(1)
+        .click();
+      await expect(navigation).toContainText('2 из 2');
+      for (const item of media) {
+        await player.locator(item.selector).scrollIntoViewIfNeeded();
+        await expect
+          .poll(() => learnerObserver.requestCounts.get(item.url) ?? 0)
+          .toBeGreaterThan(beforeSwitch.get(item.url) ?? 0);
+      }
+      await expect(player.locator('.lesson-media-error')).toHaveCount(0);
+    } finally {
+      releaseMedia();
+    }
+    await expect(player.locator(media[1].selector).getByRole('alert')).toHaveText(media[1].message);
+    await expect(player.locator(media[2].selector).getByRole('alert')).toHaveText(media[2].message);
+    await expect
+      .poll(() =>
+        player
+          .locator(media[0].selector)
+          .locator('img')
+          .evaluate((element) => (element as HTMLImageElement).naturalWidth),
+      )
+      .toBeGreaterThan(0);
+    learnerObserver.assertObservedFailuresAndNoUnexpectedErrors();
+  } finally {
+    await learner.context.close();
+  }
+  const finalHistory = await page.request.get('/api/courses/' + courseId + '/versions');
+  expect(finalHistory.status()).toBe(200);
+  expect(await finalHistory.json(), 'media failures and retry preserve published history').toEqual(
+    history,
+  );
+  authorObserver.assertObservedFailuresAndNoUnexpectedErrors();
+});

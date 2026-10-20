@@ -664,6 +664,9 @@ requirements:
   normative_ref: PRODUCT-INTEGRATED-V15 §4.2.1 / §4.16
   source_paths:
   - apps/web/src/components/CoursesPanel.tsx
+  - apps/web/src/components/LessonBlocks.tsx
+  - apps/web/src/components/SeatCourses.tsx
+  - apps/web/src/components/lesson-blocks.css
   - apps/web/src/components/AuthorVersionHistory.tsx
   - apps/web/src/pages/AssignmentLibraryPage.tsx
   - apps/api/src/courses.controller.ts
@@ -671,6 +674,7 @@ requirements:
   - docs/product/ASA_INTEGRATED_IMPLEMENTATION_SPEC.md
   tests:
   - e2e/learning-course-01.spec.ts
+  - apps/web/src/learning/testing/lesson-blocks-media.spec.ts
   - tests/courses/course-version-diff.spec.ts
   verification:
     source_sha: 0a4b50742b6e127320c01ed81060ae8e51c6eabe
