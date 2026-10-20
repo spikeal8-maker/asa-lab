@@ -1,0 +1,245 @@
+name: Electronics fixed classroom dispatch helper
+run-name: One fixed classroom dispatch for e826794c
+
+on:
+  pull_request:
+    types: [opened]
+    paths:
+      - '.github/workflows/electronics-qualification-dispatch.yml'
+
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: electronics-qualification-dispatch-662
+  cancel-in-progress: false
+
+jobs:
+  dispatch-once:
+    if: >-
+      github.repository == 'spikeal8-maker/asa-lab' &&
+      github.event.action == 'opened' &&
+      github.event.pull_request.head.repo.full_name == 'spikeal8-maker/asa-lab' &&
+      github.event.pull_request.head.repo.fork == false &&
+      github.head_ref == 'codex/electronics-qualification-dispatch-662' &&
+      github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      # Temporary branch only. No checkout, external actions or artifact execution.
+      - name: Request exactly one already-selected classroom qualification
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import re
+          import sys
+          import urllib.error
+          import urllib.parse
+          import urllib.request
+          from pathlib import Path
+
+          REPO = 'spikeal8-maker/asa-lab'
+          REPO_ID = 1304464825
+          HELPER_BRANCH = 'codex/electronics-qualification-dispatch-662'
+          TARGET_PR = 660
+          TARGET_BRANCH = 'codex/electronics-core-fet-658'
+          TARGET_SHA = 'e826794c1cb4aec1280630040f2652272b3d5de1'
+          TARGET_TREE = '5e162fa4744feabe7845c87556a744fe4ff27f7b'
+          WORKFLOW_ID = 326529119
+          WORKFLOW_FILE = 'electronics-r4-m1-focused.yml'
+          WORKFLOW_PATH = '.github/workflows/' + WORKFLOW_FILE
+          PROFILE = 'classroom-d13-v3'
+          PREFIX = '/repos/' + REPO
+          PR_PATH = PREFIX + '/pulls/660'
+          REF_PATH = PREFIX + '/git/ref/heads/' + TARGET_BRANCH
+          COMMIT_PATH = PREFIX + '/git/commits/' + TARGET_SHA
+          WORKFLOW_META_PATH = PREFIX + '/actions/workflows/' + str(WORKFLOW_ID)
+          RUNS_PATH = WORKFLOW_META_PATH + '/runs?' + urllib.parse.urlencode({
+              'event': 'workflow_dispatch', 'branch': TARGET_BRANCH,
+              'head_sha': TARGET_SHA, 'per_page': 100, 'page': 1,
+          })
+          DISPATCH_PATH = PREFIX + '/actions/workflows/' + WORKFLOW_FILE + '/dispatches'
+          READ_PATHS = frozenset((PR_PATH, REF_PATH, COMMIT_PATH, WORKFLOW_META_PATH, RUNS_PATH))
+          PAYLOAD = {'ref': TARGET_BRANCH, 'inputs': {'qualification_profile': PROFILE}}
+          TARGET_TITLE = 'Electronics R4-M1 ' + PROFILE + ' ' + TARGET_SHA
+          OTHER_TITLES = frozenset((
+              'Electronics R4-M1 strict-real-time ' + TARGET_SHA,
+              'Electronics R4-M1 classroom-d13-v2 ' + TARGET_SHA,
+          ))
+          stage = 'initialization'
+          dispatch_attempted = False
+
+          def require(condition, code):
+              if not condition:
+                  raise ValueError(code)
+
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self, req, fp, code, msg, headers, newurl):
+                  return None
+
+          def api(method, path, token=None, payload=None):
+              require(method in ('GET', 'POST'), 'api-method')
+              if method == 'GET':
+                  require(path in READ_PATHS and payload is None, 'api-read-path')
+                  require((path == PR_PATH and token is None) or
+                          (path != PR_PATH and bool(token)), 'api-read-token-boundary')
+              else:
+                  require(path == DISPATCH_PATH and payload == PAYLOAD and bool(token),
+                          'api-dispatch-boundary')
+              headers = {'Accept': 'application/vnd.github+json',
+                         'X-GitHub-Api-Version': '2022-11-28',
+                         'User-Agent': 'asa-electronics-fixed-dispatch-662'}
+              if token is not None:
+                  headers['Authorization'] = 'Bearer ' + token
+              data = None if method == 'GET' else json.dumps(PAYLOAD, separators=(',', ':')).encode()
+              if data is not None:
+                  headers['Content-Type'] = 'application/json'
+              request = urllib.request.Request('https://api.github.com' + path,
+                                               headers=headers, data=data, method=method)
+              # Every request, including public PR reads and POST, rejects redirects.
+              return urllib.request.build_opener(NoRedirect()).open(request, timeout=30)
+
+          def read_json(path, token=None):
+              with api('GET', path, token=token) as response:
+                  require(response.status == 200, 'api-read-status')
+                  raw = response.read(1024 * 1024 + 1)
+                  link = response.headers.get('Link', '')
+              require(len(raw) <= 1024 * 1024, 'api-read-size')
+              value = json.loads(raw)
+              require(isinstance(value, dict), 'api-json-object')
+              return value, link
+
+          def helper_event(event, environment):
+              require(environment.get('GITHUB_REPOSITORY') == REPO and
+                      environment.get('GITHUB_EVENT_NAME') == 'pull_request' and
+                      environment.get('GITHUB_HEAD_REF') == HELPER_BRANCH and
+                      environment.get('GITHUB_RUN_ATTEMPT') == '1', 'helper-environment')
+              repository = event.get('repository', {})
+              require(repository.get('full_name') == REPO and repository.get('id') == REPO_ID and
+                      repository.get('fork') is False and event.get('action') == 'opened',
+                      'helper-repository-action')
+              pull = event.get('pull_request', {})
+              number = event.get('number')
+              require(type(number) is int and number > 0 and number != TARGET_PR and
+                      pull.get('number') == number and pull.get('state') == 'open', 'helper-pr')
+              head, base = pull.get('head', {}), pull.get('base', {})
+              require(head.get('ref') == HELPER_BRANCH and
+                      head.get('repo', {}).get('full_name') == REPO and
+                      head.get('repo', {}).get('id') == REPO_ID and
+                      head.get('repo', {}).get('fork') is False, 'helper-head-repository')
+              require(base.get('ref') == 'main' and base.get('repo', {}).get('full_name') == REPO,
+                      'helper-base')
+              require(re.fullmatch(r'[0-9a-f]{40}', head.get('sha', '')) is not None, 'helper-head-sha')
+              return {'helper_pr': number, 'helper_head': head['sha']}
+
+          def verify_target_pr(value):
+              require(value.get('number') == TARGET_PR and value.get('state') == 'open', 'target-pr')
+              head, base = value.get('head', {}), value.get('base', {})
+              require(head.get('ref') == TARGET_BRANCH and head.get('sha') == TARGET_SHA,
+                      'target-pr-ref-sha')
+              repository = head.get('repo', {})
+              require(repository.get('full_name') == REPO and repository.get('id') == REPO_ID and
+                      repository.get('fork') is False and
+                      base.get('repo', {}).get('full_name') == REPO and base.get('ref') == 'main',
+                      'target-pr-repository')
+
+          def verify_target_ref(value):
+              require(value.get('ref') == 'refs/heads/' + TARGET_BRANCH and
+                      value.get('object', {}).get('type') == 'commit' and
+                      value.get('object', {}).get('sha') == TARGET_SHA, 'target-ref-sha')
+
+          def verify_commit(value):
+              require(value.get('sha') == TARGET_SHA and value.get('tree', {}).get('sha') == TARGET_TREE,
+                      'target-commit-tree')
+
+          def verify_workflow(value):
+              require(value.get('id') == WORKFLOW_ID and value.get('path') == WORKFLOW_PATH and
+                      value.get('state') == 'active', 'target-workflow')
+
+          def no_prior_classroom(value, link):
+              count, runs = value.get('total_count'), value.get('workflow_runs')
+              require(type(count) is int and isinstance(runs, list) and
+                      count == len(runs) and 0 <= count < 100 and 'rel="next"' not in link,
+                      'prior-runs-first-page-ambiguity')
+              require(all(isinstance(run, dict) and run.get('workflow_id') == WORKFLOW_ID and
+                          run.get('path') == WORKFLOW_PATH and run.get('event') == 'workflow_dispatch' and
+                          run.get('head_branch') == TARGET_BRANCH and run.get('head_sha') == TARGET_SHA and
+                          run.get('repository', {}).get('full_name') == REPO and
+                          run.get('head_repository', {}).get('full_name') == REPO
+                          for run in runs), 'prior-runs-identity')
+              titles = [run.get('display_title') for run in runs]
+              require(all(title == TARGET_TITLE or title in OTHER_TITLES for title in titles),
+                      'prior-runs-profile-ambiguity')
+              require(TARGET_TITLE not in titles, 'prior-classroom-already-exists')
+              return count
+
+          def dispatch_once(token):
+              global dispatch_attempted, stage
+              require(not dispatch_attempted, 'single-dispatch-only')
+              # Set before I/O. Any HTTP/network uncertainty must never be retried.
+              dispatch_attempted = True
+              stage = 'dispatch-attempted-outcome-uncertain-until-204'
+              with api('POST', DISPATCH_PATH, token=token, payload=PAYLOAD) as response:
+                  require(response.status == 204, 'dispatch-response-status')
+              stage = 'dispatch-204-received-actual-run-unverified'
+
+          def perform(event, environment, token):
+              global stage
+              helper = helper_event(event, environment)
+              require(bool(token), 'missing-actions-token')
+              stage = 'initial-target-identity'
+              verify_target_pr(read_json(PR_PATH)[0])
+              verify_target_ref(read_json(REF_PATH, token)[0])
+              verify_commit(read_json(COMMIT_PATH, token)[0])
+              verify_workflow(read_json(WORKFLOW_META_PATH, token)[0])
+              stage = 'no-prior-classroom'
+              no_prior_classroom(*read_json(RUNS_PATH, token))
+              stage = 'final-no-prior-classroom'
+              prior_count = no_prior_classroom(*read_json(RUNS_PATH, token))
+              # Final PR and branch reads immediately precede the one fixed POST.
+              # GitHub has no atomic compare-and-dispatch: root must verify the
+              # resulting actual run's head; receipt alone cannot accept the run.
+              stage = 'final-target-identity'
+              verify_target_pr(read_json(PR_PATH)[0])
+              verify_target_ref(read_json(REF_PATH, token)[0])
+              dispatch_once(token)
+              return {**helper, 'repository': REPO, 'target_pr': TARGET_PR,
+                      'target_branch': TARGET_BRANCH, 'target_sha': TARGET_SHA,
+                      'target_tree': TARGET_TREE, 'workflow_id': WORKFLOW_ID,
+                      'workflow_path': WORKFLOW_PATH, 'qualification_profile': PROFILE,
+                      'dispatch_http_status': 204, 'prior_dispatch_other_profile_count': prior_count,
+                      'actual_qualification_run': 'PENDING_READ_ONLY_CONTROLLER_VERIFICATION',
+                      'qualification_result': 'NOT_OBSERVED', 'product_acceptance': 'NOT_GRANTED',
+                      'repeat_post': 'FORBIDDEN_EVEN_IF_OUTCOME_UNCERTAIN'}
+
+          def main():
+              global stage
+              stage = 'helper-event-read'
+              raw = Path(os.environ['GITHUB_EVENT_PATH']).read_bytes()
+              require(len(raw) <= 1024 * 1024, 'helper-event-size')
+              event = json.loads(raw)
+              token = os.environ.pop('GITHUB_TOKEN', '')
+              receipt = perform(event, os.environ, token)
+              # Only fixed validated identities/statuses are emitted; no remote body or token.
+              line = json.dumps(receipt, sort_keys=True)
+              print('FIXED DISPATCH RECEIPT ONLY: ' + line)
+              with open(os.environ['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8') as report:
+                  report.write('One fixed dispatch receipt; not a qualification run or product PASS.\n\n')
+                  report.write('```json\n' + line + '\n```\n')
+
+          if __name__ == '__main__':
+              try:
+                  main()
+              except Exception as error:
+                  # HTTP error strings/tracebacks can expose request details; never print them.
+                  code = error.code if isinstance(error, urllib.error.HTTPError) else None
+                  print('FIXED DISPATCH FAILED CLOSED: stage=' + stage +
+                        '; type=' + type(error).__name__ + '; http_status=' + str(code))
+                  print('No POST retry is permitted. Root must inspect actual runs read-only.')
+                  sys.exit(1)
+          PY
