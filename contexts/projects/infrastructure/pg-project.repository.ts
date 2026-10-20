@@ -452,7 +452,7 @@ export class PgProjectRepository implements ProjectRepositoryPort {
             copied_from_license, license)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,
                  CASE WHEN $10::uuid IS NULL THEN NULL ELSE now() END,
-                 $13,$14,$15,$16,COALESCE($16,'reserved'))
+                 $13,$14,$15,$16::varchar,COALESCE($16::varchar,'reserved'::varchar))
          ON CONFLICT ${conflictTarget} DO NOTHING
          RETURNING id, project_scope, classroom_id, module_key, title, status, created_at,
                    copied_from_project_id, copied_from_author, copied_from_title, copied_at, license`,

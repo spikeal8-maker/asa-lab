@@ -117,6 +117,20 @@ async function fixture(license = 'public-domain', module = 'three-d') {
   expect(created.statusCode).toBe(201);
   const id = created.json().project.id as string;
   sources.push(id);
+  const ordinary = await admin.query(
+    `SELECT license,copied_from_publication_id,copied_from_revision_id,
+            copied_from_version_id,copied_from_license FROM projects WHERE id=$1`,
+    [id],
+  );
+  expect(ordinary.rows).toEqual([
+    {
+      license: 'reserved',
+      copied_from_publication_id: null,
+      copied_from_revision_id: null,
+      copied_from_version_id: null,
+      copied_from_license: null,
+    },
+  ]);
   const initial = await open(owner, id);
   const v1 = await save(
     owner,
