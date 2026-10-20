@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
+import { PNG } from 'pngjs';
+import type pg from 'pg';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page, type Browser } from '@playwright/test';
 import { e2eAdminPool } from './seed';
 import { collectBrowserFailures } from './browser-failures';
 import { createEmptyThreeDDocument, createThreeDNode } from '../contexts/three-d/domain/document';
@@ -8,8 +10,23 @@ import { parseElectronicsDocument } from '../contexts/electronics/domain/documen
 import { THREE_D_MODULE } from '../contexts/three-d/module';
 
 const EVIDENCE = 'e2e/artifacts/public-projects-copy';
-const PNG =
-  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=';
+// A real encoded/decoded raster fixture for publication setup, not editor evidence.
+function snapshotFixture(): string {
+  const image = new PNG({ width: 32, height: 32 });
+  for (let offset = 0; offset < image.data.length; offset += 4) {
+    image.data[offset] = 36;
+    image.data[offset + 1] = 100;
+    image.data[offset + 2] = 189;
+    image.data[offset + 3] = 255;
+  }
+  const bytes = PNG.sync.write(image);
+  const decoded = PNG.sync.read(bytes);
+  expect(decoded.width).toBe(32);
+  expect(decoded.height).toBe(32);
+  expect(decoded.data).toEqual(image.data);
+  expect(bytes.length).toBeGreaterThanOrEqual(64);
+  return `data:image/png;base64,${bytes.toString('base64')}`;
+}
 async function register(page: Page, label: string) {
   await page.goto('/#/explore');
   const id = randomUUID().replaceAll('-', '');
@@ -86,7 +103,7 @@ for (const width of [1440, 390, 320]) {
         (
           await author.request.put(`/api/projects/${id}/snapshot`, {
             headers,
-            data: { sourceRevision: v1.revision, imageDataUrl: PNG },
+            data: { sourceRevision: v1.revision, imageDataUrl: snapshotFixture() },
           })
         ).status(),
       ).toBe(200);
@@ -113,6 +130,11 @@ for (const width of [1440, 390, 320]) {
         true,
       );
       await reader.screenshot({ path: `${EVIDENCE}/${width}-public.png`, fullPage: true });
+      const detailResponse = await reader.request.get(
+        `/api/public-projects/${publication.publicationId}`,
+      );
+      expect(detailResponse.status()).toBe(200);
+      const publicDetail = (await detailResponse.json()).publication;
       const requests: string[] = [];
       reader.on('request', (request) => {
         if (
@@ -184,16 +206,7 @@ for (const width of [1440, 390, 320]) {
         `/api/public-projects/${publication.publicationId}`,
       );
       expect((await publicAfter.json()).publication.revisionId).toBe(publication.revisionId);
-      const privateTarget = await admin.query(
-        'SELECT visibility,copied_from_project_id,copied_from_author,copied_from_title FROM projects WHERE id=$1',
-        [target.projectId],
-      );
-      expect(privateTarget.rows[0]).toMatchObject({
-        visibility: 'private',
-        copied_from_project_id: id,
-        copied_from_author: 'Независимый автор A',
-      });
-      expect(privateTarget.rows[0].copied_from_title).toBe(before.project.title);
+      await assertPrivateCopy(admin, browser, author, id, target.projectId, publicDetail);
       failures.assertEmpty();
     } finally {
       if (sourceId)
@@ -321,7 +334,7 @@ test('Account B copies packaged Electronics V1, changes resistance in editor and
       (
         await author.request.put(`/api/projects/${id}/snapshot`, {
           headers,
-          data: { sourceRevision: v1.revision, imageDataUrl: PNG },
+          data: { sourceRevision: v1.revision, imageDataUrl: snapshotFixture() },
         })
       ).status(),
     ).toBe(200);
@@ -345,6 +358,11 @@ test('Account B copies packaged Electronics V1, changes resistance in editor and
       ).rows;
     const immutableBefore = await immutable();
     await reader.goto(`/#/public-projects/${publication.publicationId}`);
+    const detailResponse = await reader.request.get(
+      `/api/public-projects/${publication.publicationId}`,
+    );
+    expect(detailResponse.status()).toBe(200);
+    const publicDetail = (await detailResponse.json()).publication;
     const requests: string[] = [];
     reader.on('request', (request) => {
       if (
@@ -436,13 +454,13 @@ test('Account B copies packaged Electronics V1, changes resistance in editor and
     expect(requests).toHaveLength(1);
     expect((await opened(author, id)).draft).toEqual(before.draft);
     expect(await immutable()).toEqual(immutableBefore);
+    await assertPrivateCopy(admin, browser, author, id, target.projectId, publicDetail);
     const lineage = await admin.query(
-      `SELECT visibility,copied_from_project_id,copied_from_publication_id,copied_from_revision_id,copied_from_version_id,copied_from_license FROM projects WHERE id=$1`,
+      `SELECT copied_from_publication_id,copied_from_revision_id,copied_from_version_id,copied_from_license
+         FROM projects WHERE id=$1`,
       [target.projectId],
     );
     expect(lineage.rows[0]).toMatchObject({
-      visibility: 'private',
-      copied_from_project_id: id,
       copied_from_publication_id: publication.publicationId,
       copied_from_revision_id: publication.revisionId,
       copied_from_version_id: immutableBefore[0].version.id,
@@ -460,3 +478,63 @@ test('Account B copies packaged Electronics V1, changes resistance in editor and
     await admin.end();
   }
 });
+
+async function assertPrivateCopy(
+  admin: pg.Pool,
+  browser: Browser,
+  author: Page,
+  sourceId: string,
+  targetId: string,
+  publication: { title: string; authorLabel: string; publicationId: string; revisionId: string },
+) {
+  const ownership = await admin.query(
+    `SELECT id,scope,classroom_id,tenant_id,owner_principal_id,license,
+            copied_from_project_id,copied_from_title,copied_from_author
+       FROM projects WHERE id=ANY($1::uuid[])`,
+    [[sourceId, targetId]],
+  );
+  const source = ownership.rows.find((row) => row.id === sourceId);
+  const target = ownership.rows.find((row) => row.id === targetId);
+  expect(source).toBeDefined();
+  expect(target).toMatchObject({
+    scope: 'personal',
+    classroom_id: null,
+    license: 'public-domain',
+    copied_from_project_id: sourceId,
+    copied_from_title: publication.title,
+    copied_from_author: publication.authorLabel,
+  });
+  expect(target.tenant_id).not.toBe(source.tenant_id);
+  expect(target.owner_principal_id).not.toBe(source.owner_principal_id);
+  const exactOrigin = await admin.query(
+    `SELECT p.copied_from_publication_id,p.copied_from_revision_id,p.copied_from_version_id,
+            p.copied_from_license,r.project_version_id
+       FROM projects p JOIN project_publication_revisions r ON r.id=$2 AND r.project_id=$3
+      WHERE p.id=$1`,
+    [targetId, publication.revisionId, sourceId],
+  );
+  expect(exactOrigin.rows).toHaveLength(1);
+  expect(exactOrigin.rows[0]).toMatchObject({
+    copied_from_publication_id: publication.publicationId,
+    copied_from_revision_id: publication.revisionId,
+    copied_from_version_id: exactOrigin.rows[0].project_version_id,
+    copied_from_license: 'public-domain',
+  });
+  const publications = await admin.query(
+    `SELECT (SELECT count(*)::int FROM project_publications WHERE project_id=$1) AS legacy,
+            (SELECT count(*)::int FROM project_publication_state
+              WHERE project_id=$1 AND state IN ('public','unlisted')) AS live`,
+    [targetId],
+  );
+  expect(publications.rows[0]).toEqual({ legacy: 0, live: 0 });
+  expect((await author.request.get(`/api/projects/${targetId}`)).status()).toBe(404);
+  const anonymous = await browser.newContext();
+  try {
+    const denied = await anonymous.request.get(
+      `${new URL(author.url()).origin}/api/projects/${targetId}`,
+    );
+    expect(denied.status()).toBe(401);
+  } finally {
+    await anonymous.close();
+  }
+}
