@@ -23,8 +23,9 @@ No fresh permission is required: the owner explicitly requested this next slice.
 ## Original source-only phase: reuse the reviewed source
 
 This section records the original preparation selection. The dated bounded repair
-below supersedes its runtime freeze only for the explicitly listed native
-publication paths; its source provenance and all acceptance criteria remain valid.
+below records the earlier native-publication repair. The final orchestration
+amendment now freezes production source again; provenance and all acceptance
+criteria remain valid.
 
 Reuse the independently approved five-file derivative based on
 `07563687e9a34cf099849e36a02b8e9b3ef9c4c5`. Controller-retained source packet:
@@ -138,7 +139,7 @@ Issue546's full-realtime boundary and hygiene history remain intact. Main
 integration and school deployment are separate; this selection performs no
 installation, DB, Docker, network or protected-data operation.
 
-## Bounded native publication repair selected 2026-10-20
+## Historical bounded native publication repair selected 2026-10-20
 
 The owner explicitly requested completing Electronics through checked publication
 to `main`. At `2026-10-20T11:17:28Z`, GitHub main was
@@ -207,3 +208,89 @@ continues independent acceptance and authorized normal integration to main.
 AFTER source/native/CI/main results remain pending until actually obtained.
 `ELECTRONICS-CLASSROOM-D2-D4-ACCEPTANCE` remains active until those criteria are
 satisfied. D13 owner acceptance and Issue546 full-realtime work remain separate.
+
+
+## Active test-only orchestration amendment, 2026-10-20
+
+Prospective controller choice under the existing owner mandate, Issue649 and
+programme452: publish this amendment on main before any test-source writes.
+Compose retained draft PR652 `24c4acf6c369ba695bf74684ec1bd7f26a70266b`
+(branch `codex/electronics-classroom-d2-d4-649`) forward with fresh accepted main;
+observed base `cdb3fdecdcbf8ff771d88253db73105a65a902cf`. Preserve original
+source, reviews, failures, attempt counters and budgets; no force or reset.
+This supersedes earlier runtime write permission. The existing production
+implementation, fixtures, lesson, workflows, helper APIs and observer pin are
+frozen. The only new code change is the D2 subsection of
+`e2e/electronics-ready-cadence.spec.ts`; controller changes are this card and its
+own lane in `docs/execution/current.yaml`. No product semantics change is selected.
+
+### Actual historical evidence, not AFTER acceptance
+
+Run `39422409394`, original artifact `12266831251`, on exact24c timed out at
+`840 s`. Verified read-only transport `39444735624` / compact artifact
+`12275550889` produced ZIP SHA256
+`e2c9f8d65d569e78571de69331728b5602b947b0f5d9639c21d6343a4e8128ad`.
+Its ledger records four completed captures100/100,200/200,300/300,150/150:
+`40.0235 / 77.5756 / 132.4755 / 61.5719 s`, total `311.6465 s`, each eight
+cycles,49 ordered states plus startup, backlog1 and no recorded causal violations.
+Five real autosaves advanced revisions2 through7 with full intended circuit and
+request/response/GET proof; seven historical native PNGs cover the required joint
+vectors. The fifth100/300 capture, Reset and reopen were not completed. HTTP
+response durations `32.641–202.340 ms` are not measurements of entire autosave
+waits. Nominal captures518.4s plus a five-times60s save-wait estimate total818.4s
+before other work; those wait estimates are not measured delays. This arithmetic
+motivates orchestration, but does not prove
+the cause of every measured pause. Historical partial evidence is never a live
+AFTER result or a PASS declaration.
+
+### One bounded repair, unchanged scenario and assertions
+
+1. Arm actual response observation before each real edit, then overlap each
+   of the five existing autosave-check waits with its corresponding real capture. Every unchanged
+   PUT200/finished-response/full intended request/response/GET/source/revision
+   assertion must finish before the next edit or cookies-only reopen. No forced
+   dirty state, Save click, omitted save or acceptance of a pending promise.
+2. Acquire the same seven native PNGs during the300/300 capture after the needed
+   real LOW/HIGH references exist. Preserve actual loaded native images,
+   same-generation joint frames, physical and temporal witnesses and every
+   native assertion; do not replace them with older transport images.
+3. At each acquisition, record a cheap explicit terminal boundary with indices,
+   time and generation once the unchanged49-state/eight-cycle conditions pass.
+   Preserve the six existing Stop boundaries: first four programmes, Reset
+   capture and reopened capture. Invoke Stop immediately at those boundaries,
+   retaining the active observer and unchanged1s all-off proof. Fifth100/300
+   remains uninterrupted Run→Reset exactly as24c: freeze its acquisition boundary
+   before Reset, preserving the new-generation/H0 flow. This is preservation of
+   the accepted scenario, not an extra Stop or a relaxed lifecycle requirement.
+4. Export one full frozen raw record per capture after its lifecycle boundary
+   and run the existing full checks offline against its explicit closed
+   acquisition window. Preserve every required worker/UI/paint/temporal record,
+   including late, Stop and Reset rows. Never clear, cap, truncate or drop raw
+   arrays. Window selection must not discard any causal violation within that
+   window. No observer pin, helper API semantics or assertion changes.
+
+All seven captures,49 ordered states/eight cycles each, five actual saves,
+Reset/reopen, seven native PNGs and complete raw evidence remain mandatory.
+Keep171 cases,50ms publication,150s acquisition,20s native-vector and840s case
+budgets, pace0.125,6250us cap,backlog2,start5s,Stop1s and every existing ratio,
+duty, quality and causality assertion. No retry, skip, qualifier or budget reset.
+
+### Actors, gates and stop
+
+Root assigns `/root/d2_source_review` as the sole test author, only after his
+FET smoke STOP and canonical main publication. `/root/fet_runtime_author`, who
+has not authored D2, independently reviews source and evidence; root integrates.
+Fresh fetch main, scoped preflight and overlap checks precede writes. Preserve
+all foreign lanes, accepted D13 history, old R27 stop/resume rule and every
+acceptance blocker; this does not accept Issue546, PR651 or D2.
+
+Required checks remain unchanged: task validation, meaningful focused regression,
+`pnpm gate:electronics-m1`, `pnpm benchmark:electronics:ci`, full
+`pnpm gate:electronics-classroom-d13-v3:browser`, separate exact-source
+`pnpm gate:electronics-m1:browser` strict report, and General
+`pnpm gate:repository`. Require fresh complete exact-source native/browser
+AFTER evidence and independent acceptance, not historical partial results.
+The author stops after the bounded change and evidence. Root may update PR652
+by ordinary forward composition after review and gates; main integration and
+owner acceptance remain pending. No deployment, working DB or infrastructure
+operation is selected.
