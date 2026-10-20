@@ -3169,18 +3169,27 @@ function solveCircuitStep(
     ...heldCapacitors.filter((component) => capacitorConstraints.independentIds.has(component.id)),
   ];
   const size = nodeVariableCount + stampedVoltageSourceComponents.length;
-  const observationRouting = preparation?.observationRouting ?? prepareObservationRouting(document);
-  const diodeBranches = observationRouting.nonlinearBranches.filter(
-    (branch) => !failedComponentIds.has(branch.component.id),
-  );
-  const diodeBranchesByComponent =
-    failedComponentIds.size === 0
+  const observationRouting = preparation?.observationRouting;
+  const diodeBranches = observationRouting
+    ? observationRouting.nonlinearBranches.filter(
+        (branch) => !failedComponentIds.has(branch.component.id),
+      )
+    : document.components.flatMap((component) =>
+        failedComponentIds.has(component.id) ? [] : nonlinearDcBranchesForComponent(component),
+      );
+  const diodeBranchesByComponent = observationRouting
+    ? failedComponentIds.size === 0
       ? observationRouting.nonlinearBranchesByComponent
-      : branchesByComponent(diodeBranches);
+      : branchesByComponent(diodeBranches)
+    : undefined;
   // Arduino stamps depend on this solve's snapshot; never put them in preparation.
-  const arduinoBranchesByComponent = branchesByComponent(arduinoBranches);
+  const arduinoBranchesByComponent = observationRouting
+    ? branchesByComponent(arduinoBranches)
+    : undefined;
   const branchKey = (branch: NonlinearDcBranch): string =>
-    observationRouting.nonlinearBranchKeys.get(branch) as string;
+    observationRouting
+      ? (observationRouting.nonlinearBranchKeys.get(branch) as string)
+      : nonlinearBranchKey(branch);
   const diodeStates = new Map<string, boolean>();
   const diodeSegmentIndices = new Map<string, number>();
   const regulatedSupplyModes = new Map<string, RegulatedPowerSupplyMode>(
@@ -3491,12 +3500,16 @@ function solveCircuitStep(
       }
       const overdrive = Math.max(0, fetOverdrives.get(transistor.component.id) ?? 0);
       if (region === 'active') {
-        // Saturation region: drain current source Id = gm · (Vgs − Vth),
-        // gm = k · Vov from the previous iteration (fixed-point style).
-        const transconductance = transistor.transconductanceFactor * overdrive;
-        stampConductance(drain, source, FET_MIN_OHMIC_CONDUCTANCE);
+        // Newton tangent of the declared Id = k · (Vgs − Vth)² law.
+        // No extra drain conductance: it would add current absent from observation.
+        const transconductance = 2 * transistor.transconductanceFactor * overdrive;
         stampVccs(drain, source, gate, source, transconductance);
-        stampOffset(drain, source, transconductance * transistor.thresholdVoltage);
+        stampOffset(
+          drain,
+          source,
+          transconductance * transistor.thresholdVoltage +
+            transistor.transconductanceFactor * overdrive * overdrive,
+        );
       } else {
         // Ohmic (triode) region: drain–source behaves as a conductance k · Vov.
         const conductance = Math.max(
@@ -3641,7 +3654,9 @@ function solveCircuitStep(
       );
       const overdrive = gateVoltage - sourceVoltage - transistor.thresholdVoltage;
       const drainSourceDrop = drainVoltage - sourceVoltage;
-      fetOverdrives.set(transistor.component.id, Math.max(0, overdrive));
+      const previousOverdrive = fetOverdrives.get(transistor.component.id) ?? 0;
+      const nextOverdrive = Math.max(0, overdrive);
+      fetOverdrives.set(transistor.component.id, nextOverdrive);
       const nextRegion: TransistorOperatingRegion =
         overdrive <= 0.02
           ? 'cutoff'
@@ -3650,6 +3665,11 @@ function solveCircuitStep(
             : 'ohmic';
       if (nextRegion !== currentRegion) {
         transistorRegions.set(transistor.component.id, nextRegion);
+        changed = true;
+      }
+      // A stable region name does not mean its continuous operating point settled.
+      // Rebuild the next tangent/conductance until Vov changes by at most 1 nV.
+      if (nextRegion !== 'cutoff' && Math.abs(nextOverdrive - previousOverdrive) > 1e-9) {
         changed = true;
       }
     }
@@ -3869,8 +3889,18 @@ function solveCircuitStep(
   const linearDcObservationById = new Map<string, LinearDcObservation>();
   const templateInputs: ArduinoElectricalInput[] | undefined =
     pointSlot && !reusedPoint && failedComponentIds.size === 0 ? [] : undefined;
-  const components: ComponentResult[] = observationRouting.components.map(
-    ({ component, terminals }) => {
+  type PreparedComponentObservation = ReturnType<
+    typeof prepareObservationRouting
+  >['components'][number];
+  // Generic callbacks may change the borrowed document while stamping or observing.
+  const componentObservationEntries =
+    observationRouting?.components ??
+    document.components.filter((component) => component.kind !== 'wire');
+  const components: ComponentResult[] = componentObservationEntries.map(
+    (entry: SchematicComponent | PreparedComponentObservation) => {
+      const routed = observationRouting ? (entry as PreparedComponentObservation) : undefined;
+      const component = routed ? routed.component : (entry as SchematicComponent);
+      const terminals = routed ? routed.terminals : terminalsForComponent(component);
       const terminalVoltages: Partial<Record<Terminal, number>> = {};
       for (const terminal of terminals) {
         terminalVoltages[terminal] = round(physicalVoltageAt(component, terminal));
@@ -3926,9 +3956,13 @@ function solveCircuitStep(
             : {}),
         };
       }
-      const branches = diodeBranchesByComponent.get(component.id) ?? [];
+      const branches = observationRouting
+        ? (diodeBranchesByComponent!.get(component.id) ?? [])
+        : diodeBranches.filter((branch) => branch.component.id === component.id);
       const branchResults = branches.map((branch) => ({ branch, ...resultForBranch(branch) }));
-      const componentArduinoBranches = arduinoBranchesByComponent.get(component.id) ?? [];
+      const componentArduinoBranches = observationRouting
+        ? (arduinoBranchesByComponent!.get(component.id) ?? [])
+        : arduinoBranches.filter((branch) => branch.component.id === component.id);
       const arduinoBranchResults = componentArduinoBranches.map((branch) => ({
         branch,
         voltageDrop:
@@ -4733,8 +4767,11 @@ function solveCircuitStep(
     }
   }
 
-  for (const component of observationRouting.nonlinearComponents) {
-    const componentBranches = diodeBranchesByComponent.get(component.id) ?? [];
+  for (const component of observationRouting?.nonlinearComponents ??
+    document.components.filter((item) => nonlinearDcBranchesForComponent(item).length > 0)) {
+    const componentBranches = observationRouting
+      ? (diodeBranchesByComponent!.get(component.id) ?? [])
+      : diodeBranches.filter((branch) => branch.component.id === component.id);
     const result = componentResultById.get(component.id);
     const reverseBranches = componentBranches.filter((branch) => {
       const anodeVoltage = result?.terminalVoltages[branch.anode] ?? 0;
