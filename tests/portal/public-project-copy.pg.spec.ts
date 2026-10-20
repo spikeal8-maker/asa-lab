@@ -389,12 +389,35 @@ describe('published copy / real HTTP and restricted PostgreSQL', () => {
       (cookie) => cookie.name === 'asa_student_session',
     )?.value;
     if (!studentToken) throw new Error('Seat login has no cookie');
-    for (const selected of [
-      { asa_student_session: studentToken },
-      { ...source.reader, asa_student_session: studentToken },
-    ]) {
-      expect((await copy(source, randomUUID(), {}, selected)).statusCode).toBe(403);
-    }
+    const seatOnly = await copy(source, randomUUID(), {}, { asa_student_session: studentToken });
+    expect(seatOnly.statusCode).toBe(403);
+    expect(seatOnly.json().error.code).toBe('copy_forbidden');
+    expect(
+      (
+        await admin.query('SELECT count(*)::int n FROM projects WHERE copied_from_project_id=$1', [
+          source.id,
+        ])
+      ).rows[0].n,
+    ).toBe(0);
+
+    const mixed = await copy(
+      source,
+      randomUUID(),
+      {},
+      {
+        ...source.reader,
+        asa_student_session: studentToken,
+      },
+    );
+    expect(mixed.statusCode).toBe(409);
+    expect(mixed.json().error.code).toBe('session_conflict');
+    expect(
+      (
+        await admin.query('SELECT count(*)::int n FROM projects WHERE copied_from_project_id=$1', [
+          source.id,
+        ])
+      ).rows[0].n,
+    ).toBe(0);
   });
 
   it('observes a committed revocation ordered before copy by the source Project lock', async () => {
