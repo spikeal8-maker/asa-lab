@@ -9132,6 +9132,71 @@ parallel_lanes:
         sha: 6efac19fbd20ab789925e9510534d13175a0390b
       observation_note: Dated selection baseline only; fresh fetch main and actual overlap checks required before writes. Connector rejected the630584469-byte source ZIP at its536870912-byte limit. Transport output, security review and actual job remain pending.
 
+  - id: electronics-qualification-dispatch
+    parent_lane: electronics
+    worktree_id: electronics-qualification-dispatch-662
+    owned_paths:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-GOVERNANCE-012.md
+    task:
+      id: TASK-ELECTRONICS-GOVERNANCE-012
+      issue: 662
+      parent_issue: 658
+      programme_issue: 452
+      branch: main
+      base_branch: main
+      pr: null
+      pr_draft: false
+      status: in_progress
+      kind: maintenance
+      risk: high
+      semantic_change: 'no'
+      checkpoint: fixed_classroom_dispatch_selected
+      owner_acceptance: pending
+      owner_authorization: Owner authorised cloud resources and controller-managed separate authors/reviewers on 2026-10-20; select one fixed dispatch of the already required classroom profile, without product, gate or installation changes.
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-GOVERNANCE-012.md
+      author_executor_id: /root/pr651_intake
+      independent_reviewer_id: /root/core_baseline
+      controller_id: /root
+      candidate_branch: codex/electronics-qualification-dispatch-662
+      target_pr: 660
+      target_branch: codex/electronics-core-fet-658
+      target_sha: e826794c1cb4aec1280630040f2652272b3d5de1
+      target_tree: 5e162fa4744feabe7845c87556a744fe4ff27f7b
+      target_workflow: electronics-r4-m1-focused.yml
+      target_qualification_profile: classroom-d13-v3
+      expected_write_paths:
+        - .github/workflows/electronics-qualification-dispatch.yml
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-GOVERNANCE-012.md
+        - docs/execution/current.yaml
+      shared_path_coordination: Workflow remains under unchanged integration.shared_paths. Root assigns one author pr651_intake, independent read-only security reviewer core_baseline and root as sole integrator. No foreign shared scope is removed or narrowed.
+      integration_condition: Helper exists only on its temporary branch and never merges into main/production. One fixed dispatch only, actions write plus contents read, exact repo/PR/branch/head and run_attempt1 guards. Require actual target-run SHA receipt; race, ambiguity or uncertainty fails closed without retries. Close only this task, not product acceptance.
+      next_action: Accept these two controller documents on main, then independently review the fixed helper and verify actual helper HEAD before opening its same-repository PR; record actual helper PR number/head after creation. Refresh target identity before the single POST. Preserve all source/gates/blockers and classify dispatch receipt separately from qualification or native PASS.
+    execution_lease:
+      executor_id: electronics-qualification-dispatch-662
+      holder: unassigned
+      acquired_at: null
+      expires_at: null
+      reviewer_role_requires_lease: false
+    gates:
+      routing:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm validate:electronics-agent-docs --task TASK-ELECTRONICS-GOVERNANCE-012
+      control_plane:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm control-plane:check
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: 3500687d51969b33a95726608b7f31aa3230ec73
+      head_sha: null
+      observed_at: '2026-10-20T15:08:57Z'
+      main:
+        branch: main
+        sha: 3500687d51969b33a95726608b7f31aa3230ec73
+      observation_note: Dated controller selection of remote PR660 head e826794c only; helper authoring, security review, dispatch and actual target-run verification remain pending. Fresh fetch main and target-head checks are required before writes and dispatch; no product PASS is asserted.
+
 integration:
   owner_lane: visual-programming
   shared_paths:
