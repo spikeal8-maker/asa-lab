@@ -213,3 +213,47 @@ owner programme. Separately record tested, pushed, CI, IN_MAIN, deployed and
 owner accepted. All standalone AFTER, browser, integration and owner results are
 pending at amended selection. No deployment, working-database or installation
 action is authorised.
+
+
+## Actual standalone evidence and strict-baseline hold, 2026-10-20
+
+Remote draft PR660 is `e826794c1cb4aec1280630040f2652272b3d5de1`, tree
+`5e162fa4744feabe7845c87556a744fe4ff27f7b`. Local full focused gate passed
+913 model and645 editor tests; type/build,114 routing tests and169 targeted
+cases (eight new FET plus161 existing solver/RC) passed. Independent source
+review approved eight references plus ten independent cases. Both FET circuits
+were actually exercised in the built editor and approved; auth/storage were
+mocked, explicitly bounding that evidence rather than asserting owner data flow.
+
+Exact cloud focused job `118707282327` and classroom-profile focused job
+`118717587341` succeeded. Benchmark job `118708507269` in run `39445810814`
+succeeded on exacte826/dirtyfalse: five phases include core50 cases, native
+browser5, low-end browser5, load and memory. Report artifact `12277101199`,
+17376bytes, SHA256
+`ef200a0a663325d2ed8c84ea40f9bca77d5bf1477479cf6ffe09d2f548c742a9`.
+General `39445810773` succeeded. These facts do not accept the complete slice.
+
+Required strict run `39445810814` **FAILED:159 PASS /11 FAIL of170**. Browser
+artifact `12278495147`,379456161bytes, SHA256
+`bc24701a122cd0562fb17f6e573714f7b3f27e530487544f2d11ff904f0d0134`.
+Independent classification identifies ten ready-cadence acquisition failures
+repeated on accepted075 strict `39350682439`, job `118394940376`. Relevant
+source/fixtures contain no FET, and the exact runtime delta is four hunks only
+in FET loops, not executed by those fixtures. The DC1024 failure throws
+`Integer clock observer overflow` above500frames from unchanged e2e; it is NOT
+claimed historically identical, and its complete root cause is not proved.
+
+At the dated controller observation, required classroom run `39448747806` on
+exacte826/profile `classroom-d13-v3` remains **in_progress**; its focused and
+benchmark jobs succeeded. No full classroom PASS is recorded. Await the complete
+result/native evidence and final independent acceptance. All earlier composite
+source/reviews/failures and attempt accounting remain retained.
+
+`ELECTRONICS-658-STRICT-BASELINE` blocks integration, technical acceptance,
+Issue closure, owner acceptance and release claims. Existing required strict
+and classroom gates are unchanged. AGENTS§2.1C failure classification supplies
+no waiver or automatic integration, including if classroom later passes. A
+separate baseline fix or explicit owner integration-boundary decision is required
+before merge; this card does not select either outcome or authorise foreign
+repairs. PR660 stays Draft, Issue658 open, owner acceptance pending. No resumed
+R27/Issue546 work, deployment or working-data operation is authorised.

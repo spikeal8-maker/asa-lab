@@ -8982,7 +8982,7 @@ parallel_lanes:
       kind: repair
       risk: high
       semantic_change: 'yes'
-      checkpoint: standalone_fet_selected_after_inherited_gate_timeout
+      checkpoint: source_verified_strict_baseline_blocked_classroom_pending
       owner_acceptance: pending
       owner_authorization: >-
         On 2026-10-20 the owner appointed the controller to manage Electronics
@@ -8996,6 +8996,33 @@ parallel_lanes:
       independent_reviewer_id: /root/core_baseline
       controller_id: /root
       candidate_pr: 660
+      candidate_pr_draft: true
+      candidate_source_sha: e826794c1cb4aec1280630040f2652272b3d5de1
+      candidate_tree: 5e162fa4744feabe7845c87556a744fe4ff27f7b
+      evidence_observed_at: '2026-10-20T15:46:01Z'
+      source_verification: Local focused913model plus645editor tests, type/build,114routing and169targeted tests PASS; independent8reference plus10additional cases and two actual built-editor FET circuits APPROVE with mocked auth/storage explicitly bounded.
+      focused_cloud_job: '118707282327'
+      focused_cloud_conclusion: success
+      classroom_focused_job: '118717587341'
+      classroom_focused_conclusion: success
+      general_run: '39445810773'
+      general_conclusion: success
+      strict_run: '39445810814'
+      strict_conclusion: failure
+      strict_result: 159 PASS /11 FAIL of170; ten cadence acquisitions classified against accepted075 strict baseline, plus DC1024 observer overflow not claimed historically identical or fully root-caused.
+      strict_browser_artifact: '12278495147'
+      strict_browser_artifact_size_bytes: 379456161
+      strict_browser_artifact_sha256: bc24701a122cd0562fb17f6e573714f7b3f27e530487544f2d11ff904f0d0134
+      benchmark_job: '118708507269'
+      benchmark_conclusion: success
+      benchmark_artifact: '12277101199'
+      benchmark_artifact_size_bytes: 17376
+      benchmark_artifact_sha256: ef200a0a663325d2ed8c84ea40f9bca77d5bf1477479cf6ffe09d2f548c742a9
+      classroom_run: '39448747806'
+      classroom_profile: classroom-d13-v3
+      classroom_observed_state: in_progress
+      classroom_completed_result: pending
+      acceptance_blocker: ELECTRONICS-658-STRICT-BASELINE
       deferred_dependency_pr: 651
       deferred_dependency_sha: de9d84a4108a5952b921b40d1575651265391873
       deferred_dependency_parent: 16cbed5d981989528f2d1bd8f62e2a1c4063781f
@@ -9041,11 +9068,13 @@ parallel_lanes:
         changes. Standalone selection accepts neither PR651 nor Issue546, and
         historical composite approval/PASS does not transfer automatically.
       next_action: >-
-        Accept this prospective amendment on main before source writes, refresh
-        actual refs/overlaps and build the retained FET-only delta on accepted main.
-        Mechanical restoration is not rollback of accepted code or new scheduler/test
-        semantics. Preserve counters and evidence; run unchanged commands on final
-        standalone source and obtain new independent review, without acceptance claims.
+        Await the complete exact-e826 classroom result/native evidence and final
+        independent acceptance. Required strict and classroom gates remain unchanged;
+        AGENTS2.1C classification gives no waiver or automatic integration even if
+        classroom later succeeds. Separate baseline fix or explicit owner integration-
+        boundary decision is required before merge. Keep PR660 Draft, Issue658 open,
+        owner acceptance pending and blocker active; no R27/546 resume or foreign repair
+        is authorised in FET. Preserve all composite history and attempt accounting.
     execution_lease:
       executor_id: electronics-core-fet-author
       holder: unassigned
@@ -9072,18 +9101,20 @@ parallel_lanes:
           - pnpm gate:repository
     revisions:
       kind: observed_snapshot
-      observed_at: '2026-10-20T14:56:35Z'
+      observed_at: '2026-10-20T15:46:01Z'
       main:
         branch: main
-        sha: 83714ca4a36ff272859fd2818935f2ef5630644b
-      convergence_baseline_sha: 83714ca4a36ff272859fd2818935f2ef5630644b
+        sha: da0d4cbb77e6ea4b75741f3161ba3c6d1fe179d0
+      convergence_baseline_sha: da0d4cbb77e6ea4b75741f3161ba3c6d1fe179d0
       head_sha: null
       observation_note: >-
-        Dated standalone decision after inherited delay2000 focused failure on e8.
-        Six accepted-main paths at83714ca4 equal PR651 parent16cbed5d exactly;
-        de9 is deferred rather than mandatory for FET. Historical source approval,
-        FET references and CI remain retained; no standalone AFTER is asserted.
-        Fresh fetch main and actual overlap checks are required before writes and integration.
+        Exact remote PR660 remains Draft at e826794c; focused, benchmark, General
+        and bounded source/editor evidence verified. Required strict39445810814
+        failed159/11; classroom39448747806/profilev3 observed in_progress, not PASS.
+        Classification is not a gate waiver or merge authority. Preserve composite
+        history, all foreign state and scoped strict-baseline acceptance blocker.
+        Fresh fetch main and actual run/head checks are required before later writes
+        or integration; no technical acceptance, Issue closure or release claim.
 
   - id: electronics-artifact-intake
     parent_lane: electronics
@@ -9266,6 +9297,35 @@ integration:
     - docs/testing/**
 
 blocking:
+  - id: ELECTRONICS-658-STRICT-BASELINE
+    kind: acceptance_blocker
+    lane: electronics-core-fet
+    task_id: TASK-ELECTRONICS-CORE-FET-001
+    blocks:
+      - integration
+      - technical_acceptance
+      - close_issue
+      - owner_acceptance
+      - release_claim
+    allows:
+      - documentation_update
+      - focused_verification
+      - independent_source_review
+      - bounded_diagnostic
+    reason: >-
+      Exact PR660 e826 remains Draft. General39445810773, focused and benchmark
+      succeeded and independent FET source/built-editor evidence is approved, but
+      required strict39445810814 failed159PASS11FAIL of170. Ten cadence failures
+      reproduce accepted075 strict39350682439/job118394940376; their fixtures do
+      not execute the four FET-only solver hunks. DC1024 throws Integer clock
+      observer overflow above500frames in unchanged e2e; historical identity and
+      complete root cause are not proved. Required classroom39448747806/e826/v3
+      was observed in_progress, not PASS. AGENTS2.1C supplies classification, no
+      waiver: strict and classroom remain required even if classroom later passes.
+      Separate baseline fix or explicit owner integration-boundary decision is
+      required before merge, with complete fresh classroom/native evidence and
+      final independent acceptance. No R27/546 resume or foreign repair authority.
+    evidence: docs/product/electronics/tasks/TASK-ELECTRONICS-CORE-FET-001.md
   - id: VSCR-470-FOCUSED-BROWSER
     kind: acceptance_blocker
     lane: visual-programming
