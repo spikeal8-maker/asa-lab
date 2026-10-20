@@ -35,6 +35,26 @@ Read `docs/agent/review-protocol.md` for affected-surface functional and visual
 review. Source reads are limited to Stage, Sidebars, existing placement/wire
 handlers, CSS and the registered simulation browser test. The hook is read-only.
 
+## Direct owner main integration exception
+
+The owner's later explicit instruction, "ну так слей работу в майн", supersedes
+BEFORE-first sequencing and the integration-only restriction below for this
+bounded mobile result. It authorizes ordinary main publication after source
+checks and new independent source review, while runtime/visual/owner acceptance,
+issue closure and release remain blocked pending actual evidence.
+
+Preserve the latest accepted main simulation prefix byte-for-byte and append the
+source-approved R3 665-line/26718-byte suffix unchanged. Earlier prefix/full-file
+identities below are dated historical inputs, not authority to replace new main.
+Apply the reviewed placement cue and 44px Cancel in Stage/CSS, and route Header
+Save through existing ToolButton.touchCommand. Preserve Save class, title,
+disabled state, keyboard/mouse activation and compatibility-click deduplication.
+No hook/core/LED/API/persistence or workflow/guard/receipt changes are permitted.
+Inherit the accepted D13 bundle ceiling (218000 bytes) unchanged; the earlier
+209000-byte mobile ceiling is historical. Require a fresh actual measurement.
+Full native Save/CAS/cookies-only reopen on all six journeys and new runtime and
+visual review at 320/390/568 landscape/1024/1440 remain required for acceptance.
+
 ## Supporting CI image transport: narrow workflow exception
 
 The owner explicitly instructed continued subagent work through the HTTP 429
