@@ -6,7 +6,7 @@ import { collectBrowserFailures } from './browser-failures';
 import { loginWithOrganization } from './organization-login';
 import { e2eAdminPool, seedTeacher, type SeededTeacher } from './seed';
 import { openAccountSettings, openPortalSection } from './portal-navigation';
-import type { TeacherHomeAttention } from '../apps/web/src/api';
+import type { CourseSection, TeacherHomeAttention } from '../apps/web/src/api';
 import {
   closeAssignmentPreview,
   closeAssignmentSettings,
@@ -1564,6 +1564,373 @@ for (const module of ['three-d', 'electronics'])
     }
     await learner.context.close();
   });
+
+test('Course Builder preserves typed lesson edits across real hide and show responses', async ({
+  page,
+}) => {
+  test.setTimeout(180_000);
+  const visibilityEvidenceDir = `${evidenceDir}/visibility-save`;
+  mkdirSync(visibilityEvidenceDir, { recursive: true });
+  const courseTitle =
+    'Сохранение уроков при изменении видимости разделов и материалов ' + ++sequence;
+  const pageErrors: string[] = [];
+  page.on('pageerror', (error) => pageErrors.push(error.message));
+  await loginWithOrganization(page, teacher);
+  await page.goto('/#/challenges');
+  const tabs = page.getByRole('navigation', { name: 'Разделы курсов и заданий' });
+  await tabs.getByRole('button', { name: 'Курсы', exact: true }).click();
+  await page.getByRole('button', { name: 'Создать курс', exact: true }).click();
+  const form = page.getByRole('dialog', { name: 'Новый курс' });
+  await form.getByLabel('Название', { exact: true }).fill(courseTitle);
+  const creation = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'POST' && new URL(response.url()).pathname === '/api/courses',
+  );
+  await form.getByRole('button', { name: 'Создать курс', exact: true }).click();
+  const created = await creation;
+  expect(created.status()).toBe(201);
+  const courseId = ((await created.json()) as { id: string }).id;
+  const editor = page.getByTestId('course-editor');
+  const lessonForm = editor.locator('.course-lesson-editor');
+  const title = editor.getByLabel('Название урока');
+  const summary = editor.getByLabel('Что будет в уроке');
+  const save = editor.getByRole('button', { name: 'Сохранить урок', exact: true });
+  await expect(editor).toBeVisible();
+  await editor.getByRole('button', { name: '+ Урок', exact: true }).click();
+  await title.fill('Исходная теория');
+  await summary.fill('Исходное описание');
+  await editor.getByLabel('Текст блока', { exact: true }).fill('Содержание исходного урока.');
+  await editor.getByRole('button', { name: 'Добавить урок', exact: true }).click();
+  await expect(editor.getByRole('status')).toHaveText('Урок добавлен.');
+  const readOutline = async () => {
+    const response = await page.request.get(`/api/courses/${courseId}/outline`);
+    expect(response.ok()).toBe(true);
+    return (await response.json()) as { draftRevision: number; sections: CourseSection[] };
+  };
+  const initial = await readOutline();
+  const sectionId = initial.sections[0].id;
+  const lessonId = initial.sections[0].lessons[0].id;
+  const lessonPath = `/api/courses/${courseId}/lessons/${lessonId}`;
+  const lessonWrites: Array<{ expectedRevision: number; title: string; summary: string }> = [];
+  const courseMutations: string[] = [];
+  page.on('request', (request) => {
+    if (
+      ['POST', 'PATCH', 'DELETE'].includes(request.method()) &&
+      new URL(request.url()).pathname.startsWith(`/api/courses/${courseId}/`)
+    )
+      courseMutations.push(request.method() + ' ' + new URL(request.url()).pathname);
+    if (request.method() === 'PATCH' && new URL(request.url()).pathname === lessonPath) {
+      lessonWrites.push(request.postDataJSON());
+    }
+  });
+
+  async function checkLayout(
+    phase: 'pending' | 'confirmed' | 'unconfirmed' | 'unavailable',
+  ): Promise<void> {
+    for (const width of [1440, 1024, 390, 320]) {
+      await page.setViewportSize({ width, height: 900 });
+      await expect(title).toBeVisible();
+      await expect(summary).toBeVisible();
+      await expect(save).toBeVisible();
+      const text =
+        phase === 'unconfirmed' || phase === 'unavailable'
+          ? editor.getByRole('alert')
+          : phase === 'confirmed'
+            ? editor.getByRole('status')
+            : lessonForm.locator('.course-editor-actions > span');
+      await expect(text).toBeVisible();
+      const geometry = await text.evaluate((element) => {
+        const box = element.getBoundingClientRect();
+        const range = document.createRange();
+        range.selectNodeContents(element);
+        const rects = Array.from(range.getClientRects());
+        return {
+          left: box.left,
+          right: box.right,
+          width: box.width,
+          lines: new Set(rects.map((rect) => Math.round(rect.top))).size,
+          textWithin: rects.every(
+            (rect) => rect.left >= box.left - 1 && rect.right <= box.right + 1,
+          ),
+        };
+      });
+      expect(geometry.left, `${phase} left at ${width}px`).toBeGreaterThanOrEqual(0);
+      expect(geometry.right, `${phase} right at ${width}px`).toBeLessThanOrEqual(width);
+      expect(geometry.width, `${phase} readable width at ${width}px`).toBeGreaterThanOrEqual(160);
+      expect(geometry.lines).toBeGreaterThan(0);
+      expect(geometry.lines).toBeLessThanOrEqual(12);
+      expect(geometry.textWithin).toBe(true);
+      for (const control of [title, summary, save]) {
+        const bounds = await control.boundingBox();
+        expect(bounds).not.toBeNull();
+        expect(bounds!.x).toBeGreaterThanOrEqual(0);
+        expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(width);
+      }
+      await title.focus();
+      await expect(title).toBeFocused();
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        ),
+      ).toBeLessThanOrEqual(0);
+      if (width === 1440 || width === 390) {
+        await page.screenshot({
+          path: `${visibilityEvidenceDir}/${phase}-${width}.png`,
+          fullPage: true,
+        });
+      }
+    }
+    await page.setViewportSize({ width: 1440, height: 900 });
+  }
+
+  async function discardAndReopen(expectedTitle: string | null): Promise<void> {
+    const retainedTitle = await title.inputValue();
+    page.once('dialog', (dialog) => {
+      expect(dialog.message()).toContain('несохранённые изменения');
+      void dialog.dismiss();
+    });
+    await tabs.getByRole('button', { name: 'Задания', exact: true }).click();
+    await expect(title).toHaveValue(retainedTitle);
+    page.once('dialog', (dialog) => {
+      expect(dialog.message()).toContain('несохранённые изменения');
+      void dialog.accept();
+    });
+    await tabs.getByRole('button', { name: 'Задания', exact: true }).click();
+    await expect(editor).toHaveCount(0);
+    await tabs.getByRole('button', { name: 'Курсы', exact: true }).click();
+    if (expectedTitle === null) {
+      await expect(page.locator('.course-row-main').filter({ hasText: courseTitle })).toHaveCount(
+        0,
+      );
+      return;
+    }
+    await page
+      .getByTestId('courses-list')
+      .locator('.course-row-main')
+      .filter({ hasText: courseTitle })
+      .click();
+    await expect(title).toHaveValue(expectedTitle);
+    await expect(save).toBeEnabled();
+  }
+
+  async function changeVisibility(
+    kind: 'lesson' | 'section',
+    hidden: boolean,
+    outcome: 'saved' | 'conflict' | 'lost' | 'archived' = 'saved',
+  ): Promise<void> {
+    const before = await readOutline();
+    const oldLesson = before.sections[0].lessons[0];
+    const targetId = kind === 'lesson' ? lessonId : sectionId;
+    const path = `/api/courses/${courseId}/${kind}s/${targetId}/hidden`;
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let accepted!: (value: { hidden: boolean; draftRevision: number }) => void;
+    const serverSaved = new Promise<{ hidden: boolean; draftRevision: number }>((resolve) => {
+      accepted = resolve;
+    });
+    const delayResponse = async (route: Route) => {
+      expect(route.request().method()).toBe('POST');
+      expect(route.request().postDataJSON()).toEqual({
+        hidden,
+        expectedRevision: before.draftRevision,
+      });
+      // Commit the real server mutation first. Delay or lose only its response;
+      // no successful mutation or receipt is supplied by a browser mock.
+      const response = await route.fetch();
+      expect(response.ok()).toBe(true);
+      const receipt = (await response.json()) as { hidden: boolean; draftRevision: number };
+      expect(receipt).toEqual({ hidden, draftRevision: before.draftRevision + 1 });
+      accepted(receipt);
+      await held;
+      if (outcome === 'lost') await route.abort('failed');
+      else await route.fulfill({ response });
+    };
+    await page.route(`**${path}`, delayResponse);
+    const row = editor
+      .locator(kind === 'lesson' ? '.course-outline-section li' : '.course-outline-section-head')
+      .first();
+    await row
+      .getByRole('button', { name: kind === 'lesson' ? /Действия урока/ : /Действия раздела/ })
+      .click();
+    await row.getByRole('button', { name: hidden ? 'Скрыть' : 'Показать', exact: true }).click();
+    const receipt = await serverSaved;
+    const laterTitle = `Правки урока во время ${kind} ${hidden ? 'hide' : 'show'} ${outcome}`;
+    const laterSummary = 'Последнее описание, введённое после записи видимости на сервере.';
+    await title.fill(laterTitle);
+    await summary.fill(laterSummary);
+    await expect(save).toBeDisabled();
+    await expect(lessonForm).toContainText('Дождитесь подтверждения');
+    const writesBefore = lessonWrites.length;
+    await lessonForm.evaluate((element) => (element as HTMLFormElement).requestSubmit());
+    if (kind === 'lesson' && hidden && outcome === 'saved') await checkLayout('pending');
+    expect(lessonWrites).toHaveLength(writesBefore);
+    const persistedVisibility = await readOutline();
+    expect(persistedVisibility.draftRevision).toBe(receipt.draftRevision);
+    expect(
+      kind === 'lesson'
+        ? persistedVisibility.sections[0].lessons[0].hidden
+        : persistedVisibility.sections[0].hidden,
+    ).toBe(hidden);
+    expect(persistedVisibility.sections[0].lessons[0].title).toBe(oldLesson.title);
+
+    if (outcome === 'conflict') {
+      const remote = await page.request.patch(lessonPath, {
+        headers: { origin: new URL(page.url()).origin },
+        data: {
+          sectionId,
+          title: 'Чужие сохранённые правки C',
+          summary: 'Описание другого редактора C',
+          content: null,
+          blocks: oldLesson.blocks,
+          kind: 'material',
+          assignmentId: null,
+          learningActivityVersionId: null,
+          estimatedMinutes: null,
+          expectedRevision: receipt.draftRevision,
+        },
+      });
+      expect(remote.ok()).toBe(true);
+      expect(((await remote.json()) as { draftRevision: number }).draftRevision).toBe(
+        receipt.draftRevision + 1,
+      );
+    }
+    if (outcome === 'archived') {
+      const archived = await page.request.post(`/api/courses/${courseId}/archive`, {
+        headers: { origin: new URL(page.url()).origin },
+        data: { archived: true, expectedRevision: receipt.draftRevision },
+      });
+      expect(archived.ok()).toBe(true);
+      expect((await archived.json()) as { archived: boolean; draftRevision: number }).toMatchObject(
+        {
+          archived: true,
+          draftRevision: receipt.draftRevision + 1,
+        },
+      );
+    }
+    release();
+    if (outcome === 'archived') {
+      await expect(editor.getByRole('alert')).toContainText(
+        'Курс больше недоступен для редактирования',
+      );
+      await expect(title).toHaveValue(laterTitle);
+      await expect(summary).toHaveValue(laterSummary);
+      await expect(save).toBeDisabled();
+      await page.unroute(`**${path}`, delayResponse);
+      const blockedMutationCount = courseMutations.length;
+      await lessonForm.evaluate((element) => (element as HTMLFormElement).requestSubmit());
+      await row
+        .getByRole('button', { name: kind === 'lesson' ? /Действия урока/ : /Действия раздела/ })
+        .click();
+      await row.getByRole('button', { name: 'Дублировать', exact: true }).click();
+      await checkLayout('unavailable');
+      expect(lessonWrites).toHaveLength(writesBefore);
+      expect(courseMutations).toHaveLength(blockedMutationCount);
+      await discardAndReopen(null);
+      await page.getByRole('button', { name: 'Архив', exact: true }).click();
+      await expect(page.getByText(courseTitle, { exact: true })).toBeVisible();
+      const listed = await page.request.get('/api/courses');
+      expect(listed.ok()).toBe(true);
+      const items = (
+        (await listed.json()) as { items: Array<{ id: string; archivedAt: string | null }> }
+      ).items;
+      expect(items.find((course) => course.id === courseId)?.archivedAt).toBeTruthy();
+      return;
+    }
+    if (outcome === 'lost') {
+      await expect(editor.getByRole('alert')).toContainText(
+        'Не удалось подтвердить изменение видимости',
+      );
+      await expect(title).toHaveValue(laterTitle);
+      await expect(summary).toHaveValue(laterSummary);
+      await expect(save).toBeDisabled();
+      await lessonForm.evaluate((element) => (element as HTMLFormElement).requestSubmit());
+      expect(lessonWrites).toHaveLength(writesBefore);
+      await checkLayout('unconfirmed');
+      await page.unroute(`**${path}`, delayResponse);
+      await discardAndReopen(oldLesson.title);
+      return;
+    }
+    await expect(editor.getByRole('status')).toContainText(
+      'Последние изменения урока ещё не сохранены',
+    );
+    await expect(title).toHaveValue(laterTitle);
+    await expect(summary).toHaveValue(laterSummary);
+    await expect(save).toBeEnabled();
+    await page.unroute(`**${path}`, delayResponse);
+    if (kind === 'section' && hidden) await checkLayout('confirmed');
+    const saving = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'PATCH' && new URL(response.url()).pathname === lessonPath,
+    );
+    await save.click();
+    const saved = await saving;
+    expect(saved.status()).toBe(outcome === 'conflict' ? 409 : 200);
+    expect(lessonWrites).toHaveLength(writesBefore + 1);
+    expect(lessonWrites.at(-1)).toMatchObject({
+      title: laterTitle,
+      summary: laterSummary,
+      expectedRevision: receipt.draftRevision,
+    });
+    if (outcome === 'conflict') {
+      const failure = (await saved.json()) as { error: { code: string; message: string } };
+      expect(failure.error.code).toBe('draft_conflict');
+      await expect(editor.getByRole('alert')).toContainText(failure.error.message);
+      await expect(title).toHaveValue(laterTitle);
+      await expect(summary).toHaveValue(laterSummary);
+      expect((await readOutline()).sections[0].lessons[0].title).toBe('Чужие сохранённые правки C');
+      await discardAndReopen('Чужие сохранённые правки C');
+      return;
+    }
+    await expect(editor.getByRole('status')).toHaveText('Урок сохранён.');
+    const persisted = await readOutline();
+    expect(persisted.sections).toHaveLength(1);
+    expect(persisted.sections[0].lessons).toHaveLength(1);
+    expect(persisted.sections[0].lessons[0]).toMatchObject({
+      id: lessonId,
+      title: laterTitle,
+      summary: laterSummary,
+    });
+    expect(
+      kind === 'lesson' ? persisted.sections[0].lessons[0].hidden : persisted.sections[0].hidden,
+    ).toBe(hidden);
+  }
+
+  await changeVisibility('lesson', true);
+  await changeVisibility('lesson', false);
+  await changeVisibility('section', true);
+  await changeVisibility('section', false);
+  await changeVisibility('lesson', true, 'conflict');
+  await changeVisibility('section', true, 'lost');
+  const recovered = await readOutline();
+  await title.fill('Урок после явного повторного открытия');
+  const recoverySave = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'PATCH' && new URL(response.url()).pathname === lessonPath,
+  );
+  await save.click();
+  expect((await recoverySave).status()).toBe(200);
+  expect(lessonWrites.at(-1)?.expectedRevision).toBe(recovered.draftRevision);
+  await expect(editor.getByRole('status')).toHaveText('Урок сохранён.');
+  await page.reload();
+  await tabs.getByRole('button', { name: 'Курсы', exact: true }).click();
+  await page
+    .getByTestId('courses-list')
+    .locator('.course-row-main')
+    .filter({ hasText: courseTitle })
+    .click();
+  await expect(title).toHaveValue('Урок после явного повторного открытия');
+  const final = await readOutline();
+  expect(final.sections[0].hidden).toBe(true);
+  expect(final.sections[0].lessons[0]).toMatchObject({
+    id: lessonId,
+    hidden: true,
+    title: 'Урок после явного повторного открытия',
+  });
+  await changeVisibility('lesson', false, 'archived');
+  expect(pageErrors).toEqual([]);
+});
 
 test('Course Builder duplicates a section and excludes hidden lesson only from future versions', async ({
   browser,
