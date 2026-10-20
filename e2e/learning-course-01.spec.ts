@@ -3740,7 +3740,10 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
     path: `${a2aEvidenceDir}/shared-work-unavailable-320.png`,
     fullPage: false,
   });
-  await learner.page.unroute('**/api/class-join/me/course-runs', sharedWorkHandler);
+  // This is the learner page's only route handler at this point. A second
+  // course read can still be in flight after the player is visible; drain it
+  // before removing interception so its real response is fulfilled only once.
+  await learner.page.unrouteAll({ behavior: 'wait' });
   await learner.page.setViewportSize({ width: 1440, height: 900 });
   await openCourse({ reloadAfterExternalChange: true });
 
