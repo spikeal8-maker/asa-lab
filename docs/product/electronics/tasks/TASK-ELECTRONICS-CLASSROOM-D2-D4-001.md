@@ -20,7 +20,11 @@ review: independent
 `07563687e9a34cf099849e36a02b8e9b3ef9c4c5`. These acceptance and main facts preceded this canonical selection.
 No fresh permission is required: the owner explicitly requested this next slice.
 
-## Reuse the reviewed source
+## Original source-only phase: reuse the reviewed source
+
+This section records the original preparation selection. The dated bounded repair
+below supersedes its runtime freeze only for the explicitly listed native
+publication paths; its source provenance and all acceptance criteria remain valid.
 
 Reuse the independently approved five-file derivative based on
 `07563687e9a34cf099849e36a02b8e9b3ef9c4c5`. Controller-retained source packet:
@@ -76,7 +80,7 @@ The one common event-history pace remains0.125. Selected finite D2 budgets:
 this is arithmetic, not measured execution. No new timing exceptions, qualifiers,
 skips, retries, fitted pace or synthetic visual timer are selected.
 
-## Exact next source scope
+## Original source-only phase: exact source scope
 
 - e2e/electronics-ready-cadence.spec.ts
 - docs/product/electronics/examples/D2_D4_3x330ohm_red_LED.schematic.json
@@ -114,16 +118,17 @@ runner is expected to discover171 cases: all170 previous cases plus the single e
 `Classroom D2-D4: ordered joint LEDs, five delays, Reset and cookies-only saved reopen`.
 The twelve existing qualification ledgers,42 core entries and11 discoveries keep
 their registry and assertions; the new case uses its existing dedicated D2 ledger.
-No new qualification profile or new gate is introduced. Actual171 discovery
-remains to be observed; preparation and source review did not run the browser.
+No new qualification profile or new gate is introduced. Strict discovery of all
+171 cases is now observed in the run below; full classroom171 remains pending.
+Original preparation and source-only review did not run the browser.
 
 Keep source author and independent reviewer separate. Before accepted integration,
 retain native evidence from the built editor and actual exact-source CI; verify
 the coherent final source through the repository's existing permitted main route.
-The saved source may already satisfy this slice without product changes: do not
-claim a D2 defect or introduce a repair before actual evidence.
+The original source-only phase required actual evidence before selecting a
+product repair. The dated observation below now supplies that evidence.
 
-Record the observed BEFORE honestly (`pending - not yet observed/accepted`), the complete
+Record the observed BEFORE honestly (now recorded below), the complete
 AFTER joint-state/native result (`pending - not yet observed/accepted`), exact source SHA,
 review, CI and actual main SHA in this task. No completed D2 runtime/browser/main outcome is
 claimed by this selection. A source-only unit result is insufficient.
@@ -132,3 +137,73 @@ and continue D0-D13 and all ordinary LED colours in their own visible slices.
 Issue546's full-realtime boundary and hygiene history remain intact. Main
 integration and school deployment are separate; this selection performs no
 installation, DB, Docker, network or protected-data operation.
+
+## Bounded native publication repair selected 2026-10-20
+
+The owner explicitly requested completing Electronics through checked publication
+to `main`. At `2026-10-20T11:17:28Z`, GitHub main was
+`16cbed5d981989528f2d1bd8f62e2a1c4063781f`; draft PR652 was open at
+`d0b0f4259f4dd3f62bfed71d3a72571a0d2547ec`. This selection is prospective:
+publish these two selection documents on main before product writes, then inherit
+that canonical selection in the candidate branch. It does not accept the repair.
+
+### Actual BEFORE and one required result
+
+Exact-source strict run `39399518741`, browser job `118551800881`, discovered
+171 cases and finished `160 PASS / 11 FAIL`; all five D13 cases passed. The D2
+case failed its unchanged temporal-paint causality assertion. Independent replay
+of artifact `12256121930` reproduced two stable all-off native frames after the
+matching physical HIGH witness: D2 `64.6 ms` and D4 `65.7 ms`, above `50 ms`.
+The exact mounted HIGH images first loaded after `70.7 ms` and `69.1 ms`,
+respectively. Source/generation matched; the record reported no Worker errors or
+reanchors. These are observed native publication failures. Cold loading alone is
+not established as the complete cause of every delay.
+
+Required result: publish the actual joint D2/D3/D4 native vector from accepted
+physical history within the existing deadline, including first use, while
+preserving all seven acquisitions and the complete lifecycle contract. Preparing
+real mounted images earlier from already solved history is permitted; preparation
+must not itself publish a state, acknowledge a display frame or advance its
+cursor. Detached-image decoding cannot substitute for a mounted native lease.
+
+### Exact bounded runtime scope
+
+Primary component: `electronics.ui.workbench`. Additional selected source paths:
+
+- `apps/web/src/electronics/led-temporal-presentation.ts`
+- `apps/web/src/electronics/use-electronics-workbench.ts`
+- `apps/web/src/electronics/ProductionComponentVisual.tsx` (only if required for actual mounted readiness)
+- `apps/web/src/electronics/testing/led-temporal-presentation.spec.ts`
+- `apps/web/src/electronics/testing/use-electronics-workbench-clock.spec.ts`
+- `apps/web/src/electronics/testing/asset-recovery.spec.ts` (only if its renderer boundary changes)
+
+Three focused specs are prospectively justified by three distinct boundaries:
+accepted-history presentation, host lifecycle and real mounted-node readiness.
+Use only the ones needed by the implemented repair. The existing five D2 source
+files remain selected; their fixed assertions, qualification contract and finite
+budgets must not be weakened. Preserve the original source-only review as history;
+obtain new independent review of every changed runtime path and the final evidence.
+
+Keep the common pace `0.125`, `6250 us` lookahead cap, raw `50 ms` publication,
+backlog `2`, startup `5 s`, Stop `1 s`, source/generation isolation, same-model-time
+joint commits, fail-closed native leases, rollback, Reset and saved reopen.
+Keep all 171 cases, the immutable observer/qualification pin, required
+`classroom-d13-v3`, and separately reported strict outcome. No scheduler/kernel,
+Portal, PR651, owner SVG, infrastructure, working-data or deployment change is
+selected. Preserve every foreign lane and acceptance blocker.
+
+### Verification and stop boundary
+
+Source author and independent reviewer remain separate. Run scoped preflight and
+Electronics task validation, meaningful focused regressions, existing focused and
+benchmark gates, full classroom171 with native evidence, separately reported
+strict, and the unchanged General gate on the final source. General run
+`39399518744` failed in four Portal participants PG timeouts also observed on
+main `16cbed5d` in run `39373841387`; that foreign baseline is recorded separately
+and is not permission to weaken General or repair Portal inside this task.
+
+The author stops after this bounded repair and its evidence. The controller
+continues independent acceptance and authorized normal integration to main.
+AFTER source/native/CI/main results remain pending until actually obtained.
+`ELECTRONICS-CLASSROOM-D2-D4-ACCEPTANCE` remains active until those criteria are
+satisfied. D13 owner acceptance and Issue546 full-realtime work remain separate.
