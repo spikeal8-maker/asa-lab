@@ -26,6 +26,28 @@ export type ProjectListView = {
   cursor?: string;
 };
 
+export type PublicProjectListView = {
+  kind: 'public-projects';
+  search?: string;
+  module?: string;
+};
+
+export type PublicProjectView =
+  | PublicProjectListView
+  | { kind: 'public-project'; publicationId: string }
+  | { kind: 'gallery-work'; projectId: string };
+
+function publicProjectListView(query: string | undefined): PublicProjectListView {
+  const params = new URLSearchParams(query);
+  const search = params.get('q')?.trim().slice(0, 120);
+  const module = params.get('module');
+  return {
+    kind: 'public-projects',
+    ...(search ? { search } : {}),
+    ...(module && /^[a-z][a-z0-9-]{0,63}$/.test(module) ? { module } : {}),
+  };
+}
+
 function projectListQuery(view: ProjectListView): string {
   const query = new URLSearchParams();
   if (view.workKind) query.set('kind', view.workKind);
@@ -73,8 +95,7 @@ export type CreatorPortalView =
   | { kind: 'knowledge-course'; courseId: string }
   | { kind: 'collections' }
   | { kind: 'attending' }
-  | { kind: 'gallery' }
-  | { kind: 'gallery-work'; projectId: string }
+  | PublicProjectView
   | { kind: 'challenges' }
   | { kind: 'classrooms' }
   /** `seatId` opens the class already showing one learner, which is where a
@@ -123,7 +144,7 @@ const PORTAL_ROUTES: ReadonlyArray<{
   { path: '/learning', view: { kind: 'learning' } },
   { path: '/knowledge', view: { kind: 'knowledge' } },
   { path: '/collections', view: { kind: 'collections' } },
-  { path: '/gallery', view: { kind: 'gallery' } },
+  { path: '/explore', view: { kind: 'public-projects' } },
   { path: '/attending', view: { kind: 'attending' } },
   { path: '/challenges', view: { kind: 'challenges' } },
   { path: '/classrooms', view: { kind: 'classrooms' } },
@@ -199,7 +220,7 @@ export function sectionForView(view: CreatorPortalView, canTeach: boolean): Crea
   if (view.kind === 'learning') return 'learning';
   if (view.kind === 'knowledge' || view.kind === 'knowledge-course') return 'knowledge';
   if (view.kind === 'collections') return 'collections';
-  if (view.kind === 'gallery' || view.kind === 'gallery-work') return 'gallery';
+  if (isPublicProjectView(view)) return 'gallery';
   if (view.kind === 'attending') return 'learning';
   if (view.kind === 'challenges') return 'challenges';
   if (view.kind === 'help') return 'help';
@@ -215,6 +236,15 @@ export function sectionForView(view: CreatorPortalView, canTeach: boolean): Crea
 }
 
 export function creatorViewToHash(view: CreatorPortalView): string {
+  if (view.kind === 'public-projects') {
+    const query = new URLSearchParams();
+    if (view.search) query.set('q', view.search);
+    if (view.module) query.set('module', view.module);
+    return `#/explore${query.size ? `?${query}` : ''}`;
+  }
+  if (view.kind === 'public-project') {
+    return `#/public-projects/${encodeURIComponent(view.publicationId)}`;
+  }
   if (view.kind === 'my-projects') {
     const query = projectListQuery(view);
     return `#/projects${query ? `?${query}` : ''}`;
@@ -323,6 +353,12 @@ export function creatorViewFromHash(hash: string): CreatorPortalView {
   const requestedModule = new URLSearchParams(query ?? '').get('module');
   const moduleKey =
     requestedModule && /^[a-z0-9-]+$/.test(requestedModule) ? requestedModule : undefined;
+  if (path === '/explore' || path === '/gallery') return publicProjectListView(query);
+  const publication = /^\/public-projects\/([^/]+)$/.exec(path ?? '');
+  if (publication) {
+    const publicationId = decodeRouteParameter(publication[1] as string);
+    return publicationId ? { kind: 'public-project', publicationId } : { kind: 'public-projects' };
+  }
   const teacherInvite = /^\/teacher-invite\/([^/]+)$/.exec(path ?? '');
   const gameEditor = /^\/games\/(chess|checkers)\/([^/]+)$/.exec(path ?? '');
   if (gameEditor) {
@@ -340,8 +376,7 @@ export function creatorViewFromHash(hash: string): CreatorPortalView {
     const token = decodeRouteParameter(teacherInvite[1] as string);
     return token ? { kind: 'teacher-invite', token } : { kind: 'home' };
   }
-  // One work in the gallery has its own address: a teacher shows a class a
-  // model by sending the link, and a page that cannot be linked to is not shown.
+  // An old project ID is a legacy unavailable route, never a publication/editor ID.
   const galleryWork = /^\/gallery\/([^/]+)$/.exec(path ?? '');
   const knowledgeCourse = /^\/knowledge\/([^/]+)$/.exec(path ?? '');
   if (knowledgeCourse) {
@@ -350,7 +385,7 @@ export function creatorViewFromHash(hash: string): CreatorPortalView {
   }
   if (galleryWork) {
     const projectId = decodeRouteParameter(galleryWork[1] as string);
-    return projectId ? { kind: 'gallery-work', projectId } : { kind: 'gallery' };
+    return projectId ? { kind: 'gallery-work', projectId } : { kind: 'public-projects' };
   }
   const classEditor = /^\/classrooms\/([^/]+)\/projects\/([^/]+)$/.exec(path ?? '');
   if (classEditor) {
@@ -440,6 +475,14 @@ export function creatorViewFromLocation(location: {
     };
   }
   return creatorViewFromHash(location.hash);
+}
+
+export function isPublicProjectView(view: CreatorPortalView): view is PublicProjectView {
+  return (
+    view.kind === 'public-projects' ||
+    view.kind === 'public-project' ||
+    view.kind === 'gallery-work'
+  );
 }
 
 export function recentProjects(projects: readonly Project[], limit = 4): readonly Project[] {

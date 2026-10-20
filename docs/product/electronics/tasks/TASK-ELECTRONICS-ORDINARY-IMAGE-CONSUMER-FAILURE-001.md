@@ -12,6 +12,48 @@ review: independent
 
 # Publish the ordinary-image failure to the actual mounted catalog consumer
 
+## Last existing temporary404 recovery observation — test only
+
+This new executable contract supersedes the prior creation-API-wrapper ban ONLY
+for the existing test `a failed catalog owner image recovers without placing or
+saving a component` in `e2e/electronics-interactions.spec.ts`. It does not select
+the permanent404 or adjacent induced commit-gap case; both remain byte-exact.
+Canonical selection stays in current.yaml; the [dated proposal receipt](../evidence/ordinary-image-548-recovery-observation-selection-20261021.md)
+records limits, not a new actual result. Preserve old receipts/card history.
+
+Pre-app, transparently wrap createElementNS and attach direct native load/error
+listeners to returned SVG image nodes before the caller receives the node or
+assigns href. Original captured Reflect.apply must preserve receiver, arguments,
+return and throw; preserve property descriptor attributes. Record exactly one
+install/replacement and original/wrapper function identity plus observer timing
+interference. No setter, synthetic event, DOM write, handler wrapper or product
+change; do not disguise the changed function identity as perfect transparency.
+
+Retain connected capture and MutationObserver with stable WeakMap image/root/
+Event IDs, delivery phases, current href, status/badge and network timing.
+Mutation timestamps are delivery times. Event callbacks make only cheap small
+immutable records: no layout reads, stacks or bindings. Explicitly retain dropped,
+retention, serialization and installation errors. Parser/clone/other-realm gaps
+are UNKNOWN/NOT_OBSERVED; private React/cache is UNKNOWN. Trusted native error
+delivery does not prove React callback entry, recovery entry or product cause.
+
+Preserve this case's exact stimulus/order/actions/default deadlines,1440x1000,
+temporary404 route and original10000ms href assertion, failures>=1, whole empty
+document, zero PUT and errors[]. Do not import the permanent case's quiet800/max7
+budget. No other case, unit, production, workflow or dependency changes. Use
+new distinct raw/PNG names; preserve the original failure, with supplementary
+capture bounded/non-hanging and unable to mask it. Missing evidence stays explicit.
+
+One self-reviewed frozen source candidate then STOP; NEW independent source review
+precedes ONE last actual run of this same case. Natural PASS or incomplete
+evidence means NO_PROVEN_CAUSE and diagnostic STOP, with no next hopeful observer,
+fix or closure. Trusted delivery without recovery narrows an observed boundary
+only. Owner KEEP544/547 to548 and all foreign blockers, including549R2, remain.
+
+## Passive native actual checkpoint — 20 October 2026
+
+Source `8f568af52429e7e3091a6bbf542df9000a003d85`, strict run `39484930868`, passed the observed permanent404 case naturally. NEW independent actual review returned qualified APPROVE with `NO_PROVEN_CAUSE`: 39 Node/15 browser records, no loss/retention errors, three trusted native errors on stable consumer image/root identities followed by failed DOM/badges, seven image GET404, whole five-part mock/editor document unchanged and zero PUT/pageerrors. Private React/hook/cache execution remains unknown. The [dated original-artifact receipt](../evidence/ordinary-image-548-8f568af5-actual-20261020.md) records precise limits and unrelated failures. Experiment STOP; no new ordering cause or product repair is selected. The owner explicitly retained the #548 dependency: do not close #544/#547, change their blockers, or repeat this browser experiment hoping for a failure.
+
 ## Passive native/DOM provenance selection — 20 October 2026
 
 This new phase selects observational changes only in the existing test `a permanently missing ordinary image shows an accessible failure on stage and catalog` in `e2e/electronics-interactions.spec.ts`, with needed imports and canonical generated existing browser hash only if actual freshness requires it. The earlier mounted two-case/41-test PASS and R2 natural browser PASS remain `NO_PROVEN_CAUSE`; their source and receipts stay unchanged. This phase supersedes prior executable scopes without selecting a production fix. See the [dated provenance selection](../evidence/ordinary-image-548-passive-native-selection-20261020.md).

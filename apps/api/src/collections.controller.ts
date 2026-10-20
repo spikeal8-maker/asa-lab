@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  Header,
   HttpException,
   Inject,
   Param,
@@ -80,6 +81,7 @@ export class CollectionsController {
   }
 
   @Get()
+  @Header('Cache-Control', 'no-store')
   async list(@Req() request: FastifyRequest) {
     const principalId = await this.requirePrincipal(request);
     const result = await this.requirePool().query(
@@ -104,6 +106,7 @@ export class CollectionsController {
   }
 
   @Get(':collectionId')
+  @Header('Cache-Control', 'no-store')
   async items(@Req() request: FastifyRequest, @Param('collectionId') collectionId: string) {
     const principalId = await this.requirePrincipal(request);
     this.requireUuid(collectionId, 'collection');
@@ -222,6 +225,7 @@ export class CollectionsController {
 
   /** В каких подборках уже лежит эта работа. */
   @Get('holding/:projectId')
+  @Header('Cache-Control', 'no-store')
   async holding(@Req() request: FastifyRequest, @Param('projectId') projectId: string) {
     const principalId = await this.requirePrincipal(request);
     this.requireUuid(projectId, 'project');

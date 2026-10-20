@@ -1,211 +1,63 @@
 import { expect, test } from '@playwright/test';
+import { randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
-import pg from 'pg';
-import { collectBrowserFailures } from './browser-failures';
 import { loginWithOrganization } from './organization-login';
-import { e2eAdminPool, seedTeacher, type SeededTeacher } from './seed';
+import { e2eAdminPool, seedTeacher } from './seed';
 
-/**
- * The gallery.
- *
- * The one place on this platform where people see each other's work, and the
- * only place reactions exist. Inside a class nobody sees a classmate's model —
- * thirty children on one task, shown each other's answers, is a copying machine
- * — so «нравится» and «ого» live here, on work that was published on purpose.
- *
- * What this asserts, in order: that a teacher can put their own work up, that a
- * second account sees it and can react to it, that the author cannot react to
- * their own, and that «выбор редакции» is something a teacher awards.
- */
-
-const evidenceDir = 'e2e/artifacts/gallery';
-
-// The test database is not emptied between runs and a gallery is cumulative by
-// nature, so the work this run publishes carries its own name.
-const TITLE = `Замок на холме ${Date.now().toString(36)}`;
-
-// A small square the 3D editor could plausibly have drawn.
-const PICTURE =
-  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAIUlEQVR42mNkYPhfz0AEYBxVSF+FjIyMDIwMDAwMDAwMAB8wA/9K1AhVAAAAAElFTkSuQmCC';
-
-let admin: pg.Pool;
-let author: SeededTeacher;
-let viewer: SeededTeacher;
-
-test.beforeAll(async () => {
-  admin = e2eAdminPool();
-  author = await seedTeacher(admin, 'gallery-author');
-  viewer = await seedTeacher(admin, 'gallery-viewer');
-  mkdirSync(evidenceDir, { recursive: true });
-});
-
-test.afterAll(async () => {
-  await admin.end();
-});
-
-test('work is shared to the gallery, seen by another account and reacted to', async ({
-  browser,
+// Gallery's social wall and mutable-work reader are superseded. These route
+// regressions preserve the privacy and Project Core boundaries during cutover;
+// the new real publication lifecycle lives in public-projects.spec.ts.
+test('legacy Gallery entry opens the canonical anonymous Public Projects catalogue', async ({
   page,
 }) => {
-  // Two signed-in people and one 3D editor load.
-  test.setTimeout(180_000);
-  const authorFailures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
-  await loginWithOrganization(page, author);
+  await page.goto('/#/gallery');
+  await expect(page).toHaveURL(/#\/explore$/);
+  await expect(page.getByRole('heading', { level: 1, name: 'Проекты', exact: true })).toBeVisible();
+  await expect(page.getByRole('searchbox')).toBeVisible();
+  await expect(page.getByTestId('gallery')).toHaveCount(0);
+});
 
-  /**
-   * A project with a picture, made through the API from the signed-in page.
-   *
-   * This spec is about the gallery, not about the 3D canvas — which has its own
-   * suite, takes a minute to boot a WebGL runtime, and made this test fall over
-   * whenever the whole suite ran in parallel. Publishing needs a project and a
-   * snapshot; both are made here directly.
-   */
-  await page.getByRole('button', { name: 'Проекты', exact: true }).first().click();
-  const projectId = await page.evaluate(
-    async ([title, image]) => {
-      const created = await fetch('/api/projects', {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: { 'content-type': 'application/json', 'idempotency-key': `gallery-${Date.now()}` },
-        body: JSON.stringify({ scope: 'personal', module: 'three-d', title }),
-      });
-      const body = await created.json();
-      const id = body.project.id as string;
-      await fetch(`/api/projects/${id}/snapshot`, {
-        method: 'PUT',
-        credentials: 'same-origin',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ imageDataUrl: image, sourceRevision: 1 }),
-      });
-      return id;
-    },
-    [TITLE, PICTURE],
-  );
-  expect(projectId).toMatch(/^[0-9a-f-]{36}$/);
-  await page.reload();
-
-  // Sharing it, from the menu on its own card.
-  await page.getByRole('button', { name: 'ASA Lab' }).first().click();
-  await page.getByRole('button', { name: 'Проекты', exact: true }).first().click();
-  // The card's controls appear on hover, the way they do for a person.
-  const card = page.getByTestId('project-card').filter({ hasText: TITLE });
-  await card.hover();
-  await page.getByLabel(`Действия с проектом ${TITLE}`).click();
-  /**
-   * Публикация — состояние работы, а не действие сбоку, поэтому она живёт в её
-   * свойствах рядом с именем: частная, по ссылке или общедоступная. Заодно
-   * здесь же появляются описание, теги и лицензия, без которых зритель видит
-   * картинку и гадает, что перед ним.
-   */
-  await page.getByRole('button', { name: 'Свойства' }).click();
-  const properties = page.getByRole('dialog', { name: 'Свойства проекта' });
-  await properties.getByLabel('Описание проекта').fill('Замок с четырьмя башнями.');
-  await properties.getByLabel('Теги').fill('замок');
-  await properties.getByLabel('Теги').press('Enter');
-  await properties.getByRole('radio', { name: /Общедоступная/ }).check();
-  await properties.getByLabel('Лицензия').selectOption('cc-by');
-  await properties.getByRole('button', { name: 'Сохранить изменения' }).click();
-  await expect(page.getByText('Свойства сохранены.')).toBeVisible();
-
-  // On the wall, where the author sees their own work and cannot react to it.
-  await page.getByRole('button', { name: 'Галерея', exact: true }).first().click();
-  const mine = page.getByTestId('gallery').locator('li').filter({ hasText: TITLE });
-  await expect(mine).toBeVisible();
-  // The picture is the door onto the work, so it is a button carrying the name.
-  await expect(mine.getByRole('button', { name: `Открыть работу «${TITLE}»` })).toBeVisible();
-  await page.screenshot({ path: `${evidenceDir}/gallery-author.png`, fullPage: true });
-
-  // A different account, from a different school, sees it and reacts.
-  const viewerContext = await browser.newContext();
-  const viewerPage = await viewerContext.newPage();
-  const viewerFailures = collectBrowserFailures(viewerPage, { allowAnonymousSessionProbe: true });
-  await loginWithOrganization(viewerPage, viewer);
-  await viewerPage.getByRole('button', { name: 'Галерея', exact: true }).first().click();
-  const entry = viewerPage.getByTestId('gallery').locator('li').filter({ hasText: TITLE });
-  await expect(entry).toBeVisible();
-  // The author is named by their display name, which the seed builds from the label.
-  await expect(entry).toContainText('Педагог gallery-author');
-
-  const wow = entry.getByRole('button', { name: /^Ого/ });
-  await expect(wow).toHaveAttribute('aria-pressed', 'false');
-  await wow.click();
-  await expect(entry.getByRole('button', { name: 'Ого: 1' })).toHaveAttribute(
-    'aria-pressed',
-    'true',
-  );
-
-  // «Выбор редакции» is awarded, and it survives a reload because it was saved.
-  await entry.getByRole('button', { name: 'Выбор редакции', exact: true }).click();
-  // Именно значок на картинке, а не кнопка «Снять выбор редакции» рядом: оба
-  // содержат эти слова, и проверка без уточнения находила два элемента сразу.
-  await expect(entry.locator('.gallery-choice-badge')).toBeVisible();
-  await viewerPage.reload();
-  const afterReload = viewerPage.getByTestId('gallery').locator('li').filter({ hasText: TITLE });
-  await expect(afterReload.getByRole('button', { name: 'Ого: 1' })).toHaveAttribute(
-    'aria-pressed',
-    'true',
-  );
-  await expect(afterReload.locator('.gallery-choice-badge')).toBeVisible();
-  await viewerPage.screenshot({ path: `${evidenceDir}/gallery-viewer.png`, fullPage: true });
-
-  // The count reached the author's copy of the page too.
-  await page.reload();
-  await expect(page.getByTestId('gallery').locator('li').filter({ hasText: TITLE })).toContainText(
-    '1',
-  );
-
-  /**
-   * Opening the work, and taking it.
-   *
-   * A gallery you can only look at teaches nothing — a child learns by opening
-   * somebody's model, seeing what it is made of, and building on top of it. The
-   * copy says where it came from, permanently, so learning from someone's work
-   * cannot quietly become handing their work in.
-   */
-  await afterReload.getByRole('button', { name: `Открыть работу «${TITLE}»` }).click();
-  await expect(viewerPage.getByRole('heading', { name: TITLE, level: 1 })).toBeVisible();
-  await expect(viewerPage.getByText('Педагог gallery-author')).toBeVisible();
-  await expect(viewerPage.getByRole('heading', { name: 'Из чего собрано' })).toBeVisible();
-  await viewerPage.screenshot({ path: `${evidenceDir}/gallery-work.png`, fullPage: true });
-
-  await viewerPage.getByRole('button', { name: 'Добавить к себе' }).click();
-  await expect(
-    viewerPage.getByText('Копия у вас в проектах, с пометкой откуда она.'),
-  ).toBeVisible();
-
-  // And the mark is on the card, in the taker's own projects.
-  await viewerPage.getByRole('button', { name: 'Проекты', exact: true }).first().click();
-  const copy = viewerPage.getByTestId('project-card').filter({ hasText: TITLE });
-  await expect(copy).toContainText('Копия работы');
-  await expect(copy).toContainText('Педагог gallery-author');
-  await viewerPage.screenshot({ path: `${evidenceDir}/copied-card.png`, fullPage: true });
-
-  /**
-   * Отложить работу себе.
-   *
-   * Коллекция — это ссылка, а не копия: у автора ничего не забирают, а работа,
-   * снятая со стены, пропадает и из подборки. Раздел «Коллекции» до этого был
-   * страницей с текстом «здесь пока пусто» и никакой моделью данных за ней.
-   */
-  await viewerPage.getByRole('button', { name: 'Галерея', exact: true }).first().click();
-  await viewerPage.getByRole('button', { name: `Открыть работу «${TITLE}»` }).click();
-  await viewerPage.getByRole('button', { name: 'В коллекцию' }).click();
-  await viewerPage.getByPlaceholder('Новая подборка').fill('Примеры для 6 класса');
-  await viewerPage.getByRole('button', { name: 'Создать и добавить' }).click();
-  await expect(viewerPage.getByRole('button', { name: /В коллекциях: 1/ })).toBeVisible();
-
-  await viewerPage.getByRole('button', { name: 'Коллекции', exact: true }).first().click();
-  const collection = viewerPage.getByTestId('collections').locator('li').filter({
-    hasText: 'Примеры для 6 класса',
-  });
-  await expect(collection).toContainText('работ: 1');
-  await collection.getByRole('button', { name: 'Примеры для 6 класса' }).click();
-  await expect(
-    viewerPage.getByTestId('collection-items').locator('li').filter({ hasText: TITLE }),
-  ).toBeVisible();
-  await viewerPage.screenshot({ path: `${evidenceDir}/collection.png`, fullPage: true });
-
-  authorFailures.assertEmpty();
-  viewerFailures.assertEmpty();
-  await viewerContext.close();
+test('legacy detail never resolves an original Project, including its owner and an anonymous visitor', async ({
+  page,
+  browser,
+}) => {
+  test.setTimeout(90_000);
+  const admin = e2eAdminPool();
+  const guestContext = await browser.newContext();
+  try {
+    const author = await seedTeacher(admin, 'gallery-cutover');
+    await loginWithOrganization(page, author);
+    const title = `Частный оригинал для старой ссылки ${randomUUID().slice(0, 8)}`;
+    const response = await page.request.post('/api/projects', {
+      headers: {
+        origin: new URL(page.url()).origin,
+        'idempotency-key': `gallery-cutover-${randomUUID()}`,
+      },
+      data: { scope: 'personal', module: 'electronics', title },
+    });
+    expect(response.status()).toBe(201);
+    const projectId = (await response.json()).project.id as string;
+    const guest = await guestContext.newPage();
+    for (const visitor of [page, guest]) {
+      await visitor.goto(`/#/gallery/${projectId}`);
+      await expect(visitor.getByRole('heading', { name: 'Публикация недоступна' })).toBeVisible();
+      await expect(visitor.getByText(title, { exact: true })).toHaveCount(0);
+      await expect(visitor.getByTestId('public-project-detail')).toHaveCount(0);
+      await expect(visitor.getByTestId('electronics-canvas')).toHaveCount(0);
+    }
+    const original = await page.request.get(`/api/projects/${projectId}`);
+    expect(original.status()).toBe(200);
+    expect((await original.json()).project.title).toBe(title);
+    expect((await guest.request.get(`/api/projects/${projectId}`)).status()).toBe(401);
+    await guest.getByRole('button', { name: 'Открыть каталог' }).click();
+    await expect(guest).toHaveURL(/#\/explore$/);
+    mkdirSync('e2e/artifacts/public-projects', { recursive: true });
+    await guest.screenshot({
+      path: 'e2e/artifacts/public-projects/legacy-gallery-cutover.png',
+      fullPage: true,
+    });
+  } finally {
+    await guestContext.close();
+    await admin.end();
+  }
 });

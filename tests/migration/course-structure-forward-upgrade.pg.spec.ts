@@ -97,6 +97,7 @@ describe('Course Builder structure forward upgrade', () => {
         '0224', // Canonical identity initialization for newly created classroom Seats.
         '0225', // Provider ingress/readiness receipts; preserves course and learner history.
         '0233', // Function-local participant read JIT settings preserve definitions and data.
+        '0234', // Explicit immutable Public Projects publication; protects originals.
       ];
       const pre153 = plan.filter((item) => Number(item.version) <= 152);
       const upgradePlan = plan.filter((item) => Number(item.version) > 152);
@@ -353,6 +354,7 @@ describe('Course Builder structure forward upgrade', () => {
           '0224',
           '0225',
           '0233',
+          '0234',
         ]);
         expect(
           await applyIsolatedTestPlan(

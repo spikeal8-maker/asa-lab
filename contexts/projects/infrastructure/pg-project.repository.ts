@@ -234,10 +234,42 @@ export class PgProjectRepository implements ProjectRepositoryPort {
 
   private async withEditorWriteContext<T>(
     tenantId: string,
+    projectId: string,
     operation: (client: pg.PoolClient) => Promise<T>,
   ): Promise<T> {
     try {
-      return await withTenantContext(this.pool, tenantId, operation);
+      return await withTenantContext(this.pool, tenantId, async (client) => {
+        const hasImmutableOrigin = async () => {
+          const result = await client.query<{ has_origin: boolean }>(
+            'SELECT project_editor_has_immutable_learning_origin($1) AS has_origin',
+            [projectId],
+          );
+          return result.rows[0].has_origin;
+        };
+        // A committed immutable origin stays protected even after its Work is
+        // withdrawn. Publication rejects it before Draft, so retain the existing
+        // School writer order instead of introducing Project -> Draft there.
+        if (!(await hasImmutableOrigin())) {
+          // Nothing has been written or row-locked in this transaction yet.
+          // Origin INSERT guards also lock Project. READ COMMITTED needs a new
+          // statement after the wait: the initial absence may no longer hold.
+          await client.query('SAVEPOINT project_publication_order');
+          await client.query('SELECT id FROM projects WHERE tenant_id=$1 AND id=$2 FOR UPDATE', [
+            tenantId,
+            projectId,
+          ]);
+          if (await hasImmutableOrigin()) {
+            // Roll back only the classification lock, before any operation SQL.
+            // Keeping it would invert a concurrent legacy submission's order.
+            await client.query('ROLLBACK TO SAVEPOINT project_publication_order');
+          }
+          await client.query('RELEASE SAVEPOINT project_publication_order');
+        }
+        // An ordinary Project keeps its early lock through commit; concurrent
+        // publication and origin attachment cannot cross its Draft/Snapshot.
+        // The operation's actor/access predicates and Learning guards still run.
+        return operation(client);
+      });
     } catch (error) {
       if (
         typeof error === 'object' &&
@@ -825,7 +857,7 @@ export class PgProjectRepository implements ProjectRepositoryPort {
   ): Promise<Project | null> {
     const access = await this.projectContext(tenantId, projectId, actor);
     if (access === null) return null;
-    return this.withEditorWriteContext(access.tenantId, async (client) => {
+    return this.withEditorWriteContext(access.tenantId, projectId, async (client) => {
       await this.transactionGuard?.(client, {
         tenantId: access.tenantId,
         actor: actor,
@@ -869,7 +901,7 @@ export class PgProjectRepository implements ProjectRepositoryPort {
   async saveDraft(input: SaveDraftInput): Promise<ProjectDraft | null> {
     const access = await this.projectContext(input.tenantId, input.projectId, input.actor);
     if (access === null) return null;
-    return this.withEditorWriteContext(access.tenantId, async (client) => {
+    return this.withEditorWriteContext(access.tenantId, input.projectId, async (client) => {
       await this.transactionGuard?.(client, {
         tenantId: access.tenantId,
         actor: input.actor,
@@ -1010,7 +1042,7 @@ export class PgProjectRepository implements ProjectRepositoryPort {
   ): Promise<ProjectVersion | null> {
     const access = await this.projectContext(tenantId, projectId, actor);
     if (access === null) return null;
-    return this.withEditorWriteContext(access.tenantId, async (client) => {
+    return this.withEditorWriteContext(access.tenantId, projectId, async (client) => {
       await this.transactionGuard?.(client, {
         tenantId: access.tenantId,
         actor: actor,
@@ -1114,7 +1146,7 @@ export class PgProjectRepository implements ProjectRepositoryPort {
   ): Promise<{ draft: ProjectDraft; versions: readonly ProjectVersion[] } | null> {
     const access = await this.projectContext(tenantId, projectId, actor);
     if (access === null) return null;
-    return this.withEditorWriteContext(access.tenantId, async (client) => {
+    return this.withEditorWriteContext(access.tenantId, projectId, async (client) => {
       await this.transactionGuard?.(client, {
         tenantId: access.tenantId,
         actor: actor,
@@ -1230,7 +1262,7 @@ export class PgProjectRepository implements ProjectRepositoryPort {
   async saveSnapshot(input: SaveSnapshotInput): Promise<ProjectSnapshot | null> {
     const access = await this.projectContext(input.tenantId, input.projectId, input.actor);
     if (access === null) return null;
-    return this.withEditorWriteContext(access.tenantId, async (client) => {
+    return this.withEditorWriteContext(access.tenantId, input.projectId, async (client) => {
       await this.transactionGuard?.(client, {
         tenantId: access.tenantId,
         actor: input.actor,

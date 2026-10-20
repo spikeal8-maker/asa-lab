@@ -6,6 +6,7 @@ import { seedTeacher, testAdminPool, testAppPool } from './helpers';
 
 let admin: pg.Pool;
 let runtime: pg.Pool;
+const fixtureProjectIds: string[] = [];
 
 beforeAll(() => {
   admin = testAdminPool();
@@ -13,8 +14,20 @@ beforeAll(() => {
 });
 
 afterAll(async () => {
-  await runtime?.end();
-  await admin?.end();
+  try {
+    // The browser gate shares this database; keep these byte fixtures out of
+    // discovery while preserving their Projects and immutable publication history.
+    if (admin && fixtureProjectIds.length > 0) {
+      await admin.query(
+        `UPDATE project_publication_state
+            SET state='revoked',revoked_at=COALESCE(revoked_at,now())
+          WHERE project_id=ANY($1::uuid[]) AND state IN ('public','unlisted')`,
+        [fixtureProjectIds],
+      );
+    }
+  } finally {
+    await Promise.all([runtime?.end(), admin?.end()]);
+  }
 });
 
 async function teacherProjectInput(label: string): Promise<CreateProjectInput> {
@@ -54,6 +67,7 @@ async function createProjectWithVersion(
   if (created.kind !== 'created') {
     throw new Error(`fixture project ${label} was not created`);
   }
+  fixtureProjectIds.push(created.project.id);
 
   const version = await repo.createCheckpoint(
     base.tenantId,
@@ -163,6 +177,7 @@ describe('R7-01A publication revision schema on real PostgreSQL', () => {
     if (created.kind !== 'created') {
       throw new Error('gallery fixture project was not created');
     }
+    fixtureProjectIds.push(created.project.id);
 
     const snapshot = await repo.saveSnapshot({
       tenantId: base.tenantId,
@@ -212,6 +227,7 @@ describe('R7-01B exact-version publish on real PostgreSQL', () => {
     if (created.kind !== 'created') {
       throw new Error('publish-pin fixture project was not created');
     }
+    fixtureProjectIds.push(created.project.id);
 
     const firstSnapshot = await repo.saveSnapshot({
       tenantId: base.tenantId,
