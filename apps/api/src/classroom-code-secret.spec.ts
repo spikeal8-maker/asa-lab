@@ -4,6 +4,17 @@ import { classroomCodeSecret } from './classroom-code-secret.js';
 import { loadStudentCodeProtectionConfig } from './student-code-protection.js';
 
 const explicit = 'test-only-class-code-secret-0123456789';
+const databaseSettings = ['APP_DATABASE_URL', 'DATABASE_URL', 'APP_TEST_DATABASE_URL'] as const;
+const databasePassword = 'synthetic%database-password-0123456789';
+const encodedDatabase = new URL(
+  `postgres://runtime:${encodeURIComponent(databasePassword)}@postgres/asa_test`,
+);
+
+function useDatabase(name: (typeof databaseSettings)[number], url: string, mode: string): void {
+  vi.stubEnv('NODE_ENV', mode);
+  for (const setting of databaseSettings) vi.stubEnv(setting, undefined);
+  vi.stubEnv(name, url);
+}
 
 afterEach(() => vi.unstubAllEnvs());
 
@@ -73,4 +84,55 @@ describe('production classroom credential secret boundary', () => {
       ).toThrow(/ASA_STUDENT_CODE_PROTECTION_MODE/);
     },
   );
+});
+
+describe.each(databaseSettings)('database credential independence for %s', (setting) => {
+  it.each([
+    { label: 'decoded password', url: encodedDatabase.href, secret: databasePassword },
+    {
+      label: 'URL-serialized password',
+      url: encodedDatabase.href,
+      secret: encodedDatabase.password,
+    },
+    { label: 'full database URL', url: encodedDatabase.href, secret: encodedDatabase.href },
+    {
+      label: 'URL password with an undecodable percent character',
+      url: `postgres://runtime:${databasePassword}@postgres/asa_test`,
+      secret: databasePassword,
+    },
+  ])('rejects copied $label without disclosing its bytes', ({ url, secret }) => {
+    useDatabase(setting, url, 'production');
+    vi.stubEnv('CLASSROOM_CODE_SECRET', secret);
+    let failure: unknown;
+    try {
+      classroomCodeSecret();
+    } catch (error) {
+      failure = error;
+    }
+    expect(failure).toBeInstanceOf(Error);
+    expect(String(failure)).toContain('must be independent from database credentials');
+    expect(String(failure)).not.toContain(secret);
+  });
+
+  it('keeps independent explicit bytes stable across encoded database password changes', () => {
+    useDatabase(setting, encodedDatabase.href, 'production');
+    const independent = ` ${explicit}%🔐 `;
+    vi.stubEnv('CLASSROOM_CODE_SECRET', independent);
+    const expected = createHash('sha256').update(`classroom-code:${independent}`).digest('hex');
+    expect(classroomCodeSecret()).toBe(expected);
+    vi.stubEnv(setting, 'postgres://runtime:replacement%25password@replacement/asa_test');
+    expect(classroomCodeSecret()).toBe(expected);
+  });
+
+  it.each(['development', 'test'])('preserves the %s URL-password fallback bytes', (mode) => {
+    useDatabase(setting, encodedDatabase.href, mode);
+    vi.stubEnv('CLASSROOM_CODE_SECRET', undefined);
+    expect(classroomCodeSecret()).toBe(
+      createHash('sha256').update(`classroom-code:${encodedDatabase.password}`).digest('hex'),
+    );
+    vi.stubEnv(setting, `postgres://runtime:${databasePassword}@postgres/asa_test`);
+    expect(classroomCodeSecret()).toBe(
+      createHash('sha256').update(`classroom-code:${databasePassword}`).digest('hex'),
+    );
+  });
 });

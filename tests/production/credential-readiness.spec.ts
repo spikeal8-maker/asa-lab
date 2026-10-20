@@ -32,6 +32,27 @@ function configuration(overrides: Record<string, string | undefined> = {}) {
 }
 
 describe('production credential preflight', () => {
+  it.each(['decoded', 'serialized'])(
+    'rejects a resolved Class Code secret copied from the %s database password',
+    (representation) => {
+      const password = 'synthetic%database-password-0123456789';
+      const database = new URL(`postgres://runtime:${encodeURIComponent(password)}@db/asa_test`);
+      const run = vi.fn(() => ({
+        status: 0,
+        stderr: '',
+        stdout: JSON.stringify(
+          configuration({
+            APP_DATABASE_URL: database.href,
+            CLASSROOM_CODE_SECRET: representation === 'decoded' ? password : database.password,
+          }),
+        ),
+      }));
+      expect(() => checkComposeCredentials(['compose', '-f', 'compose.yaml'], run)).toThrow(
+        'CLASSROOM_CODE_SECRET must be independent from database credentials',
+      );
+    },
+  );
+
   it('resolves precisely the updater Compose selection without evaluating a shell or exposing output', () => {
     const run = vi.fn(() => ({ status: 0, stdout: JSON.stringify(configuration()), stderr: '' }));
     const files = [

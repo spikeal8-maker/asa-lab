@@ -158,12 +158,15 @@ function classroomCodeSecretMaterial(env = process.env) {
       const url = env[name];
       if (!url) continue;
       let password = '';
+      let decodedPassword = '';
       try {
-        password = decodeURIComponent(new URL(url).password);
+        password = new URL(url).password;
+        decodedPassword = decodeURIComponent(password);
       } catch {
-        // An invalid database URL is validated by its own startup boundary.
+        // Keep parsed URL-password bytes even if their percent escapes cannot
+        // be decoded. Database URL validity has its own startup boundary.
       }
-      if (explicit === url || explicit === password) {
+      if (explicit === url || explicit === password || explicit === decodedPassword) {
         throw new ClassroomCodeSecretConfigError(
           'CLASSROOM_CODE_SECRET must be independent from database credentials',
         );

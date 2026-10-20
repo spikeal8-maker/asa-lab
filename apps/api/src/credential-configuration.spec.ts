@@ -152,6 +152,22 @@ describe('one credential configuration authority', () => {
 });
 
 describe('credential startup and readiness boundary', () => {
+  it.each(['decoded', 'serialized'])(
+    'refuses runtime launch when the explicit secret copies the %s database password',
+    async (representation) => {
+      const password = 'synthetic%database-password-0123456789';
+      const database = new URL(`postgres://runtime:${encodeURIComponent(password)}@db/asa_test`);
+      useEnvironment(
+        configured({
+          APP_DATABASE_URL: database.href,
+          CLASSROOM_CODE_SECRET: representation === 'decoded' ? password : database.password,
+        }),
+      );
+      await expect(startApi()).rejects.toThrow(ClassroomCodeSecretConfigError);
+      expect(launchApiRuntime).not.toHaveBeenCalled();
+    },
+  );
+
   it.each([
     { CLASSROOM_CODE_SECRET: undefined },
     { CLASSROOM_CODE_SECRET: 'short' },
