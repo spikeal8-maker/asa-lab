@@ -101,7 +101,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: combined_ai_source_and_actual_approved_external_general_repairs_selected
+      checkpoint: quality_source_review_changes_requested_portal_read_jit_baseline_selected
       owner_acceptance: pending
       change_class: L3_CRITICAL
       owner_authorization: On 2026-10-19 the owner instructed the controller to split and complete the planned AI
@@ -523,7 +523,7 @@ parallel_lanes:
           General success. Do not silently repair this C baseline inside the 003, 004 or 005 product candidate. Accepted
           Learning 006 and the earlier classroom-owner UUID fixture remain intact.
       - id: PORTAL-PARTICIPANTS-PG-TIMING-DIAG-001
-        status: waiting_existing_owner_diagnostic
+        status: existing_followup_measured_separate_read_jit_baseline_selected
         classification: C
         issue: 452
         owner_lane: portal-pg-diagnostic
@@ -558,7 +558,7 @@ parallel_lanes:
         existing_probe_source_observed: f8cb596bcc4803210a4607fe7b2582ae14189712
         selected_existing_probe_followup:
           source_sha: b9300284b0735b078a333889ca9d934bdc50d563
-          status: selected_pending_independent_source_review
+          status: source_and_actual_diagnostic_approved
           mode: one_disposable_supported_branch_trigger_existing_source_no_edits
           hypothesis: Existing f8 timing shows almost all delay inside roster calls with late completion; compare
             jit on/off/on/off on one populated readonly snapshot with identical result hashes
@@ -568,8 +568,52 @@ parallel_lanes:
             no product repair selection or closure, no diagnostic workflow/probe merge to main. Require independent
             exact source review, verify no prior run, one measured run and independent interpretation before any next
             action.
+          source_tree: 4328781ae68b6fbbdc9c9af2aa2f43d4ef57bf32
+          actual_run: 39460146794
+          actual_data_job: 118760410362
+          actual_attempt: 1
+          actual_branch: assistant/ai-portal-jit-diagnostic-20261020-b930
+          prior_matching_runs: 0
+          data_conclusion: success
+          data_tests_passed: 5415
+          data_tests_skipped: 34
+          rls_passed: 16
+          portal_passed: 18
+          portal_suite_ms: 9339
+          postgres_version: '17.7'
+          actual_probe: 12 on/off/on/off samples and6 sanitized EXPLAIN on one populated restricted-role readonly
+            repeatable-read snapshot; stable snapshot/time, equal per-function hashes, verified owned-container/network
+            cleanup.
+          measured_ms:
+            roster:
+              'on':
+              - 70.8
+              - 55.81
+              'off':
+              - 10.44
+              - 10.9
+            profile:
+              'on':
+              - 77.36
+              - 75.07
+              'off':
+              - 27.9
+              - 27.95
+            teacher:
+              'on':
+              - 889.42
+              - 895.19
+              'off':
+              - 36.31
+              - 36.61
+          actual_review: Independent APPROVE_DIAGNOSTIC_ACTUAL; root read the same original saved log, SHA25634fbfc248e392d3f55a848e673b403c014e3dfbfa9a47835224ed36e6b65357a.
+            No duplicate download or rerun.
+          interpretation_boundary: Repeated JIT-setting latency effect is established for these fixtures and outer
+            query boundaries. Historical5000ms timeouts were NOT reproduced, nested compilation was not instrumented,
+            and the sole/sufficient cause of older1.1-1.8s roster calls is not proved. This is not AI0d5 acceptance,
+            original Portal-card completion, a global-JIT change or a product repair approval.
       - id: AI-BASELINE-QUALITY-CONTEXT-012
-        status: selected
+        status: bounded_review_repair_in_progress
         classification: C
         owner_area: observability-client-telemetry
         related_issue: 551
@@ -588,6 +632,7 @@ parallel_lanes:
         - apps/web/src/telemetry-contract.ts
         - apps/web/src/telemetry-quality.ts
         - apps/web/src/analytics-delivery.ts
+        - apps/web/src/analytics-runtime.ts
         - apps/web/src/telemetry-context.spec.ts
         - apps/web/src/telemetry-contract.spec.ts
         - apps/web/src/telemetry-quality.spec.ts
@@ -627,6 +672,72 @@ parallel_lanes:
           composition; actual AI gates and accepted text/files remain required before AI integration. No timeout,
           allowlist, retry or assertion weakening, no live installation/DB/paid provider operation. Freeze one source
           commit and report; controller handles publication/composition after review.
+        frozen_author_sha: 90115e3407fe0bf68659ea0409464ff9bd831af1
+        frozen_author_tree: 1393f94f39878bdf3588df4508da78ead811a84f
+        author_checks: 344/344 affected telemetry/auth tests in11 suites; uncached Web typecheck with5 prerequisite
+          builds, selected-file format/eslint and diff-check passed. These are author results, not new General or
+          independent acceptance.
+        independent_source_review: 'REQUEST_CHANGES on exact90115e: P2 native proof needs an absolute12s deadline
+          including delayed-timer schedules; P2 temporary workspace barrier must retain independent successful OBS-002
+          product-auth recovery until fresh matching identity proof, without replaying finally rejected401 envelopes
+          or resetting healthy queues. Bounded repair extends the original11-file selection by only apps/web/src/analytics-runtime.ts
+          for the absolute recovery-observation deadline contract; unpublished bounded repair and new independent
+          exact-source review required.'
+        review_repair_scope: Add only the minimal analytics-runtime.ts product-confirmation subscription change needed
+          to receive and retain the original absolute observation deadline and schedule its remaining time after a
+          temporary workspace barrier. Do not create a new12s observation window when replaying a valid deferred signal.
+          Preserve the existing distinct12s freshActor identity-proof bound, normal session-refresh semantics, authentication/logout/Seat
+          guards and all other runtime behavior. Author may adjust only already-selected regression files to prove
+          expiry, delayed timers, stopped-queue recovery and unchanged healthy-queue continuity. This path addition
+          is a prospective remedy for independent F2, not an expansion into another programme.
+      - id: AI-BASELINE-PORTAL-READ-JIT-013
+        status: selected
+        classification: C
+        change_class: L3_CRITICAL
+        owner_area: portal-participant-reads
+        coordination_lane: portal-pg-diagnostic
+        related_issue: 452
+        source_branch: work/ai-baseline-portal-read-jit-20261020
+        base_sha: b3672ff7e83c7e284d758354c871b0c8edf06b08
+        source_pr: null
+        selected_scope:
+        - migrations/0233_classroom_participant_read_jit.sql
+        - tests/portal/classroom-participants.pg.spec.ts
+        - tests/migration/course-structure-forward-upgrade.pg.spec.ts
+        evidence: Independently approved exactb930 run39460146794/Data118760410362 shows repeatable5.93x roster and2.73x
+          profile on/off mean ratios with identical hashes and buffer counts. FullData5415/34 and Portal18 passed;
+          historicaltimeouts were not reproduced. Select a bounded latency-sensitivity remedy, not a claim that every
+          historical timeout cause is closed.
+        selection: One new forward migration may ONLY add function-local jit=off to public.classroom_participant_roster(uuid,uuid)
+          and public.classroom_participant_profile(uuid,uuid,uuid), the two measured authorized Portal query boundaries.
+          Use ALTER FUNCTION so bodies, signatures, owner, grants, SECURITY DEFINER, volatility, search_path, timezone
+          and all stored data remain unchanged. Do not modify historical migrations, the inner metrics function, Learning
+          teacher reader, other functions, any global/session/database default or dependencies.
+        regressions: Append bounded cases to the existing Portal PG suite that verify function-local settings and
+          preserved security/search-path contracts, authorized unchanged results under a transaction with caller jit=on/off,
+          and restoration of the caller setting after the read. Use existing isolated synthetic fixtures and restricted
+          runtime role; retain all original awaited operations, assertions, order and5000ms test budgets. Existing
+          foreign-account/Seat/class authorization coverage stays mandatory. No diagnostic instrumentation, retries,
+          cancellation, timeout increases or assertion weakening.
+        migration_coordination: Fresh mainb367 ends at0225; subsequent electronics-only commits and all their metadata
+          are preserved. Migration reservation will be rechecked before source publication. Published AI sources reserve0226-0229.
+          All53 permitted open-PR file lists were checked; Learning654/656/657 already reserve0230-0232, while0233
+          is free. Reserve0233 for this slice and recheck before publication. In the shared forward-upgrade catalog
+          append only0233 to the actual source checkout list. Controller must compose and preserve AI0226-0229 on
+          the AI candidate; preserve actual new main entries if main moves. Do not copy unmerged Learning SQL or add
+          absent migration versions to the expected list.
+        ownership_coordination: This is a new separately selected AI integration baseline dependency under the owner-authorized
+          programme and direct_main policy, not an expansion of AI text/storage source. The existing Portal diagnostic
+          owner/card and original two-case task remain unchanged. No current overlapping writer was found in53 allowed
+          open PRs or checked worktrees; old admin-logs-portal branch is wholly behind main. Controller assigns one
+          bounded Portal-repair author and a different independent L3 reviewer; no competing diagnostic implementation
+          is created. b930/f8 diagnostic code and workflows never enter main.
+        acceptance: Author freezes one unpublished source commit after focused static/format checks and self-review;
+          no local live PostgreSQL/Docker/server or paid-provider action. Require a NEW independent exact-source L3
+          review. Real migration/semantics/runtime-role/caller-setting tests must execute in ordinary disposable GitHub
+          CI, including unchanged full Data/Portal, RLS and Access. Source or probe approval alone is not acceptance.
+          Normal General on the final baseline composition and all required exact AI/General gates on the AI candidate
+          are mandatory; no inherited red run becomes green by explanation.
       dependency_sequence:
       - text_convergence_and_focused_ci
       - teacher_controlled_student_admission
@@ -682,20 +793,28 @@ parallel_lanes:
           data: failure
         main_integration: blocked_actual_general
         owner_acceptance: pending
+      baseline_integration_strategy: Keep Quality012 and Portal013 as separately authored/reviewed baseline dependencies
+        and outside the AI feature repair scope. Publish the separately required Quality source PR. If both are composed
+        for integration, use a distinct baseline integration branch/PR with ordinary ancestry and preserved exact
+        source trees, require its full General and independent critical composition acceptance, and integrate the
+        accepted baseline into main BEFORE merging AI PR655. AI PR655 may be tested concurrently against that exact
+        baseline candidate, but must retain all four AI jobs plus its own normal General and independent final composition
+        review. Do not merge diagnostic branches, silently repair foreign modules inside the AI slice, force-push,
+        deploy or claim owner acceptance.
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 997b8deaaf64e57c840c4dcfe49ed8c0617d544d
+      convergence_baseline_sha: b3672ff7e83c7e284d758354c871b0c8edf06b08
       head_sha: null
-      observed_at: '2026-10-20T16:42:25Z'
+      observed_at: '2026-10-20T18:54:11Z'
       main:
         branch: main
-        sha: 997b8deaaf64e57c840c4dcfe49ed8c0617d544d
-      observation_note: 'Fresh main997b carries separate Scratch and electronics changes; all foreign lane bytes are preserved. Dated recovery after interruption: exact0d5 has independent text/source critical approval
-        and all4 actual AI jobs SUCCESS; General Governance/Code pass but Portal Data timing and stale workspace quality409
-        block integration. Select one separately scoped quality baseline repair with independent review; preserve
-        the existing Portal owner and reuse published diagnostic source. No product merge, release, deployment, live
-        DB or live paid provider verification claimed. Fresh fetch main and actual exact-SHA CI before further writes
-        or integration.'
+        sha: b3672ff7e83c7e284d758354c871b0c8edf06b08
+      observation_note: Fresh fetch mainb367 after the interrupted publication; AI lane is unchanged from88d and all
+        foreign metadata is preserved. Quality012 exact90115e received two independent P2 findings and is undergoing
+        a separate bounded repair, with the reviewed minimal original-deadline runtime path addition. Existing b930
+        one-shot diagnostic is independently measured, with no reproduction/closure claim for old timeouts. Select
+        only two measured Portal query boundaries for a separate baseline repair; normal General and all AI gates
+        remain mandatory. No product integration, deployment, working DB or paid-provider action is claimed.
     execution_lease:
       executor_id: chatgpt-ai-programme-controller
       holder: unassigned
@@ -715,7 +834,6 @@ parallel_lanes:
         workflow: ASA Lab Governance and Code Gates
         commands:
         - pnpm gate:repository
-
   - id: student-game-admission
     parent_lane: games
     worktree_id: student-games-access-scope-618
