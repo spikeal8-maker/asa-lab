@@ -76,6 +76,8 @@ jobs:
     name: AI unit and API/Web types
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    env:
+      NX_SKIP_NX_CACHE: 'true'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -90,8 +92,8 @@ jobs:
           node-version: '22'
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: Build AI unit identity dependency
-        run: pnpm exec nx run identity:build --skip-nx-cache
+      - name: Build AI unit API and identity dependencies
+        run: pnpm exec nx run-many -t build -p identity api --skip-nx-cache
       - name: AI Chat unit regression
         run: pnpm test:ai-chat
       - name: No unformatted files

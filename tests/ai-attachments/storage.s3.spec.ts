@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { BlocksObjectStorageConfig } from '../../apps/api/src/blocks-asset-storage';
 import {
   aiAttachmentObjectKey,
+  AiAttachmentStorageError,
   S3AiAttachmentBlobStore,
   type AiAttachmentObject,
   type AiS3Sender,
@@ -220,6 +221,20 @@ describe('AI attachment MinIO fixture guard (pure, no Docker or S3)', () => {
 function httpStatus(problem: unknown): number | undefined {
   if (problem === null || typeof problem !== 'object') return undefined;
   return (problem as S3Response).$metadata?.httpStatusCode;
+}
+
+function storageDiagnostic(value: unknown) {
+  const status = httpStatus(value);
+  const name = value instanceof Error ? value.name : undefined;
+  return {
+    httpStatus:
+      typeof status === 'number' && Number.isInteger(status) && status >= 100 && status <= 599
+        ? status
+        : null,
+    errorName:
+      typeof name === 'string' && /^[A-Za-z][A-Za-z0-9_.-]{0,79}$/.test(name) ? name : null,
+    outcome: value instanceof AiAttachmentStorageError ? value.outcome : null,
+  };
 }
 
 describe.skipIf(!enabled)(
@@ -468,6 +483,10 @@ describe.skipIf(!enabled)(
     it('allows only one actual conditional write when two writers race and refuses replacement', async () => {
       const f = await objectFixture();
       const putStatuses: (number | undefined)[] = [];
+      const operations: (ReturnType<typeof storageDiagnostic> & {
+        operation: string;
+        status: 'fulfilled' | 'rejected';
+      })[] = [];
       let putCalls = 0;
       const sender: AiS3Sender = {
         async send(command, options) {
@@ -476,9 +495,19 @@ describe.skipIf(!enabled)(
           try {
             const result = await liveClient().send(command, options);
             if (isPut) putStatuses.push(result.$metadata?.httpStatusCode);
+            operations.push({
+              operation: command.constructor.name,
+              status: 'fulfilled',
+              ...storageDiagnostic(result),
+            });
             return result;
           } catch (problem) {
             if (isPut) putStatuses.push(httpStatus(problem));
+            operations.push({
+              operation: command.constructor.name,
+              status: 'rejected',
+              ...storageDiagnostic(problem),
+            });
             throw problem;
           }
         },
@@ -487,7 +516,20 @@ describe.skipIf(!enabled)(
         store(sender).putImmutable(f.input),
         store(sender).putImmutable(f.input),
       ]);
-      expect(results.map((result) => result.status)).toEqual(['fulfilled', 'fulfilled']);
+      // Serialize only completed operation summaries, never bodies, keys, credentials or stacks.
+      const diagnostics = JSON.stringify({
+        putCalls,
+        putStatuses,
+        operations,
+        results: results.map((result) => ({
+          status: result.status,
+          ...(result.status === 'rejected' ? storageDiagnostic(result.reason) : {}),
+        })),
+      });
+      expect(
+        results.map((result) => result.status),
+        diagnostics,
+      ).toEqual(['fulfilled', 'fulfilled']);
       expect(putCalls).toBe(2);
       expect(putStatuses.filter((value) => value === 200)).toHaveLength(1);
       expect(putStatuses.filter((value) => value === 409 || value === 412)).toHaveLength(1);
