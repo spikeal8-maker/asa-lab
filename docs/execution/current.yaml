@@ -408,17 +408,25 @@ parallel_lanes:
         base_sha: 901551291788d95d104ac2993a167032e99df232
         selected_scope:
         - tests/migration/ai-main-prefix-upgrade.pg.spec.ts
-        selection: Add one meaningful real PostgreSQL regression for the supported current-main migration prefix through0225
-          upgrading atomically to final226-229 plus233. Reuse existing isolated test database creation, cluster-wide
-          role coordination helper and strict applyPlan; preserve original migration SQL, runner, all existing suites
-          and budgets. Seed existing Account/Seat and AI history/quota or other affected data through real old contracts,
-          prove preservation and appropriate new defaults/ownership, exact old and new migration ledger/checksum values,
-          and second-apply zero. Assert the unsupported233-only draft history remains rejected before SQL rather than
-          weakening its guard.
-        acceptance: Bounded author in a clean isolated checkout, static format/type/collection checks, NEW independent
-          L3 source review. No local PostgreSQL/Docker/browser. Actual new case must execute in normal General Data
-          on final source, with existing RLS/Portal/Access and all four AI jobs. Full final source and actual independent
-          review remain mandatory. No deployment or working DB changes.
+        selection: >-
+          Add one meaningful real PostgreSQL regression for the last supported installed prefix through 0225 upgrading
+          atomically to all nine AI 0226-0229, Courses 0230-0232, Portal 0233 and Public Projects 0234 migrations.
+          Historical main migration-frontier snapshot 13ab3635587a201bc2cc78e88b9a9f66fce72102 already contained
+          published 0234 source while 0226-0233 were absent; this recorded source state is not an installed database
+          receipt. Reuse existing isolated test database
+          creation, cluster-wide role coordination helper and strict applyPlan; preserve every published SQL blob
+          including 0234, runner, existing suites and budgets. Seed existing Account/Seat, AI history/quota, Course and
+          Project data through actual old contracts, then prove preservation, appropriate new defaults/ownership and
+          behavior, exact old/new migration ledger/checksum values, and second-apply zero. Keep earlier 152/210 upgrade
+          controls. Assert that unsupported applied 0234 with missing 0226-0233, applied 0233 with missing lower
+          migrations, and Courses-first histories reject before SQL; do not weaken the guard. Separate candidate tests
+          and owner merge permission do not constitute this joint upgrade evidence.
+        acceptance: >-
+          Bounded author in a clean isolated checkout, static format/type/collection checks, NEW independent L3 source
+          review. No local PostgreSQL/Docker/browser. Actual new case must execute in normal General Data on final
+          source, with existing RLS/Portal/Access, all four AI jobs, Learning focused/browser, applicable credential and
+          Public Projects gates. Full final source and actual independent review remain mandatory. No deployment or
+          working DB changes.
       integration_dependencies:
       - id: AI-BASELINE-LEARNING-006
         status: technical_accepted
@@ -738,12 +746,21 @@ parallel_lanes:
           runtime role; retain all original awaited operations, assertions, order and5000ms test budgets. Existing foreign-account/Seat/class
           authorization coverage stays mandatory. No diagnostic instrumentation, retries, cancellation, timeout increases
           or assertion weakening.
-        migration_coordination: 'Main a4b8ceb2 still has220 SQL files through0225; published AI sources226-229 remain
-          byte-identical. Foreign unmerged Learning654/656/657 reserve230-232 and are not imported or edited. Portal233
-          is collision-free but MUST NOT enter main without AI226-229: the strict runner rejects their later backfill
-          after an applied233-only baseline. Follow the selected atomic main integration strategy and fresh migration-frontier
-          check. Existing draft histories are not newly declared supported releases. Foreign Learning owners must reconcile
-          their unmerged migration reservations with the actual main frontier before future integration.'
+        migration_coordination: >-
+          Historical main migration-frontier snapshot 13ab3635587a201bc2cc78e88b9a9f66fce72102 records the owner-authorized
+          early source merge of Public Projects PR #613 and published 0234_public_projects.sql; 0226-0233 were absent.
+          The last supported installed
+          prefix for this upgrade is through 0225, not a statement of the actual installed database state, which was not
+          checked. Complete the reviewed source union with AI 0226-0229, Courses 0230-0232 and Portal 0233 while
+          preserving all current main changes and published SQL including 0234, after a fresh frontier check before
+          composition. The owner explicitly authorizes selected Learning PR #657 and separate credential PR #653
+          integration; their sources remain separately reviewed inputs. The final supported upgrade must apply all nine
+          0226-0234 together from prefix 0225. Unsupported applied 0234-only, 0233-only or Courses-first histories must
+          reject before SQL under the unchanged strict runner. The existing 0234 source merge is not deployment or
+          release acceptance and does not prove whether any installed database has applied it. No runner bypass, SQL
+          rename, renumber, rollback or retroactive support for partial applied histories. Require joint real PostgreSQL
+          upgrade and final exact-SHA AI/Learning/applicable credential/Public Projects/full General evidence; this
+          coordination is not an implementation or acceptance receipt.
         ownership_coordination: This is a new separately selected AI integration baseline dependency under the owner-authorized
           programme and direct_main policy, not an expansion of AI text/storage source. The existing Portal diagnostic
           owner/card and original two-case task remain unchanged. No current overlapping writer was found in53 allowed
@@ -839,17 +856,29 @@ parallel_lanes:
           data: failure
         main_integration: blocked_actual_general
         owner_acceptance: pending
-      baseline_integration_strategy: Replace the earlier separate-baseline-main-then-AI topology because it would create
-        a supported main233 history missing AI226-229. Keep Quality012, Portal013 and dependency016 separately selected,
-        authored and independently reviewed. PR668 is a baseline validation/dependency candidate ONLY and must not merge
-        into main independently or be installed as a standalone release. Require its repaired full General and independent
-        actual acceptance first. Compose those accepted exact sources into PR655 with ordinary ancestry, retain all
-        four AI jobs and its own full General, and require new independent final source and actual acceptance plus selected
-        real PG main225-to-final upgrade evidence. Perform ONE ordinary atomic main merge of the complete tree containing226-229
-        and233 together. No intermediate main HEAD may contain233 without226-229. This is an integration-plan correction,
-        not a waiver, migration-runner change, unsupported baseline233-to-AI upgrade claim, direct foreign repair inside
-        the AI author scope, or permission to deploy. Keep diagnostic branches out; preserve published SQL, current
-        main and foreign changes; no force-push.
+      baseline_integration_strategy: >-
+        Keep Quality012, Portal013 and dependency016 separately selected, authored and independently reviewed; retain
+        their required gates and acceptance. PR #668 remains a baseline validation/dependency candidate only and must
+        not merge into main or be installed independently. Require the baseline validation candidate's repaired full
+        General and NEW independent actual acceptance BEFORE its accepted sources are composed into the final joint
+        candidate. Source-only or probe approval does not satisfy that prerequisite. The owner on 2026-10-20 approved
+        the existing Courses design and ordinary main integration of PR #657 plus separate credential PR #653. Historical
+        main migration-frontier snapshot 13ab3635587a201bc2cc78e88b9a9f66fce72102 already included the separately
+        owner-authorized early Public Projects source merge and published 0234 while 0226-0233 were absent. Preserve that
+        published main source history;
+        its merge message records no database action/deployment and no release acceptance, not an observed
+        installed-state assertion. Coordinate the accepted exact inputs with the AI candidate through ordinary ancestry
+        into ONE reviewed complete source tree for the last supported installed prefix through 0225 to upgrade
+        atomically through all nine AI 0226-0229, Courses 0230-0232, Portal 0233 and Public Projects 0234 migrations.
+        The actual installed database prefix is not verified here. Unsupported applied 0234 with missing 0226-0233,
+        applied 0233 with missing lower migrations, and Courses-first histories must reject before SQL; the unchanged
+        strict runner rejects later insertion below the applied frontier. Preserve every exact published SQL blob
+        including 0234, current main and foreign source boundaries; no rename, renumber, rollback, backfill, runner
+        bypass or force-push. Require final independent source and actual acceptance, full General including Data/RLS
+        and Access, all four AI jobs, Learning focused/browser gates, applicable credential and Public Projects gates,
+        and the selected real PostgreSQL 225-to-complete226-234 upgrade with existing data, exact ledgers/checksums and
+        second-apply zero. Earlier source/probe approvals remain inputs, not acceptance of the joint tree. No production
+        deployment or database action is authorized by this integration plan.
       migration_integration_repair:
         finding: R1 strict validator rejects applied baseline612ec69 with233 but missing226-229; initial critical approval
           was superseded by REQUEST_CHANGES.
@@ -857,10 +886,18 @@ parallel_lanes:
         reviewed_local_candidate_tree: 67bfb707ebcfe75e2300512d3c2dbb3dcd0bd3ae
         preserved_source_review: Exact source union and cross-module semantics approved; no product or SQL blob defect
           identified.
-        selected_resolution: Atomic complete-tree main integration from supported main through0225; no standalone baseline233
-          main publication.
-        supported_history_checks: Real PG prefix225-to-final with existing data, exact ledgers and idempotence; retain
-          earlier152/210 upgrade tests and strict late-migration rejection.
+        selected_resolution: >-
+          Preserve the early source publication of Public Projects 0234 recorded in historical main snapshot 13ab and
+          complete the accepted source union.
+          The supported installed upgrade is atomic from prefix through 0225 to all nine AI 0226-0229, Courses
+          0230-0232, Portal 0233 and Public Projects 0234 migrations, preserving all published SQL bytes. No source
+          history erasure, runner waiver, renumber, rollback or claim about the actual installed prefix.
+        supported_history_checks: >-
+          Real isolated PostgreSQL prefix 225 with existing Account/Seat, AI, Course and Project data to the
+          complete226-234 union; verify preservation, exact ledgers/checksums, new behavior and second-apply zero.
+          Retain 152/210 upgrade regressions. Unsupported applied234-only, applied233-only and Courses-first histories
+          must reject before SQL; prior partial-candidate evidence and the existing234 source merge are not joint
+          installed acceptance.
         baseline_candidate_pr: 668
         baseline_candidate_sha: 612ec69cd6e8fd15cc8ba391a6cf227f0425bd70
         baseline_general_run: 39482264093
@@ -6216,8 +6253,55 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: existing_course_code_docs_prototype_published_owner_acceptance_pending
+      checkpoint: design_approved_bounded_courses_main_integration_selected
       owner_acceptance: pending
+      owner_design_acceptance: accepted
+      owner_source_integration_approval:
+        date_utc: '2026-10-20'
+        quote: согласовую применяй все в майн
+        design_checkpoint: accepted_existing_overview_mixed_lesson_editor_prototype
+        draft_removal: authorized
+        ordinary_main_merge: authorized_for_selected_courses_integration
+        evidence: docs/review/learning-lesson-composition/owner-design-approval-2026-10-20.json
+      selected_integration:
+        id: LRN-MAIN-INTEGRATION-20261020
+        status: selected_joint_candidate_not_yet_accepted
+        source_inputs:
+        - pr: 657
+          head: 6a557ae64aef5a38d979f44052d7ba58734acf96
+          reviewed_source_contributions:
+          - 654
+          - 656
+          source_provenance:
+            pr654: Reviewed source was transferred into M; the current PR654 head prefix d2dcfea is not a Git ancestor
+              of M6a. No separate merge of PR654 is required.
+            pr656: P ae25a205d266561f11402643d8621477e2f7d312 is a Git ancestor of M6a.
+        - pr: 653
+          head: f0a3e95f5c5b804943eec0e8218d0a1113e99b8c
+          boundary: separate credential readiness candidate
+        scope: Integrate the existing reviewed Courses sources, reconcile their real overlaps and accepted shared
+          dependencies, and record design approval. Reuse the usable assignment list; no unrelated full UI rewrite
+          is a prerequisite.
+        migration_strategy: >-
+          Complete the reviewed source union on current main. Historical migration-frontier snapshot 13ab already
+          contained published Public Projects 0234 while 0226-0233 were absent.
+          The last supported installed prefix through 0225 must upgrade atomically through
+          all nine AI 0226-0229, Courses 0230-0232, Portal 0233 and Public Projects 0234 migrations. Preserve all
+          published SQL blobs including 0234 and the strict runner. Unsupported applied234-only, applied233-only and
+          Courses-first histories must reject before SQL. The actual installed database prefix is not verified; no
+          renumber, rollback or deployment is authorized.
+        joint_upgrade_gate: required_not_run_for_joint_candidate
+        required_evidence:
+        - accepted exact final source union and independent review
+        - >-
+          real isolated PostgreSQL supported installed prefix 0225 with existing data to all nine 0226-0234, exact
+          ledger/checksums and second apply zero
+        - preserved152/210 upgrade checks and strict late-migration rejection
+        - final exact-SHA Learning focused/browser and full General including Data/RLS and Access
+        - >-
+          AI, credential and Public Projects candidates keep their own applicable exact-SHA gates
+        runtime_acceptance: pending
+        installed_acceptance: pending
       normative_refs:
       - document: PRODUCT-INTEGRATED-V15
         revision: '1.5'
