@@ -42,7 +42,15 @@ function ToolButton({
   onClick,
   children,
   touchCommand = false,
-}: ToolButtonProps & { touchCommand?: boolean }): JSX.Element {
+  className,
+  title = label,
+  'aria-label': ariaLabel = label,
+}: ToolButtonProps & {
+  touchCommand?: boolean;
+  className?: string;
+  title?: string;
+  'aria-label'?: string;
+}): JSX.Element {
   const tap = useRef<{ id: number; x: number; y: number } | null>(null);
   const suppressTouchClick = useRef(false);
   useEffect(() => {
@@ -65,9 +73,9 @@ function ToolButton({
   return (
     <button
       type="button"
-      className={`workbench-tool${active ? ' active' : ''}${danger ? ' danger' : ''}`}
-      aria-label={label}
-      title={label}
+      className={className ?? `workbench-tool${active ? ' active' : ''}${danger ? ' danger' : ''}`}
+      aria-label={ariaLabel}
+      title={title}
       disabled={disabled}
       onPointerDown={(event) => {
         suppressTouchClick.current = false;
@@ -416,16 +424,17 @@ export function WorkbenchHeader({
           >
             <CodeIcon /> Код
           </button>
-          <button
-            type="button"
+          <ToolButton
             className="workbench-pill save"
+            label="Сохранить проект"
             aria-label="Сохранить проект"
             title="Сохранить проект сейчас"
+            touchCommand
             onClick={() => void c.saveNow()}
             disabled={c.busy || c.saveStatus === 'saved' || c.saveStatus === 'saving'}
           >
             <SaveIcon /> Сохранить
-          </button>
+          </ToolButton>
           <button
             type="button"
             className={`workbench-pill simulate${c.simulationStatus === 'running' ? ' running' : ''}`}
