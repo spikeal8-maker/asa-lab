@@ -8233,7 +8233,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: final_existing_temporary404_recovery_observation_selected
+      checkpoint: last_recovery_actual_natural_pass_NO_PROVEN_CAUSE_TERMINAL
       previous_checkpoint: two_mounted_cases_pass_no_proven_cause_diagnostic_STOP
       kind: repair
       owner_acceptance: pending
@@ -8277,13 +8277,20 @@ parallel_lanes:
         identities reached failed DOM and accessible badges;7 imageGET404, whole5-part document unchanged,
         zeroPUT/pageerrors. Mocked API only; private React/hook/cache and causation remain UNKNOWN.
       passive_actual_review: APPROVE_qualified_natural_pass_no_product_acceptance; NO_PROVEN_CAUSE
-      observation_evidence: docs/product/electronics/evidence/ordinary-image-548-recovery-observation-selection-20261021.md
+      observation_evidence: docs/product/electronics/evidence/ui-qualification-121f6599-actual-20261021.md
+      recovery_actual_observation:
+        observed_at: '2026-10-20T22:44:48Z'
+        sha: 121f65992b9cd556f4c26eae9d117c383309ba68
+        run: 39504015807
+        verdict: NO_PROVEN_CAUSE_TERMINAL
+        result: NaturalPASS;image9 detached creation then catalog root30;trusted EventID1 error capture/direct and distinct EventID2 load capture/direct;originalGET404 then retry0/cycle1 GET200 and href change.
+        integrity: Browser sequence1to37,loss0,dropped0,retention/delivery/install errors empty;function identity changed and timing interference UNKNOWN_NONZERO.
+        boundary: Empty document unchanged,PUT0,pageErrors empty;private React/cache UNKNOWN;this does not prove historical cause,fix or absence without wrapper.
+        evidence: docs/product/electronics/evidence/ui-qualification-121f6599-actual-20261021.md
       next_action: >-
-        ONE bounded observer author changes only diagnostic wrapping in this existing temporary404 recovery
-        case, preserves every original action/order/assertion/timeout and all other cases byte-exact, runs narrow
-        checks/self-review and emits ONE unpublished SHA then STOP. NEW independent source review precedes
-        ONE last actual existing-case run. NaturalPASS/incomplete gives NO_PROVEN_CAUSE and diagnostic STOP;
-        no next hopeful observer, product fix or closure. Owner KEEP544/547 to548 remains,549R2 untouched.
+        TERMINAL STOP this last recovery observation. NaturalPASS is NO_PROVEN_CAUSE; no further hopeful
+        observer selection,product repair or closure follows. Owner KEEP544/547 to548 and all blockers remain.
+        Any ordinary regression result is not a newly selected548 causal experiment or owner acceptance.
       preservation: Preserve666 done, original548 receipts and mounted diagnostic checkpoint, all foreign state,
         unpublished52545 branch and544/547/548 blockers. No product, hooks, core, assets, API, workflow, timeout,
         retry, fixture or recovery-policy changes, local browser/Docker/heavy build/DB/deployment operations.
@@ -8327,7 +8334,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: r2_lossless_evidence_and_reopened_native_receipt_selected
+      checkpoint: r2_actual_before_invalid_init_identity_repair_source_approved_NOT_RUN
       previous_checkpoint: r8_test_only_unique_native_meter_hit_path
       kind: repair
       owner_acceptance: pending
@@ -8352,7 +8359,7 @@ parallel_lanes:
       independent_source_review: SOURCE_APPROVE
       before_strict_run: 39490329377
       before_general_run: 39490297942
-      runtime_acceptance: INVALID_BEFORE_10_of16_not_product_evidence
+      runtime_acceptance: INVALID_BEFORE_0_of16_probe_init_error
       r2_evidence_contract:
         baseline_source: e14229f93c7400fb39ae880cc9889aefdc8dcfb6
         independent_review: NEEDS_FIX_INVALID_BEFORE_BASELINE
@@ -8365,13 +8372,32 @@ parallel_lanes:
       docs_selection_handoff_exception: >-
         Owner permits only current.yaml, this card and the new dated receipt despite shared workflow
         WAITING_HANDOFF. Both occupied workflows remain untouched; actual selected-path overlap is forbidden.
+      actual_121f_observation:
+        observed_at: '2026-10-20T22:44:48Z'
+        sha: 121f65992b9cd556f4c26eae9d117c383309ba68
+        run: 39504015807
+        verdict: INVALID_BEFORE_A_test_harness
+        result: All16 fail initial checkpoint with undefined probe,complete0of16,PUT0;one actual stopped-fit320 trace records crypto.randomUUID is not a function before probe assignment.
+        limits: Secure-context explanation inferred,not measured;empty journals do not prove zero production responses. Historical two reopened nativePoint failures remain UNKNOWN.
+        evidence: docs/product/electronics/evidence/ui-qualification-121f6599-actual-20261021.md
+      observed_r2_init_identity_source:
+        observed_at: '2026-10-20T22:44:48Z'
+        sha: 7e45e9c35327fb9a9b3d9910afa2e87c6c7890a7
+        parent: 7f4b4ed589c19eb8d056e11ec9b5a3aed357c248
+        source_review: SOURCE_APPROVE
+        publication: UNPUBLISHED
+        actual_runtime: NOT_RUN
+        browser_blob: ecf3e04d5ef43d1d971d3163c584034ef53a03d9
+        browser_bytes: 74488
+        browser_lines: 1773
+        browser_sha256: 5b09686df75c0206f1b48abfd17be0dfb82da4d4d829dca77843d02593acc118
       next_action: >-
-        ONE bounded R2 evidence-only author repairs lossless full-response incremental delivery and durable
-        existing reopened nativePoint failure receipts, performs focused preservation/self-review and emits ONE
-        unpublished frozen test SHA then STOP. NEW independent source review precedes ONE justified NEW strict
-        frozen BEFORE. Require all16 complete journeys with only causal expected geometry failures and NEW actual
-        review before any product/AFTER selection; AFTER uses the identical new whole test blob. No retries,
-        sampler/pan/fixture/timeout/product changes, old failure concealment,548 selection or foreign repair.
+        Only the already selected R2 spec-only minimal initialization-identity repair has SOURCE_APPROVE;
+        its unpublished7e45 source is NOT runtime acceptance or an accepted actual baseline. Controller will
+        final-compose it preserving current docs/foreign main, then ONE justified NEW strict frozen BEFORE
+        with NEW actual review. Keep all R2 predicates/actions/deadlines/fullDoc/storage/CAS/ready invariants.
+        Require16complete before any product/AFTER; AFTER must use that identical newly frozen whole test blob.
+        No scope expansion,accepted code-fix claim,548 observer selection or closure.
       preservation: >-
         Preserve every original549 source/receipt and all foreign lanes,544/547 dependency-owner KEEP,548
         NO_PROVEN_CAUSE and its separate proposal. Preserve52545,core/hook/LED/assets,accepted554 and every
@@ -8385,7 +8411,7 @@ parallel_lanes:
       product_budget_note: Future three-branch Visual repair measured+4 bytes in a Temp-only module estimate.
         Current actual217996/218000 leaves4 bytes; full bundle fit is NOT_PROVEN. No cap increase, source
         refactor or automatic product phase is selected here.
-      selection_evidence: docs/product/electronics/evidence/selection-outline-549-e14229f9-before-review-20261021.md
+      selection_evidence: docs/product/electronics/evidence/ui-qualification-121f6599-actual-20261021.md
       preserved_candidate_sha: 5da91c88d1df4b87e5b3b92fafd9eacb03f77d11
       preserved_candidate_tree: 5f4e7150a795303b4802039118627bcac6ce8b0e
       candidate_branch: codex/electronics-549-outline-transform-oracle-r4
