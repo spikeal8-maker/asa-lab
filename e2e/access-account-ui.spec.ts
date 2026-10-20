@@ -4571,7 +4571,8 @@ for (const actor of ['account', 'seat', 'teacher', 'author', 'admin'] as const) 
       }, `/${route}`);
       await expect(page.locator('main').first()).toBeVisible();
       await expect(page.locator('main[aria-busy="true"]')).toHaveCount(0);
-      if (route === 'explore') await expect(page.getByTestId('public-projects-empty')).toBeVisible();
+      if (route === 'explore')
+        await expect(page.getByTestId('public-projects-empty')).toBeVisible();
     }
     for (const file of [
       ...editorFiles,
