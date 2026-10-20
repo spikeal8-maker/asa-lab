@@ -207,6 +207,29 @@ jobs:
           path: reports/checks/full-data-gate.log
           retention-days: 14
 
+      # TEMPORARY DIAGNOSTIC BRANCH ONLY. Never merge this stage into main.
+      # The failed Data gate remains failed, including its unrun RLS suffix.
+      # Observe the same surviving synthetic fixtures before always-cleanup.
+      - name: Diagnose full-context read-only PostgreSQL plans
+        if: always()
+        timeout-minutes: 5
+        env:
+          ASA_BUILD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
+          ASA_IMAGE_TAG: ${{ github.event.pull_request.head.sha || github.sha }}
+          COMPOSE_PROJECT_NAME: asa-lab-ci-${{ github.run_id }}
+        run: |
+          set -o pipefail
+          mkdir -p reports/checks
+          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-general-postgres.yaml" --profile test run --rm --no-deps -e CI=true -e GITHUB_ACTIONS=true -e ASA_E1_PG_PLAN_PROBE=full-context-read-only test-runner node tools/testing/learning-e1-pg-plan-probe.mjs 2>&1 | tee reports/checks/pg-plan-probe.log
+
+      - name: Preserve sanitized PostgreSQL plan probe
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pg-plan-probe-${{ github.event.pull_request.head.sha || github.sha }}-${{ github.run_attempt }}
+          path: reports/checks/pg-plan-probe.log
+          retention-days: 14
+
       - name: Cleanup isolated test environment
         if: always()
         env:
