@@ -59,6 +59,7 @@ export function practiceStatus(
   }
   switch (occurrence.canonicalState?.workflowState) {
     case 'submitted':
+      return 'Сдано · результат ещё не опубликован';
     case 'waiting_review':
       return 'На проверке';
     case 'changes_requested':
@@ -142,15 +143,22 @@ export function lessonNextAction(
   if (rootAvailable) return { kind: 'assignment', resume: false };
   const next = available[0]?.occurrence;
   if (next) return { kind: 'practice', occurrence: next, resume: false };
+  const pendingStates = work.map(({ practice, occurrence }) =>
+    practice.blockId === null ? rootState : occurrence?.canonicalState?.workflowState,
+  );
   if (
-    work.length > 0 &&
-    work.every(({ practice, occurrence }) =>
-      ['submitted', 'waiting_review'].includes(
-        (practice.blockId === null ? rootState : occurrence?.canonicalState?.workflowState) ?? '',
-      ),
-    )
-  )
+    pendingStates.length > 0 &&
+    pendingStates.every((state) => state === 'submitted' || state === 'waiting_review')
+  ) {
+    // A legacy submission can have no immutable Attempt/Submission and no review to wait for.
+    if (pendingStates.includes('submitted')) {
+      return {
+        kind: 'blocked',
+        message: 'Результат сданной работы ещё не опубликован. Обратитесь к преподавателю.',
+      };
+    }
     return { kind: 'waiting_review' };
+  }
   const blocked = work.find(({ practice }) => practice.blockedReason)?.practice.blockedReason;
   return {
     kind: 'blocked',

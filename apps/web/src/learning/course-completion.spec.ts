@@ -144,16 +144,66 @@ describe('mixed lesson presentation consumes the server completion projection', 
     });
   });
 
-  it.each(['submitted', 'waiting_review'] as const)(
-    'shows waiting, never completion or a start action, for %s',
-    (state) => {
+  it.each([
+    {
+      state: 'submitted',
+      status: 'Сдано · результат ещё не опубликован',
+      next: {
+        kind: 'blocked',
+        message: 'Результат сданной работы ещё не опубликован. Обратитесь к преподавателю.',
+      },
+    },
+    { state: 'waiting_review', status: 'На проверке', next: { kind: 'waiting_review' } },
+  ] as const)(
+    'keeps $state distinct from review, completion and a new start',
+    ({ state, status, next }) => {
       const lesson = mixed();
       lesson.activityOccurrences[1] = occurrence(2, state);
+      // The learner-safe legacy projection also has submitted + no result + no diagnostic flags.
+      expect(lesson.activityOccurrences[1]!.canonicalState?.selectedResult).toBeNull();
+      expect(lesson.activityOccurrences[1]!.canonicalState?.flags).toEqual([]);
       expect(lessonComplete(lesson)).toBe(false);
-      expect(practiceStatus(lesson, lesson.activityOccurrences[1]!)).toBe('На проверке');
-      expect(lessonNextAction(run(lesson), lesson)).toEqual({ kind: 'waiting_review' });
+      expect(courseCompletion(run(lesson)).complete).toBe(false);
+      expect(practiceStatus(lesson, lesson.activityOccurrences[1]!)).toBe(status);
+      expect(lessonNextAction(run(lesson), lesson)).toEqual(next);
     },
   );
+
+  it('explains the missing result when one pending practice is submitted and another awaits review', () => {
+    const lesson = mixed();
+    lesson.activityOccurrences = [occurrence(1, 'waiting_review'), occurrence(2, 'submitted')];
+    lesson.completion!.practices[0]!.completed = false;
+    lesson.completion!.practiceCompleted = 0;
+    expect(lessonNextAction(run(lesson), lesson)).toEqual({
+      kind: 'blocked',
+      message: 'Результат сданной работы ещё не опубликован. Обратитесь к преподавателю.',
+    });
+    expect(lessonComplete(lesson)).toBe(false);
+  });
+
+  it.each(['not_started', 'changes_requested'] as const)(
+    'keeps the next exact %s practice available while another submission has no result',
+    (state) => {
+      const lesson = mixed();
+      lesson.activityOccurrences = [occurrence(1, 'submitted'), occurrence(2, state)];
+      lesson.completion!.practices[0]!.completed = false;
+      lesson.completion!.practiceCompleted = 0;
+      expect(lessonNextAction(run(lesson), lesson)).toMatchObject({
+        kind: 'practice',
+        resume: state === 'changes_requested',
+        occurrence: { activityRunId: 'run-2', blockId: 'block-2' },
+      });
+    },
+  );
+
+  it('does not infer review or completion from a submitted timestamp without canonical state', () => {
+    const lesson = mixed();
+    lesson.activityOccurrences[1]!.canonicalState = null;
+    lesson.activityOccurrences[1]!.submittedAt = readAt;
+    expect(practiceStatus(lesson, lesson.activityOccurrences[1]!)).toBe('Статус уточняется');
+    expect(lessonNextAction(run(lesson), lesson).kind).toBe('blocked');
+    expect(lessonComplete(lesson)).toBe(false);
+  });
 
   it.each(['in_progress', 'changes_requested'] as const)(
     'resumes the exact %s work before another unstarted practice',
@@ -187,14 +237,17 @@ describe('mixed lesson presentation consumes the server completion projection', 
     expect(lessonNextAction(course, lesson)).toEqual({ kind: 'complete' });
   });
 
-  it('preserves a selected accepted result while a new attempt awaits review', () => {
-    const lesson = mixed();
-    lesson.activityOccurrences[0] = occurrence(1, 'waiting_review');
-    expect(practiceStatus(lesson, lesson.activityOccurrences[0]!)).toBe('Принято');
-    expect(lessonNextAction(run(lesson), lesson)).toMatchObject({
-      occurrence: { activityRunId: 'run-2' },
-    });
-  });
+  it.each(['submitted', 'waiting_review'] as const)(
+    'preserves a server-selected accepted result while the new attempt is %s',
+    (state) => {
+      const lesson = mixed();
+      lesson.activityOccurrences[0] = occurrence(1, state);
+      expect(practiceStatus(lesson, lesson.activityOccurrences[0]!)).toBe('Принято');
+      expect(lessonNextAction(run(lesson), lesson)).toMatchObject({
+        occurrence: { activityRunId: 'run-2' },
+      });
+    },
+  );
 
   it('labels a server-completed automatic activity without inventing teacher acceptance', () => {
     const lesson = mixed();
@@ -269,4 +322,28 @@ describe('mixed lesson presentation consumes the server completion projection', 
     lesson.completion!.practices = [requirement(2, { blockId: null })];
     expect(lessonNextAction(run(lesson), lesson)).toEqual({ kind: 'assignment', resume: false });
   });
+
+  it.each(['submitted', 'waiting_review'] as const)(
+    'keeps standalone assignment %s distinct from an unsupported review promise',
+    (state) => {
+      const lesson = mixed();
+      lesson.kind = 'assignment';
+      lesson.projectId = 'project-2';
+      lesson.canonicalState = occurrence(2, state).canonicalState;
+      lesson.activityOccurrences = [];
+      lesson.completion!.readingRequired = false;
+      lesson.completion!.practiceTotal = 1;
+      lesson.completion!.practiceCompleted = 0;
+      lesson.completion!.practices = [requirement(2, { blockId: null })];
+      expect(lessonNextAction(run(lesson), lesson)).toEqual(
+        state === 'waiting_review'
+          ? { kind: 'waiting_review' }
+          : {
+              kind: 'blocked',
+              message: 'Результат сданной работы ещё не опубликован. Обратитесь к преподавателю.',
+            },
+      );
+      expect(lessonComplete(lesson)).toBe(false);
+    },
+  );
 });
