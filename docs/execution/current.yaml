@@ -5287,21 +5287,22 @@ parallel_lanes:
       - apps/web/src/styles.css
       - apps/api/src/public-projects.controller.ts
       - apps/web/src/projects-public/**
-      - migrations/0218_public_projects.sql
+      - migrations/0234_public_projects.sql
+      - migrations/0235_public_project_copy.sql
       - tests/portal/**
       - e2e/project-hub.spec.ts
       - e2e/artifacts/project-hub/**
       - docs/product/projects/**
       - docs/review/PROJ_R7_01/**
     task:
-      id: TASK-PROJ-R7-VISIBLE-PUBLICATION-001
+      id: TASK-PROJ-R7-PUBLISHED-COPY-001
       issue: 211
       branch: main
       base_branch: main
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: stage2_general009_integrated_games32_pass_full_general_blocked
+      checkpoint: stage3_exact_published_copy_selected
       owner_acceptance: pending
       owner_authorization: >-
         Owner's 2026-10-18 implementation assignment delegates the complete Public Projects
@@ -5310,6 +5311,7 @@ parallel_lanes:
         original Projects, drafts, versions, learning data and personal Collections are protected.
         No production cleanup or deployment is authorized by this selection.
       context_hints:
+        - docs/product/projects/tasks/PROJ-R7-PUBLISHED-COPY.md
         - docs/product/projects/tasks/PROJ-R7-VISIBLE-PUBLICATION.md
         - docs/product/projects/DECISION_LEDGER.md
         - docs/product/projects/tasks/PROJ-PUBLICATION-BUILD-BASELINE.md
@@ -6127,74 +6129,20 @@ parallel_lanes:
       accepted_r7_01a_merge_sha: 92e7926fb4cf51b8fcb5d57741e01c812a26f2dc
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: d2b623f3c59b504e60738d24cc8b627dfc7a04d2
+      convergence_baseline_sha: 628a5b5a999998b008e18e5ab61e843cb5d8b25b
       head_sha: null
-      observed_at: '2026-10-19T17:53:55Z'
+      observed_at: '2026-10-20T22:15:00Z'
       main:
         branch: main
-        sha: cc6c4bf1e753ef617e11932fd36a9fb85b4c5e70
-      observation_note: >-
-        Observed main cc6c4bf1 is the single-parent Learning course/section-save
-        change over main475. Its eight source paths do not intersect this
-        two-document checkpoint; its new API, CoursesPanel, schema and test
-        blobs are preserved. At this observation, General 39297710485 and
-        Learning 39297755737 are in_progress, metadata only. Source or actual
-        PASS from 632, 475 or 94 is not cc6 acceptance. Publishing this
-        checkpoint must wait for the current main CI terminal barrier.
-        Main475 is the accepted normal General009 merge over the independently
-        reviewed fcc controller checkpoint and accepted Auth C5 main d193.
-        Exact632 SOURCE/ACTUAL reviews and the separate post-main475 actual
-        General009 review all pass. Post-main General 39280683031 and all four
-        jobs are terminal SUCCESS, with 220 migrations, separate RLS16,
-        Access22/settings418, immutable images and actual isolated cleanup.
-        This checkpoint follows that terminal barrier. Games is still 32 SKIP
-        on main475; source94 in draft PR645 has its own actual 32 PASS proof.
-        Full General94 is FAILURE from the Electronics timed replay case;
-        its causal category is unresolved and its existing external ownership
-        is preserved. Inline RLS16 passes, but the trailing standalone RLS
-        command is NOT_RUN. Locked runner-source checks find no CI-specific
-        worker/pool/timeout change for the actual explicit run command, while
-        workload and actual worker allocation remain unknown. No new runtime
-        repair, longer timeout, skip or unchanged CI rerun is selected here.
-        Portable94 has bounded independent ACTUAL PASS, with its active
-        transition exception and full-compliance claim still blocked. The
-        separate Electronics94 manifest429 failure is class D before browser;
-        shared transport/guard correction belongs to the existing GC1 author.
-        Coverage635 remains merged with its focused post-main PASS. Learning639 at
-        4a651e23 retains independent source and causal actual Learning/General PASS;
-        accepted AI636 preserves its three exclusive Learning specs. QR629 remains
-        frozen at 9a3c8223 with source/Classroom/General PASS, held for combined acceptance.
-        Old Scratch640 exact813 is terminal NEEDS_FIX and its artifact is preserved.
-        Recovery 55 and corrected Abby 65 have independent source PASS; their mechanically
-        composed exact ffc in draft PR644 has independent composed review 5573134896.
-        New Scratch 39269655871 has full actual 57/57 PASS plus contracts/fresh ZIP;
-        both durable Abby reports are NOT_REPRODUCED and Recovery schema3 reaches all
-        original assertions and real IndexedDB retention. ACTUAL review 5573987710
-        is published. Its old General 39269657333 remains FAILURE from the two
-        UUID fixture errors; the accepted General009 slice addresses their proven
-        cause, without turning old ffc into new combined-source acceptance.
-        GC1 fe70 has no corrected frozen scanner/ordered-argument handoff.
-        D13 f967 actual Classroom 39271296982 has 164 PASS / 6 FAIL and Strict
-        39271290925 has 161 PASS / 9 FAIL, each 170 unique cases without skips
-        or retries. Build/PG startup completed before those browser assertions;
-        cleanup completed afterward. Independent matrix and cause limits were delivered to the
-        existing owner in Issue638 comment6271625706. Product versus observer
-        cause and the last type annotation's causal role remain unproved.
-        PR613 remains unchanged at 662c8af4fbffead0f71b2fb95a4e9768d0c4b9fb; its single
-        final composition has not started. Require fresh fetch main and scoped overlap
-        checks before the one final composition. Historical publication 39154885397 evidence
-        (142 code/real-PG, 48 portal, 8 browser, 37 screenshots) is not current-main
-        acceptance. Preserve current app.module, API cancellation, global verification
-        403 handling, Account/Seat precedence, Games registration and transaction paths,
-        all Learning data, original Projects, drafts, versions, Collections and Safe Mode.
-        Mixed Seat/Account cookies and public GET verification require their explicit
-        security matrix; no generic guard bypass is selected. Auth C5 installer/origin
-        changes require fresh final ZIP evidence, not transfer of old 813/ffc results.
-        Published Auth 0225 and every prior checksum are immutable. AI still records
-        reserved 0225-0228, so its unpublished numbering needs a fresh owner handoff;
-        re-read all published/reserved IDs before selecting the publication migration.
-        Do not assume 0229 is free. Stages 3-7 remain pending after stage 2; no deployment
-        or working-database action is authorized.
+        sha: 628a5b5a999998b008e18e5ab61e843cb5d8b25b
+      observation_note: Require fresh fetch main before publication. Owner explicitly resumes the complete programme with a visible next result. PR613 is merged
+        at13ab3635587a201bc2cc78e88b9a9f66fce72102 and its post-main publication PG/browser workflow39494756801 passed.
+        Select only Stage3 exact immutable-publication copy into an independent private Project. Source integration
+        of Stage1 is not full release acceptance. Shared dependency and AI/Courses/Portal migration topology remain
+        separately owned; no earlier migrations, package/lock or unrelated modules may be rewritten in this slice.
+        Reserve new forward0235 after unchanged0234; validate actual reservations before publication. Workstation
+        authoring/lightweight checks only; real PG/browser evidence in disposable GitHub CI. No production deployment
+        or working database operation.
     execution_lease:
       executor_id: codex-projects-r7-01
       holder: unassigned
