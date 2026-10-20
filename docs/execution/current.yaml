@@ -8970,7 +8970,7 @@ parallel_lanes:
       kind: repair
       risk: high
       semantic_change: 'yes'
-      checkpoint: bounded_fet_reference_repair_selected
+      checkpoint: standalone_fet_selected_after_inherited_gate_timeout
       owner_acceptance: pending
       owner_authorization: >-
         On 2026-10-20 the owner appointed the controller to manage Electronics
@@ -8983,34 +8983,57 @@ parallel_lanes:
       composer_executor_id: /root/fet_runtime_author
       independent_reviewer_id: /root/core_baseline
       controller_id: /root
-      preserved_dependency_pr: 651
-      preserved_dependency_sha: de9d84a4108a5952b921b40d1575651265391873
-      preserved_dependency_parent: 16cbed5d981989528f2d1bd8f62e2a1c4063781f
+      candidate_pr: 660
+      deferred_dependency_pr: 651
+      deferred_dependency_sha: de9d84a4108a5952b921b40d1575651265391873
+      deferred_dependency_parent: 16cbed5d981989528f2d1bd8f62e2a1c4063781f
+      preserved_composite_sha: e8a7c2bd04ad5ec75acfd7d3f4f00482f37efcfa
+      preserved_composite_focused_run: 39442503268
+      preserved_composite_focused_conclusion: failure
+      preserved_composite_result: 922 PASS / 1 FAIL; inherited delay2000 took5812ms against unchanged5000ms. FET source approval, eight reference cases and ten independent cases are historical evidence, not standalone acceptance.
+      preserved_composite_general_run: 39442503313
+      preserved_composite_general_state_at_decision: running
+      attempt_accounting: Same Issue658 FET defect and diagnostic budget; preserve prior hypotheses, attempts, reviews and CI. Changing composition does not reset counters or turn history into fresh PASS.
       path_coordination: >-
-        One controller-assigned composer inherits current main selection and the
-        full six-file exact PR651 change in a new derivative candidate, then
-        edits only existing FET stamping/iteration/observation regions in solver.ts
-        and the new isolated FET reference spec. Keep every inherited generic
-        callback/routing change and all six-file dependency tests unchanged outside
-        those FET regions. Original PR651/branch and D2/D4 remain untouched and
-        unaccepted. No other agent writes intersecting product paths; if foreign
-        dirty work is discovered, obtain a concrete handoff before product writes.
+        Root assigns the same sole author fet_runtime_author to fresh accepted
+        main plus the same four FET edits in two solver regions, unchanged eight-case
+        reference spec and route. PR651 is independently established not to be a
+        functional FET dependency. Mechanically exclude de9 only from our derivative:
+        five non-FET files must equal fresh main; solver must equal main plus only
+        that retained FET delta. Original PR651/de9, e8 history, stopped R27 and all
+        foreign work remain intact. Continue PR660 by normal forward commits/merge,
+        never force-push. Actual intersecting dirty work still requires handoff.
+      mechanical_exclusion_paths:
+        - contexts/electronics/domain/arduino-circuit-scheduler.ts
+        - contexts/electronics/domain/simulation.ts
+        - contexts/electronics/domain/solver.ts
+        - contexts/electronics/testing/engine-timed-api.spec.ts
+        - contexts/electronics/testing/simulation-contract.spec.ts
+        - contexts/electronics/testing/solver.spec.ts
       expected_write_paths:
         - contexts/electronics/domain/solver.ts
         - contexts/electronics/testing/fet-dc-reference.spec.ts
         - docs/product/electronics/components/engine-worker-clock.yaml
+        - contexts/electronics/domain/arduino-circuit-scheduler.ts
+        - contexts/electronics/domain/simulation.ts
+        - contexts/electronics/testing/engine-timed-api.spec.ts
+        - contexts/electronics/testing/simulation-contract.spec.ts
+        - contexts/electronics/testing/solver.spec.ts
         - docs/product/electronics/tasks/TASK-ELECTRONICS-CORE-FET-001.md
         - docs/execution/current.yaml
       integration_condition: >-
-        Preserve PR651 and existing blockers. Combined exact-source gates,
-        new independent source/runtime review, fixed FET analytical references
-        and actual editor demonstration must pass before authorised integration.
-        Inheritance does not accept PR651 or transfer its old source-only review.
+        Preserve original PR651/de9, composite e8 and all existing blockers.
+        Require fresh standalone exact-source gates, new independent source/runtime
+        review, unchanged fixed analytical references and actual editor demonstration
+        before authorised integration. No accepted test or delay2000/5000ms budget
+        changes. Standalone selection accepts neither PR651 nor Issue546, and
+        historical composite approval/PASS does not transfer automatically.
       next_action: >-
-        Accept this prospective selection on main before product writes, refresh
-        exact refs and actual overlaps, then assign one composer for the bounded
-        FET correction. Keep current source/CI/browser/main facts separate; no
-        AFTER or programme completion is claimed by this selection.
+        Accept this prospective amendment on main before source writes, refresh
+        actual refs/overlaps and build the retained FET-only delta on accepted main.
+        Mechanical restoration is not rollback of accepted code or new scheduler/test
+        semantics. Preserve counters and evidence; run unchanged commands on final
+        standalone source and obtain new independent review, without acceptance claims.
     execution_lease:
       executor_id: electronics-core-fet-author
       holder: unassigned
@@ -9037,17 +9060,18 @@ parallel_lanes:
           - pnpm gate:repository
     revisions:
       kind: observed_snapshot
-      observed_at: '2026-10-20T14:28:57Z'
+      observed_at: '2026-10-20T14:56:35Z'
       main:
         branch: main
-        sha: dcdf72185673808ee6798462da5399c94cfe194e
-      convergence_baseline_sha: dcdf72185673808ee6798462da5399c94cfe194e
+        sha: 83714ca4a36ff272859fd2818935f2ef5630644b
+      convergence_baseline_sha: 83714ca4a36ff272859fd2818935f2ef5630644b
       head_sha: null
       observation_note: >-
-        Dated controller BEFORE: both independent FET fixtures fail while161
-        existing solver/RC tests pass. Exact PR651 de9d84a is retained as an
-        unaccepted composition dependency, not integrated production. Fresh
-        fetch main and actual overlap checks are required before writes and integration.
+        Dated standalone decision after inherited delay2000 focused failure on e8.
+        Six accepted-main paths at83714ca4 equal PR651 parent16cbed5d exactly;
+        de9 is deferred rather than mandatory for FET. Historical source approval,
+        FET references and CI remain retained; no standalone AFTER is asserted.
+        Fresh fetch main and actual overlap checks are required before writes and integration.
 
   - id: electronics-artifact-intake
     parent_lane: electronics

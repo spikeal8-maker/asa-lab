@@ -7,7 +7,7 @@ roadmap_slice: null
 prerequisites:
   - This prospective controller selection is accepted on main before product writes
   - Fresh main and candidate refs, scoped preflight and actual overlapping-work check
-  - One composer preserves exact PR651 de9d84a before the bounded FET amendment
+  - One composer applies the retained FET-only delta to fresh accepted main; PR651 remains deferred
   - Independent public-API BEFORE and analytic reference fixed before the repair
 acceptance_boundary: slice
 review: independent
@@ -20,7 +20,7 @@ Issue [658](https://github.com/spikeal8-maker/asa-lab/issues/658), programme
 selection for one FET correction, not acceptance of all СТ-04 or the programme.
 On 20 October 2026 the owner explicitly appointed the controller to manage
 Electronics development through separate authors and independent reviewers.
-The controller selects this bounded dependency; product writes start only after
+The controller selects this bounded correction; product writes start only after
 this card and its own lane are accepted on main.
 
 ## One visible result
@@ -77,19 +77,26 @@ Two source-confirmed causes guide the bounded experiment: active stamping adds
 without changing the region name, allowing premature iteration termination.
 A valid repair must address both, not merely remove the shunt or repeat a golden.
 
-## Single-writer composition and preserved dependency
+## Standalone selection after the inherited gate failure
 
-PR [651](https://github.com/spikeal8-maker/asa-lab/pull/651) is retained at exact
-`de9d84a4108a5952b921b40d1575651265391873`, parent
-`16cbed5d981989528f2d1bd8f62e2a1c4063781f`. The intake found its six product/test
-paths on observed main byte-identical to that parent. Refresh this fact before
-composition; it is not a permanent assertion about live main.
+The controller prospectively changes the composition of this same Issue658
+slice. Independent review established that PR651 is not a functional dependency
+of the FET correction. The earlier composite
+`e8a7c2bd04ad5ec75acfd7d3f4f00482f37efcfa` remains retained: its FET source was
+independently approved, eight reference cases and ten additional independent
+cases passed, but focused run `39442503268` failed with 922 PASS / 1 FAIL. The
+inherited `delay(2000)` case took 5812 ms against its unchanged 5000 ms budget.
+General run `39442503313` was still running at the controller's decision; neither
+that observation nor any prior PASS accepts the next source. These facts remain
+historical evidence, not a reason to increase budgets or restart attempt counters.
 
-The controller `/root` assigns one composer/author, `/root/fet_runtime_author`,
-and a separate independent final reviewer, `/root/core_baseline`. The reviewer
-does not author product changes. Inherit current main's canonical selection in a
-new derivative candidate and preserve
-the complete six-file PR651 change before applying FET edits:
+The selected result is now **fresh accepted main plus the same FET-only repair**,
+the same eight-case reference spec and its test-route entry. Do not hold this
+independent correction behind an unaccepted unrelated PR651 change. Preserve the
+whole original PR651 at `de9d84a4108a5952b921b40d1575651265391873` and parent
+`16cbed5d981989528f2d1bd8f62e2a1c4063781f`; do not change its remote branch or
+declare it accepted. All six paths below on observed main
+`83714ca4a36ff272859fd2818935f2ef5630644b` are byte-identical to that parent:
 
 - `contexts/electronics/domain/arduino-circuit-scheduler.ts`
 - `contexts/electronics/domain/simulation.ts`
@@ -98,49 +105,53 @@ the complete six-file PR651 change before applying FET edits:
 - `contexts/electronics/testing/simulation-contract.spec.ts`
 - `contexts/electronics/testing/solver.spec.ts`
 
-These are inherited dependency bytes, not six newly authorised repair surfaces.
-Apart from the selected FET regions in `solver.ts`, keep those inherited files
-unchanged, including all generic callback, late-terminal enumeration and
-historical `allNumbers` semantics and regression tests. The original PR651 and
-its branch remain untouched; neither inheritance nor old source approval accepts
-that dependency. Never copy its old execution state over current main.
+The composer may mechanically exclude de9 only from our derivative by restoring
+these accepted-main bytes. Five non-FET files must equal fresh accepted main
+exactly; `solver.ts` must equal that main plus only the same four textual edits
+inside two existing FET regions. This is not rollback of accepted code. Do not
+remove an accepted test, change `delay(2000)` or its 5000 ms assertion, or author
+new scheduler, simulation or legacy/generic test semantics. Unaccepted PR651
+source/tests remain available in its unchanged original candidate.
 
-PR651's published source is complete with actual acceptance pending. The new
-composer does not rewrite that remote branch or silently replace its original
-author; this is the controller's explicit derivative-composition assignment
-under the owner's mandate. Existing PR651 General failures include two
-Electronics timeouts, five Portal timeouts and one Courses timeout. They are
-not waived or treated as successful inherited evidence.
+Continue PR660 only through normal forward commits/merge, without force-push or
+rewriting published history. Preserve e8 and all its reviews, attempts and CI.
+The composition decision changes no defect identity or diagnostic-budget counter.
 
-The controller explicitly transfers only the `solver.ts` writer from the
-advisory `electronics-arduino` scope to `electronics-core-fet`, recording the
-handoff in the old lane. Stopped R27 remains stopped: its task status, retained
-sources/reviews, existing blocker and explicit-resume rule are unchanged.
-This grants no permission to resume or accept Issue546, PR651 or R27.
+The controller `/root` assigns `/root/fet_runtime_author` as the sole composer
+and `/root/core_baseline` as independent final reviewer; the reviewer does not
+author product changes. Inherit this selection from main before new source writes.
+
+The controller previously transferred only the `solver.ts` writer from the
+advisory `electronics-arduino` scope to `electronics-core-fet`. That handoff is
+unchanged. Stopped R27 remains stopped: task status, retained sources/reviews,
+existing blocker and explicit-resume rule are preserved. This standalone choice
+grants no permission to resume or accept Issue546, PR651 or R27.
 
 All other agents on this composition are read-only. If another author is actually
 writing intersecting files, stop product writes and obtain a concrete controller
 handoff. A known ref alone is not permission to overwrite foreign dirty work.
-Both the preserved dependency and FET amendment require new combined final-source
-tests and independent review. Existing PR651 failures and acceptance conditions
-remain open until their actual causes and required evidence are resolved.
+The standalone source requires new exact-source tests and independent review;
+old composite evidence does not automatically transfer. Existing PR651 and
+Issue546 failures, blockers and acceptance conditions remain open separately.
 
 ## Exact new write scope
 
-- `contexts/electronics/domain/solver.ts`: only its existing FET stamping,
-  numerical iteration criterion and consistent current observation if needed.
-- `contexts/electronics/testing/fet-dc-reference.spec.ts`: independent analytical
-  fixtures and focused regression cases.
+- `contexts/electronics/domain/solver.ts`: accepted-main source plus only the
+  retained four FET edits in its existing stamping and iteration regions.
+- `contexts/electronics/testing/fet-dc-reference.spec.ts`: retain the same eight
+  independent reference/regression cases; no assertion or tolerance change.
 - `docs/product/electronics/components/engine-worker-clock.yaml`: only add the
   new spec path to `electronics.engine.solver.tests` when the spec is created;
   no other component, source, contract or map change.
 - This card and only this task's own `docs/execution/current.yaml` lane are
   controller-owned documentation, not author-selected execution permission.
 
-A new model/helper module needs a separate controller scope decision before
-editing. Do not change `simulation.ts`, Arduino scheduler/runtime, inherited
-PR651 tests, D2/D4 runtime/UI, owner SVG, qualification profiles, timing budgets,
-workflow/infrastructure, persistence, network or deployment.
+The six paths listed above are additionally allowed only for the mechanical
+exclusion of the unaccepted dependency. This exceeds the ordinary file/test
+budget solely for restoring accepted-main bytes, not authoring more production
+or test semantics. New repair code remains one solver plus one spec and its route.
+A new helper needs a separate scope decision. No Arduino/runtime, NPN/LED,
+D2/D4 UI, owner SVG, qualification, timing, workflow, data or deployment change.
 
 This does not select E-OPT-4 as a whole or replace the current D2/D4 slice. Its
 50 ms, pace 0.125, 6250 µs lookahead and all other accepted criteria remain
@@ -154,8 +165,9 @@ unchanged. No new current clamp, region threshold or MOSFET model is selected.
    roots; changing the gate changes current as the model prescribes.
 3. Cutoff and existing ohmic behaviour remain finite and consistent. A deliberately
    insufficient iteration budget gives a bounded honest failure, not false solved.
-4. Existing DC, diode/LED, NPN/PNP, PSU and RC regressions remain correct. Re-run
-   PR651's generic/prepared routing and callback regressions on the composition.
+4. Existing accepted DC, diode/LED, NPN/PNP, PSU, RC and generic/prepared routing
+   regressions remain correct. The five restored files equal fresh main; no
+   accepted test or timing assertion is removed, skipped or weakened.
 5. Compare stamp and published terminal currents, including source and Rs;
    use convergence of the numerical operating point, not region names alone.
 6. In the built existing editor, actually open and run both FET circuits and
@@ -194,9 +206,10 @@ this prospective documentation-only selection does not. A due checkpoint is not
 waived by the selection.
 
 The author performs self-review and stops at this bounded result. A different
-reviewer evaluates the final combined bytes and actual evidence; old PR651 review
-does not cover FET. The controller may integrate only after all applicable
-dependency and slice acceptance conditions are satisfied, then continues the
+reviewer evaluates the standalone final bytes and actual evidence; old composite
+review is not final-source acceptance. The controller may integrate only after
+all applicable slice acceptance conditions are satisfied, then continues the
 owner programme. Separately record tested, pushed, CI, IN_MAIN, deployed and
-owner accepted. All AFTER, browser, integration and owner results are pending at
-selection. No deployment, working-database or installation action is authorised.
+owner accepted. All standalone AFTER, browser, integration and owner results are
+pending at amended selection. No deployment, working-database or installation
+action is authorised.
