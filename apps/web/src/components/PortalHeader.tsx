@@ -40,7 +40,49 @@ import {
 
 export type PortalSection = CreatorPortalSection;
 const sectionHref = (section: PortalSection): string =>
-  `/#/${section === 'classes' ? 'classrooms' : section}`;
+  `/#/${section === 'classes' ? 'classrooms' : section === 'gallery' ? 'explore' : section}`;
+
+/** Guest state of the common ASA header; it does not fabricate an account. */
+export function PortalGuestHeader({
+  onHome,
+  onProjects,
+  onSignIn,
+}: {
+  readonly onHome: () => void;
+  readonly onProjects: () => void;
+  readonly onSignIn: () => void;
+}): JSX.Element {
+  return (
+    <header className="portal-header">
+      <button
+        type="button"
+        className="portal-brand"
+        aria-label="ASA Lab — главная"
+        onClick={onHome}
+      >
+        <AsaLabWordmark />
+      </button>
+      <nav className="portal-global-nav" aria-label="Разделы ASA Lab">
+        <PortalLink
+          href={sectionHref('gallery')}
+          aria-label="Проекты"
+          aria-current="page"
+          onNavigate={onProjects}
+        >
+          <GalleryGlyph />
+          <span>Проекты</span>
+        </PortalLink>
+      </nav>
+      <PortalLink
+        href="/#/sign-in"
+        className="btn-secondary public-projects-guest-sign-in"
+        onNavigate={onSignIn}
+      >
+        Войти
+      </PortalLink>
+    </header>
+  );
+}
 
 function sectionIcon(section: PortalSection): JSX.Element {
   if (section === 'account') return <UserIcon />;
