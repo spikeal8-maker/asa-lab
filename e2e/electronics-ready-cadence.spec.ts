@@ -6614,115 +6614,142 @@ async function retainD2Ledger(info: import('@playwright/test').TestInfo): Promis
 }
 
 test.describe('Classroom D2-D4 next visible slice', () => {
-  test.use({ video: 'on' });
-  test(D2_CLASSROOM_CASE, async ({ page, browser }) => {
+  test(D2_CLASSROOM_CASE, async ({ browser, baseURL }) => {
     test.setTimeout(840_000);
-    expect(d2Ledger).not.toBeNull();
-    const stages: D2Stage[] = [
-      [100, 100],
-      [200, 200],
-      [300, 300],
-      [150, 150],
-      [100, 300],
-    ].map(([highMs, offMs]) => ({
-      name: `${highMs}-${offMs}`,
-      highMs: highMs!,
-      offMs: offMs!,
-      source: d2Sketch(highMs!, offMs!),
-    }));
-    const lesson = readFileSync(resolve(D2_LESSON_PATH), 'utf8');
-    for (const stage of stages) expect(lesson).toContain('```cpp\n' + stage.source + '```');
-    let session = await d2OpenOwnerTemporalSketch(page, stages[0]!.source, 'next-d2-d4');
-    await d2BuildProvenance(page);
-    const projectUrl = page.url();
-    const initialWiring = session.saved.draft.document.connections;
-    for (let index = 0; index < stages.length; index++) {
-      const stage = stages[index]!;
-      if (index > 0) {
-        const saved = await d2EditAndSave(page, session, stage);
-        session = { ...session, source: stage.source, saved };
-      }
-      session.startAt = await d2ClearProbe(page);
-      await d2Capture(page, session, stage);
-      if (stage.name === '300-300') {
-        try {
-          await d2NativeSamples(page, stage, await temporalObservation(page));
-        } finally {
-          await d2RetainRaw(page, session, stage.name + '-native', d2Ledger!.native);
-        }
-      }
-      if (index < stages.length - 1) await d2Stop(page);
-    }
-    const byName = new Map(d2Ledger!.stages.map((stage) => [stage.stage, stage]));
-    const timing = [100, 150, 200, 300].map(
-      (delay) => byName.get(`${delay}-${delay}`)!.medianCycleMs,
-    );
-    expect(timing[0]!).toBeLessThan(timing[1]!);
-    expect(timing[1]!).toBeLessThan(timing[2]!);
-    expect(timing[2]!).toBeLessThan(timing[3]!);
-    for (const [index, low, high] of [
-      [1, 1.2, 1.8],
-      [2, 1.6, 2.4],
-      [3, 2.4, 3.6],
-    ]) {
-      expect(timing[index!]! / timing[0]!).toBeGreaterThanOrEqual(low!);
-      expect(timing[index!]! / timing[0]!).toBeLessThanOrEqual(high!);
-    }
-    const last = stages.at(-1)!;
-    const beforeResetGeneration = d2Ledger!.stages.at(-1)!.generationId;
-    session.startAt = await d2ClearProbe(page);
-    const reset = await d2Capture(page, session, { ...last, name: 'reset-100-300' }, 'reset');
-    expect(reset.generationId).not.toBe(beforeResetGeneration);
-    await d2Stop(page);
-    expect((await session.read()).draft).toEqual(session.saved.draft);
-    expect(session.saved.draft.document.connections).toEqual(initialWiring);
-    session.failures.assertEmpty();
-
-    // Cookies alone carry authentication. No storage state, in-memory circuit,
-    // local/session storage or saved observer buffers enter the new browser context.
-    const context = await browser.newContext({
+    const primaryContext = await browser.newContext({
+      baseURL,
       viewport: { width: 1600, height: 1000 },
       recordVideo: {
-        dir: resolve(artifactRoot, 'd2-d4-reopen-video'),
+        dir: resolve(artifactRoot, 'd2-d4-primary-video'),
         size: { width: 1600, height: 1000 },
       },
     });
+    let primaryVideo: ReturnType<Page['video']> = null;
     try {
-      await context.addCookies(await page.context().cookies());
-      const reopened = await context.newPage();
-      const failures = collectBrowserFailures(reopened, { allowAnonymousSessionProbe: true });
-      await observeOwnerTemporal(reopened);
-      await d2ObserveL(reopened);
-      await reopened.goto(projectUrl);
-      await expect(reopened.locator('.workbench-stage')).toBeVisible();
-      await expect(reopened.getByTestId('schematic-component')).toHaveCount(7);
-      await d2BuildProvenance(reopened);
-      const read = async (): Promise<D2SavedProject> => {
-        const response = await context.request.get(new URL(session.endpoint, session.origin).href, {
-          headers: { origin: session.origin },
+      const page = await primaryContext.newPage();
+      primaryVideo = page.video();
+      expect(d2Ledger).not.toBeNull();
+      const stages: D2Stage[] = [
+        [100, 100],
+        [200, 200],
+        [300, 300],
+        [150, 150],
+        [100, 300],
+      ].map(([highMs, offMs]) => ({
+        name: `${highMs}-${offMs}`,
+        highMs: highMs!,
+        offMs: offMs!,
+        source: d2Sketch(highMs!, offMs!),
+      }));
+      const lesson = readFileSync(resolve(D2_LESSON_PATH), 'utf8');
+      for (const stage of stages) expect(lesson).toContain('```cpp\n' + stage.source + '```');
+      let session = await d2OpenOwnerTemporalSketch(page, stages[0]!.source, 'next-d2-d4');
+      await d2BuildProvenance(page);
+      const projectUrl = page.url();
+      const initialWiring = session.saved.draft.document.connections;
+      for (let index = 0; index < stages.length; index++) {
+        const stage = stages[index]!;
+        if (index > 0) {
+          const saved = await d2EditAndSave(page, session, stage);
+          session = { ...session, source: stage.source, saved };
+        }
+        session.startAt = await d2ClearProbe(page);
+        await d2Capture(page, session, stage);
+        if (stage.name === '300-300') {
+          try {
+            await d2NativeSamples(page, stage, await temporalObservation(page));
+          } finally {
+            await d2RetainRaw(page, session, stage.name + '-native', d2Ledger!.native);
+          }
+        }
+        if (index < stages.length - 1) await d2Stop(page);
+      }
+      const byName = new Map(d2Ledger!.stages.map((stage) => [stage.stage, stage]));
+      const timing = [100, 150, 200, 300].map(
+        (delay) => byName.get(`${delay}-${delay}`)!.medianCycleMs,
+      );
+      expect(timing[0]!).toBeLessThan(timing[1]!);
+      expect(timing[1]!).toBeLessThan(timing[2]!);
+      expect(timing[2]!).toBeLessThan(timing[3]!);
+      for (const [index, low, high] of [
+        [1, 1.2, 1.8],
+        [2, 1.6, 2.4],
+        [3, 2.4, 3.6],
+      ]) {
+        expect(timing[index!]! / timing[0]!).toBeGreaterThanOrEqual(low!);
+        expect(timing[index!]! / timing[0]!).toBeLessThanOrEqual(high!);
+      }
+      const last = stages.at(-1)!;
+      const beforeResetGeneration = d2Ledger!.stages.at(-1)!.generationId;
+      session.startAt = await d2ClearProbe(page);
+      const reset = await d2Capture(page, session, { ...last, name: 'reset-100-300' }, 'reset');
+      expect(reset.generationId).not.toBe(beforeResetGeneration);
+      await d2Stop(page);
+      expect((await session.read()).draft).toEqual(session.saved.draft);
+      expect(session.saved.draft.document.connections).toEqual(initialWiring);
+      session.failures.assertEmpty();
+
+      // Cookies alone carry authentication. No storage state, in-memory circuit,
+      // local/session storage or saved observer buffers enter the new browser context.
+      const context = await browser.newContext({
+        viewport: { width: 1600, height: 1000 },
+        recordVideo: {
+          dir: resolve(artifactRoot, 'd2-d4-reopen-video'),
+          size: { width: 1600, height: 1000 },
+        },
+      });
+      let reopenedVideo: ReturnType<Page['video']> = null;
+      try {
+        await context.addCookies(await page.context().cookies());
+        const reopened = await context.newPage();
+        reopenedVideo = reopened.video();
+        const failures = collectBrowserFailures(reopened, { allowAnonymousSessionProbe: true });
+        await observeOwnerTemporal(reopened);
+        await d2ObserveL(reopened);
+        await reopened.goto(projectUrl);
+        await expect(reopened.locator('.workbench-stage')).toBeVisible();
+        await expect(reopened.getByTestId('schematic-component')).toHaveCount(7);
+        await d2BuildProvenance(reopened);
+        const read = async (): Promise<D2SavedProject> => {
+          const response = await context.request.get(
+            new URL(session.endpoint, session.origin).href,
+            {
+              headers: { origin: session.origin },
+            },
+          );
+          expect(response.status()).toBe(200);
+          return response.json() as Promise<D2SavedProject>;
+        };
+        expect((await read()).draft).toEqual(session.saved.draft);
+        await reopened.getByRole('button', { name: 'Открыть редактор кода', exact: true }).click();
+        await expect(reopened.locator('.arduino-source-editor textarea')).toHaveValue(last.source);
+        await reopened.getByRole('button', { name: 'Закрыть редактор кода', exact: true }).click();
+        await expect(reopened.locator('.arduino-code-panel')).toHaveClass(/closed/);
+        const reopenedSession = {
+          ...session,
+          read,
+          failures,
+          startAt: await d2ClearProbe(reopened),
+        };
+        await d2Capture(reopened, reopenedSession, { ...last, name: 'reopened-100-300' });
+        await d2Stop(reopened);
+        expect((await read()).draft).toEqual(session.saved.draft);
+        failures.assertEmpty();
+      } finally {
+        await context.close();
+        if (!reopenedVideo) throw new Error('cookies-only reopen native video missing');
+        await test.info().attach('d2-d4-cookies-only-reopen-video', {
+          path: await reopenedVideo.path(),
+          contentType: 'video/webm',
         });
-        expect(response.status()).toBe(200);
-        return response.json() as Promise<D2SavedProject>;
-      };
-      expect((await read()).draft).toEqual(session.saved.draft);
-      await reopened.getByRole('button', { name: 'Открыть редактор кода', exact: true }).click();
-      await expect(reopened.locator('.arduino-source-editor textarea')).toHaveValue(last.source);
-      await reopened.getByRole('button', { name: 'Закрыть редактор кода', exact: true }).click();
-      await expect(reopened.locator('.arduino-code-panel')).toHaveClass(/closed/);
-      const reopenedSession = { ...session, read, failures, startAt: await d2ClearProbe(reopened) };
-      await d2Capture(reopened, reopenedSession, { ...last, name: 'reopened-100-300' });
-      await d2Stop(reopened);
-      expect((await read()).draft).toEqual(session.saved.draft);
-      failures.assertEmpty();
-      const video = reopened.video();
-      await reopened.close();
-      if (!video) throw new Error('cookies-only reopen native video missing');
-      await test.info().attach('d2-d4-cookies-only-reopen-video', {
-        path: await video.path(),
+      }
+    } finally {
+      await primaryContext.close();
+      if (!primaryVideo) throw new Error('D2-D4 primary native video missing');
+      await test.info().attach('d2-d4-primary-video', {
+        path: await primaryVideo.path(),
         contentType: 'video/webm',
       });
-    } finally {
-      await context.close();
     }
     d2Ledger!.completed = true;
   });
