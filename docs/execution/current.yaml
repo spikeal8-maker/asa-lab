@@ -8653,7 +8653,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: d2_d4_selected_after_accepted_d13_main_pending_actual
+      checkpoint: d2_d4_native_first_use_repair_selected
       owner_acceptance: pending
       acceptance_revision: classroom-d2-d4-eighth-pace-r1
       active_qualification_profile: classroom-d13-v3
@@ -8675,10 +8675,16 @@ parallel_lanes:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-CLASSROOM-D2-D4-001.md
       - .github/workflows/electronics-r4-m1-focused.yml
       - tools/test_ci_image_transport.py
+      - apps/web/src/electronics/led-temporal-presentation.ts
+      - apps/web/src/electronics/use-electronics-workbench.ts
+      - apps/web/src/electronics/ProductionComponentVisual.tsx
+      - apps/web/src/electronics/testing/led-temporal-presentation.spec.ts
+      - apps/web/src/electronics/testing/use-electronics-workbench-clock.spec.ts
+      - apps/web/src/electronics/testing/asset-recovery.spec.ts
       selected_browser_job_timeout_minutes: 50
       preserved_review_images_timeout_minutes: 35
       workflow_capacity_selection: 'Select browser50min with actual D13 job26m41s and the existing14min D2 case budget; preserve review-images35min and immutable545 receipt via reviewed narrow consumer projection; actual D2 duration remains pending'
-      path_coordination: Preserve current ownership labels, every foreign worktree and the accepted D13 source. Refresh actual main, AGENTS, scoped blockers and overlaps before writes. Apply only the three reviewed D2 insertion payloads onto the fresh ready file plus the byte-exact teacher files, browser35-to50 workflow delta and its narrowly selected guard projection. No whole-file overwrite, product clock or D13 registry change. Source authors and independent reviewers remain separate.
+      path_coordination: Preserve current ownership labels, every foreign worktree and accepted D13 history. Refresh actual main, AGENTS, scoped blockers and overlaps before writes. The2026-10-20 bounded repair additionally selects only the three listed native-publication runtime paths and their necessary focused specs; no scheduler/kernel or PR651 overlap. Prepare actual mounted assets from accepted history without advancing visibility or weakening source/generation, joint-frame, lease or rollback invariants. Source author and independent reviewer remain separate; publish this selection on main before product writes.
       reported_strict_qualification: pnpm gate:electronics-m1:browser on the same exact source under strict-real-time; preserve its actual conclusion separately from the required classroom gate.
       owner_authorization: Existing explicit 2026-10-19 instruction selects continuous visible classroom slices after accepted D13; no additional permission round is required for D2-D4 development and checked main integration. School deployment and working data remain separate.
       preserved_r26_sha: cdad26c361cb4cf8ed2d095fae3c087b5d2abb2d
@@ -8688,7 +8694,7 @@ parallel_lanes:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-CLASSROOM-D2-D4-001.md
       - docs/product/electronics/tasks/TASK-ELECTRONICS-CLASSROOM-D13-001.md
       - docs/product/electronics/lessons/D2_D4_CLASSROOM.md
-      next_action: Reuse the independently approved five-file D2 source on actual accepted D13 main. Preserve seven acquisitions, eight cycles and49 ordered joint vectors, five complete programmes,150s acquisition/20s native-vector/840s case budgets and every existing physical/native/lifecycle criterion. D2-local Save R2 observes actual matching PUT before edits and validates the full independent circuit, finished200 response, request/revision and GET; accepted completed autosave requires no forced dirty or Save click. Discover the expected171-case roster and run all existing gates with browser50 and review-images35; obtain actual native and independent source review on the exact composed SHA, then integrate this useful D2 slice normally and continue the next ordinary-LED slice. No kernel, profile, numerical bound, skip, retry, infrastructure or deployment change.
+      next_action: Repair the independently reproduced stale native D2/D4 all-off frames64.6/65.7ms in source d0b0f425 using the bounded native-publication selection in the task card. Preserve pace0.125,6250us cap,50ms,backlog2,startup5s,Stop1s,seven acquisitions,eight cycles,49 ordered vectors,all171 cases and150s/20s/840s budgets. Keep actual Save PUT200/full circuit/revision/GET, Reset and cookies-only reopen proofs. Run meaningful focused checks, unchanged focused/benchmark/full classroom-d13-v3/General on the exact final source, report strict separately and obtain independent source/native acceptance before authorized normal main integration. Do not weaken gates or repair foreign Portal/PR651; no kernel, profile, skip, retry, infrastructure or deployment change.
     previous_task:
       id: TASK-ELECTRONICS-CLASSROOM-D13-001
       issue: 638
@@ -8766,13 +8772,13 @@ parallel_lanes:
         - pnpm gate:repository
     revisions:
       kind: observed_snapshot
-      observed_at: '2026-10-20T01:52:24.404Z'
+      observed_at: '2026-10-20T11:17:28Z'
       main:
         branch: main
-        sha: '07563687e9a34cf099849e36a02b8e9b3ef9c4c5'
-      convergence_baseline_sha: '07563687e9a34cf099849e36a02b8e9b3ef9c4c5'
+        sha: '16cbed5d981989528f2d1bd8f62e2a1c4063781f'
+      convergence_baseline_sha: '16cbed5d981989528f2d1bd8f62e2a1c4063781f'
       head_sha: null
-      observation_note: 'D13 exact07563687 passed General39350677796 and full classroom39350679511 with170/0 and independent actual native acceptance; strict39350682439 remains157/13 including an observed catalog failure-feedback defect of unestablished cause. Normal exact-source main integration completed2026-10-20T01:51:33.074Z and GitHub readback confirmed075. Select unique Issue649 D2-D4 with the saved reviewed five-file source; D2 browser/review/CI/main outcomes remain pending. Full546, foreign lanes and hygiene retained; no deployment. Fresh fetch main is required before new writes and integration.'
+      observation_note: 'Observed GitHub main16cbed5d and open draft PR652 d0b0f425 at2026-10-20T11:17:28Z. Exact strict39399518741 discovered171 and finished160PASS/11FAIL, five D13PASS; D2 failed native paint causality with independently reproduced64.6/65.7ms stale all-off frames. Select bounded actual-mounted preparation/publication repair within existing Issue649; AFTER and full classroom pending. General39399518744 four Portal PG timeouts also reproduced on exactmain General39373841387; foreign baseline retained separately, gate unchanged. Accepted D13 history, full546, all foreign lanes/hygiene/blockers remain intact. Selection is not acceptance or deployment. Fresh fetch main is required before product writes and integration.'
 
 
   - id: electronics-classroom-hygiene
