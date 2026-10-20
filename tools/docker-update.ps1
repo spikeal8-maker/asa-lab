@@ -389,7 +389,7 @@ function Write-Receipt {
 }
 
 function Invoke-GuardedUpdate {
-  foreach ($command in @('git', 'docker')) {
+  foreach ($command in @('git', 'docker', 'node')) {
     if (-not (Get-Command $command -ErrorAction SilentlyContinue)) {
       throw "Required command is missing: $command"
     }
@@ -436,6 +436,8 @@ function Invoke-GuardedUpdate {
   }
 
   $script:ComposeArguments = Get-ComposeArguments
+  $credentialArguments = @('tools/deployment/credential-preflight.mjs') + $script:ComposeArguments
+  Invoke-Native node @credentialArguments
   Assert-AsaInstallationIdentity -Root $RepoRoot -DefaultProject $projectName -ComposeArguments $script:ComposeArguments -RequireExisting
   Invoke-Compose -Arguments @('config', '--quiet')
   $postgresContainerId = Assert-ContainerRunning 'postgres'
@@ -525,7 +527,7 @@ function Invoke-GuardedUpdate {
 
   $receiptPath = Join-Path $backupRoot "update-$stamp-$($newRevision.Substring(0, 8)).receipt.txt"
   try {
-    $bootstrapChanged = @(& git diff --name-only $oldRevision $newRevision -- tools/docker-update.ps1 compose.yaml "compose.*.yaml")
+    $bootstrapChanged = @(& git diff --name-only $oldRevision $newRevision -- tools/docker-update.ps1 tools/deployment/credential-preflight.mjs apps/api/src/credential-configuration.cjs compose.yaml "compose.*.yaml")
     if ($LASTEXITCODE -ne 0) { throw 'Cannot inspect updater/bootstrap changes after fast-forward.' }
     if ($bootstrapChanged.Count -gt 0) {
       throw "Updater or Compose changed during fast-forward ($($bootstrapChanged -join ', ')). Re-run the updated guarded updater; the verified backup is preserved."

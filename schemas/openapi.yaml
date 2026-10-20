@@ -4502,16 +4502,16 @@ paths:
   /health/ready:
     get:
       operationId: getHealthReady
-      summary: Readiness probe (PostgreSQL SELECT 1)
+      summary: Database, schema and global credential configuration readiness
       responses:
         '200':
-          description: Database is reachable
+          description: Runtime dependencies and global credential configuration are ready
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ReadyResponse'
         '503':
-          description: Database is not reachable
+          description: Database, schema or global credential configuration is unavailable
           content:
             application/json:
               schema:
@@ -9038,7 +9038,7 @@ components:
     ReadyResponse:
       type: object
       additionalProperties: false
-      required: [status, dependencies]
+      required: [status, dependencies, deployment]
       properties:
         status:
           type: string
@@ -9046,11 +9046,36 @@ components:
         dependencies:
           type: object
           additionalProperties: false
-          required: [database]
+          required: [database, credentialConfiguration]
           properties:
             database:
               type: string
-              enum: [up, down]
+              enum: [up, busy, down]
+            credentialConfiguration:
+              type: string
+              enum: [valid, invalid]
+              description: Global configuration only; contains no secrets, key IDs or historical row diagnostics.
+        deployment:
+          type: object
+          additionalProperties: false
+          required:
+            [
+              revision,
+              builtAt,
+              schemaVersion,
+              expectedSchemaVersion,
+              synchronized,
+              artifactIntegrity,
+              artifactVerifiedAt,
+            ]
+          properties:
+            revision: { type: string }
+            builtAt: { type: [string, 'null'] }
+            schemaVersion: { type: [integer, 'null'] }
+            expectedSchemaVersion: { type: [integer, 'null'] }
+            synchronized: { type: [boolean, 'null'] }
+            artifactIntegrity: { type: string, enum: [verified, unknown] }
+            artifactVerifiedAt: { type: [string, 'null'] }
     ErrorResponse:
       type: object
       additionalProperties: false

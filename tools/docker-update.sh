@@ -46,6 +46,13 @@ assert_update_identity() (
   asa_assert_installation_identity "$repo_root" "$project_name" true "$@"
 )
 
+assert_credential_configuration() (
+  set -- compose -f compose.yaml
+  if [ "$profile" != base ]; then set -- "$@" -f "compose.$profile.yaml"; fi
+  if [ "$include_frp" = true ]; then set -- "$@" -f compose.frp.yaml; fi
+  node tools/deployment/credential-preflight.mjs "$@" || die 'credential configuration is invalid; no backup, migration or update was started'
+)
+
 env_value() {
   name=$1
   sed -n "s/^${name}=//p" .env | tail -n 1
@@ -302,6 +309,7 @@ main() {
     *) die "unsupported ASA_COMPOSE_TRANSPORT: $transport" ;;
   esac
 
+  assert_credential_configuration
   assert_update_identity
   compose config --quiet
   postgres_container_id=$(assert_container_running postgres)
@@ -383,7 +391,7 @@ main() {
   export ASA_BUILD_REVISION ASA_IMAGE_TAG ASA_EXPECTED_SCHEMA_VERSION
   receipt_path="$backup_root/update-$stamp-$(printf '%.8s' "$new_revision").receipt.txt"
 
-  bootstrap_changed=$(git diff --name-only "$old_revision" "$new_revision" -- tools/docker-update.sh tools/deployment/editor-entry-check.mjs compose.yaml 'compose.*.yaml')
+  bootstrap_changed=$(git diff --name-only "$old_revision" "$new_revision" -- tools/docker-update.sh tools/deployment/editor-entry-check.mjs tools/deployment/credential-preflight.mjs apps/api/src/credential-configuration.cjs compose.yaml 'compose.*.yaml')
   if [ -n "$bootstrap_changed" ]; then
     write_receipt "$receipt_path" \
       'status=retry_with_updated_updater' "updated_at_utc=$stamp" "compose_project=$project_name" \

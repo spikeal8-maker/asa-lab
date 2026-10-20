@@ -306,3 +306,53 @@ surfaces:
     - TST-LRN-COURSE-E1-CORE-001
     commands:
     - read_selected_result
+- id: SURF-LEARNING-CREDENTIAL-READINESS
+  routes:
+  - /health/ready
+  implementation:
+    files:
+    - apps/api/src/credential-configuration.cjs
+    - apps/api/src/classroom-code-secret.ts
+    - apps/api/src/student-code-protection.ts
+    - apps/api/src/main.ts
+    - apps/api/src/health.controller.ts
+    - apps/api/tsconfig.json
+    - schemas/openapi.yaml
+    - compose.yaml
+    - tools/production.mjs
+    - tools/docker-update.sh
+    - tools/docker-update.ps1
+    - tools/deployment/credential-preflight.mjs
+    - .env.example
+  invariants:
+  - LRN-AUTH-001
+  tests:
+  - TST-LEARNING-CREDENTIAL-READINESS-001
+  - TST-LRN-COURSE-E1-CORE-001
+  controls:
+  - id: CTRL-LEARNING-CREDENTIAL-PREFLIGHT
+    label: Require independent production credentials before startup and update without blocking unrelated APIs on historical row keys
+    change_class: L3_CRITICAL
+    files:
+    - apps/api/src/credential-configuration.cjs
+    - apps/api/src/classroom-code-secret.ts
+    - apps/api/src/student-code-protection.ts
+    - apps/api/src/main.ts
+    - apps/api/src/health.controller.ts
+    - apps/api/src/classroom-code-secret.spec.ts
+    - apps/api/src/credential-configuration.spec.ts
+    - apps/api/src/health.spec.ts
+    - tests/production/credential-readiness.spec.ts
+    - tests/account/student-seat-protected-storage.pg.spec.ts
+    - tools/deployment/credential-preflight.mjs
+    - tools/docker-update.sh
+    - tools/docker-update.ps1
+    - tools/production.mjs
+    - compose.yaml
+    invariants:
+    - LRN-AUTH-001
+    tests:
+    - TST-LEARNING-CREDENTIAL-READINESS-001
+    - TST-LRN-COURSE-E1-CORE-001
+    commands:
+    - validate_credential_configuration
