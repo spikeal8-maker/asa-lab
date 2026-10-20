@@ -801,6 +801,37 @@ parallel_lanes:
           frozen installation and unchanged real security:dependencies gate against the registry; registry failure is
           BLOCKED, not PASS. Existing General and final AI gates remain required. Publish a separate reviewed source
           and compose into the baseline validation candidate before atomic main integration.
+      - id: AI-BASELINE-VITE-DEPENDENCY-018
+        status: selected
+        classification: C
+        change_class: L2_HIGH
+        owner_area: shared-dependency-security
+        observed_main_sha: 8c708bc557e2b76fe46231b2d73335e0a34f56e0
+        selected_scope:
+        - package.json
+        - pnpm-lock.yaml
+        evidence_run: 39502611271
+        evidence_job: 118904247262
+        evidence_sha: d38907766f732c7a953bb670eee32bab23901eab
+        cause: The unchanged security gate now reports high GHSA-587h-7wmj-h5pm for vite6.4.3. Actual inventory763
+          critical0/high1/moderate8; old follow-redirects advisories absent. Governance and570 Observability cases
+          passed; Data and Access skipped. This is a separate current shared-dependency blocker.
+        selection: Verify official advisory and registry integrity for minimal patched vite6.4.4. Update the existing
+          exact devDependency pin with pnpm9.15.9 and only its necessary lock version/integrity references. An extra
+          override is unnecessary for the single existing Vite resolution. Retain dependency016,
+          every unrelated package version, source, script and security gate. No major-version upgrade, allowlist,
+          audit-severity change, product or workflow edits. Check competing package/lock writers before edits.
+        coordination: Reuse the Vite6.4.4 fix intent from frozen Dependabot PR669 headcf13b014; do not import its
+          unrelated Rollup/native/nanoid/picomatch upgrades or modify that PR. A separate minimal source is selected
+          for the AI baseline; all current source scripts and graph outside the Vite resolution remain unchanged.
+          Fresh checks found no dirty package/lock in eight local checkouts; the direct automated source overlap is
+          explicitly accounted for here. The disputed017 migration proposal is NOT selected by this amendment;
+          preserve the existing canonical migration strategy and coordinate with PR670 before migration authoring.
+        acceptance: Separate bounded author and NEW independent source dependency review; verify official integrity,
+          locked graph, frozen install and necessary static compatibility. Local audit/private dependency metadata
+          egress is not authorized by this selection and must not bypass the prior automatic-review rejection.
+          The unchanged normal General security gate on the new published baseline and final SHA supplies actual
+          audit acceptance. All normal product, PostgreSQL and browser gates remain mandatory.
       dependency_sequence:
       - text_convergence_and_focused_ci
       - teacher_controlled_student_admission
