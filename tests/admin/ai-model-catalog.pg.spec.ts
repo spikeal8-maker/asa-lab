@@ -267,7 +267,7 @@ describe('0227 catalog/config races on independent PostgreSQL connections', () =
     ).toEqual(openaiSlot);
     await expect(
       serviceA.testConnection(administrator, cleared.configurationVersion),
-    ).rejects.toMatchObject({ code: 'ai_key_unavailable' });
+    ).rejects.toMatchObject({ code: 'ai_key_required' });
     expect(fetchImpl).toHaveBeenCalledTimes(calls + 2);
     const back = await save({
       provider: 'openai',

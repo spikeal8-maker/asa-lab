@@ -1106,7 +1106,16 @@ test('Platform admin configures GPT without returning secret in page', async ({ 
   await expect(
     page.getByText('Настройки сохранены. Новый API-ключ не возвращается в браузер.'),
   ).toBeVisible();
-  await expect(page.getByText('Настроен', { exact: true })).toBeVisible();
+  await expect(
+    page
+      .getByRole('region', { name: 'Состояние ИИ', exact: true })
+      .getByText('Сохранён', { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page
+      .getByRole('region', { name: 'Состояние ИИ', exact: true })
+      .getByText('Не задан', { exact: true }),
+  ).toHaveCount(0);
   expect(await page.evaluate((value) => document.body.textContent?.includes(value), secret)).toBe(
     false,
   );
@@ -1228,7 +1237,16 @@ for (const width of [1440, 600, 390, 320]) {
     await expect(verify).toBeDisabled();
     await page.getByLabel(/Новый API-ключ/).fill('sk-safe-test-value-not-real-key');
     await page.getByRole('button', { name: 'Сохранить настройки', exact: true }).click();
-    await expect(page.getByText('Настроен', { exact: true })).toBeVisible();
+    await expect(
+      page
+        .getByRole('region', { name: 'Состояние ИИ', exact: true })
+        .getByText('Сохранён', { exact: true }),
+    ).toBeVisible();
+    await expect(
+      page
+        .getByRole('region', { name: 'Состояние ИИ', exact: true })
+        .getByText('Не задан', { exact: true }),
+    ).toHaveCount(0);
     expect(tests).toHaveLength(0);
     await expect(verify).toBeDisabled();
     await page.getByLabel('Подтверждаю один платный проверочный запрос').check();
