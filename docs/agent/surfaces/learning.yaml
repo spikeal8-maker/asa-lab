@@ -163,12 +163,18 @@ surfaces:
     change_class: L3_CRITICAL
     files:
     - apps/web/src/components/AuthorVersionHistory.tsx
+    - apps/web/src/components/CourseVersionComparison.tsx
+    - apps/web/src/components/course-version-diff.ts
+    - apps/web/src/components/course-version-comparison.css
     - apps/web/src/components/CoursesPanel.tsx
     - apps/web/src/pages/AuthoredMaterialsPage.tsx
     - apps/web/src/api.ts
     - apps/api/src/courses.controller.ts
     - apps/api/src/learning-activities.controller.ts
     - migrations/0137_author_draft_from_published_version.sql
+    - migrations/0230_course_author_version_pins.sql
+    - tests/courses/course-version-diff.spec.ts
+    - tests/courses/course-author-version-pins.pg.spec.ts
     - tests/courses/author-draft-from-version.pg.spec.ts
     - tests/courses/author-draft-upgrade.pg.spec.ts
     - e2e/learning-author-preview.spec.ts

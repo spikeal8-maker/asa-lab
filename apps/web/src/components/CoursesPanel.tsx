@@ -1126,7 +1126,7 @@ function CourseEditor({
     setError(null);
     setNotice(
       result.data.reused
-        ? `Версия ${result.data.versionNumber} уже актуальна.`
+        ? `Публикация подтверждена: версия ${result.data.versionNumber}.`
         : `Курс опубликован: версия ${result.data.versionNumber}.`,
     );
     await loadOutline();
