@@ -9276,6 +9276,74 @@ parallel_lanes:
       observation_note: Helper39448724854 succeeded and issued one204; root and reviewer verified target39448747806 on exact e826/profilev3, attempt1, observed in_progress. Closed unmerged helperPR663 cannot be reopened or rerun. Only dispatch receipt is complete; no FET/D2 qualification PASS. Fresh fetch main before any later controller writes.
 
 
+  - id: electronics-d2-qualification-dispatch
+    parent_lane: electronics
+    worktree_id: electronics-d2-qualification-dispatch-664
+    owned_paths:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-GOVERNANCE-013.md
+    task:
+      id: TASK-ELECTRONICS-GOVERNANCE-013
+      issue: 664
+      parent_issue: 649
+      programme_issue: 452
+      branch: main
+      base_branch: main
+      pr: null
+      pr_draft: false
+      status: in_progress
+      kind: maintenance
+      risk: high
+      semantic_change: 'no'
+      checkpoint: fixed_d2_classroom_dispatch_selected
+      owner_acceptance: pending
+      owner_authorization: Owner authorised cloud systems and controller-managed authors/reviewers; one fixed dispatch supports the already selected D2 qualification without changing product criteria.
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-GOVERNANCE-013.md
+      author_executor_id: /root/pr651_intake
+      independent_reviewer_id: /root/core_baseline
+      controller_id: /root
+      candidate_branch: codex/electronics-d2-qualification-dispatch-664
+      target_pr: 652
+      target_branch: codex/electronics-classroom-d2-d4-649
+      target_sha: 793fc599b2a2f0182147b06e0650c51fe386a993
+      target_tree: 4b3c71c3d151eb79fb6495919278d3148e7aeeb6
+      publication_guard: Publish independently reviewed selection on main before any helper authoring.
+      target_source_review: Combined PR652 source APPROVE with zero findings; remote Draft branch/head/tree verified before this selection.
+      target_workflow_id: 326529119
+      target_workflow: electronics-r4-m1-focused.yml
+      target_qualification_profile: classroom-d13-v3
+      expected_write_paths:
+        - .github/workflows/electronics-d2-qualification-dispatch.yml
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-GOVERNANCE-013.md
+        - docs/execution/current.yaml
+      shared_path_coordination: Existing global workflow shared scope unchanged; root assigns one helper author and independent read-only security reviewer, with root sole integrator. No foreign paths removed or narrowed.
+      integration_condition: Helper remains temporary branch only and NEVER main. One opened/attempt1/same-repo exact-helper event; one no-redirect POST with fixed target identity and prior-run checks, verified actual target-run receipt. No retry/rebind, product PASS, D2 acceptance or GOV012 reset.
+      next_action: Independently review and publish this exact-bound prospective selection on main. Only then refresh main/preflight and author/review one helper; record actual helper PR/head and actual target-run identity separately from qualification results.
+    execution_lease:
+      executor_id: electronics-d2-qualification-dispatch-664
+      holder: unassigned
+      acquired_at: null
+      expires_at: null
+      reviewer_role_requires_lease: false
+    gates:
+      routing:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm validate:electronics-agent-docs --task TASK-ELECTRONICS-GOVERNANCE-013
+      control_plane:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm control-plane:check
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: fb6898dd4b9354b3bbc8452bce7668fa4d954d20
+      head_sha: null
+      observed_at: '2026-10-20T15:59:05Z'
+      main:
+        branch: main
+        sha: fb6898dd4b9354b3bbc8452bce7668fa4d954d20
+      observation_note: Fresh main fb6898dd includes unrelated Scratch PR648 merge; all prior controller bytes retained. Remote Draft PR652 exact793fc599/tree4b3c71c3 reviewed and fixed, cloud CI starting; this selects one dispatch only, not D2 acceptance. Fresh fetch main and exact head/tree checks required before helper writes or POST; no product PASS or waiver.
+
 integration:
   owner_lane: visual-programming
   shared_paths:
