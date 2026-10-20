@@ -12,6 +12,20 @@ review: independent
 
 # E11 — одинаковая кайма выделения существующих деталей
 
+## Corrected BEFORE harness only — 20 October 2026
+
+This selected phase restores the 16-case R8 browser harness from preserved `6f27bc9f` onto current main with two explicitly bounded qualification corrections below. Original blob `57ca47df3aa89cfbccff5c242a36f42febc01be2` is historical parent evidence; freeze a NEW complete browser blob and keep that new blob byte-identical between BEFORE and AFTER. The [dated selection receipt](../evidence/selection-outline-549-corrected-before-selection-20261020.md) records limits and budget facts. This phase supersedes earlier executable source scopes without selecting the product repair.
+
+Write only new `e2e/electronics-selection-outline.spec.ts` with needed imports, two narrow helper/call corrections; append its registration to existing default `e2e:electronics`/`e2e:electronics-simulation` package scripts and the component map; regenerate existing browser metadata only if canonical freshness requires it. Preserve all existing script/test/map entries. Exclude the occupied shared workflow, product `ProductionComponentVisual.tsx`, CSS, Stage, hooks/core/LED, owner assets, and AFTER-only `testing/selection-outline.spec.ts`. Existing source triggers and the unchanged default workflow can execute the registered scenario; no new profile, filter or diagnostic workflow copy.
+
+Correction one: genuine UI `beforeAll` login once per group/worker in a disposable context, retain only cookies, then close it. Each case gets a fresh browser context and new project. Preserve authentication and bot-challenge protections; no SQL/session minting, injected app state or whole storageState transfer.
+
+Correction two: R3 fresh-reopen oracle observes `fresh.storageState().origins` empty and passively records empty local/session draft entries before app execution. After load, local draft entries remain empty and session entries contain exactly one expected fixture-derived `${localKey}:electronics-editor:` key with value strictly `saved`. Derive the key from known fixture identity/project, never discovered keys; journal actual values before assertions. This hint is not a document. Preserve full GET/server/rendered/local-document equality, all native controls and trusted gestures, ready C=H/yielded invariants, zero hidden mutations, one whole-document PUT/CAS+1 and cookies-only reopen. Keep every existing soft geometry expectation and its order; no new/increased waits, retries, gestures or weakened hard checks.
+
+One bounded author performs narrow checks and preservation/self-review, freezes one source SHA and stops. NEW independent source review precedes one justified existing strict BEFORE measurement. All 16 journeys must finish Save/CAS/reopen and ready proof with only causal expected soft outline failures before a separate product/AFTER selection. Missing journeys, authentication failures or invalid oracles are not product evidence. #548 remains an independent acceptance dependency; full exact gates, NEW actual/visual review and owner/device/classroom boundaries are not waived.
+
+Future three-branch Visual correction is unselected. Its Temp-only module estimate adds four bytes, equal to the current four-byte margin at 217996/218000; actual complete bundle fit is unproved. No budget increase, refactor or product source write is authorized by this BEFORE phase.
+
 Bounded [549](https://github.com/spikeal8-maker/asa-lab/issues/549), programme452. Only canonical current.yaml selects execution. Prepared report source0fb, SHA97495ed830ed81afcd6f0bddbe4c6babe9d319bf29f0e55319d5596b5a817519; not browser acceptance. Root independently checked all5 originals and16 actual source blobs. Accepted production count since hygiene542 is2; this phase may start, checkpoint006 becomes due after third actual acceptance.
 
 ## Product outcome and bounded implementation
