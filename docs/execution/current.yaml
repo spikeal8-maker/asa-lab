@@ -585,7 +585,7 @@ parallel_lanes:
     revisions:
       kind: observed_snapshot
       convergence_baseline_sha: 59c2e74b62bbb8ba6f7dd1d5126ab507eabe8d1e
-      head_sha: 2a8cca456a10bb6e798cb3c2c772a1a078072496
+      head_sha: null
       observed_at: '2026-10-20T11:50:00Z'
       main:
         branch: main
@@ -601,7 +601,8 @@ parallel_lanes:
         source approval and fresh native stream/cleanup evidence; controlled
         dependency convergence and real PostgreSQL/S3 remain pending. Select
         tooling011 for frozen entrypoints and reserve attachment0229. No deployment,
-        working DB action or live paid provider call ran.
+        working DB action or live paid provider call ran. Fetch main again and
+        inspect actual exact-SHA CI before further writes or integration.
     execution_lease:
       executor_id: chatgpt-ai-programme-controller
       holder: unassigned
