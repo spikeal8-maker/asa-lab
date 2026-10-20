@@ -174,7 +174,10 @@ test('Admin catalog uses server defaults and shows model support separately from
     'GPT-5 mini · до 2026-12-11',
     'GPT-4.1 mini · до 2027-01-14',
   ]);
-  const capabilities = page.getByLabel('Возможности выбранной модели');
+  const capabilities = page
+    .locator('details')
+    .filter({ has: page.getByText('Возможности выбранной модели', { exact: true }) });
+  await capabilities.locator('summary').click();
   await expect(capabilities).toContainText('Модель принимает текст и изображения.');
   await expect(
     capabilities.locator('dl > div').filter({ hasText: 'Загрузка изображений' }),
@@ -262,7 +265,7 @@ test('Admin reloads a stale save and requires fresh paid consent for the confirm
   await expect(page.getByLabel('Подтверждаю один платный проверочный запрос')).not.toBeChecked();
   fake.replace({ ...configured, configurationVersion: 3, paidOperationsPerHour: 7 });
   await page.getByRole('button', { name: 'Сохранить настройки', exact: true }).click();
-  await expect(page.getByRole('alert')).toContainText('Настройки изменились');
+  await expect(page.getByRole('alert')).toContainText('Настройки ИИ изменились');
   await expect(
     page.getByText('Настройки сохранены. Новый API-ключ не возвращается в браузер.'),
   ).toHaveCount(0);
@@ -275,6 +278,16 @@ test('Admin reloads a stale save and requires fresh paid consent for the confirm
   await page.getByLabel('Подтверждаю один платный проверочный запрос').check();
   await page.getByRole('button', { name: 'Проверить подключение', exact: true }).click();
   await expect(page.getByText('Модель deepseek-flash ответила.', { exact: false })).toBeVisible();
+  await expect(page.locator('time')).toHaveAttribute('datetime', NOW);
+  await expect(page.getByRole('region', { name: 'Состояние ИИ', exact: true })).toContainText(
+    'Ответ модели подтверждён',
+  );
+  await page.getByLabel('Модель', { exact: true }).selectOption('deepseek-v4-pro');
+  await expect(page.locator('time')).toHaveCount(0);
+  await expect(page.getByLabel('Подтверждаю один платный проверочный запрос')).not.toBeChecked();
+  await expect(
+    page.getByRole('button', { name: 'Проверить подключение', exact: true }),
+  ).toBeDisabled();
   expect(fake.paidTests).toEqual([{ acknowledgePaidRequest: true, configurationVersion: 3 }]);
   expect(fake.pageErrors).toEqual([]);
 });
@@ -316,7 +329,7 @@ test('Admin does not report an unrelated model response as a successful paid che
   expect(fake.pageErrors).toEqual([]);
 });
 
-for (const width of [320, 1440]) {
+for (const width of [1440, 1024, 390, 320]) {
   test(`Admin catalog and migrated key remain usable at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
     const fake = await adminFixture(
@@ -337,11 +350,36 @@ for (const width of [320, 1440]) {
     await expect(page.getByLabel('Разрешить ИИ-запросы', { exact: false })).not.toBeChecked();
     await expect(page.getByLabel('Подтверждаю один платный проверочный запрос')).not.toBeChecked();
     await page.getByLabel('Модель', { exact: true }).selectOption('deepseek-v4-pro');
-    await expect(page.getByLabel('Возможности выбранной модели')).toContainText(
-      'Модель принимает только текст',
-    );
+    const capabilities = page
+      .locator('details')
+      .filter({ has: page.getByText('Возможности выбранной модели', { exact: true }) });
+    await capabilities.locator('summary').click();
+    await expect(capabilities).toContainText('Модель принимает только текст');
+    const summary = page.getByRole('region', { name: 'Состояние ИИ', exact: true });
+    await expect(summary).toContainText('DeepSeek');
+    await expect(summary).toContainText('deepseek-flash');
+    await expect(summary).toContainText('Ключ сохранён, подключение не проверено');
+    await expect(summary).toContainText('5 операций за час');
+    await expect(
+      page.getByRole('button', { name: 'Сохранить настройки', exact: true }),
+    ).toBeEnabled();
+    const saveControl = page.getByRole('button', { name: 'Сохранить настройки', exact: true });
+    await saveControl.scrollIntoViewIfNeeded();
+    await saveControl.focus();
+    await expect(saveControl).toBeFocused();
+    const saveBounds = await saveControl.boundingBox();
+    expect(saveBounds).not.toBeNull();
+    expect(saveBounds!.width).toBeGreaterThan(120);
+    expect(saveBounds!.x).toBeGreaterThanOrEqual(0);
+    expect(saveBounds!.x + saveBounds!.width).toBeLessThanOrEqual(width);
+    await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }));
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
     await expect
-      .poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
+      .poll(() =>
+        page.evaluate(
+          () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+        ),
+      )
       .toBe(true);
     await page.screenshot({
       path: test.info().outputPath(`ai-model-catalog-${width}.png`),
@@ -352,3 +390,93 @@ for (const width of [320, 1440]) {
     expect(fake.pageErrors).toEqual([]);
   });
 }
+
+// Controlled API responses verify presentation only. These scenarios never call DeepSeek.
+const DIAGNOSTIC_CASES = [
+  ['ai_provider_invalid_request', 502, 'отклонил формат запроса'],
+  ['ai_provider_authentication_failed', 502, 'не принял API-ключ'],
+  ['ai_provider_insufficient_balance', 502, 'недостаточно средств'],
+  ['ai_provider_access_denied', 502, 'запретил доступ к API'],
+  ['ai_provider_model_unavailable', 502, 'Модель или endpoint недоступны'],
+  ['ai_provider_invalid_parameters', 502, 'отклонил параметры запроса'],
+  ['ai_provider_rate_limit', 429, 'ограничил частоту запросов'],
+  ['ai_provider_error', 503, 'Ошибка или перегрузка провайдера'],
+  ['ai_provider_unavailable', 503, 'не смог соединиться с провайдером'],
+  ['ai_provider_timeout', 504, 'не ответил вовремя'],
+  ['ai_key_required', 503, 'ещё не сохранён'],
+  ['ai_key_decryption_failed', 503, 'не удалось расшифровать'],
+  ['ai_platform_quota_exhausted', 429, 'равен нулю или исчерпан'],
+  ['ai_disabled', 503, 'ИИ выключен в настройках ASA'],
+  ['ai_config_changed', 409, 'Повторите загрузку перед проверкой'],
+] as const;
+
+for (const [code, status, meaning] of DIAGNOSTIC_CASES) {
+  test(`Admin safely distinguishes ${code} without retrying a paid check`, async ({ page }) => {
+    const fake = await adminFixture(
+      page,
+      aiAdminFixture({
+        provider: 'deepseek',
+        model: 'deepseek-flash',
+        apiKeyConfigured: true,
+        keyFingerprint: 'synthetic-key-fingerprint',
+        paidOperationsPerHour: 5,
+      }),
+    );
+    let calls = 0;
+    await page.route('**/api/admin/v1/ai/test', async (route) => {
+      calls += 1;
+      return route.fulfill({
+        status,
+        json: {
+          error: { code, message: 'PRIVATE_PROVIDER_BODY sk-synthetic-secret-do-not-render' },
+        },
+      });
+    });
+    await openAdmin(page);
+    const consent = page.getByLabel('Подтверждаю один платный проверочный запрос');
+    const check = page.getByRole('button', { name: 'Проверить подключение', exact: true });
+    await expect(check).toBeDisabled();
+    expect(calls).toBe(0);
+    await consent.check();
+    await check.click();
+    await expect(page.getByRole('alert')).toContainText(meaning);
+    await expect(consent).not.toBeChecked();
+    await expect(check).toBeDisabled();
+    await expect(page.locator('time')).toHaveCount(0);
+    await expect(page.getByRole('region', { name: 'Состояние ИИ', exact: true })).not.toContainText(
+      'Ответ модели подтверждён',
+    );
+    await expect(page.locator('body')).not.toContainText('PRIVATE_PROVIDER_BODY');
+    await expect(page.locator('body')).not.toContainText('sk-synthetic-secret');
+    expect(calls).toBe(1);
+    expect(fake.writes).toHaveLength(0);
+    expect(fake.pageErrors).toEqual([]);
+  });
+}
+
+test('Admin zero quota and missing encryption block the paid check before the API', async ({
+  page,
+}) => {
+  const fake = await adminFixture(
+    page,
+    aiAdminFixture({
+      provider: 'deepseek',
+      model: 'deepseek-flash',
+      apiKeyConfigured: true,
+      keyFingerprint: 'synthetic-key-fingerprint',
+      encryptionReady: false,
+    }),
+  );
+  await openAdmin(page);
+  await expect(page.getByRole('region', { name: 'Состояние ИИ', exact: true })).toContainText(
+    '0 · платные запросы запрещены',
+  );
+  await expect(page.getByRole('alert')).toContainText('ключа шифрования');
+  await expect(page.getByLabel(/Новый API-ключ/)).toBeDisabled();
+  await expect(page.getByLabel('Подтверждаю один платный проверочный запрос')).toBeDisabled();
+  await expect(
+    page.getByRole('button', { name: 'Проверить подключение', exact: true }),
+  ).toBeDisabled();
+  expect(fake.paidTests).toHaveLength(0);
+  expect(fake.writes).toHaveLength(0);
+});

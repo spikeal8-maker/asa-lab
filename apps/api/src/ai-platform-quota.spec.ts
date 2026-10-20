@@ -1,3 +1,4 @@
+import { classifyProviderHttpFailure } from './ai-provider-errors';
 import { aiAdminFixture } from './testing/ai-admin-config.fixture';
 import { createCipheriv } from 'node:crypto';
 import type pg from 'pg';
@@ -80,6 +81,90 @@ const operations = {
 
 describe('platform-wide paid operation admission at every upstream path', () => {
   for (const [name, run] of Object.entries(operations)) {
+    it.each([400, 401, 402, 403, 404, 422, 429, 500, 503])(
+      `${name}: preserves safe diagnosis for upstream HTTP %i without retry or body inspection`,
+      async (status) => {
+        const f = fixture();
+        f.config.provider = 'deepseek';
+        f.config.model = 'deepseek-flash';
+        // sendStream chooses its explicit model; keep provider-compatible selection below.
+        const response = new Response('private-upstream-body sk-secret-never-expose', { status });
+        const json = vi.spyOn(response, 'json');
+        const text = vi.spyOn(response, 'text');
+        f.fetchImpl.mockImplementationOnce(async () => response);
+        const failure = classifyProviderHttpFailure(status);
+        const operation =
+          name === 'stream'
+            ? f.service.sendStream(
+                PRINCIPAL,
+                THREAD,
+                'Hello',
+                REQUEST,
+                () => undefined,
+                new AbortController().signal,
+                'deepseek-flash',
+              )
+            : run(f.service);
+        await expect(operation).rejects.toMatchObject(failure);
+        expect(f.fetchImpl).toHaveBeenCalledTimes(1);
+        expect(json).not.toHaveBeenCalled();
+        expect(text).not.toHaveBeenCalled();
+        expect(JSON.stringify(failure)).not.toContain('sk-secret');
+      },
+    );
+
+    it(`${name}: distinguishes outgoing connection failures without exposing exceptions`, async () => {
+      const f = fixture();
+      f.fetchImpl.mockRejectedValueOnce(new Error('private URL and sk-secret'));
+      await expect(run(f.service)).rejects.toMatchObject({
+        code: 'ai_provider_unavailable',
+        status: 503,
+      });
+      expect(f.fetchImpl).toHaveBeenCalledTimes(1);
+    });
+
+    it(`${name}: reports missing server encryption before paid admission`, async () => {
+      const f = fixture();
+      const service = new AiChatService({ query: f.query } as unknown as pg.Pool, {
+        encryptionKey: 'invalid-root-key',
+        fetchImpl: f.fetchImpl,
+      });
+      await expect(run(service)).rejects.toMatchObject({
+        code: 'ai_encryption_unavailable',
+        status: 503,
+      });
+      expect(f.fetchImpl).not.toHaveBeenCalled();
+      expect(f.order.some((sql) => sql.includes('begin'))).toBe(false);
+    });
+
+    it(`${name}: recognizes an actual timeout signal without retry`, async () => {
+      const f = fixture();
+      const controller = new AbortController();
+      controller.abort();
+      const timeout = vi.spyOn(AbortSignal, 'timeout').mockReturnValue(controller.signal);
+      f.fetchImpl.mockRejectedValueOnce(new Error('private transport details'));
+      try {
+        await expect(run(f.service)).rejects.toMatchObject({
+          code: 'ai_provider_timeout',
+          status: 504,
+        });
+        expect(f.fetchImpl).toHaveBeenCalledTimes(1);
+      } finally {
+        timeout.mockRestore();
+      }
+    });
+
+    it.each([
+      ['missing', 'ai_key_required'],
+      ['decryption', 'ai_key_decryption_failed'],
+    ])(`${name}: reports %s credentials before paid admission`, async (kind, code) => {
+      const f = fixture();
+      f.config.api_key_ciphertext = kind === 'missing' ? '' : 'broken-ciphertext';
+      await expect(run(f.service)).rejects.toMatchObject({ code, status: 503 });
+      expect(f.fetchImpl).not.toHaveBeenCalled();
+      expect(f.order.some((sql) => sql.includes('begin'))).toBe(false);
+    });
+
     it(`${name}: maps zero/exhausted quota and never fetches`, async () => {
       const f = fixture(new Error('AI_PLATFORM_QUOTA_EXHAUSTED'));
       await expect(run(f.service)).rejects.toMatchObject({
