@@ -56,6 +56,7 @@ import { useWorkbenchProjectState } from './use-workbench-project-state';
 import {
   LedTemporalPresentation,
   classroomRequestedHorizon,
+  sameOpticalFrame,
   type LedPresentationFrame,
 } from './led-temporal-presentation';
 import type { LedAssetPreparation, LedAssetReadiness } from './ProductionComponentVisual';
@@ -169,11 +170,13 @@ function ordinaryLedVisualState(result: ComponentResult | undefined): ComponentV
   return result?.lit ? 'lit' : 'off';
 }
 
+function isArduinoUno(component: SchematicComponent): boolean {
+  return component.componentTypeId === 'arduino-uno' || component.variantId === 'arduino-uno';
+}
+
 interface LiveOpticalObservation {
   readonly result: SolveResult;
   readonly frame: LedPresentationFrame;
-  readonly ledBrightness: ReadonlyMap<string, number>;
-  readonly arduinoLStates: ReadonlyMap<string, boolean>;
   readonly ledAssets: ReadonlyMap<string, LedAssetReadiness>;
 }
 
@@ -230,16 +233,21 @@ function matchingOpticalValues(
   assets: ReadonlyMap<string, string>,
 ): boolean {
   return (
-    previous.ledBrightness.size === frame.brightness.size &&
-    [...frame.brightness].every(
-      ([id, value]) => Math.round(value) === Math.round(previous.ledBrightness.get(id) ?? -1),
-    ) &&
-    previous.arduinoLStates.size === frame.arduinoLStates.size &&
-    [...frame.arduinoLStates].every(([id, value]) => previous.arduinoLStates.get(id) === value) &&
-    previous.ledAssets.size === assets.size &&
+    sameOpticalFrame(frame, previous.frame) &&
+    matchingNativeAssets(previous.ledAssets, assets, true)
+  );
+}
+
+function matchingNativeAssets(
+  leases: ReadonlyMap<string, LedAssetReadiness>,
+  assets: ReadonlyMap<string, string>,
+  active = false,
+): boolean {
+  return (
+    leases.size === assets.size &&
     [...assets].every(([id, asset]) => {
-      const lease = previous.ledAssets.get(id);
-      return lease?.asset === asset && lease.isCurrent() && lease.isActive();
+      const lease = leases.get(id);
+      return lease?.asset === asset && lease.isCurrent() && (!active || lease.isActive());
     })
   );
 }
@@ -380,7 +388,9 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
   const [committedHorizonMicroseconds, setCommittedHorizonMicroseconds] = useState(0);
   const [generationPending, setGenerationPending] = useState(false);
   const [simulationMessage, setSimulationMessage] = useState<SimulationStatusMessage | null>(null);
-  const ledTemporalPresentationRef = useRef(new LedTemporalPresentation());
+  // The presenter belongs to this mounted workbench. Do not construct a new,
+  // discarded history owner on every React render.
+  const [ledPresentation] = useState(() => new LedTemporalPresentation());
   const [liveObservation, setLiveObservation] = useState<LiveOpticalObservation | null>(null);
   const [ledAssetPreparation, setLedAssetPreparation] = useState<{
     readonly token: string;
@@ -435,17 +445,13 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
     () =>
       JSON.stringify(
         (runtimeDocument?.components ?? [])
-          .filter(
-            (component) =>
-              component.componentTypeId === 'arduino-uno' || component.variantId === 'arduino-uno',
-          )
+          .filter(isArduinoUno)
           .map((component) => [component.id, component.stateProperties?.arduinoSource]),
       ),
     [runtimeDocument],
   );
   const nativePreparationSourceRef = useRef({
     identity: nativePreparationSourceIdentity,
-    revision: 0,
   });
   const cancelNativePreparationRef = useRef<(() => void) | null>(null);
   const committedHostSessionRef = useRef<{
@@ -460,7 +466,6 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
     if (nativePreparationSourceRef.current.identity !== nativePreparationSourceIdentity) {
       nativePreparationSourceRef.current = {
         identity: nativePreparationSourceIdentity,
-        revision: nativePreparationSourceRef.current.revision + 1,
       };
       cancelNativePreparationRef.current?.();
     }
@@ -485,19 +490,40 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
     await toggleProjectSimulation();
   }
 
+  function clearDisplayedObservation(): void {
+    setRollbackLedAssets(null);
+    setLiveObservation(null);
+  }
+
+  function resetHostClock(): void {
+    simulationStartedAtRef.current = null;
+    normalHostClockRef.current = false;
+    requestedHorizonMicrosecondsRef.current = 0;
+  }
+
+  function readHostHorizonMicroseconds(): number | null {
+    const startedAt = simulationStartedAtRef.current;
+    if (startedAt === null) return null;
+    const elapsed = Math.max(0, Math.round((window.performance.now() - startedAt) * 1000));
+    return normalHostClockRef.current
+      ? simulationHostOffsetMicrosecondsRef.current + elapsed
+      : classroomRequestedHorizon(
+          simulationHostOffsetMicrosecondsRef.current,
+          elapsed,
+          ledPresentation.presentedMicroseconds,
+        );
+  }
+
   function stopSimulationForCatalogPlacement(): void {
     if (!simulationRunning) return;
     simulationWorkerRef.current?.stop();
     resetSimulation();
     setRuntimeOverrides({});
-    simulationStartedAtRef.current = null;
-    normalHostClockRef.current = false;
-    requestedHorizonMicrosecondsRef.current = 0;
+    resetHostClock();
     setCommittedHorizonMicroseconds(0);
     setSimulationMessage(null);
-    ledTemporalPresentationRef.current.reset();
-    setRollbackLedAssets(null);
-    setLiveObservation(null);
+    ledPresentation.reset();
+    clearDisplayedObservation();
     setArduinoSerialByBoard({});
   }
 
@@ -509,43 +535,27 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
 
   useEffect(() => {
     if (!simulationRunning) {
-      simulationStartedAtRef.current = null;
-      normalHostClockRef.current = false;
-      requestedHorizonMicrosecondsRef.current = 0;
+      resetHostClock();
       setCommittedHorizonMicroseconds(0);
-      ledTemporalPresentationRef.current.reset();
-      setRollbackLedAssets(null);
-      setLiveObservation(null);
+      ledPresentation.reset();
+      clearDisplayedObservation();
       setArduinoSerialByBoard({});
       return;
     }
 
     // Initialization does not advance model time. The first complete time-zero
     // observation below starts this generation's host clock exactly once.
-    simulationStartedAtRef.current = null;
-    normalHostClockRef.current = false;
+    resetHostClock();
     simulationHostOffsetMicrosecondsRef.current = 0;
-    requestedHorizonMicrosecondsRef.current = 0;
     const session = committedHostSessionRef.current;
     let active = true;
     const interval = window.setInterval(() => {
       // Layout cleanup invalidates the old project/run before passive interval
       // cleanup, including a Stop or route commit while another render waits.
       if (!active || !session?.active || committedHostSessionRef.current !== session) return;
-      const startedAt = simulationStartedAtRef.current;
+      const horizon = readHostHorizonMicroseconds();
       const currentDocument = runtimeDocumentRef.current;
-      if (startedAt !== null && currentDocument) {
-        const elapsedMicroseconds = Math.max(
-          0,
-          Math.round((window.performance.now() - startedAt) * 1000),
-        );
-        const horizon = normalHostClockRef.current
-          ? simulationHostOffsetMicrosecondsRef.current + elapsedMicroseconds
-          : classroomRequestedHorizon(
-              simulationHostOffsetMicrosecondsRef.current,
-              elapsedMicroseconds,
-              ledTemporalPresentationRef.current.presentedMicroseconds,
-            );
+      if (horizon !== null && currentDocument) {
         requestedHorizonMicrosecondsRef.current = horizon;
         simulationWorkerRef.current?.update(currentDocument, horizon);
       }
@@ -564,9 +574,8 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
     }
     const initialDocument = runtimeDocumentRef.current;
     if (!initialDocument) return;
-    ledTemporalPresentationRef.current.reset();
-    setRollbackLedAssets(null);
-    setLiveObservation(null);
+    ledPresentation.reset();
+    clearDisplayedObservation();
     setArduinoSerialByBoard({});
     const session = committedHostSessionRef.current;
     let active = true;
@@ -578,12 +587,12 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
     let displayed: LiveOpticalObservation | null = null;
     let publishing = false;
     let animationFrame: number | null = null;
-    let recordedReanchors = ledTemporalPresentationRef.current.reanchorCount;
+    let recordedReanchors = ledPresentation.reanchorCount;
     let queuedNativePreparation: { document: SchematicDocument } | null = null;
     let nativePreparation: { generation: number; assets: ReadonlyMap<string, string> } | null =
       null;
     let nativePreparationSequence = 0;
-    let nativePreparationSourceRevision = nativePreparationSourceRef.current.revision;
+    let nativePreparationSource = nativePreparationSourceRef.current;
     const cancelNativePreparation = () => {
       queuedNativePreparation = null;
       if (nativePreparation) {
@@ -608,7 +617,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
       setLedAssetPreparation(null);
     };
     const observeReanchor = () => {
-      const count = ledTemporalPresentationRef.current.reanchorCount;
+      const count = ledPresentation.reanchorCount;
       if (count === recordedReanchors) return;
       recordedReanchors = count;
       const name = 'asa-electronics-led-playout-reanchor';
@@ -657,7 +666,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
         pending ||
         publishing ||
         queuedNativePreparation?.document === document ||
-        nativePreparationSourceRevision !== nativePreparationSourceRef.current.revision
+        nativePreparationSource !== nativePreparationSourceRef.current
       )
         return;
       const ticket = { document };
@@ -674,25 +683,17 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
           session?.active === true &&
           runtimeDocumentRef.current === document &&
           latestResultDocument === document &&
-          nativePreparationSourceRevision === nativePreparationSourceRef.current.revision &&
+          nativePreparationSource === nativePreparationSourceRef.current &&
           !pending &&
           !publishing &&
           opticalPublicationRef.current === null &&
-          ledTemporalPresentationRef.current.preparedFrame === null;
+          ledPresentation.preparedFrame === null;
         if (!current() || !latestResult) return;
-        const frame = ledTemporalPresentationRef.current.nextNativeAssetFrame;
+        const frame = ledPresentation.nextNativeAssetFrame;
         if (!frame) return;
         const assets = candidateAssets(frame, latestResult, document);
         if (assets.size === 0) return;
-        if (
-          displayed &&
-          assets.size === displayed.ledAssets.size &&
-          [...assets].every(([id, asset]) => {
-            const lease = displayed!.ledAssets.get(id);
-            return lease?.asset === asset && lease.isCurrent();
-          })
-        )
-          return;
+        if (displayed && matchingNativeAssets(displayed.ledAssets, assets)) return;
         if (
           nativePreparation?.generation === frame.generation &&
           assets.size === nativePreparation.assets.size &&
@@ -715,8 +716,6 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
       const next: LiveOpticalObservation = {
         result: candidate.result,
         frame: candidate.frame,
-        ledBrightness: candidate.frame.brightness,
-        arduinoLStates: candidate.frame.arduinoLStates,
         ledAssets: new Map(candidate.readiness),
       };
       publishing = true;
@@ -729,11 +728,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
             !currentSession() ||
             !session?.active ||
             pending !== candidate ||
-            !ledTemporalPresentationRef.current.acknowledgeFrame(
-              candidate.frame,
-              wallMicroseconds,
-              true,
-            )
+            !ledPresentation.acknowledgeFrame(candidate.frame, wallMicroseconds, true)
           )
             return false;
           displayed = next;
@@ -757,8 +752,8 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
         session?.active === true &&
         !publishing &&
         pending === candidate &&
-        ledTemporalPresentationRef.current.preparedFrame === candidate.frame &&
-        ledTemporalPresentationRef.current.canPublishDistinctFrame &&
+        ledPresentation.preparedFrame === candidate.frame &&
+        ledPresentation.canPublishDistinctFrame &&
         opticalAssetLeasesReady(candidate);
       if (!ready()) return;
       // A flush may also commit a pending Stop/source change or Suspense work.
@@ -773,9 +768,9 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
       animationFrame = window.requestAnimationFrame(presentLeds);
       if (!session?.active) return;
       const wallMicroseconds = Math.round(window.performance.now() * 1000);
-      const frame = ledTemporalPresentationRef.current.prepareFrame(wallMicroseconds);
+      const frame = ledPresentation.prepareFrame(wallMicroseconds);
       observeReanchor();
-      if (!frame && ledTemporalPresentationRef.current.displayedFrame === null) {
+      if (!frame && ledPresentation.displayedFrame === null) {
         // Quality/nonfatal source loss or missing coverage can reset the
         // presenter when no asset is pending. Never leave its old vector lit.
         if (pending || displayed || publishing || nativePreparation || queuedNativePreparation) {
@@ -786,8 +781,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
           nativePreparation = null;
           opticalPublicationRef.current = null;
           setLedAssetPreparation(null);
-          setRollbackLedAssets(null);
-          setLiveObservation(null);
+          clearDisplayedObservation();
         }
         return;
       }
@@ -801,8 +795,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
           setLedAssetPreparation(null);
           if (!frame) {
             displayed = null;
-            setRollbackLedAssets(null);
-            setLiveObservation(null);
+            clearDisplayedObservation();
             return;
           }
         } else {
@@ -815,14 +808,12 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
       if (displayed && matchingOpticalValues(displayed, frame, assets)) {
         // No visible value/resource changes: the already committed native vector
         // is a witness for this later time within the same solved held phase.
-        if (ledTemporalPresentationRef.current.acknowledgeFrame(frame, wallMicroseconds)) {
+        if (ledPresentation.acknowledgeFrame(frame, wallMicroseconds)) {
           const changedResult = displayed.result !== latestResult;
           displayed = {
             ...displayed,
             frame,
             result: latestResult,
-            ledBrightness: frame.brightness,
-            arduinoLStates: frame.arduinoLStates,
           };
           if (changedResult) setLiveObservation(displayed);
           queueNativePreparation();
@@ -849,7 +840,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
           currentSession() &&
           session?.active &&
           pending === candidate &&
-          ledTemporalPresentationRef.current.preparedFrame === frame
+          ledPresentation.preparedFrame === frame
         )
           setLedAssetPreparation({ token: frame.token, assets });
       });
@@ -875,13 +866,10 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
         failureCode: failure.code,
       });
       setGenerationPending(false);
-      simulationStartedAtRef.current = null;
-      normalHostClockRef.current = false;
-      requestedHorizonMicrosecondsRef.current = 0;
+      resetHostClock();
       resetSimulationRef.current();
-      ledTemporalPresentationRef.current.reset();
+      ledPresentation.reset();
       cancelOpticalPublication();
-      setRollbackLedAssets(null);
       setLiveObservation(null);
       setArduinoSerialByBoard({});
       setSimulationMessage(simulationFailureMessage(failure));
@@ -892,19 +880,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
       simulationWorkerRef.current = worker;
       worker.start(projectId, initialDocument, {
         readHostHorizonMicroseconds: () => {
-          const startedAt = simulationStartedAtRef.current;
-          if (!currentSession() || !session?.active || startedAt === null) return null;
-          const elapsedMicroseconds = Math.max(
-            0,
-            Math.round((window.performance.now() - startedAt) * 1000),
-          );
-          return normalHostClockRef.current
-            ? simulationHostOffsetMicrosecondsRef.current + elapsedMicroseconds
-            : classroomRequestedHorizon(
-                simulationHostOffsetMicrosecondsRef.current,
-                elapsedMicroseconds,
-                ledTemporalPresentationRef.current.presentedMicroseconds,
-              );
+          return currentSession() && session?.active ? readHostHorizonMicroseconds() : null;
         },
         onGenerationPending: () => {
           if (!currentSession()) return;
@@ -912,15 +888,14 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
           normalHostClockRef.current = false;
           setGenerationPending(true);
           setCommittedHorizonMicroseconds(0);
-          ledTemporalPresentationRef.current.reset();
+          ledPresentation.reset();
           cancelOpticalPublication();
           // Source-only edits intentionally keep the controller generation,
           // and onResult does not identify the dispatch source. Until a real
           // Reset/Start establishes ownership again, disable speculative warm
           // work after any committed edit, including an A -> B -> A change.
           // The ordinary RAF display path and Worker semantics are unchanged.
-          nativePreparationSourceRevision = nativePreparationSourceRef.current.revision;
-          setRollbackLedAssets(null);
+          nativePreparationSource = nativePreparationSourceRef.current;
           setLiveObservation(null);
           setSimulationMessage(null);
         },
@@ -937,7 +912,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
           latestResultDocument = runtimeDocumentRef.current;
           if (ledTemporal) {
             normalHostClockRef.current = false;
-            ledTemporalPresentationRef.current.accept(
+            ledPresentation.accept(
               nextResult,
               ledTemporal,
               Math.round(window.performance.now() * 1000),
@@ -946,11 +921,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
             if (
               clockProfileId === 'electrothermal-events-v2' ||
               (clockProfileId === undefined &&
-                runtimeDocumentRef.current?.components.some(
-                  (component) =>
-                    component.componentTypeId === 'arduino-uno' ||
-                    component.variantId === 'arduino-uno',
-                ))
+                runtimeDocumentRef.current?.components.some(isArduinoUno))
             ) {
               fail(
                 new SimulationFailure(
@@ -971,7 +942,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
             // Generic clock profiles (including mixed Arduino circuits) have
             // real canonical endpoints without event histories. Publish those
             // through the same RAF/native-asset barrier, without inventing samples.
-            ledTemporalPresentationRef.current.acceptSnapshot(nextResult, latestCommittedHorizon);
+            ledPresentation.acceptSnapshot(nextResult, latestCommittedHorizon);
           }
           observeReanchor();
           setSimulationMessage(circuitStateMessage(nextResult));
@@ -1015,7 +986,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
       active = false;
       if (animationFrame !== null) window.cancelAnimationFrame(animationFrame);
       pendingCommands.length = 0;
-      ledTemporalPresentationRef.current.reset();
+      ledPresentation.reset();
       cancelOpticalPublication();
       if (ledAssetReadinessRef.current === acceptAssetReadiness)
         ledAssetReadinessRef.current = null;
@@ -1941,10 +1912,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
     const currentDocument = getCurrentDocument();
     if (!currentDocument) return;
     const component = currentDocument.components.find((item) => item.id === componentId);
-    if (
-      !component ||
-      (component.componentTypeId !== 'arduino-uno' && component.variantId !== 'arduino-uno')
-    ) {
+    if (!component || !isArduinoUno(component)) {
       return;
     }
     // Initial Blockly publication may repeat an already saved program. Keep
@@ -1973,10 +1941,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
 
   function resetArduinoRuntime(componentId: string): void {
     const component = document?.components.find((item) => item.id === componentId);
-    if (
-      !component ||
-      (component.componentTypeId !== 'arduino-uno' && component.variantId !== 'arduino-uno')
-    ) {
+    if (!component || !isArduinoUno(component)) {
       return;
     }
     if (!simulationRunning) {
@@ -1985,13 +1950,10 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
     }
     const currentRuntimeDocument = runtimeDocumentRef.current;
     if (!currentRuntimeDocument) return;
-    simulationStartedAtRef.current = null;
-    normalHostClockRef.current = false;
+    resetHostClock();
     simulationHostOffsetMicrosecondsRef.current = 0;
-    requestedHorizonMicrosecondsRef.current = 0;
-    ledTemporalPresentationRef.current.reset();
-    setRollbackLedAssets(null);
-    setLiveObservation(null);
+    ledPresentation.reset();
+    clearDisplayedObservation();
     simulationCommandRef.current?.((worker) => worker.restart(currentRuntimeDocument));
     setNotice('Arduino перезапущена: setup() и loop() выполняются сначала.');
   }
@@ -3412,12 +3374,8 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
   }
 
   function componentArduinoLActive(component: SchematicComponent): boolean | undefined {
-    if (
-      !simulationRunning ||
-      (component.componentTypeId !== 'arduino-uno' && component.variantId !== 'arduino-uno')
-    )
-      return undefined;
-    return liveObservation?.arduinoLStates.get(component.id);
+    if (!simulationRunning || !isArduinoUno(component)) return undefined;
+    return liveObservation?.frame.arduinoLStates.get(component.id);
   }
 
   function componentLedBrightness(component: SchematicComponent): number {
@@ -3425,7 +3383,11 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
     const electrical = runtimePresentationResultByComponent.get(component.id);
     if (!electrical) return 0;
     return Math.round(
-      clamp(liveObservation?.ledBrightness.get(component.id) ?? electrical.brightness ?? 0, 0, 100),
+      clamp(
+        liveObservation?.frame.brightness.get(component.id) ?? electrical.brightness ?? 0,
+        0,
+        100,
+      ),
     );
   }
 
@@ -3462,7 +3424,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
       return runtimePresentationResultByComponent.get(component.id)?.lit ? 'lit' : 'off';
     }
     const state = ordinaryLedVisualState(componentResult);
-    const optical = liveObservation?.ledBrightness.get(component.id);
+    const optical = liveObservation?.frame.brightness.get(component.id);
     return optical !== undefined && (state === 'off' || state === 'lit')
       ? optical > 0
         ? 'lit'

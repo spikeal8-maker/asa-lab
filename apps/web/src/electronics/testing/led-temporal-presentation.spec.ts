@@ -17,6 +17,7 @@ import {
   ELECTRONICS_CLASSROOM_LOOKAHEAD_MICROSECONDS,
   LED_PRESENTATION_PHASE_LIMIT_MICROSECONDS,
   classroomRequestedHorizon,
+  sameOpticalFrame,
 } from '../led-temporal-presentation';
 
 function channel(
@@ -1216,20 +1217,23 @@ describe('Arduino L and ordinary LED share one presentation cursor', () => {
     );
     const declarations: string[] = [];
     const visit = (node: ts.Node): void => {
-      if (ts.isFunctionDeclaration(node) && node.name?.text === 'componentArduinoLActive')
+      if (
+        ts.isFunctionDeclaration(node) &&
+        (node.name?.text === 'componentArduinoLActive' || node.name?.text === 'isArduinoUno')
+      )
         declarations.push(node.getText(source));
       ts.forEachChild(node, visit);
     };
     visit(source);
-    expect(declarations).toHaveLength(1);
+    expect(declarations).toHaveLength(2);
     const state = {
       simulationRunning: true,
-      liveObservation: { arduinoLStates: new Map([['uno', true]]) } as {
-        arduinoLStates: ReadonlyMap<string, boolean>;
+      liveObservation: { frame: { arduinoLStates: new Map([['uno', true]]) } } as {
+        frame: { arduinoLStates: ReadonlyMap<string, boolean> };
       } | null,
     };
     const active = runInNewContext(
-      ts.transpileModule(`${declarations[0]}\ncomponentArduinoLActive;`, {
+      ts.transpileModule(`${declarations.join('\n')}\ncomponentArduinoLActive;`, {
         compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
       }).outputText,
       state,
@@ -1240,7 +1244,7 @@ describe('Arduino L and ordinary LED share one presentation cursor', () => {
     expect(active(legacy)).toBe(true);
     expect(active({ id: 'uno', componentTypeId: 'led-5mm' })).toBeUndefined();
     expect(active({ id: 'other-uno', variantId: 'arduino-uno' })).toBeUndefined();
-    state.liveObservation = { arduinoLStates: new Map([['uno', false]]) };
+    state.liveObservation = { frame: { arduinoLStates: new Map([['uno', false]]) } };
     expect(active(canonical)).toBe(false);
     expect(active(legacy)).toBe(false);
     state.simulationRunning = false;
@@ -1508,6 +1512,7 @@ describe('ordinary LED native readiness and the shared host publication barrier'
     'recordOpticalAssetReadiness',
     'opticalAssetLeasesReady',
     'matchingOpticalValues',
+    'matchingNativeAssets',
     'restorableOpticalObservation',
   ]);
   const functions = host.statements.filter(
@@ -1522,6 +1527,7 @@ describe('ordinary LED native readiness and the shared host publication barrier'
         '\n({ record: recordOpticalAssetReadiness, ready: opticalAssetLeasesReady, same: matchingOpticalValues, rollback: restorableOpticalObservation });',
       { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } },
     ).outputText,
+    { sameOpticalFrame },
   ) as {
     record: (pending: unknown, event: unknown) => boolean;
     ready: (pending: unknown, active?: boolean) => boolean;
@@ -1552,10 +1558,12 @@ describe('ordinary LED native readiness and the shared host publication barrier'
       hostClosures.set('layout', node.arguments[0].getText(host));
     if (ts.isFunctionDeclaration(node) && node.name?.text === 'rollbackComponentLedAsset')
       hostClosures.set('rollbackSelector', node.getText(host));
+    if (ts.isFunctionDeclaration(node) && node.name?.text === 'clearDisplayedObservation')
+      hostClosures.set('clearDisplay', node.getText(host));
     ts.forEachChild(node, visitHost);
   };
   visitHost(host);
-  if (hostClosures.size !== 3)
+  if (hostClosures.size !== 4)
     throw new Error('actual host rollback/RAF closure declarations not found');
 
   function fixture() {
@@ -1644,8 +1652,7 @@ describe('ordinary LED native readiness and the shared host publication barrier'
     red.state.active = true;
     green.state.active = true;
     const previous = {
-      ledBrightness: frame.brightness,
-      arduinoLStates: frame.arduinoLStates,
+      frame,
       ledAssets: new Map([
         ['red', red],
         ['green', green],
@@ -1684,7 +1691,7 @@ describe('ordinary LED native readiness and the shared host publication barrier'
     expect(barrier.same(previous, frame, assets)).toBe(false);
   });
   function executeHostClosure(name: 'raf' | 'layout', state: Record<string, unknown>): void {
-    const text = `const presentLeds = ${hostClosures.get(name)!}; presentLeds();`;
+    const text = `${hostClosures.get('clearDisplay')!}\nconst presentLeds = ${hostClosures.get(name)!}; presentLeds();`;
     runInNewContext(
       ts.transpileModule(text, {
         compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
@@ -1701,8 +1708,7 @@ describe('ordinary LED native readiness and the shared host publication barrier'
       barrier.record(pending, red);
       barrier.record(pending, green);
       const previous = {
-        ledBrightness: frame.brightness,
-        arduinoLStates: frame.arduinoLStates,
+        frame,
         ledAssets: new Map([
           ['red', red],
           ['green', green],
@@ -1810,7 +1816,7 @@ describe('ordinary LED native readiness and the shared host publication barrier'
         animationFrame: null,
         session: { active: true },
         window: { requestAnimationFrame: () => 1, performance: { now: () => 30 } },
-        ledTemporalPresentationRef: { current: presenter },
+        ledPresentation: presenter,
         observeReanchor: () => {},
         pending: null,
         displayed: { frame: oldFrame },
@@ -1846,7 +1852,7 @@ describe('ordinary LED native readiness and the shared host publication barrier'
       animationFrame: null,
       session: { active: true },
       window: { requestAnimationFrame: () => 1, performance: { now: () => 17 } },
-      ledTemporalPresentationRef: { current: presenter },
+      ledPresentation: presenter,
       observeReanchor: () => {},
       pending: null,
       displayed: previous,
