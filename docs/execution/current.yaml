@@ -6045,7 +6045,6 @@ parallel_lanes:
     parent_lane: electronics
     worktree_id: electronics-ready-cadence-539
     owned_paths:
-    - contexts/electronics/domain/solver.ts
     - contexts/electronics/domain/simulation.ts
     - contexts/electronics/testing/solver.spec.ts
     - contexts/electronics/testing/simulation-contract.spec.ts
@@ -6063,6 +6062,12 @@ parallel_lanes:
       owner_stop_requested_at: "2026-10-18T18:02:08.399514+00:00"
       owner_stop_reason: "Owner requested ending this session to preserve remaining tokens and publishing only results already eligible for main. This is not product acceptance or programme completion."
       resume_requires_explicit_owner_instruction: true
+      solver_writer_handoff: >-
+        Controller-assigned sequential FET derivative composition under Issue658;
+        original stopped R27 remains stopped, its retained source/reviews/blocker
+        and resume rule are unchanged; PR651 de9d84a preserved, original branch
+        untouched. Current single solver writer is electronics-core-fet; no
+        permission to resume or accept Issue546.
       preserved_r27_entry_sha: "1669d7b2f1f630b3c4da045147500a343e139ca9"
       r27_implementation_state: "NOT_STARTED; source author stopped before any edits; working tree/index clean, no owned running processes. Existing source-approved R26 packet remains remote diagnostics/electronics-546-r26-combined atcdad26c; product integration/Issue closure not accepted."
       r26_combined_source_sha: "cdad26c361cb4cf8ed2d095fae3c087b5d2abb2d"
@@ -8756,7 +8761,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: d2_d4_native_first_use_repair_selected
+      checkpoint: d2_d4_atomic_archive_rotation_selected
       owner_acceptance: pending
       acceptance_revision: classroom-d2-d4-eighth-pace-r1
       active_qualification_profile: classroom-d13-v3
@@ -8770,24 +8775,36 @@ parallel_lanes:
       preserved_source_manifest_sha256: 99b726026eaf47fef33cdfada9df1856e01d0c0a71282debfeee622a2667ca74
       preserved_source_review: recon/d2-d4-075-source-review/verdict-source-only.json
       preserved_source_review_sha256: '028554aa1ccf318540a5aca13914e5b1ef0db0672d596669e59775cbd47e92e7'
+      orchestration_selected_at: '2026-10-20T15:20:43Z'
+      orchestration_base_main_sha: cdb3fdecdcbf8ff771d88253db73105a65a902cf
+      retained_candidate_pr: 652
+      retained_candidate_branch: codex/electronics-classroom-d2-d4-649
+      retained_runtime_source_sha: 24c4acf6c369ba695bf74684ec1bd7f26a70266b
+      orchestration_author: /root/d2_source_review
+      author_start_condition: Canonical main amendment published and author FET smoke STOP completed; fresh overlap preflight required.
+      independent_reviewer: /root/fet_runtime_author
+      integrator: /root
+      memory_clarification_selected_at: '2026-10-20T15:41:25Z'
+      memory_clarification_base_main_sha: 8ae7de9d6889a1657058602c5f309df342517a5a
+      memory_evidence: Historical150 raw159332055bytes over61.5719s; seven nominal acquisitions imply about1.34GB serialized as estimate only, not measured heap or proven performance.
+      archive_rotation_contract: D2-local helper atomically clones all11 arrays before same-turn existing length0 rotation; private pending immutable clone blocks another rotation until full Node write/readback SHA/count/coverage ACK. ACK deletes only pending clone, never active tail; fail closed without lossy fallback.
+      archive_coverage_contract: Explicit absolute offsets/counts/time/generation/cutoff and all in-window causal rows; all late/Stop/Reset retained through final observation cutoff, later tail reported NOT observed. Mutable paintRuns copied before clearing; manifest documents segment run splits and full paintFrames/witnessAt coverage.
+      archive_lifecycle_contract: No heavy clone/serialization between fifth100/300 and Reset; archive both together after Reset existing Stop as two acquisition windows in one contiguous segment. Six archive groups for seven captures; no cumulative duplication or global observer/pin/API change.
+      orchestration_scope: Test-only lifecycle-preserving concurrency and full-raw retention; no runtime, assertion, observer, qualification or timing change.
+      retained_historical_run: '39422409394'
+      retained_historical_artifact: '12266831251'
+      verified_compact_transport_run: '39444735624'
+      verified_compact_artifact: '12275550889'
+      verified_compact_zip_sha256: e2c9f8d65d569e78571de69331728b5602b947b0f5d9639c21d6343a4e8128ad
+      historical_result: Timed out at840s; four acquisitions311.6465s total, five real saves and seven native PNGs; fifth acquisition, Reset and reopen incomplete. Not acceptance or proof of each pause cause.
       expected_write_paths:
       - e2e/electronics-ready-cadence.spec.ts
-      - docs/product/electronics/examples/D2_D4_3x330ohm_red_LED.schematic.json
-      - docs/product/electronics/lessons/D2_D4_CLASSROOM.md
       - docs/execution/current.yaml
       - docs/product/electronics/tasks/TASK-ELECTRONICS-CLASSROOM-D2-D4-001.md
-      - .github/workflows/electronics-r4-m1-focused.yml
-      - tools/test_ci_image_transport.py
-      - apps/web/src/electronics/led-temporal-presentation.ts
-      - apps/web/src/electronics/use-electronics-workbench.ts
-      - apps/web/src/electronics/ProductionComponentVisual.tsx
-      - apps/web/src/electronics/testing/led-temporal-presentation.spec.ts
-      - apps/web/src/electronics/testing/use-electronics-workbench-clock.spec.ts
-      - apps/web/src/electronics/testing/asset-recovery.spec.ts
       selected_browser_job_timeout_minutes: 50
       preserved_review_images_timeout_minutes: 35
       workflow_capacity_selection: 'Select browser50min with actual D13 job26m41s and the existing14min D2 case budget; preserve review-images35min and immutable545 receipt via reviewed narrow consumer projection; actual D2 duration remains pending'
-      path_coordination: Preserve current ownership labels, every foreign worktree and accepted D13 history. Refresh actual main, AGENTS, scoped blockers and overlaps before writes. The2026-10-20 bounded repair additionally selects only the three listed native-publication runtime paths and their necessary focused specs; no scheduler/kernel or PR651 overlap. Prepare actual mounted assets from accepted history without advancing visibility or weakening source/generation, joint-frame, lease or rollback invariants. Source author and independent reviewer remain separate; publish this selection on main before product writes.
+      path_coordination: Root assigns one D2 test author after FET smoke STOP, independent reviewer never D2 author, and root sole integrator. Publish this amendment on main before source writes. Compose retained PR65224c forward with fresh accepted main; freeze its production implementation and all foreign lanes. Only D2 test orchestration and these own controller documents may change; earlier runtime write selection is historical, not renewed permission. No workflow, fixture, lesson or global observer/pin/API change; only existing D2-local helper wrappers may implement the selected lossless rotation. Preserve all source history, failed runs, attempts, budgets, R27 stop/resume rule and acceptance blockers; no force or counter reset.
       reported_strict_qualification: pnpm gate:electronics-m1:browser on the same exact source under strict-real-time; preserve its actual conclusion separately from the required classroom gate.
       owner_authorization: Existing explicit 2026-10-19 instruction selects continuous visible classroom slices after accepted D13; no additional permission round is required for D2-D4 development and checked main integration. School deployment and working data remain separate.
       preserved_r26_sha: cdad26c361cb4cf8ed2d095fae3c087b5d2abb2d
@@ -8797,7 +8814,7 @@ parallel_lanes:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-CLASSROOM-D2-D4-001.md
       - docs/product/electronics/tasks/TASK-ELECTRONICS-CLASSROOM-D13-001.md
       - docs/product/electronics/lessons/D2_D4_CLASSROOM.md
-      next_action: Repair the independently reproduced stale native D2/D4 all-off frames64.6/65.7ms in source d0b0f425 using the bounded native-publication selection in the task card. Preserve pace0.125,6250us cap,50ms,backlog2,startup5s,Stop1s,seven acquisitions,eight cycles,49 ordered vectors,all171 cases and150s/20s/840s budgets. Keep actual Save PUT200/full circuit/revision/GET, Reset and cookies-only reopen proofs. Run meaningful focused checks, unchanged focused/benchmark/full classroom-d13-v3/General on the exact final source, report strict separately and obtain independent source/native acceptance before authorized normal main integration. Do not weaken gates or repair foreign Portal/PR651; no kernel, profile, skip, retry, infrastructure or deployment change.
+      next_action: After canonical selection and author FET smoke STOP, implement only the card's bounded D2 orchestration repair. Five real autosaves overlap corresponding captures and must finish full PUT200/request/response/GET/source/revision proof before next edit or reopen. Take seven native PNGs within300 capture after real LOW/HIGH references. Preserve six existing Stops and fifth100/300 uninterrupted Run-to-Reset; close acquisition windows with explicit indices/time/generation, validate49states/eight cycles before Stop, retain active observer Stop1s and every late/Stop/Reset raw row through explicit cutoff in six lossless archive groups for seven captures. Use the selected atomic11-array capture-before-clear/pending-ACK protocol; fifth and Reset share one contiguous segment after Reset Stop without an intervening heavy clone. Never filter in-window causal failures, drop data or reset an unarchived buffer. Preserve all fixed criteria and run unchanged required exact-source gates/native review; strict reported separately. Forward PR652 only after independent review and root publication; no acceptance by historical evidence.
     previous_task:
       id: TASK-ELECTRONICS-CLASSROOM-D13-001
       issue: 638
@@ -8875,13 +8892,13 @@ parallel_lanes:
         - pnpm gate:repository
     revisions:
       kind: observed_snapshot
-      observed_at: '2026-10-20T11:17:28Z'
+      observed_at: '2026-10-20T15:41:25Z'
       main:
         branch: main
-        sha: '16cbed5d981989528f2d1bd8f62e2a1c4063781f'
-      convergence_baseline_sha: '16cbed5d981989528f2d1bd8f62e2a1c4063781f'
+        sha: '8ae7de9d6889a1657058602c5f309df342517a5a'
+      convergence_baseline_sha: '8ae7de9d6889a1657058602c5f309df342517a5a'
       head_sha: null
-      observation_note: 'Observed GitHub main16cbed5d and open draft PR652 d0b0f425 at2026-10-20T11:17:28Z. Exact strict39399518741 discovered171 and finished160PASS/11FAIL, five D13PASS; D2 failed native paint causality with independently reproduced64.6/65.7ms stale all-off frames. Select bounded actual-mounted preparation/publication repair within existing Issue649; AFTER and full classroom pending. General39399518744 four Portal PG timeouts also reproduced on exactmain General39373841387; foreign baseline retained separately, gate unchanged. Accepted D13 history, full546, all foreign lanes/hygiene/blockers remain intact. Selection is not acceptance or deployment. Fresh fetch main is required before product writes and integration.'
+      observation_note: 'Historical strict39422409394 on retained PR65224c timed out at840s; verified compact evidence preserves four measured acquisitions, five real saves and seven native PNGs, not complete D2 acceptance. Select only lifecycle-preserving test orchestration with lossless atomic D2-local archive rotation; memory estimate is not measured heap or verified performance; production source and all assertions/timing/qualification remain frozen. Original native failure and repair history, counters, foreign gates and blockers remain retained. Fresh fetch main and actual remote candidate/preflight are required before writes and integration; source review does not establish AFTER or acceptance.'
 
 
   - id: electronics-classroom-hygiene
@@ -8945,6 +8962,288 @@ parallel_lanes:
       convergence_baseline_sha: 47524e08f14a1c7c6c11b213063103e652a32c3d
       head_sha: null
       observation_note: Independently approved two-doc amendment applied to exact reviewed product tree3e568227; combined treea299770e. Actual receipt4799b73c records fresh main47524e08, no foreign target overlaps in67 worktrees, unchanged nine product hashes, targeted641 routingPASS, full114of114 routingPASS and GovernancePASS. This records a bounded matching-source review only; final D13 browser, repository gates, integration and deployment remain separate. Fresh fetch main is required before execution and integration.
+
+  - id: electronics-core-fet
+    parent_lane: electronics
+    worktree_id: electronics-core-fet-composition
+    owned_paths:
+      - contexts/electronics/domain/solver.ts
+      - contexts/electronics/testing/fet-dc-reference.spec.ts
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-CORE-FET-001.md
+    task:
+      id: TASK-ELECTRONICS-CORE-FET-001
+      issue: 658
+      programme_issue: 452
+      branch: main
+      base_branch: main
+      pr: null
+      pr_draft: false
+      status: in_progress
+      kind: repair
+      risk: high
+      semantic_change: 'yes'
+      checkpoint: standalone_fet_selected_after_inherited_gate_timeout
+      owner_acceptance: pending
+      owner_authorization: >-
+        On 2026-10-20 the owner appointed the controller to manage Electronics
+        simulator development through bounded authors and independent reviewers.
+        Select the independently reproduced Q-FET-01/02 correction under package2.2;
+        no deployment, working-data or network operation is authorised.
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-CORE-FET-001.md
+        - docs/product/electronics/components/engine-worker-clock.yaml
+      composer_executor_id: /root/fet_runtime_author
+      independent_reviewer_id: /root/core_baseline
+      controller_id: /root
+      candidate_pr: 660
+      deferred_dependency_pr: 651
+      deferred_dependency_sha: de9d84a4108a5952b921b40d1575651265391873
+      deferred_dependency_parent: 16cbed5d981989528f2d1bd8f62e2a1c4063781f
+      preserved_composite_sha: e8a7c2bd04ad5ec75acfd7d3f4f00482f37efcfa
+      preserved_composite_focused_run: 39442503268
+      preserved_composite_focused_conclusion: failure
+      preserved_composite_result: 922 PASS / 1 FAIL; inherited delay2000 took5812ms against unchanged5000ms. FET source approval, eight reference cases and ten independent cases are historical evidence, not standalone acceptance.
+      preserved_composite_general_run: 39442503313
+      preserved_composite_general_state_at_decision: running
+      attempt_accounting: Same Issue658 FET defect and diagnostic budget; preserve prior hypotheses, attempts, reviews and CI. Changing composition does not reset counters or turn history into fresh PASS.
+      path_coordination: >-
+        Root assigns the same sole author fet_runtime_author to fresh accepted
+        main plus the same four FET edits in two solver regions, unchanged eight-case
+        reference spec and route. PR651 is independently established not to be a
+        functional FET dependency. Mechanically exclude de9 only from our derivative:
+        five non-FET files must equal fresh main; solver must equal main plus only
+        that retained FET delta. Original PR651/de9, e8 history, stopped R27 and all
+        foreign work remain intact. Continue PR660 by normal forward commits/merge,
+        never force-push. Actual intersecting dirty work still requires handoff.
+      mechanical_exclusion_paths:
+        - contexts/electronics/domain/arduino-circuit-scheduler.ts
+        - contexts/electronics/domain/simulation.ts
+        - contexts/electronics/domain/solver.ts
+        - contexts/electronics/testing/engine-timed-api.spec.ts
+        - contexts/electronics/testing/simulation-contract.spec.ts
+        - contexts/electronics/testing/solver.spec.ts
+      expected_write_paths:
+        - contexts/electronics/domain/solver.ts
+        - contexts/electronics/testing/fet-dc-reference.spec.ts
+        - docs/product/electronics/components/engine-worker-clock.yaml
+        - contexts/electronics/domain/arduino-circuit-scheduler.ts
+        - contexts/electronics/domain/simulation.ts
+        - contexts/electronics/testing/engine-timed-api.spec.ts
+        - contexts/electronics/testing/simulation-contract.spec.ts
+        - contexts/electronics/testing/solver.spec.ts
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-CORE-FET-001.md
+        - docs/execution/current.yaml
+      integration_condition: >-
+        Preserve original PR651/de9, composite e8 and all existing blockers.
+        Require fresh standalone exact-source gates, new independent source/runtime
+        review, unchanged fixed analytical references and actual editor demonstration
+        before authorised integration. No accepted test or delay2000/5000ms budget
+        changes. Standalone selection accepts neither PR651 nor Issue546, and
+        historical composite approval/PASS does not transfer automatically.
+      next_action: >-
+        Accept this prospective amendment on main before source writes, refresh
+        actual refs/overlaps and build the retained FET-only delta on accepted main.
+        Mechanical restoration is not rollback of accepted code or new scheduler/test
+        semantics. Preserve counters and evidence; run unchanged commands on final
+        standalone source and obtain new independent review, without acceptance claims.
+    execution_lease:
+      executor_id: electronics-core-fet-author
+      holder: unassigned
+      acquired_at: null
+      expires_at: null
+      reviewer_role_requires_lease: false
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1
+      benchmark:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm benchmark:electronics:ci
+      browser:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-classroom-d13-v3:browser
+          - pnpm gate:electronics-m1:browser
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
+    revisions:
+      kind: observed_snapshot
+      observed_at: '2026-10-20T14:56:35Z'
+      main:
+        branch: main
+        sha: 83714ca4a36ff272859fd2818935f2ef5630644b
+      convergence_baseline_sha: 83714ca4a36ff272859fd2818935f2ef5630644b
+      head_sha: null
+      observation_note: >-
+        Dated standalone decision after inherited delay2000 focused failure on e8.
+        Six accepted-main paths at83714ca4 equal PR651 parent16cbed5d exactly;
+        de9 is deferred rather than mandatory for FET. Historical source approval,
+        FET references and CI remain retained; no standalone AFTER is asserted.
+        Fresh fetch main and actual overlap checks are required before writes and integration.
+
+  - id: electronics-artifact-intake
+    parent_lane: electronics
+    worktree_id: electronics-artifact-intake-659
+    owned_paths:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-GOVERNANCE-011.md
+    task:
+      id: TASK-ELECTRONICS-GOVERNANCE-011
+      issue: 659
+      parent_issue: 649
+      programme_issue: 452
+      branch: main
+      base_branch: main
+      pr: null
+      pr_draft: false
+      status: done
+      kind: maintenance
+      risk: high
+      semantic_change: 'no'
+      checkpoint: verified_historical_artifact_transport_completed
+      owner_acceptance: pending
+      completed_at: '2026-10-20T15:31:42Z'
+      technical_completion_scope: Verified read-only historical artifact transport only; no product qualification or acceptance.
+      completion_evidence: docs/product/electronics/tasks/TASK-ELECTRONICS-GOVERNANCE-011.md
+      helper_pr: 661
+      helper_pr_state: CLOSED_UNMERGED
+      helper_source_sha: 7220510d494dab02662c7eea48819c793b516ab8
+      helper_workflow_sha256: 1236560f7300bd5b9d1476e40c0ad93f35179dbdea081d3d4e0e9c468b26d16f
+      actual_transport_run: '39444735624'
+      actual_transport_job: '118703517483'
+      actual_transport_conclusion: success
+      compact_artifact: '12275550889'
+      compact_artifact_size_bytes: 1670197
+      compact_zip_sha256: e2c9f8d65d569e78571de69331728b5602b947b0f5d9639c21d6343a4e8128ad
+      compact_manifest_sha256: 9e68bd968c2500956ac8077769cb798af2eea7496c5b11b3d6832d6f568c622d
+      verified_member_count: 22
+      owner_authorization: Owner explicitly authorised cloud resources and controller-managed separate authors/reviewers on 2026-10-20; select read-only transport of the existing oversized D2 artifact, no product change or installation.
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-GOVERNANCE-011.md
+      author_executor_id: /root/d2_source_review
+      independent_reviewer_id: /root/pr651_intake
+      controller_id: /root
+      candidate_branch: codex/electronics-evidence-intake-649
+      expected_write_paths:
+        - .github/workflows/electronics-artifact-intake.yml
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-GOVERNANCE-011.md
+        - docs/execution/current.yaml
+      shared_path_coordination: Workflow remains under existing integration.shared_paths. Root explicitly assigns its only author d2_source_review and read-only security reviewer pr651_intake; root is sole integrator. No foreign shared scope is removed or narrowed.
+      integration_condition: Workflow exists only on the temporary candidate branch and must never merge into main/production. Accept only verified read-only transport output for run39422409394/artifact12266831251/source24c4acf6; preserve original hashes. Close only this transport task, never D2/FET/PR651 acceptance.
+      next_action: Transport complete; retain original source/input hashes and independently CRC/SHA-verified compact output. Helper PR661 is closed unmerged and branch retained; workflow must never enter main. No further helper run or product acceptance is selected.
+    execution_lease:
+      executor_id: electronics-artifact-intake-659
+      holder: unassigned
+      acquired_at: null
+      expires_at: null
+      reviewer_role_requires_lease: false
+    gates:
+      routing:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm validate:electronics-agent-docs --task TASK-ELECTRONICS-GOVERNANCE-011
+      control_plane:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm control-plane:check
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: ed81e0003ef4c9aefb382135639709a00e8ddd72
+      head_sha: null
+      observed_at: '2026-10-20T15:31:42Z'
+      main:
+        branch: main
+        sha: ed81e0003ef4c9aefb382135639709a00e8ddd72
+      observation_note: Verified transport39444735624 succeeded with22 independently checked members; helperPR661 closed unmerged. Only transport task is complete; D2 historical timeout and all product requirements remain unchanged. Fresh fetch main before any later controller writes.
+
+  - id: electronics-qualification-dispatch
+    parent_lane: electronics
+    worktree_id: electronics-qualification-dispatch-662
+    owned_paths:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-GOVERNANCE-012.md
+    task:
+      id: TASK-ELECTRONICS-GOVERNANCE-012
+      issue: 662
+      parent_issue: 658
+      programme_issue: 452
+      branch: main
+      base_branch: main
+      pr: null
+      pr_draft: false
+      status: done
+      kind: maintenance
+      risk: high
+      semantic_change: 'no'
+      checkpoint: fixed_classroom_dispatch_receipt_verified_completed
+      owner_acceptance: pending
+      completed_at: '2026-10-20T15:31:42Z'
+      technical_completion_scope: One fixed dispatch plus actual target-run identity receipt only; qualification outcome remains separate.
+      completion_evidence: docs/product/electronics/tasks/TASK-ELECTRONICS-GOVERNANCE-012.md
+      helper_pr: 663
+      helper_pr_state: CLOSED_UNMERGED
+      helper_source_sha: d1eb77a692daa3fc923aa47cb52a53e3afcac7e3
+      helper_tree: 5518a52afbcfe9580f9823770adeec8507bf1f35
+      helper_workflow_sha256: 7e2c444e487cc0fcf3aa30a6cf10d171f4759462fa6c3fedd92ba9d7a7830c6d
+      actual_helper_run: '39448724854'
+      actual_helper_job: '118717497697'
+      actual_helper_conclusion: success
+      dispatch_http_status: 204
+      dispatch_received_at: '2026-10-20T15:28:36Z'
+      actual_target_run: '39448747806'
+      actual_target_workflow_id: 326529119
+      actual_target_event: workflow_dispatch
+      actual_target_run_attempt: 1
+      actual_target_run_observed_status: in_progress
+      actual_target_run_observed_at: '2026-10-20T15:31:42Z'
+      actual_target_identity_review: Root and independent reviewer confirmed exact repository, workflow, event, branch, head and classroom-d13-v3 profile.
+      owner_authorization: Owner authorised cloud resources and controller-managed separate authors/reviewers on 2026-10-20; select one fixed dispatch of the already required classroom profile, without product, gate or installation changes.
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-GOVERNANCE-012.md
+      author_executor_id: /root/pr651_intake
+      independent_reviewer_id: /root/core_baseline
+      controller_id: /root
+      candidate_branch: codex/electronics-qualification-dispatch-662
+      target_pr: 660
+      target_branch: codex/electronics-core-fet-658
+      target_sha: e826794c1cb4aec1280630040f2652272b3d5de1
+      target_tree: 5e162fa4744feabe7845c87556a744fe4ff27f7b
+      target_workflow: electronics-r4-m1-focused.yml
+      target_qualification_profile: classroom-d13-v3
+      expected_write_paths:
+        - .github/workflows/electronics-qualification-dispatch.yml
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-GOVERNANCE-012.md
+        - docs/execution/current.yaml
+      shared_path_coordination: Workflow remains under unchanged integration.shared_paths. Root assigns one author pr651_intake, independent read-only security reviewer core_baseline and root as sole integrator. No foreign shared scope is removed or narrowed.
+      integration_condition: Helper exists only on its temporary branch and never merges into main/production. One fixed dispatch only, actions write plus contents read, exact repo/PR/branch/head and run_attempt1 guards. Require actual target-run SHA receipt; race, ambiguity or uncertainty fails closed without retries. Close only this task, not product acceptance.
+      next_action: Dispatch control task complete after one204 and verified exact target-run identity. PR663 closed unmerged; never reopen, rerun or dispatch again. Keep helper outside main and retain branches/source. Observe actual target qualification separately under Issue658; no product PASS or gate waiver.
+    execution_lease:
+      executor_id: electronics-qualification-dispatch-662
+      holder: unassigned
+      acquired_at: null
+      expires_at: null
+      reviewer_role_requires_lease: false
+    gates:
+      routing:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm validate:electronics-agent-docs --task TASK-ELECTRONICS-GOVERNANCE-012
+      control_plane:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm control-plane:check
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: ed81e0003ef4c9aefb382135639709a00e8ddd72
+      head_sha: null
+      observed_at: '2026-10-20T15:31:42Z'
+      main:
+        branch: main
+        sha: ed81e0003ef4c9aefb382135639709a00e8ddd72
+      observation_note: Helper39448724854 succeeded and issued one204; root and reviewer verified target39448747806 on exact e826/profilev3, attempt1, observed in_progress. Closed unmerged helperPR663 cannot be reopened or rerun. Only dispatch receipt is complete; no FET/D2 qualification PASS. Fresh fetch main before any later controller writes.
+
 
 integration:
   owner_lane: visual-programming

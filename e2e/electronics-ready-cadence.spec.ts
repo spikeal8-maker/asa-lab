@@ -5251,7 +5251,35 @@ type D2LReceipt = {
   boardRect: { x: number; y: number; width: number; height: number } | null;
   boardHref: string;
 };
-type D2Window = TemporalWindow & { __d2L?: D2LReceipt[] };
+type D2Raw = Awaited<ReturnType<typeof observation>> & { temporal: TemporalProbe; l: D2LReceipt[] };
+type D2Boundary = {
+  stage: D2Stage;
+  actionAt: number;
+  terminalAt: number;
+  generationId: number;
+  indices: Record<string, number>;
+};
+type D2ArchiveManifest = {
+  id: number;
+  context: string;
+  from: Record<string, number>;
+  to: Record<string, number>;
+  counts: Record<string, number>;
+  cutoffAt: number;
+  windows: D2Boundary[];
+  paintRunSplit: string;
+  observation: string;
+};
+type D2Window = TemporalWindow & {
+  __d2L?: D2LReceipt[];
+  __d2Archive?: {
+    context: string;
+    next: number;
+    offsets: Record<string, number>;
+    pending?: { manifest: D2ArchiveManifest; raw: D2Raw };
+  };
+  __d2Boundary?: D2Boundary;
+};
 type D2Metrics = {
   stage: string;
   generationId: number;
@@ -5277,6 +5305,7 @@ let d2Ledger: {
   fixtureSha256: string;
   stages: D2Metrics[];
   native: unknown[];
+  archives?: Array<D2ArchiveManifest & { path: string; sha256: string; bytes: number }>;
   completed: boolean;
 } | null = null;
 
@@ -5494,33 +5523,22 @@ async function d2OpenOwnerTemporalSketch(page: Page, source: string, name: strin
   await page.goto(`/#/home/${id}`);
   await expect(page.locator('.workbench-stage')).toBeVisible();
   await page.getByRole('button', { name: 'Открыть редактор кода', exact: true }).click();
-  await page.locator('.arduino-source-editor textarea').fill(source);
-  const saved = await d2Save(
+  const saving = d2Save(
     page,
     { id, endpoint, origin, read, persistence, intendedDocument },
     source,
   );
+  // Retain a rejection immediately, but assert completion before the next edit.
+  void saving.catch(() => {});
+  await page.locator('.arduino-source-editor textarea').fill(source);
   await page.getByRole('button', { name: 'Закрыть редактор кода', exact: true }).click();
   await expect(page.locator('.arduino-code-panel')).toHaveClass(/closed/);
-  const startAt = await page.evaluate(() => {
-    const probe = window as TemporalWindow;
-    probe.__bitwiseWorker!.length = 0;
-    probe.__bitwiseUi!.length = 0;
-    probe.__ownerPaint!.length = 0;
-    const temporal = probe.__ownerTemporal!;
-    temporal.frames.length = 0;
-    temporal.paintRuns.length = 0;
-    temporal.paintFrames.length = 0;
-    temporal.resetClicks.length = 0;
-    temporal.errors.length = 0;
-    temporal.reanchors.length = 0;
-    return performance.now();
-  });
+  const startAt = await page.evaluate(() => performance.now());
   return {
     source,
     name,
     before,
-    saved,
+    saving,
     startAt,
     read,
     failures,
@@ -5606,23 +5624,132 @@ async function d2BuildProvenance(page: Page) {
   return evidence;
 }
 
-async function d2ClearProbe(page: Page): Promise<number> {
-  return page.evaluate(() => {
-    const probe = window as D2Window;
-    probe.__bitwiseWorker!.length = 0;
-    probe.__bitwiseUi!.length = 0;
-    probe.__ownerPaint!.length = 0;
-    probe.__ownerStartClicks!.length = 0;
-    probe.__d2L!.length = 0;
-    const temporal = probe.__ownerTemporal!;
-    temporal.frames.length = 0;
-    temporal.paintRuns.length = 0;
-    temporal.paintFrames.length = 0;
-    temporal.resetClicks.length = 0;
-    temporal.errors.length = 0;
-    temporal.reanchors.length = 0;
-    return performance.now();
+// No observer API change: only this D2 wrapper rotates the existing buffers.
+// The clone is isolated from mutable paintRuns and remains pending until ACK.
+async function d2Archive(page: Page, context: string, windows: D2Boundary[]) {
+  const serialized = await page.evaluate(
+    ({ context, windows }) => {
+      const probe = window as D2Window;
+      const state = (probe.__d2Archive ??= { context, next: 0, offsets: {} });
+      if (state.context !== context || state.pending)
+        throw new Error('D2 archive pending/context mismatch');
+      const temporal = probe.__ownerTemporal!;
+      const raw: D2Raw = {
+        worker: probe.__bitwiseWorker!,
+        ui: probe.__bitwiseUi!,
+        paint: probe.__ownerPaint!,
+        startClicks: probe.__ownerStartClicks!,
+        reanchors: temporal.reanchors,
+        temporal,
+        l: probe.__d2L!,
+      };
+      const arrays = {
+        worker: raw.worker,
+        ui: raw.ui,
+        paint: raw.paint,
+        startClicks: raw.startClicks,
+        l: raw.l,
+        frames: temporal.frames,
+        paintRuns: temporal.paintRuns,
+        paintFrames: temporal.paintFrames,
+        resetClicks: temporal.resetClicks,
+        errors: temporal.errors,
+        reanchors: temporal.reanchors,
+      };
+      const counts = Object.fromEntries(
+        Object.entries(arrays).map(([key, rows]) => [key, rows.length]),
+      );
+      const from = Object.fromEntries(
+        Object.keys(arrays).map((key) => [key, state.offsets[key] ?? 0]),
+      );
+      const to = Object.fromEntries(
+        Object.keys(arrays).map((key) => [key, from[key]! + counts[key]!]),
+      );
+      // Synchronous clone BEFORE clearing: callbacks cannot run inside this turn.
+      const clone = structuredClone(raw);
+      const manifest: D2ArchiveManifest = {
+        id: state.next++,
+        context,
+        from,
+        to,
+        counts,
+        cutoffAt: performance.now(),
+        windows,
+        paintRunSplit:
+          'Mutable runs cloned before rotation; the next RAF may start a new run of the same vector. Full paintFrames and witnessAt are retained.',
+        observation:
+          'Complete raw through this synchronous cutoff only; tail after the final cutoff is NOT observed.',
+      };
+      state.pending = { manifest, raw: clone };
+      for (const rows of Object.values(arrays)) rows.length = 0;
+      return JSON.stringify(state.pending);
+    },
+    { context, windows },
+  );
+  const manifest = await page.evaluate(() => (window as D2Window).__d2Archive!.pending!.manifest);
+  const path = resolve(artifactRoot, `d2-d4-${context}-segment-${manifest.id}-raw.json`);
+  const bytes = Buffer.byteLength(serialized);
+  const sha256 = createHash('sha256').update(serialized).digest('hex');
+  // writeFileSync flush requests fsync before readback; ACK is never attempted on failure.
+  writeFileSync(path, serialized, { flush: true });
+  const readback = readFileSync(path);
+  expect(createHash('sha256').update(readback).digest('hex')).toBe(sha256);
+  const verified = JSON.parse(readback.toString('utf8')) as {
+    manifest: D2ArchiveManifest;
+    raw: D2Raw;
+  };
+  const arrays = {
+    worker: verified.raw.worker,
+    ui: verified.raw.ui,
+    paint: verified.raw.paint,
+    startClicks: verified.raw.startClicks,
+    l: verified.raw.l,
+    frames: verified.raw.temporal.frames,
+    paintRuns: verified.raw.temporal.paintRuns,
+    paintFrames: verified.raw.temporal.paintFrames,
+    resetClicks: verified.raw.temporal.resetClicks,
+    errors: verified.raw.temporal.errors,
+    reanchors: verified.raw.temporal.reanchors,
+  };
+  const previous = d2Ledger!.archives?.filter((row) => row.context === context).at(-1);
+  for (const [key, rows] of Object.entries(arrays)) {
+    expect(rows.length, key + ' complete archive count').toBe(manifest.counts[key]);
+    expect(manifest.from[key], key + ' adjoining absolute interval').toBe(previous?.to[key] ?? 0);
+    expect(manifest.to[key]).toBe(manifest.from[key]! + rows.length);
+  }
+  expect(Object.keys(arrays).length).toBe(11);
+  expect(verified.raw.reanchors).toEqual(verified.raw.temporal.reanchors);
+  for (const [index, window] of manifest.windows.entries()) {
+    expect(window.actionAt).toBeLessThanOrEqual(window.terminalAt);
+    expect(window.terminalAt).toBeLessThanOrEqual(manifest.cutoffAt);
+    expect(Number.isSafeInteger(window.generationId)).toBe(true);
+    if (index > 0) expect(window.actionAt).toBeGreaterThan(manifest.windows[index - 1]!.terminalAt);
+    for (const key of Object.keys(arrays)) {
+      expect(window.indices[key], key + ' terminal after previous cutoff').toBeGreaterThanOrEqual(
+        manifest.from[key]!,
+      );
+      expect(window.indices[key], key + ' terminal before archive cutoff').toBeLessThanOrEqual(
+        manifest.to[key]!,
+      );
+    }
+  }
+  expect(verified.manifest).toEqual(manifest);
+  await page.evaluate(
+    ({ id, to }) => {
+      const state = (window as D2Window).__d2Archive!;
+      if (state.pending?.manifest.id !== id) throw new Error('D2 archive ACK mismatch');
+      state.offsets = to;
+      // Never clear the active tail here: RAF/Worker callbacks may have appended.
+      delete state.pending;
+    },
+    { id: manifest.id, to: manifest.to },
+  );
+  (d2Ledger!.archives ??= []).push({ ...manifest, path, sha256, bytes });
+  await test.info().attach(`d2-d4-${context}-segment-${manifest.id}-raw`, {
+    path,
+    contentType: 'application/json',
   });
+  return verified.raw;
 }
 
 function d2Vector(brightness: readonly number[]): string {
@@ -5715,9 +5842,9 @@ function d2GpioEdges(
   return edges;
 }
 
-function d2PaintEdges(raw: TemporalProbe, actionAt: number): D2PaintEdge[] {
+function d2PaintEdges(raw: TemporalProbe, actionAt: number, terminalAt = Infinity): D2PaintEdge[] {
   const edges: D2PaintEdge[] = [];
-  for (const run of validTemporalPaint(raw, actionAt)) {
+  for (const run of validTemporalPaint(raw, actionAt, terminalAt)) {
     const vector = d2Vector(run.first.brightness);
     const at = Math.max(actionAt, run.first.previousFrameAt!);
     if (edges.at(-1)?.vector !== vector) edges.push({ at, vector });
@@ -5802,172 +5929,204 @@ function d2MaximumBacklog(
   return maximum;
 }
 
-async function d2RetainRaw(
-  page: Page,
-  session: Awaited<ReturnType<typeof d2OpenOwnerTemporalSketch>>,
-  name: string,
-  metrics: unknown,
-) {
-  await retainOwnerTemporalEvidence(page, { ...session, name: 'd2-d4-' + name }, metrics);
-  const l = JSON.parse(
-    await page.evaluate(() => JSON.stringify((window as D2Window).__d2L ?? [])),
-  ) as D2LReceipt[];
-  const path = resolve(artifactRoot, 'd2-d4-' + name + '-l-raw.json');
-  writeFileSync(path, JSON.stringify(l, null, 2) + '\n');
-  await test.info().attach('d2-d4-' + name + '-l-raw', { path, contentType: 'application/json' });
+async function d2FailureArchive(page: Page, context: string, error: unknown) {
+  const state = await page.evaluate(() => {
+    const probe = window as D2Window;
+    return {
+      available: !!probe.__ownerTemporal && !!probe.__d2L,
+      pending: !!probe.__d2Archive?.pending,
+    };
+  });
+  retainD2SaveReceipt(context + '-failure', { status: 'FAIL', error: String(error), ...state });
+  // Never retry a failed pending archive, ACK it, or clear its active tail.
+  if (state.available && !state.pending) await d2Archive(page, context, []);
 }
 
-async function d2Capture(
-  page: Page,
-  session: Awaited<ReturnType<typeof d2OpenOwnerTemporalSketch>>,
-  stage: D2Stage,
-  action: 'start' | 'reset' = 'start',
-) {
-  let metrics: D2Metrics | undefined;
-  try {
-    const beforeAction = await page.evaluate(() => performance.now());
-    if (action === 'reset') await page.getByTestId('arduino-reset-button').click();
-    else await page.getByRole('button', { name: 'Начать моделирование', exact: true }).click();
-    const actionAt = await page.evaluate(
-      ({ action, beforeAction }) => {
-        const probe = window as TemporalWindow;
-        const clicks =
-          action === 'reset' ? probe.__ownerTemporal!.resetClicks : probe.__ownerStartClicks!;
-        const click = clicks.find((row) => row.trusted && row.at >= beforeAction);
-        if (!click) throw new Error('D2 acquisition has no trusted UI action');
-        return click.at;
-      },
-      { action, beforeAction },
-    );
-    await page.waitForFunction(
-      ({ source, actionAt, minimumModelUs }) => {
-        const raw = (window as TemporalWindow).__ownerTemporal!;
-        const ready = raw.frames.filter(
-          (row) =>
-            row.requestAt !== null &&
-            row.requestAt >= actionAt &&
-            row.source === source &&
-            row.executionStatus === 'ready',
-        );
-        let previous = '';
-        let edges = 0;
-        for (const run of raw.paintRuns) {
-          if (
-            run.lastAt < actionAt ||
-            run.first.brightness.length !== 3 ||
-            run.first.images.length !== 3 ||
-            !run.first.images.every(
-              (image, index) =>
-                image.decoded &&
-                image.visible &&
-                image.unoccluded &&
-                image.opacity === 1 &&
-                image.lit === run.first.brightness[index]! > 0,
-            )
+async function d2Capture(page: Page, stage: D2Stage, action: 'start' | 'reset' = 'start') {
+  const beforeAction = await page.evaluate(() => performance.now());
+  if (action === 'reset') await page.getByTestId('arduino-reset-button').click();
+  else await page.getByRole('button', { name: 'Начать моделирование', exact: true }).click();
+  const actionAt = await page.evaluate(
+    ({ action, beforeAction }) => {
+      const probe = window as D2Window;
+      const clicks =
+        action === 'reset' ? probe.__ownerTemporal!.resetClicks : probe.__ownerStartClicks!;
+      const click = clicks.find((row) => row.trusted && row.at >= beforeAction);
+      if (!click) throw new Error('D2 acquisition has no trusted UI action');
+      return click.at;
+    },
+    { action, beforeAction },
+  );
+  const native =
+    stage.name === '300-300'
+      ? d2NativeSamples(page, stage, actionAt).then(
+          () => ({ error: null }),
+          (error: unknown) => ({ error }),
+        )
+      : Promise.resolve({ error: null });
+  await page.waitForFunction(
+    ({ source, actionAt, minimumModelUs, stage }) => {
+      const raw = (window as D2Window).__ownerTemporal!;
+      const ready = raw.frames.filter(
+        (row) =>
+          row.requestAt !== null &&
+          row.requestAt >= actionAt &&
+          row.source === source &&
+          row.executionStatus === 'ready',
+      );
+      let previous = '';
+      let edges = 0;
+      for (const run of raw.paintRuns) {
+        if (
+          run.lastAt < actionAt ||
+          run.first.brightness.length !== 3 ||
+          run.first.images.length !== 3 ||
+          !run.first.images.every(
+            (image, index) =>
+              image.decoded &&
+              image.visible &&
+              image.unoccluded &&
+              image.opacity === 1 &&
+              image.lit === run.first.brightness[index]! > 0,
           )
-            continue;
-          const vector = run.first.brightness.map((value) => (value > 0 ? '1' : '0')).join('');
-          if (vector !== previous) {
-            edges++;
-            previous = vector;
-          }
+        )
+          continue;
+        const vector = run.first.brightness.map((value) => (value > 0 ? '1' : '0')).join('');
+        if (vector !== previous) {
+          edges++;
+          previous = vector;
         }
-        return (ready.at(-1)?.committedHorizonMicroseconds ?? -1) >= minimumModelUs && edges >= 50;
-      },
-      {
-        source: stage.source,
+      }
+      if ((ready.at(-1)?.committedHorizonMicroseconds ?? -1) < minimumModelUs || edges < 50)
+        return false;
+      const probe = window as D2Window;
+      const offsets = probe.__d2Archive?.offsets ?? {};
+      const arrays = {
+        worker: probe.__bitwiseWorker!,
+        ui: probe.__bitwiseUi!,
+        paint: probe.__ownerPaint!,
+        startClicks: probe.__ownerStartClicks!,
+        l: probe.__d2L!,
+        frames: raw.frames,
+        paintRuns: raw.paintRuns,
+        paintFrames: raw.paintFrames,
+        resetClicks: raw.resetClicks,
+        errors: raw.errors,
+        reanchors: raw.reanchors,
+      };
+      probe.__d2Boundary = {
+        stage,
         actionAt,
-        minimumModelUs: 3 * (stage.highMs + stage.offMs) * D2_CYCLES * 1000,
-      },
-      { timeout: D2_WAIT_MS },
-    );
-    const raw = await temporalObservation(page);
-    const full = await observation(page);
-    // Reset can complete a pre-click request between clearing buffers and the
-    // trusted action. Keep those receipts in full raw evidence and causality;
-    // the new acquisition is identified by its actual request clock.
-    const acquisition = {
-      ...raw,
-      frames: raw.frames.filter((row) => row.requestAt !== null && row.requestAt >= actionAt),
-    };
-    expect(
-      acquisition.frames.every((row) => row.source === stage.source),
-      'no stale source requested after the pupil action',
-    ).toBe(true);
-    const ready = assertTemporalFrames(acquisition, stage.source);
-    const generationId = ready[0]!.generationId!;
-    expect(Number.isSafeInteger(generationId)).toBe(true);
-    expect(
-      acquisition.frames.every(
-        (row) => row.generationId === generationId && row.responseGenerationId === generationId,
-      ),
-      'one generation throughout the acquisition',
-    ).toBe(true);
-    expect(ready[0]!.committedHorizonMicroseconds).toBe(0);
-    expect(ready[0]!.at - actionAt, 'H0 startup deadline').toBeLessThanOrEqual(5_000);
-    const electrical = d2ElectricalEdges(ready);
-    const gpio = d2GpioEdges(
-      full.worker.filter((row) => row.requestAt !== null && row.requestAt >= actionAt),
-      stage.source,
-      generationId,
-    );
-    const painted = d2PaintEdges(raw, actionAt);
-    const modelOrdered = d2AssertPrefix(electrical, 'physical current');
-    d2AssertPrefix(gpio, 'GPIO D2 D3 D4');
-    const paintOrdered = d2AssertPrefix(painted, 'actual loaded native LED images');
-    expect(paintOrdered[0]!.at - actionAt, 'first visible D2 phase deadline').toBeLessThanOrEqual(
-      5_000,
-    );
-    const physicalPhases = d2PhaseMetrics(modelOrdered, stage);
-    const phases = d2PhaseMetrics(paintOrdered, stage);
-    const causal = temporalPaintCausality(raw, stage.source, generationId, actionAt);
-    expect(causal.startup.h0ReadyAt).not.toBeNull();
-    expect(
-      causal.violations,
-      'every actual stable frame has a same-moment, current-generation electrical witness within 50ms',
-    ).toEqual([]);
-    expect(causal.witnesses.length).toBeGreaterThan(0);
-    const maximumBacklog = d2MaximumBacklog(electrical, painted, actionAt);
-    expect(maximumBacklog, 'maximum unpainted ordered physical states').toBeLessThanOrEqual(2);
-    const l = JSON.parse(
-      await page.evaluate(() => JSON.stringify((window as D2Window).__d2L ?? [])),
-    ) as D2LReceipt[];
-    const afterActionL = l.filter((row) => row.at >= actionAt);
-    expect(afterActionL.length).toBeGreaterThan(0);
-    expect(
-      afterActionL.every(
-        (row) => row.activeAttribute === 'false' && row.opacity === 0 && row.visible,
-      ),
-      'D13 L stays off while D2-D4 run',
-    ).toBe(true);
-    metrics = {
-      stage: stage.name,
-      generationId,
+        terminalAt: performance.now(),
+        generationId: ready[0]!.generationId!,
+        indices: Object.fromEntries(
+          Object.entries(arrays).map(([key, rows]) => [key, (offsets[key] ?? 0) + rows.length]),
+        ),
+      };
+      return true;
+    },
+    {
+      source: stage.source,
+      stage,
       actionAt,
-      sourceSha256: createHash('sha256').update(stage.source).digest('hex'),
-      readyCount: ready.length,
-      firstHorizon: ready[0]!.committedHorizonMicroseconds,
-      completeCycles: Math.floor((paintOrdered.length - 1) / 6),
-      medianCycleMs: phases.medianCycleMs,
-      phaseMediansMs: phases.phaseMediansMs,
-      maximumBacklog,
-      electrical,
-      gpio,
-      painted,
-      causal,
-    };
-    expect(physicalPhases.cycles.length).toBe(D2_CYCLES);
-    d2Ledger!.stages.push(metrics);
-    session.failures.assertEmpty();
-    return metrics;
-  } finally {
-    await d2RetainRaw(
-      page,
-      session,
-      stage.name,
-      metrics ?? { status: 'FAILED_BEFORE_COMPLETE_METRICS' },
-    );
-  }
+      minimumModelUs: 3 * (stage.highMs + stage.offMs) * D2_CYCLES * 1000,
+    },
+    { timeout: D2_WAIT_MS },
+  );
+  const boundary = await page.evaluate(() => (window as D2Window).__d2Boundary!);
+  return { boundary, native };
+}
+
+// Analyse only the closed acquisition window; retain the complete segment,
+// including all late responses and lifecycle rows, without causal-row filtering.
+function d2Analyze(
+  full: D2Raw,
+  boundary: D2Boundary,
+  failures: ReturnType<typeof collectBrowserFailures>,
+) {
+  const raw = full.temporal;
+  const { stage, actionAt, terminalAt } = boundary;
+  // Reset can complete a pre-click request between clearing buffers and the
+  // trusted action. Keep those receipts in full raw evidence and causality;
+  // the new acquisition is identified by its actual request clock.
+  const acquisition = {
+    ...raw,
+    frames: raw.frames.filter(
+      (row) => row.requestAt !== null && row.requestAt >= actionAt && row.at <= terminalAt,
+    ),
+    errors: raw.errors.filter((row) => row.at >= actionAt && row.at <= terminalAt),
+    reanchors: raw.reanchors.filter((row) => row.at >= actionAt && row.at <= terminalAt),
+  };
+  expect(
+    acquisition.frames.every((row) => row.source === stage.source),
+    'no stale source requested after the pupil action',
+  ).toBe(true);
+  const ready = assertTemporalFrames(acquisition, stage.source);
+  const generationId = ready[0]!.generationId!;
+  expect(Number.isSafeInteger(generationId)).toBe(true);
+  expect(generationId).toBe(boundary.generationId);
+  expect(
+    acquisition.frames.every(
+      (row) => row.generationId === generationId && row.responseGenerationId === generationId,
+    ),
+    'one generation throughout the acquisition',
+  ).toBe(true);
+  expect(ready[0]!.committedHorizonMicroseconds).toBe(0);
+  expect(ready[0]!.at - actionAt, 'H0 startup deadline').toBeLessThanOrEqual(5_000);
+  const electrical = d2ElectricalEdges(ready);
+  const gpio = d2GpioEdges(
+    full.worker.filter(
+      (row) => row.requestAt !== null && row.requestAt >= actionAt && row.at <= terminalAt,
+    ),
+    stage.source,
+    generationId,
+  );
+  const painted = d2PaintEdges(raw, actionAt, terminalAt);
+  const modelOrdered = d2AssertPrefix(electrical, 'physical current');
+  d2AssertPrefix(gpio, 'GPIO D2 D3 D4');
+  const paintOrdered = d2AssertPrefix(painted, 'actual loaded native LED images');
+  expect(paintOrdered[0]!.at - actionAt, 'first visible D2 phase deadline').toBeLessThanOrEqual(
+    5_000,
+  );
+  const physicalPhases = d2PhaseMetrics(modelOrdered, stage);
+  const phases = d2PhaseMetrics(paintOrdered, stage);
+  const causal = temporalPaintCausality(raw, stage.source, generationId, actionAt, terminalAt);
+  expect(causal.startup.h0ReadyAt).not.toBeNull();
+  expect(
+    causal.violations,
+    'every actual stable frame has a same-moment, current-generation electrical witness within 50ms',
+  ).toEqual([]);
+  expect(causal.witnesses.length).toBeGreaterThan(0);
+  const maximumBacklog = d2MaximumBacklog(electrical, painted, actionAt);
+  expect(maximumBacklog, 'maximum unpainted ordered physical states').toBeLessThanOrEqual(2);
+  const afterActionL = full.l.filter((row) => row.at >= actionAt && row.at <= terminalAt);
+  expect(afterActionL.length).toBeGreaterThan(0);
+  expect(
+    afterActionL.every(
+      (row) => row.activeAttribute === 'false' && row.opacity === 0 && row.visible,
+    ),
+    'D13 L stays off while D2-D4 run',
+  ).toBe(true);
+  const metrics: D2Metrics = {
+    stage: stage.name,
+    generationId,
+    actionAt,
+    sourceSha256: createHash('sha256').update(stage.source).digest('hex'),
+    readyCount: ready.length,
+    firstHorizon: ready[0]!.committedHorizonMicroseconds,
+    completeCycles: Math.floor((paintOrdered.length - 1) / 6),
+    medianCycleMs: phases.medianCycleMs,
+    phaseMediansMs: phases.phaseMediansMs,
+    maximumBacklog,
+    electrical,
+    gpio,
+    painted,
+    causal,
+  };
+  expect(physicalPhases.cycles.length).toBe(D2_CYCLES);
+  d2Ledger!.stages.push(metrics);
+  failures.assertEmpty();
+  return metrics;
 }
 
 async function d2Stop(page: Page): Promise<void> {
@@ -6017,14 +6176,15 @@ async function d2EditAndSave(
   page: Page,
   session: Awaited<ReturnType<typeof d2OpenOwnerTemporalSketch>>,
   stage: D2Stage,
-): Promise<D2SavedProject> {
+) {
   await page.getByRole('button', { name: 'Открыть редактор кода', exact: true }).click();
+  const saving = d2Save(page, session, stage.source);
+  void saving.catch(() => {});
   await page.locator('.arduino-source-editor textarea').fill(stage.source);
   await expect(page.locator('.arduino-source-editor textarea')).toHaveValue(stage.source);
-  const saved = await d2Save(page, session, stage.source);
   await page.getByRole('button', { name: 'Закрыть редактор кода', exact: true }).click();
   await expect(page.locator('.arduino-code-panel')).toHaveClass(/closed/);
-  return saved;
+  return { saving };
 }
 
 type D2NativeProbe = {
@@ -6383,33 +6543,73 @@ function d2ClassifyNativePng(png: D2Png, references: D2NativeReferences) {
   };
 }
 
-async function d2NativeSamples(page: Page, stage: D2Stage, raw: TemporalProbe): Promise<void> {
-  const full = await observation(page);
-  const ready = raw.frames.filter((frame) => frame.executionStatus === 'ready');
-  const generationId = ready[0]!.generationId!;
-  const physical: D2NativeProbe = {
-    source: stage.source,
-    epoch: generationId,
-    clicks: full.startClicks.map((click) => ({ ...click, action: 'start' })),
-    frames: ready.map((frame) => ({
-      at: frame.at,
-      status: frame.executionStatus,
-      solved: frame.solved,
-      quality: { passed: frame.qualityPassed },
-      source: frame.source,
-      loadedSource:
-        full.worker
-          .find((row) => row.requestId === frame.requestId)
-          ?.boards.find((board) => board.componentId === 'uno')?.loadedSource ?? null,
-      generationId: frame.generationId!,
-      requestId: frame.requestId,
-      committedUs: frame.committedHorizonMicroseconds,
-      components: frame.components,
-    })),
-  };
+async function d2NativeSamples(page: Page, stage: D2Stage, actionAt: number): Promise<void> {
+  // Wait only for real solved LOW/HIGH references, concurrently with acquisition.
+  // The later archive validates EVERY frame; this small projection is not raw evidence.
+  await page.waitForFunction(
+    ({ source, actionAt }) => {
+      const frames = (window as D2Window).__ownerTemporal!.frames.filter(
+        (row) =>
+          row.requestAt !== null &&
+          row.requestAt >= actionAt &&
+          row.source === source &&
+          row.executionStatus === 'ready',
+      );
+      return ['led0', 'led1', 'led2'].every(
+        (id) =>
+          frames.some((row) =>
+            row.components.some((led) => led.componentId === id && led.brightness === 0),
+          ) &&
+          frames.some((row) =>
+            row.components.some((led) => led.componentId === id && (led.brightness ?? 0) > 0),
+          ),
+      );
+    },
+    { source: stage.source, actionAt },
+    { timeout: D2_WAIT_MS },
+  );
+  const physical = await page.evaluate(
+    ({ source, actionAt }) => {
+      const probe = window as D2Window;
+      const ready = probe.__ownerTemporal!.frames.filter(
+        (row) =>
+          row.requestAt !== null && row.requestAt >= actionAt && row.executionStatus === 'ready',
+      );
+      return {
+        source,
+        epoch: ready[0]!.generationId!,
+        clicks: probe
+          .__ownerStartClicks!.filter((click) => click.at >= actionAt)
+          .map((click) => ({ ...click, action: 'start' })),
+        frames: ready.map((frame) => ({
+          at: frame.at,
+          status: frame.executionStatus,
+          solved: frame.solved,
+          quality: { passed: frame.qualityPassed },
+          source: frame.source,
+          loadedSource:
+            probe
+              .__bitwiseWorker!.find((row) => row.requestId === frame.requestId)
+              ?.boards.find((board) => board.componentId === 'uno')?.loadedSource ?? null,
+          generationId: frame.generationId!,
+          requestId: frame.requestId,
+          committedUs: frame.committedHorizonMicroseconds,
+          components: frame.components,
+        })),
+      };
+    },
+    { source: stage.source, actionAt },
+  );
+  const generationId = physical.epoch;
   const bases = D2_IDS.map((id) => d2NativeAssetBasis(physical, id));
   const { PNG } = await import('pngjs');
   const requested = ['100', '000', '010', '000', '001', '000', '100'];
+  const nativeWindows: Array<{
+    previousShotAt: number | null;
+    previousRequested: string | null;
+    shotAt: number;
+    vector: string;
+  }> = [];
   let previousShotAt: number | null = null;
   let previousRequested: string | null = null;
   let seekFrom = await page.evaluate(() => performance.now());
@@ -6550,34 +6750,70 @@ async function d2NativeSamples(page: Page, stage: D2Stage, raw: TemporalProbe): 
     expect(coherentWitness, 'mounted loaded image witness during native PNG capture').toBe(true);
     expect(observedVector, 'independently classified three-channel PNG').toBe(vector);
     expect(lOff, 'D13 L actual PNG and complete capture window remain dark').toBe(true);
-    if (previousShotAt !== null) {
-      const recent = await temporalObservation(page);
-      const between = d2PaintEdges(recent, previousShotAt).filter(
-        (edge) => edge.at <= beforeShot.paint.at,
-      );
-      expect(
-        between.map((edge) => edge.vector),
-        'native screenshots must follow adjacent phases of the real joint sequence',
-      ).toEqual([previousRequested, vector]);
-    }
+    nativeWindows.push({ previousShotAt, previousRequested, shotAt: beforeShot.paint.at, vector });
     previousShotAt = beforeShot.paint.at;
     previousRequested = vector;
     seekFrom = during.at;
   }
-  const complete = await temporalObservation(page);
-  assertTemporalFrames(complete, stage.source, generationId);
-  const actionAt = physical.clicks.find((click) => click.trusted)!.at;
-  const causal = temporalPaintCausality(complete, stage.source, generationId, actionAt);
+  const completedAt = await page.evaluate(() => performance.now());
+  // Only compact shot boundaries are retained here. Complete native causality,
+  // source/generation and adjacency checks run on the single durable full archive.
+  d2NativePending = { actionAt, completedAt, generationId, nativeWindows };
+}
+
+let d2NativePending:
+  | {
+      actionAt: number;
+      completedAt: number;
+      generationId: number;
+      nativeWindows: Array<{
+        previousShotAt: number | null;
+        previousRequested: string | null;
+        shotAt: number;
+        vector: string;
+      }>;
+    }
+  | undefined;
+
+function d2CheckNative(full: D2Raw, boundary: D2Boundary) {
+  const pending = d2NativePending;
+  if (!pending) throw new Error('D2 native capture did not finish');
+  const { actionAt, completedAt, generationId, nativeWindows } = pending;
+  expect(actionAt).toBe(boundary.actionAt);
+  expect(generationId).toBe(boundary.generationId);
+  expect(
+    completedAt,
+    'all seven PNGs are inside the running 300/300 acquisition',
+  ).toBeLessThanOrEqual(boundary.terminalAt);
+  for (const { previousShotAt, previousRequested, shotAt, vector } of nativeWindows) {
+    if (previousShotAt === null) continue;
+    const between = d2PaintEdges(full.temporal, previousShotAt, shotAt);
+    expect(
+      between.map((edge) => edge.vector),
+      'native screenshots must follow adjacent phases of the real joint sequence',
+    ).toEqual([previousRequested, vector]);
+  }
+  const complete = {
+    ...full.temporal,
+    frames: full.temporal.frames.filter((row) => row.at >= actionAt && row.at <= completedAt),
+    errors: full.temporal.errors.filter((row) => row.at >= actionAt && row.at <= completedAt),
+    reanchors: full.temporal.reanchors.filter((row) => row.at >= actionAt && row.at <= completedAt),
+  };
+  assertTemporalFrames(complete, boundary.stage.source, generationId);
+  const causal = temporalPaintCausality(
+    full.temporal,
+    boundary.stage.source,
+    generationId,
+    actionAt,
+    completedAt,
+  );
   expect(
     causal.violations,
     'native captures remain within the same-source same-generation physical timeline',
   ).toEqual([]);
-  const l = JSON.parse(
-    await page.evaluate(() => JSON.stringify((window as D2Window).__d2L ?? [])),
-  ) as D2LReceipt[];
   expect(
-    l
-      .filter((row) => row.at >= actionAt)
+    full.l
+      .filter((row) => row.at >= actionAt && row.at <= completedAt)
       .every((row) => row.activeAttribute === 'false' && row.opacity === 0 && row.visible),
   ).toBe(true);
   writeFileSync(
@@ -6610,12 +6846,18 @@ async function retainD2Ledger(info: import('@playwright/test').TestInfo): Promis
       'reopened-100-300',
     ]);
     expect(d2Ledger.native.length).toBe(7);
+    expect(d2Ledger.archives?.length, 'six complete durable archive groups').toBe(6);
+    expect(d2Ledger.archives!.map((row) => row.windows.length)).toEqual([1, 1, 1, 1, 2, 1]);
+    expect(
+      d2Ledger.archives!.flatMap((row) => row.windows.map((window) => window.stage.name)),
+    ).toEqual(d2Ledger.stages.map((stage) => stage.stage));
   }
 }
 
 test.describe('Classroom D2-D4 next visible slice', () => {
   test(D2_CLASSROOM_CASE, async ({ browser, baseURL }) => {
     test.setTimeout(840_000);
+    d2NativePending = undefined;
     const primaryContext = await browser.newContext({
       baseURL,
       viewport: { width: 1600, height: 1000 },
@@ -6625,8 +6867,10 @@ test.describe('Classroom D2-D4 next visible slice', () => {
       },
     });
     let primaryVideo: ReturnType<Page['video']> = null;
+    let page: Page | undefined;
+    let primaryCutoff = false;
     try {
-      const page = await primaryContext.newPage();
+      page = await primaryContext.newPage();
       primaryVideo = page.video();
       expect(d2Ledger).not.toBeNull();
       const stages: D2Stage[] = [
@@ -6643,27 +6887,46 @@ test.describe('Classroom D2-D4 next visible slice', () => {
       }));
       const lesson = readFileSync(resolve(D2_LESSON_PATH), 'utf8');
       for (const stage of stages) expect(lesson).toContain('```cpp\n' + stage.source + '```');
-      let session = await d2OpenOwnerTemporalSketch(page, stages[0]!.source, 'next-d2-d4');
+      const session = await d2OpenOwnerTemporalSketch(page, stages[0]!.source, 'next-d2-d4');
       await d2BuildProvenance(page);
       const projectUrl = page.url();
-      const initialWiring = session.saved.draft.document.connections;
+      const initialWiring = session.intendedDocument.connections;
+      let saved: D2SavedProject | undefined;
+      let fifth: Awaited<ReturnType<typeof d2Capture>> | undefined;
+      let fifthSaving: Promise<D2SavedProject> | undefined;
       for (let index = 0; index < stages.length; index++) {
         const stage = stages[index]!;
-        if (index > 0) {
-          const saved = await d2EditAndSave(page, session, stage);
-          session = { ...session, source: stage.source, saved };
+        const { saving } = index === 0 ? session : await d2EditAndSave(page, session, stage);
+        const capture = await d2Capture(page, stage);
+        if (index === stages.length - 1) {
+          fifth = capture;
+          fifthSaving = saving;
+          // No heavy export or offline assertions in the uninterrupted Run→Reset.
+          // Its actual save is checked after Reset's Stop, before any next edit/reopen.
+          break;
         }
-        session.startAt = await d2ClearProbe(page);
-        await d2Capture(page, session, stage);
-        if (stage.name === '300-300') {
-          try {
-            await d2NativeSamples(page, stage, await temporalObservation(page));
-          } finally {
-            await d2RetainRaw(page, session, stage.name + '-native', d2Ledger!.native);
-          }
-        }
-        if (index < stages.length - 1) await d2Stop(page);
+        await d2Stop(page);
+        const raw = await d2Archive(page, 'primary', [capture.boundary]);
+        saved = await saving;
+        const native = await capture.native;
+        if (native.error) throw native.error;
+        d2Analyze(raw, capture.boundary, session.failures);
+        if (stage.name === '300-300') d2CheckNative(raw, capture.boundary);
       }
+      if (!fifth) throw new Error('D2 fifth acquisition missing');
+      const last = stages.at(-1)!;
+      const reset = await d2Capture(page, { ...last, name: 'reset-100-300' }, 'reset');
+      await d2Stop(page);
+      // The fifth save observer was armed before its real edit; require its full
+      // PUT200/finished/request/response/GET proof before cookies-only reopen.
+      // d2EditAndSave's promise is retained, never replaced by a label or Save click.
+      const combined = await d2Archive(page, 'primary', [fifth.boundary, reset.boundary]);
+      primaryCutoff = true;
+      if (!fifthSaving) throw new Error('D2 fifth save observer missing');
+      saved = await fifthSaving;
+      const fifthMetrics = d2Analyze(combined, fifth.boundary, session.failures);
+      const resetMetrics = d2Analyze(combined, reset.boundary, session.failures);
+      expect(resetMetrics.generationId).not.toBe(fifthMetrics.generationId);
       const byName = new Map(d2Ledger!.stages.map((stage) => [stage.stage, stage]));
       const timing = [100, 150, 200, 300].map(
         (delay) => byName.get(`${delay}-${delay}`)!.medianCycleMs,
@@ -6679,14 +6942,9 @@ test.describe('Classroom D2-D4 next visible slice', () => {
         expect(timing[index!]! / timing[0]!).toBeGreaterThanOrEqual(low!);
         expect(timing[index!]! / timing[0]!).toBeLessThanOrEqual(high!);
       }
-      const last = stages.at(-1)!;
-      const beforeResetGeneration = d2Ledger!.stages.at(-1)!.generationId;
-      session.startAt = await d2ClearProbe(page);
-      const reset = await d2Capture(page, session, { ...last, name: 'reset-100-300' }, 'reset');
-      expect(reset.generationId).not.toBe(beforeResetGeneration);
-      await d2Stop(page);
-      expect((await session.read()).draft).toEqual(session.saved.draft);
-      expect(session.saved.draft.document.connections).toEqual(initialWiring);
+      if (!saved) throw new Error('D2 fifth autosave missing');
+      expect((await session.read()).draft).toEqual(saved.draft);
+      expect(saved.draft.document.connections).toEqual(initialWiring);
       session.failures.assertEmpty();
 
       // Cookies alone carry authentication. No storage state, in-memory circuit,
@@ -6699,9 +6957,11 @@ test.describe('Classroom D2-D4 next visible slice', () => {
         },
       });
       let reopenedVideo: ReturnType<Page['video']> = null;
+      let reopened: Page | undefined;
+      let reopenedCutoff = false;
       try {
         await context.addCookies(await page.context().cookies());
-        const reopened = await context.newPage();
+        reopened = await context.newPage();
         reopenedVideo = reopened.video();
         const failures = collectBrowserFailures(reopened, { allowAnonymousSessionProbe: true });
         await observeOwnerTemporal(reopened);
@@ -6720,21 +6980,21 @@ test.describe('Classroom D2-D4 next visible slice', () => {
           expect(response.status()).toBe(200);
           return response.json() as Promise<D2SavedProject>;
         };
-        expect((await read()).draft).toEqual(session.saved.draft);
+        expect((await read()).draft).toEqual(saved.draft);
         await reopened.getByRole('button', { name: 'Открыть редактор кода', exact: true }).click();
         await expect(reopened.locator('.arduino-source-editor textarea')).toHaveValue(last.source);
         await reopened.getByRole('button', { name: 'Закрыть редактор кода', exact: true }).click();
         await expect(reopened.locator('.arduino-code-panel')).toHaveClass(/closed/);
-        const reopenedSession = {
-          ...session,
-          read,
-          failures,
-          startAt: await d2ClearProbe(reopened),
-        };
-        await d2Capture(reopened, reopenedSession, { ...last, name: 'reopened-100-300' });
+        const reopenedCapture = await d2Capture(reopened, { ...last, name: 'reopened-100-300' });
         await d2Stop(reopened);
-        expect((await read()).draft).toEqual(session.saved.draft);
+        const reopenedRaw = await d2Archive(reopened, 'reopened', [reopenedCapture.boundary]);
+        reopenedCutoff = true;
+        d2Analyze(reopenedRaw, reopenedCapture.boundary, failures);
+        expect((await read()).draft).toEqual(saved.draft);
         failures.assertEmpty();
+      } catch (error) {
+        if (reopened && !reopenedCutoff) await d2FailureArchive(reopened, 'reopened', error);
+        throw error;
       } finally {
         await context.close();
         if (!reopenedVideo) throw new Error('cookies-only reopen native video missing');
@@ -6743,6 +7003,9 @@ test.describe('Classroom D2-D4 next visible slice', () => {
           contentType: 'video/webm',
         });
       }
+    } catch (error) {
+      if (page && !primaryCutoff) await d2FailureArchive(page, 'primary', error);
+      throw error;
     } finally {
       await primaryContext.close();
       if (!primaryVideo) throw new Error('D2-D4 primary native video missing');
