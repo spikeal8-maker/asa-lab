@@ -12,6 +12,49 @@ review: independent
 
 # E11 — одинаковая кайма выделения существующих деталей
 
+## R3 coordinate-only fixture and focus-poll exception — test only
+
+When canonically selected, this section supersedes only the old R2 bans on
+fixture coordinates and focus-poll implementation. All older product-author
+instructions below are historical and are NOT executable in this test phase.
+Current.yaml alone selects scope; the [dated final actual/cause receipt](../evidence/selection-outline-549-39cd72af-r3-selection-20261021.md)
+records an invalid10/16 BEFORE, not product or visual acceptance. Old card text
+and receipts remain immutable history.
+
+Author ONLY the existing outline browser spec. The accepted pure geometry
+proposal permits EXACTLY ONE fixture coordinate: resistor center.x350to180;
+y270 and every other eight centers remain unchanged. Preserve nine parts, IDs,
+topology, values, initial rotations, every native transform/action and full-doc
+oracle. The cached catalog/transformed-bounds proof retains the old/new fit
+envelope and introduces no new initial intersection; it is not actual native
+validation. No other coordinate,fit-envelope or terminal change is authorized.
+No zoom/pan/action change, camera workaround, sampler or allowGrid weakening,
+forced click or product-control repair. Camera-only movement cannot separate
+this proved physical overlap.
+
+Replace ONLY each iteration's Locator.evaluate focus poll with direct
+page.evaluate: query the exact same combined selector EACH poll, require EXACTLY
+ONE connected current target body, then compare exact document.activeElement
+identity. Otherwise throw a diagnostic before any extra Tab; never treat absence
+or duplication as silent false. Retain pre-loop attachment, final strict
+identity, EVERY native Tab/Enter call site, ordering, stop condition, tabLimit and
+actuators. No focus(), shorter route, skip/batch, new actions, timeout increase
+or omitted phase. Prove extracted actual old/new helper valid-target identity
+and strict absent/duplicate/detached/replaced cases using realistic DOM; no
+ancestor/class-only shortcut or stale captured target. The narrow timing
+exception is explicit: old absent-target Locator auto-wait becomes an immediate
+fail-closed diagnostic. The temporary20-assertion proposal proof is not actual
+helper implementation or evidence the real journey will fit.
+
+Preserve all16 cases, full ready C=H/solved/quality/finite and yielded-null checks,
+lossless JSONL prefix/hash/reference validation, exact whole document,1PUT/CAS,
+cookies-only reopen/R3 storage and every original deadline/native predicate.
+One self-reviewed frozen source candidate then STOP; NEW source review precedes
+ONE new frozen BEFORE. Until all16 complete with only expected soft outline
+failures and NEW actual review, product/AFTER is forbidden. AFTER uses the
+identical new whole test blob. #548 terminal NO_PROVEN_CAUSE and owner
+KEEP544/547 remain unchanged; security dependency repair is outside this scope.
+
 ## R2 evidence delivery and reopened nativePoint receipt — test only
 
 This bounded exception supersedes only the corrected BEFORE evidence mechanics;

@@ -8334,7 +8334,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: r2_actual_before_invalid_init_identity_repair_source_approved_NOT_RUN
+      checkpoint: r3_coordinate_only_fixture_and_focus_poll_repair_selected
       previous_checkpoint: r8_test_only_unique_native_meter_hit_path
       kind: repair
       owner_acceptance: pending
@@ -8344,13 +8344,13 @@ parallel_lanes:
       program_issue: 452
       owner_problem: E11
       repair_scope: >-
-        R2 test-evidence repair only in the existing outline browser spec. Deliver every full observed Worker
-        response exactly once, including ready and yielded responses, using a lossless incremental cursor/sequence.
-        Durably retain existing failed reopened nativePoint attempts and context before the original throw.
-        No sampler predicate, pan, fixture, action, timeout, retry, product or physics change.
+        R3 test-only exception in the existing outline spec. ONLY minimal fixture-coordinate separation proved
+        from catalog/transformed bounds and per-iteration focus identity poll transport implementation may change.
+        All other R2 invariants remain; no product, sampler/allowGrid/pan/zoom, action, timeout, retry or case omission.
       source_budget: >-
-        Author ONLY e2e/electronics-selection-outline.spec.ts for the two evidence mechanics. Preserve all
-        registrations and shared helpers. Extra tracked metadata or any additional path needs a precise proposal.
+        Author ONLY e2e/electronics-selection-outline.spec.ts within the two R3 exceptions. Pure geometry and
+        actual-helper old/new DOM equivalence proofs are required; no other tracked source, registration or metadata
+        path without a precise proposal. No local production browser,workflow,dependency or product repair.
       published_before_source_sha: e14229f93c7400fb39ae880cc9889aefdc8dcfb6
       frozen_browser_blob: c4e05c1109dbac9a74ef1548a208178a10789878
       frozen_browser_bytes: 64509
@@ -8359,7 +8359,7 @@ parallel_lanes:
       independent_source_review: SOURCE_APPROVE
       before_strict_run: 39490329377
       before_general_run: 39490297942
-      runtime_acceptance: INVALID_BEFORE_0_of16_probe_init_error
+      runtime_acceptance: INVALID_BEFORE_10of16_requires_R3_test_repair
       r2_evidence_contract:
         baseline_source: e14229f93c7400fb39ae880cc9889aefdc8dcfb6
         independent_review: NEEDS_FIX_INVALID_BEFORE_BASELINE
@@ -8391,17 +8391,37 @@ parallel_lanes:
         browser_bytes: 74488
         browser_lines: 1773
         browser_sha256: 5b09686df75c0206f1b48abfd17be0dfb82da4d4d829dca77843d02593acc118
+      observed_39cd_actual:
+        observed_at: '2026-10-20T23:57:19Z'
+        sha: 39cd72afdd0291763eb18772f5d4dda9bd07623b
+        run: 39510907476
+        verdict: NEEDS_FIX_INVALID_BEFORE
+        result: 10of16 fullcomplete,wholeDoc1PUT/base2/CAS3/freshstorage PASS;4 running Tab-loop deadline failures and2 mobile fresh reselect fixture occlusion failures.
+        ready: Running counts444/581/492/617,C=H solved quality finite;yielded0. All4 worker prefixes valid;1024late19tail UNKNOWN,not corruption or finalized complete journal.
+        evidence: docs/product/electronics/evidence/selection-outline-549-39cd72af-r3-selection-20261021.md
+      r3_fixture_focus_exception:
+        version: R3
+        supersedes: Only R2 fixture-coordinate prohibition and per-iteration focus polling implementation; old receipts and every other R2 invariant remain unchanged.
+        baseline: 39cd72afdd0291763eb18772f5d4dda9bd07623b
+        fixture: Controller accepted ONLY resistor center.x350to180,y270 unchanged;other8centers unchanged. Preserve9parts/IDs/topology/values/rotations/actions/fullDoc oracle; no other coordinate or fit-envelope/terminal change.
+        layout_proof_sha256: 5f93510445b66ea841e5c63062cca76f283ab5005fa46fbe2b92becc2d78bb6f
+        layout_proof_limits: Pure catalog/transformed-bounds proof;old/new initial and transformed fit envelopes equal,no new initial intersections. Runtime native validation NOT_RUN.
+        focus: Replace ONLY per-iteration Locator.evaluate with direct page.evaluate querying the exact same combined selector EACH poll;require EXACTLY ONE connected current body then compare exact activeElement identity,otherwise throw a diagnostic before any extra Tab;pre-loop attachment and final identity remain strict.
+        equivalence: Extract actual old/new helper and prove valid-target identity plus absent,duplicate,detached/replaced cases with realistic DOM;explicitly allow old absent-target auto-wait versus new immediate fail-closed diagnostic,never silent false or an extra Tab;preserve every native Tab/Enter call site,ordering,stop condition,tabLimit and actuators.
+        unchanged: All16cases,readyC=H solved finite quality/yieldednull,lossless JSONL prefix/hash/refs,fullDoc1PUT/CAS,cookies/R3storage,strict native predicate and deadlines.
+        forbidden: No sampler/allowGrid,forced hit,pan/zoom/action changes,focus injection,shorter keyboard route,skip/batch,new controls,timeout increase,product repair or whole-case omission.
+        freeze: NEW reviewed whole browser blob and frozen BEFORE; AFTER identical. Product/AFTER forbidden until16complete and NEW independent actual review.
       next_action: >-
-        Only the already selected R2 spec-only minimal initialization-identity repair has SOURCE_APPROVE;
-        its unpublished7e45 source is NOT runtime acceptance or an accepted actual baseline. Controller will
-        final-compose it preserving current docs/foreign main, then ONE justified NEW strict frozen BEFORE
-        with NEW actual review. Keep all R2 predicates/actions/deadlines/fullDoc/storage/CAS/ready invariants.
-        Require16complete before any product/AFTER; AFTER must use that identical newly frozen whole test blob.
-        No scope expansion,accepted code-fix claim,548 observer selection or closure.
+        ONE bounded R3 test author inherits the accepted pure layout proof. Change only the exact accepted
+        resistor center.x350to180 and direct identity-poll implementation; prove extracted actual old/new helper
+        equivalence before freeze,preserve native call sites/full strict oracles and all foreign
+        paths,then narrow checks/self-review and ONE unpublished frozen candidate STOP. NEW independent source
+        review precedes ONE new frozen BEFORE. All16 must complete with only causal expected outline failures
+        and NEW actual review before any product/AFTER; test bytes identical. No548 observer or security repair.
       preservation: >-
-        Preserve every original549 source/receipt and all foreign lanes,544/547 dependency-owner KEEP,548
-        NO_PROVEN_CAUSE and its separate proposal. Preserve52545,core/hook/LED/assets,accepted554 and every
-        acceptance/owner/device/classroom/deployment boundary. This selects only549 R2 evidence repair.
+        Preserve all549 prior sources/receipts,R2 lossless and failed-native receipts,all foreign D2/LED/hook/
+        workflow/current blocks and owner KEEP544/547 to548.548 remains terminal NO_PROVEN_CAUSE. General39cd
+        security dependency3HIGH failure C is not this repair scope. No closure,owner acceptance or deployment.
       before_parent_sha: 6f27bc9fd58eeb9a9262c9a30fb15c00075934f0
       before_parent_browser_blob: 57ca47df3aa89cfbccff5c242a36f42febc01be2
       corrected_before_exceptions: Genuine UI beforeAll login once per group/worker in disposable context,
@@ -8409,9 +8429,9 @@ parallel_lanes:
         draft entries empty; post-load local drafts empty and exactly fixture-derived session saved hint.
         Journal actual storage values before assertions. No extra gestures, waits, retries or deadline change.
       product_budget_note: Future three-branch Visual repair measured+4 bytes in a Temp-only module estimate.
-        Current actual217996/218000 leaves4 bytes; full bundle fit is NOT_PROVEN. No cap increase, source
+        Historical121f actual217996/218000 left4 bytes; actual39cd217938/218000 leaves62 bytes. AFTER full bundle fit is NOT_PROVEN. No cap increase, source
         refactor or automatic product phase is selected here.
-      selection_evidence: docs/product/electronics/evidence/ui-qualification-121f6599-actual-20261021.md
+      selection_evidence: docs/product/electronics/evidence/selection-outline-549-39cd72af-r3-selection-20261021.md
       preserved_candidate_sha: 5da91c88d1df4b87e5b3b92fafd9eacb03f77d11
       preserved_candidate_tree: 5f4e7150a795303b4802039118627bcac6ce8b0e
       candidate_branch: codex/electronics-549-outline-transform-oracle-r4
@@ -8475,15 +8495,15 @@ parallel_lanes:
       kind: observed_snapshot
       convergence_baseline_sha: 8f568af52429e7e3091a6bbf542df9000a003d85
       head_sha: null
-      observed_at: '2026-10-20T21:21:21Z'
+      observed_at: '2026-10-20T23:57:19Z'
       main:
         branch: main
-        sha: 482fbb86a38adb155f4f159845e0459ff7456bc0
+        sha: 6d6c5ad77b253566b35abcc02af85caa5eab5cfb
       observation_note: >-
-        Dated fresh main snapshot for549 R2 evidence selection, not live HEAD or runtime acceptance. Fetch main
-        and recover exact Git/CI/dirty paths before writes. General482f39496950515 failed Code,Governance passed,
-        Data/Access skipped; exact Code cause not inspected here. Preflight WAITING_HANDOFF only shared dirty
-        workflows; explicit owner exception is limited to three disjoint docs, never a SAFE or overlap bypass.
+        Dated fresh main selection with final39cd actual review and both cached cause audits; not a live HEAD
+        or product acceptance. Fetch main and recover Git/CI/dirty paths before writes. Shared workflow
+        WAITING_HANDOFF has standing disjoint exception only; actual overlap STOP,never SAFE. Preserve
+        all foreign state and old receipts; no GeneralPASS/security waiver or new548 experiment.
 
   - id: observability
     worktree_id: observability-authoring
