@@ -450,7 +450,7 @@ test('draft from historical Course and Activity versions uses the author UI, pro
   await editor.getByLabel('Название урока').fill('Unsaved input during outline refresh');
   releaseOutline();
 
-  await expect(page.getByText('Версия 4 уже актуальна.', { exact: true })).toBeVisible();
+  await expect(page.getByText('Публикация подтверждена: версия 4.', { exact: true })).toBeVisible();
   await expect(editor.getByRole('button', { name: /^Опубликовать/ })).toHaveCount(0);
   await expect(editor.getByLabel('Название урока')).toHaveValue(
     'Unsaved input during outline refresh',
@@ -1355,6 +1355,9 @@ test('Course publication lost response replays the exact V1 after V2 and reload 
   expect(await retried.json()).toEqual({ ...first, reused: true });
   expect(requests).toEqual([requests[0], requests[0]]);
   expect(receipts).toEqual([first, { ...first, reused: true }]);
+  await expect(
+    editor.getByText('Публикация подтверждена: версия 1.', { exact: true }),
+  ).toBeVisible();
   await page.unroute('**' + publishPath, publicationRoute);
   await editor.getByRole('button', { name: 'Опубликованная версия', exact: true }).click();
   const preview = editor.getByTestId('course-preview-page');
