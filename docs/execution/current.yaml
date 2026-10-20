@@ -8644,63 +8644,103 @@ parallel_lanes:
     - tools/test_ci_image_transport.py
     - docs/product/electronics/evidence/ci-image-transport-classroom-d13-receipt.json
     task:
-      id: TASK-ELECTRONICS-CLASSROOM-D13-001
-      issue: 638
+      id: TASK-ELECTRONICS-CLASSROOM-D2-D4-001
+      issue: 649
       parent_issue: 546
+      programme_issue: 452
       branch: main
       base_branch: main
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: d13_fresh_dispatch_and_proven_save_source_review_pending
+      checkpoint: d2_d4_selected_after_accepted_d13_main_pending_actual
       owner_acceptance: pending
-      programme_issue: 452
-      acceptance_revision: classroom-d13-v3-eighth-pace-r1
+      acceptance_revision: classroom-d2-d4-eighth-pace-r1
       active_qualification_profile: classroom-d13-v3
-      planned_qualification_profile: classroom-d13-v3
       selected_nominal_model_per_wall_pace: 0.125
-      measured_throughput_boundary: Three exact legacy scalar comparisons remain measured performance outcomes; every other35 timing comparison and all4 finite acquisitions remain binding. Native raw50ms, D13 relative-delay and electrical/lifecycle bounds remain binding.
-      qualification_amendment_review: pending_exact_source_review
-      previous_candidate_sha: ae4f2b03d6b8632ed284d0939aacb46da46ba6a5
-      previous_candidate_d13_review: not_accepted_classroom_167_pass_3_fail_lifecycle_reopen_unreached
+      qualification_contract_sha256: a794578587a78ead87eea54c20c4d486ba0561368bd4a8bbe194693ed4545c10
+      selected_at: '2026-10-20T01:57:39.410249+00:00'
+      baseline_sha: '07563687e9a34cf099849e36a02b8e9b3ef9c4c5'
+      preserved_source_patch_sha256: f77b19c6348e702242057bba4d800c1c2f7c3db06cbc83061992960c288464e7
+      preserved_source_patch: d13/d2-d4-075-preparation-r1/d2-d4-complete-on-075.patch
+      preserved_source_manifest: d13/d2-d4-075-preparation-r1/source-manifest.json
+      preserved_source_manifest_sha256: 99b726026eaf47fef33cdfada9df1856e01d0c0a71282debfeee622a2667ca74
+      preserved_source_review: recon/d2-d4-075-source-review/verdict-source-only.json
+      preserved_source_review_sha256: '028554aa1ccf318540a5aca13914e5b1ef0db0672d596669e59775cbd47e92e7'
       expected_write_paths:
-      - apps/web/src/electronics/led-temporal-presentation.ts
-      - apps/web/src/electronics/use-electronics-workbench.ts
-      - apps/web/src/electronics/live-simulation-worker-controller.ts
-      - apps/web/src/electronics/testing/live-simulation-worker-controller.spec.ts
-      - apps/web/src/electronics/testing/use-electronics-workbench-clock.spec.ts
-      - tools/check-web-bundle-budget.mjs
-      - apps/web/src/electronics/WorkbenchStage.tsx
-      - apps/web/src/electronics/testing/led-temporal-presentation.spec.ts
-      - apps/web/src/electronics/ProductionComponentVisual.tsx
-      - apps/web/src/electronics/testing/asset-recovery.spec.ts
-      - e2e/electronics-interactions.spec.ts
-      - e2e/electronics-simulation.spec.ts
-      - contexts/electronics/testing/engine-timed-api.spec.ts
       - e2e/electronics-ready-cadence.spec.ts
-      - e2e/electronics-classroom-timing.spec.ts
-      - package.json
+      - docs/product/electronics/examples/D2_D4_3x330ohm_red_LED.schematic.json
+      - docs/product/electronics/lessons/D2_D4_CLASSROOM.md
+      - docs/execution/current.yaml
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-CLASSROOM-D2-D4-001.md
       - .github/workflows/electronics-r4-m1-focused.yml
       - tools/test_ci_image_transport.py
-      - tools/run-electronics-classroom-browser.mjs
-      - tests/electronics/classroom-qualification.spec.ts
-      - docs/execution/current.yaml
-      - docs/product/electronics/tasks/TASK-ELECTRONICS-CLASSROOM-D13-001.md
-      path_coordination: The existing Electronics-field owned-path labels and global shared-path classifications remain unchanged. Explicit revision3 taskcard selects the host/renderer and nine active-image consumer changes with one author per path. Preserve the optical R2 observer and every foreign worktree; only the independently reviewed actual-save receipt amendment is selected in its persistence helper; require fresh fetch main and actual scoped overlap checks before writes. Labels confer no exclusive write permission under direct_main.
+      selected_browser_job_timeout_minutes: 50
+      preserved_review_images_timeout_minutes: 35
+      workflow_capacity_selection: 'Select browser50min with actual D13 job26m41s and the existing14min D2 case budget; preserve review-images35min and immutable545 receipt via reviewed narrow consumer projection; actual D2 duration remains pending'
+      path_coordination: Preserve current ownership labels, every foreign worktree and the accepted D13 source. Refresh actual main, AGENTS, scoped blockers and overlaps before writes. Apply only the three reviewed D2 insertion payloads onto the fresh ready file plus the byte-exact teacher files, browser35-to50 workflow delta and its narrowly selected guard projection. No whole-file overwrite, product clock or D13 registry change. Source authors and independent reviewers remain separate.
       reported_strict_qualification: pnpm gate:electronics-m1:browser on the same exact source under strict-real-time; preserve its actual conclusion separately from the required classroom gate.
-      qualification_inventory_review: 2af8f74ccd5cbe2c557fec44890e141a33652457c62d0140abb70eab59998738
-      qualification_contract_sha256: a794578587a78ead87eea54c20c4d486ba0561368bd4a8bbe194693ed4545c10
-      qualification_author_status: eighth_pace_r1_authored_pending_independent_source_and_actual
-      qualification_selection_at: '2026-10-19T22:46:24Z'
-      selected_at: '2026-10-19T11:10:21Z'
-      owner_authorization: Explicit 2026-10-19 instruction permits a first visible D13 slice with common measured slowdown, normal integration after browser/review/CI, and continued later slices; no deployment or live data action.
+      owner_authorization: Existing explicit 2026-10-19 instruction selects continuous visible classroom slices after accepted D13; no additional permission round is required for D2-D4 development and checked main integration. School deployment and working data remain separate.
       preserved_r26_sha: cdad26c361cb4cf8ed2d095fae3c087b5d2abb2d
       preserved_r27_sha: 1669d7b2f1f630b3c4da045147500a343e139ca9
       full_realtime_task: TASK-ELECTRONICS-SOLVER-PREPARATION-001
       context_hints:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-CLASSROOM-D2-D4-001.md
       - docs/product/electronics/tasks/TASK-ELECTRONICS-CLASSROOM-D13-001.md
-      - docs/product/electronics/components/engine-worker-clock.yaml
-      next_action: Independently review and compose fresh bounded host demand at actual ordinary Worker dispatch and the actual-save observer repair. Preserve common0.125 pace,6250us lookahead,25k observation limits, two native RAF, all42 core records,11 discoveries and unchanged numerical criteria. Run full same-SHA focused, benchmark, classroom-v3, separate strict and required General including Data/RLS; inspect actual native Save/reopen and all D13 results before normal main integration, then continue D2-D4. Reuse the separate retained Portal diagnostic for its independent CI failure; never alter Portal inside this D13 slice. Main is not deployment.
+      - docs/product/electronics/lessons/D2_D4_CLASSROOM.md
+      next_action: Reuse the independently approved five-file D2 source on actual accepted D13 main. Preserve seven acquisitions, eight cycles and49 ordered joint vectors, five complete programmes,150s acquisition/20s native-vector/840s case budgets and every existing physical/native/lifecycle criterion. D2-local Save R2 observes actual matching PUT before edits and validates the full independent circuit, finished200 response, request/revision and GET; accepted completed autosave requires no forced dirty or Save click. Discover the expected171-case roster and run all existing gates with browser50 and review-images35; obtain actual native and independent source review on the exact composed SHA, then integrate this useful D2 slice normally and continue the next ordinary-LED slice. No kernel, profile, numerical bound, skip, retry, infrastructure or deployment change.
+    previous_task:
+      id: TASK-ELECTRONICS-CLASSROOM-D13-001
+      issue: 638
+      parent_issue: 546
+      branch: main
+      status: 'technical_accepted'
+      checkpoint: 'd13_classroom_visible_accepted_integrated_main'
+      owner_acceptance: 'pending'
+      technical_acceptance: 'accepted'
+      candidate_observed_during_draft: 07563687e9a34cf099849e36a02b8e9b3ef9c4c5
+      accepted_source_sha: '07563687e9a34cf099849e36a02b8e9b3ef9c4c5'
+      actual_main_sha_after_integration: '07563687e9a34cf099849e36a02b8e9b3ef9c4c5'
+      integrated_at_utc: '2026-10-20T01:51:33.074Z'
+      main_observed_at_utc: '2026-10-20T01:52:24.404Z'
+      native_review_evidence: 'recon/d13-v3-final-release-review/07563687-d13-visible-result-review.json'
+      native_review_sha256: '0a7ecc53a29aee00b8601d60ff325f63af7b2b36064a28b735a6953b5b000116'
+      native_reviewed_at_utc: '2026-10-20T01:43:42.866392+00:00'
+      full_classroom_run: '39350679511'
+      full_classroom_conclusion: 'success'
+      full_classroom_result: '170 PASS / 0 FAIL; five D13 PASS;42core recorded,39 binding PASS,11 discovery PASS'
+      strict_run: '39350682439'
+      strict_conclusion: 'failure'
+      strict_result: '157 PASS / 13 FAIL retained;10 original5s acquisitions,2 independently classified framing failures,1 actual catalog error-status defect with unestablished cause'
+      general_run: '39350677796'
+      general_conclusion: 'success'
+      exact_ci_evidence: 'General39350677796 SUCCESS all4jobs including Data/RLS; classroom39350679511 SUCCESS focused118393871871,benchmark118394665735,browser118394665677 and images118402795280; strict39350682439 FAILURE157/13 retained separately; exact source07563687e9a34cf099849e36a02b8e9b3ef9c4c5'
+      completion_evidence: docs/product/electronics/tasks/TASK-ELECTRONICS-CLASSROOM-D13-001.md
+      resolved_acceptance_blocker: ELECTRONICS-CLASSROOM-D13-ACCEPTANCE
+      controller_acceptance_receipt: 'recon/07563687-controller-classroom-acceptance.json'
+      controller_acceptance_receipt_sha256: '6deaf39c6dcc00de9246c259e29d4443ff5a0d8157addee23bc0b9fcf1d0d919'
+      controller_accepted_at_utc: '2026-10-20T01:51:18.484243+00:00'
+      historical_acceptance_blocker_text: |2
+          - id: ELECTRONICS-CLASSROOM-D13-ACCEPTANCE
+            kind: acceptance_blocker
+            lane: electronics-classroom
+            task_id: TASK-ELECTRONICS-CLASSROOM-D13-001
+            blocks:
+            - technical_acceptance
+            - integration
+            - owner_acceptance
+            - release_claim
+            allows:
+            - bounded_repair
+            - documentation_update
+            - focused_verification
+            - independent_source_review
+            - independent_product_review
+            reason: The prospectively selected classroom revision uses one common0.125 event-history model/wall pace and6250us model lookahead while preserving raw50ms publication, physical instruction time, native assets and joint commits. Exactd0c915e full classroom168PASS2FAIL and strict160PASS10FAIL remain failed despite all four General jobs passing and five D13 cases passing in each run. The new sealed qualification retains38 timing records with35 binding,4 binding finite acquisitions and11 mandatory discovery receipts with original5s outcomes;0 new exceptions. Exact-title finite whole-case budgets include unchanged full per-row assertions and UI/lifecycle service. Require optically identical complete BEFORE/AFTER with separately reviewed actual-save receipt semantics, all D13 ratios/duty/order/physical/native/lifecycle/sustained bounds, exact required gates and NEW independent actual acceptance. Selection and source review do not accept the complete release or clear full-realtime Issue546.
+            evidence: docs/product/electronics/tasks/TASK-ELECTRONICS-CLASSROOM-D13-001.md
+      prior_source_state_sha256: 451b11b771f446292e6e453a6de5539aec2bf03a4b52177529145227badafe63
+      deployment: not_performed_by_this_transition
+      working_database_actions: none
     execution_lease:
       executor_id: electronics-classroom-d13
       holder: unassigned
@@ -8726,13 +8766,13 @@ parallel_lanes:
         - pnpm gate:repository
     revisions:
       kind: observed_snapshot
-      observed_at: '2026-10-19T22:46:24Z'
+      observed_at: '2026-10-20T01:52:24.404Z'
       main:
         branch: main
-        sha: e098d0c9a6e7724f3ed74a9c326afab7ad05ea7f
-      convergence_baseline_sha: e098d0c9a6e7724f3ed74a9c326afab7ad05ea7f
+        sha: '07563687e9a34cf099849e36a02b8e9b3ef9c4c5'
+      convergence_baseline_sha: '07563687e9a34cf099849e36a02b8e9b3ef9c4c5'
       head_sha: null
-      observation_note: Exactae4 retains classroom167PASS3FAIL and strict159PASS11FAIL. Classroom millis period normalizes to1236.35ms against900..1100 and initial Reset discovery misses16s before targetH1.25m; neither is accepted. Both profiles hit a Save helper that requests another PUT after successful autosave; cookies-only reopen is unreached. General governance/code/Access passed, Data failed and its one isolated repeat also failed in unchanged Portal PG tests; RLS was not reached. Fresh actual main remains e098d0c9, candidate clean atae4; no main integration or deployment. All old evidence, foreign lanes and acceptance requirements remain preserved. Fresh fetch main and actual refs are required before writes and integration.
+      observation_note: 'D13 exact07563687 passed General39350677796 and full classroom39350679511 with170/0 and independent actual native acceptance; strict39350682439 remains157/13 including an observed catalog failure-feedback defect of unestablished cause. Normal exact-source main integration completed2026-10-20T01:51:33.074Z and GitHub readback confirmed075. Select unique Issue649 D2-D4 with the saved reviewed five-file source; D2 browser/review/CI/main outcomes remain pending. Full546, foreign lanes and hygiene retained; no deployment. Fresh fetch main is required before new writes and integration.'
 
 
   - id: electronics-classroom-hygiene
@@ -8982,10 +9022,10 @@ blocking:
     unblock_requires: Actual required exact-SHA gates plus complete native/visual and whole-document
       Save/CAS/reopen evidence and NEW independent runtime/visual approval; text changes alone cannot close this blocker.
     evidence: docs/product/electronics/evidence/mobile-add-connect-6184f331-review.md
-  - id: ELECTRONICS-CLASSROOM-D13-ACCEPTANCE
+  - id: ELECTRONICS-CLASSROOM-D2-D4-ACCEPTANCE
     kind: acceptance_blocker
     lane: electronics-classroom
-    task_id: TASK-ELECTRONICS-CLASSROOM-D13-001
+    task_id: TASK-ELECTRONICS-CLASSROOM-D2-D4-001
     blocks:
     - technical_acceptance
     - integration
@@ -8997,7 +9037,7 @@ blocking:
     - focused_verification
     - independent_source_review
     - independent_product_review
-    reason: The prospectively selected classroom revision uses one common0.125 event-history model/wall pace and6250us model lookahead while preserving raw50ms publication, physical instruction time, native assets and joint commits. Exactd0c915e full classroom168PASS2FAIL and strict160PASS10FAIL remain failed despite all four General jobs passing and five D13 cases passing in each run. The new sealed qualification retains38 timing records with35 binding,4 binding finite acquisitions and11 mandatory discovery receipts with original5s outcomes;0 new exceptions. Exact-title finite whole-case budgets include unchanged full per-row assertions and UI/lifecycle service. Require optically identical complete BEFORE/AFTER with separately reviewed actual-save receipt semantics, all D13 ratios/duty/order/physical/native/lifecycle/sustained bounds, exact required gates and NEW independent actual acceptance. Selection and source review do not accept the complete release or clear full-realtime Issue546.
-    evidence: docs/product/electronics/tasks/TASK-ELECTRONICS-CLASSROOM-D13-001.md
+    reason: D2-D4 is selected only after the external actual D13 controller acceptance receipt, new independent review and normal tested-source main integration recorded in previous_task. The five-file source-only review does not grant actual browser acceptance. Require the existing physical/source/native joint-frame, seven acquisitions/eight cycles/49 ordered vectors, five programmes, Reset/cookies-reopen, relative periods/duty, startup5s/Stop1s/raw50ms/backlog2 criteria; D2-local Save R2 requires matching finished PUT200, the whole independently intended circuit and exact request/response/GET revisions without forced dirty or Save clicks. Require existing exact source/CI gates and actual discovery of all170 prior cases plus1 D2 case. Selected150s acquisition/20s native-vector/840s case budgets and browser50 with review-images35 add no exceptions or command changes. Clear only this new slice's evidenced cause before its integration and release claims; full-realtime Issue546 and all other blockers remain unchanged.
+    evidence: docs/product/electronics/tasks/TASK-ELECTRONICS-CLASSROOM-D2-D4-001.md
 
 next_task: null

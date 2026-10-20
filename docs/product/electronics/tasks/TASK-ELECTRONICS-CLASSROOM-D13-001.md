@@ -983,3 +983,71 @@ The owner has already authorized normal verified main integration and continued
 visible slices. After the complete D13 result passes, publish it and continue
 D2-D4 without a new general permission request. School deployment and live data
 operations remain separate actions.
+
+
+## D13 completion and handoff to D2-D4 — actual accepted main record
+
+**D13 TECHNICALLY ACCEPTED AND IN MAIN.** Exact tested source
+`07563687e9a34cf099849e36a02b8e9b3ef9c4c5` was integrated normally on2026-10-20.
+The following records cite completed exact-source evidence. Owner acceptance
+remains pending; full realtime Issue546 and the school installation remain separate.
+
+| Actual record | Actual completed evidence |
+| --- | --- |
+| Accepted tested source SHA | `07563687e9a34cf099849e36a02b8e9b3ef9c4c5` |
+| Full classroom run `39350679511`: conclusion and complete170 roster result | `success`; `170 PASS / 0 FAIL; five D13 PASS;42core recorded,39 binding PASS,11 discovery PASS` |
+| Separate strict run `39350682439`: actual conclusion and result | `failure`; `157 PASS / 13 FAIL retained;10 original5s acquisitions,2 independently classified framing failures,1 actual catalog error-status defect with unestablished cause` |
+| General run `39350677796` and exact focused/benchmark evidence | `success`; `General39350677796 SUCCESS all4jobs including Data/RLS; classroom39350679511 SUCCESS focused118393871871,benchmark118394665735,browser118394665677 and images118402795280; strict39350682439 FAILURE157/13 retained separately; exact source07563687e9a34cf099849e36a02b8e9b3ef9c4c5` |
+| Independent native review: path, hash and time | `recon/d13-v3-final-release-review/07563687-d13-visible-result-review.json`; `0a7ecc53a29aee00b8601d60ff325f63af7b2b36064a28b735a6953b5b000116`; `2026-10-20T01:43:42.866392+00:00` |
+| Measured D13 100/150/200/300/asymmetric phases, Reset, saved reopen and sustained result | `Full-cycle medians100=1624.90ms,150=2415.50ms,200=3216.80ms,300=4816.35ms; asymLOW/HIGH2.988873; joint LED/L order, physical negatives, Reset, full actual autosave and cookies-only reopen accepted;60.751s sustained,37 cycles,backlog1; Stop9.1-17.9ms. Controlled BEFORE51259f7b already had different periods but wrong duty/backlog/reopen; no claim of identical before tempos. Original native videos have longer individual holds outside primary acquisitions; no perfect realtime claim.` |
+| Technical acceptance and separate owner-acceptance status | `accepted`; `pending` |
+| Actual main SHA and integration/observation timestamps | `07563687e9a34cf099849e36a02b8e9b3ef9c4c5`; `2026-10-20T01:51:33.074Z`; `2026-10-20T01:52:24.404Z` |
+| Factual disposition of this task's acceptance blocker | `Technical and integration conditions satisfied by controller receipt6deaf39c6dcc00de9246c259e29d4443ff5a0d8157addee23bc0b9fcf1d0d919 and combined independent reviewd20ab00ade3144a4d224bee669974371dca1498bc9b05431ef7fc24bec3694f2; original blocker retained below; owner acceptance pending` |
+| Next unique issue and canonical task | `649`; TASK-ELECTRONICS-CLASSROOM-D2-D4-001 |
+
+The existing owner instruction authorizes continuation after this accepted
+visible result; it does not require another permission request for D2-D4.
+Preserve all historical source failures, the complete realtime Issue546 blocker,
+all foreign lanes/gates and the separate hygiene history. The controller first records actual D13 acceptance outside the repository,
+then integrates the exact tested source by the normal fast-forward route. The
+immediate three-document follow-up replaces ONLY this D13 active blocker with
+the pending D2 acceptance blocker. That replacement is conditional on the actual
+receipt `recon/07563687-controller-classroom-acceptance.json`, SHA256
+`6deaf39c6dcc00de9246c259e29d4443ff5a0d8157addee23bc0b9fcf1d0d919`, recorded at
+`2026-10-20T01:51:18.484243+00:00`, and the new independent review above.
+Those prerequisites are now satisfied. This transition preserves the original
+strict FAILURE and does not claim that the school installation was updated.
+
+The next slice reuses the five-file D2 source packet on075, patch SHA256
+`f77b19c6348e702242057bba4d800c1c2f7c3db06cbc83061992960c288464e7`, manifest SHA256
+`99b726026eaf47fef33cdfada9df1856e01d0c0a71282debfeee622a2667ca74`, source-only review SHA256
+`028554aa1ccf318540a5aca13914e5b1ef0db0672d596669e59775cbd47e92e7`, and the
+accepted common0.125/native joint-frame protocol. Its new task has separate
+actual browser/CI acceptance. D0-D13, all ordinary colours, RGB, seven-segment
+GPIO and bitwise work remain subsequent visible slices.
+
+### Preserved original D13 acceptance-blocker text
+
+The following is historical text copied exactly from the input current.yaml.
+It is retained here, in previous_task, and in Git history when the controller
+records the evidenced transition. It is not a new active D13 or D2 assertion.
+
+```yaml
+  - id: ELECTRONICS-CLASSROOM-D13-ACCEPTANCE
+    kind: acceptance_blocker
+    lane: electronics-classroom
+    task_id: TASK-ELECTRONICS-CLASSROOM-D13-001
+    blocks:
+    - technical_acceptance
+    - integration
+    - owner_acceptance
+    - release_claim
+    allows:
+    - bounded_repair
+    - documentation_update
+    - focused_verification
+    - independent_source_review
+    - independent_product_review
+    reason: The prospectively selected classroom revision uses one common0.125 event-history model/wall pace and6250us model lookahead while preserving raw50ms publication, physical instruction time, native assets and joint commits. Exactd0c915e full classroom168PASS2FAIL and strict160PASS10FAIL remain failed despite all four General jobs passing and five D13 cases passing in each run. The new sealed qualification retains38 timing records with35 binding,4 binding finite acquisitions and11 mandatory discovery receipts with original5s outcomes;0 new exceptions. Exact-title finite whole-case budgets include unchanged full per-row assertions and UI/lifecycle service. Require optically identical complete BEFORE/AFTER with separately reviewed actual-save receipt semantics, all D13 ratios/duty/order/physical/native/lifecycle/sustained bounds, exact required gates and NEW independent actual acceptance. Selection and source review do not accept the complete release or clear full-realtime Issue546.
+    evidence: docs/product/electronics/tasks/TASK-ELECTRONICS-CLASSROOM-D13-001.md
+```
