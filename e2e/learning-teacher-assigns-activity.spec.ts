@@ -182,6 +182,10 @@ async function learnerAssignments(
   await page.getByLabel('Код ученика', { exact: true }).fill(keys.get(handle)!);
   await page.getByRole('button', { name: 'Войти', exact: true }).click();
   await openPortalSection(page, 'Моё обучение');
+  await page
+    .getByRole('navigation', { name: 'Разделы моего обучения' })
+    .getByRole('link', { name: 'Задания', exact: true })
+    .click();
   return { context, page };
 }
 
@@ -497,6 +501,10 @@ test('learner exact published task image stays pinned across v1 and v2', async (
 
   await learnerA.page.goto('/#/');
   await openPortalSection(learnerA.page, 'Моё обучение');
+  await learnerA.page
+    .getByRole('navigation', { name: 'Разделы моего обучения' })
+    .getByRole('link', { name: 'Задания', exact: true })
+    .click();
   rowA = learnerA.page.getByTestId('seat-assignments').locator('li').filter({ hasText: title });
   const v1StillA = rowA.getByRole('img', { name: `Образец: ${title}` });
   await expect(v1StillA).toBeVisible();

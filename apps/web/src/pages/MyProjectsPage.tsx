@@ -552,7 +552,7 @@ export function MyProjectsPage({
                   response
                     ? (FEEDBACK_LABELS[response.badge ?? ''] ?? 'Есть отклик педагога')
                     : learning
-                      ? 'Учебная работа'
+                      ? 'Приватный'
                       : 'Личный проект'
                 }
                 {...(tone ? { footerTone: tone } : {})}

@@ -1,4 +1,5 @@
 import type { ComponentKind, ProductionStateValue, SchematicComponent } from './document.js';
+import { captureDeviceModelDefinition } from './models/device-model.js';
 
 export type ElectricalModelId =
   | 'ideal-dc-source'
@@ -124,6 +125,17 @@ const EXACT_IDENTITIES: Readonly<Record<string, ElectricalModelIdentity>> = {
   'signal-generator': identity('function-generator', 'asa-function-generator-1mhz'),
   oscilloscope: identity('oscilloscope', 'asa-two-terminal-oscilloscope'),
 };
+
+const strictIdentityDefinitionsAreOriginal = captureDeviceModelDefinition([
+  EXACT_IDENTITIES['arduino-uno'],
+  EXACT_IDENTITIES['resistor-axial'],
+  EXACT_IDENTITIES['led-5mm'],
+]);
+
+/** Package-internal origin of the three shared identities used by the strict route. */
+export function strictElectricalIdentitiesHaveOriginalDefinition(): boolean {
+  return strictIdentityDefinitionsAreOriginal();
+}
 
 function identity(
   electricalModelId: ElectricalModelId,

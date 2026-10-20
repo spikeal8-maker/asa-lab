@@ -90,3 +90,16 @@ ONE NEW bounded author starts from preserved clean8ccd on a new codex branch. ON
 Fresh normal canonical preflight/card validation; inspect shared dependency junction and never reinstall shared node_modules. Narrow formatting/source selector/real consumer/specificity checks, then sequential literal NX_SKIP_NX_CACHE=true focused gate with fresh counts, bounded selfreview/full source inverse/foreign mode-blob proof. ONE unpublished source SHA/tree/report/hashmanifest thenSTOP. Author may not push/CI/browser/stack/deploy/DB/backups/network settings. Root checks actual source, converges once, runs ONE changed-cause full8 AFTER using identical scenario, required ordinary exact General/Electronics all8 and NEW independent final PRODUCT reviewer. Causal checker is not that final reviewer. No school/owner/global complaint closure.
 
 Main699 General38016363479 is red only in independent Portal public-chunk recovery1024: attempts1vs2 at4495,285PASS/1FAIL; categoryC concrete failure sent to authorized Portal owner. No Portal code is included in this slice, no weakening or hopeful rerun; final exact gates remain mandatory. Exact wire391 General38016578210 is independently green with identical Portal bytes; this does not repair the saved Portal failure. Hygiene since last accepted checkpoint counts541/543=2 at phase selection; re-evaluate after next technical acceptance before another new production phase.
+
+## Owner UI closure programme: selected final composition
+
+Owner explicitly requested verification, integration and closure of unfinished electronics UI branches, from simple repairs to larger work.
+This selected slice composes the preserved single-selector547 repair onto accepted main; source publication is not acceptance or closure.
+The following FOUR-path budget supersedes the earlier five-path registration budget for this final composition only.
+Keep e2e/electronics-switch-shadow.spec.ts exact blob d200caa60d6a183d1d5849c8a22946e1c3ab2e15:31632 bytes, SHA25652e568da0223b75925d67e127b9f8cd7ae2bfecf7353e6968a6dd5d0e8330fdc.
+Change only the existing active CSS selector; preserve its declaration and every other CSS rule.
+In package.json add only the new spec to e2e:electronics-simulation, preserving all seven existing files and e2e:electronics; add one existing UI component-map test entry.
+Workflow exception: omit the historical positive path-filter edit. CSS already matches existing workflow paths, manual dispatch remains available, and occupied D13 workflow must remain byte-identical.
+Do not copy the diagnostic AFTER workflow or change infrastructure, guards, dependencies, core, hook, LED, Stage/Visual, persistence or owner assets.
+Fresh narrow checks, NEW independent source review and exact final gates/product review remain required; dispatch once and avoid CI polling loops.
+Asset548 remains an acceptance/closure dependency until actual final evidence and NEW independent review resolve it; owner acceptance stays pending and544 is not declared done.

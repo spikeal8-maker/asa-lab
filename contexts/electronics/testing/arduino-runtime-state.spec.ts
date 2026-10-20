@@ -1,8 +1,36 @@
 import { describe, expect, it } from 'vitest';
-import { advanceArduinoRuntime, resetArduinoRuntime } from '../domain/arduino-program-runtime.js';
+import {
+  advanceArduinoRuntime,
+  advanceClockedArduinoRuntime,
+  arduinoRuntimeStateMatchesProgram,
+  createOwnedClockedArduinoRuntime,
+  resetArduinoRuntime,
+  type ArduinoRuntimeAdvance,
+  type ArduinoRuntimeState,
+} from '../domain/arduino-program-runtime.js';
 import { isArduinoTimedWaveformState } from '../domain/arduino-waveform-runtime.js';
 
 describe('Arduino persistent runtime state', () => {
+  it('preserves borrowed binding and live electrical Map mutations in a public reader', () => {
+    const source = `int value=1;int first=0;int second=0;
+      void setup(){pinMode(13,OUTPUT);delayMicroseconds(10);first=value;second=analogRead(A0)+value;}
+      void loop(){delay(100);}`;
+    const initial = advanceClockedArduinoRuntime(source, {}, 0);
+    let reads = 0;
+    const result = advanceClockedArduinoRuntime(source, {}, 0.02, initial.state, (electrical) => {
+      reads++;
+      Object.assign(initial.state.scopes[0]!.value!, { value: 7 });
+      (electrical.outputVoltages as Map<string, number>).set('d13', 3);
+      return { a0: 0 };
+    });
+    expect(reads).toBe(1);
+    expect(result.diagnostics).toEqual([]);
+    expect(result.state.variables).toMatchObject({ first: 1, second: 7, value: 7 });
+    expect(result.state.outputVoltages.d13).toBe(3);
+    expect(initial.state.scopes[0]!.value!.value).toBe(7);
+    expect(initial.state.outputVoltages.d13).toBe(0);
+  });
+
   it('keeps nested typed bindings and const across a serialized delay', () => {
     const source = `int value=1; int observed=0; void setup(){
       const int step=2;
@@ -542,5 +570,221 @@ describe('Arduino persistent runtime state', () => {
     expect(restarted.state.variables.count).toBe(0);
     expect(restarted.state.scopes).toHaveLength(3);
     expect(restarted.state.resumeAtMs).toBe(200);
+  });
+});
+
+describe('owned instruction workspace lifetimes', () => {
+  const compare = (
+    source: string,
+    budget: number,
+    targets: readonly number[],
+    stopAtElectricalBoundary: boolean,
+    initial?: ArduinoRuntimeState,
+  ) => {
+    const context = createOwnedClockedArduinoRuntime(source, structuredClone(initial));
+    expect(context).not.toBeNull();
+    if (!context) throw new Error('Fixture must use the admitted AST');
+    let previous = initial;
+    const saved: { advance: ArduinoRuntimeAdvance; bytes: string }[] = [];
+    try {
+      for (const target of targets) {
+        let advance: ArduinoRuntimeAdvance;
+        let steps = 0;
+        do {
+          advance = context.advance(target / 1000, budget, stopAtElectricalBoundary);
+          const reference = advanceClockedArduinoRuntime(
+            source,
+            {},
+            target / 1000,
+            previous,
+            undefined,
+            { instructionBudget: budget, stopAtElectricalBoundary },
+          );
+          expect(advance).toStrictEqual(reference);
+          expect(JSON.stringify(advance)).toBe(JSON.stringify(reference));
+          expect(arduinoRuntimeStateMatchesProgram(source, advance.state)).toBe(true);
+          for (const retained of saved)
+            expect(JSON.stringify(retained.advance)).toBe(retained.bytes);
+          saved.push({ advance, bytes: JSON.stringify(advance) });
+          previous = reference.state;
+          if (++steps > 2000) throw new Error('Fixture did not reach its horizon');
+        } while (advance.executionStatus === 'yielded');
+        if (advance.executionStatus === 'fault') break;
+      }
+      context.dispose();
+      context.dispose();
+      for (const retained of saved) expect(JSON.stringify(retained.advance)).toBe(retained.bytes);
+      expect(() => context.advance(1, budget)).toThrow('Disposed Arduino request');
+      return saved;
+    } finally {
+      context.dispose();
+    }
+  };
+
+  it.each([1, 7, 256, 1024])(
+    'reactivates clean lexical scopes and current envelope fields, budget %i',
+    (budget) => {
+      const source = `int total=0;unsigned long last=0;float zero=-0.0;
+        void setup(){pinMode(13,OUTPUT);int setupLocal=9;total=setupLocal;}
+        void loop(){unsigned long now=millis();int pending;const int step=2;
+          for(int index=0;index<2;index++){int total=index;int inner=micros();last=inner;}
+          if(total<100){int step=3;total+=step;}
+          int index=0;while(index<2){int total=index;index++;}
+          int chosen=(1||millis())+(0&&micros());
+          total+=step+chosen;digitalWrite(13,total%2);delayMicroseconds(2);}`;
+      for (const stop of [false, true]) {
+        const saved = compare(source, budget, [0, 1, 9, 17, 31, 80, 83, 150], stop);
+        expect(saved.at(-1)!.advance.state.loopIterations).toBeGreaterThan(1);
+        expect(
+          saved.some(({ advance }) =>
+            advance.state.scopes.some((scope) => scope.pending?.value === null),
+          ),
+        ).toBe(true);
+        const later = saved.slice(1).map(({ advance }) => JSON.stringify(advance));
+        const first = saved[0]!.advance.state;
+        Object.assign(first.variables, { total: -123 });
+        Object.assign(first.scopes[0]!.zero!, { value: 123 });
+        expect(first.variables).toBe(first.variables);
+        expect(first.scopes).toBe(first.scopes);
+        expect(saved.slice(1).map(({ advance }) => JSON.stringify(advance))).toEqual(later);
+      }
+    },
+  );
+
+  it('imports an active nested scope before using empty depth slots on later returns', () => {
+    const source = `int sum=0;void setup(){pinMode(13,OUTPUT);}
+      void loop(){{int value=7;delayMicroseconds(5);sum+=value;}int value=3;sum+=value;}`;
+    const initial = advanceClockedArduinoRuntime(source, {}, 0.006).state;
+    expect(initial.scopes.length).toBeGreaterThan(2);
+    const before = JSON.stringify(initial);
+    const saved = compare(source, 7, [7, 20, 45, 80], true, initial);
+    expect(saved.at(-1)!.advance.state.variables.sum).toBeGreaterThan(10);
+    expect(JSON.stringify(initial)).toBe(before);
+  });
+
+  it('keeps the original maximum active depth and never retires globals', () => {
+    const source = `int global=9;void loop(){${'{'.repeat(126)}int local=1;${'}'.repeat(126)}delayMicroseconds(1);}`;
+    const saved = compare(source, 256, [126, 300, 700], false);
+    expect(saved.some(({ advance }) => advance.state.scopes.length === 128)).toBe(true);
+    expect(saved.every(({ advance }) => advance.state.variables.global === 9)).toBe(true);
+    const tooDeep = `void loop(){${'{'.repeat(127)}int local=1;${'}'.repeat(127)}}`;
+    expect(createOwnedClockedArduinoRuntime(tooDeep)).toBeNull();
+    expect(advanceClockedArduinoRuntime(tooDeep, {}, 1).diagnostics[0]).toMatchObject({
+      code: 'compile_error',
+      message: expect.stringContaining('вложенность областей'),
+    });
+  });
+
+  it('ignores mutation of a detached old projection while scopes continue to reactivate', () => {
+    const source = 'int global=9;void loop(){int local=global;global++;delayMicroseconds(1);}';
+    const context = createOwnedClockedArduinoRuntime(source)!;
+    const first = context.advance(0, 1, true);
+    let reference = advanceClockedArduinoRuntime(source, {}, 0, undefined, undefined, {
+      instructionBudget: 1,
+      stopAtElectricalBoundary: true,
+    });
+    Object.assign(first.state.variables, { global: 999 });
+    Object.assign(first.state.scopes[0]!.global!, { value: 999 });
+    const mutated = JSON.stringify(first);
+    try {
+      let advanced;
+      do {
+        advanced = context.advance(0.05, 7, true);
+        reference = advanceClockedArduinoRuntime(source, {}, 0.05, reference.state, undefined, {
+          instructionBudget: 7,
+          stopAtElectricalBoundary: true,
+        });
+        expect(advanced).toStrictEqual(reference);
+      } while (advanced.executionStatus === 'yielded');
+      expect(advanced.state.variables.global).toBeLessThan(100);
+      expect(JSON.stringify(first)).toBe(mutated);
+    } finally {
+      context.dispose();
+    }
+  });
+
+  it.each(['uninitialized', 'overflow', 'nonfinite', 'initializer'] as const)(
+    'keeps %s failure at the original instruction without stale effects',
+    (kind) => {
+      const body =
+        kind === 'uninitialized'
+          ? 'int pending;int answer=pending;'
+          : kind === 'overflow'
+            ? 'int maximum=32767;maximum++;'
+            : kind === 'nonfinite'
+              ? 'float maximum=3e38;maximum*=3e38;'
+              : 'const int answer=1/zero;';
+      const source = `int zero=0;int loops=0;void setup(){pinMode(13,OUTPUT);}
+        void loop(){loops++;digitalWrite(13,HIGH);if(loops>1){${body}}digitalWrite(13,LOW);}`;
+      for (const budget of [1, 7, 256, 1024]) {
+        const saved = compare(source, budget, [2, 9, 25, 80], true);
+        const fault = saved.at(-1)!.advance;
+        expect(fault.executionStatus).toBe('fault');
+        expect(fault.diagnostics[0]!.code).toBe('arithmetic_error');
+        expect(fault.setupActions).toEqual([]);
+        expect(fault.loopActions).toEqual([]);
+        expect(fault.events).toEqual([]);
+        expect(fault.state.scopes.every((scope) => scope.answer === undefined)).toBe(true);
+      }
+    },
+  );
+
+  it.each([
+    ['millis(1)', 'число аргументов millis'],
+    ['micros(1)', 'число аргументов micros'],
+    ['millis(undefined)', '«undefined» не объявлена'],
+    ['micros(undefined)', '«undefined» не объявлена'],
+    ['millis(pending)', 'число аргументов millis'],
+    ['micros(pending)', 'число аргументов micros'],
+    ['millis(1/zero)', 'число аргументов millis'],
+    ['micros(1/zero)', 'число аргументов micros'],
+    ['0&&millis(pending)', 'число аргументов millis'],
+    ['1||micros(1/zero)', 'число аргументов micros'],
+    ['0&&millis(undefined)', '«undefined» не объявлена'],
+    ['1||micros(undefined)', '«undefined» не объявлена'],
+  ])('preserves argument evaluation and arity priority for %s', (expression, message) => {
+    const source = `void loop(){int pending;int zero=0;int answer=${expression};}`;
+    expect(createOwnedClockedArduinoRuntime(source)).toBeNull();
+    const result = advanceClockedArduinoRuntime(source, {}, 1);
+    expect(result.diagnostics[0]).toMatchObject({
+      code: 'compile_error',
+      message: expect.stringContaining(message),
+    });
+    expect(result.events).toEqual([]);
+  });
+
+  it.each(['millis', 'micros'])(
+    'preserves the %s shadowing error, including suppressed calls',
+    (name) => {
+      for (const expression of [`${name}()`, `0&&${name}()`, `1||${name}()`]) {
+        const source = `void loop(){int ${name}=1;int answer=${expression};}`;
+        expect(createOwnedClockedArduinoRuntime(source)).toBeNull();
+        expect(advanceClockedArduinoRuntime(source, {}, 1).diagnostics[0]).toMatchObject({
+          code: 'compile_error',
+          message: expect.stringContaining(`«${name}» — переменная, а не функция`),
+        });
+      }
+    },
+  );
+
+  it('keeps clock reads fresh across unequal horizons and separate requests', () => {
+    const source = `unsigned long seen=0;void setup(){seen=micros();}
+      void loop(){unsigned long now=millis();seen=micros()+now;delayMicroseconds(7);}`;
+    const first = compare(source, 7, [0, 1, 17, 42, 43, 1001, 1011], false);
+    const final = first.at(-1)!.advance.state;
+    expect(final.variables.seen).toBeGreaterThan(1000);
+    const second = compare(source, 1, [0, 1, 17], true);
+    expect(second.at(-1)!.advance.state.variables.seen).toBeLessThan(100);
+    expect(JSON.stringify(first.at(-1)!.advance)).toBe(first.at(-1)!.bytes);
+  });
+
+  it.each([
+    'void loop(){int seen=digitalRead(13);}',
+    'void loop(){int seen=analogRead(A0);}',
+    'void setup(){tone(13,1000);}void loop(){delay(1);}',
+    'void setup(){Serial.begin(9600);}void loop(){int seen=Serial.read();}',
+    'void loop(){int seen=min(millis(),micros());}',
+  ])('keeps unproved/peripheral syntax generic: %s', (source) => {
+    expect(createOwnedClockedArduinoRuntime(source)).toBeNull();
   });
 });

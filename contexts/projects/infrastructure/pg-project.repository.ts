@@ -161,6 +161,21 @@ interface ResolvedProjectContext {
   readonly userId: string | null;
 }
 
+/** Composition may add a current subject policy without replacing Project ACL.
+ * Runs on the same transaction client before protected data is read or changed.
+ * Any locks it acquires live through the Project transaction's commit/rollback.
+ */
+export type ProjectTransactionGuard = (
+  client: pg.PoolClient,
+  input: {
+    readonly tenantId: string;
+    readonly actor: ProjectActor;
+    readonly projectId?: string;
+    readonly moduleKey?: string;
+    readonly operation?: 'list';
+  },
+) => Promise<void | { readonly excludeGames: true }>;
+
 /**
  * Notes project work in the record of the class it belongs to.
  *
@@ -209,11 +224,12 @@ export class PgProjectRepository implements ProjectRepositoryPort {
   constructor(
     private readonly pool: pg.Pool,
     private readonly transactionClient?: pg.PoolClient,
+    private readonly transactionGuard?: ProjectTransactionGuard,
   ) {}
 
   /** Reuse the caller's transaction for a multi-domain command. */
   inTransaction(client: pg.PoolClient): PgProjectRepository {
-    return new PgProjectRepository(this.pool, client);
+    return new PgProjectRepository(this.pool, client, this.transactionGuard);
   }
 
   private async withEditorWriteContext<T>(
@@ -383,6 +399,11 @@ export class PgProjectRepository implements ProjectRepositoryPort {
       projectUserId = row.user_id;
     }
     const create = async (client: pg.PoolClient): Promise<CreateProjectResult> => {
+      await this.transactionGuard?.(client, {
+        tenantId: projectTenantId,
+        actor: input.actor,
+        moduleKey: input.moduleKey,
+      });
       let projectTitle = input.title;
       if (input.automaticTitlePrefix) {
         const sequenceLockKey = JSON.stringify([
@@ -510,6 +531,11 @@ export class PgProjectRepository implements ProjectRepositoryPort {
     const access = await this.projectContext(input.tenantId, input.projectId, input.actor);
     if (access === null) return { kind: 'project_not_found' };
     return withTenantContext(this.pool, access.tenantId, async (client) => {
+      await this.transactionGuard?.(client, {
+        tenantId: access.tenantId,
+        actor: input.actor,
+        projectId: input.projectId,
+      });
       // Origin and legacy-work claims lock this same Project row before writing
       // their immutable proof. Keep the lock until the copy is committed so a
       // retry cannot race a new claim or return an earlier idempotent copy.
@@ -568,6 +594,11 @@ export class PgProjectRepository implements ProjectRepositoryPort {
     }
 
     return withTenantContext(this.pool, projectTenantId, async (client) => {
+      await this.transactionGuard?.(client, {
+        tenantId: projectTenantId,
+        actor: input.actor,
+        moduleKey: input.moduleKey,
+      });
       const counted = await client.query(
         `SELECT COUNT(*)::integer AS project_count
            FROM projects p
@@ -610,14 +641,29 @@ export class PgProjectRepository implements ProjectRepositoryPort {
         AND ($${index + 4}::uuid IS NULL OR (${sortColumn}, p.id) ${ascending ? '>' : '<'}
           (${filter.sort === 'title' ? `$${index + 5}::text COLLATE "C"` : `$${index + 5}::timestamptz`}, $${index + 4}::uuid))
         ORDER BY ${sortColumn} ${ascending ? 'ASC' : 'DESC'}, p.id ${ascending ? 'ASC' : 'DESC'} LIMIT $${index + 1}`;
-    const pageValues = [
-      filter.moduleKey ?? null,
-      filter.limit ?? null,
-      filter.search ?? null,
-      filter.excludeGames ?? false,
-      filter.after?.id ?? null,
-      (filter.sort === 'title' ? filter.after?.title : filter.after?.updatedAt) ?? null,
-    ];
+    // Recheck inside the same transaction that reads game rows. Mixed lists
+    // keep ordinary projects when admission is denied; an explicit game filter
+    // is rejected by the injected application guard. Existing ACL is unchanged.
+    let excludeGames = filter.excludeGames ?? false;
+    const pageValuesFor = async (client: pg.PoolClient, scopedTenantId: string) => {
+      if (!excludeGames) {
+        const guarded = await this.transactionGuard?.(client, {
+          tenantId: scopedTenantId,
+          actor,
+          operation: 'list',
+          ...(filter.moduleKey === undefined ? {} : { moduleKey: filter.moduleKey }),
+        });
+        if (guarded?.excludeGames) excludeGames = true;
+      }
+      return [
+        filter.moduleKey ?? null,
+        filter.limit ?? null,
+        filter.search ?? null,
+        excludeGames,
+        filter.after?.id ?? null,
+        (filter.sort === 'title' ? filter.after?.title : filter.after?.updatedAt) ?? null,
+      ];
+    };
     if (filter.scope === 'classroom' && filter.classroomId) {
       const access = await this.pool.query(
         `SELECT tenant_id, user_id
@@ -627,6 +673,7 @@ export class PgProjectRepository implements ProjectRepositoryPort {
       const row = access.rows[0] as { tenant_id: string; user_id: string } | undefined;
       if (!row) return [];
       return withTenantContext(this.pool, row.tenant_id, async (client) => {
+        const pageValues = await pageValuesFor(client, row.tenant_id);
         const result = await client.query(
           `SELECT p.id,p.project_scope,p.classroom_id,p.module_key,p.title,p.status,p.created_at,
                   d.updated_at,d.preview_json,d.preview_digest,s.source_revision AS snapshot_revision
@@ -644,6 +691,7 @@ export class PgProjectRepository implements ProjectRepositoryPort {
     if (actor.userId === null) {
       if (filter.scope === 'classroom') return [];
       const own = await withTenantContext(this.pool, tenantId, async (client) => {
+        const pageValues = await pageValuesFor(client, tenantId);
         const result = await client.query(
           `SELECT p.id, p.project_scope, p.classroom_id, p.module_key, p.title,
            p.copied_from_project_id, p.copied_from_author, p.copied_from_title, p.copied_at,
@@ -670,10 +718,11 @@ export class PgProjectRepository implements ProjectRepositoryPort {
           result.rows as ProjectRow[],
         );
       });
-      return this.mergeLinkedPersonalProjects(actor, status, filter, own);
+      return this.mergeLinkedPersonalProjects(actor, status, { ...filter, excludeGames }, own);
     }
     if (filter.scope === 'personal') {
       const own = await withTenantContext(this.pool, tenantId, async (client) => {
+        const pageValues = await pageValuesFor(client, tenantId);
         const result = await client.query(
           `SELECT p.id, p.project_scope, p.classroom_id, p.module_key, p.title,
            p.copied_from_project_id, p.copied_from_author, p.copied_from_title, p.copied_at,
@@ -709,9 +758,10 @@ export class PgProjectRepository implements ProjectRepositoryPort {
           result.rows as ProjectRow[],
         );
       });
-      return this.mergeLinkedPersonalProjects(actor, status, filter, own);
+      return this.mergeLinkedPersonalProjects(actor, status, { ...filter, excludeGames }, own);
     }
     return withTenantContext(this.pool, tenantId, async (client) => {
+      const pageValues = await pageValuesFor(client, tenantId);
       const result = await client.query(
         `SELECT DISTINCT ${sortColumn} AS page_order,
                 p.id,p.project_scope,p.classroom_id,p.module_key,p.title,p.status,p.created_at,
@@ -746,6 +796,11 @@ export class PgProjectRepository implements ProjectRepositoryPort {
     const access = await this.projectContext(tenantId, projectId, actor);
     if (access === null) return null;
     return withTenantContext(this.pool, access.tenantId, async (client) => {
+      await this.transactionGuard?.(client, {
+        tenantId: access.tenantId,
+        actor: actor,
+        projectId: projectId,
+      });
       const found = await client.query(
         `SELECT p.id,p.project_scope,p.classroom_id,p.module_key,p.title,p.status,p.created_at,
                 d.document_json,d.revision,d.updated_at,d.preview_json,d.preview_digest
@@ -803,6 +858,11 @@ export class PgProjectRepository implements ProjectRepositoryPort {
     const access = await this.projectContext(tenantId, projectId, actor);
     if (access === null) return null;
     return this.withEditorWriteContext(access.tenantId, projectId, async (client) => {
+      await this.transactionGuard?.(client, {
+        tenantId: access.tenantId,
+        actor: actor,
+        projectId: projectId,
+      });
       const updated = await client.query(
         `UPDATE projects p SET title=$5
           WHERE p.tenant_id=$1 AND p.id=$2 AND p.status <> 'trashed' AND ${EDIT_ACCESS_SQL}
@@ -842,6 +902,11 @@ export class PgProjectRepository implements ProjectRepositoryPort {
     const access = await this.projectContext(input.tenantId, input.projectId, input.actor);
     if (access === null) return null;
     return this.withEditorWriteContext(access.tenantId, input.projectId, async (client) => {
+      await this.transactionGuard?.(client, {
+        tenantId: access.tenantId,
+        actor: input.actor,
+        projectId: input.projectId,
+      });
       const updated = await client.query(
         `WITH updated AS (
           UPDATE project_drafts d
@@ -913,6 +978,11 @@ export class PgProjectRepository implements ProjectRepositoryPort {
     const access = await this.projectContext(tenantId, projectId, actor);
     if (access === null) return null;
     return withTenantContext(this.pool, access.tenantId, async (client) => {
+      await this.transactionGuard?.(client, {
+        tenantId: access.tenantId,
+        actor: actor,
+        projectId: projectId,
+      });
       const updated = await client
         .query(
           `UPDATE projects p SET status=$5
@@ -973,6 +1043,11 @@ export class PgProjectRepository implements ProjectRepositoryPort {
     const access = await this.projectContext(tenantId, projectId, actor);
     if (access === null) return null;
     return this.withEditorWriteContext(access.tenantId, projectId, async (client) => {
+      await this.transactionGuard?.(client, {
+        tenantId: access.tenantId,
+        actor: actor,
+        projectId: projectId,
+      });
       const draft = await client.query(
         `SELECT d.document_json
            FROM project_drafts d
@@ -1039,6 +1114,11 @@ export class PgProjectRepository implements ProjectRepositoryPort {
     const access = await this.projectContext(tenantId, projectId, actor);
     if (access === null) return null;
     return withTenantContext(this.pool, access.tenantId, async (client) => {
+      await this.transactionGuard?.(client, {
+        tenantId: access.tenantId,
+        actor: actor,
+        projectId: projectId,
+      });
       const rows = await client.query(
         `SELECT v.id, v.project_id, v.version_no, v.label, v.created_at
            FROM project_versions v
@@ -1067,6 +1147,11 @@ export class PgProjectRepository implements ProjectRepositoryPort {
     const access = await this.projectContext(tenantId, projectId, actor);
     if (access === null) return null;
     return this.withEditorWriteContext(access.tenantId, projectId, async (client) => {
+      await this.transactionGuard?.(client, {
+        tenantId: access.tenantId,
+        actor: actor,
+        projectId: projectId,
+      });
       // The version being returned to.
       const target = await client.query(
         `SELECT v.document_json, v.version_no
@@ -1178,6 +1263,11 @@ export class PgProjectRepository implements ProjectRepositoryPort {
     const access = await this.projectContext(input.tenantId, input.projectId, input.actor);
     if (access === null) return null;
     return this.withEditorWriteContext(access.tenantId, input.projectId, async (client) => {
+      await this.transactionGuard?.(client, {
+        tenantId: access.tenantId,
+        actor: input.actor,
+        projectId: input.projectId,
+      });
       // The image is accepted only while the draft is still the exact revision
       // from which the editor rendered it. Otherwise an older canvas could be
       // stored under a newer immutable card URL.
@@ -1223,6 +1313,11 @@ export class PgProjectRepository implements ProjectRepositoryPort {
     const access = await this.projectContext(tenantId, projectId, actor);
     if (access === null) return null;
     return withTenantContext(this.pool, access.tenantId, async (client) => {
+      await this.transactionGuard?.(client, {
+        tenantId: access.tenantId,
+        actor: actor,
+        projectId: projectId,
+      });
       const found = await client.query(
         `SELECT s.project_id, s.image, s.content_type, s.width, s.height,
                 s.source_revision, s.captured_at

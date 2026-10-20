@@ -1,0 +1,71 @@
+.classroom-games-settings {
+  min-width: 0;
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--border, #d8e2e9);
+  border-radius: 12px;
+  background: var(--surface, #fff);
+}
+.classroom-games-settings legend {
+  padding: 0 5px;
+  font-size: 14px;
+  font-weight: 650;
+}
+.classroom-games-settings-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+}
+.classroom-games-settings-row > label {
+  font-size: 13px;
+}
+.classroom-games-settings select {
+  min-width: 0;
+  max-width: 100%;
+  min-height: 34px;
+  padding: 5px 8px;
+  border: 1px solid var(--border, #c8d6e0);
+  border-radius: 8px;
+  background: var(--surface, #fff);
+  color: inherit;
+}
+.classroom-games-threshold {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.classroom-games-threshold input {
+  width: 80px;
+  min-width: 0;
+  padding: 5px 8px;
+}
+.classroom-games-settings .classroom-games-help {
+  margin: 8px 0 0;
+  color: var(--text-muted, #526173);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.classroom-games-settings-error,
+.classroom-games-settings-notice {
+  margin: 8px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.classroom-games-settings-error {
+  color: #942a2a;
+}
+.classroom-games-settings-notice {
+  color: #236346;
+}
+.classroom-games-settings--seat {
+  margin: 0 0 12px;
+}
+@media (max-width: 420px) {
+  .classroom-games-settings {
+    padding: 10px;
+  }
+  .classroom-games-settings-row > label:first-child {
+    flex-basis: 100%;
+  }
+}

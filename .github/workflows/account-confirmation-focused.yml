@@ -1,0 +1,185 @@
+name: Account Confirmation Focused
+
+on:
+  push:
+    branches: [main, 'codex/account-confirmation-*', 'codex/auth-readiness-*']
+    paths:
+      - 'apps/api/src/**'
+      - 'apps/web/src/**'
+      - 'migrations/**'
+      - 'tests/account/**'
+      - 'tests/migration/**'
+      - 'e2e/auth-confirmation-ui.spec.ts'
+      - 'e2e/access-account-ui.spec.ts'
+      - 'e2e/classroom-owner-ui.spec.ts'
+      - 'playwright.auth-confirmation.config.ts'
+      - 'playwright.settings-ui.config.ts'
+      - 'schemas/openapi.yaml'
+      - 'compose.staging.yaml'
+      - '.env.example'
+      - 'tools/asa-lab.sh'
+      - 'tools/asa-lab.ps1'
+      - 'tools/provision-settings-key.mjs'
+      - 'tools/deployment/test_auth_installer.py'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/account-confirmation-focused.yml'
+  pull_request:
+    paths:
+      - 'apps/api/src/**'
+      - 'apps/web/src/**'
+      - 'migrations/**'
+      - 'tests/account/**'
+      - 'tests/migration/**'
+      - 'e2e/auth-confirmation-ui.spec.ts'
+      - 'e2e/access-account-ui.spec.ts'
+      - 'e2e/classroom-owner-ui.spec.ts'
+      - 'playwright.auth-confirmation.config.ts'
+      - 'playwright.settings-ui.config.ts'
+      - 'schemas/openapi.yaml'
+      - 'compose.staging.yaml'
+      - '.env.example'
+      - 'tools/asa-lab.sh'
+      - 'tools/asa-lab.ps1'
+      - 'tools/provision-settings-key.mjs'
+      - 'tools/deployment/test_auth_installer.py'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/account-confirmation-focused.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: account-confirmation-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  CI: 'true'
+  NX_SKIP_NX_CACHE: 'true'
+  NX_DAEMON: 'false'
+  ASA_BUILD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  authentication:
+    name: Policy, providers and PostgreSQL
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: docker.io/library/postgres@sha256:75adc2a65806c96bc0e59030230bfe3f1c1b0d6d8f8181a8913e2b8b53bdc166
+        env:
+          POSTGRES_DB: asa_auth_confirmation_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: auth-confirmation-ci-only
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d asa_auth_confirmation_test"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    env:
+      TEST_DATABASE_URL: postgresql://postgres:auth-confirmation-ci-only@127.0.0.1:5432/asa_auth_confirmation_test
+      APP_TEST_DATABASE_URL: postgresql://asalab_app:auth-confirmation-ci-only@127.0.0.1:5432/asa_auth_confirmation_test
+      MIGRATION_DATABASE_URL: postgresql://postgres:auth-confirmation-ci-only@127.0.0.1:5432/asa_auth_confirmation_test
+      MIGRATION_EXPECT_DATABASE: asa_auth_confirmation_test
+      MIGRATION_CONFIRM: APPLY:asa_auth_confirmation_test
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec nx run api:build --skip-nx-cache
+      - run: pnpm contracts:check
+      - name: Migrate disposable database and provision restricted runtime
+        run: |
+          pnpm db:migrate
+          psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -c "ALTER ROLE asalab_app WITH LOGIN PASSWORD 'auth-confirmation-ci-only'"
+      - run: pnpm db:migrate:check
+      - name: Authentication unit regressions
+        run: pnpm test:auth-confirmation --reporter=default --reporter=json --outputFile=reports/auth-confirmation-unit.json
+      - name: Real database, session and HTTP regressions
+        run: pnpm test:auth-confirmation:pg --reporter=default --reporter=json --outputFile=reports/auth-confirmation-postgres.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: auth-confirmation-server-${{ github.event.pull_request.head.sha || github.sha }}-${{ github.run_attempt }}
+          path: reports/auth-confirmation-*.json
+          if-no-files-found: warn
+          retention-days: 14
+
+  browser:
+    name: Built sign-in and admin interface
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec nx run web:typecheck --skip-nx-cache
+      - run: pnpm exec playwright install --with-deps chromium
+      - name: Build the exact web application
+        run: pnpm exec nx run web:build --skip-nx-cache
+      - name: Sign-in, confirmation, outage fallback and responsive administration
+        run: pnpm e2e:auth-confirmation
+      - name: Existing Account security and settings composition
+        run: pnpm e2e:settings-ui --grep 'R3 Account compact composition'
+      - name: Existing classroom mobile header and drawer
+        run: >-
+          pnpm e2e:settings-ui e2e/classroom-owner-ui.spec.ts
+          --grep 'single header keeps all global actions and a working drawer$'
+      - name: Preserve screenshots, traces and build identity
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: auth-confirmation-ui-${{ github.event.pull_request.head.sha || github.sha }}-${{ github.run_attempt }}
+          path: |
+            reports/auth-confirmation
+            reports/playwright
+            playwright-report
+            test-results
+            e2e/artifacts/auth-confirmation
+            apps/web/dist/build-metadata.json
+          if-no-files-found: warn
+          retention-days: 14
+
+  installation:
+    name: Authentication installation (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Preserve credentials and test bootstrap on temporary fixtures
+        run: pnpm test:auth-confirmation:installation

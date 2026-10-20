@@ -15,6 +15,1440 @@ const evidenceDir = 'reports/blocks/product-integration';
 const barkAssetId = 'cd8fa8390b0efdd281882533fbfcfcfb';
 const popAssetId = '83a9787d4cb6f3b7632b4ddfebf74367';
 
+const abbyObserverStages = [
+  'observer-ready',
+  'observer-unavailable',
+  'observer-limit-reached',
+  'timer-scheduled',
+  'timer-enter',
+  'timer-return',
+  'timer-throw',
+  'root-observed',
+  'root-unmount-return',
+  'root-unmount-throw',
+  'saver-registration',
+  'saver-registration-throw',
+  'vm-registration',
+  'vm-to-json-enter',
+  'vm-to-json-return',
+  'vm-to-json-throw',
+  'auto-update-dispatch-enter',
+  'auto-update-dispatch-return',
+  'auto-update-dispatch-throw',
+  'dirty-dispatch-enter',
+  'dirty-dispatch-return',
+  'dirty-dispatch-throw',
+  'project-loaded-enter',
+  'project-loaded-return',
+  'project-loaded-throw',
+  'asset-store-enter',
+  'asset-store-return',
+  'asset-store-throw',
+  'save-project-enter',
+  'save-project-return',
+  'save-project-throw',
+  'recovery-assets-enter',
+  'recovery-assets-return',
+  'recovery-assets-throw',
+] as const;
+type AbbyObserverStage = (typeof abbyObserverStages)[number];
+const abbyObserverEnums = {
+  callbackLink: ['MATCHED', 'DIFFERENT', 'UNREGISTERED', 'STALE', 'MULTIPLE', 'UNKNOWN'],
+  registration: ['SET', 'REPEATED', 'REPLACED', 'CLEARED', 'UNKNOWN'],
+  synchronousContext: ['LINKED_AUTO_UPDATE_DISPATCH_STACK', 'LINKED_TIMER_STACK', 'UNATTRIBUTED'],
+  reduxLoadingState: [
+    'NOT_LOADED',
+    'ERROR',
+    'AUTO_UPDATING',
+    'CREATING_COPY',
+    'CREATING_NEW',
+    'FETCHING_NEW_DEFAULT',
+    'FETCHING_WITH_ID',
+    'LOADING_VM_FILE_UPLOAD',
+    'LOADING_VM_NEW_DEFAULT',
+    'LOADING_VM_WITH_ID',
+    'MANUAL_UPDATING',
+    'REMIXING',
+    'SHOWING_WITH_ID',
+    'SHOWING_WITHOUT_ID',
+    'UPDATING_BEFORE_COPY',
+    'UPDATING_BEFORE_NEW',
+    'UNKNOWN',
+  ],
+  reduxTimer: ['ARMED', 'EMPTY', 'UNKNOWN'],
+  dirtyRootAssociation: ['UNIQUE_ACTIVE_STORE', 'MULTIPLE_ACTIVE_STORES', 'UNKNOWN'],
+  bundleCallsite: ['URL_MATCHED_NUMERIC_POSITIONS_ONLY', 'UNKNOWN'],
+  bundleCallsiteReason: [
+    'OWN_DATA_STACK',
+    'STACK_ACCESSOR_UNSUPPORTED',
+    'STACK_ABSENT',
+    'STACK_NON_STRING',
+    'STACK_TOO_LARGE',
+    'STACK_LINE_LIMIT',
+    'NO_ELIGIBLE_FRAME',
+    'CAPTURE_ERROR',
+  ],
+} as const;
+type AbbyStageEvent = {
+  sequence: number;
+  stage: string;
+  callbackId?: number;
+  delayMs?: number;
+  timerHandle?: number;
+  observerSequence?: number;
+  rootId?: number;
+  vmId?: number;
+  callId?: number;
+  dispatchId?: number;
+  dirtyDispatchId?: number;
+  loadedCallId?: number;
+  observerFailures?: number;
+  captureFailures?: number;
+  actionChanged?: boolean;
+  rootActive?: boolean;
+  bundleFrames?: Array<{ line: number; column: number }>;
+  bundleFramesTruncated?: boolean;
+  reduxProjectChanged?: boolean | 'UNKNOWN';
+  renderCanSave?: boolean | 'UNKNOWN';
+} & { [Key in keyof typeof abbyObserverEnums]?: (typeof abbyObserverEnums)[Key][number] };
+
+function createAbbySaveStageEvidence(
+  cleanPop: boolean,
+  fixture: Awaited<ReturnType<typeof createProtocolFixture>>,
+) {
+  const path = `${evidenceDir}/abby-pop-${cleanPop ? 'clean' : 'native'}-save-stages.json`;
+  const events: AbbyStageEvent[] = [];
+  let sequence = 0;
+  let rejectedObserverEvents = 0;
+  let droppedEvents = 0;
+  let writeFailures = 0;
+  let observerFailures = 0;
+  let captureFailures = 0;
+  let assertionsCompleted = false;
+  let teardownCompleted = false;
+  let linkedCallbackObserved = false;
+  const observed = new Set<string>();
+  const receivedBrowserEvents = new Map<number, string>();
+  let duplicateObserverSequences = 0;
+  let conflictingObserverSequences = 0;
+  let unsequencedObserverEvents = 0;
+  let reconciliationReason = 'PUBLISHED_PREFIX_NOT_READ';
+  let finalSnapshot: {
+    lastSequence: number;
+    suppressedEvents: number;
+    observerFailures: number;
+    captureFailures: number;
+    rootCoverageLost: boolean;
+    storeDispatchCoverage: 'MATCHED' | 'UNAVAILABLE' | 'NO_ACTIVE_ROOT';
+    events: Omit<AbbyStageEvent, 'sequence'>[];
+  } | null = null;
+  const count = (value: unknown) =>
+    typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : null;
+  const reconciliation = () => {
+    const recoveredSequences: number[] = [];
+    const mismatchedSequences: number[] = [];
+    for (const event of finalSnapshot?.events ?? []) {
+      const observerSequence = event.observerSequence!;
+      const received = receivedBrowserEvents.get(observerSequence);
+      if (received === undefined) recoveredSequences.push(observerSequence);
+      else if (received !== JSON.stringify(event)) mismatchedSequences.push(observerSequence);
+    }
+    const complete =
+      finalSnapshot !== null &&
+      reconciliationReason === 'CONTIGUOUS_PUBLISHED_PREFIX' &&
+      finalSnapshot.suppressedEvents === 0 &&
+      finalSnapshot.observerFailures === 0 &&
+      finalSnapshot.captureFailures === 0 &&
+      !finalSnapshot.rootCoverageLost &&
+      finalSnapshot.storeDispatchCoverage === 'MATCHED' &&
+      !finalSnapshot.events.some(
+        (event) =>
+          event.stage === 'observer-unavailable' || event.stage === 'observer-limit-reached',
+      ) &&
+      duplicateObserverSequences === 0 &&
+      conflictingObserverSequences === 0 &&
+      unsequencedObserverEvents === 0 &&
+      rejectedObserverEvents === 0 &&
+      droppedEvents === 0 &&
+      mismatchedSequences.length === 0;
+    return {
+      status: complete
+        ? 'RECONCILED_PUBLISHED_PREFIX'
+        : finalSnapshot === null && reconciliationReason !== 'INVALID_PUBLISHED_PREFIX'
+          ? 'NOT_OBSERVED'
+          : 'INCOMPLETE',
+      reason: reconciliationReason,
+      scope: 'last-successfully-published-diagnostic-prefix-read-at-existing-final-checkpoint',
+      snapshotOwnership: 'NOT_ATTESTED_BY_PASSIVE_DATA',
+      publicationAge: 'UNKNOWN',
+      emissionsAfterLastPublication: 'NOT_ATTESTED',
+      laterCaptureOrPublicationFailures: 'UNKNOWN',
+      storeDispatchCoverageScope: 'AT_LAST_SUCCESSFUL_PUBLICATION_ONLY',
+      finalStoreDispatchCoverage: 'NOT_OBSERVED',
+      productCallCoverage: 'NOT_PROVEN_BY_DIAGNOSTIC_SEQUENCE_CONTIGUITY',
+      retainedEventLimit: 129,
+      lastSequence: finalSnapshot?.lastSequence ?? null,
+      suppressedEvents: finalSnapshot?.suppressedEvents ?? null,
+      observerFailures: finalSnapshot?.observerFailures ?? null,
+      captureFailures: finalSnapshot?.captureFailures ?? null,
+      rootCoverageLost: finalSnapshot?.rootCoverageLost ?? null,
+      storeDispatchCoverage: finalSnapshot?.storeDispatchCoverage ?? 'UNKNOWN',
+      observerUnavailableObserved:
+        finalSnapshot?.events.some((event) => event.stage === 'observer-unavailable') ?? null,
+      eventLimitReached:
+        finalSnapshot?.events.some((event) => event.stage === 'observer-limit-reached') ?? null,
+      recoveredSequencesAbsentFromCurrentNodeReceipt: recoveredSequences,
+      mismatchedSequences,
+      duplicateObserverSequences,
+      conflictingObserverSequences,
+      unsequencedObserverEvents,
+      rejectedObserverEvents,
+      droppedNodeEvents: droppedEvents,
+      nodeSequencesAfterSnapshot:
+        finalSnapshot === null
+          ? []
+          : [...receivedBrowserEvents.keys()].filter((item) => item > finalSnapshot!.lastSequence),
+      events: finalSnapshot?.events ?? [],
+    };
+  };
+  const record = (stage: string, detail: Omit<AbbyStageEvent, 'sequence' | 'stage'> = {}) => {
+    sequence += 1;
+    if (stage === 'assertions-completed') assertionsCompleted = true;
+    if (stage === 'teardown-return') teardownCompleted = true;
+    observed.add(stage);
+    if (events.length < 256) events.push({ sequence, stage, ...detail });
+    else droppedEvents += 1;
+    try {
+      fs.mkdirSync(evidenceDir, { recursive: true });
+      fs.writeFileSync(
+        `${path}.tmp`,
+        JSON.stringify(
+          {
+            schemaVersion: 3,
+            variant: cleanPop ? 'clean-pop' : 'default-cached-pop',
+            lastStage: stage,
+            outcome: assertionsCompleted && teardownCompleted ? 'NOT_REPRODUCED' : 'INCOMPLETE',
+            // A passive published prefix cannot attest events or failures after
+            // its last publication, even when every retained sequence matches.
+            captureState: 'INCOMPLETE',
+            finalCheckpointCompleteness: 'NOT_ATTESTED_BY_PUBLISHED_PREFIX',
+            eventOrder: 'node-receive-order-with-separate-browser-observer-sequence',
+            browserDeliveryCompleteness: 'ASYNCHRONOUS_BINDING_DELIVERY_NOT_ATTESTED',
+            browserSequenceReconciliation: reconciliation(),
+            callbackIdentityScope: 'function-reference-within-first-runtime-realm',
+            projectSaverCallbackLink: linkedCallbackObserved ? 'OBSERVED' : 'NOT_OBSERVED',
+            vmSerialization: observed.has('vm-to-json-enter') ? 'OBSERVED' : 'NOT_OBSERVED',
+            projectSaverSerialization: 'NOT_OBSERVED',
+            serializationAttribution: 'synchronous-stack-context-only-not-caller-identification',
+            reduxStateScope: 'public-store-not-react-instance-props',
+            bundleCallsiteMapping: 'NOT_PERFORMED_REQUIRES_NEW_ACTUAL_BUNDLE_SHA256',
+            bundleCallsiteSource: '/internal/blocks/vendor/scratch/scratch-gui-standalone.js',
+            dirtyCallerAttribution: 'UNKNOWN',
+            projectLoadedScope: 'original-callback-supplied-at-root-render-not-current-react-props',
+            asynchronousReturnSettlement: 'NOT_OBSERVED',
+            boundaryObservationSources: [
+              'asynchronous-binding',
+              'validated-last-published-browser-prefix',
+            ],
+            boundaries: Object.fromEntries(
+              [
+                'timer-enter',
+                'saver-registration',
+                'auto-update-dispatch-enter',
+                'auto-update-dispatch-return',
+                'dirty-dispatch-enter',
+                'dirty-dispatch-return',
+                'dirty-dispatch-throw',
+                'project-loaded-enter',
+                'project-loaded-return',
+                'project-loaded-throw',
+                'vm-to-json-enter',
+                'vm-to-json-return',
+                'vm-to-json-throw',
+                'asset-store-enter',
+                'save-project-enter',
+                'recovery-assets-enter',
+              ].map((boundary) => [boundary, observed.has(boundary) ? 'OBSERVED' : 'NOT_OBSERVED']),
+            ),
+            revision: count(fixture.getServerRevision()),
+            assetRequests: count(fixture.runtimePersistenceMetrics.assetRequests),
+            draftRequests: count(fixture.runtimePersistenceMetrics.draftRequests),
+            revisionCommits: count(fixture.runtimePersistenceMetrics.revisionCommits),
+            events,
+            droppedEvents,
+            rejectedObserverEvents,
+            observerFailures,
+            captureFailures,
+            writeFailures,
+          },
+          null,
+          2,
+        ),
+      );
+      fs.renameSync(`${path}.tmp`, path);
+    } catch {
+      // A diagnostic write cannot replace an assertion or prevent teardown.
+      writeFailures += 1;
+    }
+  };
+  const parseObserverEvent = (input: unknown) => {
+    // Browser values never become artifact fields without this second allowlist.
+    if (!input || typeof input !== 'object') throw null;
+    const value = (key: string) => {
+      const descriptor = Object.getOwnPropertyDescriptor(input, key);
+      if (descriptor && !('value' in descriptor)) throw null;
+      return descriptor?.value as unknown;
+    };
+    const stage = value('stage');
+    if (!abbyObserverStages.includes(stage as AbbyObserverStage)) throw null;
+    const detail: Omit<AbbyStageEvent, 'sequence' | 'stage'> = {};
+    const limits = {
+      callbackId: 64,
+      rootId: 8,
+      vmId: 8,
+      callId: 1_000_000,
+      dispatchId: 1_000_000,
+      dirtyDispatchId: 1_000_000,
+      loadedCallId: 1_000_000,
+      timerHandle: Number.MAX_SAFE_INTEGER,
+      observerSequence: 129,
+      observerFailures: 1_000_000,
+      captureFailures: 1_000_000,
+    } as const;
+    for (const key of Object.keys(limits) as (keyof typeof limits)[]) {
+      const item = value(key);
+      if (item === undefined) continue;
+      if (typeof item !== 'number' || count(item) === null || item > limits[key]) throw null;
+      detail[key] = item;
+    }
+    const delay = value('delayMs');
+    if (delay !== undefined) {
+      if (typeof delay !== 'number' || !Number.isFinite(delay) || delay < 55_000 || delay > 65_000)
+        throw null;
+      detail.delayMs = delay;
+    }
+    for (const key of ['reduxProjectChanged', 'renderCanSave'] as const) {
+      const item = value(key);
+      if (item === undefined) continue;
+      if (typeof item !== 'boolean' && item !== 'UNKNOWN') throw null;
+      detail[key] = item;
+    }
+    for (const key of ['actionChanged', 'rootActive', 'bundleFramesTruncated'] as const) {
+      const item = value(key);
+      if (item === undefined) continue;
+      if (typeof item !== 'boolean') throw null;
+      detail[key] = item;
+    }
+    const frames = value('bundleFrames');
+    if (frames !== undefined) {
+      if (!Array.isArray(frames)) throw null;
+      const length = Object.getOwnPropertyDescriptor(frames, 'length')?.value as unknown;
+      if (typeof length !== 'number' || count(length) === null || length > 8) throw null;
+      detail.bundleFrames = [];
+      for (let index = 0; index < length; index += 1) {
+        const frame = Object.getOwnPropertyDescriptor(frames, String(index))?.value as unknown;
+        if (!frame || typeof frame !== 'object') throw null;
+        const line = Object.getOwnPropertyDescriptor(frame, 'line')?.value as unknown;
+        const column = Object.getOwnPropertyDescriptor(frame, 'column')?.value as unknown;
+        if (
+          typeof line !== 'number' ||
+          count(line) === null ||
+          line < 1 ||
+          line > 100_000_000 ||
+          typeof column !== 'number' ||
+          count(column) === null ||
+          column < 1 ||
+          column > 100_000_000
+        )
+          throw null;
+        detail.bundleFrames.push({ line, column });
+      }
+    }
+    for (const key of Object.keys(abbyObserverEnums) as (keyof typeof abbyObserverEnums)[]) {
+      const item = value(key);
+      if (item === undefined) continue;
+      const allowed: readonly string[] = abbyObserverEnums[key];
+      if (typeof item !== 'string' || !allowed.includes(item)) throw null;
+      Object.assign(detail, { [key]: item });
+    }
+    if (stage === 'timer-enter' && detail.callbackLink === 'MATCHED') {
+      if (!detail.callbackId || !detail.rootId) throw null;
+    }
+    if ((stage as string).startsWith('dirty-dispatch-')) {
+      if (
+        !detail.dirtyDispatchId ||
+        typeof detail.actionChanged !== 'boolean' ||
+        detail.dirtyRootAssociation === undefined
+      )
+        throw null;
+      if (
+        detail.dirtyRootAssociation === 'UNIQUE_ACTIVE_STORE' &&
+        (!detail.rootId || typeof detail.rootActive !== 'boolean')
+      )
+        throw null;
+      if (detail.dirtyRootAssociation !== 'UNIQUE_ACTIVE_STORE' && detail.rootId !== undefined)
+        throw null;
+    }
+    if (
+      (stage as string).startsWith('project-loaded-') &&
+      (!detail.loadedCallId || !detail.rootId || typeof detail.rootActive !== 'boolean')
+    )
+      throw null;
+    if (
+      detail.bundleCallsite === 'URL_MATCHED_NUMERIC_POSITIONS_ONLY' &&
+      (!detail.bundleFrames?.length || typeof detail.bundleFramesTruncated !== 'boolean')
+    )
+      throw null;
+    if (detail.bundleCallsite === 'UNKNOWN' && detail.bundleFrames !== undefined) throw null;
+    return { stage: stage as AbbyObserverStage, ...detail };
+  };
+  const observer = (input: unknown) => {
+    try {
+      const event = parseObserverEvent(input);
+      const { stage, ...detail } = event;
+      if (stage === 'timer-enter' && detail.callbackLink === 'MATCHED')
+        linkedCallbackObserved = true;
+      observerFailures = Math.max(observerFailures, detail.observerFailures ?? 0);
+      captureFailures = Math.max(captureFailures, detail.captureFailures ?? 0);
+      if (detail.observerSequence === undefined || detail.observerSequence < 1) {
+        unsequencedObserverEvents = Math.min(unsequencedObserverEvents + 1, 1_000_000);
+      } else {
+        const encoded = JSON.stringify(event);
+        const previous = receivedBrowserEvents.get(detail.observerSequence);
+        if (previous !== undefined) {
+          duplicateObserverSequences = Math.min(duplicateObserverSequences + 1, 1_000_000);
+          if (previous !== encoded) {
+            conflictingObserverSequences = Math.min(conflictingObserverSequences + 1, 1_000_000);
+          }
+        } else receivedBrowserEvents.set(detail.observerSequence, encoded);
+      }
+      record(stage, detail);
+    } catch {
+      rejectedObserverEvents += 1;
+      record('observer-event-rejected');
+    }
+  };
+  const reconcile = (input: unknown) => {
+    finalSnapshot = null;
+    if (input === null || input === undefined) {
+      // The successful path replaces page/context before this existing read.
+      // An absent first-realm journal never proves delivery or contiguity.
+      reconciliationReason = 'UNAVAILABLE_OR_DIFFERENT_RUNTIME_REALM';
+      record('browser-sequence-snapshot-unavailable');
+      return;
+    }
+    try {
+      if (typeof input !== 'string' || input.length > 262_144) throw null;
+      const decoded: unknown = JSON.parse(input);
+      if (!decoded || typeof decoded !== 'object') throw null;
+      const value = (key: string) =>
+        Object.getOwnPropertyDescriptor(decoded, key)?.value as unknown;
+      if (value('schemaVersion') !== 2 || value('eventLimit') !== 128) throw null;
+      const numeric = (key: string, limit: number) => {
+        const item = value(key);
+        if (typeof item !== 'number' || count(item) === null || item > limit) throw null;
+        return item;
+      };
+      const lastSequence = numeric('lastSequence', 129);
+      if (lastSequence < 1) throw null;
+      const suppressedEvents = numeric('suppressedEvents', 1_000_000);
+      const snapshotObserverFailures = numeric('observerFailures', 1_000_000);
+      const snapshotCaptureFailures = numeric('captureFailures', 1_000_000);
+      const rootCoverageLost = value('rootCoverageLost');
+      if (typeof rootCoverageLost !== 'boolean') throw null;
+      const storeDispatchCoverage = value('storeDispatchCoverage');
+      if (!['MATCHED', 'UNAVAILABLE', 'NO_ACTIVE_ROOT'].includes(storeDispatchCoverage as string)) {
+        throw null;
+      }
+      const rawEvents = value('events');
+      if (!Array.isArray(rawEvents)) throw null;
+      const length = Object.getOwnPropertyDescriptor(rawEvents, 'length')?.value as unknown;
+      if (length !== lastSequence) throw null;
+      const events: Omit<AbbyStageEvent, 'sequence'>[] = [];
+      for (let index = 0; index < lastSequence; index += 1) {
+        const event = parseObserverEvent(
+          Object.getOwnPropertyDescriptor(rawEvents, String(index))?.value,
+        );
+        if (event.observerSequence !== index + 1) throw null;
+        if (
+          (event.observerFailures ?? 0) > snapshotObserverFailures ||
+          (event.captureFailures ?? 0) > snapshotCaptureFailures
+        )
+          throw null;
+        events.push(event);
+      }
+      finalSnapshot = {
+        lastSequence,
+        suppressedEvents,
+        observerFailures: snapshotObserverFailures,
+        captureFailures: snapshotCaptureFailures,
+        rootCoverageLost,
+        storeDispatchCoverage: storeDispatchCoverage as
+          'MATCHED' | 'UNAVAILABLE' | 'NO_ACTIVE_ROOT',
+        events,
+      };
+      for (const event of events) {
+        observed.add(event.stage);
+        if (event.stage === 'timer-enter' && event.callbackLink === 'MATCHED') {
+          linkedCallbackObserved = true;
+        }
+      }
+      observerFailures = Math.max(observerFailures, snapshotObserverFailures);
+      captureFailures = Math.max(captureFailures, snapshotCaptureFailures);
+      reconciliationReason = 'CONTIGUOUS_PUBLISHED_PREFIX';
+      record('browser-sequence-snapshot-read');
+    } catch {
+      reconciliationReason = 'INVALID_PUBLISHED_PREFIX';
+      record('browser-sequence-snapshot-rejected');
+    }
+  };
+  record('fixture-ready');
+  return { record, observer, reconcile };
+}
+
+async function installAbbySaveStageObserver(
+  page: import('@playwright/test').Page,
+  observer: (input: unknown) => void,
+) {
+  const binding = '__asaAbbySaveStageEvidence';
+  await page.exposeBinding(binding, (_source, input: unknown) => observer(input));
+  await page.addInitScript(
+    ({ bindingName, enums }) => {
+      if (!globalThis.location.pathname.startsWith('/internal/blocks/')) return;
+      type Callable = (...args: unknown[]) => unknown;
+      type Detail = Record<string, unknown>;
+      type RootObservation = {
+        id: number;
+        active: boolean;
+        registrationKnown: boolean;
+        saver: Callable | null;
+        store: object | null;
+        vm: object | null;
+        canSave: boolean | 'UNKNOWN';
+        cleanup: Set<() => void>;
+      };
+      type TimerContext = { callbackId: number; root?: RootObservation };
+      type DispatchContext = { id: number; store: object; root?: RootObservation };
+      const globals = globalThis as unknown as Record<string, unknown>;
+      const snapshotKey = '__asaAbbySaveStageSnapshot';
+      const encodeDiagnostic = JSON.stringify;
+      let publishedSnapshot = '';
+      let publicationEnabled = false;
+      let publishing = false;
+      let emitted = 0;
+      let observerFailures = 0;
+      let captureFailures = 0;
+      let suppressedEvents = 0;
+      const browserEvents: Detail[] = [];
+      const deliveryFailed = () => {
+        observerFailures = Math.min(observerFailures + 1, 1_000_000);
+        publishSnapshot();
+      };
+      const emit = (stage: string, detail: Detail = {}) => {
+        try {
+          if (emitted >= 128) suppressedEvents = Math.min(suppressedEvents + 1, 1_000_000);
+          if (emitted > 128) return;
+          const event =
+            emitted === 128 ? { stage: 'observer-limit-reached' } : { stage, ...detail };
+          emitted += 1;
+          const observedEvent = {
+            ...event,
+            observerSequence: emitted,
+            observerFailures,
+            captureFailures,
+          };
+          // Retain the same bounded diagnostic emissions before asynchronous
+          // delivery. The final reader never invokes a product method or timer.
+          browserEvents.push(observedEvent);
+          // Only this diagnostic Promise receives a rejection handler. Original
+          // product results are returned without reading then/catch/finally.
+          const send = globals[bindingName] as (value: unknown) => Promise<void>;
+          void send({ ...observedEvent }).catch(deliveryFailed);
+        } catch {
+          deliveryFailed();
+          // Reporting must not change an original call, return or thrown value.
+        } finally {
+          publishSnapshot();
+        }
+      };
+      const safely = (observe: () => void) => {
+        try {
+          observe();
+        } catch {
+          captureFailures = Math.min(captureFailures + 1, 1_000_000);
+          emit('observer-unavailable');
+        }
+      };
+      const isObject = (value: unknown): value is object =>
+        value !== null && (typeof value === 'object' || typeof value === 'function');
+      // Do not invoke an accessor merely to collect evidence.
+      const ownValue = (object: unknown, key: string): unknown =>
+        isObject(object) ? Object.getOwnPropertyDescriptor(object, key)?.value : undefined;
+      const restoreMethod = (object: object, key: string, wrap: (fn: Callable) => Callable) => {
+        const descriptor = Object.getOwnPropertyDescriptor(object, key);
+        if (!descriptor || typeof descriptor.value !== 'function' || !descriptor.writable) {
+          emit('observer-unavailable');
+          return null;
+        }
+        const replacement = wrap(descriptor.value as Callable);
+        Object.defineProperty(object, key, { ...descriptor, value: replacement });
+        return () => {
+          const current = Object.getOwnPropertyDescriptor(object, key);
+          if (
+            current?.value === replacement &&
+            current.configurable === descriptor.configurable &&
+            current.enumerable === descriptor.enumerable &&
+            current.writable === descriptor.writable
+          ) {
+            Object.defineProperty(object, key, descriptor);
+          }
+          // A product replacement is never overwritten during observer cleanup.
+        };
+      };
+      const roots: RootObservation[] = [];
+      const observedRoots = new WeakMap<object, RootObservation>();
+      let rootCoverageLost = false;
+      let activeTimer: TimerContext | undefined;
+      let activeDispatch: DispatchContext | undefined;
+      let nextCallbackId = 0;
+      let nextVmId = 0;
+      let nextDispatchId = 0;
+      let nextDirtyDispatchId = 0;
+      let nextLoadedCallId = 0;
+      const callbacks = new WeakMap<
+        Callable,
+        { id: number; observed: Callable; registered: boolean }
+      >();
+      const vms = new WeakMap<object, { id: number; calls: number }>();
+      const sharedMethods = new WeakMap<
+        object,
+        Map<
+          string,
+          {
+            users: Set<RootObservation>;
+            restore: () => void;
+            observed: Callable;
+          }
+        >
+      >();
+      const publishSnapshot = () => {
+        if (!publicationEnabled || publishing) return;
+        publishing = true;
+        try {
+          const descriptor = Object.getOwnPropertyDescriptor(globalThis, snapshotKey);
+          if (
+            descriptor?.value !== publishedSnapshot ||
+            descriptor.configurable !== true ||
+            descriptor.enumerable !== false ||
+            descriptor.writable !== false
+          ) {
+            publicationEnabled = false;
+            captureFailures = Math.min(captureFailures + 1, 1_000_000);
+            emit('observer-unavailable');
+            return;
+          }
+          let storeDispatchCoverage = 'UNAVAILABLE';
+          try {
+            const active = roots.filter((root) => root.active);
+            storeDispatchCoverage =
+              active.length === 0
+                ? 'NO_ACTIVE_ROOT'
+                : active.every((root) => {
+                      if (!root.store) return false;
+                      const method = sharedMethods.get(root.store)?.get('dispatch');
+                      return (
+                        method !== undefined &&
+                        Object.getOwnPropertyDescriptor(root.store, 'dispatch')?.value ===
+                          method.observed
+                      );
+                    })
+                  ? 'MATCHED'
+                  : 'UNAVAILABLE';
+          } catch {
+            captureFailures = Math.min(captureFailures + 1, 1_000_000);
+          }
+          // Serialize only our bounded diagnostic values. Null prototypes on
+          // every copied object/array prevent inherited product toJSON hooks.
+          const publishedEvents = browserEvents.map((event) => {
+            const copy = Object.assign(Object.create(null) as Detail, event);
+            if (Array.isArray(event.bundleFrames)) {
+              const frames = event.bundleFrames.map((frame: { line: number; column: number }) =>
+                Object.assign(Object.create(null) as Detail, {
+                  line: frame.line,
+                  column: frame.column,
+                }),
+              );
+              copy.bundleFrames = Object.setPrototypeOf(frames, null);
+            }
+            return copy;
+          });
+          const encoded = encodeDiagnostic(
+            Object.assign(Object.create(null) as Detail, {
+              schemaVersion: 2,
+              eventLimit: 128,
+              lastSequence: emitted,
+              suppressedEvents,
+              observerFailures,
+              captureFailures,
+              rootCoverageLost,
+              storeDispatchCoverage,
+              events: Object.setPrototypeOf(publishedEvents, null),
+            }),
+          );
+          if (encoded.length > 262_144) throw null;
+          // Preserve any product replacement. A failed publication may leave
+          // an older string, which never proves coverage at the final read.
+          const current = Object.getOwnPropertyDescriptor(globalThis, snapshotKey);
+          if (
+            current?.value !== publishedSnapshot ||
+            current.configurable !== true ||
+            current.enumerable !== false ||
+            current.writable !== false
+          )
+            throw null;
+          Object.defineProperty(globalThis, snapshotKey, { ...descriptor, value: encoded });
+          publishedSnapshot = encoded;
+        } catch {
+          publicationEnabled = false;
+          captureFailures = Math.min(captureFailures + 1, 1_000_000);
+          emit('observer-unavailable');
+        } finally {
+          publishing = false;
+        }
+      };
+      const snapshot = (root: RootObservation | undefined): Detail => {
+        const detail: Detail = {
+          reduxProjectChanged: 'UNKNOWN',
+          reduxLoadingState: 'UNKNOWN',
+          reduxTimer: 'UNKNOWN',
+          renderCanSave: root?.canSave ?? 'UNKNOWN',
+        };
+        if (!root?.store) return detail;
+        safely(() => {
+          const getState = ownValue(root.store, 'getState');
+          if (typeof getState !== 'function') return;
+          const state = Reflect.apply(getState, root.store, []);
+          const gui = ownValue(state, 'scratchGui');
+          const changed = ownValue(gui, 'projectChanged');
+          const loading = ownValue(ownValue(gui, 'projectState'), 'loadingState');
+          const timeout = ownValue(ownValue(gui, 'timeout'), 'autoSaveTimeoutId');
+          detail.reduxProjectChanged = typeof changed === 'boolean' ? changed : 'UNKNOWN';
+          if (
+            typeof loading === 'string' &&
+            (enums.reduxLoadingState as readonly string[]).includes(loading)
+          ) {
+            detail.reduxLoadingState = loading;
+          }
+          detail.reduxTimer =
+            timeout === null
+              ? 'EMPTY'
+              : typeof timeout === 'number' && Number.isSafeInteger(timeout)
+                ? 'ARMED'
+                : 'UNKNOWN';
+        });
+        return detail;
+      };
+      const dirtyCallsite = (): Detail => {
+        const unknown = (reason: string) => ({
+          bundleCallsite: 'UNKNOWN',
+          bundleCallsiteReason: reason,
+          bundleFramesTruncated: false,
+        });
+        try {
+          // Only an own data stack from this diagnostic Error is supported.
+          // Do not invoke an accessor, change stackTraceLimit, retain a raw stack,
+          // or identify callers by function names. A new actual bundle digest
+          // and source mapping are still required before using these positions.
+          const descriptor = Object.getOwnPropertyDescriptor(new Error(), 'stack');
+          if (!descriptor) return unknown('STACK_ABSENT');
+          if (!('value' in descriptor)) return unknown('STACK_ACCESSOR_UNSUPPORTED');
+          const stack = descriptor.value as unknown;
+          if (typeof stack !== 'string') return unknown('STACK_NON_STRING');
+          if (stack.length > 65_536) return unknown('STACK_TOO_LARGE');
+          const lines = stack.split(/\r?\n/);
+          if (lines.length > 64) return unknown('STACK_LINE_LIMIT');
+          const source = `${globalThis.location.origin}/internal/blocks/vendor/scratch/scratch-gui-standalone.js`;
+          const frames: Array<{ line: number; column: number }> = [];
+          let truncated = false;
+          for (const line of lines) {
+            const match = line.match(
+              /(?:^ {4}at | \()(https?:\/\/[^\s()]+):([1-9]\d{0,8}):([1-9]\d{0,8})\)?$/,
+            );
+            if (!match || match[1] !== source) continue;
+            const sourceLine = Number(match[2]);
+            const column = Number(match[3]);
+            if (sourceLine > 100_000_000 || column > 100_000_000) continue;
+            if (frames.length < 8) frames.push({ line: sourceLine, column });
+            else truncated = true;
+          }
+          if (frames.length === 0) return unknown('NO_ELIGIBLE_FRAME');
+          return {
+            bundleCallsite: 'URL_MATCHED_NUMERIC_POSITIONS_ONLY',
+            bundleCallsiteReason: 'OWN_DATA_STACK',
+            bundleFrames: frames,
+            bundleFramesTruncated: truncated,
+          };
+        } catch {
+          return unknown('CAPTURE_ERROR');
+        }
+      };
+      const link = (callback: Callable): { callbackLink: string; root?: RootObservation } => {
+        const active = roots.filter((root) => root.active);
+        const matches = active.filter((root) => root.registrationKnown && root.saver === callback);
+        if (matches.length > 1) return { callbackLink: 'MULTIPLE' };
+        if (rootCoverageLost || active.some((root) => !root.registrationKnown)) {
+          return { callbackLink: 'UNKNOWN' };
+        }
+        if (matches.length === 1) return { callbackLink: 'MATCHED', root: matches[0] };
+        if (callbacks.get(callback)?.registered) return { callbackLink: 'STALE' };
+        return { callbackLink: active.some((root) => root.saver) ? 'DIFFERENT' : 'UNREGISTERED' };
+      };
+      const callbackEntry = (callback: Callable) => {
+        let entry = callbacks.get(callback);
+        if (entry) return entry;
+        if (nextCallbackId >= 64) {
+          emit('observer-limit-reached');
+          return undefined;
+        }
+        const id = ++nextCallbackId;
+        entry = {
+          id,
+          registered: false,
+          observed: new Proxy(callback, {
+            apply(target, receiver, args) {
+              const previous = activeTimer;
+              let detail: Detail = { callbackId: id, callbackLink: 'UNKNOWN' };
+              activeTimer = undefined;
+              safely(() => {
+                const association = link(target);
+                activeTimer = { callbackId: id, root: association.root };
+                detail = {
+                  callbackId: id,
+                  callbackLink: association.callbackLink,
+                  ...(association.root ? { rootId: association.root.id } : {}),
+                };
+                emit('timer-enter', { ...detail, ...snapshot(association.root) });
+              });
+              let returned = false;
+              try {
+                const result = Reflect.apply(target, receiver, args);
+                returned = true;
+                return result;
+              } finally {
+                safely(() => {
+                  const association = link(target);
+                  emit(returned ? 'timer-return' : 'timer-throw', {
+                    callbackId: id,
+                    callbackLink: association.callbackLink,
+                    ...(association.root ? { rootId: association.root.id } : {}),
+                    ...snapshot(association.root),
+                  });
+                });
+                activeTimer = previous;
+              }
+            },
+          }),
+        };
+        callbacks.set(callback, entry);
+        return entry;
+      };
+      const shareMethod = (
+        root: RootObservation,
+        owner: object,
+        key: string,
+        wrap: (fn: Callable) => Callable,
+      ) => {
+        let methods = sharedMethods.get(owner);
+        if (!methods) {
+          methods = new Map();
+          sharedMethods.set(owner, methods);
+        }
+        let method = methods.get(key);
+        if (method && Object.getOwnPropertyDescriptor(owner, key)?.value !== method.observed) {
+          // A product replacement ends this shared hook's coverage. Decline it
+          // explicitly instead of claiming coverage or reinstalling the hook.
+          emit('observer-unavailable');
+          return;
+        }
+        if (!method) {
+          let observed: Callable | undefined;
+          const restore = restoreMethod(owner, key, (fn) => {
+            observed = wrap(fn);
+            return observed;
+          });
+          if (!restore || !observed) return;
+          method = { users: new Set(), restore, observed };
+          methods.set(key, method);
+        }
+        if (method.users.has(root)) return;
+        method.users.add(root);
+        const shared = method;
+        root.cleanup.add(() => {
+          shared.users.delete(root);
+          if (shared.users.size === 0) {
+            shared.restore();
+            methods.delete(key);
+          }
+        });
+      };
+      const observeStore = (root: RootObservation) => {
+        const store = root.store;
+        if (!store) {
+          emit('observer-unavailable');
+          return;
+        }
+        shareMethod(
+          root,
+          store,
+          'dispatch',
+          (fn) =>
+            new Proxy(fn, {
+              apply(target, receiver, args) {
+                let relevant = false;
+                let dirtyChanged: boolean | undefined;
+                safely(() => {
+                  const type = ownValue(args[0], 'type');
+                  relevant = type === 'scratch-gui/project-state/START_AUTO_UPDATING';
+                  if (type === 'scratch-gui/project-changed/SET_PROJECT_CHANGED') {
+                    const changed = ownValue(args[0], 'changed');
+                    if (typeof changed === 'boolean') dirtyChanged = changed;
+                    else emit('observer-unavailable');
+                  }
+                });
+                if (dirtyChanged !== undefined) {
+                  let detail: Detail | undefined;
+                  let currentRoot: RootObservation | undefined;
+                  safely(() => {
+                    if (nextDirtyDispatchId >= 1_000_000) {
+                      emit('observer-limit-reached');
+                      return;
+                    }
+                    const candidates = roots.filter((item) => item.active && item.store === store);
+                    currentRoot =
+                      !rootCoverageLost && candidates.length === 1 ? candidates[0] : undefined;
+                    detail = {
+                      dirtyDispatchId: ++nextDirtyDispatchId,
+                      actionChanged: dirtyChanged,
+                      dirtyRootAssociation:
+                        rootCoverageLost || candidates.length === 0
+                          ? 'UNKNOWN'
+                          : candidates.length === 1
+                            ? 'UNIQUE_ACTIVE_STORE'
+                            : 'MULTIPLE_ACTIVE_STORES',
+                      ...(currentRoot
+                        ? { rootId: currentRoot.id, rootActive: currentRoot.active }
+                        : {}),
+                      ...dirtyCallsite(),
+                    };
+                    emit('dirty-dispatch-enter', { ...detail, ...snapshot(currentRoot) });
+                  });
+                  // Dirty dispatches never install, clear or relabel the existing
+                  // AUTO_UPDATING stack context, including nested dispatch/throw.
+                  let returned = false;
+                  try {
+                    const result = Reflect.apply(target, receiver, args);
+                    returned = true;
+                    return result;
+                  } finally {
+                    if (detail)
+                      safely(() =>
+                        emit(returned ? 'dirty-dispatch-return' : 'dirty-dispatch-throw', {
+                          ...detail,
+                          ...(currentRoot ? { rootActive: currentRoot.active } : {}),
+                          ...snapshot(currentRoot?.active ? currentRoot : undefined),
+                        }),
+                      );
+                  }
+                }
+                if (!relevant) return Reflect.apply(target, receiver, args);
+                const previous = activeDispatch;
+                let detail: Detail = { synchronousContext: 'UNATTRIBUTED' };
+                activeDispatch = undefined;
+                safely(() => {
+                  if (nextDispatchId >= 1_000_000) {
+                    emit('observer-limit-reached');
+                    return;
+                  }
+                  const candidates = roots.filter((item) => item.active && item.store === store);
+                  const linked = activeTimer?.root;
+                  const currentRoot =
+                    linked?.store === store
+                      ? linked
+                      : candidates.length === 1
+                        ? candidates[0]
+                        : undefined;
+                  activeDispatch = {
+                    id: ++nextDispatchId,
+                    store,
+                    root: linked?.store === store ? linked : undefined,
+                  };
+                  detail = {
+                    dispatchId: activeDispatch.id,
+                    ...(currentRoot ? { rootId: currentRoot.id } : {}),
+                    ...(activeDispatch.root ? { callbackId: activeTimer?.callbackId } : {}),
+                    synchronousContext: activeDispatch.root
+                      ? 'LINKED_AUTO_UPDATE_DISPATCH_STACK'
+                      : 'UNATTRIBUTED',
+                  };
+                  emit('auto-update-dispatch-enter', { ...detail, ...snapshot(currentRoot) });
+                });
+                let returned = false;
+                try {
+                  const result = Reflect.apply(target, receiver, args);
+                  returned = true;
+                  return result;
+                } finally {
+                  safely(() => {
+                    const currentRoot = roots.find((item) => item.id === detail.rootId);
+                    emit(returned ? 'auto-update-dispatch-return' : 'auto-update-dispatch-throw', {
+                      ...detail,
+                      ...snapshot(currentRoot),
+                    });
+                  });
+                  activeDispatch = previous;
+                }
+              },
+            }),
+        );
+      };
+      const observeVm = (root: RootObservation, instance: unknown) => {
+        // Retained callbacks still call the original, but an unmounted root
+        // cannot acquire a new hook after its cleanup has already run.
+        if (!root.active) return;
+        if (!isObject(instance)) {
+          root.vm = null;
+          emit('observer-unavailable');
+          return;
+        }
+        root.vm = instance;
+        let entry = vms.get(instance);
+        if (!entry) {
+          if (nextVmId >= 8) {
+            emit('observer-limit-reached');
+            return;
+          }
+          entry = { id: ++nextVmId, calls: 0 };
+          vms.set(instance, entry);
+        }
+        emit('vm-registration', { rootId: root.id, vmId: entry.id });
+        // toJSON is a prototype method in the pinned VM. Preserve its owner and
+        // descriptor rather than installing an own-property shadow on the VM.
+        let owner: object | null = instance;
+        for (let depth = 0; owner && depth < 16; depth += 1) {
+          if (Object.getOwnPropertyDescriptor(owner, 'toJSON')) break;
+          owner = Object.getPrototypeOf(owner);
+        }
+        if (!owner) {
+          emit('observer-unavailable');
+          return;
+        }
+        shareMethod(
+          root,
+          owner,
+          'toJSON',
+          (fn) =>
+            new Proxy(fn, {
+              apply(target, receiver, args) {
+                let detail: Detail | undefined;
+                safely(() => {
+                  if (!isObject(receiver)) return;
+                  const current = vms.get(receiver);
+                  const matches = roots.filter((item) => item.active && item.vm === receiver);
+                  if (!current || matches.length === 0) return;
+                  if (current.calls >= 1_000_000) {
+                    emit('observer-limit-reached');
+                    return;
+                  }
+                  const currentRoot = matches.length === 1 ? matches[0] : undefined;
+                  const linked = currentRoot && activeTimer?.root === currentRoot;
+                  const dispatchLinked = linked && activeDispatch?.root === currentRoot;
+                  detail = {
+                    vmId: current.id,
+                    callId: ++current.calls,
+                    ...(currentRoot ? { rootId: currentRoot.id } : {}),
+                    ...(linked ? { callbackId: activeTimer?.callbackId } : {}),
+                    ...(dispatchLinked ? { dispatchId: activeDispatch?.id } : {}),
+                    synchronousContext: dispatchLinked
+                      ? 'LINKED_AUTO_UPDATE_DISPATCH_STACK'
+                      : linked
+                        ? 'LINKED_TIMER_STACK'
+                        : 'UNATTRIBUTED',
+                  };
+                  // This reports only dynamic stack containment. It never names the
+                  // caller as ProjectSaver or inspects/retains the serialized result.
+                  emit('vm-to-json-enter', detail);
+                });
+                let returned = false;
+                try {
+                  const result = Reflect.apply(target, receiver, args);
+                  returned = true;
+                  return result;
+                } finally {
+                  if (detail) emit(returned ? 'vm-to-json-return' : 'vm-to-json-throw', detail);
+                }
+              },
+            }),
+        );
+      };
+      const observeRoot = (value: unknown, state: unknown) => {
+        if (!isObject(value) || roots.length >= 8) {
+          rootCoverageLost = true;
+          emit('observer-unavailable');
+          return;
+        }
+        if (observedRoots.get(value)?.active) {
+          rootCoverageLost = true;
+          emit('observer-unavailable');
+          return;
+        }
+        const store = ownValue(state, 'store');
+        const root: RootObservation = {
+          id: roots.length + 1,
+          active: true,
+          registrationKnown: false,
+          saver: null,
+          store: isObject(store) ? store : null,
+          vm: null,
+          canSave: 'UNKNOWN',
+          cleanup: new Set(),
+        };
+        roots.push(root);
+        observedRoots.set(value, root);
+        observeStore(root);
+        const renderRestore = restoreMethod(
+          value,
+          'render',
+          (fn) =>
+            new Proxy(fn, {
+              apply(target, receiver, args) {
+                const temporary: (() => void)[] = [];
+                safely(() => {
+                  const props = args[0];
+                  if (!isObject(props)) {
+                    emit('observer-unavailable');
+                    return;
+                  }
+                  const canSave = ownValue(props, 'canSave');
+                  root.canSave = typeof canSave === 'boolean' ? canSave : 'UNKNOWN';
+                  const saverRestore = restoreMethod(
+                    props,
+                    'onSetProjectSaver',
+                    (callback) =>
+                      new Proxy(callback, {
+                        apply(original, callbackThis, callbackArgs) {
+                          let returned = false;
+                          try {
+                            const result = Reflect.apply(original, callbackThis, callbackArgs);
+                            returned = true;
+                            safely(() => {
+                              const next =
+                                typeof callbackArgs[0] === 'function'
+                                  ? (callbackArgs[0] as Callable)
+                                  : null;
+                              const registration =
+                                next === null
+                                  ? 'CLEARED'
+                                  : root.saver === next
+                                    ? 'REPEATED'
+                                    : root.saver
+                                      ? 'REPLACED'
+                                      : 'SET';
+                              root.saver = next;
+                              root.registrationKnown = true;
+                              const entry = next ? callbackEntry(next) : undefined;
+                              if (entry) entry.registered = true;
+                              emit('saver-registration', {
+                                rootId: root.id,
+                                registration,
+                                ...(entry ? { callbackId: entry.id } : {}),
+                              });
+                            });
+                            return result;
+                          } finally {
+                            if (!returned) {
+                              root.registrationKnown = false;
+                              emit('saver-registration-throw', {
+                                rootId: root.id,
+                                registration: 'UNKNOWN',
+                              });
+                            }
+                          }
+                        },
+                      }),
+                  );
+                  if (saverRestore) temporary.push(saverRestore);
+                  const vmRestore = restoreMethod(
+                    props,
+                    'onVmInit',
+                    (callback) =>
+                      new Proxy(callback, {
+                        apply(original, callbackThis, callbackArgs) {
+                          safely(() => observeVm(root, callbackArgs[0]));
+                          let returned = false;
+                          try {
+                            const result = Reflect.apply(original, callbackThis, callbackArgs);
+                            returned = true;
+                            return result;
+                          } finally {
+                            if (!returned) {
+                              root.vm = null;
+                              emit('observer-unavailable', { rootId: root.id });
+                            }
+                          }
+                        },
+                      }),
+                  );
+                  if (vmRestore) temporary.push(vmRestore);
+                  const loadedRestore = restoreMethod(
+                    props,
+                    'onProjectLoaded',
+                    (callback) =>
+                      new Proxy(callback, {
+                        apply(original, callbackThis, callbackArgs) {
+                          if (!root.active)
+                            return Reflect.apply(original, callbackThis, callbackArgs);
+                          let detail: Detail | undefined;
+                          safely(() => {
+                            if (nextLoadedCallId >= 1_000_000) {
+                              emit('observer-limit-reached');
+                              return;
+                            }
+                            detail = { rootId: root.id, loadedCallId: ++nextLoadedCallId };
+                            emit('project-loaded-enter', {
+                              ...detail,
+                              rootActive: true,
+                              ...snapshot(root),
+                            });
+                          });
+                          let returned = false;
+                          try {
+                            const result = Reflect.apply(original, callbackThis, callbackArgs);
+                            returned = true;
+                            return result;
+                          } finally {
+                            if (detail)
+                              safely(() =>
+                                emit(returned ? 'project-loaded-return' : 'project-loaded-throw', {
+                                  ...detail,
+                                  rootActive: root.active,
+                                  ...snapshot(root.active ? root : undefined),
+                                }),
+                              );
+                          }
+                        },
+                      }),
+                  );
+                  if (loadedRestore) temporary.push(loadedRestore);
+                });
+                try {
+                  // The pinned root.render copies props into the React element. Keep
+                  // the original props object/arguments and restore its descriptors
+                  // when that original synchronous call returns or throws.
+                  return Reflect.apply(target, receiver, args);
+                } finally {
+                  for (const restore of temporary.reverse()) safely(restore);
+                }
+              },
+            }),
+        );
+        if (renderRestore) root.cleanup.add(renderRestore);
+        const unmountRestore = restoreMethod(
+          value,
+          'unmount',
+          (fn) =>
+            new Proxy(fn, {
+              apply(target, receiver, args) {
+                let returned = false;
+                try {
+                  const result = Reflect.apply(target, receiver, args);
+                  returned = true;
+                  return result;
+                } finally {
+                  root.active = false;
+                  root.registrationKnown = false;
+                  root.saver = null;
+                  root.vm = null;
+                  emit(returned ? 'root-unmount-return' : 'root-unmount-throw', {
+                    rootId: root.id,
+                  });
+                  for (const restore of root.cleanup) safely(restore);
+                  root.cleanup.clear();
+                }
+              },
+            }),
+        );
+        if (unmountRestore) root.cleanup.add(unmountRestore);
+        emit('root-observed', { rootId: root.id });
+      };
+      const wrapBoundary = (callback: Callable, prefix: string) =>
+        new Proxy(callback, {
+          apply(target, receiver, args) {
+            emit(`${prefix}-enter`);
+            let returned = false;
+            try {
+              const result = Reflect.apply(target, receiver, args);
+              returned = true;
+              return result;
+            } finally {
+              emit(returned ? `${prefix}-return` : `${prefix}-throw`);
+            }
+          },
+        });
+      let installed = false;
+      const factories = new WeakSet<object>();
+      const install = (options: unknown) => {
+        // createStandaloneRoot is a writable data export in the actual pinned
+        // CJS bundle. Decline accessors/nonwritable descriptors without replacing
+        // the namespace, state, arguments or factory result.
+        const standalone = ownValue(options, 'standalone');
+        if (isObject(standalone) && !factories.has(standalone)) {
+          factories.add(standalone);
+          restoreMethod(
+            standalone,
+            'createStandaloneRoot',
+            (fn) =>
+              new Proxy(fn, {
+                apply(target, receiver, args) {
+                  const root = Reflect.apply(target, receiver, args);
+                  safely(() => observeRoot(root, args[0]));
+                  return root;
+                },
+              }),
+          );
+        } else if (!isObject(standalone)) {
+          rootCoverageLost = true;
+          emit('observer-unavailable');
+        }
+        if (installed) return;
+        installed = true;
+        const storageApi = globals.AsaBlocksStorage;
+        if (isObject(storageApi)) {
+          const observedStorages = new WeakSet<object>();
+          restoreMethod(
+            storageApi,
+            'createReadOnlyStorage',
+            (fn) =>
+              new Proxy(fn, {
+                apply(target, receiver, args) {
+                  const storage = Reflect.apply(target, receiver, args);
+                  safely(() => {
+                    if (!isObject(storage) || observedStorages.has(storage)) return;
+                    observedStorages.add(storage);
+                    restoreMethod(storage, 'saveProject', (callback) =>
+                      wrapBoundary(callback, 'save-project'),
+                    );
+                    restoreMethod(storage, 'captureRecoveryAssets', (callback) =>
+                      wrapBoundary(callback, 'recovery-assets'),
+                    );
+                    const scratchStorage = ownValue(storage, 'scratchStorage');
+                    if (isObject(scratchStorage)) {
+                      restoreMethod(scratchStorage, 'store', (callback) =>
+                        wrapBoundary(callback, 'asset-store'),
+                      );
+                    } else emit('observer-unavailable');
+                  });
+                  return storage;
+                },
+              }),
+          );
+        } else emit('observer-unavailable');
+        // Retain the existing minute-clock and clean-load fixture ordering.
+        restoreMethod(
+          globalThis,
+          'setTimeout',
+          (fn) =>
+            new Proxy(fn, {
+              apply(target, receiver, args) {
+                const [callback, delay] = args;
+                if (
+                  typeof callback !== 'function' ||
+                  typeof delay !== 'number' ||
+                  !Number.isFinite(delay) ||
+                  delay < 55_000 ||
+                  delay > 65_000
+                ) {
+                  return Reflect.apply(target, receiver, args);
+                }
+                let entry: ReturnType<typeof callbackEntry>;
+                let detail: Detail = {};
+                let scheduledRoot: RootObservation | undefined;
+                safely(() => {
+                  entry = callbackEntry(callback as Callable);
+                  const association = link(callback as Callable);
+                  scheduledRoot = association.root;
+                  detail = {
+                    callbackLink: association.callbackLink,
+                    ...(association.root ? { rootId: association.root.id } : {}),
+                  };
+                });
+                if (!entry) return Reflect.apply(target, receiver, args);
+                const result = Reflect.apply(target, receiver, [entry.observed, ...args.slice(1)]);
+                emit('timer-scheduled', {
+                  callbackId: entry.id,
+                  delayMs: delay,
+                  ...detail,
+                  ...snapshot(scheduledRoot?.active ? scheduledRoot : undefined),
+                  ...(typeof result === 'number' && Number.isSafeInteger(result)
+                    ? { timerHandle: result }
+                    : {}),
+                });
+                return result;
+              },
+            }),
+        );
+        emit('observer-ready');
+      };
+      safely(() => {
+        if (Object.getOwnPropertyDescriptor(globalThis, snapshotKey)) {
+          emit('observer-unavailable');
+          return;
+        }
+        Object.defineProperty(globalThis, snapshotKey, {
+          configurable: true,
+          enumerable: false,
+          writable: false,
+          value: publishedSnapshot,
+        });
+        publicationEnabled = true;
+      });
+      if (Object.getOwnPropertyDescriptor(globalThis, 'AsaBlocksEditor')) {
+        emit('observer-unavailable');
+        return;
+      }
+      Object.defineProperty(globalThis, 'AsaBlocksEditor', {
+        configurable: true,
+        enumerable: true,
+        set(value: unknown) {
+          Object.defineProperty(globalThis, 'AsaBlocksEditor', {
+            configurable: true,
+            enumerable: true,
+            writable: true,
+            value,
+          });
+          safely(() => {
+            if (!isObject(value)) {
+              emit('observer-unavailable');
+              return;
+            }
+            restoreMethod(
+              value,
+              'mountEditor',
+              (fn) =>
+                new Proxy(fn, {
+                  apply(target, receiver, args) {
+                    safely(() => install(args[0]));
+                    return Reflect.apply(target, receiver, args);
+                  },
+                }),
+            );
+          });
+        },
+      });
+    },
+    { bindingName: binding, enums: abbyObserverEnums },
+  );
+}
+
 async function realRuntimeBootstrapFixture() {
   const imageBytes = Buffer.from(
     '<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96"><rect width="96" height="96" rx="16" fill="#ff5f57"/><circle cx="48" cy="48" r="23" fill="#0877b3"/></svg>',
@@ -460,7 +1894,10 @@ for (const cleanPop of [false, true]) {
       },
       runtimeAssets: serverProject.runtimeAssets,
     });
+    const saveStages = createAbbySaveStageEvidence(cleanPop, fixture);
+    saveStages.record('page-create-enter');
     let page = await minuteClockPage(fixture);
+    saveStages.record('page-create-return');
     let stage = 'opening';
     let savedTiming: unknown = null;
     const reloadedAssets: Array<{ assetFile: string; sha256: string; sizeBytes: number }> = [];
@@ -473,6 +1910,11 @@ for (const cleanPop of [false, true]) {
         saveErrors.push(message.text());
       }
     });
+    saveStages.record('observer-install-enter');
+    await installAbbySaveStageObserver(page, saveStages.observer).catch(() => {
+      saveStages.record('observer-unavailable');
+    });
+    saveStages.record('observer-install-return');
     if (cleanPop) {
       // Exercise Scratch's valid clean=true media state without invoking a save
       // or changing the minute timer: only ASA's acknowledgement is durability.
@@ -508,14 +1950,19 @@ for (const cleanPop of [false, true]) {
       }, popAssetId);
     }
     try {
+      saveStages.record('open-enter');
       await page.goto(`${parentOrigin}/product`, { waitUntil: 'domcontentloaded' });
+      saveStages.record('open-return');
       let frame = page.frameLocator('iframe[title="Scratch runtime"]');
+      saveStages.record('editor-ready-wait-enter');
       await expect(frame.locator('[data-asa-host-shell]')).toHaveAttribute(
         'data-editor-state',
         'ready',
         { timeout: 45000 },
       );
 
+      saveStages.record('editor-ready-observed');
+      saveStages.record('add-abby-enter');
       await frame.getByRole('button', { name: 'Choose a Sprite' }).first().click();
       await frame.getByText('Abby', { exact: true }).click();
       await expect(frame.getByPlaceholder('Name', { exact: true })).toHaveValue('Abby');
@@ -529,10 +1976,15 @@ for (const cleanPop of [false, true]) {
         ).toBeGreaterThan(0);
       }
 
+      saveStages.record('add-abby-return');
       stage = 'first-checkpoint';
       expect(fixture.getServerRevision()).toBe(23);
+      saveStages.record('clock-advance-enter');
       await advanceMinuteCheckpoint(page);
+      saveStages.record('clock-advance-return');
+      saveStages.record('revision-24-wait-enter');
       await expect.poll(() => fixture.getServerRevision(), { timeout: 30000 }).toBe(24);
+      saveStages.record('revision-24-observed');
 
       const popFile = `${popAssetId}.wav`;
       const popPuts = fixture.runtimeAssetPutEvidence.filter((item) => item.assetFile === popFile);
@@ -546,12 +1998,14 @@ for (const cleanPop of [false, true]) {
         contentTypeOk: true,
       });
       expect(fixture.runtimeDraftEvidence.length).toBeGreaterThan(0);
+      saveStages.record('saved-timing-read-enter');
       savedTiming = await frame.locator('body').evaluate(() => ({
         timers:
           (globalThis as unknown as { __asaMinuteAutosaveTimers?: unknown[] })
             .__asaMinuteAutosaveTimers ?? [],
         shell: { ...(document.querySelector('[data-asa-host-shell]') as HTMLElement)?.dataset },
       }));
+      saveStages.record('saved-timing-read-return');
       stage = 'saved';
 
       const savedDocument = fixture.runtimeDraftEvidence.at(-1)?.body?.document?.projectJson as
@@ -575,11 +2029,18 @@ for (const cleanPop of [false, true]) {
       const uploaded = new Set(fixture.runtimeAssetPutEvidence.map((item) => item.assetFile));
       for (const assetFile of abbyAssetFiles) expect(uploaded.has(assetFile)).toBe(true);
 
+      saveStages.record('reopen-context-enter');
       await fixture.reopenContextWithIndexedDB();
+      saveStages.record('reopen-context-return');
       stage = 'reopen';
+      saveStages.record('reopen-page-enter');
       page = await fixture.context.newPage();
+      saveStages.record('reopen-page-return');
+      saveStages.record('reopen-navigation-enter');
       await page.goto(`${parentOrigin}/product`, { waitUntil: 'domcontentloaded' });
+      saveStages.record('reopen-navigation-return');
       frame = page.frameLocator('iframe[title="Scratch runtime"]');
+      saveStages.record('reopen-ready-wait-enter');
       await expect(frame.locator('[data-asa-host-shell]')).toHaveAttribute(
         'data-editor-state',
         'ready',
@@ -589,6 +2050,7 @@ for (const cleanPop of [false, true]) {
         'data-project-source',
         'runtime-session',
       );
+      saveStages.record('reopen-ready-observed');
       const abbyButton = frame.getByRole('button', { name: 'Abby', exact: true });
       await expect(abbyButton).toBeVisible();
       await abbyButton.click();
@@ -644,7 +2106,10 @@ for (const cleanPop of [false, true]) {
       });
       expect(scratchFoundationWrites).toEqual([]);
       expect(fixture.pageErrors).toEqual([]);
+      saveStages.record('assertions-completed');
     } finally {
+      saveStages.record('finally-enter');
+      saveStages.record('legacy-timing-read-enter');
       const timing = await page
         .frameLocator('iframe[title="Scratch runtime"]')
         .locator('body')
@@ -653,15 +2118,37 @@ for (const cleanPop of [false, true]) {
             (globalThis as unknown as { __asaMinuteAutosaveTimers?: unknown[] })
               .__asaMinuteAutosaveTimers ?? [],
           shell: { ...(document.querySelector('[data-asa-host-shell]') as HTMLElement)?.dataset },
+          observerSnapshot: (() => {
+            try {
+              const descriptor = Object.getOwnPropertyDescriptor(
+                globalThis,
+                '__asaAbbySaveStageSnapshot',
+              );
+              // Never call or coerce a value obtained from this global slot.
+              // It can be foreign or stale; parse only bounded text in Node.
+              return descriptor?.configurable === true &&
+                descriptor.enumerable === false &&
+                descriptor.writable === false &&
+                typeof descriptor.value === 'string' &&
+                descriptor.value.length <= 262_144
+                ? descriptor.value
+                : null;
+            } catch {
+              return null;
+            }
+          })(),
         }))
         .catch(() => null);
+      saveStages.record('legacy-timing-read-return');
+      saveStages.reconcile(timing?.observerSnapshot);
+      saveStages.record('legacy-evidence-write-enter');
       fs.writeFileSync(
         `${evidenceDir}/abby-pop-${cleanPop ? 'clean' : 'native'}-autosave.json`,
         JSON.stringify(
           {
             stage,
             revision: fixture.getServerRevision(),
-            timing,
+            timing: timing === null ? null : { timers: timing.timers, shell: timing.shell },
             savedTiming,
             reloadedAssets,
             saveErrors,
@@ -674,7 +2161,15 @@ for (const cleanPop of [false, true]) {
           2,
         ),
       );
-      await fixture.close();
+      saveStages.record('legacy-evidence-write-return');
+      saveStages.record('teardown-enter');
+      let teardownCompleted = false;
+      try {
+        await fixture.close();
+        teardownCompleted = true;
+      } finally {
+        saveStages.record(teardownCompleted ? 'teardown-return' : 'teardown-interrupted');
+      }
     }
   });
 }

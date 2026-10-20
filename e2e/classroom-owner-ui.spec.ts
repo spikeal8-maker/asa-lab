@@ -760,10 +760,21 @@ test.describe('Mobile classroom navigation and restrictions', () => {
     await expect(page.locator('.classroom-roster-row')).toHaveCount(3);
     const header = page.locator('.portal-header');
     expect((await header.boundingBox())!.height).toBe(56);
+    const globalLinks = header.locator('.portal-global-nav a');
+    const expectedLinks = [
+      ['Проекты', '/#/gallery'],
+      ['Знания', '/#/knowledge'],
+      ['ИИ', '/#/ai'],
+    ] as const;
+    await expect(globalLinks).toHaveCount(expectedLinks.length);
+    for (const [index, [name, href]] of expectedLinks.entries()) {
+      await expect(globalLinks.nth(index)).toHaveAccessibleName(name);
+      await expect(globalLinks.nth(index)).toHaveAttribute('href', href);
+    }
     const controls = header.locator(
       '.portal-menu-toggle,.portal-global-nav a,.portal-quick-create > summary,.portal-account > summary',
     );
-    await expect(controls).toHaveCount(5);
+    await expect(controls).toHaveCount(6);
     for (const control of await controls.all()) {
       await expect(control).toBeVisible();
       const box = (await control.boundingBox())!;

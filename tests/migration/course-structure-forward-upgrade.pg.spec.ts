@@ -90,7 +90,13 @@ describe('Course Builder structure forward upgrade', () => {
         '0215', // Platform-wide paid AI operation quota.
         '0216', // Nonblocking session context heartbeat; preserves expiry and authority checks.
         '0217', // Future-write diagnostic address provenance; preserves historical observations.
-        '0234', // Immutable Public Projects publication; preserves original projects and learning data.
+        '0218', // Generation-bound MAX/Telegram identities, pairing and provider availability.
+        '0219', // Optional Account verification policy; preserves course and learner history.
+        '0222', // Server-checked classroom games policy without historical backfill.
+        '0223', // Atomic server-side game admission and project creation.
+        '0224', // Canonical identity initialization for newly created classroom Seats.
+        '0225', // Provider ingress/readiness receipts; preserves course and learner history.
+        '0234', // Explicit immutable Public Projects publication; protects originals.
       ];
       const pre153 = plan.filter((item) => Number(item.version) <= 152);
       const upgradePlan = plan.filter((item) => Number(item.version) > 152);
@@ -340,6 +346,12 @@ describe('Course Builder structure forward upgrade', () => {
           '0215',
           '0216',
           '0217',
+          '0218',
+          '0219',
+          '0222',
+          '0223',
+          '0224',
+          '0225',
           '0234',
         ]);
         expect(

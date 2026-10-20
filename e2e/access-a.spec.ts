@@ -267,6 +267,10 @@ test('G, I, J: Account learner owns learning, forbidden staff link, mixed contex
 }) => {
   await register(page, 'Ученик и преподаватель');
   await openPortalSection(page, 'Моё обучение');
+  await page
+    .getByRole('navigation', { name: 'Разделы моего обучения' })
+    .getByRole('link', { name: 'Классы', exact: true })
+    .click();
   await page.getByLabel('Код класса', { exact: true }).fill(classCode);
   await page.getByRole('button', { name: 'Войти в класс', exact: true }).click();
   await expect(page.getByText(/Заявка в класс.*отправлена/)).toBeVisible();
@@ -340,6 +344,10 @@ test('G, I, J: Account learner owns learning, forbidden staff link, mixed contex
     teacherCookie,
   );
   await page.reload();
+  await page
+    .getByRole('navigation', { name: 'Разделы моего обучения' })
+    .getByRole('link', { name: 'Задания', exact: true })
+    .click();
   await expect(page.getByTestId('attended-assignments')).toContainText('Практика ученика Access A');
   await expect(page.getByRole('navigation', { name: 'Разделы моего обучения' })).toContainText(
     'Завершённое',
@@ -365,6 +373,10 @@ test('G, I, J: Account learner owns learning, forbidden staff link, mixed contex
   const denied = await page.request.get(`/api/classrooms/${classId}/roster`);
   expect([403, 404]).toContain(denied.status());
   await openPortalSection(page, 'Моё обучение');
+  await page
+    .getByRole('navigation', { name: 'Разделы моего обучения' })
+    .getByRole('link', { name: 'Классы', exact: true })
+    .click();
   await expect(page.locator('.attended-list')).toContainText('Независимый класс Access A');
   await expect(portalSection(page, 'Классы')).toBeVisible();
   await shot(page, 'J-mixed-account-scopes');
@@ -564,7 +576,7 @@ test('H: short Student Code, reusable access cards, profile, logout and learner 
   expect(award.ok(), await award.text()).toBeTruthy();
   await openPortalSection(page, 'Моё обучение');
   await expect(page.getByRole('heading', { name: 'Моё обучение', exact: true })).toBeVisible();
-  await expect(page.locator('.seat-class-heading')).toContainText('Независимый класс Access A');
+  await expect(page.getByText('Класс «Независимый класс Access A»', { exact: true })).toBeVisible();
   const previousToken = (await page.context().cookies()).find(
     (cookie) => cookie.name === 'asa_student_session',
   )!.value;
@@ -573,7 +585,7 @@ test('H: short Student Code, reusable access cards, profile, logout and learner 
     module: 'electronics',
     title: 'Секретная работа первого',
   });
-  await openPortalSection(page, 'Мои учебные работы');
+  await openPortalSection(page, 'Мои проекты');
   await expect(page.getByText('Секретная работа первого', { exact: true }).first()).toBeVisible();
   await openAccountSettings(page);
   await expect(page.getByText(privateTeacherNote, { exact: true })).toBeVisible();
@@ -602,7 +614,7 @@ test('H: short Student Code, reusable access cards, profile, logout and learner 
     ).status(),
   ).toBe(401);
   await enter(second.student.studentCode, 320);
-  await openPortalSection(page, 'Мои учебные работы');
+  await openPortalSection(page, 'Мои проекты');
   await expect(page.getByText('Секретная работа первого', { exact: true })).toHaveCount(0);
   expect([403, 404]).toContain(
     (await page.request.get(`/api/projects/${work.project.id}`)).status(),

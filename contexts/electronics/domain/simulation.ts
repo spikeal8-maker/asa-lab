@@ -14,6 +14,9 @@ import { electricalModelFor } from './model-registry.js';
 import { canonicalNonlinearDcProfileRegistry } from './models/nonlinear-dc-models.js';
 import {
   solveCircuit,
+  takeArduinoQualityReceipt,
+  arduinoQualityDictionaryKeys,
+  releaseArduinoQualityReceipt,
   ELECTRICAL_EVENT_FRAME_VERSION,
   transistorTypeOf,
   type ComponentResult,
@@ -92,6 +95,11 @@ const MODEL_SET_DIGEST = `sha256:${sha256Hex(
     arduinoRuntimeStateVersion: ARDUINO_RUNTIME_STATE_VERSION,
   }),
 )}`;
+
+/** Identity of the complete canonical model registry, independent of any circuit. */
+export function simulationModelSetDigest(): string {
+  return MODEL_SET_DIGEST;
+}
 
 function ordinalCompare(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0;
@@ -265,7 +273,7 @@ export function compileCircuit(document: ElectronicsDocument): CompiledCircuit {
 }
 
 function allNumbers(result: SolveResult): readonly number[] {
-  return [
+  const numbers = [
     result.current,
     result.iterations,
     result.numericalResidual,
@@ -328,56 +336,67 @@ function allNumbers(result: SolveResult): readonly number[] {
         ]
       : []),
     ...result.nodes.flatMap((node) => [node.voltage]),
-    ...result.components.flatMap((component) => [
-      component.voltageDrop,
-      component.current,
-      component.power ?? 0,
-      component.internalResistanceOhm ?? 0,
-      component.internalPower ?? 0,
-      component.voltageSag ?? 0,
-      component.voltageSetpointVolt ?? 0,
-      component.currentLimitAmp ?? 0,
-      component.brightness ?? 0,
-      component.baseCurrent ?? 0,
-      component.collectorCurrent ?? 0,
-      component.emitterCurrent ?? 0,
-      component.currentGain ?? 0,
-      component.frequencyHz ?? 0,
-      component.soundLevel ?? 0,
-      component.motorRpm ?? 0,
-      component.outputRpm ?? 0,
-      component.motorAngularPhaseRadian ?? 0,
-      component.electromagneticTorqueNewtonMeter ?? 0,
-      component.outputTorqueNewtonMeter ?? 0,
-      component.outputLoadTorqueNewtonMeter ?? 0,
-      component.transmissionEfficiency ?? 0,
-      component.copperLossWatt ?? 0,
-      component.motorMechanicalPowerWatt ?? 0,
-      component.outputMechanicalPowerWatt ?? 0,
-      component.capacitanceFarad ?? 0,
-      component.chargeCoulomb ?? 0,
-      component.storedEnergyJoule ?? 0,
-      component.voltageRatingVolt ?? 0,
-      component.temperatureCelsius ?? 0,
-      component.sensorTemperatureCelsius ?? 0,
-      component.sensorMoisturePercent ?? 0,
-      component.sensorResistanceOhm ?? 0,
-      component.sensorOutputVoltageVolt ?? 0,
-      component.sensorSupplyVoltageVolt ?? 0,
-      component.sensorOutputCurrentAmp ?? 0,
-      component.thermalLoadPercent ?? 0,
-      component.accumulatedDamagePercent ?? 0,
-      component.voltageConstraintResidual ?? 0,
-      ...Object.values(component.terminalVoltages).filter(
-        (value): value is number => value !== undefined,
-      ),
-      ...Object.values(component.branchCurrents ?? {}),
-      ...Object.values(component.terminalCurrents ?? {}).filter(
-        (value): value is number => value !== undefined,
-      ),
-      ...Object.values(component.branchBrightness ?? {}),
-    ]),
   ];
+  const empty: readonly number[] = [];
+  void [
+    ...result.components.flatMap((component) => {
+      numbers.push(
+        component.voltageDrop,
+        component.current,
+        component.power ?? 0,
+        component.internalResistanceOhm ?? 0,
+        component.internalPower ?? 0,
+        component.voltageSag ?? 0,
+        component.voltageSetpointVolt ?? 0,
+        component.currentLimitAmp ?? 0,
+        component.brightness ?? 0,
+        component.baseCurrent ?? 0,
+        component.collectorCurrent ?? 0,
+        component.emitterCurrent ?? 0,
+        component.currentGain ?? 0,
+        component.frequencyHz ?? 0,
+        component.soundLevel ?? 0,
+        component.motorRpm ?? 0,
+        component.outputRpm ?? 0,
+        component.motorAngularPhaseRadian ?? 0,
+        component.electromagneticTorqueNewtonMeter ?? 0,
+        component.outputTorqueNewtonMeter ?? 0,
+        component.outputLoadTorqueNewtonMeter ?? 0,
+        component.transmissionEfficiency ?? 0,
+        component.copperLossWatt ?? 0,
+        component.motorMechanicalPowerWatt ?? 0,
+        component.outputMechanicalPowerWatt ?? 0,
+        component.capacitanceFarad ?? 0,
+        component.chargeCoulomb ?? 0,
+        component.storedEnergyJoule ?? 0,
+        component.voltageRatingVolt ?? 0,
+        component.temperatureCelsius ?? 0,
+        component.sensorTemperatureCelsius ?? 0,
+        component.sensorMoisturePercent ?? 0,
+        component.sensorResistanceOhm ?? 0,
+        component.sensorOutputVoltageVolt ?? 0,
+        component.sensorSupplyVoltageVolt ?? 0,
+        component.sensorOutputCurrentAmp ?? 0,
+        component.thermalLoadPercent ?? 0,
+        component.accumulatedDamagePercent ?? 0,
+        component.voltageConstraintResidual ?? 0,
+      );
+      for (const value of Object.values(component.terminalVoltages).filter(
+        (value): value is number => value !== undefined,
+      )) {
+        numbers.push(value);
+      }
+      for (const value of Object.values(component.branchCurrents ?? {})) numbers.push(value);
+      for (const value of Object.values(component.terminalCurrents ?? {}).filter(
+        (value): value is number => value !== undefined,
+      )) {
+        numbers.push(value);
+      }
+      for (const value of Object.values(component.branchBrightness ?? {})) numbers.push(value);
+      return empty;
+    }),
+  ];
+  return numbers;
 }
 
 export function verifyCircuitQuality(
@@ -641,6 +660,474 @@ export function verifyCircuitQuality(
     powerBalanceToleranceWatt: rounded(powerBalanceToleranceWatt),
     kclToleranceAmp: rounded(kclToleranceAmp),
     sourceVoltageToleranceVolt: SOURCE_VOLTAGE_TOLERANCE_V,
+  };
+}
+
+// This collector is used only for a solver-issued, synchronous current frame.
+// The public collector above retains all arbitrary caller observation semantics.
+function preparedNumbersFinite(
+  result: SolveResult,
+  keys: (record: object) => readonly string[] | undefined,
+): boolean {
+  let finite = true;
+  const check = (value: number) => {
+    finite = Number.isFinite(value) && finite;
+  };
+  const record = (
+    values: Readonly<Record<string, number | undefined>>,
+    filterUndefined: boolean,
+  ) => {
+    const orderedKeys = keys(values);
+    if (orderedKeys) {
+      for (const key of orderedKeys) {
+        const value = values[key];
+        if (!filterUndefined || value !== undefined) check(value as number);
+      }
+    } else {
+      const current = Object.values(values);
+      for (const value of filterUndefined
+        ? current.filter((value) => value !== undefined)
+        : current)
+        check(value as number);
+    }
+  };
+  check(result.current);
+  check(result.iterations);
+  check(result.numericalResidual);
+  check(result.numericalTolerance);
+  const transient = result.transientState;
+  if (transient) {
+    check(transient.simulationTimeMs);
+    for (const entry of transient.capacitors) {
+      check(entry.capacitanceFarad);
+      check(entry.initialVoltageVolt);
+      check(entry.voltageRatingVolt);
+      check(entry.voltageVolt);
+    }
+    for (const entry of transient.thermal) {
+      check(entry.temperatureCelsius);
+      check(entry.loadRatio);
+      check(entry.accumulatedDamage);
+    }
+    for (const entry of transient.motors ?? []) {
+      check(entry.simulationTimeSeconds);
+      check(entry.currentAmp);
+      check(entry.motorAngularVelocityRadPerSecond);
+      check(entry.motorAngularPhaseRadian);
+      check(entry.temperatureCelsius);
+      check(entry.accumulatedDamage);
+    }
+    for (const entry of transient.multimeterFuses ?? [])
+      check(entry.accumulatedI2tAmpSquaredSecond);
+  }
+  if (result.controllerState) {
+    check(result.controllerState.simulationTimeMs);
+    for (const entry of result.controllerState.boards) {
+      const runtime = entry.runtime;
+      check(runtime.virtualTimeMs);
+      check(runtime.resumeAtMs);
+      check(runtime.programCounter);
+      check(runtime.loopStartedAtMs);
+      check(runtime.loopIterations);
+      record(runtime.variables, false);
+      record(runtime.locals, false);
+      record(runtime.outputVoltages, true);
+      for (const tone of Object.values(runtime.tones))
+        if (tone) {
+          check(tone.frequencyHz);
+          if (tone.expiresAtMs !== undefined) check(tone.expiresAtMs);
+        }
+    }
+  }
+  if (result.transientAnalysis) {
+    check(result.transientAnalysis.acceptedSteps);
+    check(result.transientAnalysis.rejectedSteps);
+    check(result.transientAnalysis.minStepMs);
+    check(result.transientAnalysis.maxStepMs);
+  }
+  for (const node of result.nodes) check(node.voltage);
+  for (const component of result.components) {
+    check(component.voltageDrop);
+    check(component.current);
+    check(component.power ?? 0);
+    check(component.internalResistanceOhm ?? 0);
+    check(component.internalPower ?? 0);
+    check(component.voltageSag ?? 0);
+    check(component.voltageSetpointVolt ?? 0);
+    check(component.currentLimitAmp ?? 0);
+    check(component.brightness ?? 0);
+    check(component.baseCurrent ?? 0);
+    check(component.collectorCurrent ?? 0);
+    check(component.emitterCurrent ?? 0);
+    check(component.currentGain ?? 0);
+    check(component.frequencyHz ?? 0);
+    check(component.soundLevel ?? 0);
+    check(component.motorRpm ?? 0);
+    check(component.outputRpm ?? 0);
+    check(component.motorAngularPhaseRadian ?? 0);
+    check(component.electromagneticTorqueNewtonMeter ?? 0);
+    check(component.outputTorqueNewtonMeter ?? 0);
+    check(component.outputLoadTorqueNewtonMeter ?? 0);
+    check(component.transmissionEfficiency ?? 0);
+    check(component.copperLossWatt ?? 0);
+    check(component.motorMechanicalPowerWatt ?? 0);
+    check(component.outputMechanicalPowerWatt ?? 0);
+    check(component.capacitanceFarad ?? 0);
+    check(component.chargeCoulomb ?? 0);
+    check(component.storedEnergyJoule ?? 0);
+    check(component.voltageRatingVolt ?? 0);
+    check(component.temperatureCelsius ?? 0);
+    check(component.sensorTemperatureCelsius ?? 0);
+    check(component.sensorMoisturePercent ?? 0);
+    check(component.sensorResistanceOhm ?? 0);
+    check(component.sensorOutputVoltageVolt ?? 0);
+    check(component.sensorSupplyVoltageVolt ?? 0);
+    check(component.sensorOutputCurrentAmp ?? 0);
+    check(component.thermalLoadPercent ?? 0);
+    check(component.accumulatedDamagePercent ?? 0);
+    check(component.voltageConstraintResidual ?? 0);
+    record(component.terminalVoltages, true);
+    if (component.branchCurrents) record(component.branchCurrents, false);
+    if (component.terminalCurrents) record(component.terminalCurrents, true);
+    if (component.branchBrightness) record(component.branchBrightness, false);
+  }
+  return finite;
+}
+
+/** Package internal: a private topology and scratch, enabled by the owned clock. */
+export function createArduinoQualityTraversal(
+  document: ElectronicsDocument,
+  compiled: CompiledCircuit,
+  owner: object,
+) {
+  // Neither these Maps nor the derived terminal layouts escape this closure.
+  const nodeOf = new Map(compiled.netlist.nodeOf);
+  const nodeCount = compiled.netlist.nodeCount;
+  const componentResult = new Map<string, ComponentResult>();
+  const residualByNode = new Map<number, number>();
+  const terminalPowerByComponent: number[] = [];
+  let terminalLayouts = new WeakMap<object, Map<string, readonly (number | undefined)[]>>();
+  let active = false;
+  let disposed = false;
+  const verify = (result: SolveResult, options: SimulationOptions): SimulationQuality => {
+    // Unknown/reentrant frames take the original path before shared scratch is touched.
+    const receipt = !disposed ? takeArduinoQualityReceipt(owner, result, document) : undefined;
+    if (!receipt || active) {
+      if (receipt) releaseArduinoQualityReceipt(receipt);
+      return verifyCircuitQuality(document, compiled, result, options);
+    }
+    active = true;
+    const keys = (record: object) => arduinoQualityDictionaryKeys(receipt, record);
+    const terminalNodes = (record: object, componentId: string, orderedKeys: readonly string[]) => {
+      let byComponent = terminalLayouts.get(record);
+      if (!byComponent) {
+        byComponent = new Map();
+        terminalLayouts.set(record, byComponent);
+      }
+      let nodes = byComponent.get(componentId);
+      if (!nodes) {
+        nodes = orderedKeys.map((terminal) => nodeOf.get(terminalKey(componentId, terminal)));
+        byComponent.set(componentId, nodes);
+      }
+      return nodes;
+    };
+    try {
+      const finite = preparedNumbersFinite(result, keys);
+      if (result.components.length === 0) {
+        return {
+          finite,
+          passed: false,
+          maxKclResidualAmp: 0,
+          maxSourceVoltageResidualVolt: 0,
+          powerBalanceResidualWatt: 0,
+          powerBalanceToleranceWatt: MIN_POWER_BALANCE_TOLERANCE_W,
+          kclToleranceAmp: KCL_TOLERANCE_A,
+          sourceVoltageToleranceVolt: SOURCE_VOLTAGE_TOLERANCE_V,
+        };
+      }
+
+      for (const entry of result.components) componentResult.set(entry.componentId, entry);
+      const addAtNode = (componentId: string, terminal: Terminal, currentLeaving: number): void => {
+        const node = nodeOf.get(terminalKey(componentId, terminal));
+        if (node === undefined) return;
+        residualByNode.set(node, (residualByNode.get(node) ?? 0) + currentLeaving);
+      };
+      const addBranch = (
+        component: SchematicComponent,
+        from: Terminal,
+        to: Terminal,
+        current: number,
+      ): void => {
+        addAtNode(component.id, from, current);
+        addAtNode(component.id, to, -current);
+      };
+
+      let maxSourceVoltageResidualVolt = 0;
+      for (const component of document.components) {
+        const resultForComponent = componentResult.get(component.id);
+        if (!resultForComponent) continue;
+        if (resultForComponent.voltageConstraintResidual !== undefined) {
+          maxSourceVoltageResidualVolt = Math.max(
+            maxSourceVoltageResidualVolt,
+            Math.abs(resultForComponent.voltageConstraintResidual),
+          );
+        }
+        if (resultForComponent.terminalCurrents !== undefined) {
+          const currents = resultForComponent.terminalCurrents;
+          const orderedKeys = keys(currents);
+          if (orderedKeys) {
+            const nodes = terminalNodes(currents, component.id, orderedKeys);
+            for (let index = 0; index < orderedKeys.length; index++) {
+              const currentEntering = currents[orderedKeys[index]!];
+              const node = nodes[index];
+              if (currentEntering !== undefined && node !== undefined)
+                residualByNode.set(node, (residualByNode.get(node) ?? 0) + currentEntering);
+            }
+          } else {
+            for (const [terminal, currentEntering] of Object.entries(currents))
+              if (currentEntering !== undefined) addAtNode(component.id, terminal, currentEntering);
+          }
+          continue;
+        }
+        if (isArduinoUno(component)) {
+          const runtime = result.controllerState?.boards.find(
+            (entry) => entry.componentId === component.id,
+          )?.runtime;
+          // Verification observes the same controller state that supplied MNA. Never
+          // replay a sketch with missing inputs to invent a different source voltage.
+          if (!runtime) return { ...failedQuality(), finite };
+          const branches = arduinoOutputBranchesFromSnapshot(
+            component,
+            arduinoSnapshotFromState(runtime),
+            options.simulationTimeMs ?? 0,
+          );
+          for (const branch of branches) {
+            const positive = resultForComponent.terminalVoltages[branch.terminal] ?? 0;
+            const ground = resultForComponent.terminalVoltages[branch.ground] ?? 0;
+            const currentLeaving =
+              (positive - ground - branch.targetVoltage) / branch.resistanceOhm;
+            addBranch(component, branch.terminal, branch.ground, currentLeaving);
+          }
+          continue;
+        }
+        if (
+          component.kind === 'photoresistor' ||
+          component.kind === 'piezo' ||
+          component.kind === 'lamp' ||
+          component.kind === 'switch' ||
+          component.kind === 'button'
+        ) {
+          addBranch(
+            component,
+            logicalTerminal(component, 'a'),
+            logicalTerminal(component, 'b'),
+            resultForComponent.current,
+          );
+          continue;
+        }
+        if (component.kind === 'potentiometer') {
+          const a = logicalTerminal(component, 'a');
+          const b = logicalTerminal(component, 'b');
+          const wiper = logicalTerminal(component, 'wiper');
+          const position = component.wiperPosition ?? 0.5;
+          const voltageA = resultForComponent.terminalVoltages[a] ?? 0;
+          const voltageB = resultForComponent.terminalVoltages[b] ?? 0;
+          const voltageWiper = resultForComponent.terminalVoltages[wiper] ?? 0;
+          const currentA =
+            (voltageA - voltageWiper) / Math.max(CLOSED_RESISTANCE, component.value * position);
+          const currentB =
+            (voltageWiper - voltageB) /
+            Math.max(CLOSED_RESISTANCE, component.value * (1 - position));
+          addBranch(component, a, wiper, currentA);
+          addBranch(component, wiper, b, currentB);
+          continue;
+        }
+        if (component.kind === 'led' || component.kind === 'diode') {
+          const branchId = component.kind === 'led' ? 'led' : 'diode';
+          addBranch(
+            component,
+            logicalTerminal(component, 'a'),
+            logicalTerminal(component, 'b'),
+            resultForComponent.branchCurrents?.[branchId] ?? resultForComponent.current,
+          );
+          continue;
+        }
+        if (component.kind === 'transistor') {
+          const transistorType = transistorTypeOf(component);
+          if (transistorType === 'fet') {
+            // The gate is insulated: drain current leaves the drain and enters the source.
+            addBranch(
+              component,
+              'drain',
+              'source',
+              resultForComponent.collectorCurrent ??
+                resultForComponent.branchCurrents?.['drain'] ??
+                0,
+            );
+            continue;
+          }
+          if (transistorType === 'pnp') {
+            // PNP currents leave the emitter and enter base and collector.
+            addBranch(
+              component,
+              'emitter',
+              'base',
+              resultForComponent.baseCurrent ?? resultForComponent.branchCurrents?.['base'] ?? 0,
+            );
+            addBranch(
+              component,
+              'emitter',
+              'collector',
+              resultForComponent.collectorCurrent ??
+                resultForComponent.branchCurrents?.['collector'] ??
+                0,
+            );
+            continue;
+          }
+          addBranch(
+            component,
+            'base',
+            'emitter',
+            resultForComponent.baseCurrent ?? resultForComponent.branchCurrents?.['base'] ?? 0,
+          );
+          addBranch(
+            component,
+            'collector',
+            'emitter',
+            resultForComponent.collectorCurrent ??
+              resultForComponent.branchCurrents?.['collector'] ??
+              0,
+          );
+          continue;
+        }
+        if (component.kind === 'rgb-led') {
+          const commonAnode = component.stateProperties?.['commonMode'] === 'common-anode';
+          for (const channel of ['red', 'green', 'blue'] as const) {
+            const current = resultForComponent.branchCurrents?.[channel] ?? 0;
+            addBranch(
+              component,
+              commonAnode ? 'common' : channel,
+              commonAnode ? channel : 'common',
+              current,
+            );
+          }
+          continue;
+        }
+        if (component.kind === 'seven-segment') {
+          const common = 'bottom-3';
+          const commonAnode = component.stateProperties?.['commonMode'] === 'common-anode';
+          for (const [segment, terminal] of Object.entries(SEVEN_SEGMENT_TERMINALS)) {
+            const current = resultForComponent.branchCurrents?.[segment] ?? 0;
+            addBranch(
+              component,
+              commonAnode ? common : terminal,
+              commonAnode ? terminal : common,
+              current,
+            );
+          }
+        }
+      }
+
+      let maxKclResidualAmp = 0;
+      for (let node = 0; node < nodeCount; node++)
+        maxKclResidualAmp = Math.max(maxKclResidualAmp, Math.abs(residualByNode.get(node) ?? 0));
+      let maxTerminalCurrentAmp = 0;
+      for (const component of result.components) {
+        const currents = component.terminalCurrents;
+        if (!currents) continue;
+        const orderedKeys = keys(currents);
+        if (orderedKeys)
+          for (const key of orderedKeys)
+            maxTerminalCurrentAmp = Math.max(maxTerminalCurrentAmp, Math.abs(currents[key] ?? 0));
+        else
+          for (const value of Object.values(currents).map((value) => Math.abs(value ?? 0)))
+            maxTerminalCurrentAmp = Math.max(maxTerminalCurrentAmp, value);
+      }
+      const kclToleranceAmp = result.transientState
+        ? Math.max(KCL_TOLERANCE_A, maxTerminalCurrentAmp * TRANSIENT_KCL_RELATIVE_TOLERANCE)
+        : KCL_TOLERANCE_A;
+      const powerBalanceComponents = document.components.filter(
+        (component) =>
+          !['wire', 'breadboard'].includes(component.kind) &&
+          (component.kind !== 'visual' ||
+            // A partial sum containing loads but omitting their Arduino supply is
+            // not a circuit power balance. Require terminal currents for all parties.
+            isArduinoUno(component) ||
+            isElectrolyticCapacitor(component) ||
+            component.componentTypeId === 'dc-motor' ||
+            component.componentTypeId === 'gearmotor' ||
+            component.componentTypeId === 'vibration-motor' ||
+            component.componentTypeId === 'temperature-sensor' ||
+            component.componentTypeId === 'soil-moisture-sensor' ||
+            component.componentTypeId === 'multimeter' ||
+            component.componentTypeId === 'oscilloscope'),
+      );
+      const powerBalanceApplicable =
+        powerBalanceComponents.length > 0 &&
+        powerBalanceComponents.every(
+          (component) => componentResult.get(component.id)?.terminalCurrents !== undefined,
+        );
+      if (powerBalanceApplicable)
+        for (const component of powerBalanceComponents) {
+          const solved = componentResult.get(component.id);
+          const currents = solved?.terminalCurrents;
+          const orderedKeys = currents && keys(currents);
+          let power = 0;
+          if (orderedKeys)
+            for (const terminal of orderedKeys)
+              power =
+                power + (solved?.terminalVoltages[terminal] ?? 0) * (currents![terminal] ?? 0);
+          else
+            power = Object.entries(currents ?? {}).reduce(
+              (sum, [terminal, currentEntering]) =>
+                sum + (solved?.terminalVoltages[terminal] ?? 0) * (currentEntering ?? 0),
+              0,
+            );
+          terminalPowerByComponent.push(power);
+        }
+      let suppliedPowerWatt = 0;
+      for (const power of terminalPowerByComponent)
+        suppliedPowerWatt = suppliedPowerWatt + Math.max(0, -power);
+      let totalPowerWatt = 0;
+      for (const power of terminalPowerByComponent) totalPowerWatt = totalPowerWatt + power;
+      const powerBalanceResidualWatt = Math.abs(totalPowerWatt);
+      const powerBalanceToleranceWatt = Math.max(
+        MIN_POWER_BALANCE_TOLERANCE_W,
+        suppliedPowerWatt * 1e-6,
+      );
+      const passed =
+        finite &&
+        maxKclResidualAmp <= kclToleranceAmp &&
+        maxSourceVoltageResidualVolt <= SOURCE_VOLTAGE_TOLERANCE_V &&
+        (!powerBalanceApplicable || powerBalanceResidualWatt <= powerBalanceToleranceWatt);
+      return {
+        finite,
+        passed,
+        maxKclResidualAmp: rounded(maxKclResidualAmp),
+        maxSourceVoltageResidualVolt: rounded(maxSourceVoltageResidualVolt),
+        powerBalanceResidualWatt: rounded(powerBalanceResidualWatt),
+        powerBalanceToleranceWatt: rounded(powerBalanceToleranceWatt),
+        kclToleranceAmp: rounded(kclToleranceAmp),
+        sourceVoltageToleranceVolt: SOURCE_VOLTAGE_TOLERANCE_V,
+      };
+    } finally {
+      componentResult.clear();
+      residualByNode.clear();
+      terminalPowerByComponent.length = 0;
+      releaseArduinoQualityReceipt(receipt);
+      active = false;
+    }
+  };
+  return {
+    verify,
+    dispose() {
+      disposed = true;
+      terminalLayouts = new WeakMap();
+      nodeOf.clear();
+      componentResult.clear();
+      residualByNode.clear();
+      terminalPowerByComponent.length = 0;
+    },
   };
 }
 

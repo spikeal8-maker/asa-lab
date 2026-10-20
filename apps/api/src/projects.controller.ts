@@ -15,7 +15,7 @@ import {
 } from '@nestjs/common';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type pg from 'pg';
-import type { ActiveContextUseCase } from '@asa-lab/identity';
+import { hashSessionToken, type ActiveContextUseCase } from '@asa-lab/identity';
 import type {
   ChangeProjectStatusUseCase,
   CreateCheckpointUseCase,
@@ -26,6 +26,7 @@ import type {
   ListProjectsUseCase,
   OpenProjectUseCase,
   ProjectErrorCode,
+  ProjectActor,
   ReadProjectSnapshotUseCase,
   RenameProjectUseCase,
   SaveDraftUseCase,
@@ -34,7 +35,10 @@ import type {
 } from '@asa-lab/projects';
 import type { ModuleRegistry } from '@asa-lab/module-sdk';
 import { SESSION_COOKIE, TOKENS } from './tokens.js';
-import { STUDENT_SESSION_COOKIE, SeatContextUseCase } from './seat-context.js';
+import { STUDENT_SESSION_COOKIE, SeatContextUseCase, type SeatContext } from './seat-context.js';
+import { currentSeatGamesAccess, isOfflineGame } from './games-access.js';
+import { gamesProjectGuard, rejectGameAdmission } from './games-project-guard.js';
+import { withTenantContext } from '@asa-lab/database';
 import { FEEDBACK_BADGES, ProjectFeedbackService } from './project-feedback.js';
 import {
   LearningCanonicalProjectionService,
@@ -51,6 +55,8 @@ interface ProjectRequestContext {
   readonly userId: string | null;
   readonly accountId: string | null;
   readonly seatId: string | null;
+  readonly seat?: SeatContext;
+  readonly studentSession?: ProjectActor['studentSession'];
 }
 
 function error(code: string, message: string, reasonCode?: string) {
@@ -124,6 +130,28 @@ export class ProjectsController {
    * kind of person is holding the pencil.
    */
   private async requireContext(request: FastifyRequest): Promise<ProjectRequestContext> {
+    // A present Seat cookie selects the learner even beside a valid Account.
+    // Invalid/revoked/empty Seat credentials never fall back to Account authority.
+    if (Object.prototype.hasOwnProperty.call(request.cookies, STUDENT_SESSION_COOKIE)) {
+      const token = request.cookies[STUDENT_SESSION_COOKIE];
+      const seat = await this.seatContext.resolve(token);
+      if (!seat || !token)
+        throw new HttpException(error('unauthorized', 'no active student session'), 401);
+      return {
+        tenantId: seat.tenantId,
+        principalId: seat.principalId,
+        userId: null,
+        accountId: null,
+        seatId: seat.seatId,
+        seat,
+        studentSession: {
+          tenantId: seat.tenantId,
+          classroomId: seat.classroomId,
+          seatId: seat.seatId,
+          tokenHash: hashSessionToken(token),
+        },
+      };
+    }
     const account = await this.activeContext.resolve(request.cookies[SESSION_COOKIE]);
     if (account) {
       return {
@@ -134,24 +162,32 @@ export class ProjectsController {
         seatId: null,
       };
     }
-    const seat = await this.seatContext.resolve(request.cookies[STUDENT_SESSION_COOKIE]);
-    if (seat) {
-      return {
-        tenantId: seat.tenantId,
-        principalId: seat.principalId,
-        userId: seat.userId,
-        accountId: null,
-        seatId: seat.seatId,
-      };
-    }
     throw new HttpException(error('unauthorized', 'no active session'), 401);
   }
 
-  private static actorOf(context: ProjectRequestContext): {
-    principalId: string;
-    userId: string | null;
-  } {
-    return { principalId: context.principalId, userId: context.userId };
+  private static actorOf(context: ProjectRequestContext): ProjectActor {
+    return {
+      principalId: context.principalId,
+      userId: context.userId,
+      ...(context.studentSession ? { studentSession: context.studentSession } : {}),
+    };
+  }
+
+  private async gameAdmission(context: ProjectRequestContext) {
+    return context.seat && context.studentSession
+      ? currentSeatGamesAccess(this.pool, context.seat, context.studentSession.tokenHash, 'chess')
+      : { granted: true as const, reason: 'allowed' as const, threshold: null };
+  }
+
+  private async guardProject(context: ProjectRequestContext, projectId: string): Promise<void> {
+    if (!context.studentSession || !this.pool) return;
+    await withTenantContext(this.pool, context.tenantId, (client) =>
+      gamesProjectGuard(client, {
+        tenantId: context.tenantId,
+        actor: ProjectsController.actorOf(context),
+        projectId,
+      }),
+    );
   }
 
   private static reject(code: ProjectErrorCode, message: string, reasonCode?: string): never {
@@ -183,6 +219,8 @@ export class ProjectsController {
     @Query('excludeGames') excludeGames: string | undefined,
   ): Promise<{ items: unknown[]; nextCursor?: string | null }> {
     const context = await this.requireContext(request);
+    const admission = await this.gameAdmission(context);
+    if (!admission.granted && isOfflineGame(moduleKey)) rejectGameAdmission(admission);
     const result = await this.listUseCase.execute(
       context.tenantId,
       ProjectsController.actorOf(context),
@@ -197,7 +235,7 @@ export class ProjectsController {
         cursor,
         search,
         sort,
-        excludeGames,
+        excludeGames: admission.granted ? excludeGames : 'true',
       },
     );
     if (!result.ok) ProjectsController.reject(result.code, result.message);
@@ -334,6 +372,10 @@ export class ProjectsController {
     @Query('module') moduleKey: string | undefined,
   ): Promise<{ title: string; sequence: number }> {
     const context = await this.requireContext(request);
+    if (isOfflineGame(moduleKey)) {
+      const admission = await this.gameAdmission(context);
+      if (!admission.granted) rejectGameAdmission(admission);
+    }
     const result = await this.suggestTitleUseCase.execute({
       tenantId: context.tenantId,
       scope,
@@ -665,6 +707,7 @@ export class ProjectsController {
     @Param('projectId') projectId: string,
   ): Promise<{ items: unknown[] }> {
     const context = await this.requireContext(request);
+    await this.guardProject(context, projectId);
     return { items: await this.feedback.list(context.principalId, projectId) };
   }
 
@@ -730,6 +773,12 @@ export class ProjectsController {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
+      await client.query("SELECT set_config('app.tenant_id', $1, true)", [context.tenantId]);
+      await gamesProjectGuard(client, {
+        tenantId: context.tenantId,
+        actor: ProjectsController.actorOf(context),
+        projectId,
+      });
       const saved = await client.query(
         `SELECT project_properties_save($1, $2, $3, $4, $5, $6) AS ok`,
         [context.principalId, projectId, title.trim(), description, tags, license],

@@ -104,7 +104,7 @@ async function acknowledgeVisitsAndQuality(page: Page): Promise<void> {
                 pipeline: body['pipeline'],
                 acknowledgementStage: body['acknowledgementStage'],
               }
-            : { recordId: body['eventId'] }),
+            : { recordId: 1 }),
         }),
       });
     },

@@ -14,6 +14,7 @@ import { buildChessHomeSummary } from './chess-home-ui';
 import './chess-home.css';
 
 interface ChessHomeProps {
+  readonly seatLearner?: boolean;
   readonly projectId: string;
   readonly user: PublicUser;
   readonly onBack: () => void;
@@ -26,6 +27,7 @@ interface ChessHomeProps {
 }
 
 interface ChessHomeNavigationProps {
+  readonly seatLearner?: boolean;
   readonly user: PublicUser;
   readonly onBack: () => void;
   readonly onOpenBoard: () => void;
@@ -90,24 +92,26 @@ function ChessHomeNavigation(props: ChessHomeNavigationProps): JSX.Element {
         <strong>ASA Chess</strong>
       </div>
       <nav aria-label="Меню ASA Chess">
-        {items.map((item) => (
-          <button
-            key={item.label}
-            type="button"
-            className={item.selected ? 'is-selected' : ''}
-            aria-current={item.selected ? 'page' : undefined}
-            aria-label={item.label}
-            onClick={item.action}
-          >
-            <span className="asa-chess-home-nav-icon" aria-hidden="true">
-              {item.icon}
-            </span>
-            <span>
-              <strong>{item.label}</strong>
-              <small>{item.note}</small>
-            </span>
-          </button>
-        ))}
+        {items
+          .filter((item) => !props.seatLearner || item.label !== 'Онлайн')
+          .map((item) => (
+            <button
+              key={item.label}
+              type="button"
+              className={item.selected ? 'is-selected' : ''}
+              aria-current={item.selected ? 'page' : undefined}
+              aria-label={item.label}
+              onClick={item.action}
+            >
+              <span className="asa-chess-home-nav-icon" aria-hidden="true">
+                {item.icon}
+              </span>
+              <span>
+                <strong>{item.label}</strong>
+                <small>{item.note}</small>
+              </span>
+            </button>
+          ))}
       </nav>
       <div className="asa-chess-home-sidebar-footer">
         <button type="button" className="asa-chess-home-projects" onClick={props.onBack}>
@@ -239,9 +243,11 @@ export function ChessHome(props: ChessHomeProps): JSX.Element {
                   <button type="button" className="is-primary" onClick={props.onOpenBoard}>
                     <span aria-hidden="true">♞</span> Продолжить на доске
                   </button>
-                  <button type="button" onClick={props.onOpenOnline}>
-                    Играть онлайн
-                  </button>
+                  {!props.seatLearner && (
+                    <button type="button" onClick={props.onOpenOnline}>
+                      Играть онлайн
+                    </button>
+                  )}
                   <button type="button" onClick={props.onOpenBot}>
                     Выбрать бота
                   </button>

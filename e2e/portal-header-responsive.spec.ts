@@ -88,6 +88,17 @@ test('shared portal header stays on one row with useful labels and 4K scaling', 
     expect(result.create.right, width + ': create vs avatar').toBeLessThanOrEqual(
       result.account.x - 1,
     );
+    for (const target of [result.brand, result.create, result.account]) {
+      expect(target.w, width + ': 44px header target width').toBeGreaterThanOrEqual(44);
+      expect(target.h, width + ': 44px header target height').toBeGreaterThanOrEqual(44);
+    }
+    if (width <= 1023) {
+      expect(result.menu.w, width + ': 44px menu width').toBeGreaterThanOrEqual(44);
+      expect(result.menu.h, width + ': 44px menu height').toBeGreaterThanOrEqual(44);
+    }
+    if (width <= 600) {
+      expect(result.nav.w, width + ': three mobile navigation targets').toBe(132);
+    }
     for (let index = 0; index < result.navLabels.length; index++) {
       const link = result.navLabels[index]!;
       expect(link.box.left, width + ': nav link left').toBeGreaterThanOrEqual(result.nav.x - 1);
@@ -103,10 +114,16 @@ test('shared portal header stays on one row with useful labels and 4K scaling', 
         ).toBeLessThanOrEqual(link.box.left);
       }
     }
-    expect(result.navLabels.map((x) => x.accessible)).toEqual(['Проекты', 'Знания']);
+    expect(result.navLabels.map((x) => x.accessible)).toEqual(['Проекты', 'Знания', 'ИИ']);
+    for (const link of result.navLabels) {
+      expect(link.box.width, width + ': 44px navigation target').toBeGreaterThanOrEqual(44);
+      expect(link.box.height, width + ': 44px navigation target').toBeGreaterThanOrEqual(44);
+    }
     if (width >= 601) {
       expect(
-        result.navLabels.every((item) => item.width > 35 && !item.clipped),
+        result.navLabels.every(
+          (item) => item.width > (item.accessible === 'ИИ' ? 15 : 35) && !item.clipped,
+        ),
         width + ': visible text',
       ).toBe(true);
     } else {
@@ -167,6 +184,9 @@ test('header remains pinned on scroll and on other portal routes', async ({ page
   await page.getByRole('button', { name: 'Открыть меню' }).click();
   await expect(page.locator('.portal-sidebar.mobile-open')).toBeVisible();
   await expect(page.locator('.portal-sidebar.mobile-open .portal-mobile-public')).toBeVisible();
+  await expect(
+    page.locator('.portal-mobile-public').getByRole('link', { name: 'ИИ', exact: true }),
+  ).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(page.locator('.portal-sidebar.mobile-open')).toHaveCount(0);
   await page.setViewportSize({ width: 768, height: 650 });
@@ -179,4 +199,113 @@ test('header remains pinned on scroll and on other portal routes', async ({ page
     .evaluate((element) => element.getBoundingClientRect().top);
   expect(y).toBe(0);
   expect(state.mutations).toEqual([]);
+});
+
+for (const account of [false, true]) {
+  for (const sidebar of ['expanded', 'collapsed'] as const) {
+    const actor = account ? 'account' : 'teacher';
+    test(`AI sidebar preserves ${sidebar} preference for ${actor}`, async ({ page }) => {
+      const state = await fixture(page, 0, { account, sidebar });
+      // This journey checks the portal layout even when chat access is denied.
+      await page.route('**/api/ai/**', (route) =>
+        route.fulfill({
+          status: 403,
+          json: { error: { code: 'forbidden', message: 'Доступ закрыт' } },
+        }),
+      );
+      await page.setViewportSize({ width: 1024, height: 900 });
+      await page.goto('/#/knowledge');
+      const globalSidebar = page.locator('#portal-sidebar');
+      await expect(globalSidebar).toBeVisible();
+      await expect(globalSidebar).toHaveClass(
+        sidebar === 'collapsed' ? /\bcollapsed\b/ : /^portal-sidebar$/,
+      );
+      await expect(globalSidebar.locator('a[href="/#/ai"]')).toBeHidden();
+      await page
+        .locator('.portal-global-nav')
+        .getByRole('link', { name: 'ИИ', exact: true })
+        .click();
+      await expect(globalSidebar).toHaveClass(/\bcollapsed\b/);
+      await expect(globalSidebar).toHaveCSS('width', '72px');
+      await expect(page.locator('.asa-ai-layout')).toBeVisible();
+      await page.locator('.portal-global-nav').getByRole('link', { name: 'Знания' }).click();
+      await expect(globalSidebar).toHaveClass(
+        sidebar === 'collapsed' ? /\bcollapsed\b/ : /^portal-sidebar$/,
+      );
+      // Hash restoration also receives the layout override, without a header click.
+      await page.evaluate(() => {
+        location.hash = '#/ai';
+      });
+      await expect(globalSidebar).toHaveClass(/\bcollapsed\b/);
+      await expect(page.locator('.asa-ai-layout')).toBeVisible();
+      await page.setViewportSize({ width: 390, height: 900 });
+      await page.getByRole('button', { name: 'Открыть меню' }).click();
+      await page.locator('.portal-mobile-public').getByRole('link', { name: 'Знания' }).click();
+      await page.getByRole('button', { name: 'Открыть меню' }).click();
+      await page
+        .locator('.portal-mobile-public')
+        .getByRole('link', { name: 'ИИ', exact: true })
+        .click();
+      await expect(globalSidebar).toBeHidden();
+      await expect(page.locator('.portal-sidebar.mobile-open')).toHaveCount(0);
+      await expect(page.locator('.asa-ai-layout')).toHaveCSS('margin-left', '12px');
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+        391,
+      );
+      expect(state.mutations).toEqual([]);
+      expect(state.errors).toEqual([]);
+    });
+  }
+}
+
+test('class seat discovers AI in the top bar and drawer, reaching only the locked view', async ({
+  page,
+}) => {
+  const state = await fixture(page);
+  const aiRequests: string[] = [];
+  page.on('request', (request) => {
+    if (new URL(request.url()).pathname.startsWith('/api/ai/')) aiRequests.push(request.url());
+  });
+  await page.route('**/api/auth/me', (route) => route.fulfill({ json: { authenticated: false } }));
+  await page.route('**/api/class-join/me', (route) =>
+    route.fulfill({
+      json: {
+        authenticated: true,
+        student: { seatId: 'seat-nav', displayName: 'Ученик', safeMode: true, avatarKey: null },
+        classroom: { id: 'class-nav', title: 'Класс', teacherDisplayName: 'Педагог' },
+        expiresAt: '2030-01-01T00:00:00Z',
+      },
+    }),
+  );
+  for (const width of [320, 390, 600, 601, 1023, 1024]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto('/#/gallery');
+    const topAi = page.locator('.portal-global-nav').getByRole('link', { name: 'ИИ', exact: true });
+    await expect(topAi).toBeVisible();
+    if (width <= 1023) {
+      await page.getByRole('button', { name: 'Открыть меню' }).click();
+      await page
+        .locator('.portal-mobile-public')
+        .getByRole('link', { name: 'ИИ', exact: true })
+        .click();
+      await expect(page.locator('.portal-sidebar.mobile-open')).toHaveCount(0);
+      await expect(page.locator('.portal-header')).not.toHaveAttribute('inert');
+    } else {
+      await expect(page.locator('#portal-sidebar a[href="/#/ai"]')).toBeHidden();
+      await topAi.click();
+      await expect(page.locator('#portal-sidebar')).toHaveCSS('width', '72px');
+    }
+    await expect(page.getByRole('heading', { name: 'ИИ-помощник' })).toBeVisible();
+    await expect(
+      page.getByText('Доступ к ИИ для этого учебного места пока закрыт.', { exact: false }),
+    ).toBeVisible();
+    await expect(page.locator('.asa-ai-layout')).toHaveCount(0);
+    await expect(topAi).toHaveAttribute('aria-current', 'page');
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+      width + 1,
+    );
+  }
+  expect(aiRequests).toEqual([]);
+  expect(state.mutations).toEqual([]);
+  expect(state.errors).toEqual([]);
 });
