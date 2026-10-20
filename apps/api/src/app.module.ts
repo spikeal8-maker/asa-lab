@@ -78,6 +78,10 @@ import { LearningWorkContextController } from './learning-work-context.controlle
 import { LearningStartController } from './learning-start.controller.js';
 import { LearningRemindersService } from './learning-reminders.service.js';
 import { GalleryController } from './gallery.controller.js';
+import {
+  ProjectPublicationController,
+  PublicProjectsController,
+} from './public-projects.controller.js';
 import { CollectionsController } from './collections.controller.js';
 import { ClassroomsController } from './classrooms.controller.js';
 import { ClassroomJoinController } from './classroom-join.controller.js';
@@ -221,6 +225,8 @@ export class AppModule {
         LearningWorkContextController,
         LearningStartController,
         GalleryController,
+        ProjectPublicationController,
+        PublicProjectsController,
         CollectionsController,
         ClassroomsController,
         ClassroomJoinController,

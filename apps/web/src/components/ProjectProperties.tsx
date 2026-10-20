@@ -1,94 +1,78 @@
-import { useEffect, useState, type FormEvent, type KeyboardEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import { api, type Project } from '../api';
+import { PublicationPanel } from '../projects-public/PublicationPanel';
+import { PUBLIC_PROJECT_LICENSES as LICENCES } from '../projects-public/presentation';
 import './project-properties.css';
 
-/**
- * Свойства работы.
- *
- * Имя, описание, теги, кому видно и под какой лицензией — в одном месте.
- * Публикация живёт здесь же и не является отдельным действием: работа не
- * «делится», она бывает частной, доступной по ссылке или общедоступной, и это
- * такое же её свойство, как имя.
- */
-
-const LICENCES: ReadonlyArray<{ value: string; label: string; hint: string }> = [
-  {
-    value: 'reserved',
-    label: 'Все права сохранены',
-    hint: 'Другие могут смотреть, но не использовать работу без вашего разрешения.',
-  },
-  {
-    value: 'public-domain',
-    label: 'Общественное достояние',
-    hint: 'Работой можно пользоваться как угодно, в том числе в коммерческих целях.',
-  },
-  {
-    value: 'cc-by',
-    label: 'CC BY — с указанием автора',
-    hint: 'Можно перерабатывать и использовать, если указан автор.',
-  },
-  {
-    value: 'cc-by-sa',
-    label: 'CC BY-SA — с указанием автора, на тех же условиях',
-    hint: 'Как предыдущая, но переработки должны распространяться так же.',
-  },
-  {
-    value: 'cc-by-nc',
-    label: 'CC BY-NC — без коммерческого использования',
-    hint: 'Можно перерабатывать с указанием автора, но не зарабатывать на этом.',
-  },
-];
-
-const VISIBILITY: ReadonlyArray<{
-  value: 'private' | 'link' | 'public';
-  label: string;
-  hint: string;
-}> = [
-  { value: 'private', label: 'Частная', hint: 'Видна только вам.' },
-  {
-    value: 'link',
-    label: 'Доступна по ссылке',
-    hint: 'В галерее не появляется, но откроется у любого, кому вы дали адрес.',
-  },
-  {
-    value: 'public',
-    label: 'Общедоступная',
-    hint: 'Висит в галерее — её видят и могут взять за основу.',
-  },
-];
+/** Private metadata and explicit publication share a form, never a save command. */
 
 export function ProjectProperties({
   project,
   onClose,
   onSaved,
+  initialSection = 'properties',
 }: {
   readonly project: Project;
   readonly onClose: () => void;
   readonly onSaved: () => void;
+  readonly initialSection?: 'properties' | 'publication';
 }): JSX.Element {
   const [title, setTitle] = useState(project.title);
   const [description, setDescription] = useState(project.description ?? '');
   const [tags, setTags] = useState<readonly string[]>(project.tags ?? []);
   const [tagDraft, setTagDraft] = useState('');
   const [license, setLicense] = useState(project.license ?? 'reserved');
-  const [visibility, setVisibility] = useState<'private' | 'link' | 'public'>('private');
-  const [busy, setBusy] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [publicationBusy, setPublicationBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const dialog = useRef<HTMLDivElement>(null);
+  const publicationSection = useRef<HTMLDivElement>(null);
+  const busy = saving || publicationBusy;
 
   useEffect(() => {
-    void api.galleryState(project.id).then((result) => {
-      if (!result.ok) return;
-      setVisibility(
-        result.data.published
-          ? ((result.data.visibility ?? 'public') as 'link' | 'public')
-          : 'private',
-      );
+    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const frame = requestAnimationFrame(() => {
+      if (initialSection === 'publication') {
+        publicationSection.current?.focus();
+        publicationSection.current?.scrollIntoView({ block: 'nearest' });
+      } else dialog.current?.querySelector<HTMLInputElement>('#properties-title')?.focus();
     });
-  }, [project.id]);
+    return () => {
+      cancelAnimationFrame(frame);
+      document.body.style.overflow = previousOverflow;
+      if (previous?.isConnected) previous.focus();
+    };
+  }, [initialSection]);
 
   useEffect(() => {
     function onKey(event: globalThis.KeyboardEvent): void {
-      if (event.key === 'Escape' && !busy) onClose();
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        if (!busy) onClose();
+      }
+      if (event.key !== 'Tab') return;
+      const focusable = [
+        ...(dialog.current?.querySelectorAll<HTMLElement>(
+          'button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled), a[href]',
+        ) ?? []),
+      ].filter((element) => element.getClientRects().length > 0);
+      const first = focusable[0];
+      const last = focusable.at(-1);
+      if (
+        event.shiftKey &&
+        (document.activeElement === first || !dialog.current?.contains(document.activeElement))
+      ) {
+        event.preventDefault();
+        last?.focus();
+      } else if (
+        !event.shiftKey &&
+        (document.activeElement === last || !dialog.current?.contains(document.activeElement))
+      ) {
+        event.preventDefault();
+        first?.focus();
+      }
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -110,20 +94,20 @@ export function ProjectProperties({
 
   async function save(event: FormEvent): Promise<void> {
     event.preventDefault();
+    if (busy) return;
     if (!title.trim()) {
       setError('Введите имя проекта.');
       return;
     }
-    setBusy(true);
+    setSaving(true);
     setError(null);
     const result = await api.saveProjectProperties(project.id, {
       title: title.trim(),
       description: description.trim() || null,
       tags: [...tags],
       license,
-      visibility,
     });
-    setBusy(false);
+    setSaving(false);
     if (!result.ok) {
       setError(result.error.message || 'Не удалось сохранить свойства.');
       return;
@@ -136,17 +120,21 @@ export function ProjectProperties({
   return (
     <div className="modal-backdrop" role="presentation">
       <div
-        className="modal project-properties"
+        ref={dialog}
+        className="modal project-properties publication-properties"
         role="dialog"
         aria-modal="true"
         aria-labelledby="project-properties-title"
       >
         <header className="project-properties-head">
-          <h2 id="project-properties-title">Свойства проекта</h2>
+          <h2 id="project-properties-title">
+            {initialSection === 'publication' ? 'Публикация проекта' : 'Свойства проекта'}
+          </h2>
           <button
             type="button"
             className="project-properties-close"
             aria-label="Закрыть"
+            disabled={busy}
             onClick={onClose}
           >
             ×
@@ -160,14 +148,13 @@ export function ProjectProperties({
             value={title}
             maxLength={255}
             disabled={busy}
-            autoFocus
             onChange={(event) => setTitle(event.target.value)}
           />
 
           <label htmlFor="properties-description">Описание проекта</label>
           <textarea
             id="properties-description"
-            rows={4}
+            rows={3}
             maxLength={2000}
             value={description}
             disabled={busy}
@@ -184,6 +171,7 @@ export function ProjectProperties({
                 <button
                   type="button"
                   aria-label={`Убрать тег ${tag}`}
+                  disabled={busy}
                   onClick={() => setTags(tags.filter((entry) => entry !== tag))}
                 >
                   ×
@@ -202,26 +190,6 @@ export function ProjectProperties({
             onBlur={addTag}
           />
 
-          <span className="field-label">Кому видно</span>
-          <div className="project-properties-choices" role="radiogroup" aria-label="Кому видно">
-            {VISIBILITY.map((option) => (
-              <label key={option.value}>
-                <input
-                  type="radio"
-                  name="visibility"
-                  value={option.value}
-                  checked={visibility === option.value}
-                  disabled={busy}
-                  onChange={() => setVisibility(option.value)}
-                />
-                <span>
-                  <strong>{option.label}</strong>
-                  {option.hint}
-                </span>
-              </label>
-            ))}
-          </div>
-
           <label htmlFor="properties-license">Лицензия</label>
           <select
             id="properties-license"
@@ -237,6 +205,20 @@ export function ProjectProperties({
           </select>
           <p className="account-hint">{licenceHint}</p>
 
+          <div ref={publicationSection} tabIndex={-1}>
+            <PublicationPanel
+              projectId={project.id}
+              metadata={{
+                title: title.trim(),
+                description: description.trim() || null,
+                tags,
+                license,
+              }}
+              disabled={saving}
+              onBusyChange={setPublicationBusy}
+            />
+          </div>
+
           {error ? (
             <p className="form-error" role="alert">
               {error}
@@ -245,10 +227,10 @@ export function ProjectProperties({
 
           <div className="modal-actions">
             <button type="button" className="btn-secondary" disabled={busy} onClick={onClose}>
-              Отмена
+              Закрыть
             </button>
             <button type="submit" className="btn-primary" disabled={busy}>
-              {busy ? 'Сохраняем…' : 'Сохранить изменения'}
+              {saving ? 'Сохраняем…' : 'Сохранить свойства'}
             </button>
           </div>
         </form>

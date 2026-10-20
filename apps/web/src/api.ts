@@ -2494,7 +2494,7 @@ export const api = {
       description: string | null;
       tags: string[];
       license: string;
-      visibility: 'private' | 'link' | 'public';
+      visibility?: 'private' | 'link' | 'public';
     },
   ) =>
     call<{ ok: true }>(`/api/projects/${encodeURIComponent(projectId)}/properties`, {
