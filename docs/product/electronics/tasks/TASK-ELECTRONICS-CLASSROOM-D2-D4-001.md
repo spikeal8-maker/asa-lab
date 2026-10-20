@@ -367,3 +367,34 @@ strict/general gates, histories and acceptance blockers. No old source approval,
 partial browser run or this document amendment grants integration, acceptance,
 Issue closure, release or deployment. The author stops after its one stage and
 review handoff; root retains responsibility for subsequent selection.
+
+
+## 2026-10-20 — necessary private-field composition-budget repair
+
+The completed focused job118871744009 on the exact914 candidate reports the
+SchematicEditor bundle at218.32kB against the unchanged218000-byte cap. The log
+does not provide exact bytes. Local receipt:
+Temp/asa-led-914-ci/strict-focused.log, SHA256
+fd424864e82e4efec1e8c2f57ba69beb54d70d8028e9d200d5bbe731d98ef44c.
+This is a necessary composition-budget repair within649, not general cleanup.
+Canonical amendment base is main13ab3635587a201bc2cc78e88b9a9f66fce72102;
+product branches do not authorize themselves.
+
+Root selects ONLY six private-field renames and their internal references in
+LedTemporalPresentation: presentedFrame→shown, pendingFrame→pending,
+animationFrame→raf, committedAnimationFrame→ackRaf,
+indicatorHistories→indicators and frameSequence→sequence. This explicitly extends
+the earlier threshold-only scope solely for this proved composition failure.
+Preserve the existing >0 publication repair. Public keys, getters and returned
+frame objects remain unchanged. No algorithm, physics, pacing, precision, native
+lease, ACK, Reset, workflow, dependency, foreign-source or budget-threshold change.
+
+After canonical main publication, led_publication_repair_author implements this
+one bounded change. Prove there are no external repository references; require
+AST equivalence modulo these six private renames, all100 presenter tests,
+targeted types and a production Vite bundle at most218000 bytes before main
+integration, verified by exact file bytes or a proved UTF-8 Vite upper bound
+below the cap. Branch publication for required CI remains permitted. The approximate384-byte source reduction is not bundle evidence.
+Root assigns a NEW independent reviewer after exact source freeze. Preserve all
+previous gates, histories, blockers, teacher exception and stopped D13 handoff;
+this amendment grants no product acceptance, release, deployment or Issue closure.

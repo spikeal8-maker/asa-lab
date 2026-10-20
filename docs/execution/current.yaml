@@ -9257,7 +9257,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: led_publication_conditional_barrier_repair_selected
+      checkpoint: led_publication_private_field_bundle_budget_repair_selected
       owner_acceptance: pending
       acceptance_revision: classroom-d2-d4-eighth-pace-r1
       active_qualification_profile: classroom-d13-v3
@@ -9326,7 +9326,17 @@ parallel_lanes:
         - apps/web/src/electronics/testing/led-temporal-presentation.spec.ts
         scope_override: Only this bounded LED slice supersedes the earlier orchestration-only production freeze. First prove the actual-presenter BEFORE with H0 native/layout ACK at wall0, same-generation HIGH receipt at wall1ms/edge537us/window6250us and RAF40/80/120ms (predicted null/null/HIGH,119ms; not measured evidence). If discriminating regression confirms the barrier and NEW independent proposal review confirms the H0/native ACK invariant, permit ONLY canPublishDistinctFrame threshold >2 to >0 and targeted same-RAF blocked/next-RAF allowed/H0 not-ACK held/reset/foreign-generation/joint-frame regressions. Otherwise stop behavior edits; add passive boundary instrumentation only if the regression does not distinguish the cause. No hopeful unchanged CI rerun.
         preservation: Preserve all171 cases, 50ms publication, pace0.125,6250us cap, all existing timeouts, physics and timing, gates, full raw evidence, archive protocol, histories and acceptance blockers. No workflow, core, renderer, assets, dependency, deployment or school-installation changes.
-      next_action: Publish and review this two-document selection on main before product writes. Assign one LED repair author to prove the deterministic BEFORE on actual presenter, then obtain NEW independent proposal review of H0/native ACK preservation. Only with both proofs implement the selected >2 to >0 threshold repair and targeted invariants in this same bounded slice; otherwise retain candidate and report the unresolved boundary. Require NEW independent exact-SHA review and unchanged applicable gates before root integration. Preserve PR652 and historical evidence; old approvals do not accept the new source.
+      led_publication_budget_composition:
+        selected_base_main: 13ab3635587a201bc2cc78e88b9a9f66fce72102
+        stage: necessary_private_field_bundle_budget_repair
+        evidence: Completed focused job118871744009 on exact914 candidate reports SchematicEditor218.32kB above218000-byte cap; exact bundle bytes are not available in that log. Local receipt Temp/asa-led-914-ci/strict-focused.log SHA256fd424864e82e4efec1e8c2f57ba69beb54d70d8028e9d200d5bbe731d98ef44c.
+        author: /root/led_publication_repair_author
+        independent_reviewer: NEW independent reviewer assigned by root after exact source freeze
+        conditional_scope_extension: Necessary composition-budget repair in the same649 slice, not general cleanup. ONLY rename six private fields and their internal class references in LedTemporalPresentation; retain the prior >0 publication repair and all public behavior.
+        private_renames: presentedFrame to shown; pendingFrame to pending; animationFrame to raf; committedAnimationFrame to ackRaf; indicatorHistories to indicators; frameSequence to sequence.
+        preservation: Public keys, getters and returned frame objects remain unchanged. No algorithm, physics, pacing, precision, native lease, ACK, Reset, workflow, dependency, foreign-source or threshold change. Preserve prior selections, teacher exception, stopped D13 handoff, gates, acceptance blockers and all history.
+        required_verification: Prove no external repository references to these private fields; AST equivalence modulo ONLY six private renames; all100 presenter tests; targeted types; production Vite bundle at most218000 bytes before main integration, verified by exact file bytes or a proved UTF-8 Vite upper bound below the cap. Estimated384 source bytes is only an estimate, never actual bundle PASS.
+      next_action: Publish and review this two-document canonical amendment on main before author writes. One bounded author applies only the six private field renames in the owned presenter class, verifies unchanged public API/AST and required tests/types/exact production bundle. Freeze source for NEW independent exact-SHA review before root publication. Never raise the bundle cap or claim acceptance from estimates; all remaining browser/strict/general gates and blockers remain mandatory.
     previous_task:
       id: TASK-ELECTRONICS-CLASSROOM-D13-001
       issue: 638
