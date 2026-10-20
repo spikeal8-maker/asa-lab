@@ -34,6 +34,7 @@ const manifest = {
     'published task image stays immutable across versions',
     'course and section forms preserve later edits after real save receipts without duplicates or rebasing competing changes',
     'Course publication lost response replays the exact V1 after V2 and reload without duplicate versions',
+    'Course history compares exact V1–V4 policies and structural before/after changes without current defaults',
   ],
   'learning-course-01.spec.ts': [
     'author-only content keeps exact ID and versions after teaching activation; graded scale and mute are usable',
@@ -417,7 +418,7 @@ function main() {
     );
     if (batch !== secondBatch) verified.push(...selected);
   }
-  equal(verified, first, 'Ordered first-batch union must be all 26 cases exactly once.');
+  equal(verified, first, 'Ordered first-batch union must be all 27 cases exactly once.');
   equal(
     firstBatches.slice(2).flatMap((batch) => batch.cases),
     course,
@@ -528,7 +529,7 @@ function main() {
   const exitCode = firstExitCode || secondExitCode || 0;
   try {
     write(path.join(evidence, 'summary.json'), {
-      first: { cases: 26, exitCode: firstExitCode, status: firstExitCode ? 'FAIL' : 'PASS' },
+      first: { cases: 27, exitCode: firstExitCode, status: firstExitCode ? 'FAIL' : 'PASS' },
       second: {
         cases: 15,
         exitCode: secondExitCode,

@@ -60,6 +60,46 @@ function controller(
 }
 
 describe('course outline API', () => {
+  it('returns exact published dependency descriptors beside the untouched historical outline', async () => {
+    const outline = { course: { title: 'Immutable V1' }, sections: [] };
+    const pins = [
+      {
+        pointer: '/sections/0/lessons/0/assignment',
+        pinKind: 'project',
+        available: false,
+        activityId: null,
+        versionId: null,
+        versionNumber: null,
+        policySnapshot: null,
+      },
+    ];
+    const target = controller([
+      {
+        id: VERSION_ID,
+        version_number: '1',
+        outline,
+        published_at: new Date('2026-10-20T00:00:00Z'),
+        pinned_activities: pins,
+      },
+    ]);
+    await expect(target.value.versions(request(), COURSE_ID)).resolves.toEqual({
+      items: [
+        {
+          id: VERSION_ID,
+          versionNumber: 1,
+          outline,
+          publishedAt: '2026-10-20T00:00:00.000Z',
+          pinnedActivities: pins,
+        },
+      ],
+    });
+    expect(target.query).toHaveBeenCalledTimes(1);
+    expect(target.query).toHaveBeenCalledWith(
+      expect.stringContaining('course_author_version_pins($1,$2,history.id)'),
+      ['principal-id', COURSE_ID],
+    );
+  });
+
   it.each(['create', 'update'] as const)(
     'returns the exact course %s revision from the guarded save receipt',
     async (action) => {

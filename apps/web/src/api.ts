@@ -355,14 +355,34 @@ export function visibilityLabel(value: string): string {
 }
 
 /** Курс — порядок, в котором проходят задания. */
+export interface PublishedCoursePin {
+  /** JSON pointer into this exact immutable outline, never a mutable root. */
+  pointer: string;
+  pinKind: 'project' | 'manual';
+  available: boolean;
+  activityId: string | null;
+  versionId: string | null;
+  versionNumber: number | null;
+  title: string | null;
+  instructions: string | null;
+  goal: string | null;
+  blocks: SafeTaskBlock[] | null;
+  moduleKey: string | null;
+  resultMode: string | null;
+  maxPoints: number | null;
+  policySnapshot: Record<string, unknown> | null;
+  contentDigest: string | null;
+}
+
 export interface PublishedAuthorVersion {
   id: string;
   versionNumber: number;
   title?: string;
   goal?: string | null;
   instructions?: string | null;
+  pinnedActivities?: PublishedCoursePin[];
   outline?: {
-    course: { title: string; summary: string | null };
+    course: { title: string; summary: string | null; ageBand?: string | null };
     sections: Array<{
       sourceSectionId: string;
       title: string;
@@ -380,6 +400,13 @@ export interface PublishedAuthorVersion {
           learningActivityVersionId?: string;
           sourceAssignmentId?: string;
           title?: string;
+          goal?: string | null;
+          brief?: string | null;
+          ageBand?: string | null;
+          staticSampleImage?: string | null;
+          hasVersionedSample?: boolean;
+          sampleContentType?: string | null;
+          sampleChecksum?: string | null;
           moduleKey?: string;
           resultMode?: string;
           maxPoints?: number | null;

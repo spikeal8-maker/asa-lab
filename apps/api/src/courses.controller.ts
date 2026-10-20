@@ -755,15 +755,28 @@ export class CoursesController {
   async versions(@Req() request: FastifyRequest, @Param('courseId') courseId: string) {
     const context = await this.requireAuthor(request);
     this.requireUuid(courseId, 'course');
-    const result = await this.requirePool().query('SELECT * FROM course_author_versions($1,$2)', [
-      context.principalId,
-      courseId,
-    ]);
+    const result = await this.requirePool().query(
+      `SELECT history.*, COALESCE((
+         SELECT jsonb_agg(jsonb_build_object(
+           'pointer',pin.pointer,'pinKind',pin.pin_kind,'available',pin.available,
+           'activityId',pin.activity_id,'versionId',pin.version_id,
+           'versionNumber',pin.version_number,'title',pin.title,
+           'instructions',pin.instructions,'goal',pin.goal,'blocks',pin.blocks,
+           'moduleKey',pin.module_key,'resultMode',pin.result_mode,
+           'maxPoints',pin.max_points,'policySnapshot',pin.policy_snapshot,
+           'contentDigest',pin.content_digest) ORDER BY pin.pointer)
+         FROM course_author_version_pins($1,$2,history.id) pin
+       ),'[]'::jsonb) AS pinned_activities
+       FROM course_author_versions($1,$2) history
+       ORDER BY history.version_number DESC`,
+      [context.principalId, courseId],
+    );
     return {
       items: result.rows.map((row) => ({
         id: row['id'],
         versionNumber: Number(row['version_number']),
         outline: row['outline'],
+        pinnedActivities: row['pinned_activities'],
         publishedAt: iso(row['published_at']),
       })),
     };
