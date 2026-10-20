@@ -6991,6 +6991,70 @@ parallel_lanes:
           K0/T3/class/owner/deployment pending.'
       reason: Preserve complete accepted541 snapshot unchanged;557 is a separately selected test-observer
         baseline dependency, not reopened product.
+  - id: electronics-field-grab
+    parent_lane: electronics
+    worktree_id: electronics-field-544-resume
+    owned_paths:
+    - docs/product/electronics/evidence/field-boundary-544-independent-review-ebf3622f.md
+    scope_catalog_note: Advisory historical evidence path avoids duplicate scopes; actual write budget is explicit in task/card. Historical evidence remains immutable.
+    task:
+      id: TASK-ELECTRONICS-FIELD-HIT-BOUNDARY-001
+      issue: 544
+      branch: main
+      base_branch: main
+      pr: null
+      status: in_progress
+      checkpoint: owner_resumed_preserved_candidate_composition_selected
+      kind: repair
+      owner_acceptance: pending
+      selected_at: '2026-10-20T17:06:38.290383+00:00'
+      owner_instruction: Owner selected issue544 with "займись этим"; resume only this paused field-grab task.
+      repair_scope: >-
+        Recompose only proven SVG-root/grid alpha fallback and componentDragDelta artificial-bound removal,
+        preserving accepted main and mobile cue/Header, all foreign hook/Stage changes and priorities.
+        Append the exact preserved field regression block to current interactions prefix; restore mounted
+        workbench-field-drag regression and its single component registration only if absent.
+        Generated digest only when canonical generator requires a changed registered path.
+      preserved_candidate_sha: a126dc75620eefb6c6f63b5fc2521b4338829688
+      preserved_stage_candidate_sha: 3d1eacfe7c8619dfde8b90d274d133264fd3e6d5
+      preserved_product_candidate_sha: 1ee348134b386113e3c341db7f975881250e8147
+      preserved_oracle_sha: ebf3622f7572d59b418fc09f302dba460fcf1dd6
+      historical_evidence: 32 whole-document native drag/Save/revision/cookies-only reopen journeys passed historically; not current exact-SHA acceptance.
+      acceptance_dependency_issue: 548
+      next_action: One bounded author composes preserved hunks on accepted main; short focused checks and new independent exact-SHA review, ordinary source publication and CI in background. No repeated BEFORE or polling.
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: 88d10f34ed4eb2540fb420800940250d6824786a
+      head_sha: null
+      observed_at: '2026-10-20T17:06:38.290383+00:00'
+      main:
+        branch: main
+        sha: 88d10f34ed4eb2540fb420800940250d6824786a
+      observation_note: >-
+        Dated selection only; fetch main and refresh current/dirty paths before writes. General39460089425 failed;
+        Release39461012617 and Scratch documentation39460089400 passed. No new runtime evidence claimed.
+        Existing 554 accepted lane and all historical paused snapshots remain unchanged. Owner resume
+        supersedes the former pause only for issue544. No core/LED/clock/worker/physics/assets/API/persistence,
+        CSS, mobile cue/Header, workflows, infrastructure or package edits. Actual dirty overlap stops writes.
+    execution_lease:
+      executor_id: electronics-field-544-resume
+      holder: unassigned
+      acquired_at: null
+      expires_at: null
+      reviewer_role_requires_lease: false
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+        - pnpm gate:electronics-m1
+      browser:
+        workflow: Electronics R4-M1 Focused
+        commands:
+        - pnpm gate:electronics-m1:browser
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+        - pnpm gate:repository
   - id: electronics-field
     parent_lane: electronics
     worktree_id: electronics-native-wheel-554
@@ -9499,6 +9563,27 @@ integration:
     - docs/testing/**
 
 blocking:
+  - id: ELECTRONICS-544-RESUME-ACCEPTANCE
+    kind: acceptance_blocker
+    lane: electronics-field-grab
+    task_id: TASK-ELECTRONICS-FIELD-HIT-BOUNDARY-001
+    blocks:
+      - technical_acceptance
+      - owner_acceptance
+      - close_issue
+      - release_claim
+    allows:
+      - bounded_composition
+      - focused_verification
+      - independent_source_review
+      - documentation_update
+      - source_publication
+    reason: >-
+      Historical field32 evidence is preserved, but new composition needs exact focused/browser/general
+      evidence and new independent review. Separate catalog548 remains an independent acceptance dependency;
+      do not repair it in544 or claim closure from source publication. Owner explicitly resumed544 and
+      authorized normal source delivery; owner acceptance, device/class and deployment remain pending.
+    evidence: docs/product/electronics/tasks/TASK-ELECTRONICS-FIELD-HIT-BOUNDARY-001.md
   - id: ELECTRONICS-658-STRICT-BASELINE
     kind: acceptance_blocker
     lane: electronics-core-fet
