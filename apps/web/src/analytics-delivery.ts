@@ -46,6 +46,7 @@ export class AnalyticsDelivery {
   private sessions: Session[] = [];
   private visits: AnalyticsEnvelope[] = [];
   private inFlight: AnalyticsEnvelope | null = null;
+  private active: AbortController | undefined;
   private stopped = false;
   private authenticationUnavailable = false;
   private paused = false;
@@ -405,7 +406,14 @@ export class AnalyticsDelivery {
   }
   pause(paused: boolean): void {
     this.paused = paused;
-    if (paused) this.quality.pause();
+    if (paused) {
+      this.quality.pause();
+      const active = this.active;
+      this.active = undefined;
+      this.inFlight = null;
+      active?.abort();
+      this.persist();
+    }
     if (this.timer) clearTimeout(this.timer);
     this.timer = undefined;
     if (!paused) {
@@ -429,13 +437,18 @@ export class AnalyticsDelivery {
       return;
     }
     this.inFlight = envelope;
+    const active = new AbortController();
+    this.active = active;
     this.persist();
     const outcome = await sendTelemetry(
       envelope.operation ? '/api/analytics/v2/module-session' : '/api/analytics/v2/events',
       envelope,
       { status: 200, confirmed: (value) => confirmedAnalytics(value, envelope) },
       this.transport,
+      active.signal,
     );
+    if (this.active !== active) return;
+    this.active = undefined;
     this.inFlight = null;
     if (this.stopped) return;
     if (outcome.kind === 'retry' && !this.expired(envelope)) {
@@ -490,6 +503,9 @@ export class AnalyticsDelivery {
   }
   retire(): void {
     if (this.stopped) return;
+    const active = this.active;
+    this.active = undefined;
+    active?.abort();
     if (this.operations().length || this.sessions.length) this.quality.unclean();
     for (const event of this.operations()) {
       this.quality.increment('permanentRejected');

@@ -1484,3 +1484,134 @@ describe('participants with real PostgreSQL and the runtime role', () => {
     ).rejects.toMatchObject({ code: '42501' });
   });
 });
+
+describe('participant read function-local JIT settings', () => {
+  async function functionMetadata(client: pg.PoolClient) {
+    return (
+      await client.query<{
+        name: string;
+        definition: Record<string, unknown>;
+        settings: string[];
+        runtime_execute: boolean;
+        public_execute: boolean;
+      }>(`SELECT p.proname AS name, to_jsonb(p) - 'proconfig' AS definition,
+          COALESCE(p.proconfig, ARRAY[]::text[]) AS settings,
+          has_function_privilege('asalab_app', p.oid, 'EXECUTE') AS runtime_execute,
+          EXISTS (SELECT 1
+            FROM aclexplode(COALESCE(p.proacl, acldefault('f', p.proowner))) AS permission
+            WHERE permission.grantee = 0 AND permission.privilege_type = 'EXECUTE') AS public_execute
+        FROM pg_catalog.pg_proc AS p
+        WHERE p.oid IN (
+          'public.classroom_participant_roster(uuid,uuid)'::regprocedure,
+          'public.classroom_participant_profile(uuid,uuid,uuid)'::regprocedure)
+        ORDER BY p.proname`)
+    ).rows;
+  }
+
+  it('adds only local JIT settings while preserving bodies, ownership, grants and security metadata', async () => {
+    const client = await admin.connect();
+    try {
+      await client.query('BEGIN');
+      const installed = await functionMetadata(client);
+      expect(installed.map((row) => row.name)).toEqual([
+        'classroom_participant_profile',
+        'classroom_participant_roster',
+      ]);
+      for (const row of installed) {
+        expect(row.settings.filter((setting) => setting.startsWith('jit='))).toEqual(['jit=off']);
+        expect(row.settings).toContain('search_path=pg_catalog, pg_temp');
+        expect(row.definition.prosecdef).toBe(true);
+        expect(row.definition.provolatile).toBe('s');
+        expect(row.runtime_execute).toBe(true);
+        expect(row.public_execute).toBe(false);
+      }
+
+      // Reconstruct only the pre-0233 local setting inside an uncommitted test transaction.
+      // ROLLBACK restores the installed functions even if an assertion fails.
+      await client.query(`
+        ALTER FUNCTION public.classroom_participant_roster(uuid, uuid) RESET jit;
+        ALTER FUNCTION public.classroom_participant_profile(uuid, uuid, uuid) RESET jit;
+      `);
+      const before = await functionMetadata(client);
+      const { readFile } = await import('node:fs/promises');
+      const migration = await readFile(
+        new URL('../../migrations/0233_classroom_participant_read_jit.sql', import.meta.url),
+        'utf8',
+      );
+      await client.query(migration);
+      const after = await functionMetadata(client);
+      expect(after).toEqual(installed);
+      expect(
+        after.map((row) => ({
+          ...row,
+          settings: row.settings.filter((setting) => !setting.startsWith('jit=')),
+        })),
+      ).toEqual(before);
+    } finally {
+      try {
+        await client.query('ROLLBACK');
+      } finally {
+        client.release();
+      }
+    }
+  });
+
+  it('keeps authorized and denied reads identical with caller JIT on or off and restores caller settings', async () => {
+    const f = await fixture();
+    const seat = await f.seat('Локальная настройка чтения');
+    const outsider = await f.learner();
+    await f.project(seat.principal);
+    const client = await runtime.connect();
+    try {
+      await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
+      const callerSettings = async () =>
+        (
+          await client.query(`SELECT current_user AS role,
+            current_setting('jit') AS jit,
+            current_setting('search_path') AS search_path,
+            current_setting('TimeZone') AS timezone,
+            current_setting('transaction_read_only') AS read_only`)
+        ).rows[0];
+      let reference: unknown;
+      for (const jit of ['on', 'off']) {
+        await client.query("SELECT set_config('jit', $1, true)", [jit]);
+        const caller = await callerSettings();
+        expect(caller).toMatchObject({ role: 'asalab_app', jit, read_only: 'on' });
+        const boundaryRead = async <T>(sql: string, args: unknown[]) => {
+          const result = await client.query<{ data: T }>(sql, args);
+          expect(await callerSettings()).toEqual(caller);
+          return result.rows[0]!.data;
+        };
+        const rosterSql = 'SELECT public.classroom_participant_roster($1,$2) AS data';
+        const profileSql = 'SELECT public.classroom_participant_profile($1,$2,$3) AS data';
+        const roster = await boundaryRead<{ items: Metric[] }>(rosterSql, [f.actor, f.classId]);
+        const profile = await boundaryRead<{ student: { id: string }; metrics: Metric }>(
+          profileSql,
+          [f.actor, f.classId, seat.id],
+        );
+        const selfProfile = await boundaryRead<{ student: { id: string }; metrics: Metric }>(
+          profileSql,
+          [seat.principal, f.classId, seat.id],
+        );
+        expect(roster.items).toHaveLength(1);
+        expect(roster.items[0]).toMatchObject({ seatId: seat.id, totalWorks: 1 });
+        expect(profile.student.id).toBe(seat.id);
+        expect(profile.metrics).toMatchObject({ seatId: seat.id, totalWorks: 1 });
+        expect(selfProfile.student.id).toBe(seat.id);
+        expect(selfProfile.metrics).toMatchObject({ seatId: seat.id, totalWorks: 1 });
+        expect(await boundaryRead(rosterSql, [outsider.principal, f.classId])).toBeNull();
+        expect(await boundaryRead(rosterSql, [seat.principal, f.classId])).toBeNull();
+        expect(await boundaryRead(profileSql, [outsider.principal, f.classId, seat.id])).toBeNull();
+        const result = { roster, profile, selfProfile };
+        if (reference !== undefined) expect(result).toEqual(reference);
+        reference = result;
+      }
+    } finally {
+      try {
+        await client.query('ROLLBACK');
+      } finally {
+        client.release();
+      }
+    }
+  });
+});
