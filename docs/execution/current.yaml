@@ -9093,12 +9093,27 @@ parallel_lanes:
       base_branch: main
       pr: null
       pr_draft: false
-      status: in_progress
+      status: done
       kind: maintenance
       risk: high
       semantic_change: 'no'
-      checkpoint: bounded_cloud_artifact_intake_selected
+      checkpoint: verified_historical_artifact_transport_completed
       owner_acceptance: pending
+      completed_at: '2026-10-20T15:31:42Z'
+      technical_completion_scope: Verified read-only historical artifact transport only; no product qualification or acceptance.
+      completion_evidence: docs/product/electronics/tasks/TASK-ELECTRONICS-GOVERNANCE-011.md
+      helper_pr: 661
+      helper_pr_state: CLOSED_UNMERGED
+      helper_source_sha: 7220510d494dab02662c7eea48819c793b516ab8
+      helper_workflow_sha256: 1236560f7300bd5b9d1476e40c0ad93f35179dbdea081d3d4e0e9c468b26d16f
+      actual_transport_run: '39444735624'
+      actual_transport_job: '118703517483'
+      actual_transport_conclusion: success
+      compact_artifact: '12275550889'
+      compact_artifact_size_bytes: 1670197
+      compact_zip_sha256: e2c9f8d65d569e78571de69331728b5602b947b0f5d9639c21d6343a4e8128ad
+      compact_manifest_sha256: 9e68bd968c2500956ac8077769cb798af2eea7496c5b11b3d6832d6f568c622d
+      verified_member_count: 22
       owner_authorization: Owner explicitly authorised cloud resources and controller-managed separate authors/reviewers on 2026-10-20; select read-only transport of the existing oversized D2 artifact, no product change or installation.
       context_hints:
         - docs/product/electronics/tasks/TASK-ELECTRONICS-GOVERNANCE-011.md
@@ -9112,7 +9127,7 @@ parallel_lanes:
         - docs/execution/current.yaml
       shared_path_coordination: Workflow remains under existing integration.shared_paths. Root explicitly assigns its only author d2_source_review and read-only security reviewer pr651_intake; root is sole integrator. No foreign shared scope is removed or narrowed.
       integration_condition: Workflow exists only on the temporary candidate branch and must never merge into main/production. Accept only verified read-only transport output for run39422409394/artifact12266831251/source24c4acf6; preserve original hashes. Close only this transport task, never D2/FET/PR651 acceptance.
-      next_action: Accept these controller documents on main, then author/review the one temporary workflow before its automatic pull_request run. All existing product/gate/profile/blocker facts remain unchanged; no product PASS is selected.
+      next_action: Transport complete; retain original source/input hashes and independently CRC/SHA-verified compact output. Helper PR661 is closed unmerged and branch retained; workflow must never enter main. No further helper run or product acceptance is selected.
     execution_lease:
       executor_id: electronics-artifact-intake-659
       holder: unassigned
@@ -9130,13 +9145,13 @@ parallel_lanes:
           - pnpm control-plane:check
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 6efac19fbd20ab789925e9510534d13175a0390b
+      convergence_baseline_sha: ed81e0003ef4c9aefb382135639709a00e8ddd72
       head_sha: null
-      observed_at: '2026-10-20T14:42:18Z'
+      observed_at: '2026-10-20T15:31:42Z'
       main:
         branch: main
-        sha: 6efac19fbd20ab789925e9510534d13175a0390b
-      observation_note: Dated selection baseline only; fresh fetch main and actual overlap checks required before writes. Connector rejected the630584469-byte source ZIP at its536870912-byte limit. Transport output, security review and actual job remain pending.
+        sha: ed81e0003ef4c9aefb382135639709a00e8ddd72
+      observation_note: Verified transport39444735624 succeeded with22 independently checked members; helperPR661 closed unmerged. Only transport task is complete; D2 historical timeout and all product requirements remain unchanged. Fresh fetch main before any later controller writes.
 
   - id: electronics-qualification-dispatch
     parent_lane: electronics
@@ -9152,12 +9167,32 @@ parallel_lanes:
       base_branch: main
       pr: null
       pr_draft: false
-      status: in_progress
+      status: done
       kind: maintenance
       risk: high
       semantic_change: 'no'
-      checkpoint: fixed_classroom_dispatch_selected
+      checkpoint: fixed_classroom_dispatch_receipt_verified_completed
       owner_acceptance: pending
+      completed_at: '2026-10-20T15:31:42Z'
+      technical_completion_scope: One fixed dispatch plus actual target-run identity receipt only; qualification outcome remains separate.
+      completion_evidence: docs/product/electronics/tasks/TASK-ELECTRONICS-GOVERNANCE-012.md
+      helper_pr: 663
+      helper_pr_state: CLOSED_UNMERGED
+      helper_source_sha: d1eb77a692daa3fc923aa47cb52a53e3afcac7e3
+      helper_tree: 5518a52afbcfe9580f9823770adeec8507bf1f35
+      helper_workflow_sha256: 7e2c444e487cc0fcf3aa30a6cf10d171f4759462fa6c3fedd92ba9d7a7830c6d
+      actual_helper_run: '39448724854'
+      actual_helper_job: '118717497697'
+      actual_helper_conclusion: success
+      dispatch_http_status: 204
+      dispatch_received_at: '2026-10-20T15:28:36Z'
+      actual_target_run: '39448747806'
+      actual_target_workflow_id: 326529119
+      actual_target_event: workflow_dispatch
+      actual_target_run_attempt: 1
+      actual_target_run_observed_status: in_progress
+      actual_target_run_observed_at: '2026-10-20T15:31:42Z'
+      actual_target_identity_review: Root and independent reviewer confirmed exact repository, workflow, event, branch, head and classroom-d13-v3 profile.
       owner_authorization: Owner authorised cloud resources and controller-managed separate authors/reviewers on 2026-10-20; select one fixed dispatch of the already required classroom profile, without product, gate or installation changes.
       context_hints:
         - docs/product/electronics/tasks/TASK-ELECTRONICS-GOVERNANCE-012.md
@@ -9177,7 +9212,7 @@ parallel_lanes:
         - docs/execution/current.yaml
       shared_path_coordination: Workflow remains under unchanged integration.shared_paths. Root assigns one author pr651_intake, independent read-only security reviewer core_baseline and root as sole integrator. No foreign shared scope is removed or narrowed.
       integration_condition: Helper exists only on its temporary branch and never merges into main/production. One fixed dispatch only, actions write plus contents read, exact repo/PR/branch/head and run_attempt1 guards. Require actual target-run SHA receipt; race, ambiguity or uncertainty fails closed without retries. Close only this task, not product acceptance.
-      next_action: Accept these two controller documents on main, then independently review the fixed helper and verify actual helper HEAD before opening its same-repository PR; record actual helper PR number/head after creation. Refresh target identity before the single POST. Preserve all source/gates/blockers and classify dispatch receipt separately from qualification or native PASS.
+      next_action: Dispatch control task complete after one204 and verified exact target-run identity. PR663 closed unmerged; never reopen, rerun or dispatch again. Keep helper outside main and retain branches/source. Observe actual target qualification separately under Issue658; no product PASS or gate waiver.
     execution_lease:
       executor_id: electronics-qualification-dispatch-662
       holder: unassigned
@@ -9195,13 +9230,14 @@ parallel_lanes:
           - pnpm control-plane:check
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 3500687d51969b33a95726608b7f31aa3230ec73
+      convergence_baseline_sha: ed81e0003ef4c9aefb382135639709a00e8ddd72
       head_sha: null
-      observed_at: '2026-10-20T15:08:57Z'
+      observed_at: '2026-10-20T15:31:42Z'
       main:
         branch: main
-        sha: 3500687d51969b33a95726608b7f31aa3230ec73
-      observation_note: Dated controller selection of remote PR660 head e826794c only; helper authoring, security review, dispatch and actual target-run verification remain pending. Fresh fetch main and target-head checks are required before writes and dispatch; no product PASS is asserted.
+        sha: ed81e0003ef4c9aefb382135639709a00e8ddd72
+      observation_note: Helper39448724854 succeeded and issued one204; root and reviewer verified target39448747806 on exact e826/profilev3, attempt1, observed in_progress. Closed unmerged helperPR663 cannot be reopened or rerun. Only dispatch receipt is complete; no FET/D2 qualification PASS. Fresh fetch main before any later controller writes.
+
 
 integration:
   owner_lane: visual-programming

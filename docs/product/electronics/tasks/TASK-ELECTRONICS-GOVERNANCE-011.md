@@ -62,3 +62,23 @@ Never merge the workflow into main. Accept only verified transport output and
 close only this task. Historical frames are not AFTER or a new live test.
 Do not accept D2/FET/PR651 or repeat unrelated product gates. Author/reviewer STOP;
 controller continues the programme.
+
+
+## Technical transport completion observed 2026-10-20
+
+Transport run `39444735624`, job `118703517483`, succeeded. Remote helper source
+`7220510d494dab02662c7eea48819c793b516ab8` used workflow SHA256
+`1236560f7300bd5b9d1476e40c0ad93f35179dbdea081d3d4e0e9c468b26d16f`.
+Compact artifact `12275550889` is `1670197` bytes; verified ZIP SHA256
+`e2c9f8d65d569e78571de69331728b5602b947b0f5d9639c21d6343a4e8128ad`,
+manifest SHA256
+`9e68bd968c2500956ac8077769cb798af2eea7496c5b11b3d6832d6f568c622d`.
+All22 selected members were independently CRC/SHA verified against the manifest;
+original run/artifact/source/input hashes above are retained without rebinding.
+
+Only Issue659's read-only transport is technically complete. Owner acceptance
+remains pending. Helper PR661 is closed **unmerged**, branches retained, and its
+workflow never enters main/production. Historical D2 frames remain partial
+historical evidence: no new live AFTER, D2/FET qualification PASS, blocker removal
+or product acceptance follows from successful transport. Source, gates, counters,
+leases, R27 stop/resume and every foreign lane remain unchanged. STOP.
