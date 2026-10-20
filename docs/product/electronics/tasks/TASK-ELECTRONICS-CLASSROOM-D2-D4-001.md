@@ -323,3 +323,47 @@ The author stops after the bounded change and evidence. Root may update PR652
 by ordinary forward composition after review and gates; main integration and
 owner acceptance remain pending. No deployment, working DB or infrastructure
 operation is selected.
+
+
+## 2026-10-20 — bounded LED publication follow-up
+
+Owner authorizes a clean-tree LED publication slice while preserving PR652 and
+its retained24c4acf source. The owner explicitly grants the narrow exception for
+WAITING_HANDOFF on teacher-pr582-redesign/.github/workflows/classroom-owner.yml;
+that foreign file and checkout remain untouched. Preflight stays enabled and
+its WAITING_HANDOFF output is retained, not relabelled SAFE_TO_START. The stopped
+D13 author has been handed off by the owner; its dirty checkout is not rewritten
+or used as a source of uncommitted changes.
+
+This single bounded LED repair supersedes the earlier orchestration-only
+production freeze only as follows. First prove the actual-presenter BEFORE:
+H0 native/layout ACK at wall0; same-generation HIGH receipt at wall1ms with
+edge537us/window6250us; RAF40/80/120ms. Predicted null/null/HIGH means119ms,
+but this prediction is not yet executed evidence. A NEW independent proposal
+review must confirm that H0/native ACK remains preserved. Only if that review
+and discriminating BEFORE both succeed, permit canPublishDistinctFrame threshold
+>2 to >0 plus targeted regressions: same RAF blocked, next RAF allowed, H0 held
+without ACK, Reset, foreign generation and joint frame. No separate canonical
+selection cycle is required for this exact conditional repair. If the regression
+does not distinguish the cause, use passive receipt/preparation/React/RAF/ACK
+instrumentation instead; do not guess a fix or rerun unchanged CI hopefully.
+
+The saved case200 generation3 first HIGH is64915.7, DOM65052.7 and paint65075.4;
+the asset was already warm. These observations alone do not prove the barrier
+is the sole cause. Source: GitHub run39455455432/artifact12283505079 selected-member receipts
+(not whole-ZIP digest verification), local receipt
+Temp/asa-39455455432-range/REPORT.txt. Blockly1ms
+delta375.7315ms versus250ms remains separately unresolved, not repaired or waived.
+
+Root assigns one led_publication_repair_author and NEW independent reviewers
+who did not author this change. Publish canonical selection on main before
+product writes. Require the proposal review above, then independent exact-SHA
+source/evidence review and unchanged gates before integration. No core, physics,
+pace, timeout, workflow, renderer, asset, dependency or infrastructure changes.
+
+Preserve all171 scenarios,50ms publication,pace0.125,6250us cap, existing budgets,
+archive protocol and full raw evidence, all required focused/benchmark/classroom/
+strict/general gates, histories and acceptance blockers. No old source approval,
+partial browser run or this document amendment grants integration, acceptance,
+Issue closure, release or deployment. The author stops after its one stage and
+review handoff; root retains responsibility for subsequent selection.
