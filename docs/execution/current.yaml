@@ -9308,12 +9308,35 @@ parallel_lanes:
       base_branch: main
       pr: null
       pr_draft: false
-      status: in_progress
+      status: done
       kind: maintenance
       risk: high
       semantic_change: 'no'
-      checkpoint: fixed_d2_classroom_dispatch_selected
+      checkpoint: fixed_d2_classroom_dispatch_receipt_verified_completed
       owner_acceptance: pending
+      completed_at: '2026-10-20T16:16:08Z'
+      technical_completion_scope: One fixed dispatch and independently verified actual target-run identity only; product qualification remains separate.
+      completion_evidence: docs/product/electronics/tasks/TASK-ELECTRONICS-GOVERNANCE-013.md
+      helper_pr: 665
+      helper_pr_state: CLOSED_UNMERGED
+      helper_pr_closed_at: '2026-10-20T16:13:59Z'
+      helper_source_sha: 726c5cb8d7cd058df3c3b52c34794148bc240cf5
+      helper_tree: 6cbd26ccfe56d1989539667f215cd323010c0e3d
+      helper_workflow_blob: a961935f755b23defe7e2e6e29edc13061ae6e3f
+      helper_workflow_sha256: a21a4ef5292bb9509776f8c93474ae7515d2c361b533159c997e8b5f16745dec
+      actual_helper_run: '39455436882'
+      actual_helper_job: '118740956225'
+      actual_helper_conclusion: success
+      dispatch_http_status: 204
+      dispatch_received_at: '2026-10-20T16:12:59.319567Z'
+      prior_matching_runs: 0
+      actual_target_run: '39455455432'
+      actual_target_created_at: '2026-10-20T16:12:59Z'
+      actual_target_event: workflow_dispatch
+      actual_target_run_attempt: 1
+      actual_target_observed_status: in_progress
+      actual_target_observed_at: '2026-10-20T16:16:08Z'
+      independent_receipt_verification: Core reviewer verified API/logs for helper success, single204/prior0, exact target repository/workflow/path/profile/branch/head/tree/attempt and closed-unmerged PR665.
       owner_authorization: Owner authorised cloud systems and controller-managed authors/reviewers; one fixed dispatch supports the already selected D2 qualification without changing product criteria.
       context_hints:
         - docs/product/electronics/tasks/TASK-ELECTRONICS-GOVERNANCE-013.md
@@ -9336,7 +9359,7 @@ parallel_lanes:
         - docs/execution/current.yaml
       shared_path_coordination: Existing global workflow shared scope unchanged; root assigns one helper author and independent read-only security reviewer, with root sole integrator. No foreign paths removed or narrowed.
       integration_condition: Helper remains temporary branch only and NEVER main. One opened/attempt1/same-repo exact-helper event; one no-redirect POST with fixed target identity and prior-run checks, verified actual target-run receipt. No retry/rebind, product PASS, D2 acceptance or GOV012 reset.
-      next_action: Independently review and publish this exact-bound prospective selection on main. Only then refresh main/preflight and author/review one helper; record actual helper PR/head and actual target-run identity separately from qualification results.
+      next_action: Dispatch control task complete; preserve exact helper and target bindings. PR665 is closed unmerged; never reopen, rerun or reuse helper, never merge it into main. Root alone may close Issue664 after reviewed controller publication. Target run remains separately in_progress, not product PASS; D2/FET gates and all acceptance blockers remain unchanged.
     execution_lease:
       executor_id: electronics-d2-qualification-dispatch-664
       holder: unassigned
@@ -9354,13 +9377,13 @@ parallel_lanes:
           - pnpm control-plane:check
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: fb6898dd4b9354b3bbc8452bce7668fa4d954d20
+      convergence_baseline_sha: 9043ef5dabe0506d047999e5aa37f307700a89bd
       head_sha: null
-      observed_at: '2026-10-20T15:59:05Z'
+      observed_at: '2026-10-20T16:16:08Z'
       main:
         branch: main
-        sha: fb6898dd4b9354b3bbc8452bce7668fa4d954d20
-      observation_note: Fresh main fb6898dd includes unrelated Scratch PR648 merge; all prior controller bytes retained. Remote Draft PR652 exact793fc599/tree4b3c71c3 reviewed and fixed, cloud CI starting; this selects one dispatch only, not D2 acceptance. Fresh fetch main and exact head/tree checks required before helper writes or POST; no product PASS or waiver.
+        sha: 9043ef5dabe0506d047999e5aa37f307700a89bd
+      observation_note: Helper39455436882 succeeded with one204/prior0; independent API/log review bound target39455455432 to exact793fc599/tree4b3c/profilev3/workflow326529119/attempt1. Target observed in_progress, never PASS by dispatch. PR665 closed unmerged; no reopening/rerun/reuse or helper main merge. Only transport control task complete, owner pending. Fresh fetch main before later controller writes; all foreign state remains unchanged.
 
 integration:
   owner_lane: visual-programming

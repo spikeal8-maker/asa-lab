@@ -77,3 +77,31 @@ Never merge the helper; retain source and target hashes and close helper PR
 unmerged after use. D2 full classroom/native/strict evidence and independent
 acceptance remain required separately. No product PASS, Issue649 closure,
 blocker removal, deployment or owner acceptance follows from dispatch. STOP.
+
+
+## Technical dispatch completion observed 2026-10-20
+
+Remote helper source `726c5cb8d7cd058df3c3b52c34794148bc240cf5`, tree
+`6cbd26ccfe56d1989539667f215cd323010c0e3d`, workflow blob
+`a961935f755b23defe7e2e6e29edc13061ae6e3f`, SHA256
+`a21a4ef5292bb9509776f8c93474ae7515d2c361b533159c997e8b5f16745dec`.
+Author62 offline checks passed and the independent core security review approved.
+Actual helper run `39455436882`, job `118740956225`, succeeded: exactly one
+HTTP204 at `2026-10-20T16:12:59.319567Z`, prior matching runs0.
+
+Independent API/log review verified actual target run `39455455432`, created
+`2026-10-20T16:12:59Z`: repository `spikeal8-maker/asa-lab`,
+workflow ID326529119/path `.github/workflows/electronics-r4-m1-focused.yml`,
+event `workflow_dispatch`, attempt1, profile `classroom-d13-v3`, target branch
+`codex/electronics-classroom-d2-d4-649`, head
+`793fc599b2a2f0182147b06e0650c51fe386a993`, tree
+`4b3c71c3d151eb79fb6495919278d3148e7aeeb6`. Target is still **in_progress**
+at this dated observation, not qualification PASS.
+
+Only this transport/control task is technically complete; owner acceptance stays
+pending. Active task PR remains null. Temporary helper receipt PR665 was
+independently verified CLOSED_UNMERGED at `2026-10-20T16:13:59Z`; retain its
+branch/source and NEVER merge, reopen, rerun or reuse the helper. No second POST.
+Root may close Issue664 after reviewed controller publication; this author does
+not change the Issue. No D2/FET state, gate, blocker or acceptance is changed.
+Fresh product results and native acceptance remain separate. STOP.
