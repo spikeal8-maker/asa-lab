@@ -625,7 +625,7 @@ export function WorkbenchStage({
     if (
       event.button === 0 &&
       !c.pendingTerminal &&
-      target.classList.contains('workbench-grid-hit')
+      (target === event.currentTarget || target.classList.contains('workbench-grid-hit'))
     ) {
       const component = componentAtClientPoint(event.clientX, event.clientY);
       if (component) {
