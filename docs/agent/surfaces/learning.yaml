@@ -144,6 +144,9 @@ surfaces:
     files:
     - apps/web/src/pages/AssignmentLibraryPage.tsx
     - apps/web/src/components/CoursesPanel.tsx
+    - apps/web/src/components/LessonBlockEditor.tsx
+    - apps/web/src/learning/course-prepublication-diagnostic.ts
+    - apps/web/src/api-call.ts
     - apps/web/src/api.ts
     - apps/api/src/courses.controller.ts
     invariants:

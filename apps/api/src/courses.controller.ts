@@ -245,6 +245,11 @@ interface CoursePublishRow {
   problem_id: string | null;
   problem_path: string | null;
   problem_message: string | null;
+  problem_section_id: string | null;
+  problem_lesson_id: string | null;
+  problem_block_id: string | null;
+  problem_field: string | null;
+  problem_reason: string | null;
 }
 
 interface ClassroomCourseRunRow {
@@ -831,24 +836,43 @@ export class CoursesController {
       );
     const result = await this.requirePool().query(
       `SELECT result_code, version_id, version_number, published_at, reused,
-              problem_kind, problem_id, problem_path, problem_message
-         FROM course_publish_v3($1, $2,$3,$4)`,
+              problem_kind, problem_id, problem_path, problem_message,
+              problem_section_id, problem_lesson_id, problem_block_id, problem_field, problem_reason
+         FROM course_publish_v4($1, $2,$3,$4)`,
       [context.principalId, courseId, shape.body['expectedRevision'], shape.body['requestId']],
     );
     const row = result.rows[0] as CoursePublishRow | undefined;
     if (!row || row.result_code === 'course_not_found') {
       throw new HttpException(error('course_not_found', 'Курс не найден.'), 404);
     }
-    if (row.result_code === 'course_empty') {
-      throw new HttpException(
-        error('course_empty', 'Добавьте хотя бы один урок перед публикацией.'),
-        409,
-      );
-    }
-    if (row.result_code === 'prepublish_invalid') {
+    if (row.result_code === 'course_empty' || row.result_code === 'prepublish_invalid') {
       const path = row.problem_path ? `${row.problem_path}: ` : '';
+      const message =
+        row.problem_message ??
+        (row.result_code === 'course_empty'
+          ? 'Добавьте хотя бы один урок перед публикацией.'
+          : 'Исправьте содержание курса.');
       throw new HttpException(
-        error('prepublish_invalid', path + (row.problem_message ?? 'Исправьте содержание курса.')),
+        {
+          error: {
+            code: row.result_code,
+            message: path + message,
+            diagnostic: {
+              courseId,
+              draftRevision: shape.body['expectedRevision'],
+              sectionId: row.problem_section_id ?? null,
+              lessonId: row.problem_lesson_id ?? null,
+              blockId: row.problem_block_id ?? null,
+              field:
+                row.problem_field ?? (row.result_code === 'course_empty' ? 'lessons' : 'blocks'),
+              reason:
+                row.problem_reason ??
+                (row.result_code === 'course_empty' ? 'course_empty' : 'block_invalid'),
+              path: row.problem_path ?? 'Курс',
+              message,
+            },
+          },
+        },
         409,
       );
     }

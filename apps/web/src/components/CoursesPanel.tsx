@@ -19,6 +19,12 @@ import { Dropdown } from './Dropdown';
 import { LessonBlockEditor, lessonBlocksValid } from './LessonBlockEditor';
 import { LessonBlocks } from './LessonBlocks';
 import { ShareDialog } from './ShareDialog';
+import type { CoursePrepublicationDiagnostic } from '../api-call';
+import {
+  coursePrepublicationDiagnostic,
+  focusCourseDiagnostic,
+  type CourseDiagnosticFocus,
+} from '../learning/course-prepublication-diagnostic';
 import './courses-panel.css';
 
 type MutationResult = Promise<{ ok: boolean; error?: { message: string } }>;
@@ -373,6 +379,7 @@ function LessonEditor({
   onDirty,
   onDelete,
   saveBlockedMessage,
+  diagnosticFocus,
 }: {
   readonly sections: readonly CourseSection[];
   readonly sectionId: string;
@@ -382,7 +389,14 @@ function LessonEditor({
   readonly onDelete: (() => Promise<void>) | null;
   readonly onDirty: () => void;
   readonly saveBlockedMessage: string | null;
+  readonly diagnosticFocus?: CourseDiagnosticFocus | null;
 }): JSX.Element {
+  const formRef = useRef<HTMLFormElement>(null);
+  useEffect(() => {
+    if (formRef.current && diagnosticFocus && diagnosticFocus.diagnostic.lessonId === lesson?.id) {
+      focusCourseDiagnostic(formRef.current, diagnosticFocus.diagnostic);
+    }
+  }, [diagnosticFocus, lesson?.id]);
   const [targetSection, setTargetSection] = useState(sectionId);
   const [title, setTitle] = useState(lesson?.title ?? '');
   const [summary, setSummary] = useState(lesson?.summary ?? '');
@@ -405,7 +419,7 @@ function LessonEditor({
   const [saving, setSaving] = useState(false);
   const valid =
     title.trim().length > 0 &&
-    (kind === 'material' || assignmentId.length > 0) &&
+    (kind === 'material' || assignmentId.startsWith('lav:')) &&
     lessonBlocksValid(blocks) &&
     !saveBlockedMessage &&
     !saving;
@@ -434,7 +448,7 @@ function LessonEditor({
   }
 
   return (
-    <form className="course-lesson-editor" onSubmit={(event) => void submit(event)}>
+    <form ref={formRef} className="course-lesson-editor" onSubmit={(event) => void submit(event)}>
       <div className="course-editor-title">
         <div>
           <span className="course-eyebrow">{lesson ? 'Урок' : 'Новый урок'}</span>
@@ -506,12 +520,13 @@ function LessonEditor({
       </label>
 
       {kind === 'assignment' ? (
-        <div className="course-field">
+        <div className="course-field" data-course-field="learningActivityVersionId">
           <span>Практика</span>
           {assignmentId && !assignmentId.startsWith('lav:') ? (
-            <p>
+            <p role="alert">
               Сохранённое задание: {lesson?.assignmentTitle || 'название недоступно'}. Исходная
-              ссылка сохранена.
+              ссылка сохранена. Задание из старого банка нельзя включить в новую публикацию курса.
+              Выберите опубликованную практику из своей библиотеки, затем сохраните урок.
             </p>
           ) : null}
           <CanonicalPracticePicker
@@ -698,6 +713,7 @@ function CourseEditor({
   const markDirty = () => {
     editGeneration.current += 1;
     localDirtyRef.current = true;
+    setDiagnosticFocus(null);
     setLocalDirty(true);
     onEditorWorkChange(true);
   };
@@ -729,6 +745,9 @@ function CourseEditor({
   const [publishing, setPublishing] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [publicationProblem, setPublicationProblem] =
+    useState<CoursePrepublicationDiagnostic | null>(null);
+  const [diagnosticFocus, setDiagnosticFocus] = useState<CourseDiagnosticFocus | null>(null);
   const visibilitySaveBlock =
     visibilityWrite === 'pending'
       ? 'Изменяем видимость. Дождитесь подтверждения перед сохранением урока.'
@@ -1107,6 +1126,7 @@ function CourseEditor({
       return;
     }
     setPublishing(true);
+    setPublicationProblem(null);
     const result = await api.publishCourse(
       course.id,
       draftRevision,
@@ -1116,6 +1136,7 @@ function CourseEditor({
     if (!result.ok) {
       setNotice(null);
       setError(result.error.message);
+      setPublicationProblem(coursePrepublicationDiagnostic(result.error, course.id, draftRevision));
       return;
     }
     publicationReceipt.current = {
@@ -1131,6 +1152,33 @@ function CourseEditor({
     );
     await loadOutline();
     onChanged();
+  }
+
+  function correctPublicationProblem(): void {
+    withSavedDraft(() => {
+      if (!publicationProblem) return;
+      const targetSection = sections?.find((entry) => entry.id === publicationProblem.sectionId);
+      const targetLesson = targetSection?.lessons.find(
+        (entry) => entry.id === publicationProblem.lessonId,
+      );
+      if (
+        publicationProblem.draftRevision !== draftRevisionRef.current ||
+        !targetLesson ||
+        (publicationProblem.blockId !== null &&
+          !targetLesson.blocks.some((block) => block.id === publicationProblem.blockId))
+      ) {
+        setError(
+          'Содержание курса изменилось. Повторите публикацию, чтобы проверить текущую редакцию.',
+        );
+        setPublicationProblem(null);
+        return;
+      }
+      setPreview(false);
+      setPublishedPreview(null);
+      setNewLessonSectionId(null);
+      setSelectedLessonId(targetLesson.id);
+      setDiagnosticFocus({ diagnostic: publicationProblem });
+    });
   }
 
   async function exactPublished(): Promise<PublishedAuthorVersion | null> {
@@ -1303,6 +1351,15 @@ function CourseEditor({
         {unavailableMessage || error ? (
           <p className="form-error course-inline-notice" role="alert">
             {unavailableMessage ?? error}
+            {!unavailableMessage && publicationProblem?.lessonId ? (
+              <button
+                type="button"
+                className="btn-secondary course-correction-button"
+                onClick={correctPublicationProblem}
+              >
+                Перейти к исправлению
+              </button>
+            ) : null}
           </p>
         ) : null}
 
@@ -1607,6 +1664,7 @@ function CourseEditor({
                   onDirty={markDirty}
                   onDelete={deleteLesson}
                   saveBlockedMessage={lessonSaveBlock}
+                  diagnosticFocus={diagnosticFocus}
                 />
               ) : (
                 <div className="course-workspace-empty">

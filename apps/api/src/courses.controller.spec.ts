@@ -59,6 +59,81 @@ function controller(
   return { value: new CoursesController(activeContext, accounts, pool), query };
 }
 
+describe('structured course prepublication diagnostics', () => {
+  it('returns the exact second block and field without another read or parsing the display path', async () => {
+    const target = controller([
+      {
+        result_code: 'prepublish_invalid',
+        version_id: null,
+        version_number: null,
+        published_at: null,
+        reused: false,
+        problem_kind: 'lesson',
+        problem_id: LESSON_ID,
+        problem_path: 'Произвольный заголовок раздела → урока',
+        problem_message: 'Выберите доступную практику.',
+        problem_section_id: SECTION_ID,
+        problem_lesson_id: LESSON_ID,
+        problem_block_id: 'second-practice',
+        problem_field: 'learningActivityVersionId',
+        problem_reason: 'pin_unavailable',
+      },
+    ]);
+    await expect(
+      target.value.publish(request(), COURSE_ID, {
+        expectedRevision: 7,
+        requestId: 'diagnostic:test:0001',
+      }),
+    ).rejects.toMatchObject({
+      status: 409,
+      response: {
+        error: {
+          code: 'prepublish_invalid',
+          diagnostic: {
+            courseId: COURSE_ID,
+            draftRevision: 7,
+            sectionId: SECTION_ID,
+            lessonId: LESSON_ID,
+            blockId: 'second-practice',
+            field: 'learningActivityVersionId',
+            reason: 'pin_unavailable',
+            path: 'Произвольный заголовок раздела → урока',
+            message: 'Выберите доступную практику.',
+          },
+        },
+      },
+    });
+    expect(target.query).toHaveBeenCalledTimes(1);
+    expect(target.query).toHaveBeenCalledWith(expect.stringContaining('course_publish_v4'), [
+      'principal-id',
+      COURSE_ID,
+      7,
+      'diagnostic:test:0001',
+    ]);
+  });
+
+  it('never exposes a diagnostic from an unavailable course', async () => {
+    const target = controller([
+      {
+        result_code: 'course_not_found',
+        problem_section_id: SECTION_ID,
+        problem_lesson_id: LESSON_ID,
+        problem_block_id: 'foreign-block',
+      },
+    ]);
+    const denied = target.value.publish(request(), COURSE_ID, {
+      expectedRevision: 7,
+      requestId: 'diagnostic:test:0002',
+    });
+    await expect(denied).rejects.toMatchObject({
+      status: 404,
+    });
+    await expect(denied).rejects.toHaveProperty('response', {
+      error: { code: 'course_not_found', message: 'Курс не найден.' },
+    });
+  });
+});
+
 describe('course outline API', () => {
   it.each(['create', 'update'] as const)(
     'returns the exact course %s revision from the guarded save receipt',
