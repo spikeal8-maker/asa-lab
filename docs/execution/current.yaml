@@ -832,6 +832,39 @@ parallel_lanes:
           egress is not authorized by this selection and must not bypass the prior automatic-review rejection.
           The unchanged normal General security gate on the new published baseline and final SHA supplies actual
           audit acceptance. All normal product, PostgreSQL and browser gates remain mandatory.
+      - id: AI-BASELINE-PROJECTS-NAV-ORACLE-019
+        status: selected
+        classification: C
+        change_class: L1_UI_BEHAVIOR
+        owner_area: classroom-profile-header-test
+        observed_main_sha: 7d4b00b74094076676b2af82dd0226ec24cc72aa
+        selected_scope:
+        - e2e/classroom-profile-completion.spec.ts
+        evidence_sha: e46c45a58d62171ec23c40e389ad35bbe6c2e248
+        evidence_run: 39505981356
+        evidence_job: 118918490086
+        cause: Full baseline General passed Governance, Code and Data/RLS, including security high0 and Portal20/20,
+          but two Access journeys failed the same header assertion at line361. The Projects link expected /#/gallery
+          at line354 while accepted Public Projects navigation returns /#/explore. The test and PortalHeader are
+          unchanged against accepted main9f, outside the selected Quality, Portal and dependency source changes.
+        selection: Change only the two Projects expected href literals from /#/gallery to /#/explore in the same
+          assertLayout helper, lines354 and373. The second assertion addresses the identical named navigation and
+          was not reached after the first failure. Keep both independent assertions; do not refactor their arrays.
+          Preserve every other byte, the seven header controls, three named destinations, layout/order,56px header,
+          44px targets, all viewports and journeys, assertions and5000ms timeout. No runtime, route, workflow,
+          security, SQL, dependency or broad Classroom change and no weakening of the existing checks.
+        coordination: Fresh audit of54 allowed open PRs found only historical draft605 headb98015db touching this
+          file; its source predates this expectedLinks assertion. Eight local worktrees have no dirty target path.
+          Preserve Classroom task589, historical605 and resolved AUTH-HEADER-COMPATIBILITY-001 context unchanged.
+          Controller selects one bounded author and a different independent source reviewer for this two-literal
+          repair. This neither reopens broad Classroom work nor closes605 or589.
+        acceptance: Freeze one source commit after focused diff, formatting and route-contract checks; no local
+          browser, PostgreSQL, Docker, providers or audit. Require NEW independent exact-source approval, then
+          compose into baseline668 and run the unchanged full normal General on the new exact SHA. All Access
+          journeys and subsequent settings checks must execute successfully. NEW independent actual baseline
+          acceptance remains required before final joint composition; prior e46FAIL is not changed into PASS.
+          Preserve the canonical atomic225-to-all226-234 strategy and all final AI/Learning/credential/Public
+          Projects gates. No standalone baseline merge, installation, deployment or working database action.
       dependency_sequence:
       - text_convergence_and_focused_ci
       - teacher_controlled_student_admission
@@ -5287,21 +5320,22 @@ parallel_lanes:
       - apps/web/src/styles.css
       - apps/api/src/public-projects.controller.ts
       - apps/web/src/projects-public/**
-      - migrations/0218_public_projects.sql
+      - migrations/0234_public_projects.sql
+      - migrations/0235_public_project_copy.sql
       - tests/portal/**
       - e2e/project-hub.spec.ts
       - e2e/artifacts/project-hub/**
       - docs/product/projects/**
       - docs/review/PROJ_R7_01/**
     task:
-      id: TASK-PROJ-R7-VISIBLE-PUBLICATION-001
+      id: TASK-PROJ-R7-PUBLISHED-COPY-001
       issue: 211
       branch: main
       base_branch: main
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: stage2_general009_integrated_games32_pass_full_general_blocked
+      checkpoint: stage3_exact_published_copy_selected
       owner_acceptance: pending
       owner_authorization: >-
         Owner's 2026-10-18 implementation assignment delegates the complete Public Projects
@@ -5310,6 +5344,7 @@ parallel_lanes:
         original Projects, drafts, versions, learning data and personal Collections are protected.
         No production cleanup or deployment is authorized by this selection.
       context_hints:
+        - docs/product/projects/tasks/PROJ-R7-PUBLISHED-COPY.md
         - docs/product/projects/tasks/PROJ-R7-VISIBLE-PUBLICATION.md
         - docs/product/projects/DECISION_LEDGER.md
         - docs/product/projects/tasks/PROJ-PUBLICATION-BUILD-BASELINE.md
@@ -6127,74 +6162,20 @@ parallel_lanes:
       accepted_r7_01a_merge_sha: 92e7926fb4cf51b8fcb5d57741e01c812a26f2dc
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: d2b623f3c59b504e60738d24cc8b627dfc7a04d2
+      convergence_baseline_sha: 628a5b5a999998b008e18e5ab61e843cb5d8b25b
       head_sha: null
-      observed_at: '2026-10-19T17:53:55Z'
+      observed_at: '2026-10-20T22:15:00Z'
       main:
         branch: main
-        sha: cc6c4bf1e753ef617e11932fd36a9fb85b4c5e70
-      observation_note: >-
-        Observed main cc6c4bf1 is the single-parent Learning course/section-save
-        change over main475. Its eight source paths do not intersect this
-        two-document checkpoint; its new API, CoursesPanel, schema and test
-        blobs are preserved. At this observation, General 39297710485 and
-        Learning 39297755737 are in_progress, metadata only. Source or actual
-        PASS from 632, 475 or 94 is not cc6 acceptance. Publishing this
-        checkpoint must wait for the current main CI terminal barrier.
-        Main475 is the accepted normal General009 merge over the independently
-        reviewed fcc controller checkpoint and accepted Auth C5 main d193.
-        Exact632 SOURCE/ACTUAL reviews and the separate post-main475 actual
-        General009 review all pass. Post-main General 39280683031 and all four
-        jobs are terminal SUCCESS, with 220 migrations, separate RLS16,
-        Access22/settings418, immutable images and actual isolated cleanup.
-        This checkpoint follows that terminal barrier. Games is still 32 SKIP
-        on main475; source94 in draft PR645 has its own actual 32 PASS proof.
-        Full General94 is FAILURE from the Electronics timed replay case;
-        its causal category is unresolved and its existing external ownership
-        is preserved. Inline RLS16 passes, but the trailing standalone RLS
-        command is NOT_RUN. Locked runner-source checks find no CI-specific
-        worker/pool/timeout change for the actual explicit run command, while
-        workload and actual worker allocation remain unknown. No new runtime
-        repair, longer timeout, skip or unchanged CI rerun is selected here.
-        Portable94 has bounded independent ACTUAL PASS, with its active
-        transition exception and full-compliance claim still blocked. The
-        separate Electronics94 manifest429 failure is class D before browser;
-        shared transport/guard correction belongs to the existing GC1 author.
-        Coverage635 remains merged with its focused post-main PASS. Learning639 at
-        4a651e23 retains independent source and causal actual Learning/General PASS;
-        accepted AI636 preserves its three exclusive Learning specs. QR629 remains
-        frozen at 9a3c8223 with source/Classroom/General PASS, held for combined acceptance.
-        Old Scratch640 exact813 is terminal NEEDS_FIX and its artifact is preserved.
-        Recovery 55 and corrected Abby 65 have independent source PASS; their mechanically
-        composed exact ffc in draft PR644 has independent composed review 5573134896.
-        New Scratch 39269655871 has full actual 57/57 PASS plus contracts/fresh ZIP;
-        both durable Abby reports are NOT_REPRODUCED and Recovery schema3 reaches all
-        original assertions and real IndexedDB retention. ACTUAL review 5573987710
-        is published. Its old General 39269657333 remains FAILURE from the two
-        UUID fixture errors; the accepted General009 slice addresses their proven
-        cause, without turning old ffc into new combined-source acceptance.
-        GC1 fe70 has no corrected frozen scanner/ordered-argument handoff.
-        D13 f967 actual Classroom 39271296982 has 164 PASS / 6 FAIL and Strict
-        39271290925 has 161 PASS / 9 FAIL, each 170 unique cases without skips
-        or retries. Build/PG startup completed before those browser assertions;
-        cleanup completed afterward. Independent matrix and cause limits were delivered to the
-        existing owner in Issue638 comment6271625706. Product versus observer
-        cause and the last type annotation's causal role remain unproved.
-        PR613 remains unchanged at 662c8af4fbffead0f71b2fb95a4e9768d0c4b9fb; its single
-        final composition has not started. Require fresh fetch main and scoped overlap
-        checks before the one final composition. Historical publication 39154885397 evidence
-        (142 code/real-PG, 48 portal, 8 browser, 37 screenshots) is not current-main
-        acceptance. Preserve current app.module, API cancellation, global verification
-        403 handling, Account/Seat precedence, Games registration and transaction paths,
-        all Learning data, original Projects, drafts, versions, Collections and Safe Mode.
-        Mixed Seat/Account cookies and public GET verification require their explicit
-        security matrix; no generic guard bypass is selected. Auth C5 installer/origin
-        changes require fresh final ZIP evidence, not transfer of old 813/ffc results.
-        Published Auth 0225 and every prior checksum are immutable. AI still records
-        reserved 0225-0228, so its unpublished numbering needs a fresh owner handoff;
-        re-read all published/reserved IDs before selecting the publication migration.
-        Do not assume 0229 is free. Stages 3-7 remain pending after stage 2; no deployment
-        or working-database action is authorized.
+        sha: 628a5b5a999998b008e18e5ab61e843cb5d8b25b
+      observation_note: Require fresh fetch main before publication. Owner explicitly resumes the complete programme with a visible next result. PR613 is merged
+        at13ab3635587a201bc2cc78e88b9a9f66fce72102 and its post-main publication PG/browser workflow39494756801 passed.
+        Select only Stage3 exact immutable-publication copy into an independent private Project. Source integration
+        of Stage1 is not full release acceptance. Shared dependency and AI/Courses/Portal migration topology remain
+        separately owned; no earlier migrations, package/lock or unrelated modules may be rewritten in this slice.
+        Reserve new forward0235 after unchanged0234; validate actual reservations before publication. Workstation
+        authoring/lightweight checks only; real PG/browser evidence in disposable GitHub CI. No production deployment
+        or working database operation.
     execution_lease:
       executor_id: codex-projects-r7-01
       holder: unassigned
@@ -9428,7 +9409,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: led_publication_private_field_bundle_budget_repair_selected
+      checkpoint: arduino_committed_horizon_deduplication_selected
       owner_acceptance: pending
       acceptance_revision: classroom-d2-d4-eighth-pace-r1
       active_qualification_profile: classroom-d13-v3
@@ -9507,7 +9488,28 @@ parallel_lanes:
         private_renames: presentedFrame to shown; pendingFrame to pending; animationFrame to raf; committedAnimationFrame to ackRaf; indicatorHistories to indicators; frameSequence to sequence.
         preservation: Public keys, getters and returned frame objects remain unchanged. No algorithm, physics, pacing, precision, native lease, ACK, Reset, workflow, dependency, foreign-source or threshold change. Preserve prior selections, teacher exception, stopped D13 handoff, gates, acceptance blockers and all history.
         required_verification: Prove no external repository references to these private fields; AST equivalence modulo ONLY six private renames; all100 presenter tests; targeted types; production Vite bundle at most218000 bytes before main integration, verified by exact file bytes or a proved UTF-8 Vite upper bound below the cap. Estimated384 source bytes is only an estimate, never actual bundle PASS.
-      next_action: Publish and review this two-document canonical amendment on main before author writes. One bounded author applies only the six private field renames in the owned presenter class, verifies unchanged public API/AST and required tests/types/exact production bundle. Freeze source for NEW independent exact-SHA review before root publication. Never raise the bundle cap or claim acceptance from estimates; all remaining browser/strict/general gates and blockers remain mandatory.
+      committed_horizon_repair_selection:
+        selected_base_main: 7d4b00b74094076676b2af82dd0226ec24cc72aa
+        stage: bounded_host_committed_horizon_deduplication
+        source_publication: PR652 integrated at main628a5b5a999998b008e18e5ab61e843cb5d8b25b by owner instruction; source publication is not technical or owner acceptance.
+        final_classroom_result: FAIL220PASS18FAIL; preserve the actual source-bound run and raw evidence, not acceptance.
+        final_strict_result: FAIL211PASS27FAIL; preserve all original assertions and failures.
+        production_bundle_bytes: 217938
+        unchanged_production_bundle_cap_bytes: 218000
+        unresolved_d2_classification: The final D2 failure is the Reset pre-H0 oracle; it does not establish a product publication lag above50ms. Separate read-only raw intake must distinguish lifecycle/oracle cause before any corresponding repair. Earlier case200 raw remains historical, not a classification of this final failure.
+        owner_goal: Continue the original Issue546 real-time Arduino and visible LED goal. Common pace0.125 is a historical intermediate classroom boundary, never full-real-time acceptance. This selected repair MUST NOT change pace or lookahead without separately proved compute headroom and canonical selection.
+        causal_input: Saved Blockly1ms trace has149 of602 requests repeating an already committed horizon,627.6ms compute and1463.5ms roundtrip on those requests. This identifies avoidable work, not sufficient headroom or a sole root cause.
+        author: NEW bounded author assigned by root after canonical main publication
+        independent_reviewer: NEW independent exact-SHA reviewer assigned by root; never the author
+        expected_product_paths:
+        - apps/web/src/electronics/use-electronics-workbench.ts
+        - apps/web/src/electronics/live-simulation-worker-controller.ts
+        - apps/web/src/electronics/testing/use-electronics-workbench-clock.spec.ts
+        - apps/web/src/electronics/testing/live-simulation-worker-controller.spec.ts
+        scope_override: Supersede the completed private-field authoring instruction only for deduplicating unjustified already-committed-horizon requests in the existing host/controller. Preserve legitimate yielded continuation, H0 initialization, pending inputs, generation/source/document identity and canonical state. No presenter, solver, runtime interpreter, physical timing, workflow, dependency, artwork or foreign module change.
+        required_verification: Meaningful regression must discriminate duplicate committed-ready requests from necessary yielded continuation and same-horizon input/lifecycle work. Preserve complete ready results and every canonical runtime state, native readiness and ACK, independent ports, Reset/Stop/cancellation and stale/failure guards. Reuse the saved request sequence for before/after request counts, reached model time and compute/elapsed evidence; no repeated measurements without a new reason. Then focused checks, NEW independent exact-SHA review and required exact-source built-editor evidence; no timeout, tolerance, precision or assertion weakening.
+        preservation: Keep all historical source/reviews/failures, all gates and acceptance blockers,0.125 current pace,6250us cap,50ms publication and full raw evidence. Preserve the explicit teacher-workflow limited exception and stopped D13 handoff without changing either foreign tree. No school installation, Docker, network or database action.
+      next_action: Publish this canonical two-document selection on main before product writes; root then assigns one bounded host/controller author and a separate independent reviewer. Independently classify the final D2 Reset pre-H0 raw evidence without treating it as a proved50ms product defect. Freeze the deduplication candidate and review its actual diff and saved-sequence benefit before required exact-source gates. Do not claim1x or change pace until compute headroom is proved; source publication does not close649,546 or any acceptance blocker.
     previous_task:
       id: TASK-ELECTRONICS-CLASSROOM-D13-001
       issue: 638

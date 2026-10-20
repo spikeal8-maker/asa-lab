@@ -3,6 +3,7 @@ import { act, createElement, startTransition, StrictMode, Suspense, useLayoutEff
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { createRoot, type Root } from 'react-dom/client';
+import { flushSync } from 'react-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   resetElectronicsTimedState,
@@ -1179,6 +1180,308 @@ describe('mounted workbench LED temporal display', () => {
     assertCommitted(80, 'lit');
     return first;
   }
+
+  it.each([0, 1, 2])(
+    'mounts the first cold native resource for joint LED %i before its display RAF is eligible',
+    async (activeIndex) => {
+      const leds = [led, { ...led, id: 'led-d3' }, { ...led, id: 'led-d4' }];
+      openedDocument = { ...initial, components: [initial.components[0]!, ...leds] };
+      const joint = (times: number[], values: number[][]) => {
+        const channels = leds.map((component, index) => {
+          const single = observed(
+            times.map((atMicroseconds, sample) => ({
+              atMicroseconds,
+              brightness: values[sample]![index]!,
+              current: values[sample]![index]! > 0 ? 0.01 : 0,
+            })),
+          );
+          return {
+            electrical: { ...single.result.components[0]!, componentId: component.id },
+            temporal: { ...single.observation.components[0]!, componentId: component.id },
+          };
+        });
+        const observation: ElectronicsLedTemporalObservation = {
+          profile: 'ordinary-led-held-v1',
+          fromMicroseconds: times[0]!,
+          toMicroseconds: times.at(-1)!,
+          components: channels.map((channel) => channel.temporal),
+          arduinoIndicators: [
+            {
+              componentId: 'uno',
+              truncated: false,
+              samples: times.map((atMicroseconds) => ({ atMicroseconds, voltage: 0 })),
+            },
+          ],
+        };
+        const result: SolveResult = {
+          ...ready,
+          components: [
+            ...channels.map((channel) => channel.electrical),
+            { componentId: 'uno', current: -0.01, voltageDrop: 5, terminalVoltages: { d13: 0 } },
+          ],
+        };
+        return { result, observation };
+      };
+      await mount();
+      await loadMountedImages();
+      await act(async () => workbench.toggleSimulation());
+      await receive(joint([0], [[0, 0, 0]]), true);
+      await frame();
+      expect(leds.map((component) => workbench.componentLedBrightness(component))).toEqual([
+        0, 0, 0,
+      ]);
+      await tick(10);
+      const high = [0, 0, 0];
+      high[activeIndex] = 70;
+      const receivedAt = window.performance.now();
+      await receive(joint([0, 7, 1_000], [[0, 0, 0], high, high]));
+      const component = leds[activeIndex]!;
+      const preparation = workbench.preparedComponentLedAsset(component)!;
+      expect(preparation.asset).toMatch(/_i070\.svg$/);
+      const cold = [
+        ...host.querySelectorAll<SVGImageElement>(
+          `[data-testid="clock-led-${component.id}"] image.workbench-led-asset`,
+        ),
+      ].find((image) => image.getAttribute('href') === preparation.asset)!;
+      expect(cold).toBeDefined();
+      expect(cold.style.opacity).toBe('0');
+      expect(workbench.simulationTimeMs).toBe(0);
+      await frame(8);
+      await frame(8);
+      // An induced native load runs the actual mounted binding. It is not a
+      // real-browser paint measurement and cannot acknowledge model progress.
+      await loadMountedImages();
+      expect(leds.map((item) => workbench.componentLedBrightness(item))).toEqual([0, 0, 0]);
+      expect(workbench.simulationTimeMs).toBe(0);
+      await frame(8);
+      expect(window.performance.now() - receivedAt).toBe(24);
+      expect(leds.map((item) => workbench.componentLedBrightness(item))).toEqual(high);
+      expect(workbench.componentArduinoLActive(initial.components[0]!)).toBe(false);
+      const committed = workbench.committedComponentLedAsset(component)!;
+      expect(committed.token).not.toBe(preparation.token);
+      expect(committed.element).toBe(cold);
+      expect(committed.isCurrent()).toBe(true);
+      expect(committed.isActive()).toBe(true);
+      expect(cold.style.opacity).toBe('1');
+      expect(workbench.simulationTimeMs).toBe(1);
+      for (const item of leds)
+        expect(
+          host.querySelectorAll(`[data-testid="clock-led-${item.id}"] image.workbench-led-asset`)
+            .length,
+        ).toBeLessThanOrEqual(3);
+    },
+  );
+
+  it('does not replace an unacknowledged native request with a later accepted asset', async () => {
+    await mount();
+    await loadMountedImages();
+    await act(async () => workbench.toggleSimulation());
+    await receive(opticalReady(0), true);
+    await frame();
+    const pending = workbench.preparedComponentLedAsset(led)!;
+    expect(pending.asset).toMatch(/_i080\.svg$/);
+    await tick(10);
+    await receive(
+      observed([
+        { atMicroseconds: 0, brightness: 80, current: 0.01 },
+        { atMicroseconds: 7, brightness: 30, current: 0.01 },
+        { atMicroseconds: 1_000, brightness: 30, current: 0.01 },
+      ]),
+    );
+    expect(workbench.preparedComponentLedAsset(led)?.token).toBe(pending.token);
+    expect(host.querySelector('image[href$="_i030.svg"]')).toBeNull();
+    expect(workbench.result).toBeNull();
+    await loadMountedImages();
+    await frame();
+    assertCommitted(80, 'lit');
+    expect(workbench.simulationTimeMs).toBe(0);
+    // The later solved resource can mount only after the first complete vector ACK.
+    expect(workbench.preparedComponentLedAsset(led)?.asset).toMatch(/_i030\.svg$/);
+    expect(host.querySelector<SVGImageElement>('image[href$="_i030.svg"]')?.style.opacity).toBe(
+      '0',
+    );
+  });
+
+  it.each(['Reset', 'Stop', 'failure'] as const)(
+    'cancels a cold native preparation on %s and ignores its late load',
+    async (cancellation) => {
+      await mount();
+      await loadMountedImages();
+      await act(async () => workbench.toggleSimulation());
+      const off = observed([{ atMicroseconds: 0, brightness: 0, current: 0 }]);
+      await receive(off, true);
+      await frame();
+      await tick(10);
+      await receive(
+        observed([
+          { atMicroseconds: 0, brightness: 0, current: 0 },
+          { atMicroseconds: 7, brightness: 80, current: 0.01 },
+          { atMicroseconds: 1_000, brightness: 80, current: 0.01 },
+        ]),
+      );
+      const warming = workbench.preparedComponentLedAsset(led)!;
+      expect(warming.asset).toMatch(/_i080\.svg$/);
+      await act(async () => {
+        if (cancellation === 'Reset') workbench.resetArduinoRuntime('uno');
+        else if (cancellation === 'Stop') await workbench.toggleSimulation();
+        else
+          worker().callbacks!.onFailure(
+            new SimulationFailure('technical', 'worker-runtime', 'Worker failed'),
+          );
+      });
+      expect(workbench.preparedComponentLedAsset(led)).toBeUndefined();
+      await loadMountedImages();
+      await frames(3);
+      expect(workbench.componentLedBrightness(led)).toBe(0);
+      expect(workbench.simulationTimeMs).toBe(0);
+      expect(workbench.committedComponentLedAsset(led)).toBeUndefined();
+      if (cancellation === 'Reset') {
+        await receive(off, true);
+        await frame();
+        assertCommitted(0, 'off');
+        expect(workbench.committedComponentLedAsset(led)?.token).not.toBe(warming.token);
+      }
+    },
+  );
+
+  it('cancels queued native work before a new generation with the same asset', async () => {
+    await mount();
+    await loadMountedImages();
+    await act(async () => workbench.toggleSimulation());
+    const off = observed([{ atMicroseconds: 0, brightness: 0, current: 0 }]);
+    await receive(off, true);
+    await frame();
+    await tick(10);
+    const high = observed([
+      { atMicroseconds: 0, brightness: 0, current: 0 },
+      { atMicroseconds: 7, brightness: 80, current: 0.01 },
+      { atMicroseconds: 1_000, brightness: 80, current: 0.01 },
+    ]);
+    await act(async () => {
+      worker().callbacks!.onCommittedHorizon!(1_000);
+      worker().callbacks!.onResult(high.result, high.observation, 'electrothermal-events-v2');
+      workbench.resetArduinoRuntime('uno');
+    });
+    expect(workbench.preparedComponentLedAsset(led)).toBeUndefined();
+    expect(host.querySelector('image[href$="_i080.svg"]')).toBeNull();
+    await receive(off, true);
+    await frame();
+    await tick(10);
+    await receive(high);
+    expect(workbench.preparedComponentLedAsset(led)?.asset).toMatch(/_i080\.svg$/);
+    expect(workbench.componentLedBrightness(led)).toBe(0);
+    expect(workbench.simulationTimeMs).toBe(0);
+  });
+
+  it.each(['changed', 'changed back'] as const)(
+    'withholds speculative native preparation after a %s source until a real Reset',
+    async (edit) => {
+      await mount();
+      await loadMountedImages();
+      await act(async () => workbench.toggleSimulation());
+      const off = observed([{ atMicroseconds: 0, brightness: 0, current: 0 }]);
+      await receive(off, true);
+      await frame();
+      await tick(10);
+      const high = observed([
+        { atMicroseconds: 0, brightness: 0, current: 0 },
+        { atMicroseconds: 7, brightness: 80, current: 0.01 },
+        { atMicroseconds: 1_000, brightness: 80, current: 0.01 },
+      ]);
+      const originalSource = initial.components[0]!.stateProperties!.arduinoSource;
+      const editedSource = 'void setup(){}void loop(){delay(77);}';
+      await act(async () => workbench.updateArduinoProgram('uno', { arduinoSource: editedSource }));
+      if (edit === 'changed back')
+        await act(async () =>
+          workbench.updateArduinoProgram('uno', { arduinoSource: originalSource }),
+        );
+      expect(host.querySelector('output')?.getAttribute('data-source')).toBe(
+        edit === 'changed back' ? originalSource : editedSource,
+      );
+      // Source-only edits do not start a controller generation. This old
+      // in-flight response can therefore arrive after the new source layout;
+      // its callback supplies no identity that could prove the new source.
+      await receive(high);
+      expect(Boolean(host.querySelector('image[href$="_i080.svg"]'))).toBe(false);
+      expect(workbench.preparedComponentLedAsset(led)?.asset).toMatch(/_i000\.svg$/);
+      expect(workbench.componentLedBrightness(led)).toBe(0);
+      expect(workbench.simulationTimeMs).toBe(0);
+      await act(async () => workbench.resetArduinoRuntime('uno'));
+      await receive(off, true);
+      await frame();
+      await tick(10);
+      // A genuine new generation re-enables the same first cold native state.
+      await receive(high);
+      expect(workbench.preparedComponentLedAsset(led)?.asset).toMatch(/_i080\.svg$/);
+      expect(workbench.componentLedBrightness(led)).toBe(0);
+      expect(workbench.simulationTimeMs).toBe(0);
+    },
+  );
+
+  it('retires an existing speculative token on source layout without disturbing the displayed native lease', async () => {
+    await mount();
+    await loadMountedImages();
+    await act(async () => workbench.toggleSimulation());
+    const off = observed([{ atMicroseconds: 0, brightness: 0, current: 0 }]);
+    await receive(off, true);
+    await frame();
+    const displayed = workbench.committedComponentLedAsset(led)!;
+    await tick(10);
+    await receive(
+      observed([
+        { atMicroseconds: 0, brightness: 0, current: 0 },
+        { atMicroseconds: 7, brightness: 80, current: 0.01 },
+        { atMicroseconds: 1_000, brightness: 80, current: 0.01 },
+      ]),
+    );
+    expect(workbench.preparedComponentLedAsset(led)?.asset).toMatch(/_i080\.svg$/);
+    await act(async () =>
+      workbench.updateArduinoProgram('uno', {
+        arduinoSource: 'void setup(){}void loop(){delay(77);}',
+      }),
+    );
+    expect(workbench.preparedComponentLedAsset(led)).toBeUndefined();
+    await loadMountedImages();
+    expect(workbench.preparedComponentLedAsset(led)).toBeUndefined();
+    expect(workbench.committedComponentLedAsset(led)).toBe(displayed);
+    expect(displayed.isCurrent()).toBe(true);
+    expect(displayed.isActive()).toBe(true);
+    expect(workbench.componentLedBrightness(led)).toBe(0);
+    expect(workbench.simulationTimeMs).toBe(0);
+  });
+
+  it('rejects queued native history after a source layout commits before Worker generation changes', async () => {
+    await mount();
+    await loadMountedImages();
+    await act(async () => workbench.toggleSimulation());
+    const off = observed([{ atMicroseconds: 0, brightness: 0, current: 0 }]);
+    await receive(off, true);
+    await frame();
+    await tick(10);
+    const high = observed([
+      { atMicroseconds: 0, brightness: 0, current: 0 },
+      { atMicroseconds: 7, brightness: 80, current: 0.01 },
+      { atMicroseconds: 1_000, brightness: 80, current: 0.01 },
+    ]);
+    const source = 'void setup(){}void loop(){delay(77);}';
+    await act(async () => {
+      worker().callbacks!.onCommittedHorizon!(1_000);
+      worker().callbacks!.onResult(high.result, high.observation, 'electrothermal-events-v2');
+      flushSync(() => workbench.updateArduinoProgram('uno', { arduinoSource: source }));
+    });
+    // This transport deliberately withholds onGenerationPending. The real
+    // source layout alone must reject the already queued old-document work.
+    expect(host.querySelector('output')?.getAttribute('data-source')).toBe(source);
+    expect(host.querySelector('image[href$="_i080.svg"]')).toBeNull();
+    expect(workbench.preparedComponentLedAsset(led)?.asset).toMatch(/_i000\.svg$/);
+    await act(async () => worker().callbacks!.onGenerationPending!());
+    await receive(off, true);
+    await frame();
+    await tick(10);
+    await receive(high);
+    expect(workbench.preparedComponentLedAsset(led)?.asset).toMatch(/_i080\.svg$/);
+    expect(workbench.componentLedBrightness(led)).toBe(0);
+  });
 
   async function residentLowBoundary() {
     await startOptical(25_000);
