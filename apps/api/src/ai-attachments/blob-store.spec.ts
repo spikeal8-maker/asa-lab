@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Readable } from 'node:stream';
 import {
@@ -73,8 +74,7 @@ export function memoryS3() {
 }
 
 async function fixture() {
-  await mkdir('reports', { recursive: true });
-  const directory = await mkdtemp(join(process.cwd(), 'reports/ai-attachment-storage-unit-'));
+  const directory = await mkdtemp(join(tmpdir(), 'ai-attachment-storage-unit-'));
   directories.push(directory);
   const bytes = aiAttachmentImageFixture('png'),
     sourcePath = join(directory, 'private.upload');

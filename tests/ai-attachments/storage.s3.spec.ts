@@ -482,57 +482,120 @@ describe.skipIf(!enabled)(
 
     it('allows only one actual conditional write when two writers race and refuses replacement', async () => {
       const f = await objectFixture();
-      const putStatuses: (number | undefined)[] = [];
-      const operations: (ReturnType<typeof storageDiagnostic> & {
-        operation: string;
-        status: 'fulfilled' | 'rejected';
-      })[] = [];
-      let putCalls = 0;
-      const sender: AiS3Sender = {
-        async send(command, options) {
-          const isPut = command instanceof sdk.PutObjectCommand;
-          if (isPut) putCalls++;
-          try {
-            const result = await liveClient().send(command, options);
-            if (isPut) putStatuses.push(result.$metadata?.httpStatusCode);
-            operations.push({
-              operation: command.constructor.name,
-              status: 'fulfilled',
-              ...storageDiagnostic(result),
-            });
-            return result;
-          } catch (problem) {
-            if (isPut) putStatuses.push(httpStatus(problem));
-            operations.push({
-              operation: command.constructor.name,
-              status: 'rejected',
-              ...storageDiagnostic(problem),
-            });
-            throw problem;
-          }
-        },
-      };
-      const results = await Promise.allSettled([
-        store(sender).putImmutable(f.input),
-        store(sender).putImmutable(f.input),
-      ]);
+      function makeWriter(writerId: 1 | 2) {
+        const putStatuses: (number | undefined)[] = [];
+        const operations: (ReturnType<typeof storageDiagnostic> & {
+          operation: string;
+          status: 'fulfilled' | 'rejected';
+        })[] = [];
+        let putCalls = 0;
+        const sender: AiS3Sender = {
+          async send(command, options) {
+            const isPut = command instanceof sdk.PutObjectCommand;
+            if (isPut) putCalls++;
+            try {
+              const result = await liveClient().send(command, options);
+              if (isPut) putStatuses.push(result.$metadata?.httpStatusCode);
+              operations.push({
+                operation: command.constructor.name,
+                status: 'fulfilled',
+                ...storageDiagnostic(result),
+              });
+              return result;
+            } catch (problem) {
+              if (isPut) putStatuses.push(httpStatus(problem));
+              operations.push({
+                operation: command.constructor.name,
+                status: 'rejected',
+                ...storageDiagnostic(problem),
+              });
+              throw problem;
+            }
+          },
+        };
+        return {
+          writerId,
+          blobs: store(sender),
+          get putCalls() {
+            return putCalls;
+          },
+          putStatuses,
+          operations,
+        };
+      }
+      const writers = [makeWriter(1), makeWriter(2)];
+      const results = await Promise.allSettled(
+        writers.map((writer) => writer.blobs.putImmutable(f.input)),
+      );
+      const attempts = writers.map((writer, index) => ({ writer, result: results[index]! }));
+      const putCalls = () => writers.reduce((total, writer) => total + writer.putCalls, 0);
       // Serialize only completed operation summaries, never bodies, keys, credentials or stacks.
-      const diagnostics = JSON.stringify({
-        putCalls,
-        putStatuses,
-        operations,
-        results: results.map((result) => ({
-          status: result.status,
-          ...(result.status === 'rejected' ? storageDiagnostic(result.reason) : {}),
-        })),
-      });
+      const diagnostics = () =>
+        JSON.stringify({
+          putCalls: putCalls(),
+          writers: attempts.map(({ writer, result }) => ({
+            writerId: writer.writerId,
+            putCalls: writer.putCalls,
+            putStatuses: writer.putStatuses,
+            operations: writer.operations,
+            result: {
+              status: result.status,
+              ...(result.status === 'rejected' ? storageDiagnostic(result.reason) : {}),
+            },
+          })),
+        });
+      for (const writer of writers) {
+        expect(writer.putCalls, diagnostics()).toBe(1);
+        expect(writer.putStatuses, diagnostics()).toHaveLength(1);
+      }
+      // Select by each writer's own conditional PUT reply, never completion order.
+      const winners = attempts.filter(({ writer }) => writer.putStatuses[0] === 200);
+      const losers = attempts.filter(({ writer }) =>
+        [409, 412].includes(writer.putStatuses[0] ?? 0),
+      );
+      expect(winners.length, diagnostics()).toBe(1);
+      expect(losers.length, diagnostics()).toBe(1);
+      for (const { result } of attempts) {
+        if (result.status === 'rejected') {
+          expect(result.reason instanceof AiAttachmentStorageError, diagnostics()).toBe(true);
+          expect(storageDiagnostic(result.reason).outcome, diagnostics()).toBe('unknown');
+        }
+      }
+      const putCallsBeforeVerification = putCalls();
+      const writerPutCallsBeforeVerification = writers.map((writer) => writer.putCalls);
+      expect(putCallsBeforeVerification, diagnostics()).toBe(2);
+      expect((await versions(f.key)).existing).toHaveLength(1);
+      for (const { writer, result } of attempts) {
+        if (result.status !== 'rejected') continue;
+        const beforeVerification = writer.operations.length;
+        // Either PUT status can be followed by uncertain verification. Reuse that writer's store.
+        const verification = await writer.blobs.verify(f.object).then(
+          (verified) => ({ status: 'fulfilled', verified }),
+          (problem: unknown) => ({ status: 'rejected', ...storageDiagnostic(problem) }),
+        );
+        expect(verification, diagnostics()).toEqual({ status: 'fulfilled', verified: true });
+        expect(
+          writer.operations.slice(beforeVerification).map(({ operation, status, httpStatus }) => ({
+            operation,
+            status,
+            httpStatus,
+          })),
+          diagnostics(),
+        ).toEqual([
+          { operation: 'HeadObjectCommand', status: 'fulfilled', httpStatus: 200 },
+          { operation: 'GetObjectCommand', status: 'fulfilled', httpStatus: 200 },
+        ]);
+        expect(putCalls(), diagnostics()).toBe(putCallsBeforeVerification);
+        expect(
+          writers.map((value) => value.putCalls),
+          diagnostics(),
+        ).toEqual(writerPutCallsBeforeVerification);
+      }
+      expect(putCalls(), diagnostics()).toBe(putCallsBeforeVerification);
       expect(
-        results.map((result) => result.status),
-        diagnostics,
-      ).toEqual(['fulfilled', 'fulfilled']);
-      expect(putCalls).toBe(2);
-      expect(putStatuses.filter((value) => value === 200)).toHaveLength(1);
-      expect(putStatuses.filter((value) => value === 409 || value === 412)).toHaveLength(1);
+        writers.map((writer) => writer.putCalls),
+        diagnostics(),
+      ).toEqual([1, 1]);
       expect((await versions(f.key)).existing).toHaveLength(1);
       const replacement = Buffer.alloc(f.bytes.length, 1);
       await expect(send(rawPut(f.object, replacement))).rejects.toMatchObject({

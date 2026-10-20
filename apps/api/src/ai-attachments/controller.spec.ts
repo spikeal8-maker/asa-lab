@@ -1,6 +1,7 @@
 import 'reflect-metadata';
 import { createHash, randomUUID } from 'node:crypto';
-import { mkdir, mkdtemp, readdir, rm } from 'node:fs/promises';
+import { mkdtemp, readdir, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Readable } from 'node:stream';
 import type { ActiveContextUseCase } from '@asa-lab/identity';
@@ -349,8 +350,7 @@ describe('registered AI private attachment HTTP boundary', () => {
     'checks actual streamed %s bytes and releases capture files with a normal HTTP response',
     async (kind) => {
       const f = await fixture();
-      await mkdir('reports', { recursive: true });
-      const directory = await mkdtemp(join(process.cwd(), 'reports/ai-attachment-http-'));
+      const directory = await mkdtemp(join(tmpdir(), 'ai-attachment-http-'));
       directories.push(directory);
       const bytes =
         kind === 'oversized'

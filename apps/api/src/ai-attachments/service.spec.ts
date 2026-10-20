@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { mkdir, mkdtemp, readdir, readFile, rm, stat } from 'node:fs/promises';
+import { mkdtemp, readdir, readFile, rm, stat } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type pg from 'pg';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -52,8 +53,7 @@ function deferred() {
   return { promise, resolve };
 }
 async function fixture(bytes: Buffer = Buffer.from('Личный текст'), fileName = 'private.txt') {
-  await mkdir('reports', { recursive: true });
-  const directory = await mkdtemp(join(process.cwd(), 'reports/ai-attachment-service-unit-'));
+  const directory = await mkdtemp(join(tmpdir(), 'ai-attachment-service-unit-'));
   directories.push(directory);
   const initial = record(bytes, fileName),
     rows = new Map([[initial.uploadId, initial]]);
