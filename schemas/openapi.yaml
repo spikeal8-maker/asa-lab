@@ -3208,7 +3208,14 @@ paths:
               '403': { 'description': 'Capability or workspace denied' },
               '404': { 'description': 'Resource unavailable' },
               '409':
-                { 'description': 'Version, state or request conflict; no partial publication' },
+                {
+                  'description': 'Version, state or request conflict; prepublication errors identify the exact saved draft and editor location; no partial publication',
+                  'content':
+                    {
+                      'application/json':
+                        { 'schema': { '$ref': '#/components/schemas/CoursePublicationError' } },
+                    },
+                },
             },
         },
     }
@@ -6911,6 +6918,97 @@ components:
         maxLength: 128
         pattern: '^[A-Za-z0-9._:-]+$'
   schemas:
+    CoursePrepublicationDiagnostic:
+      type: object
+      additionalProperties: false
+      required:
+        [courseId, draftRevision, sectionId, lessonId, blockId, field, reason, path, message]
+      properties:
+        courseId:
+          type: string
+          format: uuid
+        draftRevision:
+          type: integer
+          minimum: 1
+        sectionId:
+          type: [string, 'null']
+          format: uuid
+        lessonId:
+          type: [string, 'null']
+          format: uuid
+        blockId:
+          type: [string, 'null']
+          pattern: '^[A-Za-z0-9_-]{1,80}$'
+        field:
+          type: string
+          enum:
+            [
+              blocks,
+              learningActivityVersionId,
+              text,
+              url,
+              alt,
+              caption,
+              title,
+              label,
+              level,
+              tone,
+              language,
+              rows,
+              hidden,
+              archivedAt,
+              lessons,
+            ]
+        reason:
+          type: string
+          enum:
+            [
+              course_archived,
+              course_empty,
+              content_required,
+              legacy_assignment,
+              block_invalid,
+              duplicate_block_id,
+              pin_unavailable,
+              module_unavailable,
+              asset_invalid,
+            ]
+        path:
+          type: string
+          description: Human-readable location; clients navigate using the separate stable identifiers.
+        message:
+          type: string
+      allOf:
+        - if:
+            properties:
+              lessonId: { type: 'null' }
+          then:
+            properties:
+              sectionId: { type: 'null' }
+              blockId: { type: 'null' }
+          else:
+            properties:
+              sectionId: { type: string, format: uuid }
+    CoursePublicationError:
+      type: object
+      additionalProperties: false
+      required: [error]
+      properties:
+        error:
+          type: object
+          additionalProperties: false
+          required: [code, message]
+          properties:
+            code: { type: string }
+            message: { type: string }
+            diagnostic:
+              $ref: '#/components/schemas/CoursePrepublicationDiagnostic'
+          allOf:
+            - if:
+                properties:
+                  code: { enum: [prepublish_invalid, course_empty] }
+              then:
+                required: [diagnostic]
     AuthProviderAvailability:
       type: object
       additionalProperties: false
