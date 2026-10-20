@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { api, type GalleryItem, type PublicKnowledgeItem } from '../api';
+import { api, type PublicKnowledgeItem } from '../api';
 import { PortalLink } from '../components/PortalLink';
 import { LearningGlyph } from '../components/portal-icons';
+import { publicProjectsApi, type PublicProject } from '../projects-public/api';
+import { publicationHref } from '../projects-public/presentation';
 import { HomeShelf } from './HomeShelf';
 import { homeModuleTitle } from './QuickProjectCreation';
 
@@ -43,7 +45,7 @@ export function HomePublicShelves({
   const root = useRef<HTMLDivElement>(null);
   const [visible, setVisible] = useState(false);
   const [reload, setReload] = useState(0);
-  const [works, setWorks] = useState<GalleryItem[] | null>(null);
+  const [works, setWorks] = useState<readonly PublicProject[] | null>(null);
   const [knowledge, setKnowledge] = useState<PublicKnowledgeItem[] | null>(null);
   const [workError, setWorkError] = useState(false);
   const [knowledgeError, setKnowledgeError] = useState(false);
@@ -63,11 +65,12 @@ export function HomePublicShelves({
   useEffect(() => {
     if (!visible) return;
     let current = true;
+    setWorks(null);
     setWorkError(false);
     setKnowledgeError(false);
-    void api.gallery({ sort: 'recent', limit: 10 }).then((result) => {
+    void publicProjectsApi.list().then((result) => {
       if (!current) return;
-      if (result.ok) setWorks(result.data.items.slice(0, 10));
+      if (result.ok && Array.isArray(result.data?.items)) setWorks(result.data.items.slice(0, 10));
       else setWorkError(true);
     });
     void api.publicKnowledge(0, 10).then((result) => {
@@ -99,7 +102,7 @@ export function HomePublicShelves({
       <section aria-labelledby="home-community-title">
         <div className="creator-module-heading">
           <h2 id="home-community-title">Проекты сообщества</h2>
-          <PortalLink href="/#/gallery" onNavigate={onGallery}>
+          <PortalLink href="/#/explore" onNavigate={onGallery}>
             Все <span aria-hidden="true">›</span>
           </PortalLink>
         </div>
@@ -107,17 +110,16 @@ export function HomePublicShelves({
         {works?.length ? (
           <HomeShelf label="Проекты сообщества">
             {works.map((item) => (
-              <li key={item.projectId} className="home-public-card">
+              <li key={`${item.publicationId}:${item.revisionId}`} className="home-public-card">
                 <PortalLink
-                  href={`/#/gallery/${encodeURIComponent(item.projectId)}`}
-                  onNavigate={() => onWork(item.projectId)}
+                  href={publicationHref(item.publicationId)}
+                  onNavigate={() => onWork(item.publicationId)}
                 >
-                  <img
-                    src={`/api/gallery/${encodeURIComponent(item.projectId)}/image?rev=${item.snapshotRevision}`}
-                    alt=""
-                    loading="lazy"
-                    decoding="async"
-                  />
+                  {item.preview ? (
+                    <img src={item.preview.url} alt="" loading="lazy" decoding="async" />
+                  ) : (
+                    <span>Предпросмотр недоступен</span>
+                  )}
                   <strong>{item.title}</strong>
                   <span>{homeModuleTitle(item.moduleKey)}</span>
                   <span>{item.authorLabel}</span>

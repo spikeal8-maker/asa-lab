@@ -323,3 +323,131 @@ The author stops after the bounded change and evidence. Root may update PR652
 by ordinary forward composition after review and gates; main integration and
 owner acceptance remain pending. No deployment, working DB or infrastructure
 operation is selected.
+
+
+## 2026-10-20 — bounded LED publication follow-up
+
+Owner authorizes a clean-tree LED publication slice while preserving PR652 and
+its retained24c4acf source. The owner explicitly grants the narrow exception for
+WAITING_HANDOFF on teacher-pr582-redesign/.github/workflows/classroom-owner.yml;
+that foreign file and checkout remain untouched. Preflight stays enabled and
+its WAITING_HANDOFF output is retained, not relabelled SAFE_TO_START. The stopped
+D13 author has been handed off by the owner; its dirty checkout is not rewritten
+or used as a source of uncommitted changes.
+
+This single bounded LED repair supersedes the earlier orchestration-only
+production freeze only as follows. First prove the actual-presenter BEFORE:
+H0 native/layout ACK at wall0; same-generation HIGH receipt at wall1ms with
+edge537us/window6250us; RAF40/80/120ms. Predicted null/null/HIGH means119ms,
+but this prediction is not yet executed evidence. A NEW independent proposal
+review must confirm that H0/native ACK remains preserved. Only if that review
+and discriminating BEFORE both succeed, permit canPublishDistinctFrame threshold
+>2 to >0 plus targeted regressions: same RAF blocked, next RAF allowed, H0 held
+without ACK, Reset, foreign generation and joint frame. No separate canonical
+selection cycle is required for this exact conditional repair. If the regression
+does not distinguish the cause, use passive receipt/preparation/React/RAF/ACK
+instrumentation instead; do not guess a fix or rerun unchanged CI hopefully.
+
+The saved case200 generation3 first HIGH is64915.7, DOM65052.7 and paint65075.4;
+the asset was already warm. These observations alone do not prove the barrier
+is the sole cause. Source: GitHub run39455455432/artifact12283505079 selected-member receipts
+(not whole-ZIP digest verification), local receipt
+Temp/asa-39455455432-range/REPORT.txt. Blockly1ms
+delta375.7315ms versus250ms remains separately unresolved, not repaired or waived.
+
+Root assigns one led_publication_repair_author and NEW independent reviewers
+who did not author this change. Publish canonical selection on main before
+product writes. Require the proposal review above, then independent exact-SHA
+source/evidence review and unchanged gates before integration. No core, physics,
+pace, timeout, workflow, renderer, asset, dependency or infrastructure changes.
+
+Preserve all171 scenarios,50ms publication,pace0.125,6250us cap, existing budgets,
+archive protocol and full raw evidence, all required focused/benchmark/classroom/
+strict/general gates, histories and acceptance blockers. No old source approval,
+partial browser run or this document amendment grants integration, acceptance,
+Issue closure, release or deployment. The author stops after its one stage and
+review handoff; root retains responsibility for subsequent selection.
+
+
+## 2026-10-20 — necessary private-field composition-budget repair
+
+The completed focused job118871744009 on the exact914 candidate reports the
+SchematicEditor bundle at218.32kB against the unchanged218000-byte cap. The log
+does not provide exact bytes. Local receipt:
+Temp/asa-led-914-ci/strict-focused.log, SHA256
+fd424864e82e4efec1e8c2f57ba69beb54d70d8028e9d200d5bbe731d98ef44c.
+This is a necessary composition-budget repair within649, not general cleanup.
+Canonical amendment base is main13ab3635587a201bc2cc78e88b9a9f66fce72102;
+product branches do not authorize themselves.
+
+Root selects ONLY six private-field renames and their internal references in
+LedTemporalPresentation: presentedFrame→shown, pendingFrame→pending,
+animationFrame→raf, committedAnimationFrame→ackRaf,
+indicatorHistories→indicators and frameSequence→sequence. This explicitly extends
+the earlier threshold-only scope solely for this proved composition failure.
+Preserve the existing >0 publication repair. Public keys, getters and returned
+frame objects remain unchanged. No algorithm, physics, pacing, precision, native
+lease, ACK, Reset, workflow, dependency, foreign-source or budget-threshold change.
+
+After canonical main publication, led_publication_repair_author implements this
+one bounded change. Prove there are no external repository references; require
+AST equivalence modulo these six private renames, all100 presenter tests,
+targeted types and a production Vite bundle at most218000 bytes before main
+integration, verified by exact file bytes or a proved UTF-8 Vite upper bound
+below the cap. Branch publication for required CI remains permitted. The approximate384-byte source reduction is not bundle evidence.
+Root assigns a NEW independent reviewer after exact source freeze. Preserve all
+previous gates, histories, blockers, teacher exception and stopped D13 handoff;
+this amendment grants no product acceptance, release, deployment or Issue closure.
+
+
+## 2026-10-21 — committed-horizon repair and original real-time goal
+
+This amendment supersedes the preceding completed private-field authoring step
+only for the following bounded repair. Canonical selection base is
+main7d4b00b74094076676b2af82dd0226ec24cc72aa. PR652 source was integrated at
+628a5b5a999998b008e18e5ab61e843cb5d8b25b by explicit owner instruction; it is
+not technical or owner acceptance. The final classroom result is220PASS18FAIL;
+strict is211PASS27FAIL. The actual production bundle is217938 bytes against the
+unchanged218000-byte cap. Preserve exact-source run/raw bindings and all failures.
+
+The final D2 failure is the Reset pre-H0 oracle. It does not by itself prove a
+product publication lag above50ms. A separate read-only raw intake must establish
+the lifecycle/oracle cause before selecting any related repair. The earlier
+case200 latency receipt remains historical and must not be substituted for this
+final failure. Neither failure is waived or accepted by this amendment.
+
+The owner has resumed the original Issue546 goal: real-time Arduino and visibly
+correct LED output. The common0.125 pace above is a versioned intermediate
+classroom boundary, not full-real-time acceptance. Preserve it and the6250us
+lookahead during this selected repair; changing a pace constant without proved
+compute headroom is not a solution. Historical classroom approvals do not accept
+2000/100/50/1ms real-time, independent ports, Reset or the complete original goal.
+
+Select ONE bounded host/controller repair: suppress unjustified requests for an
+already committed horizon. The saved Blockly1ms trace contains149 such requests
+among602, with627.6ms compute and1463.5ms roundtrip. These are a measured causal
+input, not proof that deduplication alone will achieve1x or fix every failure.
+One NEW author assigned by root owns only use-electronics-workbench.ts,
+live-simulation-worker-controller.ts and their existing clock/controller tests.
+Do not change presenter, solver, interpreter, physics, workflow, assets or
+foreign modules. Preserve legitimate yielded continuation, initial H0, pending
+inputs, same-horizon lifecycle work, source/document/generation identity and
+all canonical Arduino, capacitor, heat, damage and other runtime state.
+
+Require a discriminating regression, complete result/state preservation and
+saved-sequence before/after request counts, reached model time and compute/elapsed
+evidence. No incomplete/yielded result may become a ready electrical frame.
+Native readiness, joint LED history and ACK, independent ports, Reset, Stop,
+cancellation and stale/failure handling remain mandatory. Keep all existing
+50ms/timing/precision/assertion bounds and required gates; do not rerun unchanged
+heavy suites hoping for success. Root reviews the actual bounded diff, then a
+NEW independent reviewer checks the exact SHA, followed by the required
+exact-source built-editor evidence and gates. Further pace changes require
+proved compute headroom and an explicit canonical selection, never an implicit
+extension of this author invocation.
+
+Preserve all earlier histories and acceptance blockers, the teacher-workflow
+limited exception and stopped D13 handoff; neither foreign dirty tree is touched.
+No school installation, Docker, network, database, deployment or Issue closure
+is selected. The author and reviewer each STOP after their assigned stage; root
+continues the authorized programme using the actual result.

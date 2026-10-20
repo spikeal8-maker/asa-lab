@@ -360,6 +360,7 @@ export function SeatCourses({
               <p className="seat-course-summary">{openLesson.summary}</p>
             ) : null}
             <LessonBlocks
+              mediaScopeKey={JSON.stringify([openRun.id, openLesson.id])}
               blocks={openLesson.blocks}
               legacyContent={openLesson.content}
               renderMaterial={(block) => (

@@ -223,6 +223,7 @@
 
 .project-card-body {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 3px;
   padding: 10px 12px 11px;
 }

@@ -286,6 +286,16 @@ def qualification_contract(contract):
     return contract
 
 
+def d2_classroom_budget_contract(contract):
+    """D2 budget v1: extend only the complete suite's browser job to 50 minutes."""
+    contract = deepcopy(contract)
+    require(contract["jobs"]["browser"]["controls"]["timeout-minutes"] == 35
+            and contract["jobs"]["review-images"]["controls"]["timeout-minutes"] == 35,
+            "D2 browser budget must start from the original 35-minute jobs")
+    contract["jobs"]["browser"]["controls"]["timeout-minutes"] = 50
+    return contract
+
+
 def check_qualification_package(package):
     scripts = package.get("scripts", {})
     for entrypoint in ["gate:electronics-classroom-d13:browser", "gate:electronics-classroom-d13-v3:browser"]:
@@ -476,6 +486,7 @@ def check_offline(receipt):
             expected = general_node_contract(expected, receipt, effective)
         elif path == FOCUSED:
             expected = qualification_contract(electronics_contract(expected, receipt, classroom))
+            expected = d2_classroom_budget_contract(expected)
         check_workflow(path, expected, receipt, effective, classroom)
     print("CI image transport semantic guard: PASS (5 immutable mappings; required gates/security/defaults)")
 
@@ -1134,6 +1145,10 @@ def check_qualification_challenges(receipt):
 
     challenge("exact explicit profiles and complete suite", {}, True)
     for name, mutate in [
+        ("D2 browser budget cannot revert to 35 minutes", lambda w: w["jobs"]["browser"].update({"timeout-minutes": 35})),
+        ("D2 browser budget cannot narrow to 49 minutes", lambda w: w["jobs"]["browser"].update({"timeout-minutes": 49})),
+        ("D2 browser budget cannot widen to 51 minutes", lambda w: w["jobs"]["browser"].update({"timeout-minutes": 51})),
+        ("D2 browser budget cannot affect review images", lambda w: w["jobs"]["review-images"].update({"timeout-minutes": 50})),
         ("classroom cannot become default", lambda w: w["on"]["workflow_dispatch"]["inputs"]["qualification_profile"].update({"default": "classroom-d13-v2"})),
         ("unknown profile cannot be offered", lambda w: w["on"]["workflow_dispatch"]["inputs"]["qualification_profile"]["options"].append("unknown")),
         ("v3 cannot become default", lambda w: w["on"]["workflow_dispatch"]["inputs"]["qualification_profile"].update({"default": "classroom-d13-v3"})),

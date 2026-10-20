@@ -216,7 +216,12 @@ export function LessonBlockEditor({
   }
 
   return (
-    <section className="lesson-block-editor" aria-labelledby="lesson-block-editor-title">
+    <section
+      className="lesson-block-editor"
+      aria-labelledby="lesson-block-editor-title"
+      data-course-field="blocks"
+      tabIndex={-1}
+    >
       <div className="lesson-block-editor-head">
         <div>
           <strong id="lesson-block-editor-title">Содержание урока</strong>
@@ -238,6 +243,9 @@ export function LessonBlockEditor({
           <article
             key={block.id}
             className={block.hidden ? 'lesson-block-card is-hidden' : 'lesson-block-card'}
+            data-course-block-id={block.id}
+            data-course-field="blocks"
+            tabIndex={-1}
           >
             <header>
               <span>
@@ -257,6 +265,7 @@ export function LessonBlockEditor({
                   type="button"
                   className="lesson-block-structural-button"
                   onClick={() => onChange(setLessonBlockHidden(blocks, block.id, !block.hidden))}
+                  data-course-field="hidden"
                 >
                   {block.hidden ? 'Показать' : 'Скрыть'}
                 </button>
@@ -335,6 +344,7 @@ export function LessonBlockEditor({
             {block.type === 'paragraph' ? (
               <textarea
                 aria-label="Текст блока"
+                data-course-field="text"
                 value={block.text}
                 rows={5}
                 maxLength={12_000}
@@ -347,6 +357,7 @@ export function LessonBlockEditor({
               <div className="lesson-block-fields is-heading">
                 <select
                   aria-label="Уровень заголовка"
+                  data-course-field="level"
                   value={block.level}
                   onChange={(event) =>
                     replace(block.id, {
@@ -360,6 +371,7 @@ export function LessonBlockEditor({
                 </select>
                 <input
                   aria-label="Текст заголовка"
+                  data-course-field="text"
                   value={block.text}
                   maxLength={300}
                   placeholder="Новая тема"
@@ -372,6 +384,7 @@ export function LessonBlockEditor({
               <div className="lesson-block-fields">
                 <select
                   aria-label="Тип врезки"
+                  data-course-field="tone"
                   value={block.tone}
                   onChange={(event) =>
                     replace(block.id, {
@@ -386,6 +399,7 @@ export function LessonBlockEditor({
                 </select>
                 <textarea
                   aria-label="Текст врезки"
+                  data-course-field="text"
                   value={block.text}
                   rows={3}
                   maxLength={3_000}
@@ -399,6 +413,7 @@ export function LessonBlockEditor({
               <div className="lesson-block-fields">
                 <input
                   aria-label="Язык кода"
+                  data-course-field="language"
                   value={block.language ?? ''}
                   maxLength={80}
                   placeholder="Например, javascript"
@@ -415,6 +430,7 @@ export function LessonBlockEditor({
                 />
                 <textarea
                   aria-label="Код"
+                  data-course-field="text"
                   value={block.text}
                   rows={7}
                   maxLength={CODE_TEXT_LIMIT}
@@ -428,6 +444,7 @@ export function LessonBlockEditor({
             {block.type === 'formula' ? (
               <textarea
                 aria-label="Формула"
+                data-course-field="text"
                 value={block.text}
                 rows={2}
                 maxLength={FORMULA_TEXT_LIMIT}
@@ -437,7 +454,7 @@ export function LessonBlockEditor({
             ) : null}
 
             {block.type === 'table' ? (
-              <div className="lesson-block-fields lesson-table-editor">
+              <div className="lesson-block-fields lesson-table-editor" data-course-field="rows">
                 <div className="lesson-table-actions">
                   <button
                     type="button"
@@ -518,27 +535,32 @@ export function LessonBlockEditor({
             ) : null}
 
             {block.type === 'activity' ? (
-              <CanonicalPracticePicker
-                value={block.learningActivityVersionId}
-                onChange={(versionId) =>
-                  onChange(setLessonActivityVersion(blocks, block.id, versionId))
-                }
-              />
+              <div data-course-field="learningActivityVersionId">
+                <CanonicalPracticePicker
+                  value={block.learningActivityVersionId}
+                  onChange={(versionId) =>
+                    onChange(setLessonActivityVersion(blocks, block.id, versionId))
+                  }
+                />
+              </div>
             ) : null}
 
             {block.type === 'manual-material' ? (
-              <CanonicalManualMaterialPicker
-                value={block.learningActivityVersionId}
-                onChange={(versionId) =>
-                  onChange(setLessonActivityVersion(blocks, block.id, versionId))
-                }
-              />
+              <div data-course-field="learningActivityVersionId">
+                <CanonicalManualMaterialPicker
+                  value={block.learningActivityVersionId}
+                  onChange={(versionId) =>
+                    onChange(setLessonActivityVersion(blocks, block.id, versionId))
+                  }
+                />
+              </div>
             ) : null}
 
             {block.type === 'image' ? (
               <div className="lesson-block-fields">
                 <input
                   aria-label="Ссылка на изображение"
+                  data-course-field="url"
                   type="text"
                   value={block.url}
                   maxLength={2_000}
@@ -548,6 +570,7 @@ export function LessonBlockEditor({
                 <div className="lesson-block-fields is-split">
                   <input
                     aria-label="Описание изображения"
+                    data-course-field="alt"
                     value={block.alt}
                     maxLength={300}
                     placeholder="Что изображено"
@@ -555,6 +578,7 @@ export function LessonBlockEditor({
                   />
                   <input
                     aria-label="Подпись изображения"
+                    data-course-field="caption"
                     value={block.caption}
                     maxLength={600}
                     placeholder="Подпись, если нужна"
@@ -570,6 +594,7 @@ export function LessonBlockEditor({
               <div className="lesson-block-fields is-split">
                 <input
                   aria-label={block.type === 'video' ? 'Ссылка на видео' : 'Ссылка на аудио'}
+                  data-course-field="url"
                   type="text"
                   value={block.url}
                   maxLength={2_000}
@@ -578,6 +603,7 @@ export function LessonBlockEditor({
                 />
                 <input
                   aria-label="Название медиа"
+                  data-course-field="title"
                   value={block.title}
                   maxLength={300}
                   placeholder="Название, если нужно"
@@ -590,6 +616,7 @@ export function LessonBlockEditor({
               <div className="lesson-block-fields is-split">
                 <input
                   aria-label="Ссылка на файл"
+                  data-course-field="url"
                   type="text"
                   value={block.url}
                   maxLength={2_000}
@@ -598,6 +625,7 @@ export function LessonBlockEditor({
                 />
                 <input
                   aria-label="Название файла"
+                  data-course-field="label"
                   value={block.label}
                   maxLength={300}
                   placeholder="Например, Памятка PDF"

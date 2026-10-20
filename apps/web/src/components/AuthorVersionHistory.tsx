@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { api, type PublishedAuthorVersion } from '../api';
 import { LessonBlocks } from './LessonBlocks';
-import { courseVersionStructuralDiff } from './course-version-diff';
+import { CourseVersionComparison } from './CourseVersionComparison';
 
 /** Author-only history; the server owns source selection and conflict checks. */
 export function AuthorVersionHistory({
@@ -46,10 +46,6 @@ export function AuthorVersionHistory({
   }, [kind, rootId, revision]);
   const version = items.find((entry) => entry.id === selected);
   const comparison = items.find((entry) => entry.id === compareId);
-  const structuralDiff =
-    kind === 'course' && version && comparison
-      ? courseVersionStructuralDiff(comparison, version)
-      : [];
   async function create() {
     if (!version || busy || dirty) return;
     setBusy(true);
@@ -106,9 +102,9 @@ export function AuthorVersionHistory({
       </label>
       {version ? (
         <article aria-label={'Опубликованная версия ' + version.versionNumber}>
-          <h3>{version.outline?.course.title ?? version.title}</h3>
+          <h3>{version.outline?.course?.title ?? version.title}</h3>
           {kind === 'activity' && version.goal ? <p>Цель: {version.goal}</p> : null}
-          <p>{version.outline?.course.summary ?? version.instructions}</p>
+          <p>{version.outline?.course?.summary ?? version.instructions}</p>
           {kind === 'course' && items.length > 1 ? (
             <div className="author-version-diff" data-testid="author-version-diff">
               <label>
@@ -128,27 +124,25 @@ export function AuthorVersionHistory({
                     ))}
                 </select>
               </label>
-              {comparison ? (
-                <p data-testid="version-structural-diff">
-                  {structuralDiff.length > 0
-                    ? 'Изменено: ' + structuralDiff.join(', ')
-                    : 'Структурных изменений нет.'}
-                </p>
-              ) : null}
+              {comparison ? <CourseVersionComparison before={comparison} after={version} /> : null}
             </div>
           ) : null}
-          {version.outline?.sections.map((section) => (
-            <section key={section.sourceSectionId}>
-              <h4>{section.title}</h4>
-              <p>{section.summary}</p>
-              {section.lessons.map((lesson) => (
-                <div key={lesson.sourceLessonId}>
-                  <h5>{lesson.title}</h5>
-                  <LessonBlocks blocks={lesson.blocks ?? []} legacyContent={lesson.content} />
-                </div>
-              ))}
-            </section>
-          ))}
+          {(Array.isArray(version.outline?.sections) ? version.outline.sections : [])
+            .filter((section) => section && typeof section === 'object')
+            .map((section) => (
+              <section key={section.sourceSectionId}>
+                <h4>{section.title}</h4>
+                <p>{section.summary}</p>
+                {(Array.isArray(section.lessons) ? section.lessons : [])
+                  .filter((lesson) => lesson && typeof lesson === 'object')
+                  .map((lesson) => (
+                    <div key={lesson.sourceLessonId}>
+                      <h5>{lesson.title}</h5>
+                      <LessonBlocks blocks={lesson.blocks ?? []} legacyContent={lesson.content} />
+                    </div>
+                  ))}
+              </section>
+            ))}
           <button
             type="button"
             className="btn-secondary"

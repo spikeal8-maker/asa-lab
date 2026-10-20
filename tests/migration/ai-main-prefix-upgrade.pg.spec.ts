@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { planMigrations, validateMigrationHistory } from '../../tools/migrate.mjs';
 import { applyIsolatedTestPlan } from './isolated-postgres-plan';
 
-const expectedPending = ['0226', '0227', '0228', '0229', '0233'];
+const expectedPending = ['0226', '0227', '0228', '0229', '0230', '0231', '0232', '0233', '0234'];
 
 interface Identity {
   account_id: string;
@@ -40,6 +40,35 @@ async function legacySnapshot(db: pg.Pool) {
     ai_assistant_messages: ['owner_principal_id', 'ordinal', 'source_user_message_id'],
     ai_assistant_request_quota: ['owner_principal_id'],
     ai_paid_operation_quota: [],
+    courses: [],
+    course_sections: [],
+    course_lessons: [],
+    course_versions: [],
+    classroom_course_runs: [],
+    classroom_course_run_lessons: [],
+    classroom_assignments: [],
+    learning_activities: [],
+    learning_activity_versions: [],
+    activity_runs: [],
+    course_enrollments: [],
+    activity_participations: [],
+    learning_audience_definitions: [],
+    learning_audience_membership_claims: [],
+    audit_events: [],
+    projects: [],
+    project_drafts: [],
+    project_versions: [],
+    project_snapshots: [],
+    project_publications: [],
+    project_publication_state: [],
+    project_publication_revisions: [
+      'module_key',
+      'author_label',
+      'preview_image',
+      'preview_content_type',
+      'preview_width',
+      'preview_height',
+    ],
   };
   const snapshot: Record<string, Record<string, unknown>[]> = {};
   for (const [table, addedColumns] of Object.entries(tables)) {
@@ -71,22 +100,70 @@ async function registerAccount(db: pg.Pool): Promise<Identity> {
   ).rows[0]!;
 }
 
-describe('AI atomic upgrade from the supported current-main prefix', () => {
-  it('keeps the unsupported 0233-only draft history rejected by the pure pre-SQL guard', () => {
-    const plan = planMigrations();
-    const unsupported = new Map(
-      plan
-        .filter((item) => Number(item.version) <= 225 || item.version === '0233')
-        .map((item) => [item.version, { checksum: item.checksum }]),
-    );
-    expect(unsupported.has('0225')).toBe(true);
-    expect(unsupported.has('0233')).toBe(true);
-    expect(() => validateMigrationHistory(unsupported, plan)).toThrow(
-      /Forbidden out-of-order pending migration\(s\): 0226, 0227, 0228, 0229; maximum applied migration version is 0233\./,
-    );
-  });
+async function inTenant<T>(
+  app: pg.Pool,
+  tenantId: string,
+  operation: (client: pg.PoolClient) => Promise<T>,
+): Promise<T> {
+  const client = await app.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query("SELECT set_config('app.tenant_id',$1,true)", [tenantId]);
+    const result = await operation(client);
+    await client.query('COMMIT');
+    return result;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
 
-  it('upgrades real 0225 history with ownership, paid receipts and exact migration ledger intact', async () => {
+describe('AI joint atomic upgrade from the supported installed prefix through 0225', () => {
+  it.each([
+    {
+      history: '0234 with missing AI, Courses and Portal migrations',
+      partial: ['0234'],
+      missing: '0226, 0227, 0228, 0229, 0230, 0231, 0232, 0233',
+      maximum: '0234',
+    },
+    {
+      history: '0233 with missing AI and Courses migrations',
+      partial: ['0233'],
+      missing: '0226, 0227, 0228, 0229, 0230, 0231, 0232',
+      maximum: '0233',
+    },
+    {
+      history: 'Courses-first with missing AI migrations',
+      partial: ['0230', '0231', '0232'],
+      missing: '0226, 0227, 0228, 0229',
+      maximum: '0232',
+    },
+  ])(
+    'rejects unsupported $history with the pure pre-SQL guard',
+    ({ partial, missing, maximum }) => {
+      const plan = planMigrations();
+      expect(plan.filter((item) => Number(item.version) > 225).map((item) => item.version)).toEqual(
+        expectedPending,
+      );
+      const unsupported = new Map(
+        plan
+          .filter(
+            (item) =>
+              Number(item.version) <= 225 || partial.some((version) => version === item.version),
+          )
+          .map((item) => [item.version, { checksum: item.checksum }]),
+      );
+      expect(unsupported.has('0225')).toBe(true);
+      for (const version of partial) expect(unsupported.has(version)).toBe(true);
+      expect(() => validateMigrationHistory(unsupported, plan)).toThrow(
+        `Forbidden out-of-order pending migration(s): ${missing}; maximum applied migration version is ${maximum}.`,
+      );
+    },
+  );
+
+  it('upgrades real 0225 AI, Course and Project history with exact data, receipts and ledger intact', async () => {
     const sources = ['TEST_DATABASE_URL', 'APP_TEST_DATABASE_URL'].map((key) => {
       const value = process.env[key];
       if (!value) throw new Error(`${key} must explicitly name an isolated _test database`);
@@ -178,6 +255,163 @@ describe('AI atomic upgrade from the supported current-main prefix', () => {
       expect(seatPrincipal).toEqual([{ id: expect.any(String), account_id: null }]);
       const seatOwner = seatPrincipal[0]!.id;
 
+      // Exercise real pre-0226 authoring, delivery and Gallery commands. The
+      // future joint tree must not replace these fixtures with post-upgrade rows.
+      const legacy = await inTenant(app, context.tenant_id, async (client) => {
+        const policies = {
+          attemptPolicy: { maxAttempts: 2 },
+          resultSelectionPolicy: { mode: 'latest' },
+          completionPolicy: { mode: 'submission' },
+          latePolicy: { mode: 'allow_mark_late' },
+          assessmentPolicy: { mode: 'manual' },
+          feedbackReleasePolicy: { mode: 'after_review' },
+        };
+        const activity = (
+          await client.query(
+            `SELECT * FROM learning_activity_create(
+               $1,$2,'personal','private','project','Материал до обновления',
+               'Сохранить точный материал','completion',NULL,$3::jsonb,
+               'electronics',NULL,NULL,NULL,'prefix:activity:create')`,
+            [account.principal_id, context.tenant_id, JSON.stringify(policies)],
+          )
+        ).rows[0]!;
+        expect(activity.result_code).toBe('ok');
+        const activityVersion = (
+          await client.query(
+            "SELECT * FROM learning_activity_publish($1,$2,$3,1,'prefix:activity:publish')",
+            [account.principal_id, context.tenant_id, activity.activity_id],
+          )
+        ).rows[0]!;
+        expect(activityVersion).toMatchObject({ result_code: 'ok', version_number: 1 });
+        const course = (
+          await client.query(
+            `SELECT * FROM course_save_v2(
+               $1,$2,NULL,'Курс до обновления','Сохранить версию и выдачу',NULL,
+               'private',NULL,'prefix:course:create')`,
+            [account.principal_id, context.tenant_id],
+          )
+        ).rows[0]!;
+        expect(course.result_code).toBe('ok');
+        const sectionId = (
+          await client.query<{ section_id: string }>(
+            'SELECT section_id FROM course_outline_v3($1,$2,$3,$4) LIMIT 1',
+            [course.id, account.principal_id, account.account_id, context.tenant_id],
+          )
+        ).rows[0]!.section_id;
+        const lessonId = (
+          await client.query<{ id: string }>(
+            `SELECT course_lesson_save_v3(
+               $1,$2,$3,NULL,'Урок до обновления',NULL,$4::jsonb,
+               'assignment',NULL,15,$5) AS id`,
+            [
+              account.principal_id,
+              course.id,
+              sectionId,
+              JSON.stringify([{ id: 'prefix-text', type: 'paragraph', text: 'Старое содержание' }]),
+              activityVersion.activity_version_id,
+            ],
+          )
+        ).rows[0]!.id;
+        expect(lessonId).toEqual(expect.any(String));
+        const revision = (
+          await client.query<{ revision: number }>(
+            'SELECT course_draft_revision($1,$2) AS revision',
+            [account.principal_id, course.id],
+          )
+        ).rows[0]!.revision;
+        const publicationRequest = 'prefix:course:publish';
+        const publication = (
+          await client.query('SELECT to_jsonb(p) AS item FROM course_publish_v3($1,$2,$3,$4) p', [
+            account.principal_id,
+            course.id,
+            revision,
+            publicationRequest,
+          ])
+        ).rows[0]!.item;
+        expect(publication).toMatchObject({ result_code: 'ok', version_number: 1, reused: false });
+        const assignmentRequest = 'prefix:course:assign';
+        const run = (
+          await client.query(
+            `SELECT * FROM classroom_course_run_assign_v3(
+               $1,$2,$3,NULL,1,'whole_class','{}'::uuid[],$4)`,
+            [account.principal_id, classroomId, course.id, assignmentRequest],
+          )
+        ).rows[0]!;
+        expect(run).toMatchObject({ result_code: 'ok', version_number: 1, reused: false });
+        const archived = (
+          await client.query(
+            'SELECT * FROM course_archive_set($1,$2,true,course_draft_revision($1,$2))',
+            [account.principal_id, course.id],
+          )
+        ).rows[0]!;
+        expect(archived.result_code).toBe('ok');
+        expect(archived.archived_at).not.toBeNull();
+
+        // Project Core's original runtime INSERT contract, followed by its old
+        // Gallery publisher, creates a real immutable schema-1 publication.
+        const document = {
+          schemaVersion: 1,
+          components: [],
+          connections: [],
+          privateMarker: 'prefix-original-document',
+        };
+        const projectId = (
+          await client.query<{ id: string }>(
+            `INSERT INTO projects
+               (tenant_id,project_scope,module_key,title,created_by,owner_principal_id)
+             VALUES ($1,'personal','electronics','Проект до обновления',$2,$3) RETURNING id`,
+            [context.tenant_id, context.user_id, account.principal_id],
+          )
+        ).rows[0]!.id;
+        await client.query(
+          `INSERT INTO project_drafts
+             (project_id,tenant_id,document_json,updated_by,updated_by_principal_id)
+           VALUES ($1,$2,$3::jsonb,$4,$5)`,
+          [
+            projectId,
+            context.tenant_id,
+            JSON.stringify(document),
+            context.user_id,
+            account.principal_id,
+          ],
+        );
+        await client.query(
+          `INSERT INTO project_snapshots
+             (project_id,tenant_id,image,content_type,width,height,source_revision,
+              captured_by,captured_by_principal_id)
+           VALUES ($1,$2,$3,'image/png',16,16,1,$4,$5)`,
+          [
+            projectId,
+            context.tenant_id,
+            Buffer.alloc(64, 23),
+            context.user_id,
+            account.principal_id,
+          ],
+        );
+        expect(
+          (
+            await client.query('SELECT gallery_publish($1,$2) AS ok', [
+              account.principal_id,
+              projectId,
+            ])
+          ).rows,
+        ).toEqual([{ ok: true }]);
+        return {
+          courseId: course.id as string,
+          activityId: activity.activity_id as string,
+          activityVersionId: activityVersion.activity_version_id as string,
+          lessonId,
+          revision,
+          archivedRevision: archived.draft_revision as number,
+          publication,
+          publicationRequest,
+          run,
+          assignmentRequest,
+          projectId,
+          document,
+        };
+      });
+
       // Synthetic ciphertext is never decrypted or sent to any provider.
       const configurationVersion = (
         await app.query<{ version: string }>(
@@ -266,6 +500,101 @@ describe('AI atomic upgrade from the supported current-main prefix', () => {
       expect(
         before.ai_paid_operation_quota!.filter((row) => row.operation === 'provider_test'),
       ).toHaveLength(1);
+      expect(before.courses).toEqual([
+        expect.objectContaining({
+          id: legacy.courseId,
+          owner_principal_id: account.principal_id,
+          title: 'Курс до обновления',
+          archived_at: expect.any(String),
+        }),
+      ]);
+      expect(before.course_versions).toEqual([
+        expect.objectContaining({ id: legacy.publication.version_id, version_number: 1 }),
+      ]);
+      expect(before.course_lessons).toEqual([
+        expect.objectContaining({
+          id: legacy.lessonId,
+          learning_activity_version_id: legacy.activityVersionId,
+          blocks: [{ id: 'prefix-text', type: 'paragraph', text: 'Старое содержание' }],
+        }),
+      ]);
+      expect(before.classroom_course_runs).toEqual([
+        expect.objectContaining({
+          id: legacy.run.run_id,
+          course_version_id: legacy.publication.version_id,
+          creation_request_id: legacy.assignmentRequest,
+        }),
+      ]);
+      expect(before.classroom_course_run_lessons).toEqual([
+        expect.objectContaining({ run_id: legacy.run.run_id, source_lesson_id: legacy.lessonId }),
+      ]);
+      expect(before.activity_runs).toEqual([
+        expect.objectContaining({
+          source_course_run_id: legacy.run.run_id,
+          learning_activity_version_id: legacy.activityVersionId,
+        }),
+      ]);
+      expect(before.project_drafts).toEqual([
+        expect.objectContaining({ project_id: legacy.projectId, document_json: legacy.document }),
+      ]);
+      expect(before.project_versions).toEqual([
+        expect.objectContaining({
+          project_id: legacy.projectId,
+          document_json: legacy.document,
+          version_no: 1,
+        }),
+      ]);
+      expect(before.project_snapshots).toEqual([
+        expect.objectContaining({
+          project_id: legacy.projectId,
+          image: '\\x' + Buffer.alloc(64, 23).toString('hex'),
+          source_revision: 1,
+        }),
+      ]);
+      expect(before.project_publications).toHaveLength(1);
+      expect(before.project_publication_state).toEqual([
+        expect.objectContaining({
+          project_id: legacy.projectId,
+          state: 'public',
+          owner_principal_id: account.principal_id,
+        }),
+      ]);
+      expect(before.project_publication_revisions).toEqual([
+        expect.objectContaining({
+          project_id: legacy.projectId,
+          schema_version: 1,
+          revision_no: 1,
+          project_version_id: before.project_versions![0]!.id,
+        }),
+      ]);
+      const courseVersionsBefore = before.course_versions!.map(
+        ({ id, version_number, outline, published_at }) => ({
+          id,
+          version_number,
+          outline,
+          published_at,
+        }),
+      );
+      const exactPinBefore = (
+        await db.query(
+          `SELECT '/sections/0/lessons/0/assignment'::text AS pointer,
+                  'project'::varchar AS pin_kind, true AS available,
+                  activity_id,id AS version_id,version_number,title,instructions,
+                  goal,goal_snapshot_present,blocks,blocks_snapshot_present,
+                  module_key,result_mode,max_points,policy_snapshot,content_digest
+             FROM learning_activity_versions WHERE id=$1`,
+          [legacy.activityVersionId],
+        )
+      ).rows;
+      expect(exactPinBefore).toEqual([
+        expect.objectContaining({
+          activity_id: legacy.activityId,
+          version_id: legacy.activityVersionId,
+          title: 'Материал до обновления',
+          instructions: 'Сохранить точный материал',
+          content_digest: expect.any(String),
+        }),
+      ]);
       const configBefore = (await db.query('SELECT to_jsonb(c) AS item FROM ai_assistant_config c'))
         .rows[0]!.item;
       const oldOrder = (
@@ -307,7 +636,7 @@ describe('AI atomic upgrade from the supported current-main prefix', () => {
 
       const upgrade = await db.connect();
       try {
-        expect(await applyIsolatedTestPlan(upgrade, plan)).toBe(5);
+        expect(await applyIsolatedTestPlan(upgrade, plan)).toBe(9);
       } finally {
         upgrade.release();
       }
@@ -488,6 +817,139 @@ describe('AI atomic upgrade from the supported current-main prefix', () => {
           configurationVersion,
         ]),
       ).rejects.toMatchObject({ code: '22023', message: 'AI_REQUEST_ID_REUSED' });
+
+      // The new author readers must use the old immutable CourseVersion and
+      // ActivityVersion even after archive, with no access for another owner.
+      const readCourseVersions = async (actor: string) =>
+        (
+          await app.query('SELECT to_jsonb(v) AS item FROM course_author_versions($1,$2) v', [
+            actor,
+            legacy.courseId,
+          ])
+        ).rows.map((row) => row.item);
+      const readCoursePins = async (actor: string) =>
+        (
+          await app.query('SELECT * FROM course_author_version_pins($1,$2,$3)', [
+            actor,
+            legacy.courseId,
+            legacy.publication.version_id,
+          ])
+        ).rows;
+      expect(await readCourseVersions(account.principal_id)).toEqual(courseVersionsBefore);
+      expect(await readCoursePins(account.principal_id)).toEqual(exactPinBefore);
+      expect(await readCourseVersions(stranger.principal_id)).toEqual([]);
+      expect(await readCoursePins(stranger.principal_id)).toEqual([]);
+      expect(
+        (
+          await app.query('SELECT to_jsonb(p) AS item FROM course_publish_v4($1,$2,$3,$4) p', [
+            account.principal_id,
+            legacy.courseId,
+            legacy.revision,
+            legacy.publicationRequest,
+          ])
+        ).rows[0]!.item,
+      ).toMatchObject({
+        result_code: 'ok',
+        version_id: legacy.publication.version_id,
+        version_number: 1,
+        published_at: legacy.publication.published_at,
+        reused: true,
+        problem_reason: null,
+      });
+      expect(
+        (
+          await app.query(
+            "SELECT * FROM course_publish_v4($1,$2,$3,'prefix:course:fresh:publish')",
+            [account.principal_id, legacy.courseId, legacy.archivedRevision],
+          )
+        ).rows[0],
+      ).toMatchObject({
+        result_code: 'prepublish_invalid',
+        version_id: null,
+        reused: false,
+        problem_kind: 'course',
+        problem_id: legacy.courseId,
+        problem_field: 'archivedAt',
+        problem_reason: 'course_archived',
+      });
+      const assignCourse = async (request: string) =>
+        (
+          await app.query(
+            `SELECT * FROM classroom_course_run_assign_v3(
+               $1,$2,$3,NULL,1,'whole_class','{}'::uuid[],$4)`,
+            [account.principal_id, classroomId, legacy.courseId, request],
+          )
+        ).rows;
+      expect(await assignCourse(legacy.assignmentRequest)).toEqual([
+        { ...legacy.run, reused: true },
+      ]);
+      expect(await assignCourse('prefix:course:fresh:assign')).toEqual([
+        { result_code: 'course_archived', run_id: null, version_number: null, reused: false },
+      ]);
+
+      // 0234 adds nullable schema-2 metadata; it must neither republish nor
+      // discard the old schema-1 Gallery publication and exact private bytes.
+      expect(
+        (
+          await db.query(
+            `SELECT schema_version,module_key,author_label,preview_image,
+                    preview_content_type,preview_width,preview_height
+               FROM project_publication_revisions WHERE project_id=$1`,
+            [legacy.projectId],
+          )
+        ).rows,
+      ).toEqual([
+        {
+          schema_version: 1,
+          module_key: null,
+          author_label: null,
+          preview_image: null,
+          preview_content_type: null,
+          preview_width: null,
+          preview_height: null,
+        },
+      ]);
+      const oldPublicationId = before.project_publication_state![0]!.id;
+      expect(
+        (
+          await app.query('SELECT * FROM public_projects_read($1,NULL,NULL,1,0)', [
+            oldPublicationId,
+          ])
+        ).rows,
+      ).toEqual([]);
+      expect(
+        (await app.query('SELECT * FROM public_project_image($1,NULL)', [oldPublicationId])).rows,
+      ).toEqual([]);
+      expect(
+        (await app.query('SELECT * FROM gallery_work(NULL,$1)', [legacy.projectId])).rows,
+      ).toEqual([]);
+      expect(
+        (
+          await app.query('SELECT project_publication_status($1,$2) AS status', [
+            account.principal_id,
+            legacy.projectId,
+          ])
+        ).rows,
+      ).toEqual([{ status: { publication: null, canPublish: true, reasonCode: null } }]);
+      expect(
+        (
+          await app.query('SELECT project_publication_status($1,$2) AS status', [
+            stranger.principal_id,
+            legacy.projectId,
+          ])
+        ).rows,
+      ).toEqual([{ status: null }]);
+      for (const table of ['project_publication_state', 'project_publication_revisions']) {
+        expect(
+          (
+            await db.query(
+              'SELECT relrowsecurity,relforcerowsecurity FROM pg_class WHERE oid=$1::regclass',
+              ['public.' + table],
+            )
+          ).rows,
+        ).toEqual([{ relrowsecurity: true, relforcerowsecurity: true }]);
+        await expect(app.query(`SELECT * FROM ${table}`)).rejects.toMatchObject({ code: '42501' });
+      }
 
       const functions = (
         await db.query(

@@ -1602,3 +1602,9 @@
     flex: 1 1 100%;
   }
 }
+.course-correction-button {
+  display: block;
+  max-width: 100%;
+  margin-top: 0.75rem;
+  white-space: normal;
+}

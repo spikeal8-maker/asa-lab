@@ -101,7 +101,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: baseline_sources_approved_atomic_main_upgrade_and_dependency_repairs_selected
+      checkpoint: joint_source_composed_final_source_and_actual_review_pending
       owner_acceptance: pending
       change_class: L3_CRITICAL
       owner_authorization: On 2026-10-19 the owner instructed the controller to split and complete the planned AI Assistant,
@@ -401,24 +401,36 @@ parallel_lanes:
           S344PASS including8 actual cases/no skips. Normal General and accepted text dependencies remain required before
           integration.
       - id: AI-INTEGRATION-MIGRATION-PREFIX-015
-        status: selected
+        status: independent_source_approved_final_joint_actual_pending
+        frozen_author_sha: 85f0f62e1e557100a81abd4c5cd03ba42c5e1a3e
+        frozen_author_tree: 9cf4874aeb8a8e9acbb1fddfe429cdb8a0aaf3aa
+        source_blob: b9b9291964cf6a7d887121c81f89131e8dcd8cb4
+        independent_source_review: L3 SOURCE_APPROVED; one exact test file, all other source entries preserved.
         classification: B
         change_class: L3_CRITICAL
         owner_area: ai-programme-migration-integration
         base_sha: 901551291788d95d104ac2993a167032e99df232
         selected_scope:
         - tests/migration/ai-main-prefix-upgrade.pg.spec.ts
-        selection: Add one meaningful real PostgreSQL regression for the supported current-main migration prefix through0225
-          upgrading atomically to final226-229 plus233. Reuse existing isolated test database creation, cluster-wide
-          role coordination helper and strict applyPlan; preserve original migration SQL, runner, all existing suites
-          and budgets. Seed existing Account/Seat and AI history/quota or other affected data through real old contracts,
-          prove preservation and appropriate new defaults/ownership, exact old and new migration ledger/checksum values,
-          and second-apply zero. Assert the unsupported233-only draft history remains rejected before SQL rather than
-          weakening its guard.
-        acceptance: Bounded author in a clean isolated checkout, static format/type/collection checks, NEW independent
-          L3 source review. No local PostgreSQL/Docker/browser. Actual new case must execute in normal General Data
-          on final source, with existing RLS/Portal/Access and all four AI jobs. Full final source and actual independent
-          review remain mandatory. No deployment or working DB changes.
+        selection: >-
+          Add one meaningful real PostgreSQL regression for the last supported installed prefix through 0225 upgrading
+          atomically to all nine AI 0226-0229, Courses 0230-0232, Portal 0233 and Public Projects 0234 migrations.
+          Historical main migration-frontier snapshot 13ab3635587a201bc2cc78e88b9a9f66fce72102 already contained
+          published 0234 source while 0226-0233 were absent; this recorded source state is not an installed database
+          receipt. Reuse existing isolated test database
+          creation, cluster-wide role coordination helper and strict applyPlan; preserve every published SQL blob
+          including 0234, runner, existing suites and budgets. Seed existing Account/Seat, AI history/quota, Course and
+          Project data through actual old contracts, then prove preservation, appropriate new defaults/ownership and
+          behavior, exact old/new migration ledger/checksum values, and second-apply zero. Keep earlier 152/210 upgrade
+          controls. Assert that unsupported applied 0234 with missing 0226-0233, applied 0233 with missing lower
+          migrations, and Courses-first histories reject before SQL; do not weaken the guard. Separate candidate tests
+          and owner merge permission do not constitute this joint upgrade evidence.
+        acceptance: >-
+          Bounded author in a clean isolated checkout, static format/type/collection checks, NEW independent L3 source
+          review. No local PostgreSQL/Docker/browser. Actual new case must execute in normal General Data on final
+          source, with existing RLS/Portal/Access, all four AI jobs, Learning focused/browser, applicable credential and
+          Public Projects gates. Full final source and actual independent review remain mandatory. No deployment or
+          working DB changes.
       integration_dependencies:
       - id: AI-BASELINE-LEARNING-006
         status: technical_accepted
@@ -628,7 +640,7 @@ parallel_lanes:
             the sole/sufficient cause of older1.1-1.8s roster calls is not proved. This is not AI0d5 acceptance, original
             Portal-card completion, a global-JIT change or a product repair approval.
       - id: AI-BASELINE-QUALITY-CONTEXT-012
-        status: independent_source_approved_actual_general_pending
+        status: actual_baseline_accepted_final_joint_pending
         classification: C
         owner_area: observability-client-telemetry
         related_issue: 551
@@ -710,7 +722,7 @@ parallel_lanes:
           for the absolute recovery-observation deadline contract; unpublished bounded repair and new independent exact-source
           review required.'
       - id: AI-BASELINE-PORTAL-READ-JIT-013
-        status: independent_source_approved_actual_general_pending
+        status: actual_baseline_accepted_final_joint_pending
         classification: C
         change_class: L3_CRITICAL
         owner_area: portal-participant-reads
@@ -738,12 +750,21 @@ parallel_lanes:
           runtime role; retain all original awaited operations, assertions, order and5000ms test budgets. Existing foreign-account/Seat/class
           authorization coverage stays mandatory. No diagnostic instrumentation, retries, cancellation, timeout increases
           or assertion weakening.
-        migration_coordination: 'Main a4b8ceb2 still has220 SQL files through0225; published AI sources226-229 remain
-          byte-identical. Foreign unmerged Learning654/656/657 reserve230-232 and are not imported or edited. Portal233
-          is collision-free but MUST NOT enter main without AI226-229: the strict runner rejects their later backfill
-          after an applied233-only baseline. Follow the selected atomic main integration strategy and fresh migration-frontier
-          check. Existing draft histories are not newly declared supported releases. Foreign Learning owners must reconcile
-          their unmerged migration reservations with the actual main frontier before future integration.'
+        migration_coordination: >-
+          Historical main migration-frontier snapshot 13ab3635587a201bc2cc78e88b9a9f66fce72102 records the owner-authorized
+          early source merge of Public Projects PR #613 and published 0234_public_projects.sql; 0226-0233 were absent.
+          The last supported installed
+          prefix for this upgrade is through 0225, not a statement of the actual installed database state, which was not
+          checked. Complete the reviewed source union with AI 0226-0229, Courses 0230-0232 and Portal 0233 while
+          preserving all current main changes and published SQL including 0234, after a fresh frontier check before
+          composition. The owner explicitly authorizes selected Learning PR #657 and separate credential PR #653
+          integration; their sources remain separately reviewed inputs. The final supported upgrade must apply all nine
+          0226-0234 together from prefix 0225. Unsupported applied 0234-only, 0233-only or Courses-first histories must
+          reject before SQL under the unchanged strict runner. The existing 0234 source merge is not deployment or
+          release acceptance and does not prove whether any installed database has applied it. No runner bypass, SQL
+          rename, renumber, rollback or retroactive support for partial applied histories. Require joint real PostgreSQL
+          upgrade and final exact-SHA AI/Learning/applicable credential/Public Projects/full General evidence; this
+          coordination is not an implementation or acceptance receipt.
         ownership_coordination: This is a new separately selected AI integration baseline dependency under the owner-authorized
           programme and direct_main policy, not an expansion of AI text/storage source. The existing Portal diagnostic
           owner/card and original two-case task remain unchanged. No current overlapping writer was found in53 allowed
@@ -762,7 +783,7 @@ parallel_lanes:
         independent_source_review: 'L3 SOURCE_APPROVED: exactly two ALTER FUNCTION local settings, original18 Portal
           cases unchanged as a byte prefix, two additive metadata/result/caller-setting cases. Actual PG remains pending.'
       - id: AI-BASELINE-REDIRECT-DEPENDENCY-016
-        status: selected
+        status: actual_baseline_accepted_final_joint_pending
         classification: C
         change_class: L2_HIGH
         owner_area: shared-dependency-security
@@ -784,6 +805,70 @@ parallel_lanes:
           frozen installation and unchanged real security:dependencies gate against the registry; registry failure is
           BLOCKED, not PASS. Existing General and final AI gates remain required. Publish a separate reviewed source
           and compose into the baseline validation candidate before atomic main integration.
+      - id: AI-BASELINE-VITE-DEPENDENCY-018
+        status: actual_baseline_accepted_final_joint_pending
+        classification: C
+        change_class: L2_HIGH
+        owner_area: shared-dependency-security
+        observed_main_sha: 8c708bc557e2b76fe46231b2d73335e0a34f56e0
+        selected_scope:
+        - package.json
+        - pnpm-lock.yaml
+        evidence_run: 39502611271
+        evidence_job: 118904247262
+        evidence_sha: d38907766f732c7a953bb670eee32bab23901eab
+        cause: The unchanged security gate now reports high GHSA-587h-7wmj-h5pm for vite6.4.3. Actual inventory763
+          critical0/high1/moderate8; old follow-redirects advisories absent. Governance and570 Observability cases
+          passed; Data and Access skipped. This is a separate current shared-dependency blocker.
+        selection: Verify official advisory and registry integrity for minimal patched vite6.4.4. Update the existing
+          exact devDependency pin with pnpm9.15.9 and only its necessary lock version/integrity references. An extra
+          override is unnecessary for the single existing Vite resolution. Retain dependency016,
+          every unrelated package version, source, script and security gate. No major-version upgrade, allowlist,
+          audit-severity change, product or workflow edits. Check competing package/lock writers before edits.
+        coordination: Reuse the Vite6.4.4 fix intent from frozen Dependabot PR669 headcf13b014; do not import its
+          unrelated Rollup/native/nanoid/picomatch upgrades or modify that PR. A separate minimal source is selected
+          for the AI baseline; all current source scripts and graph outside the Vite resolution remain unchanged.
+          Fresh checks found no dirty package/lock in eight local checkouts; the direct automated source overlap is
+          explicitly accounted for here. The disputed017 migration proposal is NOT selected by this amendment;
+          preserve the existing canonical migration strategy and coordinate with PR670 before migration authoring.
+        acceptance: Separate bounded author and NEW independent source dependency review; verify official integrity,
+          locked graph, frozen install and necessary static compatibility. Local audit/private dependency metadata
+          egress is not authorized by this selection and must not bypass the prior automatic-review rejection.
+          The unchanged normal General security gate on the new published baseline and final SHA supplies actual
+          audit acceptance. All normal product, PostgreSQL and browser gates remain mandatory.
+      - id: AI-BASELINE-PROJECTS-NAV-ORACLE-019
+        status: actual_baseline_accepted_final_joint_pending
+        classification: C
+        change_class: L1_UI_BEHAVIOR
+        owner_area: classroom-profile-header-test
+        observed_main_sha: 7d4b00b74094076676b2af82dd0226ec24cc72aa
+        selected_scope:
+        - e2e/classroom-profile-completion.spec.ts
+        evidence_sha: e46c45a58d62171ec23c40e389ad35bbe6c2e248
+        evidence_run: 39505981356
+        evidence_job: 118918490086
+        cause: Full baseline General passed Governance, Code and Data/RLS, including security high0 and Portal20/20,
+          but two Access journeys failed the same header assertion at line361. The Projects link expected /#/gallery
+          at line354 while accepted Public Projects navigation returns /#/explore. The test and PortalHeader are
+          unchanged against accepted main9f, outside the selected Quality, Portal and dependency source changes.
+        selection: Change only the two Projects expected href literals from /#/gallery to /#/explore in the same
+          assertLayout helper, lines354 and373. The second assertion addresses the identical named navigation and
+          was not reached after the first failure. Keep both independent assertions; do not refactor their arrays.
+          Preserve every other byte, the seven header controls, three named destinations, layout/order,56px header,
+          44px targets, all viewports and journeys, assertions and5000ms timeout. No runtime, route, workflow,
+          security, SQL, dependency or broad Classroom change and no weakening of the existing checks.
+        coordination: Fresh audit of54 allowed open PRs found only historical draft605 headb98015db touching this
+          file; its source predates this expectedLinks assertion. Eight local worktrees have no dirty target path.
+          Preserve Classroom task589, historical605 and resolved AUTH-HEADER-COMPATIBILITY-001 context unchanged.
+          Controller selects one bounded author and a different independent source reviewer for this two-literal
+          repair. This neither reopens broad Classroom work nor closes605 or589.
+        acceptance: Freeze one source commit after focused diff, formatting and route-contract checks; no local
+          browser, PostgreSQL, Docker, providers or audit. Require NEW independent exact-source approval, then
+          compose into baseline668 and run the unchanged full normal General on the new exact SHA. All Access
+          journeys and subsequent settings checks must execute successfully. NEW independent actual baseline
+          acceptance remains required before final joint composition; prior e46FAIL is not changed into PASS.
+          Preserve the canonical atomic225-to-all226-234 strategy and all final AI/Learning/credential/Public
+          Projects gates. No standalone baseline merge, installation, deployment or working database action.
       dependency_sequence:
       - text_convergence_and_focused_ci
       - teacher_controlled_student_admission
@@ -815,6 +900,7 @@ parallel_lanes:
       latest_owner_instruction: '2026-10-20: continue after chat interruption; owner explicitly expects accepted implementation
         in main.'
       combined_candidate:
+        status: historical_superseded_by_selected_joint_composition
         sha: 0d5f80b5b933abc142d15b968cbe50ad7e8d2ecd
         tree: d0df07a18f2bef728276b9861bd65a61874c7514
         pr: 655
@@ -839,17 +925,69 @@ parallel_lanes:
           data: failure
         main_integration: blocked_actual_general
         owner_acceptance: pending
-      baseline_integration_strategy: Replace the earlier separate-baseline-main-then-AI topology because it would create
-        a supported main233 history missing AI226-229. Keep Quality012, Portal013 and dependency016 separately selected,
-        authored and independently reviewed. PR668 is a baseline validation/dependency candidate ONLY and must not merge
-        into main independently or be installed as a standalone release. Require its repaired full General and independent
-        actual acceptance first. Compose those accepted exact sources into PR655 with ordinary ancestry, retain all
-        four AI jobs and its own full General, and require new independent final source and actual acceptance plus selected
-        real PG main225-to-final upgrade evidence. Perform ONE ordinary atomic main merge of the complete tree containing226-229
-        and233 together. No intermediate main HEAD may contain233 without226-229. This is an integration-plan correction,
-        not a waiver, migration-runner change, unsupported baseline233-to-AI upgrade claim, direct foreign repair inside
-        the AI author scope, or permission to deploy. Keep diagnostic branches out; preserve published SQL, current
-        main and foreign changes; no force-push.
+      baseline_validation_actual:
+        status: accepted_for_final_joint_composition_only
+        pr: 668
+        head_sha: d8b17230fce7cd1f5eccab8781f36d9d5143e8db
+        tree_sha: c8c9f90cd549afae7f7089b927373af669c3bc11
+        general_run: 39510001650
+        general_attempt: 1
+        general_conclusion: success
+        completed_at: '2026-10-20T23:08:23Z'
+        independent_actual_review: ACTUAL_BASELINE_APPROVE
+        independent_receipt_sha256: fc915728a0af2ea0ccb1fcdbfb5dfe565799f30179a0fa4cfd818c66fd9f74a9
+        actual_results: >-
+          All four General jobs SUCCESS. Observability570/570; unchanged CI security inventory763 critical0/high0/
+          moderate6. Full Data5575PASS/34 existing skips; Portal20/20, workspace telemetry13/13, historical course
+          upgrade1/1 and separate RLS16/16. Access backend999PASS/1 existing skip, launcher7/7, real journeys22/22
+          including both repaired Classroom profiles and NAT, then settings/layout418/418. NX cache disabled.
+        boundary: >-
+          Baseline validation only; never a standalone main merge or installation. Historical e46 GeneralFAIL and
+          auxiliary d8 Learning39510001694FAIL remain failed. The latter stale revision+1 assertion is already
+          corrected in both selected657 and653 inputs; final joint Learning evidence is still mandatory.
+      joint_candidate_inputs:
+        status: source_composed_pending_independent_source_and_actual_review
+        target_pr: 655
+        preserved_previous_ai_head: 6366aa166181787da9d8cf775628724f993ff913
+        current_main: 39cd72afdd0291763eb18772f5d4dda9bd07623b
+        latest_text: a42a32f3f5fbe131d9a849ec00cf303cdedd86f4
+        upgrade_regression015: 85f0f62e1e557100a81abd4c5cd03ba42c5e1a3e
+        accepted_baseline: d8b17230fce7cd1f5eccab8781f36d9d5143e8db
+        courses657: 6a557ae64aef5a38d979f44052d7ba58734acf96
+        credential653: f0a3e95f5c5b804943eec0e8218d0a1113e99b8c
+        composition: >-
+          Ordinary ancestry preserves all accepted sources and current foreign main. Only the two historical
+          migration expectation arrays require manual union; retain every226-234 entry in order and all152/191/210
+          assertions. Preserve exact SQL blobs and strict runner, all13 latest text/key/model files, approved015
+          regression, Quality/Portal/019 and the AI, credential and Public Projects script union.
+        acceptance: >-
+          Require one final exact SHA with independent source and actual approval, full General including real
+          old-data225-to-all226-234 upgrade, all four AI jobs, Learning, Account Confirmation, Classroom Owner,
+          Portable Delivery and Public Projects. Earlier input successes do not accept this composition.
+          Installed database prefix remains unverified; no deployment, working DB or paid provider action.
+      baseline_integration_strategy: >-
+        Keep Quality012, Portal013 and dependency016 separately selected, authored and independently reviewed; retain
+        their required gates and acceptance. PR #668 remains a baseline validation/dependency candidate only and must
+        not merge into main or be installed independently. Require the baseline validation candidate's repaired full
+        General and NEW independent actual acceptance BEFORE its accepted sources are composed into the final joint
+        candidate. Source-only or probe approval does not satisfy that prerequisite. The owner on 2026-10-20 approved
+        the existing Courses design and ordinary main integration of PR #657 plus separate credential PR #653. Historical
+        main migration-frontier snapshot 13ab3635587a201bc2cc78e88b9a9f66fce72102 already included the separately
+        owner-authorized early Public Projects source merge and published 0234 while 0226-0233 were absent. Preserve that
+        published main source history;
+        its merge message records no database action/deployment and no release acceptance, not an observed
+        installed-state assertion. Coordinate the accepted exact inputs with the AI candidate through ordinary ancestry
+        into ONE reviewed complete source tree for the last supported installed prefix through 0225 to upgrade
+        atomically through all nine AI 0226-0229, Courses 0230-0232, Portal 0233 and Public Projects 0234 migrations.
+        The actual installed database prefix is not verified here. Unsupported applied 0234 with missing 0226-0233,
+        applied 0233 with missing lower migrations, and Courses-first histories must reject before SQL; the unchanged
+        strict runner rejects later insertion below the applied frontier. Preserve every exact published SQL blob
+        including 0234, current main and foreign source boundaries; no rename, renumber, rollback, backfill, runner
+        bypass or force-push. Require final independent source and actual acceptance, full General including Data/RLS
+        and Access, all four AI jobs, Learning focused/browser gates, applicable credential and Public Projects gates,
+        and the selected real PostgreSQL 225-to-complete226-234 upgrade with existing data, exact ledgers/checksums and
+        second-apply zero. Earlier source/probe approvals remain inputs, not acceptance of the joint tree. No production
+        deployment or database action is authorized by this integration plan.
       migration_integration_repair:
         finding: R1 strict validator rejects applied baseline612ec69 with233 but missing226-229; initial critical approval
           was superseded by REQUEST_CHANGES.
@@ -857,10 +995,18 @@ parallel_lanes:
         reviewed_local_candidate_tree: 67bfb707ebcfe75e2300512d3c2dbb3dcd0bd3ae
         preserved_source_review: Exact source union and cross-module semantics approved; no product or SQL blob defect
           identified.
-        selected_resolution: Atomic complete-tree main integration from supported main through0225; no standalone baseline233
-          main publication.
-        supported_history_checks: Real PG prefix225-to-final with existing data, exact ledgers and idempotence; retain
-          earlier152/210 upgrade tests and strict late-migration rejection.
+        selected_resolution: >-
+          Preserve the early source publication of Public Projects 0234 recorded in historical main snapshot 13ab and
+          complete the accepted source union.
+          The supported installed upgrade is atomic from prefix through 0225 to all nine AI 0226-0229, Courses
+          0230-0232, Portal 0233 and Public Projects 0234 migrations, preserving all published SQL bytes. No source
+          history erasure, runner waiver, renumber, rollback or claim about the actual installed prefix.
+        supported_history_checks: >-
+          Real isolated PostgreSQL prefix 225 with existing Account/Seat, AI, Course and Project data to the
+          complete226-234 union; verify preservation, exact ledgers/checksums, new behavior and second-apply zero.
+          Retain 152/210 upgrade regressions. Unsupported applied234-only, applied233-only and Courses-first histories
+          must reject before SQL; prior partial-candidate evidence and the existing234 source merge are not joint
+          installed acceptance.
         baseline_candidate_pr: 668
         baseline_candidate_sha: 612ec69cd6e8fd15cc8ba391a6cf227f0425bd70
         baseline_general_run: 39482264093
@@ -869,18 +1015,19 @@ parallel_lanes:
           Observability cases. Data and Access skipped, not accepted.
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: a4b8ceb216af174d431d4b6b7dfb963dceee035b
+      convergence_baseline_sha: 39cd72afdd0291763eb18772f5d4dda9bd07623b
       head_sha: null
-      observed_at: '2026-10-20T19:31:04Z'
+      observed_at: '2026-10-20T23:11:00Z'
       main:
         branch: main
-        sha: a4b8ceb216af174d431d4b6b7dfb963dceee035b
-      observation_note: Fresh main a4b8ceb2 has only foreign electronics/docs changes after4b272, preserved outside
-        this AI lane. Quality and Portal sources independently approved, actual General remains failed at unchanged
-        dependency audit. Select separate016 dependency repair and015 real supported-prefix upgrade regression. Correct
-        the integration topology before main cutover; no standalone233-only baseline acceptance, final AI publication,
-        deployment, working DB action or paid-provider verification is claimed. Fresh fetch main is required before
-        writes and integration.
+        sha: 39cd72afdd0291763eb18772f5d4dda9bd07623b
+      observation_note: >-
+        Fresh GitHub snapshot verified main39cd, AI655 head6366, baseline668 headd8, Courses657 head6a55 and
+        credential653 headf0a3. Baseline full General39510001650 SUCCESS and NEW independent actual approval are
+        recorded above. Controller formed the already selected joint source with current main and separately
+        reviewed inputs. Final exact-SHA source/actual acceptance and ordinary main integration remain pending.
+        No standalone baseline merge, deployment, working DB action or live paid-provider check is claimed.
+        Fresh fetch main and exact-SHA CI are required before further writes and integration.
     execution_lease:
       executor_id: chatgpt-ai-programme-controller
       holder: unassigned
@@ -5219,21 +5366,22 @@ parallel_lanes:
       - apps/web/src/styles.css
       - apps/api/src/public-projects.controller.ts
       - apps/web/src/projects-public/**
-      - migrations/0218_public_projects.sql
+      - migrations/0234_public_projects.sql
+      - migrations/0235_public_project_copy.sql
       - tests/portal/**
       - e2e/project-hub.spec.ts
       - e2e/artifacts/project-hub/**
       - docs/product/projects/**
       - docs/review/PROJ_R7_01/**
     task:
-      id: TASK-PROJ-R7-VISIBLE-PUBLICATION-001
+      id: TASK-PROJ-R7-PUBLISHED-COPY-001
       issue: 211
       branch: main
       base_branch: main
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: stage2_general009_integrated_games32_pass_full_general_blocked
+      checkpoint: stage3_exact_published_copy_selected
       owner_acceptance: pending
       owner_authorization: >-
         Owner's 2026-10-18 implementation assignment delegates the complete Public Projects
@@ -5242,6 +5390,7 @@ parallel_lanes:
         original Projects, drafts, versions, learning data and personal Collections are protected.
         No production cleanup or deployment is authorized by this selection.
       context_hints:
+        - docs/product/projects/tasks/PROJ-R7-PUBLISHED-COPY.md
         - docs/product/projects/tasks/PROJ-R7-VISIBLE-PUBLICATION.md
         - docs/product/projects/DECISION_LEDGER.md
         - docs/product/projects/tasks/PROJ-PUBLICATION-BUILD-BASELINE.md
@@ -6059,74 +6208,20 @@ parallel_lanes:
       accepted_r7_01a_merge_sha: 92e7926fb4cf51b8fcb5d57741e01c812a26f2dc
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: d2b623f3c59b504e60738d24cc8b627dfc7a04d2
+      convergence_baseline_sha: 628a5b5a999998b008e18e5ab61e843cb5d8b25b
       head_sha: null
-      observed_at: '2026-10-19T17:53:55Z'
+      observed_at: '2026-10-20T22:15:00Z'
       main:
         branch: main
-        sha: cc6c4bf1e753ef617e11932fd36a9fb85b4c5e70
-      observation_note: >-
-        Observed main cc6c4bf1 is the single-parent Learning course/section-save
-        change over main475. Its eight source paths do not intersect this
-        two-document checkpoint; its new API, CoursesPanel, schema and test
-        blobs are preserved. At this observation, General 39297710485 and
-        Learning 39297755737 are in_progress, metadata only. Source or actual
-        PASS from 632, 475 or 94 is not cc6 acceptance. Publishing this
-        checkpoint must wait for the current main CI terminal barrier.
-        Main475 is the accepted normal General009 merge over the independently
-        reviewed fcc controller checkpoint and accepted Auth C5 main d193.
-        Exact632 SOURCE/ACTUAL reviews and the separate post-main475 actual
-        General009 review all pass. Post-main General 39280683031 and all four
-        jobs are terminal SUCCESS, with 220 migrations, separate RLS16,
-        Access22/settings418, immutable images and actual isolated cleanup.
-        This checkpoint follows that terminal barrier. Games is still 32 SKIP
-        on main475; source94 in draft PR645 has its own actual 32 PASS proof.
-        Full General94 is FAILURE from the Electronics timed replay case;
-        its causal category is unresolved and its existing external ownership
-        is preserved. Inline RLS16 passes, but the trailing standalone RLS
-        command is NOT_RUN. Locked runner-source checks find no CI-specific
-        worker/pool/timeout change for the actual explicit run command, while
-        workload and actual worker allocation remain unknown. No new runtime
-        repair, longer timeout, skip or unchanged CI rerun is selected here.
-        Portable94 has bounded independent ACTUAL PASS, with its active
-        transition exception and full-compliance claim still blocked. The
-        separate Electronics94 manifest429 failure is class D before browser;
-        shared transport/guard correction belongs to the existing GC1 author.
-        Coverage635 remains merged with its focused post-main PASS. Learning639 at
-        4a651e23 retains independent source and causal actual Learning/General PASS;
-        accepted AI636 preserves its three exclusive Learning specs. QR629 remains
-        frozen at 9a3c8223 with source/Classroom/General PASS, held for combined acceptance.
-        Old Scratch640 exact813 is terminal NEEDS_FIX and its artifact is preserved.
-        Recovery 55 and corrected Abby 65 have independent source PASS; their mechanically
-        composed exact ffc in draft PR644 has independent composed review 5573134896.
-        New Scratch 39269655871 has full actual 57/57 PASS plus contracts/fresh ZIP;
-        both durable Abby reports are NOT_REPRODUCED and Recovery schema3 reaches all
-        original assertions and real IndexedDB retention. ACTUAL review 5573987710
-        is published. Its old General 39269657333 remains FAILURE from the two
-        UUID fixture errors; the accepted General009 slice addresses their proven
-        cause, without turning old ffc into new combined-source acceptance.
-        GC1 fe70 has no corrected frozen scanner/ordered-argument handoff.
-        D13 f967 actual Classroom 39271296982 has 164 PASS / 6 FAIL and Strict
-        39271290925 has 161 PASS / 9 FAIL, each 170 unique cases without skips
-        or retries. Build/PG startup completed before those browser assertions;
-        cleanup completed afterward. Independent matrix and cause limits were delivered to the
-        existing owner in Issue638 comment6271625706. Product versus observer
-        cause and the last type annotation's causal role remain unproved.
-        PR613 remains unchanged at 662c8af4fbffead0f71b2fb95a4e9768d0c4b9fb; its single
-        final composition has not started. Require fresh fetch main and scoped overlap
-        checks before the one final composition. Historical publication 39154885397 evidence
-        (142 code/real-PG, 48 portal, 8 browser, 37 screenshots) is not current-main
-        acceptance. Preserve current app.module, API cancellation, global verification
-        403 handling, Account/Seat precedence, Games registration and transaction paths,
-        all Learning data, original Projects, drafts, versions, Collections and Safe Mode.
-        Mixed Seat/Account cookies and public GET verification require their explicit
-        security matrix; no generic guard bypass is selected. Auth C5 installer/origin
-        changes require fresh final ZIP evidence, not transfer of old 813/ffc results.
-        Published Auth 0225 and every prior checksum are immutable. AI still records
-        reserved 0225-0228, so its unpublished numbering needs a fresh owner handoff;
-        re-read all published/reserved IDs before selecting the publication migration.
-        Do not assume 0229 is free. Stages 3-7 remain pending after stage 2; no deployment
-        or working-database action is authorized.
+        sha: 628a5b5a999998b008e18e5ab61e843cb5d8b25b
+      observation_note: Require fresh fetch main before publication. Owner explicitly resumes the complete programme with a visible next result. PR613 is merged
+        at13ab3635587a201bc2cc78e88b9a9f66fce72102 and its post-main publication PG/browser workflow39494756801 passed.
+        Select only Stage3 exact immutable-publication copy into an independent private Project. Source integration
+        of Stage1 is not full release acceptance. Shared dependency and AI/Courses/Portal migration topology remain
+        separately owned; no earlier migrations, package/lock or unrelated modules may be rewritten in this slice.
+        Reserve new forward0235 after unchanged0234; validate actual reservations before publication. Workstation
+        authoring/lightweight checks only; real PG/browser evidence in disposable GitHub CI. No production deployment
+        or working database operation.
     execution_lease:
       executor_id: codex-projects-r7-01
       holder: unassigned
@@ -6216,8 +6311,55 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: existing_course_code_docs_prototype_published_owner_acceptance_pending
+      checkpoint: design_approved_bounded_courses_main_integration_selected
       owner_acceptance: pending
+      owner_design_acceptance: accepted
+      owner_source_integration_approval:
+        date_utc: '2026-10-20'
+        quote: согласовую применяй все в майн
+        design_checkpoint: accepted_existing_overview_mixed_lesson_editor_prototype
+        draft_removal: authorized
+        ordinary_main_merge: authorized_for_selected_courses_integration
+        evidence: docs/review/learning-lesson-composition/owner-design-approval-2026-10-20.json
+      selected_integration:
+        id: LRN-MAIN-INTEGRATION-20261020
+        status: selected_joint_candidate_not_yet_accepted
+        source_inputs:
+        - pr: 657
+          head: 6a557ae64aef5a38d979f44052d7ba58734acf96
+          reviewed_source_contributions:
+          - 654
+          - 656
+          source_provenance:
+            pr654: Reviewed source was transferred into M; the current PR654 head prefix d2dcfea is not a Git ancestor
+              of M6a. No separate merge of PR654 is required.
+            pr656: P ae25a205d266561f11402643d8621477e2f7d312 is a Git ancestor of M6a.
+        - pr: 653
+          head: f0a3e95f5c5b804943eec0e8218d0a1113e99b8c
+          boundary: separate credential readiness candidate
+        scope: Integrate the existing reviewed Courses sources, reconcile their real overlaps and accepted shared
+          dependencies, and record design approval. Reuse the usable assignment list; no unrelated full UI rewrite
+          is a prerequisite.
+        migration_strategy: >-
+          Complete the reviewed source union on current main. Historical migration-frontier snapshot 13ab already
+          contained published Public Projects 0234 while 0226-0233 were absent.
+          The last supported installed prefix through 0225 must upgrade atomically through
+          all nine AI 0226-0229, Courses 0230-0232, Portal 0233 and Public Projects 0234 migrations. Preserve all
+          published SQL blobs including 0234 and the strict runner. Unsupported applied234-only, applied233-only and
+          Courses-first histories must reject before SQL. The actual installed database prefix is not verified; no
+          renumber, rollback or deployment is authorized.
+        joint_upgrade_gate: required_not_run_for_joint_candidate
+        required_evidence:
+        - accepted exact final source union and independent review
+        - >-
+          real isolated PostgreSQL supported installed prefix 0225 with existing data to all nine 0226-0234, exact
+          ledger/checksums and second apply zero
+        - preserved152/210 upgrade checks and strict late-migration rejection
+        - final exact-SHA Learning focused/browser and full General including Data/RLS and Access
+        - >-
+          AI, credential and Public Projects candidates keep their own applicable exact-SHA gates
+        runtime_acceptance: pending
+        installed_acceptance: pending
       normative_refs:
       - document: PRODUCT-INTEGRATED-V15
         revision: '1.5'
@@ -8137,7 +8279,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: passive_native_dom_provenance_selected
+      checkpoint: last_recovery_actual_natural_pass_NO_PROVEN_CAUSE_TERMINAL
       previous_checkpoint: two_mounted_cases_pass_no_proven_cause_diagnostic_STOP
       kind: repair
       owner_acceptance: pending
@@ -8145,22 +8287,56 @@ parallel_lanes:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-ORDINARY-IMAGE-CONSUMER-FAILURE-001.md
       - docs/product/electronics/evidence/ordinary-image-548-consumer-cycle-selection-20261020.md
       - docs/product/electronics/components/ui-assets-persistence.yaml
-      repair_scope: Test-only passive provenance in the existing permanent ordinary-image404 stage/catalog
-        case of e2e/electronics-interactions.spec.ts, plus needed imports and generated existing browser hash
-        only if canonical freshness requires it. Pre-app document capture listeners, stable WeakMap actual
-        image/root IDs and added-subtree MutationObserver correlate native/DOM/network records. No creation
-        API wrapping; detached pre-observation events are NOT_OBSERVED. Preserve all original behavior.
-      diagnostic_limits: Observe native ingress, connected consumer/root identity, href/asset/cycle labels,
-        add/remove and failed-status/badge DOM transitions. React handlers, hook-private pending state and
-        shared cache/promise execution remain UNKNOWN; no React private-property wrapping or production sink.
+      repair_scope: >-
+        ONE last test-only observation, ONLY diagnostic wrapping in the existing temporary404 RECOVERY case
+        a failed catalog owner image recovers without placing or saving a component in electronics-interactions.
+        Explicitly supersede prior creation-wrapper prohibition ONLY here; pre-app transparent createElementNS
+        attaches direct native SVGimage listeners before return/href. Permanent404 and induced-gap cases unchanged.
+      diagnostic_limits: >-
+        Original captured Reflect.apply preserves receiver/args/return/throw and property descriptor attributes;
+        record exactly one installation/replacement and function-identity/timing interference. Keep connected
+        capture+MO, stable WeakMap image/root/Event IDs,delivery phases,currenthref,status/badge/network timing;
+        mutation time is delivery time. Native callbacks record only cheap immutable small events, no layout,
+        stacks or bindings. Explicit dropped/retention/serialization/install errors; parser/clone/other realm
+        UNKNOWN/NOT_OBSERVED; private React/cache UNKNOWN. Native error is not React callback entry or cause.
+      recovery_observation_contract:
+        version: R3_existing_recovery_only
+        allowed_source_path: e2e/electronics-interactions.spec.ts
+        preserved_case: a failed catalog owner image recovers without placing or saving a component
+        observed_baseline: e14229f93c7400fb39ae880cc9889aefdc8dcfb6
+        baseline_result: Original aa2 SVG image GET404; href unchanged through14 polls; no retry/preflight. Recovery entry not observed; native delivery UNKNOWN.
+        stimulus_and_assertions: Existing order,temporary404 route,1440x1000,fixture,10000ms href assertion,failures>=1,whole empty document,zeroPUT/errors and default deadlines byte-exact.
+        prohibition: No setters,synthetic events,DOM writes,handler wrappers,production/unit/other-case/workflow/dependency changes or retries.
+        receipts: Distinct raw/PNG names, original primary failure preserved; supplemental capture cannot hang or mask it.
+        terminal_rule: Exactly ONE new actual run after NEW source review; naturalPASS/incomplete NO_PROVEN_CAUSE and STOP. Trusted native delivery plus no recovery narrows boundary only, never proves cause/fix/closure.
+      docs_selection_handoff_exception: >-
+        Standing owner disjoint exception permits these three docs and the selected future test-only source,
+        both occupied workflow paths untouched; actual overlapping unfinished work always STOP, not SAFE.
       diagnostic_source_sha: 4b272ffcbd64896a615f1d7cba3fb27a652351dc
       diagnostic_result: Both new mounted cases pass within41 passing asset-recovery tests; author and
         NEW independent source reviewer verified. Product untouched. NO_PROVEN_CAUSE; no fix or closure.
       actual_evidence: docs/product/electronics/evidence/ui-qualification-b3672ff7-actual-20261020.md
-      next_action: After canonical publication assign one bounded observational-test author and NEW independent
-        source review. Preserve primary failure and flush Node journal before optional browser awaits. Controller
-        may perform one existing strict measurement after review; never rerun until failure. Natural PASS or
-        missing lifecycle link means NO_PROVEN_CAUSE and STOP, not a fix. A production repair needs new selection.
+      passive_actual_source_sha: 8f568af52429e7e3091a6bbf542df9000a003d85
+      passive_actual_run: 39484930868
+      passive_actual_result: Existing permanent404 case passed naturally;39 Node and15 browser records, no
+        dropped records or retention errors. Three trusted native errors on stable three-consumer image/root
+        identities reached failed DOM and accessible badges;7 imageGET404, whole5-part document unchanged,
+        zeroPUT/pageerrors. Mocked API only; private React/hook/cache and causation remain UNKNOWN.
+      passive_actual_review: APPROVE_qualified_natural_pass_no_product_acceptance; NO_PROVEN_CAUSE
+      observation_evidence: docs/product/electronics/evidence/ui-qualification-121f6599-actual-20261021.md
+      recovery_actual_observation:
+        observed_at: '2026-10-20T22:44:48Z'
+        sha: 121f65992b9cd556f4c26eae9d117c383309ba68
+        run: 39504015807
+        verdict: NO_PROVEN_CAUSE_TERMINAL
+        result: NaturalPASS;image9 detached creation then catalog root30;trusted EventID1 error capture/direct and distinct EventID2 load capture/direct;originalGET404 then retry0/cycle1 GET200 and href change.
+        integrity: Browser sequence1to37,loss0,dropped0,retention/delivery/install errors empty;function identity changed and timing interference UNKNOWN_NONZERO.
+        boundary: Empty document unchanged,PUT0,pageErrors empty;private React/cache UNKNOWN;this does not prove historical cause,fix or absence without wrapper.
+        evidence: docs/product/electronics/evidence/ui-qualification-121f6599-actual-20261021.md
+      next_action: >-
+        TERMINAL STOP this last recovery observation. NaturalPASS is NO_PROVEN_CAUSE; no further hopeful
+        observer selection,product repair or closure follows. Owner KEEP544/547 to548 and all blockers remain.
+        Any ordinary regression result is not a newly selected548 causal experiment or owner acceptance.
       preservation: Preserve666 done, original548 receipts and mounted diagnostic checkpoint, all foreign state,
         unpublished52545 branch and544/547/548 blockers. No product, hooks, core, assets, API, workflow, timeout,
         retry, fixture or recovery-policy changes, local browser/Docker/heavy build/DB/deployment operations.
@@ -8179,13 +8355,15 @@ parallel_lanes:
       kind: observed_snapshot
       convergence_baseline_sha: abe8f05a33a8fdfffbdf491f6d6d9e34f841587c
       head_sha: null
-      observed_at: '2026-10-20T19:19:20Z'
+      observed_at: '2026-10-20T21:31:44Z'
       main:
         branch: main
-        sha: abe8f05a33a8fdfffbdf491f6d6d9e34f841587c
-      observation_note: Dated selection; fetch main and recover exact Git, CI and dirty paths before writes.
-        Prior mounted41 PASS and R2 natural browser PASS are NO_PROVEN_CAUSE, not product repair.666 selected40
-        qualification is complete; repository/full browser/owner acceptance and other blockers are not waived.
+        sha: 893457c1c6235304635debb38bb8817868833598
+      observation_note: >-
+        Dated recovery-observation selection, not live HEAD or an actual new measurement. Fetch main and
+        recover exact Git/CI/dirty paths before writes. Prior permanent404 naturalPASS and mounted41PASS
+        remain historical NO_PROVEN_CAUSE; new temporary404 observation has NOT_RUN. Preserve549R2,
+        all owner KEEP dependencies and foreign blockers; shared-workflow disjoint exception is not SAFE.
 
   - id: electronics-selection
     parent_lane: electronics
@@ -8202,7 +8380,8 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: r8_test_only_unique_native_meter_hit_path
+      checkpoint: r2_actual_before_invalid_init_identity_repair_source_approved_NOT_RUN
+      previous_checkpoint: r8_test_only_unique_native_meter_hit_path
       kind: repair
       owner_acceptance: pending
       context_hints:
@@ -8210,19 +8389,75 @@ parallel_lanes:
       - docs/product/electronics/components/ui-assets-persistence.yaml
       program_issue: 452
       owner_problem: E11
-      repair_scope: 'R8 TEST ONLY e2e/electronics-selection-outline.spec.ts: disambiguate existing native multimeter single
-        existing voltage mode click to its unique painted mode-button hit path. Preserve all16 cases/whole9parts7wiresUNO/nativeactions/all78asserts/defaultwaits/primaryjournals;
-        allother5sourceblobs exact9d. No product/physics/collector change.'
-      next_action: New bounded test-only author inherits canonical current-main once automatically conflictSTOP. Preserve
-        published9d/R7BEFORE37e48/run38145444404. One unpublished exactSHA/fullinverse/78assertAST/narrow/selfreview/hashmanifest
-        thenSTOP; NEWindependent source check. NO new browser until separate554productwheel dependency technicallyaccepted;
-        then one final controlledcomposition/exactgates/newfrozenstrictBEFORE, noAFTER withoutvalidall16journey.
-      preservation: Accepted526/541/543; held525/538/544/546/547 and548 diagnostic originals unchanged. No resolution
-        of pending525/546 conflicts. Hygiene count2 since542; checkpoint006 after third accepted production slice
-        before later new production phase.
-      shared_write_contract: 549 ONLY new outline browser harness; 548 ONLY separate new real-search case in old
-        interactions spec with Visualf67 exact; 552 optional audio hook/new tests and additive registrations. Preserve
-        all frozen production candidates; no overlapping dirty writes or author shared metadata edits.
+      repair_scope: >-
+        R2 test-evidence repair only in the existing outline browser spec. Deliver every full observed Worker
+        response exactly once, including ready and yielded responses, using a lossless incremental cursor/sequence.
+        Durably retain existing failed reopened nativePoint attempts and context before the original throw.
+        No sampler predicate, pan, fixture, action, timeout, retry, product or physics change.
+      source_budget: >-
+        Author ONLY e2e/electronics-selection-outline.spec.ts for the two evidence mechanics. Preserve all
+        registrations and shared helpers. Extra tracked metadata or any additional path needs a precise proposal.
+      published_before_source_sha: e14229f93c7400fb39ae880cc9889aefdc8dcfb6
+      frozen_browser_blob: c4e05c1109dbac9a74ef1548a208178a10789878
+      frozen_browser_bytes: 64509
+      frozen_browser_lines: 1516
+      frozen_browser_sha256: b4c37d707c078d54fcd0a5419f0a382e9d9eb7306b00e31e8ec9df43f2268002
+      independent_source_review: SOURCE_APPROVE
+      before_strict_run: 39490329377
+      before_general_run: 39490297942
+      runtime_acceptance: INVALID_BEFORE_0_of16_probe_init_error
+      r2_evidence_contract:
+        baseline_source: e14229f93c7400fb39ae880cc9889aefdc8dcfb6
+        independent_review: NEEDS_FIX_INVALID_BEFORE_BASELINE
+        cached_report_sha256: ad0b9dbd291aa5f2bd8cd4bd6be4f37d85a50db39015c2f30f991e4a9fcd0d88
+        observed_result: 10of16 complete geometry-only;2 reopened nativePoint causes UNKNOWN due missing attempts;4 running timeouts A from repeated growing full-history transport.
+        delivery: Each full response reaches Node journal exactly once; continuous sequence/cursor, explicit loss/drop/duplicate/error detection, all checkpoint references resolvable in final journal.
+        native_failure: Existing failed reopened attempts/bodyBounds/CTM/canvasViewport/hit ancestry and originalError durable in Node before original throw; retain primary Error and deadline. Identify the originating fresh reopened page/context, never substitute original page or lastObserver.
+        invariants: Every strict native/ready C=H/yielded/fullDoc/onePUT/CAS/storage assertion,16cases,fixture,existing samplers/pan/actions and deadlines unchanged.
+        freeze: NEW complete browser blob; identical new frozen BEFORE/AFTER bytes. No product or AFTER author until all16complete plus NEW actual review.
+      docs_selection_handoff_exception: >-
+        Owner permits only current.yaml, this card and the new dated receipt despite shared workflow
+        WAITING_HANDOFF. Both occupied workflows remain untouched; actual selected-path overlap is forbidden.
+      actual_121f_observation:
+        observed_at: '2026-10-20T22:44:48Z'
+        sha: 121f65992b9cd556f4c26eae9d117c383309ba68
+        run: 39504015807
+        verdict: INVALID_BEFORE_A_test_harness
+        result: All16 fail initial checkpoint with undefined probe,complete0of16,PUT0;one actual stopped-fit320 trace records crypto.randomUUID is not a function before probe assignment.
+        limits: Secure-context explanation inferred,not measured;empty journals do not prove zero production responses. Historical two reopened nativePoint failures remain UNKNOWN.
+        evidence: docs/product/electronics/evidence/ui-qualification-121f6599-actual-20261021.md
+      observed_r2_init_identity_source:
+        observed_at: '2026-10-20T22:44:48Z'
+        sha: 7e45e9c35327fb9a9b3d9910afa2e87c6c7890a7
+        parent: 7f4b4ed589c19eb8d056e11ec9b5a3aed357c248
+        source_review: SOURCE_APPROVE
+        publication: UNPUBLISHED
+        actual_runtime: NOT_RUN
+        browser_blob: ecf3e04d5ef43d1d971d3163c584034ef53a03d9
+        browser_bytes: 74488
+        browser_lines: 1773
+        browser_sha256: 5b09686df75c0206f1b48abfd17be0dfb82da4d4d829dca77843d02593acc118
+      next_action: >-
+        Only the already selected R2 spec-only minimal initialization-identity repair has SOURCE_APPROVE;
+        its unpublished7e45 source is NOT runtime acceptance or an accepted actual baseline. Controller will
+        final-compose it preserving current docs/foreign main, then ONE justified NEW strict frozen BEFORE
+        with NEW actual review. Keep all R2 predicates/actions/deadlines/fullDoc/storage/CAS/ready invariants.
+        Require16complete before any product/AFTER; AFTER must use that identical newly frozen whole test blob.
+        No scope expansion,accepted code-fix claim,548 observer selection or closure.
+      preservation: >-
+        Preserve every original549 source/receipt and all foreign lanes,544/547 dependency-owner KEEP,548
+        NO_PROVEN_CAUSE and its separate proposal. Preserve52545,core/hook/LED/assets,accepted554 and every
+        acceptance/owner/device/classroom/deployment boundary. This selects only549 R2 evidence repair.
+      before_parent_sha: 6f27bc9fd58eeb9a9262c9a30fb15c00075934f0
+      before_parent_browser_blob: 57ca47df3aa89cfbccff5c242a36f42febc01be2
+      corrected_before_exceptions: Genuine UI beforeAll login once per group/worker in disposable context,
+        retain cookies only; each case fresh context/new project. R3 passive pre-app origins and local/session
+        draft entries empty; post-load local drafts empty and exactly fixture-derived session saved hint.
+        Journal actual storage values before assertions. No extra gestures, waits, retries or deadline change.
+      product_budget_note: Future three-branch Visual repair measured+4 bytes in a Temp-only module estimate.
+        Current actual217996/218000 leaves4 bytes; full bundle fit is NOT_PROVEN. No cap increase, source
+        refactor or automatic product phase is selected here.
+      selection_evidence: docs/product/electronics/evidence/ui-qualification-121f6599-actual-20261021.md
       preserved_candidate_sha: 5da91c88d1df4b87e5b3b92fafd9eacb03f77d11
       preserved_candidate_tree: 5f4e7150a795303b4802039118627bcac6ce8b0e
       candidate_branch: codex/electronics-549-outline-transform-oracle-r4
@@ -8284,17 +8519,17 @@ parallel_lanes:
         - pnpm gate:repository
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 72c1e067c361b6c5e50e3d62be1871f987b6e6e9
+      convergence_baseline_sha: 8f568af52429e7e3091a6bbf542df9000a003d85
       head_sha: null
-      observed_at: '2026-10-11T12:28:56.580251+00:00'
+      observed_at: '2026-10-20T21:21:21Z'
       main:
         branch: main
-        sha: 72c1e067c361b6c5e50e3d62be1871f987b6e6e9
-      observation_note: Dated bounded test-only selection. New independent source NEEDS_FIX for failure-evidence
-        mechanics; no product cause/acceptance. Actual main72c shared Classroom/Scratch/API/security baseline inherited,
-        General38138858098 pending at preparation; old134 General cancelled(E), olde51 all4SUCCESS history only.
-        Preserve all other lanes/candidates/blockers/count2/school pending; fetch main and actual exact-SHA CI
-        before writes.
+        sha: 482fbb86a38adb155f4f159845e0459ff7456bc0
+      observation_note: >-
+        Dated fresh main snapshot for549 R2 evidence selection, not live HEAD or runtime acceptance. Fetch main
+        and recover exact Git/CI/dirty paths before writes. General482f39496950515 failed Code,Governance passed,
+        Data/Access skipped; exact Code cause not inspected here. Preflight WAITING_HANDOFF only shared dirty
+        workflows; explicit owner exception is limited to three disjoint docs, never a SAFE or overlap bypass.
 
   - id: observability
     worktree_id: observability-authoring
@@ -9246,7 +9481,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: d2_d4_atomic_archive_rotation_selected
+      checkpoint: arduino_committed_horizon_deduplication_selected
       owner_acceptance: pending
       acceptance_revision: classroom-d2-d4-eighth-pace-r1
       active_qualification_profile: classroom-d13-v3
@@ -9299,7 +9534,54 @@ parallel_lanes:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-CLASSROOM-D2-D4-001.md
       - docs/product/electronics/tasks/TASK-ELECTRONICS-CLASSROOM-D13-001.md
       - docs/product/electronics/lessons/D2_D4_CLASSROOM.md
-      next_action: After canonical selection and author FET smoke STOP, implement only the card's bounded D2 orchestration repair. Five real autosaves overlap corresponding captures and must finish full PUT200/request/response/GET/source/revision proof before next edit or reopen. Take seven native PNGs within300 capture after real LOW/HIGH references. Preserve six existing Stops and fifth100/300 uninterrupted Run-to-Reset; close acquisition windows with explicit indices/time/generation, validate49states/eight cycles before Stop, retain active observer Stop1s and every late/Stop/Reset raw row through explicit cutoff in six lossless archive groups for seven captures. Use the selected atomic11-array capture-before-clear/pending-ACK protocol; fifth and Reset share one contiguous segment after Reset Stop without an intervening heavy clone. Never filter in-window causal failures, drop data or reset an unarchived buffer. Preserve all fixed criteria and run unchanged required exact-source gates/native review; strict reported separately. Forward PR652 only after independent review and root publication; no acceptance by historical evidence.
+      led_publication_selection:
+        date: '2026-10-20'
+        author: /root/led_publication_repair_author
+        independent_reviewer: NEW independent reviewer who did not author this slice
+        stage: deterministic_before_then_conditional_minimal_led_publication_repair
+        retained_candidate_head: 793fc599b2a2f0182147b06e0650c51fe386a993
+        diagnostic_evidence: GitHub run39455455432/artifact12283505079 selected-member receipts (not whole-ZIP digest verification), local receipt Temp/asa-39455455432-range/REPORT.txt; case200 generation3 firstHIGH64915.7 DOM65052.7 paint65075.4; asset already warm. Receipt/preparation/React/RAF/ACK causality remains to be separated, not a proved root cause.
+        separate_unresolved_failure: Blockly1ms delta375.7315ms exceeds250ms; not repaired or waived by this publication slice.
+        owner_exception: Owner explicitly permits this bounded LED publication work in a clean separate tree despite WAITING_HANDOFF on teacher-pr582-redesign/.github/workflows/classroom-owner.yml. Preserve that foreign file and tree; do not disable preflight or claim SAFE_TO_START.
+        stopped_d13_handoff: Owner confirmed stopped D13 author and accepted preserved handoff; keep dirty electronics-classroom-d13-candidate-20261019 tree untouched and retain24c4acf source in PR652. No competing writer or copying its uncommitted files.
+        expected_product_paths:
+        - apps/web/src/electronics/use-electronics-workbench.ts
+        - apps/web/src/electronics/led-temporal-presentation.ts
+        - apps/web/src/electronics/testing/led-temporal-presentation.spec.ts
+        scope_override: Only this bounded LED slice supersedes the earlier orchestration-only production freeze. First prove the actual-presenter BEFORE with H0 native/layout ACK at wall0, same-generation HIGH receipt at wall1ms/edge537us/window6250us and RAF40/80/120ms (predicted null/null/HIGH,119ms; not measured evidence). If discriminating regression confirms the barrier and NEW independent proposal review confirms the H0/native ACK invariant, permit ONLY canPublishDistinctFrame threshold >2 to >0 and targeted same-RAF blocked/next-RAF allowed/H0 not-ACK held/reset/foreign-generation/joint-frame regressions. Otherwise stop behavior edits; add passive boundary instrumentation only if the regression does not distinguish the cause. No hopeful unchanged CI rerun.
+        preservation: Preserve all171 cases, 50ms publication, pace0.125,6250us cap, all existing timeouts, physics and timing, gates, full raw evidence, archive protocol, histories and acceptance blockers. No workflow, core, renderer, assets, dependency, deployment or school-installation changes.
+      led_publication_budget_composition:
+        selected_base_main: 13ab3635587a201bc2cc78e88b9a9f66fce72102
+        stage: necessary_private_field_bundle_budget_repair
+        evidence: Completed focused job118871744009 on exact914 candidate reports SchematicEditor218.32kB above218000-byte cap; exact bundle bytes are not available in that log. Local receipt Temp/asa-led-914-ci/strict-focused.log SHA256fd424864e82e4efec1e8c2f57ba69beb54d70d8028e9d200d5bbe731d98ef44c.
+        author: /root/led_publication_repair_author
+        independent_reviewer: NEW independent reviewer assigned by root after exact source freeze
+        conditional_scope_extension: Necessary composition-budget repair in the same649 slice, not general cleanup. ONLY rename six private fields and their internal class references in LedTemporalPresentation; retain the prior >0 publication repair and all public behavior.
+        private_renames: presentedFrame to shown; pendingFrame to pending; animationFrame to raf; committedAnimationFrame to ackRaf; indicatorHistories to indicators; frameSequence to sequence.
+        preservation: Public keys, getters and returned frame objects remain unchanged. No algorithm, physics, pacing, precision, native lease, ACK, Reset, workflow, dependency, foreign-source or threshold change. Preserve prior selections, teacher exception, stopped D13 handoff, gates, acceptance blockers and all history.
+        required_verification: Prove no external repository references to these private fields; AST equivalence modulo ONLY six private renames; all100 presenter tests; targeted types; production Vite bundle at most218000 bytes before main integration, verified by exact file bytes or a proved UTF-8 Vite upper bound below the cap. Estimated384 source bytes is only an estimate, never actual bundle PASS.
+      committed_horizon_repair_selection:
+        selected_base_main: 7d4b00b74094076676b2af82dd0226ec24cc72aa
+        stage: bounded_host_committed_horizon_deduplication
+        source_publication: PR652 integrated at main628a5b5a999998b008e18e5ab61e843cb5d8b25b by owner instruction; source publication is not technical or owner acceptance.
+        final_classroom_result: FAIL220PASS18FAIL; preserve the actual source-bound run and raw evidence, not acceptance.
+        final_strict_result: FAIL211PASS27FAIL; preserve all original assertions and failures.
+        production_bundle_bytes: 217938
+        unchanged_production_bundle_cap_bytes: 218000
+        unresolved_d2_classification: The final D2 failure is the Reset pre-H0 oracle; it does not establish a product publication lag above50ms. Separate read-only raw intake must distinguish lifecycle/oracle cause before any corresponding repair. Earlier case200 raw remains historical, not a classification of this final failure.
+        owner_goal: Continue the original Issue546 real-time Arduino and visible LED goal. Common pace0.125 is a historical intermediate classroom boundary, never full-real-time acceptance. This selected repair MUST NOT change pace or lookahead without separately proved compute headroom and canonical selection.
+        causal_input: Saved Blockly1ms trace has149 of602 requests repeating an already committed horizon,627.6ms compute and1463.5ms roundtrip on those requests. This identifies avoidable work, not sufficient headroom or a sole root cause.
+        author: NEW bounded author assigned by root after canonical main publication
+        independent_reviewer: NEW independent exact-SHA reviewer assigned by root; never the author
+        expected_product_paths:
+        - apps/web/src/electronics/use-electronics-workbench.ts
+        - apps/web/src/electronics/live-simulation-worker-controller.ts
+        - apps/web/src/electronics/testing/use-electronics-workbench-clock.spec.ts
+        - apps/web/src/electronics/testing/live-simulation-worker-controller.spec.ts
+        scope_override: Supersede the completed private-field authoring instruction only for deduplicating unjustified already-committed-horizon requests in the existing host/controller. Preserve legitimate yielded continuation, H0 initialization, pending inputs, generation/source/document identity and canonical state. No presenter, solver, runtime interpreter, physical timing, workflow, dependency, artwork or foreign module change.
+        required_verification: Meaningful regression must discriminate duplicate committed-ready requests from necessary yielded continuation and same-horizon input/lifecycle work. Preserve complete ready results and every canonical runtime state, native readiness and ACK, independent ports, Reset/Stop/cancellation and stale/failure guards. Reuse the saved request sequence for before/after request counts, reached model time and compute/elapsed evidence; no repeated measurements without a new reason. Then focused checks, NEW independent exact-SHA review and required exact-source built-editor evidence; no timeout, tolerance, precision or assertion weakening.
+        preservation: Keep all historical source/reviews/failures, all gates and acceptance blockers,0.125 current pace,6250us cap,50ms publication and full raw evidence. Preserve the explicit teacher-workflow limited exception and stopped D13 handoff without changing either foreign tree. No school installation, Docker, network or database action.
+      next_action: Publish this canonical two-document selection on main before product writes; root then assigns one bounded host/controller author and a separate independent reviewer. Independently classify the final D2 Reset pre-H0 raw evidence without treating it as a proved50ms product defect. Freeze the deduplication candidate and review its actual diff and saved-sequence benefit before required exact-source gates. Do not claim1x or change pace until compute headroom is proved; source publication does not close649,546 or any acceptance blocker.
     previous_task:
       id: TASK-ELECTRONICS-CLASSROOM-D13-001
       issue: 638

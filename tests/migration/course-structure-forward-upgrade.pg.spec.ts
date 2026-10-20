@@ -100,7 +100,11 @@ describe('Course Builder structure forward upgrade', () => {
         '0227', // AI model catalog and isolated provider credentials; preserves course and learner history.
         '0228', // Searchable AI archives and immutable answer variants preserve course and learner history.
         '0229', // Private AI attachment storage preserves existing messages, receipts and course history.
+        '0230', // Read-only historical course version pins preserve published data.
+        '0231', // Structured prepublish diagnostics preserve exact publication receipts.
+        '0232', // Archive and assignment serialize without rewriting existing delivery.
         '0233', // Function-local participant read JIT settings preserve definitions and data.
+        '0234', // Explicit immutable Public Projects publication; protects originals.
       ];
       const pre153 = plan.filter((item) => Number(item.version) <= 152);
       const upgradePlan = plan.filter((item) => Number(item.version) > 152);
@@ -360,7 +364,11 @@ describe('Course Builder structure forward upgrade', () => {
           '0227',
           '0228',
           '0229',
+          '0230',
+          '0231',
+          '0232',
           '0233',
+          '0234',
         ]);
         expect(
           await applyIsolatedTestPlan(
