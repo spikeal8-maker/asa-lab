@@ -8,6 +8,7 @@ import {
   PublicProjectsController,
 } from './public-projects.controller.js';
 import { SESSION_COOKIE } from './tokens.js';
+import { createApiModuleRegistry } from './module-registry.js';
 import { STUDENT_SESSION_COOKIE } from './seat-context.js';
 import { GalleryController } from './gallery.controller.js';
 
@@ -59,7 +60,11 @@ function setup(rows: unknown[] = [], signedIn = true) {
   return {
     query,
     resolve,
-    publicApi: new PublicProjectsController(pool),
+    publicApi: new PublicProjectsController(
+      pool,
+      { resolve } as unknown as ActiveContextUseCase,
+      createApiModuleRegistry(),
+    ),
     owner: new ProjectPublicationController({ resolve } as unknown as ActiveContextUseCase, pool),
   };
 }
@@ -77,6 +82,18 @@ function reply() {
 }
 
 describe('Public Projects anonymous projection', () => {
+  it.each(['electronics', 'three-d'])(
+    'advertises copy for public-domain %s only',
+    async (moduleKey) => {
+      const { publicApi } = setup([{ ...row, module_key: moduleKey, license: 'public-domain' }]);
+      const result = await publicApi.detail(PUBLICATION);
+      expect(result.publication.capabilities).toEqual({
+        viewer: 'static',
+        canCopy: true,
+        downloadFormats: [],
+      });
+    },
+  );
   it('keeps the retired Gallery detail closed even if old storage could return a document', async () => {
     const query = vi.fn(async () => ({ rows: [{ document_json: { privateDraft: 'secret' } }] }));
     const legacy = new GalleryController(

@@ -52,6 +52,12 @@ export interface PublicProjectList {
   readonly nextOffset: number | null;
 }
 
+export interface PublicProjectCopy {
+  readonly projectId: string;
+  readonly moduleKey: string;
+  readonly created: boolean;
+}
+
 /** Public reads use only the immutable publication namespace. */
 export const publicProjectsApi = {
   list: (input: { search?: string; module?: string; offset?: number } = {}) => {
@@ -65,6 +71,13 @@ export const publicProjectsApi = {
       `/api/public-projects/${encodeURIComponent(publicationId)}`,
       { cache: 'no-store' },
     ),
+  copy: (publicationId: string, revisionId: string, idempotencyKey: string, signal: AbortSignal) =>
+    call<PublicProjectCopy>(`/api/public-projects/${encodeURIComponent(publicationId)}/copy`, {
+      method: 'POST',
+      headers: { 'Idempotency-Key': idempotencyKey },
+      body: JSON.stringify({ revisionId }),
+      signal,
+    }),
   status: (projectId: string) =>
     call<ProjectPublicationStatus>(`/api/projects/${encodeURIComponent(projectId)}/publication`, {
       cache: 'no-store',
