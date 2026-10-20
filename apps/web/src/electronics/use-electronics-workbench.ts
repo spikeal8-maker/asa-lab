@@ -412,7 +412,8 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
     const publication = opticalPublicationRef.current;
     if (!publication || liveObservation !== publication.next) return;
     // This is a DOM-commit ACK, not a claim that the browser has painted. The
-    // presenter alone permits another distinct vector after two complete RAFs.
+    // presenter permits another distinct vector on the next shared RAF, leaving
+    // this RAF's native commit a paint opportunity before the next publication.
     if (
       opticalAssetLeasesReady(publication.pending, true) &&
       publication.acknowledge(Math.round(window.performance.now() * 1000))

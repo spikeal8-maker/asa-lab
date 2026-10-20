@@ -308,6 +308,36 @@ describe('actual browser joint provenance oracle counterexamples', () => {
 });
 
 describe('accepted per-LED temporal presentation', () => {
+  it('publishes a ready joint HIGH on the next 40 ms RAF after native H0 ACK', () => {
+    const presentation = new LedTemporalPresentation();
+    const initial = window(
+      0,
+      0,
+      ['d2', 'd3', 'd4'].map((id) => channel(id, [point(0, 0)])),
+    );
+    presentation.accept(electrical(initial), initial, 0);
+    const h0 = presentation.prepareFrame(0)!;
+    expect([...h0.brightness.values()]).toEqual([0, 0, 0]);
+    // Only the real native/layout ACK permits progress, never preparation alone.
+    expect(presentation.sample().size).toBe(0);
+    expect(presentation.acknowledgeFrame(h0, 0, true)).toBe(true);
+    expect(presentation.canPublishDistinctFrame).toBe(false);
+    const observation = window(0, 6_250, [
+      channel('d2', [point(0, 0), point(537, 70), point(6_250, 70)]),
+      channel('d3', [point(0, 0), point(6_250, 0)]),
+      channel('d4', [point(0, 0), point(6_250, 0)]),
+    ]);
+    presentation.accept(electrical(observation), observation, 1_000);
+    expect(presentation.canPublishDistinctFrame).toBe(false);
+    expect([...presentation.sample().values()]).toEqual([0, 0, 0]);
+    const high = presentation.prepareFrame(40_000);
+    expect(high).not.toBeNull();
+    expect([...high!.brightness.values()]).toEqual([70, 0, 0]);
+    expect(presentation.acknowledgeFrame(high!, 40_000, true)).toBe(true);
+    expect(presentation.canPublishDistinctFrame).toBe(false);
+    expect(40_000 - 1_000).toBeLessThanOrEqual(50_000);
+  });
+
   it('ingests complete windows without publishing a frame or moving the acknowledged cursor', () => {
     const presentation = new LedTemporalPresentation();
     const first = window(0, 25_000, [square(0, 25_000, 100_000)]);
@@ -406,11 +436,10 @@ describe('accepted per-LED temporal presentation', () => {
     expect(classroomRequestedHorizon(0, 100_000, presentation.presentedMicroseconds)).toBe(6_250);
     // Repeated native preparation reads cannot count as shared RAFs.
     for (let read = 0; read < 10; read++) expect(presentation.nextNativeAssetFrame).toEqual(next);
-    expect(presentation.prepareFrame(1_000)).toBeNull();
-    expect(presentation.prepareFrame(2_000)).toBeNull();
-    const display = presentation.prepareFrame(3_000)!;
+    expect(presentation.canPublishDistinctFrame).toBe(false);
+    const display = presentation.prepareFrame(1_000)!;
     expect(display.brightness.get('d2')).toBe(70);
-    expect(presentation.acknowledgeFrame(display, 3_000)).toBe(true);
+    expect(presentation.acknowledgeFrame(display, 1_000)).toBe(true);
   });
 
   it('includes the accepted fast-cycle expiry when finding the next native asset', () => {
@@ -449,9 +478,7 @@ describe('accepted per-LED temporal presentation', () => {
     ]);
     presentation.accept(electrical(first), first, 0);
     drawFrame(presentation, 0);
-    expect(presentation.prepareFrame(10_000)).toBeNull();
-    expect(presentation.prepareFrame(20_000)).toBeNull();
-    const high = presentation.prepareFrame(30_000)!;
+    const high = presentation.prepareFrame(10_000)!;
     expect(high.brightness.get('led')).toBe(80);
     const next = window(25_000, 25_000, [channel('led', [point(25_000, 80)])]);
     presentation.accept(electrical(next), next, 50_000);
@@ -470,7 +497,7 @@ describe('accepted per-LED temporal presentation', () => {
     expect(after.atMicroseconds - high.atMicroseconds).toBe(1_250);
   });
 
-  it('requires two complete shared RAF turns after an actual distinct DOM commit', () => {
+  it('requires the next shared RAF after an actual distinct DOM commit', () => {
     const presentation = new LedTemporalPresentation();
     const observation = window(0, 25_000, [
       channel('led', [point(0, 0), point(1, 80), point(25_000, 80)]),
@@ -478,18 +505,13 @@ describe('accepted per-LED temporal presentation', () => {
     presentation.accept(electrical(observation), observation, 0);
     const low = presentation.prepareFrame(0)!;
     expect(presentation.acknowledgeFrame(low, 1_000)).toBe(true);
-    expect(presentation.prepareFrame(17_000)).toBeNull();
-    expect(presentation.prepareFrame(34_000)).toBeNull();
-    const high = presentation.prepareFrame(51_000)!;
+    expect(presentation.canPublishDistinctFrame).toBe(false);
+    const high = presentation.prepareFrame(17_000)!;
     expect(high.brightness.get('led')).toBe(80);
     expect(presentation.sample().get('led')).toBe(0);
-    expect(presentation.acknowledgeFrame(high, 53_000)).toBe(true);
+    expect(presentation.acknowledgeFrame(high, 18_000)).toBe(true);
     expect(presentation.canPublishDistinctFrame).toBe(false);
-    drawFrame(presentation, 68_000);
-    expect(presentation.canPublishDistinctFrame).toBe(false);
-    drawFrame(presentation, 85_000);
-    expect(presentation.canPublishDistinctFrame).toBe(false);
-    drawFrame(presentation, 102_000);
+    drawFrame(presentation, 34_000);
     expect(presentation.canPublishDistinctFrame).toBe(true);
   });
 
@@ -1837,7 +1859,7 @@ describe('ordinary LED native readiness and the shared host publication barrier'
     },
   );
 
-  it('keeps a valid committed vector during the ordinary two-RAF hold', () => {
+  it('keeps a valid committed vector until the host can publish the next frame', () => {
     const presenter = new LedTemporalPresentation();
     const initial = window(0, 25_000, [
       channel('led', [point(0, 0), point(1, 80), point(25_000, 80)]),

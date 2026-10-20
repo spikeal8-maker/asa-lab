@@ -297,7 +297,7 @@ export class LedTemporalPresentation {
   }
 
   get canPublishDistinctFrame(): boolean {
-    return this.presentedFrame === null || this.animationFrame - this.committedAnimationFrame > 2;
+    return this.presentedFrame === null || this.animationFrame - this.committedAnimationFrame > 0;
   }
 
   reset(): void {
