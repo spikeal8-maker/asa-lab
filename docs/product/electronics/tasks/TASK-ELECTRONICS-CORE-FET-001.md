@@ -257,3 +257,38 @@ separate baseline fix or explicit owner integration-boundary decision is require
 before merge; this card does not select either outcome or authorise foreign
 repairs. PR660 stays Draft, Issue658 open, owner acceptance pending. No resumed
 R27/Issue546 work, deployment or working-data operation is authorised.
+
+
+## Final classroom failure and bounded native review, 2026-10-20
+
+Superseding the earlier in-progress observation: exact-e826 classroom
+`39448747806` completed **FAIL:168 PASS /2 FAIL of170**. General
+`39445810773` remains SUCCESS; strict `39445810814` remains FAIL159/11.
+Verified classroom artifact `12278554216`,268394292bytes, ZIP SHA256
+`5ebf51135c8572bca93e62eb88f12c41001fa50bae1efb07b4e1a5071ea23d16`.
+Independent reader report `classroom-39448747806-review/review-report.json`,
+SHA256 `5d92085b45e4e5d3d8215cbac07494cf80b697b05c365cd62df78207473ddd22`,
+records11of12 qualification ledgers PASS. Blockly is FAIL_OR_INCOMPLETE: only
+100ms was reached;50ms and1ms remain NOT_REACHED, never PASS by omission.
+
+Its generation1 ready record at4995.3ms has brightness70/0/0; paint at5051.4ms
+still000 with loaded images,56.1ms after ready. First70 paint is5090.1ms.
+The fixture has Uno/resistor/ordinary LED, no FET. This observes a native
+ready/paint mismatch, not proof of the complete pipeline cause. The other
+classroom failure is catalog missing image, retained as known baseline. The
+total168/2 and catalog classification are controller-supplied, not independently
+recomputed by this bounded artifact reader.
+
+Five native D13 verdict files report PASS with empty findings. Independent visual
+inspection covered ONLY matrix300 high/low and negative-open PNGs; static samples
+do not prove temporal acceptance. Full native temporal review, all raw
+wire/receipt hashes and final-prefix source pins were NOT independently checked;
+expected tree was controller-supplied. No replay or product run was performed by
+the reader. Do not promote these bounded findings to full native PASS.
+
+Both required browser gates remain failed. Preserve
+`ELECTRONICS-658-STRICT-BASELINE`, owner acceptance pending and PR660 Draft;
+no integration, technical acceptance, Issue closure, release claim or gate waiver.
+The separate baseline-fix/explicit-owner-boundary decision and final independent
+acceptance requirements remain unchanged. This update selects no product repair,
+foreign source changes, R27/546 resume or new test execution.
