@@ -761,7 +761,9 @@ export class CoursesController {
            'pointer',pin.pointer,'pinKind',pin.pin_kind,'available',pin.available,
            'activityId',pin.activity_id,'versionId',pin.version_id,
            'versionNumber',pin.version_number,'title',pin.title,
-           'instructions',pin.instructions,'goal',pin.goal,'blocks',pin.blocks,
+           'instructions',pin.instructions,'goal',pin.goal,
+           'goalSnapshotPresent',pin.goal_snapshot_present,
+           'blocks',pin.blocks,'blocksSnapshotPresent',pin.blocks_snapshot_present,
            'moduleKey',pin.module_key,'resultMode',pin.result_mode,
            'maxPoints',pin.max_points,'policySnapshot',pin.policy_snapshot,
            'contentDigest',pin.content_digest) ORDER BY pin.pointer)

@@ -1,6 +1,22 @@
 import { randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import Ajv2020 from 'ajv/dist/2020.js';
+import addFormats from 'ajv-formats';
+import type { FastifyRequest } from 'fastify';
 import type pg from 'pg';
 import { afterAll, beforeAll, expect, it } from 'vitest';
+import { parse } from 'yaml';
+import { CoursesController } from '../../apps/api/dist/courses.controller.js';
+import type { PublishedAuthorVersion } from '../../apps/web/src/api';
+import { courseVersionChanges } from '../../apps/web/src/components/course-version-diff';
+import {
+  ActiveContextUseCase,
+  createSessionToken,
+  hashSessionToken,
+  PgAccountDirectory,
+  PgSessionStore,
+  PgSessionV2Store,
+} from '../../contexts/identity/dist/index.js';
 import { seedTeacher, testAdminPool, testAppPool, type SeededTeacher } from '../portal/helpers';
 
 let admin: pg.Pool, app: pg.Pool, author: SeededTeacher, other: SeededTeacher;
@@ -27,7 +43,9 @@ type Pin = {
   title: string | null;
   instructions: string | null;
   goal: string | null;
+  goal_snapshot_present: boolean | null;
   blocks: unknown;
+  blocks_snapshot_present: boolean | null;
   module_key: string | null;
   result_mode: string | null;
   max_points: number | null;
@@ -268,6 +286,237 @@ it('reads exact published lesson, project-block and manual-block pins after a po
   expect(await pins()).toEqual(before);
 });
 
+it.each([false, true])(
+  'preserves pre-blocks history with goal snapshot present=%s through the actual restricted API and OpenAPI contract',
+  async (goalPresent) => {
+    const created = (
+      await tx(author.tenantId, (client) =>
+        client.query(
+          "SELECT * FROM learning_activity_create($1,$2,'school','private','project','Историческая практика','Сохранённая инструкция','completion',NULL,$3::jsonb,'electronics',NULL,NULL,NULL,$4,'null'::jsonb,'[]'::jsonb)",
+          [principal, author.tenantId, JSON.stringify(policies), randomUUID()],
+        ),
+      )
+    ).rows[0];
+    expect(created.result_code).toBe('ok');
+    // INSERT a separate valid canonical row with the exact snapshot fields of
+    // the 0163 (goal absent) or 0168 (goal present) publisher. The 0169 blocks
+    // columns retain their migration defaults. Never UPDATE a frozen version.
+    const old = (
+      await admin.query(
+        `WITH historical_snapshot AS (
+          SELECT activity.*, jsonb_build_object(
+            'activityId',activity.id,'versionNumber',1,
+            'kind',draft_payload->>'kind','title',draft_payload->>'title',
+            'instructions',draft_payload->'instructions',
+            'resultMode',draft_payload->>'resultMode','maxPoints',draft_payload->'maxPoints',
+            'policies',draft_payload->'policies','moduleKey',draft_payload->'moduleKey',
+            'quizVersionId',draft_payload->'quizVersionId',
+            'starterProjectVersionId',draft_payload->'starterProjectVersionId','sample',NULL,
+            'provenance',jsonb_build_object(
+              'authoringOrigin',authoring_origin,'sourceVersionId',draft_base_version_id,
+              'sourceTeacherAssignmentId',source_teacher_assignment_id,
+              'sourceDraftRevision',draft_revision)
+          ) || CASE WHEN $4 THEN jsonb_build_object('goal',NULL) ELSE '{}'::jsonb END AS snapshot
+          FROM learning_activities activity WHERE id=$1 AND tenant_id=$2
+        )
+        INSERT INTO learning_activity_versions (
+          tenant_id,activity_id,version_number,title,instructions,activity_type,module_key,
+          max_points,scoring_policy,content_digest,canonical_kind,result_mode,policy_snapshot,
+          quiz_version_id,starter_project_version_id,provenance,source_draft_revision,
+          publication_request_id,published_by_principal_id,canonical_contract_version,
+          goal,goal_snapshot_present
+        ) SELECT tenant_id,id,1,draft_payload->>'title',draft_payload->>'instructions',
+          'project','electronics',NULL,jsonb_build_object('kind','canonical','resultMode','completion'),
+          learning_activity_snapshot_digest(snapshot),'project','completion',draft_payload->'policies',
+          NULL,NULL,snapshot->'provenance',draft_revision,$3,owner_principal_id,1,NULL,$4
+          FROM historical_snapshot RETURNING *`,
+        [created.activity_id, author.tenantId, randomUUID(), goalPresent],
+      )
+    ).rows[0];
+    expect(old).toMatchObject({
+      canonical_contract_version: 1,
+      goal: null,
+      goal_snapshot_present: goalPresent,
+      blocks: null,
+      blocks_snapshot_present: false,
+      instructions: 'Сохранённая инструкция',
+      policy_snapshot: policies,
+    });
+    const saved = (
+      await tx(author.tenantId, (client) =>
+        client.query(
+          "SELECT * FROM learning_activity_draft_put($1,$2,$3,1,'Историческая практика',NULL,'completion',NULL,$4::jsonb,'electronics',NULL,NULL,'null'::jsonb,'[]'::jsonb)",
+          [
+            principal,
+            author.tenantId,
+            created.activity_id,
+            JSON.stringify({ ...policies, attemptPolicy: { maxAttempts: 2 } }),
+          ],
+        ),
+      )
+    ).rows[0];
+    expect(saved.result_code).toBe('ok');
+    const latest = (
+      await tx(author.tenantId, (client) =>
+        client.query('SELECT * FROM learning_activity_publish($1,$2,$3,$4,$5)', [
+          principal,
+          author.tenantId,
+          created.activity_id,
+          saved.draft_revision,
+          randomUUID(),
+        ]),
+      )
+    ).rows[0];
+    expect(latest).toMatchObject({ result_code: 'ok', version_number: 2 });
+    const sectionId = randomUUID(),
+      lessonId = randomUUID();
+    const outline = (activityVersion: string) => ({
+      course: { title: 'История снимков', summary: null },
+      sections: [
+        {
+          sourceSectionId: sectionId,
+          title: 'Раздел',
+          summary: null,
+          lessons: [
+            {
+              sourceLessonId: lessonId,
+              title: 'Практика',
+              kind: 'assignment',
+              learningActivityVersionId: activityVersion,
+              blocks: [],
+            },
+          ],
+        },
+      ],
+    });
+    const beforeId = await historical(outline(old.id));
+    const afterId = await historical(outline(latest.activity_version_id));
+    const oldPins = await pins(courseId, beforeId);
+    expect(oldPins).toEqual([
+      expect.objectContaining({
+        available: true,
+        activity_id: created.activity_id,
+        version_id: old.id,
+        goal: null,
+        goal_snapshot_present: goalPresent,
+        blocks: null,
+        blocks_snapshot_present: false,
+        instructions: 'Сохранённая инструкция',
+        policy_snapshot: policies,
+        content_digest: old.content_digest,
+      }),
+    ]);
+    expect(await pins(courseId, afterId)).toEqual([
+      expect.objectContaining({
+        available: true,
+        version_id: latest.activity_version_id,
+        goal: null,
+        goal_snapshot_present: true,
+        blocks: [],
+        blocks_snapshot_present: true,
+      }),
+    ]);
+
+    // Real session/account adapters, real controller query, restricted PG role:
+    // neither authentication results nor history descriptors are mocked.
+    const accounts = new PgAccountDirectory(app);
+    const actor = await accounts.accountForUser(author.tenantId, author.teacherId);
+    expect(actor?.principalId).toBe(principal);
+    const token = createSessionToken();
+    const sessions = new PgSessionV2Store(app);
+    await sessions.create(principal, actor!.workspaceId, hashSessionToken(token), 1);
+    try {
+      const controller = new CoursesController(
+        new ActiveContextUseCase(sessions, new PgSessionStore(app), accounts),
+        accounts,
+        app,
+      );
+      const response = await controller.versions(
+        { cookies: { asa_session: token } } as unknown as FastifyRequest,
+        courseId,
+      );
+      const document = parse(readFileSync('schemas/openapi.yaml', 'utf8')) as {
+        components: { schemas: Record<string, unknown> };
+        paths: Record<
+          string,
+          {
+            get: {
+              responses: Record<
+                string,
+                {
+                  content: { 'application/json': { schema: Record<string, unknown> } };
+                }
+              >;
+            };
+          }
+        >;
+      };
+      const ajv = new Ajv2020({ strict: false, allErrors: true });
+      addFormats(ajv);
+      const validate = ajv.compile({
+        ...document.paths['/api/courses/{courseId}/versions']!.get.responses['200']!.content[
+          'application/json'
+        ].schema,
+        components: document.components,
+      });
+      expect(validate(response), JSON.stringify(validate.errors)).toBe(true);
+      const before = response.items.find((version) => version.id === beforeId)!;
+      const after = response.items.find((version) => version.id === afterId)!;
+      expect(before.pinnedActivities).toEqual([
+        expect.objectContaining({
+          available: true,
+          versionId: old.id,
+          goal: null,
+          goalSnapshotPresent: goalPresent,
+          blocks: null,
+          blocksSnapshotPresent: false,
+          instructions: 'Сохранённая инструкция',
+          policySnapshot: policies,
+          contentDigest: old.content_digest,
+        }),
+      ]);
+      expect(after.pinnedActivities).toEqual([
+        expect.objectContaining({
+          available: true,
+          versionId: latest.activity_version_id,
+          goal: null,
+          goalSnapshotPresent: true,
+          blocks: [],
+          blocksSnapshotPresent: true,
+        }),
+      ]);
+      expect(before.outline).toEqual(outline(old.id));
+      const changes = courseVersionChanges(
+        before as PublishedAuthorVersion,
+        after as PublishedAuthorVersion,
+      );
+      expect(
+        changes.filter((change) => change.kind === 'unavailable').map((change) => change.field),
+      ).toEqual(goalPresent ? ['Материалы задания'] : ['Цель задания', 'Материалы задания']);
+      expect(changes).toContainEqual(
+        expect.objectContaining({
+          field: 'Попытки и время выполнения · Число попыток',
+          before: { state: 'value', value: 1 },
+          after: { state: 'value', value: 2 },
+        }),
+      );
+      expect(changes).toContainEqual(
+        expect.objectContaining({
+          field: 'Инструкция задания',
+          before: { state: 'value', value: 'Сохранённая инструкция' },
+          after: { state: 'null' },
+        }),
+      );
+      expect(
+        (await admin.query('SELECT * FROM learning_activity_versions WHERE id=$1', [old.id]))
+          .rows[0],
+      ).toEqual(old);
+    } finally {
+      await sessions.revoke(hashSessionToken(token));
+    }
+  },
+);
+
 it('does not disclose foreign course/version pairs, another owner or a random exact version', async () => {
   expect(await pins(otherCourseId)).toEqual([]);
   expect(await pins(courseId, randomUUID())).toEqual([]);
@@ -321,7 +570,7 @@ it('marks foreign, wrong-kind, missing and malformed historical pins unavailable
     const metadata = Object.entries(row).filter(
       ([key]) => !['pointer', 'pin_kind', 'available'].includes(key),
     );
-    expect(metadata.map(([, value]) => value)).toEqual(Array(12).fill(null));
+    expect(metadata.map(([, value]) => value)).toEqual(Array(14).fill(null));
   }
   for (const sections of [
     null,

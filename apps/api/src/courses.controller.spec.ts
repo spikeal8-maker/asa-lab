@@ -70,7 +70,17 @@ describe('course outline API', () => {
         activityId: null,
         versionId: null,
         versionNumber: null,
+        title: null,
+        instructions: null,
+        goal: null,
+        goalSnapshotPresent: null,
+        blocks: null,
+        blocksSnapshotPresent: null,
+        moduleKey: null,
+        resultMode: null,
+        maxPoints: null,
         policySnapshot: null,
+        contentDigest: null,
       },
     ];
     const target = controller([

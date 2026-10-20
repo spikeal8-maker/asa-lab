@@ -22,7 +22,9 @@ CREATE FUNCTION public.course_author_version_pins(
 RETURNS TABLE (
   pointer text, pin_kind varchar, available boolean,
   activity_id uuid, version_id uuid, version_number integer,
-  title varchar, instructions varchar, goal varchar, blocks jsonb,
+  title varchar, instructions varchar,
+  goal varchar, goal_snapshot_present boolean,
+  blocks jsonb, blocks_snapshot_present boolean,
   module_key varchar, result_mode varchar, max_points integer,
   policy_snapshot jsonb, content_digest varchar
 )
@@ -81,13 +83,15 @@ SET search_path = pg_catalog, pg_temp AS $$
   )
   SELECT pin.pointer, pin.pin_kind, exact.version_id IS NOT NULL,
     exact.activity_id, exact.version_id, exact.version_number,
-    exact.title, exact.instructions, exact.goal, exact.blocks,
+    exact.title, exact.instructions,
+    exact.goal, exact.goal_snapshot_present, exact.blocks, exact.blocks_snapshot_present,
     exact.module_key, exact.result_mode, exact.max_points,
     exact.policy_snapshot, exact.content_digest
     FROM pins pin
     LEFT JOIN LATERAL (
       SELECT version.activity_id, version.id AS version_id, version.version_number,
-        version.title, version.instructions, version.goal, version.blocks,
+        version.title, version.instructions,
+        version.goal, version.goal_snapshot_present, version.blocks, version.blocks_snapshot_present,
         version.module_key, version.result_mode, version.max_points,
         version.policy_snapshot, version.content_digest
         FROM public.learning_activity_versions version

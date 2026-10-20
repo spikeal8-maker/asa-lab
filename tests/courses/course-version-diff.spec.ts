@@ -1,5 +1,12 @@
+import { readFileSync } from 'node:fs';
+import Ajv2020 from 'ajv/dist/2020.js';
+import addFormats from 'ajv-formats';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { parse } from 'yaml';
 import { describe, expect, it } from 'vitest';
 import type { PublishedAuthorVersion, PublishedCoursePin } from '../../apps/web/src/api';
+import { CourseVersionComparison } from '../../apps/web/src/components/CourseVersionComparison';
 import {
   courseVersionChanges,
   courseVersionStructuralDiff,
@@ -17,7 +24,9 @@ function pin(id = 'lav1', number = 1): PublishedCoursePin {
     title: 'Практика',
     instructions: 'Соберите схему',
     goal: null,
+    goalSnapshotPresent: true,
     blocks: [],
+    blocksSnapshotPresent: true,
     moduleKey: 'electronics',
     resultMode: 'graded',
     maxPoints: 10,
@@ -106,6 +115,107 @@ describe('courseVersionStructuralDiff', () => {
     right.id = 'v2';
     right.versionNumber = 2;
     expect(courseVersionStructuralDiff(left, right)).toEqual([]);
+  });
+
+  it('distinguishes absent historical snapshots from explicit null goal and empty materials while retaining known conditions', () => {
+    const left = version(1),
+      right = version(2);
+    Object.assign(left.pinnedActivities![0]!, {
+      goalSnapshotPresent: false,
+      blocksSnapshotPresent: false,
+      blocks: null,
+    });
+    right.outline!.sections[0]!.lessons[0]!.learningActivityVersionId = 'lav2';
+    right.pinnedActivities = [
+      {
+        ...pin('lav2', 2),
+        instructions: 'Добавьте выключатель',
+        policySnapshot: { ...pin().policySnapshot, attemptPolicy: { maxAttempts: 2 } },
+      },
+    ];
+    const changes = courseVersionChanges(left, right);
+    expect(changes.filter((change) => change.kind === 'unavailable')).toEqual([
+      expect.objectContaining({
+        field: 'Цель задания',
+        before: { state: 'unavailable' },
+        after: { state: 'null' },
+      }),
+      expect.objectContaining({
+        field: 'Материалы задания',
+        before: { state: 'unavailable' },
+        after: { state: 'value', value: [] },
+      }),
+    ]);
+    expect(changes).toContainEqual(
+      expect.objectContaining({
+        field: 'Инструкция задания',
+        before: { state: 'value', value: 'Соберите схему' },
+        after: { state: 'value', value: 'Добавьте выключатель' },
+      }),
+    );
+    expect(changes).toContainEqual(
+      expect.objectContaining({
+        field: 'Попытки и время выполнения · Число попыток',
+        before: { state: 'value', value: 1 },
+        after: { state: 'value', value: 2 },
+      }),
+    );
+  });
+
+  it('renders incomplete history when both course versions pin the same old activity without snapshots', () => {
+    const before = version(1);
+    Object.assign(before.pinnedActivities![0]!, {
+      goalSnapshotPresent: false,
+      blocksSnapshotPresent: false,
+      blocks: null,
+    });
+    const after = structuredClone(before);
+    after.id = 'v2';
+    after.versionNumber = 2;
+    const changes = courseVersionChanges(before, after);
+    expect(changes).toHaveLength(2);
+    expect(changes.every((change) => change.kind === 'unavailable')).toBe(true);
+    const markup = renderToStaticMarkup(createElement(CourseVersionComparison, { before, after }));
+    expect(markup).toContain('Сравнение неполное: часть исторических данных недоступна.');
+    expect(markup).toContain('Исторические данные недоступны');
+    expect(markup).not.toContain('Структурных изменений нет.');
+    expect(markup).not.toContain('Не задано');
+    expect(markup).not.toContain('Пустой список');
+  });
+
+  it('keeps a saved goal trustworthy when only the later blocks snapshot is absent', () => {
+    const left = version(1),
+      right = version(2);
+    Object.assign(left.pinnedActivities![0]!, { blocksSnapshotPresent: false, blocks: null });
+    const changes = courseVersionChanges(left, right);
+    expect(changes).toEqual([
+      expect.objectContaining({
+        field: 'Материалы задания',
+        kind: 'unavailable',
+        before: { state: 'unavailable' },
+        after: { state: 'value', value: [] },
+      }),
+    ]);
+    right.pinnedActivities![0]!.goal = 'Проверьте схему';
+    expect(courseVersionChanges(left, right)).toContainEqual(
+      expect.objectContaining({
+        field: 'Цель задания',
+        kind: 'changed',
+        before: { state: 'null' },
+        after: { state: 'value', value: 'Проверьте схему' },
+      }),
+    );
+  });
+
+  it('does not infer snapshot presence from a value when an older API omits the flags', () => {
+    const left = version(1),
+      right = version(2);
+    const legacy = left.pinnedActivities![0]! as unknown as Record<string, unknown>;
+    delete legacy['goalSnapshotPresent'];
+    delete legacy['blocksSnapshotPresent'];
+    const changes = courseVersionChanges(left, right);
+    expect(changes.filter((change) => change.kind === 'unavailable')).toHaveLength(2);
+    expect(changes.every((change) => change.before.state === 'unavailable')).toBe(true);
   });
 
   it('recognizes an exact historical policy change even when task text and marks are unchanged', () => {
@@ -424,5 +534,51 @@ describe('courseVersionStructuralDiff', () => {
     expect(courseVersionValueText({ state: 'missing' })).not.toBe(
       courseVersionValueText({ state: 'null' }),
     );
+  });
+});
+
+describe('published course history snapshot presence contract', () => {
+  const document = parse(readFileSync('schemas/openapi.yaml', 'utf8')) as {
+    components: { schemas: Record<string, unknown> };
+  };
+  const ajv = new Ajv2020({ strict: false, allErrors: true });
+  addFormats(ajv);
+  const validate = ajv.compile({
+    $ref: '#/components/schemas/PublishedAuthorCoursePin',
+    components: document.components,
+  });
+  const known = {
+    ...pin(),
+    activityId: '40000000-0000-4000-8000-000000000001',
+    versionId: '40000000-0000-4000-8000-000000000002',
+  };
+
+  it.each([
+    { goalSnapshotPresent: false, goal: null, blocksSnapshotPresent: false, blocks: null },
+    { goalSnapshotPresent: true, goal: null, blocksSnapshotPresent: false, blocks: null },
+    { goalSnapshotPresent: true, goal: null, blocksSnapshotPresent: true, blocks: [] },
+  ])(
+    'accepts valid historical presence states %j without discarding the available pin',
+    (snapshots) => {
+      expect(validate({ ...known, ...snapshots }), JSON.stringify(validate.errors)).toBe(true);
+    },
+  );
+
+  it.each([
+    { blocksSnapshotPresent: true, blocks: null },
+    { blocksSnapshotPresent: false, blocks: [] },
+    { goalSnapshotPresent: null },
+    { blocksSnapshotPresent: null },
+    { goalSnapshotPresent: undefined },
+  ])('rejects incoherent or absent snapshot metadata on an available pin: %j', (snapshots) => {
+    expect(validate({ ...known, ...snapshots })).toBe(false);
+  });
+
+  it('keeps all metadata including snapshot flags null when the exact pin is unavailable', () => {
+    const unavailable = Object.fromEntries(Object.keys(known).map((key) => [key, null]));
+    Object.assign(unavailable, { pointer: known.pointer, pinKind: 'project', available: false });
+    expect(validate(unavailable), JSON.stringify(validate.errors)).toBe(true);
+    expect(validate({ ...unavailable, goalSnapshotPresent: false })).toBe(false);
+    expect(validate({ ...unavailable, blocksSnapshotPresent: false })).toBe(false);
   });
 });

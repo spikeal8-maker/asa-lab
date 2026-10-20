@@ -8150,7 +8150,9 @@ components:
         - title
         - instructions
         - goal
+        - goalSnapshotPresent
         - blocks
+        - blocksSnapshotPresent
         - moduleKey
         - resultMode
         - maxPoints
@@ -8169,9 +8171,22 @@ components:
         title: { type: [string, 'null'] }
         instructions: { type: [string, 'null'] }
         goal: { type: [string, 'null'] }
+        goalSnapshotPresent:
+          type: [boolean, 'null']
+          description: >-
+            False means this historical version predates the goal snapshot; goal is
+            unknown even when its stored value is null. True preserves an explicit null
+            as a saved empty goal. Null occurs only when the entire pin is unavailable.
         blocks:
           type: [array, 'null']
           items: { type: object }
+        blocksSnapshotPresent:
+          type: [boolean, 'null']
+          description: >-
+            False means this historical version has no saved materials snapshot and
+            blocks is null, never a current projection. True means blocks is the exact
+            stored array, including an explicitly empty array. Null occurs only when
+            the entire pin is unavailable.
         moduleKey: { type: [string, 'null'] }
         resultMode: { type: [string, 'null'], enum: [ungraded, completion, graded, null] }
         maxPoints: { type: [integer, 'null'], minimum: 1 }
@@ -8187,10 +8202,18 @@ components:
             versionId: { type: string }
             versionNumber: { type: integer }
             title: { type: string }
-            blocks: { type: array }
+            goalSnapshotPresent: { type: boolean }
+            blocksSnapshotPresent: { type: boolean }
             resultMode: { type: string }
             policySnapshot: { type: object }
             contentDigest: { type: string }
+          oneOf:
+            - properties:
+                blocksSnapshotPresent: { const: true }
+                blocks: { type: array }
+            - properties:
+                blocksSnapshotPresent: { const: false }
+                blocks: { type: 'null' }
         - properties:
             available: { const: false }
             activityId: { type: 'null' }
@@ -8199,7 +8222,9 @@ components:
             title: { type: 'null' }
             instructions: { type: 'null' }
             goal: { type: 'null' }
+            goalSnapshotPresent: { type: 'null' }
             blocks: { type: 'null' }
+            blocksSnapshotPresent: { type: 'null' }
             moduleKey: { type: 'null' }
             resultMode: { type: 'null' }
             maxPoints: { type: 'null' }

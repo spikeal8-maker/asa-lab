@@ -414,6 +414,20 @@ export function courseVersionChanges(
   function exactPin(item: Practice | undefined): PublishedCoursePin | undefined {
     return item?.pin?.available && item.pin.versionId === item.reference ? item.pin : undefined;
   }
+  function snapshotValue(
+    item: Practice | undefined,
+    pin: PublishedCoursePin | undefined,
+    field: 'goal' | 'blocks',
+  ): CourseVersionValue {
+    if (!item) return { state: 'missing' };
+    // Existing rows can be canonical and readable while predating either
+    // immutable snapshot. Neither null nor [] establishes historical presence.
+    const present = field === 'goal' ? pin?.goalSnapshotPresent : pin?.blocksSnapshotPresent;
+    if (present !== true || (field === 'blocks' && !Array.isArray(pin?.blocks)))
+      return { state: 'unavailable' };
+    const stored = read(object(pin), field);
+    return stored.state === 'missing' ? { state: 'unavailable' } : stored;
+  }
   const referenceValue = (pin: PublishedCoursePin | undefined): CourseVersionValue =>
     pin
       ? value(`«${pin.title ?? 'Задание'}» · версия ${pin.versionNumber}`)
@@ -482,10 +496,27 @@ export function courseVersionChanges(
       fields('Задания', path, object(ap), object(bp), {
         title: 'Название задания',
         instructions: 'Инструкция задания',
-        goal: 'Цель задания',
-        blocks: 'Материалы задания',
         moduleKey: 'Лаборатория',
       });
+      for (const [field, name] of [
+        ['goal', 'Цель задания'],
+        ['blocks', 'Материалы задания'],
+      ] as const) {
+        const oldValue = snapshotValue(a, ap, field),
+          newValue = snapshotValue(b, bp, field);
+        const unavailable = oldValue.state === 'unavailable' || newValue.state === 'unavailable';
+        // Equal unknowns are still incomplete evidence, including the same old
+        // activity pinned in two different published course versions.
+        add(
+          'Задания',
+          path,
+          name,
+          oldValue,
+          newValue,
+          unavailable ? 'unavailable' : 'changed',
+          unavailable,
+        );
+      }
       fields('Политика', path, object(ap), object(bp), {
         resultMode: 'Вид результата',
         maxPoints: 'Максимум баллов',

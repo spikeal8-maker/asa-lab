@@ -366,7 +366,10 @@ export interface PublishedCoursePin {
   title: string | null;
   instructions: string | null;
   goal: string | null;
+  /** False means the historical version predates this snapshot; null means unavailable pin. */
+  goalSnapshotPresent: boolean | null;
   blocks: SafeTaskBlock[] | null;
+  blocksSnapshotPresent: boolean | null;
   moduleKey: string | null;
   resultMode: string | null;
   maxPoints: number | null;
