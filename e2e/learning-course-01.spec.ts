@@ -4053,6 +4053,8 @@ test('Course Builder corrects the exact second prepublish block and preserves la
   expect(created.status()).toBe(201);
   const courseId = ((await created.json()) as { id: string }).id;
   const editor = page.getByTestId('course-editor');
+  const courseNotice = editor.getByRole('status').and(editor.locator('.course-inline-notice'));
+  const courseErrorNotice = editor.getByRole('alert').and(editor.locator('.course-inline-notice'));
   const title = editor.getByLabel('Название урока', { exact: true });
   const save = editor.getByRole('button', { name: 'Сохранить урок', exact: true });
   await editor.getByRole('button', { name: '+ Урок', exact: true }).click();
@@ -4061,7 +4063,7 @@ test('Course Builder corrects the exact second prepublish block and preserves la
   const firstAdded = await confirmLessonWrite(null, () =>
     editor.getByRole('button', { name: 'Добавить урок', exact: true }).click(),
   );
-  await expect(editor.getByRole('status')).toHaveText('Урок добавлен.');
+  await expect(courseNotice).toHaveText('Урок добавлен.');
   await editor.getByRole('button', { name: '+ Урок', exact: true }).click();
   await title.fill('Второй урок с практикой');
   await editor
@@ -4072,7 +4074,7 @@ test('Course Builder corrects the exact second prepublish block and preserves la
   const secondAdded = await confirmLessonWrite(null, () =>
     editor.getByRole('button', { name: 'Добавить урок', exact: true }).click(),
   );
-  await expect(editor.getByRole('status')).toHaveText('Урок добавлен.');
+  await expect(courseNotice).toHaveText('Урок добавлен.');
 
   async function outline() {
     const response = await page.request.get(`/api/courses/${courseId}/outline`);
@@ -4159,7 +4161,7 @@ test('Course Builder corrects the exact second prepublish block and preserves la
     learningActivityVersionId: oldPin.currentPublishedVersionId,
   });
   await editor.getByRole('button', { name: 'Опубликовать', exact: true }).click();
-  await expect(editor.getByRole('status')).toHaveText('Курс опубликован: версия 1.');
+  await expect(courseNotice).toHaveText('Курс опубликован: версия 1.');
   const immutableV1 = (await versions()).items;
   expect(immutableV1).toHaveLength(1);
 
@@ -4173,7 +4175,7 @@ test('Course Builder corrects the exact second prepublish block and preserves la
   await editor.locator('.course-lesson-link').filter({ hasText: 'Первая теория' }).click();
   await title.fill('Первая теория — новая редакция');
   await confirmLessonWrite(firstAdded.receipt.id, () => save.click());
-  await expect(editor.getByRole('status')).toHaveText('Урок сохранён.');
+  await expect(courseNotice).toHaveText('Урок сохранён.');
   const beforeFailure = await outline();
   const path = `/api/courses/${courseId}/publish`;
   let release!: () => void;
@@ -4226,12 +4228,12 @@ test('Course Builder corrects the exact second prepublish block and preserves la
   const correct = editor.getByRole('button', { name: 'Перейти к исправлению', exact: true });
   await correct.click();
   await expect(title).toHaveValue('Правки B во время проверки остаются');
-  await expect(editor.getByRole('alert')).toContainText(
+  await expect(courseErrorNotice).toContainText(
     'Сначала сохраните изменения урока. Переход не выполнен',
   );
   expect((await versions()).items).toEqual(immutableV1);
   await confirmLessonWrite(firstAdded.receipt.id, () => save.click());
-  await expect(editor.getByRole('status')).toHaveText('Урок сохранён.');
+  await expect(courseNotice).toHaveText('Урок сохранён.');
   await editor.getByRole('button', { name: 'Опубликовать v2', exact: true }).click();
   await expect(correct).toBeVisible();
 
@@ -4263,7 +4265,7 @@ test('Course Builder corrects the exact second prepublish block and preserves la
   await page.setViewportSize({ width: 1440, height: 900 });
   await selectCoursePractice(page, newPractice);
   await confirmLessonWrite(secondAdded.receipt.id, () => save.click());
-  await expect(editor.getByRole('status')).toHaveText('Урок сохранён.');
+  await expect(courseNotice).toHaveText('Урок сохранён.');
   const repaired = await outline();
   expect(repaired.sections[0]!.lessons[0]!.title).toBe('Правки B во время проверки остаются');
   expect(repaired.sections[0]!.lessons[1]!.blocks[1]).toMatchObject({
@@ -4272,7 +4274,7 @@ test('Course Builder corrects the exact second prepublish block and preserves la
   });
   expect((await versions()).items).toEqual(immutableV1);
   await editor.getByRole('button', { name: 'Опубликовать v2', exact: true }).click();
-  await expect(editor.getByRole('status')).toHaveText('Курс опубликован: версия 2.');
+  await expect(courseNotice).toHaveText('Курс опубликован: версия 2.');
   const history = (await versions()).items;
   expect(history).toHaveLength(2);
   expect(history.find((entry) => entry.versionNumber === 1)).toEqual(immutableV1[0]);

@@ -6991,6 +6991,70 @@ parallel_lanes:
           K0/T3/class/owner/deployment pending.'
       reason: Preserve complete accepted541 snapshot unchanged;557 is a separately selected test-observer
         baseline dependency, not reopened product.
+  - id: electronics-field-grab
+    parent_lane: electronics
+    worktree_id: electronics-field-544-resume
+    owned_paths:
+    - docs/product/electronics/evidence/field-boundary-544-independent-review-ebf3622f.md
+    scope_catalog_note: Advisory historical evidence path avoids duplicate scopes; actual write budget is explicit in task/card. Historical evidence remains immutable.
+    task:
+      id: TASK-ELECTRONICS-FIELD-HIT-BOUNDARY-001
+      issue: 544
+      branch: main
+      base_branch: main
+      pr: null
+      status: in_progress
+      checkpoint: owner_resumed_preserved_candidate_composition_selected
+      kind: repair
+      owner_acceptance: pending
+      selected_at: '2026-10-20T17:06:38.290383+00:00'
+      owner_instruction: Owner selected issue544 with "займись этим"; resume only this paused field-grab task.
+      repair_scope: >-
+        Recompose only proven SVG-root/grid alpha fallback and componentDragDelta artificial-bound removal,
+        preserving accepted main and mobile cue/Header, all foreign hook/Stage changes and priorities.
+        Append the exact preserved field regression block to current interactions prefix; restore mounted
+        workbench-field-drag regression and its single component registration only if absent.
+        Generated digest only when canonical generator requires a changed registered path.
+      preserved_candidate_sha: a126dc75620eefb6c6f63b5fc2521b4338829688
+      preserved_stage_candidate_sha: 3d1eacfe7c8619dfde8b90d274d133264fd3e6d5
+      preserved_product_candidate_sha: 1ee348134b386113e3c341db7f975881250e8147
+      preserved_oracle_sha: ebf3622f7572d59b418fc09f302dba460fcf1dd6
+      historical_evidence: 32 whole-document native drag/Save/revision/cookies-only reopen journeys passed historically; not current exact-SHA acceptance.
+      acceptance_dependency_issue: 548
+      next_action: One bounded author composes preserved hunks on accepted main; short focused checks and new independent exact-SHA review, ordinary source publication and CI in background. No repeated BEFORE or polling.
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: 88d10f34ed4eb2540fb420800940250d6824786a
+      head_sha: null
+      observed_at: '2026-10-20T17:06:38.290383+00:00'
+      main:
+        branch: main
+        sha: 88d10f34ed4eb2540fb420800940250d6824786a
+      observation_note: >-
+        Dated selection only; fetch main and refresh current/dirty paths before writes. General39460089425 failed;
+        Release39461012617 and Scratch documentation39460089400 passed. No new runtime evidence claimed.
+        Existing 554 accepted lane and all historical paused snapshots remain unchanged. Owner resume
+        supersedes the former pause only for issue544. No core/LED/clock/worker/physics/assets/API/persistence,
+        CSS, mobile cue/Header, workflows, infrastructure or package edits. Actual dirty overlap stops writes.
+    execution_lease:
+      executor_id: electronics-field-544-resume
+      holder: unassigned
+      acquired_at: null
+      expires_at: null
+      reviewer_role_requires_lease: false
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+        - pnpm gate:electronics-m1
+      browser:
+        workflow: Electronics R4-M1 Focused
+        commands:
+        - pnpm gate:electronics-m1:browser
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+        - pnpm gate:repository
   - id: electronics-field
     parent_lane: electronics
     worktree_id: electronics-native-wheel-554
@@ -7698,22 +7762,23 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: causal_after_ready_final_composition_pending
+      checkpoint: owner_ui_program_final_composition_selected
       kind: repair
       owner_acceptance: pending
       context_hints:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-SPDT-ACTIVE-SHADOW-001.md
       - docs/product/electronics/components/ui-assets-persistence.yaml
-      repair_scope: Preserve completed one-selector4cc and full8 causal AFTER. No new CSS/scenario edits.
-        Final composition and frozen exact gates await separately resolved asset548 baseline, then NEW different
-        independent final product reviewer.
+      repair_scope: Owner requested verification, publication and closure of unfinished electronics UI work,
+        ordered from simple to larger repairs. Select final composition of preserved one-selector547 source
+        and frozen scenario; source publication is not technical acceptance, closure or release.
       program_issue: 452
       owner_problem: E09
-      parallel_preservation: Do not edit existing interactions/common specs or Stage/Visual.543 accepted,544
-        candidateblockedindependentassetbaseline,546 candidateunderreview; all preserved.
-      shared_write_contract: Only additive package/workflow/map registrations explicitly named by card; advisory
-        owned_paths lists exclusive paths. Check actual dirty full registration paths and preserve accepted/parallel
-        registrations. No guard disabled.
+      parallel_preservation: Preserve current main544/mobile/D13 and all unrelated lanes. Core, hook, LED,
+        Stage/Visual, owner assets, API and persistence remain untouched;544 exact CI is still pending.
+      shared_write_contract: Four source paths only; one CSS selector, exact frozen new shadow spec, add
+        only that spec to e2e:electronics-simulation in package.json, and one component-map test registration.
+        Preserve all seven current browser files and e2e:electronics. No workflow edits; CSS already matches
+        existing paths and manual dispatch remains available; occupied D13 workflow is excluded.
       preserved_candidate_sha: 2190efccfbda348709ab82bb8249d9b2ac3ad332
       candidate_publication: published
       candidate_acceptance: pending
@@ -7721,9 +7786,12 @@ parallel_lanes:
       causal_before_run: 38012635802
       causal_before_conclusion: failure_unchanged_product_not_acceptance
       controller_observed_at: '2026-10-11T06:59:21Z'
-      next_action: Do not hopeful-rerun known red asset baseline. Preserve4cc/20897 and all before-after originals.
-        After548 baseline result, ONE justified final composition/exact gates and NEW final reviewer; no acceptance
-        or school claim.
+      next_action: Compose preserved4cc source on accepted main without diagnostic AFTER workflow copy.
+        Keep frozen scenario blob d200caa60d6a183d1d5849c8a22946e1c3ab2e15 byte-identical:31632 bytes,
+        SHA25652e568da0223b75925d67e127b9f8cd7ae2bfecf7353e6968a6dd5d0e8330fdc.
+        Run narrow checks and NEW independent source review, publish and dispatch exact gates once; no CI
+        polling loop. Asset548 dependency remains applicable to acceptance/closure until actual final evidence
+        and NEW independent product review resolve it. Keep owner acceptance pending; do not claim544 done.
       before_independent_report_sha256: 018fb85c090ece50f4cbebaa02a7a7e85de6668c0eae31651ffa5c8e650fe46f
       before_independent_manifest_sha256: 2bf177265ec28286acaaa2eb99c6e5febd2b3257a25df101ba78239db5f5ef36
       before_actual: FULL_BEFORE_READY_WITH_EXPECTED_PRODUCT_FAILURES:8x32samples,32same-focus causal pairs,585complete
@@ -9499,6 +9567,27 @@ integration:
     - docs/testing/**
 
 blocking:
+  - id: ELECTRONICS-544-RESUME-ACCEPTANCE
+    kind: acceptance_blocker
+    lane: electronics-field-grab
+    task_id: TASK-ELECTRONICS-FIELD-HIT-BOUNDARY-001
+    blocks:
+      - technical_acceptance
+      - owner_acceptance
+      - close_issue
+      - release_claim
+    allows:
+      - bounded_composition
+      - focused_verification
+      - independent_source_review
+      - documentation_update
+      - source_publication
+    reason: >-
+      Historical field32 evidence is preserved, but new composition needs exact focused/browser/general
+      evidence and new independent review. Separate catalog548 remains an independent acceptance dependency;
+      do not repair it in544 or claim closure from source publication. Owner explicitly resumed544 and
+      authorized normal source delivery; owner acceptance, device/class and deployment remain pending.
+    evidence: docs/product/electronics/tasks/TASK-ELECTRONICS-FIELD-HIT-BOUNDARY-001.md
   - id: ELECTRONICS-658-STRICT-BASELINE
     kind: acceptance_blocker
     lane: electronics-core-fet
