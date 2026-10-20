@@ -79,6 +79,21 @@ function version(number: number): PublishedAuthorVersion {
   };
 }
 
+function legacyMaterialVersion(number: number): PublishedAuthorVersion {
+  const snapshot = version(number);
+  Object.assign(snapshot.outline!, { schemaVersion: 1 });
+  snapshot.pinnedActivities = [];
+  const lesson = snapshot.outline!.sections[0]!.lessons[0]!;
+  lesson.sourceLessonId = '6e8efb46-6a24-4d9f-a7b2-cce2bdd6f982';
+  lesson.kind = 'material';
+  lesson.content = 'Legacy paragraph';
+  lesson.assignment = null;
+  lesson.learningActivityVersionId = null;
+  // Published schema 1 outlines from 0067 remain unchanged after 0137.
+  delete (lesson as unknown as Record<string, unknown>)['blocks'];
+  return snapshot;
+}
+
 describe('courseVersionStructuralDiff', () => {
   it('reports structural categories without character-level diff', () => {
     const left = version(1);
@@ -115,6 +130,189 @@ describe('courseVersionStructuralDiff', () => {
     right.id = 'v2';
     right.versionNumber = 2;
     expect(courseVersionStructuralDiff(left, right)).toEqual([]);
+  });
+
+  it.each(['forward', 'reverse'] as const)(
+    'marks legacy lesson block history unavailable in the %s comparison',
+    (direction) => {
+      const legacy = legacyMaterialVersion(1);
+      const modern = structuredClone(legacy);
+      modern.id = 'v2';
+      modern.versionNumber = 2;
+      Object.assign(modern.outline!, { schemaVersion: 2 });
+      modern.outline!.course.summary = 'Новое описание курса';
+      const lesson = modern.outline!.sections[0]!.lessons[0]!;
+      lesson.blocks = [
+        {
+          id: 'legacy-' + lesson.sourceLessonId!.replaceAll('-', ''),
+          type: 'paragraph',
+          text: lesson.content!,
+        },
+      ];
+      const [before, after] = direction === 'forward' ? [legacy, modern] : [modern, legacy];
+      const frozen = JSON.stringify([before, after]);
+      expect(courseVersionChanges(before!, after!)).toEqual([
+        expect.objectContaining({ category: 'Курс', field: 'Описание', kind: 'changed' }),
+        expect.objectContaining({
+          category: 'Блоки',
+          field: 'Блоки урока',
+          kind: 'unavailable',
+          before: direction === 'forward'
+            ? { state: 'unavailable' }
+            : { state: 'value', value: lesson.blocks },
+          after: direction === 'forward'
+            ? { state: 'value', value: lesson.blocks }
+            : { state: 'unavailable' },
+        }),
+      ]);
+      expect(JSON.stringify([before, after])).toBe(frozen);
+    },
+  );
+
+  it('renders incomplete block history even when both old lesson snapshots are identical', () => {
+    const before = legacyMaterialVersion(1),
+      after = legacyMaterialVersion(2);
+    expect(courseVersionChanges(before, after)).toEqual([
+      expect.objectContaining({
+        category: 'Блоки',
+        kind: 'unavailable',
+        before: { state: 'unavailable' },
+        after: { state: 'unavailable' },
+      }),
+    ]);
+    const markup = renderToStaticMarkup(createElement(CourseVersionComparison, { before, after }));
+    expect(markup).toContain('Сравнение неполное: часть исторических данных недоступна.');
+    expect(markup).not.toContain('Структурных изменений нет.');
+  });
+
+  it('renders the known lesson block count without technical block or pinned version identifiers', () => {
+    const before = legacyMaterialVersion(1),
+      after = legacyMaterialVersion(2);
+    const knownBlocks = [
+      { id: 'opaque-paragraph-id', type: 'paragraph' as const, text: 'Сохранённый текст' },
+      {
+        id: 'opaque-activity-block-id',
+        type: 'activity' as const,
+        learningActivityVersionId: 'opaque-activity-version-id',
+      },
+    ];
+    after.outline!.sections[0]!.lessons[0]!.blocks = knownBlocks;
+    const markup = renderToStaticMarkup(createElement(CourseVersionComparison, { before, after }));
+    expect(markup).toContain('Сохранено блоков: 2');
+    expect(markup).not.toContain('opaque-');
+    expect(markup).not.toContain('learningActivityVersionId');
+    expect(courseVersionValueText({ state: 'value', value: knownBlocks }, 'Блоки урока')).toBe(
+      'Сохранено блоков: 2',
+    );
+    expect(courseVersionValueText({ state: 'value', value: [] }, 'Блоки урока')).toBe(
+      'Сохранено блоков: 0',
+    );
+  });
+
+  it('retains known lesson fields, direct assignment conditions and other lesson blocks', () => {
+    const before = version(1),
+      after = version(2);
+    const oldLesson = before.outline!.sections[0]!.lessons[0]!,
+      newLesson = after.outline!.sections[0]!.lessons[0]!;
+    const otherLesson = { ...structuredClone(oldLesson), sourceLessonId: 'l2', title: 'Урок 2' };
+    otherLesson.kind = 'material';
+    otherLesson.assignment = null;
+    otherLesson.learningActivityVersionId = null;
+    before.outline!.sections[0]!.lessons.push(otherLesson);
+    after.outline!.sections[0]!.lessons.push({
+      ...structuredClone(otherLesson),
+      blocks: [{ id: 'b1', type: 'paragraph', text: 'Новый текст другого урока' }],
+    });
+    delete (oldLesson as unknown as Record<string, unknown>)['blocks'];
+    newLesson.title = 'Новый урок 1';
+    newLesson.content = 'Новый текст урока';
+    newLesson.estimatedMinutes = 25;
+    newLesson.learningActivityVersionId = 'lav2';
+    newLesson.assignment!.learningActivityVersionId = 'lav2';
+    after.pinnedActivities = [
+      {
+        ...pin('lav2', 2),
+        instructions: 'Добавьте выключатель',
+        policySnapshot: { ...pin().policySnapshot, attemptPolicy: { maxAttempts: 2 } },
+      },
+    ];
+    const changes = courseVersionChanges(before, after);
+    for (const [category, field] of [
+      ['Уроки', 'Название'],
+      ['Уроки', 'Текст урока'],
+      ['Политика', 'Продолжительность, мин'],
+      ['Задания', 'Закреплённая версия'],
+      ['Задания', 'Инструкция задания'],
+      ['Политика', 'Попытки и время выполнения · Число попыток'],
+    ])
+      expect(changes).toContainEqual(expect.objectContaining({ category, field, kind: 'changed' }));
+    expect(changes.filter((change) => change.category === 'Блоки')).toEqual([
+      expect.objectContaining({ kind: 'unavailable', path: expect.stringContaining('Новый урок 1') }),
+      expect.objectContaining({
+        kind: 'changed',
+        path: expect.stringContaining('Урок 2'),
+        field: 'Текст',
+        before: { state: 'value', value: 'Текст' },
+        after: { state: 'value', value: 'Новый текст другого урока' },
+      }),
+    ]);
+  });
+
+  it('does not infer block-derived practice or policy additions and removals from missing blocks', () => {
+    const legacy = legacyMaterialVersion(1),
+      modern = legacyMaterialVersion(2);
+    Object.assign(modern.outline!, { schemaVersion: 2 });
+    modern.outline!.sections[0]!.lessons[0]!.blocks = [
+      { id: 'practice', type: 'activity', learningActivityVersionId: 'lav1' },
+    ];
+    modern.pinnedActivities = [{ ...pin(), pointer: '/sections/0/lessons/0/blocks/0' }];
+    for (const [before, after] of [[legacy, modern], [modern, legacy]] as const)
+      expect(courseVersionChanges(before!, after!)).toEqual([
+        expect.objectContaining({ category: 'Блоки', kind: 'unavailable' }),
+      ]);
+  });
+
+  it('keeps explicit empty blocks distinct from missing history for practice additions and removals', () => {
+    const before = legacyMaterialVersion(1),
+      after = legacyMaterialVersion(2);
+    before.outline!.sections[0]!.lessons[0]!.blocks = [];
+    after.outline!.sections[0]!.lessons[0]!.blocks = [
+      { id: 'practice', type: 'activity', learningActivityVersionId: 'lav1' },
+    ];
+    after.pinnedActivities = [{ ...pin(), pointer: '/sections/0/lessons/0/blocks/0' }];
+    for (const [left, right, kind] of [
+      [before, after, 'added'],
+      [after, before, 'removed'],
+    ] as const) {
+      const changes = courseVersionChanges(left, right);
+      expect(changes).toContainEqual(expect.objectContaining({ category: 'Блоки', kind }));
+      expect(changes).toContainEqual(expect.objectContaining({ category: 'Задания', kind }));
+      expect(changes).toContainEqual(
+        expect.objectContaining({ category: 'Политика', field: 'Попытки и время выполнения' }),
+      );
+      expect(changes.some((change) => change.kind === 'unavailable')).toBe(false);
+    }
+  });
+
+  it('still compares known blocks of added or removed lessons beside a legacy lesson', () => {
+    const before = legacyMaterialVersion(1),
+      after = legacyMaterialVersion(2);
+    after.outline!.sections[0]!.lessons.push({
+      ...structuredClone(after.outline!.sections[0]!.lessons[0]!),
+      sourceLessonId: 'new-lesson',
+      title: 'Новый урок',
+      blocks: [{ id: 'new-block', type: 'paragraph', text: 'Новый материал' }],
+    });
+    for (const [left, right, kind] of [
+      [before, after, 'added'],
+      [after, before, 'removed'],
+    ] as const) {
+      const blocks = courseVersionChanges(left, right).filter((change) => change.category === 'Блоки');
+      expect(blocks).toEqual([
+        expect.objectContaining({ kind: 'unavailable' }),
+        expect.objectContaining({ kind, path: expect.stringContaining('Новый урок') }),
+      ]);
+    }
   });
 
   it('distinguishes absent historical snapshots from explicit null goal and empty materials while retaining known conditions', () => {

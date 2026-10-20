@@ -27,6 +27,7 @@ interface Element {
 interface Practice {
   id: string;
   path: string;
+  blockLessonId?: string;
   reference: unknown;
   pin: PublishedCoursePin | undefined;
   frozen: RecordValue;
@@ -259,6 +260,7 @@ function outline(version: PublishedAuthorVersion) {
           practices.push({
             id,
             path,
+            blockLessonId: lessonId,
             reference: block['learningActivityVersionId'],
             pin: pins.get(pointer + '/blocks/' + blockIndex),
             frozen: {},
@@ -370,20 +372,47 @@ export function courseVersionChanges(
     kind: 'Тип урока',
     content: 'Текст урока',
   });
-  elements('Блоки', before.blocks, after.blocks, {
-    type: 'Тип блока',
-    text: 'Текст',
-    level: 'Уровень заголовка',
-    tone: 'Тип примечания',
-    url: 'Адрес материала',
-    alt: 'Описание изображения',
-    caption: 'Подпись',
-    title: 'Название',
-    label: 'Название файла',
-    language: 'Язык кода',
-    rows: 'Ячейки таблицы',
-    hidden: 'Скрыт',
-  });
+  const previousLessons = new Map(before.lessons.map((item) => [item.id, item]));
+  const unavailableBlockLessons = new Set<string>();
+  for (const lesson of after.lessons) {
+    const prior = previousLessons.get(lesson.id);
+    if (!prior) continue;
+    const oldBlocks = prior.body['blocks'],
+      newBlocks = lesson.body['blocks'];
+    // Schema 1 preserved lesson text without a block snapshot. Missing history
+    // cannot prove additions or removals, including practices inside blocks.
+    if (!Array.isArray(oldBlocks) || !Array.isArray(newBlocks)) {
+      unavailableBlockLessons.add(lesson.id);
+      add(
+        'Блоки',
+        lesson.path,
+        'Блоки урока',
+        Array.isArray(oldBlocks) ? value(oldBlocks) : { state: 'unavailable' },
+        Array.isArray(newBlocks) ? value(newBlocks) : { state: 'unavailable' },
+        'unavailable',
+        true,
+      );
+    }
+  }
+  elements(
+    'Блоки',
+    before.blocks.filter((item) => !unavailableBlockLessons.has(item.parent)),
+    after.blocks.filter((item) => !unavailableBlockLessons.has(item.parent)),
+    {
+      type: 'Тип блока',
+      text: 'Текст',
+      level: 'Уровень заголовка',
+      tone: 'Тип примечания',
+      url: 'Адрес материала',
+      alt: 'Описание изображения',
+      caption: 'Подпись',
+      title: 'Название',
+      label: 'Название файла',
+      language: 'Язык кода',
+      rows: 'Ячейки таблицы',
+      hidden: 'Скрыт',
+    },
+  );
 
   function policies(path: string, a: CourseVersionValue, b: CourseVersionValue, name: string) {
     if (
@@ -409,8 +438,12 @@ export function courseVersionChanges(
         );
     } else add('Политика', path, name, a, b);
   }
-  const previous = new Map(before.practices.map((item) => [item.id, item]));
-  const current = new Map(after.practices.map((item) => [item.id, item]));
+  const comparablePractice = (item: Practice) =>
+    item.blockLessonId === undefined || !unavailableBlockLessons.has(item.blockLessonId);
+  const previous = new Map(
+    before.practices.filter(comparablePractice).map((item) => [item.id, item]),
+  );
+  const current = new Map(after.practices.filter(comparablePractice).map((item) => [item.id, item]));
   function exactPin(item: Practice | undefined): PublishedCoursePin | undefined {
     return item?.pin?.available && item.pin.versionId === item.reference ? item.pin : undefined;
   }
@@ -574,6 +607,8 @@ export function courseVersionValueText(input: CourseVersionValue, field = ''): s
       : input.state === 'null'
         ? 'Не задано'
         : 'Исторические данные недоступны';
+  if (field === 'Блоки урока' && Array.isArray(input.value))
+    return `Сохранено блоков: ${input.value.length}`;
   const enumFields = new Set([
     'Тип урока',
     'Лаборатория',
