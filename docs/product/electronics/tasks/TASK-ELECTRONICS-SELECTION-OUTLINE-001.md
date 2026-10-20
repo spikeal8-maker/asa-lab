@@ -12,6 +12,41 @@ review: independent
 
 # E11 — одинаковая кайма выделения существующих деталей
 
+## R2 evidence delivery and reopened nativePoint receipt — test only
+
+This bounded exception supersedes only the corrected BEFORE evidence mechanics;
+canonical active selection and dated results stay in current.yaml. The
+[dated e142 review receipt](../evidence/selection-outline-549-e14229f9-before-review-20261021.md)
+records an INVALID BEFORE, not a product counterexample. Preserve the old source
+and receipts. Author only the existing outline browser spec; no registration,
+shared helper, product, sampler/pan/fixture, retry or timeout change.
+
+Deliver each full observed Worker response to the Node journal exactly once,
+including ready and yielded responses. Use lossless incremental delivery with
+continuous cursor/sequence; explicitly detect loss, drops, duplicates and errors.
+Preserve every full payload and strict ready C=H/yielded validation. Checkpoint
+references must resolve to full responses in the final journal. Do not repeatedly
+transfer the entire growing history, sample/filter it, truncate it or weaken any
+assertion. This changes evidence transport only, not Worker/application behaviour.
+
+Before the existing reopened nativePoint throws, durably write its already
+collected failed attempts, body bounds, CTM, canvas viewport, hit ancestry and
+originalError into the Node receipt, identifying the originating fresh reopened
+page/context; never substitute the original page or its lastObserver. Preserve
+the original primary Error and
+deadline, including supplementary write/cleanup failure handling. No new action,
+wait, alternative target or changed hit predicate is allowed. Missing evidence
+stays an explicit failure, never a success or substituted empty record.
+
+Preserve all16 cases and every strict native/full-document/onePUT/CAS/storage/
+ready assertion and existing deadlines. Any extra tracked metadata path requires
+a precise proposal. Freeze a NEW complete test blob after source review; run one
+new strict frozen BEFORE and use byte-identical tests for later AFTER. Until
+all16 journeys complete with only causal expected geometry failures and NEW
+actual review, product/AFTER remains forbidden. #548 is NO_PROVEN_CAUSE and is
+not selected here; #544/#547 dependency-owner KEEP and all existing boundaries
+remain unchanged.
+
 ## Corrected BEFORE harness only — 20 October 2026
 
 This selected phase restores the 16-case R8 browser harness from preserved `6f27bc9f` onto current main with two explicitly bounded qualification corrections below. Original blob `57ca47df3aa89cfbccff5c242a36f42febc01be2` is historical parent evidence; freeze a NEW complete browser blob and keep that new blob byte-identical between BEFORE and AFTER. The [dated selection receipt](../evidence/selection-outline-549-corrected-before-selection-20261020.md) records limits and budget facts. This phase supersedes earlier executable source scopes without selecting the product repair.
