@@ -1,4 +1,5 @@
-import { readFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, readFileSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { PNG } from 'pngjs';
@@ -88,19 +89,53 @@ function pupilDocument(): SchematicDocument {
 }
 
 type Point = { x: number; y: number };
+type WorkerRecord = {
+  documentId: string;
+  sequence: number;
+  at: number;
+  response: ElectronicsSimulationWorkerResponse;
+};
 type Probe = {
+  documentId: string;
   phase: string;
   events: unknown[];
   nativePoints?: unknown[];
-  responses: Array<{ at: number; response: ElectronicsSimulationWorkerResponse }>;
+  responses: WorkerRecord[];
+  delivered: number;
+  deliveryErrors: string[];
+  delivery: Promise<void>;
 };
-type ProbeWindow = Window & { __outlineProbe?: Probe };
+type ProbeWindow = Window & {
+  __outlineProbe?: Probe;
+  outlineWorkerRecord?: (record: WorkerRecord) => Promise<void>;
+  outlineNativeFailure?: (record: unknown) => Promise<void>;
+};
 type Matrix = { a: number; b: number; c: number; d: number; e: number; f: number };
 type Profile = { kind: string; boundary: Point; normal: Point; expectedPx: number };
 
-async function installObserver(page: Page) {
+async function installObserver(
+  page: Page,
+  onResponse: (record: WorkerRecord) => void,
+  onNativeFailure: (record: unknown) => void,
+) {
+  await page.exposeBinding('outlineWorkerRecord', ({ page: source }, record: WorkerRecord) => {
+    if (source !== page) throw new Error('Worker journal originating page mismatch');
+    onResponse(record);
+  });
+  await page.exposeBinding('outlineNativeFailure', ({ page: source }, record: unknown) => {
+    if (source !== page) throw new Error('Native failure originating page mismatch');
+    onNativeFailure(record);
+  });
   await page.addInitScript(() => {
-    const probe: Probe = { phase: 'entry', events: [], responses: [] };
+    const probe: Probe = {
+      documentId: crypto.randomUUID(),
+      phase: 'entry',
+      events: [],
+      responses: [],
+      delivered: 0,
+      deliveryErrors: [],
+      delivery: Promise.resolve(),
+    };
     (window as ProbeWindow).__outlineProbe = probe;
     for (const type of [
       'pointerdown',
@@ -142,12 +177,56 @@ async function installObserver(page: Page) {
           worker.addEventListener(
             'message',
             (event: MessageEvent<ElectronicsSimulationWorkerResponse>) => {
-              probe.responses.push({ at: performance.now(), response: event.data });
+              const record = {
+                documentId: probe.documentId,
+                sequence: probe.responses.length + 1,
+                at: performance.now(),
+                response: event.data,
+              };
+              probe.responses.push(record);
+              probe.delivery = probe.delivery.then(async () => {
+                try {
+                  await (window as ProbeWindow).outlineWorkerRecord!(record);
+                  if (record.sequence !== probe.delivered + 1)
+                    throw new Error(`Non-continuous Worker delivery ${record.sequence}`);
+                  probe.delivered = record.sequence;
+                } catch (error) {
+                  probe.deliveryErrors.push(String(error));
+                }
+              });
             },
           );
         return worker;
       },
     });
+  });
+}
+
+async function observerSnapshot(page: Page) {
+  return page.evaluate(async () => {
+    const probe = (window as ProbeWindow).__outlineProbe!;
+    // Fence only the already observed prefix. New messages continue normally.
+    const through = probe.responses.length;
+    await probe.delivery;
+    if (probe.deliveryErrors.length || probe.delivered < through)
+      throw new Error(
+        `Worker journal delivery failed: ${JSON.stringify({
+          through,
+          delivered: probe.delivered,
+          errors: probe.deliveryErrors,
+        })}`,
+      );
+    return {
+      documentId: probe.documentId,
+      phase: probe.phase,
+      events: probe.events,
+      nativePoints: probe.nativePoints,
+      responseRange: { from: through ? 1 : 0, through },
+      observedCount: probe.responses.length,
+      pendingCount: probe.responses.length - probe.delivered,
+      delivered: probe.delivered,
+      deliveryErrors: probe.deliveryErrors,
+    };
   });
 }
 
@@ -184,97 +263,172 @@ async function nativePoint(page: Page, id: string): Promise<Point> {
   const size = renderedSize(entry, 0);
   return part(page, id).evaluate(
     async (root, input) => {
-      const visual = root.querySelector<SVGSVGElement>('.workbench-production-visual')!;
-      const probe = (window as ProbeWindow).__outlineProbe!;
-      const attempts: unknown[] = [];
-      (probe.nativePoints ??= []).push({ phase: probe.phase, id: input.id, attempts });
-      const unobscured = (point: DOMPoint, allowGrid: boolean) => {
-        const hit = document.elementFromPoint(point.x, point.y);
-        // Owner images deliberately pass pointers through to this canvas's grid;
-        // Stage then resolves the painted alpha and starts the native body drag.
-        const delegated =
-          allowGrid &&
-          hit?.classList.contains('workbench-grid-hit') &&
-          hit.closest('.workbench-canvas') === root.closest('.workbench-canvas');
-        const accepted = Boolean(
-          hit &&
-          (root.contains(hit) || delegated) &&
-          !hit.closest(
-            '.workbench-terminal, .workbench-breadboard-hole-hit, [class*="-knob"], [class*="-power-switch"], [class*="-mode-"], [data-testid="arduino-reset-button"]',
-          ),
-        );
-        attempts.push({
-          x: point.x,
-          y: point.y,
-          target: hit?.getAttribute('class'),
-          targetTestId: hit?.getAttribute('data-testid'),
-          component: hit
-            ?.closest('[data-testid="schematic-component"]')
-            ?.getAttribute('data-component-id'),
-          delegated: Boolean(delegated),
-          accepted,
+      const diagnostic: Record<string, unknown> = {};
+      const describe = (element: Element | null): unknown =>
+        element && {
+          tag: element.tagName,
+          id: element.id,
+          class: element.getAttribute('class'),
+          testId: element.getAttribute('data-testid'),
+          componentId: element.getAttribute('data-component-id'),
+        };
+      const rectangle = (rect: DOMRect) => ({
+        x: rect.x,
+        y: rect.y,
+        width: rect.width,
+        height: rect.height,
+      });
+      const matrixValues = (matrix: DOMMatrix | null) =>
+        matrix && {
+          a: matrix.a,
+          b: matrix.b,
+          c: matrix.c,
+          d: matrix.d,
+          e: matrix.e,
+          f: matrix.f,
+        };
+      try {
+        const visual = root.querySelector<SVGSVGElement>('.workbench-production-visual')!;
+        const probe = (window as ProbeWindow).__outlineProbe!;
+        const attempts: unknown[] = [];
+        (probe.nativePoints ??= []).push({ phase: probe.phase, id: input.id, attempts });
+        const canvasRoot = root.closest<SVGSVGElement>('.workbench-canvas');
+        Object.assign(diagnostic, {
+          documentId: probe.documentId,
+          phase: probe.phase,
+          id: input.id,
+          url: location.href,
+          root: describe(root),
+          rootBounds: rectangle(root.getBoundingClientRect()),
+          visualBounds: rectangle(visual.getBoundingClientRect()),
+          visualCTM: matrixValues(visual.getScreenCTM()),
+          canvas: describe(canvasRoot),
+          canvasBounds: canvasRoot && rectangle(canvasRoot.getBoundingClientRect()),
+          canvasViewBox: canvasRoot?.getAttribute('viewBox'),
+          canvasCTM: matrixValues(canvasRoot?.getScreenCTM() ?? null),
+          viewport: { width: innerWidth, height: innerHeight, scrollX, scrollY },
+          attempts,
         });
-        return accepted;
-      };
-      const measured = visual.querySelector<SVGGElement>(
-        '.workbench-owner-resistor, .workbench-tinkercad-button, .workbench-tinkercad-switch',
-      );
-      if (measured) {
-        // Sample the existing ordinary body geometry. On mobile the central
-        // switch point is covered by a larger terminal hit circle; exposed
-        // painted body points still support the same real pointer gesture.
-        const body = measured.querySelector<SVGGeometryElement>(
-          ':scope > path, :scope > rect, [data-testid="spdt-actuator"] > rect',
+        const unobscured = (point: DOMPoint, allowGrid: boolean) => {
+          const hit = document.elementFromPoint(point.x, point.y);
+          // Owner images deliberately pass pointers through to this canvas's grid;
+          // Stage then resolves the painted alpha and starts the native body drag.
+          const delegated =
+            allowGrid &&
+            hit?.classList.contains('workbench-grid-hit') &&
+            hit.closest('.workbench-canvas') === root.closest('.workbench-canvas');
+          const accepted = Boolean(
+            hit &&
+            (root.contains(hit) || delegated) &&
+            !hit.closest(
+              '.workbench-terminal, .workbench-breadboard-hole-hit, [class*="-knob"], [class*="-power-switch"], [class*="-mode-"], [data-testid="arduino-reset-button"]',
+            ),
+          );
+          attempts.push({
+            x: point.x,
+            y: point.y,
+            target: hit?.getAttribute('class'),
+            targetTestId: hit?.getAttribute('data-testid'),
+            component: hit
+              ?.closest('[data-testid="schematic-component"]')
+              ?.getAttribute('data-component-id'),
+            delegated: Boolean(delegated),
+            accepted,
+            hitAncestry: (() => {
+              const ancestry: unknown[] = [];
+              for (let element = hit; element; element = element.parentElement)
+                ancestry.push(describe(element));
+              return ancestry;
+            })(),
+          });
+          return accepted;
+        };
+        const measured = visual.querySelector<SVGGElement>(
+          '.workbench-owner-resistor, .workbench-tinkercad-button, .workbench-tinkercad-switch',
         );
-        if (!body) throw new Error(`No existing measured body geometry for ${input.id}`);
-        const bounds = body.getBBox();
-        const matrix = body.getScreenCTM()!;
-        for (const y of [0.5, 0.25, 0.75, 0.125, 0.875])
-          for (const x of [0.5, 0.25, 0.75, 0.125, 0.875]) {
-            const local = new DOMPoint(bounds.x + x * bounds.width, bounds.y + y * bounds.height);
-            if (!body.isPointInFill(local)) continue;
-            const point = local.matrixTransform(matrix);
-            if (unobscured(point, false)) return { x: point.x, y: point.y };
-          }
-        throw new Error(`No unobscured native measured body point for ${input.id}`);
-      }
-      const image = new Image();
-      image.src = input.asset;
-      await image.decode();
-      const canvas = document.createElement('canvas');
-      canvas.width = 80;
-      canvas.height = 80;
-      const context = canvas.getContext('2d')!;
-      // Keep the owner's actual meet/stretch projection into the outer visual
-      // domain before sampling alpha, including its transparent margins.
-      const meet = Math.min(input.width / image.naturalWidth, input.height / image.naturalHeight);
-      const drawnWidth = input.fit === 'stretch' ? input.width : image.naturalWidth * meet;
-      const drawnHeight = input.fit === 'stretch' ? input.height : image.naturalHeight * meet;
-      context.setTransform(80 / input.width, 0, 0, 80 / input.height, 0, 0);
-      context.drawImage(
-        image,
-        (input.width - drawnWidth) / 2,
-        (input.height - drawnHeight) / 2,
-        drawnWidth,
-        drawnHeight,
-      );
-      const pixels = context.getImageData(0, 0, 80, 80).data;
-      const matrix = visual.getScreenCTM()!;
-      const candidates: Array<Point & { score: number }> = [];
-      for (let y = 6; y < 74; y += 4)
-        for (let x = 6; x < 74; x += 4) {
-          if (pixels[(y * 80 + x) * 4 + 3]! < 250) continue;
-          const point = new DOMPoint(
-            (x / 80) * input.width,
-            (y / 80) * input.height,
-          ).matrixTransform(matrix);
-          candidates.push({ x: point.x, y: point.y, score: (x - 40) ** 2 + (y - 40) ** 2 });
+        if (measured) {
+          // Sample the existing ordinary body geometry. On mobile the central
+          // switch point is covered by a larger terminal hit circle; exposed
+          // painted body points still support the same real pointer gesture.
+          const body = measured.querySelector<SVGGeometryElement>(
+            ':scope > path, :scope > rect, [data-testid="spdt-actuator"] > rect',
+          );
+          if (!body) throw new Error(`No existing measured body geometry for ${input.id}`);
+          const bounds = body.getBBox();
+          const matrix = body.getScreenCTM()!;
+          Object.assign(diagnostic, {
+            body: describe(body),
+            bodyBounds: rectangle(bounds),
+            bodyClientBounds: rectangle(body.getBoundingClientRect()),
+            bodyCTM: matrixValues(matrix),
+          });
+          for (const y of [0.5, 0.25, 0.75, 0.125, 0.875])
+            for (const x of [0.5, 0.25, 0.75, 0.125, 0.875]) {
+              const local = new DOMPoint(bounds.x + x * bounds.width, bounds.y + y * bounds.height);
+              if (!body.isPointInFill(local)) continue;
+              const point = local.matrixTransform(matrix);
+              if (unobscured(point, false)) return { x: point.x, y: point.y };
+            }
+          throw new Error(`No unobscured native measured body point for ${input.id}`);
         }
-      const point = candidates
-        .sort((a, b) => a.score - b.score)
-        .find((candidate) => unobscured(new DOMPoint(candidate.x, candidate.y), true));
-      if (!point) throw new Error(`No unobscured opaque native body point for ${input.id}`);
-      return { x: point.x, y: point.y };
+        const image = new Image();
+        image.src = input.asset;
+        await image.decode();
+        const canvas = document.createElement('canvas');
+        canvas.width = 80;
+        canvas.height = 80;
+        const context = canvas.getContext('2d')!;
+        // Keep the owner's actual meet/stretch projection into the outer visual
+        // domain before sampling alpha, including its transparent margins.
+        const meet = Math.min(input.width / image.naturalWidth, input.height / image.naturalHeight);
+        const drawnWidth = input.fit === 'stretch' ? input.width : image.naturalWidth * meet;
+        const drawnHeight = input.fit === 'stretch' ? input.height : image.naturalHeight * meet;
+        context.setTransform(80 / input.width, 0, 0, 80 / input.height, 0, 0);
+        context.drawImage(
+          image,
+          (input.width - drawnWidth) / 2,
+          (input.height - drawnHeight) / 2,
+          drawnWidth,
+          drawnHeight,
+        );
+        const pixels = context.getImageData(0, 0, 80, 80).data;
+        const matrix = visual.getScreenCTM()!;
+        const candidates: Array<Point & { score: number }> = [];
+        for (let y = 6; y < 74; y += 4)
+          for (let x = 6; x < 74; x += 4) {
+            if (pixels[(y * 80 + x) * 4 + 3]! < 250) continue;
+            const point = new DOMPoint(
+              (x / 80) * input.width,
+              (y / 80) * input.height,
+            ).matrixTransform(matrix);
+            candidates.push({ x: point.x, y: point.y, score: (x - 40) ** 2 + (y - 40) ** 2 });
+          }
+        const point = candidates
+          .sort((a, b) => a.score - b.score)
+          .find((candidate) => unobscured(new DOMPoint(candidate.x, candidate.y), true));
+        if (!point) throw new Error(`No unobscured opaque native body point for ${input.id}`);
+        return { x: point.x, y: point.y };
+      } catch (error) {
+        // The binding writes synchronously in Node before this original Error is
+        // rethrown. It belongs to this page, including a fresh reopened context.
+        const record = {
+          ...diagnostic,
+          originalError: {
+            name: error instanceof Error ? error.name : undefined,
+            message: String(error),
+            stack: error instanceof Error ? error.stack : undefined,
+          },
+        };
+        try {
+          await (window as ProbeWindow).outlineNativeFailure!(record);
+        } catch (supplementaryError) {
+          (window as ProbeWindow).__outlineProbe?.deliveryErrors.push(
+            `Native failure receipt: ${String(supplementaryError)}`,
+          );
+          console.error('Native failure receipt unavailable', supplementaryError);
+        }
+        throw error;
+      }
     },
     { id, asset: entry.asset!, fit: entry.assetFit, ...size },
   );
@@ -834,7 +988,7 @@ for (const width of [1440, 1024, 390, 320])
       const puts: unknown[] = [];
       let projectId = '';
       let reopened: Page | undefined;
-      let lastObserver: Probe | undefined;
+      let lastObserver: Awaited<ReturnType<typeof observerSnapshot>> | undefined;
       let lastLocalStorage: Record<string, string | null> | undefined;
       let lastServer: unknown;
       let lastCheckpoint = 'setup';
@@ -842,7 +996,70 @@ for (const width of [1440, 1024, 390, 320])
       let primaryError: { error: unknown } | undefined;
       let mandatoryEvidenceError: { error: unknown } | undefined;
       const rawPath = info.outputPath(`e11-outline-${scenario}-${width}-raw.json`);
+      const workerPath = info.outputPath(`e11-outline-${scenario}-${width}-worker.jsonl`);
+      const workerHash = createHash('sha256');
+      const workerSources = new Map<
+        Page,
+        {
+          role: string;
+          documents: Map<string, WorkerRecord[]>;
+        }
+      >();
+      let workerRecordCount = 0;
+      const workerErrors: unknown[] = [];
       const pupil = pupilDocument();
+      async function observe(source: Page, role: string) {
+        const state = { role, documents: new Map<string, WorkerRecord[]>() };
+        workerSources.set(source, state);
+        await installObserver(
+          source,
+          (record) => {
+            try {
+              const records = state.documents.get(record.documentId) ?? [];
+              if (!Number.isInteger(record.sequence) || record.sequence !== records.length + 1)
+                throw new Error(
+                  `Worker sequence gap/duplicate: ${role}/${record.documentId} expected ${records.length + 1}, got ${record.sequence}`,
+                );
+              const line =
+                JSON.stringify({ source: role, pageUrl: source.url(), ...record }) + '\n';
+              appendFileSync(workerPath, line, 'utf8');
+              workerHash.update(line, 'utf8');
+              records.push(record);
+              state.documents.set(record.documentId, records);
+              workerRecordCount++;
+            } catch (error) {
+              workerErrors.push({ source: role, sequence: record.sequence, error: String(error) });
+              secondaryFailure('worker-journal', error, true);
+              throw error;
+            }
+          },
+          (record) => {
+            output.push({
+              phase: 'native-point-failure',
+              source: role,
+              context: role === 'cookies-reopen' ? 'fresh-cookies-only' : 'original',
+              pageUrl: source.url(),
+              record,
+            });
+            try {
+              writeRaw(lastCheckpoint);
+            } catch (error) {
+              secondaryFailure('native-point-failure-write', error, true);
+              throw error;
+            }
+          },
+        );
+      }
+      async function snapshot(source: Page) {
+        const observed = await observerSnapshot(source);
+        const state = workerSources.get(source);
+        const count = state?.documents.get(observed.documentId)?.length ?? 0;
+        if (!state || count < observed.responseRange.through || workerErrors.length)
+          throw new Error(
+            `Unresolved Worker journal prefix for ${state?.role}/${observed.documentId}: ${count}/${observed.responseRange.through}`,
+          );
+        return { ...observed, workerSource: state.role, workerJournal: workerPath };
+      }
       function retainPrimary(error: unknown) {
         primaryError ??= { error };
         primaryFailure = String(primaryError.error);
@@ -879,6 +1096,23 @@ for (const width of [1440, 1024, 390, 320])
             : undefined,
           journeyComplete: lastCheckpoint === 'complete',
           observer: lastObserver,
+          workerJournal: {
+            path: workerPath,
+            sha256: workerHash.copy().digest('hex'),
+            count: workerRecordCount,
+            errors: workerErrors,
+            tail: establishedFailure()
+              ? 'UNKNOWN_AFTER_LAST_ACKNOWLEDGED_PREFIX_ON_FAILURE'
+              : 'See per-document observed/delivered checkpoint ranges',
+            sources: Array.from(workerSources.values(), (state) => ({
+              role: state.role,
+              documents: Array.from(state.documents, ([documentId, records]) => ({
+                documentId,
+                from: records.length ? 1 : 0,
+                through: records.length,
+              })),
+            })),
+          },
           server: lastServer,
           localStorage: lastLocalStorage,
         };
@@ -913,21 +1147,22 @@ for (const width of [1440, 1024, 390, 320])
         }
       }
       async function checkpoint(name: string) {
-        const snapshot = await page.evaluate(() => ({
-          observer: (window as ProbeWindow).__outlineProbe,
+        const observer = await snapshot(page);
+        const storageSnapshot = await page.evaluate(() => ({
           localStorage: Object.fromEntries(
             Object.keys(localStorage).map((key) => [key, localStorage.getItem(key)]),
           ),
         }));
-        lastObserver = snapshot.observer;
-        lastLocalStorage = snapshot.localStorage;
+        lastObserver = observer;
+        lastLocalStorage = storageSnapshot.localStorage;
         lastCheckpoint = name;
         await writeRaw(name);
       }
       try {
+        writeFileSync(workerPath, '', 'utf8');
         writeRaw('before-auth-cookies');
         await page.context().addCookies(authCookies);
-        await installObserver(page);
+        await observe(page, 'original');
         await page.setViewportSize({ width: 1440, height: 900 });
         lastCheckpoint = 'before-home';
         writeRaw(lastCheckpoint);
@@ -1086,10 +1321,18 @@ for (const width of [1440, 1024, 390, 320])
                 )
                   .at(-1)
                   ?.getAttribute('href');
-                return { ready, href };
+                return {
+                  documentId: (window as ProbeWindow).__outlineProbe!.documentId,
+                  readySequence: ready?.sequence,
+                  href,
+                };
               });
               lampObservation = observed;
-              const response = observed.ready?.response;
+              await snapshot(page);
+              const response = workerSources
+                .get(page)
+                ?.documents.get(observed.documentId)
+                ?.find((record) => record.sequence === observed.readySequence)?.response;
               if (!response?.ok || response.kind !== 'advance') return false;
               const advance = response.advance;
               const result = advance.result;
@@ -1333,7 +1576,7 @@ for (const width of [1440, 1024, 390, 320])
                 body: request.postDataJSON(),
               });
           });
-          await installObserver(reopened);
+          await observe(reopened, 'cookies-reopen');
           const freshFailures = collectBrowserFailures(reopened, {
             allowAnonymousSessionProbe: true,
           });
@@ -1387,7 +1630,7 @@ for (const width of [1440, 1024, 390, 320])
             phase: 'cookies-reopen-zoom',
             geometry: await geometry(reopened, 'resistor'),
             server: await server(reopened, projectId),
-            observer: await reopened.evaluate(() => (window as ProbeWindow).__outlineProbe),
+            observer: await snapshot(reopened),
           });
           await checkpoint('cookies-reopen-complete');
           freshFailures.assertEmpty();
@@ -1406,7 +1649,7 @@ for (const width of [1440, 1024, 390, 320])
             } else
               output.push({
                 phase: 'reopen-finally',
-                observer: await reopened.evaluate(() => (window as ProbeWindow).__outlineProbe),
+                observer: await snapshot(reopened),
                 server: await server(reopened, projectId),
               });
           });
@@ -1416,9 +1659,11 @@ for (const width of [1440, 1024, 390, 320])
           reopened = undefined;
         }
         requireMandatoryEvidence();
-        const observed = await page.evaluate(() => (window as ProbeWindow).__outlineProbe!);
+        const observed = await snapshot(page);
         if (scenario === 'running-controls') {
-          const advances = observed.responses
+          const advances = workerSources
+            .get(page)!
+            .documents.get(observed.documentId)!
             .map(({ response }) => response)
             .filter((response) => response.ok && response.kind === 'advance');
           expect(advances.length).toBeGreaterThan(0);
@@ -1469,7 +1714,7 @@ for (const width of [1440, 1024, 390, 320])
             'observer',
             async () => {
               if (page.isClosed()) throw new Error('Page closed');
-              lastObserver = await page.evaluate(() => (window as ProbeWindow).__outlineProbe);
+              lastObserver = await snapshot(page);
             },
           ],
           [
@@ -1500,6 +1745,16 @@ for (const width of [1440, 1024, 390, 320])
           await supplemental(name, capture);
           writeCleanupRaw(lastCheckpoint);
         }
+        await supplemental(
+          'worker-journal-attachment',
+          () =>
+            info.attach(`e11-outline-${scenario}-${width}-worker`, {
+              path: workerPath,
+              contentType: 'application/x-ndjson',
+            }),
+          true,
+        );
+        writeCleanupRaw(lastCheckpoint);
         await supplemental(
           'raw-attachment',
           () =>
