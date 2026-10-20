@@ -571,6 +571,87 @@ describe('course outline API', () => {
     );
   });
 
+  it('returns an exact assignment receipt after the course was archived without a separate state read', async () => {
+    const target = controller();
+    target.query.mockImplementation(async (sql) => ({
+      rows: sql.includes('course_library_list')
+        ? [{ archived_at: '2026-10-20T10:00:00.000Z' }]
+        : [{ result_code: 'ok', run_id: RUN_ID, version_number: 3, reused: true }],
+    }));
+
+    await expect(
+      target.value.assignCourseToClassroom(request(), CLASSROOM_ID, {
+        courseId: COURSE_ID,
+        dueAt: null,
+        versionNumber: 3,
+        audienceType: 'whole_class',
+        seatIds: [],
+        requestId: 'archive-replay-0001',
+        timeZone: 'Europe/Moscow',
+      }),
+    ).resolves.toEqual({ runId: RUN_ID, versionNumber: 3, reused: true });
+    expect(target.query).toHaveBeenCalledTimes(1);
+    expect(target.query).toHaveBeenCalledWith(
+      expect.stringContaining('classroom_course_run_assign_v4'),
+      [
+        'principal-id',
+        CLASSROOM_ID,
+        COURSE_ID,
+        null,
+        3,
+        'whole_class',
+        [],
+        'archive-replay-0001',
+        'Europe/Moscow',
+      ],
+    );
+  });
+
+  it.each(['legacy', 'canonical', 'with_timezone'] as const)(
+    'shows the atomic archive refusal for a %s assignment',
+    async (mode) => {
+      const target = controller([
+        { result_code: 'course_archived', run_id: null, version_number: null, reused: false },
+      ]);
+      await expect(
+        target.value.assignCourseToClassroom(request(), CLASSROOM_ID, {
+          courseId: COURSE_ID,
+          ...(mode === 'legacy'
+            ? {}
+            : {
+                versionNumber: 1,
+                audienceType: 'whole_class',
+                seatIds: [],
+                requestId: 'archive-new-command',
+              }),
+          ...(mode === 'with_timezone' ? { timeZone: 'Europe/Moscow' } : {}),
+        }),
+      ).rejects.toMatchObject({
+        status: 409,
+        response: {
+          error: {
+            code: 'course_archived',
+            message: 'Восстановите курс из архива перед назначением.',
+          },
+        },
+      });
+      expect(target.query).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it('does not reveal a foreign course when the assignment transaction denies it', async () => {
+    const target = controller([
+      { result_code: 'course_not_found', run_id: null, version_number: null, reused: false },
+    ]);
+    await expect(
+      target.value.assignCourseToClassroom(request(), CLASSROOM_ID, { courseId: COURSE_ID }),
+    ).rejects.toMatchObject({
+      status: 404,
+      response: { error: { code: 'course_not_found', message: 'Курс не найден.' } },
+    });
+    expect(target.query).toHaveBeenCalledTimes(1);
+  });
+
   it('groups lessons by section and keeps an empty section visible', async () => {
     const target = controller([
       {

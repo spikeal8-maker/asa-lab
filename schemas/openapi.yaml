@@ -5985,7 +5985,7 @@ paths:
     post:
       operationId: assignCanonicalCourse
       summary: Assign an immutable published course version through the existing Learning runtime
-      description: New authoring clients use the canonical request below. Legacy requests without requestId use the retained legacy adapter and do not create canonical content.
+      description: New authoring clients use the canonical request below. Current classroom and course authorization precedes exact completed request replay, which remains valid after course archive. New assignments serialize with archive and reject archived courses. Legacy requests without requestId use the retained legacy adapter and do not create canonical content.
       requestBody:
         required: true
         content:
@@ -6011,9 +6011,9 @@ paths:
         '403':
           description: Teaching capability or classroom access denied
         '404':
-          description: Classroom unavailable
+          description: Classroom or owned course unavailable
         '409':
-          description: Publication, audience or request conflict; no partial assignment
+          description: Course archived, publication, audience or request conflict; no partial assignment
     get:
       operationId: getClassroomCanonicalCourseRuns
       summary: List assigned courses with canonical lesson-state aggregates

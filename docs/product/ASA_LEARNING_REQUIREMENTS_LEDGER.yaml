@@ -580,11 +580,15 @@ requirements:
   source_paths:
   - apps/api/src/courses.controller.ts
   - migrations/0145_course_authoring_closure.sql
+  - migrations/0232_course_archive_assignment_atomicity.sql
   evidence:
   - docs/review/LRN_E1_SPEC_REBASELINE_2026_09_17.md
   tests:
   - tests/courses/course-authoring-closure.pg.spec.ts
   - tests/courses/course-canonical-delivery.pg.spec.ts
+  - tests/courses/course-archive-assignment.pg.spec.ts
+  - apps/api/src/courses.controller.spec.ts
+  - e2e/learning-course-01.spec.ts
   verification:
     source_sha: 3a54a9edf58633331fd466b5f46cb2a8c4f5d390
     method: concurrency_risk_from_source

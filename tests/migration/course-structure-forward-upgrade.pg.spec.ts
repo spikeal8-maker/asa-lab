@@ -98,6 +98,7 @@ describe('Course Builder structure forward upgrade', () => {
         '0225', // Provider ingress/readiness receipts; preserves course and learner history.
         '0230', // Read-only historical course version pins preserve published data.
         '0231', // Structured prepublish diagnostics preserve exact publication receipts.
+        '0232', // Archive and assignment serialize without rewriting existing delivery.
       ];
       const pre153 = plan.filter((item) => Number(item.version) <= 152);
       const upgradePlan = plan.filter((item) => Number(item.version) > 152);
@@ -355,6 +356,7 @@ describe('Course Builder structure forward upgrade', () => {
           '0225',
           '0230',
           '0231',
+          '0232',
         ]);
         expect(
           await applyIsolatedTestPlan(

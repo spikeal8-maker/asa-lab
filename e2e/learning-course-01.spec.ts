@@ -4211,3 +4211,223 @@ test('Course Builder corrects the exact second prepublish block and preserves la
   await page.screenshot({ path: `${directory}/corrected-published-v2.png`, fullPage: true });
   expect(errors).toEqual([]);
 });
+
+test('Course archive rejects a stale assignment dialog, keeps exact replay and old learning, then restores assignment', async ({
+  browser,
+  page,
+}) => {
+  test.setTimeout(120_000);
+  await loginWithOrganization(page, teacher);
+  const suffix = ++sequence;
+  const classTitle = 'Архив и выдача ' + suffix;
+  const courseTitle = 'Курс с сохранённой версией ' + suffix;
+  const lessonTitle = 'Теория до архивации';
+  const lessonText = 'Этот материал остаётся доступен в уже назначенном курсе.';
+  const joinCode = await createClassWithStudents(page, classTitle, [
+    { label: 'Ученик сохранённого курса', handle: 'fix08-learner-' + suffix },
+  ]);
+  const classroomId = /classrooms\/([a-f0-9-]+)/.exec(page.url())![1]!;
+  const assignmentPath = `/api/classrooms/${classroomId}/course-runs`;
+  const pageErrors: string[] = [];
+  const serverErrors: string[] = [];
+  page.on('pageerror', (error) => pageErrors.push(error.message));
+  page.on('response', (response) => {
+    if (response.status() >= 500) serverErrors.push(response.status() + ' ' + response.url());
+  });
+
+  await page.goto('/#/challenges');
+  await page.getByRole('button', { name: 'Курсы', exact: true }).click();
+  await page.getByRole('button', { name: 'Создать курс', exact: true }).click();
+  const form = page.getByRole('dialog', { name: 'Новый курс' });
+  await form.getByLabel('Название', { exact: true }).fill(courseTitle);
+  const created = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'POST' && new URL(response.url()).pathname === '/api/courses',
+  );
+  await form.getByRole('button', { name: 'Создать курс', exact: true }).click();
+  const creation = await created;
+  expect(creation.status()).toBe(201);
+  const courseId = ((await creation.json()) as { id: string }).id;
+  const editor = page.getByTestId('course-editor');
+  await expect(editor).toBeVisible();
+  await editor
+    .locator('.course-outline')
+    .getByRole('button', { name: '+ Урок', exact: true })
+    .click();
+  await editor.getByLabel('Название урока').fill(lessonTitle);
+  await editor.getByLabel('Текст блока', { exact: true }).fill(lessonText);
+  await editor.getByRole('button', { name: 'Добавить урок', exact: true }).click();
+  await expect(editor.getByRole('status')).toHaveText('Урок добавлен.');
+  await editor.getByRole('button', { name: 'Опубликовать', exact: true }).click();
+  await expect(page.getByText('Курс опубликован: версия 1.', { exact: true })).toBeVisible();
+  await editor.getByRole('button', { name: 'Назначить курс', exact: true }).click();
+  const assignDialog = page.getByRole('dialog', { name: 'Назначить курс', exact: true });
+  await assignDialog.getByLabel('Класс для курса').selectOption({ label: classTitle });
+  const firstResponse = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'POST' && new URL(response.url()).pathname === assignmentPath,
+  );
+  await assignDialog.getByRole('button', { name: 'Назначить', exact: true }).click();
+  const assigned = await firstResponse;
+  expect(assigned.status()).toBe(201);
+  const originalRequest = assigned.request().postDataJSON();
+  const originalReceipt = (await assigned.json()) as {
+    runId: string;
+    versionNumber: number;
+    reused: boolean;
+  };
+  expect(originalReceipt).toMatchObject({ versionNumber: 1, reused: false });
+  await expect(assignDialog.getByRole('status')).toContainText('Сервер подтвердил версию 1');
+  await assignDialog.getByRole('button', { name: 'Закрыть назначение', exact: true }).click();
+
+  const learner = await learnerAssignments(browser, joinCode, 'fix08-learner-' + suffix);
+  const learnerFailures = collectBrowserFailures(learner.page, {
+    allowAdminAccessProbe: true,
+  });
+  async function readOldLearning(): Promise<void> {
+    await learner.page.goto('/#/learning?courseRun=' + originalReceipt.runId);
+    await learner.page.reload();
+    const player = learner.page.getByTestId('seat-course-player');
+    await expect(player).toBeVisible();
+    await expect(player.getByRole('heading', { name: lessonTitle, exact: true })).toBeVisible();
+    await expect(player.getByText(lessonText, { exact: true })).toBeVisible();
+    const response = await learner.page.request.get('/api/class-join/me/course-runs');
+    expect(response.ok()).toBe(true);
+    const data = (await response.json()) as {
+      items: Array<{ id: string; courseId: string; versionNumber: number }>;
+    };
+    expect(data.items.filter((run) => run.id === originalReceipt.runId)).toEqual([
+      expect.objectContaining({ courseId, versionNumber: 1 }),
+    ]);
+  }
+  await readOldLearning();
+  async function protectedDelivery() {
+    return (
+      await admin.query(
+        `SELECT jsonb_build_object(
+           'version',(SELECT to_jsonb(v) FROM course_versions v
+             JOIN classroom_course_runs r ON r.course_version_id=v.id WHERE r.id=$1),
+           'run',(SELECT to_jsonb(r) FROM classroom_course_runs r WHERE r.id=$1),
+           'lessons',(SELECT jsonb_agg(to_jsonb(l) ORDER BY l.id) FROM classroom_course_run_lessons l WHERE l.run_id=$1),
+           'enrollments',(SELECT jsonb_agg(to_jsonb(e) ORDER BY e.id) FROM course_enrollments e WHERE e.course_run_id=$1)
+         ) AS value`,
+        [originalReceipt.runId],
+      )
+    ).rows[0].value;
+  }
+  const originalDelivery = await protectedDelivery();
+
+  // Leave a real new-assignment dialog open while another tab archives the
+  // course. No response is mocked; the later command must consult the lock.
+  await editor.getByRole('button', { name: 'Назначить курс', exact: true }).click();
+  await assignDialog.getByRole('button', { name: 'Новое назначение', exact: true }).click();
+  await assignDialog.getByLabel('Класс для курса').selectOption({ label: classTitle });
+  await assignDialog.getByLabel('Срок, если нужен').fill('2027-10-15');
+  const archiveTab = await page.context().newPage();
+  const archiveFailures = collectBrowserFailures(archiveTab, { allowAdminAccessProbe: true });
+  await archiveTab.goto('/#/challenges');
+  await archiveTab.getByRole('button', { name: 'Курсы', exact: true }).click();
+  const courseRow = archiveTab
+    .getByTestId('courses-list')
+    .locator('li')
+    .filter({ hasText: courseTitle });
+  await courseRow.getByRole('button', { name: 'Ещё: ' + courseTitle, exact: true }).click();
+  const archivedResponse = archiveTab.waitForResponse(
+    (response) =>
+      response.request().method() === 'POST' &&
+      new URL(response.url()).pathname === `/api/courses/${courseId}/archive`,
+  );
+  archiveTab.once('dialog', (dialog) => void dialog.accept());
+  await courseRow.getByRole('button', { name: 'Архивировать', exact: true }).click();
+  const archived = await archivedResponse;
+  expect(archived.ok()).toBe(true);
+  expect(await archived.json()).toMatchObject({ archived: true });
+  await expect(courseRow).toHaveCount(0);
+
+  const refusedResponse = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'POST' && new URL(response.url()).pathname === assignmentPath,
+  );
+  await assignDialog.getByRole('button', { name: 'Назначить', exact: true }).click();
+  const refused = await refusedResponse;
+  expect(refused.status()).toBe(409);
+  const retryRequest = refused.request().postDataJSON();
+  expect(retryRequest.requestId).not.toBe(originalRequest.requestId);
+  expect(await refused.json()).toMatchObject({ error: { code: 'course_archived' } });
+  await expect(assignDialog.getByRole('alert')).toHaveText(
+    'Восстановите курс из архива перед назначением.',
+  );
+  await expect(assignDialog.getByLabel('Класс для курса')).toHaveValue(classroomId);
+  await expect(assignDialog.getByLabel('Срок, если нужен')).toHaveValue('2027-10-15');
+  await expect(
+    assignDialog.getByRole('button', { name: 'Повторить назначение', exact: true }),
+  ).toBeEnabled();
+  for (const width of [1440, 1024, 390, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth - innerWidth),
+    ).toBeLessThanOrEqual(0);
+    await page.screenshot({
+      path: `${evidenceDir}/fix08-archive-rejection-${width}.png`,
+      fullPage: true,
+    });
+  }
+  const replay = await page.request.post(assignmentPath, {
+    headers: { origin: new URL(page.url()).origin },
+    data: originalRequest,
+  });
+  expect(replay.status()).toBe(201);
+  expect(await replay.json()).toEqual({ ...originalReceipt, reused: true });
+  expect(await protectedDelivery()).toEqual(originalDelivery);
+  const whileArchived = await page.request.get(assignmentPath);
+  expect(whileArchived.ok()).toBe(true);
+  expect(((await whileArchived.json()) as { items: unknown[] }).items).toHaveLength(1);
+  await readOldLearning();
+  await learner.page.setViewportSize({ width: 390, height: 844 });
+  await learner.page.screenshot({
+    path: `${evidenceDir}/fix08-old-course-390.png`,
+    fullPage: true,
+  });
+
+  // Restore through the existing library UI, then retry the same rejected
+  // request. The server creates one new delivery and preserves the old one.
+  await archiveTab.getByRole('button', { name: 'Архив', exact: true }).click();
+  await expect(courseRow).toBeVisible();
+  const restoredResponse = archiveTab.waitForResponse(
+    (response) =>
+      response.request().method() === 'POST' &&
+      new URL(response.url()).pathname === `/api/courses/${courseId}/archive`,
+  );
+  await courseRow.getByRole('button', { name: 'Восстановить', exact: true }).click();
+  const restored = await restoredResponse;
+  expect(restored.ok()).toBe(true);
+  expect(await restored.json()).toMatchObject({ archived: false });
+  await expect(courseRow).toHaveCount(0);
+  const retryResponse = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'POST' && new URL(response.url()).pathname === assignmentPath,
+  );
+  await assignDialog.getByRole('button', { name: 'Повторить назначение', exact: true }).click();
+  const retried = await retryResponse;
+  expect(retried.status()).toBe(201);
+  expect(retried.request().postDataJSON()).toEqual(retryRequest);
+  expect(await retried.json()).toMatchObject({ versionNumber: 1, reused: false });
+  await expect(assignDialog.getByRole('status')).toContainText('Сервер подтвердил версию 1');
+  await expect(assignDialog.getByRole('alert')).toHaveCount(0);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.screenshot({
+    path: `${evidenceDir}/fix08-restored-assignment-1440.png`,
+    fullPage: true,
+  });
+  const deliveries = await page.request.get(assignmentPath);
+  expect(deliveries.ok()).toBe(true);
+  expect(((await deliveries.json()) as { items: unknown[] }).items).toHaveLength(2);
+  expect(await protectedDelivery()).toEqual(originalDelivery);
+  await readOldLearning();
+  expect(pageErrors).toEqual([]);
+  expect(serverErrors).toEqual([]);
+  learnerFailures.assertEmpty();
+  archiveFailures.assertEmpty();
+  await learner.context.close();
+  await archiveTab.close();
+});

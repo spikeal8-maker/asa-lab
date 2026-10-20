@@ -53,6 +53,7 @@ const manifest = {
     'private authored course → approved Account → theory and real three-d submission → exact review',
     'Course Activity blocks preserve mixed order and open exact Electronics and 3D runtimes',
     'Course Builder corrects the exact second prepublish block and preserves later edits and published history',
+    'Course archive rejects a stale assignment dialog, keeps exact replay and old learning, then restores assignment',
   ],
   'learning-learner-submits-project-assignment.spec.ts': [
     'learner starts the real project editor and submits one immutable attempt',
@@ -385,11 +386,11 @@ function main() {
   }
   equal(
     groups.map((group) => group.length),
-    [1, 1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 2, 1, 1],
+    [1, 1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 2, 1, 1, 1],
     'Review changed course declarations or either parameterized pair.',
   );
   check(
-    new Set(groups.map(([entry]) => `${entry.line}:${entry.column}`)).size === 14,
+    new Set(groups.map(([entry]) => `${entry.line}:${entry.column}`)).size === 15,
     'A declaration cannot appear in multiple groups.',
   );
   const firstBatches = files.slice(0, 2).map((file, index) => ({
@@ -407,7 +408,7 @@ function main() {
       cases: group,
     }),
   );
-  const secondBatch = { name: '17-second-batch', selectors: secondSelectors, cases: second };
+  const secondBatch = { name: '18-second-batch', selectors: secondSelectors, cases: second };
   const verified = [];
   // Pre-discover every actual invocation before any browser/server starts.
   for (const batch of [...firstBatches, secondBatch]) {
@@ -419,11 +420,11 @@ function main() {
     );
     if (batch !== secondBatch) verified.push(...selected);
   }
-  equal(verified, first, 'Ordered first-batch union must be all 28 cases exactly once.');
+  equal(verified, first, 'Ordered first-batch union must be all 29 cases exactly once.');
   equal(
     firstBatches.slice(2).flatMap((batch) => batch.cases),
     course,
-    'Ordered declaration union must be all 16 course cases exactly once.',
+    'Ordered declaration union must be all 17 course cases exactly once.',
   );
   write(path.join(evidence, 'plan.json'), {
     playwright: '1.55.1',
@@ -530,7 +531,7 @@ function main() {
   const exitCode = firstExitCode || secondExitCode || 0;
   try {
     write(path.join(evidence, 'summary.json'), {
-      first: { cases: 28, exitCode: firstExitCode, status: firstExitCode ? 'FAIL' : 'PASS' },
+      first: { cases: 29, exitCode: firstExitCode, status: firstExitCode ? 'FAIL' : 'PASS' },
       second: {
         cases: 15,
         exitCode: secondExitCode,
