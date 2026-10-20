@@ -33,6 +33,8 @@ export interface ElectronicsSimulationWorkerExecutor {
 export interface LiveSimulationWorkerCallbacks {
   readonly onGenerationPending?: () => void;
   readonly onInitialReady?: (hostHorizonOffsetMicroseconds: number) => void;
+  /** Read current bounded host demand at dispatch; null pauses ordinary host work. */
+  readonly readHostHorizonMicroseconds?: () => number | null;
   readonly onResult: (
     result: SolveResult,
     ledTemporal?: ElectronicsLedTemporalObservation,
@@ -440,9 +442,31 @@ export class ElectronicsLiveSimulationWorkerController {
   private pump(): void {
     const generationId = this.generationId;
     const document = this.canonicalDocument;
-    const pendingTarget =
+    let pendingTarget =
       this.startupTarget ?? this.inputTarget ?? this.continuationTarget ?? this.latestTarget;
     if (generationId === null || !document || this.inFlight || !pendingTarget) return;
+    if (pendingTarget === this.latestTarget && this.callbacks?.readHostHorizonMicroseconds) {
+      // A native RAF may acknowledge new progress between the last host tick
+      // and this serial dispatch. Refresh the same bounded demand at its use.
+      const hostHorizon = this.callbacks.readHostHorizonMicroseconds();
+      if (
+        generationId !== this.generationId ||
+        document !== this.canonicalDocument ||
+        this.inFlight ||
+        pendingTarget !== this.latestTarget ||
+        hostHorizon === null ||
+        !Number.isSafeInteger(hostHorizon) ||
+        hostHorizon < 0
+      )
+        return;
+      pendingTarget = {
+        requestedHorizonMicroseconds: Math.max(
+          pendingTarget.requestedHorizonMicroseconds,
+          hostHorizon - this.horizonOffsetMicroseconds,
+        ),
+      };
+      this.latestTarget = pendingTarget;
+    }
     const committed = this.timedState.continuation?.committedHorizonMicroseconds ?? 0;
     const isStartup = pendingTarget === this.startupTarget;
     // An input can commit beyond the presentation-limited host tick. Older

@@ -8652,7 +8652,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: d13_eighth_pace_source_review_and_exact_ci_pending
+      checkpoint: d13_fresh_dispatch_and_proven_save_source_review_pending
       owner_acceptance: pending
       programme_issue: 452
       acceptance_revision: classroom-d13-v3-eighth-pace-r1
@@ -8661,8 +8661,8 @@ parallel_lanes:
       selected_nominal_model_per_wall_pace: 0.125
       measured_throughput_boundary: Three exact legacy scalar comparisons remain measured performance outcomes; every other35 timing comparison and all4 finite acquisitions remain binding. Native raw50ms, D13 relative-delay and electrical/lifecycle bounds remain binding.
       qualification_amendment_review: pending_exact_source_review
-      previous_candidate_sha: d0c915e57557909f70f15ed6002f745912a54a19
-      previous_candidate_d13_review: pending_actual_native_review_on_d0c915e
+      previous_candidate_sha: ae4f2b03d6b8632ed284d0939aacb46da46ba6a5
+      previous_candidate_d13_review: not_accepted_classroom_167_pass_3_fail_lifecycle_reopen_unreached
       expected_write_paths:
       - apps/web/src/electronics/led-temporal-presentation.ts
       - apps/web/src/electronics/use-electronics-workbench.ts
@@ -8678,6 +8678,7 @@ parallel_lanes:
       - e2e/electronics-simulation.spec.ts
       - contexts/electronics/testing/engine-timed-api.spec.ts
       - e2e/electronics-ready-cadence.spec.ts
+      - e2e/electronics-classroom-timing.spec.ts
       - package.json
       - .github/workflows/electronics-r4-m1-focused.yml
       - tools/test_ci_image_transport.py
@@ -8685,7 +8686,7 @@ parallel_lanes:
       - tests/electronics/classroom-qualification.spec.ts
       - docs/execution/current.yaml
       - docs/product/electronics/tasks/TASK-ELECTRONICS-CLASSROOM-D13-001.md
-      path_coordination: The existing Electronics-field owned-path labels and global shared-path classifications remain unchanged. Explicit revision3 taskcard selects the host/renderer and nine active-image consumer changes with one author per path. Preserve the unchanged R2 observer and every foreign worktree; require fresh fetch main and actual scoped overlap checks before writes. Labels confer no exclusive write permission under direct_main.
+      path_coordination: The existing Electronics-field owned-path labels and global shared-path classifications remain unchanged. Explicit revision3 taskcard selects the host/renderer and nine active-image consumer changes with one author per path. Preserve the optical R2 observer and every foreign worktree; only the independently reviewed actual-save receipt amendment is selected in its persistence helper; require fresh fetch main and actual scoped overlap checks before writes. Labels confer no exclusive write permission under direct_main.
       reported_strict_qualification: pnpm gate:electronics-m1:browser on the same exact source under strict-real-time; preserve its actual conclusion separately from the required classroom gate.
       qualification_inventory_review: 2af8f74ccd5cbe2c557fec44890e141a33652457c62d0140abb70eab59998738
       qualification_contract_sha256: a794578587a78ead87eea54c20c4d486ba0561368bd4a8bbe194693ed4545c10
@@ -8699,7 +8700,7 @@ parallel_lanes:
       context_hints:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-CLASSROOM-D13-001.md
       - docs/product/electronics/components/engine-worker-clock.yaml
-      next_action: Independently review and compose the selected common0.125 product clock with6250us model lookahead and its sealed qualification revision. Preserve all42 core records and per-row assertions; apply only the selected finite acquisition,11 discovery and exact-title whole-case budgets. Run complete same-SHA focused, benchmark, classroom-v3, separate strict and required General including Data/RLS. Obtain NEW actual native acceptance before normal main integration, then continue D2-D4. Preserve all earlier failures, foreign work and Issue546; main is not deployment.
+      next_action: Independently review and compose fresh bounded host demand at actual ordinary Worker dispatch and the actual-save observer repair. Preserve common0.125 pace,6250us lookahead,25k observation limits, two native RAF, all42 core records,11 discoveries and unchanged numerical criteria. Run full same-SHA focused, benchmark, classroom-v3, separate strict and required General including Data/RLS; inspect actual native Save/reopen and all D13 results before normal main integration, then continue D2-D4. Reuse the separate retained Portal diagnostic for its independent CI failure; never alter Portal inside this D13 slice. Main is not deployment.
     execution_lease:
       executor_id: electronics-classroom-d13
       holder: unassigned
@@ -8731,7 +8732,7 @@ parallel_lanes:
         sha: e098d0c9a6e7724f3ed74a9c326afab7ad05ea7f
       convergence_baseline_sha: e098d0c9a6e7724f3ed74a9c326afab7ad05ea7f
       head_sha: null
-      observation_note: Exactd0c915e retains classroom168PASS2FAIL and strict160PASS10FAIL; all four General jobs passed. Both GPIO discoveries passed, but whole-case30s expired at Stop after full per-row verification; Blockly1 reachedH914100 and exceeded the binding quarter-pace delta. Core coverage41of42 has38 bindingPASS and one binding Blockly1 entry unreached; all8 discoveries passed. The prospective common0.125 selection and registrya7945785 require new independent source review and actual complete gates. Owner acceptance remains pending and main e098d0c9 is not integrated or deployed by this amendment. Preserve all foreign lanes, blockers and gates; fresh fetch main remains required.
+      observation_note: Exactae4 retains classroom167PASS3FAIL and strict159PASS11FAIL. Classroom millis period normalizes to1236.35ms against900..1100 and initial Reset discovery misses16s before targetH1.25m; neither is accepted. Both profiles hit a Save helper that requests another PUT after successful autosave; cookies-only reopen is unreached. General governance/code/Access passed, Data failed and its one isolated repeat also failed in unchanged Portal PG tests; RLS was not reached. Fresh actual main remains e098d0c9, candidate clean atae4; no main integration or deployment. All old evidence, foreign lanes and acceptance requirements remain preserved. Fresh fetch main and actual refs are required before writes and integration.
 
 
   - id: electronics-classroom-hygiene
@@ -8996,7 +8997,7 @@ blocking:
     - focused_verification
     - independent_source_review
     - independent_product_review
-    reason: The prospectively selected classroom revision uses one common0.125 event-history model/wall pace and6250us model lookahead while preserving raw50ms publication, physical instruction time, native assets and joint commits. Exactd0c915e full classroom168PASS2FAIL and strict160PASS10FAIL remain failed despite all four General jobs passing and five D13 cases passing in each run. The new sealed qualification retains38 timing records with35 binding,4 binding finite acquisitions and11 mandatory discovery receipts with original5s outcomes;0 new exceptions. Exact-title finite whole-case budgets include unchanged full per-row assertions and UI/lifecycle service. Require unchanged-observer complete BEFORE/AFTER, all D13 ratios/duty/order/physical/native/lifecycle/sustained bounds, exact required gates and NEW independent actual acceptance. Selection and source review do not accept the complete release or clear full-realtime Issue546.
+    reason: The prospectively selected classroom revision uses one common0.125 event-history model/wall pace and6250us model lookahead while preserving raw50ms publication, physical instruction time, native assets and joint commits. Exactd0c915e full classroom168PASS2FAIL and strict160PASS10FAIL remain failed despite all four General jobs passing and five D13 cases passing in each run. The new sealed qualification retains38 timing records with35 binding,4 binding finite acquisitions and11 mandatory discovery receipts with original5s outcomes;0 new exceptions. Exact-title finite whole-case budgets include unchanged full per-row assertions and UI/lifecycle service. Require optically identical complete BEFORE/AFTER with separately reviewed actual-save receipt semantics, all D13 ratios/duty/order/physical/native/lifecycle/sustained bounds, exact required gates and NEW independent actual acceptance. Selection and source review do not accept the complete release or clear full-realtime Issue546.
     evidence: docs/product/electronics/tasks/TASK-ELECTRONICS-CLASSROOM-D13-001.md
 
 next_task: null

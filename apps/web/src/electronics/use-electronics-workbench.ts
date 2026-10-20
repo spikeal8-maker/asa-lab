@@ -775,6 +775,21 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
       controller = worker;
       simulationWorkerRef.current = worker;
       worker.start(projectId, initialDocument, {
+        readHostHorizonMicroseconds: () => {
+          const startedAt = simulationStartedAtRef.current;
+          if (!currentSession() || !session?.active || startedAt === null) return null;
+          const elapsedMicroseconds = Math.max(
+            0,
+            Math.round((window.performance.now() - startedAt) * 1000),
+          );
+          return normalHostClockRef.current
+            ? simulationHostOffsetMicrosecondsRef.current + elapsedMicroseconds
+            : classroomRequestedHorizon(
+                simulationHostOffsetMicrosecondsRef.current,
+                elapsedMicroseconds,
+                ledTemporalPresentationRef.current.presentedMicroseconds,
+              );
+        },
         onGenerationPending: () => {
           if (!currentSession()) return;
           simulationStartedAtRef.current = null;

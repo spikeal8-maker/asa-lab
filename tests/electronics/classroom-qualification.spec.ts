@@ -2149,7 +2149,7 @@ describe('v3 preserves real functional publication and native observations', () 
       new URL('../../e2e/electronics-classroom-timing.spec.ts', import.meta.url),
     );
     expect(createHash('sha256').update(originalObserver).digest('hex')).toBe(
-      'ca71a1fb21a958507dc33250a1858bce0ee55e1e9a144fb5f742c162662c6436',
+      'a84a5f2f9d1133c8df0223d011275a7e0fd4e936e00f47cc8acba2529b5cf2cd',
     );
     expect(readyCompact).toContain(
       "if (ownerQualificationLedger?.profile === 'classroom-d13-v2') test.setTimeout(60_000);",

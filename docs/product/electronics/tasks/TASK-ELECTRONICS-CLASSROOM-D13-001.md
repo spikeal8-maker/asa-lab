@@ -925,3 +925,61 @@ integration. Owner acceptance remains pending; observed main is
 e098d0c9a6e7724f3ed74a9c326afab7ad05ea7f. Continue D2-D4 immediately after accepted
 D13. No school installation, DB, Docker, network, protected data or deployment
 action is selected; main integration and site update remain separate facts.
+
+
+## 2026-10-20 — bounded fresh-dispatch and actual-save repairs
+
+The actual ae4f2b03d6b8632ed284d0939aacb46da46ba6a5 candidate is not accepted:
+Classroom39341467552 finished167PASS/3FAIL; Strict39341471397 finished159PASS/11FAIL.
+General39341466682 passed governance, code and Access, but its original Data job
+and one isolated repeat both failed in unchanged participant PostgreSQL tests;
+standalone RLS was not reached. Preserve all those outcomes and the separate
+Portal diagnostic task. Do not merge its measurement-only workflow or repair
+Portal inside this Electronics slice.
+
+The independent retained evidence identifies two bounded Electronics followups.
+First, the same electrical millis edges retain the correct model periods, while
+Worker progression already loses the required shared pace before rendering.
+The controller may read the current already-bounded host horizon immediately
+before an ordinary queued host request is dispatched. Keep the same startAt,
+0.125 pace,6250us lookahead and25k observation limit; preserve startup, input and
+continuation priorities, source generations, one in-flight request, native joint
+ACK and two complete RAF. The unrelated eligibility-anchor-only hypothesis did
+not improve the retained millis/Reset replay and is not selected. Source tests
+alone do not prove that fresh dispatch repairs visible cadence: actual complete
+browser qualification and independent native review remain mandatory.
+
+Second, both profiles show a successful completed browser PUT of the corrected
+150/150 sketch and full circuit at baseRevision2 to draft revision3. The PUT completed
+6654.734ms before the helper attempted the correctly disabled Save click;
+its later pre-read GET already returned that exact document. This is an observer false premise,
+not evidence of a failed editor save. Existing failed lifecycle/reopen outcomes
+remain failed/unreached until a new real browser run reaches them.
+
+Select only the persistence helper and setup receipt amendment in
+`e2e/electronics-classroom-timing.spec.ts`. Observe actual browser PUT responses
+before editor entry and accept the matching completed HTTP200 receipt whether
+it precedes or follows the Save checkpoint. Independently anchor the entire
+intended circuit before browser entry, allowing only the exact four existing
+model-identity registry fields on each component and the intended UNO source
+replacement. Require exact request/PUT-response/final-GET documents and the
+actual baseRevision+1 response/GET revision. A pre-read already at that proven
+revision is valid; a disabled label, invented edit, missing PUT or self-consistent
+wrong circuit is not. Do not claim a manual Save click when the actual write was
+autosave. Preserve the real cookies-only fresh-context reopen and all its saved
+source/circuit checks. The rejected R1 observer's circular expected-document
+counterexample remains recorded; only independently reviewed R2 may be composed.
+
+All optical acquisition, GPIO/current, loaded native assets, timing ratios,
+asymmetric signal, negatives, Reset, Stop, sustained bounds and original
+170-case roster remain unchanged. The R2 optical/classifier code is byte-identical
+across this Save amendment, so the recorded BEFORE remains comparable without
+replaying it merely to change a persistence observer. New AFTER provenance must
+pin the actual new observer; use separately versioned review workpapers and
+preserve historical observer hashes and evidence. This amendment changes no
+numerical acceptance threshold and grants no release claim before actual gates.
+
+The owner has already authorized normal verified main integration and continued
+visible slices. After the complete D13 result passes, publish it and continue
+D2-D4 without a new general permission request. School deployment and live data
+operations remain separate actions.

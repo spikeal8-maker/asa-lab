@@ -1,11 +1,12 @@
 import { createHash } from 'node:crypto';
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { expect, test, type Page, type TestInfo } from '@playwright/test';
+import { expect, test, type Page, type Response, type TestInfo } from '@playwright/test';
 import { PNG } from 'pngjs';
 import type pg from 'pg';
 import type { SchematicDocument } from '../apps/web/src/api';
 import type { ArduinoRuntimeState } from '../contexts/electronics/domain/arduino-program-runtime';
+import { resolveElectricalModelIdentity } from '../contexts/electronics/domain/model-identity';
 import type {
   ElectronicsSimulationWorkerRequest,
   ElectronicsSimulationWorkerResponse,
@@ -896,11 +897,38 @@ async function provenance(page: Page) {
   };
 }
 type SavedProject = { draft: { revision: number; updatedAt: string; document: SchematicDocument } };
+function observeDraftSaves(page: Page, endpoint: string, origin: string) {
+  const responses: Response[] = [];
+  const matches = (response: Response) =>
+    new URL(response.url()).origin === origin &&
+    new URL(response.url()).pathname === endpoint + '/draft' &&
+    response.request().method() === 'PUT';
+  page.on('response', (response) => {
+    if (matches(response)) responses.push(response);
+  });
+  return { responses, matches };
+}
 async function openFixture(
   page: Page,
   name: string,
   wiring: 'normal' | 'open' | 'reversed' = 'normal',
 ) {
+  const document = circuit(wiring);
+  // Capture the intended circuit before opening the editor or observing autosave.
+  // The current model registry adds only these four identity fields per component.
+  const intendedDocument: SchematicDocument = {
+    ...document,
+    components: document.components.map((component) => {
+      const identity = resolveElectricalModelIdentity(component);
+      return {
+        ...component,
+        electricalModelId: identity.electricalModelId,
+        electricalModelVersion: identity.electricalModelVersion,
+        modelProfileId: identity.modelProfileId,
+        modelProfileVersion: identity.modelProfileVersion,
+      };
+    }),
+  };
   await page.setViewportSize({ width: 1600, height: 1000 });
   await installObserver(page);
   const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
@@ -927,20 +955,29 @@ async function openFixture(
   const seed = await page.context().request.put(endpoint + '/draft', {
     headers: { origin },
     data: {
-      document: circuit(wiring),
+      document,
       baseRevision: empty.draft.revision,
       mutationId: crypto.randomUUID(),
     },
   });
   expect(seed.status()).toBe(200);
+  // Observe actual browser writes before any pupil edit; autosave may finish
+  // during the long optical captures, before the later persistence checkpoint.
+  const persistence = observeDraftSaves(page, endpoint, origin);
   await page.goto('/#/home/' + id);
   await expect(page.locator('.workbench-stage')).toBeVisible();
   await expect(
     page.locator('[data-component-id="led0"] .workbench-production-visual'),
   ).toBeVisible();
   const build = await provenance(page);
-  persist(name + '-setup', { id, wiring, document: await read(), provenance: build });
-  return { id, endpoint, origin, read, failures, build };
+  persist(name + '-setup', {
+    id,
+    wiring,
+    intendedDocument,
+    document: await read(),
+    provenance: build,
+  });
+  return { id, endpoint, origin, read, failures, build, persistence, intendedDocument };
 }
 async function editor(page: Page, open: boolean): Promise<void> {
   const button = page.getByRole('button', {
@@ -959,22 +996,9 @@ async function edit(page: Page, source: string): Promise<void> {
 }
 async function save(page: Page, session: Awaited<ReturnType<typeof openFixture>>, source: string) {
   const previous = await session.read();
-  const put = page.waitForResponse(
-    (response) =>
-      new URL(response.url()).pathname === session.endpoint + '/draft' &&
-      response.request().method() === 'PUT',
-  );
-  await page.getByRole('button', { name: 'Сохранить проект', exact: true }).click();
-  const response = await put;
-  expect(response.status()).toBe(200);
-  const requestBody = response.request().postDataJSON() as {
-    document: SchematicDocument;
-    baseRevision: number;
-  };
-  const saved = await session.read();
   const expected = {
-    ...previous.draft.document,
-    components: previous.draft.document.components.map((component) =>
+    ...session.intendedDocument,
+    components: session.intendedDocument.components.map((component) =>
       component.id === 'uno'
         ? {
             ...component,
@@ -983,15 +1007,52 @@ async function save(page: Page, session: Awaited<ReturnType<typeof openFixture>>
         : component,
     ),
   };
+  const matchesSource = (response: Response) => {
+    if (!session.persistence.matches(response)) return false;
+    const body = response.request().postDataJSON() as { document?: SchematicDocument } | null;
+    return (
+      body?.document?.components.find((component) => component.id === 'uno')?.stateProperties
+        ?.arduinoSource === source
+    );
+  };
+  const observed = session.persistence.responses.findLast(matchesSource);
+  // There is no await between the retained lookup and installing the waiter.
+  // A saved/disabled label alone cannot satisfy this actual HTTP receipt check.
+  const response = observed ?? (await page.waitForResponse(matchesSource));
+  expect(response.status()).toBe(200);
+  expect(await response.finished()).toBeNull();
+  const requestBody = response.request().postDataJSON() as {
+    document: SchematicDocument;
+    baseRevision: number;
+  };
+  const responseBody = (await response.json()) as SavedProject;
+  const saved = await session.read();
   expect(requestBody.document).toEqual(expected);
-  expect(requestBody.baseRevision).toBe(previous.draft.revision);
+  expect(responseBody.draft.document).toEqual(expected);
+  expect(responseBody.draft.revision).toBe(requestBody.baseRevision + 1);
   expect(saved.draft.document).toEqual(expected);
-  expect(saved.draft.revision).toBe(previous.draft.revision + 1);
+  expect(saved.draft.revision).toBe(responseBody.draft.revision);
+  if (previous.draft.revision === requestBody.baseRevision) {
+    expect(saved.draft.revision).toBe(previous.draft.revision + 1);
+  } else {
+    // The pre-read may already contain this same completed autosave. Require
+    // its whole document and the actual PUT's single revision increment.
+    expect(previous.draft.revision).toBe(requestBody.baseRevision + 1);
+    expect(previous.draft.document).toEqual(expected);
+    expect(saved.draft.revision).toBe(previous.draft.revision);
+  }
   persist('save-' + session.id + '-' + saved.draft.revision, {
     previous,
     requestBody,
     saved,
     expected,
+    responseBody,
+    observedAtLookup: observed !== undefined,
+    request: {
+      method: response.request().method(),
+      url: response.url(),
+      timing: response.request().timing(),
+    },
   });
   return saved;
 }
@@ -2046,7 +2107,7 @@ test('Classroom D13: visible 100, 200, 300, 150 and asymmetric phases on one cir
       const ratio = t(half!) / t(100);
       if (!(ratio >= lower! && ratio <= upper!)) findings.push('T' + half + '/T100 = ' + ratio);
     }
-    // One actual Save after real pupil source edits, preserving the entire circuit.
+    // Verify an actual browser draft write after pupil edits, preserving the entire circuit.
     const saved = await save(page, session, source);
     expect(saved.draft.document.connections).toEqual(circuit().connections);
     session.failures.assertEmpty();
