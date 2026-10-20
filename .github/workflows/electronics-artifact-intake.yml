@@ -1,0 +1,302 @@
+name: Electronics historical artifact intake
+run-name: Read-only D2 evidence intake 39422409394
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/electronics-artifact-intake.yml'
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  intake:
+    if: >-
+      github.repository == 'spikeal8-maker/asa-lab' &&
+      github.event.pull_request.head.repo.full_name == 'spikeal8-maker/asa-lab' &&
+      github.head_ref == 'codex/electronics-evidence-intake-649'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      # No checkout: the only program executed is the reviewed inline source.
+      - name: Verify and copy bounded historical evidence
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          import re
+          import stat
+          import sys
+          import tempfile
+          import urllib.error
+          import urllib.parse
+          import urllib.request
+          import zipfile
+          import zlib
+          from pathlib import Path, PurePosixPath
+
+          REPO = 'spikeal8-maker/asa-lab'
+          RUN = 39422409394
+          ARTIFACT = 12266831251
+          SOURCE = '24c4acf6c369ba695bf74684ec1bd7f26a70266b'
+          SIZE = 630584469
+          DIGEST = '813ae15b73de655f5854e688f1a6367a2f7289f31bf0425095958c9cc3f8d90d'
+          MIB = 1024 * 1024
+          MEMBER_LIMIT = 128 * MIB
+          DECOMPRESSED_LIMIT = 512 * MIB
+          PACKAGE_LIMIT = 256 * MIB
+          MEMBER_COUNT_LIMIT = 64
+          ROOT = 'e2e/artifacts/electronics-simulation/ready-cadence-539/'
+          STAGES = ('100-100', '200-200', '300-300', '150-150', '100-300',
+                    'reset-100-300', 'reopened-100-300')
+          LEDGER = re.compile(r'd2-d4-ledger-[0-9]+-[0-9]+\.json\Z')
+          SAVE = re.compile(r'd2-d4-save-[A-Za-z0-9_-]+-[0-9]+\.json\Z')
+          NATIVE = re.compile(r'd2-d4-native-(?:[0-6]-(?:100|000|010|001)\.(?:png|json)|causality\.json)\Z')
+          OPTIONAL_RAW = ROOT + 'owner-r18-d2-d4-150-150-raw.json'
+          stage = 'initialization'
+
+          def require(condition, code):
+              if not condition:
+                  raise ValueError(code)
+
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self, req, fp, code, msg, headers, newurl):
+                  return None
+
+          def request_api(path, token):
+              # This opener cannot follow a redirect with Authorization.
+              require(path.startswith('/repos/' + REPO + '/'), 'api-path')
+              return urllib.request.build_opener(NoRedirect()).open(
+                  urllib.request.Request('https://api.github.com' + path, headers={
+                      'Authorization': 'Bearer ' + token,
+                      'Accept': 'application/vnd.github+json',
+                      'X-GitHub-Api-Version': '2022-11-28',
+                  }), timeout=45)
+
+          def metadata(token):
+              with request_api('/repos/' + REPO + '/actions/artifacts/' + str(ARTIFACT), token) as response:
+                  data = response.read(1024 * 1024 + 1)
+              require(len(data) <= 1024 * 1024, 'metadata-size')
+              value = json.loads(data)
+              run = value.get('workflow_run', {})
+              require(value.get('id') == ARTIFACT and value.get('size_in_bytes') == SIZE,
+                      'metadata-identity')
+              require(value.get('expired') is False and value.get('digest') == 'sha256:' + DIGEST,
+                      'metadata-digest-expiry')
+              require(run.get('id') == RUN and run.get('head_sha') == SOURCE,
+                      'metadata-source')
+              require(run.get('repository_id') == 1304464825 and
+                      run.get('head_repository_id') == 1304464825, 'metadata-repository')
+              return value
+
+          def validate_blob_url(url):
+              parsed = urllib.parse.urlsplit(url)
+              host = parsed.hostname or ''
+              require(parsed.scheme == 'https' and parsed.username is None and
+                      parsed.password is None and parsed.port in (None, 443) and
+                      not parsed.fragment, 'blob-scheme-credentials-port')
+              # Only HTTPS storage hosts returned by GitHub's authenticated API.
+              require(re.fullmatch(r'productionresultssa[0-9]+\.blob\.core\.windows\.net', host)
+                      is not None, 'blob-host')
+              require(parsed.path.startswith('/actions-results/'), 'blob-path')
+              return url
+
+          def download(token, destination):
+              try:
+                  response = request_api('/repos/' + REPO + '/actions/artifacts/' +
+                                         str(ARTIFACT) + '/zip', token)
+              except urllib.error.HTTPError as error:
+                  try:
+                      require(error.code == 302, 'archive-redirect-status')
+                      url = validate_blob_url(error.headers.get('Location', ''))
+                  finally:
+                      error.close()
+              else:
+                  response.close()
+                  raise ValueError('archive-missing-redirect')
+              # A separate request/opener has NO token and rejects further redirects.
+              request = urllib.request.Request(url)
+              digest = hashlib.sha256()
+              size = 0
+              with urllib.request.build_opener(NoRedirect()).open(request, timeout=60) as response:
+                  require(response.status == 200, 'blob-status')
+                  with destination.open('xb') as output:
+                      while True:
+                          block = response.read(1024 * 1024)
+                          if not block:
+                              break
+                          size += len(block)
+                          require(size <= SIZE, 'archive-size-overflow')
+                          digest.update(block)
+                          output.write(block)
+              require(size == SIZE and digest.hexdigest() == DIGEST, 'archive-size-digest')
+
+          def safe_member(info):
+              name = info.filename
+              require(info.orig_filename == name, 'member-normalized-name')
+              require(name and len(name) <= 1024 and not any(ord(c) < 32 or ord(c) == 127 for c in name),
+                      'member-control-name')
+              require('\\' not in name and ':' not in name and not name.startswith('/'),
+                      'member-path')
+              parts = name.rstrip('/').split('/')
+              require(all(part not in ('', '.', '..') for part in parts), 'member-traversal')
+              mode = info.external_attr >> 16
+              require(not stat.S_ISLNK(mode) and stat.S_IFMT(mode) in (0, stat.S_IFREG, stat.S_IFDIR),
+                      'member-special-file')
+              require(not info.flag_bits & 1, 'member-encrypted')
+              return name
+
+          def member_kind(name):
+              if name.startswith(ROOT):
+                  base = name[len(ROOT):]
+                  if LEDGER.fullmatch(base):
+                      return 'ledger'
+                  if SAVE.fullmatch(base):
+                      return 'save'
+                  if NATIVE.fullmatch(base):
+                      return 'native'
+                  if name == OPTIONAL_RAW:
+                      return 'optional-150-150-raw'
+              if name == ('reports/playwright/electronics-ready-cadence--76ee0-d-cookies-only-saved-reopen/'
+                          'error-context.md'):
+                  return 'error-context'
+              return None
+
+          def copy_member(archive, info, destination):
+              require(0 <= info.file_size <= MEMBER_LIMIT and
+                      info.compress_type in (zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED), 'member-size-method')
+              destination.parent.mkdir(parents=True, exist_ok=True)
+              digest = hashlib.sha256()
+              size = 0
+              crc = 0
+              with archive.open(info) as source, destination.open('xb') as output:
+                  while True:
+                      block = source.read(1024 * 1024)
+                      if not block:
+                          break
+                      size += len(block)
+                      require(size <= info.file_size and size <= MEMBER_LIMIT, 'member-actual-size')
+                      digest.update(block)
+                      crc = zlib.crc32(block, crc)
+                      output.write(block)
+              require(size == info.file_size and crc == info.CRC, 'member-size-crc')
+              return {'name': info.filename, 'size': size, 'crc32': f'{crc:08x}',
+                      'sha256': digest.hexdigest()}
+
+          def select_members(infos):
+              names = [safe_member(info) for info in infos]
+              require(len(names) <= 10000 and len(names) == len(set(names)), 'member-count-duplicate')
+              selected = [(info, member_kind(info.filename)) for info in infos if not info.is_dir()
+                          and member_kind(info.filename) not in (None, 'optional-150-150-raw')]
+              require(sum(kind == 'ledger' for _, kind in selected) == 1, 'exactly-one-ledger')
+              require(len(selected) <= MEMBER_COUNT_LIMIT, 'selected-count')
+              require(all(info.file_size <= MEMBER_LIMIT for info, _ in selected), 'selected-member-size')
+              total = sum(info.file_size for info, _ in selected)
+              require(total <= DECOMPRESSED_LIMIT and total < PACKAGE_LIMIT - MIB, 'selected-total')
+              omitted = []
+              for info in infos:
+                  if info.filename != OPTIONAL_RAW:
+                      continue
+                  if (len(selected) < MEMBER_COUNT_LIMIT and info.file_size < MEMBER_LIMIT and
+                          total + info.file_size < PACKAGE_LIMIT - MIB and
+                          total + info.file_size <= DECOMPRESSED_LIMIT):
+                      selected.append((info, 'optional-150-150-raw'))
+                      total += info.file_size
+                  else:
+                      omitted.append({'name': info.filename, 'reason': 'prospective-size-or-count-cap'})
+              if not any(info.filename == OPTIONAL_RAW for info in infos):
+                  omitted.append({'name': OPTIONAL_RAW, 'reason': 'absent-in-source-archive'})
+              return selected, omitted
+
+          def main():
+              global stage
+              os.umask(0o077)
+              token = os.environ.get('GITHUB_TOKEN', '')
+              require(bool(token), 'missing-scoped-token')
+              stage = 'metadata'
+              metadata(token)
+              output = Path(os.environ['RUNNER_TEMP']) / 'electronics-artifact-intake'
+              output.mkdir(mode=0o700, exist_ok=False)
+              with tempfile.TemporaryDirectory(prefix='asa-intake-') as temporary:
+                  archive_path = Path(temporary) / 'verified-input.zip'
+                  stage = 'verified-download'
+                  download(token, archive_path)
+                  # Metadata is checked again before opening the verified archive.
+                  metadata(token)
+                  stage = 'bounded-member-selection'
+                  with zipfile.ZipFile(archive_path) as archive:
+                      infos = archive.infolist()
+                      selected, omitted = select_members(infos)
+                      receipts = []
+                      ledger_path = None
+                      for info, kind in selected:
+                          destination = output / 'members' / PurePosixPath(info.filename)
+                          receipt = copy_member(archive, info, destination)
+                          receipts.append({**receipt, 'kind': kind})
+                          if kind == 'ledger':
+                              ledger_path = destination
+                      require(ledger_path is not None, 'ledger-not-copied')
+                      stage = 'safe-ledger-summary'
+                      ledger = json.loads(ledger_path.read_bytes())
+                      require(ledger.get('schema') == 'electronics-classroom-d2-d4-v1', 'ledger-schema')
+                      require(ledger.get('expectedSourceSha') == SOURCE, 'ledger-source')
+                      stages = ledger.get('stages')
+                      require(isinstance(stages, list) and len(stages) <= len(STAGES), 'ledger-stages')
+                      stage_names = [row.get('stage') for row in stages if isinstance(row, dict)]
+                      require(len(stage_names) == len(stages) and
+                              stage_names == list(STAGES[:len(stage_names)]), 'ledger-stage-order')
+                      require(isinstance(ledger.get('completed'), bool), 'ledger-completed')
+                      summary = {'historical_only': True, 'source_sha': SOURCE,
+                                 'input_sha256': DIGEST, 'stageNames': stage_names,
+                                 'completed': ledger['completed'],
+                                 'lastStage': stage_names[-1] if stage_names else None,
+                                 'metricsCount': len(stages),
+                                 'selectedMembers': len(receipts), 'inventoryMembers': len(infos)}
+                      manifest = {'transport_schema': 'asa-evidence-intake-v1',
+                                  'repository': REPO, 'run_id': RUN, 'artifact_id': ARTIFACT,
+                                  'source_sha': SOURCE, 'input_size': SIZE, 'input_sha256': DIGEST,
+                                  'historical_only': True, 'summary': summary,
+                                  'selected': receipts, 'omitted': omitted,
+                                  'inventory': [{'name': info.filename, 'size': info.file_size,
+                                                 'compressed_size': info.compress_size,
+                                                 'crc32': f'{info.CRC:08x}',
+                                                 'selected': any(row['name'] == info.filename for row in receipts)}
+                                                for info in infos]}
+                      encoded = (json.dumps(manifest, indent=2) + '\n').encode()
+                      (output / 'manifest.json').write_bytes(encoded)
+                      total = sum(path.stat().st_size for path in output.rglob('*') if path.is_file())
+                      require(total < PACKAGE_LIMIT, 'final-package-size')
+                      manifest_sha = hashlib.sha256(encoded).hexdigest()
+                      summary['manifest_sha256'] = manifest_sha
+                      summary['package_bytes'] = total
+                      line = json.dumps(summary, sort_keys=True)
+                      print('HISTORICAL TRANSPORT VERIFIED: ' + line)
+                      with open(os.environ['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8') as report:
+                          report.write('Historical evidence transport only; no new product acceptance.\n\n')
+                          report.write('```json\n' + line + '\n```\n')
+
+          if __name__ == '__main__':
+              try:
+                  main()
+              except Exception as error:
+                  # Do not print exception text/tracebacks: HTTP errors can carry signed URLs.
+                  print('HISTORICAL INTAKE FAILED: stage=' + stage + '; type=' + type(error).__name__)
+                  sys.exit(1)
+          PY
+
+      - name: Retain compact verified evidence
+        # actions/upload-artifact v4.6.2, independently verified immutable revision.
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: electronics-d2-historical-intake-39422409394
+          path: ${{ runner.temp }}/electronics-artifact-intake
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 6
+          include-hidden-files: false
