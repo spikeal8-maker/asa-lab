@@ -4058,7 +4058,9 @@ test('Course Builder corrects the exact second prepublish block and preserves la
   await editor.getByRole('button', { name: '+ Урок', exact: true }).click();
   await title.fill('Первая теория');
   await editor.getByLabel('Текст блока', { exact: true }).fill('Первый урок не теряет содержание.');
-  await editor.getByRole('button', { name: 'Добавить урок', exact: true }).click();
+  const firstAdded = await confirmLessonWrite(null, () =>
+    editor.getByRole('button', { name: 'Добавить урок', exact: true }).click(),
+  );
   await expect(editor.getByRole('status')).toHaveText('Урок добавлен.');
   await editor.getByRole('button', { name: '+ Урок', exact: true }).click();
   await title.fill('Второй урок с практикой');
@@ -4067,7 +4069,9 @@ test('Course Builder corrects the exact second prepublish block and preserves la
     .fill('Текст перед практикой сохраняется.');
   await addCourseBlock(page, 'Практика');
   await selectCoursePractice(page, oldPractice);
-  await editor.getByRole('button', { name: 'Добавить урок', exact: true }).click();
+  const secondAdded = await confirmLessonWrite(null, () =>
+    editor.getByRole('button', { name: 'Добавить урок', exact: true }).click(),
+  );
   await expect(editor.getByRole('status')).toHaveText('Урок добавлен.');
 
   async function outline() {
@@ -4082,8 +4086,72 @@ test('Course Builder corrects the exact second prepublish block and preserves la
       items: Array<{ id: string; versionNumber: number; outline: unknown }>;
     };
   }
-  const original = await outline();
+  async function confirmLessonWrite(lessonId: string | null, submit: () => Promise<void>) {
+    const method = lessonId ? 'PATCH' : 'POST';
+    const pathname = `/api/courses/${courseId}/lessons${lessonId ? '/' + lessonId : ''}`;
+    const saved = page
+      .waitForResponse(
+        (response) =>
+          response.request().method() === method && new URL(response.url()).pathname === pathname,
+      )
+      .then(async (response) => {
+        expect(response.status()).toBe(lessonId ? 200 : 201);
+        expect(await response.finished()).toBeNull();
+        const receipt = (await response.json()) as { id: string; draftRevision: number };
+        const submitted = response.request().postDataJSON() as {
+          sectionId: string;
+          title: string;
+          blocks: unknown[];
+          expectedRevision: number;
+        };
+        expect(receipt.id).toMatch(
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+        );
+        if (lessonId) expect(receipt.id).toBe(lessonId);
+        expect(Number.isSafeInteger(receipt.draftRevision)).toBe(true);
+        expect(receipt.draftRevision).toBeGreaterThan(submitted.expectedRevision);
+        return { receipt, submitted };
+      });
+    // The notice text can survive the previous save. Match this write's exact
+    // receipt and the editor's corresponding committed outline refresh instead.
+    const refreshed = page.waitForResponse(async (response) => {
+      if (
+        response.request().method() !== 'GET' ||
+        new URL(response.url()).pathname !== `/api/courses/${courseId}/outline` ||
+        response.status() !== 200
+      )
+        return false;
+      const body = (await response.json()) as { draftRevision: number };
+      return body.draftRevision === (await saved).receipt.draftRevision;
+    });
+    await submit();
+    const result = await saved;
+    await refreshed;
+    const committed = await outline();
+    expect(committed.draftRevision).toBe(result.receipt.draftRevision);
+    const matches = committed.sections.flatMap((section) =>
+      section.lessons
+        .filter((lesson) => lesson.id === result.receipt.id)
+        .map((lesson) => ({ sectionId: section.id, lesson })),
+    );
+    expect(matches).toHaveLength(1);
+    expect(matches[0]!.sectionId).toBe(result.submitted.sectionId);
+    expect(matches[0]!.lesson.title).toBe(result.submitted.title);
+    expect(matches[0]!.lesson.blocks).toEqual(result.submitted.blocks);
+    return { receipt: result.receipt, outline: committed };
+  }
+  const original = secondAdded.outline;
+  expect(secondAdded.receipt.id).not.toBe(firstAdded.receipt.id);
+  expect(original.sections).toHaveLength(1);
   const section = original.sections[0]!;
+  expect(section.lessons.map((lesson) => lesson.id)).toEqual([
+    firstAdded.receipt.id,
+    secondAdded.receipt.id,
+  ]);
+  expect(section.lessons.map((lesson) => lesson.title)).toEqual([
+    'Первая теория',
+    'Второй урок с практикой',
+  ]);
   const second = section.lessons[1]!;
   const secondBlock = second.blocks[1]!;
   expect(secondBlock).toMatchObject({
@@ -4104,7 +4172,7 @@ test('Course Builder corrects the exact second prepublish block and preserves la
   expect(archived.rowCount).toBe(1);
   await editor.locator('.course-lesson-link').filter({ hasText: 'Первая теория' }).click();
   await title.fill('Первая теория — новая редакция');
-  await save.click();
+  await confirmLessonWrite(firstAdded.receipt.id, () => save.click());
   await expect(editor.getByRole('status')).toHaveText('Урок сохранён.');
   const beforeFailure = await outline();
   const path = `/api/courses/${courseId}/publish`;
@@ -4162,7 +4230,7 @@ test('Course Builder corrects the exact second prepublish block and preserves la
     'Сначала сохраните изменения урока. Переход не выполнен',
   );
   expect((await versions()).items).toEqual(immutableV1);
-  await save.click();
+  await confirmLessonWrite(firstAdded.receipt.id, () => save.click());
   await expect(editor.getByRole('status')).toHaveText('Урок сохранён.');
   await editor.getByRole('button', { name: 'Опубликовать v2', exact: true }).click();
   await expect(correct).toBeVisible();
@@ -4194,7 +4262,7 @@ test('Course Builder corrects the exact second prepublish block and preserves la
   }
   await page.setViewportSize({ width: 1440, height: 900 });
   await selectCoursePractice(page, newPractice);
-  await save.click();
+  await confirmLessonWrite(secondAdded.receipt.id, () => save.click());
   await expect(editor.getByRole('status')).toHaveText('Урок сохранён.');
   const repaired = await outline();
   expect(repaired.sections[0]!.lessons[0]!.title).toBe('Правки B во время проверки остаются');
