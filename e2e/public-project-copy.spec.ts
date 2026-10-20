@@ -158,9 +158,7 @@ for (const width of [1440, 390, 320]) {
       await expect(openAction).toBeVisible();
       await openAction.click();
       await expect(reader).toHaveURL(new RegExp(`#/3d/${target.projectId}(?:[?]|$)`));
-      const viewport = reader.getByTestId('asa3d-viewport');
-      await expect(viewport).toHaveAttribute('data-runtime-ready', 'true');
-      await expect(viewport).toHaveAttribute('data-geometry-worker-state', 'ready');
+      await expectPrimitiveRender(reader, ['published-box']);
       expect((await opened(reader, target.projectId)).draft.document).toEqual(v1.document);
       await reader.screenshot({ path: `${EVIDENCE}/${width}-copied-v1.png`, fullPage: true });
       const library = reader.getByRole('button', { name: 'Добавить фигуру', exact: true });
@@ -189,9 +187,9 @@ for (const width of [1440, 390, 320]) {
         const reopened = await reopenedContext.newPage();
         const reopenFailures = collectBrowserFailures(reopened, { allowAdminAccessProbe: true });
         await reopened.goto(route);
-        await expect(reopened.getByTestId('asa3d-viewport')).toHaveAttribute(
-          'data-runtime-ready',
-          'true',
+        await expectPrimitiveRender(
+          reopened,
+          intended.nodes.map((node: { id: string }) => node.id),
         );
         expect((await opened(reopened, target.projectId)).draft.document).toEqual(intended);
         await reopened.screenshot({ path: `${EVIDENCE}/${width}-reopened.png`, fullPage: true });
@@ -232,7 +230,7 @@ function electronicsCircuit(resistance: number) {
         componentTypeId: 'battery-holder-aa-2',
         variantId: 'battery-holder-aa-2',
         name: 'Источник 3 В',
-        position: { x: 70, y: 110 },
+        position: { x: 230, y: 110 },
         rotation: 0,
         value: 3,
         pinIds: ['BAT-', 'BAT+'],
@@ -244,11 +242,11 @@ function electronicsCircuit(resistance: number) {
         componentTypeId: 'resistor-axial',
         variantId: 'resistor-axial',
         name: 'R1',
-        position: { x: 360, y: 150 },
+        position: { x: 520, y: 150 },
         rotation: 90,
         value: resistance,
         pinIds: ['lead-1', 'lead-2'],
-        stateProperties: { tolerancePercent: 5, resistanceUnit: 'Ом' },
+        stateProperties: { tolerancePercent: 5, resistanceUnit: 'Ω', powerRatingWatt: 0.25 },
       },
       {
         id: 'led',
@@ -256,7 +254,7 @@ function electronicsCircuit(resistance: number) {
         componentTypeId: 'led-5mm',
         variantId: 'led-5mm',
         name: 'LED1',
-        position: { x: 640, y: 140 },
+        position: { x: 800, y: 140 },
         rotation: 0,
         value: 2,
         pinIds: ['anode', 'cathode'],
@@ -284,8 +282,8 @@ function electronicsCircuit(resistance: number) {
         to: { componentId: 'source', terminal: 'BAT-' },
         color: '#2a3035',
         vertices: [
-          { x: 700, y: 330 },
-          { x: 120, y: 330 },
+          { x: 860, y: 330 },
+          { x: 280, y: 330 },
         ],
       },
     ],
@@ -296,6 +294,13 @@ function electronicsCircuit(resistance: number) {
   if (!parsed.ok) throw new Error(`Invalid packaged circuit: ${parsed.message}`);
   expect(parsed.document.components).toHaveLength(3);
   expect(parsed.document.connections).toHaveLength(3);
+  expect(
+    parsed.document.components.find((part) => part.id === 'resistor')?.stateProperties,
+  ).toEqual({
+    tolerancePercent: 5,
+    resistanceUnit: 'Ω',
+    powerRatingWatt: 0.25,
+  });
   return parsed.document;
 }
 
@@ -536,5 +541,51 @@ async function assertPrivateCopy(
     expect(denied.status()).toBe(401);
   } finally {
     await anonymous.close();
+  }
+}
+
+/** Ungrouped primitives are rendered directly by SceneRuntime.createNodeObject.
+ * With no Boolean groups the canonical worker state is idle, not ready. Prove
+ * the visible WebGL canvas and real raycast/manipulator selection as well. */
+async function expectPrimitiveRender(page: Page, expectedNodeIds: readonly string[]) {
+  const viewport = page.getByTestId('asa3d-viewport');
+  await expect(viewport).toHaveAttribute('data-runtime-ready', 'true');
+  await expect(viewport).toHaveAttribute('data-geometry-worker-state', 'idle');
+  await expect(viewport).toHaveAttribute('data-geometry-group-states', '[]');
+  await expect(viewport.locator('.asa3d-webgl-error')).toHaveCount(0);
+  expect(await viewport.getAttribute('data-geometry-worker-error')).toBeNull();
+  const canvas = viewport.locator('canvas').first();
+  await expect(canvas).toBeVisible();
+  const dimensions = await canvas.evaluate((element) => ({
+    width: (element as HTMLCanvasElement).width,
+    height: (element as HTMLCanvasElement).height,
+    cssWidth: element.getBoundingClientRect().width,
+    cssHeight: element.getBoundingClientRect().height,
+  }));
+  for (const dimension of Object.values(dimensions)) expect(dimension).toBeGreaterThan(0);
+  // Same bounded rendered-workplane selection points as the existing 3D suite.
+  // These clicks only select; no synthetic document or viewport mutation.
+  for (const [x, y] of [
+    [0.5, 0.5],
+    [0.56, 0.47],
+    [0.45, 0.52],
+  ]) {
+    await canvas.click({ position: { x: dimensions.cssWidth * x, y: dimensions.cssHeight * y } });
+    if (expectedNodeIds.includes((await viewport.getAttribute('data-selected-node-id')) ?? ''))
+      break;
+  }
+  expect(expectedNodeIds).toContain(await viewport.getAttribute('data-selected-node-id'));
+  const overlay = page.getByTestId('asa3d-manipulator-overlay');
+  await expect(overlay).toHaveAttribute('data-handle-positions', /resize-/);
+  const handles = JSON.parse((await overlay.getAttribute('data-handle-positions')) ?? '{}') as {
+    centre: { x: number; y: number };
+    handles: Array<{ id: string; x: number; y: number }>;
+  };
+  expect(Number.isFinite(handles.centre.x)).toBe(true);
+  expect(Number.isFinite(handles.centre.y)).toBe(true);
+  expect(handles.handles.length).toBeGreaterThan(0);
+  for (const handle of handles.handles) {
+    expect(Number.isFinite(handle.x)).toBe(true);
+    expect(Number.isFinite(handle.y)).toBe(true);
   }
 }
