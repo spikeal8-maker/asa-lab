@@ -398,3 +398,56 @@ below the cap. Branch publication for required CI remains permitted. The approxi
 Root assigns a NEW independent reviewer after exact source freeze. Preserve all
 previous gates, histories, blockers, teacher exception and stopped D13 handoff;
 this amendment grants no product acceptance, release, deployment or Issue closure.
+
+
+## 2026-10-21 — committed-horizon repair and original real-time goal
+
+This amendment supersedes the preceding completed private-field authoring step
+only for the following bounded repair. Canonical selection base is
+main7d4b00b74094076676b2af82dd0226ec24cc72aa. PR652 source was integrated at
+628a5b5a999998b008e18e5ab61e843cb5d8b25b by explicit owner instruction; it is
+not technical or owner acceptance. The final classroom result is220PASS18FAIL;
+strict is211PASS27FAIL. The actual production bundle is217938 bytes against the
+unchanged218000-byte cap. Preserve exact-source run/raw bindings and all failures.
+
+The final D2 failure is the Reset pre-H0 oracle. It does not by itself prove a
+product publication lag above50ms. A separate read-only raw intake must establish
+the lifecycle/oracle cause before selecting any related repair. The earlier
+case200 latency receipt remains historical and must not be substituted for this
+final failure. Neither failure is waived or accepted by this amendment.
+
+The owner has resumed the original Issue546 goal: real-time Arduino and visibly
+correct LED output. The common0.125 pace above is a versioned intermediate
+classroom boundary, not full-real-time acceptance. Preserve it and the6250us
+lookahead during this selected repair; changing a pace constant without proved
+compute headroom is not a solution. Historical classroom approvals do not accept
+2000/100/50/1ms real-time, independent ports, Reset or the complete original goal.
+
+Select ONE bounded host/controller repair: suppress unjustified requests for an
+already committed horizon. The saved Blockly1ms trace contains149 such requests
+among602, with627.6ms compute and1463.5ms roundtrip. These are a measured causal
+input, not proof that deduplication alone will achieve1x or fix every failure.
+One NEW author assigned by root owns only use-electronics-workbench.ts,
+live-simulation-worker-controller.ts and their existing clock/controller tests.
+Do not change presenter, solver, interpreter, physics, workflow, assets or
+foreign modules. Preserve legitimate yielded continuation, initial H0, pending
+inputs, same-horizon lifecycle work, source/document/generation identity and
+all canonical Arduino, capacitor, heat, damage and other runtime state.
+
+Require a discriminating regression, complete result/state preservation and
+saved-sequence before/after request counts, reached model time and compute/elapsed
+evidence. No incomplete/yielded result may become a ready electrical frame.
+Native readiness, joint LED history and ACK, independent ports, Reset, Stop,
+cancellation and stale/failure handling remain mandatory. Keep all existing
+50ms/timing/precision/assertion bounds and required gates; do not rerun unchanged
+heavy suites hoping for success. Root reviews the actual bounded diff, then a
+NEW independent reviewer checks the exact SHA, followed by the required
+exact-source built-editor evidence and gates. Further pace changes require
+proved compute headroom and an explicit canonical selection, never an implicit
+extension of this author invocation.
+
+Preserve all earlier histories and acceptance blockers, the teacher-workflow
+limited exception and stopped D13 handoff; neither foreign dirty tree is touched.
+No school installation, Docker, network, database, deployment or Issue closure
+is selected. The author and reviewer each STOP after their assigned stage; root
+continues the authorized programme using the actual result.

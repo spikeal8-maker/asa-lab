@@ -9376,7 +9376,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: led_publication_private_field_bundle_budget_repair_selected
+      checkpoint: arduino_committed_horizon_deduplication_selected
       owner_acceptance: pending
       acceptance_revision: classroom-d2-d4-eighth-pace-r1
       active_qualification_profile: classroom-d13-v3
@@ -9455,7 +9455,28 @@ parallel_lanes:
         private_renames: presentedFrame to shown; pendingFrame to pending; animationFrame to raf; committedAnimationFrame to ackRaf; indicatorHistories to indicators; frameSequence to sequence.
         preservation: Public keys, getters and returned frame objects remain unchanged. No algorithm, physics, pacing, precision, native lease, ACK, Reset, workflow, dependency, foreign-source or threshold change. Preserve prior selections, teacher exception, stopped D13 handoff, gates, acceptance blockers and all history.
         required_verification: Prove no external repository references to these private fields; AST equivalence modulo ONLY six private renames; all100 presenter tests; targeted types; production Vite bundle at most218000 bytes before main integration, verified by exact file bytes or a proved UTF-8 Vite upper bound below the cap. Estimated384 source bytes is only an estimate, never actual bundle PASS.
-      next_action: Publish and review this two-document canonical amendment on main before author writes. One bounded author applies only the six private field renames in the owned presenter class, verifies unchanged public API/AST and required tests/types/exact production bundle. Freeze source for NEW independent exact-SHA review before root publication. Never raise the bundle cap or claim acceptance from estimates; all remaining browser/strict/general gates and blockers remain mandatory.
+      committed_horizon_repair_selection:
+        selected_base_main: 7d4b00b74094076676b2af82dd0226ec24cc72aa
+        stage: bounded_host_committed_horizon_deduplication
+        source_publication: PR652 integrated at main628a5b5a999998b008e18e5ab61e843cb5d8b25b by owner instruction; source publication is not technical or owner acceptance.
+        final_classroom_result: FAIL220PASS18FAIL; preserve the actual source-bound run and raw evidence, not acceptance.
+        final_strict_result: FAIL211PASS27FAIL; preserve all original assertions and failures.
+        production_bundle_bytes: 217938
+        unchanged_production_bundle_cap_bytes: 218000
+        unresolved_d2_classification: The final D2 failure is the Reset pre-H0 oracle; it does not establish a product publication lag above50ms. Separate read-only raw intake must distinguish lifecycle/oracle cause before any corresponding repair. Earlier case200 raw remains historical, not a classification of this final failure.
+        owner_goal: Continue the original Issue546 real-time Arduino and visible LED goal. Common pace0.125 is a historical intermediate classroom boundary, never full-real-time acceptance. This selected repair MUST NOT change pace or lookahead without separately proved compute headroom and canonical selection.
+        causal_input: Saved Blockly1ms trace has149 of602 requests repeating an already committed horizon,627.6ms compute and1463.5ms roundtrip on those requests. This identifies avoidable work, not sufficient headroom or a sole root cause.
+        author: NEW bounded author assigned by root after canonical main publication
+        independent_reviewer: NEW independent exact-SHA reviewer assigned by root; never the author
+        expected_product_paths:
+        - apps/web/src/electronics/use-electronics-workbench.ts
+        - apps/web/src/electronics/live-simulation-worker-controller.ts
+        - apps/web/src/electronics/testing/use-electronics-workbench-clock.spec.ts
+        - apps/web/src/electronics/testing/live-simulation-worker-controller.spec.ts
+        scope_override: Supersede the completed private-field authoring instruction only for deduplicating unjustified already-committed-horizon requests in the existing host/controller. Preserve legitimate yielded continuation, H0 initialization, pending inputs, generation/source/document identity and canonical state. No presenter, solver, runtime interpreter, physical timing, workflow, dependency, artwork or foreign module change.
+        required_verification: Meaningful regression must discriminate duplicate committed-ready requests from necessary yielded continuation and same-horizon input/lifecycle work. Preserve complete ready results and every canonical runtime state, native readiness and ACK, independent ports, Reset/Stop/cancellation and stale/failure guards. Reuse the saved request sequence for before/after request counts, reached model time and compute/elapsed evidence; no repeated measurements without a new reason. Then focused checks, NEW independent exact-SHA review and required exact-source built-editor evidence; no timeout, tolerance, precision or assertion weakening.
+        preservation: Keep all historical source/reviews/failures, all gates and acceptance blockers,0.125 current pace,6250us cap,50ms publication and full raw evidence. Preserve the explicit teacher-workflow limited exception and stopped D13 handoff without changing either foreign tree. No school installation, Docker, network or database action.
+      next_action: Publish this canonical two-document selection on main before product writes; root then assigns one bounded host/controller author and a separate independent reviewer. Independently classify the final D2 Reset pre-H0 raw evidence without treating it as a proved50ms product defect. Freeze the deduplication candidate and review its actual diff and saved-sequence benefit before required exact-source gates. Do not claim1x or change pace until compute headroom is proved; source publication does not close649,546 or any acceptance blocker.
     previous_task:
       id: TASK-ELECTRONICS-CLASSROOM-D13-001
       issue: 638
