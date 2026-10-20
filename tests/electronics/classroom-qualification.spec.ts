@@ -1889,6 +1889,52 @@ describe('v3 preserves real functional publication and native observations', () 
     expect(raw).toEqual(original);
   });
 
+  function resetStartupFixture() {
+    const raw = startupFixture();
+    raw.frames.unshift({
+      ...raw.frames[1]!,
+      at: 8,
+      requestAt: 5,
+      generationId: 6,
+      responseGenerationId: 6,
+      requestId: 'before-reset',
+    });
+    return raw;
+  }
+
+  it('retains every dark Reset startup row without borrowing a pre-action request', () => {
+    const raw = resetStartupFixture();
+    const original = structuredClone(raw);
+    const result = oracle().v3.causality(raw, 'source', 7, 10);
+    expect(result.violations).toEqual([]);
+    expect(result.startup.frames).toHaveLength(3);
+    expect(result.startup.frames.every((row) => row.status === 'DARK_STARTUP')).toBe(true);
+    expect(result.startup.h0ReadyAt).toBe(100);
+    expect(result.startup.h0RequestId).toBe('100');
+    expect(result.witnesses).toEqual([expect.objectContaining({ at: 150, readyAt: 120 })]);
+    expect(raw).toEqual(original);
+  });
+
+  it('still rejects old-generation receipts after Reset, bright pre-H0 rows and missing new H0', () => {
+    for (const invalid of ['late-old-receipt', 'bright-before-request', 'missing-new-h0']) {
+      const raw = resetStartupFixture();
+      if (invalid === 'late-old-receipt') raw.frames[0]!.at = 19;
+      if (invalid === 'bright-before-request') raw.paintFrames[0]!.brightness[0] = 80;
+      if (invalid === 'missing-new-h0') raw.frames.splice(1, 1);
+      const original = structuredClone(raw);
+      const result = oracle().v3.causality(raw, 'source', 7, 10);
+      const reason =
+        invalid === 'late-old-receipt'
+          ? 'electrical ready state already received before initial H0'
+          : invalid === 'bright-before-request'
+            ? 'native LEDs are not completely dark and ready before H0'
+            : 'initial electrical H0 is missing or invalid';
+      expect(result.violations, invalid).toContainEqual(expect.objectContaining({ reason }));
+      if (invalid === 'missing-new-h0') expect(result.startup.h0ReadyAt).toBeNull();
+      expect(raw, invalid).toEqual(original);
+    }
+  });
+
   it('rejects lit, unready, obscured or incomplete native startup and advertised model state', () => {
     type Fixture = ReturnType<typeof startupFixture>;
     const changes: Array<[string, (raw: Fixture) => void]> = [
