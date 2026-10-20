@@ -45,7 +45,10 @@ test('exact saved and published learner preview ignores late responses and creat
   await page.getByRole('button', { name: 'Сохранить', exact: true }).click();
   await expect(previewButton).toBeEnabled();
   const mutations: string[] = [];
+  const qualityTelemetryUrl = new URL('/api/analytics/v2/quality', page.url()).href;
   page.on('request', (request) => {
+    // This fixed endpoint persists background delivery counters.
+    if (request.method() === 'POST' && request.url() === qualityTelemetryUrl) return;
     if (request.url().includes('/api/') && !['GET', 'HEAD'].includes(request.method()))
       mutations.push(request.method() + ' ' + request.url());
   });

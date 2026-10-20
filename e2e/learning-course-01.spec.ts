@@ -5000,8 +5000,14 @@ test('Course media errors survive saved author preview and learner delivery with
     );
     expect(run).toMatchObject({ courseVersionId: version.versionId, versionNumber: 1 });
     expect(run.sections[0].lessons).toHaveLength(2);
-    expect(run.sections[0].lessons[0].blocks).toEqual(saved.sections[0]!.lessons[0]!.blocks);
-    expect(run.sections[0].lessons[1].blocks).toEqual(saved.sections[0]!.lessons[0]!.blocks);
+    const publishedBlocks = saved.sections[0]!.lessons[0]!.blocks.map(({ hidden, ...block }) => {
+      expect(hidden === undefined || hidden === false, 'media fixture blocks remain visible').toBe(
+        true,
+      );
+      return block;
+    });
+    expect(run.sections[0].lessons[0].blocks).toEqual(publishedBlocks);
+    expect(run.sections[0].lessons[1].blocks).toEqual(publishedBlocks);
     // Duplicated lessons deliberately preserve block IDs and resource URLs.
     // Hold the real new loads to observe that the previous lesson's error is
     // cleared before the new lesson receives its own resource outcome.
