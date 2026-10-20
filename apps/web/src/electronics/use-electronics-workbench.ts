@@ -15,6 +15,7 @@ import type {
   ComponentResult,
   ProductionStateValue,
   SchematicComponent,
+  SchematicDocument,
   SolveResult,
   Terminal,
 } from '../api';
@@ -430,6 +431,23 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
   >(null);
   const runtimeDocumentRef = useRef(runtimeDocument);
   const resetSimulationRef = useRef(resetSimulation);
+  const nativePreparationSourceIdentity = useMemo(
+    () =>
+      JSON.stringify(
+        (runtimeDocument?.components ?? [])
+          .filter(
+            (component) =>
+              component.componentTypeId === 'arduino-uno' || component.variantId === 'arduino-uno',
+          )
+          .map((component) => [component.id, component.stateProperties?.arduinoSource]),
+      ),
+    [runtimeDocument],
+  );
+  const nativePreparationSourceRef = useRef({
+    identity: nativePreparationSourceIdentity,
+    revision: 0,
+  });
+  const cancelNativePreparationRef = useRef<(() => void) | null>(null);
   const committedHostSessionRef = useRef<{
     projectId: string;
     running: boolean;
@@ -439,6 +457,13 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
     // A suspended render must not publish its document to the active timer.
     runtimeDocumentRef.current = runtimeDocument;
     resetSimulationRef.current = resetSimulation;
+    if (nativePreparationSourceRef.current.identity !== nativePreparationSourceIdentity) {
+      nativePreparationSourceRef.current = {
+        identity: nativePreparationSourceIdentity,
+        revision: nativePreparationSourceRef.current.revision + 1,
+      };
+      cancelNativePreparationRef.current?.();
+    }
   });
   useLayoutEffect(() => {
     // Suspense can detach/reveal layout effects without restarting the passive
@@ -547,18 +572,37 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
     let active = true;
     const currentSession = () => active && committedHostSessionRef.current === session;
     let latestResult: SolveResult | null = null;
+    let latestResultDocument: SchematicDocument | null = null;
     let latestCommittedHorizon = 0;
     let pending: PendingOpticalObservation | null = null;
     let displayed: LiveOpticalObservation | null = null;
     let publishing = false;
     let animationFrame: number | null = null;
     let recordedReanchors = ledTemporalPresentationRef.current.reanchorCount;
+    let queuedNativePreparation: { document: SchematicDocument } | null = null;
+    let nativePreparation: { generation: number; assets: ReadonlyMap<string, string> } | null =
+      null;
+    let nativePreparationSequence = 0;
+    let nativePreparationSourceRevision = nativePreparationSourceRef.current.revision;
+    const cancelNativePreparation = () => {
+      queuedNativePreparation = null;
+      if (nativePreparation) {
+        nativePreparation = null;
+        // Retire only the speculative token. A real pending/display/rollback
+        // publication retains its existing ownership and cancellation path.
+        setLedAssetPreparation(null);
+      }
+    };
+    cancelNativePreparationRef.current = cancelNativePreparation;
     const cancelOpticalPublication = () => {
       pending = null;
       displayed = null;
       publishing = false;
       latestResult = null;
+      latestResultDocument = null;
       latestCommittedHorizon = 0;
+      queuedNativePreparation = null;
+      nativePreparation = null;
       opticalPublicationRef.current = null;
       setRollbackLedAssets(null);
       setLedAssetPreparation(null);
@@ -575,9 +619,13 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
       if (currentSession()) recordOpticalAssetReadiness(pending, event);
     };
     ledAssetReadinessRef.current = acceptAssetReadiness;
-    const candidateAssets = (frame: LedPresentationFrame, solved: SolveResult) => {
+    const candidateAssets = (
+      frame: Pick<LedPresentationFrame, 'brightness'>,
+      solved: SolveResult,
+      document = runtimeDocumentRef.current,
+    ) => {
       const assets = new Map<string, string>();
-      for (const component of runtimeDocumentRef.current?.components ?? []) {
+      for (const component of document?.components ?? []) {
         if (component.kind !== 'led') continue;
         const entry = catalogEntry(component);
         if (!entry || entry.key !== 'led-5mm') continue;
@@ -601,6 +649,67 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
         );
       }
       return assets;
+    };
+    const queueNativePreparation = () => {
+      const document = latestResultDocument;
+      if (
+        !document ||
+        pending ||
+        publishing ||
+        queuedNativePreparation?.document === document ||
+        nativePreparationSourceRevision !== nativePreparationSourceRef.current.revision
+      )
+        return;
+      const ticket = { document };
+      queuedNativePreparation = ticket;
+      // Worker receipt can precede the visibility boundary by the whole
+      // lookahead window. Start the real mounted request now, not after the
+      // cursor reaches its edge. The microtask also leaves React layout/ACK
+      // before flushing, and is invalidated by cancellation or a new source.
+      queueMicrotask(() => {
+        if (queuedNativePreparation !== ticket) return;
+        queuedNativePreparation = null;
+        const current = () =>
+          currentSession() &&
+          session?.active === true &&
+          runtimeDocumentRef.current === document &&
+          latestResultDocument === document &&
+          nativePreparationSourceRevision === nativePreparationSourceRef.current.revision &&
+          !pending &&
+          !publishing &&
+          opticalPublicationRef.current === null &&
+          ledTemporalPresentationRef.current.preparedFrame === null;
+        if (!current() || !latestResult) return;
+        const frame = ledTemporalPresentationRef.current.nextNativeAssetFrame;
+        if (!frame) return;
+        const assets = candidateAssets(frame, latestResult, document);
+        if (assets.size === 0) return;
+        if (
+          displayed &&
+          assets.size === displayed.ledAssets.size &&
+          [...assets].every(([id, asset]) => {
+            const lease = displayed!.ledAssets.get(id);
+            return lease?.asset === asset && lease.isCurrent();
+          })
+        )
+          return;
+        if (
+          nativePreparation?.generation === frame.generation &&
+          assets.size === nativePreparation.assets.size &&
+          [...assets].every(([id, asset]) => nativePreparation!.assets.get(id) === asset)
+        )
+          return;
+        flushSync(() => {
+          if (!current()) return;
+          nativePreparation = { generation: frame.generation, assets };
+          setLedAssetPreparation({
+            token: `native:${frame.generation}:${++nativePreparationSequence}`,
+            assets,
+          });
+        });
+        // Native readiness for this token is intentionally not a display ACK.
+        // The real RAF later requests a fresh lease for the same mounted node.
+      });
     };
     const publish = (candidate: PendingOpticalObservation) => {
       const next: LiveOpticalObservation = {
@@ -630,6 +739,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
           displayed = next;
           pending = null;
           publishing = false;
+          queueNativePreparation();
           return true;
         },
         retry: (previous) => {
@@ -668,10 +778,12 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
       if (!frame && ledTemporalPresentationRef.current.displayedFrame === null) {
         // Quality/nonfatal source loss or missing coverage can reset the
         // presenter when no asset is pending. Never leave its old vector lit.
-        if (pending || displayed || publishing) {
+        if (pending || displayed || publishing || nativePreparation || queuedNativePreparation) {
           pending = null;
           displayed = null;
           publishing = false;
+          queuedNativePreparation = null;
+          nativePreparation = null;
           opticalPublicationRef.current = null;
           setLedAssetPreparation(null);
           setRollbackLedAssets(null);
@@ -684,6 +796,8 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
         if (frame !== pending.frame) {
           // Invalid/generation-changing data cancels the old token, never promotes it.
           pending = null;
+          queuedNativePreparation = null;
+          nativePreparation = null;
           setLedAssetPreparation(null);
           if (!frame) {
             displayed = null;
@@ -711,6 +825,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
             arduinoLStates: frame.arduinoLStates,
           };
           if (changedResult) setLiveObservation(displayed);
+          queueNativePreparation();
         }
         return;
       }
@@ -721,6 +836,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
         readiness: new Map(),
       };
       pending = candidate;
+      nativePreparation = null;
       if (assets.size === 0) {
         setLedAssetPreparation({ token: frame.token, assets });
         publish(candidate);
@@ -798,6 +914,12 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
           setCommittedHorizonMicroseconds(0);
           ledTemporalPresentationRef.current.reset();
           cancelOpticalPublication();
+          // Source-only edits intentionally keep the controller generation,
+          // and onResult does not identify the dispatch source. Until a real
+          // Reset/Start establishes ownership again, disable speculative warm
+          // work after any committed edit, including an A -> B -> A change.
+          // The ordinary RAF display path and Worker semantics are unchanged.
+          nativePreparationSourceRevision = nativePreparationSourceRef.current.revision;
           setRollbackLedAssets(null);
           setLiveObservation(null);
           setSimulationMessage(null);
@@ -812,6 +934,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
           if (!currentSession()) return;
           setGenerationPending(false);
           latestResult = nextResult;
+          latestResultDocument = runtimeDocumentRef.current;
           if (ledTemporal) {
             normalHostClockRef.current = false;
             ledTemporalPresentationRef.current.accept(
@@ -853,6 +976,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
           observeReanchor();
           setSimulationMessage(circuitStateMessage(nextResult));
           confirmSimulationStarted();
+          queueNativePreparation();
         },
         onCommittedHorizon: (horizon) => {
           if (!currentSession()) return;
@@ -895,6 +1019,8 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
       cancelOpticalPublication();
       if (ledAssetReadinessRef.current === acceptAssetReadiness)
         ledAssetReadinessRef.current = null;
+      if (cancelNativePreparationRef.current === cancelNativePreparation)
+        cancelNativePreparationRef.current = null;
       if (simulationCommandRef.current === dispatch) simulationCommandRef.current = null;
       controller?.stop();
     };

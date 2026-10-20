@@ -356,6 +356,91 @@ describe('accepted per-LED temporal presentation', () => {
     expect(presentation.reanchorCount).toBe(0);
   });
 
+  it('prepares the first accepted native vector without publishing or skipping an intermediate phase', () => {
+    const presentation = new LedTemporalPresentation();
+    const observation: ElectronicsLedTemporalObservation = {
+      ...window(0, 6_250, [
+        channel('d2', [point(0, 0), point(7, 70), point(2_000, 0), point(6_250, 0)]),
+        channel('d3', [point(0, 0), point(3_000, 70), point(6_250, 70)]),
+        channel('d4', [point(0, 0), point(6_250, 0)]),
+      ]),
+      arduinoIndicators: [
+        {
+          componentId: 'uno',
+          truncated: false,
+          samples: [
+            { atMicroseconds: 0, voltage: 0 },
+            { atMicroseconds: 1_000, voltage: 5 },
+            { atMicroseconds: 6_250, voltage: 0 },
+          ],
+        },
+      ],
+    };
+    const result: SolveResult = {
+      ...electrical(observation),
+      components: [
+        ...electrical(observation).components,
+        { componentId: 'uno', current: 0, voltageDrop: 5, terminalVoltages: { d13: 0 } },
+      ],
+    };
+    presentation.accept(result, observation, 0);
+    drawFrame(presentation, 0);
+    const next = presentation.nextNativeAssetFrame!;
+    expect(next.atMicroseconds).toBe(7);
+    expect([...next.brightness]).toEqual([
+      ['d2', 70],
+      ['d3', 0],
+      ['d4', 0],
+    ]);
+    expect(next.arduinoLStates.get('uno')).toBe(false);
+    // The endpoint is 010; the first future native need is the real 100 phase.
+    expect(result.components[0]!.brightness).toBe(0);
+    expect(result.components[1]!.brightness).toBe(70);
+    expect(presentation.preparedFrame).toBeNull();
+    expect(presentation.acknowledgeFrame({ ...next, token: 'native-preparation' }, 500)).toBe(
+      false,
+    );
+    expect(presentation.presentedMicroseconds).toBe(0);
+    expect([...presentation.sample().values()]).toEqual([0, 0, 0]);
+    expect(classroomRequestedHorizon(0, 100_000, presentation.presentedMicroseconds)).toBe(6_250);
+    // Repeated native preparation reads cannot count as shared RAFs.
+    for (let read = 0; read < 10; read++) expect(presentation.nextNativeAssetFrame).toEqual(next);
+    expect(presentation.prepareFrame(1_000)).toBeNull();
+    expect(presentation.prepareFrame(2_000)).toBeNull();
+    const display = presentation.prepareFrame(3_000)!;
+    expect(display.brightness.get('d2')).toBe(70);
+    expect(presentation.acknowledgeFrame(display, 3_000)).toBe(true);
+  });
+
+  it('includes the accepted fast-cycle expiry when finding the next native asset', () => {
+    const presentation = new LedTemporalPresentation();
+    const fast = window(0, 25_000);
+    presentation.accept(electrical(fast), fast, 0);
+    drawUntil(presentation, 200_000);
+    expect(presentation.sample().get('led')).toBe(40);
+    const held = window(25_000, 50_000, [channel('led', [point(25_000, 0), point(50_000, 0)])]);
+    presentation.accept(electrical(held), held, 200_000);
+    expect(presentation.nextNativeAssetFrame?.atMicroseconds).toBe(50_000);
+    expect(presentation.nextNativeAssetFrame?.brightness.get('led')).toBe(0);
+    expect(presentation.sample().get('led')).toBe(40);
+  });
+
+  it('invalidates native preparation identity on Reset and rejected history', () => {
+    const presentation = new LedTemporalPresentation();
+    const observation = window(0, 0, [channel('led', [point(0, 80)])]);
+    presentation.accept(electrical(observation), observation, 0);
+    const first = presentation.nextNativeAssetFrame!;
+    presentation.reset();
+    expect(presentation.nextNativeAssetFrame).toBeNull();
+    presentation.accept(electrical(observation), observation, 10_000);
+    expect(presentation.nextNativeAssetFrame?.generation).not.toBe(first.generation);
+    expect(presentation.presentedMicroseconds).toBe(0);
+    expect(presentation.sample().size).toBe(0);
+    presentation.accept({ ...electrical(observation), solved: false }, observation, 10_001);
+    expect(presentation.nextNativeAssetFrame).toBeNull();
+    expect(presentation.preparedFrame).toBeNull();
+  });
+
   it('holds one immutable pending native frame while real ready data arrives', () => {
     const presentation = new LedTemporalPresentation();
     const first = window(0, 25_000, [

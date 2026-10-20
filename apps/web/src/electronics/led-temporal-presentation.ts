@@ -40,6 +40,10 @@ export interface LedPresentationFrame {
   readonly arduinoLStates: ReadonlyMap<string, boolean>;
 }
 
+export interface LedNativeAssetFrame extends Omit<LedPresentationFrame, 'token'> {
+  readonly generation: number;
+}
+
 function sameOpticalFrame(left: LedPresentationFrame, right: LedPresentationFrame): boolean {
   return (
     left.brightness.size === right.brightness.size &&
@@ -240,6 +244,57 @@ export class LedTemporalPresentation {
 
   get displayedFrame(): LedPresentationFrame | null {
     return this.presentedFrame;
+  }
+
+  /**
+   * Read the nearest native resource need in already accepted history. This is
+   * not a display frame: it has no ACK token and cannot advance the cursor or
+   * count a RAF. In particular, an intermediate HIGH must not be skipped just
+   * because the accepted endpoint has returned LOW before the next paint.
+   */
+  get nextNativeAssetFrame(): LedNativeAssetFrame | null {
+    if (this.cursor === null || this.committed === null) return null;
+    const times = new Set([this.cursor, this.committed]);
+    if (!this.snapshot) {
+      for (const samples of this.histories.values()) {
+        for (const sample of samples) {
+          // Native brightness can change at a solved sample or when the
+          // existing fast-cycle policy expires into the real held state.
+          for (const time of [
+            sample.atMicroseconds,
+            sample.atMicroseconds + LED_PRESENTATION_PHASE_LIMIT_MICROSECONDS,
+          ])
+            if (time > this.cursor && time < this.committed) times.add(time);
+        }
+      }
+    }
+    let last: LedNativeAssetFrame | null = null;
+    for (const time of [...times].sort((left, right) => left - right)) {
+      const atMicroseconds = this.snapshot?.atMicroseconds ?? time;
+      const brightness = this.snapshot?.brightness ?? this.atTime(atMicroseconds);
+      const voltages = this.indicatorVoltagesAtTime(atMicroseconds);
+      if (
+        !this.snapshot &&
+        (brightness.size !== this.histories.size || voltages.size !== this.indicatorHistories.size)
+      )
+        return null;
+      last = {
+        generation: this.generation,
+        atMicroseconds,
+        brightness,
+        arduinoLStates: new Map([...voltages].map(([id, voltage]) => [id, voltage >= 2.5])),
+      };
+      if (
+        !this.presentedFrame ||
+        brightness.size !== this.presentedFrame.brightness.size ||
+        [...brightness].some(
+          ([id, value]) =>
+            Math.round(value) !== Math.round(this.presentedFrame!.brightness.get(id) ?? -1),
+        )
+      )
+        return last;
+    }
+    return last;
   }
 
   get canPublishDistinctFrame(): boolean {
