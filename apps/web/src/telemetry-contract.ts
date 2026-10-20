@@ -198,8 +198,15 @@ export async function sendTelemetry(
   body: unknown,
   acknowledgement: TelemetryAcknowledgement,
   transport: typeof fetch = fetch,
+  signal?: AbortSignal,
 ): Promise<Delivery> {
+  if (signal?.aborted) return { kind: 'retry' };
   const controller = new AbortController();
+  const abort = () => controller.abort();
+  const cancelled = new Promise<null>((resolve) =>
+    controller.signal.addEventListener('abort', () => resolve(null), { once: true }),
+  );
+  signal?.addEventListener('abort', abort, { once: true });
   const timeout = setTimeout(() => controller.abort(), 12_000);
   try {
     // A deadline also bounds injected transports which ignore AbortSignal. Cancellation is not rollback.
@@ -213,16 +220,20 @@ export async function sendTelemetry(
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(body),
       }),
-      new Promise<null>((resolve) =>
-        controller.signal.addEventListener('abort', () => resolve(null), { once: true }),
-      ),
+      cancelled,
     ]);
     if (!response || [408, 429].includes(response.status) || response.status >= 500)
       return { kind: 'retry' };
     let value: unknown;
     try {
-      value = await response.json();
+      const decoded = await Promise.race([
+        response.json().then((value: unknown) => ({ value })),
+        cancelled,
+      ]);
+      if (!decoded || controller.signal.aborted) return { kind: 'retry' };
+      value = decoded.value;
     } catch {
+      if (controller.signal.aborted) return { kind: 'retry' };
       return response.ok
         ? { kind: 'retry' }
         : {
@@ -248,6 +259,7 @@ export async function sendTelemetry(
     return { kind: 'retry' };
   } finally {
     clearTimeout(timeout);
+    signal?.removeEventListener('abort', abort);
   }
 }
 export function sessionStoragePort(): StoragePort | undefined {

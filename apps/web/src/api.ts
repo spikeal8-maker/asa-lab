@@ -11,6 +11,12 @@ import {
 } from './modules/project-draft-mutation';
 import { saveProjectSnapshot } from './project-snapshot-client';
 import { notifySessionLoggedOut } from './session-fetch';
+import {
+  beginTelemetryIdentityObservation,
+  beginTelemetryWorkspaceSwitch,
+  finishTelemetryWorkspaceSwitch,
+  observeTelemetryIdentity,
+} from './telemetry-context';
 
 export type { ApiError, ApiResult } from './api-call';
 export type { ProjectSnapshotInfo } from './project-snapshot-client';
@@ -1813,10 +1819,14 @@ export const api = {
       `/api/learning/notifications/classes/${id}/reminders`,
       { method: 'POST', body: JSON.stringify(input) },
     ),
-  me: (signal?: AbortSignal) =>
-    call<SessionPayload | { authenticated: false }>('/api/auth/me', {
+  me: async (signal?: AbortSignal) => {
+    const observation = beginTelemetryIdentityObservation();
+    const result = await call<SessionPayload | { authenticated: false }>('/api/auth/me', {
       ...(signal ? { signal } : {}),
-    }),
+    });
+    if (result.ok) observeTelemetryIdentity(observation, result.data);
+    return result;
+  },
   authProviders: (signal?: AbortSignal) =>
     call<{ providers: AuthProviderAvailability[] }>('/api/auth/providers', {
       ...(signal ? { signal } : {}),
@@ -1990,11 +2000,20 @@ export const api = {
     }),
   listWorkspaces: () =>
     call<{ items: WorkspaceRef[]; activeWorkspaceId: string }>('/api/workspaces'),
-  switchWorkspace: (workspaceId: string) =>
-    call<{ activeWorkspace: { workspaceId: string; kind: string } }>('/api/session/context', {
-      method: 'POST',
-      body: JSON.stringify({ workspaceId }),
-    }),
+  switchWorkspace: async (workspaceId: string) => {
+    const mutation = beginTelemetryWorkspaceSwitch();
+    let successful = false;
+    try {
+      const result = await call<{ activeWorkspace: { workspaceId: string; kind: string } }>(
+        '/api/session/context',
+        { method: 'POST', body: JSON.stringify({ workspaceId }) },
+      );
+      successful = result.ok;
+      return result;
+    } finally {
+      finishTelemetryWorkspaceSwitch(mutation, !successful);
+    }
+  },
   selfAttestEducator: () =>
     call<{ capability: 'educator'; state: string; created: boolean }>(
       '/api/capabilities/educator/self-attest',

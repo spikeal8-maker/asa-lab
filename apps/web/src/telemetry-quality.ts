@@ -99,7 +99,7 @@ export class TelemetryQuality {
   private snapshot: QualitySnapshot;
   private pending: QualitySnapshot | null = null;
   private sequence = 0;
-  private active = false;
+  private active: AbortController | undefined;
   private stopped = false;
   private authenticationUnavailable = false;
   private retired = false;
@@ -249,6 +249,9 @@ export class TelemetryQuality {
     this.paused = true;
     if (this.timer) clearTimeout(this.timer);
     this.timer = undefined;
+    const active = this.active;
+    this.active = undefined;
+    active?.abort();
   }
   /** A cached document continues its stream; an immutable pending sequence still retries unchanged. */
   resumeAfterPageShow(): void {
@@ -298,7 +301,8 @@ export class TelemetryQuality {
       return;
     }
     const sent = this.pending;
-    this.active = true;
+    const active = new AbortController();
+    this.active = active;
     const outcome = await sendTelemetry(
       this.actor ? '/api/analytics/v2/quality' : '/api/diagnostics/quality',
       sent,
@@ -322,8 +326,10 @@ export class TelemetryQuality {
             : value.state === 'intake_acknowledged'),
       },
       this.transport,
+      active.signal,
     );
-    this.active = false;
+    if (this.active !== active) return;
+    this.active = undefined;
     if (this.stopped) return;
     if (outcome.kind === 'acknowledged') {
       this.pending = null;
@@ -349,8 +355,7 @@ export class TelemetryQuality {
     if (this.pending || this.snapshot.gauges.pending || this.snapshot.gauges.inFlight)
       this.snapshot.coverage.uncleanEnd = true;
     this.stopped = true;
-    if (this.timer) clearTimeout(this.timer);
-    this.timer = undefined;
+    this.pause();
     // Preserve bounded original stream evidence locally, never send it under a successor cookie.
     try {
       const raw = this.storage?.getItem(`${this.key}:retired`);
