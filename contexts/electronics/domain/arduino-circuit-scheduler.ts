@@ -636,13 +636,11 @@ function createArduinoCircuitClockRequest(
           .map((component) => component.id),
       )
     : null;
-  let preparation: ClockPreparation | undefined = {
-    sourceSupport: new Map(),
-    operatingPoint: createArduinoOperatingPointReuse(),
-    ...(collector ? { observeLedState: collector.observe } : {}),
-  };
   const ownership: OwnedClockRequest = { continued: false };
-  if (stillOwned()) ownedClockRequests.set(preparation, ownership);
+  let preparation: ClockPreparation | undefined = stillOwned()
+    ? { sourceSupport: new Map(), operatingPoint: createArduinoOperatingPointReuse() }
+    : undefined;
+  if (preparation) ownedClockRequests.set(preparation, ownership);
   let previous = initial;
   let data: { document: ElectronicsDocument; target: number; options: typeof options } | undefined =
     { document, target, options };
@@ -655,13 +653,16 @@ function createArduinoCircuitClockRequest(
         ownership.runtime?.dispose();
         ownership.runtime = null;
         if (preparation) ownedClockRequests.delete(preparation);
+        // Drop every derived cache before the first generic callback can run.
+        preparation = undefined;
       }
-      const advanced = advanceArduinoCircuitClock(
+      const advanced = advanceArduinoCircuitClockWithObserver(
         data.document,
         data.target,
         previous,
         data.options,
         preparation,
+        collector?.observe,
       );
       ownership.continued = true;
       previous = advanced.state ?? undefined;
@@ -687,16 +688,11 @@ function createArduinoCircuitClockRequest(
     },
   };
 }
-/** One immutable document and one request; never a shared/persisted state authority. */
+/** Borrowed-document adapter; observation never authorizes derived solver reuse. */
 export function createArduinoCircuitClockExecutor(
   document: ElectronicsDocument,
   observeLedState?: LedElectricalObserver,
 ) {
-  const preparation: ClockPreparation = {
-    sourceSupport: new Map(),
-    operatingPoint: createArduinoOperatingPointReuse(),
-    ...(observeLedState ? { observeLedState } : {}),
-  };
   return (
     horizon: number,
     previous?: ArduinoCircuitClockState,
@@ -704,7 +700,15 @@ export function createArduinoCircuitClockExecutor(
       readonly inputs?: readonly ArduinoCircuitInputEvent[];
       readonly maxClockEvents?: number;
     } = {},
-  ) => advanceArduinoCircuitClock(document, horizon, previous, options, preparation);
+  ) =>
+    advanceArduinoCircuitClockWithObserver(
+      document,
+      horizon,
+      previous,
+      options,
+      undefined,
+      observeLedState,
+    );
 }
 
 export function advanceArduinoCircuitClock(
@@ -717,7 +721,33 @@ export function advanceArduinoCircuitClock(
   } = {},
   ownedPreparation?: ClockPreparation,
 ): ArduinoCircuitClockAdvance {
+  return advanceArduinoCircuitClockWithObserver(
+    document,
+    targetMicroseconds,
+    previous,
+    options,
+    ownedPreparation,
+    ownedPreparation
+      ? (time, components) => ownedPreparation.observeLedState?.(time, components)
+      : undefined,
+  );
+}
+
+// Observation is independent of the private capability that permits derived reuse.
+function advanceArduinoCircuitClockWithObserver(
+  document: ElectronicsDocument,
+  targetMicroseconds: number,
+  previous: ArduinoCircuitClockState | undefined,
+  options: {
+    readonly inputs?: readonly ArduinoCircuitInputEvent[];
+    readonly maxClockEvents?: number;
+  },
+  ownedPreparation?: ClockPreparation,
+  observeLedState?: LedElectricalObserver,
+): ArduinoCircuitClockAdvance {
   const ownership = ownedPreparation ? ownedClockRequests.get(ownedPreparation) : undefined;
+  // A borrowed executor or an unregistered preparation never proves model origin.
+  if (!ownership) ownedPreparation = undefined;
   const fault = (code: string, message: string): ArduinoCircuitClockAdvance => ({
     executionStatus: 'fault',
     result: null,
@@ -1108,6 +1138,13 @@ export function advanceArduinoCircuitClock(
     frame: SolveResult,
     time: number,
   ): NonNullable<ArduinoCircuitClockAdvance['result']> => {
+    if (!ownedPreparation)
+      return {
+        ...frame,
+        quality: verifyCircuitQuality(activeDocument, compileCircuit(activeDocument), frame, {
+          simulationTimeMs: time / 1000,
+        }),
+      };
     // Compilation depends only on the immutable active document, never on a frame.
     // Each applied input replaces that document; every frame is still independently verified.
     if (qualityDocument !== activeDocument || !qualityCircuit) {
@@ -1127,7 +1164,7 @@ export function advanceArduinoCircuitClock(
         ownership.quality.circuit !== qualityCircuit)
     ) {
       clearOwnedQuality(ownership);
-      const layout = createArduinoQualityLayoutOwner(operatingPointReuse);
+      const layout = createArduinoQualityLayoutOwner(ownedPreparation.operatingPoint);
       ownership.quality = {
         document: activeDocument,
         circuit: qualityCircuit,
@@ -1146,6 +1183,7 @@ export function advanceArduinoCircuitClock(
   let solveDocument = ownedPreparation?.solveDocument;
   let solvePreparation = ownedPreparation?.solve;
   const preparation = () => {
+    if (!ownedPreparation) return undefined;
     if (solveDocument !== activeDocument || !solvePreparation) {
       solvePreparation = prepareCircuitSolve(activeDocument);
       solveDocument = activeDocument;
@@ -1156,8 +1194,7 @@ export function advanceArduinoCircuitClock(
     }
     return solvePreparation;
   };
-  const operatingPointReuse =
-    ownedPreparation?.operatingPoint ?? createArduinoOperatingPointReuse();
+  const operatingPointReuse = ownedPreparation?.operatingPoint;
   const advancePhysics = (time: number) =>
     withQuality(
       solveRcCircuitWithHeldArduino(
@@ -1187,10 +1224,11 @@ export function advanceArduinoCircuitClock(
       // otherwise UI frame rate would change adaptive integration and later ADC reads.
       const advanced = advancePhysics(time);
       if (!advanced.solved || !advanced.quality.passed) return advanced;
-      // The follow-up still runs whenever integration or a zero-duration settle changed
-      // any physical input. Otherwise it would repeat exactly the solve just verified.
+      // Only owned preparation proves that a repeated solve has no foreign callbacks.
+      // Generic execution retains the original follow-up solve.
       cachedFrame = withQuality(
-        physicalState?.simulationTimeMs === time / 1000 &&
+        ownedPreparation &&
+          physicalState?.simulationTimeMs === time / 1000 &&
           identicalPhysicalState(physicalState, advanced.transientState)
           ? advanced
           : solveRcCircuitWithHeldArduino(
@@ -1367,7 +1405,7 @@ export function advanceArduinoCircuitClock(
   const commitPhysics = (time: number): boolean => {
     const advanced = advancePhysics(time);
     if (!advanced.solved || !advanced.quality.passed || !advanced.transientState) return false;
-    ownedPreparation?.observeLedState?.(time, advanced.components);
+    observeLedState?.(time, advanced.components);
     physicalState = advanced.transientState;
     cachedFrame = undefined;
     for (const thermal of physicalState.thermal) {
@@ -1404,8 +1442,7 @@ export function advanceArduinoCircuitClock(
       const checkpointTime = Math.round(physicalState!.simulationTimeMs * 1000);
       const frame = sample(checkpointTime);
       locateFailure(frame);
-      if (frame.solved && frame.quality.passed)
-        ownedPreparation?.observeLedState?.(checkpointTime, frame.components);
+      if (frame.solved && frame.quality.passed) observeLedState?.(checkpointTime, frame.components);
     }
   }
   // A returned frame is never a speculative MCU state. Failure discards this whole batch.
@@ -1819,7 +1856,7 @@ export function advanceArduinoCircuitClock(
         'Не выполнены проверки конечности, KCL или напряжения источников.',
       );
     if (eventPhysics && frame.solved && frame.quality.passed)
-      ownedPreparation?.observeLedState?.(targetMicroseconds, frame.components);
+      observeLedState?.(targetMicroseconds, frame.components);
     // The public controller observation contains ordinary stable data fields.
     // Reading these private projections once materializes their detached values.
     if (ownership?.runtime)
