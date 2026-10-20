@@ -37,9 +37,9 @@ BEGIN
     IF jsonb_typeof(p_block->'text') IS DISTINCT FROM 'string'
        OR (v_type IN ('heading','callout','formula')
            AND length(btrim(COALESCE(p_block->>'text','')))=0)
-       OR length(p_block->>'text') > CASE v_type
+       OR length(p_block->>'text') > (CASE v_type
          WHEN 'paragraph' THEN 12000 WHEN 'heading' THEN 300
-         WHEN 'callout' THEN 3000 WHEN 'code' THEN 20000 ELSE 4000 END THEN
+         WHEN 'callout' THEN 3000 WHEN 'code' THEN 20000 ELSE 4000 END) THEN
       RETURN 'text';
     END IF;
     IF v_type='heading' AND COALESCE(p_block->>'level','') NOT IN ('2','3') THEN RETURN 'level'; END IF;
