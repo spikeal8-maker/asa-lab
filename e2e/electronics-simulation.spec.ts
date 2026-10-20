@@ -9474,3 +9474,668 @@ test('Electronics automatic save retry waits a minute and preserves latest work'
   );
   await page.screenshot({ path: `${evidenceDir}/saved-latest-1440.png`, fullPage: true });
 });
+
+// TASK-ELECTRONICS-MOBILE-ADD-CONNECT-001: identical native BEFORE/AFTER probes.
+const mobilePlacementTest = test.extend({ hasTouch: true });
+type MobilePoint = { x: number; y: number };
+type MobileCaseInfo = import('@playwright/test').TestInfo;
+
+function mobileEmptyDocument(): SchematicDocument {
+  return {
+    schemaVersion: 4,
+    components: [],
+    connections: [],
+    viewport: { x: 0, y: 0, zoom: 1 },
+    simulation: { running: false, maxIterations: 24 },
+  };
+}
+
+function mobileFourComponentDocument(): SchematicDocument {
+  const existing = circuitDocument({ switchClosed: false, resistorOhms: 220, reversedLed: false });
+  const original = existing.components.filter((part) => part.id !== 'board');
+  const identities: Record<string, readonly [string, string]> = {
+    source: ['ideal-dc-source', 'generic-battery-pack-aa-2'],
+    switch: ['spdt-switch', 'slide-switch-spdt'],
+    resistor: ['resistor', 'axial-resistor'],
+    led: ['ordinary-led', 'generic-red-led'],
+  };
+  const components = original.map((part) => {
+    const [electricalModelId, modelProfileId] = identities[part.id]!;
+    return {
+      ...part,
+      electricalModelId,
+      electricalModelVersion: 1,
+      modelProfileId,
+      modelProfileVersion: 1,
+      ...(part.id === 'resistor'
+        ? { stateProperties: { ...part.stateProperties, powerRatingWatt: 0.25 } }
+        : {}),
+    };
+  });
+  expect(
+    components.map(
+      ({
+        electricalModelId,
+        electricalModelVersion,
+        modelProfileId,
+        modelProfileVersion,
+        ...part
+      }) => {
+        expect([electricalModelId, modelProfileId]).toEqual(identities[part.id]);
+        expect([electricalModelVersion, modelProfileVersion]).toEqual([1, 1]);
+        if (part.id === 'resistor') {
+          const { powerRatingWatt, ...stateProperties } = part.stateProperties!;
+          expect(powerRatingWatt).toBe(0.25);
+          return { ...part, stateProperties };
+        }
+        return part;
+      },
+    ),
+  ).toEqual(original);
+  expect(components).toHaveLength(4);
+  return { ...existing, components, connections: [] };
+}
+
+async function mobilePlacementJourney(
+  page: Page,
+  info: MobileCaseInfo,
+  initial: SchematicDocument,
+  run: (tools: {
+    read: () => Promise<SchematicDocument>;
+    checkpoint: (name: string, extra?: unknown) => Promise<void>;
+    puts: unknown[];
+  }) => Promise<SchematicDocument | null>,
+): Promise<void> {
+  const entries: unknown[] = [];
+  const puts: unknown[] = [];
+  const errors: string[] = [];
+  const journal: Record<string, unknown> = { title: info.title, initial, entries, puts, errors };
+  const write = () =>
+    writeFileSync(info.outputPath('mobile-add-connect.json'), JSON.stringify(journal, null, 2));
+  let projectId = '';
+  let localKey = '';
+  let userId = '';
+  let fresh: import('@playwright/test').BrowserContext | undefined;
+  const read = async (): Promise<SchematicDocument> => {
+    const raw = await page.evaluate((key) => localStorage.getItem(key), localKey);
+    if (raw === null) return initial;
+    const record = JSON.parse(raw) as {
+      schemaVersion: number;
+      identityKind: string;
+      userId: string;
+      projectId: string;
+      moduleKey: string;
+      document: SchematicDocument;
+    };
+    expect(record).toMatchObject({
+      schemaVersion: 3,
+      identityKind: 'account',
+      userId,
+      projectId,
+      moduleKey: 'electronics',
+    });
+    return record.document;
+  };
+  const checkpoint = async (name: string, extra?: unknown) => {
+    journal['checkpoint'] = name;
+    entries.push({ name, extra });
+    write(); // Keep Node-owned originals even if the next browser call fails.
+    const observation = await page.evaluate((key) => {
+      const bounds = (selector: string) =>
+        [...document.querySelectorAll(selector)].map((node) => {
+          const box = node.getBoundingClientRect();
+          return {
+            className: node.getAttribute('class'),
+            x: box.x,
+            y: box.y,
+            width: box.width,
+            height: box.height,
+          };
+        });
+      const canvas = document.querySelector<SVGSVGElement>('.workbench-canvas');
+      return {
+        events: (window as unknown as { mobilePlacementEvents?: unknown[] }).mobilePlacementEvents,
+        observerReady: (window as unknown as { mobilePlacementObserverReady?: boolean })
+          .mobilePlacementObserverReady,
+        local: localStorage.getItem(key),
+        viewBox: canvas?.getAttribute('viewBox'),
+        matrix: canvas?.getScreenCTM()?.toString(),
+        canvasClass: canvas?.getAttribute('class'),
+        bounds: bounds(
+          '.workbench-stage,.workbench-library,.workbench-inspector,.workbench-stage-controls',
+        ),
+        scrollWidth: document.documentElement.scrollWidth,
+        clientWidth: document.documentElement.clientWidth,
+        statuses: [...document.querySelectorAll('[role="status"]')].map((node) => node.textContent),
+      };
+    }, localKey);
+    entries.push({ name, observation });
+    write();
+    expect(observation.observerReady).toBe(true);
+    expect(Array.isArray(observation.events)).toBe(true);
+    if (['tap-selected', 'before-cancel', 'first-terminal-pending'].includes(name)) {
+      const events = observation.events as {
+        type: string;
+        trusted: boolean;
+        pointerType: string;
+      }[];
+      for (const type of ['pointerdown', 'pointerup']) {
+        expect(
+          events.some(
+            (event) => event.type === type && event.trusted && event.pointerType === 'touch',
+          ),
+        ).toBe(true);
+      }
+    }
+    expect(observation.scrollWidth).toBeLessThanOrEqual(observation.clientWidth);
+    if (['tap-selected', 'before-cancel', 'desktop-keyboard-placement'].includes(name)) {
+      await page.screenshot({ path: info.outputPath(`mobile-${entries.length}-placement.png`) });
+    }
+  };
+  try {
+    const targetViewport = page.viewportSize();
+    expect(targetViewport).not.toBeNull();
+    journal['targetViewport'] = targetViewport;
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await loginWithOrganization(page, teacher);
+    const session = await page.context().request.get('/api/auth/me');
+    expect(session.status()).toBe(200);
+    const actor = (await session.json()) as { authenticated: boolean; user: { id: string } };
+    expect(actor.authenticated).toBe(true);
+    userId = actor.user.id;
+    projectId = await createProject(page, 'R4-M1 live simulation');
+    localKey = `asa-project-local-draft:user:account:${encodeURIComponent(actor.user.id)}:${encodeURIComponent(projectId)}`;
+    await saveDocument(page, projectId, initial);
+    const seed = await e01Server(page, projectId);
+    expect(seed.draft.document).toEqual(initial);
+    journal['projectId'] = projectId;
+    journal['seed'] = seed;
+    page.on('pageerror', (error) => errors.push(error.message));
+    page.on('request', (request) => {
+      if (
+        request.method() === 'PUT' &&
+        new URL(request.url()).pathname === `/api/projects/${projectId}/draft`
+      ) {
+        puts.push(request.postDataJSON());
+        write();
+      }
+    });
+    const installPassiveJournal = () => {
+      const probe = window as unknown as {
+        mobilePlacementEvents?: unknown[];
+        mobilePlacementObserverReady?: boolean;
+      };
+      if (probe.mobilePlacementObserverReady) return;
+      const events = probe.mobilePlacementEvents ?? [];
+      probe.mobilePlacementEvents = events;
+      for (const type of [
+        'pointerdown',
+        'pointerup',
+        'pointercancel',
+        'gotpointercapture',
+        'lostpointercapture',
+        'click',
+        'touchstart',
+        'touchend',
+        'touchcancel',
+      ]) {
+        window.addEventListener(
+          type,
+          (event) => {
+            const pointer = event as PointerEvent;
+            const target = event.target instanceof Element ? event.target : null;
+            events.push({
+              type,
+              trusted: event.isTrusted,
+              pointerType: pointer.pointerType,
+              id: pointer.pointerId,
+              x: pointer.clientX,
+              y: pointer.clientY,
+              target: target?.getAttribute('class'),
+              terminal: target?.getAttribute('data-terminal-id'),
+              component: target?.getAttribute('data-terminal-component-id'),
+              touches: (event as TouchEvent).touches?.length,
+            });
+          },
+          { capture: true, passive: true },
+        );
+      }
+      probe.mobilePlacementObserverReady = true;
+    };
+    await page.addInitScript(installPassiveJournal);
+    await page.evaluate(installPassiveJournal);
+    await page.setViewportSize(targetViewport!);
+    await openProject(page, projectId);
+    await checkpoint('opened');
+    const expected = await run({ read, checkpoint, puts });
+    expect(puts).toHaveLength(0);
+    if (expected) {
+      expect(await read()).toEqual(expected);
+      await page.getByRole('button', { name: 'Сохранить проект', exact: true }).tap();
+      await expect
+        .poll(async () => (await e01Server(page, projectId)).draft.document)
+        .toEqual(expected);
+      const saved = await e01Server(page, projectId);
+      expect(saved.draft.revision).toBe(seed.draft.revision + 1);
+      expect(puts).toHaveLength(1);
+      expect((puts[0] as { document: SchematicDocument }).document).toEqual(expected);
+      expect((puts[0] as { baseRevision: number }).baseRevision).toBe(seed.draft.revision);
+      journal['saved'] = saved;
+      await checkpoint('saved', expected);
+      const viewport = page.viewportSize()!;
+      fresh = await page
+        .context()
+        .browser()!
+        .newContext({ baseURL: new URL(page.url()).origin, viewport, hasTouch: true });
+      await fresh.addCookies(await page.context().cookies());
+      const freshOrigins = (await fresh.storageState()).origins;
+      journal['freshStorageOrigins'] = freshOrigins;
+      write();
+      expect(freshOrigins).toEqual([]);
+      await fresh.addInitScript((appOrigin: string) => {
+        if (window !== window.top || window.location.origin !== appOrigin) return;
+        const entries = (storage: Storage) =>
+          Object.keys(storage).map((key) => [key, storage.getItem(key)]);
+        (
+          window as unknown as {
+            mobilePlacementPreAppStorage?: {
+              local: (string | null)[][];
+              session: (string | null)[][];
+            };
+          }
+        ).mobilePlacementPreAppStorage = {
+          local: entries(localStorage),
+          session: entries(sessionStorage),
+        };
+      }, new URL(page.url()).origin);
+      const reopened = await fresh.newPage();
+      reopened.on('pageerror', (error) => errors.push(`reopened: ${error.message}`));
+      reopened.on('request', (request) => {
+        if (
+          request.method() === 'PUT' &&
+          new URL(request.url()).pathname === `/api/projects/${projectId}/draft`
+        ) {
+          puts.push(request.postDataJSON());
+          write();
+        }
+      });
+      const delivery = reopened.waitForResponse(
+        (response) =>
+          response.request().method() === 'GET' &&
+          new URL(response.url()).pathname === `/api/projects/${projectId}`,
+      );
+      await reopened.goto(`/#/home/${projectId}`);
+      const preAppStorage = await reopened.evaluate(
+        () =>
+          (
+            window as unknown as {
+              mobilePlacementPreAppStorage?: unknown;
+            }
+          ).mobilePlacementPreAppStorage,
+      );
+      journal['preAppStorage'] = preAppStorage;
+      write();
+      expect(preAppStorage).toEqual({ local: [], session: [] });
+      await expect(reopened.getByTestId('schematic-component')).toHaveCount(
+        expected.components.length,
+      );
+      const delivered = await delivery;
+      expect(delivered.status()).toBe(200);
+      expect(((await delivered.json()) as { draft: unknown }).draft).toEqual(saved.draft);
+      const reopenedDraftStorage = await reopened.evaluate(() => ({
+        local: Object.keys(localStorage)
+          .filter((key) => key.startsWith('asa-project-local-draft:'))
+          .map((key) => [key, localStorage.getItem(key)]),
+        session: Object.keys(sessionStorage)
+          .filter((key) => key.startsWith('asa-project-local-draft:'))
+          .map((key) => [key, sessionStorage.getItem(key)]),
+      }));
+      journal['reopenedDraftStorage'] = reopenedDraftStorage;
+      write();
+      expect(reopenedDraftStorage).toEqual({
+        local: [],
+        session: [[`${localKey}:electronics-editor:`, 'saved']],
+      });
+      expect((await e01Server(reopened, projectId)).draft).toEqual(saved.draft);
+      const rendered = await reopened.getByTestId('schematic-component').evaluateAll((nodes) =>
+        nodes.map((node) => ({
+          id: node.getAttribute('data-component-id'),
+          x: Number(node.getAttribute('data-x')),
+          y: Number(node.getAttribute('data-y')),
+        })),
+      );
+      expect(rendered).toEqual(
+        expected.components.map((part) => ({
+          id: part.id,
+          x: part.position.x,
+          y: part.position.y,
+        })),
+      );
+      await expect(reopened.getByTestId('schematic-wire')).toHaveCount(expected.connections.length);
+      journal['reopened'] = { server: await e01Server(reopened, projectId), rendered };
+      await reopened.screenshot({ path: info.outputPath('mobile-reopened.png') });
+      expect(puts).toHaveLength(1);
+    } else {
+      expect(await read()).toEqual(initial);
+      expect((await e01Server(page, projectId)).draft).toEqual(seed.draft);
+    }
+    expect(errors).toEqual([]);
+    await checkpoint('complete');
+  } catch (error) {
+    journal['primaryFailure'] = String(error);
+    write();
+    throw error;
+  } finally {
+    journal['testErrors'] = info.errors.map((error) => ({
+      message: error.message,
+      stack: error.stack,
+    }));
+    write();
+    for (const [name, capture] of [
+      ['final-browser', () => checkpoint('final-browser')],
+      [
+        'final-server',
+        async () => {
+          if (projectId) journal['finalServer'] = await e01Server(page, projectId);
+        },
+      ],
+      ['final-png', () => page.screenshot({ path: info.outputPath('mobile-final.png') })],
+      [
+        'fresh-close',
+        async () => {
+          await fresh?.close();
+        },
+      ],
+    ] as const) {
+      try {
+        await capture();
+      } catch (error) {
+        entries.push({ unavailable: name, error: String(error) });
+      }
+      write();
+    }
+    try {
+      await info.attach('mobile-add-connect-originals', {
+        path: info.outputPath('mobile-add-connect.json'),
+        contentType: 'application/json',
+      });
+    } catch (error) {
+      entries.push({ unavailable: 'attachment', error: String(error) });
+      write();
+    }
+  }
+}
+
+async function mobileNativeDrag(
+  page: Page,
+  from: MobilePoint,
+  to: MobilePoint,
+  cancel = false,
+): Promise<void> {
+  const session = await page.context().newCDPSession(page);
+  try {
+    await session.send('Input.dispatchTouchEvent', {
+      type: 'touchStart',
+      touchPoints: [{ id: 1, ...from }],
+    });
+    for (let step = 1; step <= 8; step++)
+      await session.send('Input.dispatchTouchEvent', {
+        type: 'touchMove',
+        touchPoints: [
+          {
+            id: 1,
+            x: from.x + ((to.x - from.x) * step) / 8,
+            y: from.y + ((to.y - from.y) * step) / 8,
+          },
+        ],
+      });
+    await session.send('Input.dispatchTouchEvent', {
+      type: cancel ? 'touchCancel' : 'touchEnd',
+      touchPoints: [],
+    });
+  } finally {
+    await session.detach();
+  }
+}
+
+async function mobileTerminalPoint(page: Page, id: string, terminal: string): Promise<MobilePoint> {
+  return page
+    .locator(`[data-terminal-component-id="${id}"][data-terminal-id="${terminal}"]`)
+    .evaluate((node) => {
+      const box = node.getBoundingClientRect();
+      const point = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+      const target = document.elementFromPoint(point.x, point.y);
+      if (!target?.closest('.workbench-canvas')) throw new Error('Terminal is obscured by a panel');
+      return point;
+    });
+}
+
+async function mobileTapPlace(
+  page: Page,
+  read: () => Promise<SchematicDocument>,
+  checkpoint: (name: string, extra?: unknown) => Promise<void>,
+  fraction: number,
+): Promise<SchematicDocument> {
+  const before = await read();
+  const shelf = page.locator('.workbench-library');
+  if (await shelf.evaluate((node) => node.classList.contains('collapsed'))) {
+    await page.getByRole('button', { name: 'Каталог деталей', exact: true }).tap();
+  }
+  await expect(shelf).not.toHaveClass(/collapsed/);
+  const strip = page.locator('.workbench-catalog-grid');
+  const stripBox = await strip.boundingBox();
+  if (!stripBox) throw new Error('Missing component shelf');
+  // Exercise real native horizontal scrolling, then return to the first card.
+  const right = { x: stripBox.x + stripBox.width - 24, y: stripBox.y + stripBox.height / 2 };
+  const left = { x: stripBox.x + 24, y: right.y };
+  await mobileNativeDrag(page, right, left);
+  await expect.poll(() => strip.evaluate((node) => node.scrollLeft)).toBeGreaterThan(0);
+  await mobileNativeDrag(page, left, right);
+  expect(await read()).toEqual(before);
+  await page.getByRole('button', { name: 'Резистор', exact: true }).tap();
+  await expect(shelf).toHaveClass(/collapsed/);
+  await expect(page.locator('.workbench-canvas')).toHaveClass(/placing/);
+  await checkpoint('tap-selected', { before });
+  await expect
+    .soft(page.getByRole('status').filter({ hasText: /резистор.*(?:место|поле)/is }))
+    .toBeVisible();
+  const placement = await page.locator('.workbench-canvas').evaluate((node, fraction) => {
+    const canvas = node as SVGSVGElement;
+    const box = canvas.getBoundingClientRect();
+    const screen = { x: box.x + box.width * fraction, y: box.y + box.height * 0.7 };
+    if (!document.elementFromPoint(screen.x, screen.y)?.classList.contains('workbench-grid-hit')) {
+      throw new Error('Intended landing point is not exposed empty canvas');
+    }
+    const matrix = canvas.getScreenCTM();
+    if (!matrix) throw new Error('Missing actual canvas screen matrix');
+    const world = new DOMPoint(screen.x, screen.y).matrixTransform(matrix.inverse());
+    return { screen, world: { x: world.x, y: world.y } };
+  }, fraction);
+  await checkpoint('before-landing', placement);
+  await page.touchscreen.tap(placement.screen.x, placement.screen.y);
+  await expect(page.getByTestId('schematic-component')).toHaveCount(before.components.length + 1);
+  const actual = await read();
+  const added = actual.components.filter(
+    (part) => !before.components.some((old) => old.id === part.id),
+  );
+  expect(added).toHaveLength(1);
+  const expected: SchematicDocument = {
+    ...before,
+    components: [
+      ...before.components,
+      {
+        id: added[0]!.id,
+        kind: 'resistor',
+        componentTypeId: 'resistor-axial',
+        variantId: 'resistor-axial',
+        electricalModelId: 'resistor',
+        electricalModelVersion: 1,
+        modelProfileId: 'axial-resistor',
+        modelProfileVersion: 1,
+        position: {
+          x: Math.round(placement.world.x - 12.7 / 2),
+          y: Math.round(placement.world.y - 57.91 / 2),
+        },
+        value: 220,
+        rotation: 0,
+        name: 'Осевой резистор',
+        stateProperties: { tolerancePercent: 5, resistanceUnit: 'Ω', powerRatingWatt: 0.25 },
+        pinIds: ['lead-1', 'lead-2'],
+      },
+    ],
+  };
+  expect(actual).toEqual(expected);
+  await expect(page.locator('.workbench-canvas')).not.toHaveClass(/placing/);
+  await checkpoint('placed', { expected });
+  return expected;
+}
+
+for (const [width, height] of [
+  [320, 568],
+  [390, 844],
+  [568, 320],
+] as const) {
+  mobilePlacementTest(
+    `MOBILE-ADD-CONNECT original280 tap four-to-five ${width}x${height}`,
+    async ({ page }, info) => {
+      await page.setViewportSize({ width, height });
+      const initial = mobileFourComponentDocument();
+      expect(initial.components).toHaveLength(4);
+      await mobilePlacementJourney(page, info, initial, async ({ read, checkpoint }) => {
+        const expected = await mobileTapPlace(page, read, checkpoint, 0.72);
+        expect(expected.components.slice(0, 4)).toEqual(initial.components);
+        return expected;
+      });
+    },
+  );
+
+  mobilePlacementTest(
+    `MOBILE-ADD-CONNECT cancellation stays deliberate ${width}x${height}`,
+    async ({ page }, info) => {
+      await page.setViewportSize({ width, height });
+      await mobilePlacementJourney(
+        page,
+        info,
+        mobileEmptyDocument(),
+        async ({ read, checkpoint, puts }) => {
+          const before = await read();
+          await page.getByRole('button', { name: 'Резистор', exact: true }).tap();
+          await expect(page.locator('.workbench-canvas')).toHaveClass(/placing/);
+          await checkpoint('before-cancel');
+          // Deliberately strict in BOTH refs: missing cancellation is never a skipped PASS.
+          const cancel = page.getByRole('button', { name: 'Отменить размещение', exact: true });
+          await expect(cancel).toBeVisible();
+          await cancel.tap();
+          await expect(page.locator('.workbench-canvas')).not.toHaveClass(/placing/);
+          const box = await page.locator('.workbench-canvas').boundingBox();
+          if (!box) throw new Error('Missing canvas after cancellation');
+          await page.touchscreen.tap(box.x + box.width * 0.7, box.y + box.height * 0.7);
+          expect(await read()).toEqual(before);
+          expect(puts).toHaveLength(0);
+          await checkpoint('cancelled-without-landing');
+          return null;
+        },
+      );
+    },
+  );
+
+  mobilePlacementTest(
+    `MOBILE-ADD-CONNECT native tap and held wire Save reopen ${width}x${height}`,
+    async ({ page }, info) => {
+      await page.setViewportSize({ width, height });
+      await mobilePlacementJourney(
+        page,
+        info,
+        mobileEmptyDocument(),
+        async ({ read, checkpoint }) => {
+          const first = await mobileTapPlace(page, read, checkpoint, 0.32);
+          const pair = await mobileTapPlace(page, read, checkpoint, 0.72);
+          expect(first.components).toHaveLength(1);
+          expect(pair.components).toHaveLength(2);
+          // Close the selected part's inspector through the existing empty-field gesture.
+          const clear = await page.locator('.workbench-canvas').evaluate((node) => {
+            const box = node.getBoundingClientRect();
+            const point = { x: box.x + box.width * 0.12, y: box.y + box.height * 0.88 };
+            if (
+              !document.elementFromPoint(point.x, point.y)?.classList.contains('workbench-grid-hit')
+            ) {
+              throw new Error('Empty-field deselection point is obscured');
+            }
+            return point;
+          });
+          await page.touchscreen.tap(clear.x, clear.y);
+          await expect(page.locator('.workbench-inspector')).toHaveCount(0);
+          expect(await read()).toEqual(pair);
+          const a = pair.components[0]!.id;
+          const b = pair.components[1]!.id;
+          const source = () => mobileTerminalPoint(page, a, 'lead-1');
+          const target = () => mobileTerminalPoint(page, b, 'lead-1');
+          const tap = async (point: MobilePoint) => page.touchscreen.tap(point.x, point.y);
+          const undo = page.getByRole('button', { name: 'Отменить (Ctrl+Z)', exact: true });
+          const redo = page.getByRole('button', { name: 'Повторить (Ctrl+Shift+Z)', exact: true });
+          await tap(await source());
+          await expect(page.locator('.workbench-wire-preview')).toHaveCount(1);
+          await checkpoint('first-terminal-pending');
+          await tap(await target());
+          await expect(page.getByTestId('schematic-wire')).toHaveCount(1);
+          const connected = await read();
+          const expectedWire = {
+            id: connected.connections[0]!.id,
+            from: { componentId: a, terminal: 'lead-1' },
+            to: { componentId: b, terminal: 'lead-1' },
+            color: '#149447',
+            vertices: [],
+          };
+          expect(connected).toEqual({ ...pair, connections: [expectedWire] });
+          await checkpoint('tap-wire', connected);
+          await undo.tap();
+          expect(await read()).toEqual(pair);
+          await redo.tap();
+          expect(await read()).toEqual(connected);
+          await undo.tap();
+          expect(await read()).toEqual(pair);
+          const start = await source();
+          await mobileNativeDrag(page, start, { x: start.x - 24, y: start.y - 24 }, true);
+          await expect(page.locator('.workbench-wire-preview')).toHaveCount(0);
+          expect(await read()).toEqual(pair);
+          await checkpoint('wire-gesture-cancelled');
+          await mobileNativeDrag(page, await source(), await target());
+          await expect(page.getByTestId('schematic-wire')).toHaveCount(1);
+          const held = await read();
+          const expected = {
+            ...pair,
+            connections: [{ ...expectedWire, id: held.connections[0]!.id }],
+          };
+          expect(held).toEqual(expected);
+          await expect(page.locator('.workbench-wire-preview')).toHaveCount(0);
+          await checkpoint('held-wire', expected);
+          return expected;
+        },
+      );
+    },
+  );
+}
+
+for (const width of [1024, 1440]) {
+  test(`MOBILE-ADD-CONNECT desktop placement cue regression ${width}`, async ({ page }, info) => {
+    await page.setViewportSize({ width, height: 900 });
+    await mobilePlacementJourney(page, info, mobileEmptyDocument(), async ({ checkpoint }) => {
+      await page.getByRole('button', { name: 'Резистор', exact: true }).press('Enter');
+      await expect(page.locator('.workbench-canvas')).toHaveClass(/placing/);
+      await checkpoint('desktop-keyboard-placement');
+      await expect
+        .soft(page.getByRole('status').filter({ hasText: /резистор.*(?:место|поле)/is }))
+        .toBeVisible();
+      const cancel = page.getByRole('button', { name: 'Отменить размещение', exact: true });
+      await expect(cancel).toBeVisible();
+      await cancel.click();
+      await expect(page.locator('.workbench-canvas')).not.toHaveClass(/placing/);
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+        ),
+      ).toBe(true);
+      return null;
+    });
+  });
+}

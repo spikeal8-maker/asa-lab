@@ -617,7 +617,10 @@ describe('AI admin actionable failures', () => {
     });
     await act(async () => checkbox('Подтверждаю один платный').click());
     await act(async () => button('Проверить подключение').click());
-    expect(host.querySelector('[role="alert"]')!.textContent).toContain('Проверьте ключ');
+    expect(host.querySelector('[role="alert"]')!.textContent).toContain(
+      'Ошибка или перегрузка провайдера',
+    );
+    expect(host.textContent).not.toContain('Проверьте ключ');
     expect(host.textContent).not.toContain('Модель deepseek-flash ответила');
     expect(button('Проверить подключение').disabled).toBe(true);
     expect(checkbox('Подтверждаю один платный').checked).toBe(false);
@@ -778,6 +781,68 @@ describe('catalog capabilities and confirmed admin operations', () => {
     expect(call).toHaveBeenCalledTimes(2);
     await act(async () => finish());
     expect(host.textContent).toContain('Настройки сохранены');
+    expect(call).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('AI admin truthful status and safe diagnostics', () => {
+  it('shows saved model and quota without claiming the saved key was tested', async () => {
+    await render(DEEPSEEK);
+    const status = host.querySelector('[aria-labelledby="ai-status-title"]')!;
+    expect(status.textContent).toContain('DeepSeek');
+    expect(status.textContent).toContain('deepseek-flash');
+    expect(status.textContent).toContain('5 операций за час');
+    expect(status.textContent).toContain('Ключ сохранён, подключение не проверено');
+    expect(host.querySelector('time')).toBeNull();
+  });
+
+  it('shows the confirmed test timestamp and clears it after settings change', async () => {
+    await render(DEEPSEEK);
+    vi.mocked(call).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      data: {
+        provider: 'deepseek',
+        model: 'deepseek-flash',
+        elapsedMs: 350,
+        testedAt: '2026-10-20T12:00:00Z',
+        configurationVersion: 2,
+      },
+    });
+    await act(async () => checkbox('Подтверждаю один платный').click());
+    await act(async () => button('Проверить подключение').click());
+    expect(host.querySelector('time')?.dateTime).toBe('2026-10-20T12:00:00Z');
+    expect(host.querySelector('[aria-labelledby="ai-status-title"]')!.textContent).toContain(
+      'Ответ модели подтверждён',
+    );
+    await enter(input('number'), '6');
+    expect(host.querySelector('time')).toBeNull();
+    expect(host.textContent).not.toContain('Ответ модели подтверждён');
+  });
+
+  it.each([
+    ['ai_provider_authentication_failed', 'не принял API-ключ'],
+    ['ai_provider_insufficient_balance', 'недостаточно средств'],
+    ['ai_provider_invalid_parameters', 'параметры запроса'],
+    ['ai_provider_model_unavailable', 'Модель или endpoint'],
+    ['ai_provider_rate_limit', 'частоту запросов'],
+    ['ai_key_decryption_failed', 'не удалось расшифровать'],
+    ['ai_platform_quota_exhausted', 'Лимит платных операций ASA'],
+    ['ai_provider_unknown_future_code', 'Проверка модели не завершена'],
+  ])('uses a fixed safe diagnostic for %s', async (code, expected) => {
+    await render(DEEPSEEK);
+    vi.mocked(call).mockResolvedValueOnce({
+      ok: false,
+      status: 502,
+      error: { code, message: 'private-provider-body secret-key-test' },
+    });
+    await act(async () => checkbox('Подтверждаю один платный').click());
+    await act(async () => button('Проверить подключение').click());
+    expect(host.querySelector('[role="alert"]')!.textContent).toContain(expected);
+    expect(host.textContent).not.toContain('private-provider-body');
+    expect(host.textContent).not.toContain('secret-key-test');
+    expect(checkbox('Подтверждаю один платный').checked).toBe(false);
+    expect(button('Проверить подключение').disabled).toBe(true);
     expect(call).toHaveBeenCalledTimes(2);
   });
 });

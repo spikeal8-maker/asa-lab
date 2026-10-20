@@ -570,6 +570,104 @@ describe('ordinary image mount lifecycle', () => {
     expect(fixture.probes).toHaveLength(3);
     expect(fixture.host.childNodes).toHaveLength(0);
   });
+  it('publishes both consumers after B errors between finite cycle one and the quiet retry', async () => {
+    const asset = '/assets/electronics/two-consumer-before-quiet.svg';
+    const first = mount();
+    await first.render(asset, ['error']);
+    await first.advance(1_500);
+    expect(first.probes).toHaveLength(3);
+    expect(first.host.querySelector('[data-owner-image-status="failed"]')).not.toBeNull();
+
+    const late = mount();
+    await late.render(asset, ['error']);
+    expect(late.probes).toHaveLength(1);
+    await late.advance(1_500);
+    for (const consumer of [first, late]) {
+      expect(consumer.host.querySelector('image')!.getAttribute('href')).toBe(asset);
+      expect(consumer.host.querySelector('[data-owner-image-status="failed"]')).not.toBeNull();
+      expect(consumer.host.querySelector('[role="status"]')?.getAttribute('aria-label')).toBe(
+        'Изображение детали не загрузилось',
+      );
+    }
+    expect(late.probes).toHaveLength(3);
+    expect(
+      [...first.probes, ...late.probes].map(({ href }) => {
+        const url = new URL(href);
+        expect(url.pathname).toBe(asset);
+        return [url.searchParams.get('asa-image-cycle'), url.searchParams.get('asa-image-retry')];
+      }),
+    ).toEqual([
+      ['1', '0'],
+      ['1', '1'],
+      ['1', '2'],
+      ['2', '0'],
+      ['2', '1'],
+      ['2', '2'],
+    ]);
+    // Both finite cycles settled before A's first quiet retry (at 3600 ms).
+    // Unmounting both consumers must cancel that retry, not start a third cycle.
+    first.unmount();
+    late.unmount();
+    await late.advance(40_000);
+    expect(first.probes).toHaveLength(3);
+    expect(late.probes).toHaveLength(3);
+  });
+
+  it('publishes B own error while it joins A pending quiet cycle two without another cycle', async () => {
+    const asset = '/assets/electronics/pending-two-consumer-quiet.svg';
+    const first = mount();
+    await first.render(asset, ['error']);
+    await act(async () => first.probes[0]!.error());
+    await first.advance(200);
+    await act(async () => first.probes[1]!.error());
+    await first.advance(400);
+    await act(async () => first.probes[2]!.error());
+    expect(first.probes).toHaveLength(3);
+    expect(first.host.querySelector('[data-owner-image-status="failed"]')).not.toBeNull();
+    await first.advance(3_000);
+    expect(first.probes).toHaveLength(4);
+    const pending = new URL(first.probes[3]!.href);
+    expect(pending.pathname).toBe(asset);
+    expect(pending.searchParams.get('asa-image-cycle')).toBe('2');
+    expect(pending.searchParams.get('asa-image-retry')).toBe('0');
+
+    const late = mount();
+    await late.render(asset, ['error']);
+    expect(late.probes).toHaveLength(0);
+    expect(late.host.querySelector('image')!.getAttribute('href')).toBe(asset);
+    // B's mounted error has joined the still-pending shared promise, before it settles.
+    await act(async () => first.probes[3]!.error());
+    await late.advance(200);
+    await act(async () => late.probes[0]!.error());
+    await late.advance(400);
+    await act(async () => late.probes[1]!.error());
+    for (const consumer of [first, late]) {
+      expect(consumer.host.querySelector('image')!.getAttribute('href')).toBe(asset);
+      expect(consumer.host.querySelector('[data-owner-image-status="failed"]')).not.toBeNull();
+      expect(consumer.host.querySelector('[role="status"]')?.getAttribute('aria-label')).toBe(
+        'Изображение детали не загрузилось',
+      );
+    }
+    expect(
+      [...first.probes, ...late.probes].map(({ href }) => {
+        const url = new URL(href);
+        expect(url.pathname).toBe(asset);
+        return [url.searchParams.get('asa-image-cycle'), url.searchParams.get('asa-image-retry')];
+      }),
+    ).toEqual([
+      ['1', '0'],
+      ['1', '1'],
+      ['1', '2'],
+      ['2', '0'],
+      ['2', '1'],
+      ['2', '2'],
+    ]);
+    first.unmount();
+    late.unmount();
+    await late.advance(40_000);
+    expect(first.probes).toHaveLength(4);
+    expect(late.probes).toHaveLength(2);
+  });
   it.each(['before passive setup', 'after passive setup'])(
     'publishes a late consumer error %s after shared recovery permanently stops without restarting requests',
     async (delivery) => {
