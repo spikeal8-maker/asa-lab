@@ -7932,6 +7932,63 @@ parallel_lanes:
         Electronics39469002502 failed198 passed23 failed; shared auth capacity is categoryD qualification
         infrastructure, not evidence of a product regression. General success does not grant UI acceptance.
 
+  - id: electronics-asset-consumer-diagnostic
+    parent_lane: electronics
+    worktree_id: electronics-asset-consumer-diagnostic-548
+    owned_paths:
+    - docs/product/electronics/tasks/TASK-ELECTRONICS-ORDINARY-IMAGE-CONSUMER-FAILURE-001.md
+    task:
+      id: TASK-ELECTRONICS-ORDINARY-IMAGE-CONSUMER-FAILURE-001
+      issue: 548
+      branch: main
+      base_branch: main
+      pr: null
+      pr_draft: false
+      status: in_progress
+      checkpoint: two_consumer_quiet_cycle_diagnostic_selected
+      kind: repair
+      owner_acceptance: pending
+      context_hints:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-ORDINARY-IMAGE-CONSUMER-FAILURE-001.md
+      - docs/product/electronics/evidence/ordinary-image-548-consumer-cycle-selection-20261020.md
+      - docs/product/electronics/components/ui-assets-persistence.yaml
+      repair_scope: Test-only diagnostic of a two-consumer quiet retry lifecycle hypothesis, not a product fix.
+        Add exactly two mounted regressions in apps/web/src/electronics/testing/asset-recovery.spec.ts using
+        the existing ProbeImage and fake timers. Preserve all existing test assertions and time budgets.
+      diagnostic_cases: Consumer A exhausts cycle1; B mounts before the quiet retry and receives its own error.
+        Separately B mounts while cycle2 is pending and receives its own error before shared settlement.
+        Assert actual failed DOM and badges for both consumers, asset/href/cycle provenance, request counts
+        and no extra cycle. A source hypothesis or HTTP404 alone cannot establish the historical cause.
+      next_action: After canonical publication assign one bounded test author and NEW independent reviewer.
+        Run only the existing focused mounted suite. If both new cases pass, record NO_PROVEN_CAUSE and STOP
+        this experiment; passive provenance needs a separate canonical selection. A failing new case requires
+        classified evidence and a separate selected repair; do not edit production or repeat CI hopefully.
+      preservation: Preserve666 authentication qualification and its running strict CI, all foreign state,
+        historical548 R2 natural PASS and original receipts, unpublished52545 branch and all acceptance blockers.
+        No browser/workflow dispatch, local heavy build, Docker, DB, assets, product/API/hook/core changes.
+    execution_lease:
+      executor_id: electronics-asset-consumer-diagnostic-548
+      holder: unassigned
+      acquired_at: null
+      expires_at: null
+      reviewer_role_requires_lease: false
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+        - pnpm gate:electronics-m1
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: b3672ff7e83c7e284d758354c871b0c8edf06b08
+      head_sha: null
+      observed_at: '2026-10-20T18:32:44Z'
+      main:
+        branch: main
+        sha: b3672ff7e83c7e284d758354c871b0c8edf06b08
+      observation_note: Dated test-only selection; fetch main and recover exact Git, CI and dirty paths before writes.
+        Running666 strict39475449280 is neither rerun nor acceptance evidence here. New temporal trace supports
+        only a lifecycle hypothesis; existing548 cause/fix and owner acceptance remain unproved.
+
   - id: electronics-selection
     parent_lane: electronics
     worktree_id: electronics-selection-outline

@@ -12,6 +12,14 @@ review: independent
 
 # Publish the ordinary-image failure to the actual mounted catalog consumer
 
+## Two-consumer quiet-cycle diagnostic selection — 20 October 2026
+
+This phase selects only two mounted regressions in `apps/web/src/electronics/testing/asset-recovery.spec.ts`, using existing `ProbeImage` and fake timers. All previous executable observation scopes above or below are historical for this phase; no production observer, browser harness, workflow or asset edit is selected. Preserve every existing test/assertion, timeout and recovery policy. The [new dated temporal evidence](../evidence/ordinary-image-548-consumer-cycle-selection-20261020.md) is a hypothesis, not a proven product cause.
+
+Case one: consumer A exhausts cycle 1; consumer B mounts before the scheduled quiet retry and receives its own native-image error. Case two: consumer B mounts while shared cycle 2 is pending and receives its own error before the shared result settles. Use actual mounted `ProductionComponentVisual` consumers and existing deterministic image/event machinery. Verify both consumers' actual failed DOM and visible badges, asset identity, href and cycle provenance, request counts and absence of an extra cycle. Do not merely assert shared promise state, fabricate a successful fetch or add production instrumentation.
+
+One author runs the existing focused asset-recovery suite, narrow checks and self-review, then freezes one SHA and stops; a NEW independent reviewer checks the exact test diff, meaningful negative controls and untouched production. If both diagnostic cases pass, record `NO_PROVEN_CAUSE`, stop this experiment and leave any passive provenance investigation for a separate canonical selection. A failure supplies only a reproducible case for classification and a separately selected repair. No hopeful full CI rerun, timeout extension, assertion weakening, product fix claim or blocker closure follows from this diagnostic. Existing #666 authentication work and its running CI, #525 preserved branch, historical receipts, scoped acceptance blockers and owner/device pending state remain untouched. No local browser, Docker, heavy build, database or deployment operation.
+
 Separate bounded [548](https://github.com/spikeal8-maker/asa-lab/issues/548), existing programme452; dependency of544, never a field repair scope expansion. Canonical current.yaml/main selects each phase. Preserve accepted526/541/543 and all held candidates505/506/525/537/538/539/540/544/546.
 
 ## Proven failure and missing fact
