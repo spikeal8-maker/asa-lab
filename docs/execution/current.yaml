@@ -8970,7 +8970,7 @@ parallel_lanes:
       kind: repair
       risk: high
       semantic_change: 'yes'
-      checkpoint: bounded_fet_reference_repair_selected
+      checkpoint: standalone_fet_selected_after_inherited_gate_timeout
       owner_acceptance: pending
       owner_authorization: >-
         On 2026-10-20 the owner appointed the controller to manage Electronics
@@ -8983,34 +8983,57 @@ parallel_lanes:
       composer_executor_id: /root/fet_runtime_author
       independent_reviewer_id: /root/core_baseline
       controller_id: /root
-      preserved_dependency_pr: 651
-      preserved_dependency_sha: de9d84a4108a5952b921b40d1575651265391873
-      preserved_dependency_parent: 16cbed5d981989528f2d1bd8f62e2a1c4063781f
+      candidate_pr: 660
+      deferred_dependency_pr: 651
+      deferred_dependency_sha: de9d84a4108a5952b921b40d1575651265391873
+      deferred_dependency_parent: 16cbed5d981989528f2d1bd8f62e2a1c4063781f
+      preserved_composite_sha: e8a7c2bd04ad5ec75acfd7d3f4f00482f37efcfa
+      preserved_composite_focused_run: 39442503268
+      preserved_composite_focused_conclusion: failure
+      preserved_composite_result: 922 PASS / 1 FAIL; inherited delay2000 took5812ms against unchanged5000ms. FET source approval, eight reference cases and ten independent cases are historical evidence, not standalone acceptance.
+      preserved_composite_general_run: 39442503313
+      preserved_composite_general_state_at_decision: running
+      attempt_accounting: Same Issue658 FET defect and diagnostic budget; preserve prior hypotheses, attempts, reviews and CI. Changing composition does not reset counters or turn history into fresh PASS.
       path_coordination: >-
-        One controller-assigned composer inherits current main selection and the
-        full six-file exact PR651 change in a new derivative candidate, then
-        edits only existing FET stamping/iteration/observation regions in solver.ts
-        and the new isolated FET reference spec. Keep every inherited generic
-        callback/routing change and all six-file dependency tests unchanged outside
-        those FET regions. Original PR651/branch and D2/D4 remain untouched and
-        unaccepted. No other agent writes intersecting product paths; if foreign
-        dirty work is discovered, obtain a concrete handoff before product writes.
+        Root assigns the same sole author fet_runtime_author to fresh accepted
+        main plus the same four FET edits in two solver regions, unchanged eight-case
+        reference spec and route. PR651 is independently established not to be a
+        functional FET dependency. Mechanically exclude de9 only from our derivative:
+        five non-FET files must equal fresh main; solver must equal main plus only
+        that retained FET delta. Original PR651/de9, e8 history, stopped R27 and all
+        foreign work remain intact. Continue PR660 by normal forward commits/merge,
+        never force-push. Actual intersecting dirty work still requires handoff.
+      mechanical_exclusion_paths:
+        - contexts/electronics/domain/arduino-circuit-scheduler.ts
+        - contexts/electronics/domain/simulation.ts
+        - contexts/electronics/domain/solver.ts
+        - contexts/electronics/testing/engine-timed-api.spec.ts
+        - contexts/electronics/testing/simulation-contract.spec.ts
+        - contexts/electronics/testing/solver.spec.ts
       expected_write_paths:
         - contexts/electronics/domain/solver.ts
         - contexts/electronics/testing/fet-dc-reference.spec.ts
         - docs/product/electronics/components/engine-worker-clock.yaml
+        - contexts/electronics/domain/arduino-circuit-scheduler.ts
+        - contexts/electronics/domain/simulation.ts
+        - contexts/electronics/testing/engine-timed-api.spec.ts
+        - contexts/electronics/testing/simulation-contract.spec.ts
+        - contexts/electronics/testing/solver.spec.ts
         - docs/product/electronics/tasks/TASK-ELECTRONICS-CORE-FET-001.md
         - docs/execution/current.yaml
       integration_condition: >-
-        Preserve PR651 and existing blockers. Combined exact-source gates,
-        new independent source/runtime review, fixed FET analytical references
-        and actual editor demonstration must pass before authorised integration.
-        Inheritance does not accept PR651 or transfer its old source-only review.
+        Preserve original PR651/de9, composite e8 and all existing blockers.
+        Require fresh standalone exact-source gates, new independent source/runtime
+        review, unchanged fixed analytical references and actual editor demonstration
+        before authorised integration. No accepted test or delay2000/5000ms budget
+        changes. Standalone selection accepts neither PR651 nor Issue546, and
+        historical composite approval/PASS does not transfer automatically.
       next_action: >-
-        Accept this prospective selection on main before product writes, refresh
-        exact refs and actual overlaps, then assign one composer for the bounded
-        FET correction. Keep current source/CI/browser/main facts separate; no
-        AFTER or programme completion is claimed by this selection.
+        Accept this prospective amendment on main before source writes, refresh
+        actual refs/overlaps and build the retained FET-only delta on accepted main.
+        Mechanical restoration is not rollback of accepted code or new scheduler/test
+        semantics. Preserve counters and evidence; run unchanged commands on final
+        standalone source and obtain new independent review, without acceptance claims.
     execution_lease:
       executor_id: electronics-core-fet-author
       holder: unassigned
@@ -9037,17 +9060,77 @@ parallel_lanes:
           - pnpm gate:repository
     revisions:
       kind: observed_snapshot
-      observed_at: '2026-10-20T14:28:57Z'
+      observed_at: '2026-10-20T14:56:35Z'
       main:
         branch: main
-        sha: dcdf72185673808ee6798462da5399c94cfe194e
-      convergence_baseline_sha: dcdf72185673808ee6798462da5399c94cfe194e
+        sha: 83714ca4a36ff272859fd2818935f2ef5630644b
+      convergence_baseline_sha: 83714ca4a36ff272859fd2818935f2ef5630644b
       head_sha: null
       observation_note: >-
-        Dated controller BEFORE: both independent FET fixtures fail while161
-        existing solver/RC tests pass. Exact PR651 de9d84a is retained as an
-        unaccepted composition dependency, not integrated production. Fresh
-        fetch main and actual overlap checks are required before writes and integration.
+        Dated standalone decision after inherited delay2000 focused failure on e8.
+        Six accepted-main paths at83714ca4 equal PR651 parent16cbed5d exactly;
+        de9 is deferred rather than mandatory for FET. Historical source approval,
+        FET references and CI remain retained; no standalone AFTER is asserted.
+        Fresh fetch main and actual overlap checks are required before writes and integration.
+
+  - id: electronics-artifact-intake
+    parent_lane: electronics
+    worktree_id: electronics-artifact-intake-659
+    owned_paths:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-GOVERNANCE-011.md
+    task:
+      id: TASK-ELECTRONICS-GOVERNANCE-011
+      issue: 659
+      parent_issue: 649
+      programme_issue: 452
+      branch: main
+      base_branch: main
+      pr: null
+      pr_draft: false
+      status: in_progress
+      kind: maintenance
+      risk: high
+      semantic_change: 'no'
+      checkpoint: bounded_cloud_artifact_intake_selected
+      owner_acceptance: pending
+      owner_authorization: Owner explicitly authorised cloud resources and controller-managed separate authors/reviewers on 2026-10-20; select read-only transport of the existing oversized D2 artifact, no product change or installation.
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-GOVERNANCE-011.md
+      author_executor_id: /root/d2_source_review
+      independent_reviewer_id: /root/pr651_intake
+      controller_id: /root
+      candidate_branch: codex/electronics-evidence-intake-649
+      expected_write_paths:
+        - .github/workflows/electronics-artifact-intake.yml
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-GOVERNANCE-011.md
+        - docs/execution/current.yaml
+      shared_path_coordination: Workflow remains under existing integration.shared_paths. Root explicitly assigns its only author d2_source_review and read-only security reviewer pr651_intake; root is sole integrator. No foreign shared scope is removed or narrowed.
+      integration_condition: Workflow exists only on the temporary candidate branch and must never merge into main/production. Accept only verified read-only transport output for run39422409394/artifact12266831251/source24c4acf6; preserve original hashes. Close only this transport task, never D2/FET/PR651 acceptance.
+      next_action: Accept these controller documents on main, then author/review the one temporary workflow before its automatic pull_request run. All existing product/gate/profile/blocker facts remain unchanged; no product PASS is selected.
+    execution_lease:
+      executor_id: electronics-artifact-intake-659
+      holder: unassigned
+      acquired_at: null
+      expires_at: null
+      reviewer_role_requires_lease: false
+    gates:
+      routing:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm validate:electronics-agent-docs --task TASK-ELECTRONICS-GOVERNANCE-011
+      control_plane:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm control-plane:check
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: 6efac19fbd20ab789925e9510534d13175a0390b
+      head_sha: null
+      observed_at: '2026-10-20T14:42:18Z'
+      main:
+        branch: main
+        sha: 6efac19fbd20ab789925e9510534d13175a0390b
+      observation_note: Dated selection baseline only; fresh fetch main and actual overlap checks required before writes. Connector rejected the630584469-byte source ZIP at its536870912-byte limit. Transport output, security review and actual job remain pending.
 
 integration:
   owner_lane: visual-programming

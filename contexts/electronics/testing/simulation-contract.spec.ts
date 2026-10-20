@@ -66,62 +66,6 @@ function simpleOhmLaw(vertices: readonly { x: number; y: number }[] = []): Elect
   );
 }
 
-describe('generic quality numeric projection compatibility', () => {
-  it('includes the actual numeric array returned by a customized flatMap', () => {
-    const circuit = document([], []);
-    const frame = solver.solveCircuit(circuit);
-    expect(frame.components).toHaveLength(0);
-    const compiled = compileCircuit(circuit);
-    expect(verifyCircuitQuality(circuit, compiled, frame, {}).finite).toBe(true);
-    let calls = 0;
-    Object.defineProperty(frame.components, 'flatMap', {
-      value: () => {
-        calls++;
-        return [Number.NaN];
-      },
-    });
-    const quality = verifyCircuitQuality(circuit, compiled, frame, {});
-    expect(calls).toBe(1);
-    expect(quality.finite).toBe(false);
-    expect(quality.passed).toBe(false);
-  });
-
-  it('propagates the first species numeric property-definition exception unchanged', () => {
-    const circuit = simpleOhmLaw();
-    const frame = solver.solveCircuit(circuit);
-    const compiled = compileCircuit(circuit);
-    expect(frame.solved).toBe(true);
-    const sentinel = new Error('first projected numeric species property');
-    let allocations = 0;
-    const definitions: PropertyKey[] = [];
-    Object.defineProperty(frame.components, 'constructor', {
-      value: {
-        [Symbol.species]: function () {
-          const firstProjection = ++allocations === 1;
-          return new Proxy([], {
-            defineProperty(target, key, descriptor) {
-              if (firstProjection && key === '0') {
-                definitions.push(key);
-                throw sentinel;
-              }
-              return Reflect.defineProperty(target, key, descriptor);
-            },
-          });
-        },
-      },
-    });
-    let thrown: unknown;
-    try {
-      verifyCircuitQuality(circuit, compiled, frame, {});
-    } catch (error) {
-      thrown = error;
-    }
-    expect(thrown).toBe(sentinel);
-    expect(allocations).toBe(1);
-    expect(definitions).toEqual(['0']);
-  });
-});
-
 describe('R4-M1 simulation implementation contract', () => {
   it('uses one registry identity for supported, unsupported and rejected-quality analysis', () => {
     const supported = simpleOhmLaw();
