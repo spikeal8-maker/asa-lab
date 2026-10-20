@@ -2194,6 +2194,8 @@ test.describe('asset recovery in the built editor', () => {
       );
       await page.addInitScript((asset) => {
         const ids = new WeakMap<Node, number>();
+        const eventIds = new WeakMap<Event, number>();
+        let nextEventId = 0;
         const lastRoot = new WeakMap<Element, Element>();
         const listening = new WeakSet<Element>();
         let sequence = 0;
@@ -2280,8 +2282,15 @@ test.describe('asset recovery in the built editor', () => {
         const native = (delivery: string, event: Event) => {
           const target = event.target;
           if (!(target instanceof Element) || !relevant(target)) return;
+          let eventId = eventIds.get(event);
+          if (!eventId) {
+            eventId = ++nextEventId;
+            eventIds.set(event, eventId);
+          }
           emit('native', {
+            eventId,
             delivery,
+            phase: event.eventPhase,
             type: event.type,
             trusted: event.isTrusted,
             target: snapshot(target),
@@ -2296,13 +2305,17 @@ test.describe('asset recovery in the built editor', () => {
         const images = (node: Node): Element[] => {
           if (!(node instanceof Element)) return [];
           return [
-            ...(relevant(node) ? [node] : []),
-            ...[...node.querySelectorAll('image')].filter(relevant),
+            ...(node.namespaceURI === 'http://www.w3.org/2000/svg' && node.localName === 'image'
+              ? [node]
+              : []),
+            ...[...node.querySelectorAll('image')].filter(
+              (image) => image.namespaceURI === 'http://www.w3.org/2000/svg',
+            ),
           ];
         };
         const observe = (image: Element, reason: string) => {
           const state = snapshot(image);
-          emit(reason, state);
+          if (relevant(image)) emit(reason, state);
           if (!listening.has(image)) {
             listening.add(image);
             image.addEventListener('error', (event) => native('direct', event));
@@ -2315,7 +2328,8 @@ test.describe('asset recovery in the built editor', () => {
               for (const node of mutation.addedNodes)
                 for (const image of images(node)) observe(image, 'added-observed');
               for (const node of mutation.removedNodes)
-                for (const image of images(node)) emit('removed-observed', snapshot(image));
+                for (const image of images(node))
+                  if (relevant(image)) emit('removed-observed', snapshot(image));
             }
             const target =
               mutation.target instanceof Element ? mutation.target : mutation.target.parentElement;
@@ -2323,7 +2337,13 @@ test.describe('asset recovery in the built editor', () => {
             const root = target.closest(
               '.workbench-catalog-card, [data-component-id], .workbench-stage',
             );
-            const affected = relevant(target) ? [target] : root ? images(root) : [];
+            if (relevant(target) && mutation.attributeName === 'href')
+              observe(target, 'href-observed');
+            const affected = relevant(target)
+              ? [target]
+              : root
+                ? images(root).filter(relevant)
+                : [];
             for (const image of affected)
               emit('mutation-delivery', {
                 type: mutation.type,
@@ -2417,38 +2437,50 @@ test.describe('asset recovery in the built editor', () => {
         retentionErrors,
         primary: hasPrimary ? errorText(primary) : null,
       });
-      const supplemental = async (kind: string, action: () => Promise<unknown>) => {
-        try {
-          const value = await action();
-          retain(kind, value);
-          return value;
-        } catch (error) {
-          retentionErrors.push(`${kind}: ${errorText(error)}`);
-          retain('secondary-error', { kind, error: errorText(error) });
-          return 'NOT_AVAILABLE';
-        }
-      };
-      browserSnapshot = await supplemental('browser-final', () =>
-        page.evaluate(
-          () =>
-            (
-              window as unknown as { __ordinaryImageNativeSnapshot?: () => unknown }
-            ).__ordinaryImageNativeSnapshot?.() ?? 'NOT_AVAILABLE',
-        ),
-      );
-      await supplemental('dom-final', () => page.content());
-      await supplemental('native-png', async () => {
-        const path = info.outputPath('ordinary-image-native.png');
-        await page.screenshot({ path });
-        return path;
-      });
-      retain('final', { browserSnapshot, dropped, retentionErrors });
-      await supplemental('attachment', () =>
-        info.attach('ordinary-image-native', {
-          path: rawPath,
-          contentType: 'application/x-ndjson',
-        }),
-      );
+      if (hasPrimary) {
+        retain('supplements-skipped', {
+          reason: 'primary-error',
+          snapshot: 'NOT_AVAILABLE',
+          dom: 'NOT_AVAILABLE',
+          png: 'NOT_AVAILABLE',
+          attachment: 'NOT_AVAILABLE',
+          dropped,
+          retentionErrors,
+        });
+      } else {
+        const supplemental = async (kind: string, action: () => Promise<unknown>) => {
+          try {
+            const value = await action();
+            retain(kind, value);
+            return value;
+          } catch (error) {
+            retentionErrors.push(`${kind}: ${errorText(error)}`);
+            retain('secondary-error', { kind, error: errorText(error) });
+            return 'NOT_AVAILABLE';
+          }
+        };
+        browserSnapshot = await supplemental('browser-final', () =>
+          page.evaluate(
+            () =>
+              (
+                window as unknown as { __ordinaryImageNativeSnapshot?: () => unknown }
+              ).__ordinaryImageNativeSnapshot?.() ?? 'NOT_AVAILABLE',
+          ),
+        );
+        await supplemental('dom-final', () => page.content());
+        await supplemental('native-png', async () => {
+          const path = info.outputPath('ordinary-image-native.png');
+          await page.screenshot({ path });
+          return path;
+        });
+        retain('final', { browserSnapshot, dropped, retentionErrors });
+        await supplemental('attachment', () =>
+          info.attach('ordinary-image-native', {
+            path: rawPath,
+            contentType: 'application/x-ndjson',
+          }),
+        );
+      }
       page.off('request', onRequest);
       page.off('response', onResponse);
       page.off('requestfailed', onFailed);
