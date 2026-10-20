@@ -2079,3 +2079,202 @@ describe('A2a exact Course Activity sample delivery', () => {
     expect(await bytes(a.activity_run_id, null, seat)).toEqual([]);
   }, 30_000);
 });
+
+describe('A8.1 exact teacher practice occurrence projection', () => {
+  async function fixture() {
+    const activity = await publishActivity(author, principalId, 'electronics');
+    const course = await newCourse(`A8.1 exact teacher queue ${++sequence}`);
+    for (const [title, ids] of [
+      ['Урок с двумя одинаковыми практиками', ['practice-a', 'practice-b']],
+      ['Другой урок с тем же ID блока', ['practice-a']],
+    ] as const) {
+      await admin.query(
+        "SELECT course_lesson_save_v3($1,$2,$3,NULL,$4,NULL,$5::jsonb,'material',NULL,15,NULL)",
+        [
+          principalId,
+          course.courseId,
+          course.sectionId,
+          title,
+          JSON.stringify(
+            ids.map((id) => ({
+              id,
+              type: 'activity',
+              learningActivityVersionId: activity.versionId,
+            })),
+          ),
+        ],
+      );
+    }
+    const revision = (
+      await admin.query('SELECT draft_revision FROM courses WHERE id=$1', [course.courseId])
+    ).rows[0].draft_revision;
+    expect(
+      (
+        await admin.query('SELECT * FROM course_publish_v3($1,$2,$3,$4)', [
+          principalId,
+          course.courseId,
+          revision,
+          `a81:publish:${++sequence}`,
+        ])
+      ).rows[0].result_code,
+    ).toBe('ok');
+    const room = await classroomWithSeat();
+    const assigned = await assignCourseRun(
+      course.courseId,
+      room.classroom,
+      room.seat,
+      `a81:assign:${++sequence}`,
+    );
+    expect(assigned.result_code).toBe('ok');
+    return { ...course, ...room, ...activity, runId: assigned.run_id as string };
+  }
+  async function read(classroom: string, actor = principalId) {
+    return (
+      await inTenant(author, (client) =>
+        client.query('SELECT * FROM learning_course_teacher_activity_occurrences($1,$2)', [
+          actor,
+          classroom,
+        ]),
+      )
+    ).rows;
+  }
+
+  it('returns three separate identities for repeated versions and block IDs, preserving closed history', async () => {
+    const data = await fixture();
+    const rows = await read(data.classroom);
+    expect(rows).toHaveLength(3);
+    expect(new Set(rows.map((row) => row.activity_run_id)).size).toBe(3);
+    expect(new Set(rows.map((row) => row.classroom_assignment_id)).size).toBe(3);
+    expect(new Set(rows.map((row) => row.lesson_id)).size).toBe(2);
+    expect(rows.filter((row) => row.block_id === 'practice-a')).toHaveLength(2);
+    expect(
+      rows.every(
+        (row) => row.learning_activity_version_id === data.versionId && row.assignment_scope_exact,
+      ),
+    ).toBe(true);
+    expect(rows.every((row) => row.run_id === data.runId)).toBe(true);
+    await admin.query("UPDATE classroom_course_runs SET status='closed' WHERE id=$1", [data.runId]);
+    await admin.query("UPDATE classrooms SET status='archived' WHERE id=$1", [data.classroom]);
+    expect(await read(data.classroom)).toEqual(rows);
+    await admin.query("UPDATE classrooms SET status='deleted' WHERE id=$1", [data.classroom]);
+    expect(await read(data.classroom)).toEqual([]);
+    await expect(
+      inTenant(author, (client) => client.query('SELECT * FROM activity_runs LIMIT 1')),
+    ).rejects.toThrow(/permission denied/);
+  });
+
+  it('uses current exact class authority for owner/co-teacher and rejects foreign, student and revoked actors', async () => {
+    const data = await fixture();
+    expect(await read(data.classroom, outsiderPrincipalId)).toEqual([]);
+    expect(await read(data.classroom, randomUUID())).toEqual([]);
+    const student = (await admin.query('SELECT principal_for_seat($1) AS id', [data.seat])).rows[0]
+      .id as string;
+    expect(await read(data.classroom, student)).toEqual([]);
+    await admin.query(
+      "UPDATE classroom_memberships SET member_role='co_teacher' WHERE classroom_id=$1 AND account_id=$2",
+      [data.classroom, accountId],
+    );
+    expect(await read(data.classroom)).toHaveLength(3);
+    await admin.query(
+      "UPDATE classroom_memberships SET member_role='student' WHERE classroom_id=$1 AND account_id=$2",
+      [data.classroom, accountId],
+    );
+    expect(await read(data.classroom)).toEqual([]);
+    await admin.query(
+      "UPDATE classroom_memberships SET member_role='co_teacher' WHERE classroom_id=$1 AND account_id=$2",
+      [data.classroom, accountId],
+    );
+    const anotherClass = await classroomWithSeat();
+    await admin.query('DELETE FROM classroom_memberships WHERE classroom_id=$1 AND account_id=$2', [
+      data.classroom,
+      accountId,
+    ]);
+    // Being staff of another class, and still a teacher in this tenant, grants nothing here.
+    expect(
+      (
+        await admin.query('SELECT * FROM classroom_teacher_access_any($1,$2)', [
+          accountId,
+          anotherClass.classroom,
+        ])
+      ).rows,
+    ).toHaveLength(1);
+    expect(await read(data.classroom)).toEqual([]);
+    expect(await read(randomUUID())).toEqual([]);
+  });
+
+  it('rejects inactive tenants and accounts without removing the preserved history', async () => {
+    const data = await fixture();
+    try {
+      await admin.query("UPDATE tenants SET status='suspended' WHERE id=$1", [author.tenantId]);
+      expect(await read(data.classroom)).toEqual([]);
+    } finally {
+      await admin.query("UPDATE tenants SET status='active' WHERE id=$1", [author.tenantId]);
+    }
+    try {
+      await admin.query("UPDATE accounts SET status='suspended' WHERE id=$1", [accountId]);
+      expect(await read(data.classroom)).toEqual([]);
+    } finally {
+      await admin.query("UPDATE accounts SET status='active' WHERE id=$1", [accountId]);
+    }
+    expect(await read(data.classroom)).toHaveLength(3);
+  });
+
+  it('excludes forged blocks and marks the valid shared legacy handout ambiguous', async () => {
+    const data = await fixture();
+    const original = (await read(data.classroom))[0]!;
+    const forged = (
+      await inTenant(author, (client) =>
+        client.query(
+          `SELECT * FROM activity_run_create($1,$2,$3,'course',$4,$5,NULL,NULL,NULL,NULL,NULL,'{}'::jsonb,$6,'forged-block')`,
+          [
+            principalId,
+            original.classroom_assignment_id,
+            data.versionId,
+            data.runId,
+            original.lesson_id,
+            `a81:forged:${++sequence}`,
+          ],
+        ),
+      )
+    ).rows[0];
+    expect(forged.result_code).toBe('ok');
+    const listed = await read(data.classroom);
+    expect(listed).toHaveLength(3);
+    expect(listed.some((row) => row.activity_run_id === forged.activity_run_id)).toBe(false);
+    expect(
+      listed.find((row) => row.activity_run_id === original.activity_run_id)
+        ?.assignment_scope_exact,
+    ).toBe(false);
+    expect(
+      listed
+        .filter((row) => row.activity_run_id !== original.activity_run_id)
+        .every((row) => row.assignment_scope_exact),
+    ).toBe(true);
+  });
+
+  it.each(['wrong-version', 'missing-version', 'wrong-block'] as const)(
+    'does not guess a frozen occurrence from a title when its snapshot has %s',
+    async (mismatch) => {
+      const data = await fixture();
+      const rows = await read(data.classroom);
+      const original = rows.find((row) => row.block_id === 'practice-b')!;
+      const another = await publishActivity(author, principalId, 'electronics');
+      // Corrupt only this test's materialized legacy snapshot. Published CourseVersion and
+      // ActivityVersion records stay immutable; the read must verify both exact pins.
+      await admin.query(
+        `UPDATE classroom_course_run_lessons SET blocks=(
+           SELECT jsonb_agg(CASE WHEN block->>'id'=$2 THEN
+             CASE $3::text WHEN 'wrong-version' THEN jsonb_set(block,'{learningActivityVersionId}',to_jsonb($4::text))
+               WHEN 'missing-version' THEN block-'learningActivityVersionId'
+               ELSE jsonb_set(block,'{id}','"not-the-runtime-block"'::jsonb) END
+             ELSE block END)
+           FROM jsonb_array_elements(blocks) block) WHERE id=$1`,
+        [original.lesson_id, original.block_id, mismatch, another.versionId],
+      );
+      const listed = await read(data.classroom);
+      expect(listed).toHaveLength(2);
+      expect(listed.some((row) => row.activity_run_id === original.activity_run_id)).toBe(false);
+      expect(listed.every((row) => row.learning_activity_version_id === data.versionId)).toBe(true);
+    },
+  );
+});

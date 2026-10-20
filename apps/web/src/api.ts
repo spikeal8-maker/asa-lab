@@ -518,6 +518,24 @@ export interface CourseLessonInput {
   estimatedMinutes: number | null;
 }
 
+export interface ClassroomCourseActivityOccurrence {
+  /** Null identifies the separate lesson-level practice, never a guessed block. */
+  blockId: string | null;
+  activityRunId: string;
+  classroomAssignmentId: string;
+  learningActivityVersionId: string;
+  title: string;
+  goal: string | null;
+  moduleKey: string;
+  assignmentScopeExact: boolean;
+  canonicalCounts: CanonicalLearningCounts | null;
+  assignedCount: number | null;
+  notAssignedCount: number | null;
+  withdrawnCount: number | null;
+  inactiveCount: number | null;
+  invalidatedCount: number | null;
+}
+
 export interface ClassroomCourseRunLesson {
   id: string;
   sourceLessonId: string;
@@ -539,6 +557,7 @@ export interface ClassroomCourseRunLesson {
   submittedCount: number;
   completedCount: number;
   canonicalCounts: null | CanonicalLearningCounts;
+  activityOccurrences?: ClassroomCourseActivityOccurrence[];
 }
 
 export interface ClassroomCourseRun {
@@ -582,7 +601,7 @@ export interface CourseActivityOccurrence {
 
 export interface SeatCourseRunLesson extends Omit<
   ClassroomCourseRunLesson,
-  'seatCount' | 'startedCount' | 'submittedCount' | 'completedCount'
+  'seatCount' | 'startedCount' | 'submittedCount' | 'completedCount' | 'activityOccurrences'
 > {
   /** Exact lesson-level Course ActivityRun; null when the origin is unprovable. */
   activityRunId?: string | null;

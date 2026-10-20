@@ -4,6 +4,7 @@ import { ProjectPreviewFigure } from '../modules/ProjectPreviewFigure';
 import { LearningConditions } from './LearningConditions';
 import { LegacyLearningReview } from './LegacyLearningReview';
 import { useLearningDestination } from '../learning/use-learning-destination';
+import { exactReviewContext, exactReviewSubmission } from '../learning/course-practice-queue';
 import type { ModulePreviewDescriptor } from '@asa-lab/module-sdk';
 import './classroom-gradebook.css';
 import { ManualClassroomJournal } from './ManualClassroomJournal';
@@ -48,17 +49,31 @@ type Frozen = {
   preview: ModulePreviewDescriptor | null;
 };
 
+type ReviewDetailProps = {
+  classroomId: string;
+  item: GradebookEntry;
+  onChanged: () => Promise<void>;
+  onClose: () => void;
+  readOnly?: boolean;
+};
+
+/** Shared by the journal and the exact Course practice queue. */
+export function CanonicalGradebookReviewDetail(props: ReviewDetailProps) {
+  return (
+    <ReviewDetail
+      key={`${props.classroomId}:${props.item.assignmentId}:${props.item.seatId}:${props.item.canonicalState?.activityRunId}`}
+      {...props}
+    />
+  );
+}
+
 function ReviewDetail({
   classroomId,
   item,
   onChanged,
   onClose,
-}: {
-  classroomId: string;
-  item: GradebookEntry;
-  onChanged: () => Promise<void>;
-  onClose: () => void;
-}) {
+  readOnly = false,
+}: ReviewDetailProps) {
   const [context, setContext] = useState<LearningReviewContext | null>(null);
   const destination = useLearningDestination();
   const [attemptId, setAttemptId] = useState<string | null>(
@@ -73,15 +88,39 @@ function ReviewDetail({
   const [feedback, setFeedback] = useState('');
   const [reason, setReason] = useState('');
   const request = useRef<{ payload: string; id: string } | null>(null);
+  const activityRunId = item.canonicalState?.activityRunId;
+  const mounted = useRef(false);
+  const loadSequence = useRef(0);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      loadSequence.current += 1;
+    };
+  }, []);
+  const clearEvidence = useCallback((message: string) => {
+    loadSequence.current += 1;
+    setContext(null);
+    setFrozen(null);
+    setBusy(false);
+    setError(message);
+  }, []);
   const load = useCallback(async () => {
+    const sequence = ++loadSequence.current;
     const result = await api.learningReviewContext(classroomId, item.assignmentId, item.seatId);
+    if (!mounted.current || sequence !== loadSequence.current) return;
     if (!result.ok) {
-      setError(result.error.message);
+      clearEvidence(result.error.message);
       return;
     }
+    if (!exactReviewContext(activityRunId, result.data)) {
+      clearEvidence('Не удалось подтвердить точную практику для этой сдачи. Обновите очередь.');
+      return;
+    }
+    setError(null);
     setContext(result.data);
     setAttemptId((current) => current ?? result.data.attempts[0]?.id ?? null);
-  }, [classroomId, item.assignmentId, item.seatId]);
+  }, [classroomId, item.assignmentId, item.seatId, activityRunId, clearEvidence]);
   useEffect(() => {
     void load();
   }, [load]);
@@ -89,23 +128,24 @@ function ReviewDetail({
   const latest = attempt?.results[0] ?? null;
   useEffect(() => {
     setFrozen(null);
-    setError(null);
     setFeedback(latest?.feedback ?? '');
     setPoints(latest?.points == null ? '' : String(latest.points));
     setReason('');
     if (!attempt?.submissionId || !attemptId) return;
     let active = true;
+    const sequence = loadSequence.current;
     void api.exactLearningSubmission(classroomId, attemptId).then((result) => {
-      if (!active) return;
-      if (result.ok) setFrozen(result.data);
-      else setError(result.error.message);
+      if (!active || !mounted.current || sequence !== loadSequence.current) return;
+      if (!result.ok) clearEvidence(result.error.message);
+      else if (exactReviewSubmission(attempt, result.data)) setFrozen(result.data);
+      else clearEvidence('Сданная версия не совпадает с выбранной попыткой. Обновите очередь.');
     });
     return () => {
       active = false;
     };
-  }, [classroomId, attemptId, attempt?.submissionId, latest?.id, latest?.feedback, latest?.points]);
+  }, [classroomId, attemptId, attempt, latest, clearEvidence]);
   async function review(decision: 'accepted' | 'changes_requested' | 'incomplete' | 'excused') {
-    if (!attempt || !context || !frozen || busy) return;
+    if (!attempt || !context || !frozen || busy || readOnly) return;
     const input = {
       decision,
       points: decision === 'accepted' && context.resultMode === 'graded' ? Number(points) : null,
@@ -118,21 +158,26 @@ function ReviewDetail({
       request.current = { payload, id: crypto.randomUUID() };
     setBusy(true);
     setError(null);
+    const sequence = loadSequence.current;
     const result = await api.reviewLearningAttempt(classroomId, attempt.id, {
       ...input,
       requestId: request.current.id,
     });
+    if (!mounted.current) return;
     setBusy(false);
+    if (sequence !== loadSequence.current) return;
     if (!result.ok) {
-      setError(result.error.message);
+      clearEvidence(result.error.message);
       return;
     }
     await load();
+    if (!mounted.current) return;
     await onChanged();
   }
   const terminal =
     attempt?.state === 'closed' && latest !== null && latest.decision !== 'changes_requested';
-  const canReview = attempt && (['submitted', 'evaluating'].includes(attempt.state) || terminal);
+  const canReview =
+    !readOnly && attempt && (['submitted', 'evaluating'].includes(attempt.state) || terminal);
   const numeric = Number(points);
   return (
     <section className="gradebook-detail" aria-label="Проверка сдачи">
@@ -147,22 +192,36 @@ function ReviewDetail({
           Закрыть проверку
         </button>
       </header>
-      {error ? <p role="alert">{error}</p> : null}
+      {error ? (
+        <div>
+          <p role="alert">{error}</p>
+          <button className="btn-secondary" onClick={() => void load()}>
+            Повторить загрузку сдачи
+          </button>
+        </div>
+      ) : null}
+      {readOnly ? (
+        <p role="status">История доступна для просмотра. Изменение результата здесь закрыто.</p>
+      ) : null}
       {!context && !error ? <p>Загружаем историю…</p> : null}
       {context ? (
         <>
           <p>{context.instructions}</p>
-          <LearningConditions
-            classroomId={classroomId}
-            assignmentId={item.assignmentId}
-            onChanged={() => void onChanged()}
-          />
-          <LearningConditions
-            classroomId={classroomId}
-            assignmentId={item.assignmentId}
-            seatId={item.seatId}
-            onChanged={() => void onChanged()}
-          />
+          {!readOnly ? (
+            <>
+              <LearningConditions
+                classroomId={classroomId}
+                assignmentId={item.assignmentId}
+                onChanged={() => void onChanged()}
+              />
+              <LearningConditions
+                classroomId={classroomId}
+                assignmentId={item.assignmentId}
+                seatId={item.seatId}
+                onChanged={() => void onChanged()}
+              />
+            </>
+          ) : null}
           <p>
             {context.resultMode === 'graded'
               ? `Баллы: максимум ${context.maxPoints}`
@@ -180,7 +239,15 @@ function ReviewDetail({
           ) : null}
           <label>
             Попытка{' '}
-            <select value={attemptId ?? ''} onChange={(event) => setAttemptId(event.target.value)}>
+            <select
+              value={attemptId ?? ''}
+              disabled={busy}
+              onChange={(event) => {
+                setError(null);
+                setFrozen(null);
+                setAttemptId(event.target.value);
+              }}
+            >
               {context.attempts.map((a) => (
                 <option key={a.id} value={a.id}>
                   {a.number} · {LABELS[a.state] ?? a.state}
@@ -189,7 +256,13 @@ function ReviewDetail({
               ))}
             </select>
           </label>
-          {!attempt ? <p>Ученик ещё не начал работу.</p> : null}
+          {!attempt ? (
+            <p>
+              {attemptId
+                ? 'Выбранная попытка недоступна. Выберите попытку из истории.'
+                : 'Ученик ещё не начал работу.'}
+            </p>
+          ) : null}
           {attempt && !attempt.submissionId ? (
             <p>Попытка в работе. Оценивать несданный черновик нельзя.</p>
           ) : null}
@@ -283,12 +356,13 @@ function ReviewDetail({
               </div>
             </div>
           ) : null}
-          {attempt && terminal && context.selectionPolicy === 'teacher_selected' ? (
+          {!readOnly && attempt && terminal && context.selectionPolicy === 'teacher_selected' ? (
             <button
               className="btn-secondary"
               disabled={busy || !reason.trim()}
               onClick={async () => {
                 setBusy(true);
+                const sequence = loadSequence.current;
                 const result = await api.selectLearningAttempt(
                   classroomId,
                   context.participationId,
@@ -299,11 +373,12 @@ function ReviewDetail({
                     requestId: crypto.randomUUID(),
                   },
                 );
+                if (!mounted.current || sequence !== loadSequence.current) return;
                 setBusy(false);
-                if (!result.ok) setError(result.error.message);
+                if (!result.ok) clearEvidence(result.error.message);
                 else {
                   await load();
-                  await onChanged();
+                  if (mounted.current) await onChanged();
                 }
               }}
             >
@@ -587,8 +662,8 @@ function AssignedClassroomGradebook({
       )}
       {opened ? (
         opened.canonicalState?.activityRunId ? (
-          <ReviewDetail
-            key={`${opened.seatId}:${opened.assignmentId}:${detailEpoch}`}
+          <CanonicalGradebookReviewDetail
+            key={`${classroomId}:${opened.seatId}:${opened.assignmentId}:${detailEpoch}`}
             classroomId={classroomId}
             item={opened}
             onChanged={reload}

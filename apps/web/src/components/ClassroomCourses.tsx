@@ -1,17 +1,21 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   api,
-  type ClassroomAssignment,
-  type ClassroomAssignmentProgress,
+  type ClassroomCourseActivityOccurrence,
+  type GradebookEntry,
   type ClassroomCourseRun,
   type ClassroomCourseRunLesson,
   type Course,
 } from '../api';
-import { seatAvatar } from '../creator-portal/default-avatars';
-import { AssignmentView } from './AssignmentView';
 import { LessonBlocks } from './LessonBlocks';
 import { LearningAudience } from './LearningAudience';
-import { WorkPreview } from './WorkPreview';
+import { CanonicalGradebookReviewDetail } from './ClassroomGradebook';
+import {
+  canInspectCoursePractice,
+  exactCoursePracticeQueue,
+  filterCoursePracticeQueue,
+  type CoursePracticeFilter,
+} from '../learning/course-practice-queue';
 import { useSchoolTime } from './school-time';
 import { assignmentDateTime } from '../learning/assignment-date-time';
 import { useLearningDestination } from '../learning/use-learning-destination';
@@ -21,34 +25,311 @@ import {
   canonicalLearningLabel,
 } from '../learning/canonical-learning-presentation';
 
-function assignmentShape(
-  run: ClassroomCourseRun,
-  lesson: ClassroomCourseRunLesson,
-): ClassroomAssignment {
-  return {
-    id: lesson.classroomAssignmentId ?? lesson.id,
-    assignmentId: lesson.classroomAssignmentId ?? lesson.id,
-    title: lesson.assignmentTitle ?? lesson.title,
-    brief: lesson.assignmentBrief ?? lesson.content,
-    goal: lesson.assignmentGoal,
-    moduleKey: lesson.moduleKey ?? 'unknown',
-    dueAt: run.dueAt,
-    status: run.status,
-    createdAt: run.publishedAt,
-    isDemo: false,
-    sampleImage: lesson.sampleImage,
-    seatCount: lesson.seatCount,
-    startedCount: lesson.startedCount,
-    submittedCount: lesson.submittedCount,
-    audienceType: null,
-    assignedCount: null,
-  };
+function CoursePracticeCard({
+  occurrence,
+  onOpen,
+}: {
+  occurrence: ClassroomCourseActivityOccurrence | undefined;
+  onOpen: () => void;
+}) {
+  const counts = occurrence?.canonicalCounts;
+  const unavailable = !occurrence
+    ? 'Не удалось подтвердить назначение этой практики. Точная очередь недоступна.'
+    : !occurrence.assignmentScopeExact
+      ? 'Историческое назначение связано с несколькими практиками. Точная очередь недоступна.'
+      : !counts
+        ? 'Состояние практики недоступно. Обновите данные курса.'
+        : null;
+  return (
+    <section
+      className="course-practice-card"
+      data-testid="course-practice"
+      data-practice-block={occurrence?.blockId ?? 'lesson'}
+      data-activity-run={occurrence?.activityRunId}
+    >
+      <h4>{occurrence?.title ?? 'Практика'}</h4>
+      {occurrence?.goal ? <p>{occurrence.goal}</p> : null}
+      {unavailable ? (
+        <p role="status">{unavailable}</p>
+      ) : counts ? (
+        <>
+          <p>
+            Назначено: {occurrence?.assignedCount} · Не назначено: {occurrence?.notAssignedCount}
+          </p>
+          <dl className="course-practice-counts" aria-label="Состояние практики">
+            <div>
+              <dt>Не начали</dt>
+              <dd>{counts.notStarted}</dd>
+            </div>
+            <div>
+              <dt>В работе</dt>
+              <dd>{counts.inProgress}</dd>
+            </div>
+            <div>
+              <dt>Сдано без результата</dt>
+              <dd>{counts.submitted}</dd>
+            </div>
+            <div>
+              <dt>Ждут проверки</dt>
+              <dd>{counts.waitingReview}</dd>
+            </div>
+            <div>
+              <dt>На доработке</dt>
+              <dd>{counts.changesRequested}</dd>
+            </div>
+            <div>
+              <dt>Выполнено</dt>
+              <dd>{counts.completed}</dd>
+            </div>
+          </dl>
+          {occurrence?.withdrawnCount ? (
+            <p>Доступ завершён: {occurrence.withdrawnCount}. История сохранена.</p>
+          ) : null}
+          {occurrence?.inactiveCount ? (
+            <p>Доступ пока не активен: {occurrence.inactiveCount}.</p>
+          ) : null}
+          {occurrence?.invalidatedCount ? (
+            <p>Попытка отменена: {occurrence.invalidatedCount}.</p>
+          ) : null}
+        </>
+      ) : null}
+      <button type="button" className="btn-secondary" disabled={!!unavailable} onClick={onOpen}>
+        Проверить работы
+      </button>
+    </section>
+  );
 }
 
-export function ClassroomCourses({
+function CoursePracticeQueue({
+  classroomId,
+  run,
+  lesson,
+  occurrence,
+  readOnly,
+  onReload,
+  onBack,
+}: {
+  classroomId: string;
+  run: ClassroomCourseRun;
+  lesson: ClassroomCourseRunLesson;
+  occurrence: ClassroomCourseActivityOccurrence;
+  readOnly: boolean;
+  onReload: () => Promise<void>;
+  onBack: () => void;
+}) {
+  const [items, setItems] = useState<GradebookEntry[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const [filter, setFilter] = useState<CoursePracticeFilter>('all');
+  const [openedSeat, setOpenedSeat] = useState<string | null>(null);
+  const active = useRef(false);
+  const generation = useRef(0);
+  const reload = useCallback(async () => {
+    const current = ++generation.current;
+    const result = await api.classroomGradebook(classroomId);
+    if (!active.current || current !== generation.current) return;
+    if (!result.ok) {
+      setItems(null);
+      setOpenedSeat(null);
+      setError(result.error.message);
+      return;
+    }
+    setError(null);
+    setItems(result.data.items);
+  }, [classroomId]);
+  const refresh = useCallback(async () => {
+    await Promise.all([reload(), onReload()]);
+  }, [reload, onReload]);
+  useEffect(() => {
+    active.current = true;
+    void refresh();
+    const timer = window.setInterval(() => void refresh(), 15000);
+    const focus = () => void refresh();
+    window.addEventListener('focus', focus);
+    return () => {
+      active.current = false;
+      generation.current += 1;
+      window.clearInterval(timer);
+      window.removeEventListener('focus', focus);
+    };
+  }, [refresh]);
+  const queue = items === null ? null : exactCoursePracticeQueue(items, run.id, occurrence);
+  const visible = filterCoursePracticeQueue(queue?.items ?? [], search, filter);
+  const navigable = visible.filter(canInspectCoursePractice);
+  const opened = queue?.items.find((item) => item.seatId === openedSeat) ?? null;
+  const index = navigable.findIndex((item) => item.seatId === openedSeat);
+  const problem = error ?? queue?.error;
+  return (
+    <section
+      className="classroom-course-detail"
+      data-testid="course-practice-queue"
+      data-activity-run={occurrence.activityRunId}
+    >
+      <button type="button" className="classroom-back" onClick={onBack}>
+        ← К урокам курса
+      </button>
+      <header className="course-practice-queue-heading">
+        <div>
+          <span className="course-eyebrow">
+            {run.title} · v{run.versionNumber} · {lesson.title}
+          </span>
+          <h2>{occurrence.title}</h2>
+          <p>Работы и история попыток этой практики.</p>
+        </div>
+        <button className="btn-secondary" onClick={() => void refresh()}>
+          Обновить очередь
+        </button>
+      </header>
+      {readOnly ? (
+        <p role="status">Курс или класс закрыт. История работ доступна для просмотра.</p>
+      ) : null}
+      {problem ? (
+        <p role="alert">{problem}</p>
+      ) : items === null ? (
+        <p role="status">Загружаем очередь…</p>
+      ) : (
+        <div className="course-practice-review-layout">
+          <details className="course-practice-queue-list" open>
+            <summary>Ученики · {queue?.items.length ?? 0}</summary>
+            <label>
+              Поиск ученика
+              <input
+                type="search"
+                value={search}
+                onChange={(event) => {
+                  setSearch(event.target.value);
+                  setOpenedSeat(null);
+                }}
+              />
+            </label>
+            <label>
+              Состояние работы
+              <select
+                value={filter}
+                onChange={(event) => {
+                  setFilter(event.target.value as CoursePracticeFilter);
+                  setOpenedSeat(null);
+                }}
+              >
+                <option value="all">Все состояния</option>
+                <option value="waiting_review">Ждёт проверки</option>
+                <option value="submitted">Сдано без результата</option>
+                <option value="changes_requested">На доработке</option>
+                <option value="in_progress">В работе</option>
+                <option value="not_started">Не начато</option>
+                <option value="completed">Выполнено</option>
+                <option value="not_applicable">Не назначено</option>
+                <option value="withdrawn">Доступ завершён</option>
+                <option value="inactive">Доступ не активен</option>
+                <option value="invalidated">Попытка отменена</option>
+              </select>
+            </label>
+            {!visible.length ? (
+              <p>
+                {queue?.items.length
+                  ? 'По этим условиям учеников нет.'
+                  : 'В классе пока нет учеников.'}
+              </p>
+            ) : (
+              <ul>
+                {visible.map((item) => (
+                  <li key={item.seatId}>
+                    <button
+                      type="button"
+                      className={`course-practice-student${openedSeat === item.seatId ? ' is-selected' : ''}`}
+                      aria-pressed={openedSeat === item.seatId}
+                      disabled={!canInspectCoursePractice(item)}
+                      onClick={() => setOpenedSeat(item.seatId)}
+                    >
+                      <strong>{item.displayLabel}</strong>
+                      <span className={canonicalLearningClass(item.canonicalState)}>
+                        {canonicalLearningLabel(item.canonicalState)}
+                      </span>
+                      {item.attemptNumber ? <small>Попытка {item.attemptNumber}</small> : null}
+                      {item.displayGrade ? (
+                        <small>Оценка: {item.displayGrade}</small>
+                      ) : item.points !== null ? (
+                        <small>
+                          Баллы: {item.points} / {item.maxPoints}
+                        </small>
+                      ) : null}
+                      {item.canonicalState?.flags.includes('withdrawn') ? (
+                        <small>Доступ завершён · история сохранена</small>
+                      ) : item.canonicalState?.learnerMessageCode === 'access_suspended' ? (
+                        <small>Доступ приостановлен</small>
+                      ) : item.canonicalState?.learnerMessageCode === 'access_not_active' ? (
+                        <small>Ученик ещё не вошёл в класс</small>
+                      ) : null}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </details>
+          <div className="course-practice-review">
+            {opened ? (
+              <>
+                <nav className="course-practice-navigation" aria-label="Работы в очереди">
+                  <button
+                    className="btn-secondary"
+                    disabled={index <= 0}
+                    onClick={() => setOpenedSeat(navigable[index - 1]?.seatId ?? null)}
+                  >
+                    Предыдущий ученик
+                  </button>
+                  <span>
+                    {index >= 0
+                      ? `${index + 1} из ${navigable.length}`
+                      : 'Работа вне выбранного фильтра'}
+                  </span>
+                  <button
+                    className="btn-secondary"
+                    disabled={index >= navigable.length - 1}
+                    onClick={() => setOpenedSeat(navigable[index + 1]?.seatId ?? null)}
+                  >
+                    Следующий ученик
+                  </button>
+                </nav>
+                <CanonicalGradebookReviewDetail
+                  key={`${classroomId}:${occurrence.activityRunId}:${opened.seatId}:${opened.attemptId}`}
+                  classroomId={classroomId}
+                  item={opened}
+                  onChanged={refresh}
+                  onClose={() => setOpenedSeat(null)}
+                  readOnly={
+                    readOnly ||
+                    opened.canonicalState?.flags.includes('withdrawn') ||
+                    opened.canonicalState?.workflowState === 'not_applicable'
+                  }
+                />
+                <a
+                  className="btn-secondary"
+                  href={`#/classrooms/${classroomId}?assignment=${occurrence.classroomAssignmentId}&learner=${opened.seatId}`}
+                >
+                  Открыть результат в журнале
+                </a>
+              </>
+            ) : (
+              <p className="course-practice-review-empty">
+                Выберите ученика, чтобы открыть его попытки, сданную версию и отзыв.
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+export function ClassroomCourses(
+  props: Parameters<typeof ClassroomCoursesContent>[0],
+): JSX.Element {
+  return <ClassroomCoursesContent key={props.classroomId} {...props} />;
+}
+
+function ClassroomCoursesContent({
   classroomId,
   archived,
-  onOpenProject,
 }: {
   readonly classroomId: string;
   readonly archived: boolean;
@@ -71,19 +352,35 @@ export function ClassroomCourses({
   useEffect(() => {
     if (destination.courseRun) setOpenRunId(destination.courseRun);
   }, [destination.courseRun]);
-  const [reviewLessonId, setReviewLessonId] = useState<string | null>(null);
-  const [progress, setProgress] = useState<ClassroomAssignmentProgress[] | null>(null);
-  const [previewing, setPreviewing] = useState<ClassroomAssignmentProgress | null>(null);
+  const [reviewPractice, setReviewPractice] = useState<{
+    lessonId: string;
+    activityRunId: string;
+  } | null>(null);
+  const courseScope = useRef({ classroomId, generation: 0 });
+  const mounted = useRef(false);
   const time = useSchoolTime();
 
   const reload = useCallback(async () => {
+    const scope = courseScope.current;
+    const generation = ++scope.generation;
     const result = await api.listClassroomCourseRuns(classroomId);
+    if (!mounted.current || courseScope.current !== scope || generation !== scope.generation)
+      return;
     setRuns(result.ok ? result.data.items : []);
-    if (!result.ok) setError(result.error.message);
+    setError(result.ok ? null : result.error.message);
   }, [classroomId]);
 
   useEffect(() => {
+    mounted.current = true;
+    const scope = { classroomId, generation: 0 };
+    courseScope.current = scope;
+    setRuns(null);
+    setStudents([]);
+    setCourses([]);
+    setReviewPractice(null);
+    setError(null);
     void api.listClassroomRoster(classroomId).then((result) => {
+      if (!mounted.current || courseScope.current !== scope) return;
       if (result.ok)
         setStudents(
           result.data.items.filter((student) => ['active', 'issued'].includes(student.status)),
@@ -91,41 +388,30 @@ export function ClassroomCourses({
       else setError(result.error.message);
     });
     void Promise.all([reload(), api.listCourses()]).then(([, available]) => {
-      if (!available.ok) return;
+      if (!mounted.current || courseScope.current !== scope || !available.ok) return;
       const published = available.data.items.filter(
         (course) => course.publishedVersion !== null && course.archivedAt === null,
       );
       setCourses(published);
       setCourseId((current) => current || published[0]?.id || '');
     });
-  }, [reload]);
+    return () => {
+      mounted.current = false;
+      scope.generation += 1;
+    };
+  }, [classroomId, reload]);
 
   const openRun = runs?.find((run) => run.id === openRunId) ?? null;
   const review = useMemo(() => {
-    if (!openRun || !reviewLessonId) return null;
-    for (const section of openRun.sections) {
-      const lesson = section.lessons.find((entry) => entry.id === reviewLessonId);
-      if (lesson) return lesson;
-    }
-    return null;
-  }, [openRun, reviewLessonId]);
-
-  useEffect(() => {
-    if (!openRun || !review?.classroomAssignmentId) {
-      setProgress(null);
-      return;
-    }
-    let cancelled = false;
-    setProgress(null);
-    void api
-      .classroomAssignmentProgress(classroomId, review.classroomAssignmentId)
-      .then((result) => {
-        if (!cancelled) setProgress(result.ok ? result.data.items : []);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [classroomId, openRun, review]);
+    if (!openRun || !reviewPractice) return null;
+    const lesson = openRun.sections
+      .flatMap((section) => section.lessons)
+      .find((item) => item.id === reviewPractice.lessonId);
+    const occurrence = lesson?.activityOccurrences?.find(
+      (item) => item.activityRunId === reviewPractice.activityRunId,
+    );
+    return lesson && occurrence ? { lesson, occurrence } : null;
+  }, [openRun, reviewPractice]);
 
   async function assign(): Promise<void> {
     if (!courseId || busy) return;
@@ -151,6 +437,7 @@ export function ClassroomCourses({
     });
     if (deliveryRequest.current?.payload !== payload)
       deliveryRequest.current = { payload, id: crypto.randomUUID() };
+    const scope = courseScope.current;
     const result = await api.assignCourseToClassroom(classroomId, courseId, date.instant, {
       versionNumber: selected.publishedVersion,
       audienceType,
@@ -158,6 +445,7 @@ export function ClassroomCourses({
       requestId: deliveryRequest.current.id,
       timeZone: date.timeZone,
     });
+    if (!mounted.current || courseScope.current !== scope) return;
     setBusy(false);
     if (!result.ok) {
       setError(result.error.message);
@@ -170,106 +458,39 @@ export function ClassroomCourses({
         : `Курс «${selected?.title ?? 'Курс'}» · v${result.data.versionNumber} назначен классу.`,
     );
     await reload();
+    if (!mounted.current || courseScope.current !== scope) return;
     setOpenRunId(result.data.runId);
   }
 
   if (openRun && review) {
-    const assignment = assignmentShape(openRun, review);
     return (
-      <section className="classroom-course-detail">
-        <button type="button" className="classroom-back" onClick={() => setReviewLessonId(null)}>
-          ← К курсу
-        </button>
-        <div className="assignment-detail-heading">
-          <h2>{assignment.title}</h2>
-          <p>
-            {openRun.title} · v{openRun.versionNumber}
-            {openRun.dueAt ? ` · срок ${time.date(openRun.dueAt)}` : ''}
-          </p>
-        </div>
-        <AssignmentView assignment={assignment} />
-        {progress === null ? (
-          <p role="status">Загружаем работы…</p>
-        ) : (
-          <ul className="assignment-progress" data-testid="course-assignment-progress">
-            {progress.map((row) => (
-              <li key={row.seatId}>
-                <img
-                  src={seatAvatar(row.seatId, row.avatarKey).src}
-                  alt=""
-                  width={36}
-                  height={36}
-                />
-                <span className="assignment-progress-name">{row.displayLabel}</span>
-                <span
-                  className={`assignment-state ${
-                    canonicalLearningClass(row.canonicalState) ||
-                    (row.submittedAt ? 'is-done' : row.startedAt ? 'is-started' : 'is-idle')
-                  }`}
-                >
-                  {canonicalLearningLabel(row.canonicalState) ??
-                    (row.submittedAt
-                      ? `Сдано ${time.dateTime(row.submittedAt)}`
-                      : row.startedAt
-                        ? `Работает с ${time.dateTime(row.startedAt)}`
-                        : 'Не открывал')}
-                </span>
-                {row.projectId ? (
-                  <button
-                    type="button"
-                    className="btn-secondary"
-                    onClick={() => {
-                      if (row.canonicalState?.activityRunId)
-                        window.location.hash = `/classrooms/${classroomId}?assignment=${assignment.id}&learner=${row.seatId}`;
-                      else setPreviewing(row);
-                    }}
-                  >
-                    Посмотреть работу
-                  </button>
-                ) : (
-                  <span />
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-        {previewing?.projectId ? (
-          <WorkPreview
-            projectId={previewing.projectId}
-            snapshotRevision={previewing.snapshotRevision}
-            moduleKey={assignment.moduleKey}
-            learnerName={previewing.displayLabel}
-            workTitle={assignment.title}
-            submittedAt={previewing.submittedAt}
-            assignment={assignment}
-            onClose={() => setPreviewing(null)}
-            onOpenEditor={() => {
-              const projectId = previewing.projectId as string;
-              setPreviewing(null);
-              onOpenProject(projectId, assignment.moduleKey);
-            }}
-            onGraded={() => {
-              if (!review.classroomAssignmentId) return;
-              void api
-                .classroomAssignmentProgress(classroomId, review.classroomAssignmentId)
-                .then((result) => {
-                  if (result.ok) setProgress(result.data.items);
-                });
-            }}
-          />
-        ) : null}
-      </section>
+      <CoursePracticeQueue
+        key={`${classroomId}:${openRun.id}:${review.lesson.id}:${review.occurrence.activityRunId}`}
+        classroomId={classroomId}
+        run={openRun}
+        lesson={review.lesson}
+        occurrence={review.occurrence}
+        readOnly={archived || openRun.status === 'closed'}
+        onReload={reload}
+        onBack={() => setReviewPractice(null)}
+      />
     );
   }
 
   if (openRun) {
     return (
       <section className="classroom-course-detail" data-testid="classroom-course-run">
-        <LearningAudience
-          classroomId={classroomId}
-          courseRunId={openRun.id}
-          onChanged={() => void reload()}
-        />
+        <fieldset
+          className="course-practice-audience"
+          disabled={archived || openRun.status === 'closed'}
+        >
+          <LearningAudience
+            key={`${classroomId}:${openRun.id}`}
+            classroomId={classroomId}
+            courseRunId={openRun.id}
+            onChanged={() => void reload()}
+          />
+        </fieldset>
         <div className="classroom-course-detail-head">
           <button type="button" className="classroom-back" onClick={() => setOpenRunId(null)}>
             ← Все курсы
@@ -282,23 +503,35 @@ export function ClassroomCourses({
               {openRun.dueAt ? ` · до ${time.date(openRun.dueAt)}` : ''}
             </p>
           </div>
-          <button
-            type="button"
-            className="btn-secondary"
-            disabled={archived || busy}
-            onClick={async () => {
-              setBusy(true);
-              const next = openRun.status === 'open' ? 'closed' : 'open';
-              const result = await api.setClassroomCourseRunStatus(classroomId, openRun.id, next);
-              setBusy(false);
-              if (result.ok) {
-                setNotice(next === 'closed' ? 'Курс закрыт.' : 'Курс снова открыт.');
-                await reload();
-              }
-            }}
-          >
-            {openRun.status === 'open' ? 'Закрыть курс' : 'Открыть курс'}
-          </button>
+          <div className="course-practice-navigation">
+            <button
+              type="button"
+              className="btn-secondary"
+              disabled={busy}
+              onClick={() => void reload()}
+            >
+              Обновить курс
+            </button>
+            <button
+              type="button"
+              className="btn-secondary"
+              disabled={archived || busy}
+              onClick={async () => {
+                const scope = courseScope.current;
+                setBusy(true);
+                const next = openRun.status === 'open' ? 'closed' : 'open';
+                const result = await api.setClassroomCourseRunStatus(classroomId, openRun.id, next);
+                if (!mounted.current || courseScope.current !== scope) return;
+                setBusy(false);
+                if (result.ok) {
+                  setNotice(next === 'closed' ? 'Курс закрыт.' : 'Курс снова открыт.');
+                  await reload();
+                }
+              }}
+            >
+              {openRun.status === 'open' ? 'Закрыть курс' : 'Открыть курс'}
+            </button>
+          </div>
         </div>
         {notice ? (
           <p className="notice-success" role="status">
@@ -320,22 +553,49 @@ export function ClassroomCourses({
                   <div>
                     <strong>{lesson.title}</strong>
                     {lesson.summary ? <p>{lesson.summary}</p> : null}
-                    <LessonBlocks blocks={lesson.blocks} legacyContent={lesson.content} compact />
+                    <LessonBlocks
+                      blocks={lesson.blocks}
+                      legacyContent={lesson.content}
+                      compact
+                      renderActivity={(block) => {
+                        const occurrence = lesson.activityOccurrences?.find(
+                          (item) =>
+                            item.blockId === block.id &&
+                            item.learningActivityVersionId === block.learningActivityVersionId,
+                        );
+                        return (
+                          <CoursePracticeCard
+                            occurrence={occurrence}
+                            onOpen={() => {
+                              if (occurrence)
+                                setReviewPractice({
+                                  lessonId: lesson.id,
+                                  activityRunId: occurrence.activityRunId,
+                                });
+                            }}
+                          />
+                        );
+                      }}
+                    />
                     {lesson.kind === 'assignment' ? (
-                      <div className="classroom-course-assignment-summary">
-                        <span>
-                          Работают: {lesson.startedCount} из {lesson.seatCount} · Сдали:{' '}
-                          {lesson.submittedCount}
-                        </span>
-                        <button
-                          type="button"
-                          className="btn-secondary"
-                          onClick={() => setReviewLessonId(lesson.id)}
-                        >
-                          Проверить работы
-                        </button>
-                      </div>
-                    ) : (
+                      <CoursePracticeCard
+                        occurrence={lesson.activityOccurrences?.find(
+                          (item) => item.blockId === null,
+                        )}
+                        onOpen={() => {
+                          const occurrence = lesson.activityOccurrences?.find(
+                            (item) => item.blockId === null,
+                          );
+                          if (occurrence)
+                            setReviewPractice({
+                              lessonId: lesson.id,
+                              activityRunId: occurrence.activityRunId,
+                            });
+                        }}
+                      />
+                    ) : lesson.blocks.some(
+                        (block) => block.type === 'activity' && !block.hidden,
+                      ) ? null : (
                       <div className="classroom-course-material-summary">
                         Пройдено: {lesson.completedCount} из {lesson.seatCount}
                       </div>

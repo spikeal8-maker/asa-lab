@@ -54,7 +54,8 @@ function solidPng(red: number, green: number, blue: number, width = 3, height = 
 async function createPublishedProjectActivity(
   title: string,
   blocks?: ReadonlyArray<Record<string, unknown>>,
-): Promise<void> {
+  activityPolicies = policies,
+): Promise<{ principalId: string; versionId: string }> {
   const identity = await admin.query(
     `SELECT account_id,principal_id FROM legacy_user_account_links
       WHERE tenant_id=$1 AND user_id=$2`,
@@ -80,19 +81,20 @@ async function createPublishedProjectActivity(
         principalId,
         teacher.tenantId,
         title,
-        JSON.stringify(policies),
+        JSON.stringify(activityPolicies),
         authored.rows[0].id,
         `vs:e2e:create:${++sequence}`,
         blocks ? JSON.stringify(blocks) : null,
       ],
     );
-    await client.query(`SELECT * FROM learning_activity_publish($1,$2,$3,1,$4)`, [
+    const published = await client.query(`SELECT * FROM learning_activity_publish($1,$2,$3,1,$4)`, [
       principalId,
       teacher.tenantId,
       created.rows[0].activity_id,
       `vs:e2e:publish:${++sequence}`,
     ]);
     await client.query('COMMIT');
+    return { principalId, versionId: published.rows[0].activity_version_id as string };
   } catch (error) {
     await client.query('ROLLBACK');
     throw error;
@@ -758,4 +760,381 @@ test('A6 PDF material stays readable through exact direct assignment versions', 
   });
   await learnerA.context.close();
   await learnerB.context.close();
+});
+
+test('A8.1 teacher reviews each exact mixed-lesson practice with history, navigation and revoked late responses', async ({
+  browser,
+  page,
+}) => {
+  test.setTimeout(180_000);
+  const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
+  const activity = await createPublishedProjectActivity(
+    `A8.1 одинаковая практика ${++sequence} — ${'ДлинноеНазваниеДляПроверкиПереноса'.repeat(4)}`,
+    undefined,
+    { ...policies, attemptPolicy: { maxAttempts: 2 } },
+  );
+  const identity = (
+    await admin.query('SELECT account_id FROM principals WHERE id=$1', [activity.principalId])
+  ).rows[0];
+  const courseTitle = `A8.1 смешанный курс ${sequence}`;
+  const courseId = (
+    await admin.query("SELECT course_save($1,NULL,$2,NULL,NULL,'private') AS id", [
+      activity.principalId,
+      courseTitle,
+    ])
+  ).rows[0].id as string;
+  const sectionId = (
+    await admin.query('SELECT section_id FROM course_outline_v3($1,$2,$3,$4) LIMIT 1', [
+      courseId,
+      activity.principalId,
+      identity.account_id,
+      teacher.tenantId,
+    ])
+  ).rows[0].section_id as string;
+  await admin.query(
+    "SELECT course_lesson_save_v3($1,$2,$3,NULL,'Теория и две практики',NULL,$4::jsonb,'material',NULL,20,NULL)",
+    [
+      activity.principalId,
+      courseId,
+      sectionId,
+      JSON.stringify([
+        {
+          id: 'theory',
+          type: 'paragraph',
+          text: 'Обе практики используют одну версию задания, но имеют отдельные работы.',
+        },
+        { id: 'practice-a', type: 'activity', learningActivityVersionId: activity.versionId },
+        { id: 'practice-b', type: 'activity', learningActivityVersionId: activity.versionId },
+      ]),
+    ],
+  );
+  const revision = (await admin.query('SELECT draft_revision FROM courses WHERE id=$1', [courseId]))
+    .rows[0].draft_revision;
+  expect(
+    (
+      await admin.query('SELECT * FROM course_publish_v3($1,$2,$3,$4)', [
+        activity.principalId,
+        courseId,
+        revision,
+        `a81:e2e:publish:${sequence}`,
+      ])
+    ).rows[0].result_code,
+  ).toBe('ok');
+  const code = await createClassWithStudents(page, `A8.1 класс ${sequence}`, [
+    { label: 'Анна A8', handle: 'a81-anna' },
+    { label: 'Борис A8', handle: 'a81-boris' },
+    { label: 'Вера A8', handle: 'a81-vera' },
+  ]);
+  const classroomId = page.url().split('/classrooms/')[1]!.split('?')[0]!;
+  await page
+    .getByRole('navigation', { name: 'Разделы класса' })
+    .getByRole('button', { name: 'Обучение', exact: true })
+    .click();
+  await page
+    .getByRole('navigation', { name: 'Материалы класса' })
+    .getByRole('button', { name: 'Курсы', exact: true })
+    .click();
+  await page.getByLabel('Опубликованный курс', { exact: true }).selectOption(courseId);
+  await page.getByLabel('Выбранные ученики', { exact: true }).check();
+  await page.getByLabel('Анна A8', { exact: true }).check();
+  await page.getByLabel('Борис A8', { exact: true }).check();
+  await page.getByRole('button', { name: 'Назначить курс', exact: true }).click();
+  const course = page.getByTestId('classroom-course-run');
+  const cardA = course.locator('[data-practice-block="practice-a"]');
+  const cardB = course.locator('[data-practice-block="practice-b"]');
+  await expect(course.getByTestId('course-practice')).toHaveCount(2);
+  await expect(cardA).toContainText('Назначено: 2 · Не назначено: 1');
+  await expect(cardB).toContainText('Назначено: 2 · Не назначено: 1');
+  const runtimeA = (await cardA.getAttribute('data-activity-run'))!;
+  const runtimeB = (await cardB.getAttribute('data-activity-run'))!;
+  expect(runtimeA).not.toBe(runtimeB);
+  const runId = (
+    await admin.query('SELECT source_course_run_id FROM activity_runs WHERE id=$1', [runtimeA])
+  ).rows[0].source_course_run_id as string;
+  const anna = await learnerAssignments(browser, code, 'a81-anna');
+  const boris = await learnerAssignments(browser, code, 'a81-boris');
+  const learnerFailures = [anna, boris].map((learner) =>
+    collectBrowserFailures(learner.page, {
+      allowAnonymousSessionProbe: true,
+      allowAdminAccessProbe: true,
+    }),
+  );
+  // This teacher-focused scenario uses real authorized learner start/submit APIs to
+  // prepare exact immutable evidence; the full laboratory editing journey is tested separately.
+  async function submit(learner: Page, runtime: string) {
+    const headers = { origin: new URL(learner.url()).origin };
+    const started = await learner.request.post(`/api/learning/work/runs/${runtime}/start`, {
+      headers,
+      data: { requestId: `a81:e2e:start:${++sequence}` },
+    });
+    expect(started.ok()).toBe(true);
+    const work = (await started.json()) as {
+      projectId: string;
+      attemptId: string;
+      attemptNumber: number;
+    };
+    const saved = await admin.query(
+      'UPDATE project_drafts SET revision=revision+1 WHERE project_id=$1 RETURNING revision',
+      [work.projectId],
+    );
+    expect(saved.rows).toHaveLength(1);
+    const response = await learner.request.post(`/api/learning/projects/${work.projectId}/submit`, {
+      headers,
+      data: {
+        clientRequestId: `a81:e2e:submit:${++sequence}`,
+        expectedRevision: saved.rows[0].revision,
+      },
+    });
+    expect(response.ok()).toBe(true);
+    const evidence = (await response.json()) as {
+      projectVersionId: string;
+      attemptId: string;
+      submissionId: string;
+    };
+    return { ...work, ...evidence };
+  }
+  const first = await submit(anna.page, runtimeA);
+  const peer = await submit(boris.page, runtimeA);
+  const sibling = await submit(anna.page, runtimeB);
+  expect(new Set([first.projectId, peer.projectId, sibling.projectId]).size).toBe(3);
+  await cardA.getByRole('button', { name: 'Проверить работы', exact: true }).click();
+  const queue = page.getByTestId('course-practice-queue');
+  const detail = page.getByRole('region', { name: 'Проверка сдачи', exact: true });
+  await expect(queue).toHaveAttribute('data-activity-run', runtimeA);
+  await expect(queue.getByRole('button', { name: /Вера A8/ })).toBeDisabled();
+  await queue.getByLabel('Состояние работы', { exact: true }).selectOption('submitted');
+  await queue.getByRole('button', { name: /Анна A8/ }).click();
+  await expect(detail.getByTestId('submission-version-id')).toHaveText(first.projectVersionId);
+  await queue.getByRole('button', { name: 'Следующий ученик', exact: true }).click();
+  await expect(detail).toContainText('Борис A8');
+  await expect(detail.getByTestId('submission-version-id')).toHaveText(peer.projectVersionId);
+  await queue.getByRole('button', { name: 'Предыдущий ученик', exact: true }).click();
+  await expect(detail.getByTestId('submission-version-id')).toHaveText(first.projectVersionId);
+  await detail.getByLabel('Отзыв', { exact: true }).fill('Уточните схему первой практики.');
+  await detail.getByLabel('Причина возврата или исправления').fill('Проверьте соединение.');
+  await detail.getByRole('button', { name: 'Вернуть на доработку', exact: true }).click();
+  await expect(detail).toContainText('Ревизия 1 · На доработке');
+  const corrected = await submit(anna.page, runtimeA);
+  expect(corrected.attemptNumber).toBe(2);
+  expect(corrected.projectId).toBe(first.projectId);
+  expect(corrected.projectVersionId).not.toBe(first.projectVersionId);
+  await queue.getByRole('button', { name: 'Обновить очередь', exact: true }).click();
+  await expect(detail.getByTestId('submission-version-id')).toHaveText(corrected.projectVersionId);
+  await detail.getByLabel('Попытка', { exact: true }).selectOption(first.attemptId);
+  await expect(detail.getByTestId('submission-version-id')).toHaveText(first.projectVersionId);
+  await expect(detail).toContainText('Уточните схему первой практики.');
+  await detail.getByLabel('Попытка', { exact: true }).selectOption(corrected.attemptId);
+  await detail.getByLabel('Отзыв', { exact: true }).fill('Первая практика принята.');
+  await detail.getByRole('button', { name: 'Принять выполнение', exact: true }).click();
+  await expect(detail).toContainText('Ревизия 1 · Принято');
+  await expect(queue.getByRole('button', { name: 'Следующий ученик', exact: true })).toBeEnabled();
+  await queue.getByLabel('Состояние работы', { exact: true }).selectOption('completed');
+  await expect(queue.locator('.course-practice-student')).toHaveCount(1);
+  await queue.getByLabel('Поиск ученика', { exact: true }).fill('Анна');
+  await queue.getByRole('button', { name: /Анна A8/ }).click();
+  await expect(detail.getByTestId('submission-version-id')).toHaveText(corrected.projectVersionId);
+  for (const viewport of [
+    { width: 1440, height: 900 },
+    { width: 1024, height: 768 },
+    { width: 390, height: 844 },
+    { width: 320, height: 568 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await expect(detail.getByTestId('submission-version-id')).toBeVisible();
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1),
+    ).toBe(true);
+    await page.screenshot({
+      path: `${evidenceDir}/a81-exact-practice-${viewport.width}.png`,
+      fullPage: true,
+    });
+  }
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await queue.getByRole('link', { name: 'Открыть результат в журнале', exact: true }).click();
+  await expect(detail.getByTestId('submission-version-id')).toHaveText(corrected.projectVersionId);
+  await expect(detail).toContainText('Первая практика принята.');
+  await page.goto(`/#/classrooms/${classroomId}?courseRun=${runId}`);
+  await cardB.getByRole('button', { name: 'Проверить работы', exact: true }).click();
+  await queue.getByRole('button', { name: /Анна A8/ }).click();
+  await expect(detail.getByTestId('submission-version-id')).toHaveText(sibling.projectVersionId);
+  await expect(detail).not.toContainText('Первая практика принята.');
+  await queue.getByRole('button', { name: '← К урокам курса', exact: true }).click();
+  const legacyOrigin = (
+    await admin.query(
+      'SELECT source_classroom_assignment_id,source_course_lesson_id FROM activity_runs WHERE id=$1',
+      [runtimeB],
+    )
+  ).rows[0];
+  const legacySibling = await admin.query(
+    `SELECT * FROM activity_run_create($1,$2,$3,'course',$4,$5,NULL,NULL,NULL,NULL,NULL,'{}'::jsonb,$6,'legacy-unknown-block')`,
+    [
+      activity.principalId,
+      legacyOrigin.source_classroom_assignment_id,
+      activity.versionId,
+      runId,
+      legacyOrigin.source_course_lesson_id,
+      `a81:e2e:legacy:${++sequence}`,
+    ],
+  );
+  expect(legacySibling.rows[0].result_code).toBe('ok');
+  await page.reload();
+  await expect(cardB).toContainText('Историческое назначение связано с несколькими практиками.');
+  await expect(cardB.getByRole('button', { name: 'Проверить работы', exact: true })).toBeDisabled();
+  for (const viewport of [
+    { width: 1440, height: 900 },
+    { width: 1024, height: 768 },
+    { width: 390, height: 844 },
+    { width: 320, height: 568 },
+  ]) {
+    await page.setViewportSize(viewport);
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1),
+    ).toBe(true);
+    await page.screenshot({
+      path: `${evidenceDir}/a81-legacy-unavailable-${viewport.width}.png`,
+      fullPage: true,
+    });
+  }
+  await page.setViewportSize({ width: 1440, height: 900 });
+  // A separate empty class checks a genuine zero-person queue and an explicit
+  // read failure without changing the positive journey's browser error policy.
+  const statePage = await page.context().newPage();
+  const unexpectedStateErrors: string[] = [];
+  let allowedFailurePath = '';
+  statePage.on('pageerror', (error) => unexpectedStateErrors.push(error.message));
+  statePage.on('console', (message) => {
+    if (message.type() !== 'error') return;
+    const path = message.location().url ? new URL(message.location().url).pathname : '';
+    if (path === allowedFailurePath && message.text().includes('503')) return;
+    if (path === '/api/admin/v1/me' && message.text().includes('403')) return;
+    unexpectedStateErrors.push(message.text());
+  });
+  await statePage.goto('/#/');
+  await createClassWithStudents(statePage, `A8.1 пустой класс ${sequence}`, [], true);
+  const emptyClassId = statePage.url().split('/classrooms/')[1]!.split('?')[0]!;
+  await statePage
+    .getByRole('navigation', { name: 'Разделы класса' })
+    .getByRole('button', { name: 'Обучение', exact: true })
+    .click();
+  await statePage.getByLabel('Опубликованный курс', { exact: true }).selectOption(courseId);
+  await statePage.getByRole('button', { name: 'Назначить курс', exact: true }).click();
+  await statePage
+    .getByTestId('classroom-course-run')
+    .locator('[data-practice-block="practice-a"]')
+    .getByRole('button', { name: 'Проверить работы', exact: true })
+    .click();
+  const emptyQueue = statePage.getByTestId('course-practice-queue');
+  await expect(emptyQueue.getByText('В классе пока нет учеников.', { exact: true })).toBeVisible();
+  for (const viewport of [
+    { width: 1440, height: 900 },
+    { width: 1024, height: 768 },
+    { width: 390, height: 844 },
+    { width: 320, height: 568 },
+  ]) {
+    await statePage.setViewportSize(viewport);
+    expect(
+      await statePage.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1),
+    ).toBe(true);
+    await statePage.screenshot({
+      path: `${evidenceDir}/a81-empty-queue-${viewport.width}.png`,
+      fullPage: true,
+    });
+  }
+  allowedFailurePath = `/api/classrooms/${emptyClassId}/gradebook`;
+  await statePage.route(`**${allowedFailurePath}`, (route) =>
+    route.fulfill({
+      status: 503,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        error: { code: 'queue_unavailable', message: 'Очередь временно недоступна.' },
+      }),
+    }),
+  );
+  await emptyQueue.getByRole('button', { name: 'Обновить очередь', exact: true }).click();
+  await expect(emptyQueue.getByRole('alert')).toHaveText('Очередь временно недоступна.');
+  await expect(emptyQueue.getByText('В классе пока нет учеников.', { exact: true })).toHaveCount(0);
+  for (const viewport of [
+    { width: 1440, height: 900 },
+    { width: 1024, height: 768 },
+    { width: 390, height: 844 },
+    { width: 320, height: 568 },
+  ]) {
+    await statePage.setViewportSize(viewport);
+    expect(
+      await statePage.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1),
+    ).toBe(true);
+    await statePage.screenshot({
+      path: `${evidenceDir}/a81-unavailable-queue-${viewport.width}.png`,
+      fullPage: true,
+    });
+  }
+  await statePage.unroute(`**${allowedFailurePath}`);
+  await emptyQueue.getByRole('button', { name: 'Обновить очередь', exact: true }).click();
+  await expect(emptyQueue.getByText('В классе пока нет учеников.', { exact: true })).toBeVisible();
+  expect(unexpectedStateErrors).toEqual([]);
+  await statePage.close();
+  await course.getByRole('button', { name: 'Закрыть курс', exact: true }).click();
+  await expect(course.getByRole('button', { name: 'Открыть курс', exact: true })).toBeVisible();
+  await cardA.getByRole('button', { name: 'Проверить работы', exact: true }).click();
+  await queue.getByRole('button', { name: /Анна A8/ }).click();
+  await expect(detail.getByTestId('submission-version-id')).toHaveText(corrected.projectVersionId);
+  await expect(
+    detail.getByRole('button', { name: 'Исправить результат', exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    detail.getByRole('button', { name: 'Вернуть на доработку', exact: true }),
+  ).toHaveCount(0);
+  // A delayed real immutable response for Anna cannot replace Boris or revive a
+  // previously authorized queue after the teacher's class membership is revoked.
+  await queue.getByRole('button', { name: /Борис A8/ }).click();
+  await expect(detail.getByTestId('submission-version-id')).toHaveText(peer.projectVersionId);
+  const delayedPath = `**/api/classrooms/${classroomId}/attempts/${corrected.attemptId}/submission`;
+  async function delaySubmission() {
+    let release!: () => void;
+    let received!: () => void;
+    let delivered!: () => void;
+    const pending = new Promise<void>((resolve) => {
+      received = resolve;
+    });
+    const hold = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const complete = new Promise<void>((resolve) => {
+      delivered = resolve;
+    });
+    await page.route(delayedPath, async (route) => {
+      const response = await route.fetch();
+      received();
+      await hold;
+      await route.fulfill({ response });
+      delivered();
+    });
+    return { pending, release, complete };
+  }
+  const delayed = await delaySubmission();
+  await queue.getByRole('button', { name: /Анна A8/ }).click();
+  await delayed.pending;
+  await queue.getByRole('button', { name: /Борис A8/ }).click();
+  await expect(detail.getByTestId('submission-version-id')).toHaveText(peer.projectVersionId);
+  delayed.release();
+  await delayed.complete;
+  await page.unroute(delayedPath);
+  await expect(detail.getByTestId('submission-version-id')).toHaveText(peer.projectVersionId);
+  const revoked = await delaySubmission();
+  await queue.getByRole('button', { name: /Анна A8/ }).click();
+  await revoked.pending;
+  await admin.query('DELETE FROM classroom_memberships WHERE classroom_id=$1 AND account_id=$2', [
+    classroomId,
+    identity.account_id,
+  ]);
+  await queue.getByRole('button', { name: 'Обновить очередь', exact: true }).click();
+  await expect(page.getByTestId('submission-version-id')).toHaveCount(0);
+  await expect(queue).toHaveCount(0);
+  revoked.release();
+  await revoked.complete;
+  await page.unroute(delayedPath);
+  await expect(page.getByTestId('submission-version-id')).toHaveCount(0);
+  failures.assertEmpty();
+  learnerFailures.forEach((collector) => collector.assertEmpty());
+  await Promise.all([anna.context.close(), boris.context.close()]);
 });

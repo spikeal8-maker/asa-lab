@@ -23,19 +23,21 @@ function controller(
   manualBlocksAuthorized = true,
 ) {
   const query = vi.fn(async (sql: string) => ({
-    rows: sql.includes('learning_canonical_evidence')
-      ? []
-      : sql.includes('course_activity_blocks_authorized')
-        ? [{ ok: activityBlocksAuthorized }]
-        : sql.includes('course_manual_material_blocks_authorized')
-          ? [{ ok: manualBlocksAuthorized }]
-          : sql.includes('course_draft_lock')
-            ? [{ ok: true }]
-            : sql.includes('course_draft_revision($1,$2)')
-              ? [{ draft_revision: '3' }]
-              : sql.includes('course_library_list_v3($1) WHERE id=$2')
-                ? [{ archived_at: null }]
-                : rows,
+    rows:
+      sql.includes('learning_canonical_evidence') ||
+      sql.includes('learning_course_teacher_activity_occurrences')
+        ? []
+        : sql.includes('course_activity_blocks_authorized')
+          ? [{ ok: activityBlocksAuthorized }]
+          : sql.includes('course_manual_material_blocks_authorized')
+            ? [{ ok: manualBlocksAuthorized }]
+            : sql.includes('course_draft_lock')
+              ? [{ ok: true }]
+              : sql.includes('course_draft_revision($1,$2)')
+                ? [{ draft_revision: '3' }]
+                : sql.includes('course_library_list_v3($1) WHERE id=$2')
+                  ? [{ archived_at: null }]
+                  : rows,
   }));
   const activeContext = {
     resolve: vi.fn(async () => ({
@@ -1215,6 +1217,241 @@ describe('course outline API', () => {
       'principal-id',
       'account-id',
       'tenant-id',
+    ]);
+  });
+});
+
+describe('A8.1 teacher exact practice projection', () => {
+  const lesson = {
+    run_id: RUN_ID,
+    course_id: COURSE_ID,
+    course_version_id: VERSION_ID,
+    version_number: 1,
+    run_title: 'Смешанный курс',
+    run_summary: null,
+    due_at: null,
+    run_status: 'closed',
+    published_at: '2026-10-20T10:00:00Z',
+    started_count: 0,
+    submitted_count: 0,
+    lesson_id: LESSON_ID,
+    source_lesson_id: LESSON_ID,
+    section_title: 'Раздел',
+    section_summary: null,
+    section_position: 1,
+    lesson_title: 'Две практики',
+    lesson_summary: null,
+    lesson_content: null,
+    lesson_blocks: [],
+    lesson_kind: 'material',
+    estimated_minutes: null,
+    lesson_position: 1,
+    classroom_assignment_id: null,
+    assignment_title: null,
+    assignment_goal: null,
+    assignment_brief: null,
+    module_key: null,
+    sample_image: null,
+    seat_count: 2,
+    lesson_started_count: 0,
+    lesson_submitted_count: 0,
+    lesson_completed_count: 0,
+  };
+  const first = {
+    run_id: RUN_ID,
+    lesson_id: LESSON_ID,
+    block_id: 'same-block',
+    activity_run_id: 'activity-run-a',
+    classroom_assignment_id: 'assignment-a',
+    learning_activity_version_id: VERSION_ID,
+    title: 'Одинаковое название',
+    goal: null,
+    module_key: 'electronics',
+    assignment_scope_exact: true,
+  };
+  const second = {
+    ...first,
+    block_id: 'second-block',
+    activity_run_id: 'activity-run-b',
+    classroom_assignment_id: 'assignment-b',
+  };
+  const baseEvidence = {
+    tenantId: 'tenant-id',
+    schoolId: 'school-id',
+    classroomId: CLASSROOM_ID,
+    kind: 'course_project',
+    dueAt: null,
+    assignmentStatus: 'closed',
+    accountId: null,
+    principalId: null,
+    learnerId: 'learner-a',
+    identityResolution: 'learner_identity',
+    seatStatus: 'active',
+    classroomAccess: 'active',
+    courseProgressPresent: false,
+    legacyWork: null,
+    attempt: null,
+    selectedAttemptExists: false,
+    resultSelectionSource: 'none',
+    selectedAttemptId: null,
+    selectedResult: null,
+    selectionConflict: null,
+    validUnselectedResultCount: 0,
+    compatibilityGradingUnknown: false,
+    reusableAuthoredContent: true,
+    participation: { applicable: true, status: 'assigned', excused: false },
+  };
+  function target(occurrences: unknown[], evidence: unknown[] = []) {
+    const result = controller();
+    result.query.mockImplementation(async (sql) => ({
+      rows: sql.includes('learning_course_teacher_activity_occurrences')
+        ? occurrences
+        : sql.includes('learning_canonical_evidence')
+          ? evidence.map((item) => ({ evidence: item }))
+          : [lesson],
+    }));
+    return result;
+  }
+
+  it('keeps exact block counts and selected workflow separate, including named and withdrawn learners', async () => {
+    const subject = target(
+      [
+        first,
+        second,
+        { ...first, lesson_id: 'neighbor-lesson' },
+        { ...first, run_id: 'neighbor-course' },
+      ],
+      [
+        {
+          ...baseEvidence,
+          seatId: 'seat-a',
+          classroomAssignmentId: 'assignment-a',
+          activityRunId: 'activity-run-a',
+          attempt: {
+            id: 'attempt-a',
+            attemptNumber: 1,
+            state: 'evaluating',
+            reviewDecision: null,
+            startedAt: '2026-10-20T10:00:00Z',
+            submittedAt: '2026-10-20T11:00:00Z',
+            lateState: 'on_time',
+          },
+        },
+        {
+          ...baseEvidence,
+          seatId: 'seat-b',
+          classroomAssignmentId: 'assignment-a',
+          activityRunId: 'activity-run-a',
+          participation: { applicable: false, status: 'assigned', excused: false },
+        },
+        {
+          ...baseEvidence,
+          seatId: 'seat-a',
+          classroomAssignmentId: 'assignment-b',
+          activityRunId: 'activity-run-b',
+          attempt: {
+            id: 'attempt-b',
+            attemptNumber: 2,
+            state: 'in_progress',
+            reviewDecision: null,
+            startedAt: '2026-10-20T10:00:00Z',
+            submittedAt: null,
+            lateState: null,
+          },
+        },
+        {
+          ...baseEvidence,
+          seatId: 'seat-b',
+          classroomAssignmentId: 'assignment-b',
+          activityRunId: 'activity-run-b',
+          participation: { applicable: true, status: 'withdrawn', excused: false },
+        },
+        {
+          ...baseEvidence,
+          seatId: 'seat-c',
+          classroomAssignmentId: 'assignment-a',
+          activityRunId: 'neighbor-run',
+        },
+      ],
+    );
+    const response = await subject.value.classroomRuns(request(), CLASSROOM_ID);
+    const practices = response.items[0]!.sections[0]!.lessons[0]!.activityOccurrences;
+    expect(practices).toHaveLength(2);
+    expect(practices[0]).toMatchObject({
+      activityRunId: 'activity-run-a',
+      assignedCount: 1,
+      notAssignedCount: 1,
+      canonicalCounts: { waitingReview: 1, completed: 0, inProgress: 0 },
+    });
+    expect(practices[1]).toMatchObject({
+      activityRunId: 'activity-run-b',
+      assignedCount: 2,
+      notAssignedCount: 0,
+      withdrawnCount: 1,
+      canonicalCounts: { waitingReview: 0, inProgress: 1 },
+    });
+    expect(response.items[0]!.status).toBe('closed');
+    expect(subject.query).toHaveBeenCalledWith(
+      expect.stringContaining('learning_course_teacher_activity_occurrences'),
+      ['principal-id', CLASSROOM_ID],
+    );
+    expect(
+      subject.query.mock.calls.every(
+        ([sql]) =>
+          !/FROM\s+(activity_runs|activity_participations|classroom_assignments)\b/i.test(sql),
+      ),
+    ).toBe(true);
+  });
+
+  it('counts inactive learners separately and refuses a partial canonical roster', async () => {
+    const rows = [
+      {
+        ...baseEvidence,
+        seatId: 'seat-a',
+        classroomAssignmentId: 'assignment-a',
+        activityRunId: 'activity-run-a',
+      },
+      {
+        ...baseEvidence,
+        seatId: 'seat-b',
+        classroomAssignmentId: 'assignment-a',
+        activityRunId: 'activity-run-a',
+        seatStatus: 'suspended',
+      },
+    ];
+    const complete = await target([first], rows).value.classroomRuns(request(), CLASSROOM_ID);
+    expect(complete.items[0]!.sections[0]!.lessons[0]!.activityOccurrences[0]).toMatchObject({
+      assignedCount: 2,
+      inactiveCount: 1,
+      withdrawnCount: 0,
+      canonicalCounts: { notStarted: 2 },
+    });
+    const incomplete = await target([first], rows.slice(0, 1)).value.classroomRuns(
+      request(),
+      CLASSROOM_ID,
+    );
+    expect(incomplete.items[0]!.sections[0]!.lessons[0]!.activityOccurrences[0]).toMatchObject({
+      assignedCount: null,
+      canonicalCounts: null,
+    });
+  });
+
+  it('never invents zero counts for an ambiguous handout or missing canonical evidence', async () => {
+    const subject = target([first, { ...second, assignment_scope_exact: false }]);
+    const response = await subject.value.classroomRuns(request(), CLASSROOM_ID);
+    expect(response.items[0]!.sections[0]!.lessons[0]!.activityOccurrences).toEqual([
+      expect.objectContaining({
+        activityRunId: 'activity-run-a',
+        assignmentScopeExact: true,
+        canonicalCounts: null,
+        assignedCount: null,
+      }),
+      expect.objectContaining({
+        activityRunId: 'activity-run-b',
+        assignmentScopeExact: false,
+        canonicalCounts: null,
+        assignedCount: null,
+      }),
     ]);
   });
 });

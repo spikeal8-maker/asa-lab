@@ -84,6 +84,34 @@ surfaces:
     commands:
     - review_attempt
     - return_for_revision
+  - id: CTRL-COURSE-PRACTICE-QUEUE
+    label: Open the exact practice queue and reuse journal submission review
+    change_class: L3_CRITICAL
+    files:
+    - apps/web/src/components/ClassroomCourses.tsx
+    - apps/web/src/components/classroom-courses.css
+    - apps/web/src/components/ClassroomGradebook.tsx
+    - apps/web/src/learning/course-practice-queue.ts
+    - apps/web/src/learning/course-practice-queue.spec.ts
+    - apps/web/src/api.ts
+    - apps/api/src/courses.controller.ts
+    - apps/api/src/courses.controller.spec.ts
+    - migrations/0237_learning_course_teacher_occurrences.sql
+    - tests/courses/course-activity-blocks.pg.spec.ts
+    - e2e/learning-teacher-assigns-activity.spec.ts
+    invariants:
+    - LRN-RUN-001
+    - LRN-AUD-001
+    - LRN-SUB-001
+    - LRN-GRD-001
+    - LRN-SEL-001
+    - LRN-AUTH-001
+    tests:
+    - TST-LRN-COURSE-E1-CORE-001
+    - TST-LRN-COURSE-E1-E2E-001
+    commands:
+    - review_attempt
+    - return_for_revision
   - id: CTRL-GRADEBOOK-SCHEME
     label: Change grading scheme for future work
     change_class: L2_DOMAIN_MUTATION

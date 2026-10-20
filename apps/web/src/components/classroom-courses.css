@@ -386,3 +386,193 @@
     flex-direction: column;
   }
 }
+.course-practice-card {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--border, #d8dee9);
+  border-radius: 12px;
+  background: var(--surface, #fff);
+  overflow-wrap: anywhere;
+}
+
+.course-practice-audience {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.course-practice-card h4,
+.course-practice-card p {
+  margin: 0;
+}
+
+.course-practice-counts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 8px 16px;
+  margin: 0;
+}
+
+.course-practice-counts div {
+  display: grid;
+  gap: 4px;
+}
+
+.course-practice-counts dt {
+  font-size: 12px;
+  color: var(--text-muted, #526079);
+}
+
+.course-practice-counts dd {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.course-practice-queue-heading,
+.course-practice-navigation {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  min-width: 0;
+}
+
+.course-practice-queue-heading h2,
+.course-practice-queue-heading p {
+  margin: 4px 0;
+  overflow-wrap: anywhere;
+}
+
+.course-practice-review-layout {
+  display: grid;
+  grid-template-columns: minmax(200px, 280px) minmax(0, 1fr);
+  align-items: start;
+  gap: 16px;
+  min-width: 0;
+}
+
+.course-practice-queue-list {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--border, #d8dee9);
+  border-radius: 12px;
+}
+
+.course-practice-queue-list summary {
+  cursor: pointer;
+  font-weight: 700;
+  padding: 4px 0 12px;
+}
+
+.course-practice-queue-list label {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.course-practice-queue-list input,
+.course-practice-queue-list select {
+  box-sizing: border-box;
+  min-width: 0;
+  width: 100%;
+  min-height: 40px;
+}
+
+.course-practice-queue-list ul {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.course-practice-student {
+  display: grid;
+  gap: 5px;
+  width: 100%;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--border, #d8dee9);
+  border-radius: 8px;
+  background: var(--surface, #fff);
+  color: inherit;
+  text-align: left;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.course-practice-student.is-selected {
+  border-color: var(--primary, #285bd4);
+  box-shadow: inset 3px 0 var(--primary, #285bd4);
+}
+
+.course-practice-student:disabled {
+  cursor: default;
+}
+
+.course-practice-review {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.course-practice-review .gradebook-detail,
+.course-practice-review .gradebook-detail header > div,
+.course-practice-review .gradebook-exact {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.course-practice-review .gradebook-detail h3 {
+  white-space: normal;
+}
+
+.course-practice-review .gradebook-review {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.course-practice-review .gradebook-review-actions {
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.course-practice-review .gradebook-detail fieldset {
+  min-inline-size: 0;
+}
+
+.course-practice-review .gradebook-exact pre {
+  max-width: 100%;
+  overflow: auto;
+}
+
+.course-practice-review .gradebook-detail input,
+.course-practice-review .gradebook-detail select,
+.course-practice-review .gradebook-detail textarea {
+  box-sizing: border-box;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.course-practice-review-empty {
+  padding: 20px;
+  border: 1px dashed var(--border, #d8dee9);
+  border-radius: 12px;
+}
+
+@media (max-width: 760px) {
+  .course-practice-review-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .course-practice-navigation button,
+  .course-practice-review .gradebook-detail button {
+    max-width: 100%;
+    white-space: normal;
+  }
+}

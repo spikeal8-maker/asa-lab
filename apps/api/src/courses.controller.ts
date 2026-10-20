@@ -252,6 +252,68 @@ interface CoursePublishRow {
   problem_reason: string | null;
 }
 
+interface TeacherCourseOccurrenceRow {
+  run_id: string;
+  lesson_id: string;
+  block_id: string | null;
+  activity_run_id: string;
+  classroom_assignment_id: string;
+  learning_activity_version_id: string;
+  title: string;
+  goal: string | null;
+  module_key: string;
+  assignment_scope_exact: boolean;
+}
+
+function teacherCourseOccurrence(
+  occurrence: TeacherCourseOccurrenceRow,
+  projections: Map<string, CanonicalLearningProjection>,
+  seatCount: number,
+) {
+  const states = [...projections.values()].filter(
+    (item) =>
+      item.state.provenance.classroomAssignmentId === occurrence.classroom_assignment_id &&
+      item.surface.activityRunId === occurrence.activity_run_id,
+  );
+  // Missing canonical evidence and legacy shared handouts are not a normal empty queue.
+  const available = occurrence.assignment_scope_exact && states.length >= seatCount;
+  const count = (state: CanonicalLearningProjection['surface']['workflowState']) =>
+    states.filter((item) => item.surface.workflowState === state).length;
+  return {
+    blockId: occurrence.block_id,
+    activityRunId: occurrence.activity_run_id,
+    classroomAssignmentId: occurrence.classroom_assignment_id,
+    learningActivityVersionId: occurrence.learning_activity_version_id,
+    title: occurrence.title,
+    goal: occurrence.goal,
+    moduleKey: occurrence.module_key,
+    assignmentScopeExact: occurrence.assignment_scope_exact,
+    canonicalCounts: available
+      ? {
+          notStarted: count('not_started'),
+          inProgress: count('in_progress'),
+          submitted: count('submitted'),
+          waitingReview: count('waiting_review'),
+          changesRequested: count('changes_requested'),
+          completed: count('completed'),
+        }
+      : null,
+    assignedCount: available ? states.length - count('not_applicable') : null,
+    notAssignedCount: available ? count('not_applicable') : null,
+    withdrawnCount: available
+      ? states.filter((item) => item.surface.flags.includes('withdrawn')).length
+      : null,
+    inactiveCount: available
+      ? states.filter(
+          (item) =>
+            item.surface.flags.includes('visibility_restricted') &&
+            !item.surface.flags.includes('withdrawn'),
+        ).length
+      : null,
+    invalidatedCount: available ? count('invalidated') : null,
+  };
+}
+
 interface ClassroomCourseRunRow {
   run_id: string;
   course_id: string;
@@ -291,6 +353,7 @@ interface ClassroomCourseRunRow {
 function classroomCourseRuns(
   rows: ClassroomCourseRunRow[],
   projections: Map<string, CanonicalLearningProjection> = new Map(),
+  occurrences: TeacherCourseOccurrenceRow[] = [],
 ) {
   const runs: Array<{
     id: string;
@@ -337,6 +400,7 @@ function classroomCourseRuns(
           changesRequested: number;
           completed: number;
         };
+        activityOccurrences: ReturnType<typeof teacherCourseOccurrence>[];
       }>;
     }>;
   }> = [];
@@ -423,6 +487,9 @@ function classroomCourseRuns(
         : Number(row.lesson_submitted_count),
       completedCount: Number(row.lesson_completed_count),
       canonicalCounts,
+      activityOccurrences: occurrences
+        .filter((entry) => entry.run_id === row.run_id && entry.lesson_id === row.lesson_id)
+        .map((entry) => teacherCourseOccurrence(entry, projections, Number(row.seat_count))),
     });
   }
   return runs;
@@ -912,7 +979,7 @@ export class CoursesController {
   async classroomRuns(@Req() request: FastifyRequest, @Param('classroomId') classroomId: string) {
     const context = await this.requireEducator(request);
     this.requireUuid(classroomId, 'classroom');
-    const [result, projections] = await Promise.all([
+    const [result, projections, occurrences] = await Promise.all([
       this.requirePool().query(
         `SELECT run_id, course_id, course_version_id, version_number, run_title, run_summary,
               due_at, run_status, published_at, started_count, submitted_count,
@@ -925,8 +992,20 @@ export class CoursesController {
         [context.accountId, classroomId],
       ),
       this.canonical().forTeacher(context.accountId, classroomId),
+      this.requirePool().query(
+        `SELECT run_id, lesson_id, block_id, activity_run_id, classroom_assignment_id,
+                learning_activity_version_id, title, goal, module_key, assignment_scope_exact
+           FROM learning_course_teacher_activity_occurrences($1, $2)`,
+        [context.principalId, classroomId],
+      ),
     ]);
-    return { items: classroomCourseRuns(result.rows as ClassroomCourseRunRow[], projections) };
+    return {
+      items: classroomCourseRuns(
+        result.rows as ClassroomCourseRunRow[],
+        projections,
+        occurrences.rows as TeacherCourseOccurrenceRow[],
+      ),
+    };
   }
 
   @Post('classrooms/:classroomId/course-runs')
