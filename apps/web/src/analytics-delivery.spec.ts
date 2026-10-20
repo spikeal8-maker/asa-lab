@@ -79,6 +79,80 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 describe('immutable actor-scoped browser delivery', () => {
+  it.each([200, 401, 503])(
+    'keeps the ordinary envelope and waiter through pause, ignoring late HTTP%s from the old attempt',
+    async (status) => {
+      const f = fixture();
+      let release!: (value: unknown) => void;
+      const old = new Response('{}', { status });
+      if (status === 503) {
+        f.transport.mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              release = () => resolve(old);
+            }),
+        );
+      } else {
+        vi.spyOn(old, 'json').mockReturnValue(
+          new Promise((resolve) => {
+            release = resolve;
+          }),
+        );
+        f.transport.mockResolvedValueOnce(old);
+      }
+      const result = f.worker.open(id(10), id(11), 'blocks', id(12));
+      let settled = false;
+      void result.then(() => {
+        settled = true;
+      });
+      await pump();
+      const original = f.transport.mock.calls[0]![1]!.body;
+      const envelope = JSON.parse(original as string);
+      f.worker.pause(true);
+      expect(f.transport.mock.calls[0]![1]!.signal!.aborted).toBe(true);
+      await pump();
+      expect(f.worker.inspect()).toEqual({ pending: 1, inFlight: 0, sessions: 1 });
+      expect(settled).toBe(false);
+      const finishRetry = deferNext(f.transport);
+      f.worker.pause(false);
+      expect(f.transport.mock.calls[1]![1]!.body).toBe(original);
+      release(receipt(envelope));
+      await pump();
+      expect(f.worker.inspect()).toEqual({ pending: 1, inFlight: 1, sessions: 1 });
+      expect(settled).toBe(false);
+      expect(f.quality.read().counters).toMatchObject({
+        acknowledged: 0,
+        retried: 0,
+        permanentRejected: 0,
+      });
+      finishRetry();
+      await pump();
+      expect(await result).toBe(true);
+      expect(f.worker.inspect()).toEqual({ pending: 0, inFlight: 0, sessions: 1 });
+      expect(f.quality.read().counters.acknowledged).toBe(1);
+    },
+  );
+  it('retires only the old queue and ignores its late transport after successor creation', async () => {
+    const f = fixture();
+    const release = deferNext(f.transport);
+    const result = f.worker.open(id(10), id(11), 'blocks', id(12));
+    const original = f.transport.mock.calls[0]![1]!.body;
+    f.worker.retire();
+    expect(f.transport.mock.calls[0]![1]!.signal!.aborted).toBe(true);
+    expect(await result).toBe(false);
+    const successor = { kind: 'account' as const, accountId: id(1), workspaceId: id(9) };
+    fixture(f.transport, f.storage, successor);
+    const saved = new Map(f.storage.values);
+    release();
+    await pump();
+    expect(f.storage.values).toEqual(saved);
+    expect(f.transport).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(original as string).actorExpectation).toEqual(actor);
+    expect(f.quality.read()).toMatchObject({
+      counters: { permanentRejected: 1 },
+      coverage: { uncleanEnd: true, final: true },
+    });
+  });
   it('removes an acknowledged numeric visit from memory and storage without retry or reload replay', async () => {
     const f = fixture();
     f.worker.visit(id(12), 'home', null);

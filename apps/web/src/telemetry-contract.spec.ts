@@ -36,6 +36,58 @@ afterEach(() => {
   vi.useRealTimers();
 });
 describe('actual v2 envelopes and persistence receipts', () => {
+  it('does not start a transport after its owner was already cancelled', async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const transport = vi.fn<typeof fetch>();
+    expect(
+      await sendTelemetry(
+        '/api/analytics/v2/events',
+        event,
+        { status: 200, confirmed: () => true },
+        transport,
+        controller.signal,
+      ),
+    ).toEqual({ kind: 'retry' });
+    expect(transport).not.toHaveBeenCalled();
+  });
+  it.each(['fetch', 'body'] as const)(
+    'cancels a pending %s even if the transport ignores AbortSignal and finishes later',
+    async (phase) => {
+      const controller = new AbortController();
+      let release!: () => void;
+      const response = new Response('{}', { status: 200 });
+      if (phase === 'body')
+        vi.spyOn(response, 'json').mockReturnValue(
+          new Promise((resolve) => {
+            release = () => resolve(receipt);
+          }),
+        );
+      const transport = vi.fn<typeof fetch>(() =>
+        phase === 'fetch'
+          ? new Promise<Response>((resolve) => {
+              release = () => resolve(response);
+            })
+          : Promise.resolve(response),
+      );
+      const confirmed = vi.fn(() => true);
+      const delivery = sendTelemetry(
+        '/api/analytics/v2/events',
+        event,
+        { status: 200, confirmed },
+        transport,
+        controller.signal,
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+      controller.abort();
+      expect(await delivery).toEqual({ kind: 'retry' });
+      expect(transport.mock.calls[0]![1]!.signal!.aborted).toBe(true);
+      release();
+      await Promise.resolve();
+      expect(confirmed).not.toHaveBeenCalled();
+    },
+  );
   for (const requiredStatus of [200, 202] as const) {
     it.each([200, 201, 202, 204, 206])(
       `requires HTTP${requiredStatus} and a valid body together (received HTTP%s)`,
