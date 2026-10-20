@@ -1792,9 +1792,22 @@ test('Course Builder preserves typed lesson edits across real hide and show resp
         },
       });
       expect(remote.ok()).toBe(true);
-      expect(((await remote.json()) as { draftRevision: number }).draftRevision).toBe(
-        receipt.draftRevision + 1,
-      );
+      const remoteReceipt = (await remote.json()) as { id: string; draftRevision: number };
+      expect(remoteReceipt.id).toBe(lessonId);
+      expect(Number.isSafeInteger(remoteReceipt.draftRevision)).toBe(true);
+      expect(remoteReceipt.draftRevision).toBeGreaterThan(receipt.draftRevision);
+      const persistedRemote = await readOutline();
+      expect(persistedRemote.draftRevision).toBe(remoteReceipt.draftRevision);
+      expect(persistedRemote.sections).toHaveLength(1);
+      expect(persistedRemote.sections[0].id).toBe(sectionId);
+      expect(persistedRemote.sections[0].lessons).toHaveLength(1);
+      expect(persistedRemote.sections[0].lessons[0]).toMatchObject({
+        id: lessonId,
+        title: 'Чужие сохранённые правки C',
+        summary: 'Описание другого редактора C',
+        content: oldLesson.content,
+      });
+      expect(persistedRemote.sections[0].lessons[0].blocks).toEqual(oldLesson.blocks);
     }
     if (outcome === 'archived') {
       const archived = await page.request.post(`/api/courses/${courseId}/archive`, {
