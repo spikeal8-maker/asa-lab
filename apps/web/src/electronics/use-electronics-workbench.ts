@@ -1090,26 +1090,29 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
   }
 
   function componentDragDelta(drag: ComponentDrag, client: Point): Point {
-    if (Math.hypot(client.x - drag.startClient.x, client.y - drag.startClient.y) < 3)
-      return { x: 0, y: 0 };
     const stage = stageRef.current;
-    if (!stage) return { x: 0, y: 0 };
-    const world = clientToWorld(
-      client.x,
-      client.y,
-      stage.getBoundingClientRect(),
-      panViewportRef.current ?? viewport,
-      STAGE_WIDTH,
-      STAGE_HEIGHT,
-    );
-    if (!drag.bounds) return { x: 0, y: 0 };
-    // The panned field can contain saved parts outside the original grid.
-    // Translate by the pointer motion without snapping them back into that grid.
-    const delta = {
-      x: world.x - drag.offset.x - drag.startedAt.x,
-      y: world.y - drag.offset.y - drag.startedAt.y,
-    };
-    return Number.isFinite(delta.x) && Number.isFinite(delta.y) ? delta : { x: 0, y: 0 };
+    if (
+      stage &&
+      drag.bounds &&
+      !(Math.hypot(client.x - drag.startClient.x, client.y - drag.startClient.y) < 3)
+    ) {
+      const world = clientToWorld(
+        client.x,
+        client.y,
+        stage.getBoundingClientRect(),
+        panViewportRef.current ?? viewport,
+        STAGE_WIDTH,
+        STAGE_HEIGHT,
+      );
+      // The panned field can contain saved parts outside the original grid.
+      // Translate by the pointer motion without snapping them back into that grid.
+      const delta = {
+        x: world.x - drag.offset.x - drag.startedAt.x,
+        y: world.y - drag.offset.y - drag.startedAt.y,
+      };
+      if ([delta.x, delta.y].every(Number.isFinite)) return delta;
+    }
+    return { x: 0, y: 0 };
   }
 
   function previewWire(
