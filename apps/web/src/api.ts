@@ -586,9 +586,47 @@ export interface SeatCourseRunLesson extends Omit<
   snapshotRevision: number | null;
   updatedAt: string | null;
   completedAt: string | null;
+  /** Server-derived from this learner's pinned lesson and exact child occurrences. */
+  completion?: CourseLessonCompletion | null;
   canonicalState: CanonicalLearningSurfaceState | null;
   courseStartAllowed?: boolean;
   legacySubmitAllowed?: boolean;
+}
+
+export interface CoursePracticeCompletion {
+  activityRunId: string | null;
+  blockId: string | null;
+  required: boolean;
+  completed: boolean;
+  excused: boolean;
+  unresolved: boolean;
+  reviewRequired: boolean;
+  completionPolicy: Record<string, unknown> | null;
+  blockedReason: string | null;
+}
+
+export interface CourseLessonCompletion {
+  lessonId: string;
+  required: boolean;
+  excused: boolean;
+  completed: boolean;
+  readingRequired: boolean;
+  materialReadAt: string | null;
+  practiceTotal: number;
+  practiceCompleted: number;
+  excusedPracticeCount: number;
+  unresolved: boolean;
+  practices: CoursePracticeCompletion[];
+}
+
+export interface CourseCompletionSummary {
+  completed: boolean;
+  total: number;
+  lessonCount: number;
+  completedCount: number;
+  excusedCount: number;
+  reason: string;
+  resultPolicy: 'no_course_grade';
 }
 
 export interface SeatCourseRun {
@@ -601,6 +639,7 @@ export interface SeatCourseRun {
   summary: string | null;
   dueAt: string | null;
   status: 'open' | 'closed';
+  completion?: CourseCompletionSummary | null;
   sections: Array<{
     id: string;
     title: string;

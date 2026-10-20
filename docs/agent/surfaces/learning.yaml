@@ -267,6 +267,10 @@ surfaces:
     - apps/web/src/pages/LearningPage.tsx
     - apps/web/src/pages/AttendedClassesPage.tsx
     - apps/web/src/components/SeatCourses.tsx
+    - apps/web/src/learning/course-completion.ts
+    - apps/web/src/learning/course-completion.spec.ts
+    - tests/courses/course-mixed-completion.pg.spec.ts
+    - migrations/0236_learning_mixed_lesson_completion.sql
     - apps/web/src/components/LessonBlocks.tsx
     - apps/web/src/components/lesson-blocks.css
     - apps/web/src/learning/testing/lesson-blocks-media.spec.ts

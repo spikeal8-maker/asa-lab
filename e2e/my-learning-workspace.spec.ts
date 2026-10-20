@@ -1,6 +1,7 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
 import { accountMenu, openAccountMenu, openPortalSection } from './portal-navigation';
+import type { CourseLessonCompletion } from '../apps/web/src/api';
 
 // Real built portal/React DOM, deterministic authorized read-model fixtures.
 // This suite does not claim database, server authorization or owner acceptance.
@@ -34,6 +35,42 @@ const seat = {
   },
   expiresAt: '2099-01-01T00:00:00Z',
 };
+
+function lessonCompletionFixture(
+  lessonId: string,
+  completed: boolean,
+  readingRequired = true,
+  practiceBlockId?: string | null,
+): CourseLessonCompletion {
+  const practice = practiceBlockId !== undefined;
+  return {
+    lessonId,
+    required: true,
+    excused: false,
+    completed,
+    unresolved: false,
+    readingRequired,
+    materialReadAt: readingRequired && completed ? '2026-10-01T12:00:00Z' : null,
+    practiceTotal: practice ? 1 : 0,
+    practiceCompleted: practice && completed ? 1 : 0,
+    excusedPracticeCount: 0,
+    practices: practice
+      ? [
+          {
+            activityRunId: `activity-${lessonId}`,
+            blockId: practiceBlockId,
+            required: true,
+            completed,
+            excused: false,
+            unresolved: false,
+            reviewRequired: true,
+            completionPolicy: { mode: 'accepted' },
+            blockedReason: null,
+          },
+        ]
+      : [],
+  };
+}
 
 async function fixture(page: Page, identity: 'seat' | 'account', count: number) {
   await page.route('https://st.max.ru/js/max-web-app.js', (route) =>
@@ -88,6 +125,15 @@ async function fixture(page: Page, identity: 'seat' | 'account', count: number) 
     summary: 'Материалы, практика и результаты по занятиям.',
     dueAt: null,
     status: i === 0 ? 'closed' : 'open',
+    completion: {
+      completed: i === 0,
+      total: 1,
+      lessonCount: 1,
+      completedCount: i === 0 ? 1 : 0,
+      excusedCount: 0,
+      reason: i === 0 ? 'required_lessons_completed' : 'required_lessons_pending',
+      resultPolicy: 'no_course_grade',
+    },
     sections: [
       {
         id: `section-${i}`,
@@ -104,6 +150,7 @@ async function fixture(page: Page, identity: 'seat' | 'account', count: number) 
             blocks: [],
             activityOccurrences: [],
             completedAt: i === 0 ? '2026-10-01T12:00:00Z' : null,
+            completion: lessonCompletionFixture(`lesson-${i}`, i === 0),
             projectId: null,
             submittedAt: null,
             canonicalState: null,
@@ -433,9 +480,14 @@ for (const identity of ['seat', 'account'] as const) {
         id: 'unrelated-lesson',
         title: 'Другой урок',
         content: 'Посторонний материал',
+        completion: lessonCompletionFixture('unrelated-lesson', false),
       });
+      Object.assign(state.courses[1].completion, { total: 2, lessonCount: 2 });
       Object.assign(
         lesson,
+        {
+          completion: lessonCompletionFixture(lesson.id, false, nested, nested ? 'practice' : null),
+        },
         nested
           ? {
               blocks: [
@@ -444,6 +496,7 @@ for (const identity of ['seat', 'account'] as const) {
               activityOccurrences: [
                 {
                   id: 'occurrence',
+                  activityRunId: `activity-${lesson.id}`,
                   blockId: 'practice',
                   classroomAssignmentId: 'course-work',
                   title: 'Практика курса',
@@ -696,7 +749,7 @@ for (const identity of ['seat', 'account'] as const) {
     );
     await page.goto('/#/learning?courseRun=course-0&lesson=lesson-0');
     await expect(page.getByTestId('seat-course-player')).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Отметить непройденным' })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Отменить отметку чтения' })).toBeDisabled();
     for (const width of [1440, 1024, 390, 320]) {
       await page.setViewportSize({ width, height: 960 });
       await layout(page);
@@ -816,6 +869,13 @@ for (const kind of ['standalone', 'course', 'nested', 'quiz'] as const) {
       const lesson = state.courses[1].sections[0].lessons[0];
       Object.assign(lesson, {
         title: 'Точный урок завершённой работы',
+        completedAt: kind === 'nested' ? '2026-10-01T12:00:00Z' : null,
+        completion: lessonCompletionFixture(
+          lesson.id,
+          true,
+          kind === 'nested',
+          kind === 'nested' ? 'practice' : null,
+        ),
         ...(kind === 'course'
           ? {
               kind: 'assignment',
@@ -830,6 +890,7 @@ for (const kind of ['standalone', 'course', 'nested', 'quiz'] as const) {
               activityOccurrences: [
                 {
                   id: 'occurrence',
+                  activityRunId: `activity-${lesson.id}`,
                   blockId: 'practice',
                   classroomAssignmentId: assignmentId,
                   title,
@@ -841,6 +902,11 @@ for (const kind of ['standalone', 'course', 'nested', 'quiz'] as const) {
                 },
               ],
             }),
+      });
+      Object.assign(state.courses[1].completion, {
+        completed: true,
+        completedCount: 1,
+        reason: 'required_lessons_completed',
       });
     }
     await page.goto(

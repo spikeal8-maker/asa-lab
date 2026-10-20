@@ -49,7 +49,7 @@ describe('classroom seat sign-in abuse limits', () => {
 });
 
 describe('classroom course progress', () => {
-  it('records completion against the seat from the session', async () => {
+  it('records reading against the seat from the session', async () => {
     const runId = '123e4567-e89b-42d3-a456-426614174010';
     const lessonId = '123e4567-e89b-42d3-a456-426614174011';
     const query = vi.fn(async (sql: string) => {
@@ -86,6 +86,152 @@ describe('classroom course progress', () => {
       ['seat-id', runId, lessonId, true],
     );
   });
+
+  it.each(['seat', 'account'] as const)(
+    '%s reads authoritative mixed completion separately from its reading timestamp',
+    async (actor) => {
+      const runId = '123e4567-e89b-42d3-a456-426614174010';
+      const lessonId = '123e4567-e89b-42d3-a456-426614174011';
+      const readAt = '2026-10-19T12:00:00.000Z';
+      const lessonCompletion = {
+        lessonId,
+        required: true,
+        completed: false,
+        excused: false,
+        unresolved: false,
+        readingRequired: true,
+        materialReadAt: readAt,
+        practiceTotal: 2,
+        practiceCompleted: 1,
+        excusedPracticeCount: 0,
+        practices: [
+          { activityRunId: 'first-run', blockId: 'first', required: true, completed: true },
+          { activityRunId: 'second-run', blockId: 'second', required: true, completed: false },
+        ],
+      };
+      let projection: Record<string, unknown> | null = {
+        completed: false,
+        total: 1,
+        lessonCount: 1,
+        completedCount: 0,
+        excusedCount: 0,
+        reason: 'required_lessons_pending',
+        resultPolicy: 'no_course_grade',
+        lessons: [lessonCompletion],
+        basisIds: ['internal-result-id'],
+      };
+      const query = vi.fn(async (sql: string) => {
+        if (sql.includes('classroom_student_session_context'))
+          return { rows: [{ seat_id: 'session-seat' }] };
+        if (sql.includes('classroom_course_runs_for_'))
+          return {
+            rows: [
+              {
+                run_id: runId,
+                course_id: 'course-id',
+                course_version_id: 'version-id',
+                version_number: 1,
+                classroom_title: '7А',
+                run_title: 'Ночник',
+                run_summary: null,
+                due_at: null,
+                run_status: 'open',
+                lesson_id: lessonId,
+                source_lesson_id: 'source-id',
+                section_title: 'Свет',
+                section_summary: null,
+                section_position: 1,
+                lesson_title: 'Собираем ночник',
+                lesson_summary: null,
+                lesson_content: null,
+                lesson_blocks: [],
+                lesson_kind: 'material',
+                estimated_minutes: null,
+                lesson_position: 1,
+                classroom_assignment_id: null,
+                assignment_title: null,
+                assignment_goal: null,
+                assignment_brief: null,
+                module_key: null,
+                sample_image: null,
+                project_id: null,
+                submitted_at: null,
+                snapshot_revision: null,
+                work_updated_at: null,
+                completed_at: readAt,
+              },
+            ],
+          };
+        if (sql.includes('learning_course_completions_for_'))
+          return { rows: projection ? [{ run_id: runId, completion: projection }] : [] };
+        return { rows: [] };
+      });
+      const activeContext = {
+        resolve: vi.fn(async () => ({ accountId: 'session-account', principalId: 'principal' })),
+      } as unknown as ActiveContextUseCase;
+      const controller = new ClassroomJoinController(
+        { query } as unknown as pg.Pool,
+        activeContext,
+      );
+      const accountRequest = request('203.0.113.20');
+      accountRequest.cookies['asa_session'] = 'account-session';
+      const read = () =>
+        actor === 'seat'
+          ? controller.courseRuns(seatRequest())
+          : controller.accountCourseRuns(accountRequest);
+      const first = (await read()).items[0]!;
+      expect(first.completion).toMatchObject({ total: 1, completedCount: 0, completed: false });
+      expect(first.completion).not.toHaveProperty('basisIds');
+      expect(first.sections[0]!.lessons[0]).toMatchObject({
+        completedAt: readAt,
+        completion: lessonCompletion,
+      });
+      expect(query).toHaveBeenCalledWith(
+        expect.stringContaining(`learning_course_completions_for_${actor}`),
+        [actor === 'seat' ? 'session-seat' : 'session-account'],
+      );
+      // An unavailable projection remains unknown; neither old reading nor a
+      // response from a different actor can manufacture mixed completion.
+      projection = null;
+      const unavailable = (await read()).items[0]!;
+      expect(unavailable.completion).toBeNull();
+      expect(unavailable.sections[0]!.lessons[0]).toMatchObject({
+        completedAt: readAt,
+        completion: null,
+      });
+    },
+  );
+
+  it.each(['seat', 'account'] as const)(
+    '%s refuses a forged completion or actor in the reading command',
+    async (actor) => {
+      const query = vi.fn(async () => ({ rows: [] }));
+      const controller = new ClassroomJoinController(
+        { query } as unknown as pg.Pool,
+        { resolve: vi.fn() } as unknown as ActiveContextUseCase,
+      );
+      const runId = '123e4567-e89b-42d3-a456-426614174010';
+      const lessonId = '123e4567-e89b-42d3-a456-426614174011';
+      for (const body of [
+        { completed: true, seatId: 'other-seat' },
+        { completed: true, accountId: 'other-account' },
+        { completed: true, courseCompleted: true },
+        { completed: true, completion: { completed: true, practiceCompleted: 2 } },
+      ]) {
+        await expect(
+          actor === 'seat'
+            ? controller.setCourseLessonProgress(seatRequest(), runId, lessonId, body)
+            : controller.setAccountCourseLessonProgress(
+                request('203.0.113.20'),
+                runId,
+                lessonId,
+                body,
+              ),
+        ).rejects.toMatchObject({ status: 400 });
+      }
+      expect(query).not.toHaveBeenCalled();
+    },
+  );
 
   it('loads and updates course progress for an account learner', async () => {
     const runId = '123e4567-e89b-42d3-a456-426614174010';

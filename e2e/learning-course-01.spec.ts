@@ -2708,9 +2708,27 @@ for (const module of ['electronics', 'three-d'])
     expect(
       await learner.evaluate(() => Reflect.has(window, '__courseInformationalBlockExecuted')),
     ).toBe(false);
-    await learner.getByRole('button', { name: 'Отметить пройденным', exact: true }).click();
+    const navigationWrites: string[] = [];
+    const observeReading = (request: import('@playwright/test').Request) => {
+      if (
+        request.method() === 'POST' &&
+        /\/lessons\/[^/]+\/progress$/.test(new URL(request.url()).pathname)
+      )
+        navigationWrites.push(request.url());
+    };
+    learner.on('request', observeReading);
+    await learner.getByRole('button', { name: 'Далее →', exact: true }).click();
+    await learner.getByRole('button', { name: '← Назад', exact: true }).click();
     await expect(
-      learner.getByRole('button', { name: 'Отметить непройденным', exact: true }),
+      learner.getByRole('button', { name: 'Отметить материал прочитанным', exact: true }),
+    ).toBeVisible();
+    expect(navigationWrites).toEqual([]);
+    learner.off('request', observeReading);
+    await learner
+      .getByRole('button', { name: 'Отметить материал прочитанным', exact: true })
+      .click();
+    await expect(
+      learner.getByRole('button', { name: 'Отменить отметку чтения', exact: true }),
     ).toBeVisible();
     await learner.getByRole('button', { name: 'Далее →', exact: true }).click();
     const startLesson = learner.getByRole('button', { name: 'Начать задание', exact: true });
@@ -2873,7 +2891,7 @@ for (const module of ['electronics', 'three-d'])
       .click();
     await expect(
       learner.getByTestId('seat-courses').locator('li').filter({ hasText: courseTitle }),
-    ).toContainText('Пройдено 2 из 2');
+    ).toContainText('Уроки: 2 из 2');
     await learner.screenshot({
       path: evidenceDir + '/account-course-' + module + '-completed.png',
     });
@@ -3049,7 +3067,7 @@ for (const module of ['electronics', 'three-d'])
     await context.close();
   });
 
-test('Course Activity blocks preserve mixed order and open exact Electronics and 3D runtimes', async ({
+test('Course Activity blocks preserve mixed order, exact Electronics/3D work and truthful mixed completion', async ({
   browser,
   page,
 }) => {
@@ -3778,6 +3796,54 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
   await learner.page.setViewportSize({ width: 1440, height: 900 });
   await openCourse({ reloadAfterExternalChange: true });
 
+  // The following completion journey uses real reads/writes after the earlier
+  // isolated ambiguous-origin UI probe has been removed.
+  const progressDirectory = `${evidenceDir}/mixed-completion`;
+  mkdirSync(progressDirectory, { recursive: true });
+  await expect(player.getByTestId('lesson-progress')).toContainText('Практики: 0 из 2');
+  await expect(player.getByTestId('lesson-next-action')).toContainText('Прочитайте материал');
+  await player.getByRole('button', { name: 'Отметить материал прочитанным', exact: true }).click();
+  await expect(player.getByTestId('lesson-progress')).toContainText('Материал прочитан');
+  const progressPath = `/api/class-join/me/course-runs/${initialRun.id}/lessons/${initialRun.sections[0]!.lessons[0]!.id}/progress`;
+  const repeatedReading = await learner.page.request.post(progressPath, {
+    headers: { origin: new URL(learner.page.url()).origin },
+    data: { completed: true },
+  });
+  expect(repeatedReading.status()).toBe(200);
+  const readRun = await openCourse({ reloadAfterExternalChange: true });
+  expect(readRun).toMatchObject({ completion: { total: 1, completedCount: 0, completed: false } });
+  await expect(player.getByTestId('lesson-next-action').getByRole('button')).toHaveText(
+    `Начать практику: ${electronicsTitle}`,
+  );
+  await learner.page.screenshot({
+    path: `${progressDirectory}/reading-is-not-completion.png`,
+    fullPage: true,
+  });
+
+  const reviewExact = async (attemptId: string) => {
+    expect(attemptId).toBeTruthy();
+    const reviewed = await page.request.post(
+      `/api/classrooms/${classroomId}/attempts/${attemptId}/review`,
+      {
+        headers: { origin: new URL(page.url()).origin },
+        data: {
+          decision: 'accepted',
+          points: null,
+          feedback: 'Работа принята.',
+          reason: null,
+          expectedResultId: null,
+          requestId: `mixed:review:${crypto.randomUUID()}`,
+        },
+      },
+    );
+    expect(reviewed.status(), await reviewed.text()).toBe(201);
+    expect(await reviewed.json()).toMatchObject({
+      attemptId,
+      state: 'closed',
+      assessmentResultId: expect.any(String),
+    });
+  };
+
   const atomicStarts: string[] = [];
   const legacyStarts: string[] = [];
   const observeStart = (request: import('@playwright/test').Request) => {
@@ -3792,7 +3858,10 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
       legacyStarts.push(path);
   };
   learner.page.on('request', observeStart);
-  await electronicsCard.getByRole('button', { name: 'Начать', exact: true }).click();
+  await player
+    .getByTestId('lesson-next-action')
+    .getByRole('button', { name: `Начать практику: ${electronicsTitle}`, exact: true })
+    .click();
   const electronicsEvidence = await editCourseActivityProject(learner.page, 'electronics');
   expect(electronicsEvidence.projectId).not.toBe('');
   expect(electronicsEvidence.addedComponentId).toBeTruthy();
@@ -3898,9 +3967,8 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
       )
     ).rows[0]?.count,
   ).toBe(0);
-  await expect(
-    electronicsCard.getByRole('button', { name: 'Работа сдана', exact: true }),
-  ).toBeDisabled();
+  await expect(electronicsCard.getByRole('status')).toHaveText('На проверке');
+  await expect(player.getByTestId('lesson-progress')).toContainText('Практики: 0 из 2');
 
   const afterElectronicsSubmit = await openCourse();
   const submittedElectronics = occurrenceFromCourseRun(afterElectronicsSubmit, electronicsTitle);
@@ -3911,10 +3979,24 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
   expect(untouchedThreeD.canonicalState?.workflowState).toBe('not_started');
   electronicsCard = player.locator('.lesson-activity-block').filter({ hasText: electronicsTitle });
   threeDCard = player.locator('.lesson-activity-block').filter({ hasText: threeDTitle });
-  await expect(electronicsCard).toContainText('Сдано');
+  await expect(electronicsCard).toContainText('На проверке');
   await expect(threeDCard).toContainText('Не начато');
   await expect(threeDCard.getByRole('button', { name: 'Начать', exact: true })).toBeVisible();
-  await threeDCard.getByRole('button', { name: 'Начать', exact: true }).click();
+  await reviewExact(firstContext.workflow.attemptId);
+  const oneAccepted = await openCourse({ reloadAfterExternalChange: true });
+  expect(oneAccepted).toMatchObject({ completion: { completedCount: 0, completed: false } });
+  await expect(player.getByTestId('lesson-progress')).toContainText('Практики: 1 из 2');
+  await expect(player.getByTestId('lesson-next-action').getByRole('button')).toHaveText(
+    `Начать практику: ${threeDTitle}`,
+  );
+  await learner.page.screenshot({
+    path: `${progressDirectory}/one-accepted-next-three-d.png`,
+    fullPage: true,
+  });
+  await player
+    .getByTestId('lesson-next-action')
+    .getByRole('button', { name: `Начать практику: ${threeDTitle}`, exact: true })
+    .click();
   learner.page.off('request', observeStart);
   expect(atomicStarts).toEqual([
     electronicsOccurrence.activityRunId,
@@ -3952,20 +4034,17 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
   const electronicsAfterThreeD = occurrenceFromCourseRun(afterThreeDStart, electronicsTitle);
   const startedThreeD = occurrenceFromCourseRun(afterThreeDStart, threeDTitle);
   expect(electronicsAfterThreeD.projectId).toBe(electronicsEvidence.projectId);
-  expect(electronicsAfterThreeD.canonicalState?.workflowState).toBe('submitted');
+  expect(electronicsAfterThreeD.canonicalState?.workflowState).toBe('completed');
   expect(startedThreeD.projectId).toBe(threeDEvidence.projectId);
   expect(startedThreeD.projectId).not.toBe(electronicsAfterThreeD.projectId);
   electronicsCard = player.locator('.lesson-activity-block').filter({ hasText: electronicsTitle });
   threeDCard = player.locator('.lesson-activity-block').filter({ hasText: threeDTitle });
-  await expect(electronicsCard).toContainText('Сдано');
-  await expect(
-    electronicsCard.getByRole('button', { name: 'Работа сдана', exact: true }),
-  ).toBeDisabled();
+  await expect(electronicsCard).toContainText('Принято');
   await expect(
     threeDCard.getByRole('button', { name: 'Открыть работу', exact: true }),
   ).toBeVisible();
 
-  await electronicsCard.getByRole('button', { name: 'Открыть работу', exact: true }).click();
+  await electronicsCard.getByRole('button', { name: 'Посмотреть работу', exact: true }).click();
   await expect(learner.page.getByRole('button', { name: 'Резистор', exact: true })).toBeVisible({
     timeout: 60_000,
   });
@@ -3988,6 +4067,62 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
   await expect(learner.page.locator('.asa3d-object-count')).toContainText(
     new RegExp(`^${threeDEvidence.expectedObjectCount} `),
   );
+
+  await openCourse();
+  threeDCard = player.locator('.lesson-activity-block').filter({ hasText: threeDTitle });
+  const threeDSubmission = learner.page.waitForResponse(
+    (response) =>
+      response.request().method() === 'POST' &&
+      new URL(response.url()).pathname ===
+        `/api/learning/projects/${threeDEvidence.projectId}/submit`,
+  );
+  learner.page.once('dialog', (dialog) => void dialog.accept());
+  await threeDCard.getByRole('button', { name: 'Сдать', exact: true }).click();
+  expect((await threeDSubmission).status()).toBe(200);
+  await expect(player.getByTestId('lesson-progress')).toContainText('Практики: 1 из 2');
+  await expect(player.getByTestId('lesson-next-action')).toHaveText('Ожидайте проверки');
+  await learner.page.setViewportSize({ width: 320, height: 844 });
+  await expect(player.getByTestId('lesson-next-action')).toBeVisible();
+  expect(
+    await learner.page.evaluate(() => document.documentElement.scrollWidth - innerWidth),
+  ).toBeLessThanOrEqual(1);
+  await learner.page.screenshot({
+    path: `${progressDirectory}/waiting-review-320.png`,
+    fullPage: true,
+  });
+  await reviewExact(secondContext.workflow.attemptId);
+  const bothAccepted = await openCourse({ reloadAfterExternalChange: true });
+  expect(bothAccepted).toMatchObject({
+    completion: { total: 1, completedCount: 1, completed: true },
+  });
+  await expect(player.getByTestId('lesson-progress')).toContainText('Практики: 2 из 2');
+  await expect(player.getByTestId('lesson-next-action')).toHaveText('Урок завершён');
+  await player.getByRole('button', { name: 'Отменить отметку чтения', exact: true }).click();
+  await expect(player.getByTestId('lesson-progress')).toContainText('Материал ещё не прочитан');
+  const noReading = await openCourse({ reloadAfterExternalChange: true });
+  expect(noReading).toMatchObject({ completion: { completedCount: 0, completed: false } });
+  await expect(player.getByTestId('lesson-progress')).toContainText('Практики: 2 из 2');
+  await player.getByRole('button', { name: 'Отметить материал прочитанным', exact: true }).click();
+  await expect(player.getByTestId('lesson-next-action')).toHaveText('Урок завершён');
+  await learner.page.screenshot({
+    path: `${progressDirectory}/both-accepted-and-read-320.png`,
+    fullPage: true,
+  });
+  const secondTab = await learner.context.newPage();
+  await secondTab.goto('/#/learning?courseRun=' + encodeURIComponent(initialRun.id));
+  await expect(secondTab.getByTestId('lesson-progress')).toContainText('Практики: 2 из 2');
+  await expect(secondTab.getByTestId('lesson-next-action')).toHaveText('Урок завершён');
+  await secondTab.close();
+  await learner.page.setViewportSize({ width: 1440, height: 900 });
+  await learner.page.screenshot({
+    path: `${progressDirectory}/both-accepted-and-read-desktop.png`,
+    fullPage: true,
+  });
+  await player
+    .locator('.lesson-activity-block')
+    .filter({ hasText: threeDTitle })
+    .getByRole('button', { name: 'Посмотреть работу', exact: true })
+    .click();
 
   await learner.page.route(
     `**/api/learning/projects/${threeDEvidence.projectId}/context`,

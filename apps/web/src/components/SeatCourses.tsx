@@ -9,7 +9,15 @@ import {
   type CourseManualMaterial,
 } from '../api';
 import { useLearningDestination } from '../learning/use-learning-destination';
-import { courseCompletion, lessonComplete, lessonExcused } from '../learning/course-completion';
+import {
+  courseCompletion,
+  courseProgressLabel,
+  lessonComplete,
+  lessonExcused,
+  lessonNextAction,
+  practiceCompletion,
+  practiceStatus,
+} from '../learning/course-completion';
 import { AssignmentView } from './AssignmentView';
 import { TaskBlocks } from './TaskBlocks';
 import { AssignmentGoal } from './BriefText';
@@ -195,11 +203,7 @@ export function SeatCourses({
     void reload();
   }, [reload]);
 
-  const visibleRuns = runs?.filter(
-    (run) =>
-      !completedOnly ||
-      courseCompletion(run.sections.flatMap((section) => section.lessons)).complete,
-  );
+  const visibleRuns = runs?.filter((run) => !completedOnly || courseCompletion(run).complete);
   const openRun = visibleRuns?.find((run) => run.id === openRunId) ?? null;
   const lessons = useMemo(
     () => openRun?.sections.flatMap((section) => section.lessons) ?? [],
@@ -209,8 +213,6 @@ export function SeatCourses({
   const openLessonIndex = openLesson
     ? lessons.findIndex((lesson) => lesson.id === openLesson.id)
     : -1;
-  const completion = courseCompletion(lessons);
-  const completedLessonCount = completion.completed;
 
   async function startActivity(
     occurrence: CourseActivityOccurrence,
@@ -281,6 +283,9 @@ export function SeatCourses({
     return <p>{completedOnly ? 'Завершённых курсов пока нет.' : 'Курсы пока не назначены.'}</p>;
 
   if (openRun && openLesson) {
+    const completion = courseCompletion(openRun);
+    const completedLessonCount = completion.completed;
+    const nextAction = lessonNextAction(openRun, openLesson);
     const assignment =
       openLesson.kind === 'assignment' ? courseAssignmentShape(openRun, openLesson) : null;
     return (
@@ -293,9 +298,8 @@ export function SeatCourses({
             <span className="course-eyebrow">Курс · v{openRun.versionNumber}</span>
             <h2>{openRun.title}</h2>
             <p>
-              Пройдено {completedLessonCount} из {completion.total}
+              {courseProgressLabel(openRun)}
               {completion.excused > 0 ? ` · освобождено: ${completion.excused}` : ''}
-              {completion.total === 0 ? ' · нет обязательных уроков для расчёта' : ''}
               {openRun.dueAt ? ` · до ${time.date(openRun.dueAt)}` : ' · без общего срока'}
             </p>
             <div
@@ -332,16 +336,20 @@ export function SeatCourses({
                         <span>
                           {lesson.title}
                           <small>
-                            {canonicalLearningLabel(lesson.canonicalState) ??
-                              (lesson.submittedAt
-                                ? 'Сдано'
-                                : lesson.completedAt
-                                  ? 'Пройдено'
-                                  : lesson.projectId
-                                    ? 'В работе'
-                                    : lesson.kind === 'assignment'
-                                      ? 'Практика'
-                                      : 'Материал')}
+                            {lessonComplete(lesson)
+                              ? 'Урок завершён'
+                              : lessonExcused(lesson)
+                                ? 'Освобождён'
+                                : (canonicalLearningLabel(lesson.canonicalState) ??
+                                  (lesson.submittedAt
+                                    ? 'На проверке'
+                                    : lesson.completedAt
+                                      ? 'Материал прочитан'
+                                      : lesson.projectId
+                                        ? 'В работе'
+                                        : lesson.kind === 'assignment'
+                                          ? 'Практика'
+                                          : 'Материал'))}
                           </small>
                         </span>
                       </button>
@@ -359,6 +367,98 @@ export function SeatCourses({
             {openLesson.summary ? (
               <p className="seat-course-summary">{openLesson.summary}</p>
             ) : null}
+            <section
+              className="seat-course-activity"
+              aria-label="Прогресс урока"
+              data-testid="lesson-progress"
+            >
+              <p>
+                {openLesson.kind === 'material'
+                  ? openLesson.completedAt
+                    ? 'Материал прочитан'
+                    : 'Материал ещё не прочитан'
+                  : 'Практический урок'}
+                {openLesson.completion
+                  ? openLesson.completion.practiceTotal > 0
+                    ? ` · Практики: ${openLesson.completion.practiceCompleted} из ${openLesson.completion.practiceTotal}`
+                    : ' · Нет обязательных практик'
+                  : ' · Прогресс уточняется'}
+                {openLesson.completion?.excusedPracticeCount
+                  ? ` · освобождено: ${openLesson.completion.excusedPracticeCount}`
+                  : ''}
+              </p>
+              {openLesson.activityOccurrences.length > 0 ? (
+                <ul aria-label="Практики урока">
+                  {openLesson.activityOccurrences.map((occurrence) => (
+                    <li key={occurrence.activityRunId}>
+                      <button
+                        type="button"
+                        className="classroom-back"
+                        onClick={() =>
+                          document
+                            .getElementById(`course-activity-${occurrence.activityRunId}`)
+                            ?.scrollIntoView({ block: 'center' })
+                        }
+                      >
+                        {occurrence.title} · {practiceStatus(openLesson, occurrence)}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+              <div data-testid="lesson-next-action" aria-live="polite">
+                {nextAction.kind === 'practice' ? (
+                  <button
+                    type="button"
+                    className="portal-create-button"
+                    disabled={busy === `activity:${nextAction.occurrence.activityRunId}`}
+                    onClick={async () => {
+                      const occurrence = nextAction.occurrence;
+                      if (occurrence.projectId) {
+                        setError(
+                          await openAssignmentWork(
+                            courseActivityAssignmentShape(openRun, occurrence),
+                            onOpenProject,
+                          ),
+                        );
+                      } else {
+                        await startActivity(occurrence, `activity:${occurrence.activityRunId}`);
+                      }
+                    }}
+                  >
+                    {nextAction.resume ? 'Продолжить практику' : 'Начать практику'}:{' '}
+                    {nextAction.occurrence.title}
+                  </button>
+                ) : nextAction.kind === 'assignment' && assignment ? (
+                  <button
+                    type="button"
+                    className="portal-create-button"
+                    disabled={busy === openLesson.id}
+                    onClick={async () => {
+                      if (assignment.projectId)
+                        setError(await openAssignmentWork(assignment, onOpenProject));
+                      else await startLesson(openLesson);
+                    }}
+                  >
+                    {nextAction.resume ? 'Продолжить практику' : 'Следующий шаг: начать практику'}
+                  </button>
+                ) : nextAction.kind === 'reading' ? (
+                  <p>Прочитайте материал и отметьте прочтение в конце урока.</p>
+                ) : nextAction.kind === 'waiting_review' ? (
+                  <p role="status">Ожидайте проверки</p>
+                ) : nextAction.kind === 'complete' ? (
+                  <p role="status">Урок завершён</p>
+                ) : nextAction.kind === 'none' ? (
+                  <p>Нет обязательных занятий</p>
+                ) : (
+                  <p role="status">
+                    {nextAction.kind === 'blocked'
+                      ? nextAction.message
+                      : 'Практика пока недоступна.'}
+                  </p>
+                )}
+              </div>
+            </section>
             <LessonBlocks
               mediaScopeKey={JSON.stringify([openRun.id, openLesson.id])}
               blocks={openLesson.blocks}
@@ -374,27 +474,33 @@ export function SeatCourses({
               renderActivity={(block) => {
                 const occurrence = courseActivityOccurrenceForBlock(openLesson, block.id);
                 if (!occurrence) {
+                  const requirement = openLesson.completion?.practices.find(
+                    (practice) => practice.blockId === block.id,
+                  );
                   return (
                     <>
                       <strong>Практика</strong>
-                      <small>Практика пока недоступна.</small>
+                      <small>
+                        {requirement?.excused
+                          ? 'Вы освобождены от этой практики.'
+                          : requirement && !requirement.required
+                            ? 'Эта практика вам не назначена.'
+                            : 'Практика пока недоступна.'}
+                      </small>
                     </>
                   );
                 }
                 const activityAssignment = courseActivityAssignmentShape(openRun, occurrence);
                 const busyKey = `activity:${occurrence.activityRunId}`;
+                const requirement = practiceCompletion(openLesson, occurrence);
                 const activityStatus =
                   occurrence.workOriginAmbiguous && activityAssignment.projectId
                     ? 'Работа пока недоступна'
-                    : (canonicalLearningLabel(activityAssignment.canonicalState) ??
-                      (activityAssignment.submittedAt
-                        ? 'Сдано'
-                        : activityAssignment.projectId
-                          ? 'В работе'
-                          : 'Не начато'));
+                    : practiceStatus(openLesson, occurrence);
                 return (
                   <div
                     className="seat-course-activity"
+                    id={`course-activity-${occurrence.activityRunId}`}
                     data-testid="course-activity-runtime"
                     data-assignment-id={occurrence.classroomAssignmentId}
                   >
@@ -428,45 +534,49 @@ export function SeatCourses({
                               setError(await openAssignmentWork(activityAssignment, onOpenProject))
                             }
                           >
-                            Открыть работу
+                            {requirement?.completed ? 'Посмотреть работу' : 'Открыть работу'}
                           </button>
-                          <button
-                            type="button"
-                            className="btn-secondary"
-                            disabled={
-                              busy === busyKey ||
-                              (activityAssignment.canonicalState
-                                ? canonicalSubmissionLocked(activityAssignment.canonicalState)
-                                : activityAssignment.submittedAt !== null)
-                            }
-                            onClick={async () => {
-                              if (
-                                activityAssignment.canonicalState?.workflowState ===
-                                'changes_requested'
-                              ) {
-                                setError(
-                                  await openAssignmentWork(activityAssignment, onOpenProject),
-                                );
-                                return;
+                          {canonicalSubmissionLocked(activityAssignment.canonicalState) ? (
+                            <p role="status">{activityStatus}</p>
+                          ) : (
+                            <button
+                              type="button"
+                              className="btn-secondary"
+                              disabled={
+                                busy === busyKey ||
+                                (activityAssignment.canonicalState
+                                  ? canonicalSubmissionLocked(activityAssignment.canonicalState)
+                                  : activityAssignment.submittedAt !== null)
                               }
-                              setBusy(busyKey);
-                              const result = await submitSavedAssignment(activityAssignment);
-                              setBusy(null);
-                              if (result.ok) await reload();
-                              else setError(result.error.message);
-                            }}
-                          >
-                            {activityAssignment.canonicalState
-                              ? activityAssignment.canonicalState.workflowState ===
-                                'changes_requested'
-                                ? 'Начать доработку'
-                                : canonicalSubmissionLocked(activityAssignment.canonicalState)
+                              onClick={async () => {
+                                if (
+                                  activityAssignment.canonicalState?.workflowState ===
+                                  'changes_requested'
+                                ) {
+                                  setError(
+                                    await openAssignmentWork(activityAssignment, onOpenProject),
+                                  );
+                                  return;
+                                }
+                                setBusy(busyKey);
+                                const result = await submitSavedAssignment(activityAssignment);
+                                setBusy(null);
+                                if (result.ok) await reload();
+                                else setError(result.error.message);
+                              }}
+                            >
+                              {activityAssignment.canonicalState
+                                ? activityAssignment.canonicalState.workflowState ===
+                                  'changes_requested'
+                                  ? 'Начать доработку'
+                                  : canonicalSubmissionLocked(activityAssignment.canonicalState)
+                                    ? 'Работа сдана'
+                                    : 'Сдать'
+                                : activityAssignment.submittedAt
                                   ? 'Работа сдана'
-                                  : 'Сдать'
-                              : activityAssignment.submittedAt
-                                ? 'Работа сдана'
-                                : 'Сдать'}
-                          </button>
+                                  : 'Сдать'}
+                            </button>
+                          )}
                         </>
                       ) : (
                         <>
@@ -482,6 +592,12 @@ export function SeatCourses({
                             disabled={
                               busy === busyKey ||
                               openRun.status === 'closed' ||
+                              !requirement ||
+                              requirement.unresolved ||
+                              requirement.completed ||
+                              requirement.required === false ||
+                              !!requirement.blockedReason ||
+                              canonicalSubmissionLocked(activityAssignment.canonicalState) ||
                               !occurrence.activityRunId
                             }
                             onClick={() => void startActivity(occurrence, busyKey)}
@@ -600,8 +716,8 @@ export function SeatCourses({
                   {busy === openLesson.id
                     ? 'Сохраняем…'
                     : openLesson.completedAt
-                      ? 'Отметить непройденным'
-                      : 'Отметить пройденным'}
+                      ? 'Отменить отметку чтения'
+                      : 'Отметить материал прочитанным'}
                 </button>
               </div>
             )}
@@ -621,11 +737,7 @@ export function SeatCourses({
                 type="button"
                 className="btn-secondary"
                 disabled={openLessonIndex < 0 || openLessonIndex >= lessons.length - 1}
-                onClick={async () => {
-                  if (openLesson.kind === 'material' && !openLesson.completedAt) {
-                    const saved = await markMaterial(openLesson, true);
-                    if (!saved) return;
-                  }
+                onClick={() => {
                   setOpenLessonId(lessons[openLessonIndex + 1]?.id ?? null);
                 }}
               >
@@ -647,9 +759,7 @@ export function SeatCourses({
       <ul data-testid="seat-courses">
         {visibleRuns.map((run) => {
           const lessons = run.sections.flatMap((section) => section.lessons);
-          const assignments = lessons.filter((lesson) => lesson.kind === 'assignment');
-          const completion = courseCompletion(lessons);
-          const completed = completion.completed;
+          const completion = courseCompletion(run);
           return (
             <li key={run.id}>
               <button
@@ -668,10 +778,8 @@ export function SeatCourses({
                 <span>
                   <strong>{run.title}</strong>
                   <small>
-                    Пройдено {completed} из {completion.total}
+                    {courseProgressLabel(run)}
                     {completion.excused > 0 ? ` · освобождено: ${completion.excused}` : ''}
-                    {completion.total === 0 ? ' · нет обязательных уроков для расчёта' : ''}
-                    {assignments.length > 0 ? ` · практика ${assignments.length}` : ''}
                   </small>
                 </span>
                 <span>{run.dueAt ? `До ${time.date(run.dueAt)}` : 'Без срока'}</span>

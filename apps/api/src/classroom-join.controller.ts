@@ -99,6 +99,45 @@ interface AssignmentForSeatRow {
 
 type CanonicalProjectionMap = Map<string, CanonicalLearningProjection>;
 
+interface CourseLessonCompletion {
+  lessonId: string;
+  required: boolean;
+  excused: boolean;
+  completed: boolean;
+  readingRequired: boolean;
+  materialReadAt: string | null;
+  practiceTotal: number;
+  practiceCompleted: number;
+  excusedPracticeCount: number;
+  unresolved: boolean;
+  practices: Array<{
+    activityRunId: string | null;
+    blockId: string | null;
+    required: boolean;
+    completed: boolean;
+    excused: boolean;
+    unresolved: boolean;
+    reviewRequired: boolean;
+    completionPolicy: Record<string, unknown> | null;
+    blockedReason: string | null;
+  }>;
+}
+
+interface CourseCompletionSummary {
+  completed: boolean;
+  total: number;
+  lessonCount: number;
+  completedCount: number;
+  excusedCount: number;
+  reason: string;
+  resultPolicy: 'no_course_grade';
+}
+
+interface CourseCompletionRow {
+  run_id: string;
+  completion: CourseCompletionSummary & { lessons: CourseLessonCompletion[] };
+}
+
 function canonicalFor(
   projections: CanonicalProjectionMap,
   assignmentId: string | null,
@@ -327,7 +366,9 @@ function seatCourseRuns(
   projections: CanonicalProjectionMap = new Map(),
   occurrenceRows: CourseActivityOccurrenceRow[] = [],
   origins?: OriginLearnerList,
+  completionRows: CourseCompletionRow[] = [],
 ) {
+  const completions = new Map(completionRows.map((row) => [row.run_id, row.completion]));
   const activityOccurrences = courseActivityOccurrenceMap(occurrenceRows, projections, origins);
   const guardedLessonWork = new Set(
     occurrenceRows
@@ -348,6 +389,7 @@ function seatCourseRuns(
     summary: string | null;
     dueAt: string | null;
     status: 'open' | 'closed';
+    completion: CourseCompletionSummary | null;
     sections: Array<{
       id: string;
       title: string;
@@ -374,6 +416,7 @@ function seatCourseRuns(
         snapshotRevision: number | null;
         updatedAt: string | null;
         completedAt: string | null;
+        completion: CourseLessonCompletion | null;
         canonicalState: CanonicalLearningSurfaceState | null;
         courseStartAllowed: boolean;
         legacySubmitAllowed: boolean;
@@ -416,6 +459,7 @@ function seatCourseRuns(
     );
     let run = runs.find((entry) => entry.id === row.run_id);
     if (!run) {
+      const projectedCompletion = completions.get(row.run_id);
       run = {
         id: row.run_id,
         courseId: row.course_id,
@@ -426,6 +470,17 @@ function seatCourseRuns(
         summary: row.run_summary,
         dueAt: row.due_at === null ? null : isoDate(row.due_at),
         status: row.run_status,
+        completion: projectedCompletion
+          ? {
+              completed: projectedCompletion.completed,
+              total: projectedCompletion.total,
+              lessonCount: projectedCompletion.lessonCount,
+              completedCount: projectedCompletion.completedCount,
+              excusedCount: projectedCompletion.excusedCount,
+              reason: projectedCompletion.reason,
+              resultPolicy: projectedCompletion.resultPolicy,
+            }
+          : null,
         sections: [],
       };
       runs.push(run);
@@ -482,6 +537,9 @@ function seatCourseRuns(
             ? null
             : isoDate(row.work_updated_at),
       completedAt: row.completed_at === null ? null : isoDate(row.completed_at),
+      completion:
+        completions.get(row.run_id)?.lessons.find((item) => item.lessonId === row.lesson_id) ??
+        null,
       canonicalState: suppressLegacyWork
         ? null
         : (exact?.canonicalState ??
@@ -1311,7 +1369,7 @@ export class ClassroomJoinController {
   async accountCourseRuns(@Req() request: FastifyRequest) {
     const context = await this.activeContext.resolve(request.cookies[SESSION_COOKIE]);
     if (!context) throw new HttpException(error('unauthorized', 'no active session'), 401);
-    const [result, projections, occurrences, origins] = await Promise.all([
+    const [result, projections, occurrences, origins, completions] = await Promise.all([
       this.requirePool().query(ACCOUNT_COURSE_LESSON_LIST_SQL, [
         context.accountId,
         context.principalId,
@@ -1334,6 +1392,10 @@ export class ClassroomJoinController {
         [context.accountId, context.principalId],
       ),
       readOriginLearnerList(this.requirePool(), null, context.accountId),
+      this.requirePool().query<CourseCompletionRow>(
+        'SELECT run_id, completion FROM learning_course_completions_for_account($1)',
+        [context.accountId],
+      ),
     ]);
     return {
       items: seatCourseRuns(
@@ -1341,6 +1403,7 @@ export class ClassroomJoinController {
         projections,
         occurrences.rows as CourseActivityOccurrenceRow[],
         origins,
+        completions.rows,
       ),
     };
   }
@@ -1507,7 +1570,7 @@ export class ClassroomJoinController {
   @Get('me/course-runs')
   async courseRuns(@Req() request: FastifyRequest) {
     const seat = await this.currentSeat(request);
-    const [result, projections, occurrences, origins] = await Promise.all([
+    const [result, projections, occurrences, origins, completions] = await Promise.all([
       this.requirePool().query(SEAT_COURSE_LESSON_LIST_SQL, [seat.seat_id]),
       this.canonical().forSeat(seat.seat_id),
       this.requirePool().query(
@@ -1528,6 +1591,10 @@ export class ClassroomJoinController {
         [seat.seat_id],
       ),
       readOriginLearnerList(this.requirePool(), seat.seat_id, null),
+      this.requirePool().query<CourseCompletionRow>(
+        'SELECT run_id, completion FROM learning_course_completions_for_seat($1)',
+        [seat.seat_id],
+      ),
     ]);
     return {
       items: seatCourseRuns(
@@ -1535,11 +1602,12 @@ export class ClassroomJoinController {
         projections,
         occurrences.rows as CourseActivityOccurrenceRow[],
         origins,
+        completions.rows,
       ),
     };
   }
 
-  /** Material completion is explicit; assignment completion comes from submission. */
+  /** Record reading only. The server derives mixed lesson/course completion separately. */
   @Post('me/course-runs/:runId/lessons/:lessonId/progress')
   @HttpCode(200)
   async setCourseLessonProgress(
