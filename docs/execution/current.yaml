@@ -8761,7 +8761,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: d2_d4_test_only_orchestration_repair_selected_after840_timeout
+      checkpoint: d2_d4_atomic_archive_rotation_selected
       owner_acceptance: pending
       acceptance_revision: classroom-d2-d4-eighth-pace-r1
       active_qualification_profile: classroom-d13-v3
@@ -8784,6 +8784,12 @@ parallel_lanes:
       author_start_condition: Canonical main amendment published and author FET smoke STOP completed; fresh overlap preflight required.
       independent_reviewer: /root/fet_runtime_author
       integrator: /root
+      memory_clarification_selected_at: '2026-10-20T15:41:25Z'
+      memory_clarification_base_main_sha: 8ae7de9d6889a1657058602c5f309df342517a5a
+      memory_evidence: Historical150 raw159332055bytes over61.5719s; seven nominal acquisitions imply about1.34GB serialized as estimate only, not measured heap or proven performance.
+      archive_rotation_contract: D2-local helper atomically clones all11 arrays before same-turn existing length0 rotation; private pending immutable clone blocks another rotation until full Node write/readback SHA/count/coverage ACK. ACK deletes only pending clone, never active tail; fail closed without lossy fallback.
+      archive_coverage_contract: Explicit absolute offsets/counts/time/generation/cutoff and all in-window causal rows; all late/Stop/Reset retained through final observation cutoff, later tail reported NOT observed. Mutable paintRuns copied before clearing; manifest documents segment run splits and full paintFrames/witnessAt coverage.
+      archive_lifecycle_contract: No heavy clone/serialization between fifth100/300 and Reset; archive both together after Reset existing Stop as two acquisition windows in one contiguous segment. Six archive groups for seven captures; no cumulative duplication or global observer/pin/API change.
       orchestration_scope: Test-only lifecycle-preserving concurrency and full-raw retention; no runtime, assertion, observer, qualification or timing change.
       retained_historical_run: '39422409394'
       retained_historical_artifact: '12266831251'
@@ -8798,7 +8804,7 @@ parallel_lanes:
       selected_browser_job_timeout_minutes: 50
       preserved_review_images_timeout_minutes: 35
       workflow_capacity_selection: 'Select browser50min with actual D13 job26m41s and the existing14min D2 case budget; preserve review-images35min and immutable545 receipt via reviewed narrow consumer projection; actual D2 duration remains pending'
-      path_coordination: Root assigns one D2 test author after FET smoke STOP, independent reviewer never D2 author, and root sole integrator. Publish this amendment on main before source writes. Compose retained PR65224c forward with fresh accepted main; freeze its production implementation and all foreign lanes. Only D2 test orchestration and these own controller documents may change; earlier runtime write selection is historical, not renewed permission. No workflow, fixture, lesson, helper API or observer-pin change. Preserve all source history, failed runs, attempts, budgets, R27 stop/resume rule and acceptance blockers; no force or counter reset.
+      path_coordination: Root assigns one D2 test author after FET smoke STOP, independent reviewer never D2 author, and root sole integrator. Publish this amendment on main before source writes. Compose retained PR65224c forward with fresh accepted main; freeze its production implementation and all foreign lanes. Only D2 test orchestration and these own controller documents may change; earlier runtime write selection is historical, not renewed permission. No workflow, fixture, lesson or global observer/pin/API change; only existing D2-local helper wrappers may implement the selected lossless rotation. Preserve all source history, failed runs, attempts, budgets, R27 stop/resume rule and acceptance blockers; no force or counter reset.
       reported_strict_qualification: pnpm gate:electronics-m1:browser on the same exact source under strict-real-time; preserve its actual conclusion separately from the required classroom gate.
       owner_authorization: Existing explicit 2026-10-19 instruction selects continuous visible classroom slices after accepted D13; no additional permission round is required for D2-D4 development and checked main integration. School deployment and working data remain separate.
       preserved_r26_sha: cdad26c361cb4cf8ed2d095fae3c087b5d2abb2d
@@ -8808,7 +8814,7 @@ parallel_lanes:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-CLASSROOM-D2-D4-001.md
       - docs/product/electronics/tasks/TASK-ELECTRONICS-CLASSROOM-D13-001.md
       - docs/product/electronics/lessons/D2_D4_CLASSROOM.md
-      next_action: After canonical selection and author FET smoke STOP, implement only the card's bounded D2 orchestration repair. Five real autosaves overlap corresponding captures and must finish full PUT200/request/response/GET/source/revision proof before next edit or reopen. Take seven native PNGs within300 capture after real LOW/HIGH references. Preserve six existing Stops and fifth100/300 uninterrupted Run-to-Reset; close acquisition windows with explicit indices/time/generation, validate49states/eight cycles before Stop, retain active observer Stop1s and every late/Stop/Reset raw row in one full frozen export per capture. Never filter in-window causal failures or truncate arrays. Preserve all fixed criteria and run unchanged required exact-source gates/native review; strict reported separately. Forward PR652 only after independent review and root publication; no acceptance by historical evidence.
+      next_action: After canonical selection and author FET smoke STOP, implement only the card's bounded D2 orchestration repair. Five real autosaves overlap corresponding captures and must finish full PUT200/request/response/GET/source/revision proof before next edit or reopen. Take seven native PNGs within300 capture after real LOW/HIGH references. Preserve six existing Stops and fifth100/300 uninterrupted Run-to-Reset; close acquisition windows with explicit indices/time/generation, validate49states/eight cycles before Stop, retain active observer Stop1s and every late/Stop/Reset raw row through explicit cutoff in six lossless archive groups for seven captures. Use the selected atomic11-array capture-before-clear/pending-ACK protocol; fifth and Reset share one contiguous segment after Reset Stop without an intervening heavy clone. Never filter in-window causal failures, drop data or reset an unarchived buffer. Preserve all fixed criteria and run unchanged required exact-source gates/native review; strict reported separately. Forward PR652 only after independent review and root publication; no acceptance by historical evidence.
     previous_task:
       id: TASK-ELECTRONICS-CLASSROOM-D13-001
       issue: 638
@@ -8886,13 +8892,13 @@ parallel_lanes:
         - pnpm gate:repository
     revisions:
       kind: observed_snapshot
-      observed_at: '2026-10-20T15:20:43Z'
+      observed_at: '2026-10-20T15:41:25Z'
       main:
         branch: main
-        sha: 'cdb3fdecdcbf8ff771d88253db73105a65a902cf'
-      convergence_baseline_sha: 'cdb3fdecdcbf8ff771d88253db73105a65a902cf'
+        sha: '8ae7de9d6889a1657058602c5f309df342517a5a'
+      convergence_baseline_sha: '8ae7de9d6889a1657058602c5f309df342517a5a'
       head_sha: null
-      observation_note: 'Historical strict39422409394 on retained PR65224c timed out at840s; verified compact evidence preserves four measured acquisitions, five real saves and seven native PNGs, not complete D2 acceptance. Select only lifecycle-preserving test orchestration; production source and all assertions/timing/qualification remain frozen. Original native failure and repair history, counters, foreign gates and blockers remain retained. Fresh fetch main and actual remote candidate/preflight are required before writes and integration; source review does not establish AFTER or acceptance.'
+      observation_note: 'Historical strict39422409394 on retained PR65224c timed out at840s; verified compact evidence preserves four measured acquisitions, five real saves and seven native PNGs, not complete D2 acceptance. Select only lifecycle-preserving test orchestration with lossless atomic D2-local archive rotation; memory estimate is not measured heap or verified performance; production source and all assertions/timing/qualification remain frozen. Original native failure and repair history, counters, foreign gates and blockers remain retained. Fresh fetch main and actual remote candidate/preflight are required before writes and integration; source review does not establish AFTER or acceptance.'
 
 
   - id: electronics-classroom-hygiene

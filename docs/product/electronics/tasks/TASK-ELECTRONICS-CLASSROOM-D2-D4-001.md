@@ -219,7 +219,7 @@ Compose retained draft PR652 `24c4acf6c369ba695bf74684ec1bd7f26a70266b`
 observed base `cdb3fdecdcbf8ff771d88253db73105a65a902cf`. Preserve original
 source, reviews, failures, attempt counters and budgets; no force or reset.
 This supersedes earlier runtime write permission. The existing production
-implementation, fixtures, lesson, workflows, helper APIs and observer pin are
+implementation, fixtures, lesson, workflows, global observer APIs and pin are
 frozen. The only new code change is the D2 subsection of
 `e2e/electronics-ready-cadence.spec.ts`; controller changes are this card and its
 own lane in `docs/execution/current.yaml`. No product semantics change is selected.
@@ -262,12 +262,41 @@ AFTER result or a PASS declaration.
    remains uninterrupted Run→Reset exactly as24c: freeze its acquisition boundary
    before Reset, preserving the new-generation/H0 flow. This is preservation of
    the accepted scenario, not an extra Stop or a relaxed lifecycle requirement.
-4. Export one full frozen raw record per capture after its lifecycle boundary
-   and run the existing full checks offline against its explicit closed
-   acquisition window. Preserve every required worker/UI/paint/temporal record,
-   including late, Stop and Reset rows. Never clear, cap, truncate or drop raw
-   arrays. Window selection must not discard any causal violation within that
-   window. No observer pin, helper API semantics or assertion changes.
+4. Use lossless capture-and-rotate only in the existing D2-local helper wrappers.
+   The global immutable probe has11 push-only arrays and no clear API; leave its
+   implementation, pin and API unchanged. In ONE synchronous `page.evaluate`,
+   clone ALL11 arrays completely before the existing local `length = 0`
+   operations, with no await/callback interleave in that JavaScript turn. Keep
+   the clone private, immutable and pending with absolute offsets, counts, time,
+   generation and cutoff manifest. Later records append to active buffers.
+   Block another rotation until Node writes the FULL clone and verifies readback
+   SHA, counts and contiguous coverage, then ACK. ACK deletes ONLY the pending
+   clone, never the active tail. On failure STOP with no acceptance or lossy
+   fallback. Never drop/cap/truncate raw data or reset an unarchived buffer.
+5. Preserve ALL in-window causal rows for existing offline checks against explicit
+   closed acquisition windows; no filtering of causal violations. Archive every
+   late/Stop/Reset row through an explicit final observation cutoff. Report any
+   tail after that cutoff as NOT observed; do not claim context-complete capture.
+   Clone mutable `paintRuns` before clearing: a new segment may split one vector
+   run, so document segment splits and full `paintFrames`/`witnessAt` coverage,
+   without pretending run indices describe one globally unsplit stream.
+6. Fifth100/300 Run→Reset remains uninterrupted, with no heavy clone or
+   serialization between them. After Reset's existing Stop, archive fifth and
+   Reset together as two explicit acquisition windows sharing one complete
+   contiguous segment. Six archive groups for seven captures are permitted;
+   do not create seven duplicated cumulative exports. All six existing Stops
+   and their active-observer1s checks remain unchanged.
+
+### Bounded memory clarification, 2026-10-20
+
+Historical150/150 raw export is159332055 bytes for61.5719s. Extrapolating seven
+nominal acquisitions gives approximately1.34GB serialized: an estimate, NOT
+measured heap or proof of a performance cause. The earlier literal ban on clearing
+arrays and one-export-per-capture wording is superseded ONLY by the atomic
+capture-before-clear/verified-ACK protocol above. Complete lossless evidence is
+still mandatory; no observer or product semantics change is selected. Actual
+memory/performance improvement remains unproven. Publish this two-document
+clarification on main and obtain independent review before this code delta.
 
 All seven captures,49 ordered states/eight cycles each, five actual saves,
 Reset/reopen, seven native PNGs and complete raw evidence remain mandatory.
