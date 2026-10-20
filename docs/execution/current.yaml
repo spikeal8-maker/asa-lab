@@ -832,6 +832,39 @@ parallel_lanes:
           egress is not authorized by this selection and must not bypass the prior automatic-review rejection.
           The unchanged normal General security gate on the new published baseline and final SHA supplies actual
           audit acceptance. All normal product, PostgreSQL and browser gates remain mandatory.
+      - id: AI-BASELINE-PROJECTS-NAV-ORACLE-019
+        status: selected
+        classification: C
+        change_class: L1_UI_BEHAVIOR
+        owner_area: classroom-profile-header-test
+        observed_main_sha: 7d4b00b74094076676b2af82dd0226ec24cc72aa
+        selected_scope:
+        - e2e/classroom-profile-completion.spec.ts
+        evidence_sha: e46c45a58d62171ec23c40e389ad35bbe6c2e248
+        evidence_run: 39505981356
+        evidence_job: 118918490086
+        cause: Full baseline General passed Governance, Code and Data/RLS, including security high0 and Portal20/20,
+          but two Access journeys failed the same header assertion at line361. The Projects link expected /#/gallery
+          at line354 while accepted Public Projects navigation returns /#/explore. The test and PortalHeader are
+          unchanged against accepted main9f, outside the selected Quality, Portal and dependency source changes.
+        selection: Change only the two Projects expected href literals from /#/gallery to /#/explore in the same
+          assertLayout helper, lines354 and373. The second assertion addresses the identical named navigation and
+          was not reached after the first failure. Keep both independent assertions; do not refactor their arrays.
+          Preserve every other byte, the seven header controls, three named destinations, layout/order,56px header,
+          44px targets, all viewports and journeys, assertions and5000ms timeout. No runtime, route, workflow,
+          security, SQL, dependency or broad Classroom change and no weakening of the existing checks.
+        coordination: Fresh audit of54 allowed open PRs found only historical draft605 headb98015db touching this
+          file; its source predates this expectedLinks assertion. Eight local worktrees have no dirty target path.
+          Preserve Classroom task589, historical605 and resolved AUTH-HEADER-COMPATIBILITY-001 context unchanged.
+          Controller selects one bounded author and a different independent source reviewer for this two-literal
+          repair. This neither reopens broad Classroom work nor closes605 or589.
+        acceptance: Freeze one source commit after focused diff, formatting and route-contract checks; no local
+          browser, PostgreSQL, Docker, providers or audit. Require NEW independent exact-source approval, then
+          compose into baseline668 and run the unchanged full normal General on the new exact SHA. All Access
+          journeys and subsequent settings checks must execute successfully. NEW independent actual baseline
+          acceptance remains required before final joint composition; prior e46FAIL is not changed into PASS.
+          Preserve the canonical atomic225-to-all226-234 strategy and all final AI/Learning/credential/Public
+          Projects gates. No standalone baseline merge, installation, deployment or working database action.
       dependency_sequence:
       - text_convergence_and_focused_ci
       - teacher_controlled_student_admission
