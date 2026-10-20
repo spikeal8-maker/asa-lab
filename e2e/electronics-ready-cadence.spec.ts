@@ -2437,6 +2437,28 @@ test.beforeEach(async ({ browserName }, info) => {
     process.env.ASA_ELECTRONICS_QUALIFICATION_PROFILE,
     process.env.ASA_ELECTRONICS_QUALIFICATION_ENTRYPOINT,
   );
+  if (
+    info.title ===
+    'Classroom D2-D4: ordered joint LEDs, five delays, Reset and cookies-only saved reopen'
+  ) {
+    d2Ledger = {
+      schema: 'electronics-classroom-d2-d4-v1',
+      title: info.title,
+      profile,
+      expectedSourceSha: process.env.ASA_ELECTRONICS_EXPECTED_SHA ?? null,
+      observerSha256: createHash('sha256')
+        .update(readFileSync(resolve('e2e/electronics-ready-cadence.spec.ts')))
+        .digest('hex'),
+      fixtureSha256: createHash('sha256')
+        .update(readFileSync(resolve(D2_FIXTURE_PATH)))
+        .digest('hex'),
+      stages: [],
+      native: [],
+      completed: false,
+    };
+    teacher = await seedTeacher(admin, `ready-cadence-${info.workerIndex}-${info.retry}`);
+    return;
+  }
   if (profile === OWNER_V3_PROFILE) {
     ownerV3Ledger = {
       schema: 'electronics-classroom-qualification-v3',
@@ -2475,6 +2497,13 @@ test.beforeEach(async ({ browserName }, info) => {
 
 test.afterEach(async ({ browserName }, info) => {
   void browserName;
+  if (
+    info.title ===
+    'Classroom D2-D4: ordered joint LEDs, five delays, Reset and cookies-only saved reopen'
+  ) {
+    await retainD2Ledger(info);
+    return;
+  }
   if (ownerV3Ledger !== null) {
     const ledger = ownerV3Ledger;
     const requiredSites = ownerV3RequiredSites(info.title);
@@ -5197,4 +5226,1504 @@ test('Owner Arduino temporal: real Arduino Reset restarts setup and clears fast 
   }
   await page.getByRole('button', { name: 'Остановить моделирование', exact: true }).click();
   expect((await session.read()).draft).toEqual(session.saved.draft);
+});
+
+// Issue 649: one additive classroom case. All preceding D13 cases and helpers
+// remain byte-identical to the accepted source. This observer is not a clock.
+const D2_CLASSROOM_CASE =
+  'Classroom D2-D4: ordered joint LEDs, five delays, Reset and cookies-only saved reopen';
+const D2_FIXTURE_PATH = 'docs/product/electronics/examples/D2_D4_3x330ohm_red_LED.schematic.json';
+const D2_LESSON_PATH = 'docs/product/electronics/lessons/D2_D4_CLASSROOM.md';
+const D2_IDS = ['led0', 'led1', 'led2'] as const;
+const D2_PINS = ['d2', 'd3', 'd4'] as const;
+const D2_ORDER = ['100', '000', '010', '000', '001', '000'] as const;
+const D2_CYCLES = 8;
+const D2_WAIT_MS = 150_000;
+type D2Stage = { name: string; highMs: number; offMs: number; source: string };
+type D2Edge = { at: number; vector: string; receivedAt: number };
+type D2PaintEdge = { at: number; vector: string };
+type D2LReceipt = {
+  at: number;
+  activeAttribute: string | null;
+  opacity: number | null;
+  visible: boolean;
+  rect: { x: number; y: number; width: number; height: number } | null;
+  boardRect: { x: number; y: number; width: number; height: number } | null;
+  boardHref: string;
+};
+type D2Window = TemporalWindow & { __d2L?: D2LReceipt[] };
+type D2Metrics = {
+  stage: string;
+  generationId: number;
+  actionAt: number;
+  sourceSha256: string;
+  readyCount: number;
+  firstHorizon: number;
+  completeCycles: number;
+  medianCycleMs: number;
+  phaseMediansMs: Array<{ pin: string; high: number; off: number; ratio: number }>;
+  maximumBacklog: number;
+  electrical: D2Edge[];
+  gpio: D2Edge[];
+  painted: D2PaintEdge[];
+  causal: ReturnType<typeof temporalPaintCausality>;
+};
+let d2Ledger: {
+  schema: 'electronics-classroom-d2-d4-v1';
+  title: string;
+  profile: ReturnType<typeof ownerQualificationProfile>;
+  expectedSourceSha: string | null;
+  observerSha256: string;
+  fixtureSha256: string;
+  stages: D2Metrics[];
+  native: unknown[];
+  completed: boolean;
+} | null = null;
+
+function d2Sketch(highMs: number, offMs = highMs): string {
+  return `const int highMs = ${highMs};
+const int offMs = ${offMs};
+
+void setup() {
+  pinMode(2, OUTPUT);
+  pinMode(3, OUTPUT);
+  pinMode(4, OUTPUT);
+  digitalWrite(2, LOW);
+  digitalWrite(3, LOW);
+  digitalWrite(4, LOW);
+}
+
+void loop() {
+  digitalWrite(2, HIGH);
+  delay(highMs);
+  digitalWrite(2, LOW);
+  delay(offMs);
+
+  digitalWrite(3, HIGH);
+  delay(highMs);
+  digitalWrite(3, LOW);
+  delay(offMs);
+
+  digitalWrite(4, HIGH);
+  delay(highMs);
+  digitalWrite(4, LOW);
+  delay(offMs);
+}
+`;
+}
+
+function d2Fixture(): SchematicDocument {
+  const document = JSON.parse(readFileSync(resolve(D2_FIXTURE_PATH), 'utf8')) as SchematicDocument;
+  const reference = fixture();
+  const intended = {
+    ...reference,
+    components: reference.components.slice(0, 7).map((component) => ({
+      ...component,
+      electricalModelId:
+        component.id === 'uno'
+          ? 'arduino-uno'
+          : component.id.startsWith('r')
+            ? 'resistor'
+            : 'ordinary-led',
+      electricalModelVersion: 1,
+      modelProfileId:
+        component.id === 'uno'
+          ? 'arduino-uno-r3'
+          : component.id.startsWith('r')
+            ? 'axial-resistor'
+            : 'generic-red-led',
+      modelProfileVersion: 1,
+      stateProperties: {
+        ...component.stateProperties,
+        ...(component.id === 'uno' ? { arduinoSource: d2Sketch(100) } : {}),
+      },
+    })),
+    connections: reference.connections.slice(0, 9),
+  };
+  // This independent expected object includes every physical/model field; it
+  // is not learned from a server response or from the editor's normalization.
+  expect(document).toEqual(intended);
+  expect(document.components.map((component) => component.id)).toEqual([
+    'uno',
+    'r0',
+    'led0',
+    'r1',
+    'led1',
+    'r2',
+    'led2',
+  ]);
+  // The first complete pupil edit must actually change the initial document.
+  return {
+    ...document,
+    components: document.components.map((component) =>
+      component.id === 'uno'
+        ? {
+            ...component,
+            stateProperties: { ...component.stateProperties, arduinoSource: initialSource },
+          }
+        : component,
+    ),
+  };
+}
+
+type D2SaveResponse = import('@playwright/test').Response;
+type D2SavedProject = {
+  draft: { revision: number; updatedAt: string; document: SchematicDocument };
+};
+type D2PersistenceSession = {
+  id: string;
+  endpoint: string;
+  origin: string;
+  read: () => Promise<D2SavedProject>;
+  persistence: ReturnType<typeof d2ObserveDraftSaves>;
+  intendedDocument: SchematicDocument;
+};
+function retainD2SaveReceipt(name: string, value: unknown): void {
+  writeFileSync(
+    resolve(artifactRoot, 'd2-d4-' + name + '.json'),
+    JSON.stringify(value, null, 2) + '\n',
+  );
+}
+
+function d2ObserveDraftSaves(page: Page, endpoint: string, origin: string) {
+  const responses: D2SaveResponse[] = [];
+  const matches = (response: D2SaveResponse) =>
+    new URL(response.url()).origin === origin &&
+    new URL(response.url()).pathname === endpoint + '/draft' &&
+    response.request().method() === 'PUT';
+  page.on('response', (response) => {
+    if (matches(response)) responses.push(response);
+  });
+  return { responses, matches };
+}
+
+async function d2Save(page: Page, session: D2PersistenceSession, source: string) {
+  const previous = await session.read();
+  const expected = {
+    ...session.intendedDocument,
+    components: session.intendedDocument.components.map((component) =>
+      component.id === 'uno'
+        ? {
+            ...component,
+            stateProperties: { ...component.stateProperties, arduinoSource: source },
+          }
+        : component,
+    ),
+  };
+  const matchesSource = (response: D2SaveResponse) => {
+    if (!session.persistence.matches(response)) return false;
+    const body = response.request().postDataJSON() as { document?: SchematicDocument } | null;
+    return (
+      body?.document?.components.find((component) => component.id === 'uno')?.stateProperties
+        ?.arduinoSource === source
+    );
+  };
+  const observed = session.persistence.responses.findLast(matchesSource);
+  // There is no await between the retained lookup and installing the waiter.
+  // A saved/disabled label alone cannot satisfy this actual HTTP receipt check.
+  const response = observed ?? (await page.waitForResponse(matchesSource));
+  expect(response.status()).toBe(200);
+  expect(await response.finished()).toBeNull();
+  const requestBody = response.request().postDataJSON() as {
+    document: SchematicDocument;
+    baseRevision: number;
+  };
+  const responseBody = (await response.json()) as D2SavedProject;
+  const saved = await session.read();
+  expect(requestBody.document).toEqual(expected);
+  expect(responseBody.draft.document).toEqual(expected);
+  expect(responseBody.draft.revision).toBe(requestBody.baseRevision + 1);
+  expect(saved.draft.document).toEqual(expected);
+  expect(saved.draft.revision).toBe(responseBody.draft.revision);
+  if (previous.draft.revision === requestBody.baseRevision) {
+    expect(saved.draft.revision).toBe(previous.draft.revision + 1);
+  } else {
+    // The pre-read may already contain this same completed autosave. Require
+    // its whole document and the actual PUT's single revision increment.
+    expect(previous.draft.revision).toBe(requestBody.baseRevision + 1);
+    expect(previous.draft.document).toEqual(expected);
+    expect(saved.draft.revision).toBe(previous.draft.revision);
+  }
+  retainD2SaveReceipt('save-' + session.id + '-' + saved.draft.revision, {
+    previous,
+    requestBody,
+    saved,
+    expected,
+    responseBody,
+    observedAtLookup: observed !== undefined,
+    request: {
+      method: response.request().method(),
+      url: response.url(),
+      timing: response.request().timing(),
+    },
+  });
+  return saved;
+}
+
+async function d2OpenOwnerTemporalSketch(page: Page, source: string, name: string) {
+  const intendedDocument = d2Fixture();
+  const document = intendedDocument;
+  await page.setViewportSize({ width: 1600, height: 1000 });
+  const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
+  await observeOwnerTemporal(page);
+  await d2ObserveL(page);
+  await loginWithOrganization(page, teacher);
+  const origin = new URL(page.url()).origin;
+  const created = await page.context().request.post('/api/projects', {
+    headers: { origin, 'idempotency-key': crypto.randomUUID() },
+    data: { scope: 'personal', classroomId: null, module: 'electronics', title: `R18 ${name}` },
+  });
+  expect(created.status()).toBe(201);
+  const id = ((await created.json()) as { project: { id: string } }).project.id;
+  const endpoint = `/api/projects/${id}`;
+  const read = async () => {
+    const response = await page.context().request.get(endpoint, { headers: { origin } });
+    expect(response.status()).toBe(200);
+    return response.json() as Promise<{
+      draft: { revision: number; updatedAt: string; document: SchematicDocument };
+    }>;
+  };
+  const initial = await read();
+  const seeded = await page.context().request.put(`${endpoint}/draft`, {
+    headers: { origin },
+    data: { document, baseRevision: initial.draft.revision, mutationId: crypto.randomUUID() },
+  });
+  expect(seeded.status()).toBe(200);
+  const before = await read();
+  const persistence = d2ObserveDraftSaves(page, endpoint, origin);
+  await page.goto(`/#/home/${id}`);
+  await expect(page.locator('.workbench-stage')).toBeVisible();
+  await page.getByRole('button', { name: 'Открыть редактор кода', exact: true }).click();
+  await page.locator('.arduino-source-editor textarea').fill(source);
+  const saved = await d2Save(
+    page,
+    { id, endpoint, origin, read, persistence, intendedDocument },
+    source,
+  );
+  await page.getByRole('button', { name: 'Закрыть редактор кода', exact: true }).click();
+  await expect(page.locator('.arduino-code-panel')).toHaveClass(/closed/);
+  const startAt = await page.evaluate(() => {
+    const probe = window as TemporalWindow;
+    probe.__bitwiseWorker!.length = 0;
+    probe.__bitwiseUi!.length = 0;
+    probe.__ownerPaint!.length = 0;
+    const temporal = probe.__ownerTemporal!;
+    temporal.frames.length = 0;
+    temporal.paintRuns.length = 0;
+    temporal.paintFrames.length = 0;
+    temporal.resetClicks.length = 0;
+    temporal.errors.length = 0;
+    temporal.reanchors.length = 0;
+    return performance.now();
+  });
+  return {
+    source,
+    name,
+    before,
+    saved,
+    startAt,
+    read,
+    failures,
+    id,
+    endpoint,
+    origin,
+    persistence,
+    intendedDocument,
+  };
+}
+
+async function d2ObserveL(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    const probe = window as D2Window;
+    const receipts: D2LReceipt[] = [];
+    probe.__d2L = receipts;
+    const rectangle = (element: Element | null | undefined) => {
+      if (!element) return null;
+      const rect = element.getBoundingClientRect();
+      return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+    };
+    const collect = () => {
+      const board = document.querySelector(
+        '[data-component-id="uno"] .workbench-production-visual',
+      );
+      const image = [...(board?.querySelectorAll<SVGImageElement>('image') ?? [])].find(
+        (candidate) => !candidate.closest('.workbench-selection-silhouette'),
+      );
+      const l = board?.querySelector('[data-testid="arduino-led-l"]');
+      if (l) {
+        let visible = true;
+        let parentOpacity = 1;
+        for (let parent = l.parentElement; parent; parent = parent.parentElement) {
+          const style = getComputedStyle(parent);
+          visible &&= style.visibility === 'visible' && style.display !== 'none';
+          parentOpacity *= Number(style.opacity);
+        }
+        const rect = rectangle(l)!;
+        receipts.push({
+          at: performance.now(),
+          activeAttribute: l.getAttribute('data-active'),
+          opacity: Number(getComputedStyle(l).opacity),
+          visible:
+            visible &&
+            parentOpacity === 1 &&
+            rect.width > 0 &&
+            rect.height > 0 &&
+            rect.x >= 0 &&
+            rect.y >= 0 &&
+            rect.x + rect.width <= innerWidth &&
+            rect.y + rect.height <= innerHeight,
+          rect,
+          boardRect: rectangle(image),
+          boardHref: image?.href.baseVal ?? '',
+        });
+      }
+      requestAnimationFrame(collect);
+    };
+    requestAnimationFrame(collect);
+  });
+}
+
+async function d2BuildProvenance(page: Page) {
+  const expected = process.env.ASA_ELECTRONICS_EXPECTED_SHA;
+  expect(expected, 'the exact candidate SHA is required').toMatch(/^[a-f0-9]{40}$/);
+  const response = await page
+    .context()
+    .request.get(new URL('/build-metadata.json', page.url()).href);
+  expect(response.status()).toBe(200);
+  const build = (await response.json()) as { revision: string; builtAt?: string };
+  expect(build.revision).toBe(expected);
+  const evidence = {
+    build,
+    expected,
+    browserVersion: page.context().browser()?.version() ?? null,
+    viewport: page.viewportSize(),
+    workflowRun: process.env.GITHUB_RUN_ID ?? null,
+  };
+  writeFileSync(
+    resolve(artifactRoot, 'd2-d4-build.json'),
+    JSON.stringify(evidence, null, 2) + '\n',
+  );
+  return evidence;
+}
+
+async function d2ClearProbe(page: Page): Promise<number> {
+  return page.evaluate(() => {
+    const probe = window as D2Window;
+    probe.__bitwiseWorker!.length = 0;
+    probe.__bitwiseUi!.length = 0;
+    probe.__ownerPaint!.length = 0;
+    probe.__ownerStartClicks!.length = 0;
+    probe.__d2L!.length = 0;
+    const temporal = probe.__ownerTemporal!;
+    temporal.frames.length = 0;
+    temporal.paintRuns.length = 0;
+    temporal.paintFrames.length = 0;
+    temporal.resetClicks.length = 0;
+    temporal.errors.length = 0;
+    temporal.reanchors.length = 0;
+    return performance.now();
+  });
+}
+
+function d2Vector(brightness: readonly number[]): string {
+  if (
+    brightness.length !== 3 ||
+    brightness.some((value) => !Number.isFinite(value) || value < 0 || value > 100)
+  )
+    throw new Error('D2 joint vector must contain exactly three finite physical brightness values');
+  return brightness.map((value) => (value > 0 ? '1' : '0')).join('');
+}
+
+function d2ElectricalEdges(ready: readonly TemporalFrame[]): D2Edge[] {
+  const edges: D2Edge[] = [];
+  let previousSampleAt = -1;
+  for (const frame of ready) {
+    const channels = D2_IDS.map(
+      (id) => frame.ledTemporal!.components.find((row) => row.componentId === id)!.samples,
+    );
+    const indices = [0, 0, 0];
+    const values = [0, 0, 0];
+    while (indices.some((index, channel) => index < channels[channel]!.length)) {
+      const next = Math.min(
+        ...indices.map((index, channel) => channels[channel]![index]?.atMicroseconds ?? Infinity),
+      );
+      if (!Number.isSafeInteger(next) || next < previousSampleAt)
+        throw new Error('D2 physical histories are not chronological');
+      previousSampleAt = next;
+      // Apply every channel at this single model timestamp before constructing
+      // a vector. There is no independently replayed light or sorted state set.
+      for (let channel = 0; channel < 3; channel++) {
+        const sample = channels[channel]![indices[channel]!];
+        if (sample?.atMicroseconds === next) {
+          values[channel] = sample.brightness;
+          indices[channel]!++;
+        }
+      }
+      const vector = d2Vector(values);
+      if (edges.at(-1)?.vector !== vector)
+        edges.push({ at: next / 1000, vector, receivedAt: frame.at });
+    }
+  }
+  return edges;
+}
+
+function d2GpioEdges(
+  rows: readonly WorkerReceipt[],
+  source: string,
+  generationId: number,
+): D2Edge[] {
+  const edges: D2Edge[] = [];
+  const violations: string[] = [];
+  for (const row of rows) {
+    if (row.advance.executionStatus !== 'ready') continue;
+    const board = row.boards.find((component) => component.componentId === 'uno');
+    if (
+      row.requestSource !== source ||
+      row.generationId !== generationId ||
+      board?.loadedSource !== source
+    )
+      violations.push(row.requestId + ': foreign GPIO source/generation');
+    if (!board) {
+      violations.push(row.requestId + ': missing Uno');
+      continue;
+    }
+    const voltages = D2_PINS.map((pin) => board.runtime.outputVoltages[pin] ?? 0);
+    if (voltages.some((value) => value !== 0 && value !== 5))
+      violations.push(row.requestId + ': non-digital output');
+    if ((board.runtime.outputVoltages.d13 ?? 0) !== 0)
+      violations.push(row.requestId + ': D13 must remain LOW');
+    const vector = voltages.map((voltage) => (voltage === 5 ? '1' : '0')).join('');
+    const physical = d2Vector(
+      D2_IDS.map(
+        (id) =>
+          row.advance.result?.components.find((component) => component.componentId === id)
+            ?.brightness ?? NaN,
+      ),
+    );
+    if (vector !== physical) violations.push(row.requestId + ': GPIO/wiring/current mismatch');
+    if (edges.at(-1)?.vector !== vector)
+      edges.push({
+        at: row.advance.committedHorizonMicroseconds / 1000,
+        vector,
+        receivedAt: row.at,
+      });
+  }
+  expect(
+    violations,
+    'every ready GPIO receipt must agree with the complete solved joint state',
+  ).toEqual([]);
+  return edges;
+}
+
+function d2PaintEdges(raw: TemporalProbe, actionAt: number): D2PaintEdge[] {
+  const edges: D2PaintEdge[] = [];
+  for (const run of validTemporalPaint(raw, actionAt)) {
+    const vector = d2Vector(run.first.brightness);
+    const at = Math.max(actionAt, run.first.previousFrameAt!);
+    if (edges.at(-1)?.vector !== vector) edges.push({ at, vector });
+  }
+  return edges;
+}
+
+function d2AssertPrefix<T extends D2PaintEdge>(edges: readonly T[], label: string): T[] {
+  // Permit exactly the initial all-off state. Never search ahead for a good
+  // subsequence: a wrong first LED, skipped phase or later reorder must fail.
+  const ordered = edges[0]?.vector === '000' ? edges.slice(1) : [...edges];
+  expect(
+    ordered.length,
+    label + ': eight full cycles and the closing D2 state',
+  ).toBeGreaterThanOrEqual(D2_CYCLES * 6 + 1);
+  expect(
+    ordered.map((edge) => edge.vector),
+    label + ': complete chronological prefix',
+  ).toEqual(ordered.map((_, index) => D2_ORDER[index % D2_ORDER.length]));
+  expect(
+    ordered.every((edge, index) => index === 0 || edge.at > ordered[index - 1]!.at),
+    label + ': strictly increasing phase clock',
+  ).toBe(true);
+  return ordered;
+}
+
+function d2Median(values: readonly number[]): number {
+  if (!values.length || values.some((value) => !Number.isFinite(value)))
+    throw new Error('missing finite D2 median');
+  const ordered = [...values].sort((a, b) => a - b);
+  const middle = Math.floor(ordered.length / 2);
+  return ordered.length % 2 ? ordered[middle]! : (ordered[middle - 1]! + ordered[middle]!) / 2;
+}
+
+function d2PhaseMetrics(ordered: readonly D2PaintEdge[], stage: D2Stage) {
+  const cycles = Array.from(
+    { length: D2_CYCLES },
+    (_, cycle) => ordered[(cycle + 1) * 6]!.at - ordered[cycle * 6]!.at,
+  );
+  const phases = D2_PINS.map((pin, branch) => {
+    const high = d2Median(
+      Array.from({ length: D2_CYCLES }, (_, cycle) => {
+        const index = cycle * 6 + branch * 2;
+        return ordered[index + 1]!.at - ordered[index]!.at;
+      }),
+    );
+    // OFF is the immediately following joint all-dark phase. An LED's entire
+    // off interval also contains the other branches and is not this delay().
+    const off = d2Median(
+      Array.from({ length: D2_CYCLES }, (_, cycle) => {
+        const index = cycle * 6 + branch * 2;
+        return ordered[index + 2]!.at - ordered[index + 1]!.at;
+      }),
+    );
+    const ratio = off / high;
+    expect(ratio, stage.name + ' ' + pin + ' adjacent OFF/HIGH').toBeGreaterThanOrEqual(
+      stage.highMs === stage.offMs ? 0.8 : 2.4,
+    );
+    expect(ratio, stage.name + ' ' + pin + ' adjacent OFF/HIGH').toBeLessThanOrEqual(
+      stage.highMs === stage.offMs ? 1.25 : 3.6,
+    );
+    return { pin, high, off, ratio };
+  });
+  return { medianCycleMs: d2Median(cycles), phaseMediansMs: phases, cycles };
+}
+
+function d2MaximumBacklog(
+  electrical: readonly D2Edge[],
+  painted: readonly D2PaintEdge[],
+  from: number,
+): number {
+  let shown = 0;
+  let maximum = 0;
+  for (let index = 0; index < electrical.length; index++) {
+    const receipt = electrical[index]!;
+    if (receipt.receivedAt < from) continue;
+    while (shown < painted.length && painted[shown]!.at <= receipt.receivedAt) shown++;
+    // Assess at every receipt, including the gaps between painted edges. Prefix
+    // identity prevents a later equal-valued cycle from concealing a backlog.
+    maximum = Math.max(maximum, index + 1 - shown);
+  }
+  return maximum;
+}
+
+async function d2RetainRaw(
+  page: Page,
+  session: Awaited<ReturnType<typeof d2OpenOwnerTemporalSketch>>,
+  name: string,
+  metrics: unknown,
+) {
+  await retainOwnerTemporalEvidence(page, { ...session, name: 'd2-d4-' + name }, metrics);
+  const l = JSON.parse(
+    await page.evaluate(() => JSON.stringify((window as D2Window).__d2L ?? [])),
+  ) as D2LReceipt[];
+  const path = resolve(artifactRoot, 'd2-d4-' + name + '-l-raw.json');
+  writeFileSync(path, JSON.stringify(l, null, 2) + '\n');
+  await test.info().attach('d2-d4-' + name + '-l-raw', { path, contentType: 'application/json' });
+}
+
+async function d2Capture(
+  page: Page,
+  session: Awaited<ReturnType<typeof d2OpenOwnerTemporalSketch>>,
+  stage: D2Stage,
+  action: 'start' | 'reset' = 'start',
+) {
+  let metrics: D2Metrics | undefined;
+  try {
+    const beforeAction = await page.evaluate(() => performance.now());
+    if (action === 'reset') await page.getByTestId('arduino-reset-button').click();
+    else await page.getByRole('button', { name: 'Начать моделирование', exact: true }).click();
+    const actionAt = await page.evaluate(
+      ({ action, beforeAction }) => {
+        const probe = window as TemporalWindow;
+        const clicks =
+          action === 'reset' ? probe.__ownerTemporal!.resetClicks : probe.__ownerStartClicks!;
+        const click = clicks.find((row) => row.trusted && row.at >= beforeAction);
+        if (!click) throw new Error('D2 acquisition has no trusted UI action');
+        return click.at;
+      },
+      { action, beforeAction },
+    );
+    await page.waitForFunction(
+      ({ source, actionAt, minimumModelUs }) => {
+        const raw = (window as TemporalWindow).__ownerTemporal!;
+        const ready = raw.frames.filter(
+          (row) =>
+            row.requestAt !== null &&
+            row.requestAt >= actionAt &&
+            row.source === source &&
+            row.executionStatus === 'ready',
+        );
+        let previous = '';
+        let edges = 0;
+        for (const run of raw.paintRuns) {
+          if (
+            run.lastAt < actionAt ||
+            run.first.brightness.length !== 3 ||
+            run.first.images.length !== 3 ||
+            !run.first.images.every(
+              (image, index) =>
+                image.decoded &&
+                image.visible &&
+                image.unoccluded &&
+                image.opacity === 1 &&
+                image.lit === run.first.brightness[index]! > 0,
+            )
+          )
+            continue;
+          const vector = run.first.brightness.map((value) => (value > 0 ? '1' : '0')).join('');
+          if (vector !== previous) {
+            edges++;
+            previous = vector;
+          }
+        }
+        return (ready.at(-1)?.committedHorizonMicroseconds ?? -1) >= minimumModelUs && edges >= 50;
+      },
+      {
+        source: stage.source,
+        actionAt,
+        minimumModelUs: 3 * (stage.highMs + stage.offMs) * D2_CYCLES * 1000,
+      },
+      { timeout: D2_WAIT_MS },
+    );
+    const raw = await temporalObservation(page);
+    const full = await observation(page);
+    // Reset can complete a pre-click request between clearing buffers and the
+    // trusted action. Keep those receipts in full raw evidence and causality;
+    // the new acquisition is identified by its actual request clock.
+    const acquisition = {
+      ...raw,
+      frames: raw.frames.filter((row) => row.requestAt !== null && row.requestAt >= actionAt),
+    };
+    expect(
+      acquisition.frames.every((row) => row.source === stage.source),
+      'no stale source requested after the pupil action',
+    ).toBe(true);
+    const ready = assertTemporalFrames(acquisition, stage.source);
+    const generationId = ready[0]!.generationId!;
+    expect(Number.isSafeInteger(generationId)).toBe(true);
+    expect(
+      acquisition.frames.every(
+        (row) => row.generationId === generationId && row.responseGenerationId === generationId,
+      ),
+      'one generation throughout the acquisition',
+    ).toBe(true);
+    expect(ready[0]!.committedHorizonMicroseconds).toBe(0);
+    expect(ready[0]!.at - actionAt, 'H0 startup deadline').toBeLessThanOrEqual(5_000);
+    const electrical = d2ElectricalEdges(ready);
+    const gpio = d2GpioEdges(
+      full.worker.filter((row) => row.requestAt !== null && row.requestAt >= actionAt),
+      stage.source,
+      generationId,
+    );
+    const painted = d2PaintEdges(raw, actionAt);
+    const modelOrdered = d2AssertPrefix(electrical, 'physical current');
+    d2AssertPrefix(gpio, 'GPIO D2 D3 D4');
+    const paintOrdered = d2AssertPrefix(painted, 'actual loaded native LED images');
+    expect(paintOrdered[0]!.at - actionAt, 'first visible D2 phase deadline').toBeLessThanOrEqual(
+      5_000,
+    );
+    const physicalPhases = d2PhaseMetrics(modelOrdered, stage);
+    const phases = d2PhaseMetrics(paintOrdered, stage);
+    const causal = temporalPaintCausality(raw, stage.source, generationId, actionAt);
+    expect(causal.startup.h0ReadyAt).not.toBeNull();
+    expect(
+      causal.violations,
+      'every actual stable frame has a same-moment, current-generation electrical witness within 50ms',
+    ).toEqual([]);
+    expect(causal.witnesses.length).toBeGreaterThan(0);
+    const maximumBacklog = d2MaximumBacklog(electrical, painted, actionAt);
+    expect(maximumBacklog, 'maximum unpainted ordered physical states').toBeLessThanOrEqual(2);
+    const l = JSON.parse(
+      await page.evaluate(() => JSON.stringify((window as D2Window).__d2L ?? [])),
+    ) as D2LReceipt[];
+    const afterActionL = l.filter((row) => row.at >= actionAt);
+    expect(afterActionL.length).toBeGreaterThan(0);
+    expect(
+      afterActionL.every(
+        (row) => row.activeAttribute === 'false' && row.opacity === 0 && row.visible,
+      ),
+      'D13 L stays off while D2-D4 run',
+    ).toBe(true);
+    metrics = {
+      stage: stage.name,
+      generationId,
+      actionAt,
+      sourceSha256: createHash('sha256').update(stage.source).digest('hex'),
+      readyCount: ready.length,
+      firstHorizon: ready[0]!.committedHorizonMicroseconds,
+      completeCycles: Math.floor((paintOrdered.length - 1) / 6),
+      medianCycleMs: phases.medianCycleMs,
+      phaseMediansMs: phases.phaseMediansMs,
+      maximumBacklog,
+      electrical,
+      gpio,
+      painted,
+      causal,
+    };
+    expect(physicalPhases.cycles.length).toBe(D2_CYCLES);
+    d2Ledger!.stages.push(metrics);
+    session.failures.assertEmpty();
+    return metrics;
+  } finally {
+    await d2RetainRaw(
+      page,
+      session,
+      stage.name,
+      metrics ?? { status: 'FAILED_BEFORE_COMPLETE_METRICS' },
+    );
+  }
+}
+
+async function d2Stop(page: Page): Promise<void> {
+  const clickedAt = await page.evaluate(() => performance.now());
+  await page.getByRole('button', { name: 'Остановить моделирование', exact: true }).click();
+  await expect
+    .poll(
+      async () =>
+        page.evaluate((clickedAt) => {
+          const probe = window as D2Window;
+          const paint = probe.__ownerPaint!.at(-1);
+          const l = probe.__d2L!.at(-1);
+          return (
+            !!paint &&
+            paint.stablePreviousFrame &&
+            paint.previousFrameAt !== null &&
+            paint.previousFrameAt >= clickedAt &&
+            paint.previousFrameAt - clickedAt <= 1_000 &&
+            paint.brightness.length === 3 &&
+            paint.brightness.every((value) => value === 0) &&
+            paint.images.length === 3 &&
+            paint.images.every(
+              (image) =>
+                image.decoded &&
+                image.visible &&
+                image.unoccluded &&
+                image.opacity === 1 &&
+                !image.lit,
+            ) &&
+            !!l &&
+            l.at >= clickedAt &&
+            l.activeAttribute === 'false' &&
+            l.opacity === 0 &&
+            l.visible
+          );
+        }, clickedAt),
+      { timeout: 1_000, intervals: [25] },
+    )
+    .toBe(true);
+  await expect(
+    page.getByRole('button', { name: 'Начать моделирование', exact: true }),
+  ).toBeVisible();
+  await expect(page.locator('.workbench-simulation-message')).toHaveCount(0);
+}
+
+async function d2EditAndSave(
+  page: Page,
+  session: Awaited<ReturnType<typeof d2OpenOwnerTemporalSketch>>,
+  stage: D2Stage,
+): Promise<D2SavedProject> {
+  await page.getByRole('button', { name: 'Открыть редактор кода', exact: true }).click();
+  await page.locator('.arduino-source-editor textarea').fill(stage.source);
+  await expect(page.locator('.arduino-source-editor textarea')).toHaveValue(stage.source);
+  const saved = await d2Save(page, session, stage.source);
+  await page.getByRole('button', { name: 'Закрыть редактор кода', exact: true }).click();
+  await expect(page.locator('.arduino-code-panel')).toHaveClass(/closed/);
+  return saved;
+}
+
+type D2NativeProbe = {
+  source: string;
+  epoch: number;
+  clicks: Array<{ at: number; trusted: boolean; action: string }>;
+  frames: Array<{
+    at: number;
+    status: string;
+    solved: boolean;
+    quality: { passed: boolean };
+    source: string | null;
+    loadedSource: string | null;
+    generationId: number;
+    requestId: string;
+    committedUs: number;
+    components: Array<{ componentId: string; brightness?: number; current?: number }>;
+  }>;
+};
+type D2NativeImageWitness = {
+  rect: { x: number; y: number; width: number; height: number } | null;
+};
+type D2NativeGeometry = {
+  led: D2NativeImageWitness & { href: string };
+  board: D2NativeImageWitness & { href: string };
+  lRect: D2NativeImageWitness['rect'];
+};
+type D2Png = { width: number; height: number; data: Buffer };
+
+type D2NativePixelReference = {
+  x: number;
+  y: number;
+  low: number[];
+  high: number[];
+};
+type D2NativeAssetProof = { state: string; href: string; sha256: string };
+type D2NativeElectricalReceipt = {
+  requestId: string;
+  generationId: number;
+  at: number;
+  committedUs: number;
+  brightness: number;
+  current: number;
+};
+type D2NativeAssetBasis = {
+  proof: {
+    catalogSha256: string;
+    sourceSha256: string;
+    epoch: number;
+    low: D2NativeAssetProof;
+    high: D2NativeAssetProof;
+    board: D2NativeAssetProof;
+    physicalLow: D2NativeElectricalReceipt;
+    physicalHigh: D2NativeElectricalReceipt;
+    lHighRgb: [number, number, number];
+  };
+  encoded: { low: string; high: string; board: string };
+};
+function d2NativeAssetBasis(raw: D2NativeProbe, componentId: string): D2NativeAssetBasis {
+  const click = raw.clicks.find(
+    (row) => row.trusted && (row.action === 'start' || row.action === 'reset'),
+  );
+  if (!click) throw new Error('native basis has no trusted run action');
+  // The semantic reference comes from the solved electrical fixture and the
+  // retained catalog, independently of the renderer's href, class or data label.
+  // No temporal extension is required, so this also observes the old BEFORE.
+  const frames = raw.frames.filter((frame) => frame.at >= click.at && frame.status === 'ready');
+  if (!frames.length) throw new Error('native basis has no post-action electrical receipt');
+  const states: D2NativeElectricalReceipt[] = frames.map((frame) => {
+    if (
+      !frame.solved ||
+      frame.quality?.passed !== true ||
+      frame.source !== raw.source ||
+      frame.loadedSource !== raw.source ||
+      frame.generationId !== frames[0]!.generationId
+    )
+      throw new Error(
+        'native basis contains failed, stale or mixed-generation electrical evidence',
+      );
+    const led = frame.components.find((component) => component.componentId === componentId);
+    const brightness = led?.brightness,
+      current = led?.current;
+    if (
+      typeof brightness !== 'number' ||
+      typeof current !== 'number' ||
+      !Number.isFinite(brightness) ||
+      !Number.isFinite(current) ||
+      brightness < 0 ||
+      brightness > 100 ||
+      (brightness > 0 ? !(current > 0.001 && current < 0.02) : Math.abs(current) >= 0.000001)
+    )
+      throw new Error('native basis light is inconsistent with solved forward current');
+    return {
+      requestId: frame.requestId,
+      generationId: frame.generationId,
+      at: frame.at,
+      committedUs: frame.committedUs,
+      brightness,
+      current,
+    };
+  });
+  const physicalLow = states.find((state) => state.brightness === 0);
+  const physicalHigh = states.find((state) => state.brightness > 0);
+  if (!physicalLow || !physicalHigh)
+    throw new Error('native basis requires both solved LOW and HIGH');
+  const level = Math.round(physicalHigh.brightness);
+  if (
+    level < 1 ||
+    states.some((state) => state.brightness > 0 && Math.round(state.brightness) !== level)
+  )
+    throw new Error('native constant-current fixture has ambiguous HIGH asset level');
+  type CatalogAsset = { state?: string; runtimePath: string; runtimeSha256: string };
+  const catalogBytes = readFileSync(
+    resolve('apps/web/public/assets/electronics/component-database/catalog.json'),
+  );
+  const catalog = JSON.parse(catalogBytes.toString('utf8')) as {
+    components: Array<
+      CatalogAsset & {
+        componentId: string;
+        stateAssets: CatalogAsset[];
+        stateContract: { type: string; brightness?: { min: number; max: number; step: number } };
+      }
+    >;
+  };
+  const led = catalog.components.find((component) => component.componentId === 'led-5mm');
+  const board = catalog.components.find((component) => component.componentId === 'arduino-uno');
+  if (
+    led?.stateContract.type !== 'ordinary_led' ||
+    led.stateContract.brightness?.min !== 0 ||
+    led.stateContract.brightness.max !== 100 ||
+    led.stateContract.brightness.step !== 1
+  )
+    throw new Error('native basis requires the retained one-percent ordinary LED catalog contract');
+  const ledState = (state: string) => {
+    const matches = led.stateAssets.filter((asset) => asset.state === state);
+    if (matches.length !== 1)
+      throw new Error('native catalog state is missing or ambiguous: ' + state);
+    return matches[0]!;
+  };
+  const read = (asset: CatalogAsset | undefined, state: string, href: string) => {
+    if (!asset || asset.runtimePath !== href || !/^[a-f0-9]{64}$/.test(asset.runtimeSha256))
+      throw new Error('native catalog asset disagrees with the canonical fixture state: ' + state);
+    const bytes = readFileSync(resolve('apps/web/public' + href));
+    const sha256 = createHash('sha256').update(bytes).digest('hex');
+    if (sha256 !== asset.runtimeSha256)
+      throw new Error('native canonical asset SHA mismatch: ' + state);
+    return {
+      proof: { state, href, sha256 },
+      encoded: 'data:image/svg+xml;base64,' + bytes.toString('base64'),
+    };
+  };
+  const ledRoot = '/assets/electronics/component-database/components/led/red/led_red_i';
+  const low = read(ledState('red:0'), 'red:0', ledRoot + '000.svg');
+  const high = read(
+    ledState('red:' + level),
+    'red:' + level,
+    ledRoot + String(level).padStart(3, '0') + '.svg',
+  );
+  const uno = read(
+    board,
+    'arduino-uno:static',
+    '/assets/electronics/component-database/components/arduino-uno/arduino-uno/component.svg',
+  );
+  return {
+    proof: {
+      catalogSha256: createHash('sha256').update(catalogBytes).digest('hex'),
+      sourceSha256: createHash('sha256').update(raw.source).digest('hex'),
+      epoch: raw.epoch,
+      low: low.proof,
+      high: high.proof,
+      board: uno.proof,
+      physicalLow,
+      physicalHigh,
+      // Fixed retained UNO L overlay colour, never sampled from live DOM styles.
+      lHighRgb: [255, 241, 106],
+    },
+    encoded: { low: low.encoded, high: high.encoded, board: uno.encoded },
+  };
+}
+type D2NativeReferences = {
+  width: number;
+  height: number;
+  lowHref: string;
+  highHref: string;
+  boardHref: string;
+  basis: D2NativeAssetBasis['proof'];
+  led: D2NativePixelReference[];
+  l: D2NativePixelReference[];
+};
+async function d2NativeReferences(
+  page: Page,
+  geometry: D2NativeGeometry,
+  width: number,
+  height: number,
+  basis: D2NativeAssetBasis,
+): Promise<D2NativeReferences> {
+  return page.evaluate(
+    async ({ geometry, width, height, basis }) => {
+      if (
+        ![basis.proof.low.href, basis.proof.high.href].includes(geometry.led.href) ||
+        geometry.board.href !== basis.proof.board.href ||
+        !geometry.led.rect ||
+        !geometry.board.rect ||
+        !geometry.lRect
+      )
+        throw new Error(
+          'native reference requires canonical body/board assets and actual L geometry',
+        );
+      const load = async (href: string) => {
+        const image = new Image();
+        image.src = href;
+        await image.decode();
+        if (!image.naturalWidth || !image.naturalHeight)
+          throw new Error('native reference asset did not decode');
+        return image;
+      };
+      const [lowImage, highImage, boardImage] = await Promise.all([
+        load(basis.encoded.low),
+        load(basis.encoded.high),
+        load(basis.encoded.board),
+      ]);
+      // A detached canvas supplies the original asset colours at the actual image
+      // geometry. It is never mounted and never changes the editor, LED or clock.
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const context = canvas.getContext('2d', { willReadFrequently: true });
+      if (!context) throw new Error('native reference canvas unavailable');
+      const scaleX = width / innerWidth,
+        scaleY = height / innerHeight;
+      const points = (rect: NonNullable<D2NativeImageWitness['rect']>, vertical: number[]) => {
+        const result: Array<{ x: number; y: number }> = [];
+        for (const v of vertical)
+          for (const u of [0.35, 0.5, 0.65]) {
+            const point = {
+              x: Math.floor((rect.x + rect.width * u) * scaleX),
+              y: Math.floor((rect.y + rect.height * v) * scaleY),
+            };
+            if (!result.some((row) => row.x === point.x && row.y === point.y)) result.push(point);
+          }
+        if (result.length < 4)
+          throw new Error('native body/L is too small for independent pixel evidence');
+        return result;
+      };
+      const read = (points: Array<{ x: number; y: number }>) =>
+        points.map(({ x, y }) => {
+          if (x < 0 || y < 0 || x >= width || y >= height)
+            throw new Error('native reference point outside screenshot');
+          const pixel = [...context.getImageData(x, y, 1, 1).data];
+          if (pixel[3] !== 255)
+            throw new Error('native reference point is not an opaque body pixel');
+          return pixel.slice(0, 3);
+        });
+      const draw = (image: HTMLImageElement, rect: NonNullable<D2NativeImageWitness['rect']>) => {
+        context.clearRect(0, 0, width, height);
+        const fit = Math.min(rect.width / image.naturalWidth, rect.height / image.naturalHeight);
+        const drawnWidth = image.naturalWidth * fit,
+          drawnHeight = image.naturalHeight * fit;
+        context.drawImage(
+          image,
+          (rect.x + (rect.width - drawnWidth) / 2) * scaleX,
+          (rect.y + (rect.height - drawnHeight) / 2) * scaleY,
+          drawnWidth * scaleX,
+          drawnHeight * scaleY,
+        );
+      };
+      const ledPoints = points(geometry.led.rect, [0.3, 0.4, 0.5]);
+      draw(lowImage, geometry.led.rect);
+      const ledLow = read(ledPoints);
+      draw(highImage, geometry.led.rect);
+      const ledHigh = read(ledPoints);
+      const lPoints = points(geometry.lRect, [0.35, 0.5, 0.65]);
+      draw(boardImage, geometry.board.rect);
+      const lLow = read(lPoints);
+      // Both states use canonical source bytes / a fixed renderer contract.
+      // Even swapped hrefs or wrong live CSS cannot relabel the pixel reference.
+      context.fillStyle = 'rgb(' + basis.proof.lHighRgb.join(',') + ')';
+      context.fillRect(
+        geometry.lRect.x * scaleX,
+        geometry.lRect.y * scaleY,
+        geometry.lRect.width * scaleX,
+        geometry.lRect.height * scaleY,
+      );
+      const lHigh = read(lPoints);
+      return {
+        width,
+        height,
+        lowHref: basis.proof.low.href,
+        highHref: basis.proof.high.href,
+        boardHref: basis.proof.board.href,
+        basis: basis.proof,
+        led: ledPoints.map((point, index) => ({
+          ...point,
+          low: ledLow[index]!,
+          high: ledHigh[index]!,
+        })),
+        l: lPoints.map((point, index) => ({ ...point, low: lLow[index]!, high: lHigh[index]! })),
+      };
+    },
+    { geometry, width, height, basis },
+  );
+}
+function d2ClassifyNativePng(png: D2Png, references: D2NativeReferences) {
+  const classify = (points: D2NativePixelReference[]) => {
+    const actual = points.map(({ x, y }) => {
+      const index = (y * png.width + x) * 4;
+      return [...png.data.subarray(index, index + 4)];
+    });
+    const score = (key: 'low' | 'high') => {
+      const perPixel = points.map((point, index) =>
+        point[key].map((value, channel) => Math.abs(value - actual[index]![channel]!)),
+      );
+      const errors = perPixel.flat();
+      return {
+        mean: errors.reduce((sum, value) => sum + value, 0) / errors.length,
+        maximum: Math.max(...errors),
+        matchingPixels: perPixel.filter((channels) => channels.every((error) => error <= 24))
+          .length,
+      };
+    };
+    const low = score('low'),
+      high = score('high');
+    const separation = points.flatMap((point) =>
+      point.low.map((value, channel) => Math.abs(value - point.high[channel]!)),
+    );
+    const meanSeparation = separation.reduce((sum, value) => sum + value, 0) / separation.length;
+    const valid =
+      points.length >= 4 &&
+      png.width === references.width &&
+      png.height === references.height &&
+      points.every(
+        (point) => point.x >= 0 && point.y >= 0 && point.x < png.width && point.y < png.height,
+      ) &&
+      actual.every((pixel) => pixel.length === 4 && pixel[3] === 255) &&
+      meanSeparation >= 30;
+    const matches = (own: typeof low, other: typeof low) =>
+      valid &&
+      own.mean <= 12 &&
+      own.matchingPixels >= Math.ceil(points.length * 0.8) &&
+      other.mean - own.mean >= 24;
+    const state = matches(high, low) ? 'HIGH' : matches(low, high) ? 'LOW' : 'UNKNOWN';
+    return { state, low, high, meanSeparation, actual };
+  };
+  const led = classify(references.led),
+    l = classify(references.l);
+  return {
+    led,
+    l,
+    limits: {
+      meanError: 12,
+      perChannelError: 24,
+      matchingPixelFraction: 0.8,
+      minimumSeparation: 30,
+      winningMargin: 24,
+    },
+  };
+}
+
+async function d2NativeSamples(page: Page, stage: D2Stage, raw: TemporalProbe): Promise<void> {
+  const full = await observation(page);
+  const ready = raw.frames.filter((frame) => frame.executionStatus === 'ready');
+  const generationId = ready[0]!.generationId!;
+  const physical: D2NativeProbe = {
+    source: stage.source,
+    epoch: generationId,
+    clicks: full.startClicks.map((click) => ({ ...click, action: 'start' })),
+    frames: ready.map((frame) => ({
+      at: frame.at,
+      status: frame.executionStatus,
+      solved: frame.solved,
+      quality: { passed: frame.qualityPassed },
+      source: frame.source,
+      loadedSource:
+        full.worker
+          .find((row) => row.requestId === frame.requestId)
+          ?.boards.find((board) => board.componentId === 'uno')?.loadedSource ?? null,
+      generationId: frame.generationId!,
+      requestId: frame.requestId,
+      committedUs: frame.committedHorizonMicroseconds,
+      components: frame.components,
+    })),
+  };
+  const bases = D2_IDS.map((id) => d2NativeAssetBasis(physical, id));
+  const { PNG } = await import('pngjs');
+  const requested = ['100', '000', '010', '000', '001', '000', '100'];
+  let previousShotAt: number | null = null;
+  let previousRequested: string | null = null;
+  let seekFrom = await page.evaluate(() => performance.now());
+  for (let index = 0; index < requested.length; index++) {
+    const vector = requested[index]!;
+    // Wait for a fresh actually painted phase. Do not rename an ambiguous PNG,
+    // retry a failed image or advance the simulation with a separate timer.
+    await page.waitForFunction(
+      ({ vector, seekFrom }) => {
+        const probe = window as D2Window;
+        const run = probe.__ownerTemporal!.paintRuns.at(-1);
+        const l = probe.__d2L!.at(-1);
+        return (
+          !!run &&
+          run.first.previousFrameAt !== null &&
+          run.first.previousFrameAt >= seekFrom &&
+          run.first.brightness.map((value) => (value > 0 ? '1' : '0')).join('') === vector &&
+          run.first.images.length === 3 &&
+          run.first.images.every(
+            (image, led) =>
+              image.decoded &&
+              image.visible &&
+              image.unoccluded &&
+              image.opacity === 1 &&
+              image.lit === run.first.brightness[led]! > 0,
+          ) &&
+          !!l &&
+          l.activeAttribute === 'false' &&
+          l.opacity === 0 &&
+          l.visible
+        );
+      },
+      { vector, seekFrom },
+      { timeout: 20_000 },
+    );
+    const beforeShot = JSON.parse(
+      await page.evaluate(() => {
+        const probe = window as D2Window;
+        return JSON.stringify({ paint: probe.__ownerPaint!.at(-1)!, l: probe.__d2L!.at(-1)! });
+      }),
+    ) as { paint: PaintReceipt; l: D2LReceipt };
+    const name = `d2-d4-native-${index}-${vector}`;
+    const path = resolve(artifactRoot, name + '.png');
+    const bytes = await page.screenshot({ path });
+    const during = JSON.parse(
+      await page.evaluate((from) => {
+        const probe = window as D2Window;
+        return JSON.stringify({
+          paint: probe.__ownerPaint!.filter((row) => row.at >= from),
+          l: probe.__d2L!.filter((row) => row.at >= from),
+          at: performance.now(),
+        });
+      }, beforeShot.paint.at),
+    ) as { paint: PaintReceipt[]; l: D2LReceipt[]; at: number };
+    const png = PNG.sync.read(bytes);
+    const references = await Promise.all(
+      bases.map((basis, led) =>
+        d2NativeReferences(
+          page,
+          {
+            led: {
+              href: beforeShot.paint.images[led]!.href,
+              rect: beforeShot.paint.images[led]!.rect,
+            },
+            board: { href: beforeShot.l.boardHref, rect: beforeShot.l.boardRect },
+            lRect: beforeShot.l.rect,
+          },
+          png.width,
+          png.height,
+          basis,
+        ),
+      ),
+    );
+    const pixels = references.map((reference) => d2ClassifyNativePng(png, reference));
+    const observedVector = pixels
+      .map((pixel) => (pixel.led.state === 'HIGH' ? '1' : pixel.led.state === 'LOW' ? '0' : '?'))
+      .join('');
+    const sameRect = (
+      actual: D2NativeImageWitness['rect'],
+      expected: D2NativeImageWitness['rect'],
+    ) =>
+      actual !== null &&
+      expected !== null &&
+      (['x', 'y', 'width', 'height'] as const).every(
+        (key) => Math.abs(actual[key] - expected[key]) <= 0.25,
+      );
+    const fixedGeometry =
+      during.paint.length >= 2 &&
+      during.l.length >= 2 &&
+      during.paint.every(
+        (paint) =>
+          paint.images.length === 3 &&
+          paint.images.every((image, led) =>
+            sameRect(image.rect, beforeShot.paint.images[led]!.rect),
+          ),
+      ) &&
+      during.l.every(
+        (l) => sameRect(l.rect, beforeShot.l.rect) && sameRect(l.boardRect, beforeShot.l.boardRect),
+      );
+    const coherentWitness = during.paint.some(
+      (paint) =>
+        paint.stablePreviousFrame &&
+        paint.images.length === 3 &&
+        paint.images.every(
+          (image, led) =>
+            image.decoded &&
+            image.visible &&
+            image.unoccluded &&
+            image.opacity === 1 &&
+            image.lit === paint.brightness[led]! > 0,
+        ) &&
+        d2Vector(paint.brightness) === vector,
+    );
+    const lOff =
+      pixels.every((pixel) => pixel.l.state === 'LOW') &&
+      during.l.every((l) => l.activeAttribute === 'false' && l.opacity === 0 && l.visible);
+    const evidence = {
+      name,
+      path,
+      requestedVector: vector,
+      observedVector,
+      generationId,
+      sourceSha256: createHash('sha256').update(stage.source).digest('hex'),
+      beforeShot,
+      during,
+      references,
+      pixels,
+      fixedGeometry,
+      coherentWitness,
+      lOff,
+      interpretation:
+        'The actual screenshot pixels determine each LED state and D13 L. Labels, requested states and filenames cannot satisfy this check.',
+    };
+    d2Ledger!.native.push(evidence);
+    writeFileSync(resolve(artifactRoot, name + '.json'), JSON.stringify(evidence, null, 2) + '\n');
+    await test.info().attach(name + '-native', { path, contentType: 'image/png' });
+    expect(fixedGeometry, 'stable actual LED/board/L geometry during PNG capture').toBe(true);
+    expect(coherentWitness, 'mounted loaded image witness during native PNG capture').toBe(true);
+    expect(observedVector, 'independently classified three-channel PNG').toBe(vector);
+    expect(lOff, 'D13 L actual PNG and complete capture window remain dark').toBe(true);
+    if (previousShotAt !== null) {
+      const recent = await temporalObservation(page);
+      const between = d2PaintEdges(recent, previousShotAt).filter(
+        (edge) => edge.at <= beforeShot.paint.at,
+      );
+      expect(
+        between.map((edge) => edge.vector),
+        'native screenshots must follow adjacent phases of the real joint sequence',
+      ).toEqual([previousRequested, vector]);
+    }
+    previousShotAt = beforeShot.paint.at;
+    previousRequested = vector;
+    seekFrom = during.at;
+  }
+  const complete = await temporalObservation(page);
+  assertTemporalFrames(complete, stage.source, generationId);
+  const actionAt = physical.clicks.find((click) => click.trusted)!.at;
+  const causal = temporalPaintCausality(complete, stage.source, generationId, actionAt);
+  expect(
+    causal.violations,
+    'native captures remain within the same-source same-generation physical timeline',
+  ).toEqual([]);
+  const l = JSON.parse(
+    await page.evaluate(() => JSON.stringify((window as D2Window).__d2L ?? [])),
+  ) as D2LReceipt[];
+  expect(
+    l
+      .filter((row) => row.at >= actionAt)
+      .every((row) => row.activeAttribute === 'false' && row.opacity === 0 && row.visible),
+  ).toBe(true);
+  writeFileSync(
+    resolve(artifactRoot, 'd2-d4-native-causality.json'),
+    JSON.stringify(causal, null, 2) + '\n',
+  );
+}
+
+async function retainD2Ledger(info: import('@playwright/test').TestInfo): Promise<void> {
+  if (!d2Ledger) throw new Error('missing dedicated D2 ledger');
+  const path = resolve(artifactRoot, `d2-d4-ledger-${info.workerIndex}-${info.retry}.json`);
+  const receipt = {
+    ...d2Ledger,
+    acceptance: info.status === 'passed' && d2Ledger.completed ? 'PASS' : 'FAIL',
+    actualStatus: info.status,
+    budgets: { acquisitionMs: D2_WAIT_MS, nativeJointVectorMs: 20_000, caseMs: 840_000 },
+    fixedProductPace: 0.125,
+  };
+  writeFileSync(path, JSON.stringify(receipt, null, 2) + '\n');
+  await info.attach('classroom-d2-d4-ledger', { path, contentType: 'application/json' });
+  if (info.status === 'passed') {
+    expect(d2Ledger.completed).toBe(true);
+    expect(d2Ledger.stages.map((stage) => stage.stage)).toEqual([
+      '100-100',
+      '200-200',
+      '300-300',
+      '150-150',
+      '100-300',
+      'reset-100-300',
+      'reopened-100-300',
+    ]);
+    expect(d2Ledger.native.length).toBe(7);
+  }
+}
+
+test.describe('Classroom D2-D4 next visible slice', () => {
+  test.use({ video: 'on' });
+  test(D2_CLASSROOM_CASE, async ({ page, browser }) => {
+    test.setTimeout(840_000);
+    expect(d2Ledger).not.toBeNull();
+    const stages: D2Stage[] = [
+      [100, 100],
+      [200, 200],
+      [300, 300],
+      [150, 150],
+      [100, 300],
+    ].map(([highMs, offMs]) => ({
+      name: `${highMs}-${offMs}`,
+      highMs: highMs!,
+      offMs: offMs!,
+      source: d2Sketch(highMs!, offMs!),
+    }));
+    const lesson = readFileSync(resolve(D2_LESSON_PATH), 'utf8');
+    for (const stage of stages) expect(lesson).toContain('```cpp\n' + stage.source + '```');
+    let session = await d2OpenOwnerTemporalSketch(page, stages[0]!.source, 'next-d2-d4');
+    await d2BuildProvenance(page);
+    const projectUrl = page.url();
+    const initialWiring = session.saved.draft.document.connections;
+    for (let index = 0; index < stages.length; index++) {
+      const stage = stages[index]!;
+      if (index > 0) {
+        const saved = await d2EditAndSave(page, session, stage);
+        session = { ...session, source: stage.source, saved };
+      }
+      session.startAt = await d2ClearProbe(page);
+      await d2Capture(page, session, stage);
+      if (stage.name === '300-300') {
+        try {
+          await d2NativeSamples(page, stage, await temporalObservation(page));
+        } finally {
+          await d2RetainRaw(page, session, stage.name + '-native', d2Ledger!.native);
+        }
+      }
+      if (index < stages.length - 1) await d2Stop(page);
+    }
+    const byName = new Map(d2Ledger!.stages.map((stage) => [stage.stage, stage]));
+    const timing = [100, 150, 200, 300].map(
+      (delay) => byName.get(`${delay}-${delay}`)!.medianCycleMs,
+    );
+    expect(timing[0]!).toBeLessThan(timing[1]!);
+    expect(timing[1]!).toBeLessThan(timing[2]!);
+    expect(timing[2]!).toBeLessThan(timing[3]!);
+    for (const [index, low, high] of [
+      [1, 1.2, 1.8],
+      [2, 1.6, 2.4],
+      [3, 2.4, 3.6],
+    ]) {
+      expect(timing[index!]! / timing[0]!).toBeGreaterThanOrEqual(low!);
+      expect(timing[index!]! / timing[0]!).toBeLessThanOrEqual(high!);
+    }
+    const last = stages.at(-1)!;
+    const beforeResetGeneration = d2Ledger!.stages.at(-1)!.generationId;
+    session.startAt = await d2ClearProbe(page);
+    const reset = await d2Capture(page, session, { ...last, name: 'reset-100-300' }, 'reset');
+    expect(reset.generationId).not.toBe(beforeResetGeneration);
+    await d2Stop(page);
+    expect((await session.read()).draft).toEqual(session.saved.draft);
+    expect(session.saved.draft.document.connections).toEqual(initialWiring);
+    session.failures.assertEmpty();
+
+    // Cookies alone carry authentication. No storage state, in-memory circuit,
+    // local/session storage or saved observer buffers enter the new browser context.
+    const context = await browser.newContext({
+      viewport: { width: 1600, height: 1000 },
+      recordVideo: {
+        dir: resolve(artifactRoot, 'd2-d4-reopen-video'),
+        size: { width: 1600, height: 1000 },
+      },
+    });
+    try {
+      await context.addCookies(await page.context().cookies());
+      const reopened = await context.newPage();
+      const failures = collectBrowserFailures(reopened, { allowAnonymousSessionProbe: true });
+      await observeOwnerTemporal(reopened);
+      await d2ObserveL(reopened);
+      await reopened.goto(projectUrl);
+      await expect(reopened.locator('.workbench-stage')).toBeVisible();
+      await expect(reopened.getByTestId('schematic-component')).toHaveCount(7);
+      await d2BuildProvenance(reopened);
+      const read = async (): Promise<D2SavedProject> => {
+        const response = await context.request.get(new URL(session.endpoint, session.origin).href, {
+          headers: { origin: session.origin },
+        });
+        expect(response.status()).toBe(200);
+        return response.json() as Promise<D2SavedProject>;
+      };
+      expect((await read()).draft).toEqual(session.saved.draft);
+      await reopened.getByRole('button', { name: 'Открыть редактор кода', exact: true }).click();
+      await expect(reopened.locator('.arduino-source-editor textarea')).toHaveValue(last.source);
+      await reopened.getByRole('button', { name: 'Закрыть редактор кода', exact: true }).click();
+      await expect(reopened.locator('.arduino-code-panel')).toHaveClass(/closed/);
+      const reopenedSession = { ...session, read, failures, startAt: await d2ClearProbe(reopened) };
+      await d2Capture(reopened, reopenedSession, { ...last, name: 'reopened-100-300' });
+      await d2Stop(reopened);
+      expect((await read()).draft).toEqual(session.saved.draft);
+      failures.assertEmpty();
+      const video = reopened.video();
+      await reopened.close();
+      if (!video) throw new Error('cookies-only reopen native video missing');
+      await test.info().attach('d2-d4-cookies-only-reopen-video', {
+        path: await video.path(),
+        contentType: 'video/webm',
+      });
+    } finally {
+      await context.close();
+    }
+    d2Ledger!.completed = true;
+  });
 });
