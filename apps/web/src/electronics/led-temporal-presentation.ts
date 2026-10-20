@@ -40,18 +40,34 @@ export interface LedPresentationFrame {
   readonly arduinoLStates: ReadonlyMap<string, boolean>;
 }
 
-function sameOpticalFrame(left: LedPresentationFrame, right: LedPresentationFrame): boolean {
+export interface LedNativeAssetFrame extends Omit<LedPresentationFrame, 'token'> {
+  readonly generation: number;
+}
+
+function sameLedBrightness(
+  left: ReadonlyMap<string, number>,
+  right: ReadonlyMap<string, number>,
+): boolean {
   return (
-    left.brightness.size === right.brightness.size &&
-    [...left.brightness].every(
-      ([id, value]) => Math.round(value) === Math.round(right.brightness.get(id) ?? -1),
-    ) &&
+    left.size === right.size &&
+    [...left].every(([id, value]) => Math.round(value) === Math.round(right.get(id) ?? -1))
+  );
+}
+
+export function sameOpticalFrame(left: LedPresentationFrame, right: LedPresentationFrame): boolean {
+  return (
+    sameLedBrightness(left.brightness, right.brightness) &&
     left.arduinoLStates.size === right.arduinoLStates.size &&
     [...left.arduinoLStates].every(([id, value]) => right.arduinoLStates.get(id) === value)
   );
 }
 
 type HeldPresentationSample = ElectronicsLedTemporalSample | ElectronicsArduinoIndicatorSample;
+
+interface HeldHistory<T extends HeldPresentationSample> {
+  readonly samples: readonly T[];
+  readonly completeSince: number;
+}
 
 function heldValue(sample: HeldPresentationSample): number {
   return 'voltage' in sample ? sample.voltage : sample.brightness;
@@ -151,20 +167,21 @@ function validComponent(
         transitions === component.transitionCount;
 }
 
-function recentSamples<T extends HeldPresentationSample>(
-  previous: readonly T[] | undefined,
+function retainHistory<T extends HeldPresentationSample>(
+  previous: HeldHistory<T> | undefined,
   component: { readonly samples: readonly T[]; readonly truncated: boolean },
+  from: number,
   to: number,
   cursor = to,
-): readonly T[] {
+): HeldHistory<T> {
   const first = component.samples[0]!;
-  const previousEnd = previous?.at(-1);
+  const previousEnd = previous?.samples.at(-1);
   const continuous =
     !component.truncated &&
     previousEnd?.atMicroseconds === first.atMicroseconds &&
     sameState(previousEnd, first);
   const combined = continuous
-    ? [...previous!.slice(0, -1), ...component.samples]
+    ? [...previous!.samples.slice(0, -1), ...component.samples]
     : [...component.samples];
   const samples: T[] = [];
   for (let index = 0; index < combined.length; index++) {
@@ -176,7 +193,10 @@ function recentSamples<T extends HeldPresentationSample>(
   const firstRecent = samples.findIndex(
     (sample) => sample.atMicroseconds >= cursor - HISTORY_MICROSECONDS,
   );
-  return samples.slice(Math.max(0, firstRecent - 1, samples.length - MAX_HISTORY_SAMPLES));
+  return {
+    samples: samples.slice(Math.max(0, firstRecent - 1, samples.length - MAX_HISTORY_SAMPLES)),
+    completeSince: component.truncated ? to : continuous ? previous!.completeSince : from,
+  };
 }
 
 function fastCycleBrightness(samples: readonly ElectronicsLedTemporalSample[], to: number) {
@@ -209,10 +229,8 @@ function fastCycleBrightness(samples: readonly ElectronicsLedTemporalSample[], t
 /** Only accepted optical observations are retained; electrical results stay untouched. */
 export class LedTemporalPresentation {
   private committed: number | null = null;
-  private histories = new Map<string, readonly ElectronicsLedTemporalSample[]>();
-  private completeSince = new Map<string, number>();
-  private indicatorHistories = new Map<string, readonly ElectronicsArduinoIndicatorSample[]>();
-  private indicatorCompleteSince = new Map<string, number>();
+  private histories = new Map<string, HeldHistory<ElectronicsLedTemporalSample>>();
+  private indicatorHistories = new Map<string, HeldHistory<ElectronicsArduinoIndicatorSample>>();
   private cursor: number | null = null;
   private sampledAt: number | null = null;
   private frameSequence = 0;
@@ -242,16 +260,50 @@ export class LedTemporalPresentation {
     return this.presentedFrame;
   }
 
+  /**
+   * Read the nearest native resource need in already accepted history. This is
+   * not a display frame: it has no ACK token and cannot advance the cursor or
+   * count a RAF. In particular, an intermediate HIGH must not be skipped just
+   * because the accepted endpoint has returned LOW before the next paint.
+   */
+  get nextNativeAssetFrame(): LedNativeAssetFrame | null {
+    if (this.cursor === null || this.committed === null) return null;
+    const times = new Set([this.cursor, this.committed]);
+    if (!this.snapshot) {
+      for (const { samples } of this.histories.values()) {
+        for (const sample of samples) {
+          // Native brightness can change at a solved sample or when the
+          // existing fast-cycle policy expires into the real held state.
+          for (const time of [
+            sample.atMicroseconds,
+            sample.atMicroseconds + LED_PRESENTATION_PHASE_LIMIT_MICROSECONDS,
+          ])
+            if (time > this.cursor && time < this.committed) times.add(time);
+        }
+      }
+    }
+    let last: LedNativeAssetFrame | null = null;
+    for (const time of [...times].sort((left, right) => left - right)) {
+      const frame = this.frameAt(time);
+      if (!frame) return null;
+      last = { ...frame, generation: this.generation };
+      if (
+        !this.presentedFrame ||
+        !sameLedBrightness(frame.brightness, this.presentedFrame.brightness)
+      )
+        return last;
+    }
+    return last;
+  }
+
   get canPublishDistinctFrame(): boolean {
-    return this.presentedFrame === null || this.animationFrame - this.committedAnimationFrame > 2;
+    return this.presentedFrame === null || this.animationFrame - this.committedAnimationFrame > 0;
   }
 
   reset(): void {
     this.committed = null;
     this.histories.clear();
-    this.completeSince.clear();
     this.indicatorHistories.clear();
-    this.indicatorCompleteSince.clear();
     this.cursor = null;
     this.sampledAt = null;
     this.pendingFrame = null;
@@ -316,8 +368,7 @@ export class LedTemporalPresentation {
     }
     if (wallMicroseconds !== undefined && this.cursor === null)
       this.cursor = observation.fromMicroseconds;
-    const next = new Map<string, readonly ElectronicsLedTemporalSample[]>();
-    const nextCompleteSince = new Map<string, number>();
+    const next = new Map<string, HeldHistory<ElectronicsLedTemporalSample>>();
     for (const component of observation.components) {
       const electrical = result.components.find(
         (entry) => entry.componentId === component.componentId,
@@ -335,38 +386,24 @@ export class LedTemporalPresentation {
           (component.samples.some(
             (sample: ElectronicsLedTemporalSample) => sample.brightness !== 0 || sample.current > 0,
           ) ||
-            previous?.some((sample) => sample.brightness !== 0 || sample.current > 0))) ||
+            previous?.samples.some((sample) => sample.brightness !== 0 || sample.current > 0))) ||
         electrical.presentationState === 'failed' ||
         electrical.deviceHealth === 'failed_open' ||
         electrical.damageState === 'failed'
       )
         continue;
-      const previousEnd = previous?.at(-1);
-      const first = component.samples[0]!;
-      const continuous =
-        previousEnd !== undefined &&
-        previousEnd.atMicroseconds === first.atMicroseconds &&
-        sameState(previousEnd, first);
-      nextCompleteSince.set(
-        component.componentId,
-        component.truncated
-          ? observation.toMicroseconds
-          : continuous
-            ? (this.completeSince.get(component.componentId) ?? observation.fromMicroseconds)
-            : observation.fromMicroseconds,
-      );
-      const samples = recentSamples(
+      const history = retainHistory(
         previous,
         component,
+        observation.fromMicroseconds,
         observation.toMicroseconds,
         this.cursor ?? observation.toMicroseconds,
       );
-      next.set(component.componentId, samples);
-      const mean = fastCycleBrightness(samples, observation.toMicroseconds);
+      next.set(component.componentId, history);
+      const mean = fastCycleBrightness(history.samples, observation.toMicroseconds);
       if (mean !== undefined) brightness.set(component.componentId, mean);
     }
-    const nextIndicators = new Map<string, readonly ElectronicsArduinoIndicatorSample[]>();
-    const nextIndicatorCompleteSince = new Map<string, number>();
+    const nextIndicators = new Map<string, HeldHistory<ElectronicsArduinoIndicatorSample>>();
     for (const indicator of arduinoIndicators) {
       const electrical = result.components.find(
         (entry) => entry.componentId === indicator.componentId,
@@ -376,37 +413,20 @@ export class LedTemporalPresentation {
         this.reset();
         return new Map();
       }
-      const previous = this.indicatorHistories.get(indicator.componentId);
-      const previousEnd = previous?.at(-1);
-      const first = indicator.samples[0]!;
-      const continuous =
-        previousEnd !== undefined &&
-        previousEnd.atMicroseconds === first.atMicroseconds &&
-        sameState(previousEnd, first);
-      nextIndicatorCompleteSince.set(
-        indicator.componentId,
-        indicator.truncated
-          ? observation.toMicroseconds
-          : continuous
-            ? (this.indicatorCompleteSince.get(indicator.componentId) ??
-              observation.fromMicroseconds)
-            : observation.fromMicroseconds,
-      );
       nextIndicators.set(
         indicator.componentId,
-        recentSamples(
-          previous,
+        retainHistory(
+          this.indicatorHistories.get(indicator.componentId),
           indicator,
+          observation.fromMicroseconds,
           observation.toMicroseconds,
           this.cursor ?? observation.toMicroseconds,
         ),
       );
     }
     this.indicatorHistories = nextIndicators;
-    this.indicatorCompleteSince = nextIndicatorCompleteSince;
     this.committed = observation.toMicroseconds;
     this.histories = next;
-    this.completeSince = nextCompleteSince;
     if (this.pendingFrame && [...this.pendingFrame.brightness.keys()].some((id) => !next.has(id)))
       this.pendingFrame = null;
     // Ingestion never advances or publishes the optical cursor. In particular,
@@ -459,12 +479,8 @@ export class LedTemporalPresentation {
       : this.presentedFrame === null
         ? this.cursor
         : Math.min(this.committed, this.cursor + Math.floor(elapsed * ELECTRONICS_CLASSROOM_PACE));
-    const brightness = this.snapshot?.brightness ?? this.atTime(target);
-    const voltages = this.indicatorVoltagesAtTime(target);
-    if (
-      !this.snapshot &&
-      (brightness.size !== this.histories.size || voltages.size !== this.indicatorHistories.size)
-    ) {
+    const values = this.frameAt(target);
+    if (!values) {
       // Missing/truncated coverage cannot establish a displayable frame. Report
       // the discontinuity and forget it; never jump across unpresented phases.
       this.reanchors++;
@@ -472,10 +488,8 @@ export class LedTemporalPresentation {
       return null;
     }
     const frame: LedPresentationFrame = {
+      ...values,
       token: `${this.generation}:${++this.frameSequence}`,
-      atMicroseconds: target,
-      brightness,
-      arduinoLStates: new Map([...voltages].map(([id, voltage]) => [id, voltage >= 2.5])),
     };
     if (
       this.presentedFrame &&
@@ -526,10 +540,24 @@ export class LedTemporalPresentation {
     return this.presentedFrame?.arduinoLStates ?? new Map();
   }
 
+  /** Both preparation paths sample the same complete LED/L vector. */
+  private frameAt(atMicroseconds: number): Omit<LedPresentationFrame, 'token'> | null {
+    if (this.snapshot) return this.snapshot;
+    const brightness = this.atTime(atMicroseconds);
+    const voltages = this.indicatorVoltagesAtTime(atMicroseconds);
+    if (brightness.size !== this.histories.size || voltages.size !== this.indicatorHistories.size)
+      return null;
+    return {
+      atMicroseconds,
+      brightness,
+      arduinoLStates: new Map([...voltages].map(([id, voltage]) => [id, voltage >= 2.5])),
+    };
+  }
+
   private indicatorVoltagesAtTime(time: number): ReadonlyMap<string, number> {
     const voltages = new Map<string, number>();
-    for (const [id, samples] of this.indicatorHistories) {
-      if ((this.indicatorCompleteSince.get(id) ?? Infinity) > time) continue;
+    for (const [id, { samples, completeSince }] of this.indicatorHistories) {
+      if (completeSince > time) continue;
       const last = this.throughTime(samples, time).at(-1);
       if (last) voltages.set(id, last.voltage);
     }
@@ -538,8 +566,8 @@ export class LedTemporalPresentation {
 
   private atTime(time: number): ReadonlyMap<string, number> {
     const brightness = new Map<string, number>();
-    for (const [id, samples] of this.histories) {
-      if ((this.completeSince.get(id) ?? Infinity) > time) continue;
+    for (const [id, { samples, completeSince }] of this.histories) {
+      if (completeSince > time) continue;
       const prefix = this.throughTime(samples, time);
       const last = prefix.at(-1);
       if (!last) continue;

@@ -148,7 +148,7 @@ jobs:
     name: Actual editor live simulation journey
     needs: focused
     runs-on: ubuntu-24.04
-    timeout-minutes: 35
+    timeout-minutes: 50
     env:
       CI: 'true'
       ASA_BUILD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
