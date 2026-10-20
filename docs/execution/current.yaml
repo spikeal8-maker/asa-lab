@@ -8137,7 +8137,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: passive_native_actual_natural_pass_no_proven_cause_STOP
+      checkpoint: final_existing_temporary404_recovery_observation_selected
       previous_checkpoint: two_mounted_cases_pass_no_proven_cause_diagnostic_STOP
       kind: repair
       owner_acceptance: pending
@@ -8145,14 +8145,31 @@ parallel_lanes:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-ORDINARY-IMAGE-CONSUMER-FAILURE-001.md
       - docs/product/electronics/evidence/ordinary-image-548-consumer-cycle-selection-20261020.md
       - docs/product/electronics/components/ui-assets-persistence.yaml
-      repair_scope: Test-only passive provenance in the existing permanent ordinary-image404 stage/catalog
-        case of e2e/electronics-interactions.spec.ts, plus needed imports and generated existing browser hash
-        only if canonical freshness requires it. Pre-app document capture listeners, stable WeakMap actual
-        image/root IDs and added-subtree MutationObserver correlate native/DOM/network records. No creation
-        API wrapping; detached pre-observation events are NOT_OBSERVED. Preserve all original behavior.
-      diagnostic_limits: Observe native ingress, connected consumer/root identity, href/asset/cycle labels,
-        add/remove and failed-status/badge DOM transitions. React handlers, hook-private pending state and
-        shared cache/promise execution remain UNKNOWN; no React private-property wrapping or production sink.
+      repair_scope: >-
+        ONE last test-only observation, ONLY diagnostic wrapping in the existing temporary404 RECOVERY case
+        a failed catalog owner image recovers without placing or saving a component in electronics-interactions.
+        Explicitly supersede prior creation-wrapper prohibition ONLY here; pre-app transparent createElementNS
+        attaches direct native SVGimage listeners before return/href. Permanent404 and induced-gap cases unchanged.
+      diagnostic_limits: >-
+        Original captured Reflect.apply preserves receiver/args/return/throw and property descriptor attributes;
+        record exactly one installation/replacement and function-identity/timing interference. Keep connected
+        capture+MO, stable WeakMap image/root/Event IDs,delivery phases,currenthref,status/badge/network timing;
+        mutation time is delivery time. Native callbacks record only cheap immutable small events, no layout,
+        stacks or bindings. Explicit dropped/retention/serialization/install errors; parser/clone/other realm
+        UNKNOWN/NOT_OBSERVED; private React/cache UNKNOWN. Native error is not React callback entry or cause.
+      recovery_observation_contract:
+        version: R3_existing_recovery_only
+        allowed_source_path: e2e/electronics-interactions.spec.ts
+        preserved_case: a failed catalog owner image recovers without placing or saving a component
+        observed_baseline: e14229f93c7400fb39ae880cc9889aefdc8dcfb6
+        baseline_result: Original aa2 SVG image GET404; href unchanged through14 polls; no retry/preflight. Recovery entry not observed; native delivery UNKNOWN.
+        stimulus_and_assertions: Existing order,temporary404 route,1440x1000,fixture,10000ms href assertion,failures>=1,whole empty document,zeroPUT/errors and default deadlines byte-exact.
+        prohibition: No setters,synthetic events,DOM writes,handler wrappers,production/unit/other-case/workflow/dependency changes or retries.
+        receipts: Distinct raw/PNG names, original primary failure preserved; supplemental capture cannot hang or mask it.
+        terminal_rule: Exactly ONE new actual run after NEW source review; naturalPASS/incomplete NO_PROVEN_CAUSE and STOP. Trusted native delivery plus no recovery narrows boundary only, never proves cause/fix/closure.
+      docs_selection_handoff_exception: >-
+        Standing owner disjoint exception permits these three docs and the selected future test-only source,
+        both occupied workflow paths untouched; actual overlapping unfinished work always STOP, not SAFE.
       diagnostic_source_sha: 4b272ffcbd64896a615f1d7cba3fb27a652351dc
       diagnostic_result: Both new mounted cases pass within41 passing asset-recovery tests; author and
         NEW independent source reviewer verified. Product untouched. NO_PROVEN_CAUSE; no fix or closure.
@@ -8164,10 +8181,13 @@ parallel_lanes:
         identities reached failed DOM and accessible badges;7 imageGET404, whole5-part document unchanged,
         zeroPUT/pageerrors. Mocked API only; private React/hook/cache and causation remain UNKNOWN.
       passive_actual_review: APPROVE_qualified_natural_pass_no_product_acceptance; NO_PROVEN_CAUSE
-      observation_evidence: docs/product/electronics/evidence/ordinary-image-548-8f568af5-actual-20261020.md
-      next_action: STOP this experiment. Owner explicitly retains548 dependency; do not close544/547 or alter
-        their blockers. No new ordering cause proved and no product repair selected. No hopeful548 rerun;
-        any later cause-backed experiment requires separate canonical selection and independent review.
+      observation_evidence: docs/product/electronics/evidence/ordinary-image-548-recovery-observation-selection-20261021.md
+      next_action: >-
+        ONE bounded observer author changes only diagnostic wrapping in this existing temporary404 recovery
+        case, preserves every original action/order/assertion/timeout and all other cases byte-exact, runs narrow
+        checks/self-review and emits ONE unpublished SHA then STOP. NEW independent source review precedes
+        ONE last actual existing-case run. NaturalPASS/incomplete gives NO_PROVEN_CAUSE and diagnostic STOP;
+        no next hopeful observer, product fix or closure. Owner KEEP544/547 to548 remains,549R2 untouched.
       preservation: Preserve666 done, original548 receipts and mounted diagnostic checkpoint, all foreign state,
         unpublished52545 branch and544/547/548 blockers. No product, hooks, core, assets, API, workflow, timeout,
         retry, fixture or recovery-policy changes, local browser/Docker/heavy build/DB/deployment operations.
@@ -8186,13 +8206,15 @@ parallel_lanes:
       kind: observed_snapshot
       convergence_baseline_sha: abe8f05a33a8fdfffbdf491f6d6d9e34f841587c
       head_sha: null
-      observed_at: '2026-10-20T19:19:20Z'
+      observed_at: '2026-10-20T21:31:44Z'
       main:
         branch: main
-        sha: abe8f05a33a8fdfffbdf491f6d6d9e34f841587c
-      observation_note: Dated selection; fetch main and recover exact Git, CI and dirty paths before writes.
-        Prior mounted41 PASS and R2 natural browser PASS are NO_PROVEN_CAUSE, not product repair.666 selected40
-        qualification is complete; repository/full browser/owner acceptance and other blockers are not waived.
+        sha: 893457c1c6235304635debb38bb8817868833598
+      observation_note: >-
+        Dated recovery-observation selection, not live HEAD or an actual new measurement. Fetch main and
+        recover exact Git/CI/dirty paths before writes. Prior permanent404 naturalPASS and mounted41PASS
+        remain historical NO_PROVEN_CAUSE; new temporary404 observation has NOT_RUN. Preserve549R2,
+        all owner KEEP dependencies and foreign blockers; shared-workflow disjoint exception is not SAFE.
 
   - id: electronics-selection
     parent_lane: electronics
