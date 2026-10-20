@@ -12,6 +12,10 @@ review: independent
 
 # Publish the ordinary-image failure to the actual mounted catalog consumer
 
+## Passive native actual checkpoint — 20 October 2026
+
+Source `8f568af52429e7e3091a6bbf542df9000a003d85`, strict run `39484930868`, passed the observed permanent404 case naturally. NEW independent actual review returned qualified APPROVE with `NO_PROVEN_CAUSE`: 39 Node/15 browser records, no loss/retention errors, three trusted native errors on stable consumer image/root identities followed by failed DOM/badges, seven image GET404, whole five-part mock/editor document unchanged and zero PUT/pageerrors. Private React/hook/cache execution remains unknown. The [dated original-artifact receipt](../evidence/ordinary-image-548-8f568af5-actual-20261020.md) records precise limits and unrelated failures. Experiment STOP; no new ordering cause or product repair is selected. The owner explicitly retained the #548 dependency: do not close #544/#547, change their blockers, or repeat this browser experiment hoping for a failure.
+
 ## Passive native/DOM provenance selection — 20 October 2026
 
 This new phase selects observational changes only in the existing test `a permanently missing ordinary image shows an accessible failure on stage and catalog` in `e2e/electronics-interactions.spec.ts`, with needed imports and canonical generated existing browser hash only if actual freshness requires it. The earlier mounted two-case/41-test PASS and R2 natural browser PASS remain `NO_PROVEN_CAUSE`; their source and receipts stay unchanged. This phase supersedes prior executable scopes without selecting a production fix. See the [dated provenance selection](../evidence/ordinary-image-548-passive-native-selection-20261020.md).

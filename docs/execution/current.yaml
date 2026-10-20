@@ -8137,7 +8137,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: passive_native_dom_provenance_selected
+      checkpoint: passive_native_actual_natural_pass_no_proven_cause_STOP
       previous_checkpoint: two_mounted_cases_pass_no_proven_cause_diagnostic_STOP
       kind: repair
       owner_acceptance: pending
@@ -8157,10 +8157,17 @@ parallel_lanes:
       diagnostic_result: Both new mounted cases pass within41 passing asset-recovery tests; author and
         NEW independent source reviewer verified. Product untouched. NO_PROVEN_CAUSE; no fix or closure.
       actual_evidence: docs/product/electronics/evidence/ui-qualification-b3672ff7-actual-20261020.md
-      next_action: After canonical publication assign one bounded observational-test author and NEW independent
-        source review. Preserve primary failure and flush Node journal before optional browser awaits. Controller
-        may perform one existing strict measurement after review; never rerun until failure. Natural PASS or
-        missing lifecycle link means NO_PROVEN_CAUSE and STOP, not a fix. A production repair needs new selection.
+      passive_actual_source_sha: 8f568af52429e7e3091a6bbf542df9000a003d85
+      passive_actual_run: 39484930868
+      passive_actual_result: Existing permanent404 case passed naturally;39 Node and15 browser records, no
+        dropped records or retention errors. Three trusted native errors on stable three-consumer image/root
+        identities reached failed DOM and accessible badges;7 imageGET404, whole5-part document unchanged,
+        zeroPUT/pageerrors. Mocked API only; private React/hook/cache and causation remain UNKNOWN.
+      passive_actual_review: APPROVE_qualified_natural_pass_no_product_acceptance; NO_PROVEN_CAUSE
+      observation_evidence: docs/product/electronics/evidence/ordinary-image-548-8f568af5-actual-20261020.md
+      next_action: STOP this experiment. Owner explicitly retains548 dependency; do not close544/547 or alter
+        their blockers. No new ordering cause proved and no product repair selected. No hopeful548 rerun;
+        any later cause-backed experiment requires separate canonical selection and independent review.
       preservation: Preserve666 done, original548 receipts and mounted diagnostic checkpoint, all foreign state,
         unpublished52545 branch and544/547/548 blockers. No product, hooks, core, assets, API, workflow, timeout,
         retry, fixture or recovery-policy changes, local browser/Docker/heavy build/DB/deployment operations.
@@ -8202,7 +8209,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: corrected_before_harness_only_selected
+      checkpoint: corrected_before_source_published_runtime_pending
       previous_checkpoint: r8_test_only_unique_native_meter_hit_path
       kind: repair
       owner_acceptance: pending
@@ -8218,10 +8225,19 @@ parallel_lanes:
       source_budget: New e2e/electronics-selection-outline.spec.ts, needed imports/two narrow helpers/calls,
         append this scenario to existing default package scripts and component-map test registration; generated
         browser metadata only if canonical freshness requires. No occupied workflow edit or shared helper cleanup.
-      next_action: After canonical publication assign one bounded test author and NEW independent source review.
-        Freeze NEW complete browser blob for byte-identical BEFORE and AFTER. One reviewed existing strict
-        BEFORE measurement must finish all16 whole Save/CAS/cookies-only journeys with only expected outline
-        soft failures. No product author or AFTER is authorized before actual evidence and new independent review.
+      published_before_source_sha: e14229f93c7400fb39ae880cc9889aefdc8dcfb6
+      frozen_browser_blob: c4e05c1109dbac9a74ef1548a208178a10789878
+      frozen_browser_bytes: 64509
+      frozen_browser_lines: 1516
+      frozen_browser_sha256: b4c37d707c078d54fcd0a5419f0a382e9d9eb7306b00e31e8ec9df43f2268002
+      independent_source_review: SOURCE_APPROVE
+      before_strict_run: 39490329377
+      before_general_run: 39490297942
+      runtime_acceptance: pending
+      next_action: Preserve the published corrected BEFORE test blob byte-identically for later AFTER.
+        One strict39490329377 measurement already dispatched; no duplicate dispatch or CI polling loop.
+        Actual16 complete native Save/CAS/cookies-only/ready journeys and NEW independent actual review
+        remain required before any product author or AFTER selection. No product Visual delta is present.
       preservation: Preserve original549 R7 invalid/R8 history and57ca47df source parent, all foreign lanes,
         completed666, active548 experiment,52545 branch, core/hook/LED/assets and all acceptance boundaries.
         Existing554 wheel dependency is accepted;548 still blocks its dependent acceptance, not this bounded test.
