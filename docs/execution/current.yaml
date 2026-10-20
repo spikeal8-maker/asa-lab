@@ -101,7 +101,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: text_repairs_reviewed_baseline_repair_in_progress
+      checkpoint: recovered_text_source_approved_exact_ci_and_external_portal_pending
       owner_acceptance: pending
       change_class: L3_CRITICAL
       owner_authorization: >-
@@ -147,7 +147,7 @@ parallel_lanes:
           reviewed_header_source_sha: 98295cbb6c29a6932369c39c2ee4a6361fa428dc
           independent_review: approved
           runtime_focused_run: 39241612226
-          general_gate: combined_response_repair_required
+          general_gate: current_combined_exact_ci_pending
           response_repair:
             candidate_sha: c76aebe5f84bdcbd3acce1086d1f889ed892d206
             candidate_tree: e200b03c82945a12a2e5322646769e83a85061ac
@@ -166,7 +166,7 @@ parallel_lanes:
               preserves uncertain request identity and permits explicit safe retry.
           integration_candidate: AI-TEXT-COMPLETE-005
           acceptance_dependency: AI-BASELINE-SEAT-CONSTRUCTOR-007
-          reserved_migration: migrations/0225_ai_student_admission.sql
+          reserved_migration: migrations/0226_ai_student_admission.sql
           integration_after: [AI-TEXT-API-002, AI-TEXT-UI-001]
           coordination: >-
             Implement in an isolated checkout; preserve the text repair and shared
@@ -183,7 +183,7 @@ parallel_lanes:
           exact_head_general_run: 39240760662
           general_gate: external_baseline_failure
           integration_candidate: AI-TEXT-COMPLETE-005
-          reserved_migration: migrations/0226_ai_model_catalog_and_provider_credentials.sql
+          reserved_migration: migrations/0227_ai_model_catalog_and_provider_credentials.sql
           integration_after: [AI-TEXT-API-002]
           coordination: >-
             Verify official provider documentation; retain configured credentials
@@ -193,23 +193,43 @@ parallel_lanes:
           scope: server history search, archive, fresh answer regeneration and safe mathematical rendering
           status: in_progress
           source_pr: 642
-          candidate_sha: 0a7423080feff135ca90e904617201440992e6f1
-          candidate_tree: d4648c55c2f3dc64a1327771752ec72e4f5bd6c7
-          frozen_author_sha: 26294d323181c1e0d1c0f58ed138ba89112e8f4e
-          independent_review: approved
-          author_unit_cases: 346
-          author_browser_cases: 93
-          exact_head_focused_run: 39251837416
-          exact_head_general_run: 39251837619
-          combined_gate: failed_classroom_response
+          candidate_sha: 2a8cca456a10bb6e798cb3c2c772a1a078072496
+          candidate_tree: 1a1a50509e359ee07ece3c3fc281999b6a05c67a
+          frozen_author_sha: c4fa737f7057dabf658724faa587824823738ef4
+          independent_review: source_approved_actual_ci_pending
+          author_unit_cases: 458
+          previous_candidate_browser_passed: 93
+          previous_candidate_browser_failed: 5
+          exact_head_focused_run: 39417393655
+          exact_head_general_run: 39417393677
+          combined_gate: pending_exact_ci_and_external_portal_baseline
           combined_general_result: >-
-            Exact 0a7423080feff135ca90e904617201440992e6f1 passes AI-focused,
-            header, governance, code, real PostgreSQL and all 22 real Access cases.
-            General settings finishes with 400 passed and 17 failed because the
-            newly composed classroom AI panel trusts malformed successful data.
-            The independently approved 003 response repair restores all 17 unchanged
-            cases locally; final combined exact-SHA gates remain required.
-          reserved_migration: migrations/0227_ai_text_history.sql
+            Current 2a8cca is an ordinary child of published 57cd0c6; exact tree
+            equals frozen c4fa737f. Source review approved the late-first-send
+            lifecycle repair and five classroom response test adapters. Independent
+            old-tree repro failed and the same probe plus four lifecycle cases pass.
+            Previous 57cd passes real AI PostgreSQL, unit/types and General
+            Governance/Code; browser reports 93 passed and 5 pre-UI fixture failures,
+            now repaired without weakening assertions, API routing or timeouts.
+            Previous General Data/Access were cancelled by the necessary new push
+            and are not PASS. Current exact focused/general runs are pending.
+          recovery:
+            observed_at: '2026-10-20T11:50:00Z'
+            convergence_main_sha: 59c2e74b62bbb8ba6f7dd1d5126ab507eabe8d1e
+            convergence_commit: 57cd0c6f5d4f60352b7b19ccc399faec37c811d1
+            convergence_tree: e7091bf037bbf75708ef00b22570825264814796
+            preserved_auth_migration: migrations/0225_auth_provider_readiness.sql
+            lost_historical_candidates: [ba160f2a, 2f006b9c]
+            lost_candidates_are_acceptance: false
+            classroom_response_repair: restored_and_independently_reviewed
+            existing_only_identity_repair: restored_and_independently_reviewed
+            lifecycle_finding: closed_by_source_review
+            local_ai_cases: 458
+            previous_tree_local_auth_cases: 290
+            previous_tree_local_embedded_migration_cases: 7
+            current_local_web_type_tasks_uncached: 6
+            main_integration: pending
+          reserved_migration: migrations/0228_ai_text_history.sql
           integration_after:
             - AI-TEXT-UI-001
             - AI-TEXT-API-002
@@ -225,9 +245,28 @@ parallel_lanes:
         - id: AI-FILES-FOUNDATION-008
           scope: private attachment storage, bounded byte validation, text extraction and durable ownership APIs
           status: in_progress
-          author_branch: assistant/ai-private-attachments-20261019
+          author_branch: assistant/ai-files-recovery-20261020
           candidate_dependency_sha: 0a7423080feff135ca90e904617201440992e6f1
-          dependency_acceptance: pending_combined_gates
+          dependency_acceptance: pending_current_text_and_external_baseline
+          recovered_candidate_sha: c36ca934dfe866711f7cc44d1c6f19ca40fd834c
+          recovered_candidate_tree: 3d61c13bd685e17e80ef451b8fd7edecb51ed095
+          recovered_source_sha: 2f230bf5b0131e8ca7fec83884d14f00a55c3c57
+          source_review: approved
+          publication: not_run
+          recovered_native_cases: 15
+          recovered_other_focused_cases: 389
+          real_s3_cases_skipped: 8
+          real_postgresql_cases: not_run
+          recovery_note: >-
+            Full foundation and approved guard were recovered from saved patches
+            and exact SHA256 manifests. Missing final 2f006b9c is not reconstructed
+            or reused as acceptance. R008-1 through R008-4 were repaired anew,
+            including native cancellation, one bounded GET buffer, transfer permits
+            through native response terminals, typed413 before EOF and the original
+            30s input deadline. Independent review confirms 71 cases, eight explicit
+            real S3 skips and exact temporary-file absence after the test process.
+            Seven selected embedded SQL/ACL cases pass independently. Controlled
+            dependency convergence and actual PostgreSQL/S3 CI remain mandatory.
           preserved_wip_sha: 9f0a2be498627972b17aacb58760e2384e459d65
           preserved_wip_tree: b90d992ddb1122d7b252f03e1bdbb05d4e80a516
           wip_author_reported_cases: 212
@@ -246,7 +285,7 @@ parallel_lanes:
               The original per-session budget key and all numeric limits remain
               unchanged. HTTP probes use actual compiled Fastify hooks and isolated
               PGlite; final real PostgreSQL and combined CI remain required.
-          reserved_migration: migrations/0228_ai_private_attachments.sql
+          reserved_migration: migrations/0229_ai_private_attachments.sql
           integration_after: [AI-STUDENT-ACCESS-003, AI-TEXT-COMPLETE-005]
           selected_scope:
             - apps/api/src/ai-attachments/**
@@ -257,7 +296,7 @@ parallel_lanes:
             - apps/api/src/tokens.ts
             - apps/api/src/account-verification.guard.ts
             - apps/api/src/account-verification.guard.spec.ts
-            - migrations/0228_ai_private_attachments.sql
+            - migrations/0229_ai_private_attachments.sql
             - tests/ai-attachments/**
             - tests/admin/ai-attachments.embedded.spec.ts
             - tests/admin/ai-attachments.pg.spec.ts
@@ -266,6 +305,12 @@ parallel_lanes:
             - docs/agent/surfaces/ai-assistant.yaml
             - docs/testing/test-catalog.yaml
             - docs/product/ASA_AI_ASSISTANT_SPEC.md
+          migration_convergence: >-
+            Recovered isolated source still uses historical 0228. During one
+            controlled convergence onto the reviewed current text candidate, rename
+            only this unpublished AI attachment migration to reserved 0229 and
+            update references. Preserve immutable published Auth0225 and text
+            migrations 0226 through 0228; do not rewrite applied migrations.
           selection: >-
             Prepare an independently reviewed backend boundary for Account and Seat
             attachments using the existing ASA object-storage configuration and a
@@ -301,7 +346,7 @@ parallel_lanes:
             call or working-installation data action is part of this slice.
         - id: AI-IDENTITY-FOCUSED-CI-010
           scope: collect the accepted identity guard regressions in the AI focused gate
-          status: selected
+          status: implemented_source_reviewed_exact_ci_pending
           selected_scope:
             - package.json
             - .github/workflows/ai-chat-focused.yml
@@ -319,6 +364,41 @@ parallel_lanes:
             AI unit execution; final combined CI must execute these regressions.
             Private attachment storage CI is registered separately when its frozen
             test entrypoints exist. No workflow guard or semantic contract is weakened.
+        - id: AI-ATTACHMENTS-FOCUSED-CI-011
+          scope: register frozen attachment tests and mandatory disposable S3 job
+          status: selected
+          selected_at: '2026-10-20T11:50:00Z'
+          frozen_foundation_source: c36ca934dfe866711f7cc44d1c6f19ca40fd834c
+          selected_scope:
+            - package.json
+            - .github/workflows/ai-chat-focused.yml
+          selection: >-
+            Add the frozen nested attachment unit/native HTTP and embedded SQL
+            entrypoints to the focused AI command, retaining every existing
+            identity/text suite and mathematical-rendering dependency. Extend exact
+            workflow triggers and formatting coverage for apps/api/src/ai-attachments
+            and tests/ai-attachments. Preserve the real PostgreSQL job and its
+            ai-*.pg.spec.ts selection, which must execute all 23 frozen attachment
+            ownership/quota/binding cases after convergence. Add a mandatory real
+            S3 job with ASA_AI_ATTACHMENTS_STORAGE_TEST=1 and only the fixture's
+            exact synthetic loopback settings. Build existing pinned
+            infra/minio/Dockerfile, start tests/ai-attachments/minio-fixture.mjs,
+            run all eight real storage cases with pure guards, and stop the verified
+            owned fixture in always-run cleanup. Missing or invalid explicit
+            configuration must fail.
+          coordination: >-
+            Tooling-only work uses frozen entrypoints. Do not alter foundation
+            product/tests, shared workflows, Compose, pinned Dockerfiles, ports,
+            credentials, guard semantics, budgets, assertions or test timeouts.
+            Preserve general launcher009 and identity companion010. Assign an
+            isolated author and independent exact-source review. No working-
+            installation or paid provider operation is part of this selection.
+          acceptance: >-
+            Require workflow/package formatting, retained test collection and
+            independent tooling review. Final combined exact SHA must pass all four
+            AI jobs: unit/types, browser, real PostgreSQL and real S3. Explicit S3
+            skips in ordinary unit runs are not live storage evidence. Accepted text
+            dependencies and normal General remain required before integration.
       integration_dependencies:
         - id: AI-BASELINE-LEARNING-006
           status: technical_accepted
@@ -391,13 +471,21 @@ parallel_lanes:
             missing identity, revoked sessions, no Account fallback and zero identity
             writes from AI reads across the complete browser/API request chain.
         - id: AI-BASELINE-GENERAL-009
-          status: in_progress
+          status: technical_accepted
           classification: C
           source_pr: 643
-          candidate_sha: 4da9cf1c63678e20116b202d5d5b280eac56ccf6
-          candidate_tree: 8b20a91c9b82010a281ca7f11d8e44e89cdb2d84
-          independent_review: repair_required
-          exact_head_general_run: 39261737090
+          candidate_sha: 632691d7215a41b0141df0c8a3d57c7ccac44462
+          integrated_sha: 47524e08f14a1c7c6c11b213063103e652a32c3d
+          independent_review: approved
+          independent_source_review: 5574033961
+          independent_actual_review: 5574134455
+          exact_head_general_run: 39274158221
+          closure_result: >-
+            Existing PR643 is already merged. Final candidate passes all four
+            General jobs with 4818 Data cases and 34 explicit skips, 220 migrations,
+            all 22 real Access journeys and 418 settings cases. The required
+            artifact-path repair is accepted; failed launcher source below is
+            historical evidence and no longer a pending task.
           fixture_repair:
             frozen_author_sha: a57fa6f48613b6c821b4a69ee30252075d6fb8db
             published_commit: 28034d46f53bdd5b6cb6c472d9b40d95329a42c0
@@ -456,6 +544,25 @@ parallel_lanes:
             real browser runs and General success. Do not silently repair this C
             baseline inside the 003, 004 or 005 product candidate. Accepted Learning
             006 and the earlier classroom-owner UUID fixture remain intact.
+        - id: PORTAL-PARTICIPANTS-PG-TIMING-DIAG-001
+          status: waiting_existing_owner_diagnostic
+          classification: C
+          issue: 452
+          owner_lane: portal-pg-diagnostic
+          task_card: docs/execution/PORTAL_PARTICIPANTS_PG_TIMING_DIAGNOSTIC.md
+          baseline_sha: 59c2e74b62bbb8ba6f7dd1d5126ab507eabe8d1e
+          evidence_run: 39414569366
+          evidence_job: 118603010178
+          evidence: >-
+            Main General completes Governance, Code and Access successfully but
+            Data reports 5411 passed, 4 failed and 34 skipped. Four unchanged
+            classroom-participants cases exceed 5000ms, also on predecessor16cbed5.
+            AI text does not modify their test/SQL paths. Actual SQL, pool-wait or
+            late-completion cause is unresolved; infrastructure failure is not
+            proved. Existing Portal owner and selected two-case passive timing
+            probe retain this task. Do not assign a competing AI repair or weaken
+            timeouts/assertions. Unaffected AI implementation/review may continue;
+            integration/release remain gated by the actual General result.
       dependency_sequence:
         - text_convergence_and_focused_ci
         - teacher_controlled_student_admission
@@ -477,29 +584,25 @@ parallel_lanes:
       live_provider_verification: not_run
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 896d1c6ba23e119784c7ef63351d97a43be1ede2
+      convergence_baseline_sha: 59c2e74b62bbb8ba6f7dd1d5126ab507eabe8d1e
       head_sha: null
-      observed_at: '2026-10-19T13:52:43Z'
+      observed_at: '2026-10-20T11:50:00Z'
       main:
         branch: main
-        sha: 77ee7358124e0ba1f648ef9ed7e52d110cc039f4
+        sha: 59c2e74b62bbb8ba6f7dd1d5126ab507eabe8d1e
       observation_note: >-
-        PR623, PR631 and the separately reviewed Learning compatibility PR636 are
-        integrated after their required exact-candidate gates. School access 003,
-        model configuration 004 and combined text 005 have independent approval;
-        combined PR642 passes its focused gate but General exposes a composed
-        classroom-response defect. Its bounded four-file repair and the separate
-        three-file mutation proof repair now have independent approval. The private
-        attachment author resumes the same preserved WIP with the approved guard;
-        integration still awaits accepted dependencies and complete storage tests.
-        Separate baseline PR643 preserves all cases and has fixture approval, but
-        its launcher publication changes a required artifact path and needs the
-        selected narrow B repair before final General acceptance. Select the small
-        guard CI companion so the combined gate actually collects those tests.
-        Fresh main adds only unrelated Projects/Electronics governance. Preserve
-        all concurrent work. Fetch main again and inspect actual exact-SHA CI
-        before integration.
-        No deployment, working DB action or live paid provider call ran.
+        Recovery continued the existing AI programme and PR642 without force-push.
+        Published2a8cca has independent source approval after first-send lifecycle
+        and classroom fixture repairs; exact focused/general CI is pending. Text
+        includes003/004 ancestry, response/identity repairs and current Auth baseline.
+        Preserve Auth0225; new text migrations occupy0226 through0228. Baseline009
+        PR643 is accepted and merged. Main has a separately owned Portal PG timeout
+        blocker with unresolved cause. Recovered attachment c36ca has independent
+        source approval and fresh native stream/cleanup evidence; controlled
+        dependency convergence and real PostgreSQL/S3 remain pending. Select
+        tooling011 for frozen entrypoints and reserve attachment0229. No deployment,
+        working DB action or live paid provider call ran. Fetch main again and
+        inspect actual exact-SHA CI before further writes or integration.
     execution_lease:
       executor_id: chatgpt-ai-programme-controller
       holder: unassigned
