@@ -411,8 +411,9 @@ parallel_lanes:
         selection: >-
           Add one meaningful real PostgreSQL regression for the last supported installed prefix through 0225 upgrading
           atomically to all nine AI 0226-0229, Courses 0230-0232, Portal 0233 and Public Projects 0234 migrations.
-          Current main 13ab3635587a201bc2cc78e88b9a9f66fce72102 already contains published 0234 source while 0226-0233
-          are absent; this source state is not an installed database receipt. Reuse existing isolated test database
+          Historical main migration-frontier snapshot 13ab3635587a201bc2cc78e88b9a9f66fce72102 already contained
+          published 0234 source while 0226-0233 were absent; this recorded source state is not an installed database
+          receipt. Reuse existing isolated test database
           creation, cluster-wide role coordination helper and strict applyPlan; preserve every published SQL blob
           including 0234, runner, existing suites and budgets. Seed existing Account/Seat, AI history/quota, Course and
           Project data through actual old contracts, then prove preservation, appropriate new defaults/ownership and
@@ -746,8 +747,9 @@ parallel_lanes:
           authorization coverage stays mandatory. No diagnostic instrumentation, retries, cancellation, timeout increases
           or assertion weakening.
         migration_coordination: >-
-          Fresh main 13ab3635587a201bc2cc78e88b9a9f66fce72102 includes the owner-authorized early source merge of Public
-          Projects PR #613 and published 0234_public_projects.sql; 0226-0233 remain absent. The last supported installed
+          Historical main migration-frontier snapshot 13ab3635587a201bc2cc78e88b9a9f66fce72102 records the owner-authorized
+          early source merge of Public Projects PR #613 and published 0234_public_projects.sql; 0226-0233 were absent.
+          The last supported installed
           prefix for this upgrade is through 0225, not a statement of the actual installed database state, which was not
           checked. Complete the reviewed source union with AI 0226-0229, Courses 0230-0232 and Portal 0233 while
           preserving all current main changes and published SQL including 0234, after a fresh frontier check before
@@ -860,9 +862,10 @@ parallel_lanes:
         not merge into main or be installed independently. Require the baseline validation candidate's repaired full
         General and NEW independent actual acceptance BEFORE its accepted sources are composed into the final joint
         candidate. Source-only or probe approval does not satisfy that prerequisite. The owner on 2026-10-20 approved
-        the existing Courses design and ordinary main integration of PR #657 plus separate credential PR #653. Current
-        main 13ab3635587a201bc2cc78e88b9a9f66fce72102 already includes the separately owner-authorized early Public
-        Projects source merge and published 0234 while 0226-0233 are absent. Preserve that actual main source history;
+        the existing Courses design and ordinary main integration of PR #657 plus separate credential PR #653. Historical
+        main migration-frontier snapshot 13ab3635587a201bc2cc78e88b9a9f66fce72102 already included the separately
+        owner-authorized early Public Projects source merge and published 0234 while 0226-0233 were absent. Preserve that
+        published main source history;
         its merge message records no database action/deployment and no release acceptance, not an observed
         installed-state assertion. Coordinate the accepted exact inputs with the AI candidate through ordinary ancestry
         into ONE reviewed complete source tree for the last supported installed prefix through 0225 to upgrade
@@ -884,8 +887,9 @@ parallel_lanes:
         preserved_source_review: Exact source union and cross-module semantics approved; no product or SQL blob defect
           identified.
         selected_resolution: >-
-          Preserve current main13ab early source publication of Public Projects 0234 and complete the accepted source
-          union. The supported installed upgrade is atomic from prefix through 0225 to all nine AI 0226-0229, Courses
+          Preserve the early source publication of Public Projects 0234 recorded in historical main snapshot 13ab and
+          complete the accepted source union.
+          The supported installed upgrade is atomic from prefix through 0225 to all nine AI 0226-0229, Courses
           0230-0232, Portal 0233 and Public Projects 0234 migrations, preserving all published SQL bytes. No source
           history erasure, runner waiver, renumber, rollback or claim about the actual installed prefix.
         supported_history_checks: >-
@@ -6279,8 +6283,9 @@ parallel_lanes:
           dependencies, and record design approval. Reuse the usable assignment list; no unrelated full UI rewrite
           is a prerequisite.
         migration_strategy: >-
-          Complete the reviewed source union on current main13ab, which already contains published Public Projects 0234
-          while 0226-0233 are absent. The last supported installed prefix through 0225 must upgrade atomically through
+          Complete the reviewed source union on current main. Historical migration-frontier snapshot 13ab already
+          contained published Public Projects 0234 while 0226-0233 were absent.
+          The last supported installed prefix through 0225 must upgrade atomically through
           all nine AI 0226-0229, Courses 0230-0232, Portal 0233 and Public Projects 0234 migrations. Preserve all
           published SQL blobs including 0234 and the strict runner. Unsupported applied234-only, applied233-only and
           Courses-first histories must reject before SQL. The actual installed database prefix is not verified; no
