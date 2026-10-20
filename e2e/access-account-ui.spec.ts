@@ -2411,7 +2411,7 @@ for (const width of [
       exact: true,
       includeHidden: true,
     });
-    await expect(sidebar.locator('a[href="/#/gallery"], a[href="/#/knowledge"]')).toHaveCount(2);
+    await expect(sidebar.locator('a[href="/#/explore"], a[href="/#/knowledge"]')).toHaveCount(2);
     await expect(
       sidebar.getByRole('link', { name: 'Мои проекты', exact: true, includeHidden: true }),
     ).toHaveCount(1);
@@ -2599,10 +2599,18 @@ for (const width of [1440, 1024, 1023, 821, 390, 320])
   }) => {
     const state = await fixture(page);
     await page.setViewportSize({ width, height: 900 });
+    // The retired Gallery address redirects to the canonical public catalogue.
+    await page.goto('/#/gallery');
+    await expect(page).toHaveURL(/#\/explore$/);
+    await expect(page.locator('.portal-global-nav [aria-current="page"]')).toHaveAttribute(
+      'href',
+      '/#/explore',
+    );
+    await expect(page.getByTestId('public-projects-empty')).toBeVisible();
     for (const hash of [
       'home',
       'projects',
-      'gallery',
+      'explore',
       'knowledge',
       'learning',
       'help',
@@ -2612,8 +2620,8 @@ for (const width of [1440, 1024, 1023, 821, 390, 320])
       await expect(page.getByLabel('Разделы ASA Lab').getByRole('link')).toHaveCount(3);
       await assertShellGeometry(page, width);
       const active = page.locator('.portal-global-nav [aria-current="page"]');
-      await expect(active).toHaveCount(['gallery', 'knowledge'].includes(hash) ? 1 : 0);
-      if (['gallery', 'knowledge'].includes(hash)) {
+      await expect(active).toHaveCount(['explore', 'knowledge'].includes(hash) ? 1 : 0);
+      if (['explore', 'knowledge'].includes(hash)) {
         await expect(active).toHaveAttribute('href', `/#/${hash}`);
         await expect(page.locator('.portal-nav > a[aria-current="page"]')).toHaveCount(0);
         await expect(page.locator('.portal-mobile-public a[aria-current="page"]')).toHaveAttribute(
@@ -2625,7 +2633,7 @@ for (const width of [1440, 1024, 1023, 821, 390, 320])
     const projects = page
       .getByLabel('Разделы ASA Lab')
       .getByRole('link', { name: 'Проекты', exact: true });
-    await expect(projects).toHaveAttribute('href', '/#/gallery');
+    await expect(projects).toHaveAttribute('href', '/#/explore');
     await page.getByLabel('Отображаемое имя').fill('Несохранённый профиль');
     // A modified click follows the native destination; it must not dispatch a
     // guarded same-tab navigation or discard this tab's profile draft.
@@ -2637,8 +2645,8 @@ for (const width of [1440, 1024, 1023, 821, 390, 320])
     expect(prevented).toBe(false);
     await expect(page).toHaveURL(/#\/account$/);
     await expect(page.getByRole('dialog', { name: 'Несохранённые изменения' })).toHaveCount(0);
-    for (const hash of ['gallery', 'knowledge', 'help']) {
-      if (hash !== 'gallery') {
+    for (const hash of ['explore', 'knowledge', 'help']) {
+      if (hash !== 'explore') {
         await page.goto('/#/account');
         await page.getByLabel('Отображаемое имя').fill('Несохранённый профиль');
       }
@@ -2670,7 +2678,7 @@ for (const width of [1440, 1024, 1023, 821, 390, 320])
       .click();
     await expect(page).toHaveURL(/#\/knowledge$/);
     await traverse(page, 'back');
-    await expect(page).toHaveURL(/#\/gallery$/);
+    await expect(page).toHaveURL(/#\/explore$/);
     await traverse(page, 'forward');
     await expect(page).toHaveURL(/#\/knowledge$/);
     expect(state.mutations).not.toContain('/api/account/profile');
@@ -4557,12 +4565,14 @@ for (const actor of ['account', 'seat', 'teacher', 'author', 'admin'] as const) 
     page.on('request', (request) => requests.push(new URL(request.url()).pathname.slice(1)));
     await page.goto('/#/home');
     await expect(page.getByRole('main', { name: 'Главная', exact: true })).toBeVisible();
-    for (const route of ['projects', 'gallery', 'knowledge', 'learning', 'help', 'account']) {
+    for (const route of ['projects', 'explore', 'knowledge', 'learning', 'help', 'account']) {
       await page.evaluate((hash) => {
         window.location.hash = hash;
       }, `/${route}`);
       await expect(page.locator('main').first()).toBeVisible();
       await expect(page.locator('main[aria-busy="true"]')).toHaveCount(0);
+      if (route === 'explore')
+        await expect(page.getByTestId('public-projects-empty')).toBeVisible();
     }
     for (const file of [
       ...editorFiles,

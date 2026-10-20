@@ -1999,40 +1999,476 @@ test.describe('asset recovery in the built editor', () => {
 
   test('a failed catalog owner image recovers without placing or saving a component', async ({
     page,
-  }) => {
-    await page.setViewportSize({ width: 1440, height: 1000 });
-    const asset = catalogEntry('battery-holder-aa-2')!.asset;
-    let failures = 0;
-    await page.route(
-      (url) => url.pathname === asset,
-      async (route) => {
-        const url = new URL(route.request().url());
-        if (
-          route.request().resourceType() === 'image' &&
-          !url.searchParams.has('asa-image-retry')
-        ) {
-          failures += 1;
-          await route.fulfill({ status: 404, body: 'temporarily unavailable' });
-        } else await route.continue();
-      },
-    );
-    const empty: SchematicDocument = {
-      schemaVersion: 4,
-      components: [],
-      connections: [],
-      viewport: { x: 0, y: 0, zoom: 1 },
-      simulation: { running: false, maxIterations: 24 },
+  }, info) => {
+    const assetPath = catalogEntry('battery-holder-aa-2')!.asset;
+    const rawPath = info.outputPath('ordinary-image-recovery-native.jsonl');
+    const retentionErrors: string[] = [];
+    let dropped = 0;
+    let retained = 0;
+    let primary: unknown;
+    let hasPrimary = false;
+    let editorSnapshot: (() => unknown) | undefined;
+    let browserSnapshot: unknown;
+    const errorText = (error: unknown) =>
+      error instanceof Error ? (error.stack ?? error.message) : String(error);
+    writeFileSync(rawPath, '', 'utf8');
+    const retain = (kind: string, data: unknown) => {
+      if (retained++ >= 10000) {
+        dropped++;
+        return;
+      }
+      try {
+        appendFileSync(rawPath, `${JSON.stringify({ kind, nodeAt: Date.now(), data })}\n`, 'utf8');
+      } catch (error) {
+        retentionErrors.push(errorText(error));
+      }
     };
-    const { readDocument, requests, errors } = await openEditor(page, empty);
-    const card = page.locator('.workbench-catalog-card[data-family-id="battery-holder-aa"]');
-    await card.scrollIntoViewIfNeeded();
-    await expect(card.locator('image')).toHaveAttribute('href', /asa-image-retry=0/, {
-      timeout: 10_000,
+    retain('start', {
+      asset: assetPath,
+      limitations: {
+        ReactHandlerAndPrivateCache: 'UNKNOWN',
+        parserCloneOtherRealmBeforeObservation: 'NOT_OBSERVED',
+        mutationTime: 'observer delivery',
+        creationFunctionIdentity: 'CHANGED',
+        timingInterference: 'UNKNOWN_NONZERO',
+        transport: 'microtask batch outside native callbacks',
+      },
     });
-    expect(failures).toBeGreaterThanOrEqual(1);
-    expect(readDocument()).toEqual(empty);
-    expect(requests).toHaveLength(0);
-    expect(errors).toEqual([]);
+    const requestIds = new WeakMap<Request, number>();
+    let nextRequest = 0;
+    const relevantRequest = (request: Request) => new URL(request.url()).pathname === assetPath;
+    const onRequest = (request: Request) => {
+      if (!relevantRequest(request)) return;
+      const id = ++nextRequest;
+      requestIds.set(request, id);
+      retain('request', {
+        id,
+        url: request.url(),
+        resource: request.resourceType(),
+        method: request.method(),
+      });
+    };
+    const onResponse = (response: import('@playwright/test').Response) => {
+      if (relevantRequest(response.request()))
+        retain('response', {
+          id: requestIds.get(response.request()) ?? 'UNKNOWN',
+          url: response.url(),
+          status: response.status(),
+        });
+    };
+    const onFinished = (request: Request) => {
+      if (relevantRequest(request))
+        retain('requestfinished', {
+          id: requestIds.get(request) ?? 'UNKNOWN',
+          timing: request.timing(),
+        });
+    };
+    const onFailed = (request: Request) => {
+      if (relevantRequest(request))
+        retain('requestfailed', {
+          id: requestIds.get(request) ?? 'UNKNOWN',
+          failure: request.failure(),
+          timing: request.timing(),
+        });
+    };
+    page.on('request', onRequest);
+    page.on('response', onResponse);
+    page.on('requestfinished', onFinished);
+    page.on('requestfailed', onFailed);
+    try {
+      await page.exposeBinding('__recoveryNativeBatch', (_, batch: unknown) =>
+        retain('browser-batch', batch),
+      );
+      await page.addInitScript((asset: string) => {
+        const apply = Reflect.apply;
+        const ids = new WeakMap<Node, number>();
+        const eventIds = new WeakMap<Event, number>();
+        const lastRoots = new WeakMap<Element, Element>();
+        const listening = new WeakSet<Element>();
+        let nextId = 0,
+          nextEventId = 0,
+          sequence = 0,
+          dropped = 0,
+          sent = 0;
+        const entries: unknown[] = [];
+        const deliveryErrors: string[] = [];
+        const installationErrors: string[] = [];
+        let pending = false;
+        const id = (node: Node) => {
+          let value = ids.get(node);
+          if (!value) {
+            value = ++nextId;
+            ids.set(node, value);
+          }
+          return value;
+        };
+        const href = (node: Element) =>
+          node.getAttribute('href') ?? node.getAttributeNS('http://www.w3.org/1999/xlink', 'href');
+        const relevant = (node: Element) => {
+          if (node.namespaceURI !== 'http://www.w3.org/2000/svg' || node.localName !== 'image')
+            return false;
+          try {
+            const value = href(node);
+            return !!value && new URL(value, document.baseURI).pathname === asset;
+          } catch {
+            return false;
+          }
+        };
+        // Native callbacks only retain small immutable data. Binding/serialization
+        // runs in a separate microtask; its timing interference remains unknown.
+        const flush = () => {
+          if (pending || sent === entries.length) return;
+          pending = true;
+          queueMicrotask(() => {
+            const end = entries.length;
+            const batch = entries.slice(sent, end);
+            try {
+              const sink = (
+                window as unknown as { __recoveryNativeBatch: (batch: unknown) => Promise<void> }
+              ).__recoveryNativeBatch;
+              void sink(batch).then(
+                () => {
+                  sent = end;
+                  pending = false;
+                  flush();
+                },
+                (error) => {
+                  deliveryErrors.push(String(error));
+                  pending = false;
+                },
+              );
+            } catch (error) {
+              deliveryErrors.push(String(error));
+              pending = false;
+            }
+          });
+        };
+        const emit = (kind: string, data: unknown) => {
+          if (entries.length >= 5000) {
+            dropped++;
+            return;
+          }
+          entries.push({ sequence: ++sequence, at: performance.now(), kind, data });
+          flush();
+        };
+        const rootOf = (node: Element) => {
+          const root =
+            node.closest('.workbench-catalog-card, [data-component-id], .workbench-stage') ??
+            lastRoots.get(node);
+          if (root) lastRoots.set(node, root);
+          return root;
+        };
+        const state = (node: Element) => {
+          const root = rootOf(node);
+          return {
+            imageId: id(node),
+            connected: node.isConnected,
+            href: href(node),
+            root: root
+              ? {
+                  id: id(root),
+                  connected: root.isConnected,
+                  kind: root.matches('.workbench-catalog-card') ? 'catalog' : 'stage',
+                  family: root.getAttribute('data-family-id'),
+                  component: root.getAttribute('data-component-id'),
+                  failed: !!root.querySelector('[data-owner-image-status="failed"]'),
+                  badges: [...root.querySelectorAll('[role="status"]')].map((badge) => ({
+                    id: id(badge),
+                    label: badge.getAttribute('aria-label'),
+                    text: badge.textContent,
+                  })),
+                }
+              : 'UNKNOWN',
+          };
+        };
+        const native = (delivery: string, event: Event) => {
+          const node = event.target;
+          if (!(node instanceof Element) || !relevant(node)) return;
+          let eventId = eventIds.get(event);
+          if (!eventId) {
+            eventId = ++nextEventId;
+            eventIds.set(event, eventId);
+          }
+          const root = rootOf(node);
+          emit('native', {
+            eventId,
+            delivery,
+            phase: event.eventPhase,
+            type: event.type,
+            trusted: event.isTrusted,
+            imageId: id(node),
+            connected: node.isConnected,
+            href: href(node),
+            rootId: root ? id(root) : 'UNKNOWN',
+          });
+        };
+        const attach = (node: Element) => {
+          if (listening.has(node)) return;
+          node.addEventListener('error', (event) => native('direct', event), { passive: true });
+          node.addEventListener('load', (event) => native('direct', event), { passive: true });
+          listening.add(node);
+        };
+        const descriptor = Object.getOwnPropertyDescriptor(Document.prototype, 'createElementNS');
+        const original = descriptor?.value as Document['createElementNS'] | undefined;
+        let wrapper: Document['createElementNS'] | undefined;
+        let installationCount = 0;
+        try {
+          if (!descriptor || typeof original !== 'function')
+            throw new Error('Original createElementNS descriptor unavailable');
+          wrapper = function (this: Document, ...args: Parameters<Document['createElementNS']>) {
+            // Never catch the original call: original receiver/args/return/throw
+            // propagate unchanged. Only observer failures are isolated.
+            const result = apply(original, this, args) as Element;
+            try {
+              if (
+                result.namespaceURI === 'http://www.w3.org/2000/svg' &&
+                result.localName === 'image'
+              ) {
+                attach(result);
+                emit('creation-image', {
+                  imageId: id(result),
+                  connected: result.isConnected,
+                  hrefBeforeCaller: href(result),
+                });
+              }
+            } catch (error) {
+              installationErrors.push(`attach: ${String(error)}`);
+            }
+            return result;
+          } as Document['createElementNS'];
+          Object.defineProperty(Document.prototype, 'createElementNS', {
+            ...descriptor,
+            value: wrapper,
+          });
+          installationCount++;
+        } catch (error) {
+          installationErrors.push(String(error));
+        }
+        emit('creation-install', {
+          installationCount,
+          replacementCount: installationCount,
+          originalFunctionId: 'captured-original-1',
+          wrapperFunctionId: 'observer-wrapper-2',
+          sameFunction: original === wrapper,
+          originalName: original?.name,
+          originalLength: original?.length,
+          wrapperName: wrapper?.name,
+          wrapperLength: wrapper?.length,
+          installed: Document.prototype.createElementNS === wrapper,
+          descriptor: descriptor
+            ? {
+                configurable: descriptor.configurable,
+                enumerable: descriptor.enumerable,
+                writable: descriptor.writable,
+              }
+            : 'NOT_AVAILABLE',
+          timingInterference: 'UNKNOWN_NONZERO',
+          errors: [...installationErrors],
+        });
+        document.addEventListener('error', (event) => native('document-capture', event), {
+          capture: true,
+          passive: true,
+        });
+        document.addEventListener('load', (event) => native('document-capture', event), {
+          capture: true,
+          passive: true,
+        });
+        const images = (node: Node): Element[] =>
+          node instanceof Element
+            ? [
+                ...(node.namespaceURI === 'http://www.w3.org/2000/svg' && node.localName === 'image'
+                  ? [node]
+                  : []),
+                ...[...node.querySelectorAll('image')].filter(
+                  (image) => image.namespaceURI === 'http://www.w3.org/2000/svg',
+                ),
+              ]
+            : [];
+        const observe = (image: Element, reason: string) => {
+          attach(image);
+          if (relevant(image)) emit(reason, state(image));
+        };
+        new MutationObserver((mutations) => {
+          try {
+            for (const mutation of mutations) {
+              if (mutation.type === 'childList') {
+                for (const node of mutation.addedNodes)
+                  for (const image of images(node)) observe(image, 'added-delivery');
+                for (const node of mutation.removedNodes)
+                  for (const image of images(node))
+                    if (relevant(image)) emit('removed-delivery', state(image));
+              }
+              const target =
+                mutation.target instanceof Element
+                  ? mutation.target
+                  : mutation.target.parentElement;
+              if (!target) continue;
+              if (relevant(target) && mutation.attributeName === 'href')
+                observe(target, 'href-delivery');
+              const root = rootOf(target);
+              const affected = relevant(target)
+                ? [target]
+                : root
+                  ? images(root).filter(relevant)
+                  : [];
+              for (const image of affected)
+                emit('mutation-delivery', {
+                  type: mutation.type,
+                  attribute: mutation.attributeName,
+                  oldValue: mutation.oldValue,
+                  targetId: id(target),
+                  state: state(image),
+                });
+            }
+          } catch (error) {
+            deliveryErrors.push(`mutation: ${String(error)}`);
+          }
+        }).observe(document, {
+          subtree: true,
+          childList: true,
+          attributes: true,
+          attributeOldValue: true,
+          attributeFilter: ['href', 'data-owner-image-status', 'role', 'aria-label'],
+        });
+        (
+          window as unknown as { __recoveryNativeSnapshot: () => unknown }
+        ).__recoveryNativeSnapshot = () => ({
+          entries,
+          sent,
+          pending,
+          dropped,
+          deliveryErrors,
+          installationErrors,
+          installationCount,
+          replacementDetected: Document.prototype.createElementNS !== wrapper,
+          current: [...document.querySelectorAll('image')].filter(relevant).map(state),
+          limitations: {
+            parserCloneOtherRealmBeforeObservation: 'NOT_OBSERVED',
+            ReactHandlerAndPrivateCache: 'UNKNOWN',
+            mutationTime: 'delivery',
+            timingInterference: 'UNKNOWN_NONZERO',
+          },
+        });
+      }, assetPath);
+      await page.setViewportSize({ width: 1440, height: 1000 });
+      const asset = catalogEntry('battery-holder-aa-2')!.asset;
+      let failures = 0;
+      await page.route(
+        (url) => url.pathname === asset,
+        async (route) => {
+          const url = new URL(route.request().url());
+          if (
+            route.request().resourceType() === 'image' &&
+            !url.searchParams.has('asa-image-retry')
+          ) {
+            failures += 1;
+            await route.fulfill({ status: 404, body: 'temporarily unavailable' });
+          } else await route.continue();
+        },
+      );
+      const empty: SchematicDocument = {
+        schemaVersion: 4,
+        components: [],
+        connections: [],
+        viewport: { x: 0, y: 0, zoom: 1 },
+        simulation: { running: false, maxIterations: 24 },
+      };
+      const { readDocument, requests, errors } = await openEditor(page, empty);
+      editorSnapshot = () => ({ initial: empty, current: readDocument(), requests, errors });
+      retain('editor-initial', editorSnapshot());
+      const card = page.locator('.workbench-catalog-card[data-family-id="battery-holder-aa"]');
+      await card.scrollIntoViewIfNeeded();
+      await expect(card.locator('image')).toHaveAttribute('href', /asa-image-retry=0/, {
+        timeout: 10_000,
+      });
+      expect(failures).toBeGreaterThanOrEqual(1);
+      expect(readDocument()).toEqual(empty);
+      expect(requests).toHaveLength(0);
+      expect(errors).toEqual([]);
+    } catch (error) {
+      hasPrimary = true;
+      primary = error;
+      retain('primary-error', errorText(error));
+    } finally {
+      // Durable Node originals precede all optional browser awaits, on PASS/FAIL.
+      try {
+        retain('editor-final', editorSnapshot?.() ?? 'NOT_AVAILABLE');
+      } catch (error) {
+        retentionErrors.push(`editor-final: ${errorText(error)}`);
+      }
+      retain('node-final', {
+        dropped,
+        retentionErrors,
+        primary: hasPrimary ? errorText(primary) : null,
+      });
+      const supplemental = async (kind: string, action: () => Promise<unknown>) => {
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        try {
+          const value = await Promise.race([
+            action(),
+            new Promise<never>((_, reject) => {
+              timer = setTimeout(
+                () => reject(new Error('Supplement NOT_AVAILABLE after bounded capture')),
+                1000,
+              );
+            }),
+          ]);
+          retain(kind, value);
+          return value;
+        } catch (error) {
+          retentionErrors.push(`${kind}: ${errorText(error)}`);
+          retain('secondary-error', { kind, error: errorText(error) });
+          return 'NOT_AVAILABLE';
+        } finally {
+          if (timer) clearTimeout(timer);
+        }
+      };
+      browserSnapshot = await supplemental('browser-final', () =>
+        page.evaluate(
+          () =>
+            (
+              window as unknown as { __recoveryNativeSnapshot?: () => unknown }
+            ).__recoveryNativeSnapshot?.() ?? 'NOT_AVAILABLE',
+        ),
+      );
+      await supplemental('native-png', async () => {
+        const path = info.outputPath('ordinary-image-recovery-native.png');
+        await page.screenshot({ path, timeout: 900 });
+        return path;
+      });
+      retain('final', { dropped, retentionErrors });
+      await supplemental('attachment', () =>
+        info.attach('ordinary-image-recovery-native', {
+          path: rawPath,
+          contentType: 'application/x-ndjson',
+        }),
+      );
+      page.off('request', onRequest);
+      page.off('response', onResponse);
+      page.off('requestfinished', onFinished);
+      page.off('requestfailed', onFailed);
+    }
+    const issues = browserSnapshot as {
+      dropped?: number;
+      deliveryErrors?: string[];
+      installationErrors?: string[];
+      installationCount?: number;
+      replacementDetected?: boolean;
+    };
+    if (hasPrimary) throw primary;
+    if (
+      dropped ||
+      retentionErrors.length ||
+      browserSnapshot === 'NOT_AVAILABLE' ||
+      issues.dropped ||
+      issues.deliveryErrors?.length ||
+      issues.installationErrors?.length ||
+      issues.installationCount !== 1 ||
+      issues.replacementDetected
+    )
+      throw new Error(
+        `Incomplete recovery observation: ${JSON.stringify({ dropped, retentionErrors, issues })}`,
+      );
   });
 
   test('ordinary image commit-gap error reaches stage and catalog before native delivery', async ({

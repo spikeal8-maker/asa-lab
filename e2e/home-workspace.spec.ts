@@ -239,7 +239,7 @@ test('ten-item shelves scroll on phones, public feed errors never hide personal 
   }
   await page.setViewportSize({ width: 390, height: 844 });
   await page.screenshot({ path: `${evidence}/mobile-filled.png`, fullPage: true });
-  await page.route('**/api/gallery?*', (route) =>
+  await page.route('**/api/public-projects?*', (route) =>
     route.fulfill({ status: 503, json: { error: { code: 'test_unavailable', message: 'Test' } } }),
   );
   await page.reload();

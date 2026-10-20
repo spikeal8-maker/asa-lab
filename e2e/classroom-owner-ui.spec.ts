@@ -762,7 +762,7 @@ test.describe('Mobile classroom navigation and restrictions', () => {
     expect((await header.boundingBox())!.height).toBe(56);
     const globalLinks = header.locator('.portal-global-nav a');
     const expectedLinks = [
-      ['Проекты', '/#/gallery'],
+      ['Проекты', '/#/explore'],
       ['Знания', '/#/knowledge'],
       ['ИИ', '/#/ai'],
     ] as const;
