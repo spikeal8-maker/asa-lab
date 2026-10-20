@@ -940,19 +940,9 @@ export class CoursesController {
         error('validation_error', 'Проверьте версию курса и аудиторию.'),
         400,
       );
-    const courseState = await this.requirePool().query(
-      'SELECT archived_at FROM course_library_list_v3($1) WHERE id=$2',
-      [context.principalId, courseId],
-    );
-    if (courseState.rows.length === 0) {
-      throw new HttpException(error('course_not_found', 'Курс не найден.'), 404);
-    }
-    if (courseState.rows[0]?.['archived_at'] !== null) {
-      throw new HttpException(
-        error('course_archived', 'Восстановите курс из архива перед назначением.'),
-        409,
-      );
-    }
+    // The assignment transaction owns authorization, exact replay and the
+    // course archive lock. A separate library read would race with archive
+    // and reject a lawful replay of an already completed assignment.
     const result = canonical
       ? await this.requirePool().query(
           timeZone === undefined
@@ -985,6 +975,15 @@ export class CoursesController {
       | undefined;
     if (!row || row.result_code === 'classroom_not_found') {
       throw new HttpException(error('classroom_not_found', 'Класс не найден.'), 404);
+    }
+    if (row.result_code === 'course_not_found') {
+      throw new HttpException(error('course_not_found', 'Курс не найден.'), 404);
+    }
+    if (row.result_code === 'course_archived') {
+      throw new HttpException(
+        error('course_archived', 'Восстановите курс из архива перед назначением.'),
+        409,
+      );
     }
     if (row.result_code === 'course_not_published') {
       throw new HttpException(error('course_not_published', 'Сначала опубликуйте курс.'), 409);

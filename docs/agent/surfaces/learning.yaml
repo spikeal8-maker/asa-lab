@@ -182,6 +182,26 @@ surfaces:
     commands:
     - course_save
     - course_publish
+  - id: CTRL-COURSE-ARCHIVE-ASSIGN
+    label: Archive or restore a course without racing with a new assignment
+    change_class: L3_CRITICAL
+    files:
+    - apps/api/src/courses.controller.ts
+    - apps/api/src/courses.controller.spec.ts
+    - migrations/0232_course_archive_assignment_atomicity.sql
+    - tests/courses/course-archive-assignment.pg.spec.ts
+    - e2e/learning-course-01.spec.ts
+    invariants:
+    - LRN-VER-001
+    - LRN-RUN-001
+    - LRN-AUTH-001
+    - LRN-LIFE-001
+    - LRN-RETRY-001
+    tests:
+    - TST-LRN-COURSE-E1-CORE-001
+    - TST-LRN-COURSE-E1-E2E-001
+    commands:
+    - course_assign
   - id: CTRL-AUTHOR-PREVIEW-AS-LEARNER
     label: Preview one exact authored activity as a learner without creating learner runtime state
     change_class: L3_CRITICAL

@@ -450,7 +450,7 @@ test('draft from historical Course and Activity versions uses the author UI, pro
   await editor.getByLabel('Название урока').fill('Unsaved input during outline refresh');
   releaseOutline();
 
-  await expect(page.getByText('Версия 4 уже актуальна.', { exact: true })).toBeVisible();
+  await expect(page.getByText('Публикация подтверждена: версия 4.', { exact: true })).toBeVisible();
   await expect(editor.getByRole('button', { name: /^Опубликовать/ })).toHaveCount(0);
   await expect(editor.getByLabel('Название урока')).toHaveValue(
     'Unsaved input during outline refresh',
@@ -1192,4 +1192,211 @@ test('course and section forms preserve later edits after real save receipts wit
   expect(await readCourses()).toHaveLength(1);
   expect(await readSections()).toHaveLength(initialSections.length + 1);
   expect(browserErrors).toEqual([]);
+});
+
+test('Course publication lost response replays the exact V1 after V2 and reload without duplicate versions', async ({
+  page,
+}) => {
+  test.setTimeout(90000);
+  const unique = crypto.randomUUID().replaceAll('-', '').slice(0, 18);
+  const title = 'Повтор публикации ' + unique;
+  const browserErrors: string[] = [];
+  page.on('pageerror', (error) => browserErrors.push(error.message));
+  await page.goto('/#/');
+  await page.getByRole('button', { name: 'Создать аккаунт', exact: true }).first().click();
+  await page.getByLabel('Email', { exact: true }).fill(unique + '@publish-replay.test');
+  await page.getByLabel('Имя пользователя', { exact: true }).fill('r' + unique);
+  await page.getByLabel('Отображаемое имя', { exact: true }).fill('Автор публикации');
+  await page.getByLabel('Дата рождения').fill('1990-04-12');
+  await page.getByLabel('Пароль', { exact: true }).fill('Strong-' + unique + '-Password');
+  await page.getByRole('checkbox', { name: 'Я не робот' }).press('Space');
+  await page.getByRole('button', { name: 'Создать аккаунт', exact: true }).click();
+  await expect(page.getByRole('main', { name: 'Главная', exact: true })).toBeVisible();
+  await page.goto('/#/account');
+  await page
+    .getByLabel('Разделы настроек')
+    .getByRole('button', { name: 'Материалы и классы', exact: true })
+    .click();
+  await page.getByRole('button', { name: 'Подключить авторство', exact: true }).click();
+  await page.goto('/#/challenges');
+  const courseTab = page
+    .getByRole('navigation', { name: 'Разделы курсов и заданий' })
+    .getByRole('button', { name: 'Курсы', exact: true });
+  await courseTab.click();
+  await page.getByRole('button', { name: 'Создать курс', exact: true }).click();
+  const form = page.getByRole('dialog', { name: 'Новый курс' });
+  await form.getByLabel('Название', { exact: true }).fill(title);
+  const creation = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'POST' && new URL(response.url()).pathname === '/api/courses',
+  );
+  await form.getByRole('button', { name: 'Создать курс', exact: true }).click();
+  const created = await creation;
+  expect(created.status()).toBe(201);
+  const courseId = ((await created.json()) as { id: string }).id;
+  const editor = page.getByTestId('course-editor');
+  await editor
+    .locator('.course-outline')
+    .getByRole('button', { name: '+ Урок', exact: true })
+    .click();
+  await editor.getByLabel('Название урока').fill('Первая версия урока');
+  await editor.getByLabel('Текст блока', { exact: true }).fill('Сохранённое содержание V1');
+  const saving = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'POST' &&
+      new URL(response.url()).pathname === '/api/courses/' + courseId + '/lessons',
+  );
+  await editor.getByRole('button', { name: 'Добавить урок', exact: true }).click();
+  const saved = await saving;
+  expect(saved.status()).toBe(201);
+  const lesson = (await saved.json()) as { id: string; draftRevision: number };
+  await expect(editor.getByText('Урок добавлен.', { exact: true })).toBeVisible();
+
+  type PublishRequest = { expectedRevision: number; requestId: string };
+  type Publication = {
+    versionId: string;
+    versionNumber: number;
+    publishedAt: string;
+    reused: boolean;
+  };
+  type Version = { id: string; versionNumber: number; publishedAt: string; outline: unknown };
+  const publishPath = '/api/courses/' + courseId + '/publish';
+  const versionsPath = '/api/courses/' + courseId + '/versions';
+  async function versions(): Promise<Version[]> {
+    const response = await page.request.get(versionsPath);
+    expect(response.ok()).toBe(true);
+    return ((await response.json()) as { items: Version[] }).items;
+  }
+  expect(await versions()).toEqual([]);
+  const requests: PublishRequest[] = [];
+  const receipts: Publication[] = [];
+  const publicationRoute = async (route: Route) => {
+    requests.push(route.request().postDataJSON() as PublishRequest);
+    // Execute the real mutation first. Only delivery of its first successful
+    // response is lost; no receipt, status or version is manufactured here.
+    const response = await route.fetch();
+    expect(response.status()).toBe(201);
+    receipts.push((await response.json()) as Publication);
+    if (requests.length === 1) {
+      await route.abort('failed');
+      return;
+    }
+    await route.fulfill({ response });
+  };
+  await page.route('**' + publishPath, publicationRoute);
+  const lost = page.waitForEvent(
+    'requestfailed',
+    (request) => new URL(request.url()).pathname === publishPath,
+  );
+  const publishButton = editor.getByRole('button', { name: 'Опубликовать', exact: true });
+  await publishButton.click();
+  await lost;
+  expect(receipts).toHaveLength(1);
+  const first = receipts[0]!;
+  expect(first).toMatchObject({ versionNumber: 1, reused: false });
+  expect(requests).toEqual([
+    {
+      expectedRevision: lesson.draftRevision,
+      requestId: 'course-publish:' + courseId + ':' + lesson.draftRevision,
+    },
+  ]);
+  await expect(editor.getByRole('alert')).toContainText('сервер недоступен');
+  await expect(publishButton).toBeEnabled();
+  const frozenV1 = await versions();
+  expect(frozenV1).toHaveLength(1);
+  expect(frozenV1[0]).toMatchObject({
+    id: first.versionId,
+    versionNumber: first.versionNumber,
+    publishedAt: first.publishedAt,
+  });
+
+  // Another writer uses the actual authenticated API while the first editor
+  // still holds its unconfirmed V1 request. This must never turn its retry into V3.
+  const outlineResponse = await page.request.get('/api/courses/' + courseId + '/outline');
+  expect(outlineResponse.ok()).toBe(true);
+  const current = (await outlineResponse.json()) as {
+    draftRevision: number;
+    sections: Array<{ id: string }>;
+  };
+  expect(current.draftRevision).toBeGreaterThan(lesson.draftRevision);
+  const origin = new URL(page.url()).origin;
+  const updated = await page.request.patch('/api/courses/' + courseId + '/lessons/' + lesson.id, {
+    headers: { origin },
+    data: {
+      sectionId: current.sections[0]!.id,
+      title: 'Вторая версия урока',
+      kind: 'material',
+      blocks: [{ id: 'publish-replay-text', type: 'paragraph', text: 'Новое содержание V2' }],
+      expectedRevision: current.draftRevision,
+    },
+  });
+  expect(updated.status()).toBe(200);
+  const laterRevision = ((await updated.json()) as { draftRevision: number }).draftRevision;
+  const secondResponse = await page.request.post(publishPath, {
+    headers: { origin },
+    data: { expectedRevision: laterRevision, requestId: 'fix05:other-window:' + unique },
+  });
+  expect(secondResponse.status()).toBe(201);
+  const second = (await secondResponse.json()) as Publication;
+  expect(second).toMatchObject({ versionNumber: 2, reused: false });
+  expect(second.versionId).not.toBe(first.versionId);
+  const beforeRetry = await versions();
+  expect(beforeRetry).toHaveLength(2);
+  expect(beforeRetry.find((version) => version.id === first.versionId)).toEqual(frozenV1[0]);
+  expect(requests).toHaveLength(1);
+
+  const retrying = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'POST' && new URL(response.url()).pathname === publishPath,
+  );
+  await publishButton.click();
+  const retried = await retrying;
+  expect(retried.status()).toBe(201);
+  expect(await retried.json()).toEqual({ ...first, reused: true });
+  expect(requests).toEqual([requests[0], requests[0]]);
+  expect(receipts).toEqual([first, { ...first, reused: true }]);
+  await expect(
+    editor.getByText('Публикация подтверждена: версия 1.', { exact: true }),
+  ).toBeVisible();
+  await page.unroute('**' + publishPath, publicationRoute);
+  await editor.getByRole('button', { name: 'Опубликованная версия', exact: true }).click();
+  const preview = editor.getByTestId('course-preview-page');
+  await expect(preview).toContainText('Опубликованная версия 1 · только чтение');
+  await expect(preview).toContainText('Первая версия урока');
+  await expect(preview).toContainText('Сохранённое содержание V1');
+  await expect(preview).not.toContainText('Новое содержание V2');
+  expect(await versions()).toEqual(beforeRetry);
+
+  const evidence = 'e2e/artifacts/learning/course-publication-replay';
+  mkdirSync(evidence, { recursive: true });
+  for (const [width, height] of [
+    [1440, 900],
+    [1024, 768],
+    [390, 844],
+    [320, 720],
+  ] as const) {
+    await page.setViewportSize({ width, height });
+    await expect(preview).toContainText('Сохранённое содержание V1');
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      ),
+    ).toBeLessThanOrEqual(0);
+    if (width === 1440 || width === 390)
+      await page.screenshot({ path: evidence + '/confirmed-v1-' + width + '.png', fullPage: true });
+  }
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.reload();
+  await courseTab.click();
+  const list = page.getByTestId('courses-list');
+  await expect(list.locator('li')).toHaveCount(1);
+  await list.locator('.course-row-main').filter({ hasText: title }).click();
+  await expect(editor.getByRole('button', { name: /^Опубликовать/ })).toHaveCount(0);
+  await editor.getByRole('button', { name: 'Опубликованная версия', exact: true }).click();
+  await expect(preview).toContainText('Опубликованная версия 2 · только чтение');
+  await expect(preview).toContainText('Новое содержание V2');
+  await expect(preview).not.toContainText('Сохранённое содержание V1');
+  expect(await versions()).toEqual(beforeRetry);
+  expect(browserErrors).toEqual([]);
+  await page.screenshot({ path: evidence + '/reloaded-v2.png', fullPage: true });
 });
