@@ -17,7 +17,7 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import type pg from 'pg';
 import type { ModuleRegistry } from '@asa-lab/module-sdk';
 import { isValidProjectTitle } from '@asa-lab/projects';
-import { copyPublicProject, publicProjectCopySupported } from './public-project-copy.js';
+import { copyPublicProject, readPublicCopyAdmission } from './public-project-copy.js';
 import type { ActiveContextUseCase } from '@asa-lab/identity';
 import { SESSION_COOKIE, TOKENS } from './tokens.js';
 import { STUDENT_SESSION_COOKIE } from './seat-context.js';
@@ -69,7 +69,7 @@ interface PublicProjectRow {
 }
 
 /** An explicit allowlist: never spread a database row into a public response. */
-function publicProject(row: PublicProjectRow) {
+function publicProject(row: PublicProjectRow, canCopy: boolean) {
   return {
     publicationId: row.publication_id,
     revisionId: row.revision_id,
@@ -96,7 +96,7 @@ function publicProject(row: PublicProjectRow) {
         : null,
     capabilities: {
       viewer: 'static' as const,
-      canCopy: publicProjectCopySupported(row.module_key, row.license),
+      canCopy,
       downloadFormats: [] as string[],
     },
   };
@@ -194,8 +194,10 @@ export class PublicProjectsController {
       'SELECT * FROM public_projects_read($1, $2, $3, $4, $5)',
       [null, query?.trim() || null, moduleKey ?? null, take + 1, skip],
     );
+    const page = result.rows.slice(0, take);
+    const admitted = await readPublicCopyAdmission(requirePool(this.pool), this.registry, page);
     return {
-      items: result.rows.slice(0, take).map(publicProject),
+      items: page.map((row) => publicProject(row, admitted.has(row.publication_id))),
       nextOffset: result.rows.length > take ? skip + take : null,
     };
   }
@@ -210,7 +212,8 @@ export class PublicProjectsController {
     );
     const row = result.rows[0];
     if (!row) throw publicationError('not_available', 'Публикация недоступна.', 404);
-    return { publication: publicProject(row) };
+    const admitted = await readPublicCopyAdmission(requirePool(this.pool), this.registry, [row]);
+    return { publication: publicProject(row, admitted.has(row.publication_id)) };
   }
 
   @Get(':publicationId/image')

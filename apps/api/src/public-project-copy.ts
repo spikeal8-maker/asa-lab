@@ -115,6 +115,51 @@ export function validatePublicCopyDocument(
   };
 }
 
+interface PublicCopyReference {
+  readonly publication_id: string;
+  readonly revision_id: string;
+  readonly module_key: string;
+  readonly license: string;
+}
+
+/** Internal document projection is consumed here and never attached to a public DTO. */
+export async function readPublicCopyAdmission(
+  pool: pg.Pool,
+  registry: ModuleRegistry,
+  publications: readonly PublicCopyReference[],
+): Promise<ReadonlySet<string>> {
+  const admitted = new Set<string>();
+  // One batch for the visible page only; do not fetch the pagination sentinel.
+  if (publications.length > 48) throw new Error('public copy admission page exceeds limit');
+  const candidates = publications.filter((row) =>
+    publicProjectCopySupported(row.module_key, row.license),
+  );
+  if (candidates.length === 0) return admitted;
+  const expected = new Map(candidates.map((row) => [row.publication_id, row]));
+  const result = await pool.query<PublicCopyReference & { document_json: unknown }>(
+    'SELECT * FROM public_project_copy_documents($1::uuid[],$2::uuid[])',
+    [candidates.map((row) => row.publication_id), candidates.map((row) => row.revision_id)],
+  );
+  for (const source of result.rows) {
+    const reference = expected.get(source.publication_id);
+    if (
+      !reference ||
+      reference.revision_id !== source.revision_id ||
+      reference.module_key !== source.module_key ||
+      reference.license !== source.license
+    )
+      continue;
+    try {
+      // Exactly the POST admission, including parser equality and portability.
+      validatePublicCopyDocument(registry, source.module_key, source.document_json);
+      admitted.add(source.publication_id);
+    } catch {
+      // A document/provider failure cannot advertise an unusable copy action.
+    }
+  }
+  return admitted;
+}
+
 interface CopySource {
   destination_tenant_id: string;
   destination_user_id: string | null;

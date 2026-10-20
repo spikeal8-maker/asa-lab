@@ -51,8 +51,10 @@ function request(cookies: Record<string, string> = {}): FastifyRequest {
   return { cookies } as unknown as FastifyRequest;
 }
 
-function setup(rows: unknown[] = [], signedIn = true) {
-  const query = vi.fn(async () => ({ rows }));
+function setup(rows: unknown[] = [], signedIn = true, copyDocuments: unknown[] = []) {
+  const query = vi.fn(async (sql: string) => ({
+    rows: sql.includes('public_project_copy_documents') ? copyDocuments : rows,
+  }));
   const resolve = vi.fn(async () =>
     signedIn ? { principalId: PRINCIPAL, accountId: 'private-account' } : null,
   );
@@ -85,7 +87,11 @@ describe('Public Projects anonymous projection', () => {
   it.each(['electronics', 'three-d'])(
     'advertises copy for public-domain %s only',
     async (moduleKey) => {
-      const { publicApi } = setup([{ ...row, module_key: moduleKey, license: 'public-domain' }]);
+      const document = createApiModuleRegistry().get(moduleKey)!.provider!.createEmptyProject();
+      const publication = { ...row, module_key: moduleKey, license: 'public-domain' };
+      const { publicApi } = setup([publication], true, [
+        { ...publication, document_json: document },
+      ]);
       const result = await publicApi.detail(PUBLICATION);
       expect(result.publication.capabilities).toEqual({
         viewer: 'static',
@@ -94,6 +100,115 @@ describe('Public Projects anonymous projection', () => {
       });
     },
   );
+  it.each(['detail', 'list'] as const)(
+    'refuses extension-bearing 3D copy admission in %s',
+    async (surface) => {
+      const document = createApiModuleRegistry().get('three-d')!.provider!.createEmptyProject();
+      const publication = { ...row, module_key: 'three-d', license: 'public-domain' };
+      const { publicApi } = setup([publication], true, [
+        {
+          ...publication,
+          document_json: { ...(document as object), assetId: 'private-asset' },
+        },
+      ]);
+      const result =
+        surface === 'detail'
+          ? (await publicApi.detail(PUBLICATION)).publication
+          : (await publicApi.list()).items[0];
+      expect(result?.capabilities.canCopy).toBe(false);
+      expect(JSON.stringify(result)).not.toContain('private-asset');
+    },
+  );
+
+  it('refuses legacy documents requiring parser normalization', async () => {
+    const publication = { ...row, license: 'public-domain' };
+    const { publicApi } = setup([publication], true, [
+      {
+        ...publication,
+        document_json: { schemaVersion: 1, components: [], connections: [] },
+      },
+    ]);
+    expect((await publicApi.detail(PUBLICATION)).publication.capabilities.canCopy).toBe(false);
+  });
+
+  it('fails closed when the exact document is missing, revoked or superseded between reads', async () => {
+    const publication = { ...row, license: 'public-domain' };
+    const { publicApi, query } = setup([publication], true, []);
+    expect((await publicApi.detail(PUBLICATION)).publication.capabilities.canCopy).toBe(false);
+    expect(query).toHaveBeenNthCalledWith(
+      2,
+      'SELECT * FROM public_project_copy_documents($1::uuid[],$2::uuid[])',
+      [[PUBLICATION], [REVISION]],
+    );
+    expect(query).not.toHaveBeenCalledWith(
+      expect.stringContaining('public_project_copy_source('),
+      expect.anything(),
+    );
+  });
+
+  it('never substitutes a successor revision returned by a reader', async () => {
+    const publication = { ...row, license: 'public-domain' };
+    const document = createApiModuleRegistry().get('electronics')!.provider!.createEmptyProject();
+    const { publicApi } = setup([publication], true, [
+      {
+        ...publication,
+        revision_id: PROJECT,
+        document_json: document,
+      },
+    ]);
+    expect((await publicApi.detail(PUBLICATION)).publication.capabilities.canCopy).toBe(false);
+  });
+
+  it('keeps raw documents and private IDs out of a successful copy capability DTO', async () => {
+    const publication = { ...row, license: 'public-domain' };
+    const document = createApiModuleRegistry().get('electronics')!.provider!.createEmptyProject();
+    const { publicApi } = setup([publication], true, [
+      {
+        ...publication,
+        document_json: document,
+        source_project_id: 'source-private-id',
+        tenant_id: 'source-private-tenant',
+      },
+    ]);
+    const result = await publicApi.detail(PUBLICATION);
+    expect(result.publication.capabilities.canCopy).toBe(true);
+    for (const secret of [
+      'document_json',
+      'schemaVersion',
+      'source-private-id',
+      'source-private-tenant',
+    ]) {
+      expect(JSON.stringify(result)).not.toContain(secret);
+    }
+  });
+
+  it('batches only the visible page and retains pagination with a supported sentinel', async () => {
+    const publications = Array.from({ length: 49 }, (_, index) => ({
+      ...row,
+      license: 'public-domain',
+      publication_id: `123e4567-e89b-42d3-a456-${String(index).padStart(12, '0')}`,
+    }));
+    const document = createApiModuleRegistry().get('electronics')!.provider!.createEmptyProject();
+    const { publicApi, query } = setup(
+      publications,
+      true,
+      publications.slice(0, 48).map((publication) => ({ ...publication, document_json: document })),
+    );
+    const result = await publicApi.list(undefined, undefined, '0', '48');
+    expect(result.items).toHaveLength(48);
+    expect(result.nextOffset).toBe(48);
+    expect(result.items.every((item) => item.capabilities.canCopy)).toBe(true);
+    expect(query).toHaveBeenCalledTimes(2);
+    expect(query).toHaveBeenNthCalledWith(
+      2,
+      'SELECT * FROM public_project_copy_documents($1::uuid[],$2::uuid[])',
+      [
+        publications.slice(0, 48).map((publication) => publication.publication_id),
+        Array.from({ length: 48 }, () => REVISION),
+      ],
+    );
+  });
+
   it('keeps the retired Gallery detail closed even if old storage could return a document', async () => {
     const query = vi.fn(async () => ({ rows: [{ document_json: { privateDraft: 'secret' } }] }));
     const legacy = new GalleryController(

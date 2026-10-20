@@ -103,3 +103,39 @@ END;
 $$;
 REVOKE ALL ON FUNCTION public.public_project_copy_source(uuid,uuid,uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.public_project_copy_source(uuid,uuid,uuid) TO asalab_app;
+
+-- Anonymous GET uses a bounded read-only projection, never the locking copy
+-- command. Bind every document to the metadata page's exact publication/revision.
+-- Missing, revoked and superseded entries return no row (capability false).
+CREATE FUNCTION public.public_project_copy_documents(
+    p_publications uuid[], p_revisions uuid[]
+)
+RETURNS TABLE (
+    publication_id uuid, revision_id uuid, module_key varchar, license varchar,
+    document_json jsonb
+)
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
+BEGIN
+    IF cardinality(p_publications) IS NULL OR cardinality(p_revisions) IS NULL
+       OR cardinality(p_publications) NOT BETWEEN 1 AND 48
+       OR cardinality(p_publications) <> cardinality(p_revisions) THEN
+        RETURN;
+    END IF;
+    RETURN QUERY
+    SELECT state.id, revision.id, revision.module_key, revision.license, version.document_json
+      FROM unnest(p_publications, p_revisions) AS requested(publication_id, revision_id)
+      JOIN public.project_publication_state state
+        ON state.id = requested.publication_id AND state.current_revision_id = requested.revision_id
+      JOIN public.project_publication_revisions revision
+        ON revision.id = state.current_revision_id AND revision.publication_id = state.id
+       AND revision.project_id = state.project_id AND revision.tenant_id = state.tenant_id
+      JOIN public.project_versions version
+        ON version.id = revision.project_version_id AND version.project_id = state.project_id
+       AND version.tenant_id = state.tenant_id
+     WHERE public.project_publication_readable(state.id)
+       AND revision.schema_version = 2 AND revision.license = 'public-domain'
+       AND revision.module_key IN ('three-d', 'electronics');
+END;
+$$;
+REVOKE ALL ON FUNCTION public.public_project_copy_documents(uuid[],uuid[]) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.public_project_copy_documents(uuid[],uuid[]) TO asalab_app;
