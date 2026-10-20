@@ -9049,6 +9049,65 @@ parallel_lanes:
         unaccepted composition dependency, not integrated production. Fresh
         fetch main and actual overlap checks are required before writes and integration.
 
+  - id: electronics-artifact-intake
+    parent_lane: electronics
+    worktree_id: electronics-artifact-intake-659
+    owned_paths:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-GOVERNANCE-011.md
+    task:
+      id: TASK-ELECTRONICS-GOVERNANCE-011
+      issue: 659
+      parent_issue: 649
+      programme_issue: 452
+      branch: main
+      base_branch: main
+      pr: null
+      pr_draft: false
+      status: in_progress
+      kind: maintenance
+      risk: high
+      semantic_change: 'no'
+      checkpoint: bounded_cloud_artifact_intake_selected
+      owner_acceptance: pending
+      owner_authorization: Owner explicitly authorised cloud resources and controller-managed separate authors/reviewers on 2026-10-20; select read-only transport of the existing oversized D2 artifact, no product change or installation.
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-GOVERNANCE-011.md
+      author_executor_id: /root/d2_source_review
+      independent_reviewer_id: /root/pr651_intake
+      controller_id: /root
+      candidate_branch: codex/electronics-evidence-intake-649
+      expected_write_paths:
+        - .github/workflows/electronics-artifact-intake.yml
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-GOVERNANCE-011.md
+        - docs/execution/current.yaml
+      shared_path_coordination: Workflow remains under existing integration.shared_paths. Root explicitly assigns its only author d2_source_review and read-only security reviewer pr651_intake; root is sole integrator. No foreign shared scope is removed or narrowed.
+      integration_condition: Workflow exists only on the temporary candidate branch and must never merge into main/production. Accept only verified read-only transport output for run39422409394/artifact12266831251/source24c4acf6; preserve original hashes. Close only this transport task, never D2/FET/PR651 acceptance.
+      next_action: Accept these controller documents on main, then author/review the one temporary workflow before its automatic pull_request run. All existing product/gate/profile/blocker facts remain unchanged; no product PASS is selected.
+    execution_lease:
+      executor_id: electronics-artifact-intake-659
+      holder: unassigned
+      acquired_at: null
+      expires_at: null
+      reviewer_role_requires_lease: false
+    gates:
+      routing:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm validate:electronics-agent-docs --task TASK-ELECTRONICS-GOVERNANCE-011
+      control_plane:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm control-plane:check
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: 6efac19fbd20ab789925e9510534d13175a0390b
+      head_sha: null
+      observed_at: '2026-10-20T14:42:18Z'
+      main:
+        branch: main
+        sha: 6efac19fbd20ab789925e9510534d13175a0390b
+      observation_note: Dated selection baseline only; fresh fetch main and actual overlap checks required before writes. Connector rejected the630584469-byte source ZIP at its536870912-byte limit. Transport output, security review and actual job remain pending.
+
 integration:
   owner_lane: visual-programming
   shared_paths:
