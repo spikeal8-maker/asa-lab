@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { test, expect, type Locator, type Page, type Request } from '@playwright/test';
 import { buildNetlist, terminalKey } from '../contexts/electronics/domain/netlist';
@@ -2116,46 +2116,384 @@ test.describe('asset recovery in the built editor', () => {
   });
   test('a permanently missing ordinary image shows an accessible failure on stage and catalog', async ({
     page,
-  }) => {
-    await page.setViewportSize({ width: 1440, height: 1000 });
-    const asset = catalogEntry('battery-holder-aa-2')!.asset;
-    let imageRequests = 0;
-    await page.route(
-      (url) => url.pathname === asset,
-      async (route) => {
-        if (route.request().resourceType() !== 'image') return route.continue();
-        imageRequests += 1;
-        await route.fulfill({ status: 404, body: 'missing' });
+  }, info) => {
+    const observedAsset = catalogEntry('battery-holder-aa-2')!.asset;
+    const rawPath = info.outputPath('ordinary-image-native.jsonl');
+    const records: unknown[] = [];
+    const retentionErrors: string[] = [];
+    let dropped = 0;
+    let primary: unknown;
+    let hasPrimary = false;
+    let checkpoint = 'pre-app';
+    let browserSnapshot: unknown;
+    let editorSnapshot: (() => unknown) | undefined;
+    const errorText = (error: unknown) =>
+      error instanceof Error ? (error.stack ?? error.message) : String(error);
+    const retain = (kind: string, data: unknown) => {
+      const record = { kind, nodeAt: Date.now(), checkpoint, data };
+      if (records.length >= 10_000) {
+        dropped += 1;
+        return;
+      }
+      records.push(record);
+      try {
+        appendFileSync(rawPath, `${JSON.stringify(record)}\n`, 'utf8');
+      } catch (error) {
+        retentionErrors.push(errorText(error));
+      }
+    };
+    writeFileSync(rawPath, '', 'utf8');
+    retain('start', {
+      asset: observedAsset,
+      limitations: {
+        detachedBeforeObservation: 'NOT_OBSERVED',
+        React: 'UNKNOWN',
+        hooks: 'UNKNOWN',
+        sharedPromiseAndCache: 'UNKNOWN',
+        mutationTime: 'observer delivery',
+        overhead: 'UNKNOWN',
       },
-    );
-    const doc = addComponentToDocument(
-      documentFixture(),
-      'battery-holder-aa-2',
-      { x: 790, y: 450 },
-      'holder',
-    ).document;
-    const { readDocument, requests, errors } = await openEditor(page, doc);
-    const initial = readDocument();
-    const stageError = part(page, 'holder').getByRole('status', {
-      name: 'Изображение детали не загрузилось',
     });
-    await expect(stageError).toBeVisible({ timeout: 10_000 });
-    await expect(stageError).toHaveAttribute('data-testid', 'owner-image-error');
-    await expect(part(page, 'holder').locator('[data-owner-image-status="failed"]')).toBeVisible();
-    const card = page.locator('.workbench-catalog-card[data-family-id="battery-holder-aa"]');
-    await card.scrollIntoViewIfNeeded();
-    await expect(
-      card.getByRole('status', { name: 'Изображение детали не загрузилось' }),
-    ).toBeVisible();
-    const requestsAtFailure = imageRequests;
-    await page.waitForTimeout(800);
-    expect(imageRequests).toBe(requestsAtFailure);
-    // Stage and catalog each load the original and validated retry URL; the
-    // shared recovery promise makes at most three probe requests between them.
-    expect(imageRequests).toBeLessThanOrEqual(7);
-    expect(readDocument()).toEqual(initial);
-    expect(requests).toHaveLength(0);
-    expect(errors).toEqual([]);
+    const requestIds = new WeakMap<Request, number>();
+    let nextRequest = 0;
+    const relevant = (request: Request) => new URL(request.url()).pathname === observedAsset;
+    const onRequest = (request: Request) => {
+      if (!relevant(request)) return;
+      const id = ++nextRequest;
+      requestIds.set(request, id);
+      retain('request', {
+        id,
+        url: request.url(),
+        method: request.method(),
+        resource: request.resourceType(),
+      });
+    };
+    const onResponse = (response: import('@playwright/test').Response) => {
+      const request = response.request();
+      if (relevant(request))
+        retain('response', {
+          id: requestIds.get(request) ?? 'UNKNOWN',
+          url: response.url(),
+          status: response.status(),
+        });
+    };
+    const onFailed = (request: Request) => {
+      if (relevant(request))
+        retain('requestfailed', {
+          id: requestIds.get(request) ?? 'UNKNOWN',
+          url: request.url(),
+          failure: request.failure(),
+        });
+    };
+    page.on('request', onRequest);
+    page.on('response', onResponse);
+    page.on('requestfailed', onFailed);
+    try {
+      await page.exposeBinding('__ordinaryImageNativeRecord', (_, data: unknown) =>
+        retain('browser', data),
+      );
+      await page.addInitScript((asset) => {
+        const ids = new WeakMap<Node, number>();
+        const eventIds = new WeakMap<Event, number>();
+        let nextEventId = 0;
+        const lastRoot = new WeakMap<Element, Element>();
+        const listening = new WeakSet<Element>();
+        let sequence = 0;
+        let nextId = 0;
+        let dropped = 0;
+        const entries: unknown[] = [];
+        const deliveryErrors: string[] = [];
+        const id = (node: Node) => {
+          let value = ids.get(node);
+          if (!value) {
+            value = ++nextId;
+            ids.set(node, value);
+          }
+          return value;
+        };
+        const relevant = (node: Element) => {
+          if (node.namespaceURI !== 'http://www.w3.org/2000/svg' || node.localName !== 'image')
+            return false;
+          const href =
+            node.getAttribute('href') ??
+            node.getAttributeNS('http://www.w3.org/1999/xlink', 'href');
+          try {
+            return !!href && new URL(href, document.baseURI).pathname === asset;
+          } catch {
+            return false;
+          }
+        };
+        const snapshot = (node: Element) => {
+          const root =
+            node.closest('.workbench-catalog-card, [data-component-id], .workbench-stage') ??
+            lastRoot.get(node);
+          if (root) lastRoot.set(node, root);
+          const href =
+            node.getAttribute('href') ??
+            node.getAttributeNS('http://www.w3.org/1999/xlink', 'href');
+          let cycle: string | null = null;
+          let retry: string | null = null;
+          try {
+            const url = new URL(href ?? '', document.baseURI);
+            cycle = url.searchParams.get('asa-image-cycle');
+            retry = url.searchParams.get('asa-image-retry');
+          } catch {
+            /* An invalid href remains recorded verbatim. */
+          }
+          return {
+            id: id(node),
+            connected: node.isConnected,
+            href,
+            cycle,
+            retry,
+            root: root
+              ? {
+                  id: id(root),
+                  connected: root.isConnected,
+                  kind: root.matches('.workbench-catalog-card') ? 'catalog' : 'stage',
+                  family: root.getAttribute('data-family-id'),
+                  component: root.getAttribute('data-component-id'),
+                  failed: root.querySelectorAll('[data-owner-image-status="failed"]').length,
+                  badges: [...root.querySelectorAll('[role="status"]')].map((badge) => ({
+                    id: id(badge),
+                    label: badge.getAttribute('aria-label'),
+                    text: badge.textContent,
+                  })),
+                }
+              : 'UNKNOWN',
+          };
+        };
+        const emit = (kind: string, data: unknown) => {
+          if (entries.length >= 5_000) {
+            dropped += 1;
+            return;
+          }
+          const entry = { sequence: ++sequence, at: performance.now(), kind, data };
+          entries.push(entry);
+          const binding = (
+            window as unknown as { __ordinaryImageNativeRecord: (entry: unknown) => Promise<void> }
+          ).__ordinaryImageNativeRecord;
+          try {
+            void binding(entry).catch((error) => deliveryErrors.push(String(error)));
+          } catch (error) {
+            deliveryErrors.push(String(error));
+          }
+        };
+        const native = (delivery: string, event: Event) => {
+          const target = event.target;
+          if (!(target instanceof Element) || !relevant(target)) return;
+          let eventId = eventIds.get(event);
+          if (!eventId) {
+            eventId = ++nextEventId;
+            eventIds.set(event, eventId);
+          }
+          emit('native', {
+            eventId,
+            delivery,
+            phase: event.eventPhase,
+            type: event.type,
+            trusted: event.isTrusted,
+            target: snapshot(target),
+            path: event
+              .composedPath()
+              .filter((node): node is Node => node instanceof Node)
+              .map(id),
+          });
+        };
+        document.addEventListener('error', (event) => native('document-capture', event), true);
+        document.addEventListener('load', (event) => native('document-capture', event), true);
+        const images = (node: Node): Element[] => {
+          if (!(node instanceof Element)) return [];
+          return [
+            ...(node.namespaceURI === 'http://www.w3.org/2000/svg' && node.localName === 'image'
+              ? [node]
+              : []),
+            ...[...node.querySelectorAll('image')].filter(
+              (image) => image.namespaceURI === 'http://www.w3.org/2000/svg',
+            ),
+          ];
+        };
+        const observe = (image: Element, reason: string) => {
+          const state = snapshot(image);
+          if (relevant(image)) emit(reason, state);
+          if (!listening.has(image)) {
+            listening.add(image);
+            image.addEventListener('error', (event) => native('direct', event));
+            image.addEventListener('load', (event) => native('direct', event));
+          }
+        };
+        new MutationObserver((mutations) => {
+          for (const mutation of mutations) {
+            if (mutation.type === 'childList') {
+              for (const node of mutation.addedNodes)
+                for (const image of images(node)) observe(image, 'added-observed');
+              for (const node of mutation.removedNodes)
+                for (const image of images(node))
+                  if (relevant(image)) emit('removed-observed', snapshot(image));
+            }
+            const target =
+              mutation.target instanceof Element ? mutation.target : mutation.target.parentElement;
+            if (!target) continue;
+            const root = target.closest(
+              '.workbench-catalog-card, [data-component-id], .workbench-stage',
+            );
+            if (relevant(target) && mutation.attributeName === 'href')
+              observe(target, 'href-observed');
+            const affected = relevant(target)
+              ? [target]
+              : root
+                ? images(root).filter(relevant)
+                : [];
+            for (const image of affected)
+              emit('mutation-delivery', {
+                type: mutation.type,
+                attribute: mutation.attributeName,
+                oldValue: mutation.oldValue,
+                targetId: id(target),
+                state: snapshot(image),
+              });
+          }
+        }).observe(document, {
+          subtree: true,
+          childList: true,
+          attributes: true,
+          attributeOldValue: true,
+          attributeFilter: ['href', 'data-owner-image-status', 'role', 'aria-label'],
+        });
+        (
+          window as unknown as { __ordinaryImageNativeSnapshot: () => unknown }
+        ).__ordinaryImageNativeSnapshot = () => ({
+          entries,
+          dropped,
+          deliveryErrors,
+          current: [...document.querySelectorAll('image')].filter(relevant).map(snapshot),
+          limitations: {
+            detachedBeforeObservation: 'NOT_OBSERVED',
+            ReactHooksAndSharedCache: 'UNKNOWN',
+            mutationTime: 'delivery',
+            overhead: 'UNKNOWN',
+          },
+        });
+      }, observedAsset);
+      checkpoint = 'original-case';
+      retain('checkpoint', checkpoint);
+      await page.setViewportSize({ width: 1440, height: 1000 });
+      const asset = catalogEntry('battery-holder-aa-2')!.asset;
+      let imageRequests = 0;
+      await page.route(
+        (url) => url.pathname === asset,
+        async (route) => {
+          if (route.request().resourceType() !== 'image') return route.continue();
+          imageRequests += 1;
+          await route.fulfill({ status: 404, body: 'missing' });
+        },
+      );
+      const doc = addComponentToDocument(
+        documentFixture(),
+        'battery-holder-aa-2',
+        { x: 790, y: 450 },
+        'holder',
+      ).document;
+      const { readDocument, requests, errors } = await openEditor(page, doc);
+      const initial = readDocument();
+      editorSnapshot = () => ({ initial, current: readDocument(), requests, errors });
+      retain('editor-initial', editorSnapshot());
+      const stageError = part(page, 'holder').getByRole('status', {
+        name: 'Изображение детали не загрузилось',
+      });
+      await expect(stageError).toBeVisible({ timeout: 10_000 });
+      await expect(stageError).toHaveAttribute('data-testid', 'owner-image-error');
+      await expect(
+        part(page, 'holder').locator('[data-owner-image-status="failed"]'),
+      ).toBeVisible();
+      const card = page.locator('.workbench-catalog-card[data-family-id="battery-holder-aa"]');
+      await card.scrollIntoViewIfNeeded();
+      await expect(
+        card.getByRole('status', { name: 'Изображение детали не загрузилось' }),
+      ).toBeVisible();
+      const requestsAtFailure = imageRequests;
+      await page.waitForTimeout(800);
+      expect(imageRequests).toBe(requestsAtFailure);
+      // Stage and catalog each load the original and validated retry URL; the
+      // shared recovery promise makes at most three probe requests between them.
+      expect(imageRequests).toBeLessThanOrEqual(7);
+      expect(readDocument()).toEqual(initial);
+      expect(requests).toHaveLength(0);
+      expect(errors).toEqual([]);
+    } catch (error) {
+      hasPrimary = true;
+      primary = error;
+      retain('primary-error', errorText(error));
+    } finally {
+      checkpoint = 'finally-node-first';
+      try {
+        retain('editor-final', editorSnapshot?.() ?? 'NOT_AVAILABLE');
+      } catch (error) {
+        retentionErrors.push(`editor-final: ${errorText(error)}`);
+      }
+      retain('checkpoint', {
+        checkpoint,
+        dropped,
+        retentionErrors,
+        primary: hasPrimary ? errorText(primary) : null,
+      });
+      if (hasPrimary) {
+        retain('supplements-skipped', {
+          reason: 'primary-error',
+          snapshot: 'NOT_AVAILABLE',
+          dom: 'NOT_AVAILABLE',
+          png: 'NOT_AVAILABLE',
+          attachment: 'NOT_AVAILABLE',
+          dropped,
+          retentionErrors,
+        });
+      } else {
+        const supplemental = async (kind: string, action: () => Promise<unknown>) => {
+          try {
+            const value = await action();
+            retain(kind, value);
+            return value;
+          } catch (error) {
+            retentionErrors.push(`${kind}: ${errorText(error)}`);
+            retain('secondary-error', { kind, error: errorText(error) });
+            return 'NOT_AVAILABLE';
+          }
+        };
+        browserSnapshot = await supplemental('browser-final', () =>
+          page.evaluate(
+            () =>
+              (
+                window as unknown as { __ordinaryImageNativeSnapshot?: () => unknown }
+              ).__ordinaryImageNativeSnapshot?.() ?? 'NOT_AVAILABLE',
+          ),
+        );
+        await supplemental('dom-final', () => page.content());
+        await supplemental('native-png', async () => {
+          const path = info.outputPath('ordinary-image-native.png');
+          await page.screenshot({ path });
+          return path;
+        });
+        retain('final', { browserSnapshot, dropped, retentionErrors });
+        await supplemental('attachment', () =>
+          info.attach('ordinary-image-native', {
+            path: rawPath,
+            contentType: 'application/x-ndjson',
+          }),
+        );
+      }
+      page.off('request', onRequest);
+      page.off('response', onResponse);
+      page.off('requestfailed', onFailed);
+    }
+    const browserIssues = browserSnapshot as
+      { dropped?: number; deliveryErrors?: string[] } | undefined;
+    if (browserIssues?.dropped || browserIssues?.deliveryErrors?.length)
+      retentionErrors.push(`Browser retention incomplete: ${JSON.stringify(browserIssues)}`);
+    if (hasPrimary) throw primary;
+    if (retentionErrors.length || dropped || browserSnapshot === 'NOT_AVAILABLE')
+      throw new Error(
+        `Incomplete passive evidence: ${JSON.stringify({ retentionErrors, dropped, browserSnapshot })}`,
+      );
   });
 
   test('a late ordinary image error stays visible after shared permanent recovery stops', async ({
