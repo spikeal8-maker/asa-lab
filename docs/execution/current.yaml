@@ -8163,59 +8163,33 @@ parallel_lanes:
         - pnpm gate:repository
   - id: electronics-field
     parent_lane: electronics
-    worktree_id: electronics-native-wheel-554
+    worktree_id: electronics-arduino-psu-wire-layer
     owned_paths:
     - apps/web/src/electronics/WorkbenchStage.tsx
+    - docs/product/electronics/tasks/TASK-ELECTRONICS-ARDUINO-PSU-WIRE-LAYER-001.md
     - docs/product/electronics/tasks/TASK-ELECTRONICS-FIELD-HIT-BOUNDARY-001.md
     - apps/web/src/electronics/use-electronics-workbench.ts
     - docs/product/electronics/tasks/TASK-ELECTRONICS-NATIVE-WHEEL-CANCELLATION-001.md
     task:
-      id: TASK-ELECTRONICS-NATIVE-WHEEL-CANCELLATION-001
-      issue: 554
+      id: TASK-ELECTRONICS-ARDUINO-PSU-WIRE-LAYER-001
+      issue: 679
+      program_issue: 452
       branch: main
       base_branch: main
       pr: null
       pr_draft: false
-      status: done
-      checkpoint: exact_all8_new_product_review_approved_integrated
+      status: in_progress
+      checkpoint: owner_priority_targeted_wire_layer_selected
       kind: repair
       owner_acceptance: pending
-      programme_issue: 452
-      dependency_for_issue: 549
       context_hints:
-      - docs/product/electronics/tasks/TASK-ELECTRONICS-NATIVE-WHEEL-CANCELLATION-001.md
-      - docs/product/electronics/components/ui-assets-persistence.yaml
-      repair_scope: ONLY new e2e/electronics-native-wheel.spec.ts missing compact inspector entry; real
-        visible collapse-library action before mobile edit and cookies-only inspector read. Preserve actual-coordinate
-        precision, product code, whole Save/CAS/cookies, console and all waits.
-      preservation: Full544 task/revisions/lane snapshot suspended unmodified;549R7/553R3/552 and allaccepted/held
-        sources preserved; acceptedproductcount2 since542,006 dueafterthird. School NONE.
-      next_action: STOP accepted wheel slice. Mandatory checkpoint006/556 accepted separately; controller
-        may fresh-select held549 dependency phase. Full field/layout, school/device/owner/deployment acceptance
-        remain pending.
-      frozen_directed_evidence:
-        candidate: d247eb0677007f73006125fa7626af8e3042100a
-        before_run: 38160845832
-        before_report_sha256: b151fbf256ff29d8ec90ae98112bd20356626e76f7628c49fa9497b5e6a251cc
-        after_run: 38161873665
-        after_report_sha256: 16d56f8edb5c1e3d5d7cdbbf2bb4f298a79c8b369801b24ab339bfa1f8b9d606
-        root_originals_verified: true
-        product_acceptance: false
-      accepted_candidate_sha: 0e41e9bd4aa181215676d6fdfea1b32ca4dae4ae
-      candidate_tree: 92815acdf8048dc32e0e2aa82abf06b58ab7f08a
-      integrated_sha: 0e41e9bd4aa181215676d6fdfea1b32ca4dae4ae
-      independent_review: approved
-      independent_evidence: docs/product/electronics/evidence/native-wheel-554-independent-review-0e41e9bd.md
-      independent_review_original_sha256: 6aff1d0387723a1641e75bd3410f2f7cc9c70190779abb7cf6774ba65b9aa1ed
-      exact_candidate_general_run: 38163534208
-      exact_candidate_general_conclusion: success
-      exact_candidate_focused_run: 38163538498
-      exact_candidate_focused_conclusion: success
-      acceptance: technical_accepted
-      production_slices_since_hygiene542: 3
-      hygiene006_due: false
-      hygiene006_resolved_by_issue: 556
-      hygiene006_accepted_sha: 05e122aff108d05670416fd2b55273d56243e397
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-ARDUINO-PSU-WIRE-LAYER-001.md
+      repair_scope: Wires above bodies ONLY for exact kinds arduino-uno and regulated-power-supply;exclude batteries and every other ordinary kind.
+      source_budget: WorkbenchStage.tsx and existing presentation tests;component map only if canonical generator requires it. No hook/core/solver/LED/API/persistence/assets/workflow/dependency/cap edits.
+      rendering_contract: Render target bodies after breadboard bodies and BEFORE existing wire hit/paint layers;exclude exactly targets from later ordinary body map. Keep terminals and overlays above wires. Preserve other ordinary relative order,foreign Stage props/readiness/UnoL and complete document.
+      interaction_contract: Same exact-kind predicate exempts ONLY targets from handleWirePointerDown foreground-body drag redirect;visible target-overlying wires retain wire behavior. Other ordinary redirects unchanged.
+      execution_boundary: One new author performs focused source/unit checks,self-review,freeze STOP;NEW independent exactSHA review before ordinary publication. Existing strict workflow provides exact runtime evidence. No localbrowser/heavybuild or source-only owneracceptance/closure/release/deploy claim.
+      preservation: Pause525 without losing history/contracts;548BUDGETBLOCKED and ownerKEEP544547OPEN unchanged. Foreign/protected work preserved;known workflow exception disjoint only;actual dirty overlap STOP.
     execution_lease:
       executor_id: electronics-field-544
       holder: unassigned
@@ -8237,16 +8211,75 @@ parallel_lanes:
         - pnpm gate:repository
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 20aec9e3a36761c54fda9198f3577db206111b5f
+      convergence_baseline_sha: d57782d1bfb815af653d2783e102c1d6e22a4d4e
       head_sha: null
-      observed_at: '2026-10-11T15:48:49.404225+00:00'
+      observed_at: '2026-10-21T17:29:11.263142+00:00'
       main:
         branch: main
-        sha: 20aec9e3a36761c54fda9198f3577db206111b5f
-      observation_note: Dated554selection only; fetch main and exactCI beforewrites.20aec metadataGeneral
-        pending, notPASS. Independent144/144causeproved; no newproductaccepted. PreserveObservability and
-        full544snapshot, allotherlanes.
+        sha: d57782d1bfb815af653d2783e102c1d6e22a4d4e
+      observation_note: Dated remote d577 snapshot;fresh fetch main required before writes;new owner priority selection only,not product/runtime acceptance. Exact-SHA CI conclusions must be restored before writes. Existing foreign workflow exception disjoint only;real overlap STOP.
     suspended_tasks:
+    - task_id: TASK-ELECTRONICS-NATIVE-WHEEL-CANCELLATION-001
+      issue: 554
+      pause_reason: Preserved completed554 state while owner priority selects Arduino/PSU wire layering. No change to its technical acceptance or owner pending state.
+      task:
+        id: TASK-ELECTRONICS-NATIVE-WHEEL-CANCELLATION-001
+        issue: 554
+        branch: main
+        base_branch: main
+        pr: null
+        pr_draft: false
+        status: done
+        checkpoint: exact_all8_new_product_review_approved_integrated
+        kind: repair
+        owner_acceptance: pending
+        programme_issue: 452
+        dependency_for_issue: 549
+        context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-NATIVE-WHEEL-CANCELLATION-001.md
+        - docs/product/electronics/components/ui-assets-persistence.yaml
+        repair_scope: ONLY new e2e/electronics-native-wheel.spec.ts missing compact inspector entry; real
+          visible collapse-library action before mobile edit and cookies-only inspector read. Preserve actual-coordinate
+          precision, product code, whole Save/CAS/cookies, console and all waits.
+        preservation: Full544 task/revisions/lane snapshot suspended unmodified;549R7/553R3/552 and allaccepted/held
+          sources preserved; acceptedproductcount2 since542,006 dueafterthird. School NONE.
+        next_action: STOP accepted wheel slice. Mandatory checkpoint006/556 accepted separately; controller
+          may fresh-select held549 dependency phase. Full field/layout, school/device/owner/deployment acceptance
+          remain pending.
+        frozen_directed_evidence:
+          candidate: d247eb0677007f73006125fa7626af8e3042100a
+          before_run: 38160845832
+          before_report_sha256: b151fbf256ff29d8ec90ae98112bd20356626e76f7628c49fa9497b5e6a251cc
+          after_run: 38161873665
+          after_report_sha256: 16d56f8edb5c1e3d5d7cdbbf2bb4f298a79c8b369801b24ab339bfa1f8b9d606
+          root_originals_verified: true
+          product_acceptance: false
+        accepted_candidate_sha: 0e41e9bd4aa181215676d6fdfea1b32ca4dae4ae
+        candidate_tree: 92815acdf8048dc32e0e2aa82abf06b58ab7f08a
+        integrated_sha: 0e41e9bd4aa181215676d6fdfea1b32ca4dae4ae
+        independent_review: approved
+        independent_evidence: docs/product/electronics/evidence/native-wheel-554-independent-review-0e41e9bd.md
+        independent_review_original_sha256: 6aff1d0387723a1641e75bd3410f2f7cc9c70190779abb7cf6774ba65b9aa1ed
+        exact_candidate_general_run: 38163534208
+        exact_candidate_general_conclusion: success
+        exact_candidate_focused_run: 38163538498
+        exact_candidate_focused_conclusion: success
+        acceptance: technical_accepted
+        production_slices_since_hygiene542: 3
+        hygiene006_due: false
+        hygiene006_resolved_by_issue: 556
+        hygiene006_accepted_sha: 05e122aff108d05670416fd2b55273d56243e397
+      revisions:
+        kind: observed_snapshot
+        convergence_baseline_sha: 20aec9e3a36761c54fda9198f3577db206111b5f
+        head_sha: null
+        observed_at: '2026-10-11T15:48:49.404225+00:00'
+        main:
+          branch: main
+          sha: 20aec9e3a36761c54fda9198f3577db206111b5f
+        observation_note: Dated554selection only; fetch main and exactCI beforewrites.20aec metadataGeneral
+          pending, notPASS. Independent144/144causeproved; no newproductaccepted. PreserveObservability and
+          full544snapshot, allotherlanes.
     - task_id: TASK-ELECTRONICS-FIELD-HIT-BOUNDARY-001
       issue: 544
       task:
@@ -9245,7 +9278,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: mirror_matrix_test_only_segmented_pan_and_waveform_ownership_selected
+      checkpoint: paused_for_owner_arduino_psu_wire_layer_priority
       kind: repair
       owner_acceptance: pending
       program_issue: 452
@@ -9335,11 +9368,8 @@ parallel_lanes:
         result: ElectronicsFAIL;GeneralFULLSUCCESS fourjobs. Focused905domain698web57classroom/70freshNxPASS;benchmark217938RAWof218000PASS. Target0of16complete/PUT0,invalidBEFORE. GeneralPASS is not owneracceptance.
         actual_review_sha256: 3d16ef5bdb876dc27833575a0b72326f6708c892cfc346dd6ec378379936a41c
         proposal_review_sha256: 7637bafbcf63fa84e402e51c26f1e165960028899690ac581d81fa5319bfac88
-      next_action: >-
-        After canonicalpublication,ONE NEW bounded testauthor changes only selected waveform owned
-        points and segmented pan plus generatedbrowserhash. FreezeUNPUBLISHED STOP;NEWsource review,
-        finalcomposition review then ONEjustified strictBEFORE. Product5f9 stays unpublished;
-        548BUDGETBLOCKED/ownerKEEP544547 unchanged. Fetch main/recover Git/CI/dirtypaths before writes.
+      owner_priority_pause: Owner selects TASK-ELECTRONICS-ARDUINO-PSU-WIRE-LAYER-001 first;preserve525history/candidates/contracts. No automatic525repair or rerun during this slice.
+      next_action: Resume525 only after fresh snapshot and a new controller-selected dependency. Product5f9 remains unpublished;548BUDGETBLOCKED/ownerKEEP544547 remain unchanged.
     execution_lease:
       executor_id: electronics-instrument-readouts-525
       holder: unassigned
