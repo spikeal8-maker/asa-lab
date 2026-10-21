@@ -452,7 +452,7 @@ describe('publication moderation with real runtime privileges and sessions', () 
       action: 'publication.restore',
       reason_text: 'Reviewed safe',
       before_version: '1',
-      after_version: '0',
+      after_version: '2',
     });
     expect(audit.every((event) => event.request_id.length > 0)).toBe(true);
     await expect(

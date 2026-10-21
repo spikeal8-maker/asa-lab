@@ -291,7 +291,7 @@ for (const width of [1440, 390]) {
           reason_text: reasons[index],
           result: 'succeeded',
           before_version: hiding ? '0' : '1',
-          after_version: hiding ? '1' : '0',
+          after_version: hiding ? '1' : '2',
         });
         expect(events[index].request_id.trim().length).toBeGreaterThan(0);
         if (hiding) hideAudit = events;
