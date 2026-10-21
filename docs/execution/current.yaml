@@ -9059,7 +9059,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: last_recovery_actual_natural_pass_NO_PROVEN_CAUSE_TERMINAL
+      checkpoint: budget_blocked_selected_own_helper_attempt_withdrawn
       previous_checkpoint: two_mounted_cases_pass_no_proven_cause_diagnostic_STOP
       kind: repair
       owner_acceptance: pending
@@ -9068,17 +9068,12 @@ parallel_lanes:
       - docs/product/electronics/evidence/ordinary-image-548-consumer-cycle-selection-20261020.md
       - docs/product/electronics/components/ui-assets-persistence.yaml
       repair_scope: >-
-        ONE last test-only observation, ONLY diagnostic wrapping in the existing temporary404 RECOVERY case
-        a failed catalog owner image recovers without placing or saving a component in electronics-interactions.
-        Explicitly supersede prior creation-wrapper prohibition ONLY here; pre-app transparent createElementNS
-        attaches direct native SVGimage listeners before return/href. Permanent404 and induced-gap cases unchanged.
+        Selected own-helper attempt STOP:46unitsPASS but rawproxy43953 versus43950prototype (+3),withdrawn.
+        Actual9f Editor218356RAW/218000 deficit356 remains BUDGET_BLOCKED;no new optimization,measurement,mainproduct or closure selected.
       diagnostic_limits: >-
-        Original captured Reflect.apply preserves receiver/args/return/throw and property descriptor attributes;
-        record exactly one installation/replacement and function-identity/timing interference. Keep connected
-        capture+MO, stable WeakMap image/root/Event IDs,delivery phases,currenthref,status/badge/network timing;
-        mutation time is delivery time. Native callbacks record only cheap immutable small events, no layout,
-        stacks or bindings. Explicit dropped/retention/serialization/install errors; parser/clone/other realm
-        UNKNOWN/NOT_OBSERVED; private React/cache UNKNOWN. Native error is not React callback entry or cause.
+        e89 sourcefeasibility STOP is QUALIFIED_BUDGET_BLOCKED_NOT_PUBLICATION_APPROVAL. Sameunitblob
+        RED41PASS2FAIL to GREEN43PASS;dedicatedselectioncopy/replacement incomplete due mandatedbudgetSTOP.
+        Temp+96gzip/+403unbundledminified NOT actualEditorfit;oldRED/prototype/receipts immutable.
       recovery_observation_contract:
         version: R3_existing_recovery_only
         allowed_source_path: e2e/electronics-interactions.spec.ts
@@ -9113,13 +9108,104 @@ parallel_lanes:
         integrity: Browser sequence1to37,loss0,dropped0,retention/delivery/install errors empty;function identity changed and timing interference UNKNOWN_NONZERO.
         boundary: Empty document unchanged,PUT0,pageErrors empty;private React/cache UNKNOWN;this does not prove historical cause,fix or absence without wrapper.
         evidence: docs/product/electronics/evidence/ui-qualification-121f6599-actual-20261021.md
+      observed_b344_incidental:
+        observed_at: '2026-10-21T08:09:57Z'
+        sha: b34468f7ee22ec2fe61ac5068923fa959a236870
+        run: 39557936341
+        result: 29browser16Node records continuous unique/loss0;trusted error Event1 sameimage6 detached at635.8ms,later connected root27 observed at645.1ms. Ten seconds no retry href/badge,only1GET404.
+        limits: Exact connection time/privateReact delivery/cache UNKNOWN;detached is not proof of pre-handler or pre-commit. Wrapper identity/timing interference NONZERO/unknown. Old terminal NO_PROVEN_CAUSE remains history.
+        cause_gate: NEW_INDEPENDENT_APPROVE_SPECIFIC_HYPOTHESIS_FOR_DETERMINISTIC_PROPOSAL_ONLY
+        audit_sha256: 56ea976ef2a1c41128b29d1ee6d2ab9c2bca2dac212fbe4b516361ebc8d49330
+        independent_review_sha256: 191fd8c11659855065f5cec1a92cea3fd0b40854cf892aecdda4eabef4941834
+        evidence: docs/product/electronics/evidence/ordinary-image-548-b344-deterministic-selection-20261021.md
+      deterministic_mounted_contract:
+        version: b344_regression_only
+        supersedes: Only prior executable unit-diagnostic prohibition for this separately selected fresh-hypothesis slice;old terminal observations and all historical receipts remain unchanged.
+        expected_write_paths:
+        - apps/web/src/electronics/testing/asset-recovery.spec.ts
+        fidelity: Actual mounted React/production catalog consumer with real public DOM. Dispatch one DOM error to SAME href-assigned detached SVGimage immediately BEFORE actual catalog connection via real append/insert boundary;prove sameimage laterconnected and boundary-event/outcome retention. Synthetic isTrustedfalse must be explicit.
+        harness: Preserve original public DOM receiver/args/return/throw/descriptors;restore wrappers and identity in finally. Never replace React handlers/private refs/cache or call handlers manually,never suppress listeners or substitute synchronous href-setter dispatch. A faithful alternative requires same detachment/identity/actual connection proof,not hopeful variants.
+        oracle: Demonstrate boundary event and actual consumer outcome/recovery request/badge/retention under existing finite budget and unchanged empty document. Faithful mounted red proves only that public boundary contract,not historical native cause/frequency. Do not force red by changing production or dropping delivered handlers.
+        preserved: Existing41cases/helpers/assertions byte-exact;no production/browser/workflow/dependency/timer-budget/recovery-policy/timeout/action/core/hook/LED/assets change. Preserve all foreign paths and525inprogress.
+        stop: If no reproduction or invalid/impossible harness,STOP NO_PROVEN_REGRESSION;no hopeful variant,product fix or browser/CI experiment. Freeze one UNPUBLISHED source candidate/report then STOP;NEW independent source/unit review and actual evidence review before any separately selected product phase.
+      observed_mounted_RED:
+        observed_at: '2026-10-21T09:29:39Z'
+        sha: e0afc71b4d81a6509bff670b46558c560d88e8e8
+        publication: UNPUBLISHED_IMMUTABLE_RED_REFERENCE
+        independent_review: APPROVE_DETERMINISTIC_REGRESSION_PROVEN
+        result: Existing41PASS,newRED expected3probes actual0/no badge;faithful hrefassigneddetachedimage becomes SAMEconnected/publicDOMwrapper restored. Synthetic boundary contract only,not historical native cause/frequency.
+        report_sha256: 4540d546b1b29c4fd1b5b12a992692fb252a981572f1e5630646acb8d001bcad
+        evidence: docs/product/electronics/evidence/ordinary-image-548-prevention-selection-20261021.md
+      prevention_correctness_contract:
+        version: listener_before_href_prevention
+        supersedes: Only old regression-only executable prohibition and preconnect-href expectation for NEW prevention tests. Historical e0afRED source/receipt unchanged;no skip/fails/relaxation or publication of oldRED alone.
+        expected_write_paths:
+        - apps/web/src/electronics/ProductionComponentVisual.tsx
+        - apps/web/src/electronics/testing/asset-recovery.spec.ts
+        product: Ordinary MAIN and SELECTION-COPY image path ONLY. Render NOresourcehref;small wrapper installs native element-local load/error listeners FIRST in its own layout effect THEN assigns correct currenthref. Remove duplicate React handlers ONLY for ordinary wrapper,forward existing useOwnerImageHref callbacks/earlyqueue.
+        cleanup: Preserve staleasset replacement/unmount cleanup,bounded retry/cache/badge/success and original identity/outcome semantics. PreparedLED,ownerassets,workbenchhook/API/persistence/geometry/foreign branches unchanged.
+        prevention_tests: NEW tests prove beforeconnectionNOresourcehref,firstcorrecthref assigned ONLY afterlistenersinstalled;immediate assignment-time synthetic error reaches boundedretry thenfailedbadge on SAMEimage/root. Preserve success/permanentfail/assetreplace/unmount. PublicDOMordering witnesses restore wrappers;no privateReact invocation or nativeisTrusted claim.
+        red_green: Record NEW preventiontestsRED on UNPATCHEDacceptedmain BEFORE product edits;freeze these testbytes and prove IDENTICALGREEN after fix in same bounded author slice. All41old cases byte-exact. OldpreconnectRED remains immutable reference,not deleted/skipped/relaxed intoGREEN. Invalid or missing causal test means STOP,not forcedpass.
+        metadata: Canonical coverage generator does not consume ProductionComponentVisual or asset-recovery.spec;NOgeneratedcoverage write.525author keeps simulation/browserhash ownership;extra path needs separate preciseproposal.
+        budget: Current217938of218000 margin62;smallTemp estimate not actualfit. If estimate exceeds availablemargin STOP withbudgetproof,no capraise or neighboroptimisation. Plausiblyfits permits only unpublishedcandidate/review,not automaticruntimeverification.
+        freeze: One self-reviewed UNPUBLISHED sourcecandidate STOP;NEW independent source plusunitRED/GREENreview. Controller separately selects actualexisting temporary/permanent catalog/main/selection recovery andnativeidentities plus exactbenchmark/fullgates. No newbrowserobserver or acceptance/closure.
+      observed_e89_prototype:
+        observed_at: '2026-10-21T09:47:07Z'
+        sha: e89fdd6ecb1fe77132fcff70e93a13d565518326
+        publication: UNPUBLISHED
+        independent_review: QUALIFIED_BUDGET_BLOCKED_NOT_PUBLICATION_APPROVAL
+        product_blob: b7227612498277928e852c49ae569f3e577f5c0c
+        unit_blob: 7dade9887d812a8d54890968ea59454f73e710c7
+        unit_prefix_bytes: 60800
+        unit_prefix_sha256: fd038557afded553f735c41b797803fd53cd392d6c77afa907eb949cc94189f5
+        result: Sameunitbytes RED41oldPASS2newFAIL thenGREEN43PASS;old41byteexact. Prototype ordinary2consumers listenerfirst. Dedicatedselectioncopy/replacement coverage incomplete at mandatorySTOP;actualfullbundleNOT_RUN.
+        estimate: Unbundledminified43547to43950 delta403;gzip13944to14040 delta96. Both provisional,not rawEditorbyte delta. CurrentactualEditor217938of218000 margin62.
+        evidence: docs/product/electronics/evidence/ordinary-image-548-measurement-validation-selection-20261021.md
+      measurement_only_validation_contract:
+        version: fixed_prototype_unit_validation_then_one_actual_measurement
+        supersedes: Only prior estimate-exceeds-margin STOP forbidding further fixedcandidate validation/measurement;NO new productvariant,optimisation,capraise or acceptance exception.
+        expected_write_paths:
+        - apps/web/src/electronics/testing/asset-recovery.spec.ts
+        inherited_product: ProductionComponentVisual.tsx EXACT e89blob b7227612498277928e852c49ae569f3e577f5c0c;NOproductedit/variant. Unit60800byte43caseprefix EXACT7dade988;append mandatorytests only,oldREDrefs unchanged.
+        mandatory_units: Dedicated selection-copy plus replacement/unmount/firstcorrectURL/listenerorder prevention under actual mounted consumers. All required tests PASS with original43byteprefix. Iffails STOPreportconcretegap;no automatic productrepair,CI or hopefulvariant.
+        source_review: One self-reviewed UNPUBLISHEDunitextensioncandidate STOP;NEW independent source/unitreview required before any publication or measurement composition.
+        candidate_publication: ROOTONLY after reviews may publish PUBLICCANDIDATEBRANCH codex/electronics-548-measurement,not productmain. Compose latestacceptedmain preservingforeign +EXACTprototypeVisual +completedunit +separatelyreviewed525a39b simulationtest/generatedbrowserhash. Root finalcompositionreview required;whole525testblob stays frozen.
+        one_measurement: ONE existing Electronics strictworkflow at exactreviewedcandidatehead,focused43plusunitextension MUSTPASS first;measure actualfullEditor<=218000 and existing548temporary/permanent catalog/main/selection/nativeidentities. Newcodecandidate firstactualmeasurement,not unchangedhopefulrerun. No newobserver/workflow/script/localbrowser/build/install/DBchange.
+        budget_reporting: Cap218000 and baseline217938 are actual RAWFILEbytes;gzip proxy cannot be compared to62RAWmargin.525proxy minified+82/gzip+54 and548proxy minified+403/gzip+96 are not actualfullEditor deltas. Expected actualcapFAIL is measurementresult,not acceptance/waiver. BenchmarknativeJSON has exactbytes/gzip and ifalways upload of producedreports;existingbudgetchecker logs rawsize/218000 evenFAIL. Earlyfailure/no generatedsize means actualfitUNKNOWN/incompleteSTOP,no scriptworkaround.
+        closure_blocks: MainPRODUCTpublication,integration/issueclosure,owneracceptance,release,deployment BLOCKED until actualtarget+budgetproof and separateintegrationdecision. No blindcapraise/skips/bypasses/neighboroptimisation;ownerKEEP544547OPEN.
+      observed_9f_measurement:
+        sha: 9fce32c49a64f5e4c338f6188afabc0e6f3c2a07
+        run: 39583551420
+        conclusion: cancelled_browser_50min_not_final_suite
+        raw_bytes: 218356
+        raw_cap: 218000
+        raw_deficit: 356
+        baseline_raw_bytes: 217938
+        actual_raw_delta: 418
+        actual_review_sha256: 52562fc770bf42c60f6b14405dcb9b629e4383ec5067c4ef64a391c4db615eb4
+        result: Existing548temporary/permanentPASS;selectioncopybrowserNOT_OBSERVED;525zeroof16complete/PUT0. FocusedbenchmarkPASS doesnotwaive actualcapFAIL.
+        evidence: docs/product/electronics/evidence/ordinary-image-548-9fce-measurement-20261021.md
+      compact_own_diff_contract:
+        version: actual_356_raw_deficit_source_feasibility_only
+        expected_write_paths:
+        - apps/web/src/electronics/ProductionComponentVisual.tsx
+        scope: ONLY own OwnerOrdinaryImage helper insertion/main-selection adoption;preserve native listeners BEFORE href,cleanup/latestcallbacks/queuedingress and foreignLED/FET/artwork.
+        frozen_units: Final46case asset-recovery.spec from9f BYTEEXACT;no unit/gate/cap/dependency/workflow/adjacentoptimization.
+        verification: Focused46unitPASS and NEW independent exactSHA source/unitreview;sourceestimate NOT actualfit. One UNPUBLISHEDcandidate STOP;infeasible STOP,no hopefulvariant.
+        future_boundary: Separate canonicalmeasurementselection and actualfullsizeCI required;NO CI/rerun or mainproductpublication now. All acceptance/closure/owner/release/deployblocks remain.
+      observed_own_helper_attempt:
+        result: SELECTED_ATTEMPT_INFEASIBLE_WITHDRAWN
+        unit: 46PASS;eslint and formatPASS;exactunitfile preserved.
+        raw_proxy: Prototype43950;attempt43953 deltaPLUS3;actualfullbundleNOT_RUN. This attempt does not prove all possible implementations infeasible.
+        evidence: docs/product/electronics/evidence/instrument-525-hit-ownership-selection-20261021.md
       next_action: >-
-        TERMINAL STOP this last recovery observation. NaturalPASS is NO_PROVEN_CAUSE; no further hopeful
-        observer selection,product repair or closure follows. Owner KEEP544/547 to548 and all blockers remain.
-        Any ordinary regression result is not a newly selected548 causal experiment or owner acceptance.
-      preservation: Preserve666 done, original548 receipts and mounted diagnostic checkpoint, all foreign state,
-        unpublished52545 branch and544/547/548 blockers. No product, hooks, core, assets, API, workflow, timeout,
-        retry, fixture or recovery-policy changes, local browser/Docker/heavy build/DB/deployment operations.
+        STOP548 BUDGET_BLOCKED;preserve unchanged9f/e89/e0af and46units. No automatic optimization,
+        newmeasurement,productmain or closure. Separately selected525TESTONLY hitownership repair
+        may proceed after canonicalpublication;KEEP544547OPEN until demonstrated548fix.
+      preservation: >-
+        Preserve e89prototype/e0afRED/public9f/history and final46unit bytes;all foreign525/549/LED/
+        assets/hook/API/persistence/currentstate and acceptanceblocks. Own-diff author onlyVisual;
+        no test/generatedmetadata/workflow/adjacent edits or automaticCI/productmain/closure/deploy.
     execution_lease:
       executor_id: electronics-asset-consumer-diagnostic-548
       holder: unassigned
@@ -9135,15 +9221,16 @@ parallel_lanes:
       kind: observed_snapshot
       convergence_baseline_sha: abe8f05a33a8fdfffbdf491f6d6d9e34f841587c
       head_sha: null
-      observed_at: '2026-10-20T21:31:44Z'
+      observed_at: '2026-10-21T11:35:05Z'
       main:
         branch: main
-        sha: 893457c1c6235304635debb38bb8817868833598
+        sha: a7f1bcd0fb4e17df9c0e69f8bb2cdffc932d5bb2
       observation_note: >-
-        Dated recovery-observation selection, not live HEAD or an actual new measurement. Fetch main and
-        recover exact Git/CI/dirty paths before writes. Prior permanent404 naturalPASS and mounted41PASS
-        remain historical NO_PROVEN_CAUSE; new temporary404 observation has NOT_RUN. Preserve549R2,
-        all owner KEEP dependencies and foreign blockers; shared-workflow disjoint exception is not SAFE.
+        Fresh maina7f snapshot;General39580955892 GovCodeAccessPASS,Data foreignCoursesPortalC.
+        Fetch main/recover Git/CI/dirtypaths before writes.
+        Candidate9f strict39583551420 cancelledBrowser50min;actualEditor218356RAW overcap356.
+        SourcefeasibilityONLY,not actualfit/runtime/closure. Knownworkflowexception disjointonly;
+        allworktree selectedtargetoverlap0. Old receipts unchanged;futureactualmeasurement separatelyselected.
 
   - id: electronics-instrument-readouts
     parent_lane: electronics
@@ -9158,7 +9245,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: mirror_matrix_test_only_before_selected
+      checkpoint: mirror_matrix_test_only_segmented_pan_and_waveform_ownership_selected
       kind: repair
       owner_acceptance: pending
       program_issue: 452
@@ -9189,6 +9276,11 @@ parallel_lanes:
         Source feasibility result is history only. Existing product3files remain on unpublished5f9d07ae;
         new browser author touches only selected spec/hash,not product or unit tests. Preserve source
         candidate until actual new BEFORE review and separately selected AFTER;no automatic integration.
+      product_budget_note: >-
+        Metric correction2026-10-21:218000cap and actual217938 are RAWFILEbytes,margin62RAWbytes.
+        525two-module proxy minified65052to65134 delta82;gzip20289to20343 delta54. Neither proxy
+        is actualfullEditor delta;54compressedbytes must never be compared to62RAWmargin or implyfit.
+        This note supersedes unitlessfit inferences only;all old observations/receipts and525selection unchanged.
       budget_contract: Current exact benchmark217938/218000 leaves62bytes. Prototype+118does not fit. No cap increase
         or adjacent optimisation. Small Temp source/minifier estimate is provisional,not actual compiled fit;future
         exact-SHA benchmark<=218000 still required. If no compact equivalent candidate,STOP with budget proof.
@@ -9222,12 +9314,32 @@ parallel_lanes:
         delivery: Append525block to current simulation spec,preserve every old helper/case byte-exact;registered simulation file precedes laterE11 without workflow/order/registration edits. Raw/screenshots and finally journal before expected SOFT failures;retain primary errors and complete strict checkpoints.
         freeze: NEW fullspec frozen BEFORE and AFTER byte-identical. Historical ed4 browser is stale pertestlogin/missingR3/badsoftoracle and cannot be copied wholesale or accepted.
         boundary: Complete525matrix plus causal expected mirror failures and NEW actual review precede any selected AFTER;target completion never means full browser/repositoryPASS if laterE11hangD or foreignC persists.
+      hit_ownership_repair_contract:
+        version: actual1eeb_segmented_pan_and_existing_waveform_test_actuator_only
+        source_parent: 1eeba3693aa07b9ae0ffac801cedfc25258ff596
+        observed_cause: Eight desktop triangle controls now work but existing sine reset hits sibling icon/no sineancestor. Eight mobile requested dx456.09759521484375 exceeds320/390viewport width;no single owned endpoint pair can exist. CategoryA testactuator defects,not productpan defects.
+        expected_write_paths:
+        - e2e/electronics-simulation.spec.ts
+        - docs/product/electronics/generated/component-coverage.json
+        composition: Preserve current main full browser prefix/suffix and all generatedfields except browserEvidenceSha256. No548Visual/unit or525product adoption.
+        waveform: Reuse consistent own-RECT CTM interior-point ownership helper for existing triangle AND sine calls only. Preserve number/order/nativeclick/stateassertions;do not add square calls. Exact control/descendant elementFromPoint ownership required;noeligiblepoint strictFAIL with witness.
+        pan: Explicitly supersede only old singlepan constraint. Preserve original total dx/dy using geometrically minimal bounded segmentcount at most8 fitting actual viewport/canvas. Each segment has owned start/end,middle down,four moves,up and journal. Last delta is exact remainder;sum equals original. Geometric minimum does not guarantee overlay-free ownership;noeligiblepair strictFAIL,not retry or extra exploratory gesture.
+        preserved: EXACT16matrix/allrotations/fixtures/4instruments8readouts,R3storage/fullDoc/nativeSave1PUTbase2CAS2to3/freshcookiesGET/reopen/CTMoracles/ordinaryR/owncenters/windowmeet/nativeorder/deadlines/assertions and allforeign tests. No force/privateevents/programmaticpan/fixturechange/timeout/cap/product/workflow/script/dependency edits.
+        freeze: NEWwholebrowserblob frozen after selfreview,BEFORE and futureAFTER BYTEIDENTICAL. NEW independent exactSHA source review and finalcompositionreview before ONE causejustified existing strictCI. No hopefulrerun/fullgate waiver.
+        acceptance: All16complete plus causal mirroronlysoftfail and NEWactualreview before ANYproductAFTERselection. Sparse artifacts/hardfail invalidBEFORE;no closure/owneracceptance/release/deploy.
+        evidence: docs/product/electronics/evidence/instrument-525-segmented-pan-selection-20261021.md
+      observed_1eeb_before:
+        sha: 1eeba3693aa07b9ae0ffac801cedfc25258ff596
+        electronics_run: 39604641081
+        general_run: 39604623904
+        result: ElectronicsFAIL;GeneralFULLSUCCESS fourjobs. Focused905domain698web57classroom/70freshNxPASS;benchmark217938RAWof218000PASS. Target0of16complete/PUT0,invalidBEFORE. GeneralPASS is not owneracceptance.
+        actual_review_sha256: 3d16ef5bdb876dc27833575a0b72326f6708c892cfc346dd6ec378379936a41c
+        proposal_review_sha256: 7637bafbcf63fa84e402e51c26f1e165960028899690ac581d81fa5319bfac88
       next_action: >-
-        After canonical acceptance,ONE new test author implements only matrix/isolation/raw oracles in
-        current simulation spec and canonical browser hash. Narrow tests/self-review,freeze UNPUBLISHED
-        fullspec STOP;NEW independent source review then ONE cause-justified BEFORE. Controller reviews
-        actual coverage/causality and separately selects AFTER composition if justified. No product
-        publication,closure,owner acceptance,local browser/Docker/DB or unrelated E11diagnosis.
+        After canonicalpublication,ONE NEW bounded testauthor changes only selected waveform owned
+        points and segmented pan plus generatedbrowserhash. FreezeUNPUBLISHED STOP;NEWsource review,
+        finalcomposition review then ONEjustified strictBEFORE. Product5f9 stays unpublished;
+        548BUDGETBLOCKED/ownerKEEP544547 unchanged. Fetch main/recover Git/CI/dirtypaths before writes.
     execution_lease:
       executor_id: electronics-instrument-readouts-525
       holder: unassigned
@@ -9256,10 +9368,11 @@ parallel_lanes:
         branch: main
         sha: 55d1dcb5a00b59b7e8137e98c61c1f8bcdb88b2a
       observation_note: >-
-        Dated fetch main55d1 snapshot;General39543306783completedFAIL,cause not inspected here,not PASS.
-        Fetch main/recover Git/CI/dirty paths before writes. Known shared workflows WAITING_HANDOFF
-        standing disjoint exception only,actual selected/future target overlaps0,not SAFE. New test-only
-        BEFORE selection;source feasibility approval is not product/fit/runtime acceptance.
+        Dated1eeb snapshot:General39604623904FULLSUCCESS;Electronics39604641081FAIL,target0of16complete.
+        Fetch main/recover Git/CI/dirtypaths before writes. Selected segmented-pan/existing-waveform
+        TESTONLY repair;known workflow exception disjoint only,71worktrees selected targetoverlaps0.
+        Historical revisions55d1/55d1 CI remain historical only;source feasibility is not product/fit/
+        runtime acceptance. OwnerKEEP544547/548BUDGETBLOCKED and all foreign/history preserved.
 
   - id: electronics-selection
     parent_lane: electronics

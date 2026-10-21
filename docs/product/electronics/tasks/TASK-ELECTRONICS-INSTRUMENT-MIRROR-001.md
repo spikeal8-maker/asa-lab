@@ -12,6 +12,48 @@ review: independent
 
 # Existing instrument readouts remain readable under mirror
 
+## Selected TEST-ONLY segmented pan and waveform ownership — 21 October 2026
+
+Exact main1eeba369 / Electronics39604641081 has0/16 complete and PUT0.
+Eight desktop triangle actions now work; the existing sine reset hits its sibling
+icon. Eight mobile requests need dx456.09759521484375, greater than either320/390
+viewport: a single in-viewport endpoint pair is impossible. These are categoryA
+test actuator failures, not product panning defects. General39604623904 is fully
+successful; actual editor217938RAW/218000 passes. Neither is owner acceptance.
+
+Reuse the existing own-RECT CTM ownership helper for existing triangle AND sine
+calls only; retain their count, order, native clicks and waveform assertions.
+Do not add square calls. Require actual elementFromPoint control/descendant
+ownership; no eligible point means strict failure with journal.
+
+This selection explicitly supersedes ONLY the former single-pan constraint.
+Split the unchanged total dx/dy into geometrically minimal bounded segments,
+at most8, fitting actual viewport/canvas. Each segment retains middle down,
+four moves and up with owned start/end and journal. Last delta is the exact
+remainder; total displacement is unchanged. Geometric minimum does not promise
+an overlay-free pair: no eligible pair means strict failure, no retry or
+exploratory gesture. No force, private event, programmatic pan or fixture change.
+
+Keep all16 matrix journeys/poses/instruments/readouts, fixtures, strict R3 storage,
+whole local/expected/server/rendered documents, native Save1PUT/base2/CAS2to3,
+fresh cookies-only GET/reopen, CTM ordinaryR/own-center/windowmeet oracles,
+assertions and deadlines. Only simulation spec and generated browser hash change.
+No product/workflow/script/package/cap edits or timeout/coverage weakening.
+
+Freeze a NEW full browser blob BEFORE/AFTER byte-identical; NEW source and final
+composition reviews precede ONE justified existing strict BEFORE run. All16
+complete with causal mirror-only soft failures and NEW actual review remain
+mandatory before separate product AFTER selection. #548 BUDGETBLOCKED and owner
+KEEP #544/#547 OPEN remain unchanged. See [new receipt](../evidence/instrument-525-segmented-pan-selection-20261021.md).
+
+## Budget metric correction — 21 October 2026
+
+Editor cap218000 and actual217938 are RAWFILEbytes (margin62RAWbytes). Cached
+final two-module proxy: minified65052→65134 (+82),gzip20289→20343 (+54).
+The earlier unitless+54 is compressed,not raw;neither proxy is actualfullEditor
+delta. Never compare54gzipbytes with62RAWmargin or inferfit. Actual exact bundle
+measurement remains required;no525selection/source ownership/acceptance change.
+
 ## TEST-ONLY new BEFORE matrix — product remains unpublished
 
 This section supersedes ONLY the previous executable feasibility budget with
