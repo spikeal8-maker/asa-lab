@@ -12,6 +12,23 @@ review: independent
 
 # E11 — одинаковая кайма выделения существующих деталей
 
+## R5 actual closeout — TERMINAL_NO_PROVEN_CAUSE, no new executable slice
+
+The [dated be51 actual receipt](../evidence/selection-outline-549-be51d9c9-r5-terminal-20261021.md)
+records3/16complete. Running1440 functionally saved/reopened with strict full
+oracles but journeyComplete remains false;12journeys absent. Both suspected
+awaits fulfilled: fresh.close107ms,final original snapshot38ms. Later pending
+operation/cause UNKNOWN.218862numeric expects are a hypothesis;1134assertions/
+448ms no-browser sample does not establish CI cause or permit optimisation.
+
+R5 diagnosis is terminal. All earlier author/observer budgets below are history,
+not permission to continue. No R6 observer,rerun,product/AFTER or source fix is
+selected. Return unresolved cause to controller/owner for an explicit decision;
+no automatic next experiment. Existing16complete/NEW actual review and identical
+frozen BEFORE/AFTER requirement remain unmet. This is documentation closeout,
+not Issue549 closure,product acceptance or release. Status in_progress and
+ownerpending,#548 terminal NO_PROVEN_CAUSE and owner KEEP544/547 remain unchanged.
+
 ## R5 passive lifecycle boundary diagnostics — journal only
 
 When canonically selected, ONLY these synchronous outer-boundary journal

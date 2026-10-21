@@ -8334,7 +8334,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: r5_passive_lifecycle_boundary_diagnostics_selected
+      checkpoint: r5_diagnosis_terminal_no_proven_cause
       previous_checkpoint: r8_test_only_unique_native_meter_hit_path
       kind: repair
       owner_acceptance: pending
@@ -8344,13 +8344,12 @@ parallel_lanes:
       program_issue: 452
       owner_problem: E11
       repair_scope: >-
-        R5 journal-only diagnostics around EXISTING fresh.close and final original-page snapshot awaits.
-        Only synchronous durable Node before/fulfilled/rejected boundary markers;not a proved-cause repair.
-        No new awaited browser operation,action,timeout,product or lifecycle-order change.
+        R5 actual documentation closeout only,not Issue closure. Both selected lifecycle awaits fulfilled;
+        later pending operation UNKNOWN. No new source repair,observer,R6,rerun or product/AFTER selected.
       source_budget: >-
-        Author ONLY e2e/electronics-selection-outline.spec.ts within R5 outer-boundary journal contract.
-        Preserve every R2/R3/R4 oracle/gesture,worker delivery,strict target,deadline,existing await and
-        complete/error semantics;no other source,dependency,workflow,registration or product path.
+        NONE under terminal R5 diagnosis. Earlier R2/R3/R4/R5 executable budgets below are historical
+        and not permission for another observer,source change or run. A new explicit controller/owner
+        decision is required before any further executable slice;existing strict acceptance remains unmet.
       published_before_source_sha: e14229f93c7400fb39ae880cc9889aefdc8dcfb6
       frozen_browser_blob: c4e05c1109dbac9a74ef1548a208178a10789878
       frozen_browser_bytes: 64509
@@ -8359,7 +8358,7 @@ parallel_lanes:
       independent_source_review: SOURCE_APPROVE
       before_strict_run: 39490329377
       before_general_run: 39490297942
-      runtime_acceptance: INCOMPLETE_BEFORE_3of16_R5_diagnosis_only
+      runtime_acceptance: INCOMPLETE_BEFORE_3of16_R5_TERMINAL_NO_PROVEN_CAUSE
       r2_evidence_contract:
         baseline_source: e14229f93c7400fb39ae880cc9889aefdc8dcfb6
         independent_review: NEEDS_FIX_INVALID_BEFORE_BASELINE
@@ -8451,17 +8450,29 @@ parallel_lanes:
         forbidden: No dependency/tracing/internals wrapping,inner browser binding/callback markers,new browser call/action/wait/timeout/retry,predicate/oracle weakening,worker delivery modification,fixture/route/poll/product/core/hook change.
         diagnosis: After new source freeze/review ONE cause-based diagnostic BEFORE run only. Incomplete journal or no causal boundary evidence means terminal STOP diagnosis;no next hopeful observer or automatic fix/AFTER.
         freeze: New frozen whole BEFORE blob;AFTER identical if later selected. Product/AFTER remains forbidden until16complete plus NEW independent actual review;markers alone do not establish cause or acceptance.
+      r5_terminal_actual:
+        observed_at: '2026-10-21T04:06:46Z'
+        sha: be51d9c993f5f598c7c42ad3e6fd78e6be3c8569
+        run: 39536043701
+        verdict: NEEDS_FIX_INCOMPLETE_BASELINE
+        diagnosis: TERMINAL_NO_PROVEN_CAUSE
+        coverage: Only4rawjourneys at1440,3of16complete,12absent. Running1440 wholeSave1PUT/CAS/reopen passed functionally but journeyCompletefalse;other sizes not observed.
+        lifecycle: Both suspected awaits fulfilled with durable markers;running fresh.close107ms and final original snapshot38ms. Later pending operation/cause UNKNOWN,not dropped markers or proved teardown failure.
+        hypothesis: 218862numeric expectations reporting cost remains source-supported hypothesis only;no-browser1134assertions/448ms sample does not prove CI cause or authorize optimisation/rerun.
+        gates_observed: Focused905domain698web57classroom/70freshPASS;benchmark217938of218000PASS. Strict cancelled50minuteD;browser reporter208PASS17FAIL entries14foreign3E11,not final suite summary. General39536033364GovernancePASS,CodeC3HIGH,DataAccessSKIPPED.
+        report_sha256: 722ce431ed32383d36d324d8fa71b927cee12d446fe15e7b26854a1f9894668f
+        evidence: docs/product/electronics/evidence/selection-outline-549-be51d9c9-r5-terminal-20261021.md
+        executable_budget: NONE;R5 diagnosis stopped,noR6observer,no rerun,no product/AFTER,closure or acceptance.
       next_action: >-
-        ONE bounded test-only author adds only synchronous durable Node outer markers around existing
-        fresh.close and final original snapshot,retaining exact await/error/complete semantics. Narrow
-        checks/self-review and ONE unpublished frozen candidate STOP;NEW independent source review precedes
-        ONE bounded cause-based diagnostic BEFORE. If incomplete or no causal evidence,STOP diagnosis,
-        no next hopefulobserver/fix. No product/AFTER until16complete and NEW actual review;whole tests identical.
+        STOP R5 diagnosis as TERMINAL_NO_PROVEN_CAUSE. Preserve exact source,actual artifacts and
+        strict16complete/NEWactualreview acceptance boundary. Return unresolved later-operation cause
+        to controller/owner for explicit decision;no automatic R6 observer,rerun,optimisation or product/AFTER.
+        This receipt does not close549,change548dependencies,accept owner outcome or select new work.
       preservation: >-
-        Preserve R2 delivery/native receipts,R3 coordinates/poll,R4phase oracle/backward route,witnesses,
-        all strict fullDoc1PUT/CAS/storage/ready/JSONL/native/deadline checks and old receipts. Foreign
-        D2/LED/hook/workflow/current blocks,ownerpending,548terminal NO_PROVEN_CAUSE and owner KEEP544/547
-        unchanged. General e4a categoryC not our repair;no closure,release,deployment or acceptance.
+        Keep all historical R2/R3/R4/R5 sources/contracts/receipts and all strict oracles unchanged.
+        Foreign D2/LED/hook/workflow/current blocks,ownerpending and in_progress,#548terminal NO_PROVEN_CAUSE
+        and owner KEEP544/547 remain unchanged. General categoryC grants no repair scope. No closure,
+        release,deployment,owner acceptance or new executable selection.
       before_parent_sha: 6f27bc9fd58eeb9a9262c9a30fb15c00075934f0
       before_parent_browser_blob: 57ca47df3aa89cfbccff5c242a36f42febc01be2
       corrected_before_exceptions: Genuine UI beforeAll login once per group/worker in disposable context,
@@ -8469,9 +8480,9 @@ parallel_lanes:
         draft entries empty; post-load local drafts empty and exactly fixture-derived session saved hint.
         Journal actual storage values before assertions. No extra gestures, waits, retries or deadline change.
       product_budget_note: >-
-        Actual e4a benchmark217938/218000 leaves62bytes;old Temp-only Visual+4 estimate does not prove
+        Actual be51 benchmark217938/218000 leaves62bytes;old Temp-only Visual+4 estimate does not prove
         AFTER fit. No cap increase,source refactor or automatic product phase.
-      selection_evidence: docs/product/electronics/evidence/selection-outline-549-e4a48a77-r5-lifecycle-selection-20261021.md
+      selection_evidence: docs/product/electronics/evidence/selection-outline-549-be51d9c9-r5-terminal-20261021.md
       preserved_candidate_sha: 5da91c88d1df4b87e5b3b92fafd9eacb03f77d11
       preserved_candidate_tree: 5f4e7150a795303b4802039118627bcac6ce8b0e
       candidate_branch: codex/electronics-549-outline-transform-oracle-r4
@@ -8535,15 +8546,15 @@ parallel_lanes:
       kind: observed_snapshot
       convergence_baseline_sha: 8f568af52429e7e3091a6bbf542df9000a003d85
       head_sha: null
-      observed_at: '2026-10-21T02:49:03Z'
+      observed_at: '2026-10-21T04:06:46Z'
       main:
         branch: main
-        sha: e4a48a77f41e5b2fb9950ab4885599e8fcb6d67d
+        sha: be51d9c993f5f598c7c42ad3e6fd78e6be3c8569
       observation_note: >-
-        Dated fetch main e4a snapshot with cached actual3of16 incomplete review and cleanup source audit;
-        not live HEAD or proved cause. Fetch main/recover actual Git/CI/dirty paths before writes.
-        Strict39528417023 cancelled50minute D/E,General39528415332FAIL categoryC;no PASS/acceptance claim.
-        Known shared workflow WAITING_HANDOFF has standing disjoint exception only,actual overlap STOP,not SAFE.
+        Dated fetch main be51 snapshot with independent actual R5 review;not live HEAD,proven cause or
+        acceptance. Strict39536043701cancelledD50minute;General39536033364CodeC3HIGH,not GeneralPASS.
+        Fetch main/recover Git/CI/dirty paths before any newly authorized write. Known shared workflow
+        WAITING_HANDOFF standing disjoint exception only,actual overlap STOP,not SAFE. R5 diagnosis terminal.
 
   - id: observability
     worktree_id: observability-authoring
