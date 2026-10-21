@@ -74,7 +74,7 @@ function traceTeacherHomeCase(): (stage: string) => void {
   let phaseStarted = started;
   let stage = 'case entry';
   let finished = false;
-  let observer: pg.Client | undefined;
+  let observer: { close: () => Promise<void> } | undefined;
   const appPids = new Set<number>();
   const adminPids = new Set<number>();
   const acquire = (pids: Set<number>) => (client: pg.PoolClient) => {
@@ -110,7 +110,39 @@ function traceTeacherHomeCase(): (stage: string) => void {
       query_timeout: 750,
       statement_timeout: 750,
     });
-    observer = client;
+    let closing: Promise<void> | undefined;
+    const activeObserver = {
+      close(): Promise<void> {
+        if (closing) return closing;
+        closing = new Promise<void>((resolve) => {
+          let settled = false;
+          const finish = () => {
+            if (settled) return;
+            settled = true;
+            clearTimeout(deadline);
+            resolve();
+          };
+          const forceClose = () => {
+            if (settled) return;
+            try {
+              (client as pg.Client & { connection: pg.Connection }).connection.stream.destroy();
+            } catch {
+              // Observer cleanup must not replace the test's own result.
+            }
+            finish();
+          };
+          // pg's graceful idle close has no deadline; bound only this observer's socket.
+          const deadline = setTimeout(forceClose, 250);
+          try {
+            void client.end().then(finish, forceClose);
+          } catch {
+            forceClose();
+          }
+        });
+        return closing;
+      },
+    };
+    observer = activeObserver;
     client.on('error', () => undefined);
     try {
       await client.connect();
@@ -158,8 +190,8 @@ function traceTeacherHomeCase(): (stage: string) => void {
         );
       }
     } finally {
-      await client.end().catch(() => undefined);
-      if (observer === client) observer = undefined;
+      await activeObserver.close();
+      if (observer === activeObserver) observer = undefined;
     }
   };
   // At most four read-only snapshots, including one before the unchanged 60s deadline.
@@ -172,9 +204,10 @@ function traceTeacherHomeCase(): (stage: string) => void {
     timers.forEach(clearTimeout);
     app.off('acquire', appAcquire);
     admin.off('acquire', adminAcquire);
-    void observer?.end().catch(() => undefined);
+    void observer?.close();
   });
   return (next: string) => {
+    if (finished) return;
     console.info(`[VS002 Teacher Home phase] ${JSON.stringify({ ...state(), next })}`);
     stage = next;
     phaseStarted = performance.now();
