@@ -35,6 +35,7 @@ const manifest = {
     'course and section forms preserve later edits after real save receipts without duplicates or rebasing competing changes',
     'Course publication lost response replays the exact V1 after V2 and reload without duplicate versions',
     'Course history compares exact V1–V4 policies and structural before/after changes without current defaults',
+    'document Course Builder preserves the lesson, real save acknowledgements and exact preview at four widths',
   ],
   'learning-course-01.spec.ts': [
     'author-only content keeps exact ID and versions after teaching activation; graded scale and mute are usable',
@@ -421,7 +422,7 @@ function main() {
     );
     if (batch !== secondBatch) verified.push(...selected);
   }
-  equal(verified, first, 'Ordered first-batch union must be all 30 cases exactly once.');
+  equal(verified, first, 'Ordered first-batch union must be all 31 cases exactly once.');
   equal(
     firstBatches.slice(2).flatMap((batch) => batch.cases),
     course,
@@ -532,7 +533,7 @@ function main() {
   const exitCode = firstExitCode || secondExitCode || 0;
   try {
     write(path.join(evidence, 'summary.json'), {
-      first: { cases: 30, exitCode: firstExitCode, status: firstExitCode ? 'FAIL' : 'PASS' },
+      first: { cases: 31, exitCode: firstExitCode, status: firstExitCode ? 'FAIL' : 'PASS' },
       second: {
         cases: 15,
         exitCode: secondExitCode,

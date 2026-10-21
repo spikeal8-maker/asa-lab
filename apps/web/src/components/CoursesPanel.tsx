@@ -1,4 +1,14 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type JSX } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+  type JSX,
+} from 'react';
+import { createPortal } from 'react-dom';
 import {
   api,
   visibilityLabel,
@@ -16,6 +26,8 @@ import { CanonicalPracticePicker, PinnedPracticePreview } from './CanonicalPract
 import { PinnedManualMaterialPreview } from './CanonicalManualMaterialPicker';
 import { CourseAssignDialog, type CourseAssignAttempt } from './CourseAssignDialog';
 import { Dropdown } from './Dropdown';
+import { CourseEditorDialog } from './CourseEditorDialog';
+import { GrowingTextarea } from './GrowingTextarea';
 import { LessonBlockEditor, lessonBlocksValid } from './LessonBlockEditor';
 import { LessonBlocks } from './LessonBlocks';
 import { ShareDialog } from './ShareDialog';
@@ -380,6 +392,7 @@ function LessonEditor({
   onDelete,
   saveBlockedMessage,
   diagnosticFocus,
+  saveTarget,
 }: {
   readonly sections: readonly CourseSection[];
   readonly sectionId: string;
@@ -390,8 +403,11 @@ function LessonEditor({
   readonly onDirty: () => void;
   readonly saveBlockedMessage: string | null;
   readonly diagnosticFocus?: CourseDiagnosticFocus | null;
+  readonly saveTarget: HTMLElement | null;
 }): JSX.Element {
   const formRef = useRef<HTMLFormElement>(null);
+  const formId = useId();
+  const [settingsOpen, setSettingsOpen] = useState(false);
   useEffect(() => {
     if (formRef.current && diagnosticFocus && diagnosticFocus.diagnostic.lessonId === lesson?.id) {
       focusCourseDiagnostic(formRef.current, diagnosticFocus.diagnostic);
@@ -448,54 +464,93 @@ function LessonEditor({
   }
 
   return (
-    <form ref={formRef} className="course-lesson-editor" onSubmit={(event) => void submit(event)}>
+    <form
+      id={formId}
+      ref={formRef}
+      className="course-lesson-editor"
+      onSubmit={(event) => void submit(event)}
+    >
       <div className="course-editor-title">
-        <div>
-          <span className="course-eyebrow">{lesson ? 'Урок' : 'Новый урок'}</span>
-          <h3>{lesson?.title ?? 'Добавьте материал или практику'}</h3>
+        <span className="course-eyebrow">
+          {sections.find((entry) => entry.id === targetSection)?.title} ·{' '}
+          {lesson ? 'Урок' : 'Новый урок'}
+        </span>
+        <button type="button" className="btn-secondary" onClick={() => setSettingsOpen(true)}>
+          Параметры урока
+        </button>
+      </div>
+
+      <CourseEditorDialog
+        open={settingsOpen}
+        title="Параметры урока"
+        closeLabel="Вернуться к уроку"
+        onClose={() => setSettingsOpen(false)}
+      >
+        <div className="course-editor-grid">
+          <label className="course-field">
+            <span>Раздел</span>
+            <select
+              value={targetSection}
+              onChange={(event) => {
+                setTargetSection(event.target.value);
+                onDirty();
+              }}
+            >
+              {sections.map((entry) => (
+                <option key={entry.id} value={entry.id}>
+                  {entry.title}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="course-field">
+            <span>Тип урока</span>
+            <select
+              value={kind}
+              onChange={(event) => {
+                setKind(event.target.value as 'material' | 'assignment');
+                onDirty();
+              }}
+            >
+              <option value="material">Материал</option>
+              <option value="assignment">Практическое задание</option>
+            </select>
+          </label>
         </div>
+        <label className="course-field course-duration-field">
+          <span>Примерное время, минут</span>
+          <input
+            type="number"
+            min={1}
+            max={600}
+            value={minutes}
+            onChange={(event) => {
+              setMinutes(event.target.value);
+              onDirty();
+            }}
+            placeholder="15"
+          />
+        </label>
+        <p className="course-parameters-note">Параметры сохраняются вместе с уроком.</p>
         {onDelete ? (
-          <button type="button" className="course-text-danger" onClick={() => void onDelete()}>
+          <button
+            type="button"
+            className="course-text-danger"
+            onClick={() => {
+              setSettingsOpen(false);
+              void onDelete();
+            }}
+          >
             Удалить
           </button>
         ) : null}
-      </div>
+      </CourseEditorDialog>
 
-      <div className="course-editor-grid">
-        <label className="course-field">
-          <span>Раздел</span>
-          <select
-            value={targetSection}
-            onChange={(event) => {
-              setTargetSection(event.target.value);
-              onDirty();
-            }}
-          >
-            {sections.map((entry) => (
-              <option key={entry.id} value={entry.id}>
-                {entry.title}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="course-field">
-          <span>Тип урока</span>
-          <select
-            value={kind}
-            onChange={(event) => {
-              setKind(event.target.value as 'material' | 'assignment');
-              onDirty();
-            }}
-          >
-            <option value="material">Материал</option>
-            <option value="assignment">Практическое задание</option>
-          </select>
-        </label>
-      </div>
-
-      <label className="course-field">
+      <label className="course-field course-document-title">
         <span>Название урока</span>
-        <input
+        <GrowingTextarea
+          aria-label="Название урока"
+          data-course-field="title"
           value={title}
           maxLength={160}
           onChange={(event) => {
@@ -508,14 +563,15 @@ function LessonEditor({
 
       <label className="course-field">
         <span>Что будет в уроке</span>
-        <input
+        <GrowingTextarea
+          aria-label="Что будет в уроке"
           value={summary}
           maxLength={600}
           onChange={(event) => {
             setSummary(event.target.value);
             onDirty();
           }}
-          placeholder="Одна строка для содержания курса"
+          placeholder="Что ученик узнает и сделает"
         />
       </label>
 
@@ -549,27 +605,15 @@ function LessonEditor({
         }}
       />
 
-      <label className="course-field course-duration-field">
-        <span>Примерное время, минут</span>
-        <input
-          type="number"
-          min={1}
-          max={600}
-          value={minutes}
-          onChange={(event) => {
-            setMinutes(event.target.value);
-            onDirty();
-          }}
-          placeholder="15"
-        />
-      </label>
-
-      <div className="course-editor-actions">
-        <span>{saveBlockedMessage ?? 'Изменения сохраняются после нажатия кнопки.'}</span>
-        <button type="submit" className="btn-primary" disabled={!valid}>
-          {saving ? 'Сохраняем…' : lesson ? 'Сохранить урок' : 'Добавить урок'}
-        </button>
-      </div>
+      {saveBlockedMessage ? <p role="status">{saveBlockedMessage}</p> : null}
+      {saveTarget
+        ? createPortal(
+            <button type="submit" form={formId} className="btn-primary" disabled={!valid}>
+              {saving ? 'Сохраняем…' : lesson ? 'Сохранить урок' : 'Добавить урок'}
+            </button>,
+            saveTarget,
+          )
+        : null}
     </form>
   );
 }
@@ -577,10 +621,12 @@ function LessonEditor({
 function CoursePreview({
   course,
   sections,
+  draftRevision,
   version,
 }: {
   readonly course: Course;
   readonly sections: readonly CourseSection[];
+  readonly draftRevision: number;
   readonly version?: PublishedAuthorVersion;
 }): JSX.Element {
   let number = 0;
@@ -591,7 +637,12 @@ function CoursePreview({
       lessons: section.lessons.filter((lesson) => !lesson.hidden),
     }));
   return (
-    <article className="course-preview-page" data-testid="course-preview-page">
+    <article
+      className="course-preview-page"
+      data-testid="course-preview-page"
+      data-course-version-id={version?.id}
+      data-draft-revision={version ? undefined : draftRevision}
+    >
       <header>
         <span className="course-eyebrow">
           {version
@@ -727,7 +778,23 @@ function CourseEditor({
   const [newLessonSectionId, setNewLessonSectionId] = useState<string | null>(null);
   const createdLessonIdRef = useRef<string | null>(null);
   const [sectionForm, setSectionForm] = useState<CourseSection | null | 'new'>(null);
+  const [saveTarget, setSaveTarget] = useState<HTMLDivElement | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [outlineOpen, setOutlineOpen] = useState(false);
+  const [wideLayout, setWideLayout] = useState(
+    () => window.matchMedia('(min-width: 761px)').matches,
+  );
+  useEffect(() => {
+    const media = window.matchMedia('(min-width: 761px)');
+    const update = () => {
+      setWideLayout(media.matches);
+      setOutlineOpen(false);
+    };
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, []);
   const [preview, setPreview] = useState(false);
+  const previewTrigger = useRef<HTMLButtonElement>(null);
   const [publishedPreview, setPublishedPreview] = useState<PublishedAuthorVersion | null>(null);
   const publicationReceipt = useRef<{ id: string; versionNumber: number } | null>(null);
   const [previewBusy, setPreviewBusy] = useState(false);
@@ -1243,333 +1310,332 @@ function CourseEditor({
 
   return (
     <fieldset disabled={restoreBusy} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
-      <section className="course-system" data-testid="course-editor">
-        <header className="course-compact-header">
-          <button
-            type="button"
-            className="course-back-button"
-            onClick={() =>
-              withSavedDraft(() => {
-                if (canLeave()) onBack();
-              })
-            }
-          >
-            <span aria-hidden="true">←</span>
-            <span>Курсы</span>
-          </button>
-          <div className="course-compact-title">
-            <div>
-              <h2>{course.title}</h2>
-              <span className={`course-status-pill ${publicationClass(course)}`}>
-                {publicationLabel(course)}
-              </span>
-            </div>
-            <p>
-              {(sections?.length ?? course.sectionCount) + ' разделов · ' + lessonCount + ' уроков'}
-            </p>
-          </div>
-          <div className="course-header-actions">
+      <section className="course-system course-document-editor" data-testid="course-editor">
+        <div className="course-editor-document" hidden={preview && assignVersion === null}>
+          <header className="course-compact-header">
             <button
               type="button"
-              className="btn-secondary"
-              onClick={() => withSavedDraft(onEditCourse)}
-            >
-              Настройки
-            </button>
-            {canTeach ? (
-              <button
-                type="button"
-                className="btn-secondary"
-                onClick={() => withSavedDraft(onShare)}
-              >
-                Доступ
-              </button>
-            ) : null}
-            {course.publicationState !== 'published' ? (
-              <button
-                type="button"
-                className="btn-primary course-publish-button"
-                disabled={
-                  publishing || hasWork || sectionWork || lessonCount === 0 || !!unavailableMessage
-                }
-                title={lessonCount === 0 ? 'Сначала добавьте хотя бы один урок' : undefined}
-                onClick={() => void publishCourse()}
-              >
-                {publishing
-                  ? 'Публикуем…'
-                  : course.publicationState === 'changed'
-                    ? `Опубликовать v${(course.publishedVersion ?? 0) + 1}`
-                    : 'Опубликовать'}
-              </button>
-            ) : null}
-            <button
-              type="button"
-              className={preview ? 'btn-primary' : 'btn-secondary'}
+              className="course-back-button"
               onClick={() =>
                 withSavedDraft(() => {
-                  setPublishedPreview(null);
-                  setPreview((value) => !value);
+                  if (canLeave()) onBack();
                 })
               }
             >
-              {preview ? 'Редактировать' : 'Предпросмотр'}
+              <span aria-hidden="true">←</span>
+              <span>Курсы</span>
             </button>
-            {course.publishedVersion || publicationReceipt.current ? (
+            <div className="course-compact-title">
+              <div>
+                <h2>{course.title}</h2>
+                <span className={`course-status-pill ${publicationClass(course)}`}>
+                  {publicationLabel(course)}
+                </span>
+              </div>
+              <p>
+                {(sections?.length ?? course.sectionCount) +
+                  ' разделов · ' +
+                  lessonCount +
+                  ' уроков'}
+              </p>
+            </div>
+            <Dropdown
+              className="course-outline-menu course-actions-menu"
+              ariaLabel="Действия курса"
+              label="Ещё"
+            >
+              {(close) => (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      close();
+                      withSavedDraft(onEditCourse);
+                    }}
+                  >
+                    Настройки
+                  </button>
+                  {canTeach ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        close();
+                        withSavedDraft(onShare);
+                      }}
+                    >
+                      Доступ
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      close();
+                      setHistoryOpen(true);
+                    }}
+                  >
+                    История версий
+                  </button>
+                  {course.publishedVersion || publicationReceipt.current ? (
+                    <button
+                      type="button"
+                      disabled={hasWork || publishing}
+                      onClick={() => {
+                        close();
+                        void showPublished();
+                      }}
+                    >
+                      Опубликованная версия
+                    </button>
+                  ) : null}
+                  {canTeach ? (
+                    <button
+                      type="button"
+                      disabled={hasWork || publishing || lessonCount === 0}
+                      onClick={() => {
+                        close();
+                        void showPublished(true);
+                      }}
+                    >
+                      Назначить курс
+                    </button>
+                  ) : null}
+                </>
+              )}
+            </Dropdown>
+            <div className="course-header-actions">
+              <div className="course-save-slot" ref={setSaveTarget} />
+              <span className="course-save-state" role="status" data-testid="course-save-state">
+                {lessonSaveBlock
+                  ? lessonSaveBlock
+                  : writing || restoreBusy
+                    ? 'Сохраняем изменения…'
+                    : localDirty || sectionWork || newLessonSectionId
+                      ? 'Есть несохранённые изменения'
+                      : sections === null
+                        ? 'Загружаем содержание…'
+                        : 'Изменения сохранены'}
+                <small>Черновик · редакция {draftRevision}</small>
+              </span>
               <button
+                ref={previewTrigger}
                 type="button"
                 className="btn-secondary"
-                disabled={hasWork || publishing}
-                onClick={() => void showPublished()}
+                onClick={() =>
+                  withSavedDraft(() => {
+                    setPublishedPreview(null);
+                    setPreview(true);
+                  })
+                }
               >
-                Опубликованная версия
+                Предпросмотр
               </button>
-            ) : null}
-            {canTeach ? (
-              <button
-                type="button"
-                className="btn-primary"
-                disabled={hasWork || publishing || lessonCount === 0}
-                onClick={() => void showPublished(true)}
-              >
-                Назначить курс
-              </button>
-            ) : null}
-          </div>
-        </header>
-
-        {course.publicationState === 'draft' && course.visibility !== 'private' ? (
-          <p className="course-publication-note" role="status">
-            Доступ настроен, но коллеги увидят курс в каталоге только после первой публикации.
-          </p>
-        ) : null}
-
-        {notice ? (
-          <p className="notice-success course-inline-notice" role="status">
-            {notice}
-          </p>
-        ) : null}
-        {unavailableMessage || error ? (
-          <p className="form-error course-inline-notice" role="alert">
-            {unavailableMessage ?? error}
-            {!unavailableMessage && publicationProblem?.lessonId ? (
-              <button
-                type="button"
-                className="btn-secondary course-correction-button"
-                onClick={correctPublicationProblem}
-              >
-                Перейти к исправлению
-              </button>
-            ) : null}
-          </p>
-        ) : null}
-
-        <AuthorVersionHistory
-          kind="course"
-          rootId={course.id}
-          revision={draftRevision}
-          dirty={
-            localDirty ||
-            sectionForm !== null ||
-            newLessonSectionId !== null ||
-            visibilityWrite !== null ||
-            unavailableMessage !== null
-          }
-          onBusyChange={setRestoreBusy}
-          onOpenDraft={async (sourceVersionNumber) => {
-            setPreview(false);
-            setSelectedLessonId(null);
-            setNewLessonSectionId(null);
-            setSectionForm(null);
-            await loadOutline(true);
-            setEditorEpoch((value) => value + 1);
-            onChanged();
-            setNotice(
-              sourceVersionNumber
-                ? 'Черновик создан на основе версии ' + sourceVersionNumber
-                : 'Открыт существующий черновик.',
-            );
-          }}
-        />
-        {course.draftActive && course.draftBaseVersionNumber ? (
-          <p>Черновик на основе версии {course.draftBaseVersionNumber}</p>
-        ) : null}
-        {sections === null ? (
-          <p role="status">Загружаем содержание…</p>
-        ) : preview ? (
-          <CoursePreview
-            course={course}
-            sections={publishedPreview ? publishedCourseSections(publishedPreview) : sections}
-            {...(publishedPreview ? { version: publishedPreview } : {})}
-          />
-        ) : (
-          <div className="course-builder" onChange={markDirty}>
-            <aside className="course-outline" aria-label="Содержание курса">
-              <div className="course-outline-head">
-                <div>
-                  <span>Содержание</span>
-                  <small>{lessonCount} уроков</small>
-                </div>
+              {course.publicationState !== 'published' ? (
                 <button
                   type="button"
-                  className="course-icon-button"
-                  aria-label="Добавить раздел"
-                  title="Добавить раздел"
-                  onClick={() => withSavedDraft(() => setSectionForm('new'))}
+                  className="btn-secondary course-publish-button"
+                  disabled={
+                    publishing ||
+                    hasWork ||
+                    sectionWork ||
+                    lessonCount === 0 ||
+                    !!unavailableMessage
+                  }
+                  title={lessonCount === 0 ? 'Сначала добавьте хотя бы один урок' : undefined}
+                  onClick={() => void publishCourse()}
                 >
-                  +
+                  {publishing
+                    ? 'Публикуем…'
+                    : course.publicationState === 'changed'
+                      ? `Опубликовать v${(course.publishedVersion ?? 0) + 1}`
+                      : 'Опубликовать'}
                 </button>
-              </div>
-              <div className="course-outline-scroll">
-                {sections.map((section, sectionIndex) => (
-                  <section key={section.id} className="course-outline-section">
-                    <div className="course-outline-section-head">
-                      <button
-                        type="button"
-                        className="course-section-name"
-                        onClick={() => withSavedDraft(() => setSectionForm(section))}
-                      >
-                        <span>{sectionIndex + 1}</span>
-                        <strong>{section.title}</strong>
-                        {section.hidden ? <small>Скрыт</small> : null}
-                      </button>
-                      <Dropdown
-                        className="course-outline-menu"
-                        ariaLabel={'Действия раздела «' + section.title + '»'}
-                        label={<span aria-hidden="true">•••</span>}
-                      >
-                        {(close) => (
-                          <>
-                            <button
-                              type="button"
-                              disabled={sectionIndex === 0}
-                              onClick={() => {
-                                close();
-                                void act(
-                                  () =>
-                                    api.moveCourseSection(course.id, section.id, -1, draftRevision),
-                                  'Раздел перемещён.',
-                                );
-                              }}
-                            >
-                              Выше
-                            </button>
-                            <button
-                              type="button"
-                              disabled={sectionIndex === sections.length - 1}
-                              onClick={() => {
-                                close();
-                                void act(
-                                  () =>
-                                    api.moveCourseSection(course.id, section.id, 1, draftRevision),
-                                  'Раздел перемещён.',
-                                );
-                              }}
-                            >
-                              Ниже
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                close();
-                                void act(
-                                  () =>
-                                    api.duplicateCourseSection(
-                                      course.id,
-                                      section.id,
-                                      draftRevision,
-                                      `course-duplicate:section:${section.id}:${draftRevision}`,
-                                    ),
-                                  'Раздел продублирован.',
-                                );
-                              }}
-                            >
-                              Дублировать
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                close();
-                                void setVisibility('section', section.id, !section.hidden);
-                              }}
-                            >
-                              {section.hidden ? 'Показать' : 'Скрыть'}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                close();
-                                withSavedDraft(() => setSectionForm(section));
-                              }}
-                            >
-                              Переименовать
-                            </button>
-                            <button
-                              type="button"
-                              className="is-danger"
-                              onClick={() => {
-                                close();
-                                void act(
-                                  () =>
-                                    api.deleteCourseSection(course.id, section.id, draftRevision),
-                                  'Раздел удалён.',
-                                );
-                              }}
-                            >
-                              Удалить пустой
-                            </button>
-                          </>
-                        )}
-                      </Dropdown>
+              ) : null}
+            </div>
+          </header>
+
+          {course.publicationState === 'draft' && course.visibility !== 'private' ? (
+            <p className="course-publication-note" role="status">
+              Доступ настроен, но коллеги увидят курс в каталоге только после первой публикации.
+            </p>
+          ) : null}
+
+          {notice ? (
+            <p className="notice-success course-inline-notice" role="status">
+              {notice}
+            </p>
+          ) : null}
+          {unavailableMessage || error ? (
+            <p className="form-error course-inline-notice" role="alert">
+              {unavailableMessage ?? error}
+              {!unavailableMessage && publicationProblem?.lessonId ? (
+                <button
+                  type="button"
+                  className="btn-secondary course-correction-button"
+                  onClick={correctPublicationProblem}
+                >
+                  Перейти к исправлению
+                </button>
+              ) : null}
+            </p>
+          ) : null}
+
+          <section
+            className="course-history-panel"
+            hidden={!historyOpen}
+            aria-label="История версий"
+          >
+            <div className="course-dialog-header">
+              <h3>История версий</h3>
+              <button type="button" className="btn-secondary" onClick={() => setHistoryOpen(false)}>
+                Закрыть историю
+              </button>
+            </div>
+            <AuthorVersionHistory
+              kind="course"
+              rootId={course.id}
+              revision={draftRevision}
+              dirty={
+                localDirty ||
+                sectionForm !== null ||
+                newLessonSectionId !== null ||
+                visibilityWrite !== null ||
+                unavailableMessage !== null
+              }
+              onBusyChange={setRestoreBusy}
+              onOpenDraft={async (sourceVersionNumber) => {
+                setPreview(false);
+                setSelectedLessonId(null);
+                setNewLessonSectionId(null);
+                setSectionForm(null);
+                await loadOutline(true);
+                setEditorEpoch((value) => value + 1);
+                onChanged();
+                setNotice(
+                  sourceVersionNumber
+                    ? 'Черновик создан на основе версии ' + sourceVersionNumber
+                    : 'Открыт существующий черновик.',
+                );
+              }}
+            />
+          </section>
+          {course.draftActive && course.draftBaseVersionNumber ? (
+            <p>Черновик на основе версии {course.draftBaseVersionNumber}</p>
+          ) : null}
+          {sections === null ? (
+            <p role="status">Загружаем содержание…</p>
+          ) : (
+            <div className="course-builder" onChange={markDirty}>
+              <button
+                type="button"
+                className="btn-secondary course-structure-button"
+                aria-haspopup="dialog"
+                aria-expanded={outlineOpen}
+                onClick={() => setOutlineOpen(true)}
+              >
+                Структура курса
+              </button>
+              <CourseEditorDialog
+                open={outlineOpen}
+                inline={wideLayout}
+                className="course-outline-dialog"
+                title="Структура курса"
+                closeLabel="Закрыть структуру"
+                onClose={() => setOutlineOpen(false)}
+              >
+                <aside
+                  className="course-outline"
+                  aria-label="Содержание курса"
+                  onClick={(event) => {
+                    if (event.target instanceof Element && event.target.closest('button'))
+                      setOutlineOpen(false);
+                  }}
+                >
+                  <div className="course-outline-head">
+                    <div>
+                      <span>Содержание</span>
+                      <small>{lessonCount} уроков</small>
                     </div>
-                    <ol>
-                      {section.lessons.map((lesson, lessonIndex) => (
-                        <li key={lesson.id}>
+                    <button
+                      type="button"
+                      className="course-icon-button"
+                      aria-label="Добавить раздел"
+                      title="Добавить раздел"
+                      onClick={() => withSavedDraft(() => setSectionForm('new'))}
+                    >
+                      +
+                    </button>
+                  </div>
+                  <div className="course-outline-scroll">
+                    {sections.map((section, sectionIndex) => (
+                      <section key={section.id} className="course-outline-section">
+                        <div className="course-outline-section-head">
                           <button
                             type="button"
-                            className={
-                              selectedLessonId === lesson.id && !newLessonSectionId
-                                ? 'course-lesson-link is-active'
-                                : 'course-lesson-link'
-                            }
-                            onClick={() =>
-                              withSavedDraft(() => {
-                                setSelectedLessonId(lesson.id);
-                                setNewLessonSectionId(null);
-                              })
-                            }
+                            className="course-section-name"
+                            onClick={() => withSavedDraft(() => setSectionForm(section))}
                           >
-                            <span>{lessonIndex + 1}</span>
-                            <span>
-                              <strong>{lesson.title}</strong>
-                              <small>
-                                {lesson.hidden ? 'Скрыт · ' : ''}
-                                {lesson.kind === 'assignment' ? 'Задание' : 'Материал'}
-                                {lesson.estimatedMinutes
-                                  ? ' · ' + lesson.estimatedMinutes + ' мин'
-                                  : ''}
-                              </small>
-                            </span>
+                            <span>{sectionIndex + 1}</span>
+                            <strong>{section.title}</strong>
+                            {section.hidden ? <small>Скрыт</small> : null}
                           </button>
                           <Dropdown
                             className="course-outline-menu"
-                            ariaLabel={'Действия урока «' + lesson.title + '»'}
+                            ariaLabel={'Действия раздела «' + section.title + '»'}
                             label={<span aria-hidden="true">•••</span>}
                           >
                             {(close) => (
                               <>
                                 <button
                                   type="button"
+                                  disabled={sectionIndex === 0}
                                   onClick={() => {
                                     close();
                                     void act(
                                       () =>
-                                        api.duplicateCourseLesson(
+                                        api.moveCourseSection(
                                           course.id,
-                                          lesson.id,
+                                          section.id,
+                                          -1,
                                           draftRevision,
-                                          `course-duplicate:lesson:${lesson.id}:${draftRevision}`,
                                         ),
-                                      'Урок продублирован.',
+                                      'Раздел перемещён.',
+                                    );
+                                  }}
+                                >
+                                  Выше
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={sectionIndex === sections.length - 1}
+                                  onClick={() => {
+                                    close();
+                                    void act(
+                                      () =>
+                                        api.moveCourseSection(
+                                          course.id,
+                                          section.id,
+                                          1,
+                                          draftRevision,
+                                        ),
+                                      'Раздел перемещён.',
+                                    );
+                                  }}
+                                >
+                                  Ниже
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    close();
+                                    void act(
+                                      () =>
+                                        api.duplicateCourseSection(
+                                          course.id,
+                                          section.id,
+                                          draftRevision,
+                                          `course-duplicate:section:${section.id}:${draftRevision}`,
+                                        ),
+                                      'Раздел продублирован.',
                                     );
                                   }}
                                 >
@@ -1579,115 +1645,281 @@ function CourseEditor({
                                   type="button"
                                   onClick={() => {
                                     close();
-                                    void setVisibility('lesson', lesson.id, !lesson.hidden);
+                                    void setVisibility('section', section.id, !section.hidden);
                                   }}
                                 >
-                                  {lesson.hidden ? 'Показать' : 'Скрыть'}
+                                  {section.hidden ? 'Показать' : 'Скрыть'}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    close();
+                                    withSavedDraft(() => setSectionForm(section));
+                                  }}
+                                >
+                                  Переименовать
+                                </button>
+                                <button
+                                  type="button"
+                                  className="is-danger"
+                                  onClick={() => {
+                                    close();
+                                    void act(
+                                      () =>
+                                        api.deleteCourseSection(
+                                          course.id,
+                                          section.id,
+                                          draftRevision,
+                                        ),
+                                      'Раздел удалён.',
+                                    );
+                                  }}
+                                >
+                                  Удалить пустой
                                 </button>
                               </>
                             )}
                           </Dropdown>
-                          {selectedLessonId === lesson.id && !newLessonSectionId ? (
-                            <div className="course-lesson-order" aria-label="Порядок урока">
+                        </div>
+                        <ol>
+                          {section.lessons.map((lesson, lessonIndex) => (
+                            <li key={lesson.id}>
                               <button
                                 type="button"
-                                disabled={lessonIndex === 0}
-                                aria-label={'Выше: ' + lesson.title}
+                                className={
+                                  selectedLessonId === lesson.id && !newLessonSectionId
+                                    ? 'course-lesson-link is-active'
+                                    : 'course-lesson-link'
+                                }
+                                aria-current={
+                                  selectedLessonId === lesson.id && !newLessonSectionId
+                                    ? 'page'
+                                    : undefined
+                                }
                                 onClick={() =>
-                                  void act(
-                                    () =>
-                                      api.moveCourseLesson(course.id, lesson.id, -1, draftRevision),
-                                    'Урок перемещён.',
-                                  )
+                                  withSavedDraft(() => {
+                                    setSelectedLessonId(lesson.id);
+                                    setNewLessonSectionId(null);
+                                  })
                                 }
                               >
-                                ↑
+                                <span>{lessonIndex + 1}</span>
+                                <span>
+                                  <strong>{lesson.title}</strong>
+                                  <small>
+                                    {lesson.hidden ? 'Скрыт · ' : ''}
+                                    {lesson.kind === 'assignment' ? 'Задание' : 'Материал'}
+                                    {lesson.estimatedMinutes
+                                      ? ' · ' + lesson.estimatedMinutes + ' мин'
+                                      : ''}
+                                  </small>
+                                </span>
                               </button>
-                              <button
-                                type="button"
-                                disabled={lessonIndex === section.lessons.length - 1}
-                                aria-label={'Ниже: ' + lesson.title}
-                                onClick={() =>
-                                  void act(
-                                    () =>
-                                      api.moveCourseLesson(course.id, lesson.id, 1, draftRevision),
-                                    'Урок перемещён.',
-                                  )
-                                }
+                              <Dropdown
+                                className="course-outline-menu"
+                                ariaLabel={'Действия урока «' + lesson.title + '»'}
+                                label={<span aria-hidden="true">•••</span>}
                               >
-                                ↓
-                              </button>
-                            </div>
-                          ) : null}
-                        </li>
-                      ))}
-                    </ol>
+                                {(close) => (
+                                  <>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        close();
+                                        void act(
+                                          () =>
+                                            api.duplicateCourseLesson(
+                                              course.id,
+                                              lesson.id,
+                                              draftRevision,
+                                              `course-duplicate:lesson:${lesson.id}:${draftRevision}`,
+                                            ),
+                                          'Урок продублирован.',
+                                        );
+                                      }}
+                                    >
+                                      Дублировать
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        close();
+                                        void setVisibility('lesson', lesson.id, !lesson.hidden);
+                                      }}
+                                    >
+                                      {lesson.hidden ? 'Показать' : 'Скрыть'}
+                                    </button>
+                                  </>
+                                )}
+                              </Dropdown>
+                              {selectedLessonId === lesson.id && !newLessonSectionId ? (
+                                <div className="course-lesson-order" aria-label="Порядок урока">
+                                  <button
+                                    type="button"
+                                    disabled={lessonIndex === 0}
+                                    aria-label={'Выше: ' + lesson.title}
+                                    onClick={() =>
+                                      void act(
+                                        () =>
+                                          api.moveCourseLesson(
+                                            course.id,
+                                            lesson.id,
+                                            -1,
+                                            draftRevision,
+                                          ),
+                                        'Урок перемещён.',
+                                      )
+                                    }
+                                  >
+                                    ↑
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={lessonIndex === section.lessons.length - 1}
+                                    aria-label={'Ниже: ' + lesson.title}
+                                    onClick={() =>
+                                      void act(
+                                        () =>
+                                          api.moveCourseLesson(
+                                            course.id,
+                                            lesson.id,
+                                            1,
+                                            draftRevision,
+                                          ),
+                                        'Урок перемещён.',
+                                      )
+                                    }
+                                  >
+                                    ↓
+                                  </button>
+                                </div>
+                              ) : null}
+                            </li>
+                          ))}
+                        </ol>
+                        <button
+                          type="button"
+                          className="course-add-lesson"
+                          onClick={() =>
+                            withSavedDraft(() => {
+                              createdLessonIdRef.current = null;
+                              setSelectedLessonId(null);
+                              setNewLessonSectionId(section.id);
+                            })
+                          }
+                        >
+                          + Урок
+                        </button>
+                      </section>
+                    ))}
+                  </div>
+                </aside>
+              </CourseEditorDialog>
+
+              <div className="course-workspace">
+                {newLessonSectionId ? (
+                  <LessonEditor
+                    key={'new-' + newLessonSectionId}
+                    sections={sections}
+                    sectionId={newLessonSectionId}
+                    lesson={null}
+                    assignments={assignments}
+                    onSave={(input) => saveLesson(createdLessonIdRef.current, input)}
+                    onDirty={markDirty}
+                    onDelete={null}
+                    saveBlockedMessage={lessonSaveBlock}
+                    saveTarget={saveTarget}
+                  />
+                ) : selected ? (
+                  <LessonEditor
+                    key={selected.lesson.id + '-' + selected.lesson.position + '-' + editorEpoch}
+                    sections={sections}
+                    sectionId={selected.section.id}
+                    lesson={selected.lesson}
+                    assignments={assignments}
+                    onSave={(input) => saveLesson(selected.lesson.id, input)}
+                    onDirty={markDirty}
+                    onDelete={deleteLesson}
+                    saveBlockedMessage={lessonSaveBlock}
+                    diagnosticFocus={diagnosticFocus}
+                    saveTarget={saveTarget}
+                  />
+                ) : (
+                  <div className="course-workspace-empty">
+                    <span aria-hidden="true">＋</span>
+                    <h3>Добавьте первый урок</h3>
+                    <p>Материал объясняет тему, а задание открывает практику из вашего банка.</p>
                     <button
                       type="button"
-                      className="course-add-lesson"
+                      className="btn-primary"
                       onClick={() =>
                         withSavedDraft(() => {
                           createdLessonIdRef.current = null;
-                          setSelectedLessonId(null);
-                          setNewLessonSectionId(section.id);
+                          setNewLessonSectionId(sections[0]?.id ?? null);
                         })
                       }
                     >
-                      + Урок
+                      Добавить урок
                     </button>
-                  </section>
-                ))}
+                  </div>
+                )}
               </div>
-            </aside>
-
-            <div className="course-workspace">
-              {newLessonSectionId ? (
-                <LessonEditor
-                  key={'new-' + newLessonSectionId}
-                  sections={sections}
-                  sectionId={newLessonSectionId}
-                  lesson={null}
-                  assignments={assignments}
-                  onSave={(input) => saveLesson(createdLessonIdRef.current, input)}
-                  onDirty={markDirty}
-                  onDelete={null}
-                  saveBlockedMessage={lessonSaveBlock}
-                />
-              ) : selected ? (
-                <LessonEditor
-                  key={selected.lesson.id + '-' + selected.lesson.position + '-' + editorEpoch}
-                  sections={sections}
-                  sectionId={selected.section.id}
-                  lesson={selected.lesson}
-                  assignments={assignments}
-                  onSave={(input) => saveLesson(selected.lesson.id, input)}
-                  onDirty={markDirty}
-                  onDelete={deleteLesson}
-                  saveBlockedMessage={lessonSaveBlock}
-                  diagnosticFocus={diagnosticFocus}
-                />
-              ) : (
-                <div className="course-workspace-empty">
-                  <span aria-hidden="true">＋</span>
-                  <h3>Добавьте первый урок</h3>
-                  <p>Материал объясняет тему, а задание открывает практику из вашего банка.</p>
-                  <button
-                    type="button"
-                    className="btn-primary"
-                    onClick={() =>
-                      withSavedDraft(() => {
-                        createdLessonIdRef.current = null;
-                        setNewLessonSectionId(sections[0]?.id ?? null);
-                      })
-                    }
-                  >
-                    Добавить урок
-                  </button>
-                </div>
-              )}
             </div>
+          )}
+        </div>
+
+        <CourseEditorDialog
+          open={preview && assignVersion === null}
+          screen
+          returnFocusRef={previewTrigger}
+          className="course-preview-dialog"
+          title="Как увидит ученик"
+          closeLabel="Редактировать"
+          closeDisabled={previewBusy || assignBusy}
+          onClose={() => setPreview(false)}
+        >
+          <div className="course-preview-sources" aria-label="Содержимое предпросмотра">
+            <button
+              type="button"
+              className="btn-secondary"
+              aria-pressed={!publishedPreview}
+              onClick={() => setPublishedPreview(null)}
+            >
+              Сохранённый черновик
+            </button>
+            {course.publishedVersion || publicationReceipt.current ? (
+              <button
+                type="button"
+                className="btn-secondary"
+                aria-pressed={!!publishedPreview}
+                disabled={previewBusy}
+                onClick={() => void showPublished()}
+              >
+                Опубликованная версия
+              </button>
+            ) : null}
+            {canTeach ? (
+              <button
+                type="button"
+                className="btn-secondary"
+                disabled={hasWork || publishing || lessonCount === 0}
+                onClick={() => void showPublished(true)}
+              >
+                Назначить курс
+              </button>
+            ) : null}
           </div>
-        )}
+          {previewBusy ? <p role="status">Открываем опубликованную версию…</p> : null}
+          {preview && error ? <p role="alert">{error}</p> : null}
+          {preview && sections ? (
+            <CoursePreview
+              course={course}
+              draftRevision={draftRevision}
+              sections={publishedPreview ? publishedCourseSections(publishedPreview) : sections}
+              {...(publishedPreview ? { version: publishedPreview } : {})}
+            />
+          ) : null}
+        </CourseEditorDialog>
 
         {sectionForm ? (
           <SectionFormDialog
@@ -1755,7 +1987,10 @@ function CourseEditor({
             version={assignVersion}
             attempt={assignmentAttempt.current.value}
             onBusyChange={setAssignBusy}
-            onClose={() => setAssignVersion(null)}
+            onClose={() => {
+              setPreview(false);
+              setAssignVersion(null);
+            }}
           />
         ) : null}
       </section>

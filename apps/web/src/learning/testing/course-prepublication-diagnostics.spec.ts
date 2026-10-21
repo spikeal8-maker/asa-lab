@@ -4,6 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { api, type ApiResult, type Course, type CourseLesson, type CourseSection } from '../../api';
 import { CoursesPanel } from '../../components/CoursesPanel';
+import { installCourseEditorTestDom } from '../../components/course-editor-test-dom';
 
 const courseId = '11111111-1111-4111-8111-111111111111';
 const sectionId = '22222222-2222-4222-8222-222222222222';
@@ -13,10 +14,13 @@ const pinId = '55555555-5555-4555-8555-555555555555';
 const reactGlobal = globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean };
 let root: Root | null = null;
 let container: HTMLDivElement;
+let restoreBrowserApis: () => void;
 beforeAll(() => {
+  restoreBrowserApis = installCourseEditorTestDom();
   reactGlobal.IS_REACT_ACT_ENVIRONMENT = true;
 });
 afterAll(() => {
+  restoreBrowserApis();
   reactGlobal.IS_REACT_ACT_ENVIRONMENT = false;
 });
 afterEach(async () => {
@@ -34,10 +38,10 @@ function button(text: string, where: Element = container): HTMLButtonElement {
   return result;
 }
 function typeTitle(value: string) {
-  const input = container.querySelector<HTMLInputElement>(
-    '.course-lesson-editor input[maxlength="160"]',
+  const input = container.querySelector<HTMLTextAreaElement>(
+    '.course-lesson-editor textarea[aria-label="Название урока"]',
   )!;
-  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, value);
+  Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(input, value);
   input.dispatchEvent(new Event('input', { bubbles: true }));
 }
 const diagnostic = {
@@ -163,13 +167,16 @@ describe('course publication correction navigation', () => {
     expect(container.textContent).toContain(diagnostic.message);
     await act(async () => button('Перейти к исправлению').click());
     expect(
-      container.querySelector<HTMLInputElement>('.course-lesson-editor input[maxlength="160"]')
-        ?.value,
+      container.querySelector<HTMLTextAreaElement>(
+        '.course-lesson-editor textarea[aria-label="Название урока"]',
+      )?.value,
     ).toBe('Второй');
     const blocks = container.querySelectorAll('.lesson-block-card');
     expect(blocks).toHaveLength(2);
     expect(document.activeElement).toBe(button('Заменить практику', blocks[1]!));
-    expect(container.querySelector('textarea')?.value).toBe('Не потерять этот текст');
+    expect(container.querySelector<HTMLTextAreaElement>('[aria-label="Текст блока"]')?.value).toBe(
+      'Не потерять этот текст',
+    );
   });
 
   it('keeps edits typed while publication was pending and refuses to leave that lesson', async () => {
@@ -186,8 +193,9 @@ describe('course publication correction navigation', () => {
     await act(async () => deliver(rejected()));
     await act(async () => button('Перейти к исправлению').click());
     expect(
-      container.querySelector<HTMLInputElement>('.course-lesson-editor input[maxlength="160"]')
-        ?.value,
+      container.querySelector<HTMLTextAreaElement>(
+        '.course-lesson-editor textarea[aria-label="Название урока"]',
+      )?.value,
     ).toBe('Правки B не потерять');
     expect(container.textContent).toContain(
       'Сначала сохраните изменения урока. Переход не выполнен, данные не потеряны.',
@@ -223,7 +231,9 @@ describe('course publication correction navigation', () => {
     expect(document.activeElement).toBe(
       container.querySelector('[aria-label="Ссылка на изображение"]'),
     );
-    expect(container.querySelector('textarea')?.value).toBe('Не потерять этот текст');
+    expect(container.querySelector<HTMLTextAreaElement>('[aria-label="Текст блока"]')?.value).toBe(
+      'Не потерять этот текст',
+    );
   });
 
   it('focuses a table cell when its rows need correction', async () => {
@@ -260,9 +270,9 @@ describe('course publication correction navigation', () => {
     expect(container.textContent).toContain(
       'Задание из старого банка нельзя включить в новую публикацию курса.',
     );
-    expect(
-      container.querySelector<HTMLButtonElement>('.course-lesson-editor [type="submit"]')?.disabled,
-    ).toBe(true);
+    const save = container.querySelector<HTMLButtonElement>('.course-save-slot [type="submit"]');
+    expect(save?.form).toBe(container.querySelector('.course-lesson-editor'));
+    expect(save?.disabled).toBe(true);
     expect(button('Выбрать практику')).toBeTruthy();
   });
 });

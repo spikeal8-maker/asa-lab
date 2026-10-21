@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { LessonBlock } from '../api';
 import { CanonicalPracticePicker } from './CanonicalPracticePicker';
 import { CanonicalManualMaterialPicker } from './CanonicalManualMaterialPicker';
+import { Dropdown } from './Dropdown';
+import { GrowingTextarea } from './GrowingTextarea';
 
 const ASSET_URL = /^\/assets\/[A-Za-z0-9][A-Za-z0-9/_.%-]*$/;
 const CODE_TEXT_LIMIT = 20_000;
@@ -205,7 +207,7 @@ export function LessonBlockEditor({
   readonly activities: readonly LessonActivityOption[];
   readonly onChange: (blocks: LessonBlock[]) => void;
 }): JSX.Element {
-  const [addOpen, setAddOpen] = useState(false);
+  const editorRef = useRef<HTMLElement>(null);
   const [insertTarget, setInsertTarget] = useState<{
     blockId: string;
     placement: 'before' | 'after';
@@ -214,9 +216,23 @@ export function LessonBlockEditor({
   function replace(id: string, block: LessonBlock): void {
     onChange(blocks.map((entry) => (entry.id === id ? block : entry)));
   }
+  function focusBlock(id: string, index: number): void {
+    requestAnimationFrame(() => {
+      const cards = [
+        ...(editorRef.current?.querySelectorAll<HTMLElement>('[data-course-block-id]') ?? []),
+      ];
+      const card =
+        cards.find((entry) => entry.dataset.courseBlockId === id) ?? cards[index] ?? cards.at(-1);
+      const target =
+        card?.querySelector<HTMLElement>('summary') ??
+        editorRef.current?.querySelector<HTMLElement>('.lesson-block-add > summary');
+      target?.focus();
+    });
+  }
 
   return (
     <section
+      ref={editorRef}
       className="lesson-block-editor"
       aria-labelledby="lesson-block-editor-title"
       data-course-field="blocks"
@@ -252,63 +268,78 @@ export function LessonBlockEditor({
                 {blockLabel(block)}
                 {block.hidden ? <small className="lesson-block-hidden-state">Скрыт</small> : null}
               </span>
-              <div>
-                <button
-                  type="button"
-                  className="lesson-block-structural-button"
-                  disabled={blocks.length >= MAX_LESSON_BLOCKS}
-                  onClick={() => onChange(duplicateLessonBlock(blocks, block.id))}
-                >
-                  Дублировать
-                </button>
-                <button
-                  type="button"
-                  className="lesson-block-structural-button"
-                  onClick={() => onChange(setLessonBlockHidden(blocks, block.id, !block.hidden))}
-                  data-course-field="hidden"
-                >
-                  {block.hidden ? 'Показать' : 'Скрыть'}
-                </button>
-                <button
-                  type="button"
-                  className="lesson-block-structural-button"
-                  disabled={blocks.length >= MAX_LESSON_BLOCKS}
-                  onClick={() => setInsertTarget({ blockId: block.id, placement: 'before' })}
-                >
-                  Вставить выше
-                </button>
-                <button
-                  type="button"
-                  className="lesson-block-structural-button"
-                  disabled={blocks.length >= MAX_LESSON_BLOCKS}
-                  onClick={() => setInsertTarget({ blockId: block.id, placement: 'after' })}
-                >
-                  Вставить ниже
-                </button>
-                <button
-                  type="button"
-                  aria-label={`Поднять блок ${index + 1}`}
-                  disabled={index === 0}
-                  onClick={() => onChange(moveLessonBlock(blocks, index, -1))}
-                >
-                  ↑
-                </button>
-                <button
-                  type="button"
-                  aria-label={`Опустить блок ${index + 1}`}
-                  disabled={index === blocks.length - 1}
-                  onClick={() => onChange(moveLessonBlock(blocks, index, 1))}
-                >
-                  ↓
-                </button>
-                <button
-                  type="button"
-                  aria-label={`Удалить блок ${index + 1}`}
-                  onClick={() => onChange(deleteLessonBlock(blocks, block.id))}
-                >
-                  ×
-                </button>
-              </div>
+              <Dropdown
+                className="course-outline-menu lesson-block-menu"
+                ariaLabel={`Действия блока ${index + 1}`}
+                label={<span aria-hidden="true">•••</span>}
+              >
+                {(close) => (
+                  <div
+                    onClick={() => {
+                      close();
+                      focusBlock(block.id, index);
+                    }}
+                  >
+                    <button
+                      type="button"
+                      className="lesson-block-structural-button"
+                      disabled={blocks.length >= MAX_LESSON_BLOCKS}
+                      onClick={() => onChange(duplicateLessonBlock(blocks, block.id))}
+                    >
+                      Дублировать
+                    </button>
+                    <button
+                      type="button"
+                      className="lesson-block-structural-button"
+                      onClick={() =>
+                        onChange(setLessonBlockHidden(blocks, block.id, !block.hidden))
+                      }
+                      data-course-field="hidden"
+                    >
+                      {block.hidden ? 'Показать' : 'Скрыть'}
+                    </button>
+                    <button
+                      type="button"
+                      className="lesson-block-structural-button"
+                      disabled={blocks.length >= MAX_LESSON_BLOCKS}
+                      onClick={() => setInsertTarget({ blockId: block.id, placement: 'before' })}
+                    >
+                      Вставить выше
+                    </button>
+                    <button
+                      type="button"
+                      className="lesson-block-structural-button"
+                      disabled={blocks.length >= MAX_LESSON_BLOCKS}
+                      onClick={() => setInsertTarget({ blockId: block.id, placement: 'after' })}
+                    >
+                      Вставить ниже
+                    </button>
+                    <button
+                      type="button"
+                      aria-label={`Поднять блок ${index + 1}`}
+                      disabled={index === 0}
+                      onClick={() => onChange(moveLessonBlock(blocks, index, -1))}
+                    >
+                      Поднять
+                    </button>
+                    <button
+                      type="button"
+                      aria-label={`Опустить блок ${index + 1}`}
+                      disabled={index === blocks.length - 1}
+                      onClick={() => onChange(moveLessonBlock(blocks, index, 1))}
+                    >
+                      Опустить
+                    </button>
+                    <button
+                      type="button"
+                      aria-label={`Удалить блок ${index + 1}`}
+                      onClick={() => onChange(deleteLessonBlock(blocks, block.id))}
+                    >
+                      Удалить
+                    </button>
+                  </div>
+                )}
+              </Dropdown>
             </header>
 
             {insertTarget?.blockId === block.id ? (
@@ -342,11 +373,10 @@ export function LessonBlockEditor({
             ) : null}
 
             {block.type === 'paragraph' ? (
-              <textarea
+              <GrowingTextarea
                 aria-label="Текст блока"
                 data-course-field="text"
                 value={block.text}
-                rows={5}
                 maxLength={12_000}
                 placeholder="Объяснение, инструкция или вводный текст"
                 onChange={(event) => replace(block.id, { ...block, text: event.target.value })}
@@ -369,7 +399,7 @@ export function LessonBlockEditor({
                   <option value={2}>Крупный</option>
                   <option value={3}>Средний</option>
                 </select>
-                <input
+                <GrowingTextarea
                   aria-label="Текст заголовка"
                   data-course-field="text"
                   value={block.text}
@@ -397,11 +427,10 @@ export function LessonBlockEditor({
                   <option value="tip">Совет</option>
                   <option value="warning">Предупреждение</option>
                 </select>
-                <textarea
+                <GrowingTextarea
                   aria-label="Текст врезки"
                   data-course-field="text"
                   value={block.text}
-                  rows={3}
                   maxLength={3_000}
                   placeholder="Коротко выделите главную мысль"
                   onChange={(event) => replace(block.id, { ...block, text: event.target.value })}
@@ -428,11 +457,10 @@ export function LessonBlockEditor({
                     replace(block.id, withoutLanguage);
                   }}
                 />
-                <textarea
+                <GrowingTextarea
                   aria-label="Код"
                   data-course-field="text"
                   value={block.text}
-                  rows={7}
                   maxLength={CODE_TEXT_LIMIT}
                   spellCheck={false}
                   placeholder="Вставьте код без HTML-исполнения"
@@ -442,11 +470,10 @@ export function LessonBlockEditor({
             ) : null}
 
             {block.type === 'formula' ? (
-              <textarea
+              <GrowingTextarea
                 aria-label="Формула"
                 data-course-field="text"
                 value={block.text}
-                rows={2}
                 maxLength={FORMULA_TEXT_LIMIT}
                 placeholder="Например, U = I × R"
                 onChange={(event) => replace(block.id, { ...block, text: event.target.value })}
@@ -568,7 +595,7 @@ export function LessonBlockEditor({
                   onChange={(event) => replace(block.id, { ...block, url: event.target.value })}
                 />
                 <div className="lesson-block-fields is-split">
-                  <input
+                  <GrowingTextarea
                     aria-label="Описание изображения"
                     data-course-field="alt"
                     value={block.alt}
@@ -576,7 +603,7 @@ export function LessonBlockEditor({
                     placeholder="Что изображено"
                     onChange={(event) => replace(block.id, { ...block, alt: event.target.value })}
                   />
-                  <input
+                  <GrowingTextarea
                     aria-label="Подпись изображения"
                     data-course-field="caption"
                     value={block.caption}
@@ -601,7 +628,7 @@ export function LessonBlockEditor({
                   placeholder="/assets/…"
                   onChange={(event) => replace(block.id, { ...block, url: event.target.value })}
                 />
-                <input
+                <GrowingTextarea
                   aria-label="Название медиа"
                   data-course-field="title"
                   value={block.title}
@@ -623,7 +650,7 @@ export function LessonBlockEditor({
                   placeholder="https://… или /assets/…"
                   onChange={(event) => replace(block.id, { ...block, url: event.target.value })}
                 />
-                <input
+                <GrowingTextarea
                   aria-label="Название файла"
                   data-course-field="label"
                   value={block.label}
@@ -637,16 +664,12 @@ export function LessonBlockEditor({
         ))}
       </div>
 
-      <div className="lesson-block-add">
-        <button
-          type="button"
-          aria-expanded={addOpen}
-          disabled={blocks.length >= MAX_LESSON_BLOCKS}
-          onClick={() => setAddOpen(!addOpen)}
-        >
-          + Добавить содержимое
-        </button>
-        {addOpen ? (
+      <Dropdown
+        className="lesson-block-add"
+        label="+ Добавить содержимое"
+        disabled={blocks.length >= MAX_LESSON_BLOCKS}
+      >
+        {(close) => (
           <div role="menu" aria-label="Добавить содержимое урока">
             {ADD_OPTIONS.filter((option) => option.type !== 'video' && option.type !== 'audio').map(
               (option) => (
@@ -657,7 +680,7 @@ export function LessonBlockEditor({
                   disabled={blocks.length >= MAX_LESSON_BLOCKS}
                   onClick={() => {
                     onChange([...blocks, createLessonBlock(option.type)]);
-                    setAddOpen(false);
+                    close();
                   }}
                 >
                   + {option.label}
@@ -678,14 +701,14 @@ export function LessonBlockEditor({
                     label: 'Видео · внешняя ссылка',
                   },
                 ]);
-                setAddOpen(false);
+                close();
               }}
             >
               + Видео по ссылке
             </button>
           </div>
-        ) : null}
-      </div>
+        )}
+      </Dropdown>
       <small className="lesson-block-url-hint">
         Файл и видео по HTTPS-ссылке открываются отдельно. Загрузка видео здесь недоступна.
         Существующие медиа платформы сохраняются.
