@@ -192,6 +192,28 @@ jobs:
           COMPOSE_PROJECT_NAME: asa-lab-ci-${{ github.run_id }}
         run: docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-general-postgres.yaml" --profile test run --rm --no-deps test-runner pnpm gate:data
 
+      - name: Teacher Home post-gate nested plan diagnostic
+        if: ${{ always() && !cancelled() }}
+        continue-on-error: true
+        timeout-minutes: 2
+        env:
+          ASA_BUILD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
+          ASA_IMAGE_TAG: ${{ github.event.pull_request.head.sha || github.sha }}
+          COMPOSE_PROJECT_NAME: asa-lab-ci-${{ github.run_id }}
+        run: |
+          mkdir -p reports/checks
+          export ASA_TEACHER_HOME_SOURCE_SHA="$(git rev-parse HEAD)"
+          export ASA_TEACHER_HOME_SOURCE_DIGEST="$(node tools/testing/teacher-home-plan-probe.mjs --source-digest)"
+          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-general-postgres.yaml" --profile test run --rm --no-deps -e CI=true -e GITHUB_ACTIONS=true -e ASA_TEACHER_HOME_PROBE=isolated-post-gate -e ASA_TEACHER_HOME_CI_LANE=general -e ASA_TEACHER_HOME_SOURCE_SHA -e ASA_TEACHER_HOME_SOURCE_DIGEST test-runner node tools/testing/teacher-home-plan-probe.mjs > reports/checks/teacher-home-plan-general.json
+
+      - name: Preserve Teacher Home nested plan diagnostic
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: teacher-home-plan-general-${{ github.event.pull_request.head.sha || github.sha }}-${{ github.run_attempt }}
+          path: reports/checks/teacher-home-plan-general.json
+          retention-days: 14
+
       - name: Stop this job's log observer
         if: always()
         run: |
