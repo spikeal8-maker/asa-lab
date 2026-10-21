@@ -13,6 +13,7 @@ import type { FastifyRequest } from 'fastify';
 import type { ActiveContextUseCase } from '@asa-lab/identity';
 import { AiChatService, AiServiceError, type AiProvider, type AiModel } from './ai-chat.service.js';
 import { isAiProvider, isModelForProvider } from './ai-model-catalog.js';
+import { OllamaError } from './ai-ollama.js';
 import { AdminControlPlaneService } from './admin-control-plane.service.js';
 import { SESSION_COOKIE, TOKENS } from './tokens.js';
 
@@ -62,7 +63,7 @@ export class AiAdminController {
     try {
       return await call();
     } catch (problem) {
-      if (problem instanceof AiServiceError) {
+      if (problem instanceof AiServiceError || problem instanceof OllamaError) {
         return reject(problem.code, problem.message, problem.status);
       }
       if ((problem as { code?: string }).code === '42501') {
@@ -145,5 +146,59 @@ export class AiAdminController {
         request.id,
       ),
     );
+  }
+
+  @Get('ollama')
+  async ollama(@Req() request: FastifyRequest) {
+    const principalId = await this.requirePlatformAdmin(request);
+    return this.safe(() => this.ai.ollamaSettings(principalId));
+  }
+
+  @Put('ollama')
+  @HttpCode(200)
+  async updateOllama(@Req() request: FastifyRequest, @Body() raw: unknown) {
+    this.requireSameOrigin(request);
+    const principalId = await this.requirePlatformAdmin(request);
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+      return reject('ai_ollama_config_invalid', 'Неверные настройки Ollama.', 400);
+    }
+    const value = raw as Record<string, unknown>;
+    if (typeof value['enabled'] !== 'boolean' || typeof value['baseUrl'] !== 'string' ||
+        typeof value['model'] !== 'string' || !Number.isSafeInteger(value['revision'])) {
+      return reject('ai_ollama_config_invalid', 'Неверные настройки Ollama.', 400);
+    }
+    return this.safe(() => this.ai.saveOllamaSettings(principalId, {
+      enabled: value['enabled'] as boolean,
+      baseUrl: value['baseUrl'] as string,
+      model: value['model'] as string,
+      revision: value['revision'] as number,
+    }, request.id));
+  }
+
+  @Post('ollama/models')
+  @HttpCode(200)
+  async ollamaModels(@Req() request: FastifyRequest, @Body() raw: unknown) {
+    this.requireSameOrigin(request);
+    const principalId = await this.requirePlatformAdmin(request);
+    if (raw !== undefined && (!raw || typeof raw !== 'object' || Array.isArray(raw))) {
+      return reject('ai_ollama_config_invalid', 'Неверный адрес Ollama.', 400);
+    }
+    const baseUrl = (raw as { baseUrl?: unknown } | undefined)?.baseUrl;
+    if (baseUrl !== undefined && typeof baseUrl !== 'string') {
+      return reject('ai_ollama_config_invalid', 'Неверный адрес Ollama.', 400);
+    }
+    return this.safe(async () => ({ models: await this.ai.ollamaModels(principalId, baseUrl) }));
+  }
+
+  @Post('ollama/test')
+  @HttpCode(200)
+  async ollamaTest(@Req() request: FastifyRequest, @Body() raw: unknown) {
+    this.requireSameOrigin(request);
+    const principalId = await this.requirePlatformAdmin(request);
+    const revision = (raw as { revision?: unknown } | null)?.revision;
+    if (!Number.isSafeInteger(revision) || Number(revision) < 1) {
+      return reject('ai_ollama_config_invalid', 'Сохраните настройки Ollama перед проверкой.', 400);
+    }
+    return this.safe(() => this.ai.testOllama(principalId, Number(revision)));
   }
 }
