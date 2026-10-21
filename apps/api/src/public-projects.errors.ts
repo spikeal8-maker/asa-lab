@@ -8,6 +8,14 @@ export function publicationError(code: string, message: string, status: number):
 export function throwPublicationError(cause: unknown): never {
   const code = typeof cause === 'object' && cause !== null && 'code' in cause ? cause.code : null;
   switch (code) {
+    case 'P5C01':
+      throw publicationError('copy_forbidden', 'Копирование этой публикации недоступно.', 403);
+    case 'P5C02':
+      throw publicationError(
+        'publication_changed',
+        'Публикация изменилась. Откройте её заново.',
+        409,
+      );
     case 'P5L01':
       throw publicationError(
         'learning_work_protected',

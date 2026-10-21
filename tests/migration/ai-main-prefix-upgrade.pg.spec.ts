@@ -4,7 +4,18 @@ import { describe, expect, it } from 'vitest';
 import { planMigrations, validateMigrationHistory } from '../../tools/migrate.mjs';
 import { applyIsolatedTestPlan } from './isolated-postgres-plan';
 
-const expectedPending = ['0226', '0227', '0228', '0229', '0230', '0231', '0232', '0233', '0234'];
+const expectedPending = [
+  '0226',
+  '0227',
+  '0228',
+  '0229',
+  '0230',
+  '0231',
+  '0232',
+  '0233',
+  '0234',
+  '0235',
+];
 
 interface Identity {
   account_id: string;
@@ -55,7 +66,14 @@ async function legacySnapshot(db: pg.Pool) {
     learning_audience_definitions: [],
     learning_audience_membership_claims: [],
     audit_events: [],
-    projects: [],
+    // 0235 adds these four optional origin fields; every pre-existing row
+    // must remain byte-identical after excluding only these new columns.
+    projects: [
+      'copied_from_publication_id',
+      'copied_from_revision_id',
+      'copied_from_version_id',
+      'copied_from_license',
+    ],
     project_drafts: [],
     project_versions: [],
     project_snapshots: [],
@@ -636,7 +654,7 @@ describe('AI joint atomic upgrade from the supported installed prefix through 02
 
       const upgrade = await db.connect();
       try {
-        expect(await applyIsolatedTestPlan(upgrade, plan)).toBe(9);
+        expect(await applyIsolatedTestPlan(upgrade, plan)).toBe(expectedPending.length);
       } finally {
         upgrade.release();
       }
@@ -648,6 +666,24 @@ describe('AI joint atomic upgrade from the supported installed prefix through 02
       expect(
         ledgerAfter.map(({ version, name, checksum }) => ({ version, name, checksum })),
       ).toEqual(plan.map(({ version, name, checksum }) => ({ version, name, checksum })));
+      // The newly added optional copy origin must be entirely NULL for every
+      // historic Project, not just ignored by the legacy data comparison.
+      expect(
+        (
+          await db.query(
+            `SELECT copied_from_publication_id, copied_from_revision_id,
+                    copied_from_version_id, copied_from_license
+               FROM public.projects ORDER BY id`,
+          )
+        ).rows,
+      ).toEqual(
+        before.projects!.map(() => ({
+          copied_from_publication_id: null,
+          copied_from_revision_id: null,
+          copied_from_version_id: null,
+          copied_from_license: null,
+        })),
+      );
       expect(await legacySnapshot(db)).toEqual(before);
       for (const table of [
         'ai_assistant_threads',

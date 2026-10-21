@@ -12,6 +12,19 @@ interface LocalDraftRecord {
 
 type DraftStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
 
+/** JSONB and history cloning may reorder object keys; array order remains meaningful. */
+export function threeDDocumentSignature(document: ThreeDDocument): string {
+  return JSON.stringify(document, (_key, value: unknown) =>
+    isRecord(value)
+      ? Object.fromEntries(
+          Object.keys(value)
+            .sort()
+            .map((key) => [key, value[key]]),
+        )
+      : value,
+  );
+}
+
 function draftKey(projectId: string): string {
   return `${LOCAL_DRAFT_PREFIX}${projectId}`;
 }
