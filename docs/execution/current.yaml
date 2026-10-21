@@ -118,15 +118,15 @@ parallel_lanes:
     revisions:
       kind: observed_snapshot
       convergence_baseline_sha: 103ebb16e2dbdc90a753d172e5a5d216b3ffa655
-      head_sha: eae191d04737753f6694e760d465934b66e3905f
+      head_sha: null
       observed_at: '2026-10-21T22:20:00Z'
       main:
         branch: main
         sha: 103ebb16e2dbdc90a753d172e5a5d216b3ffa655
       observation_note: >-
         Dated first bounded candidate eae191d04737753f6694e760d465934b66e3905f updated after exact CI found a stale
-        presentation expectation and missing typed revision metadata. Refresh main,
-        PR head and exact CI before any next write; not a release/deployment claim.
+        presentation expectation and missing typed revision metadata. Fetch main
+        before writes; refresh PR head and exact CI. Not a release/deployment claim.
     execution_lease:
       executor_id: electronics-wire-contact-hit-688
       holder: unassigned
