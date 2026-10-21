@@ -9059,7 +9059,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: mounted_RED_approved_prevention_correctness_source_selected
+      checkpoint: prevention_prototype_measurement_only_validation_selected
       previous_checkpoint: two_mounted_cases_pass_no_proven_cause_diagnostic_STOP
       kind: repair
       owner_acceptance: pending
@@ -9068,14 +9068,14 @@ parallel_lanes:
       - docs/product/electronics/evidence/ordinary-image-548-consumer-cycle-selection-20261020.md
       - docs/product/electronics/components/ui-assets-persistence.yaml
       repair_scope: >-
-        ONE correctness PREVENTION source slice from independently approved mounted synthetic RED.
-        Ordinary image must have no resourcehref before connection;install element-local native listeners
-        in own layout effect BEFORE assigning currenthref. This prevents a public ordering gap,not a
-        claim about historical native/private cause. No new browser observer or actual acceptance.
+        MEASUREMENT-ONLY candidate validation,not product acceptance. Fixed e89 prototype remains
+        unchanged;complete mandatory selection-copy/replacement/unmount/firstURL/listenerorder unit
+        coverage only. After NEW review/root finalcomposition,a publiccandidatebranch may be measured
+        ONCE using unchanged strictworkflow;expected capFAIL is data,not a waived limit or productPASS.
       diagnostic_limits: >-
-        Old preconnect RED e0afc71b and receipt immutable/unpublished;do not publish RED alone or weaken
-        it into GREEN. NEW prevention oracles intentionally differ:unpatchedmainRED then byte-identical
-        GREEN afterproduct,assignment-time synthetic error is an ordering probe,not nativepreconnect proof.
+        e89 sourcefeasibility STOP is QUALIFIED_BUDGET_BLOCKED_NOT_PUBLICATION_APPROVAL. Sameunitblob
+        RED41PASS2FAIL to GREEN43PASS;dedicatedselectioncopy/replacement incomplete due mandatedbudgetSTOP.
+        Temp+96gzip/+403unbundledminified NOT actualEditorfit;oldRED/prototype/receipts immutable.
       recovery_observation_contract:
         version: R3_existing_recovery_only
         allowed_source_path: e2e/electronics-interactions.spec.ts
@@ -9151,17 +9151,41 @@ parallel_lanes:
         metadata: Canonical coverage generator does not consume ProductionComponentVisual or asset-recovery.spec;NOgeneratedcoverage write.525author keeps simulation/browserhash ownership;extra path needs separate preciseproposal.
         budget: Current217938of218000 margin62;smallTemp estimate not actualfit. If estimate exceeds availablemargin STOP withbudgetproof,no capraise or neighboroptimisation. Plausiblyfits permits only unpublishedcandidate/review,not automaticruntimeverification.
         freeze: One self-reviewed UNPUBLISHED sourcecandidate STOP;NEW independent source plusunitRED/GREENreview. Controller separately selects actualexisting temporary/permanent catalog/main/selection recovery andnativeidentities plus exactbenchmark/fullgates. No newbrowserobserver or acceptance/closure.
+      observed_e89_prototype:
+        observed_at: '2026-10-21T09:47:07Z'
+        sha: e89fdd6ecb1fe77132fcff70e93a13d565518326
+        publication: UNPUBLISHED
+        independent_review: QUALIFIED_BUDGET_BLOCKED_NOT_PUBLICATION_APPROVAL
+        product_blob: b7227612498277928e852c49ae569f3e577f5c0c
+        unit_blob: 7dade9887d812a8d54890968ea59454f73e710c7
+        unit_prefix_bytes: 60800
+        unit_prefix_sha256: fd038557afded553f735c41b797803fd53cd392d6c77afa907eb949cc94189f5
+        result: Sameunitbytes RED41oldPASS2newFAIL thenGREEN43PASS;old41byteexact. Prototype ordinary2consumers listenerfirst. Dedicatedselectioncopy/replacement coverage incomplete at mandatorySTOP;actualfullbundleNOT_RUN.
+        estimate: Unbundledminified43547to43950 delta403;gzip13944to14040 delta96. Both provisional,not rawEditorbyte delta. CurrentactualEditor217938of218000 margin62.
+        evidence: docs/product/electronics/evidence/ordinary-image-548-measurement-validation-selection-20261021.md
+      measurement_only_validation_contract:
+        version: fixed_prototype_unit_validation_then_one_actual_measurement
+        supersedes: Only prior estimate-exceeds-margin STOP forbidding further fixedcandidate validation/measurement;NO new productvariant,optimisation,capraise or acceptance exception.
+        expected_write_paths:
+        - apps/web/src/electronics/testing/asset-recovery.spec.ts
+        inherited_product: ProductionComponentVisual.tsx EXACT e89blob b7227612498277928e852c49ae569f3e577f5c0c;NOproductedit/variant. Unit60800byte43caseprefix EXACT7dade988;append mandatorytests only,oldREDrefs unchanged.
+        mandatory_units: Dedicated selection-copy plus replacement/unmount/firstcorrectURL/listenerorder prevention under actual mounted consumers. All required tests PASS with original43byteprefix. Iffails STOPreportconcretegap;no automatic productrepair,CI or hopefulvariant.
+        source_review: One self-reviewed UNPUBLISHEDunitextensioncandidate STOP;NEW independent source/unitreview required before any publication or measurement composition.
+        candidate_publication: ROOTONLY after reviews may publish PUBLICCANDIDATEBRANCH codex/electronics-548-measurement,not productmain. Compose latestacceptedmain preservingforeign +EXACTprototypeVisual +completedunit +separatelyreviewed525a39b simulationtest/generatedbrowserhash. Root finalcompositionreview required;whole525testblob stays frozen.
+        one_measurement: ONE existing Electronics strictworkflow at exactreviewedcandidatehead,focused43plusunitextension MUSTPASS first;measure actualfullEditor<=218000 and existing548temporary/permanent catalog/main/selection/nativeidentities. Newcodecandidate firstactualmeasurement,not unchangedhopefulrerun. No newobserver/workflow/script/localbrowser/build/install/DBchange.
+        budget_reporting: Cap218000 and baseline217938 are actual RAWFILEbytes;gzip proxy cannot be compared to62RAWmargin.525proxy minified+82/gzip+54 and548proxy minified+403/gzip+96 are not actualfullEditor deltas. Expected actualcapFAIL is measurementresult,not acceptance/waiver. BenchmarknativeJSON has exactbytes/gzip and ifalways upload of producedreports;existingbudgetchecker logs rawsize/218000 evenFAIL. Earlyfailure/no generatedsize means actualfitUNKNOWN/incompleteSTOP,no scriptworkaround.
+        closure_blocks: MainPRODUCTpublication,integration/issueclosure,owneracceptance,release,deployment BLOCKED until actualtarget+budgetproof and separateintegrationdecision. No blindcapraise/skips/bypasses/neighboroptimisation;ownerKEEP544547OPEN.
       next_action: >-
-        After canonical acceptance,ONE new author freezes NEW preventiontestRED on unpatchedmain,
-        then minimal ordinarymain/selectioncopy listener-beforehref source and identicalGREENtests.
-        Preserve all41cases and oldREDreference;source/unit/self-review/Tempbudgetproof then one
-        UNPUBLISHEDcandidate STOP. NEW independent review before separate actualruntime/benchmark
-        selection. If testsinvalid or Tempbudgetexceeds62,STOPproof;no adjacent optimisation/capraise.
+        After canonical acceptance,ONE new validationexecutor appends only mandatoryunits to exact43
+        caseprefix with prototypeVisual unchanged. Narrow tests/selfreview then UNPUBLISHEDcandidateSTOP;
+        anyfailure STOPgap,not codefix. NEW review then ROOTONLY finalcompositionreview/publiccandidate
+        branch/ONE strictmeasurement ifconditionsmet. Report actualsize/runtime/fullgate independently;
+        no mainproductpublication or acceptance until exactproof/separate decision. Preserve525frozenblob.
       preservation: >-
-        Keep all old NO_PROVEN_CAUSE receipts,e0afRED source immutable/unpublished,ownerKEEP544547OPEN
-        until actual548fix demonstrated,all blockers/ownerpending. Preserve525source/test/browserhash,
-        549terminal,LED/assets/workbenchhook/API/persistence and everyforeignmainbyte. No generatedhash,
-        browserobserver,CI/build/install/DB/deployment or automaticacceptance/closure/publication.
+        Keep e89STOP/prototype and e0afRED/history immutable,old43tests unchanged,allforeign525/549/LED/
+        assets/hook/API/persistence/currentstate and blockers/ownerpending.525author owns browserhash;
+        validationauthor does NOTwrite generatedmetadata/spec/product/workflow. No automatic CI,
+        productrepair,capraise,closure,owneracceptance/release/deployment or localheavyoperations.
     execution_lease:
       executor_id: electronics-asset-consumer-diagnostic-548
       holder: unassigned
@@ -9177,15 +9201,15 @@ parallel_lanes:
       kind: observed_snapshot
       convergence_baseline_sha: abe8f05a33a8fdfffbdf491f6d6d9e34f841587c
       head_sha: null
-      observed_at: '2026-10-21T09:29:39Z'
+      observed_at: '2026-10-21T09:47:07Z'
       main:
         branch: main
-        sha: 024902228d853848479e0d4eaa0b6e9e1af48778
+        sha: d8bdfa25ac0529836730d1042d6ddfa601cf976a
       observation_note: >-
-        Dated fetch main024 snapshot;General39575775468 in_progress,not PASS. Fetch main/recover Git/CI/
-        dirtypaths before writes. MountedRED supports bounded prevention correctness source only,not
-        historical native cause or productacceptance. SharedworkflowWAITING standingdisjoint exception
-        only,actual selected/futuretargetoverlap0,not SAFE. No generatedmetadata change required.
+        Dated fetch main d8b snapshot;General39578495293 in_progress,not PASS. Fetch main/recover Git/CI/
+        dirtypaths before writes. Qualified e89review is not publicationapproval;only fixedprototype
+        validation/newmeasurement exception selected. SharedworkflowWAITING disjointonly,actual
+        selected/futuretargetoverlap0,not SAFE. Owner/acceptance/productmain publication stillblocked.
 
   - id: electronics-instrument-readouts
     parent_lane: electronics
@@ -9231,6 +9255,11 @@ parallel_lanes:
         Source feasibility result is history only. Existing product3files remain on unpublished5f9d07ae;
         new browser author touches only selected spec/hash,not product or unit tests. Preserve source
         candidate until actual new BEFORE review and separately selected AFTER;no automatic integration.
+      product_budget_note: >-
+        Metric correction2026-10-21:218000cap and actual217938 are RAWFILEbytes,margin62RAWbytes.
+        525two-module proxy minified65052to65134 delta82;gzip20289to20343 delta54. Neither proxy
+        is actualfullEditor delta;54compressedbytes must never be compared to62RAWmargin or implyfit.
+        This note supersedes unitlessfit inferences only;all old observations/receipts and525selection unchanged.
       budget_contract: Current exact benchmark217938/218000 leaves62bytes. Prototype+118does not fit. No cap increase
         or adjacent optimisation. Small Temp source/minifier estimate is provisional,not actual compiled fit;future
         exact-SHA benchmark<=218000 still required. If no compact equivalent candidate,STOP with budget proof.

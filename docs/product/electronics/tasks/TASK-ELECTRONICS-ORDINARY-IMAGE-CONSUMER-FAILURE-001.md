@@ -12,6 +12,44 @@ review: independent
 
 # Publish the ordinary-image failure to the actual mounted catalog consumer
 
+## Fixed-prototype validation and candidate MEASUREMENT ONLY
+
+This section explicitly supersedes ONLY the estimate-over-margin STOP for fixed
+prototype validation/one actual measurement,not product acceptance. e89fdd6e
+remains UNPUBLISHED with NEW qualified review BUDGET_BLOCKED_NOT_PUBLICATION_APPROVAL.
+Same testblob7dade988 was RED41PASS2FAIL thenGREEN43PASS;old41 unchanged.
+Selection-copy/replacement coverage was incomplete because author correctly
+stopped. Preserve old prototype/RED/receipts unchanged;no new product variant.
+
+New executor authoring ONLY asset-recovery.spec.ts:append mandatory dedicated
+selection-copy,replacement/unmount,firstcorrectURL/listenerorder prevention tests.
+Keep43case60800byte prefix EXACT7dade988 and ProductionComponentVisual blob
+EXACTb7227612498277928e852c49ae569f3e577f5c0c from e89. No optimisation/product edit.
+All required units must PASS;any failure STOP with concrete gap,not automatic
+productrepair or CI. One UNPUBLISHEDself-reviewed unitcandidate STOP;NEW independent
+source/unitreview before ROOT finalcomposition/publication decision.
+
+Only ROOT after review may publish PUBLICCANDIDATEBRANCH
+codex/electronics-548-measurement from latestacceptedmain+unchangedprototypeVisual+
+completedunit+separatelyreviewed525a39b spec/generatedhash. Finalcompositionreview
+required;preserve foreign bytes and frozen whole525blob. One existing Electronics
+strictworkflow then measures actual fullEditor<=218000 and existing548temporary/
+permanent catalog/main/selection recovery/nativeidentities. Focused43plus extension
+must PASS first. No observer/workflow/script/dependency/timeout/cap workaround.
+
+Cap218000 and baseline217938 are RAWFILEbytes,margin62RAWbytes.548Temp
+unbundledminified+403/gzip+96 and525two-module minified+82/gzip+54 are proxies,
+not actualfullEditor deltas. Comparing compressed54or96 with62RAW is invalid.
+Measurement is needed because exactfullEditor size remains UNKNOWN;proxy STOP
+is conservative history,not a demonstrated actualcap breach. Expected budgetFAIL is valid measurement data,
+not acceptance or cap waiver. Existing benchmark writes exactbytes/gzip to JSON
+and uploads producedreports if:always;budgetchecker logs rawsize evenFAIL. Early
+failure/no size means actualfitUNKNOWN/incompleteSTOP,not permission to bypass.
+No localbrowser/build/install/DB. This is first actual newcandidate measurement,
+not hopeful rerun. MainPRODUCTpublication/integration/closure/owner/release/deploy
+remain BLOCKED until actualtarget+budgetproof and separate integrationdecision.
+OwnerKEEP544547OPEN;#525/549/foreign intact. See [dated selection receipt](../evidence/ordinary-image-548-measurement-validation-selection-20261021.md).
+
 ## Prevention correctness source — listener before resource href
 
 NEW independent mounted RED review approves synthetic public boundary regression

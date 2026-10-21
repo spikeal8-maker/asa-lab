@@ -12,6 +12,14 @@ review: independent
 
 # Existing instrument readouts remain readable under mirror
 
+## Budget metric correction — 21 October 2026
+
+Editor cap218000 and actual217938 are RAWFILEbytes (margin62RAWbytes). Cached
+final two-module proxy: minified65052→65134 (+82),gzip20289→20343 (+54).
+The earlier unitless+54 is compressed,not raw;neither proxy is actualfullEditor
+delta. Never compare54gzipbytes with62RAWmargin or inferfit. Actual exact bundle
+measurement remains required;no525selection/source ownership/acceptance change.
+
 ## TEST-ONLY new BEFORE matrix — product remains unpublished
 
 This section supersedes ONLY the previous executable feasibility budget with
