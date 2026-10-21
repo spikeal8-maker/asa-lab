@@ -163,6 +163,7 @@ async function installObserver(
             y: pointer.clientY,
             pointerId: pointer.pointerId,
             key: (event as KeyboardEvent).key,
+            shiftKey: (event as KeyboardEvent).shiftKey,
             code: (event as KeyboardEvent).code,
             component: target
               ?.closest('[data-testid="schematic-component"]')
@@ -491,6 +492,62 @@ async function nativeRunningSwitchSelect(page: Page) {
     () =>
       document.querySelectorAll('a[href], button, input, select, textarea, [tabindex]').length + 1,
   );
+  const readRouteWitness = () =>
+    page.evaluate(() => {
+      const observedWindow = window as ProbeWindow & {
+        __outlineRouteIdentity?: { nodes: WeakMap<Element, number>; next: number };
+      };
+      const identities = (observedWindow.__outlineRouteIdentity ??= {
+        nodes: new WeakMap<Element, number>(),
+        next: 1,
+      });
+      const identity = (node: Element | null) => {
+        if (!node) return { availability: 'NOT_AVAILABLE' };
+        let identityId = identities.nodes.get(node);
+        if (identityId === undefined) {
+          identityId = identities.next++;
+          identities.nodes.set(node, identityId);
+        }
+        return {
+          availability: 'OBSERVED',
+          identityId,
+          tag: node.tagName,
+          id: node.id,
+          class: node.getAttribute('class'),
+          component: node
+            .closest('[data-testid="schematic-component"]')
+            ?.getAttribute('data-component-id'),
+          isConnected: node.isConnected,
+          isActiveElement: node === document.activeElement,
+        };
+      };
+      const unique = (selector: string) => {
+        const nodes = document.querySelectorAll(selector);
+        return {
+          count: nodes.length,
+          unique: nodes.length === 1,
+          identity: identity(nodes.length === 1 ? nodes[0] : null),
+        };
+      };
+      const positiveTabIndexCount = Array.from(document.querySelectorAll('[tabindex]')).filter(
+        (node) => Number(node.getAttribute('tabindex')) > 0,
+      ).length;
+      return {
+        activeElement: identity(document.activeElement),
+        target: unique(
+          '[data-testid="schematic-component"][data-component-id="switch"] .workbench-part',
+        ),
+        root: unique('[data-testid="schematic-component"][data-component-id="switch"]'),
+        canvas: unique('.workbench-canvas'),
+        grid: unique('.workbench-canvas .workbench-grid-hit'),
+        positiveTabIndex: {
+          availability: 'OBSERVED',
+          count: positiveTabIndexCount,
+          noPositiveTabIndexAssumptionHolds: positiveTabIndexCount === 0,
+        },
+      };
+    });
+  const startingActiveElement = await readRouteWitness();
   let tabs = 0;
   while (
     !(await page.evaluate(() => {
@@ -503,9 +560,18 @@ async function nativeRunningSwitchSelect(page: Page) {
     })) &&
     tabs < tabLimit
   ) {
-    await page.keyboard.press('Tab');
+    await page.keyboard.press('Shift+Tab');
     tabs++;
   }
+  const endingActiveElement = await readRouteWitness();
+  const backwardRoute = await page.evaluate(
+    (start) =>
+      (window as ProbeWindow).__outlineProbe!.events.slice(start).filter((value) => {
+        const event = value as { type: string; key: string };
+        return event.type === 'keydown' && event.key === 'Tab';
+      }),
+    eventStart,
+  );
   expect(await body.evaluate((node) => document.activeElement === node)).toBe(true);
   await page.keyboard.press('Enter');
   await expect(part(page, 'switch')).toHaveClass(/workbench-component-selected/);
@@ -536,7 +602,16 @@ async function nativeRunningSwitchSelect(page: Page) {
     eventStart,
   );
   expect(entered).toBe(true);
-  return { tabs, tabLimit, trustedEnter: entered, activeBefore };
+  return {
+    tabs,
+    tabLimit,
+    trustedEnter: entered,
+    activeBefore,
+    route: 'backward',
+    startingActiveElement,
+    endingActiveElement,
+    backwardRoute,
+  };
 }
 
 async function fitAndPlace(page: Page, id: string) {
@@ -1445,7 +1520,11 @@ for (const width of [1440, 1024, 390, 320])
             server: await server(page, projectId),
             wholeLocal: await localDocument(page, user, projectId, false),
           });
-          expect(await localDocument(page, user, projectId, false)).toEqual(expected);
+          const fullRunningExpected = {
+            ...structuredClone(expected),
+            simulation: { ...structuredClone(expected.simulation), running: true },
+          };
+          expect(await localDocument(page, user, projectId, false)).toEqual(fullRunningExpected);
           await page.getByRole('button', { name: 'Остановить моделирование', exact: true }).click();
           await expect(
             page.getByRole('button', { name: 'Начать моделирование', exact: true }),
