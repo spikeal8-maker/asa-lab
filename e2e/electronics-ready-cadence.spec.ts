@@ -37,6 +37,7 @@ void loop() {
   }
 }`;
 const initialSource = 'void setup() {}\nvoid loop() { delay(100); }';
+const REALTIME_BASELINE_PREFIX = 'Owner Arduino realtime baseline:';
 const ownerCatalog = JSON.parse(
   readFileSync(resolve('apps/web/public/assets/electronics/owner-catalog/manifest.json'), 'utf8'),
 ) as { components: Array<{ componentId: string; pins: Array<{ id: string }> }> };
@@ -2433,6 +2434,12 @@ test.beforeEach(async ({ browserName }, info) => {
   ownerQualificationLedger = null;
   ownerV3Ledger = null;
   ownerV3Discoveries = [];
+  // Issue 682 is a strict 1x baseline, outside the historical fixed-pace ledger.
+  // Its original Worker/paint observers and durable evidence remain identical.
+  if (info.title.startsWith('Owner Arduino realtime baseline:')) {
+    teacher = await seedTeacher(admin, `realtime-682-${info.workerIndex}-${info.retry}`);
+    return;
+  }
   const profile = ownerQualificationProfile(
     process.env.ASA_ELECTRONICS_QUALIFICATION_PROFILE,
     process.env.ASA_ELECTRONICS_QUALIFICATION_ENTRYPOINT,
@@ -2496,6 +2503,7 @@ test.beforeEach(async ({ browserName }, info) => {
 });
 
 test.afterEach(async ({ browserName }, info) => {
+  if (info.title.startsWith('Owner Arduino realtime baseline:')) return;
   void browserName;
   if (
     info.title ===
@@ -3952,6 +3960,316 @@ async function retainOwnerTemporalEvidence(
     contentType: 'image/png',
   });
 }
+
+// Frozen BEFORE baseline execution: existing 250 ms wall/model error and
+// 50 ms ready-to-paint bound. The new 22 s acquisition measures a single 21.03 s
+// sketch within the unchanged default 30 s case budget; it is not a pace factor.
+const REALTIME_BASELINE_ACQUISITION_MS = 22_000;
+const realtimeBaselineSource = `void setup(){pinMode(13,OUTPUT);pinMode(12,OUTPUT);
+pinMode(11,OUTPUT);digitalWrite(12,LOW);digitalWrite(11,LOW);
+digitalWrite(13,HIGH);delay(30);digitalWrite(13,LOW);delay(1000);
+digitalWrite(13,HIGH);delay(20000);digitalWrite(13,LOW);}
+void loop(){delay(20000);}`;
+
+async function requireRealtimeBoardInsideStage(page: Page): Promise<void> {
+  const board = await page
+    .locator('[data-testid="schematic-component"][data-component-type="arduino-uno"]')
+    .boundingBox();
+  const stage = await page.locator('.workbench-stage').boundingBox();
+  expect(board).not.toBeNull();
+  expect(stage).not.toBeNull();
+  expect(Object.values(board!).every(Number.isFinite)).toBe(true);
+  expect(board!.x).toBeGreaterThanOrEqual(stage!.x);
+  expect(board!.y).toBeGreaterThanOrEqual(stage!.y);
+  expect(board!.x + board!.width).toBeLessThanOrEqual(stage!.x + stage!.width);
+  expect(board!.y + board!.height).toBeLessThanOrEqual(stage!.y + stage!.height);
+}
+
+type RealtimeInputWitness = { type: string; at: number; trusted: boolean; target: string };
+async function realtimeInputWitnesses(
+  page: Page,
+  install = false,
+): Promise<RealtimeInputWitness[]> {
+  return page.evaluate((install) => {
+    const target = window as Window & { __realtime682Inputs?: RealtimeInputWitness[] };
+    if (install) {
+      target.__realtime682Inputs = [];
+      for (const type of ['pointerdown', 'pointerup', 'input', 'submit', 'click'])
+        document.addEventListener(
+          type,
+          (event) => {
+            const element = event.target as Element | null;
+            const button = element?.closest('[data-component-type="button-tactile-6mm"]');
+            const monitor = element?.closest('.arduino-serial-monitor');
+            const control = element?.closest('button');
+            const name = button
+              ? 'button-682'
+              : monitor
+                ? 'serial-monitor'
+                : control?.textContent?.trim();
+            if (!name || (target.__realtime682Inputs?.length ?? 512) >= 512) return;
+            target.__realtime682Inputs!.push({
+              type,
+              at: performance.now(),
+              trusted: event.isTrusted,
+              target: name,
+            });
+          },
+          true,
+        );
+    }
+    return target.__realtime682Inputs ?? [];
+  }, install);
+}
+
+function realtimeBaselineMetrics(raw: TemporalProbe, source: string) {
+  const frames = raw.frames.filter((row) => row.source === source);
+  const ready = frames.filter((row) => row.executionStatus === 'ready');
+  const first = ready[0];
+  const last = ready.at(-1);
+  return {
+    qualification: 'strict-real-time-no-fixed-pace-normalization',
+    limits: {
+      wallModelErrorMs: 250,
+      readyPaintMs: 50,
+      acquisitionMs: REALTIME_BASELINE_ACQUISITION_MS,
+    },
+    readyCount: ready.length,
+    yieldedCount: frames.filter((row) => row.executionStatus === 'yielded').length,
+    samples: ready.map((row, index) => ({
+      at: row.at,
+      requestAt: row.requestAt,
+      requestedUs: row.requestedHorizonMicroseconds,
+      committedUs: row.committedHorizonMicroseconds,
+      computeMs: row.computeMs,
+      roundTripMs: row.requestAt === null ? null : row.at - row.requestAt,
+      idleMs: index === 0 || row.requestAt === null ? null : row.requestAt - ready[index - 1]!.at,
+      backlogMs: first
+        ? row.at -
+          first.at -
+          (row.committedHorizonMicroseconds - first.committedHorizonMicroseconds) / 1000
+        : null,
+    })),
+    modelMs:
+      first && last
+        ? (last.committedHorizonMicroseconds - first.committedHorizonMicroseconds) / 1000
+        : null,
+    wallMs: first && last ? last.at - first.at : null,
+    electrical: ready.length ? opticalEdges(ready, 'led0') : [],
+    loadedPaint: paintEdges(validTemporalPaint(raw, first?.at ?? 0), 0),
+  };
+}
+
+test(`${REALTIME_BASELINE_PREFIX} proportional 30 ms, 1 s and 20 s electrical and visible waits`, async ({
+  page,
+}) => {
+  const session = await openOwnerTemporalSketch(
+    page,
+    realtimeBaselineSource,
+    'realtime-682-delays',
+  );
+  await realtimeInputWitnesses(page, true);
+  let acquisition: unknown = { state: 'not-started' };
+  try {
+    await page.getByRole('button', { name: 'Подогнать проект', exact: true }).click();
+    await requireRealtimeBoardInsideStage(page);
+    await page.getByRole('button', { name: 'Начать моделирование', exact: true }).click();
+    acquisition = { state: 'started', at: await page.evaluate(() => performance.now()) };
+    await expect
+      .poll(
+        async () => {
+          const raw = await temporalObservation(page);
+          return (
+            raw.frames
+              .filter((row) => row.source === session.source && row.executionStatus === 'ready')
+              .at(-1)?.committedHorizonMicroseconds ?? 0
+          );
+        },
+        { timeout: REALTIME_BASELINE_ACQUISITION_MS },
+      )
+      .toBeGreaterThanOrEqual(21_031_000);
+    const raw = await temporalObservation(page);
+    const ready = assertTemporalFrames(raw, session.source);
+    const first = ready[0]!;
+    const last = ready.at(-1)!;
+    const modelMs = (last.committedHorizonMicroseconds - first.committedHorizonMicroseconds) / 1000;
+    const wallMs = last.at - first.at;
+    expect(first.committedHorizonMicroseconds).toBe(0);
+    expect(modelMs).toBeGreaterThanOrEqual(21_031);
+    expect(Math.abs(modelMs - wallMs)).toBeLessThanOrEqual(250);
+    const model = opticalEdges(ready, 'led0').filter((row, index) => index > 0 || row.level === 1);
+    const painted = paintEdges(validTemporalPaint(raw, ready[0]!.at), 0);
+    const firstHigh = painted.findIndex((row) => row.level === 1);
+    expect(firstHigh).toBeGreaterThanOrEqual(0);
+    const visible = painted.slice(firstHigh, firstHigh + 4);
+    expect(model.slice(0, 4).map((row) => row.level)).toEqual([1, 0, 1, 0]);
+    expect(visible.map((row) => row.level)).toEqual([1, 0, 1, 0]);
+    for (const [index, expectedMs] of [30, 1000, 20_000].entries()) {
+      // One delay instruction and the following GPIO write advance canonical us.
+      expect(Math.round((model[index + 1]!.at - model[index]!.at) * 1000)).toBe(
+        expectedMs * 1000 + 2,
+      );
+      expect(
+        Math.abs(visible[index + 1]!.at - visible[index]!.at - expectedMs),
+      ).toBeLessThanOrEqual(250);
+    }
+    expect(
+      temporalPaintCausality(raw, session.source, ready[0]!.generationId!, ready[0]!.at).violations,
+    ).toEqual([]);
+    await page.getByRole('button', { name: 'Остановить моделирование', exact: true }).click();
+    await expect(page.locator('.workbench-simulation-message')).toHaveCount(0);
+    session.failures.assertEmpty();
+  } finally {
+    const raw = await temporalObservation(page);
+    await retainOwnerTemporalEvidence(page, session, {
+      acquisition,
+      inputs: await realtimeInputWitnesses(page),
+      ...realtimeBaselineMetrics(raw, session.source),
+    });
+  }
+});
+
+test(`${REALTIME_BASELINE_PREFIX} one real button press and Serial RX/TX inside a delayed loop`, async ({
+  page,
+}) => {
+  const source = `void setup(){pinMode(13,OUTPUT);pinMode(12,OUTPUT);pinMode(11,OUTPUT);
+pinMode(2,INPUT_PULLUP);Serial.begin(9600);}
+void loop(){if(digitalRead(2)==LOW){digitalWrite(13,HIGH);}else{digitalWrite(13,LOW);}
+if(Serial.available()>0){int received=Serial.read();Serial.println(received);
+digitalWrite(11,received==65);}delay(30);}`;
+  const original = threeLedFixture();
+  const document: SchematicDocument = {
+    ...original,
+    components: [
+      ...original.components,
+      {
+        id: 'button-682',
+        kind: 'button',
+        componentTypeId: 'button-tactile-6mm',
+        variantId: 'button-tactile-6mm',
+        name: 'S682',
+        position: { x: 1020, y: 460 },
+        rotation: 0,
+        value: 0,
+        state: false,
+        pinIds: ['SW-A1', 'SW-A2', 'SW-B1', 'SW-B2'],
+        internalConnections: [
+          ['SW-A1', 'SW-A2'],
+          ['SW-B1', 'SW-B2'],
+        ],
+        stateProperties: {},
+      },
+    ],
+    connections: [
+      ...original.connections,
+      {
+        id: 'button-682-input',
+        from: { componentId: 'uno', terminal: 'd2' },
+        to: { componentId: 'button-682', terminal: 'SW-A1' },
+        vertices: [],
+      },
+      {
+        id: 'button-682-ground',
+        from: { componentId: 'button-682', terminal: 'SW-B1' },
+        to: { componentId: 'uno', terminal: 'power-gnd-1' },
+        vertices: [],
+      },
+    ],
+  };
+  const session = await openOwnerTemporalSketch(
+    page,
+    source,
+    'realtime-682-button-serial',
+    document,
+  );
+  const actions: Array<{ action: string; at: number }> = [];
+  await realtimeInputWitnesses(page, true);
+  let held = false;
+  const mark = async (action: string) =>
+    actions.push({ action, at: await page.evaluate(() => performance.now()) });
+  const latestBrightness = (id: string) =>
+    page.evaluate(
+      ({ source, id }) =>
+        (window as TemporalWindow)
+          .__ownerTemporal!.frames.filter(
+            (row) => row.source === source && row.executionStatus === 'ready',
+          )
+          .at(-1)
+          ?.components.find((row) => row.componentId === id)?.brightness ?? -1,
+      { source, id },
+    );
+  try {
+    await page.getByRole('button', { name: 'Открыть редактор кода', exact: true }).click();
+    await page.getByRole('button', { name: 'Подогнать проект', exact: true }).click();
+    await requireRealtimeBoardInsideStage(page);
+    await page.getByRole('button', { name: 'Начать моделирование', exact: true }).click();
+    await expect.poll(() => latestBrightness('led0')).toBe(0);
+    const button = page.locator(
+      '[data-testid="schematic-component"][data-component-type="button-tactile-6mm"]',
+    );
+    const box = await button.boundingBox();
+    expect(box).not.toBeNull();
+    const point = { x: box!.x + box!.width / 2, y: box!.y + box!.height / 2 };
+    expect(
+      await page.evaluate(
+        ({ x, y }) =>
+          window.document
+            .elementFromPoint(x, y)
+            ?.closest('[data-component-type]')
+            ?.getAttribute('data-component-type'),
+        point,
+      ),
+    ).toBe('button-tactile-6mm');
+    await page.mouse.move(point.x, point.y);
+    await mark('pointer-down');
+    await page.mouse.down();
+    held = true;
+    await expect.poll(() => latestBrightness('led0')).toBeGreaterThan(0);
+    await mark('pointer-up');
+    await page.mouse.up();
+    held = false;
+    await expect.poll(() => latestBrightness('led0')).toBe(0);
+    await expect(
+      page.getByRole('textbox', { name: 'Сообщение в последовательный порт', exact: true }),
+    ).toBeEnabled();
+    await page
+      .getByRole('textbox', { name: 'Сообщение в последовательный порт', exact: true })
+      .fill('A');
+    await mark('serial-send-A');
+    await page.getByRole('button', { name: 'Отпр.', exact: true }).click();
+    await expect(page.locator('.arduino-serial-output > div')).toHaveText(['65']);
+    await expect.poll(() => latestBrightness('led2')).toBeGreaterThan(0);
+    const inputs = await realtimeInputWitnesses(page);
+    for (const type of ['pointerdown', 'pointerup'])
+      expect(
+        inputs.some((row) => row.type === type && row.target === 'button-682' && row.trusted),
+      ).toBe(true);
+    expect(
+      inputs.some((row) => row.type === 'submit' && row.target === 'serial-monitor' && row.trusted),
+    ).toBe(true);
+    const raw = await temporalObservation(page);
+    const ready = assertTemporalFrames(raw, source);
+    expect(
+      temporalPaintCausality(raw, source, ready[0]!.generationId!, ready[0]!.at).violations,
+    ).toEqual([]);
+    await page.getByTestId('arduino-reset-button').click();
+    await expect(page.locator('.arduino-serial-output > div')).toHaveCount(0);
+    await expect.poll(() => latestBrightness('led2')).toBe(0);
+    await page.getByRole('button', { name: 'Остановить моделирование', exact: true }).click();
+    await expect(
+      page.getByRole('textbox', { name: 'Сообщение в последовательный порт', exact: true }),
+    ).toBeDisabled();
+    session.failures.assertEmpty();
+  } finally {
+    if (held) await page.mouse.up();
+    const raw = await temporalObservation(page);
+    await retainOwnerTemporalEvidence(page, session, {
+      actions,
+      inputs: await realtimeInputWitnesses(page),
+      ...realtimeBaselineMetrics(raw, source),
+    });
+  }
+});
 
 async function waitForTemporalHorizon(
   page: Page,
