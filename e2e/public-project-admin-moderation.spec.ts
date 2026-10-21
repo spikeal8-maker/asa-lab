@@ -83,6 +83,17 @@ for (const width of [1440, 390]) {
       expect(adminSession.capabilities).toEqual(
         expect.arrayContaining([{ capability: 'platform_admin', state: 'verified' }]),
       );
+      // Prove the same authenticated transport can resolve the real admin scope.
+      const adminProfile = await moderator.request.get('/api/admin/v1/me');
+      expect(adminProfile.status()).toBe(200);
+      expect((await adminProfile.json()).scopes).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            kind: 'platform',
+            role: 'platform_admin',
+          }),
+        ]),
+      );
       const actor = (await db.query('SELECT id FROM principals WHERE account_id=$1', [adminId]))
         .rows[0].id;
       const title = `Safety publication ${randomUUID()}`;
@@ -191,6 +202,15 @@ for (const width of [1440, 390]) {
       await forbidden();
 
       await moderator.goto('/#/admin/publications');
+      // Registration used Playwright's APIRequestContext, which shares cookies
+      // but does not update the already-mounted SPA session state. A hash-only
+      // navigation is same-document: reload the real app to re-read that session.
+      await moderator.reload();
+      expect(new URL(moderator.url()).hash).toBe('#/admin/publications');
+      await moderator.screenshot({
+        path: `${EVIDENCE}/${width}-admin-entry.png`,
+        fullPage: true,
+      });
       await expect(
         moderator.getByRole('heading', { name: 'Публикации', exact: true }),
       ).toBeVisible();
