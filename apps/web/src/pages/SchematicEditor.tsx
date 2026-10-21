@@ -5,7 +5,10 @@ import { WorkbenchHeader } from '../electronics/WorkbenchHeader';
 import { WorkbenchStage } from '../electronics/WorkbenchStage';
 import type { WorkbenchView } from '../electronics/workbench-model';
 import { CloseIcon, CodeIcon, CommentIcon } from '../electronics/workbench-icons';
-import { useElectronicsWorkbench } from '../electronics/use-electronics-workbench';
+import {
+  useElectronicsWorkbench,
+  type ElectronicsWorkbenchController,
+} from '../electronics/use-electronics-workbench';
 import '../electronics/workbench.css';
 import {
   registerProjectSnapshotSource,
@@ -25,9 +28,9 @@ const WorkbenchSidebars = lazy(() =>
 );
 const ArduinoCodePanel = lazy(loadArduinoCodePanel);
 const ShareDialog = lazy(() =>
-  import('../electronics/WorkbenchShareDialog').then((module) => ({
-    default: module.WorkbenchShareDialog,
-  })),
+  import('../electronics/WorkbenchShareDialog')
+    .then((module) => ({ default: module.WorkbenchShareDialog }))
+    .catch(() => ({ default: ShareLoadError })),
 );
 const SchematicView = lazy(() =>
   import('../electronics/AlternateWorkbenchViews').then((module) => ({
@@ -99,6 +102,25 @@ function SidePanel({
         </div>
       )}
     </aside>
+  );
+}
+
+type ShareDialogProps = { controller: ElectronicsWorkbenchController; onClose: () => void };
+
+function ShareLoadError({ onClose }: ShareDialogProps): JSX.Element {
+  return (
+    <div className="workbench-modal-backdrop" role="presentation" onMouseDown={onClose}>
+      <section
+        className="workbench-share-dialog"
+        role="alert"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <p>Окно отправки не загрузилось. Сохраните проект и обновите страницу.</p>
+        <button type="button" onClick={onClose}>
+          Закрыть
+        </button>
+      </section>
+    </div>
   );
 }
 
