@@ -67,10 +67,17 @@ export class BlocksRuntimeSessionController {
     const result: BlocksRuntimeSessionResult = await this.issuer.issueEditor(
       await this.actor(request),
       projectId,
+      request.headers.origin,
     );
     if (!result.ok) {
       const status =
-        result.code === 'project_unavailable' ? 404 : result.code === 'project_invalid' ? 409 : 503;
+        result.code === 'forbidden_origin'
+          ? 403
+          : result.code === 'project_unavailable'
+            ? 404
+            : result.code === 'project_invalid'
+              ? 409
+              : 503;
       throw new HttpException(error(result.code, 'Blocks runtime session is unavailable.'), status);
     }
     reply.header('Cache-Control', 'no-store');

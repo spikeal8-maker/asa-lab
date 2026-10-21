@@ -35,6 +35,7 @@ function fixture(options: { account?: boolean; seat?: boolean } = { account: tru
   };
   const controller = new BlocksRuntimeSessionController(active, seat, issuer);
   const request = {
+    headers: { origin: 'https://portal.example.test' },
     cookies: { asa_session: 'account-cookie', asa_student_session: 'seat-cookie' },
   } as unknown as FastifyRequest;
   const header = vi.fn();
@@ -61,6 +62,7 @@ describe('BlocksRuntimeSessionController', () => {
     expect(f.issuer.issueEditor).toHaveBeenCalledWith(
       { tenantId: 't1', principalId: 'p1', userId: 'u1' },
       PROJECT,
+      'https://portal.example.test',
     );
     expect(f.seat.resolve).not.toHaveBeenCalled();
     expect(f.header).toHaveBeenCalledWith('Cache-Control', 'no-store');
@@ -71,6 +73,7 @@ describe('BlocksRuntimeSessionController', () => {
     expect(f.issuer.issueEditor).toHaveBeenCalledWith(
       { tenantId: 't2', principalId: 'p2', userId: null },
       PROJECT,
+      'https://portal.example.test',
     );
   });
 
@@ -96,6 +99,7 @@ describe('BlocksRuntimeSessionController', () => {
     ['project_unavailable', 404],
     ['project_invalid', 409],
     ['dependency_unavailable', 503],
+    ['forbidden_origin', 403],
   ] as const)('maps %s to a stable safe HTTP status', async (code, expected) => {
     const f = fixture();
     vi.mocked(f.issuer.issueEditor).mockResolvedValueOnce({ ok: false, code });

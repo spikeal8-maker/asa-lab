@@ -306,6 +306,58 @@ describe('API application factory', () => {
     expect(query).not.toHaveBeenCalled();
   });
 
+  it('accepts future delegated entry login and runtime preflight only at that actual host', async () => {
+    vi.stubEnv('ASA_PUBLIC_WEB_ORIGIN_PATTERNS', 'https://*.asa-lab.ru');
+    vi.stubEnv('ASA_BLOCKS_SAME_ORIGIN', 'true');
+    vi.stubEnv('ASA_BLOCKS_RUNTIME_SIGNING_KEY', 'ab'.repeat(32));
+    try {
+      const app = await createApiApp({ pool: null, webDist: null });
+      apps.push(app);
+      const fastify = app.getHttpAdapter().getInstance();
+      const origin = 'https://new.pretest.asa-lab.ru';
+      const host = 'new.pretest.asa-lab.ru';
+      const login = await fastify.inject({
+        method: 'POST',
+        url: '/api/auth/login',
+        headers: { origin, host },
+        payload: {},
+      });
+      // Empty credentials fail normal body validation, not the ingress origin gate.
+      expect(login.statusCode).toBe(400);
+      const preflight = await fastify.inject({
+        method: 'OPTIONS',
+        url: '/api/blocks/runtime/projects/probe/draft',
+        headers: { origin, host },
+      });
+      expect(preflight.statusCode).toBe(204);
+      expect(preflight.headers['access-control-allow-origin']).toBe(origin);
+      for (const headers of [
+        { origin, host: 'other.asa-lab.ru', 'x-forwarded-host': host },
+        {
+          origin: 'https://new.pretest.asa-lab.ru.evil.test',
+          host: 'new.pretest.asa-lab.ru.evil.test',
+        },
+      ]) {
+        const denied = await fastify.inject({
+          method: 'POST',
+          url: '/api/auth/login',
+          headers,
+          payload: {},
+        });
+        expect(denied.statusCode).toBe(403);
+        expect(denied.json().error.code).toBe('origin_forbidden');
+        const runtime = await fastify.inject({
+          method: 'OPTIONS',
+          url: '/api/blocks/runtime/projects/probe/draft',
+          headers,
+        });
+        expect(runtime.statusCode).toBe(403);
+      }
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it('never grants mutation origin trust from Host or forwarded headers', async () => {
     const app = await createApiApp({ pool: null, webDist: null });
     apps.push(app);

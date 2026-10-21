@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { BLOCKS_JSON_LIMIT } from './blocks-durable-document.js';
 import { clientAddress } from './client-address.js';
 import { FixedWindowRateLimiter, type RateLimitDecision } from './rate-limit.js';
+import { readBlocksRuntimeEntryConfig } from './blocks-runtime-config.js';
 
 export const BLOCKS_DRAFT_CONTENT_TYPE = 'application/vnd.asa.blocks-draft+json';
 export const BLOCKS_ASSET_CANONICAL_CONTENT_TYPES = {
@@ -86,6 +87,30 @@ export function blocksRuntimeRequestOrigin(
   }
 }
 
+export type BlocksRuntimeOriginPolicy =
+  string | null | ((request: FastifyRequest) => string | null);
+
+export function configuredBlocksRuntimeOrigin(
+  env: NodeJS.ProcessEnv = process.env,
+): BlocksRuntimeOriginPolicy {
+  const mode = env['ASA_BLOCKS_SAME_ORIGIN'];
+  if (mode !== undefined && mode !== 'true' && mode !== 'false')
+    throw new Error('ASA_BLOCKS_SAME_ORIGIN must be true or false.');
+  if (mode !== 'true') return optionalBlocksRuntimeOrigin(env);
+  // Snapshot configuration once. Never reflect Host or forwarded headers into trust.
+  const configured = { ...env };
+  return (request) => {
+    const origin = blocksRuntimeRequestOrigin(request);
+    if (!origin || request.headers['sec-fetch-site'] === 'cross-site') return null;
+    try {
+      if (new URL(origin).host !== request.headers.host?.toLowerCase()) return null;
+      return readBlocksRuntimeEntryConfig(configured, origin).runtimeOrigin;
+    } catch {
+      return null;
+    }
+  };
+}
+
 const BLOCKS_RUNTIME_ASSET_UPLOAD =
   /^\/api\/blocks\/runtime\/projects\/[^/?]+\/assets\/[a-f0-9]{32}\.(svg|png|jpg|wav|mp3)$/;
 
@@ -103,8 +128,9 @@ function unsupportedMediaType(): Error {
 export function applyBlocksRuntimeCors(
   request: FastifyRequest,
   reply: FastifyReply,
-  runtimeOrigin: string | null,
+  policy: BlocksRuntimeOriginPolicy,
 ): boolean {
+  const runtimeOrigin = typeof policy === 'function' ? policy(request) : policy;
   if (!runtimeOrigin || blocksRuntimeRequestOrigin(request) !== runtimeOrigin) return false;
   void reply
     .header('Access-Control-Allow-Origin', runtimeOrigin)
@@ -129,7 +155,7 @@ function parseDraftBody(
 }
 export function registerBlocksRuntimeTransport(
   fastify: FastifyInstance,
-  runtimeOrigin: string | null,
+  runtimeOrigin: BlocksRuntimeOriginPolicy,
 ): void {
   const assetParser = (
     request: FastifyRequest,

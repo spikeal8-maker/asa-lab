@@ -37,6 +37,7 @@ import {
 import {
   isAllowedMutationOrigin,
   resolveAdditionalWebOrigins,
+  resolveWebOriginPatterns,
   resolveCanonicalWebOrigin,
   resolveIsolatedTestWebOrigin,
   resolveLocalApiOrigin,
@@ -48,7 +49,7 @@ import {
   applyBlocksRuntimeCors,
   BlocksRuntimeAddressBudget,
   isBlocksRuntimePath,
-  optionalBlocksRuntimeOrigin,
+  configuredBlocksRuntimeOrigin,
   registerBlocksRuntimeTransport,
 } from './blocks-runtime-transport.js';
 
@@ -289,6 +290,9 @@ export async function createApiApp(
         resolveAdditionalWebOrigins(process.env['ASA_PUBLIC_WEB_ORIGINS'])),
       ...(isolatedTestWebOrigin === null ? [] : [isolatedTestWebOrigin]),
     ];
+    const allowedOriginPatterns = resolveWebOriginPatterns(
+      process.env['ASA_PUBLIC_WEB_ORIGIN_PATTERNS'],
+    );
     const adapter = new FastifyAdapter({ genReqId: () => randomUUID(), logger: false });
     const app = await NestFactory.create<NestFastifyApplication>(
       AppModule.forPool(pool, {
@@ -328,7 +332,7 @@ export async function createApiApp(
     // deliberate boundary cast lets the canonical plugin types apply.
     const fastify = app.getHttpAdapter().getInstance() as unknown as FastifyInstance;
     fastify.addHook('onClose', cleanup);
-    const blocksRuntimeOrigin = optionalBlocksRuntimeOrigin();
+    const blocksRuntimeOrigin = configuredBlocksRuntimeOrigin();
     registerBlocksRuntimeTransport(fastify, blocksRuntimeOrigin);
     registerAiAttachmentTransport(fastify);
     await fastify.register(fastifyCookie);
@@ -507,6 +511,8 @@ export async function createApiApp(
           allowedWebOrigin,
           allowedLocalApiOrigin,
           additionalAllowedOrigins,
+          allowedOriginPatterns,
+          requestHost: request.headers.host,
           secFetchSite:
             typeof request.headers['sec-fetch-site'] === 'string'
               ? request.headers['sec-fetch-site']

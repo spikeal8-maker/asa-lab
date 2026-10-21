@@ -5,6 +5,8 @@ import {
   resolveCanonicalWebOrigin,
   resolveIsolatedTestWebOrigin,
   resolveLocalApiOrigin,
+  resolveWebOriginPatterns,
+  matchesWebOriginPattern,
 } from './origin-policy.js';
 
 const base = {
@@ -78,6 +80,66 @@ describe('canonical Web origin configuration', () => {
 });
 
 describe('mutation origin policy', () => {
+  it('delegates future and nested HTTPS subdomains only to their actual destination host', () => {
+    const patterns = resolveWebOriginPatterns('https://*.asa-lab.ru');
+    for (const host of ['pretest.asa-lab.ru', 'future.test.asa-lab.ru']) {
+      expect(
+        isAllowedMutationOrigin({
+          ...base,
+          origin: `https://${host}`,
+          requestHost: host,
+          allowedOriginPatterns: patterns,
+        }),
+      ).toBe(true);
+      expect(
+        isAllowedMutationOrigin({
+          ...base,
+          origin: `https://${host}`,
+          requestHost: 'other.asa-lab.ru',
+          allowedOriginPatterns: patterns,
+        }),
+      ).toBe(false);
+    }
+    for (const origin of [
+      'https://asa-lab.ru',
+      'https://evilasa-lab.ru',
+      'https://test.asa-lab.ru.evil.test',
+      'http://test.asa-lab.ru',
+      'https://test.asa-lab.ru:8443',
+      'https://test.asa-lab.ru./',
+      'https://x..asa-lab.ru',
+    ]) {
+      expect(matchesWebOriginPattern(origin, patterns)).toBe(false);
+    }
+    expect(
+      isAllowedMutationOrigin({
+        ...base,
+        origin: 'https://new.asa-lab.ru',
+        allowedOriginPatterns: patterns,
+      }),
+    ).toBe(false);
+    expect(
+      isAllowedMutationOrigin({
+        ...base,
+        origin: 'https://new.asa-lab.ru',
+        requestHost: 'new.asa-lab.ru',
+        secFetchSite: 'cross-site',
+        allowedOriginPatterns: patterns,
+      }),
+    ).toBe(false);
+    for (const pattern of [
+      '*',
+      'https://*',
+      'https://*.ru',
+      'http://*.asa-lab.ru',
+      'https://*.asa-lab.ru:8443',
+      'https://*.192.168.1.115',
+      'https://test.*.asa-lab.ru',
+      'https://*.asa-lab.ru/path',
+    ]) {
+      expect(() => resolveWebOriginPatterns(pattern)).toThrow();
+    }
+  });
   it('accepts the canonical Web origin and configured local API SPA', () => {
     expect(isAllowedMutationOrigin({ ...base, origin: 'http://127.0.0.1:4610' })).toBe(true);
     expect(isAllowedMutationOrigin({ ...base, origin: 'http://127.0.0.1:4611' })).toBe(true);

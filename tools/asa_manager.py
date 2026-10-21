@@ -16,6 +16,7 @@ from deployment.contracts import DEFAULT_WINDOW, REPOSITORY, Blocked, atomic_jso
 from deployment.releases import apply_release_environment, assert_ci, discover_release, fetch_images, validate_resolved_images
 from deployment.system import Installation, operation_lock, run
 from deployment.collector import prepare as prepare_collector, reconcile as reconcile_collector, status as collector_status
+from deployment.entry_profiles import configure_entry, entry_environment_matches
 
 
 def clean_checkout(install):
@@ -116,6 +117,9 @@ def update(install, *, check=False, scheduled=False, fresh=False):
     installed_path = install.state / "installed-release.json"
     installed = json.loads(installed_path.read_text(encoding="utf-8")) if installed_path.exists() else None
     same_release = bool(before and before['revision'] == release['revision'] and installed == release)
+    if same_release and not entry_environment_matches(install):
+        same_release = False
+        print('ENTRY_CONFIGURATION_PENDING: guarded backup/switch will apply the saved entry settings')
     if same_release:
         records = install.identity()
         for name, expected in release['images'].items():
@@ -189,7 +193,10 @@ def main(argv=None):
         print("Python 3.11 or newer is required.", file=sys.stderr)
         return 2
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=("doctor", "configure", "install", "check", "update", "backup", "verify-backup", "restore-check", "acknowledge"))
+    parser.add_argument("action", choices=("doctor", "configure", "configure-entry", "install", "check", "update", "backup", "verify-backup", "restore-check", "acknowledge"))
+    parser.add_argument("--entry-profile", choices=("asa-owned",))
+    parser.add_argument("--entry-origin")
+    parser.add_argument("--apply", action="store_true", help="Save configure-entry settings; no service restart")
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parent.parent)
     parser.add_argument("--profile", choices=("dev", "production", "staging", "base"))
     parser.add_argument("--scheduled", action="store_true")
@@ -199,6 +206,15 @@ def main(argv=None):
     parser.add_argument("--database")
     args = parser.parse_args(argv)
     try:
+        require(not (args.entry_profile or args.entry_origin or args.apply) or args.action in ('configure-entry', 'install'),
+                'ARGUMENT', 'Entry selection is supported only by configure-entry/install.')
+        require(bool(args.entry_profile) == bool(args.entry_origin), 'ARGUMENT', 'Select both --entry-profile and --entry-origin.')
+        require(not args.apply or args.action == 'configure-entry', 'ARGUMENT', '--apply is only for configure-entry.')
+        if args.action == 'configure-entry':
+            require(args.entry_profile and args.entry_origin, 'ARGUMENT', '--entry-profile and --entry-origin are required.')
+            with operation_lock(args.root) if args.apply else nullcontext():
+                configure_entry(args.root, args.entry_profile, args.entry_origin, apply=args.apply)
+            return 0
         if args.action == "verify-backup":
             require(args.backup, "ARGUMENT", "--backup is required.")
             manifest = verify_backup(args.backup)
@@ -216,6 +232,8 @@ def main(argv=None):
                 require(not install.identity(existing=False), "ALREADY_INSTALLED", "Use update for the existing installation.")
                 if not install.env:
                     first_environment(install.root, install.profile)
+                if args.entry_profile or args.entry_origin:
+                    configure_entry(install.root, args.entry_profile, args.entry_origin, apply=True)
                 update(Installation(install.root, install.profile), fresh=True)
             elif args.action in ("check", "update"):
                 update(install, check=args.action == "check", scheduled=args.scheduled)

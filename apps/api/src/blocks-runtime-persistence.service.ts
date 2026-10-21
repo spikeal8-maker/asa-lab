@@ -12,7 +12,10 @@ import {
   BlocksRuntimeCapabilityService,
   type BlocksRuntimeGrant,
 } from './blocks-runtime-capability.js';
-import { readBlocksRuntimeServerConfig } from './blocks-runtime-config.js';
+import {
+  BlocksRuntimeEntryOriginError,
+  readBlocksRuntimeEntryConfig,
+} from './blocks-runtime-config.js';
 import {
   BlocksRuntimeRequestAuthorizer,
   type BlocksRuntimeRequestResult,
@@ -29,7 +32,6 @@ import { BlocksRuntimeUploadBudget } from './blocks-runtime-upload-budget.js';
 const RUNTIME_REQUEST_LIMIT = 2400;
 const RUNTIME_REQUEST_WINDOW_MS = 10 * 60 * 1000;
 interface RuntimeResources {
-  readonly authorizer: BlocksRuntimeRequestAuthorizer;
   readonly upload: BlocksAssetUploadPipeline;
   readonly reader: BlocksDraftAssetReader;
 }
@@ -61,25 +63,12 @@ export class BlocksRuntimePersistenceService {
     if (this.resourcesValue) return this.resourcesValue;
     if (!this.pool) throw new Error('blocks_runtime_dependency_unavailable');
 
-    const runtime = readBlocksRuntimeServerConfig(this.env);
     const projects = new PgProjectRepository(this.pool);
-    const authority = new BlocksProjectRuntimeAuthority(projects);
-    const capability = new BlocksRuntimeCapabilityService({
-      key: runtime.signingKey,
-      runtimeOrigin: runtime.runtimeOrigin,
-      authority,
-    });
-    const authorizer = new BlocksRuntimeRequestAuthorizer(
-      projects,
-      capability,
-      runtime.runtimeOrigin,
-    );
 
     const objectConfig = readBlocksObjectStorageConfig(this.env);
     const blobs = new S3BlocksBlobStore(objectConfig);
     const metadata = new PgBlocksAssetMetadataStore(this.pool);
     this.resourcesValue = {
-      authorizer,
       upload: new BlocksAssetUploadPipeline(blobs, metadata),
       reader: new BlocksDraftAssetReader(projects, metadata, blobs),
     };
@@ -92,7 +81,20 @@ export class BlocksRuntimePersistenceService {
     permission: 'project:read' | 'asset:read' | 'asset:write' | 'draft:write' | 'snapshot:write';
   }): Promise<BlocksRuntimeAuthorizedResult> {
     try {
-      const result = await this.resources().authorizer.authorize(input);
+      if (!this.pool) return { ok: false, code: 'dependency_unavailable' };
+      const runtime = readBlocksRuntimeEntryConfig(this.env, input.origin);
+      const projects = new PgProjectRepository(this.pool);
+      const capability = new BlocksRuntimeCapabilityService({
+        key: runtime.signingKey,
+        runtimeOrigin: runtime.runtimeOrigin,
+        authority: new BlocksProjectRuntimeAuthority(projects),
+      });
+      // No per-host cache: future delegated subdomains cannot grow server state.
+      const result = await new BlocksRuntimeRequestAuthorizer(
+        projects,
+        capability,
+        runtime.runtimeOrigin,
+      ).authorize(input);
       if (!result.ok) return result;
       return {
         ok: true,
@@ -101,7 +103,9 @@ export class BlocksRuntimePersistenceService {
           actor: { ...result.value.actor },
         },
       };
-    } catch {
+    } catch (error) {
+      if (error instanceof BlocksRuntimeEntryOriginError)
+        return { ok: false, code: 'forbidden_origin' };
       return { ok: false, code: 'dependency_unavailable' };
     }
   }

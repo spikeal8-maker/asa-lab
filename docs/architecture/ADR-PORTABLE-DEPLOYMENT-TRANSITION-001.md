@@ -1,7 +1,7 @@
 # ADR-PORTABLE-DEPLOYMENT-TRANSITION-001 — ASA Lab transition to the portable deployment standard
 
 **Status:** ACTIVE TRANSITION EXCEPTION  
-**Revision:** 1.2\
+**Revision:** 1.3\
 **Scope:** ASA Lab current self-hosted installation/update architecture only  
 **Standard:** docs/architecture/PORTABLE_SELF_HOSTED_DEPLOYMENT_STANDARD.md v1.1  
 **Owner:** ASA Lab repository owner  
@@ -85,6 +85,23 @@ A host/network move can leave persisted runtime origin state coupled to the prev
 **Closure**
 
 P1 must remove host/DHCP entry as persistent module identity and prove local + LAN behavior with foreign-origin rejection.
+
+**Opt-in source transition (2026-10-21; exception remains OPEN)**
+
+`ASA_BLOCKS_SAME_ORIGIN=true` now selects the server capability/session origin
+from the configured browser entry, including explicitly delegated HTTPS zones.
+Transport/preflight, issuance and persistence use that policy; the token still
+contains one exact origin and cannot be reused at another alias. Delegated
+browser mutations require Origin host equality with the actual ingress Host;
+forwarded-host headers do not grant trust. This is a registration pattern, never
+a wildcard postMessage target or JWT claim. Legacy mode remains unchanged.
+
+The optional versioned owner entry profile is separate deployment configuration,
+selected once through `configure-entry` and retained in private installation
+environment. Primary origin metadata and updater guards remain for compatibility.
+See `docs/deployment/INSTALLATION_ENTRY_ALIASES.md`. This source repair does not
+close EX-01/EX-02: full clean-install/update, second-device LAN/public editor
+save/reopen and school HTTPS acceptance are still NOT_RUN.
 
 ### EX-03 — DPL-NET-004: automatic network discovery is not yet a supported installation capability
 
