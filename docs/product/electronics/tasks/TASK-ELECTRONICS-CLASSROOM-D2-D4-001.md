@@ -509,3 +509,7 @@ bounded author and different independent exact-SHA reviewer; retain separate
 oracle/deduplication commits and every historical failure/blocker. This repair
 grants no product acceptance, real-time claim, deployment or closure. STOP after
 the assigned stage and return the exact result to root.
+
+The existing qualification suite may change ONLY the final complete D13 file SHA and meaningful actual-geometry positive/negative predicates.
+Prove installObserver body and all observer semantics byte-identical before/after.
+Retain the whole-file pin; never substitute selective checks or hash a partial file.
