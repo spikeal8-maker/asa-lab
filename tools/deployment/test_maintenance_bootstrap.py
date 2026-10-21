@@ -40,6 +40,15 @@ class BootstrapTests(unittest.TestCase):
             result=json.loads((root/'.asa/installation.json').read_text())
             self.assertTrue(backup.is_dir());self.assertEqual(result['instanceId'],old['instanceId']);self.assertEqual(result['window'],old['window'])
             if os.name!='nt':self.assertEqual(backup.stat().st_mode&0o777,0o700)
+    @unittest.skipIf(os.name=='nt','POSIX directory permissions')
+    def test_bad_backup_mode_is_rejected_before_release_discovery(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder);bad=root/'backups';bad.mkdir(mode=0o755);bad.chmod(0o755)
+            install=Mock(root=root,state=root/'.asa',settings={},profile='production')
+            with patch.object(manager,'doctor'),patch.object(manager,'clean_checkout'),patch.object(manager,'discover_release') as discover:
+                with self.assertRaises(Blocked) as failure:manager.update(install)
+                self.assertEqual(failure.exception.code,'BACKUP_PERMISSIONS');discover.assert_not_called()
+            self.assertEqual(bad.stat().st_mode&0o777,0o755)
     @unittest.skipIf(os.name=='nt','POSIX symlink and mode checks')
     def test_backup_symlink_is_rejected_without_changing_target(self):
         with tempfile.TemporaryDirectory() as folder:
