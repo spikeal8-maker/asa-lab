@@ -56,10 +56,11 @@ import { formatIlluminanceLux, photoresistorLightCondition } from './photoresist
 
 type BreadboardHover = { boardId: string; groupId: string; holeId: string } | null;
 
-function wiresAboveComponentBody(component: SchematicComponent): boolean {
+function wiresAboveComponentBody({ kind, componentTypeId }: SchematicComponent): boolean {
   return (
-    component.componentTypeId === 'arduino-uno' ||
-    component.componentTypeId === 'regulated-power-supply'
+    kind === 'breadboard' ||
+    componentTypeId === 'arduino-uno' ||
+    componentTypeId === 'regulated-power-supply'
   );
 }
 
@@ -470,11 +471,7 @@ export function WorkbenchStage({
     // pointer. Breadboards, Arduino Uno and the regulated supply are excluded:
     // wires are painted above their bodies and remain directly selectable there.
     const foregroundComponent = componentAtClientPoint(event.clientX, event.clientY);
-    if (
-      foregroundComponent &&
-      foregroundComponent.kind !== 'breadboard' &&
-      !wiresAboveComponentBody(foregroundComponent)
-    ) {
+    if (foregroundComponent && !wiresAboveComponentBody(foregroundComponent)) {
       if (event.shiftKey) {
         c.selectComponent(foregroundComponent.id, true);
         event.stopPropagation();
@@ -1298,11 +1295,6 @@ export function WorkbenchStage({
         />
         <g data-testid="breadboard-body-layer">
           {orderedComponents
-            .filter((component) => component.kind === 'breadboard')
-            .map((component) => renderComponentBody(component))}
-        </g>
-        <g data-testid="wire-underlay-component-body-layer">
-          {orderedComponents
             .filter(wiresAboveComponentBody)
             .map((component) => renderComponentBody(component))}
         </g>
@@ -1384,12 +1376,7 @@ export function WorkbenchStage({
         </g>
         <g data-testid="component-body-layer">
           {orderedComponents
-            .filter(
-              (component) =>
-                component.kind !== 'wire' &&
-                component.kind !== 'breadboard' &&
-                !wiresAboveComponentBody(component),
-            )
+            .filter((component) => component.kind !== 'wire' && !wiresAboveComponentBody(component))
             .map((component) => renderComponentBody(component))}
         </g>
         <g data-testid="terminal-overlay-layer">
