@@ -9311,7 +9311,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: paused_for_owner_arduino_psu_wire_layer_priority
+      checkpoint: selected_parallel_readonly_finalization_causal_audit
       kind: repair
       owner_acceptance: pending
       program_issue: 452
@@ -9401,8 +9401,18 @@ parallel_lanes:
         result: ElectronicsFAIL;GeneralFULLSUCCESS fourjobs. Focused905domain698web57classroom/70freshNxPASS;benchmark217938RAWof218000PASS. Target0of16complete/PUT0,invalidBEFORE. GeneralPASS is not owneracceptance.
         actual_review_sha256: 3d16ef5bdb876dc27833575a0b72326f6708c892cfc346dd6ec378379936a41c
         proposal_review_sha256: 7637bafbcf63fa84e402e51c26f1e165960028899690ac581d81fa5319bfac88
-      owner_priority_pause: Owner selects TASK-ELECTRONICS-ARDUINO-PSU-WIRE-LAYER-001 first;preserve525history/candidates/contracts. No automatic525repair or rerun during this slice.
-      next_action: Resume525 only after fresh snapshot and a new controller-selected dependency. Product5f9 remains unpublished;548BUDGETBLOCKED/ownerKEEP544547 remain unchanged.
+      historical_owner_priority_pause: Owner previously selected679 first;history retained. New direct owner instruction permits independent UI implementation without waiting for Arduino qualification.
+      parallel_finalization_audit:
+        mode: READONLY_CAUSAL_AUDIT_ONLY
+        basis: Owner explicitly resumes disjoint UI work while Arduino682 and679 qualification continue independently.
+        source_sha: 40ca98ecc5f59bbf9655accc88ccf3e3649d5ca7
+        actual_review_sha256: 6ffc07ccd58e4129a6ea85d69361df88e3b762e753b4de4393c7d32da77e8200
+        scope: Audit entire remaining generator frequency-unit-value formatting/native commit/inspector visibility and Save/PUT accounting using cached exact40ca evidence and public source contracts. Safe extracted setter/normalization checks allowed;no browser/build/CI/newobserver/source edits.
+        known: Eight desktop expected generator.value1000 versus actual1000000 is categoryA oracle defect. Seven mobile hidden final inputs and Enter delivery remain UNKNOWN. Nine incidental original-page PUT records have base2 but no response/CAS/timing proof. Fifteen raw cases,zero complete;320XY absent.
+        deliverable: One bounded minimal repair proposal only after demonstrated cause,with remaining unknowns and exact proposed paths/actions. STOP;new canonical repair selection and NEW independent review before implementation or CI.
+        preservation: No core/hook/Serial/interactions/Stage/presentation/product changes. Preserve sole682 controller,679 qualification,548BUDGETBLOCKED/ownerKEEP544547OPEN and all history.
+        evidence: docs/product/electronics/evidence/instrument-525-finalization-audit-selection-20261021.md
+      next_action: Assign ONE read-only whole-finalization causal audit without waiting for679/682 qualification. No repair/CI/productAFTER until separately selected after audit;all16complete plus new actual review still required.
     execution_lease:
       executor_id: electronics-instrument-readouts-525
       holder: unassigned

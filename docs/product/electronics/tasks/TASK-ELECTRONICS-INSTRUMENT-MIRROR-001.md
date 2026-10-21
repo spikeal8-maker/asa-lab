@@ -12,6 +12,28 @@ review: independent
 
 # Existing instrument readouts remain readable under mirror
 
+## Selected parallel read-only finalization audit — 21 October 2026
+
+Owner explicitly resumes UI work independently of Arduino qualification. This
+selection authorizes ONE read-only causal audit, not a test or product repair.
+Audit the whole remaining generator finalization flow: frequency/unit/value
+formatting, native commit, mobile inspector visibility and Save/PUT accounting.
+Use cached exact40ca raw/native evidence and public setter/normalization source;
+small extracted checks are allowed. No browser/build/CI/new observer or source
+edits. Do not modify core, hook, Serial, interactions, Stage or presentation.
+
+Desktop generator.value expected1000 versus actual1000000 is a proven test
+oracle defect. Mobile hidden final input/Enter delivery remains UNKNOWN;
+nine incidental PUT records do not prove completed Save/CAS. Fifteen cases
+observed, zero complete;320XY absent. Do not weaken whole-document, native
+Save1PUT/base2/CAS2to3, storage, coverage or deadlines to accept this baseline.
+
+Return one minimal cause-backed repair proposal, then STOP. A new canonical
+repair selection and independent review must precede edits/CI. Product AFTER
+still requires all16complete and a new actual review. Preserve independent682
+controller and679 qualification;548BUDGETBLOCKED/ownerKEEP544547OPEN unchanged.
+See [selection receipt](../evidence/instrument-525-finalization-audit-selection-20261021.md).
+
 ## Selected TEST-ONLY segmented pan and waveform ownership — 21 October 2026
 
 Exact main1eeba369 / Electronics39604641081 has0/16 complete and PUT0.
