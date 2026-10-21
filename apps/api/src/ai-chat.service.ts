@@ -480,6 +480,7 @@ export class AiChatService {
     availableModels: readonly AiChatModel[];
     modelCatalog: AiModelCatalog;
     productFeatures: typeof AI_PRODUCT_FEATURES;
+    ollamaModel: string | null;
   }> {
     const [config, local] = await Promise.all([this.runtime(), this.ollamaRuntime()]);
     const modelCatalog = getAiModelCatalog();
@@ -498,6 +499,7 @@ export class AiChatService {
       ],
       modelCatalog,
       productFeatures: AI_PRODUCT_FEATURES,
+      ollamaModel: localReady ? local.model : null,
     };
   }
 
