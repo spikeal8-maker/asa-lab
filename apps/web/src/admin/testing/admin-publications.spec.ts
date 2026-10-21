@@ -21,6 +21,7 @@ const publication = {
   publishedAt: '2026-10-21T12:00:00Z',
   state: 'public',
   hidden: false,
+  moderationVersion: 0,
   reason: null,
   moderatedAt: null,
 };
@@ -59,7 +60,14 @@ async function mount(hidden = false, nextOffset: number | null = null) {
     ok: true,
     status: 200,
     data: {
-      items: [{ ...publication, hidden, reason: hidden ? 'Нарушение' : null }],
+      items: [
+        {
+          ...publication,
+          hidden,
+          moderationVersion: hidden ? 1 : 0,
+          reason: hidden ? 'Нарушение' : null,
+        },
+      ],
       nextOffset,
     },
   });
@@ -140,6 +148,7 @@ describe('publications moderation', () => {
           hidden: !hidden,
           reason: hidden ? null : 'Проверенная причина',
           moderatedAt: '2026-10-22T00:00:00Z',
+          moderationVersion: hidden ? 2 : 1,
         },
       });
       await act(async () => submit());
@@ -147,7 +156,7 @@ describe('publications moderation', () => {
         `/api/admin/v1/publications/publication-1/${hidden ? 'restore' : 'hide'}`,
         {
           method: 'POST',
-          body: JSON.stringify({ reason: 'Проверенная причина' }),
+          body: JSON.stringify({ reason: 'Проверенная причина', expectedVersion: hidden ? 1 : 0 }),
         },
       );
       expect(host.querySelector('dialog')).toBeNull();

@@ -39,8 +39,8 @@ describe('administrative publication transport', () => {
       for (const call of [
         () => controller.list(request()),
         () => controller.image(request(), ID, {} as FastifyReply),
-        () => controller.hide(request(), ID, { reason: 'Safety' }),
-        () => controller.restore(request(), ID, { reason: 'Reviewed' }),
+        () => controller.hide(request(), ID, { reason: 'Safety', expectedVersion: 0 }),
+        () => controller.restore(request(), ID, { reason: 'Reviewed', expectedVersion: 0 }),
       ])
         await expect(call()).rejects.toMatchObject({ status });
       expect(query).not.toHaveBeenCalled();
@@ -53,8 +53,8 @@ describe('administrative publication transport', () => {
     for (const call of [
       () => controller.list(req),
       () => controller.image(req, ID, {} as FastifyReply),
-      () => controller.hide(req, ID, { reason: 'x' }),
-      () => controller.restore(req, ID, { reason: 'x' }),
+      () => controller.hide(req, ID, { reason: 'x', expectedVersion: 0 }),
+      () => controller.restore(req, ID, { reason: 'x', expectedVersion: 0 }),
     ])
       await expect(call()).rejects.toMatchObject({ status: 403 });
     expect(resolve).not.toHaveBeenCalled();
@@ -77,11 +77,15 @@ describe('administrative publication transport', () => {
     null,
     [],
     {},
-    { reason: '' },
-    { reason: '  ' },
-    { reason: 1 },
-    { reason: 'x'.repeat(501) },
-    { reason: 'valid', title: 'rewrite' },
+    { reason: '', expectedVersion: 0 },
+    { reason: '  ', expectedVersion: 0 },
+    { reason: 1, expectedVersion: 0 },
+    { reason: 'x'.repeat(501), expectedVersion: 0 },
+    { reason: 'valid', title: 'rewrite', expectedVersion: 0 },
+    { reason: 'valid' },
+    { reason: 'valid', expectedVersion: -1 },
+    { reason: 'valid', expectedVersion: 1.5 },
+    { reason: 'valid', expectedVersion: '0' },
   ])('rejects malformed action %j', async (body) => {
     const { controller, query } = fixture();
     await expect(controller.hide(request(), ID, body)).rejects.toMatchObject({ status: 400 });
@@ -93,27 +97,31 @@ describe('administrative publication transport', () => {
     const { controller, query } = fixture();
     await expect(controller.list(request())).resolves.toEqual({ items: [], nextOffset: null });
     expect(query).toHaveBeenLastCalledWith(expect.any(String), [ID, 0, 25]);
-    await controller.hide(request(), ID, { reason: ' Safety review ' });
+    await controller.hide(request(), ID, { reason: ' Safety review ', expectedVersion: 0 });
     expect(query).toHaveBeenLastCalledWith(expect.any(String), [
       ID,
       ID,
       true,
       'Safety review',
       'request-1',
+      0,
     ]);
-    await controller.restore(request(), ID, { reason: 'Reviewed' });
+    await controller.restore(request(), ID, { reason: 'Reviewed', expectedVersion: 0 });
     expect(query).toHaveBeenLastCalledWith(expect.any(String), [
       ID,
       ID,
       false,
       'Reviewed',
       'request-1',
+      0,
     ]);
   });
 
   it('rejects invalid identifiers and maps absent images to 404', async () => {
     const { controller, query } = fixture();
-    await expect(controller.hide(request(), 'bad', { reason: 'x' })).rejects.toMatchObject({
+    await expect(
+      controller.hide(request(), 'bad', { reason: 'x', expectedVersion: 0 }),
+    ).rejects.toMatchObject({
       status: 400,
     });
     expect(query).not.toHaveBeenCalled();
@@ -147,9 +155,11 @@ describe('administrative publication transport', () => {
   ])('maps SQL %s without leaking its message', async (code, status) => {
     const { controller, query } = fixture();
     query.mockRejectedValue(Object.assign(new Error('private SQL detail'), { code }));
-    await expect(controller.hide(request(), ID, { reason: 'x' })).rejects.toMatchObject({ status });
+    await expect(
+      controller.hide(request(), ID, { reason: 'x', expectedVersion: 0 }),
+    ).rejects.toMatchObject({ status });
     try {
-      await controller.hide(request(), ID, { reason: 'x' });
+      await controller.hide(request(), ID, { reason: 'x', expectedVersion: 0 });
     } catch (error) {
       expect(String(error)).not.toContain('private SQL detail');
     }

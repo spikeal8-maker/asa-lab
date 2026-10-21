@@ -2,6 +2,7 @@
 CREATE TABLE public.project_publication_moderation (
     publication_id uuid PRIMARY KEY REFERENCES public.project_publication_state(id),
     hidden boolean NOT NULL,
+    moderation_version integer NOT NULL DEFAULT 1 CHECK (moderation_version > 0),
     reason text,
     acted_at timestamptz NOT NULL DEFAULT now(),
     actor_principal_id uuid NOT NULL REFERENCES public.principals(id),
@@ -107,7 +108,8 @@ BEGIN
     WITH page AS (
         SELECT state.id, revision.id AS revision_id, revision.title, revision.author_label,
                revision.module_key, revision.published_at, state.state,
-               COALESCE(moderation.hidden, false) AS hidden, moderation.reason, moderation.acted_at
+               COALESCE(moderation.hidden, false) AS hidden,
+               COALESCE(moderation.moderation_version, 0) AS moderation_version, moderation.reason, moderation.acted_at
           FROM public.project_publication_state state
           JOIN public.project_publication_revisions revision
             ON revision.id = state.current_revision_id AND revision.publication_id = state.id
@@ -121,7 +123,8 @@ BEGIN
     SELECT COALESCE(jsonb_agg(jsonb_build_object(
         'publicationId', id, 'revisionId', revision_id, 'title', title,
         'authorLabel', author_label, 'moduleKey', module_key, 'publishedAt', published_at,
-        'state', state, 'hidden', hidden, 'reason', reason, 'moderatedAt', acted_at)
+        'state', state, 'hidden', hidden, 'moderationVersion', moderation_version,
+        'reason', reason, 'moderatedAt', acted_at)
         ORDER BY n) FILTER (WHERE n <= p_limit), '[]'::jsonb), count(*) > p_limit
       INTO v_items, v_more FROM numbered;
     RETURN jsonb_build_object('items', v_items, 'nextOffset', CASE WHEN v_more THEN p_offset + p_limit END);
@@ -146,17 +149,19 @@ END;
 $$;
 
 CREATE FUNCTION public.admin_publication_transition(
-    p_actor uuid, p_publication uuid, p_hidden boolean, p_reason text, p_request_id varchar
+    p_actor uuid, p_publication uuid, p_hidden boolean, p_reason text,
+    p_request_id varchar, p_expected_version integer
 )
 RETURNS jsonb
 LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
-DECLARE v_project uuid; v_before boolean; v_at timestamptz;
+DECLARE v_project uuid; v_before boolean; v_version integer; v_at timestamptz;
 BEGIN
     IF public.admin_authorized_role(p_actor, 'platform', NULL) IS DISTINCT FROM 'platform_admin' THEN
         RAISE EXCEPTION 'administrative scope denied' USING ERRCODE = '42501';
     END IF;
     IF p_hidden IS NULL OR p_reason IS NULL OR length(trim(p_reason)) NOT BETWEEN 1 AND 500
-       OR p_request_id IS NULL OR length(trim(p_request_id)) NOT BETWEEN 1 AND 128 THEN
+       OR p_request_id IS NULL OR length(trim(p_request_id)) NOT BETWEEN 1 AND 128
+       OR p_expected_version IS NULL OR p_expected_version NOT BETWEEN 0 AND 2147483646 THEN
         RAISE EXCEPTION 'invalid moderation input' USING ERRCODE = '22023';
     END IF;
     -- Initial lookup acquires no state lock. Publish/revoke/copy lock Project first.
@@ -169,30 +174,39 @@ BEGIN
      WHERE state.id = p_publication AND revision.schema_version = 2
      FOR UPDATE OF state;
     IF NOT FOUND THEN RAISE EXCEPTION 'not available' USING ERRCODE = 'P5P04'; END IF;
-    SELECT COALESCE((SELECT hidden FROM public.project_publication_moderation
-                     WHERE publication_id = p_publication), false) INTO v_before;
-    IF v_before = p_hidden OR EXISTS (
+    SELECT COALESCE(moderation.hidden, false), COALESCE(moderation.moderation_version, 0)
+      INTO v_before, v_version
+      FROM public.project_publication_state state
+      LEFT JOIN public.project_publication_moderation moderation ON moderation.publication_id = state.id
+     WHERE state.id = p_publication;
+    -- The expected revision is checked while holding the same Project/state lock
+    -- as publish/revoke. An ABA hide/restore/hide cycle cannot reopen hidden content.
+    IF v_version <> p_expected_version OR v_before = p_hidden OR EXISTS (
         SELECT 1 FROM public.administrative_audit_events
          WHERE actor_principal_id = p_actor AND request_id = trim(p_request_id)
            AND action IN ('publication.hide', 'publication.restore')
     ) THEN RAISE EXCEPTION 'moderation state changed' USING ERRCODE = 'P5M09'; END IF;
     v_at := clock_timestamp();
     INSERT INTO public.project_publication_moderation
-        (publication_id, hidden, reason, acted_at, actor_principal_id)
-    VALUES (p_publication, p_hidden, CASE WHEN p_hidden THEN trim(p_reason) END, v_at, p_actor)
-    ON CONFLICT (publication_id) DO UPDATE SET hidden = EXCLUDED.hidden, reason = EXCLUDED.reason,
-        acted_at = EXCLUDED.acted_at, actor_principal_id = EXCLUDED.actor_principal_id;
+        (publication_id, hidden, moderation_version, reason, acted_at, actor_principal_id)
+    VALUES (p_publication, p_hidden, v_version + 1,
+        CASE WHEN p_hidden THEN trim(p_reason) END, v_at, p_actor)
+    ON CONFLICT (publication_id) DO UPDATE SET
+        hidden = EXCLUDED.hidden, moderation_version = EXCLUDED.moderation_version,
+        reason = EXCLUDED.reason, acted_at = EXCLUDED.acted_at,
+        actor_principal_id = EXCLUDED.actor_principal_id;
     PERFORM public.admin_append_audit_event(p_actor, 'platform', NULL,
         CASE WHEN p_hidden THEN 'publication.hide' ELSE 'publication.restore' END,
         'project_publication', p_publication::varchar, 'publication_moderation', trim(p_reason)::varchar,
-        NULL, p_request_id, NULL, 'succeeded', v_before::integer::bigint, p_hidden::integer::bigint);
+        NULL, p_request_id, NULL, 'succeeded', v_version::bigint, (v_version + 1)::bigint);
     RETURN jsonb_build_object('publicationId', p_publication, 'hidden', p_hidden,
+        'moderationVersion', v_version + 1,
         'reason', CASE WHEN p_hidden THEN trim(p_reason) END, 'moderatedAt', v_at);
 END;
 $$;
 REVOKE ALL ON FUNCTION public.admin_publications_list(uuid,integer,integer) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.admin_publication_image(uuid,uuid) FROM PUBLIC;
-REVOKE ALL ON FUNCTION public.admin_publication_transition(uuid,uuid,boolean,text,varchar) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.admin_publication_transition(uuid,uuid,boolean,text,varchar,integer) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.admin_publications_list(uuid,integer,integer) TO asalab_app;
 GRANT EXECUTE ON FUNCTION public.admin_publication_image(uuid,uuid) TO asalab_app;
-GRANT EXECUTE ON FUNCTION public.admin_publication_transition(uuid,uuid,boolean,text,varchar) TO asalab_app;
+GRANT EXECUTE ON FUNCTION public.admin_publication_transition(uuid,uuid,boolean,text,varchar,integer) TO asalab_app;

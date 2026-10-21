@@ -32,7 +32,7 @@ afterAll(async () => {
   }
 });
 
-async function identity(label: string, role?: 'verified' | 'pending' | 'school') {
+async function identity(label: string, role?: 'verified' | 'provisional' | 'school') {
   const teacher = await seedTeacher(admin, `moderation-${label}-${randomUUID().slice(0, 8)}`);
   const row = (
     await admin.query(
@@ -126,13 +126,15 @@ const transition = (
   hidden: boolean,
   reason = 'Safety review',
   request = randomUUID(),
+  expectedVersion = 0,
 ) =>
-  runtime.query('SELECT admin_publication_transition($1,$2,$3,$4,$5) AS result', [
+  runtime.query('SELECT admin_publication_transition($1,$2,$3,$4,$5,$6) AS result', [
     actor,
     publicationId,
     hidden,
     reason,
     request,
+    expectedVersion,
   ]);
 async function original(projectId: string) {
   return (
@@ -164,7 +166,7 @@ async function unavailable(source: Awaited<ReturnType<typeof publication>>) {
       source.publicationId,
       source.revisionId,
     ]),
-  ).rejects.toMatchObject({ code: 'P5P04' });
+  ).rejects.toMatchObject({ code: 'P5C01' });
 }
 
 describe('publication moderation with real runtime privileges and sessions', () => {
@@ -174,7 +176,7 @@ describe('publication moderation with real runtime privileges and sessions', () 
     const denied = [
       source.owner,
       await identity('school', 'school'),
-      await identity('pending', 'pending'),
+      await identity('provisional', 'provisional'),
     ];
     for (const actor of [null, ...denied]) {
       for (const options of [
@@ -213,7 +215,10 @@ describe('publication moderation with real runtime privileges and sessions', () 
         url: '/api/admin/v1/publications' + path,
         cookies: { asa_session: platform.token, asa_student_session: 'invalid-seat' },
       });
-      expect(response.statusCode).toBe(403);
+      // Mixed Account+Seat cookies are blocked by the shared session-conflict
+      // hook before the administration controller is reached.
+      expect(response.statusCode).toBe(409);
+      expect(response.body).toContain('session_conflict');
     }
     const classroom = (
       await admin.query(
@@ -255,12 +260,67 @@ describe('publication moderation with real runtime privileges and sessions', () 
     });
     // Capability revocation takes effect on the next privileged SQL invocation.
     await admin.query(
-      "UPDATE capability_grants SET state='pending' WHERE account_id=$1 AND capability='platform_admin'",
+      "UPDATE capability_grants SET state='provisional' WHERE account_id=$1 AND capability='platform_admin'",
       [platform.accountId],
     );
     await expect(
       transition(platform.principalId, source.publicationId, true),
     ).rejects.toMatchObject({ code: '42501' });
+  });
+
+  it('rejects an old restore dialog after a newer restore-and-hide (ABA)', async () => {
+    const source = await publication();
+    const first = await identity('aba-first', 'verified');
+    const second = await identity('aba-second', 'verified');
+    const path = '/api/admin/v1/publications/' + source.publicationId;
+    const send = async (
+      actor: Awaited<ReturnType<typeof identity>>,
+      op: 'hide' | 'restore',
+      reason: string,
+      expectedVersion: number,
+    ) =>
+      inject(app, {
+        method: 'POST',
+        url: path + '/' + op,
+        cookies: { asa_session: actor.token },
+        payload: { reason, expectedVersion },
+      });
+
+    const hideA = await send(first, 'hide', 'Reason A', 0);
+    expect(hideA.statusCode).toBe(200);
+    expect(hideA.json().moderationVersion).toBe(1);
+    const restoreA = await send(second, 'restore', 'Reviewed A', 1);
+    expect(restoreA.statusCode).toBe(200);
+    expect(restoreA.json().moderationVersion).toBe(2);
+    const hideB = await send(second, 'hide', 'Reason B', 2);
+    expect(hideB.statusCode).toBe(200);
+    expect(hideB.json().moderationVersion).toBe(3);
+
+    // Old dialog still carries expectedVersion=1, not the current=3.
+    const staleRestore = await send(first, 'restore', 'Stale reviewed A', 1);
+    expect(staleRestore.statusCode).toBe(409);
+    await unavailable(source);
+    const row = (
+      await admin.query(
+        'SELECT hidden, reason, moderation_version FROM project_publication_moderation WHERE publication_id=$1',
+        [source.publicationId],
+      )
+    ).rows[0];
+    expect(row).toMatchObject({ hidden: true, reason: 'Reason B', moderation_version: 3 });
+    const audit = (
+      await admin.query(
+        "SELECT count(*)::integer AS count FROM administrative_audit_events WHERE target_type='project_publication' AND target_id=$1",
+        [source.publicationId],
+      )
+    ).rows[0];
+    expect(audit.count).toBe(3);
+    const fresh = await send(first, 'restore', 'Reviewed latest B', 3);
+    expect(fresh.statusCode).toBe(200);
+    expect(fresh.json().moderationVersion).toBe(4);
+    expect(
+      (await runtime.query('SELECT * FROM public_project_image($1,NULL)', [source.publicationId]))
+        .rows,
+    ).toHaveLength(1);
   });
 
   it('hides all public projections, preserves originals, explains to owner and restores with atomic audit', async () => {
@@ -300,12 +360,13 @@ describe('publication moderation with real runtime privileges and sessions', () 
       method: 'POST',
       url: `/api/admin/v1/publications/${source.publicationId}/hide`,
       cookies: { asa_session: moderator.token },
-      payload: { reason: 'Unsafe example' },
+      payload: { reason: 'Unsafe example', expectedVersion: 0 },
     });
     expect(hidden.statusCode).toBe(200);
     expect(hidden.json()).toMatchObject({
       publicationId: source.publicationId,
       hidden: true,
+      moderationVersion: 1,
       reason: 'Unsafe example',
     });
     await unavailable(source);
@@ -363,10 +424,10 @@ describe('publication moderation with real runtime privileges and sessions', () 
       method: 'POST',
       url: `/api/admin/v1/publications/${source.publicationId}/restore`,
       cookies: { asa_session: moderator.token },
-      payload: { reason: 'Reviewed safe' },
+      payload: { reason: 'Reviewed safe', expectedVersion: 1 },
     });
     expect(restored.statusCode).toBe(200);
-    expect(restored.json()).toMatchObject({ hidden: false, reason: null });
+    expect(restored.json()).toMatchObject({ hidden: false, reason: null, moderationVersion: 2 });
     expect(
       (await runtime.query('SELECT * FROM public_project_image($1,NULL)', [source.publicationId]))
         .rows,
@@ -445,11 +506,12 @@ describe('publication moderation with real runtime privileges and sessions', () 
     const client = await runtime.connect();
     try {
       await client.query('BEGIN');
-      await client.query('SELECT admin_publication_transition($1,$2,true,$3,$4)', [
+      await client.query('SELECT admin_publication_transition($1,$2,true,$3,$4,$5)', [
         moderator.principalId,
         source.publicationId,
         'Rolled back',
         randomUUID(),
+        2,
       ]);
       await client.query('ROLLBACK');
     } finally {
@@ -484,11 +546,12 @@ describe('publication moderation with real runtime privileges and sessions', () 
         FOR EACH ROW EXECUTE FUNCTION public.moderation_fail_${suffix}()`);
       await failureClient.query('SET LOCAL ROLE asalab_app');
       await expect(
-        failureClient.query('SELECT admin_publication_transition($1,$2,true,$3,$4)', [
+        failureClient.query('SELECT admin_publication_transition($1,$2,true,$3,$4,$5)', [
           moderator.principalId,
           source.publicationId,
           'Must roll back',
           randomUUID(),
+          2,
         ]),
       ).rejects.toMatchObject({ code: 'P0001' });
     } finally {

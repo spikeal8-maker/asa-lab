@@ -11,6 +11,7 @@ interface Publication {
   readonly publishedAt: string;
   readonly state: string;
   readonly hidden: boolean;
+  readonly moderationVersion: number;
   readonly reason: string | null;
   readonly moderatedAt: string | null;
 }
@@ -18,6 +19,7 @@ interface Publication {
 interface ModerationResult {
   readonly publicationId: string;
   readonly hidden: boolean;
+  readonly moderationVersion: number;
   readonly reason: string | null;
   readonly moderatedAt: string;
 }
@@ -144,18 +146,28 @@ export function AdminPublicationsPage({
     const current = version.current;
     const result = await call<ModerationResult>(
       `${endpoint(selected.publicationId)}/${selected.hidden ? 'restore' : 'hide'}`,
-      { method: 'POST', body: JSON.stringify({ reason: text }) },
+      {
+        method: 'POST',
+        body: JSON.stringify({ reason: text, expectedVersion: selected.moderationVersion }),
+      },
     );
     if (current !== version.current) return;
     busy.current = false;
     setSaving(false);
     if (!result.ok) {
-      fail(result.status);
+      if (result.status === 409) {
+        setError(
+          'Публикация изменилась у другого администратора. Закройте окно и обновите список.',
+        );
+      } else {
+        fail(result.status);
+      }
       return;
     }
     if (
       result.data.publicationId !== selected.publicationId ||
-      result.data.hidden === selected.hidden
+      result.data.hidden === selected.hidden ||
+      result.data.moderationVersion !== selected.moderationVersion + 1
     ) {
       setError('Сервер не подтвердил новое состояние. Обновите список.');
       return;

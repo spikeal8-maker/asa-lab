@@ -123,18 +123,27 @@ export class AdminPublicProjectsController {
   ) {
     const actor = await this.actor(request);
     uuid(publicationId);
-    const shape = checkBodyShape(body, ['reason']);
+    const shape = checkBodyShape(body, ['reason', 'expectedVersion']);
     if (!shape.ok) throw new BadRequestException();
     const reason = shape.body['reason'];
     if (typeof reason !== 'string' || !reason.trim() || reason.trim().length > 500) {
+      throw new BadRequestException();
+    }
+    const expectedVersion = shape.body['expectedVersion'];
+    if (
+      typeof expectedVersion !== 'number' ||
+      !Number.isInteger(expectedVersion) ||
+      expectedVersion < 0 ||
+      expectedVersion > 2147483646
+    ) {
       throw new BadRequestException();
     }
     if (typeof request.id !== 'string' || !request.id.trim() || request.id.length > 128) {
       throw new BadRequestException();
     }
     const result = await this.query<{ result: unknown }>(
-      'SELECT public.admin_publication_transition($1,$2,$3,$4,$5) AS result',
-      [actor, publicationId, hidden, reason.trim(), request.id],
+      'SELECT public.admin_publication_transition($1,$2,$3,$4,$5,$6) AS result',
+      [actor, publicationId, hidden, reason.trim(), request.id, expectedVersion],
     );
     return result.rows[0].result;
   }

@@ -235,7 +235,10 @@ for (const width of [1440, 390]) {
         await confirm.click();
         const response = await responsePromise;
         expect(response.status()).toBe(200);
-        expect(response.request().postDataJSON()).toEqual({ reason: reasons[index] });
+        expect(response.request().postDataJSON()).toEqual({
+          reason: reasons[index],
+          expectedVersion: index,
+        });
         expect(await response.json()).toMatchObject({ publicationId, hidden: hiding });
         await expect(dialog).not.toBeVisible();
         await expect(

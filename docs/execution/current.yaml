@@ -6157,10 +6157,10 @@ parallel_lanes:
     task:
       id: TASK-PROJ-R8-03A-ADMIN-MODERATION-001
       issue: 686
-      branch: codex/projects-admin-publication-moderation-20261021
+      branch: main
       base_branch: main
       pr: null
-      pr_draft: true
+      pr_draft: false
       status: in_progress
       checkpoint: admin_publication_hide_restore_selected
       owner_acceptance: pending
