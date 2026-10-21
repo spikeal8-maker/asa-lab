@@ -95,13 +95,11 @@ describe('published private copy UI', () => {
   });
 
   it('offers explicit sign-in without automatically retrying a 401', async () => {
-    const copy = vi
-      .spyOn(publicProjectsApi, 'copy')
-      .mockResolvedValue({
-        ok: false,
-        status: 401,
-        error: { code: 'unauthorized', message: 'private' },
-      });
+    const copy = vi.spyOn(publicProjectsApi, 'copy').mockResolvedValue({
+      ok: false,
+      status: 401,
+      error: { code: 'unauthorized', message: 'private' },
+    });
     await render();
     await act(async () => button().click());
     expect(container.querySelector('a')?.getAttribute('href')).toBe('/#/sign-in');
