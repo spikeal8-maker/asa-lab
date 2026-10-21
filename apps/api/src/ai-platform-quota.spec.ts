@@ -1,3 +1,5 @@
+import { classifyProviderHttpFailure } from './ai-provider-errors';
+import { aiAdminFixture } from './testing/ai-admin-config.fixture';
 import { createCipheriv } from 'node:crypto';
 import type pg from 'pg';
 import { describe, expect, it, vi } from 'vitest';
@@ -15,8 +17,10 @@ function fixture(admission: 'allow' | 'replay' | Error = 'allow') {
   const config = {
     enabled: true,
     provider: 'openai',
-    model: 'gpt-5-mini',
+    model: 'gpt-6-luna',
     api_key_configured: true,
+    provider_configurations: aiAdminFixture({ apiKeyConfigured: true }).providerConfigurations,
+    migrated_from_model: null,
     key_fingerprint: null,
     configuration_version: 2,
     updated_at: null,
@@ -31,7 +35,13 @@ function fixture(admission: 'allow' | 'replay' | Error = 'allow') {
     if (sql.includes('ai_runtime_config') || sql.includes('ai_admin_get_config')) {
       return { rows: [config] };
     }
-    if (sql.includes('ai_chat_begin') || sql.includes('ai_admin_test_begin')) {
+    if (sql.includes('ai_text_generation_context'))
+      return { rows: [{ role: 'user', content: 'Hello' }] };
+    if (sql.includes('ai_admin_set_config')) {
+      config.configuration_version += 1;
+      return { rows: [{ ai_admin_set_config: config.configuration_version }] };
+    }
+    if (sql.includes('ai_text_begin') || sql.includes('ai_admin_test_begin')) {
       if (admission instanceof Error) throw admission;
       return { rows: [{ admitted: admission === 'allow' }] };
     }
@@ -64,13 +74,97 @@ const operations = {
       REQUEST,
       () => undefined,
       new AbortController().signal,
-      'gpt-5-mini',
+      'gpt-6-luna',
     ),
   test: (service: AiChatService) => service.testConnection(PRINCIPAL, 2),
 };
 
 describe('platform-wide paid operation admission at every upstream path', () => {
   for (const [name, run] of Object.entries(operations)) {
+    it.each([400, 401, 402, 403, 404, 422, 429, 500, 503])(
+      `${name}: preserves safe diagnosis for upstream HTTP %i without retry or body inspection`,
+      async (status) => {
+        const f = fixture();
+        f.config.provider = 'deepseek';
+        f.config.model = 'deepseek-flash';
+        // sendStream chooses its explicit model; keep provider-compatible selection below.
+        const response = new Response('private-upstream-body sk-secret-never-expose', { status });
+        const json = vi.spyOn(response, 'json');
+        const text = vi.spyOn(response, 'text');
+        f.fetchImpl.mockImplementationOnce(async () => response);
+        const failure = classifyProviderHttpFailure(status);
+        const operation =
+          name === 'stream'
+            ? f.service.sendStream(
+                PRINCIPAL,
+                THREAD,
+                'Hello',
+                REQUEST,
+                () => undefined,
+                new AbortController().signal,
+                'deepseek-flash',
+              )
+            : run(f.service);
+        await expect(operation).rejects.toMatchObject(failure);
+        expect(f.fetchImpl).toHaveBeenCalledTimes(1);
+        expect(json).not.toHaveBeenCalled();
+        expect(text).not.toHaveBeenCalled();
+        expect(JSON.stringify(failure)).not.toContain('sk-secret');
+      },
+    );
+
+    it(`${name}: distinguishes outgoing connection failures without exposing exceptions`, async () => {
+      const f = fixture();
+      f.fetchImpl.mockRejectedValueOnce(new Error('private URL and sk-secret'));
+      await expect(run(f.service)).rejects.toMatchObject({
+        code: 'ai_provider_unavailable',
+        status: 503,
+      });
+      expect(f.fetchImpl).toHaveBeenCalledTimes(1);
+    });
+
+    it(`${name}: reports missing server encryption before paid admission`, async () => {
+      const f = fixture();
+      const service = new AiChatService({ query: f.query } as unknown as pg.Pool, {
+        encryptionKey: 'invalid-root-key',
+        fetchImpl: f.fetchImpl,
+      });
+      await expect(run(service)).rejects.toMatchObject({
+        code: 'ai_encryption_unavailable',
+        status: 503,
+      });
+      expect(f.fetchImpl).not.toHaveBeenCalled();
+      expect(f.order.some((sql) => sql.includes('begin'))).toBe(false);
+    });
+
+    it(`${name}: recognizes an actual timeout signal without retry`, async () => {
+      const f = fixture();
+      const controller = new AbortController();
+      controller.abort();
+      const timeout = vi.spyOn(AbortSignal, 'timeout').mockReturnValue(controller.signal);
+      f.fetchImpl.mockRejectedValueOnce(new Error('private transport details'));
+      try {
+        await expect(run(f.service)).rejects.toMatchObject({
+          code: 'ai_provider_timeout',
+          status: 504,
+        });
+        expect(f.fetchImpl).toHaveBeenCalledTimes(1);
+      } finally {
+        timeout.mockRestore();
+      }
+    });
+
+    it.each([
+      ['missing', 'ai_key_required'],
+      ['decryption', 'ai_key_decryption_failed'],
+    ])(`${name}: reports %s credentials before paid admission`, async (kind, code) => {
+      const f = fixture();
+      f.config.api_key_ciphertext = kind === 'missing' ? '' : 'broken-ciphertext';
+      await expect(run(f.service)).rejects.toMatchObject({ code, status: 503 });
+      expect(f.fetchImpl).not.toHaveBeenCalled();
+      expect(f.order.some((sql) => sql.includes('begin'))).toBe(false);
+    });
+
     it(`${name}: maps zero/exhausted quota and never fetches`, async () => {
       const f = fixture(new Error('AI_PLATFORM_QUOTA_EXHAUSTED'));
       await expect(run(f.service)).rejects.toMatchObject({
@@ -89,7 +183,7 @@ describe('platform-wide paid operation admission at every upstream path', () => 
     it(`${name}: awaits durable SQL admission before its one fetch`, async () => {
       const f = fixture();
       await run(f.service);
-      const index = f.order.findIndex((sql) => /ai_chat_begin|ai_admin_test_begin/.test(sql));
+      const index = f.order.findIndex((sql) => /ai_text_begin|ai_admin_test_begin/.test(sql));
       expect(index).toBeGreaterThanOrEqual(0);
       expect(f.order.indexOf('fetch')).toBeGreaterThan(index);
       expect(f.fetchImpl).toHaveBeenCalledTimes(1);
@@ -101,7 +195,7 @@ describe('platform-wide paid operation admission at every upstream path', () => 
       const f = fixture();
       await operations[name](f.service);
       expect(f.query).toHaveBeenCalledWith(
-        'SELECT ai_chat_begin_paid($1,$2,$3,$4::varchar,$5::bigint) AS admitted',
+        'SELECT ai_text_begin_paid($1,$2,$3,$4::varchar,$5::bigint) AS admitted',
         [PRINCIPAL, THREAD, REQUEST, 'Hello', f.config.configuration_version],
       );
     });
@@ -154,11 +248,11 @@ describe('platform-wide paid operation admission at every upstream path', () => 
       REQUEST,
       () => undefined,
       abort.signal,
-      'gpt-5-mini',
+      'gpt-6-luna',
     );
     expect(f.fetchImpl).not.toHaveBeenCalled();
     expect(f.query.mock.calls.some(([sql]) => sql.includes('ai_chat_abort'))).toBe(true);
-    expect(f.query.mock.calls.filter(([sql]) => sql.includes('ai_chat_begin'))).toHaveLength(1);
+    expect(f.query.mock.calls.filter(([sql]) => sql.includes('ai_text_begin'))).toHaveLength(1);
   });
 
   it.each([-1, 1.5, NaN, Infinity, 2147483648, '10', null])(
@@ -171,7 +265,7 @@ describe('platform-wide paid operation admission at every upstream path', () => 
           {
             enabled: false,
             provider: 'openai',
-            model: 'gpt-5-mini',
+            model: 'gpt-6-luna',
             paidOperationsPerHour: limit,
           } as AiAdminUpdate,
           'settings',
@@ -190,7 +284,7 @@ describe('platform-wide paid operation admission at every upstream path', () => 
         {
           enabled: false,
           provider: 'openai',
-          model: 'gpt-5-mini',
+          model: 'gpt-6-luna',
           paidOperationsPerHour: limit,
         },
         'settings',

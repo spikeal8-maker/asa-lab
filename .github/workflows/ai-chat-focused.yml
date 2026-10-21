@@ -7,19 +7,28 @@ name: ASA AI Chat Focused
       - feature/ai-chat-gpt-integration-20261014
     paths:
       - 'apps/api/src/ai-*'
+      - 'apps/api/src/ai-attachments/**'
       - 'apps/api/src/app.module.ts'
+      - 'apps/api/src/app.factory.ts'
+      - 'apps/api/src/abuse-protection.ts'
+      - 'apps/api/src/abuse-protection.spec.ts'
       - 'apps/api/src/tokens.ts'
+      - 'apps/api/src/seat-context.ts'
       - 'apps/api/src/account-verification.guard*'
+      - 'apps/web/src/pages/ClassroomPage.tsx'
+      - 'apps/web/src/components/ClassroomAiAccess.tsx'
+      - 'apps/web/src/components/classroom-ai-access.css'
       - 'apps/web/src/ai/**'
       - 'apps/web/src/admin/AdminAiPage.tsx'
       - 'apps/web/src/admin/ai-admin.css'
       - 'apps/web/src/admin/testing/ai-*.spec.ts'
       - 'apps/web/src/admin/admin-navigation.ts'
       - 'apps/web/src/App.tsx'
-      - 'apps/web/src/pages/ClassroomPage.tsx'
       - 'e2e/ai-*.spec.ts'
       - 'migrations/*_ai_*.sql'
       - 'tests/admin/ai-*.ts'
+      - 'tests/ai-attachments/**'
+      - 'infra/minio/Dockerfile'
       - 'playwright.ai-chat.config.ts'
       - 'package.json'
       - 'pnpm-lock.yaml'
@@ -28,19 +37,28 @@ name: ASA AI Chat Focused
   pull_request:
     paths:
       - 'apps/api/src/ai-*'
+      - 'apps/api/src/ai-attachments/**'
       - 'apps/api/src/app.module.ts'
+      - 'apps/api/src/app.factory.ts'
+      - 'apps/api/src/abuse-protection.ts'
+      - 'apps/api/src/abuse-protection.spec.ts'
       - 'apps/api/src/tokens.ts'
+      - 'apps/api/src/seat-context.ts'
       - 'apps/api/src/account-verification.guard*'
+      - 'apps/web/src/pages/ClassroomPage.tsx'
+      - 'apps/web/src/components/ClassroomAiAccess.tsx'
+      - 'apps/web/src/components/classroom-ai-access.css'
       - 'apps/web/src/ai/**'
       - 'apps/web/src/admin/AdminAiPage.tsx'
       - 'apps/web/src/admin/ai-admin.css'
       - 'apps/web/src/admin/testing/ai-*.spec.ts'
       - 'apps/web/src/admin/admin-navigation.ts'
       - 'apps/web/src/App.tsx'
-      - 'apps/web/src/pages/ClassroomPage.tsx'
       - 'e2e/ai-*.spec.ts'
       - 'migrations/*_ai_*.sql'
       - 'tests/admin/ai-*.ts'
+      - 'tests/ai-attachments/**'
+      - 'infra/minio/Dockerfile'
       - 'playwright.ai-chat.config.ts'
       - 'package.json'
       - 'pnpm-lock.yaml'
@@ -58,6 +76,8 @@ jobs:
     name: AI unit and API/Web types
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    env:
+      NX_SKIP_NX_CACHE: 'true'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -72,10 +92,14 @@ jobs:
           node-version: '22'
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Build AI unit API and identity dependencies
+        run: pnpm exec nx run-many -t build -p identity api --skip-nx-cache
       - name: AI Chat unit regression
         run: pnpm test:ai-chat
       - name: No unformatted files
-        run: pnpm exec prettier --check apps/api/src/ai-* apps/web/src/ai apps/web/src/admin/testing/ai-*.spec.ts e2e/ai-*.spec.ts tests/admin/ai-*.ts
+        run: |
+          pnpm exec prettier --check apps/api/src/ai-* apps/api/src/ai-attachments apps/api/src/app.factory.ts apps/api/src/abuse-protection.ts apps/api/src/abuse-protection.spec.ts apps/api/src/seat-context.ts apps/api/src/account-verification.guard* apps/web/src/components/ClassroomAiAccess.tsx apps/web/src/components/classroom-ai-access.css apps/web/src/ai apps/web/src/admin/testing/ai-*.spec.ts e2e/ai-*.spec.ts tests/admin/ai-*.ts tests/ai-attachments package.json
+          pnpm exec prettier --check --ignore-path /dev/null .github/workflows/ai-chat-focused.yml
       - name: API TypeScript
         run: pnpm exec nx run api:typecheck --skip-nx-cache
       - name: Web TypeScript
@@ -127,6 +151,55 @@ jobs:
         run: pnpm exec nx run-many -t build -p identity api --skip-nx-cache
       - name: AI cross-account security and provider persistence
         run: pnpm exec vitest run tests/admin/ai-*.pg.spec.ts
+
+  storage:
+    name: AI real S3 attachment isolation
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CI: 'true'
+      ASA_AI_ATTACHMENTS_STORAGE_TEST: '1'
+      ASA_AI_CANDIDATE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      ASA_OBJECT_STORAGE_ENDPOINT: http://127.0.0.1:19000
+      ASA_OBJECT_STORAGE_REGION: us-east-1
+      ASA_OBJECT_STORAGE_BUCKET: ai-attachments-${{ github.run_id }}
+      ASA_OBJECT_STORAGE_FORCE_PATH_STYLE: 'true'
+      ASA_OBJECT_STORAGE_ACCESS_KEY: ai-attachments-ci-only
+      ASA_OBJECT_STORAGE_SECRET_KEY: ai-attachments-ci-only-secret
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Verify exact storage fixture source and configuration
+        run: |
+          test "$(git rev-parse HEAD)" = "$ASA_AI_CANDIDATE_SHA"
+          GITHUB_SHA="$ASA_AI_CANDIDATE_SHA" node --input-type=module -e \
+            "import { readAiAttachmentFixtureEnvironment } from './tests/ai-attachments/minio-fixture.mjs'; readAiAttachmentFixtureEnvironment(process.env);"
+      - name: Build pinned disposable MinIO
+        run: |
+          docker --host unix:///var/run/docker.sock build \
+            --file infra/minio/Dockerfile \
+            --tag "asa-ai-attachments-minio:${GITHUB_RUN_ID}" \
+            infra/minio
+      # Pass the checked-out head only to fixture processes; a PR event's
+      # default GITHUB_SHA identifies its synthetic merge commit instead.
+      - name: Start disposable attachment storage
+        run: GITHUB_SHA="$ASA_AI_CANDIDATE_SHA" node tests/ai-attachments/minio-fixture.mjs start
+      - name: Real S3 attachment cases and fixture guards
+        run: GITHUB_SHA="$ASA_AI_CANDIDATE_SHA" pnpm test:ai-attachments:s3
+      - name: Stop only the verified owned storage fixture
+        if: always()
+        run: GITHUB_SHA="$ASA_AI_CANDIDATE_SHA" node tests/ai-attachments/minio-fixture.mjs stop
 
   browser:
     name: AI desktop and mobile browser

@@ -1,24 +1,18 @@
 import {
-  isValidElement,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type FormEvent,
   type ReactNode,
 } from 'react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import { call } from '../api-call';
+import { aiAdmissionMessage, aiScopeHeaders, createAiScopeCall } from './ai-scope-api';
 import { AsaLabMark } from '../brand/AsaLabBrand';
-import { AiStreamClientError, streamAiRequest } from './stream-ai-request';
+import { AiStreamClientError, streamAiRegeneration, streamAiRequest } from './stream-ai-request';
+import { AiMessageContent } from './AiMessageContent';
+import { useAiThreadHistory, type AiHistoryThread as AiThread } from './use-ai-thread-history';
 import './izo-chat-design.css';
-
-interface AiThread {
-  readonly id: string;
-  readonly title: string;
-  readonly updatedAt: string;
-}
 
 interface AiMessage {
   readonly id: string;
@@ -27,6 +21,9 @@ interface AiMessage {
   readonly createdAt: string;
   readonly requestId: string;
   readonly state?: 'complete' | 'stopped';
+  readonly sourceUserMessageId?: string;
+  readonly sourcePrompt?: string;
+  readonly regenerated?: boolean;
 }
 
 interface AiCursor {
@@ -54,102 +51,47 @@ function cursorQuery(cursor: AiCursor): string {
 }
 
 interface AiStatus {
+  readonly reason?: string | null;
+  readonly canGenerate?: boolean;
+  readonly providerEnabled?: boolean;
   readonly enabled: boolean;
   readonly provider: 'openai' | 'deepseek';
   readonly model: string;
   readonly availableModels?: readonly string[];
 }
 
-function flattenText(node: ReactNode): string {
-  if (typeof node === 'string' || typeof node === 'number') return String(node);
-  if (Array.isArray(node)) return node.map(flattenText).join('');
-  if (isValidElement<{ children?: ReactNode }>(node)) return flattenText(node.props.children);
-  return '';
-}
-
-function safeLink(href?: string): { href: string; external: boolean } | null {
-  if (!href) return null;
-  try {
-    const url = new URL(href, window.location.origin);
-    if (url.protocol !== 'https:' && url.protocol !== 'http:') return null;
-    return { href, external: url.origin !== window.location.origin };
-  } catch {
-    return null;
-  }
-}
-
-function Content({ content }: { readonly content: string }): JSX.Element {
-  return (
-    <div className="asa-ai-rich-text">
-      <ReactMarkdown
-        skipHtml
-        remarkPlugins={[remarkGfm]}
-        components={{
-          a: ({ href, children }) => {
-            const safe = safeLink(href);
-            return safe ? (
-              <a
-                href={safe.href}
-                target={safe.external ? '_blank' : undefined}
-                rel={safe.external ? 'noreferrer noopener' : undefined}
-              >
-                {children}
-              </a>
-            ) : (
-              <span>{children}</span>
-            );
-          },
-          pre: ({ children }) => {
-            const code = flattenText(children).replace(/\n$/, '');
-            return (
-              <div className="asa-ai-code-block">
-                <button
-                  type="button"
-                  onClick={() => void navigator.clipboard.writeText(code).catch(() => undefined)}
-                  aria-label="Копировать код"
-                >
-                  Копировать код
-                </button>
-                <pre>{children}</pre>
-              </div>
-            );
-          },
-          table: ({ children }) => (
-            <div
-              className="asa-ai-table-scroll"
-              role="region"
-              aria-label="Таблица ответа"
-              tabIndex={0}
-            >
-              <table>{children}</table>
-            </div>
-          ),
-          img: ({ alt }) => <span>{alt || 'Изображение в ответе недоступно'}</span>,
-        }}
-      >
-        {content}
-      </ReactMarkdown>
-    </div>
-  );
-}
-
-export function AiChatPage(): JSX.Element {
+export function AiChatPage({
+  seatId,
+  scopeControl,
+}: { seatId?: string; scopeControl?: ReactNode } = {}): JSX.Element {
+  const call = useMemo(() => createAiScopeCall(seatId), [seatId]);
   const [status, setStatus] = useState<AiStatus | null>(null);
   const [selectedModel, setSelectedModel] = useState('');
-  const [threads, setThreads] = useState<readonly AiThread[]>([]);
-  const [threadCursor, setThreadCursor] = useState<AiCursor | null>(null);
-  const [loadingMoreThreads, setLoadingMoreThreads] = useState(false);
+  const {
+    threads,
+    nextCursor: threadCursor,
+    loadingMore: loadingMoreThreads,
+    loading: loadingThreads,
+    error: historyError,
+    refresh: refreshThreads,
+    loadMore: loadMoreThreads,
+    search,
+    setSearch,
+    archived: archivedFilter,
+    setArchived: setArchivedFilter,
+  } = useAiThreadHistory(call);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState('');
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [threadActionBusy, setThreadActionBusy] = useState(false);
   const threadMutationBusy = useRef(false);
   const [currentId, setCurrentId] = useState<string | null>(null);
+  const [currentThread, setCurrentThread] = useState<AiThread | null>(null);
+  const currentArchived = useRef(false);
   const [messages, setMessages] = useState<readonly AiMessage[]>([]);
   const [messageCursor, setMessageCursor] = useState<AiCursor | null>(null);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [draft, setDraft] = useState('');
-  const [search, setSearch] = useState('');
   const [busy, setBusy] = useState(false);
   const [creatingChat, setCreatingChat] = useState(false);
   // Serialize creation and sending before React renders disabled controls.
@@ -164,6 +106,14 @@ export function AiChatPage(): JSX.Element {
   const selectedVersion = useRef(0);
   const pendingRequest = useRef<{ threadId: string; requestId: string; text: string } | null>(null);
   const [streamedText, setStreamedText] = useState('');
+  const [pendingRegeneration, setPendingRegeneration] = useState<{
+    threadId: string;
+    requestId: string;
+    sourceId: string;
+    prompt: string;
+  } | null>(null);
+  const [checkingResult, setCheckingResult] = useState(false);
+  const resultCheckBusy = useRef(false);
   const activeStream = useRef<{
     threadId: string;
     requestId: string;
@@ -178,6 +128,14 @@ export function AiChatPage(): JSX.Element {
   const historyToggle = useRef<HTMLButtonElement>(null);
   const composer = useRef<HTMLTextAreaElement>(null);
   const restoreScroll = useRef<{ height: number; top: number } | null>(null);
+
+  useEffect(() => {
+    const selected = threads.find((thread) => thread.id === currentId);
+    if (selected) {
+      currentArchived.current = !!selected.archivedAt;
+      setCurrentThread(selected);
+    }
+  }, [currentId, threads]);
 
   useLayoutEffect(() => {
     const panel = historyPanel.current;
@@ -266,8 +224,8 @@ export function AiChatPage(): JSX.Element {
 
   useEffect(() => {
     let active = true;
-    void Promise.all([call<AiStatus>('/api/ai/status'), call<AiPage<AiThread>>('/api/ai/threads')])
-      .then(([model, history]) => {
+    void call<AiStatus>('/api/ai/status')
+      .then((model) => {
         if (!active) return;
         if (model.ok) {
           setStatus(model.data);
@@ -275,10 +233,6 @@ export function AiChatPage(): JSX.Element {
             model.data.availableModels?.includes(previous) ? previous : model.data.model,
           );
         } else setError(model.error.message);
-        if (history.ok) {
-          setThreads(history.data.items);
-          setThreadCursor(history.data.nextCursor ?? null);
-        } else setError(history.error.message);
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -288,7 +242,7 @@ export function AiChatPage(): JSX.Element {
       selectedVersion.current += 1;
       activeStream.current?.controller.abort();
     };
-  }, []);
+  }, [call]);
 
   useLayoutEffect(() => {
     const node = chatScroll.current;
@@ -302,32 +256,14 @@ export function AiChatPage(): JSX.Element {
     }
   }, [messages, busy, streamedText]);
 
-  async function refreshThreads(): Promise<void> {
-    const result = await call<AiPage<AiThread>>('/api/ai/threads');
+  async function refreshAdmission() {
+    const version = selectedVersion.current;
+    const result = await call<AiStatus>('/api/ai/status');
+    if (version !== selectedVersion.current) return;
     if (result.ok) {
-      setThreads(result.data.items);
-      setThreadCursor(result.data.nextCursor ?? null);
-    }
-  }
-
-  async function loadMoreThreads(): Promise<void> {
-    const cursor = threadCursor;
-    if (!cursor || loadingMoreThreads) return;
-    setLoadingMoreThreads(true);
-    try {
-      const result = await call<AiPage<AiThread>>('/api/ai/threads' + cursorQuery(cursor));
-      if (!result.ok) {
-        setError(result.error.message);
-        return;
-      }
-      setThreads((previous) => {
-        const ids = new Set(previous.map((thread) => thread.id));
-        return [...previous, ...result.data.items.filter((thread) => !ids.has(thread.id))];
-      });
-      setThreadCursor(result.data.nextCursor ?? null);
-    } finally {
-      setLoadingMoreThreads(false);
-    }
+      setStatus(result.data);
+      setError(null);
+    } else setError(result.error.message);
   }
 
   async function loadOlderMessages(): Promise<void> {
@@ -369,9 +305,10 @@ export function AiChatPage(): JSX.Element {
         body: JSON.stringify({ title }),
       });
       if (result.ok) {
-        setThreads((previous) =>
-          previous.map((thread) => (thread.id === id ? result.data : thread)),
+        setCurrentThread((previous) =>
+          previous?.id === id ? { ...previous, title: result.data.title } : previous,
         );
+        void refreshThreads();
         setEditingId(null);
         setError(null);
       } else setError(result.error.message);
@@ -392,7 +329,7 @@ export function AiChatPage(): JSX.Element {
         body: JSON.stringify({}),
       });
       if (result.ok) {
-        setThreads((previous) => previous.filter((thread) => thread.id !== id));
+        void refreshThreads();
         setConfirmDeleteId(null);
         // A delayed response must never clear a newer selected conversation.
         if (currentId === id && version === selectedVersion.current) {
@@ -402,12 +339,46 @@ export function AiChatPage(): JSX.Element {
           restoreScroll.current = null;
           setHistoryReady(true);
           setCurrentId(null);
+          setCurrentThread(null);
+          currentArchived.current = false;
+          setPendingRegeneration(null);
           setMessages([]);
           setMessageCursor(null);
           setDraft('');
         }
         setError(null);
       } else setError(result.error.message);
+    } finally {
+      threadMutationBusy.current = false;
+      setThreadActionBusy(false);
+    }
+  }
+
+  async function archiveThread(id: string, archived: boolean): Promise<void> {
+    if (requestBusy.current || threadMutationBusy.current) return;
+    threadMutationBusy.current = true;
+    setThreadActionBusy(true);
+    const version = selectedVersion.current;
+    try {
+      const result = await call<AiThread>(
+        '/api/ai/threads/' + encodeURIComponent(id) + '/archive',
+        {
+          method: 'PATCH',
+          body: JSON.stringify({ archived }),
+        },
+      );
+      if (!result.ok) {
+        setError(result.error.message);
+        return;
+      }
+      if (currentId === id && version === selectedVersion.current) {
+        currentArchived.current = !!result.data.archivedAt;
+        setCurrentThread(result.data);
+      }
+      setEditingId(null);
+      setConfirmDeleteId(null);
+      setError(null);
+      void refreshThreads();
     } finally {
       threadMutationBusy.current = false;
       setThreadActionBusy(false);
@@ -423,6 +394,13 @@ export function AiChatPage(): JSX.Element {
     pendingRequest.current = null;
     setPendingMessage(null);
     setCurrentId(id);
+    currentArchived.current = !!(threads.find((thread) => thread.id === id) ?? currentThread)
+      ?.archivedAt;
+    setCurrentThread(
+      (previous) =>
+        threads.find((thread) => thread.id === id) ?? (previous?.id === id ? previous : null),
+    );
+    setPendingRegeneration((previous) => (previous?.threadId === id ? previous : null));
     setMessages([]);
     setMessageCursor(null);
     restoreScroll.current = null;
@@ -471,10 +449,17 @@ export function AiChatPage(): JSX.Element {
       pendingRequest.current = null;
       setPendingMessage(null);
       setCurrentId(result.data.id);
+      setCurrentThread({
+        id: result.data.id,
+        title: 'Новый диалог',
+        updatedAt: new Date().toISOString(),
+      });
+      currentArchived.current = false;
+      setPendingRegeneration(null);
       setMessages([]);
       setMessageCursor(null);
       if (!desktop) setSideOpen(false);
-      await refreshThreads();
+      void refreshThreads();
       return result.data.id;
     } catch {
       setError('Не удалось создать чат. Попробуйте ещё раз.');
@@ -508,6 +493,7 @@ export function AiChatPage(): JSX.Element {
       !text ||
       text.length > 3000 ||
       !status?.enabled ||
+      currentArchived.current ||
       requestBusy.current ||
       threadMutationBusy.current ||
       !selectedHistoryReady.current
@@ -520,6 +506,7 @@ export function AiChatPage(): JSX.Element {
         ? previous.requestId
         : crypto.randomUUID();
     requestBusy.current = true;
+    setPendingRegeneration(null);
     setPendingMessage({ requestId, text });
     setStreamedText('');
     setBusy(true);
@@ -532,12 +519,17 @@ export function AiChatPage(): JSX.Element {
           method: 'POST',
           body: JSON.stringify({}),
         });
+        // Scope changes or navigation invalidate this send before a stream
+        // exists for cleanup to abort. Never start one for that stale owner.
+        if (version !== selectedVersion.current) return;
         if (!created.ok) {
           setError(created.error.message);
           return;
         }
         id = created.data.id;
         setCurrentId(id);
+        setCurrentThread({ id, title: 'Новый диалог', updatedAt: new Date().toISOString() });
+        currentArchived.current = false;
         setMessages([]);
         setMessageCursor(null);
         if (!desktop) setSideOpen(false);
@@ -555,6 +547,7 @@ export function AiChatPage(): JSX.Element {
           },
           controller.signal,
           selectedModel || status.model,
+          aiScopeHeaders(seatId),
         );
         if (version !== selectedVersion.current) return;
         setStreamedText('');
@@ -572,6 +565,9 @@ export function AiChatPage(): JSX.Element {
           setError('Запрос уже был принят. Повторная платная генерация не выполнялась.');
         }
       } catch (problem) {
+        if (problem instanceof AiStreamClientError && problem.code === 'ai_student_denied') {
+          void refreshAdmission();
+        }
         if (version !== selectedVersion.current) return;
         setError(
           problem instanceof AiStreamClientError
@@ -603,7 +599,7 @@ export function AiChatPage(): JSX.Element {
       } finally {
         activeStream.current = null;
       }
-      await refreshThreads();
+      void refreshThreads();
     } finally {
       requestBusy.current = false;
       setPendingMessage(null);
@@ -612,11 +608,146 @@ export function AiChatPage(): JSX.Element {
     }
   }
 
-  const visible = threads.filter((thread) =>
-    thread.title.toLocaleLowerCase('ru-RU').includes(search.trim().toLocaleLowerCase('ru-RU')),
-  );
+  function sourceFor(message: AiMessage): { id: string; prompt: string } | null {
+    if (message.role === 'user') return { id: message.id, prompt: message.content };
+    if (message.sourceUserMessageId) {
+      return { id: message.sourceUserMessageId, prompt: message.sourcePrompt ?? '' };
+    }
+    const question = messages.find(
+      (item) => item.role === 'user' && item.requestId === message.requestId,
+    );
+    return question ? { id: question.id, prompt: question.content } : null;
+  }
+
+  async function readRegeneration(
+    operation: NonNullable<typeof pendingRegeneration>,
+    version: number,
+  ): Promise<'saved' | 'pending' | 'failed' | 'stale'> {
+    const result = await call<AiPage<AiMessage>>(
+      '/api/ai/threads/' +
+        encodeURIComponent(operation.threadId) +
+        '/requests/' +
+        encodeURIComponent(operation.requestId),
+    );
+    if (version !== selectedVersion.current) return 'stale';
+    if (!result.ok) {
+      setError(result.error.message);
+      return 'failed';
+    }
+    const acknowledged = result.data.items.filter(
+      (message) => message.requestId === operation.requestId,
+    );
+    setMessages((previous) => mergeMessages(previous, acknowledged));
+    if (acknowledged.some((message) => message.role === 'assistant')) {
+      setPendingRegeneration((previous) =>
+        previous?.requestId === operation.requestId ? null : previous,
+      );
+      setError(null);
+      return 'saved';
+    }
+    return 'pending';
+  }
+
+  async function checkRegeneration(): Promise<void> {
+    if (!pendingRegeneration || resultCheckBusy.current || requestBusy.current) return;
+    resultCheckBusy.current = true;
+    setCheckingResult(true);
+    const version = selectedVersion.current;
+    try {
+      const result = await readRegeneration(pendingRegeneration, version);
+      if (result === 'pending' && version === selectedVersion.current) {
+        setError(
+          'Сохранённого ответа пока нет. Проверка не запускает модель и не расходует лимит.',
+        );
+      }
+    } finally {
+      resultCheckBusy.current = false;
+      setCheckingResult(false);
+    }
+  }
+
+  async function regenerate(message: AiMessage): Promise<void> {
+    const source = sourceFor(message);
+    if (
+      !source ||
+      !currentId ||
+      !status?.enabled ||
+      currentArchived.current ||
+      requestBusy.current ||
+      threadMutationBusy.current ||
+      !selectedHistoryReady.current
+    )
+      return;
+    // Only this explicit action creates a new paid operation. Checking an
+    // uncertain result below always reads the original UUID without a POST.
+    const operation = {
+      threadId: currentId,
+      requestId: crypto.randomUUID(),
+      sourceId: source.id,
+      prompt: source.prompt,
+    };
+    const version = ++selectedVersion.current;
+    requestBusy.current = true;
+    setBusy(true);
+    setError(null);
+    setPendingMessage(null);
+    setStreamedText('');
+    setPendingRegeneration(operation);
+    const controller = new AbortController();
+    activeStream.current = { ...operation, controller };
+    try {
+      const result = await streamAiRegeneration<AiMessage>(
+        operation.threadId,
+        operation.sourceId,
+        operation.requestId,
+        (piece) => {
+          if (version === selectedVersion.current) setStreamedText((value) => value + piece);
+        },
+        controller.signal,
+        selectedModel || status.model,
+        aiScopeHeaders(seatId),
+      );
+      if (version !== selectedVersion.current) return;
+      const acknowledged = result.messages.filter(
+        (message) => message.requestId === operation.requestId,
+      );
+      setMessages((previous) => mergeMessages(previous, acknowledged));
+      if (acknowledged.some((message) => message.role === 'assistant')) {
+        setPendingRegeneration(null);
+      } else {
+        setError(
+          'Ответ пока не сохранён. Можно проверить результат этого запроса без новой генерации.',
+        );
+      }
+    } catch (problem) {
+      if (version !== selectedVersion.current) return;
+      if (problem instanceof AiStreamClientError && problem.code === 'ai_student_denied') {
+        // The SQL admission denied this operation before reserving a payment.
+        // Refresh only AI permission; there is no uncertain answer to recover.
+        setPendingRegeneration(null);
+        await refreshAdmission();
+        return;
+      }
+      setError(
+        problem instanceof AiStreamClientError
+          ? problem.message
+          : 'Соединение прервалось. Проверьте сохранённый ответ.',
+      );
+      await readRegeneration(operation, version);
+    } finally {
+      activeStream.current = null;
+      requestBusy.current = false;
+      setBusy(false);
+      setStreamedText('');
+    }
+    void refreshThreads();
+  }
+
   const empty = messages.length === 0 && pendingMessage === null && !streamedText;
-  const currentTitle = threads.find((thread) => thread.id === currentId)?.title || 'Новый диалог';
+  const currentTitle = currentThread?.title || 'Новый диалог';
+  const archived = !!currentThread?.archivedAt;
+  const visibleError = error ?? historyError;
+  const lastQuestion = [...messages].reverse().find((message) => message.role === 'user');
 
   function closeHistory(): void {
     setSideOpen(false);
@@ -682,19 +813,52 @@ export function AiChatPage(): JSX.Element {
               <input
                 type="search"
                 value={search}
+                maxLength={200}
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder="Поиск по истории"
               />
             </label>
+            <div className="chat-history-filters" role="group" aria-label="Раздел истории">
+              <button
+                type="button"
+                aria-pressed={!archivedFilter}
+                onClick={() => setArchivedFilter(false)}
+              >
+                Диалоги
+              </button>
+              <button
+                type="button"
+                aria-pressed={archivedFilter}
+                onClick={() => setArchivedFilter(true)}
+              >
+                Архив
+              </button>
+            </div>
           </div>
-          {!desktop && error ? (
+          {!desktop && visibleError ? (
             <div className="asa-ai-error asa-ai-history-error" role="alert">
-              {error}
+              {visibleError}
             </div>
           ) : null}
-          <strong className="chat-side-section">Недавние</strong>
-          <nav className="chat-history-list" aria-label="Диалоги">
-            {visible.map((thread) => (
+          {!desktop && historyError ? (
+            <button
+              type="button"
+              className="chat-history-more"
+              onClick={() => void refreshThreads()}
+            >
+              Обновить список
+            </button>
+          ) : null}
+          <strong className="chat-side-section">
+            {search.trim() ? 'Результаты поиска' : archivedFilter ? 'Архив' : 'Недавние'}
+          </strong>
+          <nav className="chat-history-list" aria-label="Диалоги" aria-busy={loadingThreads}>
+            {loadingThreads ? (
+              <p className="asa-ai-empty-list" role="status">
+                Загружаем историю…
+              </p>
+            ) : null}
+            {threads.map((thread) => (
               <div className="asa-ai-thread-row" key={thread.id}>
                 {editingId === thread.id ? (
                   <form
@@ -746,9 +910,16 @@ export function AiChatPage(): JSX.Element {
                       disabled={interactionBusy || threadActionBusy}
                       className={'chat-history-item' + (currentId === thread.id ? ' active' : '')}
                       aria-current={currentId === thread.id ? 'page' : undefined}
+                      aria-label={thread.title}
+                      aria-describedby={thread.matchPreview ? 'ai-match-' + thread.id : undefined}
                       onClick={() => void selectThread(thread.id)}
                     >
-                      {thread.title}
+                      <span className="chat-history-title">{thread.title}</span>
+                      {thread.matchPreview ? (
+                        <span className="chat-history-preview" id={'ai-match-' + thread.id}>
+                          {thread.matchPreview}
+                        </span>
+                      ) : null}
                     </button>
                     <button
                       className="asa-ai-thread-action"
@@ -763,6 +934,18 @@ export function AiChatPage(): JSX.Element {
                       }}
                     >
                       ✎
+                    </button>
+                    <button
+                      className="asa-ai-thread-action"
+                      type="button"
+                      disabled={interactionBusy}
+                      aria-label={
+                        (thread.archivedAt ? 'Восстановить: ' : 'В архив: ') + thread.title
+                      }
+                      title={thread.archivedAt ? 'Восстановить диалог' : 'В архив'}
+                      onClick={() => void archiveThread(thread.id, !thread.archivedAt)}
+                    >
+                      <span aria-hidden="true">{thread.archivedAt ? '↑' : '↓'}</span>
                     </button>
                     <button
                       className="asa-ai-thread-action"
@@ -791,16 +974,20 @@ export function AiChatPage(): JSX.Element {
                 {loadingMoreThreads ? 'Загружаем…' : 'Показать больше диалогов'}
               </button>
             ) : null}
-            {!loading && visible.length === 0 ? (
+            {!loadingThreads && !historyError && threads.length === 0 ? (
               <p className="asa-ai-empty-list">
                 {search.trim()
-                  ? 'Ничего не найдено в загруженной истории'
-                  : 'Здесь появятся ваши диалоги'}
+                  ? 'Ничего не найдено в истории'
+                  : archivedFilter
+                    ? 'В архиве пока нет диалогов'
+                    : 'Здесь появятся ваши диалоги'}
               </p>
             ) : null}
           </nav>
           <footer className="chat-sidebar-bottom">
-            <span className="asa-ai-privacy">Диалоги доступны только вашему аккаунту.</span>
+            <span className="asa-ai-privacy">
+              История доступна только вам в выбранном контексте.
+            </span>
           </footer>
         </dialog>
 
@@ -843,7 +1030,13 @@ export function AiChatPage(): JSX.Element {
                 </select>
               ) : (
                 <span>
-                  {loading ? 'Подключение…' : status?.enabled ? status.model : 'Не подключён'}
+                  {loading
+                    ? 'Подключение…'
+                    : status?.enabled
+                      ? status.model
+                      : status?.providerEnabled
+                        ? 'Доступ закрыт'
+                        : 'Не подключён'}
                 </span>
               )}
             </div>
@@ -858,6 +1051,7 @@ export function AiChatPage(): JSX.Element {
               <span aria-hidden="true">+</span>
             </button>
           </header>
+          {scopeControl}
 
           {!historyReady && !error ? (
             <div className="chat-start-state" role="status">
@@ -911,11 +1105,6 @@ export function AiChatPage(): JSX.Element {
                     </button>
                   ))}
                 </div>
-                {!status?.enabled && !loading ? (
-                  <p className="chat-start-note" role="status">
-                    ИИ пока выключен. Администратор должен подключить модель в разделе «Админ → ИИ».
-                  </p>
-                ) : null}
               </div>
             </div>
           ) : (
@@ -944,10 +1133,40 @@ export function AiChatPage(): JSX.Element {
                         {message.role === 'user' ? 'Вы' : 'ASA · ИИ'}
                       </span>
                       {message.role === 'user' ? (
-                        <div className="chat-user-bubble">{message.content}</div>
+                        <>
+                          <div className="chat-user-bubble">{message.content}</div>
+                          {message.id === lastQuestion?.id &&
+                          !messages.some(
+                            (answer) =>
+                              answer.role === 'assistant' &&
+                              (answer.sourceUserMessageId === message.id ||
+                                answer.requestId === message.requestId),
+                          ) ? (
+                            <div className="chat-message-actions">
+                              <button
+                                type="button"
+                                disabled={
+                                  interactionBusy || archived || !status?.enabled || !historyReady
+                                }
+                                onClick={() => void regenerate(message)}
+                                title="Новый запрос к модели расходует лимит. Исходный вопрос останется в истории."
+                              >
+                                Получить новый ответ
+                              </button>
+                            </div>
+                          ) : null}
+                        </>
                       ) : (
                         <div className="chat-assistant-message">
-                          <Content content={message.content} />
+                          {message.regenerated ? (
+                            <details className="chat-variant-source">
+                              <summary>Новый вариант · исходный вопрос</summary>
+                              <p>
+                                {message.sourcePrompt || 'Исходный вопрос сохранён выше в истории.'}
+                              </p>
+                            </details>
+                          ) : null}
+                          <AiMessageContent content={message.content} />
                           {message.state === 'stopped' ? (
                             <span className="chat-runtime-note" role="status">
                               Ответ остановлен.
@@ -964,6 +1183,18 @@ export function AiChatPage(): JSX.Element {
                             >
                               Копировать
                             </button>
+                            {sourceFor(message) ? (
+                              <button
+                                type="button"
+                                disabled={
+                                  interactionBusy || archived || !status?.enabled || !historyReady
+                                }
+                                onClick={() => void regenerate(message)}
+                                title="Новый запрос к модели расходует лимит. Вопрос и все прежние ответы останутся в истории."
+                              >
+                                Новый вариант ответа
+                              </button>
+                            ) : null}
                           </div>
                         </div>
                       )}
@@ -982,7 +1213,9 @@ export function AiChatPage(): JSX.Element {
                   {streamedText &&
                   !messages.some(
                     (item) =>
-                      item.role === 'assistant' && item.requestId === pendingMessage?.requestId,
+                      item.role === 'assistant' &&
+                      item.requestId ===
+                        (pendingMessage?.requestId ?? pendingRegeneration?.requestId),
                   ) ? (
                     <article
                       className="chat-turn chat-turn-assistant"
@@ -992,7 +1225,13 @@ export function AiChatPage(): JSX.Element {
                     >
                       <span className="chat-turn-label">ASA · ИИ</span>
                       <div className="chat-assistant-message">
-                        <Content content={streamedText} />
+                        {pendingRegeneration ? (
+                          <details className="chat-variant-source">
+                            <summary>Новый вариант · исходный вопрос</summary>
+                            <p>{pendingRegeneration.prompt}</p>
+                          </details>
+                        ) : null}
+                        <AiMessageContent content={streamedText} />
                       </div>
                     </article>
                   ) : null}
@@ -1005,9 +1244,51 @@ export function AiChatPage(): JSX.Element {
               </div>
             </div>
           )}
-          {error ? (
-            <div className="asa-ai-error" role="alert">
-              {error}
+          {visibleError ||
+          archived ||
+          (!busy && pendingRegeneration) ||
+          (!status?.enabled && !loading) ? (
+            <div
+              className={'asa-ai-error' + (visibleError ? '' : ' chat-history-notice')}
+              role={visibleError ? 'alert' : 'status'}
+            >
+              {visibleError ??
+                (!status?.enabled && !loading ? aiAdmissionMessage(status?.reason) : null)}
+              {!status?.enabled && !loading ? (
+                <button
+                  className="btn-secondary"
+                  type="button"
+                  onClick={() => void refreshAdmission()}
+                >
+                  Проверить доступ
+                </button>
+              ) : null}
+              {historyError ? (
+                <button type="button" onClick={() => void refreshThreads()}>
+                  Обновить список
+                </button>
+              ) : null}
+              {archived ? (
+                <>
+                  <span>Диалог в архиве. Переписка и черновик сохранены.</span>
+                  <button
+                    type="button"
+                    disabled={interactionBusy}
+                    onClick={() => currentId && void archiveThread(currentId, false)}
+                  >
+                    Восстановить диалог
+                  </button>
+                </>
+              ) : null}
+              {pendingRegeneration && !busy ? (
+                <button
+                  type="button"
+                  disabled={checkingResult}
+                  onClick={() => void checkRegeneration()}
+                >
+                  {checkingResult ? 'Проверяем…' : 'Проверить сохранённый ответ'}
+                </button>
+              ) : null}
               {currentId && !interactionBusy ? (
                 <button
                   className="btn-secondary"
@@ -1039,7 +1320,13 @@ export function AiChatPage(): JSX.Element {
                   }}
                   rows={2}
                   placeholder={
-                    status?.enabled ? 'Опишите идею или задачу…' : 'ИИ пока не подключён'
+                    archived
+                      ? 'Восстановите диалог, чтобы отправить сообщение'
+                      : status?.enabled
+                        ? 'Опишите идею или задачу…'
+                        : seatId
+                          ? 'Доступ к ИИ-чату закрыт'
+                          : 'ИИ пока не подключён'
                   }
                   disabled={!status?.enabled || interactionBusy}
                   aria-label="Сообщение ИИ"
@@ -1051,7 +1338,7 @@ export function AiChatPage(): JSX.Element {
                   type={busy ? 'button' : 'submit'}
                   className="chat-send-button"
                   disabled={
-                    !status?.enabled ||
+                    (!busy && (!status?.enabled || archived)) ||
                     creatingChat ||
                     threadActionBusy ||
                     (!busy && (!historyReady || !draft.trim()))

@@ -1147,6 +1147,8 @@ describe('E1-FIX-02B protected Student Code storage foundation', () => {
   it('fails protected current readback closed on an unknown encryption key while compat legacy rows remain supported', async () => {
     const { teacher, classroomId } = await teacherClass();
     const protectedSeat = await addSeat(teacher.cookie, classroomId, 'Unknown key learner');
+    const modulesBefore = await inject(app, { method: 'GET', url: '/api/modules' });
+    expect(modulesBefore.statusCode, modulesBefore.body).toBe(200);
 
     await admin.query(
       `UPDATE classroom_student_code_protected SET encryption_key_id='missing-key' WHERE seat_id=$1`,
@@ -1159,6 +1161,12 @@ describe('E1-FIX-02B protected Student Code storage foundation', () => {
     });
     expect(unavailable.statusCode, unavailable.body).toBe(503);
     expect(unavailable.body).toContain('credential_storage_unavailable');
+    const ready = await inject(app, { method: 'GET', url: '/health/ready' });
+    expect(ready.statusCode, ready.body).toBe(200);
+    expect(ready.json().dependencies.credentialConfiguration).toBe('valid');
+    const modulesAfter = await inject(app, { method: 'GET', url: '/api/modules' });
+    expect(modulesAfter.statusCode, modulesAfter.body).toBe(200);
+    expect(modulesAfter.json()).toEqual(modulesBefore.json());
 
     // A row without a protected envelope is intentionally still readable in
     // compat mode; no backfill is performed by this slice.

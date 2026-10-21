@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
-import { fixture } from './fixtures/classroom-owner';
+import { classId, fixture } from './fixtures/classroom-owner';
 
 const out = 'e2e/artifacts/owner-preview/portal-header-adaptive';
 const widths = [
@@ -206,13 +206,18 @@ for (const account of [false, true]) {
     const actor = account ? 'account' : 'teacher';
     test(`AI sidebar preserves ${sidebar} preference for ${actor}`, async ({ page }) => {
       const state = await fixture(page, 0, { account, sidebar });
+      const aiMethods: string[] = [];
       // This journey checks the portal layout even when chat access is denied.
-      await page.route('**/api/ai/**', (route) =>
-        route.fulfill({
+      await page.route('**/api/ai/**', (route) => {
+        const request = route.request();
+        aiMethods.push(request.method());
+        if (new URL(request.url()).pathname === '/api/ai/scopes' && request.method() === 'GET')
+          return route.fulfill({ json: { personal: true, items: [] } });
+        return route.fulfill({
           status: 403,
           json: { error: { code: 'forbidden', message: 'Доступ закрыт' } },
-        }),
-      );
+        });
+      });
       await page.setViewportSize({ width: 1024, height: 900 });
       await page.goto('/#/knowledge');
       const globalSidebar = page.locator('#portal-sidebar');
@@ -228,6 +233,7 @@ for (const account of [false, true]) {
       await expect(globalSidebar).toHaveClass(/\bcollapsed\b/);
       await expect(globalSidebar).toHaveCSS('width', '72px');
       await expect(page.locator('.asa-ai-layout')).toBeVisible();
+      await expect(page.getByRole('alert').filter({ hasText: 'Доступ закрыт' })).toBeVisible();
       await page.locator('.portal-global-nav').getByRole('link', { name: 'Знания' }).click();
       await expect(globalSidebar).toHaveClass(
         sidebar === 'collapsed' ? /\bcollapsed\b/ : /^portal-sidebar$/,
@@ -253,30 +259,76 @@ for (const account of [false, true]) {
         391,
       );
       expect(state.mutations).toEqual([]);
+      expect(new Set(aiMethods)).toEqual(new Set(['GET']));
       expect(state.errors).toEqual([]);
     });
   }
 }
 
-test('class seat discovers AI in the top bar and drawer, reaching only the locked view', async ({
+test('class seat discovers AI in the top bar and drawer with read-only school access', async ({
   page,
 }) => {
   const state = await fixture(page);
-  const aiRequests: string[] = [];
+  const seatId = '40000000-0000-4000-8000-000000000001';
+  const allowedAiReads = [
+    { path: '/api/ai/scopes', method: 'GET', seat: null },
+    { path: '/api/ai/status', method: 'GET', seat: seatId },
+    { path: '/api/ai/threads', method: 'GET', seat: seatId },
+  ];
+  const aiRequests: Array<{ path: string; method: string; seat: string | null }> = [];
   page.on('request', (request) => {
-    if (new URL(request.url()).pathname.startsWith('/api/ai/')) aiRequests.push(request.url());
+    const url = new URL(request.url());
+    if (url.pathname.startsWith('/api/ai/'))
+      aiRequests.push({
+        path: url.pathname + url.search,
+        method: request.method(),
+        seat: request.headers()['x-asa-ai-seat'] ?? null,
+      });
   });
   await page.route('**/api/auth/me', (route) => route.fulfill({ json: { authenticated: false } }));
   await page.route('**/api/class-join/me', (route) =>
     route.fulfill({
       json: {
         authenticated: true,
-        student: { seatId: 'seat-nav', displayName: 'Ученик', safeMode: true, avatarKey: null },
-        classroom: { id: 'class-nav', title: 'Класс', teacherDisplayName: 'Педагог' },
+        student: { seatId, displayName: 'Ученик', safeMode: true, avatarKey: null },
+        classroom: { id: classId, title: 'Класс', teacherDisplayName: 'Педагог' },
         expiresAt: '2030-01-01T00:00:00Z',
       },
     }),
   );
+  const aiReplies: Record<string, unknown> = {
+    '/api/ai/scopes': {
+      personal: false,
+      items: [{ seatId, classroomId: classId, classroomTitle: 'Класс', displayName: 'Ученик' }],
+    },
+    '/api/ai/status': {
+      enabled: false,
+      providerEnabled: true,
+      canGenerate: false,
+      reason: 'ai_teacher_permission_required',
+      provider: 'openai',
+      model: 'gpt-5-mini',
+      availableModels: ['gpt-5-mini'],
+    },
+    '/api/ai/threads': { items: [], nextCursor: null },
+  };
+  await page.route('**/api/ai/**', (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    const read = allowedAiReads.find((candidate) => candidate.path === url.pathname + url.search);
+    if (
+      !read ||
+      request.method() !== read.method ||
+      (request.headers()['x-asa-ai-seat'] ?? null) !== read.seat
+    )
+      return route.fulfill({
+        status: 403,
+        json: {
+          error: { code: 'unexpected_ai_request', message: 'Разрешено только чтение своего чата' },
+        },
+      });
+    return route.fulfill({ json: aiReplies[read.path] });
+  });
   for (const width of [320, 390, 600, 601, 1023, 1024]) {
     await page.setViewportSize({ width, height: 900 });
     await page.goto('/#/gallery');
@@ -295,17 +347,25 @@ test('class seat discovers AI in the top bar and drawer, reaching only the locke
       await topAi.click();
       await expect(page.locator('#portal-sidebar')).toHaveCSS('width', '72px');
     }
-    await expect(page.getByRole('heading', { name: 'ИИ-помощник' })).toBeVisible();
+    await expect(page.getByRole('region', { name: 'ИИ-помощник ASA Lab' })).toBeVisible();
+    await expect(page.getByText('Школьный чат', { exact: true })).toBeVisible();
     await expect(
-      page.getByText('Доступ к ИИ для этого учебного места пока закрыт.', { exact: false }),
+      page.getByText('Преподаватель пока не разрешил ИИ-чат для этого учебного места.', {
+        exact: false,
+      }),
     ).toBeVisible();
-    await expect(page.locator('.asa-ai-layout')).toHaveCount(0);
+    await expect(page.getByText('Доступ закрыт', { exact: true })).toBeVisible();
+    await expect(page.getByRole('textbox', { name: 'Сообщение ИИ' })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Отправить сообщение' })).toBeDisabled();
+    await expect(page.getByText(/Для чата нужен вход в личный аккаунт/)).toHaveCount(0);
+    await expect(page.locator('.asa-ai-layout')).toBeVisible();
     await expect(topAi).toHaveAttribute('aria-current', 'page');
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
       width + 1,
     );
   }
-  expect(aiRequests).toEqual([]);
+  for (const read of allowedAiReads) expect(aiRequests).toContainEqual(read);
+  for (const request of aiRequests) expect(allowedAiReads).toContainEqual(request);
   expect(state.mutations).toEqual([]);
   expect(state.errors).toEqual([]);
 });

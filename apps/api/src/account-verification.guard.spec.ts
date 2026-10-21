@@ -41,6 +41,7 @@ function harness(
   };
   const seats = {
     resolve: vi.fn().mockResolvedValue(input.resolveSeat ? { seatId: 'seat-a' } : null),
+    resolveExisting: vi.fn().mockResolvedValue(input.resolveSeat ? { seatId: 'seat-a' } : null),
   };
   const request = {
     method: input.method ?? 'GET',
@@ -64,6 +65,71 @@ function harness(
 }
 
 describe('central account verification API guard', () => {
+  it.each([
+    ['GET', '/api/ai/scopes'],
+    ['GET', '/api/ai/status'],
+    ['GET', '/api/ai/threads'],
+    ['POST', '/api/ai/threads'],
+    ['GET', '/api/ai/threads/:threadId/messages'],
+    ['POST', '/api/ai/threads/:threadId/messages/stream'],
+    ['POST', '/api/ai/threads/:threadId/messages'],
+    ['POST', '/api/ai/threads/:threadId/requests/:requestId/stop'],
+    ['PATCH', '/api/ai/threads/:threadId/archive'],
+    ['GET', '/api/ai/threads/:threadId/requests/:requestId'],
+    ['POST', '/api/ai/threads/:threadId/regenerations/stream'],
+    ['PATCH', '/api/ai/threads/:threadId'],
+    ['DELETE', '/api/ai/threads/:threadId'],
+    ['POST', '/api/ai/attachments'],
+    ['GET', '/api/ai/attachments/:uploadId'],
+    ['PUT', '/api/ai/attachments/:uploadId/bytes'],
+    ['GET', '/api/ai/attachments/:uploadId/bytes'],
+    ['DELETE', '/api/ai/attachments/:uploadId'],
+    ['POST', '/api/ai/attachments/:uploadId/reconcile'],
+  ])(
+    'preserves verified existing Seat proof on %s %s without an Account requirement or identity initializer',
+    async (method, route) => {
+      const test = harness({
+        cookie: 'account',
+        seatCookie: 'seat',
+        resolveSeat: true,
+        method,
+        route,
+        failure: new Error('required'),
+      });
+      expect(await test.guard.canActivate(test.context)).toBe(true);
+      expect(test.seats.resolveExisting).toHaveBeenCalledWith('seat');
+      expect(test.seats.resolve).not.toHaveBeenCalled();
+      expect(test.requireAccount).not.toHaveBeenCalled();
+    },
+  );
+  it.each([
+    ['GET', '/api/ai/status', false],
+    ['PATCH', '/api/ai/threads/:threadId/archive', false],
+    ['GET', '/api/ai/threads/:threadId/requests/:requestId', false],
+    ['POST', '/api/ai/threads/:threadId/regenerations/stream', false],
+    ['POST', '/api/ai/attachments', false],
+    ['GET', '/api/ai/attachments/:uploadId', false],
+    ['PUT', '/api/ai/attachments/:uploadId/bytes', false],
+    ['GET', '/api/ai/attachments/:uploadId/bytes', false],
+    ['DELETE', '/api/ai/attachments/:uploadId', false],
+    ['POST', '/api/ai/attachments/:uploadId/reconcile', false],
+    ['GET', '/api/ai/classrooms/:classroomId/access', true],
+    ['PUT', '/api/ai/classrooms/:classroomId/access', true],
+    ['GET', '/api/admin/ai/config', true],
+  ])(
+    'never bypasses Account verification for a forged Seat or a teacher/admin route: %s %s',
+    async (method, route, resolveSeat) => {
+      const test = harness({
+        cookie: 'account',
+        seatCookie: 'seat',
+        resolveSeat,
+        method,
+        route,
+        failure: new Error('required'),
+      });
+      await expect(test.guard.canActivate(test.context)).rejects.toThrow('required');
+    },
+  );
   it('checks a restored existing Account session before a protected handler', async () => {
     const failure = new Error('account_verification_required');
     const test = harness({ cookie: 'valid-session', failure });
