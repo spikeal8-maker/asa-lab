@@ -25,6 +25,7 @@ The exact production target is `apps/web/src/electronics/workbench-geometry.ts`.
 
 - `apps/web/src/electronics/workbench-geometry.ts`
 - `apps/web/src/electronics/testing/workbench-geometry.spec.ts`
+- `apps/web/src/electronics/testing/workbench-presentation.spec.ts` (replace the obsolete literal radius assertion only)
 - this task card and the selected lane in `docs/execution/current.yaml`
 
 No Stage/CSS/controller/asset, wire route/path, netlist, project persistence, API/DB/CI workflow or deployment changes. Do not change the wider wire-segment selection stroke; it is a separate hit target, not a contact dot.

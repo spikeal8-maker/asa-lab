@@ -377,7 +377,7 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(stageSource).toContain('className="workbench-wire-endpoint-hit"');
     expect(geometrySource).toContain('TERMINAL_MARKER_SIZE = 8');
     expect(geometrySource).toContain('WIRE_ENDPOINT_VISIBLE_RADIUS = 4');
-    expect(geometrySource).toContain('WIRE_ENDPOINT_HIT_RADIUS = 9');
+    expect(geometrySource).toContain('WIRE_ENDPOINT_HIT_RADIUS = WIRE_ENDPOINT_VISIBLE_RADIUS + 1');
     expect(workbenchCss).toMatch(
       /\.workbench-inspector\.wire-selected\s*\{[^}]*border:\s*1px solid #cbd3d9;/s,
     );

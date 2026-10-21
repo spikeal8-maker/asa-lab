@@ -87,6 +87,7 @@ parallel_lanes:
     owned_paths:
       - apps/web/src/electronics/workbench-geometry.ts
       - apps/web/src/electronics/testing/workbench-geometry.spec.ts
+      - apps/web/src/electronics/testing/workbench-presentation.spec.ts
       - docs/product/electronics/tasks/TASK-ELECTRONICS-WIRE-CONTACT-HIT-001.md
     task:
       id: TASK-ELECTRONICS-WIRE-CONTACT-HIT-001
@@ -111,9 +112,21 @@ parallel_lanes:
         One shared contact geometry change for component/breadboard terminals and
         selected wire endpoints; mouse and coarse touch hit radius no larger than
         the painted contact outline. Only workbench-geometry.ts, its existing
-        workbench-geometry.spec.ts, this selection and the new task card.
-        Preserve Stage/controller, wiring, component art, electrical model,
-        other active lanes and school deployment.
+        geometry and presentation contract specs, this selection and the new
+        task card. Preserve Stage/controller, wiring, component art, electrical
+        model, other active lanes and school deployment.
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: 103ebb16e2dbdc90a753d172e5a5d216b3ffa655
+      head_sha: eae191d04737753f6694e760d465934b66e3905f
+      observed_at: '2026-10-21T22:20:00Z'
+      main:
+        branch: main
+        sha: 103ebb16e2dbdc90a753d172e5a5d216b3ffa655
+      observation_note: >-
+        Dated first bounded candidate eae191d04737753f6694e760d465934b66e3905f updated after exact CI found a stale
+        presentation expectation and missing typed revision metadata. Refresh main,
+        PR head and exact CI before any next write; not a release/deployment claim.
     execution_lease:
       executor_id: electronics-wire-contact-hit-688
       holder: unassigned
