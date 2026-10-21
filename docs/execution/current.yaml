@@ -8334,7 +8334,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: r3_coordinate_only_fixture_and_focus_poll_repair_selected
+      checkpoint: r4_running_phase_oracle_and_backward_native_route_selected
       previous_checkpoint: r8_test_only_unique_native_meter_hit_path
       kind: repair
       owner_acceptance: pending
@@ -8344,13 +8344,13 @@ parallel_lanes:
       program_issue: 452
       owner_problem: E11
       repair_scope: >-
-        R3 test-only exception in the existing outline spec. ONLY minimal fixture-coordinate separation proved
-        from catalog/transformed bounds and per-iteration focus identity poll transport implementation may change.
-        All other R2 invariants remain; no product, sampler/allowGrid/pan/zoom, action, timeout, retry or case omission.
+        R4 test-only exception in the existing outline spec: independently constructed full running-phase
+        oracle before Stop and ONLY existing native loop Tab to Shift+Tab with passive route witness.
+        All other R2/R3 invariants remain; no product, sampler, fixture, poll, timeout or retry change.
       source_budget: >-
-        Author ONLY e2e/electronics-selection-outline.spec.ts within the two R3 exceptions. Pure geometry and
-        actual-helper old/new DOM equivalence proofs are required; no other tracked source, registration or metadata
-        path without a precise proposal. No local production browser,workflow,dependency or product repair.
+        Author ONLY e2e/electronics-selection-outline.spec.ts within the explicit R4 contract below.
+        R3 resistor180270 and strict current unique-connected-body poll remain byte-exact; no other source,
+        registration, metadata, dependency, workflow or product repair.
       published_before_source_sha: e14229f93c7400fb39ae880cc9889aefdc8dcfb6
       frozen_browser_blob: c4e05c1109dbac9a74ef1548a208178a10789878
       frozen_browser_bytes: 64509
@@ -8359,7 +8359,7 @@ parallel_lanes:
       independent_source_review: SOURCE_APPROVE
       before_strict_run: 39490329377
       before_general_run: 39490297942
-      runtime_acceptance: INVALID_BEFORE_10of16_requires_R3_test_repair
+      runtime_acceptance: INVALID_BEFORE_12of16_requires_R4_test_repair
       r2_evidence_contract:
         baseline_source: e14229f93c7400fb39ae880cc9889aefdc8dcfb6
         independent_review: NEEDS_FIX_INVALID_BEFORE_BASELINE
@@ -8411,27 +8411,50 @@ parallel_lanes:
         unchanged: All16cases,readyC=H solved finite quality/yieldednull,lossless JSONL prefix/hash/refs,fullDoc1PUT/CAS,cookies/R3storage,strict native predicate and deadlines.
         forbidden: No sampler/allowGrid,forced hit,pan/zoom/action changes,focus injection,shorter keyboard route,skip/batch,new controls,timeout increase,product repair or whole-case omission.
         freeze: NEW reviewed whole browser blob and frozen BEFORE; AFTER identical. Product/AFTER forbidden until16complete and NEW independent actual review.
+      observed_2bd_actual:
+        observed_at: '2026-10-21T01:23:45Z'
+        sha: 2bdff0637d01ffaca15e6627c8411b5c38729d7b
+        run: 39520076137
+        verdict: NEEDS_FIX_12of16_complete
+        result: All12 nonrunning cases fullDoc1PUT/base2/CAS3/cookies-storage/native PASS;mobile reselect fixed. Four running incomplete:320 phase-oracle mismatch and3 deadline failures after expensive native traversal,not API defect.
+        ready: All16 declared prefixes valid;2890ready C=H solved quality finite and0yielded. Failed contiguous tails remain UNKNOWN after last acknowledged prefix,not completed evidence.
+        evidence: docs/product/electronics/evidence/selection-outline-549-2bdff063-r4-selection-20261021.md
+      r4_phase_route_exception:
+        version: R4
+        supersedes: Only R3 prohibition of a shorter native route via the EXACT key replacement below,and incorrect stopped-phase expectation before Stop;every other R2/R3 constraint and historical receipt remains unchanged.
+        expected_write_paths:
+        - e2e/electronics-selection-outline.spec.ts
+        running_oracle: Independently construct fullExpectedRunning={...expected,simulation:{...expected.simulation,running:true}};use ONLY while running before Stop. Never derive expected from actual. After Stop and Save full stopped original runningfalse/server/saved/1PUT/CAS/reopen remain EXACT.
+        route: ONLY existing loop keyboard.press('Tab') becomes keyboard.press('Shift+Tab');same unmodified current focus,tabLimit,strict unique-connected current-body poll,final Locator identity,trusted Enter,selected state and unchanged actuators. No generic navigator or route algorithm.
+        passive_witness: ONLY add event.shiftKey and chosen route backward plus start/end activeElement identity BEFORE/AFTER the loop,including unique connected target/root/grid identity and zero-positive-tabindex assumption;no focus or DOM writes.
+        route_proof_sha256: 3ab95a359e09798821381ea37f5dad6a0fe222c511b4fc10496f0ccc1c2ae06c
+        limits: Cached4DOMs conservative278candidates/SPDT199/tail79/gridpreceding26/no positive tabindex;16model checks PASS,modeled79to105 versus actual189to190forward. Historical activeElement/anchor UNKNOWN;future route/time NOT_RUN,no106-step guarantee.
+        preserved: R3 resistor180270 and strict poll unchanged;all16cases/full native/fullDoc/ready C=H solved finite quality/yieldednull/JSONL prefix hash refs/1PUT CAS cookies R3storage/deadlines unchanged.
+        forbidden: No focus injection,locator.press,new click/action,actuator change,DOM/tabindex edit,sampler/allowGrid,pan/zoom,fixture,timeout increase,retry,case or assertion omission,product/core/hook repair.
+        freeze: ONE new reviewed frozen whole BEFORE browser blob;AFTER identical. Product/AFTER forbidden until16complete plus NEW independent actual review;no completion promise.
       next_action: >-
-        ONE bounded R3 test author inherits the accepted pure layout proof. Change only the exact accepted
-        resistor center.x350to180 and direct identity-poll implementation; prove extracted actual old/new helper
-        equivalence before freeze,preserve native call sites/full strict oracles and all foreign
-        paths,then narrow checks/self-review and ONE unpublished frozen candidate STOP. NEW independent source
-        review precedes ONE new frozen BEFORE. All16 must complete with only causal expected outline failures
-        and NEW actual review before any product/AFTER; test bytes identical. No548 observer or security repair.
+        ONE bounded R4 test author changes only full pre-Stop running-phase expected clone and fixed
+        Shift+Tab replacement in existing loop with passive route/start-end/shiftKey witness. Preserve
+        R3 coordinates/poll and all strict checks/actions/deadlines; narrow checks/self-review then freeze
+        ONE unpublished candidate STOP. NEW independent source review precedes ONE justified new BEFORE
+        for proved phase-oracle/native-cost repair. All16complete and NEW actual review required before
+        product/AFTER;whole BEFORE/AFTER test blob identical. No548 observer or dependency repair.
       preservation: >-
-        Preserve all549 prior sources/receipts,R2 lossless and failed-native receipts,all foreign D2/LED/hook/
-        workflow/current blocks and owner KEEP544/547 to548.548 remains terminal NO_PROVEN_CAUSE. General39cd
-        security dependency3HIGH failure C is not this repair scope. No closure,owner acceptance or deployment.
+        Preserve all old549 receipts,R2 lossless/failed-native evidence,R3 coordinate/poll,foreign D2/LED/
+        hook/workflow/current blocks and owner KEEP544/547 to548.548 stays terminal NO_PROVEN_CAUSE.
+        General2bd categoryC3HIGH dependencies do not authorize this author to repair security or UI.
+        No closure,owner acceptance,deployment or product selection.
       before_parent_sha: 6f27bc9fd58eeb9a9262c9a30fb15c00075934f0
       before_parent_browser_blob: 57ca47df3aa89cfbccff5c242a36f42febc01be2
       corrected_before_exceptions: Genuine UI beforeAll login once per group/worker in disposable context,
         retain cookies only; each case fresh context/new project. R3 passive pre-app origins and local/session
         draft entries empty; post-load local drafts empty and exactly fixture-derived session saved hint.
         Journal actual storage values before assertions. No extra gestures, waits, retries or deadline change.
-      product_budget_note: Future three-branch Visual repair measured+4 bytes in a Temp-only module estimate.
-        Historical121f actual217996/218000 left4 bytes; actual39cd217938/218000 leaves62 bytes. AFTER full bundle fit is NOT_PROVEN. No cap increase, source
-        refactor or automatic product phase is selected here.
-      selection_evidence: docs/product/electronics/evidence/selection-outline-549-39cd72af-r3-selection-20261021.md
+      product_budget_note: >-
+        Future three-branch Visual repair measured+4 bytes in a Temp-only module estimate. Historical121f
+        actual217996/218000 left4 bytes; actual2bd217938/218000 leaves62 bytes. AFTER full bundle fit
+        remains NOT_PROVEN;no cap increase,source refactor or automatic product phase.
+      selection_evidence: docs/product/electronics/evidence/selection-outline-549-2bdff063-r4-selection-20261021.md
       preserved_candidate_sha: 5da91c88d1df4b87e5b3b92fafd9eacb03f77d11
       preserved_candidate_tree: 5f4e7150a795303b4802039118627bcac6ce8b0e
       candidate_branch: codex/electronics-549-outline-transform-oracle-r4
@@ -8495,15 +8518,15 @@ parallel_lanes:
       kind: observed_snapshot
       convergence_baseline_sha: 8f568af52429e7e3091a6bbf542df9000a003d85
       head_sha: null
-      observed_at: '2026-10-20T23:57:19Z'
+      observed_at: '2026-10-21T01:23:45Z'
       main:
         branch: main
-        sha: 6d6c5ad77b253566b35abcc02af85caa5eab5cfb
+        sha: 5999dfb7dd1b0b25c8f7a3900b639a6596cf3cb2
       observation_note: >-
-        Dated fresh main selection with final39cd actual review and both cached cause audits; not a live HEAD
-        or product acceptance. Fetch main and recover Git/CI/dirty paths before writes. Shared workflow
-        WAITING_HANDOFF has standing disjoint exception only; actual overlap STOP,never SAFE. Preserve
-        all foreign state and old receipts; no GeneralPASS/security waiver or new548 experiment.
+        Dated fetch main5999 snapshot with final2bd actual review/cause and accepted final native route
+        proposal;not live HEAD or acceptance. Fetch main/recover actual Git/CI/dirty paths before writes.
+        Shared workflow WAITING_HANDOFF standing disjoint exception only,actual overlap STOP,never SAFE.
+        Exact5999 General39523615995 completedFAIL,cause not inspected here;no GeneralPASS or dependency waiver.
 
   - id: observability
     worktree_id: observability-authoring

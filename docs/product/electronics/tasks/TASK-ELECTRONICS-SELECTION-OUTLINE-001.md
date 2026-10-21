@@ -12,6 +12,43 @@ review: independent
 
 # E11 — одинаковая кайма выделения существующих деталей
 
+## R4 running-phase oracle and fixed backward native route — test only
+
+When canonically selected, ONLY the two exceptions here supersede prior R2/R3
+constraints. All older author instructions remain historical; current.yaml alone
+selects scope. [Dated2bd actual/cause/route receipt](../evidence/selection-outline-549-2bdff063-r4-selection-20261021.md)
+records invalid12/16 BEFORE, not product/visual acceptance.
+
+Author ONLY the existing outline browser spec. Independently construct the full
+expected runtime document from expected with ONLY simulation.running=true,
+using fullExpectedRunning={...expected,simulation:{...expected.simulation,running:true}}
+ONLY while running before Stop; never use actual as expected. After Stop and
+Save preserve full original stopped running=false, server/saved document,
+exact1PUT/base2/CAS3/cookies-only reopen and storage assertions without weakening.
+
+The ONLY native route change is existing loop keyboard.press('Tab') to
+keyboard.press('Shift+Tab'). Keep unmodified current focus, tabLimit, exact R3
+unique-connected current-body identity poll, final Locator focus identity,
+trusted Enter, selected-state and actuator sequence. Add ONLY passive event.shiftKey,
+route='backward' and start/end activeElement identity before/after the loop,
+including current unique connected target/grid/root identity and no-positive-tabindex
+assumption. Never write focus/DOM or add actions, locator.press(), actuator clicks,
+a generic navigator, conditional route algorithm or timeout/retry workaround.
+
+Final cached4DOM proof has278 conservative candidates,SPDT index199,tail79,
+gridpreceding26/no positive tabindex;16modelchecks PASS with79to105 backward
+modeled steps versus189to190 observed forward Tabs. Historical activeElement and
+sequential anchor are UNKNOWN; future actual backward route/time NOT_RUN, no106
+or deadline-fit guarantee. Proof motivates a new run; it does not prove completion.
+
+Keep R3 resistor180270 and strict identity poll unchanged, every other fixture,
+sampler/allowGrid,pan/zoom/native actuator,all16cases/full ready C=H solved quality
+finite/yielded-null/lossless JSONL prefix/hash/refs/fullDoc and deadlines.
+No product/core/hook/UI/timeout/case omission repair. One reviewed frozen new
+BEFORE; AFTER whole browser blob identical. Product/AFTER remains forbidden
+until16complete and NEW independent actual review. #548 terminal NO_PROVEN_CAUSE,
+owner KEEP544/547 and old receipts stay unchanged. Dependency failure is outside scope.
+
 ## R3 coordinate-only fixture and focus-poll exception — test only
 
 When canonically selected, this section supersedes only the old R2 bans on
