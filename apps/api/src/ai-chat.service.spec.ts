@@ -261,8 +261,8 @@ describe('ASA native AI Chat', () => {
       fetchImpl,
     });
     await expect(service.send(PRINCIPAL, THREAD, 'Вопрос', REQUEST)).rejects.toMatchObject({
-      code: 'ai_provider_error',
-      status: 503,
+      code: 'ai_provider_authentication_failed',
+      status: 502,
     } satisfies Partial<AiServiceError>);
     expect(fetchImpl).toHaveBeenCalledTimes(1);
     expect(queries.some((sql) => sql.includes('ai_chat_abort'))).toBe(true);
@@ -680,7 +680,7 @@ describe('ASA native AI Chat', () => {
     });
     expect((await service.status()).enabled).toBe(false);
     await expect(service.testConnection(PRINCIPAL, 2)).rejects.toMatchObject({
-      code: 'ai_key_unavailable',
+      code: 'ai_key_decryption_failed',
     });
     expect(fetchImpl).not.toHaveBeenCalled();
   });

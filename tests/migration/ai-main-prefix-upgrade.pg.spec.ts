@@ -1,521 +1,720 @@
 import { createHash, randomUUID } from 'node:crypto';
 import pg from 'pg';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { planMigrations, validateMigrationHistory } from '../../tools/migrate.mjs';
-import { seedTeacher } from '../portal/helpers';
 import { applyIsolatedTestPlan } from './isolated-postgres-plan';
 
-// The supported old prefix is 0225. A source-only main containing 0234 is not
-// evidence that an installation applied it, or a supported upgrade starting point.
-// Pin the published inputs, accepting only the runner's LF/CRLF representation.
-const upgradeArtifacts = [
-  [
-    '0226',
-    '0226_ai_student_admission.sql',
-    '672ceca0a8cbeb7223dce9268a240682a7b07cf3c1c60ce3505a5bd4d623d02c',
-  ],
-  [
-    '0227',
-    '0227_ai_model_catalog_and_provider_credentials.sql',
-    '5eaff82f9d885e4aa89bf89cd1b699b23af790e4df68e02df4dc6b6e98505b3d',
-  ],
-  [
-    '0228',
-    '0228_ai_text_history.sql',
-    'b96d78cb46f8bceb24bd0ebfc1f87474f04cf4ee4c832bdc32f43f94274f9b87',
-  ],
-  [
-    '0229',
-    '0229_ai_private_attachments.sql',
-    '4af4955624c3b43d35a8141900fa644e7f326bad051d130a78856b2c291f605d',
-  ],
-  [
-    '0230',
-    '0230_course_author_version_pins.sql',
-    'fddba106b504cccf2ec80f66ac8bf93098bc7444e3d4571ff3012fb8e0045047',
-  ],
-  [
-    '0231',
-    '0231_course_prepublication_diagnostics.sql',
-    'cf1780e9a7db1f6014dfe8453846008b4ed15a4b584796297cdb2f651fb38236',
-  ],
-  [
-    '0232',
-    '0232_course_archive_assignment_atomicity.sql',
-    '436863aa0a25f4837223cfe6dd23200b0a3f757d99b54e3ff1d6caceea9c6c22',
-  ],
-  [
-    '0233',
-    '0233_classroom_participant_read_jit.sql',
-    '4c64eab8224079ef95215346964b6cce03d2d6b945221d24c1ac612375341fe6',
-  ],
-  [
-    '0234',
-    '0234_public_projects.sql',
-    '0a6ad164e27f8e1c9e91ec338198c9ca43bd92e945bd74f5e3bcd9cbdb30528e',
-  ],
-] as const;
+const expectedPending = ['0226', '0227', '0228', '0229', '0230', '0231', '0232', '0233', '0234'];
 
-type Plan = ReturnType<typeof planMigrations>;
-
-function completePlan(): Plan {
-  const plan = planMigrations();
-  expect(
-    plan
-      .filter((item) => Number(item.version) > 225)
-      .map((item) => [
-        item.version,
-        item.file,
-        createHash('sha256').update(item.sql.replace(/\r\n/g, '\n')).digest('hex'),
-      ]),
-  ).toEqual(upgradeArtifacts);
-  expect(plan.filter((item) => Number(item.version) <= 225)).toHaveLength(220);
-  return plan;
+interface Identity {
+  account_id: string;
+  principal_id: string;
 }
 
-async function withPrefixDatabase(
-  run: (pool: pg.Pool, client: pg.PoolClient, plan: Plan) => Promise<void>,
-) {
-  const plan = completePlan();
-  const source = process.env['TEST_DATABASE_URL'];
-  if (!source || !decodeURIComponent(new URL(source).pathname).endsWith('_test')) {
-    throw new Error('Isolated TEST_DATABASE_URL required');
-  }
-  const name = 'asa_joint_prefix_' + randomUUID().replaceAll('-', '') + '_test';
-  if (!/^asa_joint_prefix_[a-f0-9]{32}_test$/.test(name)) {
-    throw new Error('Unsafe generated test database name');
-  }
-  const owner = new pg.Client({ connectionString: source });
-  let created = false;
-  let pool: pg.Pool | undefined;
-  try {
-    await owner.connect();
-    await owner.query(`CREATE DATABASE "${name}"`);
-    created = true;
-    const target = new URL(source);
-    target.pathname = '/' + name;
-    pool = new pg.Pool({ connectionString: target.toString(), max: 3 });
-    const client = await pool.connect();
-    try {
-      expect(
-        await applyIsolatedTestPlan(
-          client,
-          plan.filter((item) => Number(item.version) <= 225),
-        ),
-      ).toBe(220);
-      await run(pool, client, plan);
-    } finally {
-      client.release();
-    }
-  } finally {
-    try {
-      await pool?.end();
-      if (created) await owner.query(`DROP DATABASE "${name}"`);
-    } finally {
-      await owner.end();
-    }
-  }
+interface MigrationRecord {
+  id: number;
+  version: string;
+  name: string;
+  checksum: string;
+  applied_at: string;
 }
 
-async function ledger(pool: pg.Pool) {
-  return (await pool.query('SELECT * FROM schema_migrations ORDER BY version')).rows;
+async function ledger(db: pg.Pool): Promise<MigrationRecord[]> {
+  // JSON retains PostgreSQL timestamp precision; node-postgres Date does not.
+  return (
+    await db.query<{ item: MigrationRecord }>(
+      'SELECT to_jsonb(m) AS item FROM schema_migrations m ORDER BY version',
+    )
+  ).rows.map((row) => row.item);
 }
 
-const preservedTables = [
-  'accounts',
-  'profiles',
-  'principals',
-  'legacy_user_account_links',
-  'capability_grants',
-  'workspace_memberships',
-  'classrooms',
-  'classroom_memberships',
-  'classroom_student_seats',
-  'learner_identities',
-  'learner_identity_links',
-  'learning_activities',
-  'learning_activity_versions',
-  'courses',
-  'course_sections',
-  'course_lessons',
-  'course_versions',
-  'classroom_course_runs',
-  'classroom_course_run_lessons',
-  'course_enrollments',
-  'activity_runs',
-  'activity_participations',
-  'projects',
-  'project_drafts',
-  'project_versions',
-  'project_snapshots',
-  'project_publications',
-  'project_publication_state',
-  'ai_paid_operation_quota',
-] as const;
-
-async function preservedData(pool: pg.Pool) {
-  const result: Record<string, unknown[]> = {};
-  // Only this fixed list of test-owned table identifiers is interpolated.
-  for (const table of preservedTables) {
-    result[table] = (
-      await pool.query(
-        `SELECT to_jsonb(snapshot_row) AS value FROM public.${table} snapshot_row ORDER BY to_jsonb(snapshot_row)::text`,
-      )
-    ).rows;
-  }
-  return result;
-}
-
-async function seedOldContracts(pool: pg.Pool) {
-  const teacher = await seedTeacher(pool, 'joint-prefix');
-  const identity = (
-    await pool.query(
-      'SELECT principal_id,account_id FROM legacy_user_account_links WHERE tenant_id=$1 AND user_id=$2',
-      [teacher.tenantId, teacher.teacherId],
-    )
-  ).rows[0] as { principal_id: string; account_id: string };
-  const principal = identity.principal_id;
-  const account = identity.account_id;
-  await pool.query(
-    `INSERT INTO capability_grants(account_id,capability,state,policy_version,granted_by)
-     VALUES($1,'platform_admin','verified','admin-stage-a-2026-08','admin')`,
-    [account],
-  );
-  // Deliberately synthetic encrypted-key fields: SQL admission only, no provider
-  // client or network call. The retired old choice must migrate without losing it.
-  const configurationVersion = (
-    await pool.query(
-      `SELECT ai_admin_set_config($1,true,'deepseek','deepseek-chat','replace',
-       'prefix-test-ciphertext','prefix-test-iv','prefix-test-auth-tag','prefix-test-key',
-       'prefix-config-225',100) AS version`,
-      [principal],
-    )
-  ).rows[0].version as string;
-  const prompt = 'Preserve this pre-upgrade question';
-  const request = randomUUID();
-  const thread = (await pool.query('SELECT ai_chat_create($1) AS id', [principal])).rows[0]
-    .id as string;
-  expect(
-    (
-      await pool.query('SELECT ai_chat_begin_paid($1,$2,$3,$4,$5) AS admitted', [
-        principal,
-        thread,
-        request,
-        prompt,
-        configurationVersion,
-      ])
-    ).rows[0].admitted,
-  ).toBe(true);
-  expect(
-    (
-      await pool.query(
-        "SELECT ai_chat_finish($1,$2,$3,'Preserve the original answer','complete') AS ok",
-        [principal, thread, request],
-      )
-    ).rows[0].ok,
-  ).toBe(true);
-  const deletedThread = (await pool.query('SELECT ai_chat_create($1) AS id', [principal])).rows[0]
-    .id as string;
-  const deletedRequest = randomUUID();
-  expect(
-    (
-      await pool.query(
-        "SELECT ai_chat_begin_paid($1,$2,$3,'Deleted history quota',$4) AS admitted",
-        [principal, deletedThread, deletedRequest, configurationVersion],
-      )
-    ).rows[0].admitted,
-  ).toBe(true);
-  await pool.query('SELECT ai_chat_abort($1,$2,$3)', [principal, deletedThread, deletedRequest]);
-  expect(
-    (await pool.query('SELECT ai_chat_delete($1,$2) AS ok', [principal, deletedThread])).rows[0].ok,
-  ).toBe(true);
-
-  const classroom = (
-    await pool.query(
-      `INSERT INTO classrooms(tenant_id,school_id,academic_period_id,title,created_by)
-     VALUES($1,$2,$3,'Prefix classroom',$4) RETURNING id`,
-      [teacher.tenantId, teacher.schoolId, teacher.periodId, teacher.teacherId],
-    )
-  ).rows[0].id as string;
-  await pool.query(
-    `INSERT INTO classroom_memberships(tenant_id,classroom_id,user_id,account_id,member_role)
-     VALUES($1,$2,$3,$4,'owner')`,
-    [teacher.tenantId, classroom, teacher.teacherId, account],
-  );
-  const seat = (
-    await pool.query(
-      `INSERT INTO classroom_student_seats(tenant_id,classroom_id,display_label,login_handle,
-       normalized_login_handle,safe_mode,status,created_by)
-     VALUES($1,$2,'Prefix learner','prefix-learner','prefix-learner',true,'active',$3) RETURNING id`,
-      [teacher.tenantId, classroom, teacher.teacherId],
-    )
-  ).rows[0].id as string;
-  const seatPrincipal = (await pool.query('SELECT id FROM principals WHERE seat_id=$1', [seat]))
-    .rows[0].id as string;
-  const policies = {
-    attemptPolicy: { maxAttempts: 2 },
-    resultSelectionPolicy: { mode: 'latest_accepted' },
-    completionPolicy: { mode: 'accepted' },
-    latePolicy: { mode: 'allow_until_close' },
-    assessmentPolicy: { mode: 'manual' },
-    feedbackReleasePolicy: { mode: 'immediate' },
+async function legacySnapshot(db: pg.Pool) {
+  const tables: Record<string, string[]> = {
+    accounts: [],
+    profiles: [],
+    principals: [],
+    classrooms: [],
+    classroom_student_seats: [],
+    learner_identity_links: [],
+    ai_assistant_threads: ['owner_principal_id', 'archived_at', 'next_message_ordinal'],
+    ai_assistant_messages: ['owner_principal_id', 'ordinal', 'source_user_message_id'],
+    ai_assistant_request_quota: ['owner_principal_id'],
+    ai_paid_operation_quota: [],
+    courses: [],
+    course_sections: [],
+    course_lessons: [],
+    course_versions: [],
+    classroom_course_runs: [],
+    classroom_course_run_lessons: [],
+    classroom_assignments: [],
+    learning_activities: [],
+    learning_activity_versions: [],
+    activity_runs: [],
+    course_enrollments: [],
+    activity_participations: [],
+    learning_audience_definitions: [],
+    learning_audience_membership_claims: [],
+    audit_events: [],
+    projects: [],
+    project_drafts: [],
+    project_versions: [],
+    project_snapshots: [],
+    project_publications: [],
+    project_publication_state: [],
+    project_publication_revisions: [
+      'module_key',
+      'author_label',
+      'preview_image',
+      'preview_content_type',
+      'preview_width',
+      'preview_height',
+    ],
   };
-  const activity = (
-    await pool.query(
-      `SELECT * FROM learning_activity_create($1,$2,'school','private','project',
-       'Historical practice','Keep this exact activity','completion',NULL,$3::jsonb,
-       'electronics',NULL,NULL,NULL,'prefix-activity-225')`,
-      [principal, teacher.tenantId, JSON.stringify(policies)],
-    )
-  ).rows[0];
-  expect(activity.result_code).toBe('ok');
-  const activityPublication = (
-    await pool.query(
-      "SELECT * FROM learning_activity_publish($1,$2,$3,1,'prefix-activity-publish-225')",
-      [principal, teacher.tenantId, activity.activity_id],
-    )
-  ).rows[0];
-  expect(activityPublication.result_code).toBe('ok');
-  const course = (
-    await pool.query(
-      `SELECT * FROM course_save_v2($1,$2,NULL,'Historical course','Keep its learner history',
-       NULL,'private',NULL,'prefix-course-225')`,
-      [principal, teacher.tenantId],
-    )
-  ).rows[0].id as string;
-  const section = (
-    await pool.query('SELECT section_id FROM course_outline_v3($1,$2,$3,$4) LIMIT 1', [
-      course,
-      principal,
-      account,
-      teacher.tenantId,
-    ])
-  ).rows[0].section_id as string;
-  const lesson = (
-    await pool.query(
-      `SELECT course_lesson_save_v3($1,$2,$3,NULL,'Historical lesson',NULL,$4::jsonb,
-       'assignment',NULL,15,$5) AS id`,
+  const snapshot: Record<string, Record<string, unknown>[]> = {};
+  for (const [table, addedColumns] of Object.entries(tables)) {
+    // Table names are the closed fixture list above, never external input.
+    snapshot[table] = (
+      await db.query<{ item: Record<string, unknown> }>(
+        `SELECT to_jsonb(t) - $1::text[] AS item FROM public.${table} t
+         ORDER BY (to_jsonb(t) - $1::text[])::text`,
+        [addedColumns],
+      )
+    ).rows.map((row) => row.item);
+  }
+  return snapshot;
+}
+
+async function registerAccount(db: pg.Pool): Promise<Identity> {
+  const unique = randomUUID().replaceAll('-', '');
+  return (
+    await db.query<Identity>(
+      `SELECT account_id, principal_id FROM auth_register_account(
+         $1, 'migration-fixture-only', 'Участник', $2,
+         DATE '1990-01-01', 'RU', 'migration-fixture', $3, 1)`,
       [
-        principal,
-        course,
-        section,
-        JSON.stringify([{ id: 'intro', type: 'paragraph', text: 'Keep the lesson' }]),
-        activityPublication.activity_version_id,
+        `ai-prefix-${unique}@example.test`,
+        `ai${unique}`,
+        createHash('sha256').update(unique).digest('hex'),
       ],
     )
-  ).rows[0].id as string;
-  const courseRevision = Number(
-    (await pool.query('SELECT draft_revision FROM courses WHERE id=$1', [course])).rows[0]
-      .draft_revision,
-  );
-  const publicationRequest = 'prefix-course-publish-225';
-  const publication = (
-    await pool.query('SELECT * FROM course_publish_v3($1,$2,$3,$4)', [
-      principal,
-      course,
-      courseRevision,
-      publicationRequest,
-    ])
-  ).rows[0];
-  expect(publication).toMatchObject({ result_code: 'ok', version_number: 1, reused: false });
-  const assignmentRequest = 'prefix-course-assign-225';
-  const assignment = (
-    await pool.query(
-      "SELECT * FROM classroom_course_run_assign_v3($1,$2,$3,NULL,1,'named_learners',$4::uuid[],$5)",
-      [principal, classroom, course, [seat], assignmentRequest],
-    )
-  ).rows[0];
-  expect(assignment).toMatchObject({ result_code: 'ok', version_number: 1, reused: false });
-  const participation = (
-    await pool.query(
-      `SELECT part.id,part.source_course_enrollment_id AS enrollment
-     FROM activity_participations part JOIN activity_runs run ON run.id=part.activity_run_id
-     WHERE run.source_course_run_id=$1`,
-      [assignment.run_id],
-    )
-  ).rows;
-  expect(participation).toHaveLength(1);
-  expect(
-    (
-      await pool.query(
-        "SELECT * FROM activity_participation_excuse($1,$2,'Existing excused decision')",
-        [principal, participation[0].id],
-      )
-    ).rows[0].result_code,
-  ).toBe('ok');
-
-  const project = (
-    await pool.query(
-      `INSERT INTO projects(tenant_id,project_scope,module_key,title,owner_principal_id)
-     VALUES($1,'personal','electronics','Historical public project',$2) RETURNING id`,
-      [teacher.tenantId, principal],
-    )
-  ).rows[0].id as string;
-  await pool.query(
-    `INSERT INTO project_drafts(project_id,tenant_id,document_json,updated_by_principal_id)
-     VALUES($1,$2,$3::jsonb,$4)`,
-    [
-      project,
-      teacher.tenantId,
-      JSON.stringify({ schemaVersion: 1, components: [], connections: [] }),
-      principal,
-    ],
-  );
-  await pool.query(
-    `INSERT INTO project_snapshots(project_id,tenant_id,image,content_type,width,height,
-       source_revision,captured_by_principal_id)
-     VALUES($1,$2,$3,'image/png',16,16,1,$4)`,
-    [project, teacher.tenantId, Buffer.alloc(64, 17), principal],
-  );
-  expect(
-    (await pool.query('SELECT gallery_publish($1,$2) AS ok', [principal, project])).rows[0].ok,
-  ).toBe(true);
-  const projectPublication = (
-    await pool.query(
-      `SELECT state.id,revision.id AS revision_id,revision.schema_version
-     FROM project_publication_state state JOIN project_publication_revisions revision
-       ON revision.id=state.current_revision_id WHERE state.project_id=$1`,
-      [project],
-    )
-  ).rows[0];
-  expect(projectPublication.schema_version).toBe(1);
-  return {
-    principal,
-    account,
-    thread,
-    request,
-    prompt,
-    deletedThread,
-    deletedRequest,
-    configurationVersion,
-    classroom,
-    seat,
-    seatPrincipal,
-    course,
-    section,
-    lesson,
-    courseRevision,
-    publicationRequest,
-    publication,
-    assignmentRequest,
-    assignment,
-    activityPublication,
-    projectPublication,
-  };
+  ).rows[0]!;
 }
 
-describe('joint AI, Courses, Portal and Projects supported-prefix upgrade', () => {
-  it('upgrades real 0225 data through all nine migrations without losing history or refunding quota', async () => {
-    await withPrefixDatabase(async (pool, client, plan) => {
-      const fixture = await seedOldContracts(pool);
-      const beforeLedger = await ledger(pool);
-      expect(
-        beforeLedger.map(({ version, name, checksum }) => ({ version, name, checksum })),
-      ).toEqual(
-        plan
-          .filter((item) => Number(item.version) <= 225)
-          .map(({ version, name, checksum }) => ({ version, name, checksum })),
-      );
-      const before = await preservedData(pool);
-      expect(before.course_versions).toHaveLength(1);
-      expect(before.course_enrollments).toHaveLength(1);
-      expect(before.activity_participations).toHaveLength(1);
-      expect(before.project_versions).toHaveLength(1);
-      expect(before.ai_paid_operation_quota).toHaveLength(2);
-      const threads = (await pool.query('SELECT * FROM ai_assistant_threads ORDER BY id')).rows;
-      const messages = (
-        await pool.query('SELECT * FROM ai_assistant_messages ORDER BY created_at,id')
-      ).rows;
-      const quota = (
-        await pool.query('SELECT * FROM ai_assistant_request_quota ORDER BY request_id')
-      ).rows;
-      expect(threads).toHaveLength(1);
-      expect(messages).toHaveLength(2);
-      expect(quota).toHaveLength(2);
-      const config = (await pool.query('SELECT * FROM ai_assistant_config')).rows[0];
-      const projectRevisions = (
-        await pool.query('SELECT * FROM project_publication_revisions ORDER BY id')
-      ).rows;
-      expect(projectRevisions).toHaveLength(1);
-      const completionBefore = (
-        await pool.query(
-          'SELECT learning_course_completion_internal(id) AS value FROM course_enrollments ORDER BY id',
-        )
-      ).rows;
-      const participantFunctions = (
-        await pool.query(
-          `SELECT oid::regprocedure::text AS signature,prosrc,proowner,proacl,prosecdef,proconfig
-         FROM pg_proc WHERE oid IN ('classroom_participant_roster(uuid,uuid)'::regprocedure,
-           'classroom_participant_profile(uuid,uuid,uuid)'::regprocedure) ORDER BY oid::regprocedure::text`,
-        )
-      ).rows;
-      expect(participantFunctions).toHaveLength(2);
-      expect(
-        validateMigrationHistory(new Map(beforeLedger.map((row) => [row.version, row])), plan).map(
-          (item) => item.version,
-        ),
-      ).toEqual(upgradeArtifacts.map(([version]) => version));
+async function inTenant<T>(
+  app: pg.Pool,
+  tenantId: string,
+  operation: (client: pg.PoolClient) => Promise<T>,
+): Promise<T> {
+  const client = await app.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query("SELECT set_config('app.tenant_id',$1,true)", [tenantId]);
+    const result = await operation(client);
+    await client.query('COMMIT');
+    return result;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
 
-      expect(await applyIsolatedTestPlan(client, plan)).toBe(9);
-      const afterLedger = await ledger(pool);
-      expect(afterLedger.filter((row) => Number(row.version) <= 225)).toEqual(beforeLedger);
-      expect(
-        afterLedger.map(({ version, name, checksum }) => ({ version, name, checksum })),
-      ).toEqual(plan.map(({ version, name, checksum }) => ({ version, name, checksum })));
-      expect(await preservedData(pool)).toEqual(before);
+describe('AI joint atomic upgrade from the supported installed prefix through 0225', () => {
+  it.each([
+    {
+      history: '0234 with missing AI, Courses and Portal migrations',
+      partial: ['0234'],
+      missing: '0226, 0227, 0228, 0229, 0230, 0231, 0232, 0233',
+      maximum: '0234',
+    },
+    {
+      history: '0233 with missing AI and Courses migrations',
+      partial: ['0233'],
+      missing: '0226, 0227, 0228, 0229, 0230, 0231, 0232',
+      maximum: '0233',
+    },
+    {
+      history: 'Courses-first with missing AI migrations',
+      partial: ['0230', '0231', '0232'],
+      missing: '0226, 0227, 0228, 0229',
+      maximum: '0232',
+    },
+  ])(
+    'rejects unsupported $history with the pure pre-SQL guard',
+    ({ partial, missing, maximum }) => {
+      const plan = planMigrations();
+      expect(plan.filter((item) => Number(item.version) > 225).map((item) => item.version)).toEqual(
+        expectedPending,
+      );
+      const unsupported = new Map(
+        plan
+          .filter(
+            (item) =>
+              Number(item.version) <= 225 || partial.some((version) => version === item.version),
+          )
+          .map((item) => [item.version, { checksum: item.checksum }]),
+      );
+      expect(unsupported.has('0225')).toBe(true);
+      for (const version of partial) expect(unsupported.has(version)).toBe(true);
+      expect(() => validateMigrationHistory(unsupported, plan)).toThrow(
+        `Forbidden out-of-order pending migration(s): ${missing}; maximum applied migration version is ${maximum}.`,
+      );
+    },
+  );
+
+  it('upgrades real 0225 AI, Course and Project history with exact data, receipts and ledger intact', async () => {
+    const sources = ['TEST_DATABASE_URL', 'APP_TEST_DATABASE_URL'].map((key) => {
+      const value = process.env[key];
+      if (!value) throw new Error(`${key} must explicitly name an isolated _test database`);
+      const url = new URL(value);
+      if (!decodeURIComponent(url.pathname).endsWith('_test'))
+        throw new Error(`${key} must name an isolated _test database`);
+      return url;
+    });
+    const source = sources[0]!;
+    const appSource = sources[1]!;
+    if (source.host !== appSource.host || source.pathname !== appSource.pathname)
+      throw new Error('Admin and runtime roles must target the same isolated test database');
+    const name = 'asa_ai_prefix_' + randomUUID().replaceAll('-', '') + '_test';
+    if (!/^asa_ai_prefix_[a-f0-9]{32}_test$/.test(name))
+      throw new Error('Unsafe generated test database name');
+
+    const owner = new pg.Client({ connectionString: source.href });
+    let databaseCreated = false;
+    let admin: pg.Pool | undefined;
+    let runtime: pg.Pool | undefined;
+    try {
+      await owner.connect();
+      await owner.query('CREATE DATABASE "' + name + '"');
+      databaseCreated = true;
+      const target = new URL(source);
+      target.pathname = '/' + name;
+      const appTarget = new URL(appSource);
+      appTarget.pathname = '/' + name;
+      const db = (admin = new pg.Pool({ connectionString: target.href, max: 3 }));
+      const app = (runtime = new pg.Pool({ connectionString: appTarget.href, max: 2 }));
+      const plan = planMigrations();
+      const prefix = plan.filter((item) => Number(item.version) <= 225);
+      expect(prefix.at(-1)?.version).toBe('0225');
+      expect(plan.filter((item) => Number(item.version) > 225).map((item) => item.version)).toEqual(
+        expectedPending,
+      );
+      const bootstrap = await db.connect();
+      try {
+        expect(await applyIsolatedTestPlan(bootstrap, prefix)).toBe(prefix.length);
+      } finally {
+        bootstrap.release();
+      }
       expect(
         (
-          await pool.query(
-            'SELECT learning_course_completion_internal(id) AS value FROM course_enrollments ORDER BY id',
+          await app.query(
+            `SELECT current_user AS role, rolsuper, rolbypassrls
+             FROM pg_roles WHERE rolname = current_user`,
           )
         ).rows,
-      ).toEqual(completionBefore);
-      expect((await pool.query('SELECT * FROM ai_assistant_threads ORDER BY id')).rows).toEqual(
-        threads.map((row) => ({
-          ...row,
-          owner_principal_id: fixture.principal,
-          archived_at: null,
-          next_message_ordinal: '2',
-        })),
+      ).toEqual([{ role: 'asalab_app', rolsuper: false, rolbypassrls: false }]);
+
+      // All fixture identities and chat admissions use contracts already present
+      // in 0225. No future columns or manually fabricated AI receipt rows.
+      const account = await registerAccount(db);
+      const stranger = await registerAccount(db);
+      await db.query(
+        `INSERT INTO capability_grants(account_id,capability,state,policy_version,granted_by)
+         VALUES ($1,'educator','verified','migration-fixture','admin'),
+                ($1,'platform_admin','verified','migration-fixture','admin')`,
+        [account.account_id],
       );
-      const userMessage = messages.find((row) => row.role === 'user');
-      expect(userMessage).toBeDefined();
+      const context = (
+        await app.query('SELECT * FROM classroom_ensure_personal_teacher($1)', [account.account_id])
+      ).rows[0]!;
+      const classroomId = (
+        await db.query<{ id: string }>(
+          `INSERT INTO classrooms(tenant_id,school_id,academic_period_id,title,created_by)
+           VALUES ($1,$2,$3,'Класс до обновления',$4) RETURNING id`,
+          [context.tenant_id, context.school_id, context.academic_period_id, context.user_id],
+        )
+      ).rows[0]!.id;
+      await db.query(
+        `INSERT INTO classroom_memberships(tenant_id,classroom_id,user_id,account_id,member_role)
+         VALUES ($1,$2,$3,$4,'owner')`,
+        [context.tenant_id, classroomId, context.user_id, account.account_id],
+      );
+      const seatId = (
+        await app.query<{ id: string }>(
+          "SELECT id FROM classroom_management_add_seat($1,$2,'Ученик без Account',$3,true)",
+          [account.account_id, classroomId, randomUUID().slice(0, 8)],
+        )
+      ).rows[0]!.id;
+      const seatPrincipal = (
+        await db.query<{ id: string; account_id: string | null }>(
+          "SELECT id, account_id FROM principals WHERE kind='student_seat' AND seat_id=$1",
+          [seatId],
+        )
+      ).rows;
+      expect(seatPrincipal).toEqual([{ id: expect.any(String), account_id: null }]);
+      const seatOwner = seatPrincipal[0]!.id;
+
+      // Exercise real pre-0226 authoring, delivery and Gallery commands. The
+      // future joint tree must not replace these fixtures with post-upgrade rows.
+      const legacy = await inTenant(app, context.tenant_id, async (client) => {
+        const policies = {
+          attemptPolicy: { maxAttempts: 2 },
+          resultSelectionPolicy: { mode: 'latest' },
+          completionPolicy: { mode: 'submission' },
+          latePolicy: { mode: 'allow_mark_late' },
+          assessmentPolicy: { mode: 'manual' },
+          feedbackReleasePolicy: { mode: 'after_review' },
+        };
+        const activity = (
+          await client.query(
+            `SELECT * FROM learning_activity_create(
+               $1,$2,'personal','private','project','Материал до обновления',
+               'Сохранить точный материал','completion',NULL,$3::jsonb,
+               'electronics',NULL,NULL,NULL,'prefix:activity:create')`,
+            [account.principal_id, context.tenant_id, JSON.stringify(policies)],
+          )
+        ).rows[0]!;
+        expect(activity.result_code).toBe('ok');
+        const activityVersion = (
+          await client.query(
+            "SELECT * FROM learning_activity_publish($1,$2,$3,1,'prefix:activity:publish')",
+            [account.principal_id, context.tenant_id, activity.activity_id],
+          )
+        ).rows[0]!;
+        expect(activityVersion).toMatchObject({ result_code: 'ok', version_number: 1 });
+        const course = (
+          await client.query(
+            `SELECT * FROM course_save_v2(
+               $1,$2,NULL,'Курс до обновления','Сохранить версию и выдачу',NULL,
+               'private',NULL,'prefix:course:create')`,
+            [account.principal_id, context.tenant_id],
+          )
+        ).rows[0]!;
+        expect(course.result_code).toBe('ok');
+        const sectionId = (
+          await client.query<{ section_id: string }>(
+            'SELECT section_id FROM course_outline_v3($1,$2,$3,$4) LIMIT 1',
+            [course.id, account.principal_id, account.account_id, context.tenant_id],
+          )
+        ).rows[0]!.section_id;
+        const lessonId = (
+          await client.query<{ id: string }>(
+            `SELECT course_lesson_save_v3(
+               $1,$2,$3,NULL,'Урок до обновления',NULL,$4::jsonb,
+               'assignment',NULL,15,$5) AS id`,
+            [
+              account.principal_id,
+              course.id,
+              sectionId,
+              JSON.stringify([{ id: 'prefix-text', type: 'paragraph', text: 'Старое содержание' }]),
+              activityVersion.activity_version_id,
+            ],
+          )
+        ).rows[0]!.id;
+        expect(lessonId).toEqual(expect.any(String));
+        const revision = (
+          await client.query<{ revision: number }>(
+            'SELECT course_draft_revision($1,$2) AS revision',
+            [account.principal_id, course.id],
+          )
+        ).rows[0]!.revision;
+        const publicationRequest = 'prefix:course:publish';
+        const publication = (
+          await client.query('SELECT to_jsonb(p) AS item FROM course_publish_v3($1,$2,$3,$4) p', [
+            account.principal_id,
+            course.id,
+            revision,
+            publicationRequest,
+          ])
+        ).rows[0]!.item;
+        expect(publication).toMatchObject({ result_code: 'ok', version_number: 1, reused: false });
+        const assignmentRequest = 'prefix:course:assign';
+        const run = (
+          await client.query(
+            `SELECT * FROM classroom_course_run_assign_v3(
+               $1,$2,$3,NULL,1,'whole_class','{}'::uuid[],$4)`,
+            [account.principal_id, classroomId, course.id, assignmentRequest],
+          )
+        ).rows[0]!;
+        expect(run).toMatchObject({ result_code: 'ok', version_number: 1, reused: false });
+        const archived = (
+          await client.query(
+            'SELECT * FROM course_archive_set($1,$2,true,course_draft_revision($1,$2))',
+            [account.principal_id, course.id],
+          )
+        ).rows[0]!;
+        expect(archived.result_code).toBe('ok');
+        expect(archived.archived_at).not.toBeNull();
+
+        // Project Core's original runtime INSERT contract, followed by its old
+        // Gallery publisher, creates a real immutable schema-1 publication.
+        const document = {
+          schemaVersion: 1,
+          components: [],
+          connections: [],
+          privateMarker: 'prefix-original-document',
+        };
+        const projectId = (
+          await client.query<{ id: string }>(
+            `INSERT INTO projects
+               (tenant_id,project_scope,module_key,title,created_by,owner_principal_id)
+             VALUES ($1,'personal','electronics','Проект до обновления',$2,$3) RETURNING id`,
+            [context.tenant_id, context.user_id, account.principal_id],
+          )
+        ).rows[0]!.id;
+        await client.query(
+          `INSERT INTO project_drafts
+             (project_id,tenant_id,document_json,updated_by,updated_by_principal_id)
+           VALUES ($1,$2,$3::jsonb,$4,$5)`,
+          [
+            projectId,
+            context.tenant_id,
+            JSON.stringify(document),
+            context.user_id,
+            account.principal_id,
+          ],
+        );
+        await client.query(
+          `INSERT INTO project_snapshots
+             (project_id,tenant_id,image,content_type,width,height,source_revision,
+              captured_by,captured_by_principal_id)
+           VALUES ($1,$2,$3,'image/png',16,16,1,$4,$5)`,
+          [
+            projectId,
+            context.tenant_id,
+            Buffer.alloc(64, 23),
+            context.user_id,
+            account.principal_id,
+          ],
+        );
+        expect(
+          (
+            await client.query('SELECT gallery_publish($1,$2) AS ok', [
+              account.principal_id,
+              projectId,
+            ])
+          ).rows,
+        ).toEqual([{ ok: true }]);
+        return {
+          courseId: course.id as string,
+          activityId: activity.activity_id as string,
+          activityVersionId: activityVersion.activity_version_id as string,
+          lessonId,
+          revision,
+          archivedRevision: archived.draft_revision as number,
+          publication,
+          publicationRequest,
+          run,
+          assignmentRequest,
+          projectId,
+          document,
+        };
+      });
+
+      // Synthetic ciphertext is never decrypted or sent to any provider.
+      const configurationVersion = (
+        await app.query<{ version: string }>(
+          `SELECT ai_admin_set_config($1,true,'deepseek','deepseek-chat','replace',
+             'prefix-fixture-ciphertext','prefix-fixture-iv','prefix-fixture-auth-tag',
+             'prefix-fixture',$2,100) AS version`,
+          [account.principal_id, randomUUID()],
+        )
+      ).rows[0]!.version;
+      const createThread = async () =>
+        (await app.query<{ id: string }>('SELECT ai_chat_create($1) AS id', [account.principal_id]))
+          .rows[0]!.id;
+      const threadId = await createThread();
+      const turns = [
+        {
+          request: randomUUID(),
+          prompt: 'Первый старый вопрос',
+          answer: 'Первый ответ',
+          state: 'complete',
+        },
+        {
+          request: randomUUID(),
+          prompt: 'Второй старый вопрос',
+          answer: 'Неполный ответ',
+          state: 'stopped',
+        },
+      ];
+      for (const turn of turns) {
+        expect(
+          (
+            await app.query<{ admitted: boolean }>(
+              'SELECT ai_chat_begin_paid($1,$2,$3,$4,$5) AS admitted',
+              [account.principal_id, threadId, turn.request, turn.prompt, configurationVersion],
+            )
+          ).rows[0]!.admitted,
+        ).toBe(true);
+        expect(
+          (
+            await app.query<{ saved: boolean }>('SELECT ai_chat_finish($1,$2,$3,$4,$5) AS saved', [
+              account.principal_id,
+              threadId,
+              turn.request,
+              turn.answer,
+              turn.state,
+            ])
+          ).rows[0]!.saved,
+        ).toBe(true);
+      }
+      const deletedThread = await createThread();
+      const deletedRequest = randomUUID();
       expect(
-        (await pool.query('SELECT * FROM ai_assistant_messages ORDER BY created_at,id')).rows,
+        (
+          await app.query<{ admitted: boolean }>(
+            "SELECT ai_chat_begin_paid($1,$2,$3,'Удалённый вопрос',$4) AS admitted",
+            [account.principal_id, deletedThread, deletedRequest, configurationVersion],
+          )
+        ).rows[0]!.admitted,
+      ).toBe(true);
+      await app.query('SELECT ai_chat_abort($1,$2,$3)', [
+        account.principal_id,
+        deletedThread,
+        deletedRequest,
+      ]);
+      await app.query('SELECT ai_chat_delete($1,$2)', [account.principal_id, deletedThread]);
+      const emptyThread = await createThread();
+      expect(
+        (
+          await app.query<{ admitted: boolean }>('SELECT ai_admin_test_begin($1,$2) AS admitted', [
+            account.principal_id,
+            configurationVersion,
+          ])
+        ).rows[0]!.admitted,
+      ).toBe(true);
+
+      const before = await legacySnapshot(db);
+      expect(before.ai_assistant_threads).toHaveLength(2);
+      expect(before.ai_assistant_messages).toHaveLength(4);
+      expect(before.ai_assistant_request_quota).toHaveLength(3);
+      expect(before.ai_assistant_request_quota).toContainEqual(
+        expect.objectContaining({ account_id: account.account_id, request_id: deletedRequest }),
+      );
+      expect(before.ai_paid_operation_quota).toHaveLength(4);
+      expect(
+        before.ai_paid_operation_quota!.filter((row) => row.operation === 'chat'),
+      ).toHaveLength(3);
+      expect(
+        before.ai_paid_operation_quota!.filter((row) => row.operation === 'provider_test'),
+      ).toHaveLength(1);
+      expect(before.courses).toEqual([
+        expect.objectContaining({
+          id: legacy.courseId,
+          owner_principal_id: account.principal_id,
+          title: 'Курс до обновления',
+          archived_at: expect.any(String),
+        }),
+      ]);
+      expect(before.course_versions).toEqual([
+        expect.objectContaining({ id: legacy.publication.version_id, version_number: 1 }),
+      ]);
+      expect(before.course_lessons).toEqual([
+        expect.objectContaining({
+          id: legacy.lessonId,
+          learning_activity_version_id: legacy.activityVersionId,
+          blocks: [{ id: 'prefix-text', type: 'paragraph', text: 'Старое содержание' }],
+        }),
+      ]);
+      expect(before.classroom_course_runs).toEqual([
+        expect.objectContaining({
+          id: legacy.run.run_id,
+          course_version_id: legacy.publication.version_id,
+          creation_request_id: legacy.assignmentRequest,
+        }),
+      ]);
+      expect(before.classroom_course_run_lessons).toEqual([
+        expect.objectContaining({ run_id: legacy.run.run_id, source_lesson_id: legacy.lessonId }),
+      ]);
+      expect(before.activity_runs).toEqual([
+        expect.objectContaining({
+          source_course_run_id: legacy.run.run_id,
+          learning_activity_version_id: legacy.activityVersionId,
+        }),
+      ]);
+      expect(before.project_drafts).toEqual([
+        expect.objectContaining({ project_id: legacy.projectId, document_json: legacy.document }),
+      ]);
+      expect(before.project_versions).toEqual([
+        expect.objectContaining({
+          project_id: legacy.projectId,
+          document_json: legacy.document,
+          version_no: 1,
+        }),
+      ]);
+      expect(before.project_snapshots).toEqual([
+        expect.objectContaining({
+          project_id: legacy.projectId,
+          image: '\\x' + Buffer.alloc(64, 23).toString('hex'),
+          source_revision: 1,
+        }),
+      ]);
+      expect(before.project_publications).toHaveLength(1);
+      expect(before.project_publication_state).toEqual([
+        expect.objectContaining({
+          project_id: legacy.projectId,
+          state: 'public',
+          owner_principal_id: account.principal_id,
+        }),
+      ]);
+      expect(before.project_publication_revisions).toEqual([
+        expect.objectContaining({
+          project_id: legacy.projectId,
+          schema_version: 1,
+          revision_no: 1,
+          project_version_id: before.project_versions![0]!.id,
+        }),
+      ]);
+      const courseVersionsBefore = before.course_versions!.map(
+        ({ id, version_number, outline, published_at }) => ({
+          id,
+          version_number,
+          outline,
+          published_at,
+        }),
+      );
+      const exactPinBefore = (
+        await db.query(
+          `SELECT '/sections/0/lessons/0/assignment'::text AS pointer,
+                  'project'::varchar AS pin_kind, true AS available,
+                  activity_id,id AS version_id,version_number,title,instructions,
+                  goal,goal_snapshot_present,blocks,blocks_snapshot_present,
+                  module_key,result_mode,max_points,policy_snapshot,content_digest
+             FROM learning_activity_versions WHERE id=$1`,
+          [legacy.activityVersionId],
+        )
+      ).rows;
+      expect(exactPinBefore).toEqual([
+        expect.objectContaining({
+          activity_id: legacy.activityId,
+          version_id: legacy.activityVersionId,
+          title: 'Материал до обновления',
+          instructions: 'Сохранить точный материал',
+          content_digest: expect.any(String),
+        }),
+      ]);
+      const configBefore = (await db.query('SELECT to_jsonb(c) AS item FROM ai_assistant_config c'))
+        .rows[0]!.item;
+      const oldOrder = (
+        await db.query<{ id: string; role: string; request_id: string }>(
+          `SELECT id,role,request_id FROM ai_assistant_messages
+           WHERE thread_id=$1 ORDER BY created_at,id`,
+          [threadId],
+        )
+      ).rows;
+      const readHistory = async (actor: string) =>
+        (
+          await app.query(
+            'SELECT to_jsonb(m) AS item FROM ai_chat_messages($1,$2) m ORDER BY created_at,id',
+            [actor, threadId],
+          )
+        ).rows;
+      const historyBefore = await readHistory(account.principal_id);
+      expect(historyBefore).toHaveLength(4);
+      const readPortal = async (client: pg.Pool | pg.PoolClient) =>
+        (
+          await client.query(
+            `SELECT classroom_participant_roster($1,$2) AS roster,
+                    classroom_participant_profile($1,$2,$3) AS profile`,
+            [account.principal_id, classroomId, seatId],
+          )
+        ).rows[0]!;
+      const portalBefore = await readPortal(app);
+      expect(portalBefore.roster.items).toEqual([expect.objectContaining({ seatId })]);
+      expect(portalBefore.profile.student.id).toBe(seatId);
+      expect(portalBefore.profile.metrics).toMatchObject({ seatId });
+      const ledgerBefore = await ledger(db);
+      expect(
+        ledgerBefore.map(({ version, name, checksum }) => ({ version, name, checksum })),
+      ).toEqual(prefix.map(({ version, name, checksum }) => ({ version, name, checksum })));
+      const applied = new Map(ledgerBefore.map((row) => [row.version, { checksum: row.checksum }]));
+      expect(validateMigrationHistory(applied, plan).map((item) => item.version)).toEqual(
+        expectedPending,
+      );
+
+      const upgrade = await db.connect();
+      try {
+        expect(await applyIsolatedTestPlan(upgrade, plan)).toBe(9);
+      } finally {
+        upgrade.release();
+      }
+      const ledgerAfter = await ledger(db);
+      expect(ledgerAfter.slice(0, ledgerBefore.length)).toEqual(ledgerBefore);
+      expect(ledgerAfter.slice(ledgerBefore.length).map((row) => row.version)).toEqual(
+        expectedPending,
+      );
+      expect(
+        ledgerAfter.map(({ version, name, checksum }) => ({ version, name, checksum })),
+      ).toEqual(plan.map(({ version, name, checksum }) => ({ version, name, checksum })));
+      expect(await legacySnapshot(db)).toEqual(before);
+      for (const table of [
+        'ai_assistant_threads',
+        'ai_assistant_messages',
+        'ai_assistant_request_quota',
+      ]) {
+        expect((await db.query(`SELECT DISTINCT owner_principal_id FROM ${table}`)).rows).toEqual([
+          { owner_principal_id: account.principal_id },
+        ]);
+      }
+      expect(
+        (
+          await db.query(
+            `SELECT id,ordinal,source_user_message_id FROM ai_assistant_messages
+             WHERE thread_id=$1 ORDER BY ordinal`,
+            [threadId],
+          )
+        ).rows,
       ).toEqual(
-        messages.map((row, index) => ({
-          ...row,
-          owner_principal_id: fixture.principal,
+        oldOrder.map((message, index) => ({
+          id: message.id,
           ordinal: String(index + 1),
-          source_user_message_id: row.role === 'assistant' ? userMessage!.id : null,
+          source_user_message_id:
+            message.role === 'user'
+              ? null
+              : oldOrder.find(
+                  (question) =>
+                    question.role === 'user' && question.request_id === message.request_id,
+                )!.id,
         })),
       );
-      expect(
-        (await pool.query('SELECT * FROM ai_assistant_request_quota ORDER BY request_id')).rows,
-      ).toEqual(quota.map((row) => ({ ...row, owner_principal_id: fixture.principal })));
-      const migratedConfig = (await pool.query('SELECT * FROM ai_assistant_config')).rows[0];
-      expect(migratedConfig).toEqual({
-        ...config,
+      for (const [id, ordinal] of [
+        [threadId, '4'],
+        [emptyThread, '0'],
+      ]) {
+        expect(
+          (
+            await db.query(
+              'SELECT archived_at,next_message_ordinal FROM ai_assistant_threads WHERE id=$1',
+              [id],
+            )
+          ).rows,
+        ).toEqual([{ archived_at: null, next_message_ordinal: ordinal }]);
+      }
+      const configAfter = (await db.query('SELECT to_jsonb(c) AS item FROM ai_assistant_config c'))
+        .rows[0]!.item;
+      expect(configAfter).toEqual({
+        ...configBefore,
         model: 'deepseek-flash',
         enabled: false,
-        configuration_version: String(Number(config.configuration_version) + 1),
         migrated_from_model: 'deepseek-chat',
-        updated_at: expect.any(Date),
+        configuration_version: configBefore.configuration_version + 1,
+        updated_at: expect.any(String),
       });
-      expect(migratedConfig.updated_at.getTime()).toBeGreaterThanOrEqual(
-        config.updated_at.getTime(),
-      );
       expect(
-        (await pool.query('SELECT * FROM ai_provider_settings ORDER BY provider')).rows,
+        (
+          await db.query('SELECT to_jsonb(p) AS item FROM ai_provider_settings p ORDER BY provider')
+        ).rows.map((row) => row.item),
       ).toEqual([
         {
           provider: 'deepseek',
           model: 'deepseek-flash',
-          api_key_ciphertext: config.api_key_ciphertext,
-          api_key_iv: config.api_key_iv,
-          api_key_auth_tag: config.api_key_auth_tag,
-          key_fingerprint: config.key_fingerprint,
-          updated_at: migratedConfig.updated_at,
+          api_key_ciphertext: configBefore.api_key_ciphertext,
+          api_key_iv: configBefore.api_key_iv,
+          api_key_auth_tag: configBefore.api_key_auth_tag,
+          key_fingerprint: configBefore.key_fingerprint,
+          updated_at: configAfter.updated_at,
         },
         {
           provider: 'openai',
@@ -524,255 +723,283 @@ describe('joint AI, Courses, Portal and Projects supported-prefix upgrade', () =
           api_key_iv: null,
           api_key_auth_tag: null,
           key_fingerprint: null,
-          updated_at: expect.any(Date),
+          updated_at: expect.any(String),
         },
       ]);
-      expect(
-        (await pool.query('SELECT ai_student_access($1) AS value', [fixture.seat])).rows[0].value,
-      ).toEqual({
-        canGenerate: false,
-        reason: 'ai_teacher_permission_required',
-        rating: null,
-        minimumRating: 50,
-      });
-      expect(
-        (await pool.query('SELECT ai_access_owner($1,NULL) AS owner', [fixture.seatPrincipal]))
-          .rows[0].owner,
-      ).toBe(fixture.seatPrincipal);
-      for (const table of [
+
+      const newPrivateTables = [
         'ai_classroom_policies',
         'ai_seat_overrides',
+        'ai_classroom_policy_receipts',
         'ai_assistant_regenerations',
         'ai_attachment_uploads',
         'ai_attachment_message_receipts',
         'ai_attachment_bindings',
-      ]) {
-        expect(
-          (await pool.query(`SELECT count(*)::int AS count FROM ${table}`)).rows[0].count,
-        ).toBe(0);
+      ];
+      for (const table of newPrivateTables) {
+        expect((await db.query(`SELECT count(*)::integer AS n FROM ${table}`)).rows).toEqual([
+          { n: 0 },
+        ]);
       }
-      const privateAttachments = (
-        await pool.query(
-          `SELECT relname,relrowsecurity,relforcerowsecurity,
-           has_table_privilege('asalab_app',oid,'SELECT') AS runtime_read
-         FROM pg_class WHERE oid IN ('ai_attachment_uploads'::regclass,
-           'ai_attachment_message_receipts'::regclass,'ai_attachment_bindings'::regclass) ORDER BY relname`,
-        )
-      ).rows;
-      expect(privateAttachments).toEqual(
-        ['ai_attachment_bindings', 'ai_attachment_message_receipts', 'ai_attachment_uploads'].map(
-          (relname) => ({
-            relname,
-            relrowsecurity: true,
-            relforcerowsecurity: true,
-            runtime_read: false,
-          }),
-        ),
-      );
-
+      const forceRlsTables = [
+        ...newPrivateTables,
+        'ai_assistant_threads',
+        'ai_assistant_messages',
+        'ai_assistant_request_quota',
+      ].sort();
       expect(
         (
-          await pool.query(
-            'SELECT pointer,pin_kind,available,version_id FROM course_author_version_pins($1,$2,$3)',
-            [fixture.principal, fixture.course, fixture.publication.version_id],
+          await db.query(
+            `SELECT relname,relrowsecurity,relforcerowsecurity FROM pg_class
+           WHERE oid IN (SELECT ('public.' || name)::regclass FROM unnest($1::text[]) AS names(name))
+           ORDER BY relname`,
+            [forceRlsTables],
+          )
+        ).rows,
+      ).toEqual(
+        forceRlsTables.map((relname) => ({
+          relname,
+          relrowsecurity: true,
+          relforcerowsecurity: true,
+        })),
+      );
+      for (const table of [
+        ...forceRlsTables,
+        'ai_assistant_config',
+        'ai_provider_settings',
+        'ai_paid_operation_quota',
+      ]) {
+        await expect(app.query(`SELECT * FROM ${table}`)).rejects.toMatchObject({ code: '42501' });
+      }
+      expect((await app.query('SELECT ai_access_owner($1) AS owner', [seatOwner])).rows).toEqual([
+        { owner: seatOwner },
+      ]);
+      expect((await app.query('SELECT ai_access_status($1) AS status', [seatOwner])).rows).toEqual([
+        {
+          status: {
+            canGenerate: false,
+            reason: 'ai_teacher_permission_required',
+            rating: null,
+            minimumRating: 50,
+          },
+        },
+      ]);
+      await expect(app.query('SELECT ai_chat_create($1)', [seatOwner])).rejects.toMatchObject({
+        code: '42501',
+        message: 'AI_STUDENT_DENIED',
+      });
+      await expect(
+        app.query('SELECT ai_access_owner($1,$2)', [account.principal_id, seatId]),
+      ).rejects.toMatchObject({ code: '42501' });
+      expect(await readHistory(account.principal_id)).toEqual(historyBefore);
+      expect(await readHistory(stranger.principal_id)).toEqual([]);
+      expect(await readHistory(seatOwner)).toEqual([]);
+      // Stale configuration and disabled migrated provider cannot charge a replay.
+      expect(
+        (
+          await app.query<{ admitted: boolean }>(
+            'SELECT ai_chat_begin_paid($1,$2,$3,$4,$5) AS admitted',
+            [
+              account.principal_id,
+              threadId,
+              turns[0]!.request,
+              turns[0]!.prompt,
+              configurationVersion,
+            ],
+          )
+        ).rows[0]!.admitted,
+      ).toBe(false);
+      await expect(
+        app.query("SELECT ai_chat_begin_paid($1,$2,$3,'Удалённый вопрос',$4)", [
+          account.principal_id,
+          deletedThread,
+          deletedRequest,
+          configurationVersion,
+        ]),
+      ).rejects.toMatchObject({ code: '22023', message: 'AI_REQUEST_ID_REUSED' });
+
+      // The new author readers must use the old immutable CourseVersion and
+      // ActivityVersion even after archive, with no access for another owner.
+      const readCourseVersions = async (actor: string) =>
+        (
+          await app.query('SELECT to_jsonb(v) AS item FROM course_author_versions($1,$2) v', [
+            actor,
+            legacy.courseId,
+          ])
+        ).rows.map((row) => row.item);
+      const readCoursePins = async (actor: string) =>
+        (
+          await app.query('SELECT * FROM course_author_version_pins($1,$2,$3)', [
+            actor,
+            legacy.courseId,
+            legacy.publication.version_id,
+          ])
+        ).rows;
+      expect(await readCourseVersions(account.principal_id)).toEqual(courseVersionsBefore);
+      expect(await readCoursePins(account.principal_id)).toEqual(exactPinBefore);
+      expect(await readCourseVersions(stranger.principal_id)).toEqual([]);
+      expect(await readCoursePins(stranger.principal_id)).toEqual([]);
+      expect(
+        (
+          await app.query('SELECT to_jsonb(p) AS item FROM course_publish_v4($1,$2,$3,$4) p', [
+            account.principal_id,
+            legacy.courseId,
+            legacy.revision,
+            legacy.publicationRequest,
+          ])
+        ).rows[0]!.item,
+      ).toMatchObject({
+        result_code: 'ok',
+        version_id: legacy.publication.version_id,
+        version_number: 1,
+        published_at: legacy.publication.published_at,
+        reused: true,
+        problem_reason: null,
+      });
+      expect(
+        (
+          await app.query(
+            "SELECT * FROM course_publish_v4($1,$2,$3,'prefix:course:fresh:publish')",
+            [account.principal_id, legacy.courseId, legacy.archivedRevision],
+          )
+        ).rows[0],
+      ).toMatchObject({
+        result_code: 'prepublish_invalid',
+        version_id: null,
+        reused: false,
+        problem_kind: 'course',
+        problem_id: legacy.courseId,
+        problem_field: 'archivedAt',
+        problem_reason: 'course_archived',
+      });
+      const assignCourse = async (request: string) =>
+        (
+          await app.query(
+            `SELECT * FROM classroom_course_run_assign_v3(
+               $1,$2,$3,NULL,1,'whole_class','{}'::uuid[],$4)`,
+            [account.principal_id, classroomId, legacy.courseId, request],
+          )
+        ).rows;
+      expect(await assignCourse(legacy.assignmentRequest)).toEqual([
+        { ...legacy.run, reused: true },
+      ]);
+      expect(await assignCourse('prefix:course:fresh:assign')).toEqual([
+        { result_code: 'course_archived', run_id: null, version_number: null, reused: false },
+      ]);
+
+      // 0234 adds nullable schema-2 metadata; it must neither republish nor
+      // discard the old schema-1 Gallery publication and exact private bytes.
+      expect(
+        (
+          await db.query(
+            `SELECT schema_version,module_key,author_label,preview_image,
+                    preview_content_type,preview_width,preview_height
+               FROM project_publication_revisions WHERE project_id=$1`,
+            [legacy.projectId],
           )
         ).rows,
       ).toEqual([
         {
-          pointer: '/sections/0/lessons/0/assignment',
-          pin_kind: 'project',
-          available: true,
-          version_id: fixture.activityPublication.activity_version_id,
-        },
-      ]);
-      expect(
-        (
-          await pool.query('SELECT result_code FROM course_prepublication_validation_v2($1,$2)', [
-            fixture.principal,
-            fixture.course,
-          ])
-        ).rows,
-      ).toEqual([{ result_code: 'ok' }]);
-      expect(
-        (
-          await pool.query('SELECT * FROM course_publish_v4($1,$2,$3,$4)', [
-            fixture.principal,
-            fixture.course,
-            fixture.courseRevision,
-            fixture.publicationRequest,
-          ])
-        ).rows[0],
-      ).toMatchObject({
-        result_code: 'ok',
-        version_id: fixture.publication.version_id,
-        version_number: 1,
-        reused: true,
-      });
-      expect(
-        (
-          await pool.query(
-            "SELECT * FROM classroom_course_run_assign_v3($1,$2,$3,NULL,1,'named_learners',$4::uuid[],$5)",
-            [
-              fixture.principal,
-              fixture.classroom,
-              fixture.course,
-              [fixture.seat],
-              fixture.assignmentRequest,
-            ],
-          )
-        ).rows,
-      ).toEqual([
-        { result_code: 'ok', run_id: fixture.assignment.run_id, version_number: 1, reused: true },
-      ]);
-      const afterFunctions = (
-        await pool.query(
-          `SELECT oid::regprocedure::text AS signature,prosrc,proowner,proacl,prosecdef,proconfig
-         FROM pg_proc WHERE oid IN ('classroom_participant_roster(uuid,uuid)'::regprocedure,
-           'classroom_participant_profile(uuid,uuid,uuid)'::regprocedure) ORDER BY oid::regprocedure::text`,
-        )
-      ).rows;
-      expect(afterFunctions).toEqual(
-        participantFunctions.map((row) => ({
-          ...row,
-          proconfig: [
-            ...(row.proconfig ?? []).filter((setting: string) => !setting.startsWith('jit=')),
-            'jit=off',
-          ],
-        })),
-      );
-      expect(
-        (await pool.query('SELECT * FROM project_publication_revisions ORDER BY id')).rows,
-      ).toEqual(
-        projectRevisions.map((row) => ({
-          ...row,
+          schema_version: 1,
           module_key: null,
           author_label: null,
           preview_image: null,
           preview_content_type: null,
           preview_width: null,
           preview_height: null,
-        })),
-      );
+        },
+      ]);
+      const oldPublicationId = before.project_publication_state![0]!.id;
       expect(
         (
-          await pool.query('SELECT * FROM public_projects_read($1,NULL,NULL,1,0)', [
-            fixture.projectPublication.id,
+          await app.query('SELECT * FROM public_projects_read($1,NULL,NULL,1,0)', [
+            oldPublicationId,
           ])
         ).rows,
       ).toEqual([]);
-
-      // Old request identities still replay without recharging; deletion did not
-      // erase the second request's non-refundable tombstone during backfill.
+      expect(
+        (await app.query('SELECT * FROM public_project_image($1,NULL)', [oldPublicationId])).rows,
+      ).toEqual([]);
+      expect(
+        (await app.query('SELECT * FROM gallery_work(NULL,$1)', [legacy.projectId])).rows,
+      ).toEqual([]);
       expect(
         (
-          await pool.query('SELECT ai_chat_begin_paid($1,$2,$3,$4,$5) AS admitted', [
-            fixture.principal,
-            fixture.thread,
-            fixture.request,
-            fixture.prompt,
-            fixture.configurationVersion,
+          await app.query('SELECT project_publication_status($1,$2) AS status', [
+            account.principal_id,
+            legacy.projectId,
           ])
-        ).rows[0].admitted,
-      ).toBe(false);
-      await expect(
-        pool.query("SELECT ai_chat_begin_paid($1,$2,$3,'Deleted history quota',$4)", [
-          fixture.principal,
-          fixture.deletedThread,
-          fixture.deletedRequest,
-          fixture.configurationVersion,
-        ]),
-      ).rejects.toMatchObject({ code: '22023', message: 'AI_REQUEST_ID_REUSED' });
-      expect(await preservedData(pool)).toEqual(before);
+        ).rows,
+      ).toEqual([{ status: { publication: null, canPublish: true, reasonCode: null } }]);
       expect(
-        (await pool.query('SELECT * FROM ai_assistant_request_quota ORDER BY request_id')).rows,
-      ).toEqual(quota.map((row) => ({ ...row, owner_principal_id: fixture.principal })));
-
-      const beforeRepeat = {
-        data: await preservedData(pool),
-        threads: (await pool.query('SELECT * FROM ai_assistant_threads ORDER BY id')).rows,
-        messages: (await pool.query('SELECT * FROM ai_assistant_messages ORDER BY created_at,id'))
-          .rows,
-        config: (await pool.query('SELECT * FROM ai_assistant_config')).rows,
-        providers: (await pool.query('SELECT * FROM ai_provider_settings ORDER BY provider')).rows,
-        revisions: (await pool.query('SELECT * FROM project_publication_revisions ORDER BY id'))
-          .rows,
-      };
-      expect(await applyIsolatedTestPlan(client, plan)).toBe(0);
-      expect(await ledger(pool)).toEqual(afterLedger);
-      expect({
-        data: await preservedData(pool),
-        threads: (await pool.query('SELECT * FROM ai_assistant_threads ORDER BY id')).rows,
-        messages: (await pool.query('SELECT * FROM ai_assistant_messages ORDER BY created_at,id'))
-          .rows,
-        config: (await pool.query('SELECT * FROM ai_assistant_config')).rows,
-        providers: (await pool.query('SELECT * FROM ai_provider_settings ORDER BY provider')).rows,
-        revisions: (await pool.query('SELECT * FROM project_publication_revisions ORDER BY id'))
-          .rows,
-      }).toEqual(beforeRepeat);
-    });
-  }, 60_000);
-
-  it.each([
-    {
-      history: '0233 without AI/Courses',
-      applied: ['0233'],
-      missing: ['0226', '0227', '0228', '0229', '0230', '0231', '0232'],
-      frontier: '0233',
-    },
-    {
-      history: '0234 without lower pending migrations',
-      applied: ['0234'],
-      missing: ['0226', '0227', '0228', '0229', '0230', '0231', '0232', '0233'],
-      frontier: '0234',
-    },
-    {
-      history: 'Courses first without AI',
-      applied: ['0230', '0231', '0232'],
-      missing: ['0226', '0227', '0228', '0229'],
-      frontier: '0232',
-    },
-  ])(
-    'rejects actually applied unsupported $history before any pending SQL',
-    async ({ applied, missing, frontier }) => {
-      await withPrefixDatabase(async (pool, client, plan) => {
-        // These are deliberate unsupported negative fixtures in private databases,
-        // not fake ledger rows and not newly supported release histories.
-        expect(
-          await applyIsolatedTestPlan(
-            client,
-            plan.filter((item) => applied.includes(item.version)),
-          ),
-        ).toBe(applied.length);
-        const before = await ledger(pool);
-        expect(before.filter((row) => Number(row.version) > 225).map((row) => row.version)).toEqual(
-          applied,
-        );
-        const pendingSql = new Set(
-          plan
-            .filter((item) => !before.some((row) => row.version === item.version))
-            .map((item) => item.sql),
-        );
-        const submitted = vi.spyOn(client, 'query');
-        try {
-          await expect(applyIsolatedTestPlan(client, plan)).rejects.toThrow(
-            `Forbidden out-of-order pending migration(s): ${missing.join(', ')}; maximum applied migration version is ${frontier}. New additive migrations must use a version greater than every applied migration.`,
-          );
-          expect(
-            submitted.mock.calls.some(([sql]) => typeof sql === 'string' && pendingSql.has(sql)),
-          ).toBe(false);
-        } finally {
-          submitted.mockRestore();
-        }
-        expect(await ledger(pool)).toEqual(before);
+        (
+          await app.query('SELECT project_publication_status($1,$2) AS status', [
+            stranger.principal_id,
+            legacy.projectId,
+          ])
+        ).rows,
+      ).toEqual([{ status: null }]);
+      for (const table of ['project_publication_state', 'project_publication_revisions']) {
         expect(
           (
-            await pool.query(
-              "SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name='ai_assistant_threads' AND column_name='owner_principal_id'",
+            await db.query(
+              'SELECT relrowsecurity,relforcerowsecurity FROM pg_class WHERE oid=$1::regclass',
+              ['public.' + table],
             )
           ).rows,
-        ).toEqual([]);
-      });
-    },
-    60_000,
-  );
+        ).toEqual([{ relrowsecurity: true, relforcerowsecurity: true }]);
+        await expect(app.query(`SELECT * FROM ${table}`)).rejects.toMatchObject({ code: '42501' });
+      }
+
+      const functions = (
+        await db.query(
+          `SELECT proname,proconfig FROM pg_proc WHERE oid IN (
+           'public.classroom_participant_roster(uuid,uuid)'::regprocedure,
+           'public.classroom_participant_profile(uuid,uuid,uuid)'::regprocedure)
+         ORDER BY proname`,
+        )
+      ).rows;
+      expect(functions).toEqual(
+        ['classroom_participant_profile', 'classroom_participant_roster'].map((proname) => ({
+          proname,
+          proconfig: expect.arrayContaining(['jit=off', 'search_path=pg_catalog, pg_temp']),
+        })),
+      );
+      const reader = await app.connect();
+      try {
+        await reader.query('BEGIN READ ONLY');
+        await reader.query('SET LOCAL jit = on');
+        expect(await readPortal(reader)).toEqual(portalBefore);
+        expect((await reader.query('SHOW jit')).rows).toEqual([{ jit: 'on' }]);
+      } finally {
+        try {
+          await reader.query('ROLLBACK');
+        } finally {
+          reader.release();
+        }
+      }
+      const repeat = await db.connect();
+      try {
+        expect(await applyIsolatedTestPlan(repeat, plan)).toBe(0);
+      } finally {
+        repeat.release();
+      }
+      expect(await ledger(db)).toEqual(ledgerAfter);
+      expect(await legacySnapshot(db)).toEqual(before);
+    } finally {
+      try {
+        await runtime?.end();
+      } finally {
+        try {
+          await admin?.end();
+        } finally {
+          try {
+            if (databaseCreated) await owner.query('DROP DATABASE "' + name + '"');
+          } finally {
+            await owner.end();
+          }
+        }
+      }
+    }
+  }, 60_000);
 });

@@ -1,5 +1,9 @@
 /** Bounded upstream SSE decoder for OpenAI Responses and DeepSeek Chat Completions.
  * No provider credentials, request URLs, or response bodies are logged. */
+import {
+  classifyProviderHttpFailure,
+  classifyProviderTransportFailure,
+} from './ai-provider-errors.js';
 import { buildAiTextRequest, isModelForProvider } from './ai-model-catalog.js';
 export type StreamProvider = 'openai' | 'deepseek';
 
@@ -143,21 +147,13 @@ export async function streamProviderText({
     });
   } catch {
     if (signal.aborted) return { text: '', stopped: true };
-    throw new ProviderStreamError(
-      timeout.aborted ? 'ai_provider_timeout' : 'ai_provider_unavailable',
-      timeout.aborted ? 504 : 503,
-      'Не удалось установить соединение с моделью.',
-    );
+    const failure = classifyProviderTransportFailure(timeout.aborted);
+    throw new ProviderStreamError(failure.code, failure.status, failure.message);
   }
 
   if (!response.ok) {
-    throw new ProviderStreamError(
-      response.status === 429 ? 'ai_provider_rate_limit' : 'ai_provider_error',
-      response.status === 429 ? 429 : 503,
-      response.status === 429
-        ? 'Провайдер ограничил число запросов.'
-        : 'Провайдер отклонил запрос. Проверьте ключ и модель в админке.',
-    );
+    const failure = classifyProviderHttpFailure(response.status);
+    throw new ProviderStreamError(failure.code, failure.status, failure.message);
   }
   if (!response.body) {
     throw new ProviderStreamError(

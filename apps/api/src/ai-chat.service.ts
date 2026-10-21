@@ -1,3 +1,7 @@
+import {
+  classifyProviderHttpFailure,
+  classifyProviderTransportFailure,
+} from './ai-provider-errors.js';
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
 import type pg from 'pg';
 import { AiTextHistoryStore } from './ai-text-history.js';
@@ -328,14 +332,7 @@ export class AiChatService {
     }
     const runtime = await this.runtime();
     this.requireSupportedModel(runtime);
-    const key = this.decrypt(runtime);
-    if (!key) {
-      throw new AiServiceError(
-        'ai_key_unavailable',
-        503,
-        'Сохранённый ключ отсутствует или не расшифровывается.',
-      );
-    }
+    const key = this.requireProviderKey(runtime);
     const started = Date.now();
     try {
       // SQL rechecks the real platform-admin role and configuration version,
@@ -519,14 +516,10 @@ export class AiChatService {
     }
     const runtime = await this.runtime();
     this.requireSupportedModel(runtime);
-    const apiKey = this.decrypt(runtime);
-    if (!runtime.enabled || !apiKey) {
-      throw new AiServiceError(
-        'ai_disabled',
-        503,
-        'ИИ не подключён. Настройте провайдера в админке.',
-      );
+    if (!runtime.enabled) {
+      throw new AiServiceError('ai_disabled', 503, 'ИИ выключен администратором.');
     }
+    const apiKey = this.requireProviderKey(runtime);
     const requestId = clientRequestId.toLowerCase();
     let accepted: boolean;
     try {
@@ -658,14 +651,10 @@ export class AiChatService {
         'Модель не поддерживается выбранным провайдером.',
       );
     }
-    const apiKey = this.decrypt(runtime);
-    if (!runtime.enabled || !apiKey) {
-      throw new AiServiceError(
-        'ai_disabled',
-        503,
-        'ИИ не подключён. Настройте провайдера в админке.',
-      );
+    if (!runtime.enabled) {
+      throw new AiServiceError('ai_disabled', 503, 'ИИ выключен администратором.');
     }
+    const apiKey = this.requireProviderKey(runtime);
 
     let admitted: boolean;
     try {
@@ -905,6 +894,28 @@ export class AiChatService {
     };
   }
 
+  private requireProviderKey(row: RuntimeRow): string {
+    if (!row.api_key_ciphertext) {
+      throw new AiServiceError('ai_key_required', 503, 'API-ключ провайдера ещё не сохранён.');
+    }
+    if (!this.key) {
+      throw new AiServiceError(
+        'ai_encryption_unavailable',
+        503,
+        'На сервере не настроено шифрование секретов.',
+      );
+    }
+    const key = this.decrypt(row);
+    if (!key) {
+      throw new AiServiceError(
+        'ai_key_decryption_failed',
+        503,
+        'Сохранённый API-ключ не удалось расшифровать. Проверьте настройки шифрования сервера.',
+      );
+    }
+    return key;
+  }
+
   private decrypt(row: RuntimeRow): string | null {
     if (!this.key || !row.api_key_ciphertext || !row.api_key_iv || !row.api_key_auth_tag) {
       return null;
@@ -938,6 +949,7 @@ export class AiChatService {
       false,
     );
     let response: Response;
+    const timeout = AbortSignal.timeout(65000);
     try {
       response = await this.fetchImpl(request.url, {
         method: 'POST',
@@ -946,25 +958,15 @@ export class AiChatService {
           'content-type': 'application/json',
         },
         body: JSON.stringify(request.body),
-        signal: AbortSignal.timeout(65000),
+        signal: timeout,
       });
     } catch {
-      throw new AiServiceError(
-        'ai_provider_timeout',
-        504,
-        'Нет ответа от модели. Сообщение сохранено.',
-      );
+      const failure = classifyProviderTransportFailure(timeout.aborted);
+      throw new AiServiceError(failure.code, failure.status, failure.message);
     }
     if (!response.ok) {
-      const status = response.status === 429 ? 429 : 503;
-      const code = response.status === 429 ? 'ai_provider_rate_limit' : 'ai_provider_error';
-      throw new AiServiceError(
-        code,
-        status,
-        response.status === 429
-          ? 'Провайдер ограничил частоту запросов.'
-          : 'Провайдер отклонил запрос. Проверьте ключ и модель в админке.',
-      );
+      const failure = classifyProviderHttpFailure(response.status);
+      throw new AiServiceError(failure.code, failure.status, failure.message);
     }
     let body: unknown;
     try {
