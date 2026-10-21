@@ -54,6 +54,11 @@ const upgradeArtifacts = [
     '0234_public_projects.sql',
     '0a6ad164e27f8e1c9e91ec338198c9ca43bd92e945bd74f5e3bcd9cbdb30528e',
   ],
+  [
+    '0235',
+    '0235_teacher_home_canonical_read_jit.sql',
+    '60dae5f444e08a479acdb98752b434b1114680d3f742aa31dfc0484bfe5c9dd5',
+  ],
 ] as const;
 
 type Plan = ReturnType<typeof planMigrations>;
@@ -432,7 +437,7 @@ async function seedOldContracts(pool: pg.Pool, client: pg.PoolClient) {
 }
 
 describe('joint AI, Courses, Portal and Projects supported-prefix upgrade', () => {
-  it('upgrades real 0225 data through all nine migrations without losing history or refunding quota', async () => {
+  it('upgrades real 0225 data through all ten migrations without losing history or refunding quota', async () => {
     await withPrefixDatabase(async (pool, client, plan) => {
       const fixture = await seedOldContracts(pool, client);
       const beforeLedger = await ledger(pool);
@@ -473,17 +478,18 @@ describe('joint AI, Courses, Portal and Projects supported-prefix upgrade', () =
         await pool.query(
           `SELECT oid::regprocedure::text AS signature,prosrc,proowner,proacl,prosecdef,proconfig
          FROM pg_proc WHERE oid IN ('classroom_participant_roster(uuid,uuid)'::regprocedure,
-           'classroom_participant_profile(uuid,uuid,uuid)'::regprocedure) ORDER BY oid::regprocedure::text`,
+           'classroom_participant_profile(uuid,uuid,uuid)'::regprocedure,
+           'learning_canonical_evidence_for_teacher_account(uuid)'::regprocedure) ORDER BY oid::regprocedure::text`,
         )
       ).rows;
-      expect(participantFunctions).toHaveLength(2);
+      expect(participantFunctions).toHaveLength(3);
       expect(
         validateMigrationHistory(new Map(beforeLedger.map((row) => [row.version, row])), plan).map(
           (item) => item.version,
         ),
       ).toEqual(upgradeArtifacts.map(([version]) => version));
 
-      expect(await applyIsolatedTestPlan(client, plan)).toBe(9);
+      expect(await applyIsolatedTestPlan(client, plan)).toBe(10);
       const afterLedger = await ledger(pool);
       expect(afterLedger.filter((row) => Number(row.version) <= 225)).toEqual(beforeLedger);
       expect(
@@ -655,7 +661,8 @@ describe('joint AI, Courses, Portal and Projects supported-prefix upgrade', () =
         await pool.query(
           `SELECT oid::regprocedure::text AS signature,prosrc,proowner,proacl,prosecdef,proconfig
          FROM pg_proc WHERE oid IN ('classroom_participant_roster(uuid,uuid)'::regprocedure,
-           'classroom_participant_profile(uuid,uuid,uuid)'::regprocedure) ORDER BY oid::regprocedure::text`,
+           'classroom_participant_profile(uuid,uuid,uuid)'::regprocedure,
+           'learning_canonical_evidence_for_teacher_account(uuid)'::regprocedure) ORDER BY oid::regprocedure::text`,
         )
       ).rows;
       expect(afterFunctions).toEqual(

@@ -567,7 +567,17 @@ for (const lostResponse of [false, true]) {
     await expect(reloaded.getByLabel('Правило класса')).toHaveValue('rating');
     await expect(reloaded.getByLabel('Минимальный рейтинг')).toHaveValue('83');
     expect(writes).toHaveLength(lostResponse ? 3 : 2);
-    expect(fixture.mutations).toEqual([]);
+    if (lostResponse) {
+      // A deliberately aborted response must emit one and only one client diagnostic.
+      // It is not a teacher/class mutation and must not be silently ignored.
+      expect(fixture.mutations).toHaveLength(1);
+      expect(fixture.mutations[0]).toMatchObject({
+        path: '/api/diagnostics/client',
+        body: { code: 'request_failed', module: 'portal', phase: 'request' },
+      });
+    } else {
+      expect(fixture.mutations).toEqual([]);
+    }
     expect(fixture.errors).toEqual([]);
     await noOverflow(page);
   });

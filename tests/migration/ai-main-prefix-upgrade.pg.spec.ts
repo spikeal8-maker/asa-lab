@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { planMigrations, validateMigrationHistory } from '../../tools/migrate.mjs';
 import { applyIsolatedTestPlan } from './isolated-postgres-plan';
 
-const expectedPending = ['0226', '0227', '0228', '0229', '0230', '0231', '0232', '0233', '0234'];
+const expectedPending = ['0226', '0227', '0228', '0229', '0230', '0231', '0232', '0233', '0234', '0235'];
 
 interface Identity {
   account_id: string;
@@ -636,7 +636,7 @@ describe('AI joint atomic upgrade from the supported installed prefix through 02
 
       const upgrade = await db.connect();
       try {
-        expect(await applyIsolatedTestPlan(upgrade, plan)).toBe(9);
+        expect(await applyIsolatedTestPlan(upgrade, plan)).toBe(10);
       } finally {
         upgrade.release();
       }
@@ -955,12 +955,17 @@ describe('AI joint atomic upgrade from the supported installed prefix through 02
         await db.query(
           `SELECT proname,proconfig FROM pg_proc WHERE oid IN (
            'public.classroom_participant_roster(uuid,uuid)'::regprocedure,
-           'public.classroom_participant_profile(uuid,uuid,uuid)'::regprocedure)
+           'public.classroom_participant_profile(uuid,uuid,uuid)'::regprocedure,
+           'public.learning_canonical_evidence_for_teacher_account(uuid)'::regprocedure)
          ORDER BY proname`,
         )
       ).rows;
       expect(functions).toEqual(
-        ['classroom_participant_profile', 'classroom_participant_roster'].map((proname) => ({
+        [
+          'classroom_participant_profile',
+          'classroom_participant_roster',
+          'learning_canonical_evidence_for_teacher_account',
+        ].map((proname) => ({
           proname,
           proconfig: expect.arrayContaining(['jit=off', 'search_path=pg_catalog, pg_temp']),
         })),
