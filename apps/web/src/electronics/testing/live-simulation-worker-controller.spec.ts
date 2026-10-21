@@ -233,6 +233,60 @@ async function completeCanonicalStart(
 }
 
 describe('Electronics canonical Worker controller', () => {
+  it('does not dispatch fulfilled host ticks and resumes only for new demand', async () => {
+    const executor = new FakeExecutor();
+    const controller = new ElectronicsLiveSimulationWorkerController(executor);
+    controller.start('project-a', circuit, { onResult: vi.fn(), onFailure: vi.fn() });
+    await completeCanonicalStart(executor, 1);
+    controller.update(circuit, 6_250);
+    executor.advances[1]!.deferred.resolve(timedAdvance('ready', 6_250, 6_250));
+    await flush();
+    for (const horizon of [6_250, 6_250, 6_249, 0, 6_250]) controller.update(circuit, horizon);
+    expect(executor.advances).toHaveLength(2);
+    controller.update(circuit, 6_251);
+    expect(executor.advances).toHaveLength(3);
+    expect(executor.advances[2]!.requestedHorizonMicroseconds).toBe(6_251);
+    expect(executor.advances[2]!.state.continuation?.committedHorizonMicroseconds).toBe(6_250);
+    controller.dispose();
+  });
+
+  it('retains same-horizon Arduino source edits queued behind an advance', async () => {
+    const executor = new FakeExecutor();
+    const controller = new ElectronicsLiveSimulationWorkerController(executor);
+    controller.start('project-a', serialCircuit, { onResult: vi.fn(), onFailure: vi.fn() });
+    await completeCanonicalStart(executor, 1);
+    controller.update(serialCircuit, 6_250);
+    const edited: SchematicDocument = {
+      ...serialCircuit,
+      components: serialCircuit.components.map((component) =>
+        component.id === 'uno'
+          ? {
+              ...component,
+              stateProperties: { arduinoSource: 'void setup(){}void loop(){delay(50);}' },
+            }
+          : component,
+      ),
+    };
+    controller.update(edited, 6_250);
+    executor.advances[1]!.deferred.resolve(timedAdvance('ready', 6_250, 6_250));
+    await flush();
+    expect(executor.advances).toHaveLength(3);
+    expect(executor.advances[2]!.requestedHorizonMicroseconds).toBe(6_250);
+    expect(
+      executor.advances[2]!.document.components.find((part) => part.id === 'uno')?.stateProperties
+        ?.arduinoSource,
+    ).toBe('void setup(){}void loop(){delay(50);}');
+    executor.advances[2]!.deferred.resolve(timedAdvance('ready', 6_250, 6_250));
+    await flush();
+    controller.update(
+      { ...edited, components: edited.components.map((part) => ({ ...part })) },
+      6_250,
+    );
+    expect(executor.advances).toHaveLength(3);
+    expect(executor.generation).toBe(1);
+    controller.dispose();
+  });
+
   it('forwards the accepted clock profile even when that profile has no temporal history', async () => {
     for (const clockProfileId of [
       'dc-inputs-v1',
@@ -1351,19 +1405,14 @@ describe('Electronics canonical Worker controller', () => {
       ).toBeGreaterThan(0.0049);
 
       controller.update(pressed, 25_000);
-      const held = executor.advances.at(-1)!;
       const count = executor.advances.length;
-      // These inputs and newer demand must survive the one in-flight observation.
+      expect(count).toBe(3);
+      // Holding the same input and an older host cursor needs no Worker call.
       controller.update(base, 25_000);
-      controller.update(base, 50_000);
-      expect(executor.advances).toHaveLength(count);
-      const sameTime = await complete(held);
-      expect(held.requestedHorizonMicroseconds).toBe(25_001);
-      expect(held.state).toBe(closed.state);
-      expect(held.inputEvents).toEqual([]);
-      expect(sameTime.state).toEqual(closed.state);
-
       const released = executor.advances.at(-1)!;
+      controller.update(base, 50_000);
+      expect(executor.advances).toHaveLength(count + 1);
+      expect(released.state).toBe(closed.state);
       expect(released.inputEvents).toEqual([
         { atMicroseconds: 25_002, targetId: 'button', operation: 'state', payload: false },
       ]);

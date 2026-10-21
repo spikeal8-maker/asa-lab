@@ -4580,7 +4580,13 @@ function temporalStartupBoundary(
     .map((row) => {
       const evidence = row.startupEvidence;
       const active = raw.frames
-        .filter((frame) => frame.requestAt !== null && frame.requestAt <= row.at)
+        // A completed request from before the trusted Reset/start action is
+        // retained history, not the active request of this acquisition. The
+        // receipt check below still rejects any ready result received after it.
+        .filter(
+          (frame) =>
+            frame.requestAt !== null && frame.requestAt >= from && frame.requestAt <= row.at,
+        )
         .reduce<TemporalFrame | undefined>(
           (latest, frame) => (!latest || frame.requestAt! > latest.requestAt! ? frame : latest),
           undefined,

@@ -485,9 +485,13 @@ for (const lostResponse of [false, true]) {
     await page.unroute('**/*');
     const saved = teacherAccess(4);
     const writes: Record<string, unknown>[] = [];
+    let reads = 0;
     const receipts = new Map<string, { input: Record<string, unknown>; revision: number }>();
     await page.route('**/api/ai/classrooms/' + classId + '/access', async (route) => {
-      if (route.request().method() === 'GET') return route.fulfill({ json: saved });
+      if (route.request().method() === 'GET') {
+        reads += 1;
+        return route.fulfill({ json: saved });
+      }
       expect(route.request().method()).toBe('PUT');
       const input = route.request().postDataJSON() as Record<string, unknown>;
       writes.push(input);
@@ -556,7 +560,10 @@ for (const lostResponse of [false, true]) {
     expect(saved).toMatchObject({ mode: 'rating', minimumRating: 83, revision: 6 });
 
     await access.getByLabel('Правило класса').selectOption('allow');
+    const readsBeforeReload = reads;
+    await page.reload();
     const reloaded = await openTeacherSettings(page);
+    await expect.poll(() => reads).toBeGreaterThan(readsBeforeReload);
     await expect(reloaded.getByLabel('Правило класса')).toHaveValue('rating');
     await expect(reloaded.getByLabel('Минимальный рейтинг')).toHaveValue('83');
     expect(writes).toHaveLength(lostResponse ? 3 : 2);

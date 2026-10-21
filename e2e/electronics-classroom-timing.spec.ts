@@ -1481,6 +1481,57 @@ function analyse(
   };
 }
 
+function d13BoardInsideCaptureViewport(
+  board: { x: number; y: number; width: number; height: number } | null,
+  stage: { x: number; y: number; width: number; height: number } | null,
+  viewport: { width: number; height: number } | null,
+): boolean {
+  if (!board || !stage || !viewport) return false;
+  if (
+    ![
+      board.x,
+      board.y,
+      board.width,
+      board.height,
+      stage.x,
+      stage.y,
+      stage.width,
+      stage.height,
+      viewport.width,
+      viewport.height,
+    ].every(Number.isFinite) ||
+    board.width <= 0 ||
+    board.height <= 0 ||
+    stage.width <= 0 ||
+    stage.height <= 0 ||
+    viewport.width <= 0 ||
+    viewport.height <= 0
+  )
+    return false;
+  return (
+    board.x >= Math.max(0, stage.x) &&
+    board.y >= Math.max(0, stage.y) &&
+    board.x + board.width <= Math.min(viewport.width, stage.x + stage.width) &&
+    board.y + board.height <= Math.min(viewport.height, stage.y + stage.height)
+  );
+}
+
+async function prepareD13CaptureViewport(page: Page): Promise<void> {
+  // Closing the drawer sets its class before its 170ms visibility transition.
+  // Fit only after it is actually hidden, using the normal pupil UI.
+  await expect(page.locator('.arduino-code-panel')).toBeHidden();
+  await page.getByRole('button', { name: 'Подогнать проект', exact: true }).click();
+  const board = await page
+    .locator('[data-component-id="uno"] .workbench-production-visual image')
+    .first()
+    .boundingBox();
+  const stage = await page.locator('.workbench-canvas').boundingBox();
+  expect(
+    d13BoardInsideCaptureViewport(board, stage, page.viewportSize()),
+    'D13 capture requires the whole native board inside the stage and viewport after Fit',
+  ).toBe(true);
+}
+
 async function capture(
   page: Page,
   label: string,
@@ -1490,6 +1541,7 @@ async function capture(
   wiring: 'normal' | 'open' | 'reversed' = 'normal',
   action: 'start' | 'reset' = 'start',
 ) {
+  await prepareD13CaptureViewport(page);
   await mark(page, label, source);
   if (action === 'reset') await page.getByTestId('arduino-reset-button').click();
   else await page.getByRole('button', { name: 'Начать моделирование', exact: true }).click();
