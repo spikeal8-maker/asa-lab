@@ -477,17 +477,23 @@ for (const width of [1440, 390]) {
     await page.getByRole('button', { name: 'Сохранить настройки' }).click();
     await expect(page.getByText('Настройки Ollama сохранены.', { exact: false })).toBeVisible();
     await page.getByRole('button', { name: 'Проверить реальный ответ модели' }).click();
-    await expect(page.getByText('Модель ornith:9b ответила за 6.6 с', { exact: false })).toBeVisible();
+    await expect(
+      page.getByText('Модель ornith:9b ответила за 6.6 с', { exact: false }),
+    ).toBeVisible();
 
     await page.getByRole('tab', { name: 'ComfyUI' }).click();
-    await expect(page.getByRole('heading', { name: 'ComfyUI — генерация изображений' })).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: 'ComfyUI — генерация изображений' }),
+    ).toBeVisible();
     await expect(page.getByText('Подключение ComfyUI и управление GPU пока не')).toBeVisible();
     await page.getByRole('tab', { name: 'Ключи' }).click();
     await expect(page.getByLabel('Провайдер', { exact: true })).toBeVisible();
     await page.getByRole('tab', { name: 'Ollama' }).click();
     await expect(page.getByLabel('Адрес Ollama')).toHaveValue('http://192.168.1.20:11434');
     await expect(page.getByLabel('Модель Ollama')).toHaveValue('ornith:9b');
-    await expect(page.getByLabel('Разрешить ответы через Ollama пользователям ASA Lab')).toBeChecked();
+    await expect(
+      page.getByLabel('Разрешить ответы через Ollama пользователям ASA Lab'),
+    ).toBeChecked();
 
     expect(fake.ollamaDiscoveries).toEqual([{ baseUrl: 'http://192.168.1.20:11434' }]);
     expect(fake.ollamaWrites).toEqual([
