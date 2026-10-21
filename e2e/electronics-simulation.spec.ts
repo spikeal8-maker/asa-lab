@@ -2766,7 +2766,15 @@ test.describe('ELECTRONICS-525 complete instrument mirror matrix', () => {
                       state: true,
                       stateProperties: { ...item.stateProperties, outputEnabled: true },
                     }
-                  : { ...item, position: { x: 810, y: 30 } },
+                  : {
+                      ...item,
+                      position: { x: 810, y: 30 },
+                      stateProperties: {
+                        tolerancePercent: 5,
+                        resistanceUnit: 'Ω',
+                        ...item.stateProperties,
+                      },
+                    },
               ),
               {
                 id: 'generator',
@@ -2805,6 +2813,7 @@ test.describe('ELECTRONICS-525 complete instrument mirror matrix', () => {
                   timePerDivisionMs: 1,
                   triggerLevelVolt: 0,
                   displayEnabled: true,
+                  coupling: 'DC',
                 },
               },
             ],
