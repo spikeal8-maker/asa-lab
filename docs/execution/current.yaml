@@ -8332,23 +8332,23 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: mirror_only_compact_source_feasibility_selected
+      checkpoint: mirror_matrix_test_only_before_selected
       kind: repair
       owner_acceptance: pending
       program_issue: 452
       context_hints:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-INSTRUMENT-MIRROR-001.md
       - docs/product/electronics/components/ui-assets-persistence.yaml
-      repair_scope: One bounded mirror-only SOURCE FEASIBILITY author under owner programme452. Compact semantically
-        equivalent readout mirror compensation;ordinary rotation policy unchanged. This is not final product composition
-        or technical acceptance.
+      repair_scope: >-
+        One TEST-ONLY new BEFORE browser matrix for existing525 mirror readability. Source feasibility
+        5f9d07ae independently APPROVED but UNPUBLISHED,not product/runtime acceptance. Do not compose it
+        into BEFORE;leave accepted main product unchanged and preserve every foreign test/helper.
       source_budget:
-        production:
-        - apps/web/src/electronics/ProductionComponentVisual.tsx
-        - apps/web/src/electronics/production-asset-contracts.ts
-        optional_meaningful_existing_unit_regression: apps/web/src/electronics/testing/workbench-presentation.spec.ts
-        forbidden: No browser test,coverage hash,workflow,dependency,cap,core/hook/LED,owner artwork or foreign edit;no
-          whole historical file restore.
+        expected_write_paths:
+        - e2e/electronics-simulation.spec.ts
+        - docs/product/electronics/generated/component-coverage.json
+        metadata: Canonical generator ONLY generatedFrom.browserEvidenceSha256;every other field/byte unchanged. Nonexistent apps/web/src/electronics/generated path must not be created.
+        forbidden: No production/Visual/presentation-unit/workflow/script/package/dependency/cap/core/hook/LED/assets/foreign edit or timeout workaround.
       semantic_contract: Preserve ordinary rotation,per-readout own center and window placement,signed actual values/modes,body/terminal/hit/wire
         geometry,interactive controls and complete document. No always-horizontal digits or all-scene transform workaround.
         Existing owner rotation decision remains separate.
@@ -8359,25 +8359,49 @@ parallel_lanes:
         before_run: 37757863776
         coverage_limit: Historical repo matrix rotation0 with none/X/Y/XY only;not full0/90/180/270 evidence. Preserve
           historical frozen tests/receipts;this selection does not publish or accept old candidates.
-      feasibility_contract: Source/unit and small Temp estimate only. Meaningful existing presentation tests check mirror
-        compensation equivalence,per-readout centers,signed modes and preserved ordinary rotation/geometry;no runtime/fit/visual
-        claim from these checks. Compose minimal current-main hunks,never restore old whole files.
+      feasibility_contract: >-
+        Source feasibility result is history only. Existing product3files remain on unpublished5f9d07ae;
+        new browser author touches only selected spec/hash,not product or unit tests. Preserve source
+        candidate until actual new BEFORE review and separately selected AFTER;no automatic integration.
       budget_contract: Current exact benchmark217938/218000 leaves62bytes. Prototype+118does not fit. No cap increase
         or adjacent optimisation. Small Temp source/minifier estimate is provisional,not actual compiled fit;future
         exact-SHA benchmark<=218000 still required. If no compact equivalent candidate,STOP with budget proof.
-      execution_boundary: One self-reviewed UNPUBLISHED source candidate then STOP;NEW independent source review. Controller
-        separately selects any future verification/test/evidence composition. No automatic main publication,browser/CI
-        run,acceptance,closure or deployment.
-      prior_contract_boundary: Historical old card browser/full-gate prerequisites and immutable freezes remain required
-        for accepted product;only this source/unit feasibility action is explicitly selected by owner programme. Preflight
-        applicable execution blockers0;no blocker bypass. Historical priority-suspended snapshot remains untouched.
+      execution_boundary: >-
+        One new UNPUBLISHED complete test candidate,self-review then STOP;NEW independent source review
+        before ONE cause-justified BEFORE run. Complete525coverage and causal mirror evidence plus NEW
+        actual review required. Later E11hang may leave fullgate D;report target versus fullgate honestly,
+        never waive full gates/acceptance or select AFTER automatically.
+      prior_contract_boundary: >-
+        Old full-browser/full-gate prerequisites and immutable freezes remain required for accepted product.
+        This selection authorizes ONLY new test-only BEFORE source budget;previous source/unit feasibility
+        and suspended historical snapshots are history,not current product authorisation. No blocker bypass.
       preservation: Preserve all accepted foreign D2/LED/mobile/selection/wire changes,549TERMINAL_NO_PROVEN_CAUSE,548terminal/dependencies
         and ownerKEEP544547. No ordinary-rotation product decision or security repair.
-      selection_evidence: docs/product/electronics/evidence/instrument-525-source-feasibility-selection-20261021.md
-      next_action: After canonical acceptance,one new bounded author inspects current source and attempts only compact
-        semantic-equivalent mirror compensation within budget. Source/unit/Temp estimate,self-review,freeze one UNPUBLISHED
-        candidate STOP;NEW source review,then controller decides separate verification. No fit solution means STOP,not
-        capraise/adjacent cleanup.
+      selection_evidence: docs/product/electronics/evidence/instrument-525-test-before-selection-20261021.md
+      observed_source_feasibility:
+        observed_at: '2026-10-21T04:28:01Z'
+        sha: 5f9d07ae619df3b57e0908b6b48ccad56cbe7349
+        publication: UNPUBLISHED
+        independent_review: SOURCE_FEASIBILITY_APPROVE
+        unit: Author20presentationPASS;independent20presentation+14contractsPASS. No actual browser/fit/acceptance result.
+        estimate: Temp+54bytes provisional only;exact benchmark<=218000 not yet proved. Current217938leaves62bytes,no capraise.
+      before_matrix_contract:
+        journeys: EXACT16isolatedjourneys=4widths times4explicit seeded mirror fixtures none/X/Y/XY. Each journey native group rotation0then90/180/270 via two existing45degreecommands per90step;all4instruments/8texts perpose,64instrumentconfigs perwidth. Seeded mirrors are fixture state,not a claimed nativeYcommand.
+        native_order: Header exposes horizontal mirror only;never invent verticalbutton/privatecontroller mutation. Keep native rotate/control order,unchanged deadlines and all oracles;final270document nativeSave EXACT1PUT/base2/CAS+1/freshGET. Horizontal nativeflip only where genuinely available,not substitute for explicit Y/XYfixtures.
+        coverage: At EACH1440/1024/390/320 measure64instrumentconfigs=4instruments times4rotations0/90/180/270 times4mirrors none/X/Y/XY;all8existing textreadouts at every pose,not only X or rotation0.
+        geometry: Raw finite body/glyph/window axes and each readout own mirror center before SOFT orientation/own-center assertions. Independently expect body R*M but glyph R about own center,preserving ordinary rotation;no hardcoded trace0 or X-only oracle.
+        runtime: Real committed signed values/modes,applicable inactive/active/error/disabled states;native start/stop and relevant mode/power/waveform controls,never fabricated result/controller/DOM actions.
+        document: Strict wholelocal/server/rendered equality,IDs,wire/terminal/hit geometry. Native Save where journey saves exactly1PUT/base2/CAS+1/freshGET;no fake Save or partial-doc/count substitute.
+        isolation: Genuine UI login once per group/worker,retain cookies only;fresh isolated context/project per journey. R3 pre-app empty origins/local/session and exact fixture-derived saved-hint storage journal BEFORE assertions,never derive expected key from discovered storage.
+        delivery: Append525block to current simulation spec,preserve every old helper/case byte-exact;registered simulation file precedes laterE11 without workflow/order/registration edits. Raw/screenshots and finally journal before expected SOFT failures;retain primary errors and complete strict checkpoints.
+        freeze: NEW fullspec frozen BEFORE and AFTER byte-identical. Historical ed4 browser is stale pertestlogin/missingR3/badsoftoracle and cannot be copied wholesale or accepted.
+        boundary: Complete525matrix plus causal expected mirror failures and NEW actual review precede any selected AFTER;target completion never means full browser/repositoryPASS if laterE11hangD or foreignC persists.
+      next_action: >-
+        After canonical acceptance,ONE new test author implements only matrix/isolation/raw oracles in
+        current simulation spec and canonical browser hash. Narrow tests/self-review,freeze UNPUBLISHED
+        fullspec STOP;NEW independent source review then ONE cause-justified BEFORE. Controller reviews
+        actual coverage/causality and separately selects AFTER composition if justified. No product
+        publication,closure,owner acceptance,local browser/Docker/DB or unrelated E11diagnosis.
     execution_lease:
       executor_id: electronics-instrument-readouts-525
       holder: unassigned
@@ -8401,13 +8425,15 @@ parallel_lanes:
       kind: observed_snapshot
       convergence_baseline_sha: 6fb941a7ed67d46ec43363bff022ca57fda8c6e0
       head_sha: null
-      observed_at: '2026-10-21T04:13:11Z'
+      observed_at: '2026-10-21T04:28:01Z'
       main:
         branch: main
-        sha: 6fb941a7ed67d46ec43363bff022ca57fda8c6e0
-      observation_note: Dated fetch main6fb snapshot;General39542737204 in_progress,not PASS. Fetch main/recover exact
-        Git/CI/dirty paths before writes. Known shared workflows WAITING_HANDOFF standing disjoint exception only;actual
-        selected/future target overlaps0,not SAFE. Source feasibility only,not runtime/owner acceptance.
+        sha: 55d1dcb5a00b59b7e8137e98c61c1f8bcdb88b2a
+      observation_note: >-
+        Dated fetch main55d1 snapshot;General39543306783completedFAIL,cause not inspected here,not PASS.
+        Fetch main/recover Git/CI/dirty paths before writes. Known shared workflows WAITING_HANDOFF
+        standing disjoint exception only,actual selected/future target overlaps0,not SAFE. New test-only
+        BEFORE selection;source feasibility approval is not product/fit/runtime acceptance.
 
   - id: electronics-selection
     parent_lane: electronics
