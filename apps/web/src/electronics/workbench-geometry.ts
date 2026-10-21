@@ -30,11 +30,14 @@ export const WIRE_ASSIST_ENTER_ANGLE_DEG = 3;
 export const WIRE_ASSIST_EXIT_ANGLE_DEG = 5;
 
 export const TERMINAL_MARKER_SIZE = 8;
-export const TERMINAL_HIT_RADIUS = 9;
-export const TERMINAL_TOUCH_HIT_RADIUS = 14;
+// The 8-unit contact square has a 2-unit outline: the painted edge is 5 units
+// from its centre. Keep the invisible mouse AND touch target within that edge.
+export const TERMINAL_HIT_RADIUS = TERMINAL_MARKER_SIZE / 2 + 1;
+export const TERMINAL_TOUCH_HIT_RADIUS = TERMINAL_HIT_RADIUS;
 export const WIRE_ENDPOINT_VISIBLE_RADIUS = 4;
-export const WIRE_ENDPOINT_HIT_RADIUS = 9;
-export const WIRE_ENDPOINT_TOUCH_HIT_RADIUS = 14;
+// The wire end dot also has a 2-unit outline; do not capture outside its paint.
+export const WIRE_ENDPOINT_HIT_RADIUS = WIRE_ENDPOINT_VISIBLE_RADIUS + 1;
+export const WIRE_ENDPOINT_TOUCH_HIT_RADIUS = WIRE_ENDPOINT_HIT_RADIUS;
 export const WIRE_VERTEX_ASSIST_ENTER_DISTANCE_PX = 8;
 export const WIRE_VERTEX_ASSIST_EXIT_DISTANCE_PX = 12;
 

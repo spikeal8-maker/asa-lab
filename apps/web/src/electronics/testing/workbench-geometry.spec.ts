@@ -228,13 +228,29 @@ describe('what the canvas is allowed to move', () => {
     ]);
   });
 
-  it('keeps visible terminal and endpoint markers smaller than their collision targets', () => {
-    expect(TERMINAL_MARKER_SIZE).toBe(8);
-    expect(TERMINAL_HIT_RADIUS).toBe(9);
-    expect(TERMINAL_TOUCH_HIT_RADIUS).toBe(14);
-    expect(WIRE_ENDPOINT_VISIBLE_RADIUS).toBe(4);
-    expect(WIRE_ENDPOINT_HIT_RADIUS).toBeGreaterThan(WIRE_ENDPOINT_VISIBLE_RADIUS);
-    expect(WIRE_ENDPOINT_TOUCH_HIT_RADIUS).toBeGreaterThan(WIRE_ENDPOINT_HIT_RADIUS);
+  it('limits mouse and touch contact capture to the painted contact and wire endpoint dots', () => {
+    // The component contact is an 8-unit square with a 2-unit stroke. The
+    // selected wire endpoint is a radius-4 circle with the same stroke.
+    const outlineHalfWidth = 1;
+    const terminalPaintEdge = TERMINAL_MARKER_SIZE / 2 + outlineHalfWidth;
+    const wireEndpointPaintEdge = WIRE_ENDPOINT_VISIBLE_RADIUS + outlineHalfWidth;
+    expect(terminalPaintEdge).toBe(5);
+    expect(wireEndpointPaintEdge).toBe(5);
+    expect(TERMINAL_HIT_RADIUS).toBe(terminalPaintEdge);
+    expect(TERMINAL_TOUCH_HIT_RADIUS).toBe(terminalPaintEdge);
+    expect(WIRE_ENDPOINT_HIT_RADIUS).toBe(wireEndpointPaintEdge);
+    expect(WIRE_ENDPOINT_TOUCH_HIT_RADIUS).toBe(wireEndpointPaintEdge);
+
+    for (const radius of [
+      TERMINAL_HIT_RADIUS,
+      TERMINAL_TOUCH_HIT_RADIUS,
+      WIRE_ENDPOINT_HIT_RADIUS,
+      WIRE_ENDPOINT_TOUCH_HIT_RADIUS,
+    ]) {
+      // A pointer just outside the painted dot must not trigger its target.
+      expect(Math.hypot(radius + 0.01, 0)).toBeGreaterThan(radius);
+      expect(Math.hypot(radius - 0.01, 0)).toBeLessThan(radius);
+    }
   });
 
   it('soft-locks a dragged bend to one canonical elbow with hysteresis and Alt disable', () => {

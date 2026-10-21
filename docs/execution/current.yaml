@@ -81,6 +81,58 @@ primary_lane:
     - docs/architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md
 
 parallel_lanes:
+  - id: electronics-wire-contact-hit
+    parent_lane: electronics
+    worktree_id: electronics-wire-contact-hit-688
+    owned_paths:
+      - apps/web/src/electronics/workbench-geometry.ts
+      - apps/web/src/electronics/testing/workbench-geometry.spec.ts
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-WIRE-CONTACT-HIT-001.md
+    task:
+      id: TASK-ELECTRONICS-WIRE-CONTACT-HIT-001
+      issue: 688
+      programme_issue: 452
+      branch: main
+      base_branch: main
+      pr: null
+      status: in_progress
+      kind: repair
+      checkpoint: owner_selected_visible_contact_hit_radius_mouse_and_touch
+      owner_acceptance: pending
+      owner_authorization: >-
+        Owner explicitly requires immediate reduction of wire contact invisible collision
+        on mouse and phone to match the drawn dot, with a visible user result;
+        authorizes development in GitHub and normal verified main integration.
+        This is a distinct bounded UI repair, not issue544, 538 or 280.
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-WIRE-CONTACT-HIT-001.md
+        - docs/product/electronics/components/ui-assets-persistence.yaml
+      repair_scope: >-
+        One shared contact geometry change for component/breadboard terminals and
+        selected wire endpoints; mouse and coarse touch hit radius no larger than
+        the painted contact outline. Only workbench-geometry.ts, its existing
+        workbench-geometry.spec.ts, this selection and the new task card.
+        Preserve Stage/controller, wiring, component art, electrical model,
+        other active lanes and school deployment.
+    execution_lease:
+      executor_id: electronics-wire-contact-hit-688
+      holder: unassigned
+      acquired_at: null
+      expires_at: null
+      reviewer_role_requires_lease: false
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1
+      browser:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1:browser
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
   - id: ai-assistant
     worktree_id: ai-assistant-programme
     owned_paths:
