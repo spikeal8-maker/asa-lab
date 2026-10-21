@@ -12,6 +12,17 @@ review: independent
 
 # Publish the ordinary-image failure to the actual mounted catalog consumer
 
+## Selected own-helper attempt STOP — 21 October 2026
+
+The single selected compaction attempt passed46 units, lint and format but grew
+the minified raw proxy43950to43953 (+3). It was withdrawn, restoring clean9f;
+actual full-bundle fit was NOT_RUN. This proves only this attempt infeasible,
+not all possible implementations. Actual9f remains218356 RAW/218000, deficit356.
+No automatic further optimization, measurement, main product or closure selected.
+Preserve e0af RED, e89,9f and exact46units. #544/#547 stay OPEN by owner KEEP until
+a demonstrated #548 fix. The separate #525 test ownership repair does not waive
+this budget block. See the new hit-ownership selection receipt.
+
 ## Fixed-prototype validation and candidate MEASUREMENT ONLY
 
 This section explicitly supersedes ONLY the estimate-over-margin STOP for fixed

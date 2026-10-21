@@ -9059,7 +9059,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: actual_raw_budget_deficit_356_own_diff_feasibility_selected
+      checkpoint: budget_blocked_selected_own_helper_attempt_withdrawn
       previous_checkpoint: two_mounted_cases_pass_no_proven_cause_diagnostic_STOP
       kind: repair
       owner_acceptance: pending
@@ -9068,8 +9068,8 @@ parallel_lanes:
       - docs/product/electronics/evidence/ordinary-image-548-consumer-cycle-selection-20261020.md
       - docs/product/electronics/components/ui-assets-persistence.yaml
       repair_scope: >-
-        SOURCE-FEASIBILITY ONLY reduce own OwnerOrdinaryImage insertion/main-selection adoption.
-        Actual9f Editor218356RAW/218000 deficit356;no mainproduct/CI/closure authorization.
+        Selected own-helper attempt STOP:46unitsPASS but rawproxy43953 versus43950prototype (+3),withdrawn.
+        Actual9f Editor218356RAW/218000 deficit356 remains BUDGET_BLOCKED;no new optimization,measurement,mainproduct or closure selected.
       diagnostic_limits: >-
         e89 sourcefeasibility STOP is QUALIFIED_BUDGET_BLOCKED_NOT_PUBLICATION_APPROVAL. Sameunitblob
         RED41PASS2FAIL to GREEN43PASS;dedicatedselectioncopy/replacement incomplete due mandatedbudgetSTOP.
@@ -9193,10 +9193,15 @@ parallel_lanes:
         frozen_units: Final46case asset-recovery.spec from9f BYTEEXACT;no unit/gate/cap/dependency/workflow/adjacentoptimization.
         verification: Focused46unitPASS and NEW independent exactSHA source/unitreview;sourceestimate NOT actualfit. One UNPUBLISHEDcandidate STOP;infeasible STOP,no hopefulvariant.
         future_boundary: Separate canonicalmeasurementselection and actualfullsizeCI required;NO CI/rerun or mainproductpublication now. All acceptance/closure/owner/release/deployblocks remain.
+      observed_own_helper_attempt:
+        result: SELECTED_ATTEMPT_INFEASIBLE_WITHDRAWN
+        unit: 46PASS;eslint and formatPASS;exactunitfile preserved.
+        raw_proxy: Prototype43950;attempt43953 deltaPLUS3;actualfullbundleNOT_RUN. This attempt does not prove all possible implementations infeasible.
+        evidence: docs/product/electronics/evidence/instrument-525-hit-ownership-selection-20261021.md
       next_action: >-
-        After canonical publication,new bounded own-diff feasibility author then NEW independent
-        source/unit reviewer. Preserve exact46units and allforeign. For525 ONLY readonly measured
-        nativepoint/selector causeaudit;no automatic test/productrepair or CI. KEEP544547OPEN.
+        STOP548 BUDGET_BLOCKED;preserve unchanged9f/e89/e0af and46units. No automatic optimization,
+        newmeasurement,productmain or closure. Separately selected525TESTONLY hitownership repair
+        may proceed after canonicalpublication;KEEP544547OPEN until demonstrated548fix.
       preservation: >-
         Preserve e89prototype/e0afRED/public9f/history and final46unit bytes;all foreign525/549/LED/
         assets/hook/API/persistence/currentstate and acceptanceblocks. Own-diff author onlyVisual;
@@ -9240,7 +9245,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: mirror_matrix_test_only_before_selected
+      checkpoint: mirror_matrix_test_only_hit_ownership_repair_selected
       kind: repair
       owner_acceptance: pending
       program_issue: 452
@@ -9309,12 +9314,25 @@ parallel_lanes:
         delivery: Append525block to current simulation spec,preserve every old helper/case byte-exact;registered simulation file precedes laterE11 without workflow/order/registration edits. Raw/screenshots and finally journal before expected SOFT failures;retain primary errors and complete strict checkpoints.
         freeze: NEW fullspec frozen BEFORE and AFTER byte-identical. Historical ed4 browser is stale pertestlogin/missingR3/badsoftoracle and cannot be copied wholesale or accepted.
         boundary: Complete525matrix plus causal expected mirror failures and NEW actual review precede any selected AFTER;target completion never means full browser/repositoryPASS if laterE11hangD or foreignC persists.
+      hit_ownership_repair_contract:
+        version: actual9f_pan_and_triangle_test_actuator_correction_only
+        source_parent: a39b750fb96bbf163f43e993d2d7c6640d527ad0
+        observed_cause: Eight mobile pan origins hit workbench-stage-controls outside SVG ancestry,unchangedviewBox; eight desktop intendedtriangle clicks hit sibling icon polyline,no triangleancestor,waveform remains sine. CategoryA testactuator ownership;not productrepair.
+        expected_write_paths:
+        - e2e/electronics-simulation.spec.ts
+        - docs/product/electronics/generated/component-coverage.json
+        composition: Compose ONLY reviewed a39 two-path test hunks atopcurrentmain preserving allforeign prefix/suffix and generatedfields except browserEvidenceSha256;no548Visual/unit adoption.
+        pan: Select deterministic bounded geometry candidates with actual elementFromPoint ownership by existing grid/canvas. Start AND translated endpoint must be inviewport/canvas. Preserve original delta,middlebutton down,four moves,up exactlyonce. No valid pair means strict failure with candidate/hit witness;no retries/extra pans/force/privateevents/DOMtransforms.
+        triangle: Derive bounded interior candidates from existing triangleRECT and its ownCTM;actual hit must be exact control or descendant. Perform exactlyONE nativeclick,retain strict waveform assertion;no guessed screencoordinates/blindfirst/force. No valid point means hard failure with witness. Product icon-centered usability remains unresolved,separate from this testcorrection.
+        preserved: EXACT16matrix/allrotations/4instruments8readouts,R3storage/fullDoc/nativeSave1PUTbase2CAS2to3/freshcookiesGET/reopen/oracles/nativeorder/deadlines and allforeign tests. No timeout/cap/product/workflow/script/dependency edits.
+        freeze: NEWwholebrowserblob frozen after selfreview,BEFORE and futureAFTER BYTEIDENTICAL. NEW independent exactSHA source review required,then ONE causejustified existing strictCI after canonicalpublication and finalcompositionreview. No hopefulrerun or fullgate waiver.
+        acceptance: All16complete plus causal mirroronlysoftfail and NEWactualreview before ANYproductAFTERselection. Sparse artifacts/hardfail are invalidBEFORE;no closure/owneracceptance/release/deploy.
+        evidence: docs/product/electronics/evidence/instrument-525-hit-ownership-selection-20261021.md
       next_action: >-
-        After canonical acceptance,ONE new test author implements only matrix/isolation/raw oracles in
-        current simulation spec and canonical browser hash. Narrow tests/self-review,freeze UNPUBLISHED
-        fullspec STOP;NEW independent source review then ONE cause-justified BEFORE. Controller reviews
-        actual coverage/causality and separately selects AFTER composition if justified. No product
-        publication,closure,owner acceptance,local browser/Docker/DB or unrelated E11diagnosis.
+        After canonicalpublication,ONE new bounded testauthor composes reviewed a39 ONLY and corrects
+        proved pan/triangle ownership within this contract. FreezeUNPUBLISHED STOP;NEWsource reviewer,
+        finalcompositionreview then ONEjustified strictBEFORE. Product5f9 remainsunpublished;548budgetblocked.
+        Fetch main/recover Git/CI/dirtypaths before writes. Preserve ownerKEEP544547 and allforeign.
     execution_lease:
       executor_id: electronics-instrument-readouts-525
       holder: unassigned

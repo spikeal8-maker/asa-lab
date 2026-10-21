@@ -12,6 +12,29 @@ review: independent
 
 # Existing instrument readouts remain readable under mirror
 
+## Selected TEST-ONLY hit ownership repair — 21 October 2026
+
+The new selection in current.yaml authorizes only the two test paths from
+reviewed a39b750, composed atop current main while preserving all foreign bytes.
+Actual9f evidence proves eight mobile pan starts hit stage controls outside SVG
+ancestry and eight desktop triangle clicks hit a sibling icon polyline. This is
+an actuator correction, not a product pan or icon usability fix.
+
+Choose a bounded deterministic grid/canvas-owned pan start with both endpoints
+in viewport/canvas; preserve the original delta, middle down, four moves and up
+exactly once. Choose a bounded interior triangle RECT point transformed by its
+own CTM whose actual hit is that control or descendant; perform one native click.
+No valid owned point means strict failure with candidate/hit witness. No guessed
+screen coordinates, blind first, force, private events, retry, extra gestures,
+timeout increase or product change.
+
+Keep all16 journeys, every pose/instrument/readout, strict R3 storage, complete
+document/native Save1PUT/base2/CAS2to3/fresh cookies-only GET/reopen and all oracles.
+Freeze a NEW whole browser file after self-review; future AFTER must be identical.
+NEW independent source and composition reviews precede one justified existing
+strict BEFORE run. All16 complete plus NEW actual approval remain prerequisites
+for product AFTER. Read the new hit-ownership receipt for evidence and limits.
+
 ## Budget metric correction — 21 October 2026
 
 Editor cap218000 and actual217938 are RAWFILEbytes (margin62RAWbytes). Cached
