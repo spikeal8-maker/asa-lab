@@ -86,8 +86,11 @@ parallel_lanes:
     worktree_id: electronics-wire-contact-hit-688
     owned_paths:
       - apps/web/src/electronics/workbench-geometry.ts
+      - apps/web/src/electronics/WorkbenchStage.tsx
+      - apps/web/src/electronics/use-electronics-workbench.ts
       - apps/web/src/electronics/testing/workbench-geometry.spec.ts
       - apps/web/src/electronics/testing/workbench-presentation.spec.ts
+      - e2e/electronics-interactions.spec.ts
       - docs/product/electronics/tasks/TASK-ELECTRONICS-WIRE-CONTACT-HIT-001.md
     task:
       id: TASK-ELECTRONICS-WIRE-CONTACT-HIT-001
@@ -110,11 +113,13 @@ parallel_lanes:
         - docs/product/electronics/components/ui-assets-persistence.yaml
       repair_scope: >-
         One shared contact geometry change for component/breadboard terminals and
-        selected wire endpoints; mouse and coarse touch hit radius no larger than
-        the painted contact outline. Only workbench-geometry.ts, its existing
-        geometry and presentation contract specs, this selection and the new
-        task card. Preserve Stage/controller, wiring, component art, electrical
-        model, other active lanes and school deployment.
+        selected wire endpoints; mouse and coarse touch target no larger than
+        painted marker. Independent review proved circular terminal hit misses
+        square painted corners: repair exact SVG rounded-rect shape in Stage
+        and matching captured-pointer reconnect geometry in existing hook,
+        with focused and existing R2 browser test repair. Preserve unrelated
+        Stage/controller code, physical netlist, asset art, other lanes and
+        deployment. No wire-segment hit geometry change.
     revisions:
       kind: observed_snapshot
       convergence_baseline_sha: 103ebb16e2dbdc90a753d172e5a5d216b3ffa655

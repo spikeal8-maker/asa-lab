@@ -27,6 +27,7 @@ import {
   roundedWirePath,
   stageReadoutGeometry,
   TERMINAL_HIT_RADIUS,
+  TERMINAL_HIT_CORNER_RADIUS,
   TERMINAL_MARKER_SIZE,
   TERMINAL_TOUCH_HIT_RADIUS,
   WIRE_ENDPOINT_HIT_RADIUS,
@@ -106,6 +107,7 @@ const BreadboardTerminalOverlay = memo(function BreadboardTerminalOverlay({
       const pending = pendingHoleId === hole.id || dropTarget;
       const connected = hoveredGroupId === hole.groupId;
       const active = pending || hoveredHoleId === hole.id;
+      const terminalHitRadius = coarseInteraction ? TERMINAL_TOUCH_HIT_RADIUS : TERMINAL_HIT_RADIUS;
       return (
         <g
           key={hole.id}
@@ -123,11 +125,13 @@ const BreadboardTerminalOverlay = memo(function BreadboardTerminalOverlay({
           }
           onPointerLeave={() => setHoveredBreadboardNet(null)}
         >
-          <circle
+          <rect
             className="workbench-breadboard-hole-hit"
-            cx={point.x}
-            cy={point.y}
-            r={coarseInteraction ? TERMINAL_TOUCH_HIT_RADIUS : TERMINAL_HIT_RADIUS}
+            x={point.x - terminalHitRadius}
+            y={point.y - terminalHitRadius}
+            width={terminalHitRadius * 2}
+            height={terminalHitRadius * 2}
+            rx={TERMINAL_HIT_CORNER_RADIUS}
             data-terminal-component-id={component.id}
             data-terminal-id={hole.id}
             role="button"
@@ -1188,6 +1192,7 @@ export function WorkbenchStage({
               c.pendingTerminal.terminal === terminal) ||
             dropTarget;
           const connected = c.terminalConnectionCount(component.id, terminal) > 0;
+          const terminalHitRadius = coarseInteraction ? TERMINAL_TOUCH_HIT_RADIUS : TERMINAL_HIT_RADIUS;
           return (
             <g
               key={terminal}
@@ -1197,9 +1202,13 @@ export function WorkbenchStage({
               transform={`translate(${point.x} ${point.y})`}
               data-connected={connected ? 'true' : 'false'}
             >
-              <circle
+              <rect
                 className="workbench-terminal-hit"
-                r={coarseInteraction ? TERMINAL_TOUCH_HIT_RADIUS : TERMINAL_HIT_RADIUS}
+                x={-terminalHitRadius}
+                y={-terminalHitRadius}
+                width={terminalHitRadius * 2}
+                height={terminalHitRadius * 2}
+                rx={TERMINAL_HIT_CORNER_RADIUS}
                 data-terminal-component-id={component.id}
                 data-terminal-id={terminal}
                 onPointerDown={(event) => c.startWireTerminalPointer(event, component.id, terminal)}

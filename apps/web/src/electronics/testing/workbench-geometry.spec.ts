@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   clientToWorld,
   completeOrthogonalRoute,
+  roundedRectContainsOffset,
   gestureViewport,
   fitViewportToScreen,
   diagnosticBadgeGeometry,
@@ -13,6 +14,7 @@ import {
   resolveWireVertexAssist,
   stageReadoutGeometry,
   TERMINAL_HIT_RADIUS,
+  TERMINAL_HIT_CORNER_RADIUS,
   TERMINAL_MARKER_SIZE,
   TERMINAL_TOUCH_HIT_RADIUS,
   WIRE_ENDPOINT_HIT_RADIUS,
@@ -240,6 +242,7 @@ describe('what the canvas is allowed to move', () => {
     expect(wiringHoverPaintEdge).toBe(5);
     expect(wireEndpointPaintEdge).toBe(5);
     expect(TERMINAL_HIT_RADIUS).toBeLessThanOrEqual(wiringHoverPaintEdge);
+    expect(TERMINAL_HIT_CORNER_RADIUS).toBe(1.6);
     expect(TERMINAL_HIT_RADIUS).toBe(terminalPaintEdge);
     expect(TERMINAL_TOUCH_HIT_RADIUS).toBe(terminalPaintEdge);
     expect(WIRE_ENDPOINT_HIT_RADIUS).toBe(wireEndpointPaintEdge);
@@ -254,6 +257,19 @@ describe('what the canvas is allowed to move', () => {
       // A pointer just outside the painted dot must not trigger its target.
       expect(Math.hypot(radius + 0.01, 0)).toBeGreaterThan(radius);
       expect(Math.hypot(radius - 0.01, 0)).toBeLessThan(radius);
+    }
+  });
+
+  it('captures the painted rounded-square corners but not the invisible halo', () => {
+    const half = TERMINAL_HIT_RADIUS;
+    const corner = TERMINAL_HIT_CORNER_RADIUS;
+    expect(roundedRectContainsOffset(3.9, 3.9, half, half, corner, corner)).toBe(true);
+    expect(roundedRectContainsOffset(4.6, 0, half, half, corner, corner)).toBe(true);
+    expect(roundedRectContainsOffset(4.61, 0, half, half, corner, corner)).toBe(false);
+    expect(roundedRectContainsOffset(4.5, 4.5, half, half, corner, corner)).toBe(false);
+    for (const zoom of [0.5, 1, 2, 4]) {
+      expect(roundedRectContainsOffset(3.9 * zoom, 3.9 * zoom, half * zoom, half * zoom, corner * zoom, corner * zoom)).toBe(true);
+      expect(roundedRectContainsOffset(4.61 * zoom, 0, half * zoom, half * zoom, corner * zoom, corner * zoom)).toBe(false);
     }
   });
 

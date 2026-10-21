@@ -36,6 +36,7 @@ import {
 import {
   clientToWorld,
   clamp,
+  roundedRectContainsOffset,
   completeOrthogonalRoute,
   fitViewportToScreen,
   gestureViewport,
@@ -2583,8 +2584,20 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
         if (radiusX <= 0 || radiusY <= 0) return [];
         const dx = clientX - (rect.left + rect.right) / 2;
         const dy = clientY - (rect.top + rect.bottom) / 2;
-        const normalizedDistance = Math.hypot(dx / radiusX, dy / radiusY);
+        const isRoundedRect = element.localName === 'rect';
+        const normalizedDistance = isRoundedRect
+          ? Math.max(Math.abs(dx / radiusX), Math.abs(dy / radiusY))
+          : Math.hypot(dx / radiusX, dy / radiusY);
         if (normalizedDistance > 1) return [];
+        if (isRoundedRect) {
+          const width = Number(element.getAttribute('width'));
+          const height = Number(element.getAttribute('height'));
+          const rx = Number(element.getAttribute('rx') ?? '0');
+          const ry = Number(element.getAttribute('ry') ?? element.getAttribute('rx') ?? '0');
+          const cornerX = width > 0 ? (rx * rect.width) / width : 0;
+          const cornerY = height > 0 ? (ry * rect.height) / height : 0;
+          if (!roundedRectContainsOffset(dx, dy, radiusX, radiusY, cornerX, cornerY)) return [];
+        }
         return [
           {
             componentId,
