@@ -63,6 +63,26 @@ describe('Ollama live HTTP protocol with deterministic fake transport', () => {
     expect(options).toMatchObject({ method: 'GET', redirect: 'error' });
     expect(JSON.stringify(options)).not.toContain('Bearer');
   });
+  it('converts a broken LAN model catalog stream to a safe 503 rather than an internal error', async () => {
+    const fetchImpl = vi.fn<typeof fetch>(
+      async () =>
+        new Response(
+          new ReadableStream<Uint8Array>({
+            start(controller) {
+              controller.enqueue(new TextEncoder().encode('{"models":['));
+              controller.error(new Error('private transport failure must not leak'));
+            },
+          }),
+        ),
+    );
+    await expect(discoverOllama('http://192.168.1.2:11434', fetchImpl)).rejects.toMatchObject({
+      code: 'ai_ollama_interrupted',
+      status: 503,
+      message: 'Соединение с Ollama прервалось при получении списка моделей.',
+    });
+    expect(fetchImpl).toHaveBeenCalledOnce();
+  });
+
   it('streams bounded NDJSON chunks and preserves real delta order', async () => {
     const encoder = new TextEncoder();
     const lines = [
