@@ -51,7 +51,7 @@ const manifest = {
     'Course Builder persists informational block structural controls into future versions only',
     'private authored course → approved Account → theory and real electronics submission → exact review',
     'private authored course → approved Account → theory and real three-d submission → exact review',
-    'Course Activity blocks preserve mixed order and open exact Electronics and 3D runtimes',
+    'Course Activity blocks preserve mixed order, exact Electronics/3D work and truthful mixed completion',
     'Course Builder corrects the exact second prepublish block and preserves later edits and published history',
     'Course archive rejects a stale assignment dialog, keeps exact replay and old learning, then restores assignment',
     'Course media errors survive saved author preview and learner delivery with explicit retry',
