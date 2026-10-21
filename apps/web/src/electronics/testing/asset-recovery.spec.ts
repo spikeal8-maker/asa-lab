@@ -538,6 +538,62 @@ describe('ordinary image mount lifecycle', () => {
       'Изображение детали не загрузилось',
     );
   });
+  it.each(['error', 'load'] as const)(
+    'installs connected listeners before the first href and retains immediate synthetic %s',
+    async (kind) => {
+      const fixture = mount();
+      const asset = `/assets/electronics/prevention-${kind}.svg`;
+      const assignments: { image: Element; connected: boolean; listening: boolean }[] = [];
+      const listeners = new WeakMap<EventTarget, Set<string>>();
+      const add = EventTarget.prototype.addEventListener;
+      vi.spyOn(EventTarget.prototype, 'addEventListener').mockImplementation(function (
+        this: EventTarget,
+        ...args: Parameters<typeof add>
+      ) {
+        const kinds = listeners.get(this) ?? new Set<string>();
+        kinds.add(args[0]);
+        listeners.set(this, kinds);
+        return Reflect.apply(add, this, args);
+      });
+      const set = Element.prototype.setAttribute;
+      vi.spyOn(Element.prototype, 'setAttribute').mockImplementation(function (
+        this: Element,
+        name: string,
+        value: string,
+      ) {
+        const result = Reflect.apply(set, this, [name, value]);
+        if (this.localName === 'image' && name === 'href' && value.startsWith(asset)) {
+          assignments.push({
+            image: this,
+            connected: this.isConnected,
+            listening: ['error', 'load'].every((type) => listeners.get(this)?.has(type)),
+          });
+          const event = new Event(kind);
+          expect(event.isTrusted).toBe(false);
+          this.dispatchEvent(event);
+        }
+        return result;
+      });
+      await fixture.render(asset, []);
+      const image = fixture.host.querySelector('image')!;
+      expect(assignments).toHaveLength(1);
+      expect(assignments[0]!.image).toBe(image);
+      expect(assignments[0]!.connected).toBe(true);
+      expect(assignments[0]!.listening).toBe(true);
+      expect(image.getAttribute('href')).toBe(asset);
+      await fixture.advance(1_500);
+      expect(fixture.probes).toHaveLength(kind === 'error' ? 3 : 0);
+      expect(fixture.host.querySelector('[data-owner-image-status="failed"]') !== null).toBe(
+        kind === 'error',
+      );
+      expect(fixture.host.querySelector('image')).toBe(image);
+      fixture.unmount();
+      const count = fixture.probes.length;
+      await act(async () => image.dispatchEvent(new Event('error')));
+      await fixture.advance(40_000);
+      expect(fixture.probes).toHaveLength(count);
+    },
+  );
   it('lets a later early load supersede an early error without inventing failure or recovery requests', async () => {
     const fixture = mount();
     await fixture.render('/assets/electronics/early-load-last.svg', ['error', 'load']);
@@ -1416,4 +1472,194 @@ describe('resident LED body preparation and joint DOM commit', () => {
       expect(f.lActive()).toBe('0');
     },
   );
+});
+
+describe('ordinary image listener ownership validation', () => {
+  const cleanups: (() => void)[] = [];
+  afterEach(() => cleanups.splice(0).forEach((cleanup) => cleanup()));
+  function fixture() {
+    vi.useFakeTimers();
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+    (
+      globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
+    ).IS_REACT_ACT_ENVIRONMENT = true;
+    configureProductionLibrary(
+      JSON.parse(
+        readFileSync(
+          resolve(
+            process.cwd(),
+            'apps/web/public/assets/electronics/component-database/catalog.json',
+          ),
+          'utf8',
+        ),
+      ),
+    );
+    const entry = catalogEntry('battery-holder-aa-2')!;
+    const probes: { href: string; load: () => void; error: () => void }[] = [];
+    class PendingImage {
+      naturalWidth = 10;
+      naturalHeight = 10;
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      set src(href: string) {
+        probes.push({ href, load: () => this.onload?.(), error: () => this.onerror?.() });
+      }
+    }
+    vi.stubGlobal('Image', PendingImage);
+    const host = document.body.appendChild(document.createElement('div'));
+    const root = createRoot(host);
+    let closed = false;
+    const close = () => {
+      if (!closed) {
+        closed = true;
+        act(() => root.unmount());
+        host.remove();
+      }
+    };
+    cleanups.push(close);
+    return {
+      host,
+      probes,
+      close,
+      render: async (asset: string, key = 'body') => {
+        await act(async () =>
+          root.render(
+            createElement(
+              'svg',
+              {},
+              createElement(ProductionComponentVisual, {
+                key,
+                entry: { ...entry, asset },
+                component: {
+                  id: 'listener-validation',
+                  kind: entry.kind,
+                  componentTypeId: entry.key,
+                  position: { x: 0, y: 0 },
+                  value: entry.defaultValue,
+                  rotation: 0,
+                  stateProperties: {},
+                },
+                width: 100,
+                height: 100,
+                visualState: 'default',
+              }),
+            ),
+          ),
+        );
+      },
+    };
+  }
+  async function native(image: Element, kind: 'error' | 'load') {
+    const event = new Event(kind);
+    expect(event.isTrusted).toBe(false);
+    await act(async () => {
+      image.dispatchEvent(event);
+    });
+  }
+  it('keeps selection-copy resource events outside the mounted consumer while genuine body errors still forward', async () => {
+    const f = fixture();
+    const asset = '/assets/electronics/validation-copy.svg';
+    await f.render(asset);
+    const image = f.host.querySelector('image')!;
+    const copy = image.cloneNode(true) as SVGImageElement;
+    image.parentNode!.appendChild(copy);
+    expect(copy.isConnected).toBe(true);
+    await native(copy, 'error');
+    await native(copy, 'load');
+    expect(f.probes).toHaveLength(0);
+    expect(f.host.querySelector('[data-owner-image-status="failed"]')).toBeNull();
+    await native(image, 'error');
+    expect(f.probes).toHaveLength(1);
+    expect(new URL(f.probes[0]!.href).pathname).toBe(asset);
+    await act(async () => f.probes[0]!.load());
+    expect(image.getAttribute('href')).toContain('asa-image-retry=0');
+    expect(copy.getAttribute('href')).toBe(asset);
+    copy.remove();
+  });
+  it('forwards current B events on the reused image and rejects the old A recovery completion', async () => {
+    const f = fixture();
+    const a = '/assets/electronics/validation-old-a.svg';
+    const b = '/assets/electronics/validation-current-b.svg';
+    await f.render(a);
+    const image = f.host.querySelector('image')!;
+    await native(image, 'error');
+    expect(f.probes).toHaveLength(1);
+    await f.render(b);
+    expect(f.host.querySelector('image')).toBe(image);
+    expect(image.getAttribute('href')).toBe(b);
+    await act(async () => f.probes[0]!.load());
+    expect(image.getAttribute('href')).toBe(b);
+    expect(f.probes).toHaveLength(1);
+    await native(image, 'error');
+    expect(f.probes).toHaveLength(2);
+    expect(new URL(f.probes[1]!.href).pathname).toBe(b);
+    await act(async () => f.probes[1]!.load());
+    expect(new URL(image.getAttribute('href')!).pathname).toBe(b);
+    expect(image.getAttribute('href')).toContain('asa-image-retry=0');
+    await native(image, 'load');
+    expect(f.host.querySelector('[data-owner-image-status="failed"]')).toBeNull();
+  });
+  it('removes exact listeners on replacement and unmount and ignores genuinely retired image events', async () => {
+    const f = fixture();
+    const added: {
+      target: EventTarget;
+      kind: string;
+      listener: EventListenerOrEventListenerObject | null;
+    }[] = [];
+    const removed: typeof added = [];
+    const add = EventTarget.prototype.addEventListener;
+    const remove = EventTarget.prototype.removeEventListener;
+    vi.spyOn(EventTarget.prototype, 'addEventListener').mockImplementation(function (
+      this: EventTarget,
+      ...args: Parameters<typeof add>
+    ) {
+      added.push({ target: this, kind: args[0], listener: args[1] });
+      return Reflect.apply(add, this, args);
+    });
+    vi.spyOn(EventTarget.prototype, 'removeEventListener').mockImplementation(function (
+      this: EventTarget,
+      ...args: Parameters<typeof remove>
+    ) {
+      removed.push({ target: this, kind: args[0], listener: args[1] });
+      return Reflect.apply(remove, this, args);
+    });
+    await f.render('/assets/electronics/validation-retired.svg', 'old');
+    const old = f.host.querySelector('image')!;
+    await f.render('/assets/electronics/validation-replacement.svg', 'new');
+    const current = f.host.querySelector('image')!;
+    expect(current).not.toBe(old);
+    expect(old.isConnected).toBe(false);
+    const verifyRemoved = (image: Element) => {
+      for (const kind of ['error', 'load']) {
+        const registrations = added.filter((row) => row.target === image && row.kind === kind);
+        // React also owns a nondelegated image listener. Identify our listener by
+        // the exact registration/removal pair, without requiring React cleanup.
+        const removals = removed.filter((row) => row.target === image && row.kind === kind);
+        const owned = registrations.filter((registration) =>
+          removals.some((removal) => removal.listener === registration.listener),
+        );
+        expect(owned.length).toBe(1);
+        expect(removals.length).toBe(1);
+        expect(removals[0]!.listener === owned[0]!.listener).toBe(true);
+        const react = registrations.filter((registration) => registration !== owned[0]);
+        expect(react.length).toBe(1);
+        expect(react[0]!.listener === owned[0]!.listener).toBe(false);
+        expect(removals.some((removal) => removal.listener === react[0]!.listener)).toBe(false);
+      }
+    };
+    verifyRemoved(old);
+    await native(old, 'error');
+    await native(old, 'load');
+    expect(f.probes).toHaveLength(0);
+    await native(current, 'error');
+    expect(f.probes).toHaveLength(1);
+    f.close();
+    verifyRemoved(current);
+    await native(current, 'error');
+    await native(current, 'load');
+    await act(async () => f.probes[0]!.load());
+    await act(async () => vi.advanceTimersByTimeAsync(40_000));
+    expect(f.probes).toHaveLength(1);
+    expect(f.host.childNodes).toHaveLength(0);
+  });
 });

@@ -2686,6 +2686,7 @@ test.describe('ELECTRONICS-525 complete instrument mirror matrix', () => {
           writeFileSync(
             info.outputPath('instrument525-raw.json'),
             JSON.stringify(journal, null, 2),
+            { flush: true },
           );
         const checkpoint = (name: string, observation?: unknown) => {
           journal['lastCheckpoint'] = name;
@@ -2949,7 +2950,17 @@ test.describe('ELECTRONICS-525 complete instrument mirror matrix', () => {
           await page.evaluate(() => {
             const events: unknown[] = [];
             (window as unknown as { instrument525Events: unknown[] }).instrument525Events = events;
-            for (const type of ['keydown', 'keyup', 'click', 'pointerdown', 'pointerup']) {
+            for (const type of [
+              'keydown',
+              'keyup',
+              'click',
+              'pointerdown',
+              'pointerup',
+              'pointermove',
+              'mousedown',
+              'mouseup',
+              'mousemove',
+            ]) {
               window.addEventListener(
                 type,
                 (event) => {
@@ -2964,6 +2975,20 @@ test.describe('ELECTRONICS-525 complete instrument mirror matrix', () => {
                     x: pointer.clientX,
                     y: pointer.clientY,
                     pointerType: pointer.pointerType,
+                    button: pointer.button,
+                    buttons: pointer.buttons,
+                    ancestry: target
+                      ? Array.from(
+                          (function* () {
+                            for (let node: Element | null = target; node; node = node.parentElement)
+                              yield {
+                                tag: node.tagName,
+                                id: node.id,
+                                class: node.getAttribute('class'),
+                              };
+                          })(),
+                        )
+                      : [],
                     componentId: target
                       ?.closest('[data-component-id]')
                       ?.getAttribute('data-component-id'),
@@ -3012,10 +3037,72 @@ test.describe('ELECTRONICS-525 complete instrument mirror matrix', () => {
             }
             const dx = field.x + field.width / 2 - bounds.x - bounds.width / 2;
             const dy = field.y + field.height * 0.4 - bounds.y - bounds.height / 2;
-            await page.mouse.move(field.x + 8, field.y + 8);
-            await page.mouse.down({ button: 'middle' });
-            await page.mouse.move(field.x + 8 + dx, field.y + 8 + dy, { steps: 4 });
-            await page.mouse.up({ button: 'middle' });
+            const panWitness = async (phase: string) => {
+              const observation = await page.evaluate(
+                ({ id, origin, destination }) => {
+                  const canvas = document.querySelector<SVGSVGElement>('.workbench-canvas');
+                  const body = document.querySelector<SVGGraphicsElement>(
+                    `[data-component-id="${id}"] .workbench-part`,
+                  );
+                  const ancestry = (node: Element | null) => {
+                    const result = [];
+                    for (; node; node = node.parentElement)
+                      result.push({
+                        tag: node.tagName,
+                        id: node.id,
+                        class: node.getAttribute('class'),
+                      });
+                    return result;
+                  };
+                  const geometry = (node: SVGGraphicsElement | null) => {
+                    const bounds = node?.getBoundingClientRect();
+                    const ctm = node?.getScreenCTM();
+                    return {
+                      bounds: bounds?.toJSON(),
+                      ctm: ctm ? [ctm.a, ctm.b, ctm.c, ctm.d, ctm.e, ctm.f] : null,
+                      connected: node?.isConnected ?? false,
+                    };
+                  };
+                  return {
+                    origin,
+                    destination,
+                    originHit: ancestry(document.elementFromPoint(origin.x, origin.y)),
+                    destinationHit: ancestry(
+                      document.elementFromPoint(destination.x, destination.y),
+                    ),
+                    canvas: geometry(canvas),
+                    body: geometry(body),
+                    viewBox: canvas?.getAttribute('viewBox'),
+                    events: (window as unknown as { instrument525Events: unknown[] })
+                      .instrument525Events,
+                  };
+                },
+                {
+                  id,
+                  origin: { x: field!.x + 8, y: field!.y + 8 },
+                  destination: { x: field!.x + 8 + dx, y: field!.y + 8 + dy },
+                },
+              );
+              journal['nativeEvents'] = observation.events;
+              checkpoint(`pan-${id}-${phase}`, observation);
+            };
+            await panWitness('before');
+            let panWitnessError: unknown;
+            try {
+              await page.mouse.move(field.x + 8, field.y + 8);
+              await page.mouse.down({ button: 'middle' });
+              await page.mouse.move(field.x + 8 + dx, field.y + 8 + dy, { steps: 4 });
+              await page.mouse.up({ button: 'middle' });
+            } finally {
+              try {
+                await panWitness('after');
+              } catch (error) {
+                rows.push({ name: `pan-${id}-witness-error`, error: String(error) });
+                write();
+                panWitnessError = error;
+              }
+            }
+            if (panWitnessError) throw panWitnessError;
             field = await canvas.boundingBox();
             bounds = await body.boundingBox();
             checkpoint(`focused-${id}`, { field, bounds });
@@ -3433,11 +3520,15 @@ test.describe('ELECTRONICS-525 complete instrument mirror matrix', () => {
             // Every mirror/width exercises the real controls, not an oracle-only transform.
             if (rotation === 0) {
               await focusInstrument('meter');
-              await meter.locator('.workbench-multimeter-mode-resistance').click();
+              await meter
+                .locator('.workbench-multimeter-mode-button.workbench-multimeter-mode-resistance')
+                .click();
               await expect(meter).toHaveAttribute('data-measurement-mode', 'resistance');
               await expect(meter.locator('.workbench-multimeter-reading')).toHaveText('ОШИБКА');
               await capture('meter', rotation, 'external-voltage-error');
-              await meter.locator('.workbench-multimeter-mode-voltage').click();
+              await meter
+                .locator('.workbench-multimeter-mode-button.workbench-multimeter-mode-voltage')
+                .click();
               await expect(meter.locator('.workbench-multimeter-reading')).toHaveText('-3.000 V');
               await focusInstrument('bench-supply');
               const supply = component(page, 'regulated-power-supply').getByTestId(
@@ -3657,6 +3748,15 @@ test.describe('ELECTRONICS-525 complete instrument mirror matrix', () => {
           write();
           throw error;
         } finally {
+          try {
+            journal['nativeEvents'] = await page.evaluate(
+              () =>
+                (window as unknown as { instrument525Events?: unknown[] }).instrument525Events ??
+                [],
+            );
+          } catch (error) {
+            journal['nativeEventHarvestError'] = String(error);
+          }
           write();
           for (const target of [reopenedContext, context]) {
             if (!target) continue;

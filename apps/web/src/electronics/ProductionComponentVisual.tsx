@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type SVGProps,
   type PointerEvent as ReactPointerEvent,
 } from 'react';
 import type { ComponentResult, SchematicComponent } from '../api';
@@ -516,6 +517,33 @@ function useOwnerImageHref(asset: string): {
     onError: () => notify('error'),
     onLoad: () => notify('load'),
   };
+}
+
+function OwnerOrdinaryImage({
+  href,
+  onError,
+  onLoad,
+  ...props
+}: Omit<SVGProps<SVGImageElement>, 'onError' | 'onLoad'> & {
+  onError: () => void;
+  onLoad: () => void;
+}) {
+  const element = useRef<SVGImageElement>(null);
+  const handlers = useRef({ onError, onLoad });
+  handlers.current = { onError, onLoad };
+  useLayoutEffect(() => {
+    const image = element.current!;
+    const error = () => handlers.current.onError();
+    const load = () => handlers.current.onLoad();
+    image.addEventListener('error', error);
+    image.addEventListener('load', load);
+    image.setAttribute('href', href!);
+    return () => {
+      image.removeEventListener('error', error);
+      image.removeEventListener('load', load);
+    };
+  }, [href]);
+  return <image {...props} ref={element} />;
 }
 
 interface MountedLedBindingState {
@@ -1985,7 +2013,7 @@ export function ProductionComponentVisual({
               />
             </g>
           ) : (
-            <image
+            <OwnerOrdinaryImage
               href={ownerImage.href}
               onError={ownerImage.onError}
               onLoad={ownerImage.onLoad}
@@ -2296,7 +2324,7 @@ export function ProductionComponentVisual({
             />
           ) : (
             <>
-              <image
+              <OwnerOrdinaryImage
                 className={entry.key === 'led-5mm' ? 'workbench-led-asset' : undefined}
                 href={ownerImage.href}
                 onError={ownerImage.onError}
