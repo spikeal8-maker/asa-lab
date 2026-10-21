@@ -5,6 +5,7 @@ import {
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
 import type pg from 'pg';
 import { AiTextHistoryStore } from './ai-text-history.js';
+import { discoverOllamaModels, generateOllamaText, ollamaOrigin, type OllamaModel } from './ai-ollama.js';
 import {
   AI_PRODUCT_FEATURES,
   buildAiTextRequest,
@@ -51,6 +52,20 @@ export interface AiAdminConfig {
   readonly keyFingerprint: string | null;
   readonly configurationVersion: number;
   readonly updatedAt: string | null;
+}
+
+export interface AiOllamaConfig {
+  readonly baseUrl: string;
+  readonly model: string;
+  readonly configurationVersion: number;
+  readonly active: boolean;
+  readonly enabled: boolean;
+  readonly updatedAt: string | null;
+}
+
+interface OllamaRuntimeRow {
+  readonly base_url: string;
+  readonly model_name: string;
 }
 
 export interface AiAdminUpdate {
@@ -204,6 +219,140 @@ export class AiChatService {
     };
   }
 
+
+  async adminOllamaConfig(principalId: string): Promise<AiOllamaConfig> {
+    const result = await this.pool.query<{
+      base_url: string; model_name: string; configuration_version: number | string;
+      active: boolean; enabled: boolean; updated_at: Date | string | null;
+    }>('SELECT * FROM ai_admin_ollama_get($1)', [principalId]);
+    const row = result.rows[0];
+    if (!row) {
+      throw new AiServiceError('ai_ollama_unavailable', 503, 'Настройки Ollama недоступны.');
+    }
+    return {
+      baseUrl: row.base_url,
+      model: row.model_name,
+      configurationVersion: Number(row.configuration_version),
+      active: row.active,
+      enabled: row.enabled,
+      updatedAt: iso(row.updated_at),
+    };
+  }
+
+  async discoverOllama(principalId: string, address: string): Promise<{ models: OllamaModel[] }> {
+    await this.adminConfig(principalId);
+    try {
+      return { models: await discoverOllamaModels(this.fetchImpl, address) };
+    } catch (problem) {
+      return this.rethrowOllamaError(problem);
+    }
+  }
+
+  async saveOllamaConfig(
+    principalId: string,
+    input: { baseUrl: string; model: string; enabled: boolean; configurationVersion: number },
+    requestId: string,
+  ): Promise<AiOllamaConfig> {
+    const origin = this.validateOllamaAddress(input.baseUrl);
+    if (!/^[\w./:-]{1,128}$/.test(input.model)) {
+      throw new AiServiceError('ai_ollama_model_invalid', 400, 'Выберите модель Ollama из каталога.');
+    }
+    const before = await this.adminConfig(principalId);
+    if (before.configurationVersion !== input.configurationVersion) {
+      throw new AiServiceError('ai_config_changed', 409, 'Настройки изменились. Перезагрузите страницу.');
+    }
+    if (input.enabled) {
+      const { models } = await this.discoverOllama(principalId, origin);
+      if (!models.some((model) => model.name === input.model)) {
+        throw new AiServiceError('ai_ollama_model_missing', 409, 'Эта модель не установлена на выбранном сервере Ollama.');
+      }
+    }
+    try {
+      await this.pool.query(
+        'SELECT ai_admin_ollama_set($1,$2::varchar,$3::varchar,$4,$5::bigint,$6::varchar)',
+        [principalId, origin, input.model, input.enabled, input.configurationVersion, requestId],
+      );
+    } catch (problem) {
+      this.rethrowAdmissionError(problem);
+      if ((problem as { code?: string }).code === '42501') {
+        throw new AiServiceError('ai_admin_denied', 403, 'Нет доступа к настройкам Ollama.');
+      }
+      if ((problem as { code?: string }).code === '22023') {
+        throw new AiServiceError('ai_ollama_config_invalid', 400, 'Некорректные настройки Ollama.');
+      }
+      throw problem;
+    }
+    const after = await this.adminOllamaConfig(principalId);
+    if (after.configurationVersion !== before.configurationVersion + 1) {
+      throw new AiServiceError('ai_config_changed', 409, 'Настройки изменились во время сохранения.');
+    }
+    return after;
+  }
+
+  async testOllama(
+    principalId: string,
+    expectedVersion: number,
+  ): Promise<{ model: string; testedAt: string; elapsedMs: number; configurationVersion: number }> {
+    const settings = await this.adminOllamaConfig(principalId);
+    if (settings.configurationVersion !== expectedVersion || !settings.model) {
+      throw new AiServiceError('ai_config_changed', 409, 'Настройки Ollama изменились.');
+    }
+    const started = Date.now();
+    try {
+      const answer = await generateOllamaText({
+        fetchImpl: this.fetchImpl,
+        address: settings.baseUrl,
+        model: settings.model,
+        context: [{ role: 'user', content: 'Ответь одним словом: ОК.' }],
+        instructions: 'Тест подключения Ollama. Ответь кратко.',
+        signal: new AbortController().signal,
+        onDelta: () => undefined,
+        stream: false,
+      });
+      if (!answer.text.trim()) {
+        throw new AiServiceError('ai_ollama_empty', 503, 'Ollama не вернула ответ.');
+      }
+    } catch (problem) {
+      return this.rethrowOllamaError(problem);
+    }
+    const after = await this.adminOllamaConfig(principalId);
+    if (after.configurationVersion !== expectedVersion) {
+      throw new AiServiceError('ai_config_changed', 409, 'Настройки Ollama изменились во время теста.');
+    }
+    return {
+      model: settings.model,
+      configurationVersion: expectedVersion,
+      testedAt: new Date().toISOString(),
+      elapsedMs: Date.now() - started,
+    };
+  }
+
+  private validateOllamaAddress(value: string): string {
+    try {
+      return ollamaOrigin(value);
+    } catch (problem) {
+      return this.rethrowOllamaError(problem);
+    }
+  }
+
+  private rethrowOllamaError(problem: unknown): never {
+    if (problem instanceof ProviderStreamError) {
+      throw new AiServiceError(problem.code, problem.status, problem.message);
+    }
+    if (problem instanceof AiServiceError) throw problem;
+    throw new AiServiceError('ai_ollama_unreachable', 503, 'Ollama не отвечает.');
+  }
+
+  private async runtimeOllama(): Promise<OllamaRuntimeRow> {
+    const result = await this.pool.query<OllamaRuntimeRow>('SELECT * FROM ai_runtime_ollama()');
+    const row = result.rows[0];
+    if (!row || !row.model_name) {
+      throw new AiServiceError('ai_ollama_unavailable', 503, 'Настройте модель Ollama в админке.');
+    }
+    this.validateOllamaAddress(row.base_url);
+    return row;
+  }
+
   async saveAdminConfig(
     principalId: string,
     input: AiAdminUpdate,
@@ -220,6 +369,9 @@ export class AiChatService {
         400,
         'Лимит должен быть целым числом от 0 до 2147483647.',
       );
+    }
+    if (input.provider === 'ollama') {
+      throw new AiServiceError('ai_ollama_use_separate_config', 400, 'Настройте Ollama в отдельной вкладке.');
     }
     if (!isModelForProvider(input.provider, input.model)) {
       throw new AiServiceError('ai_model_invalid', 400, 'Модель не соответствует провайдеру.');
@@ -332,6 +484,9 @@ export class AiChatService {
     }
     const runtime = await this.runtime();
     this.requireSupportedModel(runtime);
+    if (runtime.provider === 'ollama') {
+      throw new AiServiceError('ai_ollama_use_separate_test', 400, 'Используйте проверку во вкладке Ollama.');
+    }
     const key = this.requireProviderKey(runtime);
     const started = Date.now();
     try {
@@ -395,11 +550,14 @@ export class AiChatService {
   }> {
     const config = await this.runtime();
     const modelCatalog = getAiModelCatalog();
+    const usable = config.provider === 'ollama'
+      ? await this.runtimeOllama().then(() => true).catch(() => false)
+      : this.decrypt(config) !== null;
     return {
       enabled:
         config.enabled &&
         isModelForProvider(config.provider, config.model) &&
-        this.decrypt(config) !== null,
+        usable,
       provider: config.provider,
       model: config.model,
       availableModels: modelCatalog.models
@@ -519,7 +677,8 @@ export class AiChatService {
     if (!runtime.enabled) {
       throw new AiServiceError('ai_disabled', 503, 'ИИ выключен администратором.');
     }
-    const apiKey = this.requireProviderKey(runtime);
+    const local = runtime.provider === 'ollama' ? await this.runtimeOllama() : null;
+    const apiKey = local ? '' : this.requireProviderKey(runtime);
     const requestId = clientRequestId.toLowerCase();
     let accepted: boolean;
     try {
@@ -561,7 +720,7 @@ export class AiChatService {
 
     try {
       const context = await this.history.generationContext(principalId, threadId, requestId);
-      const reply = await this.generate(runtime, apiKey, context);
+      const reply = await this.generate(runtime, apiKey, context, local);
       await this.pool.query('SELECT ai_chat_finish($1,$2,$3,$4::varchar,$5::varchar)', [
         principalId,
         threadId,
@@ -654,7 +813,8 @@ export class AiChatService {
     if (!runtime.enabled) {
       throw new AiServiceError('ai_disabled', 503, 'ИИ выключен администратором.');
     }
-    const apiKey = this.requireProviderKey(runtime);
+    const local = runtime.provider === 'ollama' ? await this.runtimeOllama() : null;
+    const apiKey = local ? '' : this.requireProviderKey(runtime);
 
     let admitted: boolean;
     try {
@@ -710,16 +870,27 @@ export class AiChatService {
     this.activeStreams.set(operationKey, { principalId, threadId, abort });
     try {
       const context = await this.history.generationContext(principalId, threadId, requestId);
-      const result = await streamProviderText({
-        fetchImpl: this.fetchImpl,
-        provider: runtime.provider,
-        model,
-        apiKey,
-        context,
-        instructions: ASSISTANT_INSTRUCTIONS,
-        signal: combined,
-        onDelta,
-      });
+      const result = local
+        ? await generateOllamaText({
+            fetchImpl: this.fetchImpl,
+            address: local.base_url,
+            model: local.model_name,
+            context,
+            instructions: ASSISTANT_INSTRUCTIONS,
+            signal: combined,
+            onDelta,
+            stream: true,
+          })
+        : await streamProviderText({
+            fetchImpl: this.fetchImpl,
+            provider: runtime.provider as 'openai' | 'deepseek',
+            model,
+            apiKey,
+            context,
+            instructions: ASSISTANT_INSTRUCTIONS,
+            signal: combined,
+            onDelta,
+          });
 
       if (result.text.trim()) {
         await this.pool.query('SELECT ai_chat_finish($1,$2,$3,$4::varchar,$5::varchar)', [
@@ -940,9 +1111,22 @@ export class AiChatService {
     runtime: RuntimeRow,
     apiKey: string,
     context: readonly { role: 'user' | 'assistant'; content: string }[],
+    local: OllamaRuntimeRow | null,
   ): Promise<ProviderStreamResult> {
+    if (local) {
+      return generateOllamaText({
+        fetchImpl: this.fetchImpl,
+        address: local.base_url,
+        model: local.model_name,
+        context,
+        instructions: ASSISTANT_INSTRUCTIONS,
+        signal: new AbortController().signal,
+        onDelta: () => undefined,
+        stream: false,
+      });
+    }
     const request = buildAiTextRequest(
-      runtime.provider,
+      runtime.provider as 'openai' | 'deepseek',
       runtime.model,
       context,
       ASSISTANT_INSTRUCTIONS,
@@ -974,6 +1158,6 @@ export class AiChatService {
     } catch {
       throw new AiServiceError('ai_response_invalid', 503, 'Модель вернула некорректный ответ.');
     }
-    return parseProviderText(runtime.provider, body);
+    return parseProviderText(runtime.provider as 'openai' | 'deepseek', body);
   }
 }

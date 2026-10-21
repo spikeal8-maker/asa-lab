@@ -45,6 +45,7 @@ describe('server-owned catalog and provider request policy', () => {
     expect(catalog.providers.map((provider) => provider.defaultModel)).toEqual([
       'gpt-6-luna',
       'deepseek-flash',
+      'ollama-local',
     ]);
     expect(catalog.models.find((model) => model.id === 'deepseek-flash')?.inputModalities).toEqual([
       'text',
@@ -84,6 +85,8 @@ describe('server-owned catalog and provider request policy', () => {
     ['deepseek', 'deepseek-chat'],
     ['deepseek', 'deepseek-reasoner'],
     ['deepseek', 'gpt-6-luna'],
+    ['ollama', 'gpt-6-luna'],
+    ['openai', 'ollama-local'],
     ['openai', 'deepseek-flash'],
     ['openai', 'https://example.test/arbitrary-model'],
     ['unknown', 'gpt-6-luna'],
@@ -143,6 +146,7 @@ describe('catalog/config API boundaries', () => {
     ['deepseek', 'deepseek-flash', true],
     ['deepseek', 'deepseek-v4-pro', true],
     ['openai', 'gpt-6-luna', true],
+    ['ollama', 'ollama-local', false],
     ['deepseek', 'deepseek-chat', false],
     ['openai', 'deepseek-flash', false],
     ['unknown', 'gpt-6-luna', false],

@@ -99,6 +99,58 @@ export class AiAdminController {
     return this.safe(() => this.ai.testConnection(principalId, Number(body.configurationVersion)));
   }
 
+  @Get('ollama')
+  async ollama(@Req() request: FastifyRequest) {
+    const principalId = await this.requirePlatformAdmin(request);
+    return this.safe(() => this.ai.adminOllamaConfig(principalId));
+  }
+
+  @Post('ollama/discover')
+  @HttpCode(200)
+  async discoverOllama(@Req() request: FastifyRequest, @Body() raw: unknown) {
+    this.requireSameOrigin(request);
+    const principalId = await this.requirePlatformAdmin(request);
+    const value = raw as { baseUrl?: unknown } | null;
+    if (!value || typeof value.baseUrl !== 'string') {
+      return reject('ai_ollama_address_invalid', 'Укажите адрес Ollama.', 400);
+    }
+    return this.safe(() => this.ai.discoverOllama(principalId, value.baseUrl as string));
+  }
+
+  @Put('ollama')
+  @HttpCode(200)
+  async saveOllama(@Req() request: FastifyRequest, @Body() raw: unknown) {
+    this.requireSameOrigin(request);
+    const principalId = await this.requirePlatformAdmin(request);
+    const value = raw as Record<string, unknown> | null;
+    if (!value || typeof value !== 'object' || Array.isArray(value) ||
+        typeof value['baseUrl'] !== 'string' || typeof value['model'] !== 'string' ||
+        typeof value['enabled'] !== 'boolean' || !Number.isSafeInteger(value['configurationVersion']) ||
+        Number(value['configurationVersion']) < 1) {
+      return reject('ai_ollama_config_invalid', 'Неверные настройки Ollama.', 400);
+    }
+    return this.safe(() => this.ai.saveOllamaConfig(principalId, {
+      baseUrl: value['baseUrl'] as string,
+      model: value['model'] as string,
+      enabled: value['enabled'] as boolean,
+      configurationVersion: value['configurationVersion'] as number,
+    }, request.id));
+  }
+
+  @Post('ollama/test')
+  @HttpCode(200)
+  async testOllama(@Req() request: FastifyRequest, @Body() raw: unknown) {
+    this.requireSameOrigin(request);
+    const principalId = await this.requirePlatformAdmin(request);
+    const value = raw as { acknowledgeGpuRequest?: unknown; configurationVersion?: unknown } | null;
+    if (!value || value.acknowledgeGpuRequest !== true ||
+        !Number.isSafeInteger(value.configurationVersion) ||
+        Number(value.configurationVersion) < 1) {
+      return reject('ai_ollama_test_confirmation_required', 'Подтвердите вычислительный тест Ollama.', 400);
+    }
+    return this.safe(() => this.ai.testOllama(principalId, Number(value.configurationVersion)));
+  }
+
   @Put()
   @HttpCode(200)
   async update(@Req() request: FastifyRequest, @Body() raw: unknown) {
@@ -116,7 +168,7 @@ export class AiAdminController {
     const paidOperationsPerHour = value['paidOperationsPerHour'];
     const configurationVersion = value['configurationVersion'];
     if (
-      !isAiProvider(provider) ||
+      !isAiProvider(provider) || provider === 'ollama' ||
       !isModelForProvider(provider, model) ||
       typeof enabled !== 'boolean' ||
       (paidOperationsPerHour !== undefined &&

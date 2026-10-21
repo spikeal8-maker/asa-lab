@@ -9,6 +9,14 @@
  */
 const MODELS = [
   {
+    id: 'ollama-local',
+    provider: 'ollama',
+    label: 'Ollama · серверная модель',
+    vision: false,
+    shutdownDate: null,
+    reasoning: null,
+  },
+  {
     id: 'gpt-6-luna',
     provider: 'openai',
     label: 'GPT-6 Luna',
@@ -56,6 +64,7 @@ export type AiModel = (typeof MODELS)[number]['id'];
 const PROVIDERS = [
   { id: 'openai', label: 'OpenAI (GPT)', defaultModel: 'gpt-6-luna' },
   { id: 'deepseek', label: 'DeepSeek', defaultModel: 'deepseek-flash' },
+  { id: 'ollama', label: 'Ollama (локальная сеть)', defaultModel: 'ollama-local' },
 ] as const;
 
 /** Provider support does not enable an ASA upload, document or image generation adapter. */
@@ -92,7 +101,7 @@ export function isModelForProvider(
 
 export function getAiModelCatalog(now = Date.now()) {
   return {
-    revision: '2026-10-19',
+    revision: '2026-10-21-ollama-lan',
     providers: PROVIDERS,
     models: MODELS.map((model) => ({
       id: model.id,
@@ -127,6 +136,9 @@ export function buildAiTextRequest(
   const descriptor = MODELS.find((candidate) => candidate.id === model);
   if (!descriptor || !isModelForProvider(provider, model)) {
     throw new Error('AI_MODEL_UNAVAILABLE');
+  }
+  if (provider === 'ollama') {
+    throw new Error('AI_OLLAMA_REQUIRES_PRIVATE_LAN_ADAPTER');
   }
   return provider === 'openai'
     ? {
