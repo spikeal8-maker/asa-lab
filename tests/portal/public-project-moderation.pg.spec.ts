@@ -27,8 +27,9 @@ afterAll(async () => {
         [projects],
       );
   } finally {
+    // buildTestApp owns the runtime pool and closes it with Nest shutdown.
     await app?.close();
-    await Promise.all([runtime?.end(), admin?.end()]);
+    await admin?.end();
   }
 });
 
