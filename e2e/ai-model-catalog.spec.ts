@@ -465,10 +465,14 @@ for (const width of [1440, 390]) {
     await page.getByRole('tab', { name: 'Ollama' }).click();
     const endpoint = page.getByLabel('Адрес Ollama');
     await expect(endpoint).toHaveValue('http://127.0.0.1:11434');
-    await expect(page.getByRole('button', { name: 'Проверить реальный ответ модели' })).toBeEnabled();
+    await expect(
+      page.getByRole('button', { name: 'Проверить реальный ответ модели' }),
+    ).toBeEnabled();
 
     await endpoint.fill('http://192.168.1.20:11434');
-    await expect(page.getByRole('button', { name: 'Проверить реальный ответ модели' })).toBeDisabled();
+    await expect(
+      page.getByRole('button', { name: 'Проверить реальный ответ модели' }),
+    ).toBeDisabled();
     await page.getByRole('button', { name: 'Найти установленные модели' }).click();
     await expect(page.getByText('Ollama доступна. Найдено моделей: 2')).toBeVisible();
     await page.getByLabel('Модель Ollama').fill('ornith:9b');
