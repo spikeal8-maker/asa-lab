@@ -80,7 +80,7 @@ beforeAll(async () => {
         store: boolean;
         input: Array<{ role: string; content: string }>;
       };
-      expect(posted.model).toBe('gpt-5-mini');
+      expect(posted.model).toBe('gpt-6-luna');
       expect(posted.store).toBe(false);
       expect(posted.input.at(-1)?.content).toBe('Что такое Arduino?');
       return new Response(
@@ -142,7 +142,7 @@ describe('AI Chat PostgreSQL access and request replay', () => {
         {
           enabled: true,
           provider: 'openai',
-          model: 'gpt-5-mini',
+          model: 'gpt-6-luna',
           apiKey: 'sk-ai-private-integration-key-001',
         },
         randomUUID(),
@@ -154,7 +154,7 @@ describe('AI Chat PostgreSQL access and request replay', () => {
       {
         enabled: true,
         provider: 'openai',
-        model: 'gpt-5-mini',
+        model: 'gpt-6-luna',
         apiKey: 'sk-ai-private-integration-key-001',
         paidOperationsPerHour: 1000,
       },
@@ -298,7 +298,7 @@ describe('AI Chat PostgreSQL access and request replay', () => {
     const fresh = await adapter.createThread(actor.principalId);
     await expect(
       adapter.send(actor.principalId, fresh.id, text, deletedRequest),
-    ).rejects.toMatchObject({ code: 'ai_input_invalid', status: 400 });
+    ).rejects.toMatchObject({ code: 'ai_request_id_reused', status: 409 });
     await expect(
       adapter.send(actor.principalId, fresh.id, text, randomUUID()),
     ).rejects.toMatchObject({ code: 'ai_rate_limit', status: 429 });
@@ -479,7 +479,7 @@ describe('AI Chat PostgreSQL access and request replay', () => {
         payload: {
           message: 'Неподдерживаемый DeepSeek',
           requestId: randomUUID(),
-          model: 'deepseek-chat',
+          model: 'deepseek-flash',
         },
       });
       expect(invalidModel.statusCode).toBe(200);
@@ -525,7 +525,7 @@ describe('AI Chat PostgreSQL access and request replay', () => {
       expect(verification.statusCode).toBe(200);
       expect(verification.json()).toMatchObject({
         provider: 'openai',
-        model: 'gpt-5-mini',
+        model: 'gpt-6-luna',
         configurationVersion,
       });
       expect(verification.body).not.toContain('sk-ai-private-integration-key-001');
@@ -876,7 +876,7 @@ describe('AI Chat PostgreSQL access and request replay', () => {
         {
           enabled: true,
           provider,
-          model: provider === 'openai' ? 'gpt-5-mini' : 'deepseek-chat',
+          model: provider === 'openai' ? 'gpt-6-luna' : 'deepseek-flash',
           apiKey: 'sk-ai-private-integration-key-001',
           paidOperationsPerHour: 1000,
         },
@@ -946,7 +946,7 @@ describe('AI Chat PostgreSQL access and request replay', () => {
           {
             enabled: true,
             provider: 'openai',
-            model: 'gpt-5-mini',
+            model: 'gpt-6-luna',
             apiKey: 'sk-ai-private-integration-key-001',
             paidOperationsPerHour: 1000,
           },

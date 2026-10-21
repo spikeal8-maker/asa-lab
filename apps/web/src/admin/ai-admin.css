@@ -103,6 +103,46 @@
   flex-wrap: wrap;
   gap: 16px;
 }
+.asa-ai-provider-slots,
+.asa-ai-model-capabilities {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid #dce6eb;
+  border-radius: 10px;
+  background: #f4f8fb;
+}
+.asa-ai-provider-slots p {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 14px;
+}
+.asa-ai-provider-slots p,
+.asa-ai-model-capabilities p {
+  margin: 0;
+}
+.asa-ai-provider-slots small,
+.asa-ai-model-capabilities small {
+  color: #506575;
+}
+.asa-ai-model-capabilities dl {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  font-size: 13px;
+}
+.asa-ai-model-capabilities dl > div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 14px;
+}
+.asa-ai-model-capabilities dd {
+  margin: 0;
+  color: #506575;
+}
 @media (max-width: 640px) {
   .asa-ai-admin-status {
     grid-template-columns: 1fr;

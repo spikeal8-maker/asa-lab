@@ -237,7 +237,7 @@ describe('API application factory', () => {
       expect(ready.statusCode).toBe(503);
       expect(ready.json()).toEqual({
         status: 'not_ready',
-        dependencies: { database: 'down' },
+        dependencies: { database: 'down', credentialConfiguration: 'valid' },
         deployment: {
           revision: 'development',
           builtAt: null,
@@ -263,7 +263,7 @@ describe('API application factory', () => {
       expect(ready.statusCode).toBe(200);
       expect(ready.json()).toEqual({
         status: 'ready',
-        dependencies: { database: 'up' },
+        dependencies: { database: 'up', credentialConfiguration: 'valid' },
         deployment: {
           revision: 'development',
           builtAt: null,

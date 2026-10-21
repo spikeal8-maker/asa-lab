@@ -22,7 +22,7 @@ function fakeSse(payload: string, parts: number[] = []): Response {
 
 const input = {
   provider: 'openai' as const,
-  model: 'gpt-5-mini',
+  model: 'gpt-6-luna',
   apiKey: 'sk-test-only-not-a-secret',
   context: [{ role: 'user' as const, content: 'Что такое Arduino?' }],
   instructions: 'Test instruction',
@@ -63,7 +63,7 @@ describe('provider SSE adapter', () => {
     const result = await streamProviderText({
       ...input,
       provider: 'deepseek',
-      model: 'deepseek-chat',
+      model: 'deepseek-flash',
       fetchImpl,
       signal: new AbortController().signal,
       onDelta: (text) => calls.push(text),
@@ -75,7 +75,7 @@ describe('provider SSE adapter', () => {
     expect(url).toBe('https://api.deepseek.com/chat/completions');
     expect(JSON.parse(String(options?.body))).toMatchObject({
       stream: true,
-      model: 'deepseek-chat',
+      model: 'deepseek-flash',
     });
   });
 
@@ -143,6 +143,7 @@ describe('provider SSE adapter', () => {
     const result = await streamProviderText({
       ...input,
       provider: 'deepseek',
+      model: 'deepseek-flash',
       fetchImpl,
       signal: new AbortController().signal,
       onDelta: () => undefined,
@@ -158,6 +159,7 @@ describe('provider SSE adapter', () => {
       streamProviderText({
         ...input,
         provider: 'deepseek',
+        model: 'deepseek-flash',
         fetchImpl,
         signal: new AbortController().signal,
         onDelta: () => undefined,

@@ -1,0 +1,96 @@
+.classroom-ai-access {
+  min-width: 0;
+  display: grid;
+  gap: 12px;
+}
+.classroom-ai-access p {
+  margin: 0;
+  line-height: 1.5;
+}
+.classroom-ai-access label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  font-size: 14px;
+}
+.classroom-ai-access label span {
+  font-size: 12px;
+  color: var(--izo-text-muted, #64748b);
+}
+.classroom-ai-access input,
+.classroom-ai-access select {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+.classroom-ai-access button {
+  min-height: 40px;
+  white-space: normal;
+}
+.classroom-ai-access__rule {
+  display: grid;
+  gap: 12px;
+  justify-items: start;
+}
+.classroom-ai-access__rule label {
+  width: min(100%, 460px);
+}
+.classroom-ai-access__rule input {
+  max-width: 160px;
+}
+.classroom-ai-access__students summary {
+  cursor: pointer;
+  padding: 10px 0;
+  font-weight: 600;
+}
+.classroom-ai-access__students > p,
+.classroom-ai-access__students > label {
+  margin: 8px 0 12px;
+}
+.classroom-ai-access__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+}
+.classroom-ai-access__list li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: start;
+  gap: 12px;
+  align-items: end;
+  border-top: 1px solid var(--izo-border, #dbe4ef);
+  padding: 12px 0;
+}
+.classroom-ai-access__student-name {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  align-self: center;
+  overflow-wrap: anywhere;
+}
+.classroom-ai-access__student-name span {
+  font-size: 12px;
+}
+.classroom-ai-access__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+.classroom-ai-access__error {
+  color: var(--izo-danger, #b91c1c);
+}
+@media (max-width: 1024px) {
+  .classroom-ai-access__list li {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: start;
+  }
+  .classroom-ai-access__list label {
+    width: 100%;
+  }
+}
+
+.classroom-ai-access__list label {
+  width: 100%;
+}

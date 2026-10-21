@@ -41,7 +41,8 @@ import {
   resolveIsolatedTestWebOrigin,
   resolveLocalApiOrigin,
 } from './origin-policy.js';
-import { MutationAbuseProtection } from './abuse-protection.js';
+import { createMutationSessionResolver, MutationAbuseProtection } from './abuse-protection.js';
+import { registerAiAttachmentTransport } from './ai-attachments/transport.js';
 import { assertTrustedProxyConfiguration } from './client-address.js';
 import {
   applyBlocksRuntimeCors,
@@ -329,6 +330,7 @@ export async function createApiApp(
     fastify.addHook('onClose', cleanup);
     const blocksRuntimeOrigin = optionalBlocksRuntimeOrigin();
     registerBlocksRuntimeTransport(fastify, blocksRuntimeOrigin);
+    registerAiAttachmentTransport(fastify);
     await fastify.register(fastifyCookie);
 
     fastify.addHook('onSend', async (request, reply, payload) => {
@@ -363,10 +365,18 @@ export async function createApiApp(
       if (!requestFailures.has(request))
         recordServerFailure(error, request, error.statusCode ?? 500, logRevision, pool);
     });
-    const mutationAbuseProtection = new MutationAbuseProtection(async (kind, token) =>
-      kind === 'account'
-        ? (await app.get<ActiveContextUseCase>(TOKENS.activeContextUseCase).resolve(token)) !== null
-        : (await app.get<SeatContextUseCase>(TOKENS.seatContextUseCase).resolve(token)) !== null,
+    const mutationAbuseProtection = new MutationAbuseProtection(
+      createMutationSessionResolver(
+        {
+          resolve: (token) =>
+            app.get<ActiveContextUseCase>(TOKENS.activeContextUseCase).resolve(token),
+        },
+        {
+          resolve: (token) => app.get<SeatContextUseCase>(TOKENS.seatContextUseCase).resolve(token),
+          resolveExisting: (token) =>
+            app.get<SeatContextUseCase>(TOKENS.seatContextUseCase).resolveExisting(token),
+        },
+      ),
     );
     const blocksRuntimeAddressBudget = new BlocksRuntimeAddressBudget();
 

@@ -4,29 +4,29 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AiAdminPage } from '../AdminAiPage';
 import { call } from '../admin-api';
+import { aiAdminFixture } from './ai-admin-config.fixture';
 
 vi.mock('../admin-api', () => ({ call: vi.fn() }));
 
-const CONFIG = {
+const CONFIG = aiAdminFixture({
   enabled: false,
   paidOperationsPerHour: 0,
   provider: 'openai',
-  model: 'gpt-5-mini',
+  model: 'gpt-6-luna',
   apiKeyConfigured: false,
   encryptionReady: true,
   keyFingerprint: null,
   configurationVersion: 1,
   updatedAt: '2026-10-18T12:00:00Z',
-};
-const DEEPSEEK = {
-  ...CONFIG,
+});
+const DEEPSEEK = aiAdminFixture({
   provider: 'deepseek',
-  model: 'deepseek-chat',
+  model: 'deepseek-flash',
   apiKeyConfigured: true,
   keyFingerprint: 'a1b2c3d4e5f6',
   paidOperationsPerHour: 5,
   configurationVersion: 2,
-};
+});
 
 let root: Root;
 let host: HTMLDivElement;
@@ -98,11 +98,12 @@ async function submit() {
 describe('DeepSeek admin configuration', () => {
   it('offers the official DeepSeek model for first setup with a masked key and safe quota', async () => {
     await render();
+    await chooseProvider('deepseek');
     expect(host.querySelector<HTMLSelectElement>('select[aria-label="Провайдер"]')!.value).toBe(
       'deepseek',
     );
     expect(host.querySelector<HTMLSelectElement>('select[aria-label="Модель"]')!.value).toBe(
-      'deepseek-chat',
+      'deepseek-flash',
     );
     expect(host.textContent).toContain('https://api.deepseek.com/chat/completions');
     expect(host.querySelector('a[href="https://platform.deepseek.com/api_keys"]')).not.toBeNull();
@@ -116,7 +117,9 @@ describe('DeepSeek admin configuration', () => {
   });
 
   it('preserves an existing OpenAI configuration instead of silently switching providers', async () => {
-    await render({ ...CONFIG, configurationVersion: 4, apiKeyConfigured: true });
+    await render(
+      aiAdminFixture({ model: 'gpt-5-mini', configurationVersion: 4, apiKeyConfigured: true }),
+    );
     expect(host.querySelector<HTMLSelectElement>('select[aria-label="Провайдер"]')!.value).toBe(
       'openai',
     );
@@ -127,6 +130,7 @@ describe('DeepSeek admin configuration', () => {
 
   it('saves DeepSeek, its key, enablement and quota; clears the secret without a paid call', async () => {
     await render();
+    await chooseProvider('deepseek');
     await enter(input('password'), '  test-deepseek-api-key  ');
     await enter(input('number'), '5');
     await act(async () => checkbox('Разрешить ИИ-запросы').click());
@@ -142,7 +146,8 @@ describe('DeepSeek admin configuration', () => {
         enabled: true,
         paidOperationsPerHour: 5,
         provider: 'deepseek',
-        model: 'deepseek-chat',
+        model: 'deepseek-flash',
+        configurationVersion: 1,
         apiKey: 'test-deepseek-api-key',
       }),
     });
@@ -198,7 +203,7 @@ describe('DeepSeek admin configuration', () => {
       status: 200,
       data: {
         provider: 'deepseek',
-        model: 'deepseek-chat',
+        model: 'deepseek-flash',
         elapsedMs: 1200,
         testedAt: '2026-10-18T12:00:00Z',
         configurationVersion: 2,
@@ -211,7 +216,7 @@ describe('DeepSeek admin configuration', () => {
       method: 'POST',
       body: JSON.stringify({ acknowledgePaidRequest: true, configurationVersion: 2 }),
     });
-    expect(host.textContent).toContain('Модель deepseek-chat ответила');
+    expect(host.textContent).toContain('Модель deepseek-flash ответила');
     expect(checkbox('Подтверждаю один платный').checked).toBe(false);
     expect(button('Проверить подключение').disabled).toBe(true);
   });
@@ -230,8 +235,11 @@ describe('DeepSeek admin configuration', () => {
     await render(DEEPSEEK);
     expect(host.textContent).toContain(DEEPSEEK.keyFingerprint);
     const modelSelect = host.querySelector<HTMLSelectElement>('select[aria-label="Модель"]')!;
-    expect([...modelSelect.options].map((option) => option.value)).toEqual(['deepseek-chat']);
-    expect(modelSelect.value).toBe('deepseek-chat');
+    expect([...modelSelect.options].map((option) => option.value)).toEqual([
+      'deepseek-flash',
+      'deepseek-v4-pro',
+    ]);
+    expect(modelSelect.value).toBe('deepseek-flash');
     expect(host.querySelector('[role="alert"]')).toBeNull();
     expect(host.textContent).not.toContain('Сначала сохраните настройки');
     expect(input('password').value).toBe('');
@@ -256,10 +264,11 @@ describe('DeepSeek admin configuration', () => {
         enabled: false,
         paidOperationsPerHour: 6,
         provider: 'deepseek',
-        model: 'deepseek-chat',
+        model: 'deepseek-flash',
+        configurationVersion: 2,
       }),
     });
-    expect(modelSelect.value).toBe('deepseek-chat');
+    expect(modelSelect.value).toBe('deepseek-flash');
     expect(host.querySelector('[role="alert"]')).toBeNull();
     expect(host.textContent).toContain('Настройки сохранены');
     expect(host.textContent).toContain(DEEPSEEK.keyFingerprint);
@@ -313,7 +322,17 @@ describe('DeepSeek admin configuration', () => {
   });
 
   it('clears the saved key only after confirmation and resets paid consent', async () => {
-    await render({ ...DEEPSEEK, enabled: true, keyFingerprint: 'saved-fingerprint' });
+    await render(
+      aiAdminFixture({
+        provider: 'deepseek',
+        model: 'deepseek-flash',
+        paidOperationsPerHour: 5,
+        apiKeyConfigured: true,
+        configurationVersion: 2,
+        enabled: true,
+        keyFingerprint: 'saved-fingerprint',
+      }),
+    );
     await act(async () => checkbox('Подтверждаю один платный').click());
     await act(async () => checkbox('Удалить сохранённый API-ключ').click());
     expect(checkbox('Разрешить ИИ-запросы').checked).toBe(false);
@@ -323,7 +342,14 @@ describe('DeepSeek admin configuration', () => {
     vi.mocked(call).mockResolvedValueOnce({
       ok: true,
       status: 200,
-      data: { ...DEEPSEEK, apiKeyConfigured: false, keyFingerprint: null, configurationVersion: 3 },
+      data: aiAdminFixture({
+        provider: 'deepseek',
+        model: 'deepseek-flash',
+        paidOperationsPerHour: 5,
+        apiKeyConfigured: false,
+        keyFingerprint: null,
+        configurationVersion: 3,
+      }),
     });
     await submit();
     expect(call).toHaveBeenLastCalledWith('/api/admin/v1/ai', {
@@ -332,7 +358,8 @@ describe('DeepSeek admin configuration', () => {
         enabled: false,
         paidOperationsPerHour: 5,
         provider: 'deepseek',
-        model: 'deepseek-chat',
+        model: 'deepseek-flash',
+        configurationVersion: 2,
         clearApiKey: true,
       }),
     });
@@ -370,7 +397,7 @@ describe('AI admin actionable failures', () => {
       'Сохранение не подтверждено',
     );
     expect(host.querySelector<HTMLSelectElement>('select[aria-label="Модель"]')!.value).toBe(
-      'deepseek-chat',
+      'deepseek-flash',
     );
     expect(input('number').value).toBe('6');
     expect(host.textContent).not.toContain('Настройки сохранены');
@@ -379,7 +406,7 @@ describe('AI admin actionable failures', () => {
     expect(call).toHaveBeenCalledTimes(2);
   });
 
-  it.each(['deepseek-flash', 'deepseek-v4-pro'])(
+  it.each(['deepseek-chat', 'deepseek-unknown'])(
     'rejects an unsupported DeepSeek model from the API: %s',
     async (model) => {
       await render({ ...DEEPSEEK, model });
@@ -509,7 +536,7 @@ describe('AI admin actionable failures', () => {
     await act(async () => button('Проверить подключение').click());
     expect(host.querySelector('[role="alert"]')!.textContent).toContain('platform_admin');
     expect(host.querySelector('form')).toBeNull();
-    expect(host.textContent).not.toContain('Модель deepseek-chat ответила');
+    expect(host.textContent).not.toContain('Модель deepseek-flash ответила');
     vi.mocked(call).mockResolvedValueOnce({ ok: true, status: 200, data: DEEPSEEK });
     await act(async () => button('Повторить загрузку').click());
     expect(checkbox('Подтверждаю один платный').checked).toBe(false);
@@ -538,7 +565,7 @@ describe('AI admin actionable failures', () => {
       'Настройки ИИ изменились. Повторите загрузку перед проверкой.',
     );
     expect(host.querySelector('.asa-ai-admin-success')).toBeNull();
-    expect(host.textContent).not.toContain('Модель deepseek-chat ответила');
+    expect(host.textContent).not.toContain('Модель deepseek-flash ответила');
     expect(checkbox('Подтверждаю один платный').checked).toBe(false);
     expect(button('Проверить подключение').disabled).toBe(true);
     await act(async () => button('Проверить подключение').click());
@@ -562,7 +589,7 @@ describe('AI admin actionable failures', () => {
       status: 200,
       data: {
         provider: 'deepseek',
-        model: 'deepseek-chat',
+        model: 'deepseek-flash',
         elapsedMs: 1200,
         testedAt: '2026-10-18T12:01:00Z',
         configurationVersion: 3,
@@ -576,7 +603,7 @@ describe('AI admin actionable failures', () => {
       body: JSON.stringify({ acknowledgePaidRequest: true, configurationVersion: 3 }),
     });
     expect(call).toHaveBeenCalledTimes(4);
-    expect(host.textContent).toContain('Модель deepseek-chat ответила');
+    expect(host.textContent).toContain('Модель deepseek-flash ответила');
     expect(checkbox('Подтверждаю один платный').checked).toBe(false);
     expect(button('Проверить подключение').disabled).toBe(true);
   });
@@ -591,7 +618,7 @@ describe('AI admin actionable failures', () => {
     await act(async () => checkbox('Подтверждаю один платный').click());
     await act(async () => button('Проверить подключение').click());
     expect(host.querySelector('[role="alert"]')!.textContent).toContain('Проверьте ключ');
-    expect(host.textContent).not.toContain('Модель deepseek-chat ответила');
+    expect(host.textContent).not.toContain('Модель deepseek-flash ответила');
     expect(button('Проверить подключение').disabled).toBe(true);
     expect(checkbox('Подтверждаю один платный').checked).toBe(false);
   });
@@ -620,7 +647,137 @@ describe('AI admin actionable failures', () => {
       expect(button('Проверить подключение').disabled).toBe(true);
       await act(async () => button('Проверить подключение').click());
       expect(call).toHaveBeenCalledTimes(2);
-      expect(host.textContent).not.toContain('Модель deepseek-chat ответила');
+      expect(host.textContent).not.toContain('Модель deepseek-flash ответила');
     },
   );
+});
+
+describe('catalog capabilities and confirmed admin operations', () => {
+  it('uses the server default and distinguishes image-capable models from enabled product features', async () => {
+    await render();
+    expect(host.querySelector<HTMLSelectElement>('select[aria-label="Модель"]')!.value).toBe(
+      'gpt-6-luna',
+    );
+    const capabilities = host.querySelector('[aria-label="Возможности выбранной модели"]')!;
+    expect(capabilities.textContent).toContain('Модель принимает текст и изображения');
+    expect(capabilities.textContent).toContain('Загрузка изображений в ASA LabЕщё не подключено');
+    expect(capabilities.textContent).toContain('Генерация изображений в ASA LabЕщё не подключено');
+    await chooseProvider('deepseek');
+    await act(async () => {
+      const select = host.querySelector<HTMLSelectElement>('select[aria-label="Модель"]')!;
+      select.value = 'deepseek-v4-pro';
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    expect(capabilities.textContent).toContain('Модель принимает только текст');
+    expect(call).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([true, false])(
+    'shows a legacy DeepSeek migration without claiming access (saved key: %s)',
+    async (hasKey) => {
+      await render(
+        aiAdminFixture({
+          provider: 'deepseek',
+          model: 'deepseek-flash',
+          paidOperationsPerHour: 5,
+          apiKeyConfigured: hasKey,
+          keyFingerprint: hasKey ? 'deepseek-hash' : null,
+          configurationVersion: 8,
+          migratedFromModel: 'deepseek-chat',
+        }),
+      );
+      expect(host.querySelector('[role="alert"]')!.textContent).toContain(
+        'deepseek-chat снята с обслуживания',
+      );
+      expect(host.textContent).toContain(
+        'Доступ к новой модели подтверждается отдельной платной проверкой',
+      );
+      expect(host.textContent?.includes('Сохранённый ключ перенесён')).toBe(hasKey);
+      expect(checkbox('Разрешить ИИ-запросы').checked).toBe(false);
+      expect(checkbox('Подтверждаю один платный').checked).toBe(false);
+      expect(button('Проверить подключение').disabled).toBe(true);
+      expect(host.querySelector('.asa-ai-admin-success')).toBeNull();
+      expect(call).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it.each([
+    { model: 'deepseek-v4-pro' },
+    { provider: 'openai' },
+    { configurationVersion: 3 },
+    { elapsedMs: -1 },
+    { testedAt: 'invalid-date' },
+  ])('does not confirm a paid result that is not for this saved request: %j', async (changed) => {
+    await render(DEEPSEEK);
+    vi.mocked(call).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      data: {
+        provider: 'deepseek',
+        model: 'deepseek-flash',
+        configurationVersion: 2,
+        elapsedMs: 120,
+        testedAt: '2026-10-19T12:00:00Z',
+        ...changed,
+      },
+    });
+    await act(async () => checkbox('Подтверждаю один платный').click());
+    await act(async () => button('Проверить подключение').click());
+    expect(host.querySelector('[role="alert"]')!.textContent).toContain('Запрос мог быть оплачен');
+    expect(host.querySelector('.asa-ai-admin-success')).toBeNull();
+    expect(checkbox('Подтверждаю один платный').checked).toBe(false);
+    expect(call).toHaveBeenCalledTimes(2);
+  });
+
+  it('admits one paid test for two synchronous clicks before a React rerender', async () => {
+    await render(DEEPSEEK);
+    let finish!: () => void;
+    vi.mocked(call).mockImplementationOnce(async () => {
+      await new Promise<void>((resolve) => {
+        finish = resolve;
+      });
+      return {
+        ok: true,
+        status: 200,
+        data: {
+          provider: 'deepseek',
+          model: 'deepseek-flash',
+          configurationVersion: 2,
+          elapsedMs: 120,
+          testedAt: '2026-10-19T12:00:00Z',
+        },
+      };
+    });
+    await act(async () => checkbox('Подтверждаю один платный').click());
+    const verify = button('Проверить подключение');
+    await act(async () => {
+      verify.click();
+      verify.click();
+    });
+    expect(call).toHaveBeenCalledTimes(2);
+    expect(button('Проверяем модель…').disabled).toBe(true);
+    await act(async () => finish());
+    expect(host.textContent).toContain('Модель deepseek-flash ответила');
+    expect(checkbox('Подтверждаю один платный').checked).toBe(false);
+  });
+
+  it('admits one settings write for two synchronous form submissions', async () => {
+    await render(DEEPSEEK);
+    let finish!: () => void;
+    vi.mocked(call).mockImplementationOnce(async () => {
+      await new Promise<void>((resolve) => {
+        finish = resolve;
+      });
+      return { ok: true, status: 200, data: { ...DEEPSEEK, configurationVersion: 3 } };
+    });
+    const form = host.querySelector('form')!;
+    await act(async () => {
+      form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    });
+    expect(call).toHaveBeenCalledTimes(2);
+    await act(async () => finish());
+    expect(host.textContent).toContain('Настройки сохранены');
+    expect(call).toHaveBeenCalledTimes(2);
+  });
 });

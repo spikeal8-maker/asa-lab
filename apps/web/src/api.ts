@@ -11,6 +11,12 @@ import {
 } from './modules/project-draft-mutation';
 import { saveProjectSnapshot } from './project-snapshot-client';
 import { notifySessionLoggedOut } from './session-fetch';
+import {
+  beginTelemetryIdentityObservation,
+  beginTelemetryWorkspaceSwitch,
+  finishTelemetryWorkspaceSwitch,
+  observeTelemetryIdentity,
+} from './telemetry-context';
 
 export type { ApiError, ApiResult } from './api-call';
 export type { ProjectSnapshotInfo } from './project-snapshot-client';
@@ -355,14 +361,37 @@ export function visibilityLabel(value: string): string {
 }
 
 /** Курс — порядок, в котором проходят задания. */
+export interface PublishedCoursePin {
+  /** JSON pointer into this exact immutable outline, never a mutable root. */
+  pointer: string;
+  pinKind: 'project' | 'manual';
+  available: boolean;
+  activityId: string | null;
+  versionId: string | null;
+  versionNumber: number | null;
+  title: string | null;
+  instructions: string | null;
+  goal: string | null;
+  /** False means the historical version predates this snapshot; null means unavailable pin. */
+  goalSnapshotPresent: boolean | null;
+  blocks: SafeTaskBlock[] | null;
+  blocksSnapshotPresent: boolean | null;
+  moduleKey: string | null;
+  resultMode: string | null;
+  maxPoints: number | null;
+  policySnapshot: Record<string, unknown> | null;
+  contentDigest: string | null;
+}
+
 export interface PublishedAuthorVersion {
   id: string;
   versionNumber: number;
   title?: string;
   goal?: string | null;
   instructions?: string | null;
+  pinnedActivities?: PublishedCoursePin[];
   outline?: {
-    course: { title: string; summary: string | null };
+    course: { title: string; summary: string | null; ageBand?: string | null };
     sections: Array<{
       sourceSectionId: string;
       title: string;
@@ -380,6 +409,13 @@ export interface PublishedAuthorVersion {
           learningActivityVersionId?: string;
           sourceAssignmentId?: string;
           title?: string;
+          goal?: string | null;
+          brief?: string | null;
+          ageBand?: string | null;
+          staticSampleImage?: string | null;
+          hasVersionedSample?: boolean;
+          sampleContentType?: string | null;
+          sampleChecksum?: string | null;
           moduleKey?: string;
           resultMode?: string;
           maxPoints?: number | null;
@@ -1813,10 +1849,14 @@ export const api = {
       `/api/learning/notifications/classes/${id}/reminders`,
       { method: 'POST', body: JSON.stringify(input) },
     ),
-  me: (signal?: AbortSignal) =>
-    call<SessionPayload | { authenticated: false }>('/api/auth/me', {
+  me: async (signal?: AbortSignal) => {
+    const observation = beginTelemetryIdentityObservation();
+    const result = await call<SessionPayload | { authenticated: false }>('/api/auth/me', {
       ...(signal ? { signal } : {}),
-    }),
+    });
+    if (result.ok) observeTelemetryIdentity(observation, result.data);
+    return result;
+  },
   authProviders: (signal?: AbortSignal) =>
     call<{ providers: AuthProviderAvailability[] }>('/api/auth/providers', {
       ...(signal ? { signal } : {}),
@@ -1990,11 +2030,20 @@ export const api = {
     }),
   listWorkspaces: () =>
     call<{ items: WorkspaceRef[]; activeWorkspaceId: string }>('/api/workspaces'),
-  switchWorkspace: (workspaceId: string) =>
-    call<{ activeWorkspace: { workspaceId: string; kind: string } }>('/api/session/context', {
-      method: 'POST',
-      body: JSON.stringify({ workspaceId }),
-    }),
+  switchWorkspace: async (workspaceId: string) => {
+    const mutation = beginTelemetryWorkspaceSwitch();
+    let successful = false;
+    try {
+      const result = await call<{ activeWorkspace: { workspaceId: string; kind: string } }>(
+        '/api/session/context',
+        { method: 'POST', body: JSON.stringify({ workspaceId }) },
+      );
+      successful = result.ok;
+      return result;
+    } finally {
+      finishTelemetryWorkspaceSwitch(mutation, !successful);
+    }
+  },
   selfAttestEducator: () =>
     call<{ capability: 'educator'; state: string; created: boolean }>(
       '/api/capabilities/educator/self-attest',

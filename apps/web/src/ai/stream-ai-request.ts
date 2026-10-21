@@ -28,13 +28,52 @@ export async function streamAiRequest<T>(
   onDelta: (piece: string) => void,
   signal: AbortSignal,
   model?: string,
+  scopeHeaders: Record<string, string> = {},
+): Promise<AiStreamResponse<T>> {
+  return streamCommand(
+    threadId,
+    'messages',
+    { message: text, requestId, ...(model ? { model } : {}) },
+    onDelta,
+    signal,
+    scopeHeaders,
+  );
+}
+
+/** A new variant has its own paid request ID and references a persisted question. */
+export async function streamAiRegeneration<T>(
+  threadId: string,
+  sourceUserMessageId: string,
+  requestId: string,
+  onDelta: (piece: string) => void,
+  signal: AbortSignal,
+  model?: string,
+  scopeHeaders: Record<string, string> = {},
+): Promise<AiStreamResponse<T>> {
+  return streamCommand(
+    threadId,
+    'regenerations',
+    { sourceUserMessageId, requestId, ...(model ? { model } : {}) },
+    onDelta,
+    signal,
+    scopeHeaders,
+  );
+}
+
+async function streamCommand<T>(
+  threadId: string,
+  operation: 'messages' | 'regenerations',
+  body: Record<string, string>,
+  onDelta: (piece: string) => void,
+  signal: AbortSignal,
+  scopeHeaders: Record<string, string>,
 ): Promise<AiStreamResponse<T>> {
   const response = await fetchWithSessionRefresh(
-    '/api/ai/threads/' + encodeURIComponent(threadId) + '/messages/stream',
+    '/api/ai/threads/' + encodeURIComponent(threadId) + '/' + operation + '/stream',
     {
       method: 'POST',
-      headers: { 'content-type': 'application/json', accept: 'text/event-stream' },
-      body: JSON.stringify({ message: text, requestId, ...(model ? { model } : {}) }),
+      headers: { ...scopeHeaders, 'content-type': 'application/json', accept: 'text/event-stream' },
+      body: JSON.stringify(body),
       signal,
     },
   );

@@ -110,6 +110,8 @@ surfaces:
     - apps/web/src/components/AuthoredTaskBlocksEditor.tsx
     - apps/web/src/components/TaskBlocks.tsx
     - apps/web/src/components/CoursesPanel.tsx
+    - apps/web/src/components/LessonBlocks.tsx
+    - apps/web/src/components/lesson-blocks.css
     - apps/web/src/api.ts
     - apps/api/src/learning-activities.controller.ts
     - apps/api/src/assignments.controller.ts
@@ -144,6 +146,12 @@ surfaces:
     files:
     - apps/web/src/pages/AssignmentLibraryPage.tsx
     - apps/web/src/components/CoursesPanel.tsx
+    - apps/web/src/components/LessonBlockEditor.tsx
+    - apps/web/src/components/LessonBlocks.tsx
+    - apps/web/src/components/lesson-blocks.css
+    - apps/web/src/learning/testing/lesson-blocks-media.spec.ts
+    - apps/web/src/learning/course-prepublication-diagnostic.ts
+    - apps/web/src/api-call.ts
     - apps/web/src/api.ts
     - apps/api/src/courses.controller.ts
     invariants:
@@ -163,12 +171,18 @@ surfaces:
     change_class: L3_CRITICAL
     files:
     - apps/web/src/components/AuthorVersionHistory.tsx
+    - apps/web/src/components/CourseVersionComparison.tsx
+    - apps/web/src/components/course-version-diff.ts
+    - apps/web/src/components/course-version-comparison.css
     - apps/web/src/components/CoursesPanel.tsx
     - apps/web/src/pages/AuthoredMaterialsPage.tsx
     - apps/web/src/api.ts
     - apps/api/src/courses.controller.ts
     - apps/api/src/learning-activities.controller.ts
     - migrations/0137_author_draft_from_published_version.sql
+    - migrations/0230_course_author_version_pins.sql
+    - tests/courses/course-version-diff.spec.ts
+    - tests/courses/course-author-version-pins.pg.spec.ts
     - tests/courses/author-draft-from-version.pg.spec.ts
     - tests/courses/author-draft-upgrade.pg.spec.ts
     - e2e/learning-author-preview.spec.ts
@@ -182,6 +196,26 @@ surfaces:
     commands:
     - course_save
     - course_publish
+  - id: CTRL-COURSE-ARCHIVE-ASSIGN
+    label: Archive or restore a course without racing with a new assignment
+    change_class: L3_CRITICAL
+    files:
+    - apps/api/src/courses.controller.ts
+    - apps/api/src/courses.controller.spec.ts
+    - migrations/0232_course_archive_assignment_atomicity.sql
+    - tests/courses/course-archive-assignment.pg.spec.ts
+    - e2e/learning-course-01.spec.ts
+    invariants:
+    - LRN-VER-001
+    - LRN-RUN-001
+    - LRN-AUTH-001
+    - LRN-LIFE-001
+    - LRN-RETRY-001
+    tests:
+    - TST-LRN-COURSE-E1-CORE-001
+    - TST-LRN-COURSE-E1-E2E-001
+    commands:
+    - course_assign
   - id: CTRL-AUTHOR-PREVIEW-AS-LEARNER
     label: Preview one exact authored activity as a learner without creating learner runtime state
     change_class: L3_CRITICAL
@@ -233,6 +267,9 @@ surfaces:
     - apps/web/src/pages/LearningPage.tsx
     - apps/web/src/pages/AttendedClassesPage.tsx
     - apps/web/src/components/SeatCourses.tsx
+    - apps/web/src/components/LessonBlocks.tsx
+    - apps/web/src/components/lesson-blocks.css
+    - apps/web/src/learning/testing/lesson-blocks-media.spec.ts
     - apps/web/src/components/SeatAssignments.tsx
     - apps/web/src/components/AssignmentView.tsx
     - apps/web/src/components/TaskBlocks.tsx
@@ -306,3 +343,53 @@ surfaces:
     - TST-LRN-COURSE-E1-CORE-001
     commands:
     - read_selected_result
+- id: SURF-LEARNING-CREDENTIAL-READINESS
+  routes:
+  - /health/ready
+  implementation:
+    files:
+    - apps/api/src/credential-configuration.cjs
+    - apps/api/src/classroom-code-secret.ts
+    - apps/api/src/student-code-protection.ts
+    - apps/api/src/main.ts
+    - apps/api/src/health.controller.ts
+    - apps/api/tsconfig.json
+    - schemas/openapi.yaml
+    - compose.yaml
+    - tools/production.mjs
+    - tools/docker-update.sh
+    - tools/docker-update.ps1
+    - tools/deployment/credential-preflight.mjs
+    - .env.example
+  invariants:
+  - LRN-AUTH-001
+  tests:
+  - TST-LEARNING-CREDENTIAL-READINESS-001
+  - TST-LRN-COURSE-E1-CORE-001
+  controls:
+  - id: CTRL-LEARNING-CREDENTIAL-PREFLIGHT
+    label: Require independent production credentials before startup and update without blocking unrelated APIs on historical row keys
+    change_class: L3_CRITICAL
+    files:
+    - apps/api/src/credential-configuration.cjs
+    - apps/api/src/classroom-code-secret.ts
+    - apps/api/src/student-code-protection.ts
+    - apps/api/src/main.ts
+    - apps/api/src/health.controller.ts
+    - apps/api/src/classroom-code-secret.spec.ts
+    - apps/api/src/credential-configuration.spec.ts
+    - apps/api/src/health.spec.ts
+    - tests/production/credential-readiness.spec.ts
+    - tests/account/student-seat-protected-storage.pg.spec.ts
+    - tools/deployment/credential-preflight.mjs
+    - tools/docker-update.sh
+    - tools/docker-update.ps1
+    - tools/production.mjs
+    - compose.yaml
+    invariants:
+    - LRN-AUTH-001
+    tests:
+    - TST-LEARNING-CREDENTIAL-READINESS-001
+    - TST-LRN-COURSE-E1-CORE-001
+    commands:
+    - validate_credential_configuration
