@@ -86,11 +86,8 @@ parallel_lanes:
     worktree_id: electronics-wire-contact-hit-688
     owned_paths:
       - apps/web/src/electronics/workbench-geometry.ts
-      - apps/web/src/electronics/WorkbenchStage.tsx
-      - apps/web/src/electronics/use-electronics-workbench.ts
       - apps/web/src/electronics/testing/workbench-geometry.spec.ts
       - apps/web/src/electronics/testing/workbench-presentation.spec.ts
-      - e2e/electronics-interactions.spec.ts
       - docs/product/electronics/tasks/TASK-ELECTRONICS-WIRE-CONTACT-HIT-001.md
     task:
       id: TASK-ELECTRONICS-WIRE-CONTACT-HIT-001
