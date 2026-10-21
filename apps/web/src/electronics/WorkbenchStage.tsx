@@ -56,6 +56,13 @@ import { formatIlluminanceLux, photoresistorLightCondition } from './photoresist
 
 type BreadboardHover = { boardId: string; groupId: string; holeId: string } | null;
 
+function wiresAboveComponentBody(component: SchematicComponent): boolean {
+  return (
+    component.componentTypeId === 'arduino-uno' ||
+    component.componentTypeId === 'regulated-power-supply'
+  );
+}
+
 const BreadboardTerminalOverlay = memo(function BreadboardTerminalOverlay({
   component,
   label,
@@ -460,10 +467,14 @@ export function WorkbenchStage({
     // Ordinary parts are painted above wires, but their owner artwork uses the
     // alpha-mask fallback rather than a rectangular SVG hit box. Resolve that
     // same alpha silhouette here before a transparent wire target can claim the
-    // pointer. Breadboards are intentionally excluded: wires are painted above
-    // their substrate and must remain directly selectable there.
+    // pointer. Breadboards, Arduino Uno and the regulated supply are excluded:
+    // wires are painted above their bodies and remain directly selectable there.
     const foregroundComponent = componentAtClientPoint(event.clientX, event.clientY);
-    if (foregroundComponent && foregroundComponent.kind !== 'breadboard') {
+    if (
+      foregroundComponent &&
+      foregroundComponent.kind !== 'breadboard' &&
+      !wiresAboveComponentBody(foregroundComponent)
+    ) {
       if (event.shiftKey) {
         c.selectComponent(foregroundComponent.id, true);
         event.stopPropagation();
@@ -1290,6 +1301,11 @@ export function WorkbenchStage({
             .filter((component) => component.kind === 'breadboard')
             .map((component) => renderComponentBody(component))}
         </g>
+        <g data-testid="wire-underlay-component-body-layer">
+          {orderedComponents
+            .filter(wiresAboveComponentBody)
+            .map((component) => renderComponentBody(component))}
+        </g>
         {/* Wire hit geometry shares the saved-wire paint layer. Ordinary
             components are painted later, so an invisible wire target cannot
             steal input where the wire is visually hidden beneath a part. */}
@@ -1368,7 +1384,12 @@ export function WorkbenchStage({
         </g>
         <g data-testid="component-body-layer">
           {orderedComponents
-            .filter((component) => component.kind !== 'wire' && component.kind !== 'breadboard')
+            .filter(
+              (component) =>
+                component.kind !== 'wire' &&
+                component.kind !== 'breadboard' &&
+                !wiresAboveComponentBody(component),
+            )
             .map((component) => renderComponentBody(component))}
         </g>
         <g data-testid="terminal-overlay-layer">

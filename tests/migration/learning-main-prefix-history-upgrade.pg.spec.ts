@@ -56,7 +56,12 @@ const upgradeArtifacts = [
   ],
   [
     '0235',
-    '0235_teacher_home_canonical_read_jit.sql',
+    '0235_public_project_copy.sql',
+    '854b5059940d6c08f7162ff42c68a96f4173c408f201bbbd88e60b6494402c85',
+  ],
+  [
+    '0236',
+    '0236_teacher_home_canonical_read_jit.sql',
     '60dae5f444e08a479acdb98752b434b1114680d3f742aa31dfc0484bfe5c9dd5',
   ],
 ] as const;
@@ -158,13 +163,24 @@ const preservedTables = [
   'ai_paid_operation_quota',
 ] as const;
 
+const copiedProjectOriginFields = [
+  'copied_from_publication_id',
+  'copied_from_revision_id',
+  'copied_from_version_id',
+  'copied_from_license',
+] as const;
+
 async function preservedData(pool: pg.Pool) {
   const result: Record<string, unknown[]> = {};
   // Only this fixed list of test-owned table identifiers is interpolated.
   for (const table of preservedTables) {
+    const addedColumns = table === 'projects' ? [...copiedProjectOriginFields] : [];
     result[table] = (
       await pool.query(
-        `SELECT to_jsonb(snapshot_row) AS value FROM public.${table} snapshot_row ORDER BY to_jsonb(snapshot_row)::text`,
+        `SELECT to_jsonb(snapshot_row) - $1::text[] AS value
+           FROM public.${table} snapshot_row
+          ORDER BY (to_jsonb(snapshot_row) - $1::text[])::text`,
+        [addedColumns],
       )
     ).rows;
   }
@@ -437,7 +453,7 @@ async function seedOldContracts(pool: pg.Pool, client: pg.PoolClient) {
 }
 
 describe('joint AI, Courses, Portal and Projects supported-prefix upgrade', () => {
-  it('upgrades real 0225 data through all ten migrations without losing history or refunding quota', async () => {
+  it('upgrades real 0225 data through all eleven migrations without losing history or refunding quota', async () => {
     await withPrefixDatabase(async (pool, client, plan) => {
       const fixture = await seedOldContracts(pool, client);
       const beforeLedger = await ledger(pool);
@@ -489,13 +505,30 @@ describe('joint AI, Courses, Portal and Projects supported-prefix upgrade', () =
         ),
       ).toEqual(upgradeArtifacts.map(([version]) => version));
 
-      expect(await applyIsolatedTestPlan(client, plan)).toBe(10);
+      expect(await applyIsolatedTestPlan(client, plan)).toBe(11);
       const afterLedger = await ledger(pool);
       expect(afterLedger.filter((row) => Number(row.version) <= 225)).toEqual(beforeLedger);
       expect(
         afterLedger.map(({ version, name, checksum }) => ({ version, name, checksum })),
       ).toEqual(plan.map(({ version, name, checksum }) => ({ version, name, checksum })));
       expect(await preservedData(pool)).toEqual(before);
+      // New public-copy provenance columns must be NULL on every historical Project.
+      expect(
+        (
+          await pool.query(
+            `SELECT copied_from_publication_id, copied_from_revision_id,
+                    copied_from_version_id, copied_from_license
+               FROM public.projects ORDER BY id`,
+          )
+        ).rows,
+      ).toEqual(
+        before.projects!.map(() => ({
+          copied_from_publication_id: null,
+          copied_from_revision_id: null,
+          copied_from_version_id: null,
+          copied_from_license: null,
+        })),
+      );
       expect(
         (
           await pool.query(

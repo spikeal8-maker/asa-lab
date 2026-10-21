@@ -12,6 +12,7 @@ on:
       - 'migrations/**'
       - 'tests/portal/**'
       - 'e2e/public-projects.spec.ts'
+      - 'e2e/public-project-copy.spec.ts'
       - 'e2e/gallery.spec.ts'
       - 'e2e/project-hub.spec.ts'
       - 'e2e/server.mjs'
@@ -28,6 +29,7 @@ on:
       - 'migrations/**'
       - 'tests/portal/**'
       - 'e2e/public-projects.spec.ts'
+      - 'e2e/public-project-copy.spec.ts'
       - 'e2e/gallery.spec.ts'
       - 'e2e/project-hub.spec.ts'
       - 'e2e/server.mjs'
@@ -112,6 +114,7 @@ jobs:
         with:
           name: public-projects-${{ github.event.pull_request.head.sha || github.sha }}
           path: |
+            e2e/artifacts/public-projects-copy
             e2e/artifacts/public-projects
             e2e/artifacts/owner-preview/home-workspace/lifecycle
             reports/playwright/projects-publication

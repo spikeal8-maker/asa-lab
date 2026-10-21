@@ -105,6 +105,8 @@ describe('Course Builder structure forward upgrade', () => {
         '0232', // Archive and assignment serialize without rewriting existing delivery.
         '0233', // Function-local participant read JIT settings preserve definitions and data.
         '0234', // Explicit immutable Public Projects publication; protects originals.
+        '0235', // Exact immutable public Project copy.
+        '0236', // Function-local JIT setting for the Teacher Home canonical read.
       ];
       const pre153 = plan.filter((item) => Number(item.version) <= 152);
       const upgradePlan = plan.filter((item) => Number(item.version) > 152);
@@ -369,6 +371,8 @@ describe('Course Builder structure forward upgrade', () => {
           '0232',
           '0233',
           '0234',
+          '0235',
+          '0236',
         ]);
         expect(
           await applyIsolatedTestPlan(

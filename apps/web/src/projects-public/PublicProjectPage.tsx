@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { PortalLink } from '../components/PortalLink';
 import { useSchoolTime } from '../components/school-time';
 import { publicProjectsApi, type PublicProject } from './api';
+import { CopyPublicProject } from './CopyPublicProject';
 import { PublicationPreview } from './PublicationPreview';
 import { SharePublicationLink } from './SharePublicationLink';
 import { PUBLIC_PROJECT_LICENSES, publicModuleName } from './presentation';
@@ -131,6 +132,7 @@ export function PublicProjectPage({
                 ))}
               </ul>
             ) : null}
+            <CopyPublicProject key={publication.revisionId} publication={publication} />
             <div className="public-project-actions">
               {publication.preview ? (
                 <a
