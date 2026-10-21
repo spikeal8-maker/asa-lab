@@ -1,0 +1,566 @@
+import { randomUUID } from 'node:crypto';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import type pg from 'pg';
+import { hashSessionToken } from '../../contexts/identity/dist/index.js';
+import { PgProjectRepository } from '../../contexts/projects/infrastructure/pg-project.repository';
+import { seedTeacher, testAdminPool, testAppPool } from './helpers';
+import { buildTestApp, inject, type NestApp } from './app';
+
+let admin: pg.Pool;
+let runtime: pg.Pool;
+let app: NestApp;
+let repo: PgProjectRepository;
+const projects: string[] = [];
+
+beforeAll(async () => {
+  admin = testAdminPool();
+  runtime = testAppPool();
+  repo = new PgProjectRepository(runtime);
+  app = await buildTestApp(runtime);
+}, 90_000);
+afterAll(async () => {
+  try {
+    // Retain immutable fixture evidence; retire only our disposable catalog entries.
+    if (projects.length)
+      await admin.query(
+        "UPDATE project_publication_state SET state='revoked',revoked_at=now() WHERE project_id=ANY($1::uuid[])",
+        [projects],
+      );
+  } finally {
+    await app?.close();
+    await Promise.all([runtime?.end(), admin?.end()]);
+  }
+});
+
+async function identity(label: string, role?: 'verified' | 'pending' | 'school') {
+  const teacher = await seedTeacher(admin, `moderation-${label}-${randomUUID().slice(0, 8)}`);
+  const row = (
+    await admin.query(
+      'SELECT principal_id, account_id FROM legacy_user_account_links WHERE tenant_id=$1 AND user_id=$2',
+      [teacher.tenantId, teacher.teacherId],
+    )
+  ).rows[0];
+  await admin.query("UPDATE accounts SET email_verification_state='verified' WHERE id=$1", [
+    row.account_id,
+  ]);
+  const workspace = (
+    await admin.query(
+      'SELECT workspace_id FROM workspace_memberships WHERE account_id=$1 LIMIT 1',
+      [row.account_id],
+    )
+  ).rows[0].workspace_id;
+  if (role === 'school')
+    await admin.query(
+      "UPDATE workspace_memberships SET role='moderator' WHERE account_id=$1 AND workspace_id=$2",
+      [row.account_id, workspace],
+    );
+  else if (role)
+    await admin.query(
+      `INSERT INTO capability_grants(account_id,capability,state,policy_version,granted_by)
+     VALUES ($1,'platform_admin',$2,'moderation-test','admin')`,
+      [row.account_id, role],
+    );
+  const token = randomUUID();
+  await admin.query(
+    `INSERT INTO sessions_v2(principal_id,active_workspace_id,token_hash,expires_at)
+     VALUES ($1,$2,$3,now()+interval '1 hour')`,
+    [row.principal_id, workspace, hashSessionToken(token)],
+  );
+  return {
+    principalId: row.principal_id as string,
+    accountId: row.account_id as string,
+    teacher,
+    token,
+  };
+}
+async function publication() {
+  const owner = await identity('owner');
+  const actor = { userId: owner.teacher.teacherId, principalId: owner.principalId };
+  const created = await repo.createWithDraft({
+    tenantId: owner.teacher.tenantId,
+    scope: 'personal',
+    classroomId: null,
+    actor,
+    moduleKey: 'electronics',
+    title: 'Private original',
+    idempotencyKey: randomUUID(),
+    requestFingerprint: randomUUID().replaceAll('-', '').repeat(2),
+    initialDocument: {
+      schemaVersion: 1,
+      components: [],
+      connections: [],
+      privateMarker: randomUUID(),
+    },
+    initialPreview: null,
+  });
+  if (created.kind !== 'created') throw new Error('fixture project not created');
+  const projectId = created.project.id;
+  projects.push(projectId);
+  await repo.saveSnapshot({
+    tenantId: owner.teacher.tenantId,
+    actor,
+    projectId,
+    sourceRevision: 1,
+    image: { bytes: new Uint8Array(64).fill(17), contentType: 'image/png', width: 16, height: 16 },
+  });
+  const publish = async (title = 'Frozen publication') =>
+    (
+      await runtime.query('SELECT project_publication_publish($1,$2,$3::jsonb) AS result', [
+        owner.principalId,
+        projectId,
+        JSON.stringify({ title, license: 'public-domain' }),
+      ])
+    ).rows[0].result;
+  const status = await publish();
+  return {
+    owner,
+    projectId,
+    publish,
+    publicationId: status.publication.publicationId as string,
+    revisionId: status.publication.revisionId as string,
+  };
+}
+const transition = (
+  actor: string | null,
+  publicationId: string,
+  hidden: boolean,
+  reason = 'Safety review',
+  request = randomUUID(),
+) =>
+  runtime.query('SELECT admin_publication_transition($1,$2,$3,$4,$5) AS result', [
+    actor,
+    publicationId,
+    hidden,
+    reason,
+    request,
+  ]);
+async function original(projectId: string) {
+  return (
+    await admin.query(
+      `SELECT
+    (SELECT to_jsonb(p) FROM projects p WHERE id=$1) AS project,
+    (SELECT jsonb_agg(to_jsonb(d)) FROM project_drafts d WHERE project_id=$1) AS drafts,
+    (SELECT jsonb_agg(to_jsonb(v) ORDER BY version_no) FROM project_versions v WHERE project_id=$1) AS versions,
+    (SELECT jsonb_agg(to_jsonb(r) ORDER BY revision_no) FROM project_publication_revisions r WHERE project_id=$1) AS revisions`,
+      [projectId],
+    )
+  ).rows[0];
+}
+async function unavailable(source: Awaited<ReturnType<typeof publication>>) {
+  for (const [sql, params] of [
+    ['SELECT * FROM public_projects_read($1,NULL,NULL,1,0)', [source.publicationId]],
+    ['SELECT * FROM public_project_image($1,NULL)', [source.publicationId]],
+    ['SELECT * FROM gallery_snapshot($1)', [source.projectId]],
+    ['SELECT * FROM gallery_work(NULL,$1)', [source.projectId]],
+    [
+      'SELECT * FROM public_project_copy_documents($1::uuid[],$2::uuid[])',
+      [[source.publicationId], [source.revisionId]],
+    ],
+  ] as const)
+    expect((await runtime.query(sql, [...params])).rows).toEqual([]);
+  await expect(
+    runtime.query('SELECT * FROM public_project_copy_source($1,$2,$3)', [
+      source.owner.principalId,
+      source.publicationId,
+      source.revisionId,
+    ]),
+  ).rejects.toMatchObject({ code: 'P5P04' });
+}
+
+describe('publication moderation with real runtime privileges and sessions', () => {
+  it('denies anonymous, ordinary, school moderator, unverified capability and Seat-selected requests', async () => {
+    const source = await publication();
+    const platform = await identity('platform', 'verified');
+    const denied = [
+      source.owner,
+      await identity('school', 'school'),
+      await identity('pending', 'pending'),
+    ];
+    for (const actor of [null, ...denied]) {
+      for (const options of [
+        { method: 'GET' as const, url: '/api/admin/v1/publications' },
+        { method: 'GET' as const, url: `/api/admin/v1/publications/${source.publicationId}/image` },
+        {
+          method: 'POST' as const,
+          url: `/api/admin/v1/publications/${source.publicationId}/hide`,
+          payload: { reason: 'x' },
+        },
+        {
+          method: 'POST' as const,
+          url: `/api/admin/v1/publications/${source.publicationId}/restore`,
+          payload: { reason: 'x' },
+        },
+      ]) {
+        const response = await inject(app, {
+          ...options,
+          cookies: actor ? { asa_session: actor.token } : {},
+        });
+        expect(response.statusCode).toBe(actor ? 403 : 401);
+        expect(response.body).not.toContain('Frozen publication');
+      }
+      const id = actor?.principalId ?? null;
+      await expect(
+        runtime.query('SELECT admin_publications_list($1,0,25)', [id]),
+      ).rejects.toMatchObject({ code: '42501' });
+      await expect(
+        runtime.query('SELECT * FROM admin_publication_image($1,$2)', [id, source.publicationId]),
+      ).rejects.toMatchObject({ code: '42501' });
+      await expect(transition(id, randomUUID(), true)).rejects.toMatchObject({ code: '42501' });
+    }
+    for (const path of ['', `/${source.publicationId}/image`]) {
+      const response = await inject(app, {
+        method: 'GET',
+        url: '/api/admin/v1/publications' + path,
+        cookies: { asa_session: platform.token, asa_student_session: 'invalid-seat' },
+      });
+      expect(response.statusCode).toBe(403);
+    }
+    const classroom = (
+      await admin.query(
+        `INSERT INTO classrooms(tenant_id,school_id,academic_period_id,title,created_by)
+      VALUES ($1,$2,$3,'Seat auth test',$4) RETURNING id`,
+        [
+          source.owner.teacher.tenantId,
+          source.owner.teacher.schoolId,
+          source.owner.teacher.periodId,
+          source.owner.teacher.teacherId,
+        ],
+      )
+    ).rows[0].id;
+    const seat = (
+      await admin.query(
+        `INSERT INTO classroom_student_seats
+      (tenant_id,classroom_id,display_label,login_handle,normalized_login_handle,safe_mode,status,created_by)
+      VALUES ($1,$2,'Seat','moderation-seat','moderation-seat',true,'active',$3) RETURNING id`,
+        [source.owner.teacher.tenantId, classroom, source.owner.teacher.teacherId],
+      )
+    ).rows[0].id;
+    const seatPrincipal = (
+      await admin.query(
+        "INSERT INTO principals(kind,seat_id) VALUES ('student_seat',$1) RETURNING id",
+        [seat],
+      )
+    ).rows[0].id;
+    await expect(
+      runtime.query('SELECT admin_publications_list($1,0,25)', [seatPrincipal]),
+    ).rejects.toMatchObject({ code: '42501' });
+    await expect(
+      runtime.query('SELECT * FROM admin_publication_image($1,$2)', [
+        seatPrincipal,
+        source.publicationId,
+      ]),
+    ).rejects.toMatchObject({ code: '42501' });
+    await expect(transition(seatPrincipal, source.publicationId, true)).rejects.toMatchObject({
+      code: '42501',
+    });
+    // Capability revocation takes effect on the next privileged SQL invocation.
+    await admin.query(
+      "UPDATE capability_grants SET state='pending' WHERE account_id=$1 AND capability='platform_admin'",
+      [platform.accountId],
+    );
+    await expect(
+      transition(platform.principalId, source.publicationId, true),
+    ).rejects.toMatchObject({ code: '42501' });
+  });
+
+  it('hides all public projections, preserves originals, explains to owner and restores with atomic audit', async () => {
+    const source = await publication();
+    const moderator = await identity('moderator', 'verified');
+    const stranger = await identity('stranger');
+    const collectionId = (
+      await runtime.query('SELECT collection_create($1,$2) AS id', [
+        stranger.principalId,
+        'Moderation collection',
+      ])
+    ).rows[0].id;
+    expect(
+      (
+        await runtime.query('SELECT collection_set_item($1,$2,$3,true) AS ok', [
+          stranger.principalId,
+          collectionId,
+          source.projectId,
+        ])
+      ).rows[0].ok,
+    ).toBe(true);
+    const before = await original(source.projectId);
+    const list = await inject(app, {
+      method: 'GET',
+      url: '/api/admin/v1/publications?offset=0&limit=50',
+      cookies: { asa_session: moderator.token },
+    });
+    expect(list.statusCode).toBe(200);
+    expect(
+      list
+        .json()
+        .items.some(
+          (item: { publicationId: string }) => item.publicationId === source.publicationId,
+        ),
+    ).toBe(true);
+    const hidden = await inject(app, {
+      method: 'POST',
+      url: `/api/admin/v1/publications/${source.publicationId}/hide`,
+      cookies: { asa_session: moderator.token },
+      payload: { reason: 'Unsafe example' },
+    });
+    expect(hidden.statusCode).toBe(200);
+    expect(hidden.json()).toMatchObject({
+      publicationId: source.publicationId,
+      hidden: true,
+      reason: 'Unsafe example',
+    });
+    await unavailable(source);
+    expect(
+      (
+        await runtime.query('SELECT * FROM collection_items_list($1,$2)', [
+          stranger.principalId,
+          collectionId,
+        ])
+      ).rows,
+    ).toEqual([]);
+    expect(await original(source.projectId)).toEqual(before);
+    expect(
+      (
+        await runtime.query('SELECT project_publication_status($1,$2) AS result', [
+          source.owner.principalId,
+          source.projectId,
+        ])
+      ).rows[0].result,
+    ).toMatchObject({ moderationReason: 'Unsafe example', publication: { publicPath: null } });
+    expect(
+      (
+        await runtime.query('SELECT project_publication_status($1,$2) AS result', [
+          stranger.principalId,
+          source.projectId,
+        ])
+      ).rows[0].result,
+    ).toBeNull();
+    const ownerResponse = await inject(app, {
+      method: 'GET',
+      url: `/api/projects/${source.projectId}/publication`,
+      cookies: { asa_session: source.owner.token },
+    });
+    expect(ownerResponse.statusCode).toBe(200);
+    expect(ownerResponse.json().moderationReason).toBe('Unsafe example');
+    const strangerResponse = await inject(app, {
+      method: 'GET',
+      url: `/api/projects/${source.projectId}/publication`,
+      cookies: { asa_session: stranger.token },
+    });
+    expect(strangerResponse.statusCode).toBe(404);
+    expect(strangerResponse.body).not.toContain('Unsafe example');
+    const preview = await inject(app, {
+      method: 'GET',
+      url: `/api/admin/v1/publications/${source.publicationId}/image`,
+      cookies: { asa_session: moderator.token },
+    });
+    expect(preview.statusCode).toBe(200);
+    expect(preview.rawPayload).toEqual(Buffer.alloc(64, 17));
+    expect(preview.headers['cache-control']).toBe('no-store');
+    await expect(
+      transition(moderator.principalId, source.publicationId, true),
+    ).rejects.toMatchObject({ code: 'P5M09' });
+    const restored = await inject(app, {
+      method: 'POST',
+      url: `/api/admin/v1/publications/${source.publicationId}/restore`,
+      cookies: { asa_session: moderator.token },
+      payload: { reason: 'Reviewed safe' },
+    });
+    expect(restored.statusCode).toBe(200);
+    expect(restored.json()).toMatchObject({ hidden: false, reason: null });
+    expect(
+      (await runtime.query('SELECT * FROM public_project_image($1,NULL)', [source.publicationId]))
+        .rows,
+    ).toHaveLength(1);
+    expect(await original(source.projectId)).toEqual(before);
+    const audit = (
+      await admin.query(
+        `SELECT actor_principal_id, action, reason_text, request_id, before_version, after_version
+      FROM administrative_audit_events WHERE target_type='project_publication' AND target_id=$1 ORDER BY occurred_at,id`,
+        [source.publicationId],
+      )
+    ).rows;
+    expect(audit).toHaveLength(2);
+    expect(audit[0]).toMatchObject({
+      actor_principal_id: moderator.principalId,
+      action: 'publication.hide',
+      reason_text: 'Unsafe example',
+      before_version: '0',
+      after_version: '1',
+    });
+    expect(audit[1]).toMatchObject({
+      action: 'publication.restore',
+      reason_text: 'Reviewed safe',
+      before_version: '1',
+      after_version: '0',
+    });
+    expect(audit.every((event) => event.request_id.length > 0)).toBe(true);
+    await expect(
+      runtime.query('DELETE FROM administrative_audit_events WHERE target_id=$1', [
+        source.publicationId,
+      ]),
+    ).rejects.toBeDefined();
+  });
+
+  it('keeps hide across author update/revoke and never republishes revoked or ineligible originals', async () => {
+    const source = await publication();
+    const moderator = await identity('lifecycle', 'verified');
+    await transition(moderator.principalId, source.publicationId, true);
+    await source.publish('Updated frozen title');
+    await unavailable(source);
+    await runtime.query('SELECT project_publication_revoke($1,$2)', [
+      source.owner.principalId,
+      source.projectId,
+    ]);
+    await transition(moderator.principalId, source.publicationId, false, 'Reviewed revoked');
+    await unavailable(source);
+    await source.publish();
+    await transition(moderator.principalId, source.publicationId, true);
+    await admin.query("UPDATE projects SET status='archived' WHERE id=$1", [source.projectId]);
+    await transition(moderator.principalId, source.publicationId, false, 'Reviewed archived');
+    await unavailable(source);
+  });
+
+  it('serializes simultaneous actions, rejects replay and rolls back state and audit together', async () => {
+    const source = await publication();
+    const moderator = await identity('race', 'verified');
+    const outcomes = await Promise.allSettled([
+      transition(moderator.principalId, source.publicationId, true),
+      transition(moderator.principalId, source.publicationId, true),
+    ]);
+    expect(outcomes.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
+    expect(outcomes.filter((result) => result.status === 'rejected')).toHaveLength(1);
+    await transition(moderator.principalId, source.publicationId, false, 'Reviewed');
+    const requestId = randomUUID();
+    await transition(moderator.principalId, source.publicationId, true, 'Safety', requestId);
+    await transition(moderator.principalId, source.publicationId, false, 'Reviewed');
+    await expect(
+      transition(moderator.principalId, source.publicationId, true, 'Replay', requestId),
+    ).rejects.toMatchObject({ code: 'P5M09' });
+    const auditBefore = (
+      await admin.query(
+        'SELECT count(*) AS count FROM administrative_audit_events WHERE target_id=$1',
+        [source.publicationId],
+      )
+    ).rows[0].count;
+    const client = await runtime.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query('SELECT admin_publication_transition($1,$2,true,$3,$4)', [
+        moderator.principalId,
+        source.publicationId,
+        'Rolled back',
+        randomUUID(),
+      ]);
+      await client.query('ROLLBACK');
+    } finally {
+      client.release();
+    }
+    expect(
+      (
+        await admin.query(
+          'SELECT hidden FROM project_publication_moderation WHERE publication_id=$1',
+          [source.publicationId],
+        )
+      ).rows[0].hidden,
+    ).toBe(false);
+    expect(
+      (
+        await admin.query(
+          'SELECT count(*) AS count FROM administrative_audit_events WHERE target_id=$1',
+          [source.publicationId],
+        )
+      ).rows[0].count,
+    ).toBe(auditBefore);
+    // A failure in append-only audit must abort the moderation write too. DDL is
+    // transactional and rolled back; the trigger affects only this fixture target.
+    const failureClient = await admin.connect();
+    const suffix = randomUUID().replaceAll('-', '');
+    try {
+      await failureClient.query('BEGIN');
+      await failureClient.query(`CREATE FUNCTION public.moderation_fail_${suffix}() RETURNS trigger LANGUAGE plpgsql AS $$
+        BEGIN IF NEW.target_id = '${source.publicationId}' THEN RAISE EXCEPTION 'fixture audit failure'; END IF;
+        RETURN NEW; END; $$`);
+      await failureClient.query(`CREATE TRIGGER moderation_fail_${suffix} BEFORE INSERT ON administrative_audit_events
+        FOR EACH ROW EXECUTE FUNCTION public.moderation_fail_${suffix}()`);
+      await failureClient.query('SET LOCAL ROLE asalab_app');
+      await expect(
+        failureClient.query('SELECT admin_publication_transition($1,$2,true,$3,$4)', [
+          moderator.principalId,
+          source.publicationId,
+          'Must roll back',
+          randomUUID(),
+        ]),
+      ).rejects.toMatchObject({ code: 'P0001' });
+    } finally {
+      await failureClient.query('ROLLBACK');
+      failureClient.release();
+    }
+    expect(
+      (
+        await admin.query(
+          'SELECT hidden FROM project_publication_moderation WHERE publication_id=$1',
+          [source.publicationId],
+        )
+      ).rows[0].hidden,
+    ).toBe(false);
+    expect(
+      (
+        await admin.query(
+          'SELECT count(*) AS count FROM administrative_audit_events WHERE target_id=$1',
+          [source.publicationId],
+        )
+      ).rows[0].count,
+    ).toBe(auditBefore);
+    await expect(transition(moderator.principalId, randomUUID(), true)).rejects.toMatchObject({
+      code: 'P5P04',
+    });
+  });
+
+  it('serializes author publish and revoke against moderation without losing hidden state', async () => {
+    const source = await publication();
+    const moderator = await identity('author-race', 'verified');
+    const published = await Promise.allSettled([
+      source.publish('Concurrent author update'),
+      transition(moderator.principalId, source.publicationId, true),
+    ]);
+    expect(published.every((result) => result.status === 'fulfilled')).toBe(true);
+    await unavailable(source);
+    const revoked = await Promise.allSettled([
+      runtime.query('SELECT project_publication_revoke($1,$2)', [
+        source.owner.principalId,
+        source.projectId,
+      ]),
+      transition(moderator.principalId, source.publicationId, false, 'Reviewed concurrently'),
+    ]);
+    expect(revoked.every((result) => result.status === 'fulfilled')).toBe(true);
+    expect(
+      (
+        await admin.query('SELECT state FROM project_publication_state WHERE id=$1', [
+          source.publicationId,
+        ])
+      ).rows[0].state,
+    ).toBe('revoked');
+    await unavailable(source);
+  });
+
+  it('rejects direct restricted-role table access and unbounded SQL input', async () => {
+    expect((await runtime.query('SELECT current_user AS role')).rows[0].role).toBe('asalab_app');
+    for (const sql of [
+      'SELECT * FROM project_publication_moderation',
+      "INSERT INTO project_publication_moderation(publication_id,hidden,reason,actor_principal_id) VALUES ($1,true,'x',$2)",
+      'UPDATE project_publication_moderation SET hidden=false,reason=NULL',
+      'DELETE FROM project_publication_moderation',
+    ]) {
+      await expect(
+        runtime.query(sql, sql.includes('$1') ? [randomUUID(), randomUUID()] : []),
+      ).rejects.toMatchObject({ code: '42501' });
+    }
+    const moderator = await identity('bounds', 'verified');
+    await expect(
+      runtime.query('SELECT admin_publications_list($1,0,51)', [moderator.principalId]),
+    ).rejects.toMatchObject({ code: '22023' });
+    await expect(transition(moderator.principalId, randomUUID(), true, ' ')).rejects.toMatchObject({
+      code: '22023',
+    });
+  });
+});
