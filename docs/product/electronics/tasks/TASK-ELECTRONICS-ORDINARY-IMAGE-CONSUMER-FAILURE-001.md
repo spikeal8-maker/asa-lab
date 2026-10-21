@@ -282,3 +282,17 @@ Fresh preflight/card; frozen existing deps, narrow format/lint/project-type/disc
 ## R2 observation completed — NO_PROVEN_CAUSE
 
 Exactsourceb16/probe7af3502c run38169594858 succeeded naturally, one case/attempt1. NEW independent [original review](../evidence/ordinary-image-548-r2-directed-independent-review.md), root verified74external/33Git and actual journal/run. All9 original assertions completed, 189Node/141browser records with zero losses, whole5-part mock/editor document unchanged and PUT0/pageerror0. Actual connected catalog native event occurred AFTER ref/effect and delivered through React/hook/reject/failed rendering. Historical failure did not recur; no product cause/repair/blocker closure/acceptance follows. API is mocked in this old scenario; real server persistence is not proved. Instrumentation timing remains unknown. STOP this experiment; no unchanged retry/Search/CPU/fullsuite hope. Preserve observer source outside main and all immutable originals. Independent canonical slices may proceed under their own scope; any new548 experiment/repair requires separately justified selection.
+
+
+## Actual9f measurement: own-diff source feasibility only
+
+[Actual receipt and bounded next selection](../evidence/ordinary-image-548-9fce-measurement-20261021.md).
+Editor218356 RAW/218000,deficit356,baseline217938,delta418. Existing548 cases
+PASS does not establish selection-copy browser proof or closure. NEW author may
+reduce ONLY its own OwnerOrdinaryImage insertion/adoption, preserving listener
+before href,cleanup/latest callbacks/queue and foreignLED/FET/artwork. Exact46
+unit file unchanged;focusedPASS plus NEW source/unit review;UNPUBLISHED STOP.
+No cap/gate/workflow/test/dependency/adjacent optimization. No CI now;future
+canonical measurement selection and actual full-size proof required. Infeasible
+means STOP.525 only readonly measured nativepoint/selector cause audit,no repair.
+KEEP544547OPEN;all productmain/owner/closure/release/deploy blocks remain.

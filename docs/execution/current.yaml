@@ -9059,7 +9059,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: prevention_prototype_measurement_only_validation_selected
+      checkpoint: actual_raw_budget_deficit_356_own_diff_feasibility_selected
       previous_checkpoint: two_mounted_cases_pass_no_proven_cause_diagnostic_STOP
       kind: repair
       owner_acceptance: pending
@@ -9068,10 +9068,8 @@ parallel_lanes:
       - docs/product/electronics/evidence/ordinary-image-548-consumer-cycle-selection-20261020.md
       - docs/product/electronics/components/ui-assets-persistence.yaml
       repair_scope: >-
-        MEASUREMENT-ONLY candidate validation,not product acceptance. Fixed e89 prototype remains
-        unchanged;complete mandatory selection-copy/replacement/unmount/firstURL/listenerorder unit
-        coverage only. After NEW review/root finalcomposition,a publiccandidatebranch may be measured
-        ONCE using unchanged strictworkflow;expected capFAIL is data,not a waived limit or productPASS.
+        SOURCE-FEASIBILITY ONLY reduce own OwnerOrdinaryImage insertion/main-selection adoption.
+        Actual9f Editor218356RAW/218000 deficit356;no mainproduct/CI/closure authorization.
       diagnostic_limits: >-
         e89 sourcefeasibility STOP is QUALIFIED_BUDGET_BLOCKED_NOT_PUBLICATION_APPROVAL. Sameunitblob
         RED41PASS2FAIL to GREEN43PASS;dedicatedselectioncopy/replacement incomplete due mandatedbudgetSTOP.
@@ -9175,17 +9173,34 @@ parallel_lanes:
         one_measurement: ONE existing Electronics strictworkflow at exactreviewedcandidatehead,focused43plusunitextension MUSTPASS first;measure actualfullEditor<=218000 and existing548temporary/permanent catalog/main/selection/nativeidentities. Newcodecandidate firstactualmeasurement,not unchangedhopefulrerun. No newobserver/workflow/script/localbrowser/build/install/DBchange.
         budget_reporting: Cap218000 and baseline217938 are actual RAWFILEbytes;gzip proxy cannot be compared to62RAWmargin.525proxy minified+82/gzip+54 and548proxy minified+403/gzip+96 are not actualfullEditor deltas. Expected actualcapFAIL is measurementresult,not acceptance/waiver. BenchmarknativeJSON has exactbytes/gzip and ifalways upload of producedreports;existingbudgetchecker logs rawsize/218000 evenFAIL. Earlyfailure/no generatedsize means actualfitUNKNOWN/incompleteSTOP,no scriptworkaround.
         closure_blocks: MainPRODUCTpublication,integration/issueclosure,owneracceptance,release,deployment BLOCKED until actualtarget+budgetproof and separateintegrationdecision. No blindcapraise/skips/bypasses/neighboroptimisation;ownerKEEP544547OPEN.
+      observed_9f_measurement:
+        sha: 9fce32c49a64f5e4c338f6188afabc0e6f3c2a07
+        run: 39583551420
+        conclusion: cancelled_browser_50min_not_final_suite
+        raw_bytes: 218356
+        raw_cap: 218000
+        raw_deficit: 356
+        baseline_raw_bytes: 217938
+        actual_raw_delta: 418
+        actual_review_sha256: 52562fc770bf42c60f6b14405dcb9b629e4383ec5067c4ef64a391c4db615eb4
+        result: Existing548temporary/permanentPASS;selectioncopybrowserNOT_OBSERVED;525zeroof16complete/PUT0. FocusedbenchmarkPASS doesnotwaive actualcapFAIL.
+        evidence: docs/product/electronics/evidence/ordinary-image-548-9fce-measurement-20261021.md
+      compact_own_diff_contract:
+        version: actual_356_raw_deficit_source_feasibility_only
+        expected_write_paths:
+        - apps/web/src/electronics/ProductionComponentVisual.tsx
+        scope: ONLY own OwnerOrdinaryImage helper insertion/main-selection adoption;preserve native listeners BEFORE href,cleanup/latestcallbacks/queuedingress and foreignLED/FET/artwork.
+        frozen_units: Final46case asset-recovery.spec from9f BYTEEXACT;no unit/gate/cap/dependency/workflow/adjacentoptimization.
+        verification: Focused46unitPASS and NEW independent exactSHA source/unitreview;sourceestimate NOT actualfit. One UNPUBLISHEDcandidate STOP;infeasible STOP,no hopefulvariant.
+        future_boundary: Separate canonicalmeasurementselection and actualfullsizeCI required;NO CI/rerun or mainproductpublication now. All acceptance/closure/owner/release/deployblocks remain.
       next_action: >-
-        After canonical acceptance,ONE new validationexecutor appends only mandatoryunits to exact43
-        caseprefix with prototypeVisual unchanged. Narrow tests/selfreview then UNPUBLISHEDcandidateSTOP;
-        anyfailure STOPgap,not codefix. NEW review then ROOTONLY finalcompositionreview/publiccandidate
-        branch/ONE strictmeasurement ifconditionsmet. Report actualsize/runtime/fullgate independently;
-        no mainproductpublication or acceptance until exactproof/separate decision. Preserve525frozenblob.
+        After canonical publication,new bounded own-diff feasibility author then NEW independent
+        source/unit reviewer. Preserve exact46units and allforeign. For525 ONLY readonly measured
+        nativepoint/selector causeaudit;no automatic test/productrepair or CI. KEEP544547OPEN.
       preservation: >-
-        Keep e89STOP/prototype and e0afRED/history immutable,old43tests unchanged,allforeign525/549/LED/
-        assets/hook/API/persistence/currentstate and blockers/ownerpending.525author owns browserhash;
-        validationauthor does NOTwrite generatedmetadata/spec/product/workflow. No automatic CI,
-        productrepair,capraise,closure,owneracceptance/release/deployment or localheavyoperations.
+        Preserve e89prototype/e0afRED/public9f/history and final46unit bytes;all foreign525/549/LED/
+        assets/hook/API/persistence/currentstate and acceptanceblocks. Own-diff author onlyVisual;
+        no test/generatedmetadata/workflow/adjacent edits or automaticCI/productmain/closure/deploy.
     execution_lease:
       executor_id: electronics-asset-consumer-diagnostic-548
       holder: unassigned
@@ -9201,15 +9216,16 @@ parallel_lanes:
       kind: observed_snapshot
       convergence_baseline_sha: abe8f05a33a8fdfffbdf491f6d6d9e34f841587c
       head_sha: null
-      observed_at: '2026-10-21T09:47:07Z'
+      observed_at: '2026-10-21T11:35:05Z'
       main:
         branch: main
-        sha: d8bdfa25ac0529836730d1042d6ddfa601cf976a
+        sha: a7f1bcd0fb4e17df9c0e69f8bb2cdffc932d5bb2
       observation_note: >-
-        Dated fetch main d8b snapshot;General39578495293 in_progress,not PASS. Fetch main/recover Git/CI/
-        dirtypaths before writes. Qualified e89review is not publicationapproval;only fixedprototype
-        validation/newmeasurement exception selected. SharedworkflowWAITING disjointonly,actual
-        selected/futuretargetoverlap0,not SAFE. Owner/acceptance/productmain publication stillblocked.
+        Fresh maina7f snapshot;General39580955892 GovCodeAccessPASS,Data foreignCoursesPortalC.
+        Fetch main/recover Git/CI/dirtypaths before writes.
+        Candidate9f strict39583551420 cancelledBrowser50min;actualEditor218356RAW overcap356.
+        SourcefeasibilityONLY,not actualfit/runtime/closure. Knownworkflowexception disjointonly;
+        allworktree selectedtargetoverlap0. Old receipts unchanged;futureactualmeasurement separatelyselected.
 
   - id: electronics-instrument-readouts
     parent_lane: electronics
