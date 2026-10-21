@@ -1,0 +1,58 @@
+.course-version-comparison {
+  min-width: 0;
+  margin-block: 1rem;
+}
+
+.course-version-comparison h4,
+.course-version-comparison h5,
+.course-version-comparison p,
+.course-version-comparison dd {
+  overflow-wrap: anywhere;
+}
+
+.course-version-comparison-list {
+  display: grid;
+  gap: 0.75rem;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.course-version-comparison-list > li {
+  min-width: 0;
+  border: 1px solid var(--border, #d9dde5);
+  border-radius: 0.5rem;
+  padding: 0.75rem;
+}
+
+.course-version-comparison-path {
+  margin: 0 0 0.5rem;
+  font-size: 0.875rem;
+}
+
+.course-version-comparison-values {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 0;
+}
+
+.course-version-comparison-values > div {
+  min-width: 0;
+}
+
+.course-version-comparison-values dt {
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+.course-version-comparison-values dd {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+@media (max-width: 600px) {
+  .course-version-comparison-values {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

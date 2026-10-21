@@ -54,6 +54,10 @@ import { AdminController } from './admin.controller.js';
 import { AiChatController } from './ai-chat.controller.js';
 import { AiAdminController } from './ai-admin.controller.js';
 import { AiChatService } from './ai-chat.service.js';
+import { AiAccessController } from './ai-access.controller.js';
+import { AiAccessService } from './ai-access.service.js';
+import { AiAttachmentController } from './ai-attachments/controller.js';
+import { AiAttachmentService } from './ai-attachments/service.js';
 import { AdminLogsController } from './admin-logs.controller.js';
 import { AdminLogsService } from './admin-logs.service.js';
 import { ClientDiagnosticsController } from './client-diagnostics.controller.js';
@@ -153,6 +157,8 @@ export class AppModule {
       telegramAuthService,
     ]);
     const aiChatService = new AiChatService(requirePool());
+    const aiAccessService = new AiAccessService(requirePool());
+    const aiAttachmentService = new AiAttachmentService(pool);
     const productAnalytics = options.productAnalytics ?? new ProductAnalyticsService(pool);
     const projectRepository = (): PgProjectRepository =>
       new PgProjectRepository(requirePool(), undefined, gamesProjectGuard);
@@ -200,6 +206,8 @@ export class AppModule {
         AuthController,
         AdminController,
         AiChatController,
+        AiAccessController,
+        AiAttachmentController,
         AiAdminController,
         AdminLogsController,
         ClientDiagnosticsController,
@@ -250,6 +258,8 @@ export class AppModule {
         { provide: TOKENS.telegramAuthService, useValue: telegramAuthService },
         { provide: TOKENS.accountVerification, useValue: accountVerification },
         { provide: TOKENS.aiChatService, useValue: aiChatService },
+        { provide: TOKENS.aiAccessService, useValue: aiAccessService },
+        { provide: TOKENS.aiAttachmentService, useValue: aiAttachmentService },
         { provide: TOKENS.productAnalytics, useValue: productAnalytics },
         {
           provide: TOKENS.refreshSessionService,

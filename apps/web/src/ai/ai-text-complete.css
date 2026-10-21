@@ -1,0 +1,96 @@
+.asa-ai-rich-text .katex-display {
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.25em 0;
+  overscroll-behavior-inline: contain;
+}
+
+.asa-ai-rich-text .katex {
+  font-size: 1.08em;
+}
+
+.asa-ai-rich-text .katex-error,
+.asa-ai-content-fallback {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.asa-ai-content-fallback p {
+  color: var(--muted);
+  font-size: 0.85em;
+}
+
+.asa-ai-layout .chat-history-filters {
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  border: 1px solid var(--ai-border);
+  border-radius: 9px;
+}
+.asa-ai-layout .chat-history-filters button {
+  flex: 1;
+  min-width: 0;
+  min-height: 36px;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ai-muted);
+  font-size: 12px;
+}
+.asa-ai-layout .chat-history-filters button[aria-pressed='true'] {
+  background: var(--ai-surface);
+  color: var(--ai-accent);
+  box-shadow: 0 1px 3px #0001;
+  font-weight: 600;
+}
+.asa-ai-layout .chat-history-title {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.asa-ai-layout .chat-history-preview {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  margin-top: 4px;
+  color: var(--ai-muted);
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.4;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.asa-ai-layout .chat-variant-source {
+  margin: 0 0 12px;
+  padding: 8px 12px;
+  border-inline-start: 3px solid var(--ai-accent);
+  border-radius: 0 6px 6px 0;
+  background: var(--ai-bg);
+  color: var(--ai-muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.asa-ai-layout .chat-variant-source summary {
+  cursor: pointer;
+  min-height: 24px;
+  line-height: 24px;
+}
+.asa-ai-layout .chat-variant-source p {
+  margin: 6px 0 0;
+  white-space: pre-wrap;
+  max-height: 180px;
+  overflow-y: auto;
+}
+.asa-ai-layout .chat-message-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 6px;
+}
+.asa-ai-layout .asa-ai-error.chat-history-notice {
+  color: var(--ai-text);
+  border-color: var(--ai-border);
+  background: var(--ai-bg);
+}

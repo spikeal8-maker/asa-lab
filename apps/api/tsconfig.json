@@ -6,10 +6,12 @@
     "rootDir": "src",
     "outDir": "dist",
     "resolveJsonModule": true,
+    "allowJs": true,
+    "checkJs": true,
     "types": ["node"],
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true
   },
-  "include": ["src/**/*.ts"],
+  "include": ["src/**/*.ts", "src/**/*.cjs"],
   "exclude": ["dist", "**/*.spec.ts"]
 }

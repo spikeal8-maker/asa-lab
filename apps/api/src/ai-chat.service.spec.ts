@@ -1,8 +1,11 @@
+import { aiAdminFixture } from './testing/ai-admin-config.fixture';
 import { createCipheriv, randomBytes } from 'node:crypto';
 import type pg from 'pg';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { ActiveContextUseCase } from '@asa-lab/identity';
 import { describe, expect, it, vi } from 'vitest';
+import type { AiAccessService } from './ai-access.service';
+import type { SeatContextUseCase } from './seat-context';
 import { AiChatController } from './ai-chat.controller';
 import { AiChatService, AiServiceError } from './ai-chat.service';
 
@@ -22,7 +25,7 @@ function secureRuntime() {
     enabled: true,
     configuration_version: 1,
     provider: 'openai' as const,
-    model: 'gpt-5-mini' as const,
+    model: 'gpt-6-luna' as const,
     api_key_ciphertext: ciphertext.toString('base64url'),
     api_key_iv: iv.toString('base64url'),
     api_key_auth_tag: cipher.getAuthTag().toString('base64url'),
@@ -71,6 +74,8 @@ describe('ASA native AI Chat', () => {
           resolve: vi.fn(async () => ({ principalId: PRINCIPAL, accountId: PRINCIPAL })),
         } as unknown as ActiveContextUseCase,
         ai as unknown as AiChatService,
+        { resolveExisting: vi.fn(async () => null) } as unknown as SeatContextUseCase,
+        { owner: vi.fn(async () => PRINCIPAL) } as unknown as AiAccessService,
       );
       const write = vi.fn();
       const raw = { writeHead: vi.fn(), once: vi.fn(), write, end: vi.fn() };
@@ -103,8 +108,11 @@ describe('ASA native AI Chat', () => {
         {
           enabled: true,
           provider: 'openai',
-          model: 'gpt-5-mini',
+          model: 'gpt-6-luna',
           api_key_configured: true,
+          provider_configurations: aiAdminFixture({ apiKeyConfigured: true })
+            .providerConfigurations,
+          migrated_from_model: null,
           key_fingerprint: 'a1b2c3d4e5f6',
           configuration_version: 3,
           updated_at: new Date('2026-10-14T00:00:00Z'),
@@ -122,6 +130,7 @@ describe('ASA native AI Chat', () => {
 
   it('encrypts a replaced GPT key without submitting raw credentials to SQL', async () => {
     const calls: unknown[][] = [];
+    let configurationVersion = 1;
     const query = vi.fn(async (sql: string, params: unknown[] = []) => {
       calls.push([sql, ...params]);
       if (sql.includes('ai_admin_get_config')) {
@@ -130,16 +139,20 @@ describe('ASA native AI Chat', () => {
             {
               enabled: false,
               provider: 'openai',
-              model: 'gpt-5-mini',
+              model: 'gpt-6-luna',
               api_key_configured: false,
+              provider_configurations: aiAdminFixture({ apiKeyConfigured: false })
+                .providerConfigurations,
+              migrated_from_model: null,
               key_fingerprint: null,
-              configuration_version: 1,
+              configuration_version: configurationVersion,
               updated_at: null,
             },
           ],
         };
       }
-      return { rows: [{ ai_admin_set_config: 2 }] };
+      configurationVersion += 1;
+      return { rows: [{ ai_admin_set_config: configurationVersion }] };
     });
     const service = new AiChatService({ query } as unknown as pg.Pool, {
       encryptionKey: ROOT,
@@ -149,7 +162,7 @@ describe('ASA native AI Chat', () => {
       {
         enabled: true,
         provider: 'openai',
-        model: 'gpt-5-mini',
+        model: 'gpt-6-luna',
         apiKey: 'sk-test-private-key-123456',
       },
       'test-admin-request',
@@ -169,8 +182,10 @@ describe('ASA native AI Chat', () => {
     const query = vi.fn(async (sql: string) => {
       queries.push(sql);
       if (sql.includes('ai_runtime_config')) return { rows: [secureRuntime()] };
-      if (sql.includes('ai_chat_begin')) return { rows: [{ admitted: true }] };
-      if (sql.includes('ai_chat_messages')) {
+      if (sql.includes('ai_text_begin')) return { rows: [{ admitted: true }] };
+      if (sql.includes('ai_text_generation_context'))
+        return { rows: [{ role: 'user', content: 'Объясни Arduino' }] };
+      if (sql.includes('ai_text_messages_page')) {
         return {
           rows: persisted
             ? [
@@ -208,7 +223,7 @@ describe('ASA native AI Chat', () => {
     });
     const result = await service.send(PRINCIPAL, THREAD, 'Объясни Arduino', REQUEST);
     expect(result.messages).toHaveLength(2);
-    expect(queries.findIndex((sql) => sql.includes('ai_chat_begin'))).toBeLessThan(
+    expect(queries.findIndex((sql) => sql.includes('ai_text_begin'))).toBeLessThan(
       queries.findIndex((sql) => sql.includes('ai_chat_finish')),
     );
     expect(fetchImpl).toHaveBeenCalledTimes(1);
@@ -220,7 +235,7 @@ describe('ASA native AI Chat', () => {
       input: unknown[];
     };
     expect(body.store).toBe(false);
-    expect(body.model).toBe('gpt-5-mini');
+    expect(body.model).toBe('gpt-6-luna');
     expect(body.input).toHaveLength(1);
   });
 
@@ -229,8 +244,10 @@ describe('ASA native AI Chat', () => {
     const query = vi.fn(async (sql: string) => {
       queries.push(sql);
       if (sql.includes('ai_runtime_config')) return { rows: [secureRuntime()] };
-      if (sql.includes('ai_chat_begin')) return { rows: [{ admitted: true }] };
-      if (sql.includes('ai_chat_messages')) {
+      if (sql.includes('ai_text_begin')) return { rows: [{ admitted: true }] };
+      if (sql.includes('ai_text_generation_context'))
+        return { rows: [{ role: 'user', content: 'Вопрос' }] };
+      if (sql.includes('ai_text_messages_page')) {
         return { rows: [{ id: 'u1', role: 'user', content: 'Вопрос', created_at: new Date() }] };
       }
       return { rows: [] };
@@ -244,8 +261,8 @@ describe('ASA native AI Chat', () => {
       fetchImpl,
     });
     await expect(service.send(PRINCIPAL, THREAD, 'Вопрос', REQUEST)).rejects.toMatchObject({
-      code: 'ai_provider_error',
-      status: 503,
+      code: 'ai_provider_authentication_failed',
+      status: 502,
     } satisfies Partial<AiServiceError>);
     expect(fetchImpl).toHaveBeenCalledTimes(1);
     expect(queries.some((sql) => sql.includes('ai_chat_abort'))).toBe(true);
@@ -255,8 +272,8 @@ describe('ASA native AI Chat', () => {
   it('does not call provider again when the same client request ID is replayed', async () => {
     const query = vi.fn(async (sql: string) => {
       if (sql.includes('ai_runtime_config')) return { rows: [secureRuntime()] };
-      if (sql.includes('ai_chat_begin')) return { rows: [{ admitted: false }] };
-      if (sql.includes('ai_chat_messages')) {
+      if (sql.includes('ai_text_begin')) return { rows: [{ admitted: false }] };
+      if (sql.includes('ai_text_messages_page')) {
         return {
           rows: [
             {
@@ -289,8 +306,10 @@ describe('ASA native AI Chat', () => {
     const query = vi.fn(async (sql: string, params: unknown[] = []) => {
       calls.push({ sql, params });
       if (sql.includes('ai_runtime_config')) return { rows: [secureRuntime()] };
-      if (sql.includes('ai_chat_begin')) return { rows: [{ admitted: true }] };
-      if (sql.includes('ai_chat_messages')) return { rows: [] };
+      if (sql.includes('ai_text_begin')) return { rows: [{ admitted: true }] };
+      if (sql.includes('ai_text_generation_context'))
+        return { rows: [{ role: 'user', content: 'Вопрос' }] };
+      if (sql.includes('ai_text_messages_page')) return { rows: [] };
       return { rows: [{ ai_chat_finish: true }] };
     });
     const fetchImpl = vi.fn<typeof fetch>(
@@ -333,17 +352,19 @@ describe('ASA native AI Chat', () => {
               {
                 ...secureRuntime(),
                 provider,
-                model: provider === 'openai' ? 'gpt-5-mini' : 'deepseek-chat',
+                model: provider === 'openai' ? 'gpt-6-luna' : 'deepseek-flash',
               },
             ],
           };
         }
-        if (sql.includes('ai_chat_begin')) {
+        if (sql.includes('ai_text_generation_context'))
+          return { rows: [{ role: 'user', content: 'Вопрос' }] };
+        if (sql.includes('ai_text_begin')) {
           const replayed = admitted;
           admitted = true;
           return { rows: [{ admitted: !replayed }] };
         }
-        if (sql.includes('ai_chat_messages')) {
+        if (sql.includes('ai_text_messages_page')) {
           return {
             rows: [
               {
@@ -417,7 +438,9 @@ describe('ASA native AI Chat', () => {
   it('uses the same digital-laboratory instruction for JSON and streaming requests', async () => {
     const query = vi.fn(async (sql: string) => {
       if (sql.includes('ai_runtime_config')) return { rows: [secureRuntime()] };
-      if (sql.includes('ai_chat_begin')) return { rows: [{ admitted: true }] };
+      if (sql.includes('ai_text_begin')) return { rows: [{ admitted: true }] };
+      if (sql.includes('ai_text_generation_context'))
+        return { rows: [{ role: 'user', content: 'Вопрос' }] };
       return { rows: [] };
     });
     const fetchImpl = vi.fn<typeof fetch>(async (_url, options) => {
@@ -456,7 +479,9 @@ describe('ASA native AI Chat', () => {
     const request = 'cdefabcd-efab-4cde-acde-cdefabcdefab';
     const query = vi.fn(async (sql: string) => {
       if (sql.includes('ai_runtime_config')) return { rows: [secureRuntime()] };
-      if (sql.includes('ai_chat_begin')) return { rows: [{ admitted: true }] };
+      if (sql.includes('ai_text_begin')) return { rows: [{ admitted: true }] };
+      if (sql.includes('ai_text_generation_context'))
+        return { rows: [{ role: 'user', content: 'Вопрос' }] };
       return { rows: [] };
     });
     const fetchImpl = vi.fn<typeof fetch>(
@@ -528,11 +553,18 @@ describe('ASA native AI Chat', () => {
           })),
         } as unknown as ActiveContextUseCase,
         ai as unknown as AiChatService,
+        { resolveExisting: vi.fn(async () => null) } as unknown as SeatContextUseCase,
+        { owner: vi.fn(async () => PRINCIPAL) } as unknown as AiAccessService,
       );
-      const req = { cookies: {} } as unknown as FastifyRequest;
+      const req = { cookies: {}, headers: {} } as unknown as FastifyRequest;
       await controller.threads(req, at, beforeId);
       await controller.messages(req, beforeId, at, beforeId);
-      expect(ai.threadPage).toHaveBeenCalledWith(PRINCIPAL, { at, id: beforeId.toLowerCase() });
+      expect(ai.threadPage).toHaveBeenCalledWith(
+        PRINCIPAL,
+        { at, id: beforeId.toLowerCase() },
+        '',
+        false,
+      );
       expect(ai.messagePage).toHaveBeenCalledWith(PRINCIPAL, beforeId.toLowerCase(), {
         at,
         id: beforeId.toLowerCase(),
@@ -557,8 +589,10 @@ describe('ASA native AI Chat', () => {
         })),
       } as unknown as ActiveContextUseCase,
       ai as unknown as AiChatService,
+      { resolveExisting: vi.fn(async () => null) } as unknown as SeatContextUseCase,
+      { owner: vi.fn(async () => PRINCIPAL) } as unknown as AiAccessService,
     );
-    const req = { cookies: {} } as unknown as FastifyRequest;
+    const req = { cookies: {}, headers: {} } as unknown as FastifyRequest;
     await expect(controller.threads(req, at, THREAD)).rejects.toMatchObject({
       status: 400,
       response: { error: { code: 'ai_cursor_invalid' } },
@@ -578,8 +612,11 @@ describe('ASA native AI Chat', () => {
             {
               enabled: false,
               provider: 'openai',
-              model: 'gpt-5-mini',
+              model: 'gpt-6-luna',
               api_key_configured: true,
+              provider_configurations: aiAdminFixture({ apiKeyConfigured: true })
+                .providerConfigurations,
+              migrated_from_model: null,
               key_fingerprint: 'test-hash',
               configuration_version: 7,
               updated_at: null,
@@ -605,7 +642,7 @@ describe('ASA native AI Chat', () => {
     const result = await service.testConnection(PRINCIPAL, 7);
     expect(result).toMatchObject({
       provider: 'openai',
-      model: 'gpt-5-mini',
+      model: 'gpt-6-luna',
       configurationVersion: 7,
     });
     expect(JSON.stringify(result)).not.toContain('sk-test-private-key');
@@ -624,8 +661,11 @@ describe('ASA native AI Chat', () => {
               {
                 enabled: true,
                 provider: 'openai',
-                model: 'gpt-5-mini',
+                model: 'gpt-6-luna',
                 api_key_configured: true,
+                provider_configurations: aiAdminFixture({ apiKeyConfigured: true })
+                  .providerConfigurations,
+                migrated_from_model: null,
                 configuration_version: 2,
                 updated_at: null,
               },
@@ -640,7 +680,7 @@ describe('ASA native AI Chat', () => {
     });
     expect((await service.status()).enabled).toBe(false);
     await expect(service.testConnection(PRINCIPAL, 2)).rejects.toMatchObject({
-      code: 'ai_key_unavailable',
+      code: 'ai_key_decryption_failed',
     });
     expect(fetchImpl).not.toHaveBeenCalled();
   });

@@ -16,6 +16,7 @@ for (const path of browser
   : [
       'tests/portal/public-projects.pg.spec.ts',
       'tests/portal/public-project-copy.pg.spec.ts',
+      'tests/migration/ai-main-prefix-upgrade.pg.spec.ts',
       'apps/api/src/public-projects.spec.ts',
       'apps/api/src/public-project-copy.spec.ts',
     ]) {
@@ -177,5 +178,13 @@ if (browser) {
     '--maxWorkers=2',
   ]);
   run(['test:creator-portal']);
+  // Verify supported populated database upgrades from 0225 through 0235.
+  run([
+    'exec',
+    'vitest',
+    'run',
+    'tests/migration/ai-main-prefix-upgrade.pg.spec.ts',
+    '--maxWorkers=1',
+  ]);
 }
 console.log(`Public Projects ${browser ? 'real browser' : 'code and PostgreSQL'} gate: PASS`);

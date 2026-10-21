@@ -12,6 +12,128 @@ review: independent
 
 # Publish the ordinary-image failure to the actual mounted catalog consumer
 
+## Selected own-helper attempt STOP — 21 October 2026
+
+The single selected compaction attempt passed46 units, lint and format but grew
+the minified raw proxy43950to43953 (+3). It was withdrawn, restoring clean9f;
+actual full-bundle fit was NOT_RUN. This proves only this attempt infeasible,
+not all possible implementations. Actual9f remains218356 RAW/218000, deficit356.
+No automatic further optimization, measurement, main product or closure selected.
+Preserve e0af RED, e89,9f and exact46units. #544/#547 stay OPEN by owner KEEP until
+a demonstrated #548 fix. The separate #525 test ownership repair does not waive
+this budget block. See the new hit-ownership selection receipt.
+
+## Fixed-prototype validation and candidate MEASUREMENT ONLY
+
+This section explicitly supersedes ONLY the estimate-over-margin STOP for fixed
+prototype validation/one actual measurement,not product acceptance. e89fdd6e
+remains UNPUBLISHED with NEW qualified review BUDGET_BLOCKED_NOT_PUBLICATION_APPROVAL.
+Same testblob7dade988 was RED41PASS2FAIL thenGREEN43PASS;old41 unchanged.
+Selection-copy/replacement coverage was incomplete because author correctly
+stopped. Preserve old prototype/RED/receipts unchanged;no new product variant.
+
+New executor authoring ONLY asset-recovery.spec.ts:append mandatory dedicated
+selection-copy,replacement/unmount,firstcorrectURL/listenerorder prevention tests.
+Keep43case60800byte prefix EXACT7dade988 and ProductionComponentVisual blob
+EXACTb7227612498277928e852c49ae569f3e577f5c0c from e89. No optimisation/product edit.
+All required units must PASS;any failure STOP with concrete gap,not automatic
+productrepair or CI. One UNPUBLISHEDself-reviewed unitcandidate STOP;NEW independent
+source/unitreview before ROOT finalcomposition/publication decision.
+
+Only ROOT after review may publish PUBLICCANDIDATEBRANCH
+codex/electronics-548-measurement from latestacceptedmain+unchangedprototypeVisual+
+completedunit+separatelyreviewed525a39b spec/generatedhash. Finalcompositionreview
+required;preserve foreign bytes and frozen whole525blob. One existing Electronics
+strictworkflow then measures actual fullEditor<=218000 and existing548temporary/
+permanent catalog/main/selection recovery/nativeidentities. Focused43plus extension
+must PASS first. No observer/workflow/script/dependency/timeout/cap workaround.
+
+Cap218000 and baseline217938 are RAWFILEbytes,margin62RAWbytes.548Temp
+unbundledminified+403/gzip+96 and525two-module minified+82/gzip+54 are proxies,
+not actualfullEditor deltas. Comparing compressed54or96 with62RAW is invalid.
+Measurement is needed because exactfullEditor size remains UNKNOWN;proxy STOP
+is conservative history,not a demonstrated actualcap breach. Expected budgetFAIL is valid measurement data,
+not acceptance or cap waiver. Existing benchmark writes exactbytes/gzip to JSON
+and uploads producedreports if:always;budgetchecker logs rawsize evenFAIL. Early
+failure/no size means actualfitUNKNOWN/incompleteSTOP,not permission to bypass.
+No localbrowser/build/install/DB. This is first actual newcandidate measurement,
+not hopeful rerun. MainPRODUCTpublication/integration/closure/owner/release/deploy
+remain BLOCKED until actualtarget+budgetproof and separate integrationdecision.
+OwnerKEEP544547OPEN;#525/549/foreign intact. See [dated selection receipt](../evidence/ordinary-image-548-measurement-validation-selection-20261021.md).
+
+## Prevention correctness source — listener before resource href
+
+NEW independent mounted RED review approves synthetic public boundary regression
+on unpublished e0afc71b:41oldPASS,newRED0probes/badge versus3,faithful same detached
+href-assigned image laterconnected and wrapper restoration. Preserve that RED
+branch/receipt immutable;do not publish it alone or skip/relax its assertion.
+The [dated prevention selection receipt](../evidence/ordinary-image-548-prevention-selection-20261021.md)
+records evidence and limits. Historical native/privatecause remains UNKNOWN.
+
+This new executable contract supersedes ONLY old regression-only budget and
+its preconnect-href expectation for NEW prevention tests. Author ONLY
+ProductionComponentVisual.tsx ordinary MAIN+SELECTION-COPY image path and existing
+asset-recovery.spec.ts;all41oldcases unchanged. Render no resourcehref. A small
+ordinary-image wrapper installs element-local native load/error listeners FIRST
+in its own layout effect,THEN assigns correct currenthref. Remove duplicate
+React handlers ONLY for this wrapper;forward existing useOwnerImageHref callbacks/
+earlyqueue. Preserve bounded retry/cache/badge/success,staleasset/unmount cleanup,
+identity/geometry and preparedLED/assets/workbenchhook/API/persistence/foreign work.
+
+NEW prevention tests must prove beforeconnectionNOresourcehref and firstcorrecthref
+assigned ONLY afterlistenersinstalled. Immediate assignment-time SYNTHETIC error
+must enter boundedretry/failedbadge with SAMEimage/root;success/permanentfailure/
+assetreplace/unmount remain correct. This probe checks listener-before-href
+ordering;it is explicitly not a substitute for old native preconnect evidence.
+No privateReact invocation or trusted-event claim;restore publicDOM wrappers.
+
+Record NEW preventiontestRED on UNPATCHEDacceptedmain BEFORE product edits;freeze
+those exact testbytes,then prove BYTE-IDENTICALGREEN after source in the same
+bounded slice. OldRED source/receipt stays separate immutable history,no expected
+fail/skip/oracle weakening. Invalid or missing causal test means STOP.
+
+Current217938/218000 margin62. SmallTempestimate is not actualfit. If it exceeds
+availablemargin,STOP withbudgetproof,no capraise/neighboroptimisation. Plausible
+fit permits only UNPUBLISHEDcandidate/selfreview/NEW independent source+unit
+RED/GREENreview;controller separately selects actual existing temporary/permanent
+catalog/main/selection recovery/nativeidentities plus exactbenchmark/fullgates.
+No newbrowserobserver,automaticpublication/acceptance/closure. OwnerKEEP544547OPEN
+until actualfix;#525/549 and all old receipts intact. Canonicalcoveragegenerator
+has no Visual/asset-recovery input,so no generatedhash write;525browserhash untouched.
+
+## Fresh b344 deterministic mounted regression ONLY — no product selection
+
+The [dated incidental failure/cause-gate receipt](../evidence/ordinary-image-548-b344-deterministic-selection-20261021.md)
+records NEW specific hypothesis approval. Old terminal NO_PROVEN_CAUSE is history,
+not rewritten. This canonical action supersedes ONLY old unit-diagnostic bans;
+it does not resume a browser observer or select product repair/closure.
+
+Author ONLY apps/web/src/electronics/testing/asset-recovery.spec.ts. Preserve
+all41existing cases/helpers/assertions byte-exact. Use actual mounted React and
+production catalog consumer with public DOM. Dispatch ONE synthetic DOM error
+(isTrustedfalse,not actual native proof) to the SAME href-assigned detached SVG
+image immediately before REAL catalog DOM connection at append/insert boundary.
+Prove the sameimage later connected,retain boundary-event identity and actual
+consumer recovery request/badge/outcome. Never make synchronous href assignment
+itself the error surrogate or manually invoke a handler/private React/cache ref.
+
+Public DOM wrappers preserve receiver/args/return/throw/descriptors and restore
+identity in finally. Do not suppress listeners or manipulate production to force
+red. Another faithful harness is allowed ONLY with the same detachment/identity/
+actual-connection proof,not repeated hopeful variants. Unit evidence is synthetic;
+detached does not imply before React onError attachment or before commit.
+Historical exact connection time/private delivery/cache remain UNKNOWN and
+wrapper function/timing interference NONZERO/unknown.
+
+A faithful mounted failure proves only this boundary contract,not native causal
+identity/frequency. Keep finite recovery budgets/empty document and all production
+semantics;no product/browser/workflow/dependency/timeout/timer-policy change.
+If no reproduction or invalid/impossible harness,STOP NO_PROVEN_REGRESSION.
+One unpublished source candidate/report,self-review and STOP;NEW independent
+source/unit plus actual evidence review before separately selected product work.
+No hopeful observer,new CI experiment,closure or owner acceptance. Preserve
+525inprogress and owner KEEP544/547 OPEN pending548fix;all old receipts unchanged.
+
 ## Last existing temporary404 recovery observation — test only
 
 This new executable contract supersedes the prior creation-API-wrapper ban ONLY
@@ -171,3 +293,17 @@ Fresh preflight/card; frozen existing deps, narrow format/lint/project-type/disc
 ## R2 observation completed — NO_PROVEN_CAUSE
 
 Exactsourceb16/probe7af3502c run38169594858 succeeded naturally, one case/attempt1. NEW independent [original review](../evidence/ordinary-image-548-r2-directed-independent-review.md), root verified74external/33Git and actual journal/run. All9 original assertions completed, 189Node/141browser records with zero losses, whole5-part mock/editor document unchanged and PUT0/pageerror0. Actual connected catalog native event occurred AFTER ref/effect and delivered through React/hook/reject/failed rendering. Historical failure did not recur; no product cause/repair/blocker closure/acceptance follows. API is mocked in this old scenario; real server persistence is not proved. Instrumentation timing remains unknown. STOP this experiment; no unchanged retry/Search/CPU/fullsuite hope. Preserve observer source outside main and all immutable originals. Independent canonical slices may proceed under their own scope; any new548 experiment/repair requires separately justified selection.
+
+
+## Actual9f measurement: own-diff source feasibility only
+
+[Actual receipt and bounded next selection](../evidence/ordinary-image-548-9fce-measurement-20261021.md).
+Editor218356 RAW/218000,deficit356,baseline217938,delta418. Existing548 cases
+PASS does not establish selection-copy browser proof or closure. NEW author may
+reduce ONLY its own OwnerOrdinaryImage insertion/adoption, preserving listener
+before href,cleanup/latest callbacks/queue and foreignLED/FET/artwork. Exact46
+unit file unchanged;focusedPASS plus NEW source/unit review;UNPUBLISHED STOP.
+No cap/gate/workflow/test/dependency/adjacent optimization. No CI now;future
+canonical measurement selection and actual full-size proof required. Infeasible
+means STOP.525 only readonly measured nativepoint/selector cause audit,no repair.
+KEEP544547OPEN;all productmain/owner/closure/release/deploy blocks remain.

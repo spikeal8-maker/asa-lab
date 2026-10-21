@@ -45,7 +45,10 @@ test('exact saved and published learner preview ignores late responses and creat
   await page.getByRole('button', { name: 'Сохранить', exact: true }).click();
   await expect(previewButton).toBeEnabled();
   const mutations: string[] = [];
+  const qualityTelemetryUrl = new URL('/api/analytics/v2/quality', page.url()).href;
   page.on('request', (request) => {
+    // This fixed endpoint persists background delivery counters.
+    if (request.method() === 'POST' && request.url() === qualityTelemetryUrl) return;
     if (request.url().includes('/api/') && !['GET', 'HEAD'].includes(request.method()))
       mutations.push(request.method() + ' ' + request.url());
   });
@@ -450,7 +453,7 @@ test('draft from historical Course and Activity versions uses the author UI, pro
   await editor.getByLabel('Название урока').fill('Unsaved input during outline refresh');
   releaseOutline();
 
-  await expect(page.getByText('Версия 4 уже актуальна.', { exact: true })).toBeVisible();
+  await expect(page.getByText('Публикация подтверждена: версия 4.', { exact: true })).toBeVisible();
   await expect(editor.getByRole('button', { name: /^Опубликовать/ })).toHaveCount(0);
   await expect(editor.getByLabel('Название урока')).toHaveValue(
     'Unsaved input during outline refresh',
@@ -1191,5 +1194,535 @@ test('course and section forms preserve later edits after real save receipts wit
   await saveWhileTyping('section', sectionPath, 'PATCH', 'Conflict section', true);
   expect(await readCourses()).toHaveLength(1);
   expect(await readSections()).toHaveLength(initialSections.length + 1);
+  expect(browserErrors).toEqual([]);
+});
+
+test('Course publication lost response replays the exact V1 after V2 and reload without duplicate versions', async ({
+  page,
+}) => {
+  test.setTimeout(90000);
+  const unique = crypto.randomUUID().replaceAll('-', '').slice(0, 18);
+  const title = 'Повтор публикации ' + unique;
+  const browserErrors: string[] = [];
+  page.on('pageerror', (error) => browserErrors.push(error.message));
+  await page.goto('/#/');
+  await page.getByRole('button', { name: 'Создать аккаунт', exact: true }).first().click();
+  await page.getByLabel('Email', { exact: true }).fill(unique + '@publish-replay.test');
+  await page.getByLabel('Имя пользователя', { exact: true }).fill('r' + unique);
+  await page.getByLabel('Отображаемое имя', { exact: true }).fill('Автор публикации');
+  await page.getByLabel('Дата рождения').fill('1990-04-12');
+  await page.getByLabel('Пароль', { exact: true }).fill('Strong-' + unique + '-Password');
+  await page.getByRole('checkbox', { name: 'Я не робот' }).press('Space');
+  await page.getByRole('button', { name: 'Создать аккаунт', exact: true }).click();
+  await expect(page.getByRole('main', { name: 'Главная', exact: true })).toBeVisible();
+  await page.goto('/#/account');
+  await page
+    .getByLabel('Разделы настроек')
+    .getByRole('button', { name: 'Материалы и классы', exact: true })
+    .click();
+  await page.getByRole('button', { name: 'Подключить авторство', exact: true }).click();
+  await page.goto('/#/challenges');
+  const courseTab = page
+    .getByRole('navigation', { name: 'Разделы курсов и заданий' })
+    .getByRole('button', { name: 'Курсы', exact: true });
+  await courseTab.click();
+  await page.getByRole('button', { name: 'Создать курс', exact: true }).click();
+  const form = page.getByRole('dialog', { name: 'Новый курс' });
+  await form.getByLabel('Название', { exact: true }).fill(title);
+  const creation = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'POST' && new URL(response.url()).pathname === '/api/courses',
+  );
+  await form.getByRole('button', { name: 'Создать курс', exact: true }).click();
+  const created = await creation;
+  expect(created.status()).toBe(201);
+  const courseId = ((await created.json()) as { id: string }).id;
+  const editor = page.getByTestId('course-editor');
+  await editor
+    .locator('.course-outline')
+    .getByRole('button', { name: '+ Урок', exact: true })
+    .click();
+  await editor.getByLabel('Название урока').fill('Первая версия урока');
+  await editor.getByLabel('Текст блока', { exact: true }).fill('Сохранённое содержание V1');
+  const saving = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'POST' &&
+      new URL(response.url()).pathname === '/api/courses/' + courseId + '/lessons',
+  );
+  await editor.getByRole('button', { name: 'Добавить урок', exact: true }).click();
+  const saved = await saving;
+  expect(saved.status()).toBe(201);
+  const lesson = (await saved.json()) as { id: string; draftRevision: number };
+  await expect(editor.getByText('Урок добавлен.', { exact: true })).toBeVisible();
+
+  type PublishRequest = { expectedRevision: number; requestId: string };
+  type Publication = {
+    versionId: string;
+    versionNumber: number;
+    publishedAt: string;
+    reused: boolean;
+  };
+  type Version = { id: string; versionNumber: number; publishedAt: string; outline: unknown };
+  const publishPath = '/api/courses/' + courseId + '/publish';
+  const versionsPath = '/api/courses/' + courseId + '/versions';
+  async function versions(): Promise<Version[]> {
+    const response = await page.request.get(versionsPath);
+    expect(response.ok()).toBe(true);
+    return ((await response.json()) as { items: Version[] }).items;
+  }
+  expect(await versions()).toEqual([]);
+  const requests: PublishRequest[] = [];
+  const receipts: Publication[] = [];
+  const publicationRoute = async (route: Route) => {
+    requests.push(route.request().postDataJSON() as PublishRequest);
+    // Execute the real mutation first. Only delivery of its first successful
+    // response is lost; no receipt, status or version is manufactured here.
+    const response = await route.fetch();
+    expect(response.status()).toBe(201);
+    receipts.push((await response.json()) as Publication);
+    if (requests.length === 1) {
+      await route.abort('failed');
+      return;
+    }
+    await route.fulfill({ response });
+  };
+  await page.route('**' + publishPath, publicationRoute);
+  const lost = page.waitForEvent(
+    'requestfailed',
+    (request) => new URL(request.url()).pathname === publishPath,
+  );
+  const publishButton = editor.getByRole('button', { name: 'Опубликовать', exact: true });
+  await publishButton.click();
+  await lost;
+  expect(receipts).toHaveLength(1);
+  const first = receipts[0]!;
+  expect(first).toMatchObject({ versionNumber: 1, reused: false });
+  expect(requests).toEqual([
+    {
+      expectedRevision: lesson.draftRevision,
+      requestId: 'course-publish:' + courseId + ':' + lesson.draftRevision,
+    },
+  ]);
+  await expect(editor.getByRole('alert')).toContainText('сервер недоступен');
+  await expect(publishButton).toBeEnabled();
+  const frozenV1 = await versions();
+  expect(frozenV1).toHaveLength(1);
+  expect(frozenV1[0]).toMatchObject({
+    id: first.versionId,
+    versionNumber: first.versionNumber,
+    publishedAt: first.publishedAt,
+  });
+
+  // Another writer uses the actual authenticated API while the first editor
+  // still holds its unconfirmed V1 request. This must never turn its retry into V3.
+  const outlineResponse = await page.request.get('/api/courses/' + courseId + '/outline');
+  expect(outlineResponse.ok()).toBe(true);
+  const current = (await outlineResponse.json()) as {
+    draftRevision: number;
+    sections: Array<{ id: string }>;
+  };
+  expect(current.draftRevision).toBeGreaterThan(lesson.draftRevision);
+  const origin = new URL(page.url()).origin;
+  const updated = await page.request.patch('/api/courses/' + courseId + '/lessons/' + lesson.id, {
+    headers: { origin },
+    data: {
+      sectionId: current.sections[0]!.id,
+      title: 'Вторая версия урока',
+      kind: 'material',
+      blocks: [{ id: 'publish-replay-text', type: 'paragraph', text: 'Новое содержание V2' }],
+      expectedRevision: current.draftRevision,
+    },
+  });
+  expect(updated.status()).toBe(200);
+  const laterRevision = ((await updated.json()) as { draftRevision: number }).draftRevision;
+  const secondResponse = await page.request.post(publishPath, {
+    headers: { origin },
+    data: { expectedRevision: laterRevision, requestId: 'fix05:other-window:' + unique },
+  });
+  expect(secondResponse.status()).toBe(201);
+  const second = (await secondResponse.json()) as Publication;
+  expect(second).toMatchObject({ versionNumber: 2, reused: false });
+  expect(second.versionId).not.toBe(first.versionId);
+  const beforeRetry = await versions();
+  expect(beforeRetry).toHaveLength(2);
+  expect(beforeRetry.find((version) => version.id === first.versionId)).toEqual(frozenV1[0]);
+  expect(requests).toHaveLength(1);
+
+  const retrying = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'POST' && new URL(response.url()).pathname === publishPath,
+  );
+  await publishButton.click();
+  const retried = await retrying;
+  expect(retried.status()).toBe(201);
+  expect(await retried.json()).toEqual({ ...first, reused: true });
+  expect(requests).toEqual([requests[0], requests[0]]);
+  expect(receipts).toEqual([first, { ...first, reused: true }]);
+  await expect(
+    editor.getByText('Публикация подтверждена: версия 1.', { exact: true }),
+  ).toBeVisible();
+  await page.unroute('**' + publishPath, publicationRoute);
+  await editor.getByRole('button', { name: 'Опубликованная версия', exact: true }).click();
+  const preview = editor.getByTestId('course-preview-page');
+  await expect(preview).toContainText('Опубликованная версия 1 · только чтение');
+  await expect(preview).toContainText('Первая версия урока');
+  await expect(preview).toContainText('Сохранённое содержание V1');
+  await expect(preview).not.toContainText('Новое содержание V2');
+  expect(await versions()).toEqual(beforeRetry);
+
+  const evidence = 'e2e/artifacts/learning/course-publication-replay';
+  mkdirSync(evidence, { recursive: true });
+  for (const [width, height] of [
+    [1440, 900],
+    [1024, 768],
+    [390, 844],
+    [320, 720],
+  ] as const) {
+    await page.setViewportSize({ width, height });
+    await expect(preview).toContainText('Сохранённое содержание V1');
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      ),
+    ).toBeLessThanOrEqual(0);
+    if (width === 1440 || width === 390)
+      await page.screenshot({ path: evidence + '/confirmed-v1-' + width + '.png', fullPage: true });
+  }
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.reload();
+  await courseTab.click();
+  const list = page.getByTestId('courses-list');
+  await expect(list.locator('li')).toHaveCount(1);
+  await list.locator('.course-row-main').filter({ hasText: title }).click();
+  await expect(editor.getByRole('button', { name: /^Опубликовать/ })).toHaveCount(0);
+  await editor.getByRole('button', { name: 'Опубликованная версия', exact: true }).click();
+  await expect(preview).toContainText('Опубликованная версия 2 · только чтение');
+  await expect(preview).toContainText('Новое содержание V2');
+  await expect(preview).not.toContainText('Сохранённое содержание V1');
+  expect(await versions()).toEqual(beforeRetry);
+  expect(browserErrors).toEqual([]);
+  await page.screenshot({ path: evidence + '/reloaded-v2.png', fullPage: true });
+});
+
+test('Course history compares exact V1–V4 policies and structural before/after changes without current defaults', async ({
+  page,
+}) => {
+  test.setTimeout(90000);
+  const unique = crypto.randomUUID().replaceAll('-', '').slice(0, 18);
+  const title = 'Сравнение курса ' + unique;
+  const browserErrors: string[] = [];
+  page.on('pageerror', (error) => browserErrors.push(error.message));
+  await page.goto('/#/');
+  await page.getByRole('button', { name: 'Создать аккаунт', exact: true }).first().click();
+  await page.getByLabel('Email', { exact: true }).fill(unique + '@course-history.test');
+  await page.getByLabel('Имя пользователя', { exact: true }).fill('h' + unique);
+  await page.getByLabel('Отображаемое имя', { exact: true }).fill('Автор истории курса');
+  await page.getByLabel('Дата рождения').fill('1990-04-12');
+  await page.getByLabel('Пароль', { exact: true }).fill('Strong-' + unique + '-Password');
+  await page.getByRole('checkbox', { name: 'Я не робот' }).press('Space');
+  await page.getByRole('button', { name: 'Создать аккаунт', exact: true }).click();
+  await expect(page.getByRole('main', { name: 'Главная', exact: true })).toBeVisible();
+  await page.goto('/#/account');
+  await page
+    .getByLabel('Разделы настроек')
+    .getByRole('button', { name: 'Материалы и классы', exact: true })
+    .click();
+  const activating = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === '/api/capabilities/content-author/self-attest',
+  );
+  await page.getByRole('button', { name: 'Подключить авторство', exact: true }).click();
+  expect((await activating).ok()).toBe(true);
+  const headers = { origin: new URL(page.url()).origin };
+  const policies = {
+    attemptPolicy: { maxAttempts: 1 },
+    resultSelectionPolicy: { mode: 'latest_accepted' },
+    completionPolicy: { mode: 'accepted' },
+    latePolicy: { mode: 'allow_until_close' },
+    assessmentPolicy: { mode: 'manual' },
+    feedbackReleasePolicy: { mode: 'immediate' },
+  };
+  const activityDraft = {
+    title: 'Соберите схему',
+    instructions: 'Проверьте работу лампы',
+    goal: null,
+    blocks: [{ type: 'paragraph', text: 'Соедините батарею и лампу' }],
+    resultMode: 'completion',
+    maxPoints: null,
+    moduleKey: 'electronics',
+    quizVersionId: null,
+    starterProjectVersionId: null,
+    policies,
+  };
+  // All fixtures use the same authenticated author commands as the application.
+  // No route interception or manufactured version/diff response is used here.
+  const activityResponse = await page.request.post('/api/learning/activities', {
+    headers,
+    data: {
+      ...activityDraft,
+      kind: 'project',
+      scope: 'personal',
+      visibility: 'private',
+      requestId: 'history:activity:' + unique,
+    },
+  });
+  expect(activityResponse.status()).toBe(201);
+  const activity = (await activityResponse.json()) as { id: string; draftRevision: number };
+  async function publishActivity(revision: number, expectedNumber: number) {
+    const response = await page.request.post(
+      '/api/learning/activities/' + activity.id + '/publish',
+      {
+        headers,
+        data: {
+          expectedRevision: revision,
+          requestId: 'history:activity-publish:' + unique + ':' + expectedNumber,
+        },
+      },
+    );
+    expect(response.status()).toBe(201);
+    const published = (await response.json()) as { id: string; versionNumber: number };
+    expect(published.versionNumber).toBe(expectedNumber);
+    return published.id;
+  }
+  const activityV1 = await publishActivity(activity.draftRevision, 1);
+  const courseResponse = await page.request.post('/api/courses', {
+    headers,
+    data: {
+      title,
+      summary: 'Сохранённые учебные версии',
+      visibility: 'private',
+      requestId: 'history:course:' + unique,
+    },
+  });
+  expect(courseResponse.status()).toBe(201);
+  const courseId = ((await courseResponse.json()) as { id: string }).id;
+  const coursePath = '/api/courses/' + courseId;
+  async function outline() {
+    const response = await page.request.get(coursePath + '/outline');
+    expect(response.ok()).toBe(true);
+    return (await response.json()) as { draftRevision: number; sections: Array<{ id: string }> };
+  }
+  const initial = await outline();
+  const sectionId = initial.sections[0]!.id;
+  const sectionSaved = await page.request.patch(coursePath + '/sections/' + sectionId, {
+    headers,
+    data: { title: 'Основы', summary: null, expectedRevision: initial.draftRevision },
+  });
+  expect(sectionSaved.ok()).toBe(true);
+  let lessonId: string | undefined;
+  async function saveLesson(blocks: Array<Record<string, unknown>>, section = sectionId) {
+    const current = await outline();
+    const response = await page.request.fetch(
+      coursePath + '/lessons' + (lessonId ? '/' + lessonId : ''),
+      {
+        method: lessonId ? 'PATCH' : 'POST',
+        headers,
+        data: {
+          title: 'Первые шаги',
+          sectionId: section,
+          kind: 'material',
+          blocks,
+          expectedRevision: current.draftRevision,
+        },
+      },
+    );
+    expect(response.status()).toBe(lessonId ? 200 : 201);
+    lessonId = ((await response.json()) as { id: string }).id;
+  }
+  async function publishCourse(expectedNumber: number) {
+    const current = await outline();
+    const response = await page.request.post(coursePath + '/publish', {
+      headers,
+      data: {
+        expectedRevision: current.draftRevision,
+        requestId: 'history:course-publish:' + unique + ':' + expectedNumber,
+      },
+    });
+    expect(response.status()).toBe(201);
+    expect((await response.json()) as { versionNumber: number }).toMatchObject({
+      versionNumber: expectedNumber,
+    });
+  }
+  const a = { id: 'explanation', type: 'paragraph', text: 'Исходное объяснение' };
+  const b = { id: 'second-step', type: 'paragraph', text: 'Второй шаг' };
+  const c = { id: 'check', type: 'heading', text: 'Проверка схемы', level: 2 };
+  const practice = { id: 'practice', type: 'activity', learningActivityVersionId: activityV1 };
+  await saveLesson([a, b, c, practice]);
+  await publishCourse(1);
+  const policyOnly = await page.request.put('/api/learning/activities/' + activity.id + '/draft', {
+    headers,
+    data: {
+      ...activityDraft,
+      expectedRevision: activity.draftRevision,
+      policies: { ...policies, attemptPolicy: { maxAttempts: 2 } },
+    },
+  });
+  expect(policyOnly.ok()).toBe(true);
+  const activityRevision2 = ((await policyOnly.json()) as { draftRevision: number }).draftRevision;
+  const activityV2 = await publishActivity(activityRevision2, 2);
+  const practiceV2 = { ...practice, learningActivityVersionId: activityV2 };
+  await saveLesson([a, b, c, practiceV2]);
+  await publishCourse(2);
+  const clarified = { ...a, text: 'Уточнённое объяснение' };
+  const inserted = { id: 'tip', type: 'callout', tone: 'tip', text: 'Новая подсказка' };
+  await saveLesson([clarified, inserted, b, c, practiceV2]);
+  await publishCourse(3);
+  const addingSection = await page.request.post(coursePath + '/sections', {
+    headers,
+    data: {
+      title: 'Продолжение',
+      summary: 'Собираем самостоятельно',
+      expectedRevision: (await outline()).draftRevision,
+    },
+  });
+  expect(addingSection.status()).toBe(201);
+  const nextSection = ((await addingSection.json()) as { id: string }).id;
+  await saveLesson([c, clarified, inserted, practiceV2], nextSection);
+  await publishCourse(4);
+
+  type Version = {
+    id: string;
+    versionNumber: number;
+    outline: unknown;
+    pinnedActivities: Array<{ versionId: string | null; policySnapshot: unknown }>;
+  };
+  async function versions(): Promise<Version[]> {
+    const response = await page.request.get(coursePath + '/versions');
+    expect(response.ok()).toBe(true);
+    return ((await response.json()) as { items: Version[] }).items;
+  }
+  const frozen = await versions();
+  expect(frozen.map((version) => version.versionNumber)).toEqual([4, 3, 2, 1]);
+  expect(frozen.find((version) => version.versionNumber === 1)!.pinnedActivities[0]).toMatchObject({
+    versionId: activityV1,
+    policySnapshot: { attemptPolicy: { maxAttempts: 1 } },
+  });
+  expect(frozen.find((version) => version.versionNumber === 2)!.pinnedActivities[0]).toMatchObject({
+    versionId: activityV2,
+    policySnapshot: { attemptPolicy: { maxAttempts: 2 } },
+  });
+  // An incompatible current draft makes any accidental fallback observable.
+  const future = await page.request.put('/api/learning/activities/' + activity.id + '/draft', {
+    headers,
+    data: {
+      ...activityDraft,
+      expectedRevision: activityRevision2,
+      instructions: 'Текущий черновик не является историей',
+      policies: { ...policies, attemptPolicy: { maxAttempts: 99 } },
+    },
+  });
+  expect(future.ok()).toBe(true);
+  expect(await versions()).toEqual(frozen);
+  await page.goto('/#/challenges');
+  const courseTab = page
+    .getByRole('navigation', { name: 'Разделы курсов и заданий' })
+    .getByRole('button', { name: 'Курсы', exact: true });
+  await courseTab.click();
+  await page
+    .getByTestId('courses-list')
+    .locator('.course-row-main')
+    .filter({ hasText: title })
+    .click();
+  const history = page.getByTestId('course-editor').getByTestId('author-version-history');
+  const mutations: string[] = [];
+  page.on('request', (request) => {
+    const path = new URL(request.url()).pathname;
+    if (
+      ['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method()) &&
+      /^\/api\/(courses|learning|projects|classrooms)(\/|$)/.test(path)
+    )
+      mutations.push(request.method() + ' ' + path);
+  });
+  const selected = history.getByLabel('Опубликованная версия', { exact: true });
+  const previous = history.getByLabel('Сравнить с версией', { exact: true });
+  await selected.selectOption({ label: 'Версия 2' });
+  await previous.selectOption({ label: 'Версия 1' });
+  const comparison = history.getByRole('region', { name: 'Изменения между версиями', exact: true });
+  await expect(
+    comparison.getByRole('heading', { name: 'Версия 1 → версия 2', exact: true }),
+  ).toBeVisible();
+  const attempts = comparison
+    .getByTestId('version-change')
+    .filter({ hasText: 'Попытки и время выполнения · Число попыток' });
+  await expect(attempts).toHaveCount(1);
+  await expect(attempts.locator('dd').nth(0)).toHaveText('1');
+  await expect(attempts.locator('dd').nth(1)).toHaveText('2');
+  await expect(comparison.getByTestId('version-change')).toHaveCount(2);
+  await expect(comparison).toContainText(
+    'Курс «' + title + '» → Раздел «Основы» → Урок «Первые шаги» → Практическое задание 4',
+  );
+  await expect(comparison).not.toContainText('99');
+  await expect(comparison).not.toContainText('Текущий черновик');
+  await expect(comparison).not.toContainText(activityV1);
+  await expect(comparison).not.toContainText(activityV2);
+  const evidence = 'e2e/artifacts/learning/course-version-diff';
+  mkdirSync(evidence, { recursive: true });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await comparison.screenshot({ path: evidence + '/policy-only-1440.png' });
+
+  await selected.selectOption({ label: 'Версия 3' });
+  await previous.selectOption({ label: 'Версия 2' });
+  await expect(
+    comparison.locator('[data-change-category="Блоки"][data-change-kind="added"]'),
+  ).toHaveCount(1);
+  await expect(comparison.locator('[data-change-kind="moved"]')).toHaveCount(0);
+  const textChange = comparison
+    .getByTestId('version-change')
+    .filter({ has: page.getByRole('heading', { name: 'Изменено · Текст', exact: true }) });
+  await expect(textChange.locator('dd').nth(0)).toHaveText('Исходное объяснение');
+  await expect(textChange.locator('dd').nth(1)).toHaveText('Уточнённое объяснение');
+  await expect(comparison).toContainText('Новая подсказка');
+  await selected.selectOption({ label: 'Версия 4' });
+  await previous.selectOption({ label: 'Версия 3' });
+  const addedSection = comparison.locator(
+    '[data-change-category="Разделы"][data-change-kind="added"]',
+  );
+  await expect(addedSection).toHaveCount(1);
+  await expect(addedSection).toContainText('Продолжение');
+  const movedLesson = comparison.locator(
+    '[data-change-category="Уроки"][data-change-kind="moved"]',
+  );
+  await expect(movedLesson).toHaveCount(1);
+  await expect(movedLesson.locator('dd').nth(0)).toContainText('Основы');
+  await expect(movedLesson.locator('dd').nth(1)).toContainText('Продолжение');
+  const movedBlock = comparison.locator('[data-change-category="Блоки"][data-change-kind="moved"]');
+  await expect(movedBlock).toHaveCount(1);
+  await expect(movedBlock).toContainText('Проверка схемы');
+  await expect(movedBlock.locator('dd').nth(0)).toContainText('позиция 4');
+  await expect(movedBlock.locator('dd').nth(1)).toContainText('позиция 1');
+  const removedBlock = comparison.locator(
+    '[data-change-category="Блоки"][data-change-kind="removed"]',
+  );
+  await expect(removedBlock).toHaveCount(1);
+  await expect(removedBlock).toContainText('Второй шаг');
+  for (const [width, height] of [
+    [1440, 900],
+    [1024, 768],
+    [390, 844],
+    [320, 720],
+  ] as const) {
+    await page.setViewportSize({ width, height });
+    await expect(comparison).toBeVisible();
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      ),
+    ).toBeLessThanOrEqual(0);
+    expect(
+      await comparison.locator('dl').evaluateAll((values) =>
+        values.every((value) => {
+          const boxes = [...value.children].map((child) => child.getBoundingClientRect());
+          return (
+            boxes.length === 2 &&
+            (boxes[0]!.right <= boxes[1]!.left || boxes[0]!.bottom <= boxes[1]!.top)
+          );
+        }),
+      ),
+    ).toBe(true);
+    if (width === 1440 || width === 390)
+      await comparison.screenshot({ path: evidence + '/structural-' + width + '.png' });
+  }
+  expect(await versions()).toEqual(frozen);
+  expect(mutations).toEqual([]);
   expect(browserErrors).toEqual([]);
 });
