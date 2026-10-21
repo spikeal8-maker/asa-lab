@@ -346,7 +346,13 @@ export function SchematicEditor({
         ) : null}
       </div>
       {shareOpen ? (
-        <Suspense fallback={<div className="workbench-modal-backdrop" role="status">Открываем окно…</div>}>
+        <Suspense
+          fallback={
+            <div className="workbench-modal-backdrop" role="status">
+              Открываем окно…
+            </div>
+          }
+        >
           <ShareDialog controller={controller} onClose={() => setShareOpen(false)} />
         </Suspense>
       ) : null}
