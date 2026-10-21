@@ -8334,7 +8334,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: r4_running_phase_oracle_and_backward_native_route_selected
+      checkpoint: r5_passive_lifecycle_boundary_diagnostics_selected
       previous_checkpoint: r8_test_only_unique_native_meter_hit_path
       kind: repair
       owner_acceptance: pending
@@ -8344,13 +8344,13 @@ parallel_lanes:
       program_issue: 452
       owner_problem: E11
       repair_scope: >-
-        R4 test-only exception in the existing outline spec: independently constructed full running-phase
-        oracle before Stop and ONLY existing native loop Tab to Shift+Tab with passive route witness.
-        All other R2/R3 invariants remain; no product, sampler, fixture, poll, timeout or retry change.
+        R5 journal-only diagnostics around EXISTING fresh.close and final original-page snapshot awaits.
+        Only synchronous durable Node before/fulfilled/rejected boundary markers;not a proved-cause repair.
+        No new awaited browser operation,action,timeout,product or lifecycle-order change.
       source_budget: >-
-        Author ONLY e2e/electronics-selection-outline.spec.ts within the explicit R4 contract below.
-        R3 resistor180270 and strict current unique-connected-body poll remain byte-exact; no other source,
-        registration, metadata, dependency, workflow or product repair.
+        Author ONLY e2e/electronics-selection-outline.spec.ts within R5 outer-boundary journal contract.
+        Preserve every R2/R3/R4 oracle/gesture,worker delivery,strict target,deadline,existing await and
+        complete/error semantics;no other source,dependency,workflow,registration or product path.
       published_before_source_sha: e14229f93c7400fb39ae880cc9889aefdc8dcfb6
       frozen_browser_blob: c4e05c1109dbac9a74ef1548a208178a10789878
       frozen_browser_bytes: 64509
@@ -8359,7 +8359,7 @@ parallel_lanes:
       independent_source_review: SOURCE_APPROVE
       before_strict_run: 39490329377
       before_general_run: 39490297942
-      runtime_acceptance: INVALID_BEFORE_12of16_requires_R4_test_repair
+      runtime_acceptance: INCOMPLETE_BEFORE_3of16_R5_diagnosis_only
       r2_evidence_contract:
         baseline_source: e14229f93c7400fb39ae880cc9889aefdc8dcfb6
         independent_review: NEEDS_FIX_INVALID_BEFORE_BASELINE
@@ -8432,18 +8432,36 @@ parallel_lanes:
         preserved: R3 resistor180270 and strict poll unchanged;all16cases/full native/fullDoc/ready C=H solved finite quality/yieldednull/JSONL prefix hash refs/1PUT CAS cookies R3storage/deadlines unchanged.
         forbidden: No focus injection,locator.press,new click/action,actuator change,DOM/tabindex edit,sampler/allowGrid,pan/zoom,fixture,timeout increase,retry,case or assertion omission,product/core/hook repair.
         freeze: ONE new reviewed frozen whole BEFORE browser blob;AFTER identical. Product/AFTER forbidden until16complete plus NEW independent actual review;no completion promise.
+      observed_e4a_actual:
+        observed_at: '2026-10-21T02:49:03Z'
+        sha: e4a48a77f41e5b2fb9950ab4885599e8fcb6d67d
+        run: 39528417023
+        verdict: NEEDS_FIX_INCOMPLETE_BASELINE
+        result: Only4journeys present,3of16complete at1440;12missing. Running1440 wholeSave1PUT/base2/CAS3/cookies-reopen strict checks passed,but journeyCompletefalse,last reopen-finally cannot distinguish fresh.close from final original snapshot.
+        cause: UNKNOWN_EXACT_PENDING_AWAIT;no primary/mandatory failure recorded,no running trace. Actual job50minute deadline D/E,not proved harness or product defect.
+        evidence: docs/product/electronics/evidence/selection-outline-549-e4a48a77-r5-lifecycle-selection-20261021.md
+      r5_lifecycle_diagnostic_contract:
+        version: R5
+        supersedes: Only prior prohibition on passive synchronous outer-lifecycle boundary journal additions;all existing R2/R3/R4 behavior and historical receipts unchanged.
+        expected_write_paths:
+        - e2e/electronics-selection-outline.spec.ts
+        boundaries: EXISTING fresh.close and final original snapshot(page) only;mark before/fulfilled/rejected synchronously and durably in Node,skipped only if original code skips that operation.
+        journal: Monotonic sequence and timestamp,operation/page/context identity and original outcome/error. Persist each lightweight marker before continuing;explicit marker-write errors without masking primary failure. Reuse registered artifact directory;no awaited browser work or expanded observer.
+        semantics: Existing awaited operations/order/supplemental mandatory classification/original Error objects and throws/complete checkpoint remain unchanged;no early complete,unawaited close,error swallowing or teardown repair.
+        forbidden: No dependency/tracing/internals wrapping,inner browser binding/callback markers,new browser call/action/wait/timeout/retry,predicate/oracle weakening,worker delivery modification,fixture/route/poll/product/core/hook change.
+        diagnosis: After new source freeze/review ONE cause-based diagnostic BEFORE run only. Incomplete journal or no causal boundary evidence means terminal STOP diagnosis;no next hopeful observer or automatic fix/AFTER.
+        freeze: New frozen whole BEFORE blob;AFTER identical if later selected. Product/AFTER remains forbidden until16complete plus NEW independent actual review;markers alone do not establish cause or acceptance.
       next_action: >-
-        ONE bounded R4 test author changes only full pre-Stop running-phase expected clone and fixed
-        Shift+Tab replacement in existing loop with passive route/start-end/shiftKey witness. Preserve
-        R3 coordinates/poll and all strict checks/actions/deadlines; narrow checks/self-review then freeze
-        ONE unpublished candidate STOP. NEW independent source review precedes ONE justified new BEFORE
-        for proved phase-oracle/native-cost repair. All16complete and NEW actual review required before
-        product/AFTER;whole BEFORE/AFTER test blob identical. No548 observer or dependency repair.
+        ONE bounded test-only author adds only synchronous durable Node outer markers around existing
+        fresh.close and final original snapshot,retaining exact await/error/complete semantics. Narrow
+        checks/self-review and ONE unpublished frozen candidate STOP;NEW independent source review precedes
+        ONE bounded cause-based diagnostic BEFORE. If incomplete or no causal evidence,STOP diagnosis,
+        no next hopefulobserver/fix. No product/AFTER until16complete and NEW actual review;whole tests identical.
       preservation: >-
-        Preserve all old549 receipts,R2 lossless/failed-native evidence,R3 coordinate/poll,foreign D2/LED/
-        hook/workflow/current blocks and owner KEEP544/547 to548.548 stays terminal NO_PROVEN_CAUSE.
-        General2bd categoryC3HIGH dependencies do not authorize this author to repair security or UI.
-        No closure,owner acceptance,deployment or product selection.
+        Preserve R2 delivery/native receipts,R3 coordinates/poll,R4phase oracle/backward route,witnesses,
+        all strict fullDoc1PUT/CAS/storage/ready/JSONL/native/deadline checks and old receipts. Foreign
+        D2/LED/hook/workflow/current blocks,ownerpending,548terminal NO_PROVEN_CAUSE and owner KEEP544/547
+        unchanged. General e4a categoryC not our repair;no closure,release,deployment or acceptance.
       before_parent_sha: 6f27bc9fd58eeb9a9262c9a30fb15c00075934f0
       before_parent_browser_blob: 57ca47df3aa89cfbccff5c242a36f42febc01be2
       corrected_before_exceptions: Genuine UI beforeAll login once per group/worker in disposable context,
@@ -8451,10 +8469,9 @@ parallel_lanes:
         draft entries empty; post-load local drafts empty and exactly fixture-derived session saved hint.
         Journal actual storage values before assertions. No extra gestures, waits, retries or deadline change.
       product_budget_note: >-
-        Future three-branch Visual repair measured+4 bytes in a Temp-only module estimate. Historical121f
-        actual217996/218000 left4 bytes; actual2bd217938/218000 leaves62 bytes. AFTER full bundle fit
-        remains NOT_PROVEN;no cap increase,source refactor or automatic product phase.
-      selection_evidence: docs/product/electronics/evidence/selection-outline-549-2bdff063-r4-selection-20261021.md
+        Actual e4a benchmark217938/218000 leaves62bytes;old Temp-only Visual+4 estimate does not prove
+        AFTER fit. No cap increase,source refactor or automatic product phase.
+      selection_evidence: docs/product/electronics/evidence/selection-outline-549-e4a48a77-r5-lifecycle-selection-20261021.md
       preserved_candidate_sha: 5da91c88d1df4b87e5b3b92fafd9eacb03f77d11
       preserved_candidate_tree: 5f4e7150a795303b4802039118627bcac6ce8b0e
       candidate_branch: codex/electronics-549-outline-transform-oracle-r4
@@ -8518,15 +8535,15 @@ parallel_lanes:
       kind: observed_snapshot
       convergence_baseline_sha: 8f568af52429e7e3091a6bbf542df9000a003d85
       head_sha: null
-      observed_at: '2026-10-21T01:23:45Z'
+      observed_at: '2026-10-21T02:49:03Z'
       main:
         branch: main
-        sha: 5999dfb7dd1b0b25c8f7a3900b639a6596cf3cb2
+        sha: e4a48a77f41e5b2fb9950ab4885599e8fcb6d67d
       observation_note: >-
-        Dated fetch main5999 snapshot with final2bd actual review/cause and accepted final native route
-        proposal;not live HEAD or acceptance. Fetch main/recover actual Git/CI/dirty paths before writes.
-        Shared workflow WAITING_HANDOFF standing disjoint exception only,actual overlap STOP,never SAFE.
-        Exact5999 General39523615995 completedFAIL,cause not inspected here;no GeneralPASS or dependency waiver.
+        Dated fetch main e4a snapshot with cached actual3of16 incomplete review and cleanup source audit;
+        not live HEAD or proved cause. Fetch main/recover actual Git/CI/dirty paths before writes.
+        Strict39528417023 cancelled50minute D/E,General39528415332FAIL categoryC;no PASS/acceptance claim.
+        Known shared workflow WAITING_HANDOFF has standing disjoint exception only,actual overlap STOP,not SAFE.
 
   - id: observability
     worktree_id: observability-authoring

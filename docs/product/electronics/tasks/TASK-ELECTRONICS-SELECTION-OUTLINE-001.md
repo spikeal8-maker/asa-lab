@@ -12,6 +12,38 @@ review: independent
 
 # E11 — одинаковая кайма выделения существующих деталей
 
+## R5 passive lifecycle boundary diagnostics — journal only
+
+When canonically selected, ONLY these synchronous outer-boundary journal
+additions supersede the old no-observer-addition budget. All R2/R3/R4 runtime,
+fixture,route,poll,oracle and lifecycle behavior remains unchanged; old receipts
+and instructions are history. Current.yaml alone selects scope. The [dated e4a receipt](../evidence/selection-outline-549-e4a48a77-r5-lifecycle-selection-20261021.md)
+records3/16complete and UNKNOWN exact pending await,not a proved harness/product cause.
+
+Author ONLY the existing outline spec. Add synchronous durable Node markers
+before/fulfilled/rejected around EXISTING fresh.close and the final original-page
+snapshot(page). Skipped is recorded only when the original code skips that
+operation. Record monotonic sequence/timestamp,operation/page/context identity
+and original outcome/error; persist each lightweight marker before continuing.
+Record marker-write errors explicitly without masking the primary Error.
+Reuse the registered artifact directory. No new awaited browser operation,
+inner callback/binding markers,expanded observer or Playwright/tracing wrapper.
+
+Preserve exact awaited operations/order,supplemental mandatory classification,
+original Error objects/throws and complete checkpoint. No swallowed errors,
+unawaited close,early complete,teardown repair,new action/wait/timeout/retry,
+predicate/oracle weakening or worker delivery change. R3 coordinate/poll and
+R4 runningtrue-only pre-Stop clone/backward native route remain untouched.
+Preserve all16/full native/ready C=H finite quality/yielded-null/JSONL/fullDoc/
+1PUT/CAS/cookies/storage/deadlines. No product/core/hook/dependency change.
+
+Freeze one new source candidate; NEW independent source review precedes ONE
+bounded cause-based diagnostic BEFORE. If its journal is incomplete or no causal
+boundary evidence emerges, STOP diagnosis: no next hopeful observer,automatic
+fix or AFTER. New frozen BEFORE/AFTER whole blob identical if AFTER is later
+selected; product remains forbidden until16complete and NEW actual review.
+Ownerpending,#548 terminal NO_PROVEN_CAUSE and owner KEEP544/547 remain unchanged.
+
 ## R4 running-phase oracle and fixed backward native route — test only
 
 When canonically selected, ONLY the two exceptions here supersede prior R2/R3
