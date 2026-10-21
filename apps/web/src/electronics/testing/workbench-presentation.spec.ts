@@ -414,7 +414,6 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(stageSource).toContain('c.wirePreviewVertices');
     const layerMarkers = [
       'data-testid="breadboard-body-layer"',
-      'data-testid="wire-underlay-component-body-layer"',
       'className="workbench-wire-layer workbench-wire-hit-layer"',
       'data-testid="wire-layer"',
       'data-testid="breadboard-terminal-overlay-layer"',
@@ -545,9 +544,9 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(sidebarSource).toContain('Выбрано: ${c.selection.ids.length}');
   });
 
-  it('puts only Uno and regulated-supply bodies below wires without duplicating their bodies', () => {
+  it('puts only Uno and regulated supply beside the existing board below wires without duplicate bodies', () => {
     const predicateSource = stageSource.match(
-      /function wiresAboveComponentBody\(component: SchematicComponent\): boolean \{[\s\S]*?\n\}/,
+      /function wiresAboveComponentBody\([^)]*\): boolean \{[\s\S]*?\n\}/,
     )?.[0];
     expect(predicateSource).toBeDefined();
     const predicate = runInNewContext(
@@ -566,7 +565,7 @@ describe('owner-reference Electronics presentation contract', () => {
       { kind: 'wire' },
     ];
     expect(components.map(predicate)).toEqual([
-      false,
+      true,
       true,
       true,
       false,
@@ -579,23 +578,26 @@ describe('owner-reference Electronics presentation contract', () => {
     ]);
     const layer = (marker: string, next: string): string =>
       stageSource.slice(stageSource.indexOf(marker), stageSource.indexOf(next));
-    expect(
-      layer('data-testid="wire-underlay-component-body-layer"', 'workbench-wire-hit-layer'),
-    ).toContain('.filter(wiresAboveComponentBody)');
+    expect(layer('data-testid="breadboard-body-layer"', 'workbench-wire-hit-layer')).toContain(
+      '.filter(wiresAboveComponentBody)',
+    );
     const ordinaryBody = layer(
       'data-testid="component-body-layer"',
       'data-testid="terminal-overlay-layer"',
     );
     expect(ordinaryBody).toContain("component.kind !== 'wire'");
-    expect(ordinaryBody).toContain("component.kind !== 'breadboard'");
+    expect(ordinaryBody).not.toContain("component.kind !== 'breadboard'");
     expect(ordinaryBody).toContain('!wiresAboveComponentBody(component)');
+    const orderingSource = stageSource.match(/const orderedComponents = \[[\s\S]*?\n {2}\];/)?.[0];
+    expect(orderingSource).toBeDefined();
+    const shuffled = [...components.slice(1), components[0]];
+    const ordered = runInNewContext(`${orderingSource}; orderedComponents`, {
+      document: { components: shuffled },
+    }) as typeof components;
+    expect(ordered).toEqual([components[0], ...components.slice(1)]);
     const bodies = [
-      ...components.filter((component) => component.kind === 'breadboard'),
-      ...components.filter(predicate),
-      ...components.filter(
-        (component) =>
-          component.kind !== 'wire' && component.kind !== 'breadboard' && !predicate(component),
-      ),
+      ...ordered.filter(predicate),
+      ...ordered.filter((component) => component.kind !== 'wire' && !predicate(component)),
     ];
     expect(new Set(bodies).size).toBe(components.length - 1);
     expect(bodies).toHaveLength(components.length - 1);
@@ -606,7 +608,7 @@ describe('owner-reference Electronics presentation contract', () => {
 
   it('keeps visible wires selectable over only Uno, regulated supply and the existing breadboard', () => {
     const predicateSource = stageSource.match(
-      /function wiresAboveComponentBody\(component: SchematicComponent\): boolean \{[\s\S]*?\n\}/,
+      /function wiresAboveComponentBody\([^)]*\): boolean \{[\s\S]*?\n\}/,
     )?.[0];
     const handlerSource = stageSource
       .slice(
