@@ -1,0 +1,20 @@
+/* Native ASA admin sections: scoped controls and compact responsive tabs. */
+.asa-ai-admin-workspace { min-width: 0; display: grid; gap: 16px; }
+.asa-ai-admin-tabs { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 4px; border-bottom: 1px solid var(--border, #dce5ec); }
+.asa-ai-admin-tabs > button { border: 1px solid transparent; border-radius: 9px 9px 0 0; padding: 11px 18px; background: transparent; color: var(--ink-muted, #456172); font: inherit; font-weight: 700; cursor: pointer; min-height: 44px; }
+.asa-ai-admin-tabs > button.active { border-color: var(--border, #dce5ec); border-bottom-color: transparent; background: var(--surface, #fff); color: var(--color-brand, #0877b3); }
+.asa-ai-admin-tabs > button:hover { background: #f0f7fb; }
+.asa-ai-admin-tabs > button:focus-visible, .asa-ai-ollama button:focus-visible, .asa-ai-ollama input:focus-visible { outline: 2px solid var(--color-brand, #0877b3); outline-offset: 2px; }
+.asa-ai-ollama { display: grid; gap: 16px; min-width: 0; border: 1px solid var(--border, #dce5ec); border-radius: 12px; padding: clamp(16px, 2vw, 26px); background: var(--surface, #fff); }
+.asa-ai-ollama .admin-section-heading { margin: 0; }
+.asa-ai-ollama-form { display: grid; gap: 20px; max-width: 780px; }
+.asa-ai-ollama-field { display: grid; gap: 8px; font-size: 14px; min-width: 0; }
+.asa-ai-ollama-field input { width: 100%; min-width: 0; max-width: 100%; border: 1px solid #afbdc7; border-radius: 9px; padding: 11px 14px; min-height: 44px; font: inherit; background: var(--surface, #fff); color: var(--text, #17344a); }
+.asa-ai-ollama-field small, .asa-ai-ollama-footnote { font-size: 13px; line-height: 1.5; color: var(--ink-muted, #607684); }
+.asa-ai-ollama-discovery, .asa-ai-ollama-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.asa-ai-ollama-actions > button, .asa-ai-ollama-discovery button { min-height: 44px; }
+.asa-ai-ollama-toggle { display: flex; align-items: center; gap: 12px; min-height: 44px; font-weight: 650; }
+.asa-ai-ollama-toggle input { width: 20px; height: 20px; flex-shrink: 0; }
+.asa-ai-ollama-success { padding: 12px; border-radius: 8px; background: #eff9f3; color: #23633b; }
+.asa-ai-ollama button:disabled { cursor: not-allowed; opacity: .6; }
+@media (max-width: 480px) { .asa-ai-admin-tabs > button { flex: 1 1 auto; padding: 9px 8px; } .asa-ai-ollama { padding: 14px; } }
