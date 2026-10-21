@@ -156,6 +156,7 @@ surfaces:
     - apps/web/src/components/courses-panel.css
     - e2e/learning-authoring-navigation.ts
     - e2e/learning-author-preview.spec.ts
+    - e2e/course-editor-native-zoom.ts
     - e2e/learning-course-01.spec.ts
     - e2e/courses-sharing.spec.ts
     - tools/testing/learning-e1-browser.mjs

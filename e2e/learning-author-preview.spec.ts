@@ -4,7 +4,8 @@ import {
   openCourseHistory,
   openCourseBlockActions,
 } from './learning-authoring-navigation';
-import { expect, test, type Dialog, type Route } from '@playwright/test';
+import { expect, test, type Dialog, type Locator, type Page, type Route } from '@playwright/test';
+import { openCourseNativeZoom } from './course-editor-native-zoom';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { PNG } from 'pngjs';
 import {
@@ -1882,6 +1883,142 @@ test('document Course Builder preserves the lesson, real save acknowledgements a
   await body.fill(longText);
   await expect(state).toContainText('Есть несохранённые изменения');
   const measurements: Array<Record<string, unknown>> = [];
+  const viewportEvidence: Array<Record<string, unknown>> = [];
+  async function hitTarget(
+    target: Locator,
+    stage: string,
+    whole = true,
+  ): Promise<{ x: number; y: number }> {
+    await expect(target).toBeVisible();
+    // No auto-scroll in this measurement: it describes the actual captured viewport.
+    const sample = await target.evaluate((element, whole) => {
+      const box = element.getBoundingClientRect();
+      const left = Math.max(0, box.left);
+      const right = Math.min(innerWidth, box.right);
+      const top = Math.max(0, box.top);
+      const bottom = Math.min(innerHeight, box.bottom);
+      const x = (left + right) / 2;
+      const y = (top + bottom) / 2;
+      const points = whole
+        ? [
+            [x, y],
+            [left + 6, top + 6],
+            [right - 6, top + 6],
+            [left + 6, bottom - 6],
+            [right - 6, bottom - 6],
+          ]
+        : [[x, y]];
+      return {
+        x,
+        y,
+        box: { left: box.left, right: box.right, top: box.top, bottom: box.bottom },
+        viewport: { width: innerWidth, height: innerHeight, scrollY },
+        hasVisibleArea: right > left && bottom > top,
+        whollyVisible:
+          box.left >= 0 && box.top >= 0 && box.right <= innerWidth && box.bottom <= innerHeight,
+        hits: points.map(([x, y]) => {
+          const hit = document.elementFromPoint(x!, y!);
+          return hit === element || (hit !== null && element.contains(hit));
+        }),
+      };
+    }, whole);
+    expect(sample.hasVisibleArea, stage).toBe(true);
+    if (whole) expect(sample.whollyVisible, stage).toBe(true);
+    expect(sample.hits.every(Boolean), stage + ' receives pointer events').toBe(true);
+    viewportEvidence.push({ stage, ...sample });
+    return { x: sample.x, y: sample.y };
+  }
+  async function viewportProof(
+    targetPage: Page,
+    targetEditor: Locator,
+    name: string,
+  ): Promise<void> {
+    const save = targetEditor.getByRole('button', { name: 'Сохранить урок', exact: true });
+    const previewButton = targetEditor.getByRole('button', { name: 'Предпросмотр', exact: true });
+    const actions = targetEditor.getByRole('button', { name: 'Действия курса', exact: true });
+    // Scroll to the start of the course document, keeping the real sticky shell visible.
+    await targetEditor.locator('.course-compact-header').evaluate((header) => {
+      header.scrollIntoView({ block: 'start' });
+      const shell = document.querySelector('.portal-header')?.getBoundingClientRect();
+      window.scrollBy(0, -(shell?.height ?? 0) - 8);
+    });
+    await hitTarget(save, name + ':top:save');
+    await hitTarget(previewButton, name + ':top:preview');
+    const previewLines = await previewButton.evaluate((button) => {
+      const text = document.createRange();
+      text.selectNodeContents(button);
+      return [...text.getClientRects()].map((box) => ({
+        left: box.left,
+        right: box.right,
+        top: box.top,
+      }));
+    });
+    expect(previewLines, name + ': Preview is one readable word').toHaveLength(1);
+    await save.click({ trial: true });
+    await save.focus();
+    await save.press('Tab');
+    await expect(previewButton).toBeFocused();
+    expect(await previewButton.evaluate((button) => button.matches(':focus-visible'))).toBe(true);
+    await hitTarget(previewButton, name + ':top:keyboard-preview');
+    await hitTarget(actions, name + ':top:course-menu');
+    await actions.focus();
+    await actions.press('Enter');
+    await expect(actions).toHaveAttribute('aria-expanded', 'true');
+    const courseSettings = targetEditor
+      .locator('.course-actions-menu')
+      .getByRole('button', { name: 'Настройки', exact: true });
+    await hitTarget(courseSettings, name + ':top:course-menu-settings');
+    await targetPage.keyboard.press('Escape');
+    await expect(actions).toHaveAttribute('aria-expanded', 'false');
+    await expect(actions).toBeFocused();
+    await targetPage.screenshot({ path: `${evidence}/${name}-viewport-top.png`, fullPage: false });
+
+    const text = targetEditor.getByLabel('Текст блока', { exact: true });
+    await text.evaluate((element) => element.scrollIntoView({ block: 'center' }));
+    const point = await hitTarget(text, name + ':body:text', false);
+    await targetPage.mouse.click(point.x, point.y);
+    await expect(text).toBeFocused();
+    const stickyShell = await targetPage.locator('.portal-header').evaluate((header) => ({
+      position: getComputedStyle(header).position,
+      top: header.getBoundingClientRect().top,
+      bottom: header.getBoundingClientRect().bottom,
+      viewportHeight: innerHeight,
+    }));
+    expect(stickyShell.position).toBe('sticky');
+    expect(stickyShell.top).toBeGreaterThanOrEqual(0);
+    expect(stickyShell.bottom).toBeLessThanOrEqual(stickyShell.viewportHeight);
+    viewportEvidence.push({ stage: name + ':body:sticky-shell', ...stickyShell });
+    if (await targetEditor.locator('.course-outline-dialog[data-inline="true"]').count()) {
+      const selectedLesson = targetEditor.locator('.course-outline [aria-current="page"]');
+      await hitTarget(selectedLesson, name + ':body:sticky-selected-lesson');
+      await hitTarget(
+        targetEditor
+          .locator('.course-outline')
+          .getByRole('button', { name: 'Добавить раздел', exact: true }),
+        name + ':body:sticky-add-section',
+      );
+    }
+    await targetPage.screenshot({ path: `${evidence}/${name}-viewport-body.png`, fullPage: false });
+
+    await targetPage.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+    const add = targetEditor.getByRole('button', { name: '+ Добавить содержимое', exact: true });
+    await hitTarget(add, name + ':end:add-content');
+    await add.focus();
+    await add.press('Enter');
+    await expect(add).toHaveAttribute('aria-expanded', 'true');
+    await add.press('Tab');
+    const firstChoice = targetEditor
+      .getByRole('menu', { name: 'Добавить содержимое урока' })
+      .getByRole('menuitem')
+      .first();
+    await expect(firstChoice).toBeFocused();
+    await hitTarget(firstChoice, name + ':end:add-menu-choice');
+    await targetPage.keyboard.press('Escape');
+    await expect(add).toHaveAttribute('aria-expanded', 'false');
+    await expect(add).toBeFocused();
+    await hitTarget(add, name + ':end:keyboard-add-content');
+    await targetPage.screenshot({ path: `${evidence}/${name}-viewport-end.png`, fullPage: false });
+  }
   async function settleLayout(): Promise<void> {
     await page.evaluate(
       () =>
@@ -1894,7 +2031,7 @@ test('document Course Builder preserves the lesson, real save acknowledgements a
     [1440, 900],
     [1024, 768],
     [390, 844],
-    [320, 720],
+    [320, 568],
   ] as const) {
     await page.setViewportSize({ width, height });
     await settleLayout();
@@ -1947,6 +2084,7 @@ test('document Course Builder preserves the lesson, real save acknowledgements a
     expect(target!.width).toBeGreaterThanOrEqual(44);
     expect(target!.height).toBeGreaterThanOrEqual(44);
     await blockActions.focus();
+    await hitTarget(blockActions, `${width}:block-menu`);
     await blockActions.press('Enter');
     await expect(blockActions).toHaveAttribute('aria-expanded', 'true');
     await blockActions.press('Tab');
@@ -1955,6 +2093,12 @@ test('document Course Builder preserves the lesson, real save acknowledgements a
         .locator('.lesson-block-card')
         .getByRole('button', { name: 'Дублировать', exact: true }),
     ).toBeFocused();
+    await hitTarget(
+      editor
+        .locator('.lesson-block-card')
+        .getByRole('button', { name: 'Дублировать', exact: true }),
+      `${width}:block-menu-duplicate`,
+    );
     await page.keyboard.press('Escape');
     await expect(blockActions).toHaveAttribute('aria-expanded', 'false');
     await expect(blockActions).toBeFocused();
@@ -1973,6 +2117,10 @@ test('document Course Builder preserves the lesson, real save acknowledgements a
     await expect(
       editor.getByRole('button', { name: 'Параметры урока', exact: true }),
     ).toBeFocused();
+    await hitTarget(
+      editor.getByRole('button', { name: 'Параметры урока', exact: true }),
+      `${width}:lesson-settings-return-focus`,
+    );
     await body.fill('Измерьте свет.');
     await settleLayout();
     const shortField = await body.evaluate((element) => ({
@@ -1983,10 +2131,12 @@ test('document Course Builder preserves the lesson, real save acknowledgements a
     expect(shortField.height).toBeLessThan(76);
     expect(shortField.hiddenLines).toBeLessThanOrEqual(1);
     await editor.screenshot({ path: `${evidence}/document-short-${width}.png` });
+    await viewportProof(page, editor, `document-short-${width}`);
     await body.fill(longText);
     await settleLayout();
     measurements.push({ width, height, fields, shortField });
     await editor.screenshot({ path: `${evidence}/document-${width}.png` });
+    await viewportProof(page, editor, `document-${width}`);
   }
 
   // Hidden settings must never turn an invalid duration into a silent failed save.
@@ -2171,6 +2321,168 @@ test('document Course Builder preserves the lesson, real save acknowledgements a
   expect(await liveTitle!.evaluate((element) => element.isConnected)).toBe(true);
 
   const futureText = 'Содержание будущего черновика: проверьте датчик ещё раз.';
+  // Native browser zoom is additional evidence, independent of the CSS zoom above.
+  // It uses the existing CI server and this same author's exact saved course/version.
+  const nativeBrowserZoom = await (async () => {
+    const native = await openCourseNativeZoom(page, evidence);
+    const nativePage = native.page;
+    const nativeWrites: string[] = [];
+    nativePage.on('pageerror', (error) => browserErrors.push(error.message));
+    nativePage.on('request', (request) => {
+      if (
+        ['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method()) &&
+        new URL(request.url()).pathname.startsWith(coursePath)
+      )
+        nativeWrites.push(request.method() + ' ' + new URL(request.url()).pathname);
+    });
+    async function witness() {
+      return nativePage.evaluate(() => ({
+        innerWidth,
+        innerHeight,
+        outerWidth,
+        outerHeight,
+        dpr: devicePixelRatio,
+        visualScale: visualViewport?.scale,
+        cssZoom: getComputedStyle(document.documentElement).zoom,
+        overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      }));
+    }
+    try {
+      await nativePage.goto('/#/challenges');
+      await nativePage
+        .getByRole('navigation', { name: 'Разделы курсов и заданий' })
+        .getByRole('button', { name: 'Курсы', exact: true })
+        .click();
+      await nativePage
+        .getByTestId('courses-list')
+        .locator('li')
+        .filter({ hasText: 'Автоматический ночник' })
+        .getByRole('button', { name: 'Открыть', exact: true })
+        .click();
+      const nativeEditor = nativePage.getByTestId('course-editor');
+      await openCourseStructure(nativePage);
+      await nativeEditor.locator('.course-lesson-link').filter({ hasText: longTitle }).click();
+      const nativeTitle = nativeEditor.getByLabel('Название урока', { exact: true });
+      const nativeSummary = nativeEditor.getByLabel('Что будет в уроке', { exact: true });
+      const nativeBody = nativeEditor.getByLabel('Текст блока', { exact: true });
+      await expect(nativeTitle).toHaveValue(longTitle);
+      await expect(nativeSummary).toHaveValue(laterSummary);
+      await expect(nativeBody).toHaveValue(longText);
+      const nativeOutlineResponse = await nativePage.request.get(coursePath + '/outline');
+      expect(nativeOutlineResponse.ok()).toBe(true);
+      const nativeOutline = (await nativeOutlineResponse.json()) as Outline;
+      expect(nativeOutline).toEqual(await readOutline());
+      const baselineZoom = await native.setZoom(1);
+      expect(baselineZoom.factor).toBe(1);
+      expect(nativePage.viewportSize()).toBeNull();
+      const before = await witness();
+      expect(before.innerWidth).toBeGreaterThanOrEqual(1000);
+      expect(before.cssZoom).toBe('1');
+      expect(before.visualScale).toBe(1);
+      const applied = await native.setZoom(2);
+      expect(applied.factor).toBeCloseTo(2, 6);
+      expect(applied.settings).toMatchObject({ mode: 'automatic', scope: 'per-tab' });
+      await expect.poll(async () => (await witness()).dpr / before.dpr).toBeCloseTo(2, 6);
+      await nativePage.evaluate(
+        () =>
+          new Promise<void>((resolve) =>
+            requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+          ),
+      );
+      const after = await witness();
+      expect(Math.abs(after.innerWidth * 2 - before.innerWidth)).toBeLessThanOrEqual(1);
+      expect(Math.abs(after.innerHeight * 2 - before.innerHeight)).toBeLessThanOrEqual(1);
+      expect(after.outerWidth).toBe(before.outerWidth);
+      expect(after.outerHeight).toBe(before.outerHeight);
+      expect(after.visualScale).toBe(1);
+      expect(after.cssZoom).toBe('1');
+      expect(after.overflow).toBeLessThanOrEqual(0);
+      await nativeTitle.focus();
+      await nativeTitle.press('Tab');
+      await expect(nativeSummary).toBeFocused();
+      await hitTarget(nativeSummary, 'native-zoom-200:keyboard-summary');
+      await expect(nativeEditor.getByTestId('course-save-state')).toContainText(
+        'Изменения сохранены',
+      );
+      const fields = await nativeEditor
+        .locator('.course-growing-textarea')
+        .evaluateAll((elements) =>
+          elements.map((element) => ({
+            left: element.getBoundingClientRect().left,
+            right: element.getBoundingClientRect().right,
+            hiddenLines: element.scrollHeight - element.clientHeight,
+          })),
+        );
+      expect(
+        fields.every(
+          (field) => field.left >= 0 && field.right <= after.innerWidth && field.hiddenLines <= 1,
+        ),
+      ).toBe(true);
+      await viewportProof(nativePage, nativeEditor, 'document-native-zoom-200');
+      await openCourseLessonSettings(nativePage);
+      const nativeSettings = nativeEditor.getByRole('dialog', {
+        name: 'Параметры урока',
+        exact: true,
+      });
+      await hitTarget(nativeSettings.getByLabel('Тип урока'), 'native-zoom-200:lesson-settings');
+      await closeCourseLessonSettings(nativePage);
+      await expect(
+        nativeEditor.getByRole('button', { name: 'Параметры урока', exact: true }),
+      ).toBeFocused();
+      const nativePreviewButton = nativeEditor.getByRole('button', {
+        name: 'Предпросмотр',
+        exact: true,
+      });
+      await nativePreviewButton.click();
+      const nativeDialog = nativeEditor.getByRole('dialog', {
+        name: 'Как увидит ученик',
+        exact: true,
+      });
+      const nativePreview = nativeDialog.getByTestId('course-preview-page');
+      await expect(nativePreview).toHaveAttribute(
+        'data-draft-revision',
+        String(nativeOutline.draftRevision),
+      );
+      await expect(nativePreview).toContainText(longText);
+      await nativeDialog
+        .getByRole('button', { name: 'Опубликованная версия', exact: true })
+        .click();
+      await expect(nativePreview).toHaveAttribute('data-course-version-id', publication.versionId);
+      await expect(nativePreview).toContainText(longText);
+      await expect(nativePreview).not.toContainText(futureText);
+      await nativePage.screenshot({
+        path: `${evidence}/published-v1-native-zoom-200.png`,
+        fullPage: false,
+      });
+      await nativeDialog.getByRole('button', { name: 'Редактировать', exact: true }).click();
+      await expect(nativePreviewButton).toBeFocused();
+      await hitTarget(nativePreviewButton, 'native-zoom-200:preview-return-focus');
+      await expect(nativeBody).toHaveValue(longText);
+      const nativeVersions = await nativePage.request.get(coursePath + '/versions');
+      expect(nativeVersions.ok()).toBe(true);
+      expect(await nativeVersions.json()).toEqual(frozenVersions);
+      const unchangedOutline = await nativePage.request.get(coursePath + '/outline');
+      expect(unchangedOutline.ok()).toBe(true);
+      expect(await unchangedOutline.json()).toEqual(nativeOutline);
+      expect(nativeWrites).toEqual([]);
+      const reset = await native.setZoom(1);
+      expect(reset.factor).toBe(1);
+      await expect.poll(async () => (await witness()).dpr).toBe(before.dpr);
+      expect(page.viewportSize()).toEqual({ width: 1440, height: 900 });
+      return {
+        mechanism: 'Chromium tabs.setZoom automatic / per-tab',
+        baselineZoom,
+        applied,
+        before,
+        after,
+        fields,
+        reset,
+      };
+    } finally {
+      await native.close();
+    }
+  })();
+  expect(browserErrors).toEqual([]);
   await body.fill(futureText);
   const futureSave = page.waitForResponse(
     (response) =>
@@ -2212,8 +2524,9 @@ test('document Course Builder preserves the lesson, real save acknowledgements a
         finalReceipt,
         publication,
         measurements,
+        viewportEvidence,
         cssZoom: { factor: 2, overflow: zoomOverflow, fields: zoomFields },
-        nativeBrowserZoom: 'NOT_RUN',
+        nativeBrowserZoom,
       },
       null,
       2,

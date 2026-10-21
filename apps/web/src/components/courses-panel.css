@@ -1980,8 +1980,9 @@
   }
 
   .course-document-editor .course-header-actions > button {
-    flex: 1 1 110px;
-    min-width: 0;
+    flex: 1 1 auto;
+    min-width: min-content;
+    overflow-wrap: normal;
   }
 
   .course-document-editor .course-builder {
