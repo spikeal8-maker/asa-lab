@@ -1084,6 +1084,48 @@ for (const width of [1440, 1024, 390, 320])
       let mandatoryEvidenceError: { error: unknown } | undefined;
       const rawPath = info.outputPath(`e11-outline-${scenario}-${width}-raw.json`);
       const workerPath = info.outputPath(`e11-outline-${scenario}-${width}-worker.jsonl`);
+      const lifecyclePath = info.outputPath(`e11-outline-${scenario}-${width}-lifecycle.jsonl`);
+      const lifecycleErrors: unknown[] = [];
+      const lifecycleIdentities = new WeakMap<object, number>();
+      let lifecycleIdentityCount = 0;
+      let lifecycleSequence = 0;
+      function lifecycleIdentity(value: object) {
+        let identity = lifecycleIdentities.get(value);
+        if (identity === undefined) {
+          identity = ++lifecycleIdentityCount;
+          lifecycleIdentities.set(value, identity);
+        }
+        return identity;
+      }
+      function lifecycleMarker(
+        operation: 'cookies-context-close' | 'final-original-snapshot',
+        outcome: 'before' | 'fulfilled' | 'rejected',
+        source: Page,
+        error?: unknown,
+      ) {
+        const sequence = ++lifecycleSequence;
+        try {
+          appendFileSync(
+            lifecyclePath,
+            JSON.stringify({
+              sequence,
+              at: Date.now(),
+              operation,
+              outcome,
+              page: lifecycleIdentity(source),
+              context: lifecycleIdentity(source.context()),
+              error: outcome === 'rejected' ? String(error) : undefined,
+            }) + '\n',
+            { encoding: 'utf8', flush: true },
+          );
+        } catch (writeError) {
+          // Evidence failure must never change the original await or Error identity.
+          const failure = { sequence, operation, outcome, error: String(writeError) };
+          lifecycleErrors.push(failure);
+          output.push({ phase: 'lifecycle-journal-write-failure', ...failure });
+          console.error('[E11 lifecycle journal write failure]', failure);
+        }
+      }
       const workerHash = createHash('sha256');
       const workerSources = new Map<
         Page,
@@ -1183,6 +1225,11 @@ for (const width of [1440, 1024, 390, 320])
             : undefined,
           journeyComplete: lastCheckpoint === 'complete',
           observer: lastObserver,
+          lifecycleJournal: {
+            path: lifecyclePath,
+            attemptedMarkers: lifecycleSequence,
+            errors: lifecycleErrors,
+          },
           workerJournal: {
             path: workerPath,
             sha256: workerHash.copy().digest('hex'),
@@ -1745,12 +1792,33 @@ for (const width of [1440, 1024, 390, 320])
               });
           });
           writeCleanupRaw('reopen-finally');
-          await supplemental('cookies-context-close', () => fresh.close(), true);
+          await supplemental(
+            'cookies-context-close',
+            async () => {
+              lifecycleMarker('cookies-context-close', 'before', reopened!);
+              try {
+                await fresh.close();
+                lifecycleMarker('cookies-context-close', 'fulfilled', reopened!);
+              } catch (error) {
+                lifecycleMarker('cookies-context-close', 'rejected', reopened!, error);
+                throw error;
+              }
+            },
+            true,
+          );
           writeCleanupRaw('reopen-finally');
           reopened = undefined;
         }
         requireMandatoryEvidence();
-        const observed = await snapshot(page);
+        lifecycleMarker('final-original-snapshot', 'before', page);
+        let observed: Awaited<ReturnType<typeof snapshot>>;
+        try {
+          observed = await snapshot(page);
+          lifecycleMarker('final-original-snapshot', 'fulfilled', page);
+        } catch (error) {
+          lifecycleMarker('final-original-snapshot', 'rejected', page, error);
+          throw error;
+        }
         if (scenario === 'running-controls') {
           const advances = workerSources
             .get(page)!
