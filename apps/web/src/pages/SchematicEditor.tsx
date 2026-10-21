@@ -105,7 +105,10 @@ function SidePanel({
   );
 }
 
-type ShareDialogProps = { controller: ElectronicsWorkbenchController; onClose: () => void };
+type ShareDialogProps = {
+  controller: ElectronicsWorkbenchController;
+  onClose: () => void;
+};
 
 function ShareLoadError({ onClose }: ShareDialogProps): JSX.Element {
   return (
