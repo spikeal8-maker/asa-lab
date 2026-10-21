@@ -472,12 +472,33 @@ describe('publication moderation with real runtime privileges and sessions', () 
       source.owner.principalId,
       source.projectId,
     ]);
-    await transition(moderator.principalId, source.publicationId, false, 'Reviewed revoked');
+    await transition(
+      moderator.principalId,
+      source.publicationId,
+      false,
+      'Reviewed revoked',
+      randomUUID(),
+      1,
+    );
     await unavailable(source);
     await source.publish();
-    await transition(moderator.principalId, source.publicationId, true);
+    await transition(
+      moderator.principalId,
+      source.publicationId,
+      true,
+      'Safety review',
+      randomUUID(),
+      2,
+    );
     await admin.query("UPDATE projects SET status='archived' WHERE id=$1", [source.projectId]);
-    await transition(moderator.principalId, source.publicationId, false, 'Reviewed archived');
+    await transition(
+      moderator.principalId,
+      source.publicationId,
+      false,
+      'Reviewed archived',
+      randomUUID(),
+      3,
+    );
     await unavailable(source);
   });
 
@@ -490,12 +511,26 @@ describe('publication moderation with real runtime privileges and sessions', () 
     ]);
     expect(outcomes.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
     expect(outcomes.filter((result) => result.status === 'rejected')).toHaveLength(1);
-    await transition(moderator.principalId, source.publicationId, false, 'Reviewed');
+    await transition(
+      moderator.principalId,
+      source.publicationId,
+      false,
+      'Reviewed',
+      randomUUID(),
+      1,
+    );
     const requestId = randomUUID();
-    await transition(moderator.principalId, source.publicationId, true, 'Safety', requestId);
-    await transition(moderator.principalId, source.publicationId, false, 'Reviewed');
+    await transition(moderator.principalId, source.publicationId, true, 'Safety', requestId, 2);
+    await transition(
+      moderator.principalId,
+      source.publicationId,
+      false,
+      'Reviewed',
+      randomUUID(),
+      3,
+    );
     await expect(
-      transition(moderator.principalId, source.publicationId, true, 'Replay', requestId),
+      transition(moderator.principalId, source.publicationId, true, 'Replay', requestId, 4),
     ).rejects.toMatchObject({ code: 'P5M09' });
     const auditBefore = (
       await admin.query(
@@ -511,7 +546,7 @@ describe('publication moderation with real runtime privileges and sessions', () 
         source.publicationId,
         'Rolled back',
         randomUUID(),
-        2,
+        4,
       ]);
       await client.query('ROLLBACK');
     } finally {
@@ -551,7 +586,7 @@ describe('publication moderation with real runtime privileges and sessions', () 
           source.publicationId,
           'Must roll back',
           randomUUID(),
-          2,
+          4,
         ]),
       ).rejects.toMatchObject({ code: 'P0001' });
     } finally {
@@ -593,7 +628,14 @@ describe('publication moderation with real runtime privileges and sessions', () 
         source.owner.principalId,
         source.projectId,
       ]),
-      transition(moderator.principalId, source.publicationId, false, 'Reviewed concurrently'),
+      transition(
+        moderator.principalId,
+        source.publicationId,
+        false,
+        'Reviewed concurrently',
+        randomUUID(),
+        1,
+      ),
     ]);
     expect(revoked.every((result) => result.status === 'fulfilled')).toBe(true);
     expect(
