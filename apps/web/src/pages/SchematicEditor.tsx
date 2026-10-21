@@ -4,17 +4,8 @@ import { catalogEntry } from '../electronics/component-catalog';
 import { WorkbenchHeader } from '../electronics/WorkbenchHeader';
 import { WorkbenchStage } from '../electronics/WorkbenchStage';
 import type { WorkbenchView } from '../electronics/workbench-model';
-import {
-  CloseIcon,
-  CodeIcon,
-  CommentIcon,
-  SaveIcon,
-  ShareIcon,
-} from '../electronics/workbench-icons';
-import {
-  useElectronicsWorkbench,
-  type ElectronicsWorkbenchController,
-} from '../electronics/use-electronics-workbench';
+import { CloseIcon, CodeIcon, CommentIcon } from '../electronics/workbench-icons';
+import { useElectronicsWorkbench } from '../electronics/use-electronics-workbench';
 import '../electronics/workbench.css';
 import {
   registerProjectSnapshotSource,
@@ -33,6 +24,11 @@ const WorkbenchSidebars = lazy(() =>
   })),
 );
 const ArduinoCodePanel = lazy(loadArduinoCodePanel);
+const ShareDialog = lazy(() =>
+  import('../electronics/WorkbenchShareDialog').then((module) => ({
+    default: module.WorkbenchShareDialog,
+  })),
+);
 const SchematicView = lazy(() =>
   import('../electronics/AlternateWorkbenchViews').then((module) => ({
     default: module.SchematicView,
@@ -103,62 +99,6 @@ function SidePanel({
         </div>
       )}
     </aside>
-  );
-}
-
-function ShareDialog({
-  controller: c,
-  onClose,
-}: {
-  controller: ElectronicsWorkbenchController;
-  onClose: () => void;
-}): JSX.Element {
-  const [copied, setCopied] = useState(false);
-  async function copyLink(): Promise<void> {
-    try {
-      await navigator.clipboard.writeText(window.location.href);
-      setCopied(true);
-    } catch {
-      setCopied(false);
-    }
-  }
-  return (
-    <div className="workbench-modal-backdrop" role="presentation" onMouseDown={onClose}>
-      <section
-        className="workbench-share-dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-label="Отправить проект"
-        onMouseDown={(event) => event.stopPropagation()}
-      >
-        <header>
-          <ShareIcon />
-          <strong>Отправить проект</strong>
-          <button type="button" onClick={onClose} aria-label="Закрыть">
-            <CloseIcon />
-          </button>
-        </header>
-        <label>
-          <span>Ссылка на проект</span>
-          <input
-            readOnly
-            value={window.location.href}
-            onFocus={(event) => event.currentTarget.select()}
-          />
-        </label>
-        <div className="workbench-share-actions">
-          <button type="button" onClick={() => void copyLink()}>
-            <ShareIcon /> {copied ? 'Ссылка скопирована' : 'Копировать ссылку'}
-          </button>
-          <button type="button" onClick={() => void c.saveNow()} disabled={c.busy}>
-            <SaveIcon /> Сохранить сейчас
-          </button>
-          <button type="button" onClick={() => void c.checkpoint()} disabled={c.busy}>
-            <ShareIcon /> Создать версию
-          </button>
-        </div>
-      </section>
-    </div>
   );
 }
 
@@ -406,7 +346,9 @@ export function SchematicEditor({
         ) : null}
       </div>
       {shareOpen ? (
-        <ShareDialog controller={controller} onClose={() => setShareOpen(false)} />
+        <Suspense fallback={<div className="workbench-modal-backdrop" role="status">Открываем окно…</div>}>
+          <ShareDialog controller={controller} onClose={() => setShareOpen(false)} />
+        </Suspense>
       ) : null}
     </div>
   );
