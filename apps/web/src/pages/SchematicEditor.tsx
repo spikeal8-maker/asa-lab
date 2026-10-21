@@ -17,6 +17,12 @@ import {
 } from '../modules/project-snapshot';
 import { rasteriseSvgStage } from '../modules/svg-snapshot';
 
+declare global {
+  interface Window {
+    asaLoadOptionalChunk?: <T>(load: () => Promise<T>) => Promise<T>;
+  }
+}
+
 const loadArduinoCodePanel = () =>
   import('../electronics/ArduinoCodePanel').then((module) => ({
     default: module.ArduinoCodePanel,
@@ -28,16 +34,10 @@ const WorkbenchSidebars = lazy(() =>
 );
 const ArduinoCodePanel = lazy(loadArduinoCodePanel);
 const ShareDialog = lazy(() => {
-  // This optional chunk must not trigger the global page reload: the live
-  // electronics document may still contain unsaved changes.
-  // WebKit may report a generic TypeError without the chunk's filename.
-  // Suppress global recovery only while this optional Share import is pending.
-  const keepEditorOpen = (event: Event) => event.preventDefault();
-  window.addEventListener('asa-optional-preload-error', keepEditorOpen);
-  return import('../electronics/WorkbenchShareDialog')
+  const load = () => import('../electronics/WorkbenchShareDialog');
+  return (window.asaLoadOptionalChunk?.(load) ?? load())
     .then((module) => ({ default: module.WorkbenchShareDialog }))
-    .catch(() => ({ default: ShareLoadError }))
-    .finally(() => window.removeEventListener('asa-optional-preload-error', keepEditorOpen));
+    .catch(() => ({ default: ShareLoadError }));
 });
 const SchematicView = lazy(() =>
   import('../electronics/AlternateWorkbenchViews').then((module) => ({

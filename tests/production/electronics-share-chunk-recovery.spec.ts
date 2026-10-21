@@ -128,4 +128,25 @@ describe('actual optional Share loader and production Vite preload recovery', ()
       expect(browser.reloads(), 'Share listener removed when settled').toBe(1);
     });
   }
+  it('restores normal recovery for a concurrent unrelated module failure', async () => {
+    const browser = makeBrowser();
+    let rejectChunk: (error: Error) => void = () => {
+      throw new Error('Share import was not started');
+    };
+    const delayedImport = new Promise<never>((_resolve, reject) => {
+      rejectChunk = reject;
+    });
+    const share = makeLoader(browser.window, () => delayedImport);
+    const loading = share.load();
+
+    // This error has exactly the generic text WebKit can report for Share.
+    // Only the Error object rejected by Share belongs to this guarded import.
+    emitFailure(browser.window, new TypeError('Importing a module script failed.'));
+    expect(browser.reloads()).toBe(0);
+    const shareFailure = new TypeError('Importing a module script failed.');
+    emitFailure(browser.window, shareFailure);
+    rejectChunk(shareFailure);
+    await expect(loading).resolves.toEqual({ default: share.fallback });
+    expect(browser.reloads(), 'concurrent unrelated error must still recover').toBe(1);
+  });
 });
