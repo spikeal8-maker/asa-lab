@@ -3037,116 +3037,148 @@ test.describe('ELECTRONICS-525 complete instrument mirror matrix', () => {
             }
             const dx = field.x + field.width / 2 - bounds.x - bounds.width / 2;
             const dy = field.y + field.height * 0.4 - bounds.y - bounds.height / 2;
-            const panPair = await page.evaluate(
+            const panPlan = await page.evaluate(
               ({ dx, dy }) => {
                 const canvas = document.querySelector<SVGSVGElement>('.workbench-canvas');
                 if (!canvas) throw new Error('Missing pan canvas');
                 const rect = canvas.getBoundingClientRect();
-                const left = Math.max(0, rect.left) + 4;
-                const top = Math.max(0, rect.top) + 4;
-                const right = Math.min(innerWidth, rect.right) - 4;
-                const bottom = Math.min(innerHeight, rect.bottom) - 4;
-                const x0 = Math.max(left, left - dx);
-                const x1 = Math.min(right, right - dx);
-                const y0 = Math.max(top, top - dy);
-                const y1 = Math.min(bottom, bottom - dy);
-                const candidates = [];
-                for (const fy of [0.5, 0.25, 0.75, 0, 1]) {
-                  for (const fx of [0.5, 0.25, 0.75, 0, 1]) {
-                    const origin = { x: x0 + (x1 - x0) * fx, y: y0 + (y1 - y0) * fy };
-                    const destination = { x: origin.x + dx, y: origin.y + dy };
-                    const hit = document.elementFromPoint(origin.x, origin.y);
-                    const endHit = document.elementFromPoint(destination.x, destination.y);
-                    const eligible =
-                      x0 <= x1 &&
-                      y0 <= y1 &&
-                      (hit === canvas ||
-                        Boolean(
-                          hit?.classList.contains('workbench-grid-hit') && canvas.contains(hit),
-                        )) &&
-                      Boolean(endHit && canvas.contains(endHit));
-                    candidates.push({
-                      origin,
-                      destination,
-                      eligible,
-                      hit: hit?.outerHTML.slice(0, 500),
-                      endHit: endHit?.outerHTML.slice(0, 500),
-                    });
-                  }
-                }
-                return { selected: candidates.find((candidate) => candidate.eligible), candidates };
+                const width = Math.min(innerWidth, rect.right) - Math.max(0, rect.left) - 8;
+                const height = Math.min(innerHeight, rect.bottom) - Math.max(0, rect.top) - 8;
+                if (![dx, dy, width, height].every(Number.isFinite) || width <= 0 || height <= 0)
+                  throw new Error('Invalid native pan extent');
+                const count = Math.max(
+                  1,
+                  Math.ceil(Math.abs(dx) / width),
+                  Math.ceil(Math.abs(dy) / height),
+                );
+                return { count, width, height, dx, dy };
               },
               { dx, dy },
             );
-            checkpoint(`pan-${id}-candidates`, panPair);
-            if (!panPair.selected) throw new Error(`No owned native pan pair ${id}`);
-            const { origin, destination } = panPair.selected;
-            const panWitness = async (phase: string) => {
-              const observation = await page.evaluate(
-                ({ id, origin, destination }) => {
+            checkpoint(`pan-${id}-plan`, panPlan);
+            if (panPlan.count > 8) throw new Error(`Native pan segment cap ${id}`);
+            let movedX = 0;
+            let movedY = 0;
+            for (let segment = 0; segment < panPlan.count; segment++) {
+              const segmentDx = segment === panPlan.count - 1 ? dx - movedX : dx / panPlan.count;
+              const segmentDy = segment === panPlan.count - 1 ? dy - movedY : dy / panPlan.count;
+              const panPair = await page.evaluate(
+                ({ dx, dy }) => {
                   const canvas = document.querySelector<SVGSVGElement>('.workbench-canvas');
-                  const body = document.querySelector<SVGGraphicsElement>(
-                    `[data-component-id="${id}"] .workbench-part`,
-                  );
-                  const ancestry = (node: Element | null) => {
-                    const result = [];
-                    for (; node; node = node.parentElement)
-                      result.push({
-                        tag: node.tagName,
-                        id: node.id,
-                        class: node.getAttribute('class'),
+                  if (!canvas) throw new Error('Missing pan canvas');
+                  const rect = canvas.getBoundingClientRect();
+                  const left = Math.max(0, rect.left) + 4;
+                  const top = Math.max(0, rect.top) + 4;
+                  const right = Math.min(innerWidth, rect.right) - 4;
+                  const bottom = Math.min(innerHeight, rect.bottom) - 4;
+                  const x0 = Math.max(left, left - dx);
+                  const x1 = Math.min(right, right - dx);
+                  const y0 = Math.max(top, top - dy);
+                  const y1 = Math.min(bottom, bottom - dy);
+                  const candidates = [];
+                  for (const fy of [0.5, 0.25, 0.75, 0, 1]) {
+                    for (const fx of [0.5, 0.25, 0.75, 0, 1]) {
+                      const origin = { x: x0 + (x1 - x0) * fx, y: y0 + (y1 - y0) * fy };
+                      const destination = { x: origin.x + dx, y: origin.y + dy };
+                      const hit = document.elementFromPoint(origin.x, origin.y);
+                      const endHit = document.elementFromPoint(destination.x, destination.y);
+                      const eligible =
+                        x0 <= x1 &&
+                        y0 <= y1 &&
+                        (hit === canvas ||
+                          Boolean(
+                            hit?.classList.contains('workbench-grid-hit') && canvas.contains(hit),
+                          )) &&
+                        Boolean(endHit && canvas.contains(endHit));
+                      candidates.push({
+                        origin,
+                        destination,
+                        eligible,
+                        hit: hit?.outerHTML.slice(0, 500),
+                        endHit: endHit?.outerHTML.slice(0, 500),
                       });
-                    return result;
-                  };
-                  const geometry = (node: SVGGraphicsElement | null) => {
-                    const bounds = node?.getBoundingClientRect();
-                    const ctm = node?.getScreenCTM();
-                    return {
-                      bounds: bounds?.toJSON(),
-                      ctm: ctm ? [ctm.a, ctm.b, ctm.c, ctm.d, ctm.e, ctm.f] : null,
-                      connected: node?.isConnected ?? false,
-                    };
-                  };
+                    }
+                  }
                   return {
+                    selected: candidates.find((candidate) => candidate.eligible),
+                    candidates,
+                  };
+                },
+                { dx: segmentDx, dy: segmentDy },
+              );
+              checkpoint(`pan-${id}-${segment}-candidates`, { ...panPair, segmentDx, segmentDy });
+              if (!panPair.selected) throw new Error(`No owned native pan pair ${id}`);
+              const { origin, destination } = panPair.selected;
+              const panWitness = async (phase: string) => {
+                const observation = await page.evaluate(
+                  ({ id, origin, destination }) => {
+                    const canvas = document.querySelector<SVGSVGElement>('.workbench-canvas');
+                    const body = document.querySelector<SVGGraphicsElement>(
+                      `[data-component-id="${id}"] .workbench-part`,
+                    );
+                    const ancestry = (node: Element | null) => {
+                      const result = [];
+                      for (; node; node = node.parentElement)
+                        result.push({
+                          tag: node.tagName,
+                          id: node.id,
+                          class: node.getAttribute('class'),
+                        });
+                      return result;
+                    };
+                    const geometry = (node: SVGGraphicsElement | null) => {
+                      const bounds = node?.getBoundingClientRect();
+                      const ctm = node?.getScreenCTM();
+                      return {
+                        bounds: bounds?.toJSON(),
+                        ctm: ctm ? [ctm.a, ctm.b, ctm.c, ctm.d, ctm.e, ctm.f] : null,
+                        connected: node?.isConnected ?? false,
+                      };
+                    };
+                    return {
+                      origin,
+                      destination,
+                      originHit: ancestry(document.elementFromPoint(origin.x, origin.y)),
+                      destinationHit: ancestry(
+                        document.elementFromPoint(destination.x, destination.y),
+                      ),
+                      canvas: geometry(canvas),
+                      body: geometry(body),
+                      viewBox: canvas?.getAttribute('viewBox'),
+                      events: (window as unknown as { instrument525Events: unknown[] })
+                        .instrument525Events,
+                    };
+                  },
+                  {
+                    id,
                     origin,
                     destination,
-                    originHit: ancestry(document.elementFromPoint(origin.x, origin.y)),
-                    destinationHit: ancestry(
-                      document.elementFromPoint(destination.x, destination.y),
-                    ),
-                    canvas: geometry(canvas),
-                    body: geometry(body),
-                    viewBox: canvas?.getAttribute('viewBox'),
-                    events: (window as unknown as { instrument525Events: unknown[] })
-                      .instrument525Events,
-                  };
-                },
-                {
-                  id,
-                  origin,
-                  destination,
-                },
-              );
-              journal['nativeEvents'] = observation.events;
-              checkpoint(`pan-${id}-${phase}`, observation);
-            };
-            await panWitness('before');
-            let panWitnessError: unknown;
-            try {
-              await page.mouse.move(origin.x, origin.y);
-              await page.mouse.down({ button: 'middle' });
-              await page.mouse.move(destination.x, destination.y, { steps: 4 });
-              await page.mouse.up({ button: 'middle' });
-            } finally {
+                  },
+                );
+                journal['nativeEvents'] = observation.events;
+                checkpoint(`pan-${id}-${segment}-${phase}`, observation);
+              };
+              await panWitness('before');
+              let panWitnessError: unknown;
               try {
-                await panWitness('after');
-              } catch (error) {
-                rows.push({ name: `pan-${id}-witness-error`, error: String(error) });
-                write();
-                panWitnessError = error;
+                await page.mouse.move(origin.x, origin.y);
+                await page.mouse.down({ button: 'middle' });
+                await page.mouse.move(destination.x, destination.y, { steps: 4 });
+                await page.mouse.up({ button: 'middle' });
+              } finally {
+                try {
+                  await panWitness('after');
+                } catch (error) {
+                  rows.push({ name: `pan-${id}-witness-error`, error: String(error) });
+                  write();
+                  panWitnessError = error;
+                }
               }
+              if (panWitnessError) throw panWitnessError;
+              movedX += segmentDx;
+              movedY += segmentDy;
             }
-            if (panWitnessError) throw panWitnessError;
+            checkpoint(`pan-${id}-total`, { dx, dy, movedX, movedY, count: panPlan.count });
             field = await canvas.boundingBox();
             bounds = await body.boundingBox();
             checkpoint(`focused-${id}`, { field, bounds });
@@ -3592,36 +3624,42 @@ test.describe('ELECTRONICS-525 complete instrument mirror matrix', () => {
               const generator = component(page, 'signal-generator').getByTestId(
                 'signal-generator-runtime',
               );
-              const triangle = generator.locator('.workbench-signal-generator-triangle');
-              const trianglePoint = await triangle.evaluate((node) => {
-                if (!(node instanceof SVGRectElement) || !node.isConnected)
-                  throw new Error('Missing triangle RECT');
-                const matrix = node.getScreenCTM();
-                if (!matrix) throw new Error('Missing triangle CTM');
-                const candidates = [];
-                for (const fy of [0.5, 0.25, 0.75]) {
-                  for (const fx of [0.5, 0.25, 0.75]) {
-                    const point = new DOMPoint(
-                      node.x.baseVal.value + node.width.baseVal.value * fx,
-                      node.y.baseVal.value + node.height.baseVal.value * fy,
-                    ).matrixTransform(matrix);
-                    const hit = document.elementFromPoint(point.x, point.y);
-                    candidates.push({
-                      x: point.x,
-                      y: point.y,
-                      eligible:
-                        Number.isFinite(point.x) &&
-                        Number.isFinite(point.y) &&
-                        Boolean(hit && (hit === node || node.contains(hit))),
-                      hit: hit?.outerHTML.slice(0, 500),
-                    });
+              const clickWaveform = async (waveform: 'triangle' | 'sine') => {
+                const control = generator.locator(`.workbench-signal-generator-${waveform}`);
+                const ownedPoint = await control.evaluate((node) => {
+                  if (!(node instanceof SVGRectElement) || !node.isConnected)
+                    throw new Error('Missing waveform RECT');
+                  const matrix = node.getScreenCTM();
+                  if (!matrix) throw new Error('Missing waveform CTM');
+                  const candidates = [];
+                  for (const fy of [0.5, 0.25, 0.75]) {
+                    for (const fx of [0.5, 0.25, 0.75]) {
+                      const point = new DOMPoint(
+                        node.x.baseVal.value + node.width.baseVal.value * fx,
+                        node.y.baseVal.value + node.height.baseVal.value * fy,
+                      ).matrixTransform(matrix);
+                      const hit = document.elementFromPoint(point.x, point.y);
+                      candidates.push({
+                        x: point.x,
+                        y: point.y,
+                        eligible:
+                          Number.isFinite(point.x) &&
+                          Number.isFinite(point.y) &&
+                          Boolean(hit && (hit === node || node.contains(hit))),
+                        hit: hit?.outerHTML.slice(0, 500),
+                      });
+                    }
                   }
-                }
-                return { selected: candidates.find((candidate) => candidate.eligible), candidates };
-              });
-              checkpoint('triangle-owned-candidates', trianglePoint);
-              if (!trianglePoint.selected) throw new Error('No owned triangle native point');
-              await page.mouse.click(trianglePoint.selected.x, trianglePoint.selected.y);
+                  return {
+                    selected: candidates.find((candidate) => candidate.eligible),
+                    candidates,
+                  };
+                });
+                checkpoint(`${waveform}-owned-candidates`, ownedPoint);
+                if (!ownedPoint.selected) throw new Error(`No owned ${waveform} native point`);
+                await page.mouse.click(ownedPoint.selected.x, ownedPoint.selected.y);
+              };
+              await clickWaveform('triangle');
               await expect(generator).toHaveAttribute('data-waveform', 'triangle');
               await generator.locator('.workbench-signal-generator-power-slider').click();
               await expect(generator).toHaveAttribute('data-output-enabled', 'false');
@@ -3631,7 +3669,7 @@ test.describe('ELECTRONICS-525 complete instrument mirror matrix', () => {
               await capture('generator', rotation, 'output-disabled');
               await generator.locator('.workbench-signal-generator-power-slider').click();
               await expect(generator).toHaveAttribute('data-output-enabled', 'true');
-              await generator.locator('.workbench-signal-generator-sine').click();
+              await clickWaveform('sine');
               await expect(generator).toHaveAttribute('data-waveform', 'sine');
             }
             await page
