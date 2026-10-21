@@ -2087,6 +2087,30 @@ test('document Course Builder preserves the lesson, real save acknowledgements a
     await hitTarget(blockActions, `${width}:block-menu`);
     await blockActions.press('Enter');
     await expect(blockActions).toHaveAttribute('aria-expanded', 'true');
+    // A block dropdown must remain anchored to its local trigger instead of
+    // stretching to an inherited left edge in responsive layouts.
+    const blockMenuGeometry = await editor
+      .locator('.lesson-block-card .lesson-block-menu .dropdown-menu')
+      .first()
+      .evaluate((menu) => {
+        const popup = menu.getBoundingClientRect();
+        const trigger = menu.parentElement?.querySelector('summary')?.getBoundingClientRect();
+        return {
+          left: popup.left,
+          right: popup.right,
+          width: popup.width,
+          triggerRight: trigger?.right ?? Number.NaN,
+        };
+      });
+    expect(blockMenuGeometry.left, `${width}: block popup left`).toBeGreaterThanOrEqual(0);
+    expect(blockMenuGeometry.right, `${width}: block popup right`).toBeLessThanOrEqual(width);
+    expect(blockMenuGeometry.width, `${width}: block popup compact width`).toBeLessThanOrEqual(
+      width - 48,
+    );
+    expect(
+      Math.abs(blockMenuGeometry.right - blockMenuGeometry.triggerRight),
+      `${width}: block popup remains right-anchored to trigger`,
+    ).toBeLessThanOrEqual(2);
     await blockActions.press('Tab');
     await expect(
       editor

@@ -1829,6 +1829,7 @@
 }
 
 .course-document-editor .course-outline-menu .dropdown-menu {
+  left: auto;
   min-width: 200px;
   max-width: calc(100vw - 48px);
 }
