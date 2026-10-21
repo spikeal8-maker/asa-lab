@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { afterAll, afterEach, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, expect, it, vi } from 'vitest';
 import { api, type AuthoredActivityLearnerPreview, type PublishedAuthorVersion } from '../../api';
 import {
   CanonicalPracticePicker,
@@ -11,6 +11,7 @@ import { CourseAssignDialog, type CourseAssignAttempt } from '../../components/C
 import { LessonBlockEditor } from '../../components/LessonBlockEditor';
 import { CanonicalManualMaterialPicker } from '../../components/CanonicalManualMaterialPicker';
 import { publishedCourseSections } from '../../components/CoursesPanel';
+import { installCourseEditorTestDom } from '../../components/course-editor-test-dom';
 
 const versionId = '11111111-1111-4111-8111-111111111111';
 const newerId = '22222222-2222-4222-8222-222222222222';
@@ -57,9 +58,14 @@ const version: PublishedAuthorVersion = {
 };
 let root: Root | null = null;
 let container: HTMLDivElement | null = null;
+let restoreBrowserApis: () => void;
 const testGlobal = globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean };
-testGlobal.IS_REACT_ACT_ENVIRONMENT = true;
+beforeAll(() => {
+  restoreBrowserApis = installCourseEditorTestDom();
+  testGlobal.IS_REACT_ACT_ENVIRONMENT = true;
+});
 afterAll(() => {
+  restoreBrowserApis();
   testGlobal.IS_REACT_ACT_ENVIRONMENT = false;
 });
 afterEach(async () => {
@@ -443,10 +449,13 @@ it('keeps an already open add-content menu disabled when the lesson reaches its 
       onChange: change,
     }),
   );
-  await act(async () => button('+ Добавить содержимое').click());
+  const addMenu = container!.querySelector<HTMLDetailsElement>('.lesson-block-add')!;
+  await act(async () => addMenu.querySelector<HTMLElement>('summary')!.click());
+  expect(addMenu.open).toBe(true);
   await act(async () =>
     root?.render(createElement(LessonBlockEditor, { blocks, activities: [], onChange: change })),
   );
+  expect(addMenu.open).toBe(true);
   const choices = [...container!.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')];
   expect(choices.length).toBeGreaterThan(0);
   expect(choices.every((choice) => choice.disabled)).toBe(true);

@@ -5,17 +5,21 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { api, type ApiResult, type Course, type CourseLesson, type CourseSection } from '../../api';
 import { CoursesPanel } from '../../components/CoursesPanel';
+import { installCourseEditorTestDom } from '../../components/course-editor-test-dom';
 
 type VisibilityReceipt = { hidden: boolean; draftRevision: number };
 type VisibilityTarget = 'lesson' | 'section';
 const reactTestGlobal = globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean };
 let root: Root | null = null;
 let container: HTMLDivElement;
+let restoreBrowserApis: () => void;
 
 beforeAll(() => {
+  restoreBrowserApis = installCourseEditorTestDom();
   reactTestGlobal.IS_REACT_ACT_ENVIRONMENT = true;
 });
 afterAll(() => {
+  restoreBrowserApis();
   reactTestGlobal.IS_REACT_ACT_ENVIRONMENT = false;
 });
 afterEach(async () => {
@@ -43,16 +47,20 @@ function button(where: Element, text: string): HTMLButtonElement {
   return found;
 }
 
-function titleInput(): HTMLInputElement {
-  return container.querySelector<HTMLInputElement>('.course-lesson-editor input[maxlength="160"]')!;
+function titleInput(): HTMLTextAreaElement {
+  return container.querySelector<HTMLTextAreaElement>(
+    '.course-lesson-editor textarea[maxlength="160"]',
+  )!;
 }
 
-function summaryInput(): HTMLInputElement {
-  return container.querySelector<HTMLInputElement>('.course-lesson-editor input[maxlength="600"]')!;
+function summaryInput(): HTMLTextAreaElement {
+  return container.querySelector<HTMLTextAreaElement>(
+    '.course-lesson-editor textarea[maxlength="600"]',
+  )!;
 }
 
-function setInput(input: HTMLInputElement, value: string): void {
-  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, value);
+function setInput(input: HTMLTextAreaElement, value: string): void {
+  Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(input, value);
   input.dispatchEvent(new Event('input', { bubbles: true }));
 }
 
@@ -69,7 +77,9 @@ function expectLater(): void {
 }
 
 function saveButton(): HTMLButtonElement {
-  return container.querySelector<HTMLButtonElement>('.course-lesson-editor [type="submit"]')!;
+  const button = container.querySelector<HTMLButtonElement>('.course-save-slot [type="submit"]')!;
+  expect(button.form).toBe(container.querySelector('.course-lesson-editor'));
+  return button;
 }
 
 async function submit(): Promise<void> {
