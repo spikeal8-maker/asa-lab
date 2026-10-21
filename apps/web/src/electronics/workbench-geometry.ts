@@ -30,9 +30,12 @@ export const WIRE_ASSIST_ENTER_ANGLE_DEG = 3;
 export const WIRE_ASSIST_EXIT_ANGLE_DEG = 5;
 
 export const TERMINAL_MARKER_SIZE = 8;
-// The 8-unit contact square has a 2-unit outline: the painted edge is 5 units
-// from its centre. Keep the invisible mouse AND touch target within that edge.
-export const TERMINAL_HIT_RADIUS = TERMINAL_MARKER_SIZE / 2 + 1;
+// The rendered terminal dots have a final 1.2-unit CSS stroke (including
+// selected and wiring states), so their painted edge is 4 + 0.6 = 4.6.
+// Breadboard squares may have a thicker outline; this conservative radius still
+// stays within their painted region. Match touch to mouse to avoid an invisible
+// capture halo on a phone.
+export const TERMINAL_HIT_RADIUS = TERMINAL_MARKER_SIZE / 2 + 0.6;
 export const TERMINAL_TOUCH_HIT_RADIUS = TERMINAL_HIT_RADIUS;
 export const WIRE_ENDPOINT_VISIBLE_RADIUS = 4;
 // The wire end dot also has a 2-unit outline; do not capture outside its paint.

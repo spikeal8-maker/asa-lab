@@ -229,12 +229,12 @@ describe('what the canvas is allowed to move', () => {
   });
 
   it('limits mouse and touch contact capture to the painted contact and wire endpoint dots', () => {
-    // The component contact is an 8-unit square with a 2-unit stroke. The
-    // selected wire endpoint is a radius-4 circle with the same stroke.
-    const outlineHalfWidth = 1;
-    const terminalPaintEdge = TERMINAL_MARKER_SIZE / 2 + outlineHalfWidth;
-    const wireEndpointPaintEdge = WIRE_ENDPOINT_VISIBLE_RADIUS + outlineHalfWidth;
-    expect(terminalPaintEdge).toBe(5);
+    // Effective CSS terminal stroke is 1.2 units (last cascade rule). The
+    // selected wire endpoint retains its 2-unit stroke. Breadboard squares
+    // have a larger visible outline but the shared target must not exceed it.
+    const terminalPaintEdge = TERMINAL_MARKER_SIZE / 2 + 1.2 / 2;
+    const wireEndpointPaintEdge = WIRE_ENDPOINT_VISIBLE_RADIUS + 2 / 2;
+    expect(terminalPaintEdge).toBe(4.6);
     expect(wireEndpointPaintEdge).toBe(5);
     expect(TERMINAL_HIT_RADIUS).toBe(terminalPaintEdge);
     expect(TERMINAL_TOUCH_HIT_RADIUS).toBe(terminalPaintEdge);
