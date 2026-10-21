@@ -1609,7 +1609,9 @@ test('Course Builder preserves typed lesson edits across real hide and show resp
   await summary.fill('Исходное описание');
   await editor.getByLabel('Текст блока', { exact: true }).fill('Содержание исходного урока.');
   await editor.getByRole('button', { name: 'Добавить урок', exact: true }).click();
-  await expect(editor.getByRole('status')).toHaveText('Урок добавлен.');
+  await expect(editor.getByRole('status', { name: 'Уведомление курса', exact: true })).toHaveText(
+    'Урок добавлен.',
+  );
   const readOutline = async () => {
     const response = await page.request.get(`/api/courses/${courseId}/outline`);
     expect(response.ok()).toBe(true);
@@ -1644,8 +1646,8 @@ test('Course Builder preserves typed lesson edits across real hide and show resp
         phase === 'unconfirmed' || phase === 'unavailable'
           ? editor.getByRole('alert')
           : phase === 'confirmed'
-            ? editor.getByRole('status')
-            : lessonForm.locator('.course-editor-actions > span');
+            ? editor.getByRole('status', { name: 'Уведомление курса', exact: true })
+            : editor.getByRole('status', { name: 'Состояние сохранения курса', exact: true });
       await expect(text).toBeVisible();
       const geometry = await text.evaluate((element) => {
         const box = element.getBoundingClientRect();
@@ -1888,9 +1890,9 @@ test('Course Builder preserves typed lesson edits across real hide and show resp
       await discardAndReopen(oldLesson.title);
       return;
     }
-    await expect(editor.getByRole('status')).toContainText(
-      'Последние изменения урока ещё не сохранены',
-    );
+    await expect(
+      editor.getByRole('status', { name: 'Уведомление курса', exact: true }),
+    ).toContainText('Последние изменения урока ещё не сохранены');
     await expect(title).toHaveValue(laterTitle);
     await expect(summary).toHaveValue(laterSummary);
     await expect(save).toBeEnabled();
@@ -1922,7 +1924,9 @@ test('Course Builder preserves typed lesson edits across real hide and show resp
       await discardAndReopen('Чужие сохранённые правки C');
       return;
     }
-    await expect(editor.getByRole('status')).toHaveText('Урок сохранён.');
+    await expect(editor.getByRole('status', { name: 'Уведомление курса', exact: true })).toHaveText(
+      'Урок сохранён.',
+    );
     const persisted = await readOutline();
     expect(persisted.sections).toHaveLength(1);
     expect(persisted.sections[0].lessons).toHaveLength(1);
@@ -1951,7 +1955,9 @@ test('Course Builder preserves typed lesson edits across real hide and show resp
   await save.click();
   expect((await recoverySave).status()).toBe(200);
   expect(lessonWrites.at(-1)?.expectedRevision).toBe(recovered.draftRevision);
-  await expect(editor.getByRole('status')).toHaveText('Урок сохранён.');
+  await expect(editor.getByRole('status', { name: 'Уведомление курса', exact: true })).toHaveText(
+    'Урок сохранён.',
+  );
   await page.reload();
   await tabs.getByRole('button', { name: 'Курсы', exact: true }).click();
   await page
@@ -1995,7 +2001,9 @@ test('Course Builder duplicates a section and excludes hidden lesson only from f
   await editor.getByLabel('Название урока').fill('Структурная теория');
   await editor.getByLabel('Текст блока', { exact: true }).fill('Материал исходной версии.');
   await editor.getByRole('button', { name: 'Добавить урок', exact: true }).click();
-  await expect(editor.getByRole('status')).toHaveText('Урок добавлен.');
+  await expect(editor.getByRole('status', { name: 'Уведомление курса', exact: true })).toHaveText(
+    'Урок добавлен.',
+  );
   await expect(editor.locator('.course-outline-section').first().locator('li')).toHaveCount(1);
 
   await editor
@@ -4382,7 +4390,9 @@ test('Course archive rejects a stale assignment dialog, keeps exact replay and o
   await editor.getByLabel('Название урока').fill(lessonTitle);
   await editor.getByLabel('Текст блока', { exact: true }).fill(lessonText);
   await editor.getByRole('button', { name: 'Добавить урок', exact: true }).click();
-  await expect(editor.getByRole('status')).toHaveText('Урок добавлен.');
+  await expect(editor.getByRole('status', { name: 'Уведомление курса', exact: true })).toHaveText(
+    'Урок добавлен.',
+  );
   await editor.getByRole('button', { name: 'Опубликовать', exact: true }).click();
   await expect(page.getByText('Курс опубликован: версия 1.', { exact: true })).toBeVisible();
   await openCourseActions(page);
@@ -4875,7 +4885,9 @@ test('Course media errors survive saved author preview and learner delivery with
   await editor.getByLabel('Ссылка на файл').fill('https://example.test/initial-' + suffix + '.pdf');
   await editor.getByLabel('Название файла').fill('Исходная памятка');
   await editor.getByRole('button', { name: 'Добавить урок', exact: true }).click();
-  await expect(editor.getByRole('status')).toHaveText('Урок добавлен.');
+  await expect(editor.getByRole('status', { name: 'Уведомление курса', exact: true })).toHaveText(
+    'Урок добавлен.',
+  );
   async function outline() {
     const response = await page.request.get('/api/courses/' + courseId + '/outline');
     expect(response.status()).toBe(200);
@@ -4954,7 +4966,9 @@ test('Course media errors survive saved author preview and learner delivery with
   );
   await editor.getByRole('button', { name: 'Сохранить урок', exact: true }).click();
   expect((await save).status()).toBe(200);
-  await expect(editor.getByRole('status')).toHaveText('Урок сохранён.');
+  await expect(editor.getByRole('status', { name: 'Уведомление курса', exact: true })).toHaveText(
+    'Урок сохранён.',
+  );
   await reopen();
   for (const [label, value] of [
     ['Ссылка на изображение', imageUrl],
@@ -4996,7 +5010,9 @@ test('Course media errors survive saved author preview and learner delivery with
     .getByRole('button', { name: 'Действия урока «' + lessonTitle + '»', exact: true })
     .click();
   await lessonActions.getByRole('button', { name: 'Дублировать', exact: true }).click();
-  await expect(editor.getByRole('status')).toHaveText('Урок продублирован.');
+  await expect(editor.getByRole('status', { name: 'Уведомление курса', exact: true })).toHaveText(
+    'Урок продублирован.',
+  );
   const duplicated = await outline();
   expect(duplicated.sections[0]!.lessons).toHaveLength(2);
   expect(duplicated.sections[0]!.lessons[1]!.id).not.toBe(lesson.id);

@@ -407,7 +407,18 @@ function LessonEditor({
 }): JSX.Element {
   const formRef = useRef<HTMLFormElement>(null);
   const formId = useId();
+  const minutesRef = useRef<HTMLInputElement>(null);
+  const minutesErrorId = useId();
+  const focusMinutesOnOpen = useRef(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [minutesInvalid, setMinutesInvalid] = useState(false);
+  const minutesError = 'Укажите целое число минут от 1 до 600 или оставьте поле пустым.';
+  useEffect(() => {
+    if (settingsOpen && focusMinutesOnOpen.current) {
+      minutesRef.current?.focus();
+      focusMinutesOnOpen.current = false;
+    }
+  }, [settingsOpen]);
   useEffect(() => {
     if (formRef.current && diagnosticFocus && diagnosticFocus.diagnostic.lessonId === lesson?.id) {
       focusCourseDiagnostic(formRef.current, diagnosticFocus.diagnostic);
@@ -432,6 +443,9 @@ function LessonEditor({
       ? ''
       : String(lesson.estimatedMinutes),
   );
+  useEffect(() => {
+    setMinutesInvalid(minutesRef.current?.validity.valid === false);
+  }, [minutes]);
   const [saving, setSaving] = useState(false);
   const valid =
     title.trim().length > 0 &&
@@ -440,9 +454,22 @@ function LessonEditor({
     !saveBlockedMessage &&
     !saving;
 
+  function correctMinutes(): void {
+    if (settingsOpen) minutesRef.current?.focus();
+    else {
+      focusMinutesOnOpen.current = true;
+      setSettingsOpen(true);
+    }
+  }
+
   async function submit(event: FormEvent): Promise<void> {
     event.preventDefault();
     if (!valid) return;
+    if (minutesRef.current && !minutesRef.current.validity.valid) {
+      setMinutesInvalid(true);
+      correctMinutes();
+      return;
+    }
     setSaving(true);
     try {
       await onSave({
@@ -520,17 +547,32 @@ function LessonEditor({
         <label className="course-field course-duration-field">
           <span>Примерное время, минут</span>
           <input
+            ref={minutesRef}
             type="number"
             min={1}
             max={600}
+            step={1}
             value={minutes}
+            aria-invalid={minutesInvalid || undefined}
+            aria-describedby={minutesInvalid ? minutesErrorId : undefined}
             onChange={(event) => {
               setMinutes(event.target.value);
+              setMinutesInvalid(!event.currentTarget.validity.valid);
               onDirty();
+            }}
+            onInvalid={(event) => {
+              event.preventDefault();
+              setMinutesInvalid(true);
+              correctMinutes();
             }}
             placeholder="15"
           />
         </label>
+        {minutesInvalid && settingsOpen ? (
+          <p id={minutesErrorId} className="form-error" role="alert">
+            {minutesError}
+          </p>
+        ) : null}
         <p className="course-parameters-note">Параметры сохраняются вместе с уроком.</p>
         {onDelete ? (
           <button
@@ -545,6 +587,17 @@ function LessonEditor({
           </button>
         ) : null}
       </CourseEditorDialog>
+
+      {minutesInvalid && !settingsOpen ? (
+        <div>
+          <p id={minutesErrorId} className="form-error" role="alert">
+            {minutesError}
+          </p>
+          <button type="button" className="btn-secondary" onClick={correctMinutes}>
+            Исправить время урока
+          </button>
+        </div>
+      ) : null}
 
       <label className="course-field course-document-title">
         <span>Название урока</span>
@@ -1404,7 +1457,12 @@ function CourseEditor({
             </Dropdown>
             <div className="course-header-actions">
               <div className="course-save-slot" ref={setSaveTarget} />
-              <span className="course-save-state" role="status" data-testid="course-save-state">
+              <span
+                className="course-save-state"
+                role="status"
+                aria-label="Состояние сохранения курса"
+                data-testid="course-save-state"
+              >
                 {lessonSaveBlock
                   ? lessonSaveBlock
                   : writing || restoreBusy
@@ -1460,7 +1518,11 @@ function CourseEditor({
           ) : null}
 
           {notice ? (
-            <p className="notice-success course-inline-notice" role="status">
+            <p
+              className="notice-success course-inline-notice"
+              role="status"
+              aria-label="Уведомление курса"
+            >
               {notice}
             </p>
           ) : null}

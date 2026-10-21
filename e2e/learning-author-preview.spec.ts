@@ -1989,6 +1989,53 @@ test('document Course Builder preserves the lesson, real save acknowledgements a
     await editor.screenshot({ path: `${evidence}/document-${width}.png` });
   }
 
+  // Hidden settings must never turn an invalid duration into a silent failed save.
+  const invalidDurationWrites: string[] = [];
+  const trackDurationWrite = (request: import('@playwright/test').Request) => {
+    if (
+      request.method() === 'PATCH' &&
+      new URL(request.url()).pathname === coursePath + '/lessons/' + firstLesson.id
+    )
+      invalidDurationWrites.push(request.postData() ?? '');
+  };
+  page.on('request', trackDurationWrite);
+  await openCourseLessonSettings(page);
+  const durationSettings = editor.getByRole('dialog', { name: 'Параметры урока', exact: true });
+  const duration = durationSettings.getByLabel('Примерное время, минут', { exact: true });
+  for (const invalid of ['0', '601', '1.5']) {
+    await duration.fill(invalid);
+    await expect(duration).toHaveAttribute('aria-invalid', 'true');
+    expect(await duration.evaluate((input: HTMLInputElement) => input.validity.valid)).toBe(false);
+    await closeCourseLessonSettings(page);
+    await expect(durationSettings).not.toBeVisible();
+    await expect(editor.getByRole('alert')).toHaveText(
+      'Укажите целое число минут от 1 до 600 или оставьте поле пустым.',
+    );
+    if (invalid === '0') {
+      const correction = editor.getByRole('button', { name: 'Исправить время урока', exact: true });
+      await correction.focus();
+      await correction.press('Enter');
+    } else {
+      await editor.getByRole('button', { name: 'Сохранить урок', exact: true }).click();
+    }
+    await expect(durationSettings).toBeVisible();
+    await expect(duration).toBeFocused();
+    await expect(duration).toHaveValue(invalid);
+    await expect(durationSettings.getByRole('alert')).toHaveText(
+      'Укажите целое число минут от 1 до 600 или оставьте поле пустым.',
+    );
+    expect(invalidDurationWrites).toEqual([]);
+  }
+  await duration.fill('15');
+  expect(await duration.evaluate((input: HTMLInputElement) => input.validity.valid)).toBe(true);
+  await expect(duration).not.toHaveAttribute('aria-invalid', 'true');
+  await closeCourseLessonSettings(page);
+  await expect(editor.getByRole('alert')).toHaveCount(0);
+  page.off('request', trackDurationWrite);
+  await expect(title).toHaveValue(longTitle);
+  await expect(body).toHaveValue(longText);
+  await expect(state).toContainText('Есть несохранённые изменения');
+
   await page.setViewportSize({ width: 1440, height: 900 });
   await title.focus();
   await title.press('Tab');
@@ -2077,6 +2124,7 @@ test('document Course Builder preserves the lesson, real save acknowledgements a
   expect(finalResponse.status()).toBe(200);
   expect(finalResponse.request().postDataJSON()).toMatchObject({
     expectedRevision: acknowledged.draftRevision,
+    estimatedMinutes: 15,
   });
   const finalReceipt = (await finalResponse.json()) as Receipt;
   await expect(state).toContainText('Изменения сохранены');
@@ -2086,6 +2134,7 @@ test('document Course Builder preserves the lesson, real save acknowledgements a
   expect(savedLessons[0]).toMatchObject({
     title: longTitle,
     summary: laterSummary,
+    estimatedMinutes: 15,
     blocks: [{ id: 'intro', type: 'paragraph', text: longText }],
   });
 
