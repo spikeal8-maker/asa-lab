@@ -123,6 +123,7 @@ describe('Ollama live HTTP protocol with deterministic fake transport', () => {
     expect(JSON.parse(String(options?.body))).toMatchObject({
       model: 'gemma4:12b',
       stream: true,
+      think: false,
       messages: [
         { role: 'system', content: 'Ответь на русском.' },
         { role: 'user', content: 'Привет' },
