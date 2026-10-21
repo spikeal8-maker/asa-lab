@@ -485,6 +485,12 @@ for (const width of [1440, 390]) {
       page.getByText('Модель ornith:9b ответила за 6.6 с', { exact: false }),
     ).toBeVisible();
 
+    // Preserve screenshots of the real rendered controls in the GitHub browser artifact.
+    await page.screenshot({
+      path: test.info().outputPath(`ollama-admin-${width}.png`),
+      fullPage: true,
+    });
+
     await page.getByRole('tab', { name: 'ComfyUI' }).click();
     await expect(
       page.getByRole('heading', { name: 'ComfyUI — генерация изображений' }),
