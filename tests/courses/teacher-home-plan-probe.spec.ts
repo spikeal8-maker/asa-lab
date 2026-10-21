@@ -112,6 +112,11 @@ interface FakeOptions {
   closeHang?: boolean;
   rowOverflow?: boolean;
   metadataDelay?: number;
+  outerAtPortalClose?: boolean;
+  missingOuter?: boolean;
+  portalCloseDelay?: number;
+  portalCloseError?: boolean;
+  portalCloseHang?: boolean;
 }
 function driver(options: FakeOptions = {}) {
   const clients: FakeClient[] = [];
@@ -127,6 +132,8 @@ function driver(options: FakeOptions = {}) {
   class FakeClient extends EventEmitter {
     admin: boolean;
     calls: { text: string; values?: unknown[] }[] = [];
+    events: string[] = [];
+    outerPending = false;
     end = vi.fn(() => (options.closeHang ? new Promise<void>(() => undefined) : Promise.resolve()));
     connection = { stream: { destroy: vi.fn() } };
     constructor(config: { connectionString: string }) {
@@ -137,6 +144,23 @@ function driver(options: FakeOptions = {}) {
     connect() {
       return options.connectHang ? new Promise<void>(() => undefined) : Promise.resolve();
     }
+    emitOuter() {
+      if (options.missingOuter) return;
+      this.events.push('outer_notice');
+      this.emit(
+        'notice',
+        notice(
+          nativePlan(OUTER_QUERY, {
+            Plan: {
+              'Node Type': 'Function Scan',
+              'Actual Rows': 3,
+              'Actual Loops': 1,
+              'Actual Total Time': 122,
+            },
+          }),
+        ),
+      );
+    }
     query(text: string | FakeQuery, values?: unknown[]) {
       if (text instanceof FakeQuery) {
         this.calls.push({ text: text.text, values: text.values });
@@ -144,26 +168,33 @@ function driver(options: FakeOptions = {}) {
           void Promise.resolve().then(() => {
             if (!options.missingNested)
               for (const fn of source.functions) this.emit('notice', notice(nativePlan(fn.body)));
-            this.emit(
-              'notice',
-              notice(
-                nativePlan(OUTER_QUERY, {
-                  Plan: {
-                    'Node Type': 'Function Scan',
-                    'Actual Rows': 3,
-                    'Actual Loops': 1,
-                    'Actual Total Time': 122,
-                  },
-                }),
-              ),
-            );
+            if (options.outerAtPortalClose) this.outerPending = true;
+            else this.emitOuter();
             const rows = options.rowOverflow ? LIMITS.resultRows + 1 : 3;
             for (let i = 0; i < rows; i++) text.emit('row', { evidence: { privateText } });
+            this.events.push('read_end');
             text.emit('end', { rowCount: rows });
           });
         return text;
       }
       this.calls.push({ text, ...(values ? { values } : {}) });
+      if (text === 'ROLLBACK') {
+        this.events.push('rollback_start');
+        if (options.portalCloseError)
+          return Promise.reject(Object.assign(new Error(privateText), { code: 'XX000' }));
+        if (options.portalCloseHang) return new Promise(() => undefined);
+        const finish = () => {
+          if (this.outerPending) {
+            this.outerPending = false;
+            this.emitOuter();
+          }
+          this.events.push('rollback_end');
+          return { rows: [] };
+        };
+        return options.portalCloseDelay
+          ? new Promise((resolve) => setTimeout(() => resolve(finish()), options.portalCloseDelay))
+          : Promise.resolve(finish());
+      }
       if (options.metadataHang) return new Promise(() => undefined);
       let rows: unknown[] = [];
       if (text.includes('pg_catalog.pg_settings')) {
@@ -419,6 +450,80 @@ describe('Native NOTICE sanitization and bounded evidence', () => {
 });
 
 describe('Post-gate protocol and owned observer lifecycle', () => {
+  it('captures the outer plan emitted only at delayed portal disposal after read completion', async () => {
+    vi.useFakeTimers();
+    const fake = driver({ outerAtPortalClose: true, portalCloseDelay: 12 });
+    let completed = false;
+    const pending = runProbe(environment(), source, fake.pg).then((report) => {
+      completed = true;
+      return report;
+    });
+    await vi.advanceTimersByTimeAsync(11);
+    expect(completed).toBe(false);
+    const observer = fake.clients[1];
+    expect(observer.events).toEqual(['read_end', 'rollback_start']);
+    await vi.advanceTimersByTimeAsync(1);
+    const report = await pending;
+    expect(report).toMatchObject({
+      status: 'NATIVE_PLANS_CAPTURED',
+      native: { missingNativePlans: [], groups: { outer_read: { count: 1 } } },
+    });
+    expect(observer.events).toEqual(['read_end', 'rollback_start', 'outer_notice', 'rollback_end']);
+    expect(observer.calls.filter((call) => call.text === OUTER_QUERY)).toEqual([
+      { text: OUTER_QUERY, values: [accountId] },
+    ]);
+    expect(observer.calls.at(-1)).toEqual({ text: 'ROLLBACK' });
+    expect(observer.listenerCount('notice')).toBe(0);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+  it('rejects a missing outer plan after portal disposal and cannot be rescued by a late notice', async () => {
+    const fake = driver({ outerAtPortalClose: true, missingOuter: true });
+    const report = await runProbe(environment(), source, fake.pg);
+    expect(report).toMatchObject({
+      status: 'INCOMPLETE',
+      reason: 'nested_plans_incomplete',
+      stage: 'canonical_portal_close',
+      native: { missingNativePlans: ['outer_read'], groups: { outer_read: { count: 0 } } },
+    });
+    const observer = fake.clients[1];
+    expect(observer.events).toEqual(['read_end', 'rollback_start', 'rollback_end']);
+    const sealed = JSON.stringify(report);
+    observer.emit('notice', notice(nativePlan(OUTER_QUERY)));
+    expect(JSON.stringify(report)).toBe(sealed);
+    expect(sealed).not.toContain(privateText);
+    expect(sealed).not.toContain(accountId);
+    expect(observer.calls.filter((call) => call.text === OUTER_QUERY)).toHaveLength(1);
+  });
+  it.each([
+    [{ portalCloseError: true }, 'observer_error'],
+    [{ portalCloseHang: true }, 'metadata_deadline'],
+  ] as const)(
+    'fails closed when the portal disposal barrier fails with %j',
+    async (options, reason) => {
+      vi.useFakeTimers();
+      const fake = driver({ ...options, closeHang: true });
+      const pending = runProbe(environment(), source, fake.pg);
+      await vi.advanceTimersByTimeAsync(LIMITS.metadataMs + LIMITS.closeMs * 3);
+      const report = await pending;
+      expect(report).toMatchObject({
+        status: 'INCOMPLETE',
+        reason,
+        stage: 'canonical_portal_close',
+        native: { missingNativePlans: [], groups: { outer_read: { count: 1 } } },
+      });
+      const observer = fake.clients[1];
+      expect(observer.calls.at(-1)).toEqual({ text: 'ROLLBACK' });
+      expect(observer.calls.filter((call) => call.text === OUTER_QUERY)).toHaveLength(1);
+      expect(observer.end).toHaveBeenCalledTimes(1);
+      expect(observer.connection.stream.destroy).toHaveBeenCalled();
+      const sealed = JSON.stringify(report);
+      observer.emit('notice', notice(nativePlan(OUTER_QUERY)));
+      expect(JSON.stringify(report)).toBe(sealed);
+      expect(sealed).not.toContain(privateText);
+      expect(sealed).not.toContain(accountId);
+      expect(vi.getTimerCount()).toBe(0);
+    },
+  );
   it('uses the exact canonical read as effective app in a read-only transaction, with separate diagnostic status', async () => {
     const fake = driver();
     const report = await runProbe(environment(), source, fake.pg);
@@ -434,7 +539,8 @@ describe('Post-gate protocol and owned observer lifecycle', () => {
     const observer = fake.clients[1];
     expect(app.calls[0]?.text).toBe('BEGIN READ ONLY');
     expect(observer.calls[0]?.text).toBe('BEGIN READ ONLY');
-    expect(observer.calls.at(-1)).toEqual({ text: OUTER_QUERY, values: [accountId] });
+    expect(observer.calls.at(-2)).toEqual({ text: OUTER_QUERY, values: [accountId] });
+    expect(observer.calls.at(-1)).toEqual({ text: 'ROLLBACK' });
     const commands = observer.calls.map((call) => call.text).join('\n');
     expect(commands).toContain('SET LOCAL ROLE asalab_app');
     expect(commands).toContain('SET LOCAL auto_explain.log_timing=on');

@@ -204,10 +204,7 @@ jobs:
           mkdir -p reports/checks
           export ASA_TEACHER_HOME_SOURCE_SHA="$(git rev-parse HEAD)"
           export ASA_TEACHER_HOME_SOURCE_DIGEST="$(node tools/testing/teacher-home-plan-probe.mjs --source-digest)"
-          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-general-postgres.yaml" --profile test run --rm --no-deps \
-            -e CI=true -e GITHUB_ACTIONS=true -e ASA_TEACHER_HOME_PROBE=isolated-post-gate -e ASA_TEACHER_HOME_CI_LANE=general \
-            -e ASA_TEACHER_HOME_SOURCE_SHA -e ASA_TEACHER_HOME_SOURCE_DIGEST \
-            test-runner node tools/testing/teacher-home-plan-probe.mjs > reports/checks/teacher-home-plan-general.json
+          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml -f "$RUNNER_TEMP/asa-general-postgres.yaml" --profile test run --rm --no-deps -e CI=true -e GITHUB_ACTIONS=true -e ASA_TEACHER_HOME_PROBE=isolated-post-gate -e ASA_TEACHER_HOME_CI_LANE=general -e ASA_TEACHER_HOME_SOURCE_SHA -e ASA_TEACHER_HOME_SOURCE_DIGEST test-runner node tools/testing/teacher-home-plan-probe.mjs > reports/checks/teacher-home-plan-general.json
 
       - name: Preserve Teacher Home nested plan diagnostic
         if: always()

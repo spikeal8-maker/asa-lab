@@ -864,6 +864,13 @@ export async function runProbe(env, source, injectedDriver) {
         'canonical_query_deadline',
       );
       report.instrumentedQueryMs = Date.now() - readStarted;
+      // pg's extended-query ReadyForQuery leaves the unnamed SELECT portal open.
+      // PG 16/17 emits auto_explain's outer plan at PortalCleanup/ExecutorEnd.
+      // A simple ROLLBACK drops that portal before resetting SET LOCAL settings;
+      // retain NOTICE collection until this bounded protocol barrier completes.
+      // https://github.com/postgres/postgres/blob/REL_16_15/src/backend/tcop/postgres.c
+      report.stage = 'canonical_portal_close';
+      await query(observer, 'ROLLBACK');
       observer.client.removeListener('notice', collector.notice);
       report.native = collector.finish();
       requireThat(
@@ -872,7 +879,6 @@ export async function runProbe(env, source, injectedDriver) {
       );
       report.status = 'NATIVE_PLANS_CAPTURED';
       report.stage = 'completed';
-      // Closing the dedicated connection rolls back its read-only transaction.
     };
     await Promise.race([
       execute(),
