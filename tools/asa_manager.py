@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 import secrets
 import shutil
+import stat
 import sys
 import uuid
 from contextlib import nullcontext
@@ -44,7 +45,16 @@ def doctor(install, existing=True):
 
 def backup_directory(install, *, create=False):
     backup = Path(install.settings.get("backupDirectory", str(install.root / "backups")))
-    require(backup.is_absolute() and backup.resolve() == backup, "BACKUP_PATH", "Backup directory must be an absolute path without symlink components.")
+    require(backup.is_absolute(), "BACKUP_PATH", "Backup directory must be absolute.")
+    for component in (backup, *backup.parents):
+        try:
+            metadata = component.lstat()
+        except FileNotFoundError:
+            continue
+        require(not component.is_symlink() and not getattr(metadata, 'st_file_attributes', 0) & getattr(stat, 'FILE_ATTRIBUTE_REPARSE_POINT', 0),
+                "BACKUP_PATH", "Backup directory must not traverse symlinks or reparse points.")
+    # Expand Windows 8.3 aliases without treating them as symlink traversal.
+    backup = backup.resolve()
     if not backup.exists():
         require(backup.parent.is_dir(), "BACKUP_DIRECTORY", "Backup parent directory must already exist.")
         if create:
