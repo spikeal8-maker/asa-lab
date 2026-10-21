@@ -1025,7 +1025,9 @@ export function AiChatPage({
                 >
                   {status?.availableModels?.map((name) => (
                     <option key={name} value={name}>
-                      {name === 'ollama-local' ? 'Ollama · ' + (status.ollamaModel || 'локальная модель') : name}
+                      {name === 'ollama-local'
+                        ? 'Ollama · ' + (status.ollamaModel || 'локальная модель')
+                        : name}
                     </option>
                   ))}
                 </select>

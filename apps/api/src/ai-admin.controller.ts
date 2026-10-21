@@ -163,16 +163,26 @@ export class AiAdminController {
       return reject('ai_ollama_config_invalid', 'Неверные настройки Ollama.', 400);
     }
     const value = raw as Record<string, unknown>;
-    if (typeof value['enabled'] !== 'boolean' || typeof value['baseUrl'] !== 'string' ||
-        typeof value['model'] !== 'string' || !Number.isSafeInteger(value['revision'])) {
+    if (
+      typeof value['enabled'] !== 'boolean' ||
+      typeof value['baseUrl'] !== 'string' ||
+      typeof value['model'] !== 'string' ||
+      !Number.isSafeInteger(value['revision'])
+    ) {
       return reject('ai_ollama_config_invalid', 'Неверные настройки Ollama.', 400);
     }
-    return this.safe(() => this.ai.saveOllamaSettings(principalId, {
-      enabled: value['enabled'] as boolean,
-      baseUrl: value['baseUrl'] as string,
-      model: value['model'] as string,
-      revision: value['revision'] as number,
-    }, request.id));
+    return this.safe(() =>
+      this.ai.saveOllamaSettings(
+        principalId,
+        {
+          enabled: value['enabled'] as boolean,
+          baseUrl: value['baseUrl'] as string,
+          model: value['model'] as string,
+          revision: value['revision'] as number,
+        },
+        request.id,
+      ),
+    );
   }
 
   @Post('ollama/models')

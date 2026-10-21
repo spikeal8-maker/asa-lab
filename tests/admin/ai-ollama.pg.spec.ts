@@ -27,7 +27,8 @@ async function account(platformAdmin: boolean): Promise<string> {
     ['ollama-' + uuid + '@example.test'],
   );
   const p = await admin.query<{ id: string }>(
-    "INSERT INTO principals(kind,account_id) VALUES('account',$1) RETURNING id", [a.rows[0]!.id],
+    "INSERT INTO principals(kind,account_id) VALUES('account',$1) RETURNING id",
+    [a.rows[0]!.id],
   );
   if (platformAdmin) {
     await admin.query(
@@ -61,17 +62,25 @@ beforeAll(async () => {
     expect(JSON.stringify(options)).not.toContain('authorization');
     chatPostCount++;
     return new Response(
-      JSON.stringify({ message: { role: 'assistant', content: 'Локальный ответ' }, done: false }) + '\n' +
-      JSON.stringify({ done: true }) + '\n',
+      JSON.stringify({ message: { role: 'assistant', content: 'Локальный ответ' }, done: false }) +
+        '\n' +
+        JSON.stringify({ done: true }) +
+        '\n',
       { status: 200 },
     );
   });
   service = new AiChatService(runtime, { encryptionKey: ROOT, fetchImpl });
   const config = await service.ollamaSettings(adminPrincipal);
-  await service.saveOllamaSettings(adminPrincipal, {
-    enabled: true, baseUrl: 'http://127.0.0.1:11434', model: 'gemma4:12b',
-    revision: config.revision,
-  }, randomUUID());
+  await service.saveOllamaSettings(
+    adminPrincipal,
+    {
+      enabled: true,
+      baseUrl: 'http://127.0.0.1:11434',
+      model: 'gemma4:12b',
+      revision: config.revision,
+    },
+    randomUUID(),
+  );
   thread = (await service.createThread(principal)).id;
 }, 60000);
 afterAll(async () => {
@@ -91,12 +100,23 @@ afterAll(async () => {
 
 describe('Ollama real SQL admission and owner safety', () => {
   it('retains runtime table secrecy and admin role checks', async () => {
-    await expect(runtime.query('SELECT * FROM public.ai_ollama_settings')).rejects.toMatchObject({ code: '42501' });
+    await expect(runtime.query('SELECT * FROM public.ai_ollama_settings')).rejects.toMatchObject({
+      code: '42501',
+    });
     await expect(service.ollamaSettings(principal)).rejects.toMatchObject({ code: '42501' });
     const before = await service.ollamaSettings(adminPrincipal);
-    await expect(service.saveOllamaSettings(principal, {
-      enabled: false, baseUrl: 'http://192.168.1.2:11434', model: 'gemma4:12b', revision: before.revision,
-    }, randomUUID())).rejects.toMatchObject({ code: 'ai_admin_denied', status: 403 });
+    await expect(
+      service.saveOllamaSettings(
+        principal,
+        {
+          enabled: false,
+          baseUrl: 'http://192.168.1.2:11434',
+          model: 'gemma4:12b',
+          revision: before.revision,
+        },
+        randomUUID(),
+      ),
+    ).rejects.toMatchObject({ code: 'ai_admin_denied', status: 403 });
     expect((await service.ollamaSettings(adminPrincipal)).revision).toBe(before.revision);
   });
 
@@ -106,13 +126,29 @@ describe('Ollama real SQL admission and owner safety', () => {
     );
     const request = randomUUID();
     const deltas: string[] = [];
-    const result = await service.sendStream(principal, thread, 'Объясни электронику', request,
-      value => deltas.push(value), new AbortController().signal, 'ollama-local');
+    const result = await service.sendStream(
+      principal,
+      thread,
+      'Объясни электронику',
+      request,
+      (value) => deltas.push(value),
+      new AbortController().signal,
+      'ollama-local',
+    );
     expect(result.replayed).toBe(false);
     expect(deltas).toEqual(['Локальный ответ']);
-    expect(result.messages.some(m => m.role === 'assistant' && m.content === 'Локальный ответ')).toBe(true);
-    const again = await service.sendStream(principal, thread, 'Объясни электронику', request,
-      () => undefined, new AbortController().signal, 'ollama-local');
+    expect(
+      result.messages.some((m) => m.role === 'assistant' && m.content === 'Локальный ответ'),
+    ).toBe(true);
+    const again = await service.sendStream(
+      principal,
+      thread,
+      'Объясни электронику',
+      request,
+      () => undefined,
+      new AbortController().signal,
+      'ollama-local',
+    );
     expect(again.replayed).toBe(true);
     expect(chatPostCount).toBe(1);
     const after = await admin.query<{ total: number }>(
@@ -132,10 +168,20 @@ describe('Ollama real SQL admission and owner safety', () => {
       [principal],
     );
     const request = recent.rows[0]!.request_id;
-    await expect(service.sendStream(principal, thread, 'Чужое содержание', request,
-      () => undefined, new AbortController().signal, 'ollama-local')).rejects.toMatchObject({
-        code: 'ai_request_id_reused', status: 409,
-      });
+    await expect(
+      service.sendStream(
+        principal,
+        thread,
+        'Чужое содержание',
+        request,
+        () => undefined,
+        new AbortController().signal,
+        'ollama-local',
+      ),
+    ).rejects.toMatchObject({
+      code: 'ai_request_id_reused',
+      status: 409,
+    });
     expect(chatPostCount).toBe(1);
   });
 });

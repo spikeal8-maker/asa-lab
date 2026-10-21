@@ -83,7 +83,7 @@ CREATE FUNCTION public.ai_text_begin_local(
 ) RETURNS boolean
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
 DECLARE v_account uuid; existing_text varchar; existing_thread uuid;
-        title varchar(120); local_config public.ai_ollama_settings%ROWTYPE;
+        v_title varchar(120); local_config public.ai_ollama_settings%ROWTYPE;
 BEGIN
   IF p_text IS NULL OR char_length(trim(p_text)) NOT BETWEEN 1 AND 3000 THEN
     RAISE EXCEPTION 'AI_INPUT_INVALID' USING ERRCODE='22023';
@@ -116,10 +116,10 @@ BEGIN
     RAISE EXCEPTION 'AI_CONFIG_CHANGED';
   END IF;
   IF NOT local_config.enabled THEN RAISE EXCEPTION 'AI_DISABLED'; END IF;
-  title:=left(regexp_replace(trim(p_text), E'[\r\n]+',' ','g'),110);
+  v_title:=left(regexp_replace(trim(p_text), E'[\r\n]+',' ','g'),110);
   UPDATE public.ai_assistant_threads t SET
       busy_until=clock_timestamp()+interval '130 seconds',active_request_id=p_request,
-      title=CASE WHEN t.title='Новый чат' THEN title ELSE t.title END,
+      title=CASE WHEN t.title='Новый чат' THEN v_title ELSE t.title END,
       updated_at=clock_timestamp()
     WHERE t.id=p_thread AND t.owner_principal_id=p_owner
       AND (t.busy_until IS NULL OR t.busy_until<clock_timestamp());

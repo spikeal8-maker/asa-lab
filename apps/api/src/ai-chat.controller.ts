@@ -17,7 +17,12 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { ActiveContextUseCase } from '@asa-lab/identity';
 import { isAiModel } from './ai-model-catalog.js';
 import { OLLAMA_SELECTION } from './ai-ollama.js';
-import { AiChatService, AiServiceError, type AiCursor, type AiChatModel } from './ai-chat.service.js';
+import {
+  AiChatService,
+  AiServiceError,
+  type AiCursor,
+  type AiChatModel,
+} from './ai-chat.service.js';
 import { AiAccessService, aiRequestActor, aiSeatSelector } from './ai-access.service.js';
 import type { SeatContextUseCase } from './seat-context.js';
 import { TOKENS } from './tokens.js';

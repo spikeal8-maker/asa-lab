@@ -17,20 +17,33 @@ export interface OllamaModel {
   readonly size: number;
 }
 export class OllamaError extends Error {
-  constructor(readonly code: string, readonly status: number, message: string, readonly partialText = '') {
+  constructor(
+    readonly code: string,
+    readonly status: number,
+    message: string,
+    readonly partialText = '',
+  ) {
     super(message);
     this.name = 'OllamaError';
   }
 }
 export function validOllamaModel(value: unknown): value is string {
-  return typeof value === 'string' && value.length >= 1 && value.length <= 100 &&
-    /^[A-Za-z0-9][A-Za-z0-9._:/@+-]*$/.test(value);
+  return (
+    typeof value === 'string' &&
+    value.length >= 1 &&
+    value.length <= 100 &&
+    /^[A-Za-z0-9][A-Za-z0-9._:/@+-]*$/.test(value)
+  );
 }
 
 /** Arbitrary destinations (public Internet, cloud metadata, DNS and URL credentials) are forbidden. */
 export function ollamaBaseUrl(value: unknown): string {
   if (typeof value !== 'string' || value.length > 256 || value.trim() !== value) {
-    throw new OllamaError('ai_ollama_url_invalid', 400, 'Укажите локальный IP-адрес и порт Ollama.');
+    throw new OllamaError(
+      'ai_ollama_url_invalid',
+      400,
+      'Укажите локальный IP-адрес и порт Ollama.',
+    );
   }
   let url: URL;
   try {
@@ -41,25 +54,36 @@ export function ollamaBaseUrl(value: unknown): string {
   const host = url.hostname.toLowerCase();
   const octets = host.split('.').map(Number);
   const ipv4 = isIP(host) === 4 && octets.length === 4;
-  const privateV4 = ipv4 && (
-    octets[0] === 10 || octets[0] === 127 ||
-    (octets[0] === 172 && octets[1] >= 16 && octets[1] <= 31) ||
-    (octets[0] === 192 && octets[1] === 168) ||
-    (octets[0] === 100 && octets[1] >= 64 && octets[1] <= 127)
-  );
-  if (url.protocol !== 'http:' || (!privateV4 && host !== 'localhost' && host !== 'host.docker.internal') ||
-      !!url.username || !!url.password || !!url.search || !!url.hash ||
-      (url.pathname !== '/' && url.pathname !== '') || !url.port) {
+  const privateV4 =
+    ipv4 &&
+    (octets[0] === 10 ||
+      octets[0] === 127 ||
+      (octets[0] === 172 && octets[1] >= 16 && octets[1] <= 31) ||
+      (octets[0] === 192 && octets[1] === 168) ||
+      (octets[0] === 100 && octets[1] >= 64 && octets[1] <= 127));
+  if (
+    url.protocol !== 'http:' ||
+    (!privateV4 && host !== 'localhost' && host !== 'host.docker.internal') ||
+    !!url.username ||
+    !!url.password ||
+    !!url.search ||
+    !!url.hash ||
+    (url.pathname !== '/' && url.pathname !== '') ||
+    !url.port
+  ) {
     throw new OllamaError(
-      'ai_ollama_url_denied', 400,
+      'ai_ollama_url_denied',
+      400,
       'Разрешены только http:// и частный IPv4, localhost или host.docker.internal с портом.',
     );
   }
   return url.origin;
 }
 function failure(status: number): OllamaError {
-  if (status === 404) return new OllamaError('ai_ollama_model_missing', 503, 'Модель не найдена в Ollama.');
-  if (status === 429 || status === 503) return new OllamaError('ai_ollama_busy', 503, 'Локальная модель перегружена.');
+  if (status === 404)
+    return new OllamaError('ai_ollama_model_missing', 503, 'Модель не найдена в Ollama.');
+  if (status === 429 || status === 503)
+    return new OllamaError('ai_ollama_busy', 503, 'Локальная модель перегружена.');
   return new OllamaError('ai_ollama_upstream_error', 503, 'Ollama отклонила запрос.');
 }
 async function limitedJson(response: Response): Promise<unknown> {
@@ -72,7 +96,8 @@ async function limitedJson(response: Response): Promise<unknown> {
       const next = await reader.read();
       if (next.done) break;
       length += next.value.length;
-      if (length > 256 * 1024) throw new OllamaError('ai_ollama_invalid', 503, 'Каталог Ollama слишком большой.');
+      if (length > 256 * 1024)
+        throw new OllamaError('ai_ollama_invalid', 503, 'Каталог Ollama слишком большой.');
       bytes.push(next.value);
     }
   } finally {
@@ -82,33 +107,52 @@ async function limitedJson(response: Response): Promise<unknown> {
   try {
     const joined = new Uint8Array(length);
     let offset = 0;
-    for (const item of bytes) { joined.set(item, offset); offset += item.length; }
+    for (const item of bytes) {
+      joined.set(item, offset);
+      offset += item.length;
+    }
     return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(joined)) as unknown;
   } catch {
     throw new OllamaError('ai_ollama_invalid', 503, 'Ollama вернула некорректные данные.');
   }
 }
-export async function discoverOllama(baseUrl: string, fetchImpl: typeof fetch = fetch): Promise<OllamaModel[]> {
+export async function discoverOllama(
+  baseUrl: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<OllamaModel[]> {
   const origin = ollamaBaseUrl(baseUrl);
   let response: Response;
   try {
     response = await fetchImpl(origin + '/api/tags', {
-      method: 'GET', redirect: 'error', signal: AbortSignal.timeout(5000),
+      method: 'GET',
+      redirect: 'error',
+      signal: AbortSignal.timeout(5000),
       headers: { accept: 'application/json' },
     });
   } catch {
-    throw new OllamaError('ai_ollama_unreachable', 503, 'API-сервер не может подключиться к Ollama.');
+    throw new OllamaError(
+      'ai_ollama_unreachable',
+      503,
+      'API-сервер не может подключиться к Ollama.',
+    );
   }
   if (!response.ok) throw failure(response.status);
   const payload = await limitedJson(response);
-  if (!payload || typeof payload !== 'object') throw new OllamaError('ai_ollama_invalid', 503, 'Некорректный каталог моделей.');
+  if (!payload || typeof payload !== 'object')
+    throw new OllamaError('ai_ollama_invalid', 503, 'Некорректный каталог моделей.');
   const entries = (payload as { models?: unknown }).models;
-  if (!Array.isArray(entries)) throw new OllamaError('ai_ollama_invalid', 503, 'Ollama не вернула список моделей.');
+  if (!Array.isArray(entries))
+    throw new OllamaError('ai_ollama_invalid', 503, 'Ollama не вернула список моделей.');
   return entries.slice(0, 100).flatMap((entry: unknown) => {
     if (!entry || typeof entry !== 'object') return [];
     const value = entry as { name?: unknown; size?: unknown };
     return validOllamaModel(value.name)
-      ? [{ name: value.name, size: typeof value.size === 'number' && value.size >= 0 ? value.size : 0 }]
+      ? [
+          {
+            name: value.name,
+            size: typeof value.size === 'number' && value.size >= 0 ? value.size : 0,
+          },
+        ]
       : [];
   });
 }
@@ -122,16 +166,21 @@ export interface OllamaStreamArgs {
   readonly onDelta: (delta: string) => void;
   readonly fetchImpl?: typeof fetch;
 }
-export async function streamOllamaText(args: OllamaStreamArgs): Promise<{ text: string; stopped: boolean }> {
+export async function streamOllamaText(
+  args: OllamaStreamArgs,
+): Promise<{ text: string; stopped: boolean }> {
   const origin = ollamaBaseUrl(args.baseUrl);
-  if (!validOllamaModel(args.model)) throw new OllamaError('ai_ollama_model_invalid', 400, 'Неверная модель Ollama.');
+  if (!validOllamaModel(args.model))
+    throw new OllamaError('ai_ollama_model_invalid', 400, 'Неверная модель Ollama.');
   if (args.signal.aborted) return { text: '', stopped: true };
   const timeout = AbortSignal.timeout(110000);
   const signal = AbortSignal.any([args.signal, timeout]);
   let response: Response;
   try {
     response = await (args.fetchImpl ?? fetch)(origin + '/api/chat', {
-      method: 'POST', redirect: 'error', signal,
+      method: 'POST',
+      redirect: 'error',
+      signal,
       headers: { 'content-type': 'application/json', accept: 'application/x-ndjson' },
       body: JSON.stringify({
         model: args.model,
@@ -154,11 +203,16 @@ export async function streamOllamaText(args: OllamaStreamArgs): Promise<{ text: 
   const frame = (line: string): void => {
     if (!line.trim()) return;
     let data: unknown;
-    try { data = JSON.parse(line) as unknown; }
-    catch { throw new OllamaError('ai_ollama_invalid', 503, 'Повреждён поток Ollama.', text); }
-    if (!data || typeof data !== 'object') throw new OllamaError('ai_ollama_invalid', 503, 'Некорректный ответ Ollama.', text);
+    try {
+      data = JSON.parse(line) as unknown;
+    } catch {
+      throw new OllamaError('ai_ollama_invalid', 503, 'Повреждён поток Ollama.', text);
+    }
+    if (!data || typeof data !== 'object')
+      throw new OllamaError('ai_ollama_invalid', 503, 'Некорректный ответ Ollama.', text);
     const packet = data as { message?: { content?: unknown }; done?: unknown; error?: unknown };
-    if (packet.error) throw new OllamaError('ai_ollama_upstream_error', 503, 'Ollama сообщила об ошибке.', text);
+    if (packet.error)
+      throw new OllamaError('ai_ollama_upstream_error', 503, 'Ollama сообщила об ошибке.', text);
     if (typeof packet.message?.content === 'string') {
       const delta = packet.message.content.slice(0, 8192 - text.length);
       text += delta;
@@ -171,7 +225,8 @@ export async function streamOllamaText(args: OllamaStreamArgs): Promise<{ text: 
       const part = await reader.read();
       if (part.done) break;
       buffer += decoder.decode(part.value, { stream: true });
-      if (buffer.length > 16 * 1024) throw new OllamaError('ai_ollama_invalid', 503, 'Слишком большое событие Ollama.', text);
+      if (buffer.length > 16 * 1024)
+        throw new OllamaError('ai_ollama_invalid', 503, 'Слишком большое событие Ollama.', text);
       let boundary = buffer.indexOf('\n');
       while (boundary >= 0) {
         frame(buffer.slice(0, boundary).trimEnd());
@@ -183,9 +238,14 @@ export async function streamOllamaText(args: OllamaStreamArgs): Promise<{ text: 
     if (!done && !signal.aborted && buffer.trim()) frame(buffer.trim());
   } catch (error) {
     if (args.signal.aborted) return { text, stopped: true };
-    if (error instanceof OllamaError) throw new OllamaError(error.code, error.status, error.message, text);
-    throw new OllamaError(timeout.aborted ? 'ai_ollama_timeout' : 'ai_ollama_interrupted',
-      timeout.aborted ? 504 : 503, timeout.aborted ? 'Ollama не ответила вовремя.' : 'Поток Ollama прервался.', text);
+    if (error instanceof OllamaError)
+      throw new OllamaError(error.code, error.status, error.message, text);
+    throw new OllamaError(
+      timeout.aborted ? 'ai_ollama_timeout' : 'ai_ollama_interrupted',
+      timeout.aborted ? 504 : 503,
+      timeout.aborted ? 'Ollama не ответила вовремя.' : 'Поток Ollama прервался.',
+      text,
+    );
   } finally {
     await reader.cancel().catch(() => undefined);
     reader.releaseLock();

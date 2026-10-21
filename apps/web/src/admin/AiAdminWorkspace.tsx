@@ -16,10 +16,16 @@ export function AiAdminWorkspace({ onAccessDenied }: { readonly onAccessDenied: 
     <div className="asa-ai-admin-workspace">
       <nav className="asa-ai-admin-tabs" role="tablist" aria-label="Настройки ИИ">
         {TABS.map(({ id, label }) => (
-          <button key={id} id={'ai-tab-' + id} type="button" role="tab"
+          <button
+            key={id}
+            id={'ai-tab-' + id}
+            type="button"
+            role="tab"
             className={current === id ? 'active' : ''}
-            aria-selected={current === id} aria-controls={'ai-panel-' + id}
-            onClick={() => setCurrent(id)}>
+            aria-selected={current === id}
+            aria-controls={'ai-panel-' + id}
+            onClick={() => setCurrent(id)}
+          >
             {label}
           </button>
         ))}
@@ -30,8 +36,10 @@ export function AiAdminWorkspace({ onAccessDenied }: { readonly onAccessDenied: 
         {current === 'comfyui' ? (
           <section className="asa-ai-ollama" aria-labelledby="ai-comfy-title">
             <h2 id="ai-comfy-title">ComfyUI — генерация изображений</h2>
-            <p>Отдельный подраздел для следующего этапа. Подключение ComfyUI и управление GPU
-              пока не реализованы в ASA Lab. Эта вкладка не включает генерацию автоматически.</p>
+            <p>
+              Отдельный подраздел для следующего этапа. Подключение ComfyUI и управление GPU пока не
+              реализованы в ASA Lab. Эта вкладка не включает генерацию автоматически.
+            </p>
           </section>
         ) : null}
       </div>
