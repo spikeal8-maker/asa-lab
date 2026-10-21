@@ -131,6 +131,29 @@ describe('Ollama live HTTP protocol with deterministic fake transport', () => {
     });
     expect(JSON.stringify(options)).not.toContain('authorization');
   });
+  it('accepts a large HTTP chunk composed of many individually small NDJSON events', async () => {
+    const events = Array.from({ length: 500 }, () =>
+      JSON.stringify({ message: { content: 'x' }, done: false }),
+    );
+    events.push(JSON.stringify({ done: true }));
+    const payload = events.join('\n') + '\n';
+    expect(payload.length).toBeGreaterThan(16 * 1024);
+    const fetchImpl = vi.fn<typeof fetch>(async () => new Response(payload, { status: 200 }));
+    const deltas: string[] = [];
+    const result = await streamOllamaText({
+      baseUrl: 'http://192.168.1.22:11434',
+      model: 'ornith:9b',
+      context: [{ role: 'user', content: 'Структура потока' }],
+      instructions: 'Отвечай по частям.',
+      signal: new AbortController().signal,
+      onDelta: (delta) => deltas.push(delta),
+      fetchImpl,
+    });
+    expect(result).toEqual({ text: 'x'.repeat(500), stopped: false });
+    expect(deltas).toHaveLength(500);
+    expect(fetchImpl).toHaveBeenCalledOnce();
+  });
+
   it('reports incomplete stream with partial text for safe history persistence', async () => {
     const fetchImpl = vi.fn<typeof fetch>(
       async () =>
