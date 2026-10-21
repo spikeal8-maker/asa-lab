@@ -33,7 +33,7 @@ import {
 } from './admin-navigation';
 import './admin.css';
 import { AdminLogsPage } from './AdminLogsPage';
-import { AiAdminPage } from './AdminAiPage';
+import { AiAdminWorkspace } from './AiAdminWorkspace';
 
 export type AdminAccessState =
   | { readonly kind: 'idle' }
@@ -1658,7 +1658,7 @@ function AdminWorkspace({
       ) : visibleSection === 'operations' ? (
         <OperationsSection onAccessDenied={onAccessDenied} />
       ) : visibleSection === 'ai' ? (
-        <AiAdminPage onAccessDenied={onAccessDenied} />
+        <AiAdminWorkspace onAccessDenied={onAccessDenied} />
       ) : visibleSection === 'logs' ? (
         <AdminLogsPage onAccessDenied={onAccessDenied} />
       ) : visibleSection === 'audit' ? (
