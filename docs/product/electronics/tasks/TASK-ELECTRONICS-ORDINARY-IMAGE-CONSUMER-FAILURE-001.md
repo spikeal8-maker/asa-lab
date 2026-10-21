@@ -12,6 +12,46 @@ review: independent
 
 # Publish the ordinary-image failure to the actual mounted catalog consumer
 
+## Prevention correctness source — listener before resource href
+
+NEW independent mounted RED review approves synthetic public boundary regression
+on unpublished e0afc71b:41oldPASS,newRED0probes/badge versus3,faithful same detached
+href-assigned image laterconnected and wrapper restoration. Preserve that RED
+branch/receipt immutable;do not publish it alone or skip/relax its assertion.
+The [dated prevention selection receipt](../evidence/ordinary-image-548-prevention-selection-20261021.md)
+records evidence and limits. Historical native/privatecause remains UNKNOWN.
+
+This new executable contract supersedes ONLY old regression-only budget and
+its preconnect-href expectation for NEW prevention tests. Author ONLY
+ProductionComponentVisual.tsx ordinary MAIN+SELECTION-COPY image path and existing
+asset-recovery.spec.ts;all41oldcases unchanged. Render no resourcehref. A small
+ordinary-image wrapper installs element-local native load/error listeners FIRST
+in its own layout effect,THEN assigns correct currenthref. Remove duplicate
+React handlers ONLY for this wrapper;forward existing useOwnerImageHref callbacks/
+earlyqueue. Preserve bounded retry/cache/badge/success,staleasset/unmount cleanup,
+identity/geometry and preparedLED/assets/workbenchhook/API/persistence/foreign work.
+
+NEW prevention tests must prove beforeconnectionNOresourcehref and firstcorrecthref
+assigned ONLY afterlistenersinstalled. Immediate assignment-time SYNTHETIC error
+must enter boundedretry/failedbadge with SAMEimage/root;success/permanentfailure/
+assetreplace/unmount remain correct. This probe checks listener-before-href
+ordering;it is explicitly not a substitute for old native preconnect evidence.
+No privateReact invocation or trusted-event claim;restore publicDOM wrappers.
+
+Record NEW preventiontestRED on UNPATCHEDacceptedmain BEFORE product edits;freeze
+those exact testbytes,then prove BYTE-IDENTICALGREEN after source in the same
+bounded slice. OldRED source/receipt stays separate immutable history,no expected
+fail/skip/oracle weakening. Invalid or missing causal test means STOP.
+
+Current217938/218000 margin62. SmallTempestimate is not actualfit. If it exceeds
+availablemargin,STOP withbudgetproof,no capraise/neighboroptimisation. Plausible
+fit permits only UNPUBLISHEDcandidate/selfreview/NEW independent source+unit
+RED/GREENreview;controller separately selects actual existing temporary/permanent
+catalog/main/selection recovery/nativeidentities plus exactbenchmark/fullgates.
+No newbrowserobserver,automaticpublication/acceptance/closure. OwnerKEEP544547OPEN
+until actualfix;#525/549 and all old receipts intact. Canonicalcoveragegenerator
+has no Visual/asset-recovery input,so no generatedhash write;525browserhash untouched.
+
 ## Fresh b344 deterministic mounted regression ONLY — no product selection
 
 The [dated incidental failure/cause-gate receipt](../evidence/ordinary-image-548-b344-deterministic-selection-20261021.md)
