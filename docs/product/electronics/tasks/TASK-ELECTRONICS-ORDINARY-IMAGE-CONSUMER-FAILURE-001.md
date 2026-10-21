@@ -12,6 +12,39 @@ review: independent
 
 # Publish the ordinary-image failure to the actual mounted catalog consumer
 
+## Fresh b344 deterministic mounted regression ONLY — no product selection
+
+The [dated incidental failure/cause-gate receipt](../evidence/ordinary-image-548-b344-deterministic-selection-20261021.md)
+records NEW specific hypothesis approval. Old terminal NO_PROVEN_CAUSE is history,
+not rewritten. This canonical action supersedes ONLY old unit-diagnostic bans;
+it does not resume a browser observer or select product repair/closure.
+
+Author ONLY apps/web/src/electronics/testing/asset-recovery.spec.ts. Preserve
+all41existing cases/helpers/assertions byte-exact. Use actual mounted React and
+production catalog consumer with public DOM. Dispatch ONE synthetic DOM error
+(isTrustedfalse,not actual native proof) to the SAME href-assigned detached SVG
+image immediately before REAL catalog DOM connection at append/insert boundary.
+Prove the sameimage later connected,retain boundary-event identity and actual
+consumer recovery request/badge/outcome. Never make synchronous href assignment
+itself the error surrogate or manually invoke a handler/private React/cache ref.
+
+Public DOM wrappers preserve receiver/args/return/throw/descriptors and restore
+identity in finally. Do not suppress listeners or manipulate production to force
+red. Another faithful harness is allowed ONLY with the same detachment/identity/
+actual-connection proof,not repeated hopeful variants. Unit evidence is synthetic;
+detached does not imply before React onError attachment or before commit.
+Historical exact connection time/private delivery/cache remain UNKNOWN and
+wrapper function/timing interference NONZERO/unknown.
+
+A faithful mounted failure proves only this boundary contract,not native causal
+identity/frequency. Keep finite recovery budgets/empty document and all production
+semantics;no product/browser/workflow/dependency/timeout/timer-policy change.
+If no reproduction or invalid/impossible harness,STOP NO_PROVEN_REGRESSION.
+One unpublished source candidate/report,self-review and STOP;NEW independent
+source/unit plus actual evidence review before separately selected product work.
+No hopeful observer,new CI experiment,closure or owner acceptance. Preserve
+525inprogress and owner KEEP544/547 OPEN pending548fix;all old receipts unchanged.
+
 ## Last existing temporary404 recovery observation — test only
 
 This new executable contract supersedes the prior creation-API-wrapper ban ONLY

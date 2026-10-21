@@ -9059,7 +9059,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: last_recovery_actual_natural_pass_NO_PROVEN_CAUSE_TERMINAL
+      checkpoint: b344_new_hypothesis_deterministic_mounted_regression_only_selected
       previous_checkpoint: two_mounted_cases_pass_no_proven_cause_diagnostic_STOP
       kind: repair
       owner_acceptance: pending
@@ -9068,17 +9068,13 @@ parallel_lanes:
       - docs/product/electronics/evidence/ordinary-image-548-consumer-cycle-selection-20261020.md
       - docs/product/electronics/components/ui-assets-persistence.yaml
       repair_scope: >-
-        ONE last test-only observation, ONLY diagnostic wrapping in the existing temporary404 RECOVERY case
-        a failed catalog owner image recovers without placing or saving a component in electronics-interactions.
-        Explicitly supersede prior creation-wrapper prohibition ONLY here; pre-app transparent createElementNS
-        attaches direct native SVGimage listeners before return/href. Permanent404 and induced-gap cases unchanged.
+        ONE deterministic mounted regression proposal only from fresh incidental b344 failure and NEW
+        independent cause-gate approval. Actual preconnection event hypothesis,not proved inner cause.
+        No browser observer,CI experiment,product fix,closure or old terminal-history rewrite.
       diagnostic_limits: >-
-        Original captured Reflect.apply preserves receiver/args/return/throw and property descriptor attributes;
-        record exactly one installation/replacement and function-identity/timing interference. Keep connected
-        capture+MO, stable WeakMap image/root/Event IDs,delivery phases,currenthref,status/badge/network timing;
-        mutation time is delivery time. Native callbacks record only cheap immutable small events, no layout,
-        stacks or bindings. Explicit dropped/retention/serialization/install errors; parser/clone/other realm
-        UNKNOWN/NOT_OBSERVED; private React/cache UNKNOWN. Native error is not React callback entry or cause.
+        Detached observed native error does not prove before React handler installation or commit.
+        MutationObserver time is delivery,not exact connection;private React/cache UNKNOWN,wrapper
+        function identity/timing interference NONZERO/unknown. Unit event is synthetic UNTRUSTED,not native proof.
       recovery_observation_contract:
         version: R3_existing_recovery_only
         allowed_source_path: e2e/electronics-interactions.spec.ts
@@ -9113,13 +9109,37 @@ parallel_lanes:
         integrity: Browser sequence1to37,loss0,dropped0,retention/delivery/install errors empty;function identity changed and timing interference UNKNOWN_NONZERO.
         boundary: Empty document unchanged,PUT0,pageErrors empty;private React/cache UNKNOWN;this does not prove historical cause,fix or absence without wrapper.
         evidence: docs/product/electronics/evidence/ui-qualification-121f6599-actual-20261021.md
+      observed_b344_incidental:
+        observed_at: '2026-10-21T08:09:57Z'
+        sha: b34468f7ee22ec2fe61ac5068923fa959a236870
+        run: 39557936341
+        result: 29browser16Node records continuous unique/loss0;trusted error Event1 sameimage6 detached at635.8ms,later connected root27 observed at645.1ms. Ten seconds no retry href/badge,only1GET404.
+        limits: Exact connection time/privateReact delivery/cache UNKNOWN;detached is not proof of pre-handler or pre-commit. Wrapper identity/timing interference NONZERO/unknown. Old terminal NO_PROVEN_CAUSE remains history.
+        cause_gate: NEW_INDEPENDENT_APPROVE_SPECIFIC_HYPOTHESIS_FOR_DETERMINISTIC_PROPOSAL_ONLY
+        audit_sha256: 56ea976ef2a1c41128b29d1ee6d2ab9c2bca2dac212fbe4b516361ebc8d49330
+        independent_review_sha256: 191fd8c11659855065f5cec1a92cea3fd0b40854cf892aecdda4eabef4941834
+        evidence: docs/product/electronics/evidence/ordinary-image-548-b344-deterministic-selection-20261021.md
+      deterministic_mounted_contract:
+        version: b344_regression_only
+        supersedes: Only prior executable unit-diagnostic prohibition for this separately selected fresh-hypothesis slice;old terminal observations and all historical receipts remain unchanged.
+        expected_write_paths:
+        - apps/web/src/electronics/testing/asset-recovery.spec.ts
+        fidelity: Actual mounted React/production catalog consumer with real public DOM. Dispatch one DOM error to SAME href-assigned detached SVGimage immediately BEFORE actual catalog connection via real append/insert boundary;prove sameimage laterconnected and boundary-event/outcome retention. Synthetic isTrustedfalse must be explicit.
+        harness: Preserve original public DOM receiver/args/return/throw/descriptors;restore wrappers and identity in finally. Never replace React handlers/private refs/cache or call handlers manually,never suppress listeners or substitute synchronous href-setter dispatch. A faithful alternative requires same detachment/identity/actual connection proof,not hopeful variants.
+        oracle: Demonstrate boundary event and actual consumer outcome/recovery request/badge/retention under existing finite budget and unchanged empty document. Faithful mounted red proves only that public boundary contract,not historical native cause/frequency. Do not force red by changing production or dropping delivered handlers.
+        preserved: Existing41cases/helpers/assertions byte-exact;no production/browser/workflow/dependency/timer-budget/recovery-policy/timeout/action/core/hook/LED/assets change. Preserve all foreign paths and525inprogress.
+        stop: If no reproduction or invalid/impossible harness,STOP NO_PROVEN_REGRESSION;no hopeful variant,product fix or browser/CI experiment. Freeze one UNPUBLISHED source candidate/report then STOP;NEW independent source/unit review and actual evidence review before any separately selected product phase.
       next_action: >-
-        TERMINAL STOP this last recovery observation. NaturalPASS is NO_PROVEN_CAUSE; no further hopeful
-        observer selection,product repair or closure follows. Owner KEEP544/547 to548 and all blockers remain.
-        Any ordinary regression result is not a newly selected548 causal experiment or owner acceptance.
-      preservation: Preserve666 done, original548 receipts and mounted diagnostic checkpoint, all foreign state,
-        unpublished52545 branch and544/547/548 blockers. No product, hooks, core, assets, API, workflow, timeout,
-        retry, fixture or recovery-policy changes, local browser/Docker/heavy build/DB/deployment operations.
+        After canonical acceptance,ONE bounded author changes only existing asset-recovery.spec.ts
+        for one faithful deterministic mounted preconnection regression,with all41old cases unchanged.
+        Run narrow existing unit proof/self-review and freeze UNPUBLISHED candidate STOP. No reproduction
+        or invalid harness means NO_PROVEN_REGRESSION diagnostic STOP,no hopeful variants. NEW independent
+        source/unit and actual evidence review precedes any separate product selection;no new CI/browser run.
+      preservation: >-
+        Keep old terminal NO_PROVEN_CAUSE observations/receipts intact,666done,all foreign525source/defaults/
+        selection/LED/mobile/hook/workflow/current blocks. Owner KEEP544/547 OPEN pending548fix,all blockers
+        and ownerpending remain. No closure,acceptance,product repair,timeout/retry/recovery-policy change,
+        local browser/build/install/DB/Docker/network/deployment or CI experiment.
     execution_lease:
       executor_id: electronics-asset-consumer-diagnostic-548
       holder: unassigned
@@ -9135,15 +9155,15 @@ parallel_lanes:
       kind: observed_snapshot
       convergence_baseline_sha: abe8f05a33a8fdfffbdf491f6d6d9e34f841587c
       head_sha: null
-      observed_at: '2026-10-20T21:31:44Z'
+      observed_at: '2026-10-21T08:09:57Z'
       main:
         branch: main
-        sha: 893457c1c6235304635debb38bb8817868833598
+        sha: 6e6fe4ecd997fc5cc49c26add3bd1f55f690bfde
       observation_note: >-
-        Dated recovery-observation selection, not live HEAD or an actual new measurement. Fetch main and
-        recover exact Git/CI/dirty paths before writes. Prior permanent404 naturalPASS and mounted41PASS
-        remain historical NO_PROVEN_CAUSE; new temporary404 observation has NOT_RUN. Preserve549R2,
-        all owner KEEP dependencies and foreign blockers; shared-workflow disjoint exception is not SAFE.
+        Dated fetch main6e6 snapshot;strict39567066452 and General39567064458 in_progress,not PASS.
+        Fetch main/recover actual Git/CI/dirty paths before writes. Fresh b344 cause-gate supports only
+        deterministic mounted regression proposal;old terminal NO_PROVEN_CAUSE history unchanged.
+        Shared workflow WAITING_HANDOFF standing disjoint exception only,actual overlap STOP,not SAFE.
 
   - id: electronics-instrument-readouts
     parent_lane: electronics
