@@ -100,6 +100,13 @@ async function limitedJson(response: Response): Promise<unknown> {
         throw new OllamaError('ai_ollama_invalid', 503, 'Каталог Ollama слишком большой.');
       bytes.push(next.value);
     }
+  } catch (problem) {
+    if (problem instanceof OllamaError) throw problem;
+    throw new OllamaError(
+      'ai_ollama_interrupted',
+      503,
+      'Соединение с Ollama прервалось при получении списка моделей.',
+    );
   } finally {
     await reader.cancel().catch(() => undefined);
     reader.releaseLock();
