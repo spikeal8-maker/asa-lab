@@ -71,6 +71,18 @@ for (const width of [1440, 390]) {
         VALUES ($1,'platform_admin','verified','asa-lab-2026-07','migration')`,
         [adminId],
       );
+      // The platform admin also needs a verified Account. This is disposable
+      // *_test fixture setup, not a bypass of the production confirmation gate.
+      await db.query("UPDATE accounts SET email_verification_state='verified' WHERE id=$1", [
+        adminId,
+      ]);
+      const checkedSession = await moderator.request.get('/api/auth/me');
+      expect(checkedSession.status()).toBe(200);
+      const adminSession = await checkedSession.json();
+      expect(adminSession.verification?.required).toBe(false);
+      expect(adminSession.capabilities).toEqual(
+        expect.arrayContaining([{ capability: 'platform_admin', state: 'verified' }]),
+      );
       const actor = (await db.query('SELECT id FROM principals WHERE account_id=$1', [adminId]))
         .rows[0].id;
       const title = `Safety publication ${randomUUID()}`;
