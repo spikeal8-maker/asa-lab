@@ -9311,7 +9311,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: paused_for_owner_arduino_psu_wire_layer_priority
+      checkpoint: selected_test_only_finalization_phase_repair
       kind: repair
       owner_acceptance: pending
       program_issue: 452
@@ -9401,8 +9401,34 @@ parallel_lanes:
         result: ElectronicsFAIL;GeneralFULLSUCCESS fourjobs. Focused905domain698web57classroom/70freshNxPASS;benchmark217938RAWof218000PASS. Target0of16complete/PUT0,invalidBEFORE. GeneralPASS is not owneracceptance.
         actual_review_sha256: 3d16ef5bdb876dc27833575a0b72326f6708c892cfc346dd6ec378379936a41c
         proposal_review_sha256: 7637bafbcf63fa84e402e51c26f1e165960028899690ac581d81fa5319bfac88
-      owner_priority_pause: Owner selects TASK-ELECTRONICS-ARDUINO-PSU-WIRE-LAYER-001 first;preserve525history/candidates/contracts. No automatic525repair or rerun during this slice.
-      next_action: Resume525 only after fresh snapshot and a new controller-selected dependency. Product5f9 remains unpublished;548BUDGETBLOCKED/ownerKEEP544547 remain unchanged.
+      historical_owner_priority_pause: Owner previously selected679 first;history retained. New direct owner instruction permits independent UI implementation without waiting for Arduino qualification.
+      parallel_finalization_audit:
+        mode: READONLY_CAUSAL_AUDIT_ONLY
+        basis: Owner explicitly resumes disjoint UI work while Arduino682 and679 qualification continue independently.
+        source_sha: 40ca98ecc5f59bbf9655accc88ccf3e3649d5ca7
+        actual_review_sha256: 6ffc07ccd58e4129a6ea85d69361df88e3b762e753b4de4393c7d32da77e8200
+        scope: Audit entire remaining generator frequency-unit-value formatting/native commit/inspector visibility and Save/PUT accounting using cached exact40ca evidence and public source contracts. Safe extracted setter/normalization checks allowed;no browser/build/CI/newobserver/source edits.
+        known: Eight desktop expected generator.value1000 versus actual1000000 is categoryA oracle defect. Seven mobile hidden final inputs and Enter delivery remain UNKNOWN. Nine incidental original-page PUT records have base2 but no response/CAS/timing proof. Fifteen raw cases,zero complete;320XY absent.
+        deliverable: One bounded minimal repair proposal only after demonstrated cause,with remaining unknowns and exact proposed paths/actions. STOP;new canonical repair selection and NEW independent review before implementation or CI.
+        preservation: No core/hook/Serial/interactions/Stage/presentation/product changes. Preserve sole682 controller,679 qualification,548BUDGETBLOCKED/ownerKEEP544547OPEN and all history.
+        evidence: docs/product/electronics/evidence/instrument-525-finalization-audit-selection-20261021.md
+      finalization_phase_contract:
+        version: actual40ca_test_only_finalization_and_explicit_save_phases
+        audit_sha256: 6b8bf91ca660340f29057f7bcdc0ee7f130c493519ae05a759e62135b00b8bfb
+        proposal_review_sha256: 666d0ed6b575cc2f6081957b7d93ba1ed312ebdcc7e36033f3c6ac6291ae1f0a
+        authorization: ONE new TEST-ONLY author;only simulation spec and existing generated browserEvidenceSha256. No product persistence/core/hook/Serial/interactions/Stage/workflow/package/timer edit.
+        supersedes: Explicitly replace ALL old whole-case zeroPUT/onePUT/base2CAS2to3 and immutable seed-server assertions including per-rotation assertGeometry and older preserved contract text. Historical receipts remain immutable;never adopt observed documents as expected.
+        matrix: Preserve EXACT16 journeys/four widths/all mirror fixtures/four rotations/all4instruments8readouts/64configs perwidth and native order except explicitly selected inspector/checkpoint actions. Preserve CTM ordinaryR/owncenter/independent windowmeet,R3 storage,whole-document equality and unchanged deadlines.
+        expected_values: Independently declare generator.value1000000 and frequencyHz1000000,amplitude10,offset-5. Retain original final Enter once with durable actual delivery/state witness;no extra Enter.
+        inspector: Before final fills durably journal selected identity,shell class and Catalog aria-pressed. Only proven open Catalog permits ONE native close toggle;then require inspector/input visible. Unknown state fails;no forced fill or retry.
+        ledger: Durable Node-ack ledger before first app edit through both pages/context closures;every PUT identity/page/project/comparable timestamp/mutationId/baseRevision/fullbody plus response status/fullrevision/document or transportfailure,native Save/lifecycle boundaries,sequence/loss/errors. Every successful write requires independent full-document correctness,base+1 and contiguous confirmed revisions;unattributed writes UNKNOWN,not presumed autosave. No unexplained writes/failures.
+        server_checkpoints: Replace ALL frozen-seed server assertions including assertGeometry perrotation. Match captured server revision/full document to corresponding complete ledger ACK and independent expected/local checkpoint document;concurrent GET retains revision-specific document. Never adopt observed actual as expected or drop equality.
+        clean_boundary: After matrix before existing final three fills establish full acknowledged local/server equality and no unresolved write. Saved requires disabled Save;dirty permits ONE distinct native checkpoint Save with complete correlated PUT/CAS proof,not retry. Saving awaits observed completion under unchanged deadline then reevaluates;unknown/race fails with durable journal. No fixed sleep,mock clock,suppressed autosave or private state call.
+        final_save: From clean boundary retain existing three fills,require independent full expected/local document,visible enabled Save,no unresolved writes and confirmed current server revision R. Journal first dirty/native/request times on comparable clocks. EXACTLY ONE original final native Save produces EXACTLY ONE matched fullbody PUT baseR,status200,revisionR+1 and fresh full server equality. Complete before new60000ms autosave deadline within unchanged total deadline;automatic/lifecycle overlap fails causality without retry/relabeling.
+        reopen: Cookies-only fresh context/origins and pre-app local-session empty;postload localdraft empty plus exact fixture saved hint,journal before assertions. Full fresh GET/server/rendered equality and no extra write through both closures;complete only after final durable ledger and both contexts closed.
+        delivery: Freeze NEW full browser blob BEFORE/AFTER byte-identical;selfreview STOP,NEW exactSHA independent source/finalcomposition review before ONE justified existing strict run. All16complete plus NEWactualreview with causal mirror-only softfail before separate product AFTER. No acceptance/closure/release/deploy.
+        evidence: docs/product/electronics/evidence/instrument-525-finalization-repair-selection-20261021.md
+      next_action: Assign ONE bounded TEST-ONLY finalization repair author under finalization_phase_contract;freeze unpublished for NEW independent source review. Do not wait for unrelated679/682 qualification or edit their paths.
     execution_lease:
       executor_id: electronics-instrument-readouts-525
       holder: unassigned
