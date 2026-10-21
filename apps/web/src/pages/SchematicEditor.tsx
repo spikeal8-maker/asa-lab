@@ -30,10 +30,9 @@ const ArduinoCodePanel = lazy(loadArduinoCodePanel);
 const ShareDialog = lazy(() => {
   // This optional chunk must not trigger the global page reload: the live
   // electronics document may still contain unsaved changes.
-  const keepEditorOpen = (event: Event) => {
-    if (String((event as CustomEvent).detail).includes('WorkbenchShareDialog'))
-      event.preventDefault();
-  };
+  // WebKit may report a generic TypeError without the chunk's filename.
+  // Suppress global recovery only while this optional Share import is pending.
+  const keepEditorOpen = (event: Event) => event.preventDefault();
   window.addEventListener('asa-optional-preload-error', keepEditorOpen);
   return import('../electronics/WorkbenchShareDialog')
     .then((module) => ({ default: module.WorkbenchShareDialog }))
