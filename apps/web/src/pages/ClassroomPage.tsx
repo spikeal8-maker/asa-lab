@@ -8,6 +8,7 @@ import {
   type ClassroomSeatBatchStudentInput,
 } from '../api';
 import { ClassesIcon, PlusIcon } from '../electronics/workbench-icons';
+import { ClassroomAiAccess } from '../components/ClassroomAiAccess';
 import { ClassroomMetrics, useClassroomMetrics } from '../components/ClassroomMetrics';
 import { StudentCodeButton } from '../components/StudentCodeButton';
 import { ClassroomStudentProjects } from '../components/ClassroomStudentProjects';
@@ -1060,6 +1061,11 @@ function ClassroomPageContent({
                   classroomId={classroomId}
                   readOnly={archived}
                   onSaved={() => void reloadParticipants()}
+                />
+                <ClassroomAiAccess
+                  key={classroomId}
+                  classroomId={classroomId}
+                  readOnly={archived}
                 />
                 <LearningNotificationPreferences classroomId={classroomId} />
               </div>

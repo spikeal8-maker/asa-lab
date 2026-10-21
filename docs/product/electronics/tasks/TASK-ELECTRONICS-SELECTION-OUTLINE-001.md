@@ -12,6 +12,92 @@ review: independent
 
 # E11 — одинаковая кайма выделения существующих деталей
 
+## R5 actual closeout — TERMINAL_NO_PROVEN_CAUSE, no new executable slice
+
+The [dated be51 actual receipt](../evidence/selection-outline-549-be51d9c9-r5-terminal-20261021.md)
+records3/16complete. Running1440 functionally saved/reopened with strict full
+oracles but journeyComplete remains false;12journeys absent. Both suspected
+awaits fulfilled: fresh.close107ms,final original snapshot38ms. Later pending
+operation/cause UNKNOWN.218862numeric expects are a hypothesis;1134assertions/
+448ms no-browser sample does not establish CI cause or permit optimisation.
+
+R5 diagnosis is terminal. All earlier author/observer budgets below are history,
+not permission to continue. No R6 observer,rerun,product/AFTER or source fix is
+selected. Return unresolved cause to controller/owner for an explicit decision;
+no automatic next experiment. Existing16complete/NEW actual review and identical
+frozen BEFORE/AFTER requirement remain unmet. This is documentation closeout,
+not Issue549 closure,product acceptance or release. Status in_progress and
+ownerpending,#548 terminal NO_PROVEN_CAUSE and owner KEEP544/547 remain unchanged.
+
+## R5 passive lifecycle boundary diagnostics — journal only
+
+When canonically selected, ONLY these synchronous outer-boundary journal
+additions supersede the old no-observer-addition budget. All R2/R3/R4 runtime,
+fixture,route,poll,oracle and lifecycle behavior remains unchanged; old receipts
+and instructions are history. Current.yaml alone selects scope. The [dated e4a receipt](../evidence/selection-outline-549-e4a48a77-r5-lifecycle-selection-20261021.md)
+records3/16complete and UNKNOWN exact pending await,not a proved harness/product cause.
+
+Author ONLY the existing outline spec. Add synchronous durable Node markers
+before/fulfilled/rejected around EXISTING fresh.close and the final original-page
+snapshot(page). Skipped is recorded only when the original code skips that
+operation. Record monotonic sequence/timestamp,operation/page/context identity
+and original outcome/error; persist each lightweight marker before continuing.
+Record marker-write errors explicitly without masking the primary Error.
+Reuse the registered artifact directory. No new awaited browser operation,
+inner callback/binding markers,expanded observer or Playwright/tracing wrapper.
+
+Preserve exact awaited operations/order,supplemental mandatory classification,
+original Error objects/throws and complete checkpoint. No swallowed errors,
+unawaited close,early complete,teardown repair,new action/wait/timeout/retry,
+predicate/oracle weakening or worker delivery change. R3 coordinate/poll and
+R4 runningtrue-only pre-Stop clone/backward native route remain untouched.
+Preserve all16/full native/ready C=H finite quality/yielded-null/JSONL/fullDoc/
+1PUT/CAS/cookies/storage/deadlines. No product/core/hook/dependency change.
+
+Freeze one new source candidate; NEW independent source review precedes ONE
+bounded cause-based diagnostic BEFORE. If its journal is incomplete or no causal
+boundary evidence emerges, STOP diagnosis: no next hopeful observer,automatic
+fix or AFTER. New frozen BEFORE/AFTER whole blob identical if AFTER is later
+selected; product remains forbidden until16complete and NEW actual review.
+Ownerpending,#548 terminal NO_PROVEN_CAUSE and owner KEEP544/547 remain unchanged.
+
+## R4 running-phase oracle and fixed backward native route — test only
+
+When canonically selected, ONLY the two exceptions here supersede prior R2/R3
+constraints. All older author instructions remain historical; current.yaml alone
+selects scope. [Dated2bd actual/cause/route receipt](../evidence/selection-outline-549-2bdff063-r4-selection-20261021.md)
+records invalid12/16 BEFORE, not product/visual acceptance.
+
+Author ONLY the existing outline browser spec. Independently construct the full
+expected runtime document from expected with ONLY simulation.running=true,
+using fullExpectedRunning={...expected,simulation:{...expected.simulation,running:true}}
+ONLY while running before Stop; never use actual as expected. After Stop and
+Save preserve full original stopped running=false, server/saved document,
+exact1PUT/base2/CAS3/cookies-only reopen and storage assertions without weakening.
+
+The ONLY native route change is existing loop keyboard.press('Tab') to
+keyboard.press('Shift+Tab'). Keep unmodified current focus, tabLimit, exact R3
+unique-connected current-body identity poll, final Locator focus identity,
+trusted Enter, selected-state and actuator sequence. Add ONLY passive event.shiftKey,
+route='backward' and start/end activeElement identity before/after the loop,
+including current unique connected target/grid/root identity and no-positive-tabindex
+assumption. Never write focus/DOM or add actions, locator.press(), actuator clicks,
+a generic navigator, conditional route algorithm or timeout/retry workaround.
+
+Final cached4DOM proof has278 conservative candidates,SPDT index199,tail79,
+gridpreceding26/no positive tabindex;16modelchecks PASS with79to105 backward
+modeled steps versus189to190 observed forward Tabs. Historical activeElement and
+sequential anchor are UNKNOWN; future actual backward route/time NOT_RUN, no106
+or deadline-fit guarantee. Proof motivates a new run; it does not prove completion.
+
+Keep R3 resistor180270 and strict identity poll unchanged, every other fixture,
+sampler/allowGrid,pan/zoom/native actuator,all16cases/full ready C=H solved quality
+finite/yielded-null/lossless JSONL prefix/hash/refs/fullDoc and deadlines.
+No product/core/hook/UI/timeout/case omission repair. One reviewed frozen new
+BEFORE; AFTER whole browser blob identical. Product/AFTER remains forbidden
+until16complete and NEW independent actual review. #548 terminal NO_PROVEN_CAUSE,
+owner KEEP544/547 and old receipts stay unchanged. Dependency failure is outside scope.
+
 ## R3 coordinate-only fixture and focus-poll exception — test only
 
 When canonically selected, this section supersedes only the old R2 bans on

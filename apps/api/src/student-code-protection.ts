@@ -1,10 +1,4 @@
-import {
-  createCipheriv,
-  createDecipheriv,
-  createHmac,
-  randomBytes,
-  timingSafeEqual,
-} from 'node:crypto';
+import { createCipheriv, createDecipheriv, createHmac, randomBytes } from 'node:crypto';
 
 export type StudentCodeProtectionMode = 'off' | 'compat' | 'enforced';
 
@@ -45,13 +39,6 @@ export interface StoredProtectedStudentCode {
   encryptionTag: Buffer;
 }
 
-export class StudentCodeProtectionConfigError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'StudentCodeProtectionConfigError';
-  }
-}
-
 export class StudentCodeProtectionUnavailableError extends Error {
   constructor(message = 'Student Code protected storage is unavailable') {
     super(message);
@@ -59,111 +46,12 @@ export class StudentCodeProtectionUnavailableError extends Error {
   }
 }
 
-const KEY_ID_PATTERN = /^[A-Za-z0-9._:-]{1,128}$/;
+export {
+  loadStudentCodeProtectionConfig,
+  StudentCodeProtectionConfigError,
+} from './credential-configuration.cjs';
+
 const STUDENT_CODE_PATTERN = /^[A-Za-z0-9]{4,10}$/;
-
-function protectionMode(env: NodeJS.ProcessEnv): StudentCodeProtectionMode {
-  const raw = env['ASA_STUDENT_CODE_PROTECTION_MODE']?.trim() || 'off';
-  if (raw === 'off' || raw === 'compat' || raw === 'enforced') return raw;
-  throw new StudentCodeProtectionConfigError(
-    'ASA_STUDENT_CODE_PROTECTION_MODE must be off, compat, or enforced',
-  );
-}
-
-function decodeBase64Key(value: unknown, label: string): Buffer {
-  if (typeof value !== 'string' || value.length === 0 || /\s/.test(value)) {
-    throw new StudentCodeProtectionConfigError(`${label} must be a base64 string`);
-  }
-  const decoded = Buffer.from(value, 'base64');
-  const canonical = decoded.toString('base64').replace(/=+$/u, '');
-  if (canonical.length === 0 || canonical !== value.replace(/=+$/u, '')) {
-    throw new StudentCodeProtectionConfigError(`${label} is not canonical base64`);
-  }
-  return decoded;
-}
-
-function loadKeyring(
-  env: NodeJS.ProcessEnv,
-  jsonName: string,
-  activeName: string,
-  exactBytes?: number,
-  minimumBytes?: number,
-): LoadedKeyring {
-  const json = env[jsonName];
-  const activeKeyId = env[activeName]?.trim();
-  if (!json || !activeKeyId) {
-    throw new StudentCodeProtectionConfigError(`${jsonName} and ${activeName} are required`);
-  }
-  if (!KEY_ID_PATTERN.test(activeKeyId)) {
-    throw new StudentCodeProtectionConfigError(`${activeName} is invalid`);
-  }
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(json);
-  } catch {
-    throw new StudentCodeProtectionConfigError(`${jsonName} must be valid JSON`);
-  }
-  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    throw new StudentCodeProtectionConfigError(`${jsonName} must be a JSON object`);
-  }
-
-  const keys = new Map<string, Buffer>();
-  for (const [keyId, raw] of Object.entries(parsed as Record<string, unknown>)) {
-    if (!KEY_ID_PATTERN.test(keyId)) {
-      throw new StudentCodeProtectionConfigError(`${jsonName} contains an invalid key ID`);
-    }
-    const key = decodeBase64Key(raw, `${jsonName}[${keyId}]`);
-    if (exactBytes !== undefined && key.length !== exactBytes) {
-      throw new StudentCodeProtectionConfigError(
-        `${jsonName}[${keyId}] must decode to exactly ${exactBytes} bytes`,
-      );
-    }
-    if (minimumBytes !== undefined && key.length < minimumBytes) {
-      throw new StudentCodeProtectionConfigError(
-        `${jsonName}[${keyId}] must decode to at least ${minimumBytes} bytes`,
-      );
-    }
-    keys.set(keyId, key);
-  }
-  if (!keys.has(activeKeyId)) {
-    throw new StudentCodeProtectionConfigError(`${activeName} is absent from ${jsonName}`);
-  }
-  return { activeKeyId, keys };
-}
-
-export function loadStudentCodeProtectionConfig(
-  env: NodeJS.ProcessEnv = process.env,
-): StudentCodeProtectionConfig | null {
-  const mode = protectionMode(env);
-  if (mode === 'off') return null;
-
-  const encryption = loadKeyring(
-    env,
-    'ASA_STUDENT_CODE_ENCRYPTION_KEYS_JSON',
-    'ASA_STUDENT_CODE_ENCRYPTION_ACTIVE_KEY_ID',
-    32,
-  );
-  const lookup = loadKeyring(
-    env,
-    'ASA_STUDENT_CODE_LOOKUP_KEYS_JSON',
-    'ASA_STUDENT_CODE_LOOKUP_ACTIVE_KEY_ID',
-    undefined,
-    32,
-  );
-
-  for (const encryptionKey of encryption.keys.values()) {
-    for (const lookupKey of lookup.keys.values()) {
-      if (encryptionKey.length === lookupKey.length && timingSafeEqual(encryptionKey, lookupKey)) {
-        throw new StudentCodeProtectionConfigError(
-          'Student Code encryption and lookup key material must be distinct',
-        );
-      }
-    }
-  }
-
-  return { mode, encryption, lookup };
-}
 
 export function studentCodeAad(
   tenantId: string,

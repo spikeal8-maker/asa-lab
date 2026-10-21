@@ -3109,6 +3109,38 @@ paths:
             },
         },
     }
+  /api/courses/{courseId}/versions:
+    parameters:
+      - name: courseId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      operationId: getAuthorCourseVersions
+      summary: Exact published course history and immutable pinned practice conditions
+      description: >-
+        Requires the course owner with current author capability and access to the course tenant.
+        An unavailable or unauthorized course returns an empty collection. Archived owned history
+        remains readable. Pinned activities are resolved only from each exact immutable outline;
+        unavailable pins disclose only their outline pointer, expected kind and availability.
+        Current drafts, assignment defaults, runtime policy overrides and module availability
+        never replace historical conditions. This read creates no learning or runtime state.
+      responses:
+        '200':
+          description: Owner-scoped immutable history ordered by descending version number
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/PublishedAuthorCourseVersion' }
+        '400': { description: Invalid course identifier }
+        '401': { description: Current session required }
+        '403': { description: Current author capability required }
   '/api/courses/{courseId}/publish':
     {
       'parameters':
@@ -3176,7 +3208,14 @@ paths:
               '403': { 'description': 'Capability or workspace denied' },
               '404': { 'description': 'Resource unavailable' },
               '409':
-                { 'description': 'Version, state or request conflict; no partial publication' },
+                {
+                  'description': 'Version, state or request conflict; prepublication errors identify the exact saved draft and editor location; no partial publication',
+                  'content':
+                    {
+                      'application/json':
+                        { 'schema': { '$ref': '#/components/schemas/CoursePublicationError' } },
+                    },
+                },
             },
         },
     }
@@ -4502,16 +4541,16 @@ paths:
   /health/ready:
     get:
       operationId: getHealthReady
-      summary: Readiness probe (PostgreSQL SELECT 1)
+      summary: Database, schema and global credential configuration readiness
       responses:
         '200':
-          description: Database is reachable
+          description: Runtime dependencies and global credential configuration are ready
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ReadyResponse'
         '503':
-          description: Database is not reachable
+          description: Database, schema or global credential configuration is unavailable
           content:
             application/json:
               schema:
@@ -5946,7 +5985,7 @@ paths:
     post:
       operationId: assignCanonicalCourse
       summary: Assign an immutable published course version through the existing Learning runtime
-      description: New authoring clients use the canonical request below. Legacy requests without requestId use the retained legacy adapter and do not create canonical content.
+      description: New authoring clients use the canonical request below. Current classroom and course authorization precedes exact completed request replay, which remains valid after course archive. New assignments serialize with archive and reject archived courses. Legacy requests without requestId use the retained legacy adapter and do not create canonical content.
       requestBody:
         required: true
         content:
@@ -5972,9 +6011,9 @@ paths:
         '403':
           description: Teaching capability or classroom access denied
         '404':
-          description: Classroom unavailable
+          description: Classroom or owned course unavailable
         '409':
-          description: Publication, audience or request conflict; no partial assignment
+          description: Course archived, publication, audience or request conflict; no partial assignment
     get:
       operationId: getClassroomCanonicalCourseRuns
       summary: List assigned courses with canonical lesson-state aggregates
@@ -6879,6 +6918,97 @@ components:
         maxLength: 128
         pattern: '^[A-Za-z0-9._:-]+$'
   schemas:
+    CoursePrepublicationDiagnostic:
+      type: object
+      additionalProperties: false
+      required:
+        [courseId, draftRevision, sectionId, lessonId, blockId, field, reason, path, message]
+      properties:
+        courseId:
+          type: string
+          format: uuid
+        draftRevision:
+          type: integer
+          minimum: 1
+        sectionId:
+          type: [string, 'null']
+          format: uuid
+        lessonId:
+          type: [string, 'null']
+          format: uuid
+        blockId:
+          type: [string, 'null']
+          pattern: '^[A-Za-z0-9_-]{1,80}$'
+        field:
+          type: string
+          enum:
+            [
+              blocks,
+              learningActivityVersionId,
+              text,
+              url,
+              alt,
+              caption,
+              title,
+              label,
+              level,
+              tone,
+              language,
+              rows,
+              hidden,
+              archivedAt,
+              lessons,
+            ]
+        reason:
+          type: string
+          enum:
+            [
+              course_archived,
+              course_empty,
+              content_required,
+              legacy_assignment,
+              block_invalid,
+              duplicate_block_id,
+              pin_unavailable,
+              module_unavailable,
+              asset_invalid,
+            ]
+        path:
+          type: string
+          description: Human-readable location; clients navigate using the separate stable identifiers.
+        message:
+          type: string
+      allOf:
+        - if:
+            properties:
+              lessonId: { type: 'null' }
+          then:
+            properties:
+              sectionId: { type: 'null' }
+              blockId: { type: 'null' }
+          else:
+            properties:
+              sectionId: { type: string, format: uuid }
+    CoursePublicationError:
+      type: object
+      additionalProperties: false
+      required: [error]
+      properties:
+        error:
+          type: object
+          additionalProperties: false
+          required: [code, message]
+          properties:
+            code: { type: string }
+            message: { type: string }
+            diagnostic:
+              $ref: '#/components/schemas/CoursePrepublicationDiagnostic'
+          allOf:
+            - if:
+                properties:
+                  code: { enum: [prepublish_invalid, course_empty] }
+              then:
+                required: [diagnostic]
     AuthProviderAvailability:
       type: object
       additionalProperties: false
@@ -8086,6 +8216,118 @@ components:
           },
         'required': ['scheme', 'items'],
       }
+    PublishedAuthorCourseVersion:
+      type: object
+      additionalProperties: false
+      required: [id, versionNumber, outline, pinnedActivities, publishedAt]
+      properties:
+        id: { type: string, format: uuid }
+        versionNumber: { type: integer, minimum: 1 }
+        publishedAt: { type: string, format: date-time }
+        outline:
+          type: object
+          description: >-
+            The original immutable course_versions.outline, returned unchanged. Historical
+            course, section, lesson and block fields retain their original presence and values;
+            missing legacy fields are not filled from current content. Historical activity
+            conditions are returned separately in pinnedActivities, never written into outline.
+          additionalProperties: true
+        pinnedActivities:
+          type: array
+          items: { $ref: '#/components/schemas/PublishedAuthorCoursePin' }
+    PublishedAuthorCoursePin:
+      type: object
+      additionalProperties: false
+      required:
+        - pointer
+        - pinKind
+        - available
+        - activityId
+        - versionId
+        - versionNumber
+        - title
+        - instructions
+        - goal
+        - goalSnapshotPresent
+        - blocks
+        - blocksSnapshotPresent
+        - moduleKey
+        - resultMode
+        - maxPoints
+        - policySnapshot
+        - contentDigest
+      properties:
+        pointer:
+          type: string
+          pattern: '^/sections/[0-9]+/lessons/[0-9]+/(assignment|blocks/[0-9]+)$'
+          description: Zero-based location in this exact immutable outline; never a current draft location.
+        pinKind: { type: string, enum: [project, manual] }
+        available: { type: boolean }
+        activityId: { type: [string, 'null'], format: uuid }
+        versionId: { type: [string, 'null'], format: uuid }
+        versionNumber: { type: [integer, 'null'], minimum: 1 }
+        title: { type: [string, 'null'] }
+        instructions: { type: [string, 'null'] }
+        goal: { type: [string, 'null'] }
+        goalSnapshotPresent:
+          type: [boolean, 'null']
+          description: >-
+            False means this historical version predates the goal snapshot; goal is
+            unknown even when its stored value is null. True preserves an explicit null
+            as a saved empty goal. Null occurs only when the entire pin is unavailable.
+        blocks:
+          type: [array, 'null']
+          items: { type: object }
+        blocksSnapshotPresent:
+          type: [boolean, 'null']
+          description: >-
+            False means this historical version has no saved materials snapshot and
+            blocks is null, never a current projection. True means blocks is the exact
+            stored array, including an explicitly empty array. Null occurs only when
+            the entire pin is unavailable.
+        moduleKey: { type: [string, 'null'] }
+        resultMode: { type: [string, 'null'], enum: [ungraded, completion, graded, null] }
+        maxPoints: { type: [integer, 'null'], minimum: 1 }
+        policySnapshot:
+          oneOf:
+            - { $ref: '#/components/schemas/LearningActivityPolicySnapshot' }
+            - { type: 'null' }
+        contentDigest: { type: [string, 'null'] }
+      oneOf:
+        - properties:
+            available: { const: true }
+            activityId: { type: string }
+            versionId: { type: string }
+            versionNumber: { type: integer }
+            title: { type: string }
+            goalSnapshotPresent: { type: boolean }
+            blocksSnapshotPresent: { type: boolean }
+            resultMode: { type: string }
+            policySnapshot: { type: object }
+            contentDigest: { type: string }
+          oneOf:
+            - properties:
+                blocksSnapshotPresent: { const: true }
+                blocks: { type: array }
+            - properties:
+                blocksSnapshotPresent: { const: false }
+                blocks: { type: 'null' }
+        - properties:
+            available: { const: false }
+            activityId: { type: 'null' }
+            versionId: { type: 'null' }
+            versionNumber: { type: 'null' }
+            title: { type: 'null' }
+            instructions: { type: 'null' }
+            goal: { type: 'null' }
+            goalSnapshotPresent: { type: 'null' }
+            blocks: { type: 'null' }
+            blocksSnapshotPresent: { type: 'null' }
+            moduleKey: { type: 'null' }
+            resultMode: { type: 'null' }
+            maxPoints: { type: 'null' }
+            policySnapshot: { type: 'null' }
+            contentDigest: { type: 'null' }
     LearningActivityKind:
       type: string
       enum: [quiz, project, essay, file, manual]
@@ -9038,7 +9280,7 @@ components:
     ReadyResponse:
       type: object
       additionalProperties: false
-      required: [status, dependencies]
+      required: [status, dependencies, deployment]
       properties:
         status:
           type: string
@@ -9046,11 +9288,36 @@ components:
         dependencies:
           type: object
           additionalProperties: false
-          required: [database]
+          required: [database, credentialConfiguration]
           properties:
             database:
               type: string
-              enum: [up, down]
+              enum: [up, busy, down]
+            credentialConfiguration:
+              type: string
+              enum: [valid, invalid]
+              description: Global configuration only; contains no secrets, key IDs or historical row diagnostics.
+        deployment:
+          type: object
+          additionalProperties: false
+          required:
+            [
+              revision,
+              builtAt,
+              schemaVersion,
+              expectedSchemaVersion,
+              synchronized,
+              artifactIntegrity,
+              artifactVerifiedAt,
+            ]
+          properties:
+            revision: { type: string }
+            builtAt: { type: [string, 'null'] }
+            schemaVersion: { type: [integer, 'null'] }
+            expectedSchemaVersion: { type: [integer, 'null'] }
+            synchronized: { type: [boolean, 'null'] }
+            artifactIntegrity: { type: string, enum: [verified, unknown] }
+            artifactVerifiedAt: { type: [string, 'null'] }
     ErrorResponse:
       type: object
       additionalProperties: false

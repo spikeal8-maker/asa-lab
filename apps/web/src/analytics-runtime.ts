@@ -176,12 +176,12 @@ function recoverAuthentication(observation: ProductObservation): void {
       if (proof === pending) proof = undefined;
     });
 }
-subscribeProductConfirmation((context) => {
-  if (proof || context.actor?.kind !== 'account') return;
+subscribeProductConfirmation((context, deadline) => {
+  if (proof || context.actor?.kind !== 'account' || Date.now() >= deadline) return;
   clearProductObservation();
-  productObservation = { context, deadline: Date.now() + 12_000 };
+  productObservation = { context, deadline };
   // A telemetry request has a 12s deadline; a healthy refresh needs no speculative identity read.
-  observationTimer = setTimeout(clearProductObservation, 12_000);
+  observationTimer = setTimeout(clearProductObservation, Math.max(0, deadline - Date.now()));
   recoverAuthentication(productObservation);
 });
 if (typeof window !== 'undefined') {

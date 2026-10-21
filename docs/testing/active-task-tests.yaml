@@ -103,6 +103,17 @@ tests:
     owner: learning
     artifacts: [vitest-report, learning-migration-report, authorization-report]
 
+  - id: TST-LEARNING-CREDENTIAL-READINESS-001
+    title: Independent production credentials and sanitized readiness fail before startup or update
+    suite: security
+    level: unit
+    phase_available: PHASE-12
+    required_for: [TASK-LRN-COURSE-001]
+    command: pnpm exec vitest run apps/api/src/classroom-code-secret.spec.ts apps/api/src/credential-configuration.spec.ts apps/api/src/student-code-protection.spec.ts apps/api/src/health.spec.ts tests/production/credential-readiness.spec.ts
+    timeout_seconds: 120
+    owner: learning
+    artifacts: [vitest-report, credential-readiness-report]
+
   - id: TST-LRN-COURSE-E1-E2E-001
     title: Learning E1 real learner project submit browser journey
     suite: e2e

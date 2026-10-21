@@ -2,10 +2,23 @@ import { fetchWithSessionRefresh } from './session-fetch';
 import { notifyAccountVerificationRequired } from './auth-verification';
 import { authRequest, authRequestFailure } from './auth-request';
 
+export interface CoursePrepublicationDiagnostic {
+  courseId: string;
+  draftRevision: number;
+  sectionId: string | null;
+  lessonId: string | null;
+  blockId: string | null;
+  field: string;
+  reason: string;
+  path: string;
+  message: string;
+}
+
 export interface ApiError {
   code: string;
   message: string;
   routes?: string[];
+  diagnostic?: CoursePrepublicationDiagnostic;
 }
 
 export type ApiResult<T> =

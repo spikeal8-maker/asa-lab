@@ -351,7 +351,7 @@ async function assertLayout(page: Page, width: number, file: string) {
     expect(rect!.height).toBe(56);
     const globalLinks = header.locator('.portal-global-nav a');
     const expectedLinks = [
-      ['Проекты', '/#/gallery'],
+      ['Проекты', '/#/explore'],
       ['Знания', '/#/knowledge'],
       ['ИИ', '/#/ai'],
     ] as const;
@@ -370,7 +370,7 @@ async function assertLayout(page: Page, width: number, file: string) {
     });
     await expect(publicNavigation.locator('a')).toHaveCount(3);
     for (const [name, href] of [
-      ['Проекты', '/#/gallery'],
+      ['Проекты', '/#/explore'],
       ['Знания', '/#/knowledge'],
       ['ИИ', '/#/ai'],
     ] as const) {

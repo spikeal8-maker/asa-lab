@@ -2633,6 +2633,1054 @@ test.afterAll(async () => {
   await admin.end();
 });
 
+// #525 BEFORE: explicit seeded mirrors; all rotations are native group commands.
+test.describe('ELECTRONICS-525 complete instrument mirror matrix', () => {
+  let cookies: import('@playwright/test').Cookie[];
+  let actorId: string;
+  test.beforeAll(async ({ browser, baseURL }, info) => {
+    const context = await browser.newContext({ baseURL });
+    try {
+      const page = await context.newPage();
+      const identity = await seedTeacher(admin, `instrument525-auth-${info.workerIndex}`);
+      await loginWithOrganization(page, identity);
+      const me = await context.request.get('/api/auth/me');
+      expect(me.status()).toBe(200);
+      const actor = (await me.json()) as { authenticated: boolean; user: { id: string } };
+      expect(actor.authenticated).toBe(true);
+      actorId = actor.user.id;
+      cookies = await context.cookies();
+    } finally {
+      await context.close();
+    }
+  });
+  for (const width of [1440, 1024, 390, 320]) {
+    for (const mirror of [
+      { name: 'none', x: false, y: false },
+      { name: 'x', x: true, y: false },
+      { name: 'y', x: false, y: true },
+      { name: 'xy', x: true, y: true },
+    ]) {
+      test(`${width}px seeded ${mirror.name}: four instruments through all four rotations`, async ({
+        browser,
+        baseURL,
+      }, info) => {
+        test.setTimeout(120_000);
+        const context = await browser.newContext({
+          baseURL,
+          viewport: { width, height: 1000 },
+          hasTouch: width < 500,
+        });
+        const page = await context.newPage();
+        const failures = collectBrowserFailures(page, { allowAdminAccessProbe: true });
+        const rows: Record<string, unknown>[] = [];
+        const puts: unknown[] = [];
+        const journal: Record<string, unknown> = {
+          width,
+          mirror,
+          actorId,
+          rows,
+          puts,
+          journeyComplete: false,
+        };
+        const write = () =>
+          writeFileSync(
+            info.outputPath('instrument525-raw.json'),
+            JSON.stringify(journal, null, 2),
+          );
+        const checkpoint = (name: string, observation?: unknown) => {
+          journal['lastCheckpoint'] = name;
+          rows.push({ name, at: Date.now(), observation });
+          write();
+        };
+        let reopenedContext: import('@playwright/test').BrowserContext | undefined;
+        let cleanupError: unknown;
+        const orientation: Array<{
+          label: string;
+          axesError: number;
+          centerError: number;
+          windowAxesError: number;
+          windowMatrixError: number;
+          windowPositionError: number;
+        }> = [];
+        try {
+          await context.addCookies(cookies);
+          journal['initialOrigins'] = (await context.storageState()).origins;
+          write();
+          expect(journal['initialOrigins']).toEqual([]);
+          // API seeds only the initial fixture. The measured Save below is native.
+          const origin = baseURL!;
+          const installStorageWitness = async (
+            target: import('@playwright/test').BrowserContext,
+          ) => {
+            await target.addInitScript((origin) => {
+              if (window !== window.top || location.origin !== new URL(origin).origin) return;
+              const entries = (storage: Storage) =>
+                Object.keys(storage).map((key) => [key, storage.getItem(key)]);
+              (window as unknown as { instrument525PreApp: unknown }).instrument525PreApp = {
+                local: entries(localStorage),
+                session: entries(sessionStorage),
+              };
+            }, origin);
+          };
+          await context.addInitScript(() => {
+            type Response =
+              import('../apps/web/src/electronics/simulation-worker-protocol').ElectronicsSimulationWorkerResponse;
+            const probe = window as unknown as { instrument525Committed?: Response };
+            window.Worker = new Proxy(window.Worker, {
+              construct(target, args, newTarget) {
+                const worker = Reflect.construct(target, args, newTarget) as Worker;
+                if ((args[1] as WorkerOptions | undefined)?.name === 'asa-electronics-simulation') {
+                  worker.addEventListener('message', (event: MessageEvent<Response>) => {
+                    const response = event.data;
+                    if (
+                      response.ok &&
+                      response.kind === 'advance' &&
+                      response.advance.executionStatus === 'ready'
+                    )
+                      probe.instrument525Committed = response;
+                  });
+                }
+                return worker;
+              },
+            });
+          });
+          await installStorageWitness(context);
+          await page.goto('/');
+          const projectId = await createProject(page, `Instrument525 ${width} ${mirror.name}`);
+          const key = `asa-project-local-draft:user:account:${encodeURIComponent(actorId)}:${encodeURIComponent(projectId)}`;
+          const voltage = multimeterDcVoltageDocument(true);
+          const supply = regulatedPowerSupplyDocument();
+          const instrumentIds = ['meter', 'bench-supply', 'generator', 'scope'];
+          const initial: SchematicDocument = {
+            ...voltage,
+            components: [
+              ...voltage.components.map((item) => ({
+                ...item,
+                position: item.id === 'source' ? { x: 30, y: 30 } : { x: 180, y: 30 },
+              })),
+              ...supply.components.map((item) =>
+                item.id === 'bench-supply'
+                  ? {
+                      ...item,
+                      position: { x: 600, y: 30 },
+                      state: true,
+                      stateProperties: { ...item.stateProperties, outputEnabled: true },
+                    }
+                  : { ...item, position: { x: 810, y: 30 } },
+              ),
+              {
+                id: 'generator',
+                kind: 'source',
+                componentTypeId: 'signal-generator',
+                variantId: 'signal-generator',
+                name: 'Генератор',
+                position: { x: 80, y: 340 },
+                rotation: 0,
+                value: 1_000,
+                state: true,
+                pinIds: ['signal', 'ground'],
+                stateProperties: {
+                  waveform: 'sine',
+                  frequencyHz: 1_000,
+                  amplitudeVpp: 5,
+                  dcOffsetVolt: -0.25,
+                  outputEnabled: true,
+                  outputResistanceOhm: 50,
+                  maxContinuousCurrentAmp: 0.1,
+                },
+              },
+              {
+                id: 'scope',
+                kind: 'visual',
+                componentTypeId: 'oscilloscope',
+                variantId: 'oscilloscope',
+                name: 'Осциллограф',
+                position: { x: 520, y: 340 },
+                rotation: 0,
+                value: 1,
+                state: true,
+                pinIds: ['signal', 'ground'],
+                stateProperties: {
+                  voltsPerDivision: 1,
+                  timePerDivisionMs: 1,
+                  triggerLevelVolt: 0,
+                  displayEnabled: true,
+                },
+              },
+            ],
+            connections: [
+              ...voltage.connections,
+              ...supply.connections,
+              {
+                id: 'generator-signal',
+                from: { componentId: 'generator', terminal: 'signal' },
+                to: { componentId: 'scope', terminal: 'signal' },
+                color: '#e3212b',
+                vertices: [],
+              },
+              {
+                id: 'generator-ground',
+                from: { componentId: 'generator', terminal: 'ground' },
+                to: { componentId: 'scope', terminal: 'ground' },
+                color: '#2a3035',
+                vertices: [],
+              },
+            ],
+            viewport: { x: 0, y: 0, zoom: 0.7 },
+          };
+          // Explicit fixture identities from the registered model definitions, not server output.
+          const modelIdentities: Record<
+            string,
+            Pick<
+              SchematicDocument['components'][number],
+              | 'electricalModelId'
+              | 'electricalModelVersion'
+              | 'modelProfileId'
+              | 'modelProfileVersion'
+            >
+          > = {
+            source: {
+              electricalModelId: 'ideal-dc-source',
+              electricalModelVersion: 1,
+              modelProfileId: 'generic-battery-pack-aa-2',
+              modelProfileVersion: 1,
+            },
+            meter: {
+              electricalModelId: 'digital-multimeter',
+              electricalModelVersion: 1,
+              modelProfileId: 'asa-two-terminal-dmm',
+              modelProfileVersion: 3,
+            },
+            'bench-supply': {
+              electricalModelId: 'regulated-dc-supply',
+              electricalModelVersion: 1,
+              modelProfileId: 'asa-bench-supply-30v-5a',
+              modelProfileVersion: 1,
+            },
+            load: {
+              electricalModelId: 'resistor',
+              electricalModelVersion: 1,
+              modelProfileId: 'axial-resistor',
+              modelProfileVersion: 1,
+            },
+            generator: {
+              electricalModelId: 'function-generator',
+              electricalModelVersion: 1,
+              modelProfileId: 'asa-function-generator-1mhz',
+              modelProfileVersion: 1,
+            },
+            scope: {
+              electricalModelId: 'oscilloscope',
+              electricalModelVersion: 1,
+              modelProfileId: 'asa-two-terminal-oscilloscope',
+              modelProfileVersion: 1,
+            },
+          };
+          const seeded: SchematicDocument = {
+            ...initial,
+            components: initial.components.map((original) => {
+              const item = { ...original, ...modelIdentities[original.id] };
+              return instrumentIds.includes(item.id)
+                ? {
+                    ...item,
+                    stateProperties: {
+                      ...item.stateProperties,
+                      mirrorX: mirror.x,
+                      mirrorY: mirror.y,
+                    },
+                  }
+                : item;
+            }),
+          };
+          journal['projectId'] = projectId;
+          journal['initial'] = seeded;
+          await saveDocument(page, projectId, seeded);
+          const seed = await e01Server(page, projectId);
+          journal['seed'] = seed;
+          write();
+          expect(seed.draft.revision).toBe(2);
+          expect(seed.draft.document).toEqual(seeded);
+          const recordPuts = (target: Page) =>
+            target.on('request', (request) => {
+              if (
+                request.method() === 'PUT' &&
+                new URL(request.url()).pathname === `/api/projects/${projectId}/draft`
+              ) {
+                puts.push(request.postDataJSON());
+                write();
+              }
+            });
+          recordPuts(page);
+          await page.goto(`/#/home/${projectId}`);
+          await expect(page.getByTestId('schematic-component')).toHaveCount(
+            seeded.components.length,
+          );
+          const postLoadStorage = async (target: Page, name: string) => {
+            const storage = await target.evaluate(() => {
+              const drafts = (storage: Storage) =>
+                Object.keys(storage)
+                  .filter((key) => key.startsWith('asa-project-local-draft:'))
+                  .map((key) => [key, storage.getItem(key)]);
+              return {
+                preApp: (window as unknown as { instrument525PreApp: unknown }).instrument525PreApp,
+                local: drafts(localStorage),
+                session: drafts(sessionStorage),
+              };
+            });
+            checkpoint(name, storage);
+            expect(storage).toEqual({
+              preApp: { local: [], session: [] },
+              local: [],
+              session: [[`${key}:electronics-editor:`, 'saved']],
+            });
+          };
+          await postLoadStorage(page, 'initial-storage');
+          const hideLibrary = page.getByRole('button', { name: 'Скрыть компоненты', exact: true });
+          if (await hideLibrary.isVisible()) await hideLibrary.click();
+          await page.evaluate(() => {
+            const events: unknown[] = [];
+            (window as unknown as { instrument525Events: unknown[] }).instrument525Events = events;
+            for (const type of ['keydown', 'keyup', 'click', 'pointerdown', 'pointerup']) {
+              window.addEventListener(
+                type,
+                (event) => {
+                  const key = event as KeyboardEvent;
+                  const pointer = event as PointerEvent;
+                  const target = event.target instanceof Element ? event.target : null;
+                  events.push({
+                    type,
+                    trusted: event.isTrusted,
+                    key: key.key,
+                    shift: key.shiftKey,
+                    x: pointer.clientX,
+                    y: pointer.clientY,
+                    pointerType: pointer.pointerType,
+                    componentId: target
+                      ?.closest('[data-component-id]')
+                      ?.getAttribute('data-component-id'),
+                    label: target?.closest('[aria-label]')?.getAttribute('aria-label'),
+                  });
+                },
+                { capture: true, passive: true },
+              );
+            }
+          });
+          const local = async () => {
+            const entries = await page.evaluate(() => Object.entries(localStorage));
+            const raw = pendingElectronicsLocalDraft(entries, projectId, actorId);
+            return raw ? (JSON.parse(raw) as { document: SchematicDocument }).document : seeded;
+          };
+          const part = (id: string) =>
+            page.locator(
+              `[data-testid="schematic-component"][data-component-id="${id}"] .workbench-part`,
+            );
+          const dimensions = await page.getByTestId('schematic-component').evaluateAll((nodes) =>
+            nodes.map((node) => {
+              const hit = node.querySelector<SVGRectElement>('.workbench-component-body-hit')!;
+              return {
+                id: node.getAttribute('data-component-id')!,
+                width: hit.width.baseVal.value,
+                height: hit.height.baseVal.value,
+              };
+            }),
+          );
+          journal['dimensions'] = dimensions;
+          const focusInstrument = async (id: string) => {
+            const body = part(id);
+            await page.keyboard.press('Escape');
+            const canvas = page.locator('.workbench-canvas');
+            let field = await canvas.boundingBox();
+            let bounds = await body.boundingBox();
+            if (!field || !bounds) throw new Error(`Missing native pan geometry ${id}`);
+            for (
+              let i = 0;
+              i < 8 && (bounds.width > field.width - 32 || bounds.height > field.height * 0.7);
+              i++
+            ) {
+              await page.getByRole('button', { name: 'Уменьшить масштаб', exact: true }).click();
+              bounds = await body.boundingBox();
+              if (!bounds) throw new Error(`Detached body ${id}`);
+            }
+            const dx = field.x + field.width / 2 - bounds.x - bounds.width / 2;
+            const dy = field.y + field.height * 0.4 - bounds.y - bounds.height / 2;
+            await page.mouse.move(field.x + 8, field.y + 8);
+            await page.mouse.down({ button: 'middle' });
+            await page.mouse.move(field.x + 8 + dx, field.y + 8 + dy, { steps: 4 });
+            await page.mouse.up({ button: 'middle' });
+            field = await canvas.boundingBox();
+            bounds = await body.boundingBox();
+            checkpoint(`focused-${id}`, { field, bounds });
+            expect(
+              Boolean(
+                field &&
+                bounds &&
+                bounds.x >= field.x + 4 &&
+                bounds.y >= field.y + 4 &&
+                bounds.x + bounds.width <= field.x + field.width - 4 &&
+                bounds.y + bounds.height <= field.y + field.height - 4,
+              ),
+            ).toBe(true);
+            return body;
+          };
+          const measured: Array<{
+            rotation: number;
+            state: string;
+            id: string;
+            readings: Array<{
+              text: string | null;
+              axesError: number;
+              centerError: number;
+              windowAxesError: number;
+              windowMatrixError: number;
+              windowPositionError: number;
+              finite: boolean;
+              rect: { x: number; y: number; width: number; height: number };
+            }>;
+          }> = [];
+          // Independent declared geometry: the runtime SVG is x=0/y=0, xMidYMid meet.
+          // Do not infer its placement/scale from the observed window or hit rectangle.
+          const declaredCatalog = JSON.parse(
+            readFileSync(
+              resolve(
+                process.cwd(),
+                'apps/web/public/assets/electronics/component-database/catalog.json',
+              ),
+              'utf8',
+            ),
+          ) as {
+            worldUnitsPerMm: number;
+            components: Array<{
+              componentId: string;
+              physicalWidthMm: number;
+              physicalHeightMm: number;
+              viewBox: number[];
+            }>;
+          };
+          const capture = async (id: string, rotation: number, state: string) => {
+            const declared = declaredCatalog.components.find(
+              (entry) =>
+                entry.componentId ===
+                seeded.components.find((component) => component.id === id)!.componentTypeId,
+            )!;
+            const body = await focusInstrument(id);
+            const observation = await body.evaluate(
+              (body, mirror) => {
+                const selectors =
+                  '.workbench-multimeter-reading,.workbench-regulated-supply-reading,.workbench-signal-generator-readings text,.workbench-oscilloscope-status,.workbench-oscilloscope-scale';
+                const matrix = (value: DOMMatrix | null) => {
+                  if (!value) throw new Error('Missing readout CTM');
+                  return [value.a, value.b, value.c, value.d, value.e, value.f];
+                };
+                const normalize = (x: number, y: number) => {
+                  const length = Math.hypot(x, y);
+                  if (!Number.isFinite(length) || !length)
+                    throw new Error('Nonfinite readout axis');
+                  return [x / length, y / length];
+                };
+                const bodyMatrix = matrix((body as SVGGraphicsElement).getScreenCTM());
+                const canvas = document
+                  .querySelector<SVGSVGElement>('.workbench-canvas')!
+                  .getScreenCTM()!;
+                const radians = (mirror.rotation * Math.PI) / 180,
+                  cos = Math.cos(radians),
+                  sin = Math.sin(radians);
+                const expectedBodyX = normalize(
+                  (canvas.a * cos + canvas.c * sin) * (mirror.x ? -1 : 1),
+                  (canvas.b * cos + canvas.d * sin) * (mirror.x ? -1 : 1),
+                );
+                const expectedBodyY = normalize(
+                  (-canvas.a * sin + canvas.c * cos) * (mirror.y ? -1 : 1),
+                  (-canvas.b * sin + canvas.d * cos) * (mirror.y ? -1 : 1),
+                );
+                const bodyX = normalize(bodyMatrix[0]!, bodyMatrix[1]!),
+                  bodyY = normalize(bodyMatrix[2]!, bodyMatrix[3]!);
+                const bodyAxesError = Math.max(
+                  ...bodyX.map((v, i) => Math.abs(v - expectedBodyX[i]!)),
+                  ...bodyY.map((v, i) => Math.abs(v - expectedBodyY[i]!)),
+                );
+                const readings = [...body.querySelectorAll<SVGTextElement>(selectors)].map(
+                  (text) => {
+                    const glyph = text.getScreenCTM()!;
+                    const windowMatrix = text.ownerSVGElement!.getScreenCTM()!;
+                    const bbox = text.getBBox();
+                    const center = new DOMPoint(bbox.x + bbox.width / 2, bbox.y + bbox.height / 2);
+                    const actual = center.matrixTransform(glyph);
+                    const [viewX, viewY, viewWidth, viewHeight] = mirror.viewBox;
+                    const scale = Math.min(mirror.width / viewWidth!, mirror.height / viewHeight!);
+                    const offsetX = (mirror.width - viewWidth! * scale) / 2 - viewX! * scale;
+                    const offsetY = (mirror.height - viewHeight! * scale) / 2 - viewY! * scale;
+                    const expectedWindow = {
+                      a: bodyMatrix[0]! * scale,
+                      b: bodyMatrix[1]! * scale,
+                      c: bodyMatrix[2]! * scale,
+                      d: bodyMatrix[3]! * scale,
+                      e: bodyMatrix[0]! * offsetX + bodyMatrix[2]! * offsetY + bodyMatrix[4]!,
+                      f: bodyMatrix[1]! * offsetX + bodyMatrix[3]! * offsetY + bodyMatrix[5]!,
+                    };
+                    const expected = {
+                      x:
+                        expectedWindow.a * center.x +
+                        expectedWindow.c * center.y +
+                        expectedWindow.e,
+                      y:
+                        expectedWindow.b * center.x +
+                        expectedWindow.d * center.y +
+                        expectedWindow.f,
+                    };
+                    const windowMatrixError = Math.max(
+                      Math.abs(windowMatrix.a - expectedWindow.a),
+                      Math.abs(windowMatrix.b - expectedWindow.b),
+                      Math.abs(windowMatrix.c - expectedWindow.c),
+                      Math.abs(windowMatrix.d - expectedWindow.d),
+                    );
+                    const windowPositionError = Math.hypot(
+                      windowMatrix.e - expectedWindow.e,
+                      windowMatrix.f - expectedWindow.f,
+                    );
+                    const rect = text.getBoundingClientRect();
+                    const actualX = normalize(glyph.a, glyph.b),
+                      actualY = normalize(glyph.c, glyph.d);
+                    // Glyph orientation is independent of the observed nested window.
+                    const expectedX = normalize(
+                      canvas.a * cos + canvas.c * sin,
+                      canvas.b * cos + canvas.d * sin,
+                    );
+                    const expectedY = normalize(
+                      -canvas.a * sin + canvas.c * cos,
+                      -canvas.b * sin + canvas.d * cos,
+                    );
+                    const windowX = normalize(windowMatrix.a, windowMatrix.b),
+                      windowY = normalize(windowMatrix.c, windowMatrix.d);
+                    const windowAxesError = Math.max(
+                      ...windowX.map((v, i) => Math.abs(v - expectedBodyX[i]!)),
+                      ...windowY.map((v, i) => Math.abs(v - expectedBodyY[i]!)),
+                    );
+                    const raw = {
+                      glyph: matrix(glyph),
+                      window: matrix(windowMatrix),
+                      expectedWindow: [
+                        expectedWindow.a,
+                        expectedWindow.b,
+                        expectedWindow.c,
+                        expectedWindow.d,
+                        expectedWindow.e,
+                        expectedWindow.f,
+                      ],
+                      declaredViewport: [mirror.width, mirror.height, ...mirror.viewBox],
+                      bbox: [bbox.x, bbox.y, bbox.width, bbox.height],
+                      actualX,
+                      actualY,
+                      expectedX,
+                      expectedY,
+                      windowX,
+                      windowY,
+                      expectedWindowX: expectedBodyX,
+                      expectedWindowY: expectedBodyY,
+                      actualCenter: [actual.x, actual.y],
+                      expectedCenter: [expected.x, expected.y],
+                    };
+                    return {
+                      text: text.textContent,
+                      raw,
+                      rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
+                      finite: Object.values(raw).flat().every(Number.isFinite),
+                      axesError: Math.max(
+                        ...actualX.map((v, i) => Math.abs(v - expectedX[i]!)),
+                        ...actualY.map((v, i) => Math.abs(v - expectedY[i]!)),
+                      ),
+                      windowAxesError,
+                      windowMatrixError,
+                      windowPositionError,
+                      centerError: Math.hypot(actual.x - expected.x, actual.y - expected.y),
+                    };
+                  },
+                );
+                const hit = body.querySelector('.workbench-component-body-hit');
+                const box = body.getBoundingClientRect();
+                const hitTarget = document.elementFromPoint(
+                  box.x + box.width / 2,
+                  box.y + box.height / 2,
+                );
+                return {
+                  bodyMatrix,
+                  canvasMatrix: matrix(canvas),
+                  expectedBodyX,
+                  expectedBodyY,
+                  bodyAxesError,
+                  bodyTransform: body.getAttribute('transform'),
+                  hit: hit?.outerHTML,
+                  centerHitComponent: hitTarget
+                    ?.closest('[data-component-id]')
+                    ?.getAttribute('data-component-id'),
+                  readings,
+                  traceCount: body.querySelectorAll('.workbench-oscilloscope-trace').length,
+                };
+              },
+              {
+                ...mirror,
+                rotation,
+                width: declared.physicalWidthMm * declaredCatalog.worldUnitsPerMm,
+                height: declared.physicalHeightMm * declaredCatalog.worldUnitsPerMm,
+                viewBox: declared.viewBox,
+              },
+            );
+            const committed =
+              state === 'active'
+                ? await page.evaluate(
+                    () =>
+                      (
+                        window as unknown as {
+                          instrument525Committed?: import('../apps/web/src/electronics/simulation-worker-protocol').ElectronicsSimulationWorkerResponse;
+                        }
+                      ).instrument525Committed,
+                  )
+                : undefined;
+            const row = { id, rotation, state, ...observation, committed };
+            measured.push(row);
+            checkpoint(`readout-${id}-${rotation}-${state}`, row);
+            if (state === 'active') {
+              expect(committed?.ok && committed.kind === 'advance').toBe(true);
+              if (!committed?.ok || committed.kind !== 'advance')
+                throw new Error('Missing committed ready instrument response');
+              const advance = committed.advance;
+              expect(advance.committedHorizonMicroseconds).toBe(
+                advance.requestedHorizonMicroseconds,
+              );
+              expect(advance.result).toMatchObject({
+                solved: true,
+                status: 'solved',
+                quality: { finite: true, passed: true },
+              });
+              const finite = (value: unknown): boolean =>
+                typeof value === 'number'
+                  ? Number.isFinite(value)
+                  : Array.isArray(value)
+                    ? value.every(finite)
+                    : value !== null && typeof value === 'object'
+                      ? Object.values(value).every(finite)
+                      : true;
+              expect(finite(advance.result)).toBe(true);
+              if (id === 'meter') {
+                const result = advance.result?.components.find(
+                  (item) => item.componentId === 'meter',
+                );
+                expect(result?.measuredValue).toBeCloseTo(-2.999999865, 6);
+                expect(result).toMatchObject({
+                  measurementMode: 'dc-voltage',
+                  measurementUnit: 'V',
+                });
+              }
+              const result = advance.result?.components.find((item) => item.componentId === id);
+              if (id === 'bench-supply') {
+                expect(result?.regulatedOutputEnabled).toBe(true);
+                expect(`${result?.voltageDrop.toFixed(2)} V`).toBe(observation.readings[0]?.text);
+                expect(`${Math.abs(result?.current ?? Number.NaN).toFixed(3)} A`).toBe(
+                  observation.readings[1]?.text,
+                );
+              } else if (id === 'generator')
+                expect(result).toMatchObject({
+                  signalWaveform: 'sine',
+                  signalFrequencyHz: 1000,
+                  signalAmplitudeVpp: 5,
+                  signalOffsetVolt: -0.25,
+                  signalOutputEnabled: true,
+                });
+              else if (id === 'scope')
+                expect(result).toMatchObject({
+                  oscilloscopeFrequencyHz: 1000,
+                  oscilloscopeAmplitudeVpp: 5,
+                  oscilloscopeVoltsPerDivision: 1,
+                  oscilloscopeTimePerDivisionMs: 1,
+                });
+            }
+            expect(observation.bodyMatrix.every(Number.isFinite)).toBe(true);
+            expect(observation.bodyAxesError).toBeLessThan(0.000001);
+            const count =
+              id === 'meter' ? (state === 'stopped' ? 0 : 1) : id === 'generator' ? 3 : 2;
+            expect(observation.readings).toHaveLength(count);
+            expect(
+              observation.readings.every(
+                (r) =>
+                  r.finite &&
+                  Boolean(r.text?.trim()) &&
+                  r.rect.width > 0 &&
+                  r.rect.height > 0 &&
+                  r.rect.x >= 0 &&
+                  r.rect.y >= 0 &&
+                  r.rect.x + r.rect.width <= width &&
+                  r.rect.y + r.rect.height <= 1000,
+              ),
+            ).toBe(true);
+            if (state === 'active')
+              await page.screenshot({
+                path: info.outputPath(`instrument525-${rotation}-${id}-active.png`),
+              });
+            return row;
+          };
+          const assertGeometry = async (rotation: number) => {
+            const actual = await local();
+            const intended = {
+              ...seeded,
+              viewport: actual.viewport,
+              simulation: { ...seeded.simulation, running: false },
+              components: seeded.components.map((item) => {
+                if (!instrumentIds.includes(item.id)) return item;
+                const size = dimensions.find((value) => value.id === item.id)!;
+                const observed = actual.components.find((value) => value.id === item.id)!;
+                const swapped = rotation === 90 || rotation === 270;
+                const x =
+                  item.position.x + size.width / 2 - (swapped ? size.height : size.width) / 2;
+                const y =
+                  item.position.y + size.height / 2 - (swapped ? size.width : size.height) / 2;
+                expect(observed.position.x).toBeCloseTo(x, 8);
+                expect(observed.position.y).toBeCloseTo(y, 8);
+                return {
+                  ...item,
+                  rotation: rotation as 0 | 90 | 180 | 270,
+                  position: observed.position,
+                };
+              }),
+            };
+            checkpoint(`whole-document-${rotation}`, { actual, intended });
+            expect(actual).toEqual(intended);
+            expect((await e01Server(page, projectId)).draft).toEqual(seed.draft);
+            const endpoints = await page.evaluate(
+              (connections) =>
+                connections.flatMap((wire) => {
+                  const path = document.querySelector<SVGPathElement>(
+                    `[data-testid="schematic-wire"][data-wire-id="${wire.id}"]`,
+                  )!;
+                  return [wire.from, wire.to].map((endpoint, index) => {
+                    const terminal = document.querySelector<SVGGraphicsElement>(
+                      `[data-terminal-component-id="${endpoint.componentId}"][data-terminal-id="${endpoint.terminal}"]`,
+                    )!;
+                    const a = new DOMPoint(0, 0).matrixTransform(terminal.getScreenCTM()!);
+                    const point = path.getPointAtLength(index === 0 ? 0 : path.getTotalLength());
+                    const b = new DOMPoint(point.x, point.y).matrixTransform(path.getScreenCTM()!);
+                    return { wire: wire.id, endpoint, error: Math.hypot(a.x - b.x, a.y - b.y) };
+                  });
+                }),
+              seeded.connections,
+            );
+            checkpoint(`wire-endpoints-${rotation}`, endpoints);
+            expect(
+              endpoints.every((entry) => Number.isFinite(entry.error) && entry.error < 0.1),
+            ).toBe(true);
+            return intended;
+          };
+          let expected = seeded;
+          for (const rotation of [0, 90, 180, 270]) {
+            if (rotation) {
+              for (const [index, id] of instrumentIds.entries())
+                await part(id).press(index ? 'Shift+Enter' : 'Enter');
+              expect(await page.locator('.workbench-part.selected').count()).toBe(4);
+              await page.getByRole('button', { name: 'Повернуть на 45° (R)', exact: true }).click();
+              await page.getByRole('button', { name: 'Повернуть на 45° (R)', exact: true }).click();
+            }
+            await assertGeometry(rotation);
+            const previousGeneration = await page.evaluate(
+              () =>
+                (
+                  window as unknown as {
+                    instrument525Committed?: { generationId: number };
+                  }
+                ).instrument525Committed?.generationId,
+            );
+            await page.getByRole('button', { name: 'Начать моделирование', exact: true }).click();
+            await expect
+              .poll(async () =>
+                page.evaluate((previous) => {
+                  const current = (
+                    window as unknown as { instrument525Committed?: { generationId: number } }
+                  ).instrument525Committed;
+                  return (
+                    typeof current?.generationId === 'number' && current.generationId !== previous
+                  );
+                }, previousGeneration),
+              )
+              .toBe(true);
+            const meter = component(page, 'multimeter').getByTestId('multimeter-runtime-display');
+            await expect
+              .poll(async () => Number(await meter.getAttribute('data-measured-value')))
+              .toBeCloseTo(-2.999999865, 6);
+            await expect(meter.locator('.workbench-multimeter-reading')).toHaveText('-3.000 V');
+            await expect(
+              component(page, 'regulated-power-supply')
+                .locator('.workbench-regulated-supply-reading')
+                .first(),
+            ).toHaveText('5.00 V');
+            await expect(
+              component(page, 'oscilloscope').locator('.workbench-oscilloscope-status'),
+            ).toHaveText('1.00 kHz · 5.00 Vpp');
+            await expect(
+              component(page, 'oscilloscope').locator('.workbench-oscilloscope-scale'),
+            ).toHaveText('1.00 V/div · 1.00 ms/div');
+            await expect(
+              component(page, 'signal-generator').locator(
+                '.workbench-signal-generator-readings text',
+              ),
+            ).toHaveText(['1.00 kHz', '5.00 Vpp', '-0.25 V']);
+            for (const id of instrumentIds) await capture(id, rotation, 'active');
+            // Every mirror/width exercises the real controls, not an oracle-only transform.
+            if (rotation === 0) {
+              await focusInstrument('meter');
+              await meter.locator('.workbench-multimeter-mode-resistance').click();
+              await expect(meter).toHaveAttribute('data-measurement-mode', 'resistance');
+              await expect(meter.locator('.workbench-multimeter-reading')).toHaveText('ОШИБКА');
+              await capture('meter', rotation, 'external-voltage-error');
+              await meter.locator('.workbench-multimeter-mode-voltage').click();
+              await expect(meter.locator('.workbench-multimeter-reading')).toHaveText('-3.000 V');
+              await focusInstrument('bench-supply');
+              const supply = component(page, 'regulated-power-supply').getByTestId(
+                'regulated-power-supply-runtime',
+              );
+              await supply.locator('.workbench-regulated-supply-power-slider').click();
+              await expect(supply).toHaveAttribute('data-output-enabled', 'false');
+              await expect(supply).toHaveAttribute('data-regulation-mode', 'off');
+              await expect(supply.locator('.workbench-regulated-supply-reading')).toHaveText([
+                '5.00 V',
+                '1.000 A',
+              ]);
+              await capture('bench-supply', rotation, 'output-disabled');
+              await supply.locator('.workbench-regulated-supply-power-slider').click();
+              await expect(supply).toHaveAttribute('data-output-enabled', 'true');
+              await focusInstrument('generator');
+              const generator = component(page, 'signal-generator').getByTestId(
+                'signal-generator-runtime',
+              );
+              await generator.locator('.workbench-signal-generator-triangle').click();
+              await expect(generator).toHaveAttribute('data-waveform', 'triangle');
+              await generator.locator('.workbench-signal-generator-power-slider').click();
+              await expect(generator).toHaveAttribute('data-output-enabled', 'false');
+              await expect(
+                generator.locator('.workbench-signal-generator-readings text'),
+              ).toHaveText(['1.00 kHz', '5.00 Vpp', '-0.25 V']);
+              await capture('generator', rotation, 'output-disabled');
+              await generator.locator('.workbench-signal-generator-power-slider').click();
+              await expect(generator).toHaveAttribute('data-output-enabled', 'true');
+              await generator.locator('.workbench-signal-generator-sine').click();
+              await expect(generator).toHaveAttribute('data-waveform', 'sine');
+            }
+            await page
+              .getByRole('button', { name: 'Остановить моделирование', exact: true })
+              .click();
+            await expect(meter.locator('.workbench-multimeter-reading')).toHaveCount(0);
+            await expect(
+              component(page, 'oscilloscope').getByTestId('oscilloscope-runtime'),
+            ).toHaveAttribute('data-display-enabled', 'false');
+            await expect(
+              component(page, 'oscilloscope').locator('.workbench-oscilloscope-status'),
+            ).toHaveText('OFF');
+            await capture('scope', rotation, 'stopped');
+            expected = await assertGeometry(rotation);
+          }
+          await focusInstrument('generator');
+          await part('generator').press('Enter');
+          await page.getByLabel('Частота генератора', { exact: true }).fill('1000000');
+          await page.getByLabel('Амплитуда генератора пик-пик', { exact: true }).fill('10');
+          await page.getByLabel('Постоянное смещение генератора', { exact: true }).fill('-5');
+          await expect(
+            component(page, 'signal-generator').locator(
+              '.workbench-signal-generator-readings text',
+            ),
+          ).toHaveText(['1.00 MHz', '10.00 Vpp', '-5.00 V']);
+          await capture('generator', 270, 'long-supported-setpoint-stopped');
+          const finalLocal = await local();
+          expected = {
+            ...expected,
+            viewport: finalLocal.viewport,
+            components: expected.components.map((item) =>
+              item.id === 'generator'
+                ? {
+                    ...item,
+                    stateProperties: {
+                      ...item.stateProperties,
+                      frequencyHz: 1000000,
+                      amplitudeVpp: 10,
+                      dcOffsetVolt: -5,
+                    },
+                  }
+                : item,
+            ),
+          };
+          checkpoint('intended-final-document', { finalLocal, expected });
+          expect(finalLocal).toEqual(expected);
+          expect(measured.filter((row) => row.state === 'active')).toHaveLength(16);
+          // Save is never interrupted by an expected soft orientation failure.
+          expect(puts).toHaveLength(0);
+          const savedResponse = page.waitForResponse(
+            (response) =>
+              response.request().method() === 'PUT' &&
+              new URL(response.url()).pathname === `/api/projects/${projectId}/draft`,
+          );
+          const save = page.getByRole('button', { name: 'Сохранить проект', exact: true });
+          if (width < 500) await save.tap();
+          else await save.click();
+          const response = await savedResponse;
+          expect(response.status()).toBe(200);
+          const saved = await e01Server(page, projectId);
+          checkpoint('saved', { saved, expected });
+          expect(saved.draft.revision).toBe(3);
+          expect(saved.draft.document).toEqual(expected);
+          expect(puts).toHaveLength(1);
+          expect(puts[0]).toMatchObject({ baseRevision: 2, document: expected });
+          reopenedContext = await browser.newContext({
+            baseURL,
+            viewport: { width, height: 1000 },
+            hasTouch: width < 500,
+          });
+          await reopenedContext.addCookies(await context.cookies());
+          journal['freshOrigins'] = (await reopenedContext.storageState()).origins;
+          write();
+          expect(journal['freshOrigins']).toEqual([]);
+          await installStorageWitness(reopenedContext);
+          const reopened = await reopenedContext.newPage();
+          const reopenedFailures = collectBrowserFailures(reopened, {
+            allowAdminAccessProbe: true,
+          });
+          recordPuts(reopened);
+          const freshGET = reopened.waitForResponse(
+            (response) =>
+              response.request().method() === 'GET' &&
+              new URL(response.url()).pathname === `/api/projects/${projectId}`,
+          );
+          await reopened.goto(`/#/home/${projectId}`);
+          await expect(reopened.getByTestId('schematic-component')).toHaveCount(
+            expected.components.length,
+          );
+          const delivery = await freshGET;
+          expect(delivery.status()).toBe(200);
+          const delivered = (await delivery.json()) as { draft: unknown };
+          checkpoint('reopened-server', {
+            delivered,
+            freshServer: await e01Server(reopened, projectId),
+          });
+          expect(delivered.draft).toEqual(saved.draft);
+          expect((await e01Server(reopened, projectId)).draft).toEqual(saved.draft);
+          await postLoadStorage(reopened, 'reopened-storage');
+          const rendered = await reopened.getByTestId('schematic-component').evaluateAll((nodes) =>
+            nodes.map((node) => ({
+              id: node.getAttribute('data-component-id'),
+              type: node.getAttribute('data-component-type'),
+              transform: node.querySelector('.workbench-part')?.getAttribute('transform'),
+              terminals: [...node.querySelectorAll('[data-terminal-id]')].map((terminal) =>
+                terminal.getAttribute('data-terminal-id'),
+              ),
+            })),
+          );
+          const originalRendered = await page
+            .getByTestId('schematic-component')
+            .evaluateAll((nodes) =>
+              nodes.map((node) => ({
+                id: node.getAttribute('data-component-id'),
+                type: node.getAttribute('data-component-type'),
+                transform: node.querySelector('.workbench-part')?.getAttribute('transform'),
+                terminals: [...node.querySelectorAll('[data-terminal-id]')].map((terminal) =>
+                  terminal.getAttribute('data-terminal-id'),
+                ),
+              })),
+            );
+          checkpoint('rendered-equality', { rendered, originalRendered });
+          expect(rendered).toEqual(originalRendered);
+          expect(rendered.map((item) => item.id)).toEqual(
+            expected.components.map((item) => item.id),
+          );
+          expect(puts).toHaveLength(1);
+          journal['nativeEvents'] = await page.evaluate(
+            () => (window as unknown as { instrument525Events: unknown[] }).instrument525Events,
+          );
+          const nativeEvents = journal['nativeEvents'] as Array<{
+            type: string;
+            trusted: boolean;
+            key?: string;
+            label?: string;
+            componentId?: string;
+          }>;
+          checkpoint('native-action-proof', nativeEvents);
+          expect(
+            nativeEvents.filter(
+              (event) =>
+                event.type === 'click' && event.trusted && event.label === 'Повернуть на 45° (R)',
+            ),
+          ).toHaveLength(6);
+          expect(
+            instrumentIds.every((id) =>
+              nativeEvents.some(
+                (event) =>
+                  event.type === 'keydown' &&
+                  event.trusted &&
+                  event.key === 'Enter' &&
+                  event.componentId === id,
+              ),
+            ),
+          ).toBe(true);
+          expect(
+            nativeEvents.some(
+              (event) =>
+                event.type === 'pointerup' && event.trusted && event.label === 'Сохранить проект',
+            ),
+          ).toBe(true);
+          await page.screenshot({ path: info.outputPath('instrument525-final.png') });
+          await reopened.screenshot({ path: info.outputPath('instrument525-reopened.png') });
+          checkpoint('browser-failures', {
+            original: failures.counts,
+            reopened: reopenedFailures.counts,
+          });
+          failures.assertEmpty();
+          reopenedFailures.assertEmpty();
+          await reopenedContext.close();
+          reopenedContext = undefined;
+          for (const row of measured)
+            for (const reading of row.readings)
+              orientation.push({
+                label: `${row.id}/${row.rotation}/${row.state}/${mirror.name}`,
+                axesError: reading.axesError,
+                centerError: reading.centerError,
+                windowAxesError: reading.windowAxesError,
+                windowMatrixError: reading.windowMatrixError,
+                windowPositionError: reading.windowPositionError,
+              });
+        } catch (error) {
+          journal['primaryError'] =
+            error instanceof Error
+              ? { name: error.name, message: error.message, stack: error.stack }
+              : String(error);
+          write();
+          throw error;
+        } finally {
+          write();
+          for (const target of [reopenedContext, context]) {
+            if (!target) continue;
+            try {
+              await target.close();
+            } catch (error) {
+              rows.push({ name: 'cleanup-error', error: String(error) });
+              write();
+              if (!journal['primaryError']) cleanupError ??= error;
+            }
+          }
+        }
+        if (cleanupError) throw cleanupError;
+        journal['journeyComplete'] = true;
+        checkpoint('complete');
+        for (const reading of orientation) {
+          expect
+            .soft(reading.windowAxesError, `${reading.label} window R*M`)
+            .toBeLessThan(0.000001);
+          expect.soft(reading.axesError, `${reading.label} glyph R`).toBeLessThan(0.000001);
+          expect
+            .soft(reading.windowMatrixError, `${reading.label} declared window affine axes/scale`)
+            .toBeLessThan(0.000001);
+          expect
+            .soft(reading.windowPositionError, `${reading.label} declared window placement`)
+            .toBeLessThan(0.1);
+          expect.soft(reading.centerError, `${reading.label} own window center`).toBeLessThan(0.1);
+        }
+      });
+    }
+  }
+});
+
 test('saving indicator: pending local copy is distinct from actual save and acknowledgement', async ({
   page,
 }) => {
