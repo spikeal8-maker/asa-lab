@@ -15,6 +15,7 @@ const expectedPending = [
   '0233',
   '0234',
   '0235',
+  '0236', // Ollama configuration is additive; no historical message or paid receipt changes.
 ];
 
 interface Identity {
