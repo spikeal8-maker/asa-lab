@@ -8319,6 +8319,96 @@ parallel_lanes:
         remain historical NO_PROVEN_CAUSE; new temporary404 observation has NOT_RUN. Preserve549R2,
         all owner KEEP dependencies and foreign blockers; shared-workflow disjoint exception is not SAFE.
 
+  - id: electronics-instrument-readouts
+    parent_lane: electronics
+    worktree_id: electronics-instrument-readouts-525
+    owned_paths:
+    - docs/product/electronics/tasks/TASK-ELECTRONICS-INSTRUMENT-MIRROR-001.md
+    task:
+      id: TASK-ELECTRONICS-INSTRUMENT-MIRROR-001
+      issue: 525
+      branch: main
+      base_branch: main
+      pr: null
+      pr_draft: false
+      status: in_progress
+      checkpoint: mirror_only_compact_source_feasibility_selected
+      kind: repair
+      owner_acceptance: pending
+      program_issue: 452
+      context_hints:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-INSTRUMENT-MIRROR-001.md
+      - docs/product/electronics/components/ui-assets-persistence.yaml
+      repair_scope: One bounded mirror-only SOURCE FEASIBILITY author under owner programme452. Compact semantically
+        equivalent readout mirror compensation;ordinary rotation policy unchanged. This is not final product composition
+        or technical acceptance.
+      source_budget:
+        production:
+        - apps/web/src/electronics/ProductionComponentVisual.tsx
+        - apps/web/src/electronics/production-asset-contracts.ts
+        optional_meaningful_existing_unit_regression: apps/web/src/electronics/testing/workbench-presentation.spec.ts
+        forbidden: No browser test,coverage hash,workflow,dependency,cap,core/hook/LED,owner artwork or foreign edit;no
+          whole historical file restore.
+      semantic_contract: Preserve ordinary rotation,per-readout own center and window placement,signed actual values/modes,body/terminal/hit/wire
+        geometry,interactive controls and complete document. No always-horizontal digits or all-scene transform workaround.
+        Existing owner rotation decision remains separate.
+      historical_sources:
+        unpublished_docs_only: 45f08340f6da55eb1effad4ca2011df6b1f3154a
+        preserved_candidate: ed4ee96949c5dd5a2fde035e2f7d9e61d5ba88df
+        before_sha: ee7d5eca4388f9404c12b2a23ee6aff8c12c42e7
+        before_run: 37757863776
+        coverage_limit: Historical repo matrix rotation0 with none/X/Y/XY only;not full0/90/180/270 evidence. Preserve
+          historical frozen tests/receipts;this selection does not publish or accept old candidates.
+      feasibility_contract: Source/unit and small Temp estimate only. Meaningful existing presentation tests check mirror
+        compensation equivalence,per-readout centers,signed modes and preserved ordinary rotation/geometry;no runtime/fit/visual
+        claim from these checks. Compose minimal current-main hunks,never restore old whole files.
+      budget_contract: Current exact benchmark217938/218000 leaves62bytes. Prototype+118does not fit. No cap increase
+        or adjacent optimisation. Small Temp source/minifier estimate is provisional,not actual compiled fit;future
+        exact-SHA benchmark<=218000 still required. If no compact equivalent candidate,STOP with budget proof.
+      execution_boundary: One self-reviewed UNPUBLISHED source candidate then STOP;NEW independent source review. Controller
+        separately selects any future verification/test/evidence composition. No automatic main publication,browser/CI
+        run,acceptance,closure or deployment.
+      prior_contract_boundary: Historical old card browser/full-gate prerequisites and immutable freezes remain required
+        for accepted product;only this source/unit feasibility action is explicitly selected by owner programme. Preflight
+        applicable execution blockers0;no blocker bypass. Historical priority-suspended snapshot remains untouched.
+      preservation: Preserve all accepted foreign D2/LED/mobile/selection/wire changes,549TERMINAL_NO_PROVEN_CAUSE,548terminal/dependencies
+        and ownerKEEP544547. No ordinary-rotation product decision or security repair.
+      selection_evidence: docs/product/electronics/evidence/instrument-525-source-feasibility-selection-20261021.md
+      next_action: After canonical acceptance,one new bounded author inspects current source and attempts only compact
+        semantic-equivalent mirror compensation within budget. Source/unit/Temp estimate,self-review,freeze one UNPUBLISHED
+        candidate STOP;NEW source review,then controller decides separate verification. No fit solution means STOP,not
+        capraise/adjacent cleanup.
+    execution_lease:
+      executor_id: electronics-instrument-readouts-525
+      holder: unassigned
+      acquired_at: null
+      expires_at: null
+      reviewer_role_requires_lease: false
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+        - pnpm gate:electronics-m1
+      browser:
+        workflow: Electronics R4-M1 Focused
+        commands:
+        - pnpm gate:electronics-m1:browser
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+        - pnpm gate:repository
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: 6fb941a7ed67d46ec43363bff022ca57fda8c6e0
+      head_sha: null
+      observed_at: '2026-10-21T04:13:11Z'
+      main:
+        branch: main
+        sha: 6fb941a7ed67d46ec43363bff022ca57fda8c6e0
+      observation_note: Dated fetch main6fb snapshot;General39542737204 in_progress,not PASS. Fetch main/recover exact
+        Git/CI/dirty paths before writes. Known shared workflows WAITING_HANDOFF standing disjoint exception only;actual
+        selected/future target overlaps0,not SAFE. Source feasibility only,not runtime/owner acceptance.
+
   - id: electronics-selection
     parent_lane: electronics
     worktree_id: electronics-selection-outline

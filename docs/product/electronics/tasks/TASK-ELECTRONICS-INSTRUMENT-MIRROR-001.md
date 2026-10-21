@@ -12,6 +12,37 @@ review: independent
 
 # Existing instrument readouts remain readable under mirror
 
+## Mirror-only compact SOURCE FEASIBILITY — bounded exception
+
+This top section selects only the source/unit feasibility action under the
+owner's programme452 after canonical current.yaml acceptance. It does not
+waive old built-browser/full-gate product prerequisites or rewrite historical
+freezes. Old unpublished docs45f08340 and candidateed4ee969 are references,
+not accepted current source;compose minimal hunks on fresh main,never old files.
+
+Author only ProductionComponentVisual.tsx and production-asset-contracts.ts;
+meaningful regression in the existing workbench-presentation.spec.ts is allowed.
+Preserve ordinary rotation,each readout's own center/window,signed actual values/
+modes,body/terminals/hit/wire geometry,controls and complete document. No
+always-horizontal policy or ordinary-rotation decision is selected. Historical
+BEFOREee7d5eca/run37757863776 repo matrices cover rotation0 none/X/Y/XY only;
+never report full rotations as measured. Source unit rotation matrices remain
+source evidence,not new built-editor evidence.
+
+Current benchmark217938/218000 leaves62bytes;prototype+118does not fit. Attempt
+compact semantic equivalence with source/unit/small Temp estimate only. No
+actual bundle-fit/runtime/visual acceptance claim from an estimate. Future exact
+benchmark<=218000 and all existing acceptance gates remain required. No browser/
+workflow/dependency/cap/core/hook/LED/assets/foreign changes or adjacent cleanup.
+If no compact equivalent solution exists,STOP with budget proof,no capraise.
+
+One self-reviewed UNPUBLISHED candidate STOP;NEW independent source review then
+controller selects any future verification/evidence phase separately. No automatic
+main publication,CI/runtime acceptance,issue closure or deployment. Preserve
+#549terminal,#548dependencies/ownerKEEP544547 and all historical receipts.
+The [dated feasibility selection receipt](../evidence/instrument-525-source-feasibility-selection-20261021.md)
+records limits only,not a product result.
+
 Program: [#452](https://github.com/spikeal8-maker/asa-lab/issues/452). Bounded repair: [#525](https://github.com/spikeal8-maker/asa-lab/issues/525), one existing requirement of milestone [#466](https://github.com/spikeal8-maker/asa-lab/issues/466). Required hygiene checkpoint [#524](https://github.com/spikeal8-maker/asa-lab/issues/524) is technically accepted on reviewed candidate24ddd, integrated7fea. The canonical Electronics lane selects this concrete card before implementation.
 
 ## One user result
