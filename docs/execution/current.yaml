@@ -101,16 +101,16 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: baseline_sources_approved_atomic_main_upgrade_and_dependency_repairs_selected
+      checkpoint: joint_general_learning_timeout_diagnostic_selected
       owner_acceptance: pending
       change_class: L3_CRITICAL
-      owner_authorization: On 2026-10-19 the owner instructed the controller to split and complete the planned AI Assistant,
-        finish the existing AI branches and integrate their accepted implementation. Continue the existing main foundation
-        and PR623 through bounded authors, independent reviewers and actual tests. The controller continues the dependency
-        sequence after each accepted slice; author/reviewer STOP does not end the requested programme. Preserve concurrent
-        non-AI work, personal Account independence, Seat access without mandatory Account, existing tenant/RLS boundaries
-        and protected data. Ordinary integration and closure of superseded AI drafts follow evidence; no force-push
-        or destructive history/data action.
+      owner_authorization: On 2026-10-19 the owner instructed the controller to split and complete the planned AI
+        Assistant, finish the existing AI branches and integrate their accepted implementation. Continue the existing
+        main foundation and PR623 through bounded authors, independent reviewers and actual tests. The controller
+        continues the dependency sequence after each accepted slice; author/reviewer STOP does not end the requested
+        programme. Preserve concurrent non-AI work, personal Account independence, Seat access without mandatory Account,
+        existing tenant/RLS boundaries and protected data. Ordinary integration and closure of superseded AI drafts
+        follow evidence; no force-push or destructive history/data action.
       context_hints:
       - docs/product/ASA_AI_ASSISTANT_SPEC.md
       - docs/agent/contracts/identity.yaml
@@ -165,8 +165,8 @@ parallel_lanes:
         - AI-TEXT-API-002
         - AI-TEXT-UI-001
         coordination: Implement in an isolated checkout; preserve the text repair and shared Classroom changes during
-          final convergence. Reuse trusted Seat context and existing teacher authority; do not require a personal Account
-          for school access, expose private chats to teachers or redesign tenant/RLS.
+          final convergence. Reuse trusted Seat context and existing teacher authority; do not require a personal
+          Account for school access, expose private chats to teachers or redesign tenant/RLS.
         combined_source_review_sha: 0d5f80b5b933abc142d15b968cbe50ad7e8d2ecd
         combined_source_review: approved
         combined_focused_run: 39424879177
@@ -202,12 +202,12 @@ parallel_lanes:
         exact_head_focused_run: 39424879177
         exact_head_general_run: 39424879338
         combined_gate: four_ai_jobs_passed_two_general_jobs_failed
-        combined_general_result: 'Exact0d5 independently preserves88 protected text/Auth entries from approved2a. All
-          four AI jobs pass: 778 unit/8 explicit real-S3 skips, 71 real PostgreSQL, 44 S3-suite including all8 actual
-          storage cases, 98 browser, uncached types/build. General Governance/Code pass; Data6061PASS/42SKIP/3 Portal5000ms
-          failures at836/875/939; Access prebrowser971PASS/1SKIP and21/22 browser cases pass, with one stale quality
-          context_mismatch409. Old failed candidates remain failed. Full acceptance and main integration require the
-          actual combined General gate, not focused approval alone.'
+        combined_general_result: 'Exact0d5 independently preserves88 protected text/Auth entries from approved2a.
+          All four AI jobs pass: 778 unit/8 explicit real-S3 skips, 71 real PostgreSQL, 44 S3-suite including all8
+          actual storage cases, 98 browser, uncached types/build. General Governance/Code pass; Data6061PASS/42SKIP/3
+          Portal5000ms failures at836/875/939; Access prebrowser971PASS/1SKIP and21/22 browser cases pass, with one
+          stale quality context_mismatch409. Old failed candidates remain failed. Full acceptance and main integration
+          require the actual combined General gate, not focused approval alone.'
         recovery:
           observed_at: '2026-10-20T11:50:00Z'
           convergence_main_sha: 59c2e74b62bbb8ba6f7dd1d5126ab507eabe8d1e
@@ -233,9 +233,10 @@ parallel_lanes:
         - AI-STUDENT-ACCESS-003
         - AI-MODEL-CAPABILITIES-004
         coordination: Preserve accepted interaction and identity fixes. New answer generation uses a new paid operation
-          while replay retains the original request. Search and archive remain scoped to the canonical Account or Seat
-          owner. The combined candidate retains published 003 and 004 ancestry; ordinary integration must verify actual
-          parent inclusion and PR closure. Reuse approved unchanged blobs while requiring the combined exact-SHA gates.
+          while replay retains the original request. Search and archive remain scoped to the canonical Account or
+          Seat owner. The combined candidate retains published 003 and 004 ancestry; ordinary integration must verify
+          actual parent inclusion and PR closure. Reuse approved unchanged blobs while requiring the combined exact-SHA
+          gates.
         previous_candidate_evidence:
           sha: 2a8cca456a10bb6e798cb3c2c772a1a078072496
           tree: 1a1a50509e359ee07ece3c3fc281999b6a05c67a
@@ -277,8 +278,8 @@ parallel_lanes:
           independent_http_and_credential_probes: 10
           previous_finding: closed
           result: Proof cache and pending checks now use the same resolver policy and actual credential as the resolver.
-            Positive Account proof, negative AI Seat proof and a pending legacy initializer cannot cross policies. The
-            original per-session budget key and all numeric limits remain unchanged. HTTP probes use actual compiled
+            Positive Account proof, negative AI Seat proof and a pending legacy initializer cannot cross policies.
+            The original per-session budget key and all numeric limits remain unchanged. HTTP probes use actual compiled
             Fastify hooks and isolated PGlite; final real PostgreSQL and combined CI remain required.
         reserved_migration: migrations/0229_ai_private_attachments.sql
         integration_after:
@@ -303,25 +304,26 @@ parallel_lanes:
         - docs/testing/test-catalog.yaml
         - docs/product/ASA_AI_ASSISTANT_SPEC.md
         migration_convergence: 'Completed in reviewed b1e3eec2: only unpublished attachment0228 renamed to0229; SQL
-          SHA2564af4955624c3b43d35a8141900fa644e7f326bad051d130a78856b2c291f605d unchanged. Published Auth0225 and text0226/0227/0228
-          preserved. Real PostgreSQL applied224 migrations.'
+          SHA2564af4955624c3b43d35a8141900fa644e7f326bad051d130a78856b2c291f605d unchanged. Published Auth0225 and
+          text0226/0227/0228 preserved. Real PostgreSQL applied224 migrations.'
         selection: Prepare an independently reviewed backend boundary for Account and Seat attachments using the existing
           ASA object-storage configuration and a private AI prefix. Validate actual PNG/JPEG/WebP signatures and bounded
-          dimensions, and strictly decode allowlisted UTF-8 text/Markdown/source files without execution. Enforce byte,
-          count and owner storage budgets; retain immutable upload identity, content digest and exact ownership. Add
-          authenticated no-store reads, explicit unsent removal/expiry and recoverable deletion. Unknown storage outcomes
-          must retain their receipt and reservation until reconciled. Atomic message binding must preserve the 005 request/source
-          receipt and reject foreign or reused attachments.
+          dimensions, and strictly decode allowlisted UTF-8 text/Markdown/source files without execution. Enforce
+          byte, count and owner storage budgets; retain immutable upload identity, content digest and exact ownership.
+          Add authenticated no-store reads, explicit unsent removal/expiry and recoverable deletion. Unknown storage
+          outcomes must retain their receipt and reservation until reconciled. Atomic message binding must preserve
+          the 005 request/source receipt and reject foreign or reused attachments.
         coordination: The controller explicitly assigned the isolated author on the frozen published 005 dependency
-          after its independent approval. This permits bounded implementation; integration still requires accepted dependencies.
-          Use a dedicated AI streaming content type so existing Blocks parsers and ACL stay intact. Preserve every global
-          mutation budget and window; the exact AI mutation routes must use an existing-only Seat resolver even after
-          the shared IP budget saturates, never legacy initialization. Do not edit AiChatPage, provider adapters, the
-          005 package/lock changes, old migrations, existing Blocks formats, Compose, ports or live storage. PDF parsing
-          and the visible send/Vision integration follow separately; do not advertise unsupported formats or an incomplete
-          upload capability. After independent approval of the isolated guard repair, the controller resumes this same
-          selected author slice from its preserved WIP using an ordinary guard merge. Finish controller/guard, storage
-          uncertainty, expiry/deletion and real CI PostgreSQL/MinIO probes before freezing.
+          after its independent approval. This permits bounded implementation; integration still requires accepted
+          dependencies. Use a dedicated AI streaming content type so existing Blocks parsers and ACL stay intact.
+          Preserve every global mutation budget and window; the exact AI mutation routes must use an existing-only
+          Seat resolver even after the shared IP budget saturates, never legacy initialization. Do not edit AiChatPage,
+          provider adapters, the 005 package/lock changes, old migrations, existing Blocks formats, Compose, ports
+          or live storage. PDF parsing and the visible send/Vision integration follow separately; do not advertise
+          unsupported formats or an incomplete upload capability. After independent approval of the isolated guard
+          repair, the controller resumes this same selected author slice from its preserved WIP using an ordinary
+          guard merge. Finish controller/guard, storage uncertainty, expiry/deletion and real CI PostgreSQL/MinIO
+          probes before freezing.
         acceptance: Require bounded byte/signature/encoding and uncertain-storage tests, real PostgreSQL runtime-role
           ownership/quota/binding races, the existing AI regressions and independent L3 review of the exact source.
           Register necessary focused CI commands through the controller. No paid provider call or working-installation
@@ -358,13 +360,13 @@ parallel_lanes:
         - .github/workflows/ai-chat-focused.yml
         integration_candidate: AI-TEXT-COMPLETE-005
         selection: Register the existing abuse-protection and account-verification guard suites in the same test:ai-chat
-          command used locally and by focused CI. Add the exact shared guard and app.factory trigger/format paths, retain
-          the current identity build dependency and all existing suites and gates. Verify test collection and unchanged
-          budgets without product edits. Preserve the 005 mathematical-rendering dependencies and the separately accepted
-          009 launcher scripts during final package convergence.
+          command used locally and by focused CI. Add the exact shared guard and app.factory trigger/format paths,
+          retain the current identity build dependency and all existing suites and gates. Verify test collection and
+          unchanged budgets without product edits. Preserve the 005 mathematical-rendering dependencies and the separately
+          accepted 009 launcher scripts during final package convergence.
         acceptance: Require an independent exact-source tooling review and actual complete AI unit execution; final
-          combined CI must execute these regressions. Private attachment storage CI is registered separately when its
-          frozen test entrypoints exist. No workflow guard or semantic contract is weakened.
+          combined CI must execute these regressions. Private attachment storage CI is registered separately when
+          its frozen test entrypoints exist. No workflow guard or semantic contract is weakened.
         candidate_sha: 0d5f80b5b933abc142d15b968cbe50ad7e8d2ecd
         independent_review: approved
         exact_head_focused_run: 39424879177
@@ -381,16 +383,16 @@ parallel_lanes:
           command, retaining every existing identity/text suite and mathematical-rendering dependency. Extend exact
           workflow triggers and formatting coverage for apps/api/src/ai-attachments and tests/ai-attachments. Preserve
           the real PostgreSQL job and its ai-*.pg.spec.ts selection, which must execute all 23 frozen attachment ownership/quota/binding
-          cases after convergence. Add a mandatory real S3 job with ASA_AI_ATTACHMENTS_STORAGE_TEST=1 and only the fixture's
-          exact synthetic loopback settings. Build existing pinned infra/minio/Dockerfile, start tests/ai-attachments/minio-fixture.mjs,
+          cases after convergence. Add a mandatory real S3 job with ASA_AI_ATTACHMENTS_STORAGE_TEST=1 and only the
+          fixture's exact synthetic loopback settings. Build existing pinned infra/minio/Dockerfile, start tests/ai-attachments/minio-fixture.mjs,
           run all eight real storage cases with pure guards, and stop the verified owned fixture in always-run cleanup.
           Missing or invalid explicit configuration must fail.
         coordination: Tooling-only work uses frozen entrypoints. Do not alter foundation product/tests, shared workflows,
-          Compose, pinned Dockerfiles, ports, credentials, guard semantics, budgets, assertions or test timeouts. Preserve
-          general launcher009 and identity companion010. Assign an isolated author and independent exact-source review.
-          No working- installation or paid provider operation is part of this selection.
-        acceptance: 'Require workflow/package formatting, retained test collection and independent tooling review. Final
-          combined exact SHA must pass all four AI jobs: unit/types, browser, real PostgreSQL and real S3. Explicit
+          Compose, pinned Dockerfiles, ports, credentials, guard semantics, budgets, assertions or test timeouts.
+          Preserve general launcher009 and identity companion010. Assign an isolated author and independent exact-source
+          review. No working- installation or paid provider operation is part of this selection.
+        acceptance: 'Require workflow/package formatting, retained test collection and independent tooling review.
+          Final combined exact SHA must pass all four AI jobs: unit/types, browser, real PostgreSQL and real S3. Explicit
           S3 skips in ordinary unit runs are not live storage evidence. Accepted text dependencies and normal General
           remain required before integration.'
         candidate_sha: 0d5f80b5b933abc142d15b968cbe50ad7e8d2ecd
@@ -398,35 +400,36 @@ parallel_lanes:
         exact_head_focused_run: 39424879177
         exact_head_general_run: 39424879338
         actual_result: Four required AI jobs SUCCESS on0d5. Unit778PASS/8 explicit S3 skips; browser98PASS, PostgreSQL71PASS,
-          S344PASS including8 actual cases/no skips. Normal General and accepted text dependencies remain required before
-          integration.
+          S344PASS including8 actual cases/no skips. Normal General and accepted text dependencies remain required
+          before integration.
       - id: AI-INTEGRATION-MIGRATION-PREFIX-015
-        status: selected
+        status: source_and_actual_upgrade_passed_final_general_blocked
+        frozen_author_sha: 85f0f62e1e557100a81abd4c5cd03ba42c5e1a3e
+        frozen_author_tree: 9cf4874aeb8a8e9acbb1fddfe429cdb8a0aaf3aa
+        source_blob: b9b9291964cf6a7d887121c81f89131e8dcd8cb4
+        independent_source_review: L3 SOURCE_APPROVED; one exact test file, all other source entries preserved.
         classification: B
         change_class: L3_CRITICAL
         owner_area: ai-programme-migration-integration
         base_sha: 901551291788d95d104ac2993a167032e99df232
         selected_scope:
         - tests/migration/ai-main-prefix-upgrade.pg.spec.ts
-        selection: >-
-          Add one meaningful real PostgreSQL regression for the last supported installed prefix through 0225 upgrading
-          atomically to all nine AI 0226-0229, Courses 0230-0232, Portal 0233 and Public Projects 0234 migrations.
-          Historical main migration-frontier snapshot 13ab3635587a201bc2cc78e88b9a9f66fce72102 already contained
-          published 0234 source while 0226-0233 were absent; this recorded source state is not an installed database
-          receipt. Reuse existing isolated test database
-          creation, cluster-wide role coordination helper and strict applyPlan; preserve every published SQL blob
-          including 0234, runner, existing suites and budgets. Seed existing Account/Seat, AI history/quota, Course and
-          Project data through actual old contracts, then prove preservation, appropriate new defaults/ownership and
-          behavior, exact old/new migration ledger/checksum values, and second-apply zero. Keep earlier 152/210 upgrade
-          controls. Assert that unsupported applied 0234 with missing 0226-0233, applied 0233 with missing lower
-          migrations, and Courses-first histories reject before SQL; do not weaken the guard. Separate candidate tests
-          and owner merge permission do not constitute this joint upgrade evidence.
-        acceptance: >-
-          Bounded author in a clean isolated checkout, static format/type/collection checks, NEW independent L3 source
-          review. No local PostgreSQL/Docker/browser. Actual new case must execute in normal General Data on final
-          source, with existing RLS/Portal/Access, all four AI jobs, Learning focused/browser, applicable credential and
-          Public Projects gates. Full final source and actual independent review remain mandatory. No deployment or
-          working DB changes.
+        selection: Add one meaningful real PostgreSQL regression for the last supported installed prefix through 0225
+          upgrading atomically to all nine AI 0226-0229, Courses 0230-0232, Portal 0233 and Public Projects 0234 migrations.
+          Historical main migration-frontier snapshot 13ab3635587a201bc2cc78e88b9a9f66fce72102 already contained published
+          0234 source while 0226-0233 were absent; this recorded source state is not an installed database receipt.
+          Reuse existing isolated test database creation, cluster-wide role coordination helper and strict applyPlan;
+          preserve every published SQL blob including 0234, runner, existing suites and budgets. Seed existing Account/Seat,
+          AI history/quota, Course and Project data through actual old contracts, then prove preservation, appropriate
+          new defaults/ownership and behavior, exact old/new migration ledger/checksum values, and second-apply zero.
+          Keep earlier 152/210 upgrade controls. Assert that unsupported applied 0234 with missing 0226-0233, applied
+          0233 with missing lower migrations, and Courses-first histories reject before SQL; do not weaken the guard.
+          Separate candidate tests and owner merge permission do not constitute this joint upgrade evidence.
+        acceptance: Bounded author in a clean isolated checkout, static format/type/collection checks, NEW independent
+          L3 source review. No local PostgreSQL/Docker/browser. Actual new case must execute in normal General Data
+          on final source, with existing RLS/Portal/Access, all four AI jobs, Learning focused/browser, applicable
+          credential and Public Projects gates. Full final source and actual independent review remain mandatory.
+          No deployment or working DB changes.
       integration_dependencies:
       - id: AI-BASELINE-LEARNING-006
         status: technical_accepted
@@ -454,9 +457,9 @@ parallel_lanes:
           fixtures, workflow, retries, timeouts, rate limits or authorization to obtain a passing result.'
         coordination: The Projects controller separately owns Learning workflow batch isolation and Auth audit coverage.
           Preserve those authors and paths; this selection changes only the three existing browser specs above.
-        acceptance: Require independent exact-source review and the unchanged complete Learning E1 workflow on the new
-          SHA, including its real PostgreSQL and browser journeys. Record any unrelated failure by its actual cause;
-          this test companion does not accept the Learning programme.
+        acceptance: Require independent exact-source review and the unchanged complete Learning E1 workflow on the
+          new SHA, including its real PostgreSQL and browser journeys. Record any unrelated failure by its actual
+          cause; this test companion does not accept the Learning programme.
       - id: AI-BASELINE-SEAT-CONSTRUCTOR-007
         status: technical_accepted
         source_pr: 626
@@ -470,18 +473,18 @@ parallel_lanes:
         required_migration: migrations/0224_classroom_new_seat_learner_identity.sql
         classification: B
         cause: Independent review of the original 003 candidate reproduced canonical new-Seat creation, credentials,
-          successful sign-in/session and teacher AI allow, while the stable principal remained absent. The current AI
-          reader correctly refuses missing identity, so the first chat depends on an unrelated materializing path until
-          the canonical constructor is integrated.
+          successful sign-in/session and teacher AI allow, while the stable principal remained absent. The current
+          AI reader correctly refuses missing identity, so the first chat depends on an unrelated materializing path
+          until the canonical constructor is integrated.
         coordination: The Games programme integrated the INSERT-only constructor correction in PR626 after its exact-candidate
           general gate passed. Adopt that accepted baseline for the complete 003 first-chat verification. Do not copy
           its mutable draft or initialize/repair historical identity from an AI read, sign-in retry or automatic session
-          refresh. This dependency blocks technical acceptance of the complete 003 first school-entry journey, not unrelated
-          model work or isolated candidate verification of 005. Keep any AI-triggered refresh/identity side effect as
-          a separate bounded 003 repair finding when confirmed.
-        acceptance: Require the accepted constructor SHA and a real canonical new-Seat to first-chat HTTP journey without
-          optional analytics. Recheck historical missing identity, revoked sessions, no Account fallback and zero identity
-          writes from AI reads across the complete browser/API request chain.
+          refresh. This dependency blocks technical acceptance of the complete 003 first school-entry journey, not
+          unrelated model work or isolated candidate verification of 005. Keep any AI-triggered refresh/identity side
+          effect as a separate bounded 003 repair finding when confirmed.
+        acceptance: Require the accepted constructor SHA and a real canonical new-Seat to first-chat HTTP journey
+          without optional analytics. Recheck historical missing identity, revoked sessions, no Account fallback and
+          zero identity writes from AI reads across the complete browser/API request chain.
       - id: AI-BASELINE-GENERAL-009
         status: technical_accepted
         classification: C
@@ -513,12 +516,12 @@ parallel_lanes:
           classified_repair: B
           failure_job: 118094021775
           cause: Adding the summary JSON path inside the existing required artifact step changes its exact semantic
-            contract. General fails its Compose validation before PostgreSQL tests. Display names are ignored and are
-            not the cause. Offline independent A/B proves the added path.
+            contract. General fails its Compose validation before PostgreSQL tests. Display names are ignored and
+            are not the cause. Offline independent A/B proves the added path.
           selected_repair: Restore the original six artifact paths exactly and upload the new summary in a separate
             additive always-run step with 14-day retention and a distinct artifact name. Preserve launcher behavior,
-            all tests, the existing validator and its immutable transport contract. Require new independent repair review
-            and actual final-SHA General success.
+            all tests, the existing validator and its immutable transport contract. Require new independent repair
+            review and actual final-SHA General success.
         owner_area: shared-test-tooling-and-account-settings
         evidence_runs:
         - 39241612253
@@ -535,17 +538,18 @@ parallel_lanes:
         - .github/workflows/spec-validation.yml
         cause: Unchanged Access tests share a 900 mutations per IP five-minute window; the final complete NAT admission
           case can inherit prior consumption and fail with too_many_requests. The independent settings fixture supplies
-          non-UUID Seat/class identities, so strict telemetry quality validation rejects its background report and the
-          fallback records a business write.
-        selection: Select a separate bounded test-tooling repair. Run the complete unchanged NAT admission case in a
-          fresh ordinary Playwright/API invocation while preserving the other cases, failure status and distinct evidence.
-          Keep all production rates, windows, credentials, case assertions and retries. Give the synthetic settings
-          Seat coherent valid UUIDs and retain strict telemetry validation and the empty business-mutation assertion.
-          Assign the fixture repair and common launcher repair as separate author turns; preserve explicit caller CLI
-          overrides such as the profile workflow. No product or authentication behavior is part of these baseline repairs.
-        acceptance: Require independent exact-source review, unchanged complete case names, real browser runs and General
-          success. Do not silently repair this C baseline inside the 003, 004 or 005 product candidate. Accepted Learning
-          006 and the earlier classroom-owner UUID fixture remain intact.
+          non-UUID Seat/class identities, so strict telemetry quality validation rejects its background report and
+          the fallback records a business write.
+        selection: Select a separate bounded test-tooling repair. Run the complete unchanged NAT admission case in
+          a fresh ordinary Playwright/API invocation while preserving the other cases, failure status and distinct
+          evidence. Keep all production rates, windows, credentials, case assertions and retries. Give the synthetic
+          settings Seat coherent valid UUIDs and retain strict telemetry validation and the empty business-mutation
+          assertion. Assign the fixture repair and common launcher repair as separate author turns; preserve explicit
+          caller CLI overrides such as the profile workflow. No product or authentication behavior is part of these
+          baseline repairs.
+        acceptance: Require independent exact-source review, unchanged complete case names, real browser runs and
+          General success. Do not silently repair this C baseline inside the 003, 004 or 005 product candidate. Accepted
+          Learning 006 and the earlier classroom-owner UUID fixture remain intact.
       - id: PORTAL-PARTICIPANTS-PG-TIMING-DIAG-001
         status: existing_followup_measured_separate_read_jit_baseline_selected
         classification: C
@@ -584,8 +588,8 @@ parallel_lanes:
           source_sha: b9300284b0735b078a333889ca9d934bdc50d563
           status: source_and_actual_diagnostic_approved
           mode: one_disposable_supported_branch_trigger_existing_source_no_edits
-          hypothesis: Existing f8 timing shows almost all delay inside roster calls with late completion; compare jit
-            on/off/on/off on one populated readonly snapshot with identical result hashes
+          hypothesis: Existing f8 timing shows almost all delay inside roster calls with late completion; compare
+            jit on/off/on/off on one populated readonly snapshot with identical result hashes
           scope: 'Reuse already authored Learning probe: unchanged full Data gate populates synthetic fixtures, then12
             readonly samples and6 sanitized EXPLAIN; preserve the original General result'
           boundary: Distinct directed follow-up, not completion of original two-case Portal card. No new Portal author,
@@ -605,8 +609,9 @@ parallel_lanes:
           portal_passed: 18
           portal_suite_ms: 9339
           postgres_version: '17.7'
-          actual_probe: 12 on/off/on/off samples and6 sanitized EXPLAIN on one populated restricted-role readonly repeatable-read
-            snapshot; stable snapshot/time, equal per-function hashes, verified owned-container/network cleanup.
+          actual_probe: 12 on/off/on/off samples and6 sanitized EXPLAIN on one populated restricted-role readonly
+            repeatable-read snapshot; stable snapshot/time, equal per-function hashes, verified owned-container/network
+            cleanup.
           measured_ms:
             roster:
               'on':
@@ -631,12 +636,12 @@ parallel_lanes:
               - 36.61
           actual_review: Independent APPROVE_DIAGNOSTIC_ACTUAL; root read the same original saved log, SHA25634fbfc248e392d3f55a848e673b403c014e3dfbfa9a47835224ed36e6b65357a.
             No duplicate download or rerun.
-          interpretation_boundary: Repeated JIT-setting latency effect is established for these fixtures and outer query
-            boundaries. Historical5000ms timeouts were NOT reproduced, nested compilation was not instrumented, and
-            the sole/sufficient cause of older1.1-1.8s roster calls is not proved. This is not AI0d5 acceptance, original
-            Portal-card completion, a global-JIT change or a product repair approval.
+          interpretation_boundary: Repeated JIT-setting latency effect is established for these fixtures and outer
+            query boundaries. Historical5000ms timeouts were NOT reproduced, nested compilation was not instrumented,
+            and the sole/sufficient cause of older1.1-1.8s roster calls is not proved. This is not AI0d5 acceptance,
+            original Portal-card completion, a global-JIT change or a product repair approval.
       - id: AI-BASELINE-QUALITY-CONTEXT-012
-        status: independent_source_approved_actual_general_pending
+        status: actual_baseline_accepted_final_joint_pending
         classification: C
         owner_area: observability-client-telemetry
         related_issue: 551
@@ -670,20 +675,21 @@ parallel_lanes:
           call api.switchWorkspace: synchronously pause and cancel only telemetry transports before its existing POST,
           retain the barrier until a fresh canonical api.me observation started after the mutation finishes, and reject
           stale callbacks/old renders. Preserve pending ordinary envelopes and immutable IDs. Resume the same queue
-          without generation churn for a confirmed unchanged actor; retire only a confirmed old-context queue with truthful
-          local coverage evidence when the actor changes. Never relabel old events as the new owner. The product mutation
-          and its existing return/error semantics must not wait for telemetry flush or telemetry success. A refused
-          or uncertain switch whose caller does not re-read identity may start at most one bounded background readonly
-          GET /api/auth/me with native transport, no credential refresh or retry loop; product completion never waits
-          for it. A failed proof leaves telemetry paused truthfully until a later valid canonical observation.'
+          without generation churn for a confirmed unchanged actor; retire only a confirmed old-context queue with
+          truthful local coverage evidence when the actor changes. Never relabel old events as the new owner. The
+          product mutation and its existing return/error semantics must not wait for telemetry flush or telemetry
+          success. A refused or uncertain switch whose caller does not re-read identity may start at most one bounded
+          background readonly GET /api/auth/me with native transport, no credential refresh or retry loop; product
+          completion never waits for it. A failed proof leaves telemetry paused truthfully until a later valid canonical
+          observation.'
         coordination: This is a separate AI integration baseline dependency, not an expansion of AI text or storage
           source and not a new Observability programme. Existing OBS017 is completed and admin-auth has no selected
           implementation slice. Fresh checks found no direct telemetry-file writer in51 open PRs; api.ts has unrelated
-          published Learning/Projects changes, so limit its hunks to the telemetry import, canonical me freshness boundary
-          and switchWorkspace wrapper, verify those exact hunks before edits and preserve all other methods. Do not
-          change App/PortalHeader/AccountPage, server authorization/context_mismatch, identity, migrations, workflows,
-          global budgets, provider behavior or Portal timing tests. Use an isolated main-based checkout and a separate
-          source PR; no force-push or foreign-branch edits.
+          published Learning/Projects changes, so limit its hunks to the telemetry import, canonical me freshness
+          boundary and switchWorkspace wrapper, verify those exact hunks before edits and preserve all other methods.
+          Do not change App/PortalHeader/AccountPage, server authorization/context_mismatch, identity, migrations,
+          workflows, global budgets, provider behavior or Portal timing tests. Use an isolated main-based checkout
+          and a separate source PR; no force-push or foreign-branch edits.
         acceptance: Require a deterministic regression for the observed pending quality retry during the POST-to-me
           gap; stale pre-mutation me, overlapping switches, failed/lost switch response, unchanged/new actor, logout/Seat
           boundaries and late transport outcomes. Verify no telemetry request of the old workspace starts under the
@@ -691,9 +697,9 @@ parallel_lanes:
           remain intact, and existing server409 and strict browser failure collector remain unchanged. Run the complete
           affected telemetry suites, formatter and Web typecheck without cache. NEW independent L3 review of the exact
           source is mandatory. Then require unchanged full Access A browser journeys and normal General on the final
-          composition; actual AI gates and accepted text/files remain required before AI integration. No timeout, allowlist,
-          retry or assertion weakening, no live installation/DB/paid provider operation. Freeze one source commit and
-          report; controller handles publication/composition after review.
+          composition; actual AI gates and accepted text/files remain required before AI integration. No timeout,
+          allowlist, retry or assertion weakening, no live installation/DB/paid provider operation. Freeze one source
+          commit and report; controller handles publication/composition after review.
         frozen_author_sha: 46a9d37fc27ddf0651af4cc60cc6f0cc248c86ae
         frozen_author_tree: a2ea34da07f1036f6bf94d3687ddf00b670156a3
         author_checks: 362/362 affected cases in11 suites, uncached Web typecheck plus5 prerequisites, selected format/eslint
@@ -702,12 +708,12 @@ parallel_lanes:
           absolute-deadline and retained OBS-002 confirmation probes. Published59d72 has the same complete reviewed
           tree. Source approval does not replace full actual Access and General acceptance.
         review_repair_scope: Add only the minimal analytics-runtime.ts product-confirmation subscription change needed
-          to receive and retain the original absolute observation deadline and schedule its remaining time after a temporary
-          workspace barrier. Do not create a new12s observation window when replaying a valid deferred signal. Preserve
-          the existing distinct12s freshActor identity-proof bound, normal session-refresh semantics, authentication/logout/Seat
-          guards and all other runtime behavior. Author may adjust only already-selected regression files to prove expiry,
-          delayed timers, stopped-queue recovery and unchanged healthy-queue continuity. This path addition is a prospective
-          remedy for independent F2, not an expansion into another programme.
+          to receive and retain the original absolute observation deadline and schedule its remaining time after a
+          temporary workspace barrier. Do not create a new12s observation window when replaying a valid deferred signal.
+          Preserve the existing distinct12s freshActor identity-proof bound, normal session-refresh semantics, authentication/logout/Seat
+          guards and all other runtime behavior. Author may adjust only already-selected regression files to prove
+          expiry, delayed timers, stopped-queue recovery and unchanged healthy-queue continuity. This path addition
+          is a prospective remedy for independent F2, not an expansion into another programme.
         historical_rejected_author_sha: 90115e3407fe0bf68659ea0409464ff9bd831af1
         historical_rejected_author_tree: 1393f94f39878bdf3588df4508da78ead811a84f
         published_source_sha: 59d72d3489028ec062f2ce6550cacc2f25462632
@@ -715,10 +721,10 @@ parallel_lanes:
           including delayed-timer schedules; P2 temporary workspace barrier must retain independent successful OBS-002
           product-auth recovery until fresh matching identity proof, without replaying finally rejected401 envelopes
           or resetting healthy queues. Bounded repair extends the original11-file selection by only apps/web/src/analytics-runtime.ts
-          for the absolute recovery-observation deadline contract; unpublished bounded repair and new independent exact-source
-          review required.'
+          for the absolute recovery-observation deadline contract; unpublished bounded repair and new independent
+          exact-source review required.'
       - id: AI-BASELINE-PORTAL-READ-JIT-013
-        status: independent_source_approved_actual_general_pending
+        status: actual_baseline_accepted_final_joint_pending
         classification: C
         change_class: L3_CRITICAL
         owner_area: portal-participant-reads
@@ -732,35 +738,33 @@ parallel_lanes:
         - tests/portal/classroom-participants.pg.spec.ts
         - tests/migration/course-structure-forward-upgrade.pg.spec.ts
         evidence: Independently approved exactb930 run39460146794/Data118760410362 shows repeatable5.93x roster and2.73x
-          profile on/off mean ratios with identical hashes and buffer counts. FullData5415/34 and Portal18 passed; historicaltimeouts
-          were not reproduced. Select a bounded latency-sensitivity remedy, not a claim that every historical timeout
-          cause is closed.
+          profile on/off mean ratios with identical hashes and buffer counts. FullData5415/34 and Portal18 passed;
+          historicaltimeouts were not reproduced. Select a bounded latency-sensitivity remedy, not a claim that every
+          historical timeout cause is closed.
         selection: One new forward migration may ONLY add function-local jit=off to public.classroom_participant_roster(uuid,uuid)
           and public.classroom_participant_profile(uuid,uuid,uuid), the two measured authorized Portal query boundaries.
           Use ALTER FUNCTION so bodies, signatures, owner, grants, SECURITY DEFINER, volatility, search_path, timezone
           and all stored data remain unchanged. Do not modify historical migrations, the inner metrics function, Learning
           teacher reader, other functions, any global/session/database default or dependencies.
-        regressions: Append bounded cases to the existing Portal PG suite that verify function-local settings and preserved
-          security/search-path contracts, authorized unchanged results under a transaction with caller jit=on/off, and
-          restoration of the caller setting after the read. Use existing isolated synthetic fixtures and restricted
-          runtime role; retain all original awaited operations, assertions, order and5000ms test budgets. Existing foreign-account/Seat/class
-          authorization coverage stays mandatory. No diagnostic instrumentation, retries, cancellation, timeout increases
-          or assertion weakening.
-        migration_coordination: >-
-          Historical main migration-frontier snapshot 13ab3635587a201bc2cc78e88b9a9f66fce72102 records the owner-authorized
-          early source merge of Public Projects PR #613 and published 0234_public_projects.sql; 0226-0233 were absent.
-          The last supported installed
-          prefix for this upgrade is through 0225, not a statement of the actual installed database state, which was not
-          checked. Complete the reviewed source union with AI 0226-0229, Courses 0230-0232 and Portal 0233 while
-          preserving all current main changes and published SQL including 0234, after a fresh frontier check before
-          composition. The owner explicitly authorizes selected Learning PR #657 and separate credential PR #653
-          integration; their sources remain separately reviewed inputs. The final supported upgrade must apply all nine
-          0226-0234 together from prefix 0225. Unsupported applied 0234-only, 0233-only or Courses-first histories must
-          reject before SQL under the unchanged strict runner. The existing 0234 source merge is not deployment or
-          release acceptance and does not prove whether any installed database has applied it. No runner bypass, SQL
-          rename, renumber, rollback or retroactive support for partial applied histories. Require joint real PostgreSQL
-          upgrade and final exact-SHA AI/Learning/applicable credential/Public Projects/full General evidence; this
-          coordination is not an implementation or acceptance receipt.
+        regressions: Append bounded cases to the existing Portal PG suite that verify function-local settings and
+          preserved security/search-path contracts, authorized unchanged results under a transaction with caller jit=on/off,
+          and restoration of the caller setting after the read. Use existing isolated synthetic fixtures and restricted
+          runtime role; retain all original awaited operations, assertions, order and5000ms test budgets. Existing
+          foreign-account/Seat/class authorization coverage stays mandatory. No diagnostic instrumentation, retries,
+          cancellation, timeout increases or assertion weakening.
+        migration_coordination: 'Historical main migration-frontier snapshot 13ab3635587a201bc2cc78e88b9a9f66fce72102
+          records the owner-authorized early source merge of Public Projects PR #613 and published 0234_public_projects.sql;
+          0226-0233 were absent. The last supported installed prefix for this upgrade is through 0225, not a statement
+          of the actual installed database state, which was not checked. Complete the reviewed source union with AI
+          0226-0229, Courses 0230-0232 and Portal 0233 while preserving all current main changes and published SQL
+          including 0234, after a fresh frontier check before composition. The owner explicitly authorizes selected
+          Learning PR #657 and separate credential PR #653 integration; their sources remain separately reviewed inputs.
+          The final supported upgrade must apply all nine 0226-0234 together from prefix 0225. Unsupported applied
+          0234-only, 0233-only or Courses-first histories must reject before SQL under the unchanged strict runner.
+          The existing 0234 source merge is not deployment or release acceptance and does not prove whether any installed
+          database has applied it. No runner bypass, SQL rename, renumber, rollback or retroactive support for partial
+          applied histories. Require joint real PostgreSQL upgrade and final exact-SHA AI/Learning/applicable credential/Public
+          Projects/full General evidence; this coordination is not an implementation or acceptance receipt.'
         ownership_coordination: This is a new separately selected AI integration baseline dependency under the owner-authorized
           programme and direct_main policy, not an expansion of AI text/storage source. The existing Portal diagnostic
           owner/card and original two-case task remain unchanged. No current overlapping writer was found in53 allowed
@@ -779,7 +783,7 @@ parallel_lanes:
         independent_source_review: 'L3 SOURCE_APPROVED: exactly two ALTER FUNCTION local settings, original18 Portal
           cases unchanged as a byte prefix, two additive metadata/result/caller-setting cases. Actual PG remains pending.'
       - id: AI-BASELINE-REDIRECT-DEPENDENCY-016
-        status: selected
+        status: actual_baseline_accepted_final_joint_pending
         classification: C
         change_class: L2_HIGH
         owner_area: shared-dependency-security
@@ -798,11 +802,11 @@ parallel_lanes:
           and lock graph unchanged. No audit allowlist, severity change, CI edit, synthetic PASS or product implementation
           change. Preserve AI script additions during later controller composition.
         acceptance: Separate bounded author and NEW independent exact-source dependency review. Verify locked version/integrity,
-          frozen installation and unchanged real security:dependencies gate against the registry; registry failure is
-          BLOCKED, not PASS. Existing General and final AI gates remain required. Publish a separate reviewed source
+          frozen installation and unchanged real security:dependencies gate against the registry; registry failure
+          is BLOCKED, not PASS. Existing General and final AI gates remain required. Publish a separate reviewed source
           and compose into the baseline validation candidate before atomic main integration.
       - id: AI-BASELINE-VITE-DEPENDENCY-018
-        status: selected
+        status: actual_baseline_accepted_final_joint_pending
         classification: C
         change_class: L2_HIGH
         owner_area: shared-dependency-security
@@ -818,22 +822,22 @@ parallel_lanes:
           passed; Data and Access skipped. This is a separate current shared-dependency blocker.
         selection: Verify official advisory and registry integrity for minimal patched vite6.4.4. Update the existing
           exact devDependency pin with pnpm9.15.9 and only its necessary lock version/integrity references. An extra
-          override is unnecessary for the single existing Vite resolution. Retain dependency016,
-          every unrelated package version, source, script and security gate. No major-version upgrade, allowlist,
-          audit-severity change, product or workflow edits. Check competing package/lock writers before edits.
+          override is unnecessary for the single existing Vite resolution. Retain dependency016, every unrelated package
+          version, source, script and security gate. No major-version upgrade, allowlist, audit-severity change, product
+          or workflow edits. Check competing package/lock writers before edits.
         coordination: Reuse the Vite6.4.4 fix intent from frozen Dependabot PR669 headcf13b014; do not import its
           unrelated Rollup/native/nanoid/picomatch upgrades or modify that PR. A separate minimal source is selected
           for the AI baseline; all current source scripts and graph outside the Vite resolution remain unchanged.
           Fresh checks found no dirty package/lock in eight local checkouts; the direct automated source overlap is
-          explicitly accounted for here. The disputed017 migration proposal is NOT selected by this amendment;
-          preserve the existing canonical migration strategy and coordinate with PR670 before migration authoring.
+          explicitly accounted for here. The disputed017 migration proposal is NOT selected by this amendment; preserve
+          the existing canonical migration strategy and coordinate with PR670 before migration authoring.
         acceptance: Separate bounded author and NEW independent source dependency review; verify official integrity,
           locked graph, frozen install and necessary static compatibility. Local audit/private dependency metadata
-          egress is not authorized by this selection and must not bypass the prior automatic-review rejection.
-          The unchanged normal General security gate on the new published baseline and final SHA supplies actual
-          audit acceptance. All normal product, PostgreSQL and browser gates remain mandatory.
+          egress is not authorized by this selection and must not bypass the prior automatic-review rejection. The
+          unchanged normal General security gate on the new published baseline and final SHA supplies actual audit
+          acceptance. All normal product, PostgreSQL and browser gates remain mandatory.
       - id: AI-BASELINE-PROJECTS-NAV-ORACLE-019
-        status: selected
+        status: actual_baseline_accepted_final_joint_pending
         classification: C
         change_class: L1_UI_BEHAVIOR
         owner_area: classroom-profile-header-test
@@ -845,26 +849,61 @@ parallel_lanes:
         evidence_job: 118918490086
         cause: Full baseline General passed Governance, Code and Data/RLS, including security high0 and Portal20/20,
           but two Access journeys failed the same header assertion at line361. The Projects link expected /#/gallery
-          at line354 while accepted Public Projects navigation returns /#/explore. The test and PortalHeader are
-          unchanged against accepted main9f, outside the selected Quality, Portal and dependency source changes.
-        selection: Change only the two Projects expected href literals from /#/gallery to /#/explore in the same
-          assertLayout helper, lines354 and373. The second assertion addresses the identical named navigation and
-          was not reached after the first failure. Keep both independent assertions; do not refactor their arrays.
-          Preserve every other byte, the seven header controls, three named destinations, layout/order,56px header,
-          44px targets, all viewports and journeys, assertions and5000ms timeout. No runtime, route, workflow,
-          security, SQL, dependency or broad Classroom change and no weakening of the existing checks.
+          at line354 while accepted Public Projects navigation returns /#/explore. The test and PortalHeader are unchanged
+          against accepted main9f, outside the selected Quality, Portal and dependency source changes.
+        selection: Change only the two Projects expected href literals from /#/gallery to /#/explore in the same assertLayout
+          helper, lines354 and373. The second assertion addresses the identical named navigation and was not reached
+          after the first failure. Keep both independent assertions; do not refactor their arrays. Preserve every
+          other byte, the seven header controls, three named destinations, layout/order,56px header, 44px targets,
+          all viewports and journeys, assertions and5000ms timeout. No runtime, route, workflow, security, SQL, dependency
+          or broad Classroom change and no weakening of the existing checks.
         coordination: Fresh audit of54 allowed open PRs found only historical draft605 headb98015db touching this
           file; its source predates this expectedLinks assertion. Eight local worktrees have no dirty target path.
           Preserve Classroom task589, historical605 and resolved AUTH-HEADER-COMPATIBILITY-001 context unchanged.
-          Controller selects one bounded author and a different independent source reviewer for this two-literal
-          repair. This neither reopens broad Classroom work nor closes605 or589.
-        acceptance: Freeze one source commit after focused diff, formatting and route-contract checks; no local
-          browser, PostgreSQL, Docker, providers or audit. Require NEW independent exact-source approval, then
-          compose into baseline668 and run the unchanged full normal General on the new exact SHA. All Access
-          journeys and subsequent settings checks must execute successfully. NEW independent actual baseline
-          acceptance remains required before final joint composition; prior e46FAIL is not changed into PASS.
-          Preserve the canonical atomic225-to-all226-234 strategy and all final AI/Learning/credential/Public
-          Projects gates. No standalone baseline merge, installation, deployment or working database action.
+          Controller selects one bounded author and a different independent source reviewer for this two-literal repair.
+          This neither reopens broad Classroom work nor closes605 or589.
+        acceptance: Freeze one source commit after focused diff, formatting and route-contract checks; no local browser,
+          PostgreSQL, Docker, providers or audit. Require NEW independent exact-source approval, then compose into
+          baseline668 and run the unchanged full normal General on the new exact SHA. All Access journeys and subsequent
+          settings checks must execute successfully. NEW independent actual baseline acceptance remains required before
+          final joint composition; prior e46FAIL is not changed into PASS. Preserve the canonical atomic225-to-all226-234
+          strategy and all final AI/Learning/credential/Public Projects gates. No standalone baseline merge, installation,
+          deployment or working database action.
+      - id: AI-BASELINE-LEARNING-TIMEOUT-020
+        status: selected_bounded_causality_diagnostic
+        issue: 179
+        owner_area: learning-general-integration-diagnostics
+        base_sha: bd67b2c590e3de39a04c2018e388493ef2142361
+        author: new_bounded_test_observability_author
+        independent_reviewer: separate_exact_source_reviewer
+        controller: chatgpt-ai-programme-controller
+        scope:
+        - tests/courses/learning-direct-project-attempts.pg.spec.ts
+        classification: UNCLASSIFIED_LEARNING_TIMEOUT; pre-existing C candidate, not proved A/B or infrastructure
+          D
+        evidence: General39514270437/Data118946147576 soleFAIL60017ms; baseline d8 samecasePASS4780ms; exactbd67 Classroom118942538002
+          samecasePASS4852ms. Historical main16c General39373841387/Data118469039956 recorded same60000ms failure
+          in issue211 comment6284525869. Sources unchanged; last awaited operation and root cause remain unknown.
+        hypothesis: Eight repeated Teacher Home reads use account-wide canonical evidence and gradebook metadata over
+          shared-suite fixtures. Earlier same-suite evidence queries are active without blocking PIDs; heavy admin-log
+          export overlaps the failed window. Need distinguish expensive executing SQL, DB blockers and pool acquisition.
+          JIT is a hypothesis only; no SQL/config change is selected.
+        selection: 'One test-only observability change: apply the existing timing probe to the failing Teacher Home
+          lifecycle, mark setup/start/submit/review and all eight attention reads, collect bounded snapshots near3.5/30/55s,
+          clean timers, include app pool total/idle/waiting and sanitized operation labels for teacher-account evidence/gradebook
+          metadata. Preserve every original assertion, await order, fixture, suite lock,60000ms budget and other cases.'
+        preservation: No product/runtime/SQL/migration/JIT/pool-size/parallelism/workflow/dependency change; no retries,
+          timeout/tolerance increase, assertion weakening, raw SQL/parameters/credentials in diagnostics, local PostgreSQL/Docker/browser/audit,
+          deployment or paid provider request. Preserve all historical FAILs and existing exact-source approvals.
+        acceptance: Publish this separate canonical selection first. One bounded author freezes one test-only diff
+          after relevant static checks; NEW independent source review is required. Root alone composes the approved
+          diagnostic and preserved current main into a new ordinary descendant of PR655, then observes normal exact-source
+          full General and all seven required workflows/19jobs. The new Data execution must answer the stated stage/SQL-wait/pool
+          hypothesis; a passing run is not a proved root-cause fix. Any remaining failure requires its actual evidence
+          and a separately selected next action, never a blind rerun.
+        boundary: This separate Learning dependency is not an expansion of AI product code. Existing joint225-to-all226-234
+          strategy, source boundaries and full final acceptance remain mandatory. No main product integration while
+          required General fails.
       dependency_sequence:
       - text_convergence_and_focused_ci
       - teacher_controlled_student_admission
@@ -896,6 +935,7 @@ parallel_lanes:
       latest_owner_instruction: '2026-10-20: continue after chat interruption; owner explicitly expects accepted implementation
         in main.'
       combined_candidate:
+        status: historical_superseded_by_selected_joint_composition
         sha: 0d5f80b5b933abc142d15b968cbe50ad7e8d2ecd
         tree: d0df07a18f2bef728276b9861bd65a61874c7514
         pr: 655
@@ -920,68 +960,131 @@ parallel_lanes:
           data: failure
         main_integration: blocked_actual_general
         owner_acceptance: pending
-      baseline_integration_strategy: >-
-        Keep Quality012, Portal013 and dependency016 separately selected, authored and independently reviewed; retain
-        their required gates and acceptance. PR #668 remains a baseline validation/dependency candidate only and must
-        not merge into main or be installed independently. Require the baseline validation candidate's repaired full
-        General and NEW independent actual acceptance BEFORE its accepted sources are composed into the final joint
-        candidate. Source-only or probe approval does not satisfy that prerequisite. The owner on 2026-10-20 approved
-        the existing Courses design and ordinary main integration of PR #657 plus separate credential PR #653. Historical
-        main migration-frontier snapshot 13ab3635587a201bc2cc78e88b9a9f66fce72102 already included the separately
-        owner-authorized early Public Projects source merge and published 0234 while 0226-0233 were absent. Preserve that
-        published main source history;
-        its merge message records no database action/deployment and no release acceptance, not an observed
-        installed-state assertion. Coordinate the accepted exact inputs with the AI candidate through ordinary ancestry
-        into ONE reviewed complete source tree for the last supported installed prefix through 0225 to upgrade
-        atomically through all nine AI 0226-0229, Courses 0230-0232, Portal 0233 and Public Projects 0234 migrations.
-        The actual installed database prefix is not verified here. Unsupported applied 0234 with missing 0226-0233,
-        applied 0233 with missing lower migrations, and Courses-first histories must reject before SQL; the unchanged
-        strict runner rejects later insertion below the applied frontier. Preserve every exact published SQL blob
-        including 0234, current main and foreign source boundaries; no rename, renumber, rollback, backfill, runner
-        bypass or force-push. Require final independent source and actual acceptance, full General including Data/RLS
-        and Access, all four AI jobs, Learning focused/browser gates, applicable credential and Public Projects gates,
-        and the selected real PostgreSQL 225-to-complete226-234 upgrade with existing data, exact ledgers/checksums and
-        second-apply zero. Earlier source/probe approvals remain inputs, not acceptance of the joint tree. No production
-        deployment or database action is authorized by this integration plan.
+      baseline_validation_actual:
+        status: accepted_for_final_joint_composition_only
+        pr: 668
+        head_sha: d8b17230fce7cd1f5eccab8781f36d9d5143e8db
+        tree_sha: c8c9f90cd549afae7f7089b927373af669c3bc11
+        general_run: 39510001650
+        general_attempt: 1
+        general_conclusion: success
+        completed_at: '2026-10-20T23:08:23Z'
+        independent_actual_review: ACTUAL_BASELINE_APPROVE
+        independent_receipt_sha256: fc915728a0af2ea0ccb1fcdbfb5dfe565799f30179a0fa4cfd818c66fd9f74a9
+        actual_results: All four General jobs SUCCESS. Observability570/570; unchanged CI security inventory763 critical0/high0/
+          moderate6. Full Data5575PASS/34 existing skips; Portal20/20, workspace telemetry13/13, historical course
+          upgrade1/1 and separate RLS16/16. Access backend999PASS/1 existing skip, launcher7/7, real journeys22/22
+          including both repaired Classroom profiles and NAT, then settings/layout418/418. NX cache disabled.
+        boundary: Baseline validation only; never a standalone main merge or installation. Historical e46 GeneralFAIL
+          and auxiliary d8 Learning39510001694FAIL remain failed. The latter stale revision+1 assertion is already
+          corrected in both selected657 and653 inputs; final joint Learning evidence is still mandatory.
+      joint_candidate_inputs:
+        status: source_approved_final_general_failed_separate_diagnostic_selected
+        target_pr: 655
+        preserved_previous_ai_head: 6366aa166181787da9d8cf775628724f993ff913
+        current_main: 39cd72afdd0291763eb18772f5d4dda9bd07623b
+        latest_text: a42a32f3f5fbe131d9a849ec00cf303cdedd86f4
+        upgrade_regression015: 85f0f62e1e557100a81abd4c5cd03ba42c5e1a3e
+        accepted_baseline: d8b17230fce7cd1f5eccab8781f36d9d5143e8db
+        courses657: 6a557ae64aef5a38d979f44052d7ba58734acf96
+        credential653: f0a3e95f5c5b804943eec0e8218d0a1113e99b8c
+        composition: Ordinary ancestry preserves all accepted sources and current foreign main. Only the two historical
+          migration expectation arrays require manual union; retain every226-234 entry in order and all152/191/210
+          assertions. Preserve exact SQL blobs and strict runner, all13 latest text/key/model files, approved015 regression,
+          Quality/Portal/019 and the AI, credential and Public Projects script union.
+        acceptance: Require one final exact SHA with independent source and actual approval, full General including
+          real old-data225-to-all226-234 upgrade, all four AI jobs, Learning, Account Confirmation, Classroom Owner,
+          Portable Delivery and Public Projects. Earlier input successes do not accept this composition. Installed
+          database prefix remains unverified; no deployment, working DB or paid provider action.
+      baseline_integration_strategy: 'Keep Quality012, Portal013 and dependency016 separately selected, authored and
+        independently reviewed; retain their required gates and acceptance. PR #668 remains a baseline validation/dependency
+        candidate only and must not merge into main or be installed independently. Require the baseline validation
+        candidate''s repaired full General and NEW independent actual acceptance BEFORE its accepted sources are composed
+        into the final joint candidate. Source-only or probe approval does not satisfy that prerequisite. The owner
+        on 2026-10-20 approved the existing Courses design and ordinary main integration of PR #657 plus separate
+        credential PR #653. Historical main migration-frontier snapshot 13ab3635587a201bc2cc78e88b9a9f66fce72102 already
+        included the separately owner-authorized early Public Projects source merge and published 0234 while 0226-0233
+        were absent. Preserve that published main source history; its merge message records no database action/deployment
+        and no release acceptance, not an observed installed-state assertion. Coordinate the accepted exact inputs
+        with the AI candidate through ordinary ancestry into ONE reviewed complete source tree for the last supported
+        installed prefix through 0225 to upgrade atomically through all nine AI 0226-0229, Courses 0230-0232, Portal
+        0233 and Public Projects 0234 migrations. The actual installed database prefix is not verified here. Unsupported
+        applied 0234 with missing 0226-0233, applied 0233 with missing lower migrations, and Courses-first histories
+        must reject before SQL; the unchanged strict runner rejects later insertion below the applied frontier. Preserve
+        every exact published SQL blob including 0234, current main and foreign source boundaries; no rename, renumber,
+        rollback, backfill, runner bypass or force-push. Require final independent source and actual acceptance, full
+        General including Data/RLS and Access, all four AI jobs, Learning focused/browser gates, applicable credential
+        and Public Projects gates, and the selected real PostgreSQL 225-to-complete226-234 upgrade with existing data,
+        exact ledgers/checksums and second-apply zero. Earlier source/probe approvals remain inputs, not acceptance
+        of the joint tree. No production deployment or database action is authorized by this integration plan.'
       migration_integration_repair:
-        finding: R1 strict validator rejects applied baseline612ec69 with233 but missing226-229; initial critical approval
-          was superseded by REQUEST_CHANGES.
+        finding: R1 strict validator rejects applied baseline612ec69 with233 but missing226-229; initial critical
+          approval was superseded by REQUEST_CHANGES.
         reviewed_local_candidate_sha: 901551291788d95d104ac2993a167032e99df232
         reviewed_local_candidate_tree: 67bfb707ebcfe75e2300512d3c2dbb3dcd0bd3ae
         preserved_source_review: Exact source union and cross-module semantics approved; no product or SQL blob defect
           identified.
-        selected_resolution: >-
-          Preserve the early source publication of Public Projects 0234 recorded in historical main snapshot 13ab and
-          complete the accepted source union.
-          The supported installed upgrade is atomic from prefix through 0225 to all nine AI 0226-0229, Courses
-          0230-0232, Portal 0233 and Public Projects 0234 migrations, preserving all published SQL bytes. No source
-          history erasure, runner waiver, renumber, rollback or claim about the actual installed prefix.
-        supported_history_checks: >-
-          Real isolated PostgreSQL prefix 225 with existing Account/Seat, AI, Course and Project data to the
-          complete226-234 union; verify preservation, exact ledgers/checksums, new behavior and second-apply zero.
-          Retain 152/210 upgrade regressions. Unsupported applied234-only, applied233-only and Courses-first histories
-          must reject before SQL; prior partial-candidate evidence and the existing234 source merge are not joint
-          installed acceptance.
+        selected_resolution: Preserve the early source publication of Public Projects 0234 recorded in historical
+          main snapshot 13ab and complete the accepted source union. The supported installed upgrade is atomic from
+          prefix through 0225 to all nine AI 0226-0229, Courses 0230-0232, Portal 0233 and Public Projects 0234 migrations,
+          preserving all published SQL bytes. No source history erasure, runner waiver, renumber, rollback or claim
+          about the actual installed prefix.
+        supported_history_checks: Real isolated PostgreSQL prefix 225 with existing Account/Seat, AI, Course and Project
+          data to the complete226-234 union; verify preservation, exact ledgers/checksums, new behavior and second-apply
+          zero. Retain 152/210 upgrade regressions. Unsupported applied234-only, applied233-only and Courses-first
+          histories must reject before SQL; prior partial-candidate evidence and the existing234 source merge are
+          not joint installed acceptance.
         baseline_candidate_pr: 668
         baseline_candidate_sha: 612ec69cd6e8fd15cc8ba391a6cf227f0425bd70
         baseline_general_run: 39482264093
         baseline_general_conclusion: failure
-        baseline_general_boundary: Governance passed; Code failed existing follow-redirects1.16.0 dependency audit after570/570
-          Observability cases. Data and Access skipped, not accepted.
+        baseline_general_boundary: Governance passed; Code failed existing follow-redirects1.16.0 dependency audit
+          after570/570 Observability cases. Data and Access skipped, not accepted.
+      joint_candidate_actual:
+        status: blocked_general_data_failure
+        pr: 655
+        head_sha: bd67b2c590e3de39a04c2018e388493ef2142361
+        tree_sha: 1b8721fc00fbf7fbc5f51e468b048fe82dadb4da
+        source_review: SOURCE_COMPOSITION_APPROVE
+        source_receipt_sha256: 99f5d9e0f2a55c81dc493364e5e166807feeca93e123fc470700234542e120fe
+        ai_run: 39514270314
+        ai_conclusion: success
+        ai_actual_review: APPROVE
+        ai_receipt_sha256: a094f85541db43870938224d7432851a831dc5c2cad89f21d89ad2b0c4f093ed
+        ai_results: 841unitPASS/8explicitS3skips;116browserPASS;71realPGPASS;44S3suitePASS including8realcases;types/build/formatPASS.
+          Browser uses controlled API fixtures, no live provider.
+        general_run: 39514270437
+        general_data_job: 118946147576
+        general_data_conclusion: failure
+        general_actual_review: REQUEST_CHANGES
+        general_receipt_sha256: 853f74f99f91d6b8f18881ef967106798b7559ef44386eafa73561fd52c99966
+        general_results: Governance/CodeSUCCESS;fullVitest6503PASS/42SKIP/1FAIL. Only Teacher Home lifecycle at learning-direct-project-attempts.pg.spec.ts:1249
+          timed out60017ms against60000ms. Separate RLS not reached. Access final acceptance remains pending.
+        upgrade015_actual: All4PASS:3pre-SQL negative cases and real0225-to-all226-234 existing-data upgrade. Exact
+          old/new ledgers/checksums and repeated apply0 passed; no SQL/runner change.
+        other_workflows: Account39514270367,Classroom39514270344,Portable39514270338,PublicProjects39514270416 and
+          Learning39514270339 SUCCESS on exactbd67, all11jobs. Learning executed30+15browser cases. Independent dependency
+          actual PASS; General failure remains unchanged.
+        main_integration: blocked
+        deployment: not_run
+        live_provider_verification: not_run
+        dependency_actual_review: PASS
+        dependency_receipt_sha256: e955a5e3bcdcbf32153044cd6cb243f88b7c7603fa01c5a887b96913461b5f2f
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: a4b8ceb216af174d431d4b6b7dfb963dceee035b
+      convergence_baseline_sha: 5999dfb7dd1b0b25c8f7a3900b639a6596cf3cb2
       head_sha: null
-      observed_at: '2026-10-20T19:31:04Z'
+      observed_at: '2026-10-21T01:06:57Z'
       main:
         branch: main
-        sha: a4b8ceb216af174d431d4b6b7dfb963dceee035b
-      observation_note: Fresh main a4b8ceb2 has only foreign electronics/docs changes after4b272, preserved outside
-        this AI lane. Quality and Portal sources independently approved, actual General remains failed at unchanged
-        dependency audit. Select separate016 dependency repair and015 real supported-prefix upgrade regression. Correct
-        the integration topology before main cutover; no standalone233-only baseline acceptance, final AI publication,
-        deployment, working DB action or paid-provider verification is claimed. Fresh fetch main is required before
-        writes and integration.
+        sha: 5999dfb7dd1b0b25c8f7a3900b639a6596cf3cb2
+      observation_note: Fresh recovery snapshot verified main5999 and unchanged PR655 headbd67 after interrupted metadata
+        publication. Main advanced with separately owned Electronics documents and its outline browser test; all foreign
+        bytes are preserved. Exact source, AI actual and five dependency workflow reviews approved; real upgrade015
+        all4PASS; General Data remainsFAIL at one Teacher Home60s deadline. Select only separately reviewed bounded
+        Learning timing diagnostic020, retaining every gate and failure. Product merge remains blocked until final
+        required exact-SHA evidence and independent actual review. No deployment, working DB or paid provider action.
+        Fresh fetch main before further writes and integration.
     execution_lease:
       executor_id: chatgpt-ai-programme-controller
       holder: unassigned
@@ -1001,6 +1104,7 @@ parallel_lanes:
         workflow: ASA Lab Governance and Code Gates
         commands:
         - pnpm gate:repository
+
   - id: student-game-admission
     parent_lane: games
     worktree_id: student-games-access-scope-618
