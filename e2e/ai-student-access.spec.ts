@@ -483,6 +483,17 @@ for (const lostResponse of [false, true]) {
     await page.setViewportSize({ width: 390, height: 900 });
     const fixture = await classroomFixture(page, 1, { classroomTitle, sidebar: 'collapsed' });
     await page.unroute('**/*');
+    const diagnostics: Array<{ path: string; method: string; body: Record<string, unknown> }> = [];
+    // A client diagnostic is an accepted telemetry receipt, not a classroom mutation.
+    await page.route('**/api/diagnostics/client', async (route) => {
+      const request = route.request();
+      diagnostics.push({
+        path: new URL(request.url()).pathname,
+        method: request.method(),
+        body: request.postDataJSON() ?? {},
+      });
+      return route.fulfill({ status: 202, json: { accepted: true } });
+    });
     const saved = teacherAccess(4);
     const writes: Record<string, unknown>[] = [];
     let reads = 0;
@@ -562,22 +573,38 @@ for (const lostResponse of [false, true]) {
     await access.getByLabel('Правило класса').selectOption('allow');
     const readsBeforeReload = reads;
     await page.reload();
-    const reloaded = await openTeacherSettings(page);
+    // Prove the browser created a new document, not just SPA navigation.
+    expect(
+      await page.evaluate(
+        () => (performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming)?.type,
+      ),
+    ).toBe('reload');
+    await expect(page.getByRole('heading', { name: classroomTitle, exact: true })).toBeVisible();
+    // Reopen the classroom Settings on this reloaded document; do not navigate again.
+    const section = page.getByRole('combobox', { name: 'Раздел класса' });
+    if (await section.isVisible()) await section.selectOption('settings');
+    else
+      await page
+        .getByRole('navigation', { name: 'Разделы класса' })
+        .getByRole('button', { name: 'Настройки', exact: true })
+        .click();
+    const reloaded = page.locator('.classroom-ai-access');
     await expect.poll(() => reads).toBeGreaterThan(readsBeforeReload);
     await expect(reloaded.getByLabel('Правило класса')).toHaveValue('rating');
     await expect(reloaded.getByLabel('Минимальный рейтинг')).toHaveValue('83');
     expect(writes).toHaveLength(lostResponse ? 3 : 2);
     if (lostResponse) {
-      // A deliberately aborted response must emit one and only one client diagnostic.
-      // It is not a teacher/class mutation and must not be silently ignored.
-      expect(fixture.mutations).toHaveLength(1);
-      expect(fixture.mutations[0]).toMatchObject({
+      // Verify one accepted client diagnostic, separate from classroom mutations.
+      expect(diagnostics).toHaveLength(1);
+      expect(diagnostics[0]).toMatchObject({
         path: '/api/diagnostics/client',
+        method: 'POST',
         body: { code: 'request_failed', module: 'portal', phase: 'request' },
       });
     } else {
-      expect(fixture.mutations).toEqual([]);
+      expect(diagnostics).toEqual([]);
     }
+    expect(fixture.mutations).toEqual([]);
     expect(fixture.errors).toEqual([]);
     await noOverflow(page);
   });
