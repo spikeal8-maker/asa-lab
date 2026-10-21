@@ -1,3 +1,15 @@
+---
+task_id: TASK-ELECTRONICS-ARDUINO-PSU-WIRE-LAYER-001
+kind: repair
+risk: medium
+semantic_change: 'yes'
+roadmap_slice: null
+prerequisites:
+  - Direct owner request for Arduino Uno and regulated power-supply wire visibility
+acceptance_boundary: slice
+review: independent
+---
+
 # Arduino Uno and power-supply wire visibility
 
 Current task/status/checkpoint are canonical in `docs/execution/current.yaml`.
