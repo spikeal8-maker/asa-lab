@@ -229,13 +229,17 @@ describe('what the canvas is allowed to move', () => {
   });
 
   it('limits mouse and touch contact capture to the painted contact and wire endpoint dots', () => {
-    // Effective CSS terminal stroke is 1.2 units (last cascade rule). The
-    // selected wire endpoint retains its 2-unit stroke. Breadboard squares
-    // have a larger visible outline but the shared target must not exceed it.
+    // Idle/selected terminals use a 1.2-unit stroke; the more-specific
+    // wiring-hover CSS widens the stroke to 2. A shared hit radius must fit
+    // inside BOTH states, not treat the wider hover marker as an idle halo.
+    // Breadboard contact squares likewise paint out to 5 units.
     const terminalPaintEdge = TERMINAL_MARKER_SIZE / 2 + 1.2 / 2;
+    const wiringHoverPaintEdge = TERMINAL_MARKER_SIZE / 2 + 2 / 2;
     const wireEndpointPaintEdge = WIRE_ENDPOINT_VISIBLE_RADIUS + 2 / 2;
     expect(terminalPaintEdge).toBe(4.6);
+    expect(wiringHoverPaintEdge).toBe(5);
     expect(wireEndpointPaintEdge).toBe(5);
+    expect(TERMINAL_HIT_RADIUS).toBeLessThanOrEqual(wiringHoverPaintEdge);
     expect(TERMINAL_HIT_RADIUS).toBe(terminalPaintEdge);
     expect(TERMINAL_TOUCH_HIT_RADIUS).toBe(terminalPaintEdge);
     expect(WIRE_ENDPOINT_HIT_RADIUS).toBe(wireEndpointPaintEdge);

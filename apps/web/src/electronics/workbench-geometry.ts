@@ -30,11 +30,11 @@ export const WIRE_ASSIST_ENTER_ANGLE_DEG = 3;
 export const WIRE_ASSIST_EXIT_ANGLE_DEG = 5;
 
 export const TERMINAL_MARKER_SIZE = 8;
-// The rendered terminal dots have a final 1.2-unit CSS stroke (including
-// selected and wiring states), so their painted edge is 4 + 0.6 = 4.6.
-// Breadboard squares may have a thicker outline; this conservative radius still
-// stays within their painted region. Match touch to mouse to avoid an invisible
-// capture halo on a phone.
+// Idle/selected terminal dots use the effective 1.2-unit CSS stroke, with
+// painted edge 4 + 0.6 = 4.6. Wiring-hover's more-specific rule widens the
+// stroke to 2 (painted edge 5). Use the smaller edge for both states so the
+// target never extends beyond what is drawn. Breadboard squares likewise
+// paint at least this much. Match touch to mouse to prevent invisible halos.
 export const TERMINAL_HIT_RADIUS = TERMINAL_MARKER_SIZE / 2 + 0.6;
 export const TERMINAL_TOUCH_HIT_RADIUS = TERMINAL_HIT_RADIUS;
 export const WIRE_ENDPOINT_VISIBLE_RADIUS = 4;
