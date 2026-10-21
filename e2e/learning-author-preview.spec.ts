@@ -2347,6 +2347,7 @@ test('document Course Builder preserves the lesson, real save acknowledgements a
         overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
       }));
     }
+    let nativeFailure: { error: unknown } | undefined;
     try {
       await nativePage.goto('/#/challenges');
       await nativePage
@@ -2478,8 +2479,11 @@ test('document Course Builder preserves the lesson, real save acknowledgements a
         fields,
         reset,
       };
+    } catch (error) {
+      nativeFailure = { error };
+      throw error;
     } finally {
-      await native.close();
+      await native.close(nativeFailure);
     }
   })();
   expect(browserErrors).toEqual([]);

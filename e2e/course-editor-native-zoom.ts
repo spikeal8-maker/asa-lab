@@ -21,6 +21,52 @@ export async function openCourseNativeZoom(sourcePage: Page, evidence: string) {
   const ownedDirectory = await mkdtemp(path.join(tmpdir(), 'asa-course-native-zoom-'));
   const extension = path.join(ownedDirectory, 'extension');
   let context: BrowserContext | undefined;
+  let tracingStarted = false;
+  let zoomMayBeChanged = false;
+  let resetZoom: (() => Promise<{ factor: number }>) | undefined;
+  async function close(failure?: { error: unknown }): Promise<void> {
+    const errors: unknown[] = [];
+    async function attempt(stage: string, action: () => Promise<unknown>): Promise<void> {
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      try {
+        await Promise.race([
+          Promise.resolve().then(action),
+          new Promise<never>((_resolve, reject) => {
+            timer = setTimeout(
+              () => reject(new Error(`Native zoom cleanup ${stage} timed out after 5000ms.`)),
+              5000,
+            );
+          }),
+        ]);
+      } catch (error) {
+        errors.push(error);
+      } finally {
+        if (timer !== undefined) clearTimeout(timer);
+      }
+    }
+    if (zoomMayBeChanged && resetZoom) {
+      const reset = resetZoom;
+      await attempt('reset', async () => {
+        const readback = await reset();
+        if (readback.factor !== 1) throw new Error('Native zoom reset did not read back factor 1.');
+      });
+    }
+    const ownedContext = context;
+    if (ownedContext) {
+      if (tracingStarted)
+        await attempt('trace', () =>
+          ownedContext.tracing.stop({ path: path.join(evidence, 'native-zoom-trace.zip') }),
+        );
+      await attempt('context close', () => ownedContext.close());
+    }
+    await attempt('owned profile removal', () =>
+      rm(ownedDirectory, { recursive: true, force: true }),
+    );
+    // Even a thrown undefined is a failure. Cleanup cannot replace the original
+    // assertion, while cleanup failures on an otherwise successful run must fail.
+    if (failure) throw failure.error;
+    if (errors.length) throw new AggregateError(errors, 'Native zoom cleanup failed.');
+  }
   try {
     await mkdir(extension);
     await writeFile(
@@ -56,6 +102,7 @@ export async function openCourseNativeZoom(sourcePage: Page, evidence: string) {
       ],
     });
     await context.tracing.start({ screenshots: true, snapshots: true });
+    tracingStarted = true;
     // Copy only the run-created author's cookies in memory; no storage-state file.
     await context.addCookies(await sourcePage.context().cookies());
     const worker = context.serviceWorkers()[0] ?? (await context.waitForEvent('serviceworker'));
@@ -67,45 +114,33 @@ export async function openCourseNativeZoom(sourcePage: Page, evidence: string) {
     const page =
       context.pages().find((candidate) => candidate !== control) ?? (await context.newPage());
     await page.bringToFront();
-    const ownedContext = context;
-    return {
-      page,
-      async setZoom(factor: 1 | 2) {
-        return control.evaluate(
-          async ({ url, factor }) => {
-            const tabs = (globalThis as unknown as { chrome: { tabs: NativeTabs } }).chrome.tabs;
-            const matches = (await tabs.query({})).filter((tab) => tab.url === url);
-            if (matches.length !== 1 || matches[0]!.id === undefined)
-              throw new Error('Expected one exact Course Editor tab for native zoom.');
-            const tabId = matches[0]!.id;
-            await tabs.setZoomSettings(tabId, { mode: 'automatic', scope: 'per-tab' });
-            await tabs.setZoom(tabId, factor);
-            return {
-              factor: await tabs.getZoom(tabId),
-              settings: await tabs.getZoomSettings(tabId),
-            };
-          },
-          { url: page.url(), factor },
-        );
-      },
-      async close() {
-        try {
-          await ownedContext.tracing.stop({ path: path.join(evidence, 'native-zoom-trace.zip') });
-        } finally {
-          try {
-            await ownedContext.close();
-          } finally {
-            await rm(ownedDirectory, { recursive: true, force: true });
-          }
-        }
-      },
-    };
-  } catch (error) {
-    try {
-      await context?.close();
-    } finally {
-      await rm(ownedDirectory, { recursive: true, force: true });
+    async function setZoom(factor: 1 | 2) {
+      // A rejected evaluation may already have changed the tab. Require a
+      // confirmed reset before skipping the cleanup attempt.
+      if (factor === 2) zoomMayBeChanged = true;
+      const result = await control.evaluate(
+        async ({ url, factor }) => {
+          const tabs = (globalThis as unknown as { chrome: { tabs: NativeTabs } }).chrome.tabs;
+          const matches = (await tabs.query({})).filter((tab) => tab.url === url);
+          if (matches.length !== 1 || matches[0]!.id === undefined)
+            throw new Error('Expected one exact Course Editor tab for native zoom.');
+          const tabId = matches[0]!.id;
+          await tabs.setZoomSettings(tabId, { mode: 'automatic', scope: 'per-tab' });
+          await tabs.setZoom(tabId, factor);
+          return {
+            factor: await tabs.getZoom(tabId),
+            settings: await tabs.getZoomSettings(tabId),
+          };
+        },
+        { url: page.url(), factor },
+      );
+      if (factor === 1 && result.factor === 1) zoomMayBeChanged = false;
+      return result;
     }
+    resetZoom = () => setZoom(1);
+    return { page, setZoom, close };
+  } catch (error) {
+    await close({ error });
     throw error;
   }
 }
