@@ -10,6 +10,16 @@ async function adminFixture(page: Page, initial = aiAdminFixture()) {
   let config = structuredClone(initial);
   const writes: Record<string, unknown>[] = [];
   const paidTests: unknown[] = [];
+  const ollamaWrites: Record<string, unknown>[] = [];
+  const ollamaDiscoveries: Record<string, unknown>[] = [];
+  const ollamaTests: Record<string, unknown>[] = [];
+  let ollama = {
+    enabled: false,
+    baseUrl: 'http://127.0.0.1:11434',
+    model: 'gemma4:12b',
+    revision: 1,
+    updatedAt: null as string | null,
+  };
   const pageErrors: string[] = [];
   page.on('pageerror', (error) => pageErrors.push(error.message));
   await page.route('**/api/**', async (route) => {
@@ -66,6 +76,52 @@ async function adminFixture(page: Page, initial = aiAdminFixture()) {
     if (path === '/api/auth/max/config')
       return route.fulfill({ json: { enabled: false, launchUrl: null } });
     if (path === '/api/class-join/me') return route.fulfill({ json: { authenticated: false } });
+    if (path === '/api/admin/v1/ai/ollama/models') {
+      ollamaDiscoveries.push(request.postDataJSON() as Record<string, unknown>);
+      return route.fulfill({
+        json: {
+          models: [
+            { name: 'ornith:9b', size: 7_654_321 },
+            { name: 'gemma4:12b', size: 8_765_432 },
+          ],
+        },
+      });
+    }
+    if (path === '/api/admin/v1/ai/ollama/test') {
+      const input = request.postDataJSON() as Record<string, unknown>;
+      ollamaTests.push(input);
+      if (input['revision'] !== ollama.revision)
+        return route.fulfill({
+          status: 409,
+          json: {
+            error: { code: 'ai_ollama_config_changed', message: 'Настройки Ollama изменились.' },
+          },
+        });
+      return route.fulfill({
+        json: { model: ollama.model, elapsedMs: 6560, testedAt: NOW, revision: ollama.revision },
+      });
+    }
+    if (path === '/api/admin/v1/ai/ollama') {
+      if (request.method() === 'PUT') {
+        const input = request.postDataJSON() as Record<string, unknown>;
+        ollamaWrites.push(input);
+        if (input['revision'] !== ollama.revision)
+          return route.fulfill({
+            status: 409,
+            json: {
+              error: { code: 'ai_ollama_config_changed', message: 'Настройки Ollama изменились.' },
+            },
+          });
+        ollama = {
+          enabled: input['enabled'] === true,
+          baseUrl: String(input['baseUrl']),
+          model: String(input['model']),
+          revision: ollama.revision + 1,
+          updatedAt: NOW,
+        };
+      }
+      return route.fulfill({ json: ollama });
+    }
     if (path === '/api/admin/v1/ai/test') {
       paidTests.push(request.postDataJSON());
       return route.fulfill({
@@ -140,6 +196,10 @@ async function adminFixture(page: Page, initial = aiAdminFixture()) {
   return {
     writes,
     paidTests,
+    ollamaWrites,
+    ollamaDiscoveries,
+    ollamaTests,
+    currentOllama: () => ollama,
     pageErrors,
     current: () => config,
     replace: (next: AiAdminConfig) => {
@@ -388,6 +448,68 @@ for (const width of [1440, 1024, 390, 320]) {
     expect(fake.writes).toHaveLength(0);
     expect(fake.paidTests).toHaveLength(0);
     expect(fake.pageErrors).toEqual([]);
+  });
+}
+
+// These real-browser UI tests use deterministic admin API responses only.
+// No Ollama machine or external paid provider is contacted by the fixture.
+for (const width of [1440, 390]) {
+  test(`Ollama admin config, LAN model discovery and saved inference proof at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 900 });
+    const fake = await adminFixture(page);
+    await openAdmin(page);
+
+    await expect(page.getByRole('tab', { name: 'Ключи' })).toBeVisible();
+    await page.getByRole('tab', { name: 'Ollama' }).click();
+    const endpoint = page.getByLabel('Адрес Ollama');
+    await expect(endpoint).toHaveValue('http://127.0.0.1:11434');
+    await expect(page.getByRole('button', { name: 'Проверить реальный ответ модели' })).toBeEnabled();
+
+    await endpoint.fill('http://192.168.1.20:11434');
+    await expect(page.getByRole('button', { name: 'Проверить реальный ответ модели' })).toBeDisabled();
+    await page.getByRole('button', { name: 'Найти установленные модели' }).click();
+    await expect(page.getByText('Ollama доступна. Найдено моделей: 2')).toBeVisible();
+    await page.getByLabel('Модель Ollama').fill('ornith:9b');
+    await page.getByLabel('Разрешить ответы через Ollama пользователям ASA Lab').check();
+
+    await page.getByRole('button', { name: 'Сохранить настройки' }).click();
+    await expect(page.getByText('Настройки Ollama сохранены.', { exact: false })).toBeVisible();
+    await page.getByRole('button', { name: 'Проверить реальный ответ модели' }).click();
+    await expect(page.getByText('Модель ornith:9b ответила за 6.6 с', { exact: false })).toBeVisible();
+
+    await page.getByRole('tab', { name: 'ComfyUI' }).click();
+    await expect(page.getByRole('heading', { name: 'ComfyUI — генерация изображений' })).toBeVisible();
+    await expect(page.getByText('Подключение ComfyUI и управление GPU пока не')).toBeVisible();
+    await page.getByRole('tab', { name: 'Ключи' }).click();
+    await expect(page.getByLabel('Провайдер', { exact: true })).toBeVisible();
+    await page.getByRole('tab', { name: 'Ollama' }).click();
+    await expect(page.getByLabel('Адрес Ollama')).toHaveValue('http://192.168.1.20:11434');
+    await expect(page.getByLabel('Модель Ollama')).toHaveValue('ornith:9b');
+    await expect(page.getByLabel('Разрешить ответы через Ollama пользователям ASA Lab')).toBeChecked();
+
+    expect(fake.ollamaDiscoveries).toEqual([{ baseUrl: 'http://192.168.1.20:11434' }]);
+    expect(fake.ollamaWrites).toEqual([
+      {
+        enabled: true,
+        baseUrl: 'http://192.168.1.20:11434',
+        model: 'ornith:9b',
+        revision: 1,
+      },
+    ]);
+    expect(fake.ollamaTests).toEqual([{ revision: 2 }]);
+    expect(fake.currentOllama().enabled).toBe(true);
+    expect(fake.paidTests).toHaveLength(0);
+    expect(fake.writes).toHaveLength(0);
+    expect(fake.pageErrors).toEqual([]);
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+        ),
+      )
+      .toBe(true);
   });
 }
 
