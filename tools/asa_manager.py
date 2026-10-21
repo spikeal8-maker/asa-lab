@@ -103,7 +103,7 @@ def first_environment(root, profile):
 
 def selected_source(install, release, *, existing):
     clean_checkout(install)
-    install.git("fetch", "origin", "main")
+    install.git("fetch", "origin", "main:refs/remotes/origin/main")
     revision = release["revision"]
     # A release must be in canonical main history; registry contents cannot choose arbitrary code.
     install.git("merge-base", "--is-ancestor", revision, "origin/main")
@@ -143,7 +143,7 @@ def update(install, *, check=False, scheduled=False, fresh=False):
         require(int(release['schema']) >= int(before['schema']), 'RELEASE_DOWNGRADE',
                 'Published release schema is older than the running database; refusing downgrade.')
         if release['revision'] != before['revision']:
-            install.git('fetch', 'origin', 'main')
+            install.git('fetch', 'origin', 'main:refs/remotes/origin/main')
             install.git('merge-base', '--is-ancestor', before['revision'], release['revision'])
     installed_path = install.state / "installed-release.json"
     installed = json.loads(installed_path.read_text(encoding="utf-8")) if installed_path.exists() else None
