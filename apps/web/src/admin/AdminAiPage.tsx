@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { call } from './admin-api';
 import { aiDiagnosticMessage } from './ai-error-message';
+import { AdminOllamaPanel } from './AdminOllamaPanel';
 import {
   isAiAdminConfig,
   type AiAdminConfig,
-  type AiProvider as Provider,
+  type CloudProvider as Provider,
 } from './ai-model-config';
 import './ai-admin.css';
 
@@ -52,6 +53,7 @@ export function AiAdminPage({
 }: {
   readonly onAccessDenied: () => void;
 }): JSX.Element {
+  const [tab, setTab] = useState<'keys' | 'ollama' | 'comfyui'>('keys');
   const [config, setConfig] = useState<AiAdminConfig | null>(null);
   const [provider, setProvider] = useState<Provider>('openai');
   const [model, setModel] = useState('');
@@ -97,9 +99,14 @@ export function AiAdminPage({
           return;
         }
         setConfig(result.data);
-        setProvider(result.data.provider);
-        setModel(result.data.model);
-        setEnabled(result.data.enabled);
+        const cloud: Provider = result.data.provider === 'ollama'
+          ? (result.data.providerConfigurations.find((item) => item.apiKeyConfigured)?.provider ?? 'deepseek')
+          : result.data.provider;
+        setProvider(cloud);
+        setModel(result.data.provider === 'ollama'
+          ? (result.data.providerConfigurations.find((item) => item.provider === cloud)?.model ?? 'deepseek-flash')
+          : result.data.model);
+        setEnabled(result.data.provider === 'ollama' ? false : result.data.enabled);
         setPaidOperationsPerHour(String(result.data.paidOperationsPerHour ?? 0));
       })
       .catch(() => {
@@ -266,12 +273,44 @@ export function AiAdminPage({
         <div>
           <h2 id="asa-ai-admin-title">ИИ и модели</h2>
           <p>
-            Подключите официальный API DeepSeek или OpenAI. Настройки доступны только администратору
-            платформы; API-ключ хранится на сервере в зашифрованном виде и не возвращается в
-            браузер.
+            Подключайте ключи API, Ollama в локальной сети и ComfyUI через
+            отдельные вкладки. Настройки других провайдеров сохраняются.
           </p>
         </div>
       </div>
+      <nav className="asa-ai-admin-tabs" aria-label="Разделы настроек ИИ">
+        {([
+          ['keys', 'Ключи API'],
+          ['ollama', 'Ollama'],
+          ['comfyui', 'ComfyUI'],
+        ] as const).map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            aria-current={tab === id ? 'page' : undefined}
+            className={tab === id ? 'active' : ''}
+            onClick={() => {
+              setTab(id);
+              if (id === 'keys') setLoadAttempt((attempt) => attempt + 1);
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </nav>
+      {tab === 'ollama' ? <AdminOllamaPanel onAccessDenied={onAccessDenied} /> : null}
+      {tab === 'comfyui' ? (
+        <section className="asa-ai-admin-form" aria-label="ComfyUI">
+          <h3>ComfyUI · генерация изображений</h3>
+          <p>
+            Следующий этап — безопасное подключение ComfyUI, управление моделями
+            и отдельная очередь задач. Сейчас эта вкладка не отправляет запросы
+            и не изменяет сервер.
+          </p>
+        </section>
+      ) : null}
+      {tab === 'keys' ? (
+        <>
       {loading ? <p role="status">Загружаем настройки…</p> : null}
       {error ? (
         <div className="admin-inline-error" role="alert">
@@ -407,7 +446,7 @@ export function AiAdminPage({
                   setApiKey('');
                 }}
               >
-                {config.modelCatalog.providers.map((item) => (
+                {config.modelCatalog.providers.filter((item) => item.id !== 'ollama').map((item) => (
                   <option key={item.id} value={item.id}>
                     {item.label}
                   </option>
@@ -633,6 +672,8 @@ export function AiAdminPage({
             {!config.apiKeyConfigured ? <p>Для проверки сохраните API-ключ.</p> : null}
           </section>
         </form>
+      ) : null}
+        </>
       ) : null}
     </section>
   );

@@ -1,4 +1,5 @@
-export type AiProvider = 'openai' | 'deepseek';
+export type AiProvider = 'openai' | 'deepseek' | 'ollama';
+export type CloudProvider = Exclude<AiProvider, 'ollama'>;
 
 export interface AiModelOption {
   readonly id: string;
@@ -13,7 +14,7 @@ export interface AiModelOption {
 }
 
 export interface AiProviderConfiguration {
-  readonly provider: AiProvider;
+  readonly provider: CloudProvider;
   readonly model: string;
   readonly apiKeyConfigured: boolean;
   readonly keyFingerprint: string | null;
@@ -56,6 +57,10 @@ function record(value: unknown): value is Record<string, unknown> {
 }
 
 function provider(value: unknown): value is AiProvider {
+  return value === 'openai' || value === 'deepseek' || value === 'ollama';
+}
+
+function cloudProvider(value: unknown): value is CloudProvider {
   return value === 'openai' || value === 'deepseek';
 }
 
@@ -77,7 +82,7 @@ export function isAiAdminConfig(value: unknown): value is AiAdminConfig {
     !Array.isArray(models) ||
     !models.length ||
     !Array.isArray(providers) ||
-    providers.length !== 2 ||
+    providers.length < 2 || providers.length > 3 ||
     !Array.isArray(slots) ||
     slots.length !== 2 ||
     !record(features) ||
@@ -111,7 +116,7 @@ export function isAiAdminConfig(value: unknown): value is AiAdminConfig {
     models.some((model) => model.id === id && model.provider === owner);
   if (
     new Set(models.map((model) => model.id)).size !== models.length ||
-    new Set(providers.map((item) => (record(item) ? item['id'] : null))).size !== 2 ||
+    new Set(providers.map((item) => (record(item) ? item['id'] : null))).size !== providers.length ||
     !providers.every(
       (item) =>
         record(item) &&
@@ -123,7 +128,7 @@ export function isAiAdminConfig(value: unknown): value is AiAdminConfig {
     !slots.every(
       (item) =>
         record(item) &&
-        provider(item['provider']) &&
+        cloudProvider(item['provider']) &&
         hasModel(item['model'], item['provider']) &&
         typeof item['apiKeyConfigured'] === 'boolean' &&
         nullableText(item['keyFingerprint']) &&
