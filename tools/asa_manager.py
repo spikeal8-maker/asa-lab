@@ -42,15 +42,24 @@ def doctor(install, existing=True):
     return records
 
 
+def backup_directory(install, *, create=False):
+    backup = Path(install.settings.get("backupDirectory", str(install.root / "backups")))
+    require(backup.is_absolute() and backup.resolve() == backup, "BACKUP_PATH", "Backup directory must be an absolute path without symlink components.")
+    if not backup.exists():
+        require(backup.parent.is_dir(), "BACKUP_DIRECTORY", "Backup parent directory must already exist.")
+        if create:
+            backup.mkdir(mode=0o700)
+    if backup.exists():
+        require(backup.is_dir(), "BACKUP_DIRECTORY", "Backup path is not a directory.")
+        if os.name != 'nt':
+            require(backup.stat().st_uid == os.getuid() and backup.stat().st_mode & 0o077 == 0,
+                    "BACKUP_PERMISSIONS", "Backup directory must belong to the operator and have mode 0700.")
+    return backup
+
+
 def save_settings(install, enabled=False):
     previous = install.settings
-    backup = Path(previous.get("backupDirectory", str(install.root / "backups")))
-    require(backup.is_absolute() and backup.resolve() == backup, "BACKUP_PATH", "Backup directory must be an absolute path without symlink components.")
-    backup.mkdir(mode=0o700, exist_ok=True)
-    require(backup.is_dir(), "BACKUP_DIRECTORY", "Backup path is not a directory.")
-    if os.name != 'nt':
-        require(backup.stat().st_uid == os.getuid() and backup.stat().st_mode & 0o077 == 0,
-                "BACKUP_PERMISSIONS", "Backup directory must belong to the operator and have mode 0700.")
+    backup = backup_directory(install, create=True)
     atomic_json(install.state / "installation.json", {
         **previous, "format": "asa-installation-v1", "profile": install.profile,
         "project": install.project, "automaticUpdates": enabled,
@@ -123,6 +132,7 @@ def update(install, *, check=False, scheduled=False, fresh=False):
             "Inspect logs and readiness, repair the cause, then explicitly acknowledge the failure.")
     doctor(install, existing=not fresh)
     clean_checkout(install)
+    backup_directory(install)
     attest_editor_env(install.env.get('ASA_UPDATE_ENTRY_ORIGIN'),
                       install.env.get('ASA_BLOCKS_PARENT_ORIGIN'),
                       install.env.get('ASA_BLOCKS_RUNTIME_ORIGIN'), install.profile)
