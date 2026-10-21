@@ -2828,10 +2828,59 @@ test.describe('ELECTRONICS-525 complete instrument mirror matrix', () => {
             ],
             viewport: { x: 0, y: 0, zoom: 0.7 },
           };
+          // Explicit fixture identities from the registered model definitions, not server output.
+          const modelIdentities: Record<
+            string,
+            Pick<
+              SchematicDocument['components'][number],
+              | 'electricalModelId'
+              | 'electricalModelVersion'
+              | 'modelProfileId'
+              | 'modelProfileVersion'
+            >
+          > = {
+            source: {
+              electricalModelId: 'ideal-dc-source',
+              electricalModelVersion: 1,
+              modelProfileId: 'generic-battery-pack-aa-2',
+              modelProfileVersion: 1,
+            },
+            meter: {
+              electricalModelId: 'digital-multimeter',
+              electricalModelVersion: 1,
+              modelProfileId: 'asa-two-terminal-dmm',
+              modelProfileVersion: 3,
+            },
+            'bench-supply': {
+              electricalModelId: 'regulated-dc-supply',
+              electricalModelVersion: 1,
+              modelProfileId: 'asa-bench-supply-30v-5a',
+              modelProfileVersion: 1,
+            },
+            load: {
+              electricalModelId: 'resistor',
+              electricalModelVersion: 1,
+              modelProfileId: 'axial-resistor',
+              modelProfileVersion: 1,
+            },
+            generator: {
+              electricalModelId: 'function-generator',
+              electricalModelVersion: 1,
+              modelProfileId: 'asa-function-generator-1mhz',
+              modelProfileVersion: 1,
+            },
+            scope: {
+              electricalModelId: 'oscilloscope',
+              electricalModelVersion: 1,
+              modelProfileId: 'asa-two-terminal-oscilloscope',
+              modelProfileVersion: 1,
+            },
+          };
           const seeded: SchematicDocument = {
             ...initial,
-            components: initial.components.map((item) =>
-              instrumentIds.includes(item.id)
+            components: initial.components.map((original) => {
+              const item = { ...original, ...modelIdentities[original.id] };
+              return instrumentIds.includes(item.id)
                 ? {
                     ...item,
                     stateProperties: {
@@ -2840,8 +2889,8 @@ test.describe('ELECTRONICS-525 complete instrument mirror matrix', () => {
                       mirrorY: mirror.y,
                     },
                   }
-                : item,
-            ),
+                : item;
+            }),
           };
           journal['projectId'] = projectId;
           journal['initial'] = seeded;
