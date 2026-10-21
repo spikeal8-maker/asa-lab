@@ -24,7 +24,7 @@ configureProductionLibrary(
 );
 
 const families = [
-  ['resistor', 'resistor-axial', 350, 270],
+  ['resistor', 'resistor-axial', 180, 270],
   ['button', 'button-tactile-6mm', 600, 270],
   ['switch', 'switch-spdt', 520, 270],
   ['led', 'led-5mm', 430, 270],
@@ -492,7 +492,17 @@ async function nativeRunningSwitchSelect(page: Page) {
       document.querySelectorAll('a[href], button, input, select, textarea, [tabindex]').length + 1,
   );
   let tabs = 0;
-  while (!(await body.evaluate((node) => document.activeElement === node)) && tabs < tabLimit) {
+  while (
+    !(await page.evaluate(() => {
+      const bodies = document.querySelectorAll(
+        '[data-testid="schematic-component"][data-component-id="switch"] .workbench-part',
+      );
+      if (bodies.length !== 1 || !bodies[0].isConnected)
+        throw new Error('Expected one connected native switch body');
+      return document.activeElement === bodies[0];
+    })) &&
+    tabs < tabLimit
+  ) {
     await page.keyboard.press('Tab');
     tabs++;
   }
