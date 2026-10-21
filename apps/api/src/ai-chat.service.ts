@@ -607,11 +607,16 @@ export class AiChatService {
         'Сообщение должно содержать от 1 до 3000 символов.',
       );
     }
-    const [runtime, local] = await Promise.all([this.runtime(), this.ollamaRuntime()]);
-    const useLocal = local.enabled && (!runtime.enabled || !this.decrypt(runtime));
-    if (!useLocal) {
+    const runtime = await this.runtime();
+    // Legacy JSON transport follows the active external provider exactly.
+    // It falls back to independently configured local inference only when
+    // the external provider was deliberately switched off.
+    const useLocal = !runtime.enabled;
+    const local = useLocal ? await this.ollamaRuntime() : null;
+    if (useLocal) {
+      if (!local?.enabled) throw new AiServiceError('ai_disabled', 503, 'ИИ выключен администратором.');
+    } else {
       this.requireSupportedModel(runtime);
-      if (!runtime.enabled) throw new AiServiceError('ai_disabled', 503, 'ИИ выключен администратором.');
     }
     const apiKey = useLocal ? '' : this.requireProviderKey(runtime);
     const requestId = clientRequestId.toLowerCase();
@@ -621,7 +626,7 @@ export class AiChatService {
         useLocal
           ? 'SELECT ai_text_begin_local($1,$2,$3,$4::varchar,$5::bigint) AS admitted'
           : 'SELECT ai_text_begin_paid($1,$2,$3,$4::varchar,$5::bigint) AS admitted',
-        [principalId, threadId, requestId, prompt, useLocal ? local.revision : runtime.configuration_version],
+        [principalId, threadId, requestId, prompt, useLocal ? local!.revision : runtime.configuration_version],
       );
       accepted = admitted.rows[0]?.admitted === true;
     } catch (problem) {
@@ -659,7 +664,7 @@ export class AiChatService {
       const context = await this.history.generationContext(principalId, threadId, requestId);
       const reply = useLocal
         ? await streamOllamaText({
-            baseUrl: local.base_url, model: local.model, context,
+            baseUrl: local!.base_url, model: local!.model, context,
             instructions: ASSISTANT_INSTRUCTIONS, signal: new AbortController().signal,
             onDelta: () => undefined, fetchImpl: this.fetchImpl,
           })
@@ -744,13 +749,14 @@ export class AiChatService {
         throw problem;
       }
     }
-    const [runtime, local] = await Promise.all([this.runtime(), this.ollamaRuntime()]);
-    const externalReady = runtime.enabled && isModelForProvider(runtime.provider, runtime.model) &&
-      this.decrypt(runtime) !== null;
-    const model = selectedModel ?? (!externalReady && local.enabled ? OLLAMA_SELECTION : runtime.model);
-    const useLocal = model === OLLAMA_SELECTION;
+    const runtime = await this.runtime();
+    const useLocal = selectedModel === OLLAMA_SELECTION ||
+      (selectedModel === undefined && !runtime.enabled);
+    // No additional SQL is performed for existing OpenAI/DeepSeek routes.
+    const local = useLocal ? await this.ollamaRuntime() : null;
+    const model = selectedModel ?? (useLocal ? OLLAMA_SELECTION : runtime.model);
     if (useLocal) {
-      if (!local.enabled || !validOllamaModel(local.model)) {
+      if (!local?.enabled || !validOllamaModel(local.model)) {
         throw new AiServiceError('ai_disabled', 503, 'Локальная Ollama выключена администратором.');
       }
     } else {
@@ -771,7 +777,7 @@ export class AiChatService {
           : useLocal
             ? 'SELECT ai_text_begin_local($1,$2,$3,$4::varchar,$5::bigint) AS admitted'
             : 'SELECT ai_text_begin_paid($1,$2,$3,$4::varchar,$5::bigint) AS admitted',
-        [principalId, threadId, requestId, sourceId ?? prompt, useLocal ? local.revision : runtime.configuration_version],
+        [principalId, threadId, requestId, sourceId ?? prompt, useLocal ? local!.revision : runtime.configuration_version],
       );
       admitted = result.rows[0]?.admitted === true;
     } catch (problem) {
@@ -821,7 +827,7 @@ export class AiChatService {
       const context = await this.history.generationContext(principalId, threadId, requestId);
       const result = useLocal
         ? await streamOllamaText({
-            baseUrl: local.base_url, model: local.model, context,
+            baseUrl: local!.base_url, model: local!.model, context,
             instructions: ASSISTANT_INSTRUCTIONS, signal: combined, onDelta,
             fetchImpl: this.fetchImpl,
           })
