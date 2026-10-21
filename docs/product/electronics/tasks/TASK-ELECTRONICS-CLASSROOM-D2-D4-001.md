@@ -491,3 +491,25 @@ verification after reviewing the actual result. Preserve teacher limited
 exception, stopped D13 handoff and every foreign lane. No installation, Docker,
 network, database or deployment action. Author and reviewer STOP after their
 single assigned stage.
+
+
+## 2026-10-21 — D13 viewport test precondition only
+
+Select one separate test repair in e2e/electronics-classroom-timing.spec.ts:
+after resize invoke the real Fit UI before acquisition and assert the whole
+board is inside the viewport. Saved Temp/asa-767-d13-range/d13-cause.json,
+SHA256c20fa87e09dd77928dd453d3d24c29b845e03b6e9e99ce9dcd1cacf64f91687c,
+shows x-41.816,width363 clipping despite56 actual LED/L edges and assetsReadyfalse;
+corrected x39 passes the visibility predicate. This is a test precondition,
+not authority to repair product Fit without evidence. Prove corrected framing
+passes and clipped framing fails. Preserve native readiness/visibility,50ms,
+45s and8 cycles; no skips, timeout/assertion weakening or pace/physics changes.
+Stop above1s remains unresolved for separate diagnosis. Root assigns a NEW
+bounded author and different independent exact-SHA reviewer; retain separate
+oracle/deduplication commits and every historical failure/blocker. This repair
+grants no product acceptance, real-time claim, deployment or closure. STOP after
+the assigned stage and return the exact result to root.
+
+The existing qualification suite may change ONLY the final complete D13 file SHA and meaningful actual-geometry positive/negative predicates.
+Prove installObserver body and all observer semantics byte-identical before/after.
+Retain the whole-file pin; never substitute selective checks or hash a partial file.

@@ -1800,6 +1800,52 @@ describe('v3 original acquisition boundary and complete real prefix', () => {
   });
 });
 
+describe('D13 actual capture framing precondition', () => {
+  const source = readFileSync(
+    new URL('../../e2e/electronics-classroom-timing.spec.ts', import.meta.url),
+    'utf8',
+  );
+  const parsed = ts.createSourceFile('d13.ts', source, ts.ScriptTarget.Latest, true);
+  const declaration = parsed.statements.find(
+    (node): node is ts.FunctionDeclaration =>
+      ts.isFunctionDeclaration(node) && node.name?.text === 'd13BoardInsideCaptureViewport',
+  );
+  if (!declaration) throw new Error('Actual D13 framing predicate is missing');
+  const inside = runInNewContext(
+    ts.transpileModule(declaration.getText(parsed) + '\n d13BoardInsideCaptureViewport;', {
+      compilerOptions: { target: ts.ScriptTarget.ES2022 },
+    }).outputText,
+  ) as (board: unknown, stage: unknown, viewport: unknown) => boolean;
+  const stage = { x: 0, y: 178, width: 1200, height: 822 };
+  const viewport = { width: 1600, height: 1000 };
+  const clipped = {
+    x: -41.81632614135742,
+    y: 225.14283752441406,
+    width: 363.16815185546875,
+    height: 271.27783203125,
+  };
+  it('rejects the saved clipped framing and accepts a completely contained board', () => {
+    expect(inside(clipped, stage, viewport)).toBe(false);
+    expect(inside({ ...clipped, x: 39 }, stage, viewport)).toBe(true);
+  });
+  it('rejects every clipped edge, absent geometry and nonfinite or empty dimensions', () => {
+    for (const board of [
+      null,
+      { ...clipped, x: 1190 },
+      { ...clipped, x: 39, y: 177 },
+      { ...clipped, x: 39, y: 999 },
+      { ...clipped, x: NaN },
+      { ...clipped, x: 39, width: 0 },
+      { ...clipped, x: 39, height: Infinity },
+    ])
+      expect(inside(board, stage, viewport)).toBe(false);
+    expect(inside({ ...clipped, x: 39 }, null, viewport)).toBe(false);
+    expect(inside({ ...clipped, x: 39 }, stage, null)).toBe(false);
+    expect(inside({ ...clipped, x: 39 }, { ...stage, x: 40 }, viewport)).toBe(false);
+    expect(inside({ ...clipped, x: 39 }, stage, { width: 400, height: 300 })).toBe(false);
+  });
+});
+
 describe('v3 preserves real functional publication and native observations', () => {
   // Analytic input for the actual extracted oracle. These induced records are
   // not a browser receipt and never fill missing fields in historical evidence.
@@ -2195,7 +2241,7 @@ describe('v3 preserves real functional publication and native observations', () 
       new URL('../../e2e/electronics-classroom-timing.spec.ts', import.meta.url),
     );
     expect(createHash('sha256').update(originalObserver).digest('hex')).toBe(
-      'a84a5f2f9d1133c8df0223d011275a7e0fd4e936e00f47cc8acba2529b5cf2cd',
+      '42e5541fe9e55284e6e502c822f284af622a8e6fac38de1bf6f0e02a847f349c',
     );
     expect(readyCompact).toContain(
       "if (ownerQualificationLedger?.profile === 'classroom-d13-v2') test.setTimeout(60_000);",
