@@ -193,6 +193,9 @@ export async function streamOllamaText(
         model: args.model,
         messages: [{ role: 'system', content: args.instructions }, ...args.context],
         stream: true,
+        // Donor IZO_ASA also disables thinking for short school-facing inference.
+        // Some reasoning models otherwise spend the token/time budget without visible text.
+        think: false,
         options: { num_predict: 1600 },
       }),
     });
