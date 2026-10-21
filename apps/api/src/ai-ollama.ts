@@ -235,15 +235,19 @@ export async function streamOllamaText(
       const part = await reader.read();
       if (part.done) break;
       buffer += decoder.decode(part.value, { stream: true });
-      if (buffer.length > 16 * 1024)
-        throw new OllamaError('ai_ollama_invalid', 503, 'Слишком большое событие Ollama.', text);
       let boundary = buffer.indexOf('\n');
       while (boundary >= 0) {
+        // Bound each NDJSON event, not the entire HTTP chunk. One LAN read
+        // can legitimately contain hundreds of short Ollama token events.
+        if (boundary > 16 * 1024)
+          throw new OllamaError('ai_ollama_invalid', 503, 'Слишком большое событие Ollama.', text);
         frame(buffer.slice(0, boundary).trimEnd());
         buffer = buffer.slice(boundary + 1);
         if (done) break;
         boundary = buffer.indexOf('\n');
       }
+      if (!done && buffer.length > 16 * 1024)
+        throw new OllamaError('ai_ollama_invalid', 503, 'Слишком большое событие Ollama.', text);
     }
     if (!done && !signal.aborted && buffer.trim()) frame(buffer.trim());
   } catch (error) {
