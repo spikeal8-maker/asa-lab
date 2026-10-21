@@ -12,6 +12,85 @@ review: independent
 
 # Existing instrument readouts remain readable under mirror
 
+## TEST-ONLY new BEFORE matrix — product remains unpublished
+
+This section supersedes ONLY the previous executable feasibility budget with
+test authoring selected in current.yaml. Source5f9d07ae has independent
+SOURCE_FEASIBILITY_APPROVE,author20presentation and reviewer20+14contractsPASS;
+it remains UNPUBLISHED. Temp+54B is not actual fit or acceptance. Preserve that
+candidate until NEW actual BEFORE review and separate AFTER selection.
+
+Author ONLY e2e/electronics-simulation.spec.ts and existing
+docs/product/electronics/generated/component-coverage.json browserEvidenceSha256
+from the canonical generator (every other generated field unchanged). Append a
+new compact525block;all old cases/helpers/interactions byte-exact. Registered
+simulation precedes laterE11;no workflow,registration or execution-order edit.
+No product/Visual/unit/script/package/dependency/timeout/cap/core/hook/asset change.
+
+Use EXACT16isolatedjourneys:4widths times4explicit seeded mirror fixtures
+none/X/Y/XY. Each journey rotates the four-instrument group natively through
+0/90/180/270 using two existing45degree commands per90step;final270 document
+gets one nativeSave1PUT/base2/CAS+1/freshGET. Seeded mirror state is explicit,
+not a claimed native Y action:Header has horizontal flip only. Never invent a
+vertical button,private controller write or test-only DOM mutation. Keep native
+control/rotate order and original deadlines;no coverage reduction or retry.
+
+At EACH1440/1024/390/320 require64instrumentconfigs:4instruments times rotations
+0/90/180/270 times mirrors none/X/Y/XY,with all8existing textreadouts per pose.
+Journal raw finite body/glyph/window axes and each readout's own mirror center
+BEFORE expected SOFT orientation/own-center failures. Independent oracle keeps
+body R*M,glyph R about its own center;no hardcoded trace0,X-only shortcut or
+always-horizontal policy. Use real committed signed values/modes and native
+start/stop plus relevant mode/power/waveform controls;check applicable states.
+Preserve wholelocal/server/rendered/document IDs/wire/terminal/hit geometry.
+Where journey saves,native Save exactly1PUT/base2/CAS+1/freshGET,not a fake API.
+
+Genuine UI login once per group/worker;cookies-only fresh isolated context/project
+per journey. R3 storage:empty fresh origins and pre-app local/session,post-load
+local drafts empty/exact fixture-derived session saved pair. Journal BEFORE
+assertions;never infer expected key from discovered storage. Preserve primary
+failure,finally evidence and strict completion despite expected soft failures.
+
+NEW fullspec frozen BEFORE/AFTER byte-identical. Old ed4 browser has pertestlogin,
+missingR3/badsoftoracle and is not reusable wholesale. One UNPUBLISHED self-reviewed
+test candidate STOP;NEW source review then ONE cause-justified BEFORE. Complete
+525coverage/causal mirror failures and NEW actual review precede any separately
+selected AFTER. LaterE11hangD does not waive fullbrowser/repository gates:report
+target evidence versus fullgate honestly. No automatic product publication,
+closure/acceptance or deployment. Historical freezes/#549terminal/#548KEEP intact.
+See [dated selection receipt](../evidence/instrument-525-test-before-selection-20261021.md).
+
+## Mirror-only compact SOURCE FEASIBILITY — bounded exception
+
+This top section selects only the source/unit feasibility action under the
+owner's programme452 after canonical current.yaml acceptance. It does not
+waive old built-browser/full-gate product prerequisites or rewrite historical
+freezes. Old unpublished docs45f08340 and candidateed4ee969 are references,
+not accepted current source;compose minimal hunks on fresh main,never old files.
+
+Author only ProductionComponentVisual.tsx and production-asset-contracts.ts;
+meaningful regression in the existing workbench-presentation.spec.ts is allowed.
+Preserve ordinary rotation,each readout's own center/window,signed actual values/
+modes,body/terminals/hit/wire geometry,controls and complete document. No
+always-horizontal policy or ordinary-rotation decision is selected. Historical
+BEFOREee7d5eca/run37757863776 repo matrices cover rotation0 none/X/Y/XY only;
+never report full rotations as measured. Source unit rotation matrices remain
+source evidence,not new built-editor evidence.
+
+Current benchmark217938/218000 leaves62bytes;prototype+118does not fit. Attempt
+compact semantic equivalence with source/unit/small Temp estimate only. No
+actual bundle-fit/runtime/visual acceptance claim from an estimate. Future exact
+benchmark<=218000 and all existing acceptance gates remain required. No browser/
+workflow/dependency/cap/core/hook/LED/assets/foreign changes or adjacent cleanup.
+If no compact equivalent solution exists,STOP with budget proof,no capraise.
+
+One self-reviewed UNPUBLISHED candidate STOP;NEW independent source review then
+controller selects any future verification/evidence phase separately. No automatic
+main publication,CI/runtime acceptance,issue closure or deployment. Preserve
+#549terminal,#548dependencies/ownerKEEP544547 and all historical receipts.
+The [dated feasibility selection receipt](../evidence/instrument-525-source-feasibility-selection-20261021.md)
+records limits only,not a product result.
+
 Program: [#452](https://github.com/spikeal8-maker/asa-lab/issues/452). Bounded repair: [#525](https://github.com/spikeal8-maker/asa-lab/issues/525), one existing requirement of milestone [#466](https://github.com/spikeal8-maker/asa-lab/issues/466). Required hygiene checkpoint [#524](https://github.com/spikeal8-maker/asa-lab/issues/524) is technically accepted on reviewed candidate24ddd, integrated7fea. The canonical Electronics lane selects this concrete card before implementation.
 
 ## One user result

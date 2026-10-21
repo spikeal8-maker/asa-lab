@@ -451,3 +451,65 @@ limited exception and stopped D13 handoff; neither foreign dirty tree is touched
 No school installation, Docker, network, database, deployment or Issue closure
 is selected. The author and reviewer each STOP after their assigned stage; root
 continues the authorized programme using the actual result.
+
+
+## 2026-10-21 — separate Reset acquisition-boundary oracle repair
+
+Canonical selection base: main39cd72afdd0291763eb18772f5d4dda9bd07623b.
+Saved raw report Temp/asa-final06-range/reset-cause.json, SHA256
+5b45a8d4d62ab9d0d3f94ff1ba0472bab818e7f65599713c429f579ce219922d,
+binds exact06fdd: the oracle selects a pre-Reset generation9 receipt as active
+before generation10 H0. All11 dark/native startup fields pass in the affected
+prefix. This proves the acquisition-boundary error; it does not waive startup
+or establish that every publication-latency failure is an oracle defect.
+
+Select ONE separate test repair in existing e2e/electronics-ready-cadence.spec.ts
+and, only if it exercises this oracle, the existing adversarial suite
+ tests/electronics/classroom-qualification.spec.ts. Choose the active request
+within the current acquisition boundary, retaining source/generation/receipt
+causality. Do not simply skip pre-H0 frames. Preserve all11 dark/native startup
+fields, mandatory new H0 with solved finite quality and matching source,
+loaded images and all existing50ms assertions. Actual saved Reset replay must
+pass without borrowing generation9. Negative old-generation receipt after Reset
+MUST FAIL; bright before new H0 MUST FAIL; missing new H0 MUST FAIL. Preserve
+all other assertions, captures, timeouts, pace, observer pins and raw history.
+
+The separately authored deduplication candidate
+a37cc1c78163cc41dd0ba587a77e7e759fa5054b remains pending integration, with
+independent source approval and63 own tests reviewed. Its exact classroom run
+39510050928 reports219PASS19FAIL; all12 ordinary Arduino journeys pass at
+pace0.125, which is not1x acceptance. General is blocked by the known independent
+C baseline with3 HIGH findings. No source approval or test-only fix accepts the
+whole product, closes649/546 or clears any blocker.
+
+Root assigns a NEW bounded oracle author after this canonical amendment reaches
+main and a different NEW independent reviewer for the frozen exact test SHA.
+No product code is selected. Keep oracle and deduplication repair in separate
+commits, authorship and reviews; do not bring the product candidate into an
+oracle-author commit. Root selects later composition and necessary exact-source
+verification after reviewing the actual result. Preserve teacher limited
+exception, stopped D13 handoff and every foreign lane. No installation, Docker,
+network, database or deployment action. Author and reviewer STOP after their
+single assigned stage.
+
+
+## 2026-10-21 — D13 viewport test precondition only
+
+Select one separate test repair in e2e/electronics-classroom-timing.spec.ts:
+after resize invoke the real Fit UI before acquisition and assert the whole
+board is inside the viewport. Saved Temp/asa-767-d13-range/d13-cause.json,
+SHA256c20fa87e09dd77928dd453d3d24c29b845e03b6e9e99ce9dcd1cacf64f91687c,
+shows x-41.816,width363 clipping despite56 actual LED/L edges and assetsReadyfalse;
+corrected x39 passes the visibility predicate. This is a test precondition,
+not authority to repair product Fit without evidence. Prove corrected framing
+passes and clipped framing fails. Preserve native readiness/visibility,50ms,
+45s and8 cycles; no skips, timeout/assertion weakening or pace/physics changes.
+Stop above1s remains unresolved for separate diagnosis. Root assigns a NEW
+bounded author and different independent exact-SHA reviewer; retain separate
+oracle/deduplication commits and every historical failure/blocker. This repair
+grants no product acceptance, real-time claim, deployment or closure. STOP after
+the assigned stage and return the exact result to root.
+
+The existing qualification suite may change ONLY the final complete D13 file SHA and meaningful actual-geometry positive/negative predicates.
+Prove installObserver body and all observer semantics byte-identical before/after.
+Retain the whole-file pin; never substitute selective checks or hash a partial file.
