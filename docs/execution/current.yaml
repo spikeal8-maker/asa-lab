@@ -9455,7 +9455,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: d2_reset_acquisition_oracle_boundary_repair_selected
+      checkpoint: d13_whole_board_viewport_test_precondition_selected
       owner_acceptance: pending
       acceptance_revision: classroom-d2-d4-eighth-pace-r1
       active_qualification_profile: classroom-d13-v3
@@ -9568,7 +9568,13 @@ parallel_lanes:
         scope: Repair only the existing D2 oracle's active request selection within the current acquisition boundary. Use the existing adversarial test only if it exercises that oracle; no unrelated qualification or product change. This is not a blanket skip of pre-H0 frames.
         required_verification: Preserve all11 dark/native startup fields, H0 quality/source/generation and full request/receipt/paint causality plus existing50ms assertions. Positive actual Reset replay must pass without borrowing generation9. Negative old-generation receipt after Reset MUST FAIL; bright before new H0 MUST FAIL; missing new H0 MUST FAIL. Preserve original raw and every other assertion, acquisition, timeout, pace and native rule.
         preservation: No product source, physics, precision, pace, lookahead, runtime state, dependency, workflow, observer pin or foreign lane change. Keep deduplication and oracle repair as separate commits, actors and independent reviews. Preserve all historical failures, blockers, teacher limited exception and D13 handoff; no Docker, network, database or deployment operation.
-      next_action: Root publishes this two-document canonical selection separately from the pending deduplication product candidate, then assigns one oracle author and NEW independent reviewer. Prove current-acquisition active selection using saved Reset raw and required positive/negative adversarial cases; freeze one separate exact test-repair SHA for independent review. Root alone selects subsequent composition and exact-source verification; do not claim1x, clear blockers or integrate the deduplication candidate as part of this oracle-author invocation.
+      d13_viewport_precondition_selection:
+        selected_base_main: 2bdff063
+        scope: One separate test-only repair in existing e2e/electronics-classroom-timing.spec.ts; after resize use the real Fit UI before acquisition and assert the whole board is in the viewport. No product Fit change without proof.
+        evidence: Temp/asa-767-d13-range/d13-cause.json SHA256c20fa87e09dd77928dd453d3d24c29b845e03b6e9e99ce9dcd1cacf64f91687c; board x-41.816,width363 leaves it clipped despite56 actual LED/L edges; assetsReadyfalse. Corrected x39 replay passes the visibility predicate.
+        preservation: Keep native visibility and readiness,50ms publication,45s acquisition and8 cycles; do not skip visibility or weaken any assertion, timeout, physics, pace or lifecycle rule. Stop above1s remains unresolved and requires separate diagnosis.
+        actors: Root assigns one NEW bounded test author and a different NEW independent exact-SHA reviewer after canonical publication; no oracle or deduplication implementation is folded into this author's commit.
+      next_action: Publish this minimal canonical selection separately, then repair only the D13 test's viewport precondition using actual Fit UI and whole-board visibility before acquisition. Require positive corrected framing and negative clipped-board checks, preserve original timing/native assertions, freeze one separate exact SHA for NEW independent review. Do not claim product acceptance, real-time speed, resolved Stop or blocker closure from this precondition repair.
     previous_task:
       id: TASK-ELECTRONICS-CLASSROOM-D13-001
       issue: 638
