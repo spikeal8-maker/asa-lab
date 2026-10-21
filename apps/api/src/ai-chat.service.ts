@@ -189,7 +189,12 @@ export class AiChatService {
   private async ollamaRuntime(): Promise<OllamaRow> {
     const result = await this.pool.query<OllamaRow>('SELECT * FROM ai_ollama_runtime()');
     const row = result.rows[0];
-    if (!row) throw new AiServiceError('ai_ollama_unavailable', 503, 'Настройки Ollama недоступны.');
+    // A missing or incompatible optional connection must never activate local
+    // inference or change the behavior of existing paid-provider fixtures.
+    if (!row || typeof row.enabled !== 'boolean' || typeof row.base_url !== 'string' ||
+        !validOllamaModel(row.model) || !Number.isSafeInteger(Number(row.revision))) {
+      return { enabled: false, base_url: 'http://127.0.0.1:11434', model: '', revision: 0 };
+    }
     return row;
   }
 
