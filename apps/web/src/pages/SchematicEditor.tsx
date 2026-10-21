@@ -27,11 +27,19 @@ const WorkbenchSidebars = lazy(() =>
   })),
 );
 const ArduinoCodePanel = lazy(loadArduinoCodePanel);
-const ShareDialog = lazy(() =>
-  import('../electronics/WorkbenchShareDialog')
+const ShareDialog = lazy(() => {
+  // This optional chunk must not trigger the global page reload: the live
+  // electronics document may still contain unsaved changes.
+  const keepEditorOpen = (event: Event) => {
+    if (String((event as CustomEvent).detail).includes('WorkbenchShareDialog'))
+      event.preventDefault();
+  };
+  window.addEventListener('asa-optional-preload-error', keepEditorOpen);
+  return import('../electronics/WorkbenchShareDialog')
     .then((module) => ({ default: module.WorkbenchShareDialog }))
-    .catch(() => ({ default: ShareLoadError })),
-);
+    .catch(() => ({ default: ShareLoadError }))
+    .finally(() => window.removeEventListener('asa-optional-preload-error', keepEditorOpen));
+});
 const SchematicView = lazy(() =>
   import('../electronics/AlternateWorkbenchViews').then((module) => ({
     default: module.SchematicView,
