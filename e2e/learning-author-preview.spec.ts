@@ -1957,6 +1957,9 @@ test('document Course Builder preserves the lesson, real save acknowledgements a
     await expect(previewButton).toBeFocused();
     expect(await previewButton.evaluate((button) => button.matches(':focus-visible'))).toBe(true);
     await hitTarget(previewButton, name + ':top:keyboard-preview');
+    // Keyboard focus may scroll the second header row into view; return to the
+    // course actions control before measuring its real pointer ownership.
+    await actions.scrollIntoViewIfNeeded();
     await hitTarget(actions, name + ':top:course-menu');
     await actions.focus();
     await actions.press('Enter');
@@ -2008,8 +2011,9 @@ test('document Course Builder preserves the lesson, real save acknowledgements a
     }
     await targetPage.screenshot({ path: `${evidence}/${name}-viewport-body.png`, fullPage: false });
 
-    await targetPage.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
     const add = targetEditor.getByRole('button', { name: '+ Добавить содержимое', exact: true });
+    // The lower document control is reached by an awaited user-equivalent scroll.
+    await add.scrollIntoViewIfNeeded();
     await hitTarget(add, name + ':end:add-content');
     await add.focus();
     await add.press('Enter');
