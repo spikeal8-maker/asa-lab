@@ -10,15 +10,19 @@ for (const path of browser
   ? [
       'e2e/public-projects.spec.ts',
       'e2e/public-project-copy.spec.ts',
+      'e2e/public-project-admin-moderation.spec.ts',
       'e2e/gallery.spec.ts',
       'e2e/project-hub.spec.ts',
     ]
   : [
       'tests/portal/public-projects.pg.spec.ts',
       'tests/portal/public-project-copy.pg.spec.ts',
+      'tests/portal/public-project-moderation.pg.spec.ts',
+      'tests/migration/project-publication-moderation.pg.spec.ts',
       'tests/migration/ai-main-prefix-upgrade.pg.spec.ts',
       'apps/api/src/public-projects.spec.ts',
       'apps/api/src/public-project-copy.spec.ts',
+      'apps/api/src/admin-public-projects.controller.spec.ts',
     ]) {
   if (!existsSync(path)) {
     console.error(`BLOCKED: required publication evidence file is missing: ${path}`);
@@ -130,6 +134,7 @@ if (browser) {
     'test',
     'e2e/public-projects.spec.ts',
     'e2e/public-project-copy.spec.ts',
+    'e2e/public-project-admin-moderation.spec.ts',
     'e2e/gallery.spec.ts',
     'e2e/project-hub.spec.ts',
     '--workers=1',
@@ -160,6 +165,7 @@ if (browser) {
     '--allowSyntheticDefaultImports',
     'e2e/public-projects.spec.ts',
     'e2e/public-project-copy.spec.ts',
+    'e2e/public-project-admin-moderation.spec.ts',
     'e2e/gallery.spec.ts',
   ]);
   run([
@@ -172,13 +178,18 @@ if (browser) {
     'tests/portal/project-publication-revisions.pg.spec.ts',
     'tests/portal/public-projects.pg.spec.ts',
     'tests/portal/public-project-copy.pg.spec.ts',
+    'tests/portal/public-project-moderation.pg.spec.ts',
+    'tests/migration/project-publication-moderation.pg.spec.ts',
     'apps/api/src/public-projects.spec.ts',
     'apps/api/src/public-project-copy.spec.ts',
+    'apps/api/src/admin-public-projects.controller.spec.ts',
+    'apps/web/src/admin/testing/admin-publications.spec.ts',
+    'apps/web/src/admin/testing/admin-navigation.spec.ts',
     'apps/web/src/projects-public',
     '--maxWorkers=2',
   ]);
   run(['test:creator-portal']);
-  // Verify supported populated database upgrades from 0225 through 0235.
+  // Verify supported populated database upgrades from 0225 through 0236.
   run([
     'exec',
     'vitest',
