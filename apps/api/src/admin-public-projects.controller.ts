@@ -174,12 +174,14 @@ export class AdminPublicProjectsController {
       'expectedVersion',
       'expectedRevisionId',
       'expectedModerationVersion',
+      'expectedLifecycleVersion',
     ]);
     if (!shape.ok || typeof shape.body['featured'] !== 'boolean') {
       throw new BadRequestException();
     }
     const expectedVersion = shape.body['expectedVersion'];
     const expectedModerationVersion = shape.body['expectedModerationVersion'];
+    const expectedLifecycleVersion = shape.body['expectedLifecycleVersion'];
     if (
       typeof expectedVersion !== 'number' ||
       !Number.isInteger(expectedVersion) ||
@@ -188,7 +190,11 @@ export class AdminPublicProjectsController {
       typeof expectedModerationVersion !== 'number' ||
       !Number.isInteger(expectedModerationVersion) ||
       expectedModerationVersion < 0 ||
-      expectedModerationVersion > 2147483646
+      expectedModerationVersion > 2147483646 ||
+      typeof expectedLifecycleVersion !== 'number' ||
+      !Number.isInteger(expectedLifecycleVersion) ||
+      expectedLifecycleVersion < 0 ||
+      expectedLifecycleVersion > 2147483646
     ) {
       throw new BadRequestException();
     }
@@ -199,7 +205,7 @@ export class AdminPublicProjectsController {
       throw new BadRequestException();
     }
     const result = await this.query<{ result: unknown }>(
-      'SELECT public.admin_publication_feature_set($1,$2,$3,$4,$5,$6,$7) AS result',
+      'SELECT public.admin_publication_feature_set($1,$2,$3,$4,$5,$6,$7,$8) AS result',
       [
         actor,
         publicationId,
@@ -208,6 +214,7 @@ export class AdminPublicProjectsController {
         expectedVersion,
         expectedRevisionId,
         expectedModerationVersion,
+        expectedLifecycleVersion,
       ],
     );
     return result.rows[0].result;

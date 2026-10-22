@@ -16,6 +16,7 @@ interface Publication {
   readonly moderatedAt: string | null;
   readonly featured: boolean;
   readonly editorialVersion: number;
+  readonly lifecycleVersion: number;
 }
 
 interface ModerationResult {
@@ -199,6 +200,7 @@ export function AdminPublicationsPage({
       revisionId: string;
       featured: boolean;
       editorialVersion: number;
+      lifecycleVersion: number;
     }>(`${endpoint(item.publicationId)}/featured`, {
       method: 'POST',
       body: JSON.stringify({
@@ -206,6 +208,7 @@ export function AdminPublicationsPage({
         expectedVersion: item.editorialVersion,
         expectedRevisionId: item.revisionId,
         expectedModerationVersion: item.moderationVersion,
+        expectedLifecycleVersion: item.lifecycleVersion,
       }),
     });
     if (current !== version.current) return;
@@ -221,7 +224,8 @@ export function AdminPublicationsPage({
       result.data.publicationId !== item.publicationId ||
       result.data.revisionId !== item.revisionId ||
       result.data.featured === item.featured ||
-      result.data.editorialVersion !== item.editorialVersion + 1
+      result.data.editorialVersion !== item.editorialVersion + 1 ||
+      result.data.lifecycleVersion !== item.lifecycleVersion
     ) {
       setError('Сервер не подтвердил редакционное действие. Обновите список.');
       return;
