@@ -779,123 +779,123 @@ describe('publication moderation with real runtime privileges and sessions', () 
     });
   });
   it('enforces editorial access and revision-bound lifecycle', async () => {
-      const source = await publication();
-      const editor = await identity('featured-editor', 'verified');
-      const ordinary = await identity('featured-ordinary');
-      const url = `/api/admin/v1/publications/${source.publicationId}/featured`;
-      const lifecycleResult = await admin.query<{ lifecycle_version: number }>(
-        'SELECT lifecycle_version FROM project_publication_editorial_lifecycle WHERE publication_id=$1',
-        [source.publicationId],
-      );
-      const lifecycleVersion = lifecycleResult.rows[0]?.lifecycle_version ?? 0;
-      const data = (
-        featured: boolean,
-        editorialVersion: number,
-        moderationVersion: number,
-        revisionId = source.revisionId,
-      ) => ({
-        featured,
-        expectedVersion: editorialVersion,
-        expectedModerationVersion: moderationVersion,
-        expectedRevisionId: revisionId,
-        expectedLifecycleVersion: lifecycleVersion,
+    const source = await publication();
+    const editor = await identity('featured-editor', 'verified');
+    const ordinary = await identity('featured-ordinary');
+    const url = `/api/admin/v1/publications/${source.publicationId}/featured`;
+    const lifecycleResult = await admin.query<{ lifecycle_version: number }>(
+      'SELECT lifecycle_version FROM project_publication_editorial_lifecycle WHERE publication_id=$1',
+      [source.publicationId],
+    );
+    const lifecycleVersion = lifecycleResult.rows[0]?.lifecycle_version ?? 0;
+    const data = (
+      featured: boolean,
+      editorialVersion: number,
+      moderationVersion: number,
+      revisionId = source.revisionId,
+    ) => ({
+      featured,
+      expectedVersion: editorialVersion,
+      expectedModerationVersion: moderationVersion,
+      expectedRevisionId: revisionId,
+      expectedLifecycleVersion: lifecycleVersion,
+    });
+    const request = async (token: string, payload: ReturnType<typeof data>) =>
+      inject(app, {
+        method: 'POST',
+        url,
+        cookies: { asa_session: token },
+        payload,
       });
-      const request = async (token: string, payload: ReturnType<typeof data>) =>
-        inject(app, {
-          method: 'POST',
-          url,
-          cookies: { asa_session: token },
-          payload,
-        });
-      expect((await request(ordinary.token, data(true, 0, 0))).statusCode).toBe(403);
-      await expect(
-        runtime.query('SELECT * FROM project_publication_editorial'),
-      ).rejects.toMatchObject({ code: '42501' });
-      const selected = await request(editor.token, data(true, 0, 0));
-      expect(selected.statusCode).toBe(200);
-      expect(selected.json()).toMatchObject({
-        publicationId: source.publicationId,
-        revisionId: source.revisionId,
-        featured: true,
-        editorialVersion: 1,
-      });
-      expect((await request(editor.token, data(true, 0, 0))).statusCode).toBe(409);
-      const publicDetail = async () =>
-        inject(app, { method: 'GET', url: `/api/public-projects/${source.publicationId}` });
-      expect((await publicDetail()).json().publication).toMatchObject({ featured: true });
-      const catalog = await inject(app, { method: 'GET', url: '/api/public-projects?limit=48' });
-      expect(catalog.statusCode).toBe(200);
-      const catalogItem = catalog.json().items.find(
-        (item: { publicationId: string }) => item.publicationId === source.publicationId,
-      );
-      expect(catalogItem).toMatchObject({ featured: true });
-      const adminList = await inject(app, {
-        method: 'GET',
-        url: '/api/admin/v1/publications',
-        cookies: { asa_session: editor.token },
-      });
-      expect(adminList.statusCode).toBe(200);
-      const adminItem = adminList.json().items.find(
-        (item: { publicationId: string }) => item.publicationId === source.publicationId,
-      );
-      expect(adminItem).toMatchObject({ featured: true, editorialVersion: 1 });
+    expect((await request(ordinary.token, data(true, 0, 0))).statusCode).toBe(403);
+    await expect(
+      runtime.query('SELECT * FROM project_publication_editorial'),
+    ).rejects.toMatchObject({ code: '42501' });
+    const selected = await request(editor.token, data(true, 0, 0));
+    expect(selected.statusCode).toBe(200);
+    expect(selected.json()).toMatchObject({
+      publicationId: source.publicationId,
+      revisionId: source.revisionId,
+      featured: true,
+      editorialVersion: 1,
+    });
+    expect((await request(editor.token, data(true, 0, 0))).statusCode).toBe(409);
+    const publicDetail = async () =>
+      inject(app, { method: 'GET', url: `/api/public-projects/${source.publicationId}` });
+    expect((await publicDetail()).json().publication).toMatchObject({ featured: true });
+    const catalog = await inject(app, { method: 'GET', url: '/api/public-projects?limit=48' });
+    expect(catalog.statusCode).toBe(200);
+    const catalogItem = catalog
+      .json()
+      .items.find((item: { publicationId: string }) => item.publicationId === source.publicationId);
+    expect(catalogItem).toMatchObject({ featured: true });
+    const adminList = await inject(app, {
+      method: 'GET',
+      url: '/api/admin/v1/publications',
+      cookies: { asa_session: editor.token },
+    });
+    expect(adminList.statusCode).toBe(200);
+    const adminItem = adminList
+      .json()
+      .items.find((item: { publicationId: string }) => item.publicationId === source.publicationId);
+    expect(adminItem).toMatchObject({ featured: true, editorialVersion: 1 });
 
-      await transition(
-        editor.principalId,
-        source.publicationId,
-        true,
-        'Safety check',
-        randomUUID(),
-        0,
-        source.revisionId,
-      );
-      expect((await publicDetail()).statusCode).toBe(404);
-      expect((await request(editor.token, data(false, 1, 1))).statusCode).toBe(404);
-      await transition(
-        editor.principalId,
-        source.publicationId,
-        false,
-        'Reviewed',
-        randomUUID(),
-        1,
-        source.revisionId,
-      );
-      expect((await publicDetail()).json().publication.featured).toBe(false);
-      expect((await request(editor.token, data(true, 1, 0))).statusCode).toBe(409);
-      const again = await request(editor.token, data(true, 1, 2));
-      expect(again.statusCode).toBe(200);
-      expect((await publicDetail()).json().publication.featured).toBe(true);
+    await transition(
+      editor.principalId,
+      source.publicationId,
+      true,
+      'Safety check',
+      randomUUID(),
+      0,
+      source.revisionId,
+    );
+    expect((await publicDetail()).statusCode).toBe(404);
+    expect((await request(editor.token, data(false, 1, 1))).statusCode).toBe(404);
+    await transition(
+      editor.principalId,
+      source.publicationId,
+      false,
+      'Reviewed',
+      randomUUID(),
+      1,
+      source.revisionId,
+    );
+    expect((await publicDetail()).json().publication.featured).toBe(false);
+    expect((await request(editor.token, data(true, 1, 0))).statusCode).toBe(409);
+    const again = await request(editor.token, data(true, 1, 2));
+    expect(again.statusCode).toBe(200);
+    expect((await publicDetail()).json().publication.featured).toBe(true);
 
-      const updated = await source.publish('Author-updated immutable metadata');
-      const newRevision = updated.publication.revisionId as string;
-      expect(newRevision).not.toBe(source.revisionId);
-      expect((await publicDetail()).json().publication.featured).toBe(false);
-      expect((await request(editor.token, data(false, 2, 2))).statusCode).toBe(409);
-      const history = (
-        await admin.query(
-          `SELECT action,actor_principal_id,reason_text,before_version,after_version
+    const updated = await source.publish('Author-updated immutable metadata');
+    const newRevision = updated.publication.revisionId as string;
+    expect(newRevision).not.toBe(source.revisionId);
+    expect((await publicDetail()).json().publication.featured).toBe(false);
+    expect((await request(editor.token, data(false, 2, 2))).statusCode).toBe(409);
+    const history = (
+      await admin.query(
+        `SELECT action,actor_principal_id,reason_text,before_version,after_version
           FROM administrative_audit_events WHERE target_type='project_publication' AND target_id=$1
           ORDER BY occurred_at,id`,
-          [source.publicationId],
-        )
-      ).rows;
-      const editorial = history.filter((event) =>
-        String(event.action).startsWith('publication.feat'),
-      );
-      expect(editorial).toHaveLength(2);
-      expect(editorial[0]).toMatchObject({
-        action: 'publication.feature',
-        actor_principal_id: editor.principalId,
-        reason_text: 'Выбор редакции',
-        before_version: '0',
-        after_version: '1',
-      });
-      expect(editorial[1]).toMatchObject({
-        action: 'publication.feature',
-        before_version: '1',
-        after_version: '2',
-      });
-      expect(history.filter((event) => event.action === 'publication.restore')).toHaveLength(1);
+        [source.publicationId],
+      )
+    ).rows;
+    const editorial = history.filter((event) =>
+      String(event.action).startsWith('publication.feat'),
+    );
+    expect(editorial).toHaveLength(2);
+    expect(editorial[0]).toMatchObject({
+      action: 'publication.feature',
+      actor_principal_id: editor.principalId,
+      reason_text: 'Выбор редакции',
+      before_version: '0',
+      after_version: '1',
+    });
+    expect(editorial[1]).toMatchObject({
+      action: 'publication.feature',
+      before_version: '1',
+      after_version: '2',
+    });
+    expect(history.filter((event) => event.action === 'publication.restore')).toHaveLength(1);
   });
   it('prevents badge resurrection after revoke and republish', async () => {
     const source = await publication();
@@ -936,10 +936,10 @@ describe('publication moderation with real runtime privileges and sessions', () 
     expect((await read()).json().publication.featured).toBe(true);
 
     const before = await original(source.projectId);
-    const revoked = await runtime.query(
-      'SELECT project_publication_revoke($1,$2) AS ok',
-      [source.owner.principalId, source.projectId],
-    );
+    const revoked = await runtime.query('SELECT project_publication_revoke($1,$2) AS ok', [
+      source.owner.principalId,
+      source.projectId,
+    ]);
     expect(revoked.rows[0]?.ok).toBe(true);
     expect((await read()).statusCode).toBe(404);
 
@@ -958,9 +958,9 @@ describe('publication moderation with real runtime privileges and sessions', () 
       url: '/api/admin/v1/publications',
       cookies: { asa_session: editor.token },
     });
-    const row = currentList.json().items.find(
-      (item: { publicationId: string }) => item.publicationId === source.publicationId,
-    );
+    const row = currentList
+      .json()
+      .items.find((item: { publicationId: string }) => item.publicationId === source.publicationId);
     expect(row).toMatchObject({
       featured: false,
       editorialVersion: 1,
