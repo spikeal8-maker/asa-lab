@@ -6216,20 +6216,21 @@ parallel_lanes:
       - migrations/0234_public_projects.sql
       - migrations/0235_public_project_copy.sql
       - migrations/0236_project_publication_moderation.sql
+      - migrations/0237_project_publication_editorial.sql
       - tests/portal/**
       - e2e/project-hub.spec.ts
       - e2e/artifacts/project-hub/**
       - docs/product/projects/**
       - docs/review/PROJ_R7_01/**
     task:
-      id: TASK-PROJ-R8-03A-ADMIN-MODERATION-001
-      issue: 686
+      id: TASK-PROJ-R8-03B-EDITORIAL-FEATURED-001
+      issue: 691
       branch: main
       base_branch: main
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: admin_publication_hide_restore_selected
+      checkpoint: editorial_featured_badge_selected
       owner_acceptance: pending
       owner_authorization: >-
         Owner's 2026-10-18 implementation assignment delegates the complete Public Projects
@@ -6238,6 +6239,7 @@ parallel_lanes:
         original Projects, drafts, versions, learning data and personal Collections are protected.
         No production cleanup or deployment is authorized by this selection.
       context_hints:
+        - docs/product/projects/tasks/PROJ-R8-03B-EDITORIAL-FEATURED.md
         - docs/product/projects/tasks/PROJ-R8-03A-ADMIN-MODERATION.md
         - docs/product/projects/tasks/PROJ-R7-PUBLISHED-COPY.md
         - docs/product/projects/tasks/PROJ-R7-VISIBLE-PUBLICATION.md
