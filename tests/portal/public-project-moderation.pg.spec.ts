@@ -863,4 +863,80 @@ describe('publication moderation with real runtime privileges and sessions', () 
     expect(history.filter((event) => event.action === 'publication.restore')).toHaveLength(1);
   });
 
+  it('does not resurrect an editorial badge after revoke and same-revision republish', async () => {
+    const source = await publication();
+    const editor = await identity('revoke-featured-editor', 'verified');
+    const actionUrl = `/api/admin/v1/publications/${source.publicationId}/featured`;
+    const epoch = async (): Promise<number> => {
+      const result = await admin.query<{ lifecycle_version: number }>(
+        'SELECT lifecycle_version FROM project_publication_editorial_lifecycle WHERE publication_id=$1',
+        [source.publicationId],
+      );
+      return result.rows[0]?.lifecycle_version ?? 0;
+    };
+    const startEpoch = await epoch();
+    const action = async (editorialVersion: number, lifecycleVersion: number) =>
+      inject(app, {
+        method: 'POST',
+        url: actionUrl,
+        cookies: { asa_session: editor.token },
+        payload: {
+          featured: true,
+          expectedVersion: editorialVersion,
+          expectedRevisionId: source.revisionId,
+          expectedModerationVersion: 0,
+          expectedLifecycleVersion: lifecycleVersion,
+        },
+      });
+    const selected = await action(0, startEpoch);
+    expect(selected.statusCode).toBe(200);
+    expect(selected.json()).toMatchObject({
+      publicationId: source.publicationId,
+      revisionId: source.revisionId,
+      featured: true,
+      editorialVersion: 1,
+      lifecycleVersion: startEpoch,
+    });
+    const read = async () =>
+      inject(app, { method: 'GET', url: `/api/public-projects/${source.publicationId}` });
+    expect((await read()).json().publication.featured).toBe(true);
+
+    const before = await original(source.projectId);
+    const revoked = await runtime.query(
+      'SELECT project_publication_revoke($1,$2) AS ok',
+      [source.owner.principalId, source.projectId],
+    );
+    expect(revoked.rows[0]?.ok).toBe(true);
+    expect((await read()).statusCode).toBe(404);
+
+    // The writer deliberately reuses the same immutable revision when content,
+    // preview and publication metadata have not changed.
+    const republished = await source.publish();
+    expect(republished.publication.revisionId).toBe(source.revisionId);
+    const nextEpoch = await epoch();
+    expect(nextEpoch).toBeGreaterThan(startEpoch);
+    const visible = await read();
+    expect(visible.statusCode).toBe(200);
+    expect(visible.json().publication.featured).toBe(false);
+    expect((await action(1, startEpoch)).statusCode).toBe(409);
+    const currentList = await inject(app, {
+      method: 'GET',
+      url: '/api/admin/v1/publications',
+      cookies: { asa_session: editor.token },
+    });
+    const row = currentList.json().items.find(
+      (item: { publicationId: string }) => item.publicationId === source.publicationId,
+    );
+    expect(row).toMatchObject({
+      featured: false,
+      editorialVersion: 1,
+      lifecycleVersion: nextEpoch,
+    });
+    const newDecision = await action(1, nextEpoch);
+    expect(newDecision.statusCode).toBe(200);
+    expect(newDecision.json()).toMatchObject({ featured: true, editorialVersion: 2 });
+    expect((await read()).json().publication.featured).toBe(true);
+    expect(await original(source.projectId)).toEqual(before);
+  });
+
 });
