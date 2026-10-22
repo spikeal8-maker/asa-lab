@@ -69,12 +69,11 @@ export function roundedRectContainsOffset(
   const rx = clamp(cornerRadiusX, 0, halfWidth);
   const ry = clamp(cornerRadiusY, 0, halfHeight);
   if (rx === 0 || ry === 0) return true;
-  return (
-    Math.hypot(
-      Math.max(0, x - halfWidth + rx) / rx,
-      Math.max(0, y - halfHeight + ry) / ry,
-    ) <= 1
+  const cornerDistance = Math.hypot(
+    Math.max(0, x - halfWidth + rx) / rx,
+    Math.max(0, y - halfHeight + ry) / ry,
   );
+  return cornerDistance <= 1;
 }
 
 export function clamp(value: number, min: number, max: number): number {
