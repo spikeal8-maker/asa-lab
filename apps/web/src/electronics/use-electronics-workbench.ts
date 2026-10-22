@@ -36,9 +36,6 @@ import {
 import {
   clientToWorld,
   clamp,
-  roundedRectContainsOffset,
-  TERMINAL_HIT_CORNER_RADIUS,
-  TERMINAL_HIT_RADIUS,
   completeOrthogonalRoute,
   fitViewportToScreen,
   gestureViewport,
@@ -2565,14 +2562,16 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
     placeCatalogComponent(event);
   }
 
-  // Pointer capture and overlapping breadboard holes make DOM hit order
-  // unsuitable as electrical truth. Resolve against the actual rendered terminal
-  // painted rounded rectangles, then choose the nearest eligible centre.
+  // Pointer capture hides native event targets. Check the actual SVG fill in
+  // local coordinates after fast screen-bounds rejection, then rank by centre.
   function terminalTargetAt(clientX: number, clientY: number): TerminalRef | null {
     const stage = stageRef.current;
     if (!stage) return null;
+    const pointer = stage.createSVGPoint();
+    pointer.x = clientX;
+    pointer.y = clientY;
     const candidates = [
-      ...stage.querySelectorAll<SVGGraphicsElement>(
+      ...stage.querySelectorAll<SVGGeometryElement>(
         '[data-terminal-component-id][data-terminal-id]',
       ),
     ]
@@ -2586,18 +2585,9 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
         if (radiusX <= 0 || radiusY <= 0) return [];
         const dx = clientX - (rect.left + rect.right) / 2;
         const dy = clientY - (rect.top + rect.bottom) / 2;
-        if (
-          !roundedRectContainsOffset(
-            dx,
-            dy,
-            radiusX,
-            radiusY,
-            (radiusX * TERMINAL_HIT_CORNER_RADIUS) / TERMINAL_HIT_RADIUS,
-            (radiusY * TERMINAL_HIT_CORNER_RADIUS) / TERMINAL_HIT_RADIUS,
-          )
-        ) {
-          return [];
-        }
+        if (Math.abs(dx) > radiusX || Math.abs(dy) > radiusY) return [];
+        const matrix = element.getScreenCTM();
+        if (!matrix || !element.isPointInFill(pointer.matrixTransform(matrix.inverse()))) return [];
         return [
           {
             componentId,
