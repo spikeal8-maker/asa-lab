@@ -330,6 +330,79 @@ for (const width of [1440, 390]) {
         if (hiding) hideAudit = events;
         else expect(events[0]).toEqual(hideAudit[0]);
       }
+
+      // The next real user-visible editorial slice operates after moderation
+      // restore. An old featured mark must not survive a hide/restore cycle.
+      expect((await guest.request.get(publicPath)).status()).toBe(200);
+      const featureResponse = moderator.waitForResponse(
+        (response) =>
+          response.request().method() === 'POST' &&
+          new URL(response.url()).pathname === `${BASE}/${publicationId}/featured`,
+      );
+      await row.getByRole('button', { name: 'Выбор редакции', exact: true }).click();
+      const feature = await featureResponse;
+      expect(feature.status()).toBe(200);
+      expect(feature.request().postDataJSON()).toEqual({
+        featured: true,
+        expectedVersion: 0,
+        expectedRevisionId: revisionId,
+        expectedModerationVersion: 2,
+      });
+      expect(await feature.json()).toMatchObject({
+        publicationId, revisionId, featured: true, editorialVersion: 1,
+      });
+      await expect(row.getByTestId('admin-publication-featured')).toContainText('Выбор редакции');
+      const publishedFeatured = await guest.request.get(publicPath);
+      expect(publishedFeatured.status()).toBe(200);
+      expect((await publishedFeatured.json()).publication).toMatchObject({ featured: true });
+      await guest.goto('/#/explore');
+      await guest.reload();
+      const card = guest.getByTestId('public-project-card').filter({
+        has: guest.getByRole('heading', { name: title, exact: true }),
+      });
+      await expect(card.getByTestId('public-project-featured')).toContainText('Выбор редакции');
+      await guest.screenshot({
+        path: `${EVIDENCE}/${width}-featured-catalog.png`, fullPage: true,
+      });
+      await guest.goto(`/#/public-projects/${publicationId}`);
+      await guest.reload();
+      await expect(guest.getByTestId('public-project-featured')).toContainText('Выбор редакции');
+      await guest.screenshot({
+        path: `${EVIDENCE}/${width}-featured-detail.png`, fullPage: true,
+      });
+
+      const unfeatureResponse = moderator.waitForResponse(
+        (response) =>
+          response.request().method() === 'POST' &&
+          new URL(response.url()).pathname === `${BASE}/${publicationId}/featured`,
+      );
+      await row.getByRole('button', { name: 'Снять отметку', exact: true }).click();
+      const unfeature = await unfeatureResponse;
+      expect(unfeature.status()).toBe(200);
+      expect(unfeature.request().postDataJSON()).toEqual({
+        featured: false,
+        expectedVersion: 1,
+        expectedRevisionId: revisionId,
+        expectedModerationVersion: 2,
+      });
+      expect(await unfeature.json()).toMatchObject({ featured: false, editorialVersion: 2 });
+      await expect(row.getByTestId('admin-publication-featured')).toHaveCount(0);
+      await guest.reload();
+      await expect(guest.getByTestId('public-project-featured')).toHaveCount(0);
+      const withEditorialAudit = await audit();
+      expect(withEditorialAudit).toHaveLength(4);
+      expect(withEditorialAudit[2]).toMatchObject({
+        actor_principal_id: actor, action: 'publication.feature',
+        before_version: '0', after_version: '1', reason_text: 'Выбор редакции',
+      });
+      expect(withEditorialAudit[3]).toMatchObject({
+        actor_principal_id: actor, action: 'publication.unfeature',
+        before_version: '1', after_version: '2', reason_text: 'Отметка редакции снята',
+      });
+      expect(await original()).toEqual(draftBefore);
+      expect(await projectRecord()).toEqual(projectBefore);
+      expect(await frozen()).toEqual(versionsBefore);
+
       failures.forEach((collector) => collector.assertEmpty());
     } finally {
       await Promise.all(contexts.map((context) => context.close()));
