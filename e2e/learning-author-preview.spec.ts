@@ -2098,12 +2098,22 @@ test('document Course Builder preserves the lesson, real save acknowledgements a
         return {
           left: popup.left,
           right: popup.right,
+          top: popup.top,
+          bottom: popup.bottom,
           width: popup.width,
+          placement: menu.parentElement?.getAttribute('data-dropdown-placement'),
           triggerRight: trigger?.right ?? Number.NaN,
         };
       });
     expect(blockMenuGeometry.left, `${width}: block popup left`).toBeGreaterThanOrEqual(0);
     expect(blockMenuGeometry.right, `${width}: block popup right`).toBeLessThanOrEqual(width);
+    expect(blockMenuGeometry.top, `${width}: block popup top`).toBeGreaterThanOrEqual(0);
+    expect(blockMenuGeometry.bottom, `${width}: block popup bottom`).toBeLessThanOrEqual(
+      height,
+    );
+    expect(['above', 'below'], `${width}: placement state`).toContain(
+      blockMenuGeometry.placement,
+    );
     expect(blockMenuGeometry.width, `${width}: block popup compact width`).toBeLessThanOrEqual(
       width - 48,
     );

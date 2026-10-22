@@ -18,12 +18,15 @@ export function Dropdown({
   className,
   ariaLabel,
   disabled = false,
+  fitViewport = false,
   children,
 }: {
   readonly label: ReactNode;
   readonly className: string;
   readonly ariaLabel?: string;
   readonly disabled?: boolean;
+  /** Keep tall action menus within the visible viewport on narrow or scrolled pages. */
+  readonly fitViewport?: boolean;
   /** Receives a way to close the menu, so an item can act and dismiss. */
   readonly children: (close: () => void) => ReactNode;
 }): JSX.Element {
@@ -33,6 +36,26 @@ export function Dropdown({
     if (ref.current) ref.current.open = false;
     setOpen(false);
   }, []);
+
+  function fitOpenMenu(element: HTMLDetailsElement): void {
+    if (!fitViewport) return;
+    const menu = element.querySelector<HTMLElement>(':scope > .dropdown-menu');
+    const trigger = element.querySelector<HTMLElement>(':scope > summary');
+    if (!menu || !trigger) return;
+    element.removeAttribute('data-dropdown-placement');
+    menu.style.maxHeight = '';
+    if (!element.open) return;
+
+    const anchor = trigger.getBoundingClientRect();
+    const stickyBottom = document.querySelector('.portal-header')?.getBoundingClientRect().bottom ?? 0;
+    const availableAbove = Math.max(0, anchor.top - Math.max(8, stickyBottom) - 8);
+    const availableBelow = Math.max(0, window.innerHeight - anchor.bottom - 8);
+    const openAbove = menu.getBoundingClientRect().height > availableBelow &&
+      availableAbove > availableBelow;
+    const space = openAbove ? availableAbove : availableBelow;
+    element.dataset.dropdownPlacement = openAbove ? 'above' : 'below';
+    menu.style.maxHeight = `${Math.floor(space)}px`;
+  }
 
   useEffect(() => {
     function onPointer(event: MouseEvent): void {
@@ -61,7 +84,11 @@ export function Dropdown({
     <details
       ref={ref}
       className={className}
-      onToggle={(event) => setOpen((event.currentTarget as HTMLDetailsElement).open)}
+      onToggle={(event) => {
+        const element = event.currentTarget as HTMLDetailsElement;
+        fitOpenMenu(element);
+        setOpen(element.open);
+      }}
     >
       {/* A summary is announced as a disclosure triangle, which is not what this
           is: it opens a menu of actions. Saying so makes it reachable by name

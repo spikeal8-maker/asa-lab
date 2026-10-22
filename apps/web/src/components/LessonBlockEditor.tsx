@@ -270,6 +270,7 @@ export function LessonBlockEditor({
               </span>
               <Dropdown
                 className="course-outline-menu lesson-block-menu"
+                fitViewport
                 ariaLabel={`Действия блока ${index + 1}`}
                 label={<span aria-hidden="true">•••</span>}
               >
