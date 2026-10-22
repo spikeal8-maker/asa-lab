@@ -374,7 +374,7 @@ describe('Course Builder structure forward upgrade', () => {
           '0234',
           '0235',
           '0236',
-        '0237', // Editorial choice is additive and preserves Course history.
+          '0237', // Editorial choice is additive and preserves Course history.
         ]);
         expect(
           await applyIsolatedTestPlan(

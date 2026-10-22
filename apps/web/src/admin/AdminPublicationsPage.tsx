@@ -188,7 +188,6 @@ export function AdminPublicationsPage({
     setSelected(null);
   };
 
-
   const toggleFeatured = async (item: Publication): Promise<void> => {
     if (busy.current || blocked.current || item.hidden || item.state !== 'public') return;
     busy.current = true;
@@ -313,17 +312,17 @@ export function AdminPublicationsPage({
                 </button>
               ) : null}
               <button
-              type="button"
-              className="btn-secondary"
-              disabled={loading || saving || denied}
-              onClick={(event) => {
-                trigger.current = event.currentTarget;
-                setReason('');
-                setError(null);
-                setSelected(item);
-              }}
-            >
-              {item.hidden ? 'Восстановить' : 'Скрыть'}
+                type="button"
+                className="btn-secondary"
+                disabled={loading || saving || denied}
+                onClick={(event) => {
+                  trigger.current = event.currentTarget;
+                  setReason('');
+                  setError(null);
+                  setSelected(item);
+                }}
+              >
+                {item.hidden ? 'Восстановить' : 'Скрыть'}
               </button>
             </div>
           </li>

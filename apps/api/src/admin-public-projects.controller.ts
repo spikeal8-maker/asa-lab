@@ -170,7 +170,10 @@ export class AdminPublicProjectsController {
     const actor = await this.actor(request);
     uuid(publicationId);
     const shape = checkBodyShape(body, [
-      'featured', 'expectedVersion', 'expectedRevisionId', 'expectedModerationVersion',
+      'featured',
+      'expectedVersion',
+      'expectedRevisionId',
+      'expectedModerationVersion',
     ]);
     if (!shape.ok || typeof shape.body['featured'] !== 'boolean') {
       throw new BadRequestException();
@@ -178,10 +181,14 @@ export class AdminPublicProjectsController {
     const expectedVersion = shape.body['expectedVersion'];
     const expectedModerationVersion = shape.body['expectedModerationVersion'];
     if (
-      typeof expectedVersion !== 'number' || !Number.isInteger(expectedVersion) ||
-      expectedVersion < 0 || expectedVersion > 2147483646 ||
-      typeof expectedModerationVersion !== 'number' || !Number.isInteger(expectedModerationVersion) ||
-      expectedModerationVersion < 0 || expectedModerationVersion > 2147483646
+      typeof expectedVersion !== 'number' ||
+      !Number.isInteger(expectedVersion) ||
+      expectedVersion < 0 ||
+      expectedVersion > 2147483646 ||
+      typeof expectedModerationVersion !== 'number' ||
+      !Number.isInteger(expectedModerationVersion) ||
+      expectedModerationVersion < 0 ||
+      expectedModerationVersion > 2147483646
     ) {
       throw new BadRequestException();
     }
@@ -194,8 +201,13 @@ export class AdminPublicProjectsController {
     const result = await this.query<{ result: unknown }>(
       'SELECT public.admin_publication_feature_set($1,$2,$3,$4,$5,$6,$7) AS result',
       [
-        actor, publicationId, shape.body['featured'], request.id, expectedVersion,
-        expectedRevisionId, expectedModerationVersion,
+        actor,
+        publicationId,
+        shape.body['featured'],
+        request.id,
+        expectedVersion,
+        expectedRevisionId,
+        expectedModerationVersion,
       ],
     );
     return result.rows[0].result;

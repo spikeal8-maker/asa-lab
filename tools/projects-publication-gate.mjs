@@ -181,7 +181,7 @@ if (browser) {
     'tests/portal/public-project-copy.pg.spec.ts',
     'tests/portal/public-project-moderation.pg.spec.ts',
     'tests/migration/project-publication-moderation.pg.spec.ts',
-      'tests/migration/project-publication-editorial.pg.spec.ts',
+    'tests/migration/project-publication-editorial.pg.spec.ts',
     'apps/api/src/public-projects.spec.ts',
     'apps/api/src/public-project-copy.spec.ts',
     'apps/api/src/admin-public-projects.controller.spec.ts',
