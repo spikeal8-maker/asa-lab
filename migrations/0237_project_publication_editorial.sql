@@ -6,6 +6,7 @@ CREATE TABLE public.project_publication_editorial (
     featured boolean NOT NULL,
     editorial_version integer NOT NULL CHECK (editorial_version > 0),
     moderation_version integer NOT NULL CHECK (moderation_version >= 0),
+    lifecycle_version integer NOT NULL CHECK (lifecycle_version >= 0),
     actor_principal_id uuid NOT NULL REFERENCES public.principals(id),
     acted_at timestamptz NOT NULL DEFAULT now(),
     FOREIGN KEY (revision_id, publication_id)
@@ -13,6 +14,38 @@ CREATE TABLE public.project_publication_editorial (
 );
 ALTER TABLE public.project_publication_editorial ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON TABLE public.project_publication_editorial FROM PUBLIC, asalab_app;
+
+-- A new public lifecycle can reuse an immutable revision UUID. Epoch changes
+-- therefore cannot be derived from revision_id alone. Keep this counter outside
+-- the existing publication state table to preserve historical Project/state rows.
+CREATE TABLE public.project_publication_editorial_lifecycle (
+    publication_id uuid PRIMARY KEY REFERENCES public.project_publication_state(id),
+    lifecycle_version integer NOT NULL CHECK (lifecycle_version > 0)
+);
+ALTER TABLE public.project_publication_editorial_lifecycle ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE public.project_publication_editorial_lifecycle FROM PUBLIC, asalab_app;
+
+CREATE FUNCTION public.project_publication_editorial_lifecycle_bump()
+RETURNS trigger
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $
+BEGIN
+    -- The UPDATE already owns the state lock; the trigger locks the epoch after
+    -- it, preserving Project → state → epoch ordering for publish/revoke.
+    INSERT INTO public.project_publication_editorial_lifecycle AS epoch
+      (publication_id, lifecycle_version)
+    VALUES (NEW.id, 1)
+    ON CONFLICT (publication_id) DO UPDATE
+      SET lifecycle_version = epoch.lifecycle_version + 1;
+    RETURN NEW;
+END;
+$;
+CREATE TRIGGER project_publication_editorial_lifecycle_update
+AFTER UPDATE ON public.project_publication_state
+FOR EACH ROW
+WHEN (OLD.state IS DISTINCT FROM NEW.state OR
+      OLD.current_revision_id IS DISTINCT FROM NEW.current_revision_id)
+EXECUTE FUNCTION public.project_publication_editorial_lifecycle_bump();
+REVOKE ALL ON FUNCTION public.project_publication_editorial_lifecycle_bump() FROM PUBLIC;
 
 -- A marker becomes invalid when the author republishes a different revision,
 -- moderation takes any subsequent action, or current public access is revoked.
@@ -25,11 +58,14 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
           JOIN public.project_publication_editorial editorial ON editorial.publication_id = state.id
           LEFT JOIN public.project_publication_moderation moderation
             ON moderation.publication_id = state.id
+          LEFT JOIN public.project_publication_editorial_lifecycle epoch
+            ON epoch.publication_id = state.id
          WHERE state.id = p_publication
            AND state.current_revision_id = p_revision
            AND editorial.revision_id = p_revision
            AND editorial.featured
            AND editorial.moderation_version = COALESCE(moderation.moderation_version,0)
+           AND editorial.lifecycle_version = COALESCE(epoch.lifecycle_version,0)
            AND NOT COALESCE(moderation.hidden,false)
            AND public.project_publication_readable(state.id)
     );
@@ -56,14 +92,17 @@ BEGIN
                COALESCE(moderation.hidden, false) AS hidden,
                COALESCE(moderation.moderation_version, 0) AS moderation_version, moderation.reason, moderation.acted_at,
                COALESCE(editorial.editorial_version,0) AS editorial_version,
+               COALESCE(epoch.lifecycle_version,0) AS lifecycle_version,
                (COALESCE(editorial.featured,false) AND editorial.revision_id = revision.id
                  AND editorial.moderation_version = COALESCE(moderation.moderation_version,0)
+                 AND editorial.lifecycle_version = COALESCE(epoch.lifecycle_version,0)
                  AND NOT COALESCE(moderation.hidden,false)) AS featured
           FROM public.project_publication_state state
           JOIN public.project_publication_revisions revision
             ON revision.id = state.current_revision_id AND revision.publication_id = state.id
           LEFT JOIN public.project_publication_moderation moderation ON moderation.publication_id = state.id
           LEFT JOIN public.project_publication_editorial editorial ON editorial.publication_id = state.id
+          LEFT JOIN public.project_publication_editorial_lifecycle epoch ON epoch.publication_id = state.id
          WHERE revision.schema_version = 2 AND (state.state = 'public' OR moderation.hidden)
          ORDER BY revision.published_at DESC, state.id
          LIMIT p_limit + 1 OFFSET p_offset
@@ -75,7 +114,8 @@ BEGIN
         'authorLabel', author_label, 'moduleKey', module_key, 'publishedAt', published_at,
         'state', state, 'hidden', hidden, 'moderationVersion', moderation_version,
         'reason', reason, 'moderatedAt', acted_at,
-        'featured', featured, 'editorialVersion', editorial_version)
+        'featured', featured, 'editorialVersion', editorial_version,
+        'lifecycleVersion', lifecycle_version)
         ORDER BY n) FILTER (WHERE n <= p_limit), '[]'::jsonb), count(*) > p_limit
       INTO v_items, v_more FROM numbered;
     RETURN jsonb_build_object('items', v_items, 'nextOffset', CASE WHEN v_more THEN p_offset + p_limit END);
@@ -88,7 +128,8 @@ GRANT EXECUTE ON FUNCTION public.admin_publications_list(uuid,integer,integer) T
 
 CREATE FUNCTION public.admin_publication_feature_set(
     p_actor uuid, p_publication uuid, p_featured boolean, p_request_id varchar,
-    p_expected_version integer, p_expected_revision uuid, p_expected_moderation_version integer
+    p_expected_version integer, p_expected_revision uuid, p_expected_moderation_version integer,
+    p_expected_lifecycle_version integer
 ) RETURNS jsonb
 LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
 DECLARE
@@ -96,6 +137,7 @@ DECLARE
     v_revision uuid;
     v_version integer;
     v_moderation_version integer;
+    v_lifecycle_version integer;
     v_current boolean;
 BEGIN
     IF public.admin_authorized_role(p_actor, 'platform', NULL) IS DISTINCT FROM 'platform_admin' THEN
@@ -105,6 +147,7 @@ BEGIN
        p_request_id IS NULL OR length(trim(p_request_id)) NOT BETWEEN 1 AND 128 OR
        p_expected_version IS NULL OR p_expected_version NOT BETWEEN 0 AND 2147483646 OR
        p_expected_moderation_version IS NULL OR p_expected_moderation_version NOT BETWEEN 0 AND 2147483646 OR
+       p_expected_lifecycle_version IS NULL OR p_expected_lifecycle_version NOT BETWEEN 0 AND 2147483646 OR
        p_expected_revision IS NULL THEN
         RAISE EXCEPTION 'invalid editorial input' USING ERRCODE = '22023';
     END IF;
@@ -121,18 +164,21 @@ BEGIN
         RAISE EXCEPTION 'not available' USING ERRCODE = 'P5P04';
     END IF;
     SELECT state.current_revision_id, COALESCE(editorial.editorial_version,0),
-           COALESCE(moderation.moderation_version,0),
+           COALESCE(moderation.moderation_version,0), COALESCE(epoch.lifecycle_version,0),
            (COALESCE(editorial.featured,false) AND editorial.revision_id = state.current_revision_id
               AND editorial.moderation_version = COALESCE(moderation.moderation_version,0)
+              AND editorial.lifecycle_version = COALESCE(epoch.lifecycle_version,0)
               AND NOT COALESCE(moderation.hidden,false))
-      INTO v_revision,v_version,v_moderation_version,v_current
+      INTO v_revision,v_version,v_moderation_version,v_lifecycle_version,v_current
       FROM public.project_publication_state state
       LEFT JOIN public.project_publication_editorial editorial ON editorial.publication_id = state.id
       LEFT JOIN public.project_publication_moderation moderation ON moderation.publication_id = state.id
+      LEFT JOIN public.project_publication_editorial_lifecycle epoch ON epoch.publication_id = state.id
      WHERE state.id = p_publication;
     IF v_revision IS DISTINCT FROM p_expected_revision OR
        v_version <> p_expected_version OR
        v_moderation_version <> p_expected_moderation_version OR
+       v_lifecycle_version <> p_expected_lifecycle_version OR
        v_current IS NOT DISTINCT FROM p_featured OR EXISTS (
         SELECT 1 FROM public.administrative_audit_events
          WHERE actor_principal_id = p_actor AND request_id = trim(p_request_id)
@@ -140,11 +186,12 @@ BEGIN
     ) THEN RAISE EXCEPTION 'editorial selection changed' USING ERRCODE = 'P5M09'; END IF;
 
     INSERT INTO public.project_publication_editorial
-      (publication_id,revision_id,featured,editorial_version,moderation_version,actor_principal_id,acted_at)
-    VALUES (p_publication,v_revision,p_featured,v_version+1,v_moderation_version,p_actor,clock_timestamp())
+      (publication_id,revision_id,featured,editorial_version,moderation_version,lifecycle_version,actor_principal_id,acted_at)
+    VALUES (p_publication,v_revision,p_featured,v_version+1,v_moderation_version,v_lifecycle_version,p_actor,clock_timestamp())
     ON CONFLICT (publication_id) DO UPDATE SET
       revision_id=EXCLUDED.revision_id, featured=EXCLUDED.featured,
       editorial_version=EXCLUDED.editorial_version, moderation_version=EXCLUDED.moderation_version,
+      lifecycle_version=EXCLUDED.lifecycle_version,
       actor_principal_id=EXCLUDED.actor_principal_id, acted_at=EXCLUDED.acted_at;
     PERFORM public.admin_append_audit_event(
         p_actor,'platform',NULL,
@@ -153,8 +200,9 @@ BEGIN
         CASE WHEN p_featured THEN 'Выбор редакции' ELSE 'Отметка редакции снята' END,
         NULL,p_request_id,NULL,'succeeded',v_version::bigint,(v_version+1)::bigint);
     RETURN jsonb_build_object('publicationId',p_publication,'revisionId',v_revision,
-                              'featured',p_featured,'editorialVersion',v_version+1);
+                              'featured',p_featured,'editorialVersion',v_version+1,
+                              'lifecycleVersion',v_lifecycle_version);
 END;
 $$;
-REVOKE ALL ON FUNCTION public.admin_publication_feature_set(uuid,uuid,boolean,varchar,integer,uuid,integer) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.admin_publication_feature_set(uuid,uuid,boolean,varchar,integer,uuid,integer) TO asalab_app;
+REVOKE ALL ON FUNCTION public.admin_publication_feature_set(uuid,uuid,boolean,varchar,integer,uuid,integer,integer) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.admin_publication_feature_set(uuid,uuid,boolean,varchar,integer,uuid,integer,integer) TO asalab_app;
