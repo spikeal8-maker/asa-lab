@@ -37,6 +37,8 @@ import {
   clientToWorld,
   clamp,
   roundedRectContainsOffset,
+  TERMINAL_HIT_CORNER_RADIUS,
+  TERMINAL_HIT_RADIUS,
   completeOrthogonalRoute,
   fitViewportToScreen,
   gestureViewport,
@@ -2584,25 +2586,21 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
         if (radiusX <= 0 || radiusY <= 0) return [];
         const dx = clientX - (rect.left + rect.right) / 2;
         const dy = clientY - (rect.top + rect.bottom) / 2;
-        const isRoundedRect = element.localName === 'rect';
-        const normalizedDistance = isRoundedRect
-          ? Math.max(Math.abs(dx / radiusX), Math.abs(dy / radiusY))
-          : Math.hypot(dx / radiusX, dy / radiusY);
-        if (normalizedDistance > 1) return [];
-        if (isRoundedRect) {
-          const width = Number(element.getAttribute('width'));
-          const height = Number(element.getAttribute('height'));
-          const rx = Number(element.getAttribute('rx') ?? '0');
-          const ry = Number(element.getAttribute('ry') ?? element.getAttribute('rx') ?? '0');
-          const cornerX = width > 0 ? (rx * rect.width) / width : 0;
-          const cornerY = height > 0 ? (ry * rect.height) / height : 0;
-          if (!roundedRectContainsOffset(dx, dy, radiusX, radiusY, cornerX, cornerY)) return [];
-        }
+        const inside = element.localName === 'rect'
+          ? roundedRectContainsOffset(
+              dx,
+              dy,
+              radiusX,
+              radiusY,
+              (radiusX * TERMINAL_HIT_CORNER_RADIUS) / TERMINAL_HIT_RADIUS,
+              (radiusY * TERMINAL_HIT_CORNER_RADIUS) / TERMINAL_HIT_RADIUS,
+            )
+          : Math.hypot(dx / radiusX, dy / radiusY) <= 1;
+        if (!inside) return [];
         return [
           {
             componentId,
             terminal: terminal as Terminal,
-            normalizedDistance,
             distance: Math.hypot(dx, dy),
           },
         ];
@@ -2610,7 +2608,6 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
       .sort(
         (a, b) =>
           a.distance - b.distance ||
-          a.normalizedDistance - b.normalizedDistance ||
           a.componentId.localeCompare(b.componentId) ||
           String(a.terminal).localeCompare(String(b.terminal)),
       );

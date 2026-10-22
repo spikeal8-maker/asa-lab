@@ -3692,8 +3692,10 @@ wireVideoTest.describe('interaction: natural precise wire routing', () => {
         expect(Number(await componentDot.getAttribute('width'))).toBe(8);
         expect(Number(await endpoint.getAttribute('r'))).toBe(5);
         expect(Number(await endpointVisible.getAttribute('r'))).toBe(4);
-        expect(dotBox.width).toBeLessThan(hitBox.width);
-        expect(endpointVisibleBox.width).toBeLessThan(endpointBox.width);
+        // SVG bounding boxes may omit painted strokes, but the collision
+        // bounds must never extend beyond the drawn marker plus its outline.
+        expect(hitBox.width - dotBox.width).toBeLessThanOrEqual(1.4 * zoom);
+        expect(endpointBox.width - endpointVisibleBox.width).toBeLessThanOrEqual(2.2 * zoom);
 
         samples.set(zoom, {
           hit: hitBox.width,

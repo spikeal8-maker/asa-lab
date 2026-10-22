@@ -55,27 +55,26 @@ export function roundedRectContainsOffset(
   cornerRadiusX: number,
   cornerRadiusY: number,
 ): boolean {
+  const x = Math.abs(offsetX);
+  const y = Math.abs(offsetY);
   if (
-    !Number.isFinite(offsetX) ||
-    !Number.isFinite(offsetY) ||
-    !Number.isFinite(halfWidth) ||
-    !Number.isFinite(halfHeight) ||
-    !Number.isFinite(cornerRadiusX) ||
-    !Number.isFinite(cornerRadiusY) ||
     halfWidth <= 0 ||
-    halfHeight <= 0
+    halfHeight <= 0 ||
+    !Number.isFinite(x + y + halfWidth + halfHeight + cornerRadiusX + cornerRadiusY) ||
+    x > halfWidth ||
+    y > halfHeight
   ) {
     return false;
   }
-  const x = Math.abs(offsetX);
-  const y = Math.abs(offsetY);
-  if (x > halfWidth || y > halfHeight) return false;
   const rx = clamp(cornerRadiusX, 0, halfWidth);
   const ry = clamp(cornerRadiusY, 0, halfHeight);
-  if (rx === 0 || ry === 0) return true;
-  const cornerX = Math.max(0, x - (halfWidth - rx));
-  const cornerY = Math.max(0, y - (halfHeight - ry));
-  return (cornerX / rx) ** 2 + (cornerY / ry) ** 2 <= 1;
+  return (
+    rx === 0 ||
+    ry === 0 ||
+    (Math.max(0, x - halfWidth + rx) / rx) ** 2 +
+      (Math.max(0, y - halfHeight + ry) / ry) ** 2 <=
+      1
+  );
 }
 
 export function clamp(value: number, min: number, max: number): number {
