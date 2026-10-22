@@ -2111,7 +2111,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
   }
 
   function startWireTerminalPointer(
-    event: PointerEvent<SVGCircleElement>,
+    event: PointerEvent<SVGElement>,
     componentId: string,
     terminal: Terminal,
   ): void {
@@ -2562,14 +2562,16 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
     placeCatalogComponent(event);
   }
 
-  // Pointer capture and overlapping breadboard holes make DOM hit order
-  // unsuitable as electrical truth. Resolve against the actual rendered terminal
-  // circles, then choose the nearest eligible centre deterministically.
+  // Pointer capture hides native event targets. Check the actual SVG fill in
+  // local coordinates after fast screen-bounds rejection, then rank by centre.
   function terminalTargetAt(clientX: number, clientY: number): TerminalRef | null {
     const stage = stageRef.current;
     if (!stage) return null;
+    const pointer = stage.createSVGPoint();
+    pointer.x = clientX;
+    pointer.y = clientY;
     const candidates = [
-      ...stage.querySelectorAll<SVGGraphicsElement>(
+      ...stage.querySelectorAll<SVGGeometryElement>(
         '[data-terminal-component-id][data-terminal-id]',
       ),
     ]
@@ -2583,20 +2585,19 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
         if (radiusX <= 0 || radiusY <= 0) return [];
         const dx = clientX - (rect.left + rect.right) / 2;
         const dy = clientY - (rect.top + rect.bottom) / 2;
-        const normalizedDistance = Math.hypot(dx / radiusX, dy / radiusY);
-        if (normalizedDistance > 1) return [];
+        if (Math.abs(dx) > radiusX || Math.abs(dy) > radiusY) return [];
+        const matrix = element.getScreenCTM();
+        if (!matrix || !element.isPointInFill(pointer.matrixTransform(matrix.inverse()))) return [];
         return [
           {
             componentId,
             terminal: terminal as Terminal,
-            normalizedDistance,
-            distance: Math.hypot(dx, dy),
+            distance: dx * dx + dy * dy,
           },
         ];
       })
       .sort(
         (a, b) =>
-          a.normalizedDistance - b.normalizedDistance ||
           a.distance - b.distance ||
           a.componentId.localeCompare(b.componentId) ||
           String(a.terminal).localeCompare(String(b.terminal)),

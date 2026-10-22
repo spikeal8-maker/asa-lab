@@ -27,10 +27,9 @@ import {
   roundedWirePath,
   stageReadoutGeometry,
   TERMINAL_HIT_RADIUS,
+  TERMINAL_HIT_CORNER_RADIUS,
   TERMINAL_MARKER_SIZE,
-  TERMINAL_TOUCH_HIT_RADIUS,
   WIRE_ENDPOINT_HIT_RADIUS,
-  WIRE_ENDPOINT_TOUCH_HIT_RADIUS,
   WIRE_ENDPOINT_VISIBLE_RADIUS,
   wireGuideAxes,
   wirePoints,
@@ -69,7 +68,6 @@ const BreadboardTerminalOverlay = memo(function BreadboardTerminalOverlay({
   label,
   selected,
   hidden,
-  coarseInteraction,
   pendingHoleId,
   dropHoleId,
   hoveredGroupId,
@@ -81,7 +79,6 @@ const BreadboardTerminalOverlay = memo(function BreadboardTerminalOverlay({
   label: string;
   selected: boolean;
   hidden: boolean;
-  coarseInteraction: boolean;
   pendingHoleId: string | null;
   dropHoleId: string | null;
   hoveredGroupId: string | null;
@@ -106,6 +103,7 @@ const BreadboardTerminalOverlay = memo(function BreadboardTerminalOverlay({
       const pending = pendingHoleId === hole.id || dropTarget;
       const connected = hoveredGroupId === hole.groupId;
       const active = pending || hoveredHoleId === hole.id;
+      const terminalHitRadius = TERMINAL_HIT_RADIUS;
       return (
         <g
           key={hole.id}
@@ -123,11 +121,13 @@ const BreadboardTerminalOverlay = memo(function BreadboardTerminalOverlay({
           }
           onPointerLeave={() => setHoveredBreadboardNet(null)}
         >
-          <circle
+          <rect
             className="workbench-breadboard-hole-hit"
-            cx={point.x}
-            cy={point.y}
-            r={coarseInteraction ? TERMINAL_TOUCH_HIT_RADIUS : TERMINAL_HIT_RADIUS}
+            x={point.x - terminalHitRadius}
+            y={point.y - terminalHitRadius}
+            width={terminalHitRadius * 2}
+            height={terminalHitRadius * 2}
+            rx={TERMINAL_HIT_CORNER_RADIUS}
             data-terminal-component-id={component.id}
             data-terminal-id={hole.id}
             role="button"
@@ -184,7 +184,6 @@ const BreadboardTerminalOverlay = memo(function BreadboardTerminalOverlay({
     hidden,
     hidden ? null : component,
     hidden ? null : label,
-    hidden ? null : coarseInteraction,
     hidden ? null : pendingHoleId,
     hidden ? null : dropHoleId,
     hidden ? null : hoveredGroupId,
@@ -353,9 +352,6 @@ export function WorkbenchStage({
   showGrid: boolean;
 }): JSX.Element {
   const document = c.document!;
-  const coarseInteraction =
-    (globalThis.matchMedia?.('(pointer: coarse)').matches ?? false) ||
-    (typeof window !== 'undefined' && window.innerWidth <= 760);
   const [hoveredBreadboardNet, setHoveredBreadboardNet] = useState<BreadboardHover>(null);
   const controllerRef = useRef(c);
   controllerRef.current = c;
@@ -1143,7 +1139,6 @@ export function WorkbenchStage({
           label={entry.label}
           selected={selected}
           hidden={Boolean(c.draggingComponents)}
-          coarseInteraction={coarseInteraction}
           pendingHoleId={
             c.pendingTerminal?.componentId === component.id ? c.pendingTerminal.terminal : null
           }
@@ -1188,6 +1183,7 @@ export function WorkbenchStage({
               c.pendingTerminal.terminal === terminal) ||
             dropTarget;
           const connected = c.terminalConnectionCount(component.id, terminal) > 0;
+          const terminalHitRadius = TERMINAL_HIT_RADIUS;
           return (
             <g
               key={terminal}
@@ -1197,9 +1193,13 @@ export function WorkbenchStage({
               transform={`translate(${point.x} ${point.y})`}
               data-connected={connected ? 'true' : 'false'}
             >
-              <circle
+              <rect
                 className="workbench-terminal-hit"
-                r={coarseInteraction ? TERMINAL_TOUCH_HIT_RADIUS : TERMINAL_HIT_RADIUS}
+                x={-terminalHitRadius}
+                y={-terminalHitRadius}
+                width={terminalHitRadius * 2}
+                height={terminalHitRadius * 2}
+                rx={TERMINAL_HIT_CORNER_RADIUS}
                 data-terminal-component-id={component.id}
                 data-terminal-id={terminal}
                 onPointerDown={(event) => c.startWireTerminalPointer(event, component.id, terminal)}
@@ -1491,9 +1491,7 @@ export function WorkbenchStage({
                     data-wire-endpoint={endpoint}
                     cx={displayed.x}
                     cy={displayed.y}
-                    r={
-                      coarseInteraction ? WIRE_ENDPOINT_TOUCH_HIT_RADIUS : WIRE_ENDPOINT_HIT_RADIUS
-                    }
+                    r={WIRE_ENDPOINT_HIT_RADIUS}
                     pointerEvents={c.reconnectEndpoint === endpoint ? 'none' : undefined}
                     onPointerDown={(event) => c.startEndpointDrag(event, selectedWire.id, endpoint)}
                     role="button"

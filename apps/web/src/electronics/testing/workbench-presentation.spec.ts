@@ -47,7 +47,7 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(stageSource).not.toContain('workbench-snap-link');
     expect(stageSource).toContain('TERMINAL_MARKER_SIZE');
     expect(stageSource).toContain('TERMINAL_HIT_RADIUS');
-    expect(stageSource).toContain('TERMINAL_TOUCH_HIT_RADIUS');
+    expect(geometrySource).toContain('TERMINAL_TOUCH_HIT_RADIUS = TERMINAL_HIT_RADIUS');
     expect(stageSource).not.toContain('width={10 / c.viewport.zoom}');
     expect(stageSource).not.toContain('r={8 / c.viewport.zoom}');
     expect(stageSource).toContain('vectorEffect="non-scaling-stroke"');
@@ -377,7 +377,7 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(stageSource).toContain('className="workbench-wire-endpoint-hit"');
     expect(geometrySource).toContain('TERMINAL_MARKER_SIZE = 8');
     expect(geometrySource).toContain('WIRE_ENDPOINT_VISIBLE_RADIUS = 4');
-    expect(geometrySource).toContain('WIRE_ENDPOINT_HIT_RADIUS = 9');
+    expect(geometrySource).toContain('WIRE_ENDPOINT_HIT_RADIUS = WIRE_ENDPOINT_VISIBLE_RADIUS + 1');
     expect(workbenchCss).toMatch(
       /\.workbench-inspector\.wire-selected\s*\{[^}]*border:\s*1px solid #cbd3d9;/s,
     );
@@ -895,7 +895,7 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(sidebarSource).toContain('Math.abs(dy) >= 1.25 * Math.abs(dx)');
     expect(sidebarSource).toContain("touch.mode = 'scrolling'");
     expect(sidebarSource).toContain("touch.mode = 'dragging'");
-    expect(stageSource).toContain('TERMINAL_TOUCH_HIT_RADIUS');
+    expect(geometrySource).toContain('TERMINAL_TOUCH_HIT_RADIUS = TERMINAL_HIT_RADIUS');
     expect(stageSource).toContain('TERMINAL_HIT_RADIUS');
   });
 
