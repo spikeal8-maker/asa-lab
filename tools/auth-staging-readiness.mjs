@@ -13,8 +13,13 @@ const MAX_BODY_BYTES = 128 * 1024;
 const READ_TIMEOUT_MS = 12_000;
 const PROVIDER_IDS = ['max', 'telegram', 'email'];
 const REASONS = new Set([
-  'ready', 'disabled', 'not_configured', 'invalid_token',
-  'delivery_unavailable', 'unavailable', 'delivery_unverified',
+  'ready',
+  'disabled',
+  'not_configured',
+  'invalid_token',
+  'delivery_unavailable',
+  'unavailable',
+  'delivery_unverified',
 ]);
 
 export function safeOrigin(input = DEFAULT_ORIGIN) {
@@ -26,10 +31,16 @@ export function safeOrigin(input = DEFAULT_ORIGIN) {
     throw new Error('invalid_origin');
   }
   const isStage = url.protocol === 'https:' && url.hostname === 'test.asa-lab.ru' && !url.port;
-  const isLocal = url.protocol === 'http:' &&
-    (url.hostname === '127.0.0.1' || url.hostname === 'localhost');
-  if ((!isStage && !isLocal) || url.username || url.password ||
-      url.pathname !== '/' || url.search || url.hash) {
+  const isLocal =
+    url.protocol === 'http:' && (url.hostname === '127.0.0.1' || url.hostname === 'localhost');
+  if (
+    (!isStage && !isLocal) ||
+    url.username ||
+    url.password ||
+    url.pathname !== '/' ||
+    url.search ||
+    url.hash
+  ) {
     throw new Error('origin_not_allowed');
   }
   return url.origin;
@@ -72,12 +83,30 @@ async function readStatus(fetchImpl, url, accept, now, expectJson = false) {
       return { status: 'http_error', httpStatus: response.status };
     }
     if (!expectJson) return { status: 'ok', httpStatus: response.status };
-    let body;
+    if (!response.body) return { status: 'invalid_json', httpStatus: response.status };
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let body = '';
+    let bytes = 0;
     try {
-      body = await response.text();
-      if (Buffer.byteLength(body, 'utf8') > MAX_BODY_BYTES) {
-        return { status: 'body_too_large', httpStatus: response.status };
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        bytes += value.byteLength;
+        if (bytes > MAX_BODY_BYTES) {
+          controller.abort();
+          void reader.cancel().catch(() => undefined);
+          return { status: 'body_too_large', httpStatus: response.status };
+        }
+        body += decoder.decode(value, { stream: true });
       }
+      body += decoder.decode();
+    } catch {
+      return { status: 'network_error', httpStatus: response.status };
+    } finally {
+      reader.releaseLock();
+    }
+    try {
       return { status: 'ok', httpStatus: response.status, json: JSON.parse(body) };
     } catch {
       return { status: 'invalid_json', httpStatus: response.status };
@@ -106,20 +135,30 @@ export async function probeStaging({
   let providerSchema = 'not_checked';
   if (api.status === 'ok') {
     const list = api.json?.providers;
-    if (Array.isArray(list) && list.length <= 32 &&
-        list.every((item) => item && typeof item === 'object' && typeof item.id === 'string')) {
+    if (
+      Array.isArray(list) &&
+      list.length <= 32 &&
+      list.every((item) => item && typeof item === 'object' && typeof item.id === 'string')
+    ) {
       providers = PROVIDER_IDS.map((id) =>
-        safeProvider(list.find((item) => item.id === id), id));
+        safeProvider(
+          list.find((item) => item.id === id),
+          id,
+        ),
+      );
       providerSchema = 'valid';
     } else {
       providerSchema = 'invalid';
     }
   }
-  const ready = providers.filter((p) => ['max', 'telegram'].includes(p.id))
+  const ready = providers
+    .filter((p) => ['max', 'telegram'].includes(p.id))
     .every((p) => p.status === 'reported' && p.available && p.reason === 'ready');
-  const liveProof = providers.filter((p) => ['max', 'telegram'].includes(p.id))
-    .every((p) => p.status === 'reported' && p.enforcementEligible &&
-      p.enforcementReason === 'ready');
+  const liveProof = providers
+    .filter((p) => ['max', 'telegram'].includes(p.id))
+    .every(
+      (p) => p.status === 'reported' && p.enforcementEligible && p.enforcementReason === 'ready',
+    );
   const reachable = web.status === 'ok' && api.status === 'ok' && providerSchema === 'valid';
   const pass = reachable && (!expectReady || ready) && (!expectLiveProof || liveProof);
   return {
@@ -168,7 +207,9 @@ async function cli() {
     return;
   }
   if (options.help) {
-    console.log('Usage: node tools/auth-staging-readiness.mjs [--origin https://test.asa-lab.ru] [--expect-ready] [--expect-live-proof]');
+    console.log(
+      'Usage: node tools/auth-staging-readiness.mjs [--origin https://test.asa-lab.ru] [--expect-ready] [--expect-live-proof]',
+    );
     return;
   }
   const result = await probeStaging(options);
