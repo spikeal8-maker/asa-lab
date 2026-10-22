@@ -4433,12 +4433,18 @@ wireVideoTest.describe('interaction: natural precise wire routing', () => {
             endpointCenter.y - endpointVisibleCenter.y,
           ),
         ).toBeLessThanOrEqual(0.5);
-        expect(Number(await componentHit.getAttribute('r'))).toBe(9);
+        expect(await componentHit.evaluate((element) => element.localName)).toBe('rect');
+        expect(Number(await componentHit.getAttribute('width'))).toBeCloseTo(9.2, 4);
+        expect(Number(await componentHit.getAttribute('rx'))).toBe(1.6);
+        expect(await breadboardHit.evaluate((element) => element.localName)).toBe('rect');
+        expect(Number(await breadboardHit.getAttribute('width'))).toBeCloseTo(9.2, 4);
         expect(Number(await componentDot.getAttribute('width'))).toBe(8);
-        expect(Number(await endpoint.getAttribute('r'))).toBe(9);
+        expect(Number(await endpoint.getAttribute('r'))).toBe(5);
         expect(Number(await endpointVisible.getAttribute('r'))).toBe(4);
-        expect(dotBox.width).toBeLessThan(hitBox.width);
-        expect(endpointVisibleBox.width).toBeLessThan(endpointBox.width);
+        // SVG bounding boxes may omit painted strokes, but the collision
+        // bounds must never extend beyond the drawn marker plus its outline.
+        expect(hitBox.width - dotBox.width).toBeLessThanOrEqual(1.4 * zoom);
+        expect(endpointBox.width - endpointVisibleBox.width).toBeLessThanOrEqual(2.2 * zoom);
 
         samples.set(zoom, {
           hit: hitBox.width,
@@ -4470,8 +4476,8 @@ wireVideoTest.describe('interaction: natural precise wire routing', () => {
         }
       }
 
-      // Prove that the retained collision geometry, not the smaller visible
-      // marker, owns pointer input near its outer edge.
+      // The rounded-rect terminal target covers the painted square corners
+      // without the former circular halo. The endpoint circle stays painted-size.
       await page.keyboard.press('Escape');
       const edgeTerminal = wireTerminal(page, 'led', 'cathode');
       const edgeTerminalBox = await edgeTerminal.boundingBox();
