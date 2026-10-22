@@ -1695,6 +1695,22 @@
   border-color: #c9d5db;
 }
 
+.course-document-editor .course-actions-menu > .dropdown-menu {
+  left: auto;
+  max-width: calc(100vw - 48px);
+  overflow-y: auto;
+}
+
+.course-document-editor .course-actions-menu[data-dropdown-placement='above'] > .dropdown-menu {
+  top: auto;
+  bottom: calc(100% + 4px);
+}
+
+.course-document-editor .course-actions-menu[data-dropdown-placement='below'] > .dropdown-menu {
+  top: calc(100% + 4px);
+  bottom: auto;
+}
+
 .course-document-editor .course-builder {
   grid-template-columns: 240px minmax(0, 1fr);
   align-items: start;

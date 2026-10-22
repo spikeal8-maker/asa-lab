@@ -1394,6 +1394,7 @@ function CourseEditor({
             </div>
             <Dropdown
               className="course-outline-menu course-actions-menu"
+              fitViewport
               ariaLabel="Действия курса"
               label="Ещё"
             >

@@ -1967,6 +1967,17 @@ test('document Course Builder preserves the lesson, real save acknowledgements a
     const courseSettings = targetEditor
       .locator('.course-actions-menu')
       .getByRole('button', { name: 'Настройки', exact: true });
+    const courseSettingsBox = await courseSettings.boundingBox();
+    expect(courseSettingsBox, name + ': course menu settings geometry').not.toBeNull();
+    const courseViewport = await targetPage.evaluate(() => ({
+      width: window.innerWidth,
+      height: window.innerHeight,
+    }));
+    viewportEvidence.push({
+      stage: name + ':top:course-menu-settings-geometry',
+      bounds: courseSettingsBox,
+      viewport: courseViewport,
+    });
     await hitTarget(courseSettings, name + ':top:course-menu-settings');
     await targetPage.keyboard.press('Escape');
     await expect(actions).toHaveAttribute('aria-expanded', 'false');
