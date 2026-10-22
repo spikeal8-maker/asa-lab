@@ -154,6 +154,34 @@ describe('Ollama live HTTP protocol with deterministic fake transport', () => {
     expect(fetchImpl).toHaveBeenCalledOnce();
   });
 
+  it('stops emitting deltas immediately when Stop arrives during a coalesced chunk', async () => {
+    const abort = new AbortController();
+    const payload =
+      Array.from({ length: 60 }, () =>
+        JSON.stringify({ message: { content: 'x' }, done: false }),
+      ).join('\n') +
+      '\n' +
+      JSON.stringify({ done: true }) +
+      '\n';
+    const deltas: string[] = [];
+    const fetchImpl = vi.fn<typeof fetch>(async () => new Response(payload, { status: 200 }));
+    const result = await streamOllamaText({
+      baseUrl: 'http://127.0.0.1:11434',
+      model: 'ornith:9b',
+      context: [{ role: 'user', content: 'Остановить поток' }],
+      instructions: '',
+      signal: abort.signal,
+      onDelta: (delta) => {
+        deltas.push(delta);
+        abort.abort();
+      },
+      fetchImpl,
+    });
+    expect(deltas).toEqual(['x']);
+    expect(result).toEqual({ text: 'x', stopped: true });
+    expect(fetchImpl).toHaveBeenCalledOnce();
+  });
+
   it('reports incomplete stream with partial text for safe history persistence', async () => {
     const fetchImpl = vi.fn<typeof fetch>(
       async () =>
