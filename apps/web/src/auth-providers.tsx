@@ -321,7 +321,9 @@ export function SocialAuthButtons({
           ? `Регистрация через ${SOCIAL_PROVIDER_LABELS[flow.provider]}`
           : purpose === 'link'
             ? 'Подтвердить одним способом'
-            : 'Или продолжить через'}
+            : purpose === 'login'
+              ? 'Войти через мессенджер'
+              : 'Или продолжить через'}
       </p>
       {flow?.phase === 'registration' ? (
         <SocialRegistrationForm

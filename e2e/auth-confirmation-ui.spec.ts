@@ -606,6 +606,12 @@ for (const width of [1440, 1024, 390, 320]) {
     await expect(
       page.getByRole('button', { name: 'Войти через Telegram', exact: true }),
     ).toBeVisible();
+    await expect(page.getByText('Войти через мессенджер', { exact: true })).toBeVisible();
+    if (width >= 931) await expect(page.locator('.auth-entry-intro')).toBeVisible();
+    else await expect(page.locator('.auth-entry-intro')).toBeHidden();
+    const providerBox = await page.locator('.auth-social').boundingBox();
+    const passwordBox = await page.locator('form:has(#identifier)').boundingBox();
+    expect(providerBox && passwordBox && providerBox.y < passwordBox.y).toBe(true);
     await screenshot(page, `login-${width}`);
     await visit(page, '/sign-up');
     await expect(
@@ -690,6 +696,7 @@ for (const method of METHODS) {
     );
     await expect(botLink).toHaveAttribute('target', '_blank');
     expect(page.context().pages()).toHaveLength(initialPageCount);
+    await screenshot(page, `pending-${method}`);
     expect(
       state.requests.filter((request) => request.path === `/api/auth/${method}/pairing/start`),
     ).toHaveLength(1);
