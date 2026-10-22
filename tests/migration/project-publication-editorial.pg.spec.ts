@@ -27,26 +27,39 @@ describe('0237 editorial choice forward upgrade', () => {
       try {
         await applyIsolatedTestPlan(admin, prefix);
         const before = (
-          await admin.query("SELECT version, name, checksum FROM schema_migrations ORDER BY version")
+          await admin.query('SELECT version, name, checksum FROM schema_migrations ORDER BY version')
         ).rows;
         const complete = plan.filter((item) => Number(item.version) <= 237);
         expect(await applyIsolatedTestPlan(admin, complete)).toBe(1);
         expect(await applyIsolatedTestPlan(admin, complete)).toBe(0);
-        expect((
-          await admin.query("SELECT version, name, checksum FROM schema_migrations WHERE version <> '0237' ORDER BY version")
-        ).rows).toEqual(before);
-        expect((await admin.query('SELECT * FROM project_publication_editorial')).rows).toEqual([]);
-        expect((await admin.query('SELECT * FROM project_publication_editorial_lifecycle')).rows).toEqual([]);
+        expect(
+          (
+            await admin.query(
+              "SELECT version, name, checksum FROM schema_migrations WHERE version <> '0237' ORDER BY version",
+            )
+          ).rows,
+        ).toEqual(before);
+        expect((await admin.query('SELECT * FROM project_publication_editorial')).rows).toEqual(
+          [],
+        );
+        expect(
+          (await admin.query('SELECT * FROM project_publication_editorial_lifecycle')).rows,
+        ).toEqual([]);
         const runtime = await pool.connect();
         try {
           await runtime.query('SET ROLE asalab_app');
-          await expect(runtime.query('SELECT * FROM project_publication_editorial'))
-            .rejects.toMatchObject({ code: '42501' });
-          await expect(runtime.query('SELECT * FROM project_publication_editorial_lifecycle'))
-            .rejects.toMatchObject({ code: '42501' });
-          await expect(runtime.query('SELECT admin_publication_feature_set(NULL,NULL,true,NULL,0,NULL,0)'))
-            .rejects.toMatchObject({ code: '42501' });
-          const readable = await runtime.query('SELECT project_publication_featured(NULL,NULL) AS featured');
+          await expect(
+            runtime.query('SELECT * FROM project_publication_editorial'),
+          ).rejects.toMatchObject({ code: '42501' });
+          await expect(
+            runtime.query('SELECT * FROM project_publication_editorial_lifecycle'),
+          ).rejects.toMatchObject({ code: '42501' });
+          await expect(
+            runtime.query('SELECT admin_publication_feature_set(NULL,NULL,true,NULL,0,NULL,0,0)'),
+          ).rejects.toMatchObject({ code: '42501' });
+          const readable = await runtime.query(
+            'SELECT project_publication_featured(NULL,NULL) AS featured',
+          );
           expect(readable.rows[0]?.featured).toBe(false);
         } finally {
           runtime.release();

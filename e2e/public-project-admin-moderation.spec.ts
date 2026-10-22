@@ -331,8 +331,8 @@ for (const width of [1440, 390, 320]) {
         else expect(events[0]).toEqual(hideAudit[0]);
       }
 
-      // The next real user-visible editorial slice operates after moderation
-      // restore. An old featured mark must not survive a hide/restore cycle.
+      // The visible editorial slice follows moderation restore. A badge selected
+      // for a prior moderation state must not survive hide/restore automatically.
       expect((await guest.request.get(publicPath)).status()).toBe(200);
       const editorialListResponse = await moderator.request.get(`${BASE}?offset=0&limit=25`);
       expect(editorialListResponse.status()).toBe(200);
@@ -342,6 +342,7 @@ for (const width of [1440, 390, 320]) {
       expect(editorialSnapshot).toBeDefined();
       const lifecycleVersion = editorialSnapshot!.lifecycleVersion;
       expect(Number.isSafeInteger(lifecycleVersion)).toBe(true);
+
       const featureResponse = moderator.waitForResponse(
         (response) =>
           response.request().method() === 'POST' &&
@@ -358,10 +359,14 @@ for (const width of [1440, 390, 320]) {
         expectedLifecycleVersion: lifecycleVersion,
       });
       expect(await feature.json()).toMatchObject({
-        publicationId, revisionId, featured: true, editorialVersion: 1,
+        publicationId,
+        revisionId,
+        featured: true,
+        editorialVersion: 1,
         lifecycleVersion,
       });
       await expect(row.getByTestId('admin-publication-featured')).toContainText('Выбор редакции');
+
       const publishedFeatured = await guest.request.get(publicPath);
       expect(publishedFeatured.status()).toBe(200);
       expect((await publishedFeatured.json()).publication).toMatchObject({ featured: true });
@@ -372,13 +377,15 @@ for (const width of [1440, 390, 320]) {
       });
       await expect(card.getByTestId('public-project-featured')).toContainText('Выбор редакции');
       await guest.screenshot({
-        path: `${EVIDENCE}/${width}-featured-catalog.png`, fullPage: true,
+        path: `${EVIDENCE}/${width}-featured-catalog.png`,
+        fullPage: true,
       });
       await guest.goto(`/#/public-projects/${publicationId}`);
       await guest.reload();
       await expect(guest.getByTestId('public-project-featured')).toContainText('Выбор редакции');
       await guest.screenshot({
-        path: `${EVIDENCE}/${width}-featured-detail.png`, fullPage: true,
+        path: `${EVIDENCE}/${width}-featured-detail.png`,
+        fullPage: true,
       });
 
       const unfeatureResponse = moderator.waitForResponse(
@@ -397,20 +404,29 @@ for (const width of [1440, 390, 320]) {
         expectedLifecycleVersion: lifecycleVersion,
       });
       expect(await unfeature.json()).toMatchObject({
-        featured: false, editorialVersion: 2, lifecycleVersion,
+        featured: false,
+        editorialVersion: 2,
+        lifecycleVersion,
       });
       await expect(row.getByTestId('admin-publication-featured')).toHaveCount(0);
       await guest.reload();
       await expect(guest.getByTestId('public-project-featured')).toHaveCount(0);
+
       const withEditorialAudit = await audit();
       expect(withEditorialAudit).toHaveLength(4);
       expect(withEditorialAudit[2]).toMatchObject({
-        actor_principal_id: actor, action: 'publication.feature',
-        before_version: '0', after_version: '1', reason_text: 'Выбор редакции',
+        actor_principal_id: actor,
+        action: 'publication.feature',
+        before_version: '0',
+        after_version: '1',
+        reason_text: 'Выбор редакции',
       });
       expect(withEditorialAudit[3]).toMatchObject({
-        actor_principal_id: actor, action: 'publication.unfeature',
-        before_version: '1', after_version: '2', reason_text: 'Отметка редакции снята',
+        actor_principal_id: actor,
+        action: 'publication.unfeature',
+        before_version: '1',
+        after_version: '2',
+        reason_text: 'Отметка редакции снята',
       });
       expect(await original()).toEqual(draftBefore);
       expect(await projectRecord()).toEqual(projectBefore);
