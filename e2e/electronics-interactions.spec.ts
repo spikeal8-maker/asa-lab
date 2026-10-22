@@ -393,6 +393,7 @@ function realtime682Fixture(source: string, button: boolean): SchematicDocument 
           stateProperties: {
             ...row.stateProperties,
             arduinoSource: source,
+            arduinoWorkspace: '',
             arduinoCodeMode: 'text',
             arduinoSerialOpen: true,
             arduinoBaudRate: 9600,
