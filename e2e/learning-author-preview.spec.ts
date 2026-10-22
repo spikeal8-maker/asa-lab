@@ -1936,12 +1936,9 @@ test('document Course Builder preserves the lesson, real save acknowledgements a
     const save = targetEditor.getByRole('button', { name: 'Сохранить урок', exact: true });
     const previewButton = targetEditor.getByRole('button', { name: 'Предпросмотр', exact: true });
     const actions = targetEditor.getByRole('button', { name: 'Действия курса', exact: true });
-    // Scroll to the start of the course document, keeping the real sticky shell visible.
-    await targetEditor.locator('.course-compact-header').evaluate((header) => {
-      header.scrollIntoView({ block: 'start' });
-      const shell = document.querySelector('.portal-header')?.getBoundingClientRect();
-      window.scrollBy(0, -(shell?.height ?? 0) - 8);
-    });
+    // Await the browser's completed native scroll before measuring the course header.
+    // The strict hit-target checks below still detect clipping or overlays.
+    await targetEditor.locator('.course-compact-header').scrollIntoViewIfNeeded();
     await hitTarget(save, name + ':top:save');
     await hitTarget(previewButton, name + ':top:preview');
     const previewLines = await previewButton.evaluate((button) => {
