@@ -106,8 +106,8 @@ describe('0236 additive publication moderation upgrade', () => {
       try {
         expect(
           plan.filter((item) => Number(item.version) > 235).map((item) => item.version),
-        ).toEqual(['0236']);
-        expect(await applyIsolatedTestPlan(upgrade, plan)).toBe(1);
+        ).toEqual(['0236', '0237']);
+        expect(await applyIsolatedTestPlan(upgrade, plan)).toBe(2);
         expect(await applyIsolatedTestPlan(upgrade, plan)).toBe(0);
       } finally {
         upgrade.release();
@@ -118,7 +118,7 @@ describe('0236 additive publication moderation upgrade', () => {
       expect(
         (
           await pool.query(
-            "SELECT to_jsonb(t) AS item FROM schema_migrations t WHERE version<>'0236' ORDER BY to_jsonb(t)::text",
+            "SELECT to_jsonb(t) AS item FROM schema_migrations t WHERE version NOT IN ('0236','0237') ORDER BY to_jsonb(t)::text",
           )
         ).rows,
       ).toEqual(before['schema_migrations']);
