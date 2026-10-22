@@ -121,22 +121,36 @@ async function publication() {
     revisionId: status.publication.revisionId as string,
   };
 }
-const transition = (
+const transition = async (
   actor: string | null,
   publicationId: string,
   hidden: boolean,
   reason = 'Safety review',
   request = randomUUID(),
   expectedVersion = 0,
-) =>
-  runtime.query('SELECT admin_publication_transition($1,$2,$3,$4,$5,$6) AS result', [
+  expectedRevisionId?: string,
+) => {
+  // Test-only snapshot: simulate a fresh admin list when the specific dialog's
+  // revision is not supplied. The stale-dialog tests pass an old revision.
+  const selectedRevision =
+    expectedRevisionId ??
+    (
+      await admin.query<{ current_revision_id: string }>(
+        'SELECT current_revision_id FROM project_publication_state WHERE id=$1',
+        [publicationId],
+      )
+    ).rows[0]?.current_revision_id ??
+    randomUUID();
+  return runtime.query('SELECT admin_publication_transition($1,$2,$3,$4,$5,$6,$7) AS result', [
     actor,
     publicationId,
     hidden,
     reason,
     request,
     expectedVersion,
+    selectedRevision,
   ]);
+};
 async function original(projectId: string) {
   return (
     await admin.query(
@@ -284,7 +298,7 @@ describe('publication moderation with real runtime privileges and sessions', () 
         method: 'POST',
         url: path + '/' + op,
         cookies: { asa_session: actor.token },
-        payload: { reason, expectedVersion },
+        payload: { reason, expectedVersion, expectedRevisionId: source.revisionId },
       });
 
     const hideA = await send(first, 'hide', 'Reason A', 0);
@@ -324,6 +338,75 @@ describe('publication moderation with real runtime privileges and sessions', () 
     ).toHaveLength(1);
   });
 
+  it('rejects stale restore after the author republishes a different immutable revision', async () => {
+    const source = await publication();
+    const moderator = await identity('revision-race', 'verified');
+    const hide = await transition(
+      moderator.principalId,
+      source.publicationId,
+      true,
+      'Review before author changes',
+      randomUUID(),
+      0,
+      source.revisionId,
+    );
+    expect(hide.rows[0].result.moderationVersion).toBe(1);
+    const latest = await source.publish('Updated after moderation');
+    const revisionId = latest.publication.revisionId as string;
+    expect(revisionId).not.toBe(source.revisionId);
+
+    // This dialog still shows the previous immutable revision. The moderation
+    // state version is the SAME 1: stale content alone must cause HTTP 409.
+    const stale = await inject(app, {
+      method: 'POST',
+      url: `/api/admin/v1/publications/${source.publicationId}/restore`,
+      cookies: { asa_session: moderator.token },
+      payload: {
+        reason: 'Reviewed old revision',
+        expectedVersion: 1,
+        expectedRevisionId: source.revisionId,
+      },
+    });
+    expect(stale.statusCode).toBe(409);
+    await unavailable(source);
+    const unchanged = (
+      await admin.query(
+        'SELECT hidden, reason, moderation_version FROM project_publication_moderation WHERE publication_id=$1',
+        [source.publicationId],
+      )
+    ).rows[0];
+    expect(unchanged).toMatchObject({
+      hidden: true,
+      reason: 'Review before author changes',
+      moderation_version: 1,
+    });
+    const events = (
+      await admin.query(
+        "SELECT count(*)::integer AS n FROM administrative_audit_events WHERE target_type='project_publication' AND target_id=$1",
+        [source.publicationId],
+      )
+    ).rows[0];
+    expect(events.n).toBe(1);
+
+    // Explicitly reviewing the CURRENT author revision can restore it.
+    const current = await inject(app, {
+      method: 'POST',
+      url: `/api/admin/v1/publications/${source.publicationId}/restore`,
+      cookies: { asa_session: moderator.token },
+      payload: {
+        reason: 'Reviewed current author revision',
+        expectedVersion: 1,
+        expectedRevisionId: revisionId,
+      },
+    });
+    expect(current.statusCode).toBe(200);
+    expect(current.json().moderationVersion).toBe(2);
+    expect(
+      (await runtime.query('SELECT * FROM public_project_image($1,NULL)', [source.publicationId]))
+        .rows,
+    ).toHaveLength(1);
+  });
+
   it('hides all public projections, preserves originals, explains to owner and restores with atomic audit', async () => {
     const source = await publication();
     const moderator = await identity('moderator', 'verified');
@@ -344,6 +427,16 @@ describe('publication moderation with real runtime privileges and sessions', () 
       ).rows[0].ok,
     ).toBe(true);
     const before = await original(source.projectId);
+    const onLegacyWall = async () => {
+      const response = await inject(app, {
+        method: 'GET',
+        url: '/api/gallery/mine',
+        cookies: { asa_session: source.owner.token },
+      });
+      expect(response.statusCode).toBe(200);
+      return (response.json().projectIds as string[]).includes(source.projectId);
+    };
+    expect(await onLegacyWall()).toBe(true);
     const list = await inject(app, {
       method: 'GET',
       url: '/api/admin/v1/publications?offset=0&limit=50',
@@ -361,7 +454,11 @@ describe('publication moderation with real runtime privileges and sessions', () 
       method: 'POST',
       url: `/api/admin/v1/publications/${source.publicationId}/hide`,
       cookies: { asa_session: moderator.token },
-      payload: { reason: 'Unsafe example', expectedVersion: 0 },
+      payload: {
+        reason: 'Unsafe example',
+        expectedVersion: 0,
+        expectedRevisionId: source.revisionId,
+      },
     });
     expect(hidden.statusCode).toBe(200);
     expect(hidden.json()).toMatchObject({
@@ -371,6 +468,7 @@ describe('publication moderation with real runtime privileges and sessions', () 
       reason: 'Unsafe example',
     });
     await unavailable(source);
+    expect(await onLegacyWall()).toBe(false);
     expect(
       (
         await runtime.query('SELECT * FROM collection_items_list($1,$2)', [
@@ -425,10 +523,15 @@ describe('publication moderation with real runtime privileges and sessions', () 
       method: 'POST',
       url: `/api/admin/v1/publications/${source.publicationId}/restore`,
       cookies: { asa_session: moderator.token },
-      payload: { reason: 'Reviewed safe', expectedVersion: 1 },
+      payload: {
+        reason: 'Reviewed safe',
+        expectedVersion: 1,
+        expectedRevisionId: source.revisionId,
+      },
     });
     expect(restored.statusCode).toBe(200);
     expect(restored.json()).toMatchObject({ hidden: false, reason: null, moderationVersion: 2 });
+    expect(await onLegacyWall()).toBe(true);
     expect(
       (await runtime.query('SELECT * FROM public_project_image($1,NULL)', [source.publicationId]))
         .rows,
@@ -542,12 +645,13 @@ describe('publication moderation with real runtime privileges and sessions', () 
     const client = await runtime.connect();
     try {
       await client.query('BEGIN');
-      await client.query('SELECT admin_publication_transition($1,$2,true,$3,$4,$5)', [
+      await client.query('SELECT admin_publication_transition($1,$2,true,$3,$4,$5,$6)', [
         moderator.principalId,
         source.publicationId,
         'Rolled back',
         randomUUID(),
         4,
+        source.revisionId,
       ]);
       await client.query('ROLLBACK');
     } finally {
@@ -582,12 +686,13 @@ describe('publication moderation with real runtime privileges and sessions', () 
         FOR EACH ROW EXECUTE FUNCTION public.moderation_fail_${suffix}()`);
       await failureClient.query('SET LOCAL ROLE asalab_app');
       await expect(
-        failureClient.query('SELECT admin_publication_transition($1,$2,true,$3,$4,$5)', [
+        failureClient.query('SELECT admin_publication_transition($1,$2,true,$3,$4,$5,$6)', [
           moderator.principalId,
           source.publicationId,
           'Must roll back',
           randomUUID(),
           4,
+          source.revisionId,
         ]),
       ).rejects.toMatchObject({ code: 'P0001' });
     } finally {
@@ -622,7 +727,11 @@ describe('publication moderation with real runtime privileges and sessions', () 
       source.publish('Concurrent author update'),
       transition(moderator.principalId, source.publicationId, true),
     ]);
-    expect(published.every((result) => result.status === 'fulfilled')).toBe(true);
+    expect(published[0].status).toBe('fulfilled');
+    if (published[1].status === 'rejected') {
+      expect(published[1].reason).toMatchObject({ code: 'P5M09' });
+      await transition(moderator.principalId, source.publicationId, true);
+    }
     await unavailable(source);
     const revoked = await Promise.allSettled([
       runtime.query('SELECT project_publication_revoke($1,$2)', [

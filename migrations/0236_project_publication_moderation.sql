@@ -150,18 +150,19 @@ $$;
 
 CREATE FUNCTION public.admin_publication_transition(
     p_actor uuid, p_publication uuid, p_hidden boolean, p_reason text,
-    p_request_id varchar, p_expected_version integer
+    p_request_id varchar, p_expected_version integer, p_expected_revision uuid
 )
 RETURNS jsonb
 LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
-DECLARE v_project uuid; v_before boolean; v_version integer; v_at timestamptz;
+DECLARE v_project uuid; v_revision uuid; v_before boolean; v_version integer; v_at timestamptz;
 BEGIN
     IF public.admin_authorized_role(p_actor, 'platform', NULL) IS DISTINCT FROM 'platform_admin' THEN
         RAISE EXCEPTION 'administrative scope denied' USING ERRCODE = '42501';
     END IF;
     IF p_hidden IS NULL OR p_reason IS NULL OR length(trim(p_reason)) NOT BETWEEN 1 AND 500
        OR p_request_id IS NULL OR length(trim(p_request_id)) NOT BETWEEN 1 AND 128
-       OR p_expected_version IS NULL OR p_expected_version NOT BETWEEN 0 AND 2147483646 THEN
+       OR p_expected_version IS NULL OR p_expected_version NOT BETWEEN 0 AND 2147483646
+       OR p_expected_revision IS NULL THEN
         RAISE EXCEPTION 'invalid moderation input' USING ERRCODE = '22023';
     END IF;
     -- Initial lookup acquires no state lock. Publish/revoke/copy lock Project first.
@@ -174,14 +175,16 @@ BEGIN
      WHERE state.id = p_publication AND revision.schema_version = 2
      FOR UPDATE OF state;
     IF NOT FOUND THEN RAISE EXCEPTION 'not available' USING ERRCODE = 'P5P04'; END IF;
-    SELECT COALESCE(moderation.hidden, false), COALESCE(moderation.moderation_version, 0)
-      INTO v_before, v_version
+    SELECT state.current_revision_id, COALESCE(moderation.hidden, false),
+           COALESCE(moderation.moderation_version, 0)
+      INTO v_revision, v_before, v_version
       FROM public.project_publication_state state
       LEFT JOIN public.project_publication_moderation moderation ON moderation.publication_id = state.id
      WHERE state.id = p_publication;
     -- The expected revision is checked while holding the same Project/state lock
     -- as publish/revoke. An ABA hide/restore/hide cycle cannot reopen hidden content.
-    IF v_version <> p_expected_version OR v_before = p_hidden OR EXISTS (
+    IF v_revision IS DISTINCT FROM p_expected_revision OR
+       v_version <> p_expected_version OR v_before = p_hidden OR EXISTS (
         SELECT 1 FROM public.administrative_audit_events
          WHERE actor_principal_id = p_actor AND request_id = trim(p_request_id)
            AND action IN ('publication.hide', 'publication.restore')
@@ -206,7 +209,7 @@ END;
 $$;
 REVOKE ALL ON FUNCTION public.admin_publications_list(uuid,integer,integer) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.admin_publication_image(uuid,uuid) FROM PUBLIC;
-REVOKE ALL ON FUNCTION public.admin_publication_transition(uuid,uuid,boolean,text,varchar,integer) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.admin_publication_transition(uuid,uuid,boolean,text,varchar,integer,uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.admin_publications_list(uuid,integer,integer) TO asalab_app;
 GRANT EXECUTE ON FUNCTION public.admin_publication_image(uuid,uuid) TO asalab_app;
-GRANT EXECUTE ON FUNCTION public.admin_publication_transition(uuid,uuid,boolean,text,varchar,integer) TO asalab_app;
+GRANT EXECUTE ON FUNCTION public.admin_publication_transition(uuid,uuid,boolean,text,varchar,integer,uuid) TO asalab_app;

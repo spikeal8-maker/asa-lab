@@ -270,6 +270,7 @@ for (const width of [1440, 390]) {
         expect(response.request().postDataJSON()).toEqual({
           reason: reasons[index],
           expectedVersion: index,
+          expectedRevisionId: revisionId,
         });
         expect(await response.json()).toMatchObject({ publicationId, hidden: hiding });
         await expect(dialog).not.toBeVisible();

@@ -148,7 +148,11 @@ export function AdminPublicationsPage({
       `${endpoint(selected.publicationId)}/${selected.hidden ? 'restore' : 'hide'}`,
       {
         method: 'POST',
-        body: JSON.stringify({ reason: text, expectedVersion: selected.moderationVersion }),
+        body: JSON.stringify({
+          reason: text,
+          expectedVersion: selected.moderationVersion,
+          expectedRevisionId: selected.revisionId,
+        }),
       },
     );
     if (current !== version.current) return;

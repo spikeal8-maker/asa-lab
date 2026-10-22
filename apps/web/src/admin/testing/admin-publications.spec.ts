@@ -156,7 +156,11 @@ describe('publications moderation', () => {
         `/api/admin/v1/publications/publication-1/${hidden ? 'restore' : 'hide'}`,
         {
           method: 'POST',
-          body: JSON.stringify({ reason: 'Проверенная причина', expectedVersion: hidden ? 1 : 0 }),
+          body: JSON.stringify({
+            reason: 'Проверенная причина',
+            expectedVersion: hidden ? 1 : 0,
+            expectedRevisionId: publication.revisionId,
+          }),
         },
       );
       expect(host.querySelector('dialog')).toBeNull();
