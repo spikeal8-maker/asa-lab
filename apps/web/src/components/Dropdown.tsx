@@ -81,6 +81,21 @@ export function Dropdown({
     };
   }, []);
 
+  useEffect(() => {
+    if (!fitViewport) return;
+    const closeOnViewportChange = () => {
+      if (!ref.current?.open) return;
+      close();
+      ref.current?.querySelector('summary')?.focus();
+    };
+    window.addEventListener('resize', closeOnViewportChange);
+    window.visualViewport?.addEventListener('resize', closeOnViewportChange);
+    return () => {
+      window.removeEventListener('resize', closeOnViewportChange);
+      window.visualViewport?.removeEventListener('resize', closeOnViewportChange);
+    };
+  }, [close, fitViewport]);
+
   return (
     <details
       ref={ref}

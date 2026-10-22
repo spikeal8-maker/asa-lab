@@ -2137,6 +2137,14 @@ test('document Course Builder preserves the lesson, real save acknowledgements a
       editor.locator('.lesson-block-card').getByRole('button', { name: 'Скрыть', exact: true }),
     ).toBeVisible();
     await page.keyboard.press('Escape');
+    if (width === 1440) {
+      await blockActions.click();
+      await expect(blockActions).toHaveAttribute('aria-expanded', 'true');
+      await page.setViewportSize({ width, height: height - 60 });
+      await expect(blockActions).toHaveAttribute('aria-expanded', 'false');
+      await expect(blockActions).toBeFocused();
+      await page.setViewportSize({ width, height });
+    }
     await openCourseLessonSettings(page);
     const settings = editor.getByRole('dialog', { name: 'Параметры урока', exact: true });
     await expect(settings.getByLabel('Тип урока')).toHaveValue('material');
