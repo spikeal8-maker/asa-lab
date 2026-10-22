@@ -107,7 +107,9 @@ const BreadboardTerminalOverlay = memo(function BreadboardTerminalOverlay({
       const pending = pendingHoleId === hole.id || dropTarget;
       const connected = hoveredGroupId === hole.groupId;
       const active = pending || hoveredHoleId === hole.id;
-      const terminalHitRadius = coarseInteraction ? TERMINAL_TOUCH_HIT_RADIUS : TERMINAL_HIT_RADIUS;
+      const terminalHitRadius = coarseInteraction
+        ? TERMINAL_TOUCH_HIT_RADIUS
+        : TERMINAL_HIT_RADIUS;
       return (
         <g
           key={hole.id}
@@ -1192,7 +1194,9 @@ export function WorkbenchStage({
               c.pendingTerminal.terminal === terminal) ||
             dropTarget;
           const connected = c.terminalConnectionCount(component.id, terminal) > 0;
-          const terminalHitRadius = coarseInteraction ? TERMINAL_TOUCH_HIT_RADIUS : TERMINAL_HIT_RADIUS;
+          const terminalHitRadius = coarseInteraction
+            ? TERMINAL_TOUCH_HIT_RADIUS
+            : TERMINAL_HIT_RADIUS;
           return (
             <g
               key={terminal}

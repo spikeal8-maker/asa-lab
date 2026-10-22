@@ -56,10 +56,17 @@ export function roundedRectContainsOffset(
   cornerRadiusY: number,
 ): boolean {
   if (
-    ![offsetX, offsetY, halfWidth, halfHeight, cornerRadiusX, cornerRadiusY].every(Number.isFinite) ||
+    !Number.isFinite(offsetX) ||
+    !Number.isFinite(offsetY) ||
+    !Number.isFinite(halfWidth) ||
+    !Number.isFinite(halfHeight) ||
+    !Number.isFinite(cornerRadiusX) ||
+    !Number.isFinite(cornerRadiusY) ||
     halfWidth <= 0 ||
     halfHeight <= 0
-  ) return false;
+  ) {
+    return false;
+  }
   const x = Math.abs(offsetX);
   const y = Math.abs(offsetY);
   if (x > halfWidth || y > halfHeight) return false;

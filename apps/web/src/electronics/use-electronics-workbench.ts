@@ -2112,7 +2112,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
   }
 
   function startWireTerminalPointer(
-    event: PointerEvent<SVGCircleElement>,
+    event: PointerEvent<SVGElement>,
     componentId: string,
     terminal: Terminal,
   ): void {
@@ -2565,7 +2565,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
 
   // Pointer capture and overlapping breadboard holes make DOM hit order
   // unsuitable as electrical truth. Resolve against the actual rendered terminal
-  // circles, then choose the nearest eligible centre deterministically.
+  // painted circles/rounded rectangles, then choose the nearest eligible centre.
   function terminalTargetAt(clientX: number, clientY: number): TerminalRef | null {
     const stage = stageRef.current;
     if (!stage) return null;
@@ -2609,8 +2609,8 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
       })
       .sort(
         (a, b) =>
-          a.normalizedDistance - b.normalizedDistance ||
           a.distance - b.distance ||
+          a.normalizedDistance - b.normalizedDistance ||
           a.componentId.localeCompare(b.componentId) ||
           String(a.terminal).localeCompare(String(b.terminal)),
       );

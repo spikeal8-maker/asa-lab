@@ -268,8 +268,9 @@ describe('what the canvas is allowed to move', () => {
     expect(roundedRectContainsOffset(4.61, 0, half, half, corner, corner)).toBe(false);
     expect(roundedRectContainsOffset(4.5, 4.5, half, half, corner, corner)).toBe(false);
     for (const zoom of [0.5, 1, 2, 4]) {
-      expect(roundedRectContainsOffset(3.9 * zoom, 3.9 * zoom, half * zoom, half * zoom, corner * zoom, corner * zoom)).toBe(true);
-      expect(roundedRectContainsOffset(4.61 * zoom, 0, half * zoom, half * zoom, corner * zoom, corner * zoom)).toBe(false);
+      const scaledGeometry = [half * zoom, half * zoom, corner * zoom, corner * zoom] as const;
+      expect(roundedRectContainsOffset(3.9 * zoom, 3.9 * zoom, ...scaledGeometry)).toBe(true);
+      expect(roundedRectContainsOffset(4.61 * zoom, 0, ...scaledGeometry)).toBe(false);
     }
   });
 
