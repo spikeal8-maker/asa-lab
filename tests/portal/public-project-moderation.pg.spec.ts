@@ -778,9 +778,7 @@ describe('publication moderation with real runtime privileges and sessions', () 
       code: '22023',
     });
   });
-  it(
-    'limits revision-bound editorial choice to verified platform administrators and expires it after moderation/update',
-    async () => {
+  it('enforces editorial access and revision-bound lifecycle', async () => {
       const source = await publication();
       const editor = await identity('featured-editor', 'verified');
       const ordinary = await identity('featured-ordinary');
@@ -881,7 +879,9 @@ describe('publication moderation with real runtime privileges and sessions', () 
           [source.publicationId],
         )
       ).rows;
-      const editorial = history.filter((event) => String(event.action).startsWith('publication.feat'));
+      const editorial = history.filter((event) =>
+        String(event.action).startsWith('publication.feat'),
+      );
       expect(editorial).toHaveLength(2);
       expect(editorial[0]).toMatchObject({
         action: 'publication.feature',
@@ -896,9 +896,8 @@ describe('publication moderation with real runtime privileges and sessions', () 
         after_version: '2',
       });
       expect(history.filter((event) => event.action === 'publication.restore')).toHaveLength(1);
-    },
-  );
-  it('does not resurrect an editorial badge after revoke and same-revision republish', async () => {
+  });
+  it('prevents badge resurrection after revoke and republish', async () => {
     const source = await publication();
     const editor = await identity('revoke-featured-editor', 'verified');
     const actionUrl = `/api/admin/v1/publications/${source.publicationId}/featured`;
