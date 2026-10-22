@@ -113,6 +113,11 @@ export function PublicProjectPage({
             <span className="publication-module" data-module={publication.moduleKey}>
               {publicModuleName(publication.moduleKey)}
             </span>
+            {publication.featured ? (
+              <span className="public-project-featured" data-testid="public-project-featured">
+                ★ Выбор редакции
+              </span>
+            ) : null}
             <h1 data-testid="public-project-title">{publication.title}</h1>
             <p className="public-project-detail-author">{publication.authorLabel}</p>
             <p className="public-project-version">

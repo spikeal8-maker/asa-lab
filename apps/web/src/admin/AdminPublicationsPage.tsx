@@ -14,6 +14,8 @@ interface Publication {
   readonly moderationVersion: number;
   readonly reason: string | null;
   readonly moderatedAt: string | null;
+  readonly featured: boolean;
+  readonly editorialVersion: number;
 }
 
 interface ModerationResult {
@@ -178,10 +180,64 @@ export function AdminPublicationsPage({
     }
     setItems((previous) =>
       previous.map((item) =>
-        item.publicationId === result.data.publicationId ? { ...item, ...result.data } : item,
+        item.publicationId === result.data.publicationId
+          ? { ...item, ...result.data, featured: false }
+          : item,
       ),
     );
     setSelected(null);
+  };
+
+
+  const toggleFeatured = async (item: Publication): Promise<void> => {
+    if (busy.current || blocked.current || item.hidden || item.state !== 'public') return;
+    busy.current = true;
+    setSaving(true);
+    setError(null);
+    const current = version.current;
+    const result = await call<{
+      publicationId: string;
+      revisionId: string;
+      featured: boolean;
+      editorialVersion: number;
+    }>(`${endpoint(item.publicationId)}/featured`, {
+      method: 'POST',
+      body: JSON.stringify({
+        featured: !item.featured,
+        expectedVersion: item.editorialVersion,
+        expectedRevisionId: item.revisionId,
+        expectedModerationVersion: item.moderationVersion,
+      }),
+    });
+    if (current !== version.current) return;
+    busy.current = false;
+    setSaving(false);
+    if (!result.ok) {
+      if (result.status === 409)
+        setError('Редакционная отметка изменилась. Обновите список перед повтором.');
+      else fail(result.status);
+      return;
+    }
+    if (
+      result.data.publicationId !== item.publicationId ||
+      result.data.revisionId !== item.revisionId ||
+      result.data.featured === item.featured ||
+      result.data.editorialVersion !== item.editorialVersion + 1
+    ) {
+      setError('Сервер не подтвердил редакционное действие. Обновите список.');
+      return;
+    }
+    setItems((previous) =>
+      previous.map((currentItem) =>
+        currentItem.publicationId === result.data.publicationId
+          ? {
+              ...currentItem,
+              featured: result.data.featured,
+              editorialVersion: result.data.editorialVersion,
+            }
+          : currentItem,
+      ),
+    );
   };
 
   return (
@@ -232,6 +288,11 @@ export function AdminPublicationsPage({
                       : item.state}
                 </strong>
               </p>
+              {item.featured && !item.hidden ? (
+                <p className="admin-publication-featured" data-testid="admin-publication-featured">
+                  ★ Выбор редакции
+                </p>
+              ) : null}
               {item.hidden && item.reason ? <p>Причина: {item.reason}</p> : null}
               {item.moderatedAt ? <p>Модерация: {dateTime(item.moderatedAt)}</p> : null}
               {!item.hidden && item.state === 'public' ? (
@@ -240,7 +301,18 @@ export function AdminPublicationsPage({
                 </a>
               ) : null}
             </div>
-            <button
+            <div className="admin-publication-actions">
+              {!item.hidden && item.state === 'public' ? (
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  disabled={loading || saving || denied || selected !== null}
+                  onClick={() => void toggleFeatured(item)}
+                >
+                  {item.featured ? 'Снять отметку' : 'Выбор редакции'}
+                </button>
+              ) : null}
+              <button
               type="button"
               className="btn-secondary"
               disabled={loading || saving || denied}
@@ -252,7 +324,8 @@ export function AdminPublicationsPage({
               }}
             >
               {item.hidden ? 'Восстановить' : 'Скрыть'}
-            </button>
+              </button>
+            </div>
           </li>
         ))}
       </ul>
