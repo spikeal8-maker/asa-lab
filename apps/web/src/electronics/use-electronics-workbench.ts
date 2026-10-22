@@ -2567,7 +2567,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
 
   // Pointer capture and overlapping breadboard holes make DOM hit order
   // unsuitable as electrical truth. Resolve against the actual rendered terminal
-  // painted circles/rounded rectangles, then choose the nearest eligible centre.
+  // painted rounded rectangles, then choose the nearest eligible centre.
   function terminalTargetAt(clientX: number, clientY: number): TerminalRef | null {
     const stage = stageRef.current;
     if (!stage) return null;
@@ -2586,17 +2586,18 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
         if (radiusX <= 0 || radiusY <= 0) return [];
         const dx = clientX - (rect.left + rect.right) / 2;
         const dy = clientY - (rect.top + rect.bottom) / 2;
-        const inside = element.localName === 'rect'
-          ? roundedRectContainsOffset(
-              dx,
-              dy,
-              radiusX,
-              radiusY,
-              (radiusX * TERMINAL_HIT_CORNER_RADIUS) / TERMINAL_HIT_RADIUS,
-              (radiusY * TERMINAL_HIT_CORNER_RADIUS) / TERMINAL_HIT_RADIUS,
-            )
-          : Math.hypot(dx / radiusX, dy / radiusY) <= 1;
-        if (!inside) return [];
+        if (
+          !roundedRectContainsOffset(
+            dx,
+            dy,
+            radiusX,
+            radiusY,
+            (radiusX * TERMINAL_HIT_CORNER_RADIUS) / TERMINAL_HIT_RADIUS,
+            (radiusY * TERMINAL_HIT_CORNER_RADIUS) / TERMINAL_HIT_RADIUS,
+          )
+        ) {
+          return [];
+        }
         return [
           {
             componentId,
