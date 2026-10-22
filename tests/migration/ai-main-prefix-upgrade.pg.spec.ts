@@ -15,7 +15,8 @@ const expectedPending = [
   '0233',
   '0234',
   '0235',
-  '0236', // Ollama configuration is additive; no historical message or paid receipt changes.
+  '0236', // Published project moderation migration from current main.
+  '0237', // Ollama configuration additive, no change to historical messages or paid receipts.
 ];
 
 interface Identity {

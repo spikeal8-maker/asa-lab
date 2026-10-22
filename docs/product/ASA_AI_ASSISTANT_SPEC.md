@@ -706,7 +706,7 @@ image-generation интеграцией; одноимённая вкладка �
 - No implicit local→paid fallback. Every potential paid call must pass the
   existing explicit authorized paid admission, without automatically replaying
   an unknown-outcome Ollama request through an external provider.
-- Initial migration: `0236_ai_ollama_local.sql`; default disabled, forward-only,
+- Initial migration: `0237_ai_ollama_local.sql`; default disabled, forward-only,
   no edits to historical applied migrations or provider credentials.
   Installed DB prefix and actual network/model performance are separate
   acceptance gates; merged code never counts as completed deployment.

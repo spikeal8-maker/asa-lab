@@ -219,8 +219,11 @@ export class GalleryController {
   async mine(@Req() request: FastifyRequest) {
     const viewer = await this.requireViewer(request);
     const result = await this.requirePool().query(
-      `SELECT project_id FROM project_publications
-        WHERE owner_principal_id = $1 OR published_by_principal_id = $1`,
+      `SELECT legacy.project_id FROM project_publications legacy
+        WHERE (legacy.owner_principal_id = $1 OR legacy.published_by_principal_id = $1)
+          AND EXISTS (
+            SELECT 1 FROM public.gallery_state($1, legacy.project_id)
+          )`,
       [viewer.principalId],
     );
     return { projectIds: (result.rows as Array<{ project_id: string }>).map((r) => r.project_id) };

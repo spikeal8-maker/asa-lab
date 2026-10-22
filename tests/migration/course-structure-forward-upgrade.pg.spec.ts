@@ -106,7 +106,8 @@ describe('Course Builder structure forward upgrade', () => {
         '0233', // Function-local participant read JIT settings preserve definitions and data.
         '0234', // Explicit immutable Public Projects publication; protects originals.
         '0235', // Exact immutable public Project copy.
-        '0236', // Optional local Ollama connection and independent free chat admission.
+        '0236', // Public Project moderation from current main.
+        '0237', // Optional LAN Ollama and separate local text admission.
       ];
       const pre153 = plan.filter((item) => Number(item.version) <= 152);
       const upgradePlan = plan.filter((item) => Number(item.version) > 152);
@@ -373,6 +374,7 @@ describe('Course Builder structure forward upgrade', () => {
           '0234',
           '0235',
           '0236',
+          '0237',
         ]);
         expect(
           await applyIsolatedTestPlan(
