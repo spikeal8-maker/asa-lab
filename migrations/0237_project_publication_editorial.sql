@@ -27,7 +27,7 @@ REVOKE ALL ON TABLE public.project_publication_editorial_lifecycle FROM PUBLIC, 
 
 CREATE FUNCTION public.project_publication_editorial_lifecycle_bump()
 RETURNS trigger
-LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
 BEGIN
     -- The UPDATE already owns the state lock; the trigger locks the epoch after
     -- it, preserving Project → state → epoch ordering for publish/revoke.
@@ -38,7 +38,7 @@ BEGIN
       SET lifecycle_version = epoch.lifecycle_version + 1;
     RETURN NEW;
 END;
-$;
+$$;
 CREATE TRIGGER project_publication_editorial_lifecycle_update
 AFTER UPDATE ON public.project_publication_state
 FOR EACH ROW
