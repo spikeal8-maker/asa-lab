@@ -50,6 +50,7 @@ import {
 } from '@asa-lab/chess-live';
 import type { RegisteredModule } from '@asa-lab/module-sdk';
 import { AuthController } from './auth.controller.js';
+import { AdminPublicProjectsController } from './admin-public-projects.controller.js';
 import { AdminController } from './admin.controller.js';
 import { AiChatController } from './ai-chat.controller.js';
 import { AiAdminController } from './ai-admin.controller.js';
@@ -205,6 +206,7 @@ export class AppModule {
         HealthController,
         AuthController,
         AdminController,
+        AdminPublicProjectsController,
         AiChatController,
         AiAccessController,
         AiAttachmentController,
