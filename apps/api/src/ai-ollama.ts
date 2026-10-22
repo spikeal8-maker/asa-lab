@@ -243,7 +243,9 @@ export async function streamOllamaText(
           throw new OllamaError('ai_ollama_invalid', 503, 'Слишком большое событие Ollama.', text);
         frame(buffer.slice(0, boundary).trimEnd());
         buffer = buffer.slice(boundary + 1);
-        if (done) break;
+        // Stop immediately even when many token frames were coalesced into
+        // this same HTTP chunk; do not emit queued deltas after cancellation.
+        if (done || signal.aborted || text.length >= 8192) break;
         boundary = buffer.indexOf('\n');
       }
       if (!done && buffer.length > 16 * 1024)
