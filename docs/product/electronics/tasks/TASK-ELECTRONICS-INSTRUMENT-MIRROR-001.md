@@ -12,6 +12,79 @@ review: independent
 
 # Existing instrument readouts remain readable under mirror
 
+## Selected TEST-ONLY finalization phase repair — 21 October 2026
+
+NEW independent proposal review selects one test-only repair in simulation spec
+and generated browserEvidenceSha256. The current.yaml finalization_phase_contract
+explicitly supersedes ALL older whole-case0/1PUT/base2→3 and immutable seed-server
+assertions, including per-rotation assertGeometry. History remains unchanged.
+Autosave remains enabled; every write is fully accounted, never ignored.
+
+Independently expect generator.value/frequencyHz1000000,amplitude10,offset-5.
+Retain original final Enter once with actual delivery/state journal. Before fills,
+record selected identity,shell class and Catalog aria-pressed;only proven open
+Catalog permits ONE native close toggle. Require visible inspector/input;
+unknown state fails without forced fill,extra Enter or retry.
+
+Durable Node-ack ledger starts before first app edit and spans both pages through
+both context closures. Record every PUT identity/page/project/comparable time,
+mutationId/baseRevision/full document;response status/full revision/document or
+transport failure;native Save/lifecycle boundaries;sequence/loss/errors. Successful
+writes require independent complete-document correctness,CAS+1 and contiguous
+confirmed revisions. Unattributed write is UNKNOWN. Match EVERY server checkpoint
+and rotation GET to its revision-specific ACK and independent expected/local
+document;never derive expected from observed server or drop whole equality.
+
+After matrix,before final fills,establish clean acknowledged full local/server
+equality and no unresolved writes. Saved requires disabled Save;dirty explicitly
+permits ONE distinct native checkpoint Save with complete correlated PUT/CAS
+proof. This is a newly selected action,not a retry. Saving awaits observed
+completion under unchanged deadline then reevaluates;unknown/race fails journal.
+
+Then retain existing three fills and require independent full expected/local
+identity,visible enabled Save,no unresolved writes and confirmed server R.
+EXACTLY ONE original final native Save must produce EXACTLY ONE matched full-body
+PUT baseR/status200/revisionR+1 and fresh full server equality. Journal first
+dirty/action/request times on comparable clocks;finish before the new60000ms
+autosave deadline within UNCHANGED total case deadline. Any automatic/lifecycle
+write overlapping this proof fails causality;no retry,relabeling,clock mock,
+suppressed autosave,private-state call or persistence implementation change.
+
+Preserve16journeys/64configs perwidth,native rotations/controls,CTMs/ordinaryR/
+owncenters/independent windowmeet,R3 storage and full local/expected/server/
+rendered documents. Cookies-only fresh reopen keeps empty origins/pre-app
+local-session,postload empty localdraft/exact saved hint,journal before asserts,
+fresh full GET and no extra write through BOTH closures. Complete only after
+final durable ledger and both contexts closed. No timeout/coverage weakening.
+
+NEW full browser blob BEFORE/AFTER byte-identical;selfreview STOP,NEW independent
+exactSHA source/finalcomposition review then ONE justified existing strict run.
+All16complete plus NEW actual review precede separately selected product AFTER.
+Preserve682/679 paths and ownerKEEP544547OPEN. No product/closure/release/deploy.
+See [receipt](../evidence/instrument-525-finalization-repair-selection-20261021.md).
+
+## Selected parallel read-only finalization audit — 21 October 2026
+
+Owner explicitly resumes UI work independently of Arduino qualification. This
+selection authorizes ONE read-only causal audit, not a test or product repair.
+Audit the whole remaining generator finalization flow: frequency/unit/value
+formatting, native commit, mobile inspector visibility and Save/PUT accounting.
+Use cached exact40ca raw/native evidence and public setter/normalization source;
+small extracted checks are allowed. No browser/build/CI/new observer or source
+edits. Do not modify core, hook, Serial, interactions, Stage or presentation.
+
+Desktop generator.value expected1000 versus actual1000000 is a proven test
+oracle defect. Mobile hidden final input/Enter delivery remains UNKNOWN;
+nine incidental PUT records do not prove completed Save/CAS. Fifteen cases
+observed, zero complete;320XY absent. Do not weaken whole-document, native
+Save1PUT/base2/CAS2to3, storage, coverage or deadlines to accept this baseline.
+
+Return one minimal cause-backed repair proposal, then STOP. A new canonical
+repair selection and independent review must precede edits/CI. Product AFTER
+still requires all16complete and a new actual review. Preserve independent682
+controller and679 qualification;548BUDGETBLOCKED/ownerKEEP544547OPEN unchanged.
+See [selection receipt](../evidence/instrument-525-finalization-audit-selection-20261021.md).
+
 ## Selected TEST-ONLY segmented pan and waveform ownership — 21 October 2026
 
 Exact main1eeba369 / Electronics39604641081 has0/16 complete and PUT0.

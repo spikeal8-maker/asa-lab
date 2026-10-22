@@ -151,6 +151,17 @@ export function PublicationPanel({
             сохранённой версией проекта. Изменения в редакторе станут публичными только после
             обновления публикации.
           </p>
+          {status.moderationReason ? (
+            <p
+              className="publication-permission"
+              data-testid="publication-moderation-reason"
+              role="status"
+            >
+              Администратор скрыл публикацию. Причина: {status.moderationReason}. Вы можете
+              исправить работу и обновить её, но публичный доступ восстановит только администратор
+              платформы.
+            </p>
+          ) : null}
           {reason ? (
             <p className="publication-permission" data-testid="publication-permission">
               {reason}

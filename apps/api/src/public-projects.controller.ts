@@ -103,6 +103,7 @@ function publicProject(row: PublicProjectRow, canCopy: boolean) {
 }
 
 export interface OwnerPublicationStatus {
+  moderationReason?: string;
   publication: {
     publicationId: string;
     revisionId: string;

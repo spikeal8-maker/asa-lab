@@ -2673,25 +2673,132 @@ test.describe('ELECTRONICS-525 complete instrument mirror matrix', () => {
         const page = await context.newPage();
         const failures = collectBrowserFailures(page, { allowAdminAccessProbe: true });
         const rows: Record<string, unknown>[] = [];
-        const puts: unknown[] = [];
+        type Put525 = {
+          id: number;
+          page: string;
+          phase: string;
+          requestedAt: number;
+          request: { baseRevision: number; mutationId: string; document: SchematicDocument };
+          expected: SchematicDocument;
+          runtimeSnapshot?: SchematicDocument;
+          response?: {
+            status: number;
+            at: number;
+            body: { draft: { revision: number; document: SchematicDocument } };
+          };
+          failure?: string;
+        };
+        const puts: Put525[] = [];
+        const ledger: Record<string, unknown>[] = [];
+        const nativeDelivered: Array<{
+          page: string;
+          event: {
+            type: string;
+            trusted: boolean;
+            key?: string;
+            componentId?: string;
+            label?: string;
+          };
+        }> = [];
+        const ledgerErrors: string[] = [];
+        const initiators: Array<{
+          page: string;
+          requestId: string;
+          body: Put525['request'];
+          wallAt: number;
+          timestamp: number;
+          initiator: unknown;
+        }> = [];
+        const pendingResponses = new Set<Promise<void>>();
+        let phase = 'matrix';
+        let revision = 2;
+        let acknowledged: SchematicDocument;
+        let currentExpected: SchematicDocument;
+        let allowedRotations = [0];
+        let activeExpected: SchematicDocument[] = [];
+        let finalPutCount: number | undefined;
         const journal: Record<string, unknown> = {
           width,
           mirror,
           actorId,
           rows,
           puts,
+          ledger,
+          nativeDelivered,
+          ledgerErrors,
+          initiators,
           journeyComplete: false,
         };
-        const write = () =>
-          writeFileSync(
-            info.outputPath('instrument525-raw.json'),
-            JSON.stringify(journal, null, 2),
-            { flush: true },
-          );
+        const write = () => {
+          try {
+            writeFileSync(
+              info.outputPath('instrument525-raw.json'),
+              JSON.stringify(journal, null, 2),
+              { flush: true },
+            );
+          } catch (error) {
+            ledgerErrors.push(`durable journal write: ${String(error)}`);
+          }
+        };
         const checkpoint = (name: string, observation?: unknown) => {
           journal['lastCheckpoint'] = name;
           rows.push({ name, at: Date.now(), observation });
           write();
+        };
+        const acknowledge = (kind: string, data: unknown) => {
+          ledger.push({ seq: ledger.length + 1, kind, at: Date.now(), phase, data });
+          write(); // Node synchronous durable acknowledgement, before any assertion/teardown.
+        };
+        const ledgerHealthy = () => {
+          expect(ledgerErrors).toEqual([]);
+          expect(ledger.map((row) => row['seq'])).toEqual(ledger.map((_, index) => index + 1));
+          expect(puts.every((put) => put.response && !put.failure)).toBe(true);
+          const dispatches = ledger
+            .filter((row) => row['kind'] === 'public-fetch-dispatch-checkpoint')
+            .map(
+              (row) => row['data'] as { page: string; observation: { body: Put525['request'] } },
+            );
+          const views = [
+            puts.map((put) => ({ page: put.page, body: put.request })),
+            initiators.map((entry) => ({ page: entry.page, body: entry.body })),
+            dispatches.map((entry) => ({ page: entry.page, body: entry.observation.body })),
+          ];
+          // All three views must be bijective, not merely PW -> native provenance.
+          // Reverse checks reject a native write that lost its PW request/response record.
+          for (const view of views) {
+            expect(view).toHaveLength(puts.length);
+            for (const entry of view) {
+              for (const otherView of views) {
+                const matches = otherView.filter(
+                  (candidate) =>
+                    candidate.page === entry.page &&
+                    candidate.body.mutationId === entry.body.mutationId,
+                );
+                expect(matches).toHaveLength(1);
+                expect(matches[0]!.body).toEqual(entry.body);
+              }
+            }
+          }
+          expect(initiators.every((entry) => Boolean(entry.initiator))).toBe(true);
+        };
+        const settleLedger = async () => {
+          if (puts.some((put) => !put.response && !put.failure))
+            await expect.poll(() => puts.every((put) => put.response || put.failure)).toBe(true);
+          while (pendingResponses.size) await Promise.all([...pendingResponses]);
+          // Native and Playwright event deliveries may be in flight on different channels.
+          // Observe convergence under the existing assertion deadline; never treat an orphan as complete.
+          await expect
+            .poll(
+              () =>
+                puts.length === initiators.length &&
+                puts.length ===
+                  ledger.filter((row) => row['kind'] === 'public-fetch-dispatch-checkpoint')
+                    .length &&
+                pendingResponses.size === 0 &&
+                puts.every((put) => put.response || put.failure),
+            )
+            .toBe(true);
+          ledgerHealthy();
         };
         let reopenedContext: import('@playwright/test').BrowserContext | undefined;
         let cleanupError: unknown;
@@ -2910,17 +3017,336 @@ test.describe('ELECTRONICS-525 complete instrument mirror matrix', () => {
           write();
           expect(seed.draft.revision).toBe(2);
           expect(seed.draft.document).toEqual(seeded);
-          const recordPuts = (target: Page) =>
-            target.on('request', (request) => {
+          acknowledged = structuredClone(seeded);
+          currentExpected = structuredClone(seeded);
+          // Only viewport is the pre-existing geometry oracle's observed premise.
+          // Every other byte comes from the seed, declared rotation, or public setter contract.
+          const independentDocument = (
+            rotation: number,
+            viewport: SchematicDocument['viewport'],
+          ) => ({
+            ...seeded,
+            viewport,
+            components: seeded.components.map((item) => {
+              if (!instrumentIds.includes(item.id)) return item;
+              const size = dimensions.find((value) => value.id === item.id)!;
+              const radians = (rotation * Math.PI) / 180;
+              const w =
+                Math.abs(size.width * Math.cos(radians)) +
+                Math.abs(size.height * Math.sin(radians));
+              const h =
+                Math.abs(size.width * Math.sin(radians)) +
+                Math.abs(size.height * Math.cos(radians));
+              return {
+                ...item,
+                rotation: rotation as typeof item.rotation,
+                position: {
+                  x: item.position.x + (size.width - w) / 2,
+                  y: item.position.y + (size.height - h) / 2,
+                },
+              };
+            }),
+          });
+          const sameDocument = (left: SchematicDocument, right: SchematicDocument) => {
+            // Preserve the existing toBeCloseTo(8) geometry premise only for component positions.
+            // All other fields/numbers retain exact whole-document equality.
+            const adjusted = {
+              ...right,
+              components: right.components.map((item, index) => {
+                const observed = left.components[index];
+                if (!instrumentIds.includes(item.id)) return item;
+                if (
+                  !observed ||
+                  item.id !== observed.id ||
+                  ![
+                    item.position.x,
+                    item.position.y,
+                    observed.position.x,
+                    observed.position.y,
+                  ].every(Number.isFinite) ||
+                  Math.abs(item.position.x - observed.position.x) >= 5e-9 ||
+                  Math.abs(item.position.y - observed.position.y) >= 5e-9
+                )
+                  return item;
+                return { ...item, position: observed.position };
+              }),
+            };
+            try {
+              expect(left).toEqual(adjusted);
+              return true;
+            } catch {
+              return false;
+            }
+          };
+          const recordPuts = async (target: Page, pageId: string) => {
+            const dispatches = new Map<
+              string,
+              {
+                body: Put525['request'];
+                entries: Array<[string, string]>;
+                at: number;
+                stack?: string;
+              }
+            >();
+            await target.exposeBinding('instrument525ObserverError', (_source, error: string) => {
+              ledgerErrors.push(`dispatch observer: ${error}`);
+              acknowledge('dispatch-observer-error', error);
+              return ledger.length;
+            });
+            await target.exposeBinding(
+              'instrument525DispatchAck',
+              (
+                _source,
+                observation: {
+                  body: Put525['request'];
+                  entries: Array<[string, string]>;
+                  at: number;
+                  stack?: string;
+                },
+              ) => {
+                if (dispatches.has(observation.body.mutationId))
+                  ledgerErrors.push('Duplicate native dispatch mutation identity');
+                dispatches.set(observation.body.mutationId, observation);
+                acknowledge('public-fetch-dispatch-checkpoint', {
+                  page: pageId,
+                  observation,
+                  wrapperIdentityInterference: 'UNKNOWN_NONZERO',
+                });
+                return ledger.length;
+              },
+            );
+            await target.exposeBinding(
+              'instrument525NativeAck',
+              (_source, event: (typeof nativeDelivered)[number]['event']) => {
+                nativeDelivered.push({ page: pageId, event });
+                acknowledge('native-delivery', { page: pageId, event });
+                return ledger.length;
+              },
+            );
+            await target.addInitScript((projectId) => {
+              const probe = window as unknown as {
+                instrument525ObserverError: (error: string) => Promise<number>;
+                instrument525DispatchAck: (observation: unknown) => Promise<number>;
+                instrument525DispatchAcks: Promise<number>[];
+                instrument525NativeAck: (event: unknown) => Promise<number>;
+                instrument525NativeAcks: Promise<number>[];
+              };
+              probe.instrument525DispatchAcks = [];
+              const descriptor = Object.getOwnPropertyDescriptor(window, 'fetch')!;
+              if (!descriptor || typeof descriptor.value !== 'function')
+                throw new Error('No unchanged own native fetch descriptor');
+              const originalFetch = window.fetch;
+              const observedFetch = new Proxy(originalFetch, {
+                apply(target, receiver, args: Parameters<typeof fetch>) {
+                  try {
+                    const [input, options] = args;
+                    const url = new URL(
+                      input instanceof Request ? input.url : String(input),
+                      location.href,
+                    );
+                    if (
+                      options?.method === 'PUT' &&
+                      url.pathname === `/api/projects/${projectId}/draft`
+                    ) {
+                      const observation = {
+                        body: JSON.parse(String(options.body)),
+                        entries: Object.entries(localStorage),
+                        at: performance.timeOrigin + performance.now(),
+                        stack: new Error('public fetch dispatch').stack,
+                      };
+                      // Snapshot is synchronous before the original dispatch; never await/replace its Promise.
+                      probe.instrument525DispatchAcks.push(
+                        probe.instrument525DispatchAck(observation),
+                      );
+                    }
+                  } catch (error) {
+                    // Observation failure must never prevent or delay the original dispatch.
+                    try {
+                      probe.instrument525DispatchAcks.push(
+                        probe.instrument525ObserverError(String(error)),
+                      );
+                    } catch {
+                      /* Missing ACK is detected as an incomplete dispatch checkpoint. */
+                    }
+                  }
+                  return Reflect.apply(target, receiver, args);
+                },
+              });
+              Object.defineProperty(window, 'fetch', { ...descriptor, value: observedFetch });
+              probe.instrument525NativeAcks = [];
+              for (const type of ['keydown', 'keyup', 'pointerdown', 'pointerup', 'click'])
+                window.addEventListener(
+                  type,
+                  (event) => {
+                    const target = event.target instanceof Element ? event.target : null;
+                    const key = (event as KeyboardEvent).key;
+                    const label =
+                      target?.closest('[aria-label]')?.getAttribute('aria-label') ?? undefined;
+                    if (key !== 'Enter' && label !== 'Сохранить проект') return;
+                    const delivered = {
+                      type,
+                      key,
+                      label,
+                      trusted: event.isTrusted,
+                      at: performance.timeOrigin + event.timeStamp,
+                      componentId:
+                        target?.closest('[data-component-id]')?.getAttribute('data-component-id') ??
+                        undefined,
+                    };
+                    probe.instrument525NativeAcks.push(probe.instrument525NativeAck(delivered));
+                  },
+                  { capture: true, passive: true },
+                );
+            }, projectId);
+            // Passive Chromium protocol provenance plus the transparent public fetch snapshot above.
+            // Neither observer accesses product callbacks or changes the native fetch result/dispatch order.
+            const protocol = await target.context().newCDPSession(target);
+            protocol.on('Network.requestWillBeSent', (event) => {
               if (
-                request.method() === 'PUT' &&
-                new URL(request.url()).pathname === `/api/projects/${projectId}/draft`
-              ) {
-                puts.push(request.postDataJSON());
-                write();
+                event.request.method !== 'PUT' ||
+                new URL(event.request.url).pathname !== `/api/projects/${projectId}/draft`
+              )
+                return;
+              try {
+                if (!event.request.postData) throw new Error('Missing native initiator full body');
+                const entry = {
+                  page: pageId,
+                  requestId: event.requestId,
+                  body: JSON.parse(event.request.postData) as Put525['request'],
+                  wallAt: event.wallTime * 1000,
+                  timestamp: event.timestamp,
+                  initiator: event.initiator,
+                };
+                initiators.push(entry);
+                acknowledge('native-network-initiator', entry);
+              } catch (error) {
+                ledgerErrors.push(`native initiator capture: ${String(error)}`);
+                acknowledge('initiator-error', String(error));
               }
             });
-          recordPuts(page);
+            await protocol.send('Network.enable', { maxPostDataSize: 65536 });
+            const requests = new Map<import('@playwright/test').Request, Put525>();
+            const runtimeCaptures = new Map<import('@playwright/test').Request, Promise<void>>();
+            const matches = (request: import('@playwright/test').Request) =>
+              request.method() === 'PUT' &&
+              new URL(request.url()).pathname === `/api/projects/${projectId}/draft`;
+            target.on('request', (request) => {
+              if (!matches(request)) return;
+              try {
+                const body = request.postDataJSON() as Put525['request'];
+                const rotationsAtRequest = [...allowedRotations];
+                const expectedAtRequest = structuredClone(activeExpected);
+                const put: Put525 = {
+                  id: puts.length + 1,
+                  page: pageId,
+                  phase,
+                  requestedAt: Date.now(),
+                  request: body,
+                  expected: structuredClone(currentExpected),
+                };
+                puts.push(put);
+                requests.set(request, put);
+                acknowledge('put-request', {
+                  ...put,
+                  url: request.url(),
+                  resourceType: request.resourceType(),
+                  navigation: request.isNavigationRequest(),
+                  frameUrl: request.frame().url(),
+                  timing: request.timing(),
+                });
+
+                if (!body.mutationId || typeof body.mutationId !== 'string')
+                  ledgerErrors.push(`PUT ${put.id}: missing mutation identity`);
+                if (puts.some((prior) => prior !== put && !prior.response))
+                  ledgerErrors.push(`PUT ${put.id}: overlapping unresolved write`);
+                const capture = (async () => {
+                  try {
+                    await expect.poll(() => dispatches.has(body.mutationId)).toBe(true);
+                    const dispatch = dispatches.get(body.mutationId)!;
+                    expect(dispatch.body).toEqual(body);
+                    const raw = pendingElectronicsLocalDraft(dispatch.entries, projectId, actorId);
+                    if (!raw) throw new Error('No public local runtime checkpoint at PUT dispatch');
+                    const runtime = (JSON.parse(raw) as { document: SchematicDocument }).document;
+                    put.runtimeSnapshot = runtime;
+                    const candidates =
+                      put.phase === 'matrix'
+                        ? rotationsAtRequest.map((rotation) =>
+                            independentDocument(rotation, runtime.viewport),
+                          )
+                        : expectedAtRequest;
+                    const expected = candidates.find(
+                      (candidate) =>
+                        sameDocument(runtime, candidate) && sameDocument(body.document, candidate),
+                    );
+                    acknowledge('put-runtime-checkpoint', {
+                      id: put.id,
+                      runtime,
+                      candidates,
+                      matched: Boolean(expected),
+                    });
+                    if (!expected)
+                      throw new Error('No independent causal expected runtime checkpoint');
+                    put.expected = {
+                      ...structuredClone(expected),
+                      components: expected.components.map((item, index) => ({
+                        ...item,
+                        position: instrumentIds.includes(item.id)
+                          ? runtime.components[index]!.position
+                          : item.position,
+                      })),
+                    };
+                    expect(body.document).toEqual(put.expected);
+                  } catch (error) {
+                    put.failure = String(error);
+                    ledgerErrors.push(`PUT ${put.id} runtime checkpoint: ${String(error)}`);
+                    acknowledge('runtime-checkpoint-error', { id: put.id, error: String(error) });
+                  }
+                })();
+                runtimeCaptures.set(request, capture);
+                pendingResponses.add(capture);
+                void capture.finally(() => pendingResponses.delete(capture));
+                write();
+              } catch (error) {
+                ledgerErrors.push(`request capture: ${String(error)}`);
+                acknowledge('capture-error', String(error));
+              }
+            });
+            target.on('response', (response) => {
+              const put = requests.get(response.request());
+              if (!put) return;
+              const work = (async () => {
+                try {
+                  await runtimeCaptures.get(response.request());
+                  const body = (await response.json()) as NonNullable<Put525['response']>['body'];
+                  put.response = { status: response.status(), at: Date.now(), body };
+                  acknowledge('put-response', { id: put.id, response: put.response });
+                  expect(response.status()).toBe(200);
+                  expect(put.request.baseRevision).toBe(revision);
+                  expect(body.draft.revision).toBe(revision + 1);
+                  expect(body.draft.document).toEqual(put.request.document);
+                  expect(sameDocument(body.draft.document, put.expected)).toBe(true);
+                  revision = body.draft.revision;
+                  // The acknowledged fallback is the independently declared expected checkpoint.
+                  acknowledged = structuredClone(put.expected);
+                } catch (error) {
+                  put.failure = String(error);
+                  ledgerErrors.push(`PUT ${put.id}: ${String(error)}`);
+                  acknowledge('put-response-error', { id: put.id, error: String(error) });
+                }
+              })();
+              pendingResponses.add(work);
+              void work.finally(() => pendingResponses.delete(work));
+            });
+            target.on('requestfailed', (request) => {
+              const put = requests.get(request);
+              if (!put) return;
+              put.failure = request.failure()?.errorText ?? 'unknown transport failure';
+              ledgerErrors.push(`PUT ${put.id}: ${put.failure}`);
+              acknowledge('put-transport-failure', { id: put.id, failure: put.failure });
+            });
+            target.on('close', () => acknowledge('page-closed', { page: pageId }));
+          };
+          await recordPuts(page, 'original');
           await page.goto(`/#/home/${projectId}`);
           await expect(page.getByTestId('schematic-component')).toHaveCount(
             seeded.components.length,
@@ -3002,7 +3428,9 @@ test.describe('ELECTRONICS-525 complete instrument mirror matrix', () => {
           const local = async () => {
             const entries = await page.evaluate(() => Object.entries(localStorage));
             const raw = pendingElectronicsLocalDraft(entries, projectId, actorId);
-            return raw ? (JSON.parse(raw) as { document: SchematicDocument }).document : seeded;
+            return raw
+              ? (JSON.parse(raw) as { document: SchematicDocument }).document
+              : structuredClone(acknowledged);
           };
           const part = (id: string) =>
             page.locator(
@@ -3515,7 +3943,11 @@ test.describe('ELECTRONICS-525 complete instrument mirror matrix', () => {
             };
             checkpoint(`whole-document-${rotation}`, { actual, intended });
             expect(actual).toEqual(intended);
-            expect((await e01Server(page, projectId)).draft).toEqual(seed.draft);
+            await settleLedger();
+            const server = await e01Server(page, projectId);
+            acknowledge('rotation-server', { rotation, server, revision, acknowledged, intended });
+            expect(server.draft.revision).toBe(revision);
+            expect(server.draft.document).toEqual(acknowledged);
             const endpoints = await page.evaluate(
               (connections) =>
                 connections.flatMap((wire) => {
@@ -3546,7 +3978,11 @@ test.describe('ELECTRONICS-525 complete instrument mirror matrix', () => {
               for (const [index, id] of instrumentIds.entries())
                 await part(id).press(index ? 'Shift+Enter' : 'Enter');
               expect(await page.locator('.workbench-part.selected').count()).toBe(4);
+              allowedRotations = [rotation - 90, rotation - 45];
+              acknowledge('native-rotate', { target: rotation - 45 });
               await page.getByRole('button', { name: 'Повернуть на 45° (R)', exact: true }).click();
+              allowedRotations = [rotation - 45, rotation];
+              acknowledge('native-rotate', { target: rotation });
               await page.getByRole('button', { name: 'Повернуть на 45° (R)', exact: true }).click();
             }
             await assertGeometry(rotation);
@@ -3685,10 +4121,167 @@ test.describe('ELECTRONICS-525 complete instrument mirror matrix', () => {
             await capture('scope', rotation, 'stopped');
             expected = await assertGeometry(rotation);
           }
+          await settleLedger();
+          phase = 'checkpoint';
+          currentExpected = structuredClone(expected);
+          activeExpected = [currentExpected];
+          const save = page.getByRole('button', { name: 'Сохранить проект', exact: true });
+          const saveState = async () => {
+            const state = {
+              disabled: await save.isDisabled(),
+              pending: pendingResponses.size,
+              revision,
+              puts: puts.length,
+              local: await local(),
+            };
+            acknowledge('save-state', state);
+            return state;
+          };
+          // A distinct, explicitly selected checkpoint action, never a final-Save retry.
+          let boundary = await saveState();
+          if (boundary.pending) {
+            await settleLedger();
+            boundary = await saveState();
+          }
+          expect(boundary.local).toEqual(expected);
+          if (!boundary.disabled) {
+            const before = puts.length;
+            acknowledge('checkpoint-save-before', { before, revision, expected });
+            if (width < 500) await save.tap();
+            else await save.click();
+            await expect
+              .poll(() => puts.filter((put) => put.phase === 'checkpoint' && put.response).length)
+              .toBe(1);
+            await settleLedger();
+            acknowledge('checkpoint-save-after', { before, puts: puts.length, revision });
+            expect(puts.length).toBe(before + 1);
+          }
+          await expect(save).toBeDisabled();
+          await settleLedger();
+          const cleanServer = await e01Server(page, projectId);
+          acknowledge('clean-acknowledged-boundary', {
+            cleanServer,
+            expected,
+            acknowledged,
+            revision,
+          });
+          expect(cleanServer.draft.revision).toBe(revision);
+          expect(cleanServer.draft.document).toEqual(expected);
+          expect(acknowledged).toEqual(expected);
+          phase = 'final-edits';
+          const finalDirtyAt = Date.now();
+          acknowledge('final-edit-phase-start', { finalDirtyAt, revision });
           await focusInstrument('generator');
+          const inspectorWitness = async (name: string) => {
+            const observation = await page.evaluate(() => ({
+              shellClass: document.querySelector('.workbench-shell')?.className,
+              catalogPressed: document
+                .querySelector('[aria-label="Каталог деталей"]')
+                ?.getAttribute('aria-pressed'),
+              selected: [...document.querySelectorAll('.workbench-part.selected')].map((node) =>
+                node.closest('[data-component-id]')?.getAttribute('data-component-id'),
+              ),
+              active: document.activeElement?.outerHTML.slice(0, 1000),
+              events: (window as unknown as { instrument525Events: unknown[] }).instrument525Events,
+            }));
+            acknowledge(name, observation);
+            return observation;
+          };
+          const enterCount = (events: unknown) =>
+            (
+              events as Array<{
+                type: string;
+                trusted: boolean;
+                key?: string;
+                componentId?: string;
+              }>
+            ).filter(
+              (event) =>
+                event.type === 'keydown' &&
+                event.trusted &&
+                event.key === 'Enter' &&
+                event.componentId === 'generator',
+            ).length;
+          const nativeFence = async () => {
+            const sequences = await page.evaluate(async () =>
+              Promise.all([
+                ...(window as unknown as { instrument525NativeAcks: Promise<number>[] })
+                  .instrument525NativeAcks,
+                ...(window as unknown as { instrument525DispatchAcks: Promise<number>[] })
+                  .instrument525DispatchAcks,
+              ]),
+            );
+            acknowledge('native-ack-fence', { sequences });
+            expect(sequences.every((seq) => Number.isInteger(seq) && seq > 0)).toBe(true);
+          };
+          await nativeFence();
+          const beforeNativeEnter = nativeDelivered.filter(
+            (entry) =>
+              entry.page === 'original' &&
+              entry.event.type === 'keydown' &&
+              entry.event.key === 'Enter' &&
+              entry.event.componentId === 'generator' &&
+              entry.event.trusted,
+          ).length;
+          const beforeEnter = await inspectorWitness('final-enter-before');
           await part('generator').press('Enter');
-          await page.getByLabel('Частота генератора', { exact: true }).fill('1000000');
+          await nativeFence();
+          const afterNativeEnter = nativeDelivered.filter(
+            (entry) =>
+              entry.page === 'original' &&
+              entry.event.type === 'keydown' &&
+              entry.event.key === 'Enter' &&
+              entry.event.componentId === 'generator' &&
+              entry.event.trusted,
+          ).length;
+          expect(afterNativeEnter - beforeNativeEnter).toBe(1);
+          const afterEnter = await inspectorWitness('final-enter-after');
+          expect(afterEnter.selected).toEqual(['generator']);
+          expect(enterCount(afterEnter.events) - enterCount(beforeEnter.events)).toBe(1);
+          if (width < 500) {
+            const beforeInspector = await inspectorWitness('inspector-precondition');
+            const open =
+              beforeInspector.catalogPressed === 'true' &&
+              !String(beforeInspector.shellClass).includes('library-collapsed');
+            const closed =
+              beforeInspector.catalogPressed === 'false' &&
+              String(beforeInspector.shellClass).includes('library-collapsed');
+            expect(open || closed).toBe(true);
+            if (open) {
+              await page.getByRole('button', { name: 'Каталог деталей', exact: true }).tap();
+              const afterClose = await inspectorWitness('catalog-native-close-after');
+              expect(afterClose.catalogPressed).toBe('false');
+              expect(String(afterClose.shellClass)).toContain('library-collapsed');
+            }
+          }
+          const frequency = page.getByLabel('Частота генератора', { exact: true });
+          acknowledge('final-input-visibility', {
+            beforeEnter,
+            visible: await frequency.isVisible(),
+          });
+          await expect(frequency).toBeVisible();
+          const patchGenerator = (patch: Record<string, number>, value?: number) => ({
+            ...currentExpected,
+            components: currentExpected.components.map((item) =>
+              item.id === 'generator'
+                ? {
+                    ...item,
+                    ...(value === undefined ? {} : { value }),
+                    stateProperties: { ...item.stateProperties, ...patch },
+                  }
+                : item,
+            ),
+          });
+          const admit = (document: SchematicDocument) => {
+            currentExpected = document;
+            activeExpected.push(structuredClone(document));
+            acknowledge('independent-final-checkpoint', { expected: document });
+          };
+          admit(patchGenerator({ frequencyHz: 1000000 }, 1000000));
+          await frequency.fill('1000000');
+          admit(patchGenerator({ amplitudeVpp: 10 }));
           await page.getByLabel('Амплитуда генератора пик-пик', { exact: true }).fill('10');
+          admit(patchGenerator({ dcOffsetVolt: -5 }));
           await page.getByLabel('Постоянное смещение генератора', { exact: true }).fill('-5');
           await expect(
             component(page, 'signal-generator').locator(
@@ -3697,44 +4290,38 @@ test.describe('ELECTRONICS-525 complete instrument mirror matrix', () => {
           ).toHaveText(['1.00 MHz', '10.00 Vpp', '-5.00 V']);
           await capture('generator', 270, 'long-supported-setpoint-stopped');
           const finalLocal = await local();
-          expected = {
-            ...expected,
-            viewport: finalLocal.viewport,
-            components: expected.components.map((item) =>
-              item.id === 'generator'
-                ? {
-                    ...item,
-                    stateProperties: {
-                      ...item.stateProperties,
-                      frequencyHz: 1000000,
-                      amplitudeVpp: 10,
-                      dcOffsetVolt: -5,
-                    },
-                  }
-                : item,
-            ),
-          };
+          expected = { ...currentExpected, viewport: finalLocal.viewport };
+          activeExpected = [expected];
           checkpoint('intended-final-document', { finalLocal, expected });
           expect(finalLocal).toEqual(expected);
           expect(measured.filter((row) => row.state === 'active')).toHaveLength(16);
-          // Save is never interrupted by an expected soft orientation failure.
-          expect(puts).toHaveLength(0);
-          const savedResponse = page.waitForResponse(
-            (response) =>
-              response.request().method() === 'PUT' &&
-              new URL(response.url()).pathname === `/api/projects/${projectId}/draft`,
-          );
-          const save = page.getByRole('button', { name: 'Сохранить проект', exact: true });
+          await settleLedger();
+          expect(puts.filter((put) => put.phase === 'final-edits')).toHaveLength(0);
+          await expect(save).toBeEnabled();
+          const beforeFinal = puts.length;
+          const finalBase = revision;
+          phase = 'final-save';
+          acknowledge('final-save-before', { beforeFinal, finalBase, finalDirtyAt, expected });
           if (width < 500) await save.tap();
           else await save.click();
-          const response = await savedResponse;
-          expect(response.status()).toBe(200);
+          await expect
+            .poll(() => puts.filter((put) => put.phase === 'final-save' && put.response).length)
+            .toBe(1);
+          await settleLedger();
+          const finalPut = puts[beforeFinal]!;
+          await nativeFence();
+          acknowledge('final-save-acknowledged', { finalPut, finalDirtyAt, revision });
+          expect(puts.length).toBe(beforeFinal + 1);
+          expect(finalPut.request).toMatchObject({ baseRevision: finalBase, document: expected });
+          expect(finalPut.requestedAt).toBeLessThan(finalDirtyAt + 60000);
+          expect(Date.now()).toBeLessThan(finalDirtyAt + 60000);
+          expect(revision).toBe(finalBase + 1);
           const saved = await e01Server(page, projectId);
           checkpoint('saved', { saved, expected });
-          expect(saved.draft.revision).toBe(3);
+          expect(saved.draft.revision).toBe(finalBase + 1);
           expect(saved.draft.document).toEqual(expected);
-          expect(puts).toHaveLength(1);
-          expect(puts[0]).toMatchObject({ baseRevision: 2, document: expected });
+          finalPutCount = puts.length;
+          phase = 'reopen';
           reopenedContext = await browser.newContext({
             baseURL,
             viewport: { width, height: 1000 },
@@ -3749,7 +4336,7 @@ test.describe('ELECTRONICS-525 complete instrument mirror matrix', () => {
           const reopenedFailures = collectBrowserFailures(reopened, {
             allowAdminAccessProbe: true,
           });
-          recordPuts(reopened);
+          await recordPuts(reopened, 'reopened');
           const freshGET = reopened.waitForResponse(
             (response) =>
               response.request().method() === 'GET' &&
@@ -3796,7 +4383,8 @@ test.describe('ELECTRONICS-525 complete instrument mirror matrix', () => {
           expect(rendered.map((item) => item.id)).toEqual(
             expected.components.map((item) => item.id),
           );
-          expect(puts).toHaveLength(1);
+          await settleLedger();
+          expect(puts).toHaveLength(finalPutCount!);
           journal['nativeEvents'] = await page.evaluate(
             () => (window as unknown as { instrument525Events: unknown[] }).instrument525Events,
           );
@@ -3839,7 +4427,9 @@ test.describe('ELECTRONICS-525 complete instrument mirror matrix', () => {
           });
           failures.assertEmpty();
           reopenedFailures.assertEmpty();
+          acknowledge('reopened-context-close-before', { puts: puts.length });
           await reopenedContext.close();
+          acknowledge('reopened-context-close-after', { puts: puts.length });
           reopenedContext = undefined;
           for (const row of measured)
             for (const reading of row.readings)
@@ -3868,11 +4458,24 @@ test.describe('ELECTRONICS-525 complete instrument mirror matrix', () => {
           } catch (error) {
             journal['nativeEventHarvestError'] = String(error);
           }
+          await Promise.allSettled([...pendingResponses]);
+          acknowledge('failure-or-success-observer-drain', {
+            pending: pendingResponses.size,
+            ledgerErrors,
+          });
           write();
           for (const target of [reopenedContext, context]) {
             if (!target) continue;
             try {
+              acknowledge('context-close-before', {
+                original: target === context,
+                puts: puts.length,
+              });
               await target.close();
+              acknowledge('context-close-after', {
+                original: target === context,
+                puts: puts.length,
+              });
             } catch (error) {
               rows.push({ name: 'cleanup-error', error: String(error) });
               write();
@@ -3880,6 +4483,10 @@ test.describe('ELECTRONICS-525 complete instrument mirror matrix', () => {
             }
           }
         }
+        await settleLedger();
+        acknowledge('both-contexts-closed', { puts: puts.length, finalPutCount, revision });
+        expect(finalPutCount).toBeDefined();
+        expect(puts).toHaveLength(finalPutCount!);
         if (cleanupError) throw cleanupError;
         journal['journeyComplete'] = true;
         checkpoint('complete');

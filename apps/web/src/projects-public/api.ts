@@ -38,6 +38,8 @@ export interface ProjectPublicationStatus {
   } | null;
   readonly canPublish: boolean;
   readonly reasonCode: string | null;
+  /** Owner-only administrative reason; never part of the public project DTO. */
+  readonly moderationReason?: string | null;
 }
 
 export interface PublicationMetadata {

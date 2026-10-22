@@ -61,7 +61,12 @@ const upgradeArtifacts = [
   ],
   [
     '0236',
-    '0236_teacher_home_canonical_read_jit.sql',
+    '0236_project_publication_moderation.sql',
+    'ace151d291642c08087e88e4eb83b97430d4997871d8fd6740b4df3ae39dd4ef',
+  ],
+  [
+    '0237',
+    '0237_teacher_home_canonical_read_jit.sql',
     '60dae5f444e08a479acdb98752b434b1114680d3f742aa31dfc0484bfe5c9dd5',
   ],
 ] as const;

@@ -81,6 +81,73 @@ primary_lane:
     - docs/architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md
 
 parallel_lanes:
+  - id: electronics-wire-contact-hit
+    parent_lane: electronics
+    worktree_id: electronics-wire-contact-hit-688
+    owned_paths:
+      - apps/web/src/electronics/workbench-geometry.ts
+      - apps/web/src/electronics/testing/workbench-geometry.spec.ts
+      - apps/web/src/electronics/testing/workbench-presentation.spec.ts
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-WIRE-CONTACT-HIT-001.md
+    task:
+      id: TASK-ELECTRONICS-WIRE-CONTACT-HIT-001
+      issue: 688
+      programme_issue: 452
+      branch: main
+      base_branch: main
+      pr: null
+      status: in_progress
+      kind: repair
+      checkpoint: owner_selected_visible_contact_hit_radius_mouse_and_touch
+      owner_acceptance: pending
+      owner_authorization: >-
+        Owner explicitly requires immediate reduction of wire contact invisible collision
+        on mouse and phone to match the drawn dot, with a visible user result;
+        authorizes development in GitHub and normal verified main integration.
+        This is a distinct bounded UI repair, not issue544, 538 or 280.
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-WIRE-CONTACT-HIT-001.md
+        - docs/product/electronics/components/ui-assets-persistence.yaml
+      repair_scope: >-
+        One shared contact geometry change for component/breadboard terminals and
+        selected wire endpoints; mouse and coarse touch target no larger than
+        painted marker. Independent review proved circular terminal hit misses
+        square painted corners: repair exact SVG rounded-rect shape in Stage
+        and matching captured-pointer reconnect geometry in existing hook,
+        with focused and existing R2 browser test repair. Preserve unrelated
+        Stage/controller code, physical netlist, asset art, other lanes and
+        deployment. No wire-segment hit geometry change.
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: 103ebb16e2dbdc90a753d172e5a5d216b3ffa655
+      head_sha: null
+      observed_at: '2026-10-21T22:20:00Z'
+      main:
+        branch: main
+        sha: 103ebb16e2dbdc90a753d172e5a5d216b3ffa655
+      observation_note: >-
+        Dated first bounded candidate eae191d04737753f6694e760d465934b66e3905f updated after exact CI found a stale
+        presentation expectation and missing typed revision metadata. Fetch main
+        before writes; refresh PR head and exact CI. Not a release/deployment claim.
+    execution_lease:
+      executor_id: electronics-wire-contact-hit-688
+      holder: unassigned
+      acquired_at: null
+      expires_at: null
+      reviewer_role_requires_lease: false
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1
+      browser:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1:browser
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
   - id: ai-assistant
     worktree_id: ai-assistant-programme
     owned_paths:
@@ -6148,20 +6215,22 @@ parallel_lanes:
       - apps/web/src/projects-public/**
       - migrations/0234_public_projects.sql
       - migrations/0235_public_project_copy.sql
+      - migrations/0236_project_publication_moderation.sql
+      - migrations/0237_project_publication_editorial.sql
       - tests/portal/**
       - e2e/project-hub.spec.ts
       - e2e/artifacts/project-hub/**
       - docs/product/projects/**
       - docs/review/PROJ_R7_01/**
     task:
-      id: TASK-PROJ-R7-PUBLISHED-COPY-001
-      issue: 211
+      id: TASK-PROJ-R8-03B-EDITORIAL-FEATURED-001
+      issue: 691
       branch: main
       base_branch: main
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: stage3_exact_published_copy_selected
+      checkpoint: editorial_featured_badge_selected
       owner_acceptance: pending
       owner_authorization: >-
         Owner's 2026-10-18 implementation assignment delegates the complete Public Projects
@@ -6170,6 +6239,8 @@ parallel_lanes:
         original Projects, drafts, versions, learning data and personal Collections are protected.
         No production cleanup or deployment is authorized by this selection.
       context_hints:
+        - docs/product/projects/tasks/PROJ-R8-03B-EDITORIAL-FEATURED.md
+        - docs/product/projects/tasks/PROJ-R8-03A-ADMIN-MODERATION.md
         - docs/product/projects/tasks/PROJ-R7-PUBLISHED-COPY.md
         - docs/product/projects/tasks/PROJ-R7-VISIBLE-PUBLICATION.md
         - docs/product/projects/DECISION_LEDGER.md
@@ -7255,252 +7326,27 @@ parallel_lanes:
     - contexts/electronics/testing/solver.spec.ts
     - contexts/electronics/testing/simulation-contract.spec.ts
     - docs/product/electronics/tasks/TASK-ELECTRONICS-SOLVER-PREPARATION-001.md
+    - docs/product/electronics/tasks/TASK-ELECTRONICS-ARDUINO-REALTIME-001.md
     task:
-      id: TASK-ELECTRONICS-SOLVER-PREPARATION-001
-      issue: 546
+      id: TASK-ELECTRONICS-ARDUINO-REALTIME-001
+      issue: 682
+      program_issue: 452
       branch: main
       base_branch: main
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: "owner_requested_stop_preserved_r26_r27_not_implemented"
+      checkpoint: owner_realtime_priority_test_only_baseline_selected
+      kind: repair
       owner_acceptance: pending
-      owner_stop_requested_at: "2026-10-18T18:02:08.399514+00:00"
-      owner_stop_reason: "Owner requested ending this session to preserve remaining tokens and publishing only results already eligible for main. This is not product acceptance or programme completion."
-      resume_requires_explicit_owner_instruction: true
-      solver_writer_handoff: >-
-        Controller-assigned sequential FET derivative composition under Issue658;
-        original stopped R27 remains stopped, its retained source/reviews/blocker
-        and resume rule are unchanged; PR651 de9d84a preserved, original branch
-        untouched. Current single solver writer is electronics-core-fet; no
-        permission to resume or accept Issue546.
-      preserved_r27_entry_sha: "1669d7b2f1f630b3c4da045147500a343e139ca9"
-      r27_implementation_state: "NOT_STARTED; source author stopped before any edits; working tree/index clean, no owned running processes. Existing source-approved R26 packet remains remote diagnostics/electronics-546-r26-combined atcdad26c; product integration/Issue closure not accepted."
-      r26_combined_source_sha: "cdad26c361cb4cf8ed2d095fae3c087b5d2abb2d"
-      r26_source_reviews: "Runtime46ec APPROVE_SOURCE_ONLY c22c2b329d5c4124780b92c2a95161651861b28d848271c21ad2178c5cfe632e; quality6ae APPROVE_SOURCE_ONLY6f89188050ea097231137d2711d6b7e4fdfcb9840876b1464fe1e4eceec5b792; combinedresponsibility9bf76418ecb7cdff724098657c7c5df10faefbe9fae03b1a84ae6452e391c835. Not product acceptance."
-      r26_pair_negative: "One158/version observerON pair allfullreturns/null parityPASS, no demonstrated gain: blink1291.0037->1284.0077ms;millis1837.0177->2058.0597ms;combined+6.84percent. Host50percent/background/order caveat. reportf5d273509372200c474cf8f3b28f561d38c903502f7df00b3698884ea5c41f03. No rerun."
-      r27_confirmed_activation_defect: "Root decoded original actual158 input states: after each H0 output-history eventQueue alreadycontains pin-mode-change/output-change and later up to256; ordinaryOwnedContinuation requires length0. Thus156continued requests cannot enter retained execution, despite single-session tests passing and full parity via generic fallback. This is a defect of the new optimization, not a claim of sole original classroom cause. Correct the passive-history filter and require real subsequent-request activation before further timing."
-      r25_runtime_source_sha: "32b20074c6c92367c7008690375507dba79f2c67"
-      r25_runtime_independent_source_review: "APPROVE_SOURCE_ONLY; report629b2d204221de0d021e38d75103e21d8719e37adb39e121f0a436fe3eec3b21,148 independent runtime cases and8 Worker lifecycle cases; complete158 artifacts/hashes audited without replay. Not product acceptance."
-      r25_runtime_responsibility_review: "APPROVE_RESPONSIBILITY_ONLY; report4a34e042e04783ee211b68a10f8a58b37d22a0ee636a6a48db165bc15cdc5f91; runtime102998B/scheduler70007B retain decomposition-candidate, narrow reviewed baseline maintenance required."
-      r25_one_pair_result: "ONE sequential coldNode pair observerON,158 requests/version,full returns/null vectors0/8954 identical. Blink1317.2612->1289.7330ms (-2.0898percent);millis2701.9966->2071.2621ms (-23.3433percent);combined4019.2578->3360.9951ms (-16.3777percent). Insufficient native headroom; not realtime/school/browser acceptance. reportadd76daa641ff258f1ffcf61c3b5f970dfddf2cc34367a50e6af261c7b70aca8; original defer then root15percent host-load decision retained."
-      r26_quality_prior_proposal: "Prepared quality traversal38a30ee18076ed74ac7a5043cf3de1dc6d1a74a203750e3988dc1dbfab81cf6b; prior refusal1ce817ae was missing producer authority. NEW bounded architecture review must use actual fecd/32 early complete origin proof, no unbounded callback inventory. Cached verdicts and rejectedc532 finite-only path remain prohibited."
-      r25_origin_foundation_sha: "8cc7f8299991f568c299e393c6fae2e9a5fbc055"
-      r25_origin_foundation_review: "NEW APPROVE_SOURCE_ONLY report94c9ca0a14923d6f88c55ea24a8bd3bbd603356de27cfeed20521fdca0253b50;23freshVitest4.1.11,254independentoriginnegatives,70parentmodelcomparisonsPASS/0extraGetterProxy. Notwholekernel/runtime/performance/productapproval."
-      r25_finite_closure_receipt_sha256: "b92738ff583c9d362546545345fada62eb3da57259a3fdc7445aaa55fa225c50"
-      r25_uncommitted_preserved_patch_sha256: "0808295ee50d30cb7dda86e01ba0326b77691ace2430b148769eb54a938deee4"
-      r25_uncommitted_preserved_receipt_sha256: "827a0dc02ef61200ac13881da4be0eb8217c454d09ce53458d7613de95f09ea8"
-      r25_origin_review_requires_changes: "Resistor mutable moduleexport and nested ordinaryLED profiles are realexternalcallback/aliasroutes. Prior6319db cloneonlySAFE premise withdrawn by87323d supplement. New7productionpaths total includes3originfoundationpaths; existing5testfiles total justified byactualownership boundaries. Nofull158/perf/CI/freeze attempted beforeorigin proof."
-      r24_quality_final: "REJECT c532 afterminimalboundedrepair, rawproof33b3734a208fc1d4939ff7a635388f33f77175a360a969f34595e96731ace3cc / STOPreceipt90bf0812d34d3fd98ebdd213460805ef1e8fbd232bcf36066fcbdd3c56a05eb6. Rootverifiedsimulation.ts byteequaled14 inheld80ac27e0 andc532notancestor. Keep originalpublicverifier. Broaderquality NOTselected."
-      r24_ui_reviewed_sha: "19d22c523bce93f1dbab1e962fe6e6f3de4dce05"
-      r24_ui_review: "APPROVE source/UI ONLY NEW independent report4ee601cbabbf714726ebf91b743428d0a656062803778ae8d20e5d67f7f7539c;70freshVitest4.1.11,18independentprobes,24000intervalchallenges,339rawchannelintervals zero skipped brightness/current states;actual2000/100/Blockly replay0anchors. PortsH0evicted conditionalonly. Builtbrowser/fullgates/productacceptanceNOTRUN."
-      r24_quality_held_sha: "c53265ec055235fdef79e3967731a6df4caff8ec"
-      r24_quality_status: "NOT_READY author found real ArraySpecies/constructor getter discrepancy despite31tests/158ordinaryparity. Do not publish/integrate as accepted. Separate bounded same-two-file repair preserves original observable semantics; no public contract narrowing."
-      r25_architecture_review: "SAFE_TO_PROTOTYPE architectureonly independent6319db979d86afe1ad9bcdc3d987c0cff5a549f62c49d2aeec8861769415ad15 onproposal62ad7bca62c961a032737cd28167f74a0eab81bc0160b28df7b1f7b6ec240a64. Namedboundarycost14.68percentmillis before mandatorychecks does NOT prove42percent necessarygain; one bounded viability prototype nowselected."
-      r23_preserved_combined_sha: "ed14f96028d6f8a64b35f2013439be85d155adf1"
-      r23_directed_run: 39137622192
-      r23_actual_product_result: "FAIL5PASS7FAIL, NEW independent REQUEST_CHANGES reportSHA4ffa7892b110c965028385ea25dd4e7683487d21d25835b8d868b585c050dfc4. SOURCE/math/compositionAPPROVEonly. Scored1ms1552.7model/2642.4wall/2455.3compute; millis2307.8/4514.9/3989.1;Reset1488.9/1980.6/1654.9. Publicationphase100/ports/Blockly100/2000honestreanchors; nofalsejoint/incorrectphysicsclaim. Serial/GPIO Save+cookiesreopen,50ms,threeHIGHnoDelay,noDelayrealtimePASS. Blockly50/1/reopenUNREACHED. Ordinary/repositoryNOTRUNafterownfailure."
-      r23_original_artifact_sha256: "6389d64d8e2b63417fbd11e8b661f10c788e448905840d110e1d41ccf6028abb"
-      r24_actual_cpu_profile_sha256: "fe6763807555e331bd349a54ebc17ea5becc08e7b7bb56754a26b17e8033e8ea"
-      r24_cpu_cause: "ONEcombinednewactualscoredprefixprofile2644samples;45inputsverifiedand158fullbrowserreturnsdeep/orderedJSONequal. Blink1:quality298incl/allNumbers172incl out987;millis:clockedruntime875incl/evaluateSyntax285incl/stateMatches143incl out1655. Inclusiveoverlapnotadditive;elapsednotCPU. Finiteallocationtarget17.43percentblink/3.56percentmillis CANNOTfixbothalone. No cachedquality authorization. Runtime-only tinycall/Map optimizationsinsufficient; broaderrequestownershipboundary needs explicitproposal/trustproof, not identitycache."
-      r24_optical_cause: "Exactrawreplayreproduces2000/100/Blocklymarkswithin0.2ms: min(C,P+elapsed) withsampledAt=wall permanentlydropsclampedtime. 2000firstpartial3.7ms;bufferedP96.1 atwall-H0156.3ms =>60.2ms debt, nobufferedunderrunbeforefirstmark. CompleteOFFalreadyavailable, expiryhonest. Diagnostic strictholdonlyrecovery0anchors retainsallstate sequences; no recovery acrossunknown/current/brightness change/truncation. OriginalportsH0evicted soconditional replayNOTexactstartupacceptance."
-      r22_core_candidate_sha: 47cd675a58fd4ce8087ced94d99030b917edfe64
-      r22_core_source_math_review: APPROVE NEW independent exact47;14182expression comparisons,188clocked35legacy steps,45compileinputs/85horizons/78browserstates verified.286author testsPASS. No exactCI/browser;productNOTACCEPTED.
-      r22_ui_candidate_sha: 2ecc46021905ee599df3a5a06d6ec22ecfbd79e9
-      r22_ui_source_review: APPROVE NEW independent exact2ecc;83fresh tests,30000cursor/commonstate+10000baseline differential checks; actualstartup75noDelay78millis replay showsimmediatecomputedHIGH/zeroanchors. No newbrowser/gates;productpending.
-      r22_support_test_candidate_sha: fcf99543326f4d5a0af66727004a503135ee3ea3
-      r22_support_test_review: "APPROVE NEW independent exactfcf;78helper/counter/reader negatives and original PUT/response/GET documents verified. Full support browser remains part of final acceptance; no product save change."
-      r22_performance_limit: ONE ABBA on measuredINTERMEDIATEcompiledruntimece492c8d500646bf78fcfd567662358d9db51d265d004879d4ccb19a1169d76f elapsed4972.1465to2544.1066ms for2071.2model,48.83percent. Final47addsdepthfallbackguard, notsamebenchmarkSHA; do notclaim finalspeed/realtime. Final47correctness85/78/8036 andfullJSONsame.
-      r23_causal_profile_sha256: 0e9314f1b5ce8ccdcc548cc99c56d3930f4a0e9284526bbbd101a2dff02c0861
-      r23_causal_profile: ONE exact47profile1987samples;convertValue150self162inclusive,binaryValue85self220inclusive,typedhelper370inclusive;dynamic2power at144positionticks supportsrangepreparation. Inclusiveoverlapnotadditive;callarity3samplesnotprincipal. Stateconstructioncostdoesnotproveasafeskip/cache. Full85/78/8036/JSON/specialremainexact. No sufficiencyguarantee.
-      r22_supporting_browser_oracle_slice: "SELECTED separate bounded baseline TEST-ONLY author, same Issue546. ONLY e2e/electronics-interactions.spec.ts and e2e/electronics-simulation.spec.ts, no product/runtime/UI changes. Original393 traces independently prove3draftWrites1to4 are ownlocal slot+sessionhint+mirror, zeroPUT;8recoveryraws exactequal successfulPUTrequest/response/GETdocs, baselineclear retainsrawwithSHA256ack and canonicalreaderreturnsnull. Root checked actual unchanged recovery/projectstate/reader source. Count successful own local writer records, not all keys containingdraft; check canonical recovery reader/byte-boundACK rather than physicalraw deletion. Never merely raiseexpectedcount/removeassertion/accepttruthy/ignorependingdata. Require missing/wrong/staleACK and concurrentdifferentbytes staypending, exactserverdocument/revisions/visibleactions/deadlines preserved. One frozencommit+selfreview thenSTOP; NEWindependentreview and finalexactbrowser required."
-      r21_ordinary_failure_classification: "C stale baseline test observers after independent originaltrace+source proof; no own A/B regression found in those11 failedpredicates. Reader/manager/projectstate andbothspec blobs identical31fe/393. This reclassifies earlierUNCLASSIFIED, doesnotchange oldFAIL or prove unreachedsteps. No production save repair authorized by supportingtestslice."
-      r21b_preserved_candidate_sha: b0c9f5279663a5540f3427eafc411991c1306edd
-      r21b_source_ui_review: APPROVE new independent exact-SHA reviewer;51tests plus100000joint/24000sequence challenges. Author74testsPASS. No new browser/fullgates; productNOTACCEPTED.
-      r21_product_result: Exact393 Electronics39130678017 FAIL146PASS19FAIL;12Arduino journeys4PASS8FAIL. Serial/GPIOsave-reopen,2000ms,ResetPASS;1ms correct1.004..1.005ms physics/loadedfastglow butlag289.1ms;milliscompute4915/model2071 deficit. Other11 ordinarypersistence/revision failures originUNCLASSIFIED. General39130669326FAIL DataECR429beforetestsD;foreignAccountshell26FAILC. PreserveoriginalZIP8f3d48d5568d0024cacaf042f44b741058426aa5442ed027d0d4c0def3d50656.
-      r22_causal_profile_sha256: c7925da7b5e6c9303d99bec570ce8efa9ac62a6d74b03dc9396ec6e43c9fac4c
-      r22_causal_profile: ONE frozen393 savedmillis85horizon profile3388samples;45source/compiledinputsverified,all78captured browser statesdeep/JSONmatch,8036privateyields. evaluateValue1426inclusive,tokenize451,parser925,solver262,quality105;inclusiveoverlapnotadditive. Compile-only syntax preparation targets measured repeated work, no throughput guarantee. StartupH0 hold separately provednoDelay38.7ms/millis37.2ms supersession before25msbufferfills.
-      r21_preserved_candidate_sha: 39343090a79ec35da5b58236a21e0d11f66a3594
-      r21_core_source_math_review: APPROVE exact7b38ed018de0c1ede894b2b5eb8b4654d858f669; final product pending.
-      r21_final_ui_review: REQUEST_CHANGES exact39343090; per-channel receipt freshness does not prove whole-vector freshness. Real190ms joint state exists in completed175..200ms optical history, so final-vector-only test witness also needs the explicitly selected causal correction.
-      r21_exact_ci: General39130669326 and Electronics39130678017 still in progress at R21-b selection; focused,benchmark,governance,code PASS; PG image build failure unclassified pending available log. Never claim acceptance from these intermediate results.
-      r20_negative_candidate_sha: 7494bea4a05a8daf86d9d12cd7c948d7a4ed507a
-      r20_negative_result: Unpublished experiment, NOT FOR INTEGRATION. Full byte/state parity and10targettestsPASS; one22-horizon ABBA meanR19 902.928ms versusR20 908.449ms for506.8ms model, no useful throughput gain. No whole gate or repeated measurements. Preserve all evidence; next source baseline is a4ac, not7494.
-      r19_general_final: General39127206701 FAIL onlyAccessA classroom-quick-journal.spec.ts193 expected>=210 actual200; categoryC unrelated baseline test already corrected on main67c21ae8. Governance,code(types/build),PostgreSQL/RLS jobsPASS on exacta4. Do not fix classroom or claim wholePASS; next candidate inherits canonical main and needs new exact gate.
-      r19_preserved_candidate_sha: a4ac7ade070ac41d33a718c1d3949a08c36c1858
-      r19_source_math_review: APPROVE independent exact-SHA reviewer 2026-10-18; product NOT ACCEPTED.
-      r19_preserved_result: One saved22-horizon paired replay observerON mean989.290 to783.903ms elapsed,20.76percent improvement for506.8ms model; full855946-byte JSON parity. Not realtime. Local focused749domainPASS539webPASS1assetI/Otimeout; types/buildNOTREACHED. Exact General39127206701 pending at selection.
-      r19_remaining_profile_sha256: b4ec37a9b24a32be45a53316765512b732841de37126084bb58b596a80c0fdfb
-      r19_remaining_profile: One exact22-horizon candidate-only profile1627samples. Solver840self; component projection150self/201inclusive; solveCircuitStep283self; quality63self/255inclusive; linear15self. Inclusive values overlap. Pure projection reuse is a measured-cause hypothesis, not guaranteed realtime.
-      owner_scoped_handoff_exception: Owner latest2026-10-18 explicitly orders immediate implementation by subagents only
-        Arduino/LED after earlier wait choice. Controller treats this as superseding that wait ONLY for a clean isolated
-        Arduino/LED slice with no foreign file overlap. Generic preflight remains WAITING_HANDOFF on E:/ASA-previews/teacher-pr582-redesign/.github/workflows/classroom-owner.yml;
-        never edit/stash/revert/commit that file, never disable guard or label it SAFE. Any actual selected source overlap
-        still STOP. This is no school/DB/network/deployment exception.
-      r18_preserved_result: Focused PASS, browser5PASS6FAIL on actual9bc. Preserve all source, raw evidence and independent
-        reviews; no acceptance/integration. delay1 model1631.8/wall4094.8/compute3933.1;50ms electricalcorrect but one
-        DOM dark phase15.9ms.
-      r18_directed_run: 39108267782
-      r18_preserved_candidate_sha: 9bc659a780a02dfc99af789cef53ed8feb956146
-      selected_at: "2026-10-18T17:58:38.475626+00:00"
-      r17_preserved_candidate_sha: "343a6024ded71a883373ed7cc0fcc342a87db785"
-      r17_directed_run: 38833934410
-      r17_directed_result: "SUCCESS exact343a build; focused and unchanged seven production browser journeys PASS. Independent original ZIP CRC/hash,1135 ready records and13 native PNGs confirmed.100ms electrical4.999775Hz/paint5.099Hz;50ms electrical9.999100Hz/paint10.100Hz; no-delay realtime endpoint lag27.8ms. Earlier272.7ms FAIL belongs to1eff, not343a. Older sustained-HIGH capture has early305ms lag; no universal250ms claim."
-      r17_general_run: 38833490003
-      r17_general_result: "SUCCESS all four required jobs after ONE infrastructure retry; previous Data publicECR Node429 occurred before build/tests. Latest Data117522722864,Governance117522723119,Code117522723226,Access117522742556 SUCCESS. No product acceptance or integration inferred."
-      r17_directed_zip_sha256: "4b4ff1f400fc8fe20e3d8c4c1db91fed59fd9dc845a7bb12e4923e4bff52ff1c"
-      r17_independent_review_sha256: "f7c1948ee6af5385a8a4c178f6de86434647c70f2db921b3dfd36af2f61c3221"
-      r18_causal_basis: "Exact343a preserves correct instruction timing and fast electrical edges, but engine/Worker/host present only the final LED state of each complete ready window. A1ms HIGH/LOW programme can therefore alias into a false slow visible beat. Observe actual quality-checked per-component optical state durations inside the existing request-owned advance, then project accepted observations to the screen. Source/GPIO/delay inference cannot establish LED conduction."
-      r18_authoring_context: "A genuine separate cloud checkout passes the full canonical electronics-arduino preflight. Owner R17 worktree and unrelated dirty Classroom worktrees remain untouched; their local WAITING_HANDOFF is not cleared or bypassed. Preserve all accepted current-main Classroom/Portal/AI changes during controlled convergence with saved343a."
-      r7_preserved_repair_scope: 'R7 owner Arduino startup and 5/10Hz visible cadence: bounded complete ready observation cap 25000us and host presentation tick 20ms in live-simulation-worker-controller.ts/use-electronics-workbench.ts, supporting existing controller/host tests and electronics-ready-cadence.spec.ts. Preserve R6 product, both full generic cases and three owner programmes. Correct initial phase anchor; require actual HIGH/LOW half durations, duty/gaps, model/wall progression and loaded effective LED image paint. Physical quantum1000us, instruction1us, event256, precision, every runtime state and yielded-null remain unchanged. No inserted pupil delay, timeout increase, school operations or unrelated repair. New exact source focused/directed evidence then required final gates and NEW independent review before integration.'
-      r8_preserved_repair_scope: 'R8 metadata with preserved structural prevalidation: compileCircuit then simulationInputDigest in the same old order before continuation/input/horizon guards; simulation.ts pure accessor for the existing document-independent MODEL_SET_DIGEST and engine.ts metadata lookup replacing only the unnecessary numeric solve/quality in analyseCircuit(document).modelSetDigest. Preserve all actual scheduler/solve/quality/validation/state work and physical precision; no persistent cache, new runtime, timeout increase or foreign repair. Supporting existing simulation-contract/engine-timed tests plus external baseline parity; one exact focused gate and five production browser journeys before new independent review.'
-      r9_preserved_repair_scope: 'R9 host scheduling only in use-electronics-workbench.ts: retain 10ms wall-clock demand and 25000us complete-ready cap while removing requested-horizon React state updates that rerender the whole editor without a new result. Use current document/clock refs and controller demand directly; preserve source/runtime input and serialRX timestamp freshness, start/stop/restart/failure/unmount and simulationTimeMs consumers. Supporting focused mounted-hook tests and reviewed TEST-only synchronous LED hit oracle in existing ready-cadence spec. No Worker/solver/numerics/cache/budget/precision/timeout/pupil programme changes or foreign repair.'
-      r8_preserved_source_sha: 21e2ef06a5642a061d8fa13f8a75a308df13e649
-      r8_preserved_source_tree: c86eb2d10ec76b72e78a9741421d95d84b7e0aeb
-      r8_causal_report_sha256: 110edacf8d77edeb7d71f584975c715bfa8b9c2f2d38f16b032e9be7cd27a0b0
-      r8_proven_cause: 'Every advance repeats complete standalone analysis only for a module-constant registry digest. Retained GPIO71ready C=H0to1.75s over4155.7ms wall; evaluator elapsed3823.5ms is not sampled CPU. Speedup and school frequency remain unproved.'
-      r7_status: not_accepted_directed_failed
-      r7_actual_host_tick_ms: 10
-      r7_documentation_correction: 'Historical selected20ms retained above/in R7 history; actual controller-authorized source21e uses10ms and ready25000us. R8 does not change these values.'
-      implementation_acceptance: "Prove actual multi-REQUEST activation after H0, later requests and full256 output-history tail using owner production three-LED/millis documents; nonnull retained runtime and genuine prepared-quality receipt must execute on each eligible subsequent request. Exact result/queue/state/physical/quality/optical/null parity and malformed-history fault priority remain. Use saved actual continuations and a few directed activation probes before ONE later corrected-packet158 pair; no new profile or repeat of unchanged R26 pair. Author exactSHA/STOP, root actualdiff/evidence, NEW independent exact review, then viable exact built-editor12/ordinary/repository/new product review. All R25/R26 ownership/origin/snapshot/disposal invariants remain. Acceptance blocker OPEN."
-      next_action: "STOP explicitly requested by owner to limit token use. All authors/reviewers stopped; resume only on new explicit owner instruction and fresh Git/current/CI recovery. Do not run R27, new measurements, profiles, CI or deployment automatically. Preserved combinedsourcecdad26c and common1669d7b2 are in diagnostics refs; R27 branch clean at1669, no correction written. Existing acceptance blocker prevents unaccepted product integration. On owner resume, implement only confirmed passive event-history admission correction, prove actual subsequent-request owned/quality activation, NEW exact review, then corrected full158 and real browser acceptance. School/liveDB/Docker/network untouched."
-      r17_preserved_repair_scope: "Preserve exact1eff and its approved source/math; product still REQUEST_CHANGES. ONE bounded runtime write-action cost repair in arduino-program-runtime.ts: remove only redundant writes/lookups after existing pin-mode handling, retaining every action, instruction, time, budget, event, shadow/error, pullup/PWM and signed-zero/absent-entry semantics. Existing native profile identifies unchanged applyRuntimeAction cost; it does not measure individual Map.set. First verify equivalence and one short paired real-horizon cost comparison; retain only a measured improvement, no heavy CI for an unsupported micro-optimization. No instruction skipping, special sketch detection, clock rebasing, precision/timeout changes or new profiling. Focused regression and NEW exact independent source/math review before unchanged directed browser gate. FastLED/openBlockly remain required same-goal followups; no foreign/school/deployment changes."
-      repair_scope: "Only confirmed R26 acceptance defect: ordinaryOwnedContinuation wrongly rejects every nonempty passive output event history. Preserve cdad26c combined source, all reviews and negative pair. ONE repair author may edit only contexts/electronics/domain/arduino-circuit-scheduler.ts and existing contexts/electronics/testing/engine-timed-api.spec.ts. Permit originally validated passive output history without weakening old initial full runtime/schema/counter/sequence/time/kind or unloaded-source guards; retain every history entry and copy/append/trim order. No new input/peripheral/Serial/Servo/tone/source/producer admission, new module, runtime arithmetic, clock, physics, quality, timeout or precision change."
-      r9_candidate_sha: "9df144e48165ee330ea43f547e2d52782964bd54"
-      r9_candidate_branch: "codex/electronics-546-r9-host-demand"
-      r9_candidate_publication: "pushed_not_integrated_not_deployed"
-      r9_source_review_sha256: "676e1125c43043d93b2ca7f953321b908e8ed1f85c243703466bb7fa26867af1"
-      r9_focused_run: 38776233944
-      r9_focused_result: "focused job116564480462 SUCCESS;697 domain+447 editor;70 fresh Nx zero cache;workflow overallFAIL first browser ECR429 before tests"
-      r9_directed_run: 38777831169
-      r9_directed_result: "SUCCESS five cases;actual checkout/build9df;workflow-only head9bf2c328;Supporting evidence not ordinary acceptance"
-      r9_directed_zip_sha256: "5404f99f7166d83c29f2da14fc3ad0f198448f583b2446ef47fc1902dd1f45a3"
-      r9_ordinary_run: 38779639354
-      r9_ordinary_result: "FAIL A;155PASS3FAIL. GPIOinitial55readyC=H1.35s/wall4.2998/evaluator4.0358/UI0..5 before5s;reopenNOT_RUN. Owner100paint4.398Hz model/wallgap312.4ms;50paint7.703Hz gap421.8ms/halfmax163.1ms. Physical edges/quality/source valid;timestamps do not identify CPU hotspot or contention."
-      r9_ordinary_zip_sha256: "ea5b78ac64fdbdadbb77be8b7cf8d532dfe1052c9f9a6d69289c7da67da0a6be"
-      r9_general_run: 38776227730
-      r9_general_result: "FAIL;Gov/CodePASS;Access401PASS4FAIL S4 separate Scratch overlay ready/error at4719/4800 identical main d895 General38773851362 (C);Data NodeECR429 before build/tests/RLS (D). No foreign repair in546."
-      r9_product_review: "REQUEST_CHANGES exact9df;own ordinary timing criteria unmet;no acceptance or integration"
-      r9_product_review_sha256: "a271b9132ed3bc336c627a1426518c6b10af0739fc9a8b5892a56cc71a709c99"
-      r10_profile_frozen_source: "9df144e48165ee330ea43f547e2d52782964bd54"
-      r10_quality_allocation_proposal: "NOT_SELECTED;external pure predicate193/193 and fullquality191/191 parity plus129 late nonfinite challenges. WholeactualGPIO55horizons5pairs byteequal but candidate/baseline median1.0096, no whole calculation speedup. Preserve external proposal;no product patch or expensive CI for this hypothesis."
-      r10_boundaries: "Only546 original Arduino timing. No additional full inventory/profile/suite retry without changed cause. Separate R8 Blocks coordinate-only reset retained as distinct unimplemented residual;not mixed with current source. No school/installation/DB/network/backups/deployment or3000 capacity claims."
-      r11_final_status: "STOP_NO_PRODUCT_PATCH_NO_MEANINGFUL_WHOLE_GPIO_GAIN; cleanmerge5c99 preserved; root independently verified30originalhashes and recomputed24matchedpairs peralternative/137fullreturnparityeach."
-      r11_result_sha256: "20ffcbfad95522c249f3fab87f6c7ea5a9afa7090e937c9c1ddbf07ba89332be"
-      r11_negative_viability: "slice+pushGPIOmedianpaired1.039693/faster1of8;indexedcopy0.998373/faster4of8. No candidate/push/CI; no repeatedcopy/qualityhypothesis withoutnewcause."
-      r12_preserved_final_source: "f610333e6cbf6ac6ebbdbeb9b7edbfaf9ba417dc"
-      r12_source_review: "APPROVE source-only; SHA256250a90b16e570d16e87ab1a2afbc9656d2454600e708feea641d6e9305284a5d"
-      r12_independent_math: "7/7 PASS exact fronts for 2000/100/50/1ms, two delay1 versus delay2 and actual three-HIGH no-delay; full state/result/JSON/yield/partition. Independent40input provenance to final f610. SHA256c1ce30db55b700692854336e0e186f0c11c2329a89c7d3dd37c48f2ba06fd36b. Domain only, not browser realtime acceptance."
-      r12_focused_result: "Run38806724302 job116669380402 PASS707domain/464editor/70freshNx tasks, zero cache, NX_SKIP_NX_CACHE=true. Workflow FAIL directed browser3PASS2FAIL."
-      r12_product_review: "REQUEST_CHANGES exactf610. SHA2568b7b3b15f5487f2974fb396f8f3ab0dcdf07022382c7b859ad7046d996ab719a. Complete GPIO/Serial whole-save cookies-reopen PASS; owner100 paintLOW46.6ms below50; owner50 DOM21/23.9ms below25; all ready C=H/finitequality and original electrical D+4/D+5 correct. No-delay5.120modelms/1889.2wallms not realtime. Original32381234B/53entries CRC PASS SHA256c2446aa7fed7d23f72e929bba74f06cb343d0086aa6382259e04e457fb97b088. No ordinary rerun after directed failure."
-      r12_general_result: "Exact38806718110 FAIL Code electronics bundle211214/209000B, Data/Access skipped. Maina64 run38802258155 already210395/209000B; preserve both facts, no limit weakening or foreign saving repair. Not release/acceptance."
-      owner_fast_led_rule: "Owner2026-10-16: independent actual electrical LED conduction, frequency and phase per component/port, effects and mini-screens. Blink to display capability up to60Hz, then steady glow. A60Hz screen cannot display60 complete ON/OFF cycles. No global GPIO/delay inference or false slow alias; every electrical front preserved. This presentation repair is not implemented or selected by R13."
-      r13_preserved_candidate: "1f86af2242e1058dc656c194f19cbbf45d0c7953 tree9f4db99df30a9d3c3f42ecac04838f4f16d7c44c; pushed, not integrated or accepted."
-      r13_exact_review: "NEW source APPROVE_SOURCE_ONLY SHA90c68cb7b1bc09c90e25d976f35309c708882a799c2cb0faef965e751bd0f421; NEW product REQUEST_CHANGES SHA1303e372c501e0f36b10f305cca9f8728454a5904f20030c32deba4d75a4a9a6. No release or closure."
-      r13_actual_evidence: "Run38811329625 focused707domain/474editor/70freshNx tasks zero cache PASS, directed4PASS1FAIL. Exact General38811318101 FAIL electronics210346/209000B; Data/Access skipped. Original ZIP20543431B/59entries CRC PASS SHA8212e37e6bbd56896f7bc643a4174f7d2ad09e449ed1dc97c87771a82b11cdb2. Complete Save/cookies reopen GPIO+Serial PASS, readyC=H/finitequality and exact electrical fronts preserved.100ms DOM59.6..124.8/paint63.9..117.4 PASS/nativeONOFF.50ms first HIGH136.6DOM/103.2paint fails unchanged100ms max. No-delay4.608modelms/1913.9wallms not realtime. Ordinary suite not repeated after own directedFAIL."
-      r14_disposition: "Stopped before prototype/product edits/measurements. Clean77a652c718453d0a67ddcac4b7d1e81cde9a51b9 only inherits canonical01c3daf and preservedR13. No lost product patch. Owner2026-10-16 asks to rethink kernel; author and independent architect find owned-memory-only plan insufficient as primary direction."
-      r15_architecture_evidence: "Independent read-only challenge SHA8f5f0f725a873c422dc5200c05900c73f704d35e819bbb70f53af50d6aa33587. README ARD-3A8B2C describes1ms plusGPIO/input physical barriers; scheduler948 executes physics for every1us runtime due time. Runtime applyRuntimeAction suppresses unchangedHIGH output event and lazy readInputs obtains actualread-time samples. Canonical clock permits physicalcheckpoint<C and requires partition identity within same versions, not preserving old over-fine integration forever."
-      r15_scope_limits: "No new solver/interpreter or separate programme; existing scalar physics and single canonical scheduler. Initial strict eligible circuit can fall back for multiple boards or unproved capabilities rather than miscompute. Thermal threshold crossings must be deterministically bracketed on integer-us grid or original scalar recurrence retained; never cross an unhandled failure. No shared full-frame cache, skipped runtime instructions, future peer reads, stale Worker commits, incomplete electrical frames, altered pupil sketch or data migration. General bundle210346/209000 remains required own-composition repair; never raise budget. Previous source/math/100PASS retained, not acceptance for new code."
-      r15_followup_basis: "Exact30c4f5f56338b16cd29345f2884fe08cee2c3e86 preserved/pushed not integrated. Independent source APPROVE SHAab7ac5fa889fa7546b26cd47ca58b7110701d18cfa014a09de4f637656fcfc56 and13case math/fallback APPROVE SHAfcfc8fc1cf50c9f81f4380c4ddf6bcb63786e90fe967e52f059436809706f719. NEW product REQUEST_CHANGES SHAbfeee0d351d75744c8c04dfe31a76cbfd502323abacaf1db3f0663addc5a313f."
-      r15_exact_evidence: "Directed38818640245 focused715domain+478editor+70freshNx PASS; browser6PASS1FAIL. Original owner100/50 actual electrical edges/DOM/paint/native ON/OFF and independentports PASS; GPIO/Serial whole Save/cookies reopen PASS. No-delay65readyC=H model1580.9ms/wall2089.3ms gap508.4>250; synchronous compute1928.3ms, noCPUfunction attribution fromelapsed. Separate old light-only noDelay also model1395.8/wall1949.4 gap553.6. ZIP21662167B69entries CRC PASS SHA f5404ada8a624c388ecf40f769229a0ea3c6463a5ecff873b149e6fa6489288c."
-      r15_general_blocker: "ExactGeneral38818635173 GovernancePASS CodeFAIL unreviewed hygiene large source arduino-circuit-scheduler.ts56547B, parent46481B;Data/AccessSKIPPED. This own repair triggers narrow selected responsibility checkpoint, not arbitrary file splitting/threshold change. Main d4d5ec72 General38814837017 all4jobsSUCCESS. Earlier bundle limit remains unchanged and must pass, but newcandidate Code did not reach that check. No foreign baseline repair authorized."
-      r14_causal_basis: "R13 eliminates initialization debt but actual50 firstHIGH Worker14.7ms toLOW150.2ms afterH0, UI19.7 to156.3=136.6. H44900 requested58.9/ready120.9 compute56ms remainsHIGH; nextH69900 compute28.5ms becomesLOW. Post-H0 execution cost remains, exact CPU hotspot/runner contention not newly profiled. Source shows instructionBudget1 repeated runtime rehydration/serialization and generic physics/quality materialization per instruction; runtime-only context insufficient, coordinated owned lifetime prototype proposed independently. No claim of sufficient speed until whole-engine measurement."
-      r13_causal_basis: "Production hook starts wall origin before preflight/initial time-zero ready; ticks accumulate demand during initialization. Controller publishes each complete catch-up window immediately and pumps again. Actual100 H325LOW toH413600HIGH arrives51.8wallms, DOM52.6/paint46.6;50 H475LOW toH525HIGH arrives23wallms, DOM21. Exact startup origin/latestTarget not instrumented; first-zero-ready anchoring is a bounded causal candidate requiring actual browser proof, not guaranteed complete cure."
-      r12_causal_basis: "ActualR9noDelay2.048modelms/2072.2wallms; schedulerinstruction1us unconditionallyadvancesphysics/sampleevenidempotentHIGH. Delay100/50ordinarystillFAIL. ActualsolverordinaryLED/resistorMNAdependsdocument+actualGPIOThevenin+failedIDs, nottemperature/damagebelowfailure; purealgebraicreuse proposedwithfreshruntimeenvelope. No speedgainprovedyet and millionruntime/thermaloperationsremain; no claimof1000xspeedup."
-      r10_preserved_diagnostic_scope: "R10 diagnostic ONLY on frozen9df: exact production Worker/page CPU and page ThreadTime of one unchanged full GPIO initial/cookies-reopen journey. External files/workflow-only diagnostic ref; no product edits, skipped physics, changed tests/timeouts, fake continuation or hopeful suite rerun. Collect actual served Worker AND page JS bodies/hash/offset receipts so sampled frames are not mapped to an alternate bundle. Profile overhead is explicit, not acceptance throughput. New product repair requires concrete causal proposal and canonical controller selection."
-      r10_profile_run: 38792422095
-      r10_profile_result: "BOTH initial/reopened actualprofile CAPTURED_NOT_ACCEPTANCE/errorsnone;originalGPIOjourneysPASS. WorkflowFAIL onlyimage-arrayorder(D);sortedimmutableimageALLrecordsexact andWorkerhashbefore/after match. PostPython inside-imageperpagefilehashNOT_RUN;test-runnerimageIDnotretained. No rerun."
-      r10_profile_zip_sha256: "5040f49ccc6652070f00103d97335386237b64aa506cb44dc88531fab058cc0e"
-      r10_profile_report_sha256: "2c4bd5d0613226704840df3998f82da3bc84b814c21927d4e150950d9dcf7a57"
-      r10_actual_cause: "Exact executed/served immutableWorkerbody56e995... row-spread callback self20.17/20.26pct sampled elapsed;solveLinear parentself8.19/8.38pct inclusive28.36/28.64 overlap. ActualpageThreadTime1.318733/1.279043s;pagebodiesexactCDP=HTTP. SampledpercentnotexactCPU or schoolfrequency. Roots independently verified listedartifactSHA/bodymatches/imagerecords."
-      r10_copy_proposal_boundary: "External218numericcases and55wholeGPIOreturns/state/events/quality/continuation/digests equivalent. Single sequentialbaseline1513.77ms/proposal1445.84ms isweak;meaningfulspeedgainUNPROVED. Newauthor must establishviability before expensiveCI;no sufficiencypromise."
-      r11_owner_acceptance_boundary: "Latestowner requires mathematicallycorrectArduino andvisibleLEDacrossdelay2000/100/50/1,multiplecalls andno-delay. Existinginstruction-us-v1 formula exactD+4/D+5 period2D+9;notAVRcycleaccuracy. Built2000/1/manydelay journeysNOT_RUN;fastLEDtemporalpolicy notselected, no fabricatedelectricalaverage or proof every500Hzpulse renders onordinaryscreen. Currentrepair doesnotclosewholegoal."
-      r9_profile_run: 38766810620
-      r9_profile_source_sha: db96c92365913362ae225a09b41926f7015b30e0
-      r9_profile_report_sha256: ee778bddcd37f54e8763f3c6ab2dbf503f04dbd96436d3b83dd6ce38753ba8f7
-      r9_causal_boundary: 'Actual page ThreadTime3.242s over4.651s; source setState each10ms rerenders SchematicEditor even with stable runtime document/no new ready. Exact React sampled percentage and speedup unproved. Actual Worker solveStep54.71pct inclusive/quality16.37pct overlap; fixed preparation small, no further cache patch justified. Profile overhead and failed initial5000ms predicate preserved, reopened NOT_RUN.'
-      r9_baseline_classification: 'Main2af General38764896188 Gov/Code PASS, Data ECR Node429 before tests (D), Access S4 deferred host Account historical/known Blocks overlay expected ready received error at4800 (C unrelated). Neither repaired in Electronics; no release or acceptance claim from this baseline.'
-      r9_oracle_patch_sha256: 34952a3ab2828fe98d53e8bd3313c786a26e7b43bb4c25cdcba274b2c176ad72
-      r9_oracle_boundary: 'TEMP proposal only; one hit-test block, inverse git bytes exact; real DOM7/7 including opaque panel/hidden/opacity/decode negatives. Exact inline style restored before yielding; native browser frames still mandatory and observer cost must be retained in interpretation. No weakened timing/paint assertions.'
-      r8_candidate_sha: db96c92365913362ae225a09b41926f7015b30e0
-      r8_candidate_tree: d0636ec0abad217d4b6ebaa3b4c20ff27fda7925
-      r8_general_run: 38758753296
-      r8_general_conclusion: success
-      r8_directed_run: 38758878615
-      r8_directed_conclusion: failure
-      r8_independent_review: request_changes_source_approved_product_not_accepted
-      r8_residual_evidence: 'Owner100 DOM4.931Hz and native OFF/ON with steady fourth LED; generic8 reopened reaches1.4s not final LED, owner50 strict halves/duty fail, pointerEvents-none invalidates image hit oracle. Evaluator elapsed is not CPU utilization. Blocks100ms generation is correct; workspace-triggered generation restart remains unverified. Pending publication is cancelled on actual unmount, whereas ordinary close keeps the panel mounted and is a negative control. No school frequency or capacity claim.'
-      r8_diagnostic_boundary: 'New diagnostic e2e files and temporary CDP instrumentation only, separate workflow refs with frozen db96 build/source digests. Actual Blocks UI edits and Worker source receipts; initial/reopen profiler preserves existing5000/30000ms and original pupil actions. No product patch, test weakening, new stack, server or installation action.'
-      r7_owner_request: 'Owner current complaint: delayed LED startup, Arduino delay100ms appears near1s, three HIGH outputs d13/d12/d11 without delay fail. Controller explicitly selects one cadence repair; no school capacity claim.'
-      r7_source_baseline: c7b80c20b22e8b62eda086db3d2751df69fd56a9
-      r7_directed_run: 38633617297
-      r7_independent_review: request_changes
-      r7_proven_cause: 'Canonical 50ms half edges correct at50004/50005us and54 complete ready/0yielded;100ms host/window aliases10Hz: only11DOM phases,maxquiet1739.6ms. delay100 initialLOW@0 toHIGH@4us was initialization, not regular period. No-delay all3HIGH completes atC=H256us/DOM519ms, sustained rate and paint not yet proved.'
-      preserved_candidate_sha: 03344e9c6b74a064ab90fd8294199b4dde783ff5
-      preserved_candidate_tree: 727086ecacb0f2c039387bf5b46477553c6d5983
-      candidate_publication: published
-      candidate_acceptance: request_changes
-      controller_observed_at: '2026-10-13T19:13:54.343466+00:00'
-      acceptance_dependency_issue: 545
-      final_candidate_sha: eb8d4d3d1e6383a9dd87a8619205ebeae41ca867
-      final_candidate_tree: d392b4d53144752ea514caf36a826628372c293b
-      independent_review: request_changes
-      independent_evidence: docs/product/electronics/tasks/TASK-ELECTRONICS-SOLVER-PREPARATION-001.md#r6-actual-full-gpio-compute-localization-and-one-causal-repair
-      independent_review_original_sha256: b35d70b1b24e89087ec3638215e90a05dde881166d18554e5eadb1c267558589
-      exact_general_run: 38450075220
-      exact_general_conclusion: pending
-      exact_electronics_run: null
-      exact_electronics_conclusion: not_dispatched_after_directed_fail
-      browser_passed: 1
-      browser_failed: 1
-      residual_cause: Cookies-only reopened poll deadline22819.185ms; genuine ready7/UI7 upper bounds21455.795/21479.895ms; fullsnapshot final evaluate22588.763..22848.810ms crosses olddeadline29.625ms. Initial GPIO full0..7/Serial Save-reopen PASS; GPIO final draft NOT_REACHED. Preserve source0fd and old raw; one changed-cause observer repair needed.
-      residual_localization_head: 76252052130f9100f2654d2f656f342a36566c2b
-      residual_proposal_original_sha256: ec4db8d67151a59317d5544ea05ed3511abcd0615e094258be22e958f7d3da7b
-      residual_profile: One actual final0677 fullGPIO0..2s profile; observation callback9.5pct self, solveStep53.8pct inclusive, quality19.3pct/allNumbers12.5pct outside repair scope. No school or browser timing claim.
-      r6_preserved_implementation_acceptance: Fresh actual full-return corpus/parity versus0677 plus stale/dynamic/state challenges and focused gate before unchanged fullGPIO/Serial browser; no claimed sufficiency until actual directed and ordinary exact all8/newreview.
-      r7_preserved_implementation_acceptance: R7 complete ready C=H only, canonical whole/partition/runtime-state equivalence, actual loaded LED paint, strict HIGH/LOW wall halves/gaps/duty and model-wall rate. Both full generic and three owner programmes with unchanged timeouts; new exact focused/directed then required final gates and independent review.
-      r1_directed_probe: 66310186ec6eab8dee9634de3143fce0bc4f27ab
-      r1_directed_run: 38006467707
-      r1_directed_conclusion: failure
-      r1_failure_classification: 'D: full observation transport/poll deadline race; all8 genuine ready and UI already exist before old deadline; new compute defect NOT proved'
-      exact_candidate_general_run: 38450075220
-      exact_candidate_general_conclusion: pending
-      exact_candidate_electronics_run: null
-      exact_candidate_electronics_conclusion: not_dispatched_after_directed_fail
-      actual_new_failure: Directed6a GPIO initial0..5/0..7,15readyC=H0..1.4s/0yielded0fault, wallcompute4423.1ms/max551.2/UI8.3..21.7ms. Latefullsnapshot and stickyshrink explanations disproved; CPU-vs-host unmeasured. Piezo fullStop/PCM/SaveCAS2to3/cookies/finaldraft and valid11130877B118records passed; whole546 NOT accepted.
-      r6_preserved_next_action: NEW bounded R6 author inherits preservedeb and canonical selection. ONE actualprofile then controller actualcheck/proposal confirmation before ONE causal product patch within finite envelope. Fresh full-return parity versus currenteb/state/negative challenges; focusedgate NX_SKIP_NX_CACHE=true, selfreview, one unpublishedSHA STOP. Root actualproof and NEW independent source review; directed GPIO/Serial/piezo then exact General4/Electronics4 and NEW product review. Only546/noPortal/school.
-      r7_preserved_next_action: R7 implement the selected complete observation cadence repair after fresh canonical guard; meaningful controller/state/oracle challenges, new frozen focused gate and one five-case production browser run. Exact final General/ordinary gates and NEW independent review before integration. Author STOP; only546, no other module/school.
-      r3_profile_source_sha: 037ebb37a0609d247f19a96811a8b52c1960a9a5
-      r3_profile_proposal_original_sha256: 7280eda6cdcf9e769d10477379cfeacab955e72714efba2639fc1b9499fe66e6
-      r3_profile_manifest_sha256: b6b4c6933d8176eb870d5518f963939f6dba36a88e2e4d3dc8e02283f9e2c9c2
-      r3_profile_actual: ONE instrumented local fullGPIO17parts24wires/21ready C=H0to2s/0yielded; solveLinear14743calls907of2970selfSamples30.539pct. Coverage overhead; no speedup/browser/school/5s sufficiency claim.
-      r3_candidate_sha: 03344e9c6b74a064ab90fd8294199b4dde783ff5
-      r3_candidate_tree: 727086ecacb0f2c039387bf5b46477553c6d5983
-      r3_candidate_branch: codex/electronics-546-r3-linear-rows
-      r3_candidate_publication: published
-      r3_directed_probe_sha: 8893bc6c712d375641919a85f6fe26430580f2ea
-      r3_directed_run: 38014843498
-      r3_directed_conclusion: success_directed_not_final_acceptance
-      r3_root_actual: 64originals/3796foreignentries/11255fullreturns281groups/399GPIO-Serialraw verified; rebuilt40-input bundles and rootexecuted12038directcases. Directedfull17/24GPIOinitial21/reopen20ready all8GPIO+UI,Serialall8lines;wholeSave/rev+1/cookies-onlyfinaldraft equal,yieldednull. Finalmaincomposition/ordinaryall8/NEWreviewpending.
       context_hints:
-      - docs/product/electronics/tasks/TASK-ELECTRONICS-SOLVER-PREPARATION-001.md
-      - docs/product/electronics/components/engine-worker-clock.yaml
-      candidate_branch: codex/electronics-546-r3-linear-rows
-      owner_conflict_approval: 'Owner reply2026-10-13: preserve both parts and verify newSHA; covers package two commands, focused workflow and parseElectronicsEngineDocument import only.'
-      approved_proposal_manifest_sha256: 230a207bbcc426eb9758d4858340bee6011ad79a048b08b27bb7fcf759dd4045
-      approved_package_sha256: df8bd641816b7af06313f4080928781b63044ec813045dbba1028e12feb9d295
-      approved_workflow_sha256: 709d9ce5a4cd6d44ca6e30c333a841ffdd50d8a133aafe49ac5ff890143fdf53
-      approved_controller_spec_sha256: 111be7d95de17c54f91b84e6557619f7b4348c0e600c7a97111b054dba2656ba
-      production_slices_since_hygiene556: 1
-      r4_independent_manifest_sha256: fc0f61b532eb4d37b22c1f424fd6755e63d7d4bde912b68939c162edeb2e9bac
-      r5_independent_manifest_sha256: f043fedd9e5bdf3928aa3ccc5e18ae5f97eb14c308ccbda18940f7fc73198c0c
-      r5_supporting_source_sha: eb8d4d3d1e6383a9dd87a8619205ebeae41ca867
-      r5_supporting_result: independent_directed_piezo_pass_not_task_acceptance
-      r5_directed_probe_sha: 6a5b0f64c0cefc0b56bda8f304a88477e63f26ca
-      r5_directed_run: 38450087992
-      r5_directed_conclusion: failure_gpio_pass_piezo
-      general_data_failed_job: 115481162329
-      general_data_failure_classification: 'D: pinnedNodeECR429 before PostgreSQL/tests/RLS; no foreign repair or retry'
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-ARDUINO-REALTIME-001.md
+      owner_request: Proportional real timing from30ms through20s; supported if/for/while/loop with externalLED/button and SerialMonitor TX/RX. No extra product explanations;remove LIMITED only after full capability proof.
+      selected_slice: TEST-ONLY baseline model-clock and native wall-clock/button/Serial evidence;no pace flip or product repair. Reuse existing tests/gates;new author freeze unpublished and NEW independent review before test candidate branch CI.
+      boundaries: Exact model event timestamps/instruction costs are separate from wall pace/jitter/backlog/UI responsiveness;baseline timing may honestly FAIL. Intentionally red unit tests must not enter main. No full C++ claim or timeout/coverage weakening.
+      next_selection: Product clock change requires new cause-based canonical selection;Serial repair requires proven regression;labels require capability-specific proof. Preserved546/R27 remain stopped, not resumed by this task.
+      coordination: Other Arduino controller confirms no active timing/core/hook/LED writer and observation PAUSED;parallel679 Stage-only budget repair remains separate and not closed.525 paused with history retained.
+      observed_baseline: Remote0b472dfb;General39645888180 failed and strict39645898214 cancelled;laterGeneral39653390747 cancelled. Not1x/acceptance/release evidence. Wire679 raw editor218156 over218000 under separate repair.
     execution_lease:
       executor_id: electronics-ready-cadence-539
       holder: unassigned
@@ -7522,14 +7368,272 @@ parallel_lanes:
         - pnpm gate:repository
     revisions:
       kind: observed_snapshot
-      observed_at: '2026-10-13T19:13:54.343466+00:00'
+      observed_at: '2026-10-21T18:40:34.547672+00:00'
       main:
         branch: main
-        sha: 18ea208619d3181f8db2680b50b76f9e595c65e7
-      convergence_baseline_sha: 18ea208619d3181f8db2680b50b76f9e595c65e7
+        sha: 0b472dfb73f4c24c70d6bffde54351e46b887366
+      convergence_baseline_sha: 0b472dfb73f4c24c70d6bffde54351e46b887366
       head_sha: null
-      observation_note: 'Dated snapshot; fresh fetch main and exact-SHA CI before writes. Maine9 General38448215509 SUCCESS. Preservedeb General38450075220 pendingAccess/DataECR429beforetestsD/GovCodeSUCCESS. NEW independent REQUEST_CHANGES directed6a38450087992 GPIOFAIL/piezoPASS; ordinaryNOT_RUN. R6 only actualGPIOCPU/localized compute within solver/simulation and mapped specs after controller proposal check. R5 supporting result retained; all other work deferred/preserved; no school operations. Controlled metadata convergence with main644: only foreign Observability report/lane; General38452585068 in_progress, no new acceptance claim. Both disjoint sections preserved under prior owner approval. Final governance-selection metadata convergence18ea: only foreign OBSspec/registry/lane; exacteb product reviews not invalidated and no product candidate convergence performed.'
+      observation_note: Dated remote snapshot for NEW Issue682 test-only selection;old546 revisions preserved in suspended546 entry. General39645888180 failure and39653390747 cancellation and strict39645898214 cancellation are not acceptance. Fresh fetch main and agent:recover before writes;verify exact remote and CI;no1x/product/owner/release/deployment claim.
     suspended_tasks:
+    - task_id: TASK-ELECTRONICS-SOLVER-PREPARATION-001
+      issue: 546
+      pause_reason: Preserve original owner STOP and all R26/R27 history while NEW Issue682 test-only programme begins;no resume or acceptance of546.
+      revisions:
+        kind: observed_snapshot
+        observed_at: '2026-10-13T19:13:54.343466+00:00'
+        main:
+          branch: main
+          sha: 18ea208619d3181f8db2680b50b76f9e595c65e7
+        convergence_baseline_sha: 18ea208619d3181f8db2680b50b76f9e595c65e7
+        head_sha: null
+        observation_note: 'Dated snapshot; fresh fetch main and exact-SHA CI before writes. Maine9 General38448215509 SUCCESS. Preservedeb General38450075220 pendingAccess/DataECR429beforetestsD/GovCodeSUCCESS. NEW independent REQUEST_CHANGES directed6a38450087992 GPIOFAIL/piezoPASS; ordinaryNOT_RUN. R6 only actualGPIOCPU/localized compute within solver/simulation and mapped specs after controller proposal check. R5 supporting result retained; all other work deferred/preserved; no school operations. Controlled metadata convergence with main644: only foreign Observability report/lane; General38452585068 in_progress, no new acceptance claim. Both disjoint sections preserved under prior owner approval. Final governance-selection metadata convergence18ea: only foreign OBSspec/registry/lane; exacteb product reviews not invalidated and no product candidate convergence performed.'
+      task:
+        id: TASK-ELECTRONICS-SOLVER-PREPARATION-001
+        issue: 546
+        branch: main
+        base_branch: main
+        pr: null
+        pr_draft: false
+        status: in_progress
+        checkpoint: "owner_requested_stop_preserved_r26_r27_not_implemented"
+        owner_acceptance: pending
+        owner_stop_requested_at: "2026-10-18T18:02:08.399514+00:00"
+        owner_stop_reason: "Owner requested ending this session to preserve remaining tokens and publishing only results already eligible for main. This is not product acceptance or programme completion."
+        resume_requires_explicit_owner_instruction: true
+        solver_writer_handoff: >-
+          Controller-assigned sequential FET derivative composition under Issue658;
+          original stopped R27 remains stopped, its retained source/reviews/blocker
+          and resume rule are unchanged; PR651 de9d84a preserved, original branch
+          untouched. Current single solver writer is electronics-core-fet; no
+          permission to resume or accept Issue546.
+        preserved_r27_entry_sha: "1669d7b2f1f630b3c4da045147500a343e139ca9"
+        r27_implementation_state: "NOT_STARTED; source author stopped before any edits; working tree/index clean, no owned running processes. Existing source-approved R26 packet remains remote diagnostics/electronics-546-r26-combined atcdad26c; product integration/Issue closure not accepted."
+        r26_combined_source_sha: "cdad26c361cb4cf8ed2d095fae3c087b5d2abb2d"
+        r26_source_reviews: "Runtime46ec APPROVE_SOURCE_ONLY c22c2b329d5c4124780b92c2a95161651861b28d848271c21ad2178c5cfe632e; quality6ae APPROVE_SOURCE_ONLY6f89188050ea097231137d2711d6b7e4fdfcb9840876b1464fe1e4eceec5b792; combinedresponsibility9bf76418ecb7cdff724098657c7c5df10faefbe9fae03b1a84ae6452e391c835. Not product acceptance."
+        r26_pair_negative: "One158/version observerON pair allfullreturns/null parityPASS, no demonstrated gain: blink1291.0037->1284.0077ms;millis1837.0177->2058.0597ms;combined+6.84percent. Host50percent/background/order caveat. reportf5d273509372200c474cf8f3b28f561d38c903502f7df00b3698884ea5c41f03. No rerun."
+        r27_confirmed_activation_defect: "Root decoded original actual158 input states: after each H0 output-history eventQueue alreadycontains pin-mode-change/output-change and later up to256; ordinaryOwnedContinuation requires length0. Thus156continued requests cannot enter retained execution, despite single-session tests passing and full parity via generic fallback. This is a defect of the new optimization, not a claim of sole original classroom cause. Correct the passive-history filter and require real subsequent-request activation before further timing."
+        r25_runtime_source_sha: "32b20074c6c92367c7008690375507dba79f2c67"
+        r25_runtime_independent_source_review: "APPROVE_SOURCE_ONLY; report629b2d204221de0d021e38d75103e21d8719e37adb39e121f0a436fe3eec3b21,148 independent runtime cases and8 Worker lifecycle cases; complete158 artifacts/hashes audited without replay. Not product acceptance."
+        r25_runtime_responsibility_review: "APPROVE_RESPONSIBILITY_ONLY; report4a34e042e04783ee211b68a10f8a58b37d22a0ee636a6a48db165bc15cdc5f91; runtime102998B/scheduler70007B retain decomposition-candidate, narrow reviewed baseline maintenance required."
+        r25_one_pair_result: "ONE sequential coldNode pair observerON,158 requests/version,full returns/null vectors0/8954 identical. Blink1317.2612->1289.7330ms (-2.0898percent);millis2701.9966->2071.2621ms (-23.3433percent);combined4019.2578->3360.9951ms (-16.3777percent). Insufficient native headroom; not realtime/school/browser acceptance. reportadd76daa641ff258f1ffcf61c3b5f970dfddf2cc34367a50e6af261c7b70aca8; original defer then root15percent host-load decision retained."
+        r26_quality_prior_proposal: "Prepared quality traversal38a30ee18076ed74ac7a5043cf3de1dc6d1a74a203750e3988dc1dbfab81cf6b; prior refusal1ce817ae was missing producer authority. NEW bounded architecture review must use actual fecd/32 early complete origin proof, no unbounded callback inventory. Cached verdicts and rejectedc532 finite-only path remain prohibited."
+        r25_origin_foundation_sha: "8cc7f8299991f568c299e393c6fae2e9a5fbc055"
+        r25_origin_foundation_review: "NEW APPROVE_SOURCE_ONLY report94c9ca0a14923d6f88c55ea24a8bd3bbd603356de27cfeed20521fdca0253b50;23freshVitest4.1.11,254independentoriginnegatives,70parentmodelcomparisonsPASS/0extraGetterProxy. Notwholekernel/runtime/performance/productapproval."
+        r25_finite_closure_receipt_sha256: "b92738ff583c9d362546545345fada62eb3da57259a3fdc7445aaa55fa225c50"
+        r25_uncommitted_preserved_patch_sha256: "0808295ee50d30cb7dda86e01ba0326b77691ace2430b148769eb54a938deee4"
+        r25_uncommitted_preserved_receipt_sha256: "827a0dc02ef61200ac13881da4be0eb8217c454d09ce53458d7613de95f09ea8"
+        r25_origin_review_requires_changes: "Resistor mutable moduleexport and nested ordinaryLED profiles are realexternalcallback/aliasroutes. Prior6319db cloneonlySAFE premise withdrawn by87323d supplement. New7productionpaths total includes3originfoundationpaths; existing5testfiles total justified byactualownership boundaries. Nofull158/perf/CI/freeze attempted beforeorigin proof."
+        r24_quality_final: "REJECT c532 afterminimalboundedrepair, rawproof33b3734a208fc1d4939ff7a635388f33f77175a360a969f34595e96731ace3cc / STOPreceipt90bf0812d34d3fd98ebdd213460805ef1e8fbd232bcf36066fcbdd3c56a05eb6. Rootverifiedsimulation.ts byteequaled14 inheld80ac27e0 andc532notancestor. Keep originalpublicverifier. Broaderquality NOTselected."
+        r24_ui_reviewed_sha: "19d22c523bce93f1dbab1e962fe6e6f3de4dce05"
+        r24_ui_review: "APPROVE source/UI ONLY NEW independent report4ee601cbabbf714726ebf91b743428d0a656062803778ae8d20e5d67f7f7539c;70freshVitest4.1.11,18independentprobes,24000intervalchallenges,339rawchannelintervals zero skipped brightness/current states;actual2000/100/Blockly replay0anchors. PortsH0evicted conditionalonly. Builtbrowser/fullgates/productacceptanceNOTRUN."
+        r24_quality_held_sha: "c53265ec055235fdef79e3967731a6df4caff8ec"
+        r24_quality_status: "NOT_READY author found real ArraySpecies/constructor getter discrepancy despite31tests/158ordinaryparity. Do not publish/integrate as accepted. Separate bounded same-two-file repair preserves original observable semantics; no public contract narrowing."
+        r25_architecture_review: "SAFE_TO_PROTOTYPE architectureonly independent6319db979d86afe1ad9bcdc3d987c0cff5a549f62c49d2aeec8861769415ad15 onproposal62ad7bca62c961a032737cd28167f74a0eab81bc0160b28df7b1f7b6ec240a64. Namedboundarycost14.68percentmillis before mandatorychecks does NOT prove42percent necessarygain; one bounded viability prototype nowselected."
+        r23_preserved_combined_sha: "ed14f96028d6f8a64b35f2013439be85d155adf1"
+        r23_directed_run: 39137622192
+        r23_actual_product_result: "FAIL5PASS7FAIL, NEW independent REQUEST_CHANGES reportSHA4ffa7892b110c965028385ea25dd4e7683487d21d25835b8d868b585c050dfc4. SOURCE/math/compositionAPPROVEonly. Scored1ms1552.7model/2642.4wall/2455.3compute; millis2307.8/4514.9/3989.1;Reset1488.9/1980.6/1654.9. Publicationphase100/ports/Blockly100/2000honestreanchors; nofalsejoint/incorrectphysicsclaim. Serial/GPIO Save+cookiesreopen,50ms,threeHIGHnoDelay,noDelayrealtimePASS. Blockly50/1/reopenUNREACHED. Ordinary/repositoryNOTRUNafterownfailure."
+        r23_original_artifact_sha256: "6389d64d8e2b63417fbd11e8b661f10c788e448905840d110e1d41ccf6028abb"
+        r24_actual_cpu_profile_sha256: "fe6763807555e331bd349a54ebc17ea5becc08e7b7bb56754a26b17e8033e8ea"
+        r24_cpu_cause: "ONEcombinednewactualscoredprefixprofile2644samples;45inputsverifiedand158fullbrowserreturnsdeep/orderedJSONequal. Blink1:quality298incl/allNumbers172incl out987;millis:clockedruntime875incl/evaluateSyntax285incl/stateMatches143incl out1655. Inclusiveoverlapnotadditive;elapsednotCPU. Finiteallocationtarget17.43percentblink/3.56percentmillis CANNOTfixbothalone. No cachedquality authorization. Runtime-only tinycall/Map optimizationsinsufficient; broaderrequestownershipboundary needs explicitproposal/trustproof, not identitycache."
+        r24_optical_cause: "Exactrawreplayreproduces2000/100/Blocklymarkswithin0.2ms: min(C,P+elapsed) withsampledAt=wall permanentlydropsclampedtime. 2000firstpartial3.7ms;bufferedP96.1 atwall-H0156.3ms =>60.2ms debt, nobufferedunderrunbeforefirstmark. CompleteOFFalreadyavailable, expiryhonest. Diagnostic strictholdonlyrecovery0anchors retainsallstate sequences; no recovery acrossunknown/current/brightness change/truncation. OriginalportsH0evicted soconditional replayNOTexactstartupacceptance."
+        r22_core_candidate_sha: 47cd675a58fd4ce8087ced94d99030b917edfe64
+        r22_core_source_math_review: APPROVE NEW independent exact47;14182expression comparisons,188clocked35legacy steps,45compileinputs/85horizons/78browserstates verified.286author testsPASS. No exactCI/browser;productNOTACCEPTED.
+        r22_ui_candidate_sha: 2ecc46021905ee599df3a5a06d6ec22ecfbd79e9
+        r22_ui_source_review: APPROVE NEW independent exact2ecc;83fresh tests,30000cursor/commonstate+10000baseline differential checks; actualstartup75noDelay78millis replay showsimmediatecomputedHIGH/zeroanchors. No newbrowser/gates;productpending.
+        r22_support_test_candidate_sha: fcf99543326f4d5a0af66727004a503135ee3ea3
+        r22_support_test_review: "APPROVE NEW independent exactfcf;78helper/counter/reader negatives and original PUT/response/GET documents verified. Full support browser remains part of final acceptance; no product save change."
+        r22_performance_limit: ONE ABBA on measuredINTERMEDIATEcompiledruntimece492c8d500646bf78fcfd567662358d9db51d265d004879d4ccb19a1169d76f elapsed4972.1465to2544.1066ms for2071.2model,48.83percent. Final47addsdepthfallbackguard, notsamebenchmarkSHA; do notclaim finalspeed/realtime. Final47correctness85/78/8036 andfullJSONsame.
+        r23_causal_profile_sha256: 0e9314f1b5ce8ccdcc548cc99c56d3930f4a0e9284526bbbd101a2dff02c0861
+        r23_causal_profile: ONE exact47profile1987samples;convertValue150self162inclusive,binaryValue85self220inclusive,typedhelper370inclusive;dynamic2power at144positionticks supportsrangepreparation. Inclusiveoverlapnotadditive;callarity3samplesnotprincipal. Stateconstructioncostdoesnotproveasafeskip/cache. Full85/78/8036/JSON/specialremainexact. No sufficiencyguarantee.
+        r22_supporting_browser_oracle_slice: "SELECTED separate bounded baseline TEST-ONLY author, same Issue546. ONLY e2e/electronics-interactions.spec.ts and e2e/electronics-simulation.spec.ts, no product/runtime/UI changes. Original393 traces independently prove3draftWrites1to4 are ownlocal slot+sessionhint+mirror, zeroPUT;8recoveryraws exactequal successfulPUTrequest/response/GETdocs, baselineclear retainsrawwithSHA256ack and canonicalreaderreturnsnull. Root checked actual unchanged recovery/projectstate/reader source. Count successful own local writer records, not all keys containingdraft; check canonical recovery reader/byte-boundACK rather than physicalraw deletion. Never merely raiseexpectedcount/removeassertion/accepttruthy/ignorependingdata. Require missing/wrong/staleACK and concurrentdifferentbytes staypending, exactserverdocument/revisions/visibleactions/deadlines preserved. One frozencommit+selfreview thenSTOP; NEWindependentreview and finalexactbrowser required."
+        r21_ordinary_failure_classification: "C stale baseline test observers after independent originaltrace+source proof; no own A/B regression found in those11 failedpredicates. Reader/manager/projectstate andbothspec blobs identical31fe/393. This reclassifies earlierUNCLASSIFIED, doesnotchange oldFAIL or prove unreachedsteps. No production save repair authorized by supportingtestslice."
+        r21b_preserved_candidate_sha: b0c9f5279663a5540f3427eafc411991c1306edd
+        r21b_source_ui_review: APPROVE new independent exact-SHA reviewer;51tests plus100000joint/24000sequence challenges. Author74testsPASS. No new browser/fullgates; productNOTACCEPTED.
+        r21_product_result: Exact393 Electronics39130678017 FAIL146PASS19FAIL;12Arduino journeys4PASS8FAIL. Serial/GPIOsave-reopen,2000ms,ResetPASS;1ms correct1.004..1.005ms physics/loadedfastglow butlag289.1ms;milliscompute4915/model2071 deficit. Other11 ordinarypersistence/revision failures originUNCLASSIFIED. General39130669326FAIL DataECR429beforetestsD;foreignAccountshell26FAILC. PreserveoriginalZIP8f3d48d5568d0024cacaf042f44b741058426aa5442ed027d0d4c0def3d50656.
+        r22_causal_profile_sha256: c7925da7b5e6c9303d99bec570ce8efa9ac62a6d74b03dc9396ec6e43c9fac4c
+        r22_causal_profile: ONE frozen393 savedmillis85horizon profile3388samples;45source/compiledinputsverified,all78captured browser statesdeep/JSONmatch,8036privateyields. evaluateValue1426inclusive,tokenize451,parser925,solver262,quality105;inclusiveoverlapnotadditive. Compile-only syntax preparation targets measured repeated work, no throughput guarantee. StartupH0 hold separately provednoDelay38.7ms/millis37.2ms supersession before25msbufferfills.
+        r21_preserved_candidate_sha: 39343090a79ec35da5b58236a21e0d11f66a3594
+        r21_core_source_math_review: APPROVE exact7b38ed018de0c1ede894b2b5eb8b4654d858f669; final product pending.
+        r21_final_ui_review: REQUEST_CHANGES exact39343090; per-channel receipt freshness does not prove whole-vector freshness. Real190ms joint state exists in completed175..200ms optical history, so final-vector-only test witness also needs the explicitly selected causal correction.
+        r21_exact_ci: General39130669326 and Electronics39130678017 still in progress at R21-b selection; focused,benchmark,governance,code PASS; PG image build failure unclassified pending available log. Never claim acceptance from these intermediate results.
+        r20_negative_candidate_sha: 7494bea4a05a8daf86d9d12cd7c948d7a4ed507a
+        r20_negative_result: Unpublished experiment, NOT FOR INTEGRATION. Full byte/state parity and10targettestsPASS; one22-horizon ABBA meanR19 902.928ms versusR20 908.449ms for506.8ms model, no useful throughput gain. No whole gate or repeated measurements. Preserve all evidence; next source baseline is a4ac, not7494.
+        r19_general_final: General39127206701 FAIL onlyAccessA classroom-quick-journal.spec.ts193 expected>=210 actual200; categoryC unrelated baseline test already corrected on main67c21ae8. Governance,code(types/build),PostgreSQL/RLS jobsPASS on exacta4. Do not fix classroom or claim wholePASS; next candidate inherits canonical main and needs new exact gate.
+        r19_preserved_candidate_sha: a4ac7ade070ac41d33a718c1d3949a08c36c1858
+        r19_source_math_review: APPROVE independent exact-SHA reviewer 2026-10-18; product NOT ACCEPTED.
+        r19_preserved_result: One saved22-horizon paired replay observerON mean989.290 to783.903ms elapsed,20.76percent improvement for506.8ms model; full855946-byte JSON parity. Not realtime. Local focused749domainPASS539webPASS1assetI/Otimeout; types/buildNOTREACHED. Exact General39127206701 pending at selection.
+        r19_remaining_profile_sha256: b4ec37a9b24a32be45a53316765512b732841de37126084bb58b596a80c0fdfb
+        r19_remaining_profile: One exact22-horizon candidate-only profile1627samples. Solver840self; component projection150self/201inclusive; solveCircuitStep283self; quality63self/255inclusive; linear15self. Inclusive values overlap. Pure projection reuse is a measured-cause hypothesis, not guaranteed realtime.
+        owner_scoped_handoff_exception: Owner latest2026-10-18 explicitly orders immediate implementation by subagents only
+          Arduino/LED after earlier wait choice. Controller treats this as superseding that wait ONLY for a clean isolated
+          Arduino/LED slice with no foreign file overlap. Generic preflight remains WAITING_HANDOFF on E:/ASA-previews/teacher-pr582-redesign/.github/workflows/classroom-owner.yml;
+          never edit/stash/revert/commit that file, never disable guard or label it SAFE. Any actual selected source overlap
+          still STOP. This is no school/DB/network/deployment exception.
+        r18_preserved_result: Focused PASS, browser5PASS6FAIL on actual9bc. Preserve all source, raw evidence and independent
+          reviews; no acceptance/integration. delay1 model1631.8/wall4094.8/compute3933.1;50ms electricalcorrect but one
+          DOM dark phase15.9ms.
+        r18_directed_run: 39108267782
+        r18_preserved_candidate_sha: 9bc659a780a02dfc99af789cef53ed8feb956146
+        selected_at: "2026-10-18T17:58:38.475626+00:00"
+        r17_preserved_candidate_sha: "343a6024ded71a883373ed7cc0fcc342a87db785"
+        r17_directed_run: 38833934410
+        r17_directed_result: "SUCCESS exact343a build; focused and unchanged seven production browser journeys PASS. Independent original ZIP CRC/hash,1135 ready records and13 native PNGs confirmed.100ms electrical4.999775Hz/paint5.099Hz;50ms electrical9.999100Hz/paint10.100Hz; no-delay realtime endpoint lag27.8ms. Earlier272.7ms FAIL belongs to1eff, not343a. Older sustained-HIGH capture has early305ms lag; no universal250ms claim."
+        r17_general_run: 38833490003
+        r17_general_result: "SUCCESS all four required jobs after ONE infrastructure retry; previous Data publicECR Node429 occurred before build/tests. Latest Data117522722864,Governance117522723119,Code117522723226,Access117522742556 SUCCESS. No product acceptance or integration inferred."
+        r17_directed_zip_sha256: "4b4ff1f400fc8fe20e3d8c4c1db91fed59fd9dc845a7bb12e4923e4bff52ff1c"
+        r17_independent_review_sha256: "f7c1948ee6af5385a8a4c178f6de86434647c70f2db921b3dfd36af2f61c3221"
+        r18_causal_basis: "Exact343a preserves correct instruction timing and fast electrical edges, but engine/Worker/host present only the final LED state of each complete ready window. A1ms HIGH/LOW programme can therefore alias into a false slow visible beat. Observe actual quality-checked per-component optical state durations inside the existing request-owned advance, then project accepted observations to the screen. Source/GPIO/delay inference cannot establish LED conduction."
+        r18_authoring_context: "A genuine separate cloud checkout passes the full canonical electronics-arduino preflight. Owner R17 worktree and unrelated dirty Classroom worktrees remain untouched; their local WAITING_HANDOFF is not cleared or bypassed. Preserve all accepted current-main Classroom/Portal/AI changes during controlled convergence with saved343a."
+        r7_preserved_repair_scope: 'R7 owner Arduino startup and 5/10Hz visible cadence: bounded complete ready observation cap 25000us and host presentation tick 20ms in live-simulation-worker-controller.ts/use-electronics-workbench.ts, supporting existing controller/host tests and electronics-ready-cadence.spec.ts. Preserve R6 product, both full generic cases and three owner programmes. Correct initial phase anchor; require actual HIGH/LOW half durations, duty/gaps, model/wall progression and loaded effective LED image paint. Physical quantum1000us, instruction1us, event256, precision, every runtime state and yielded-null remain unchanged. No inserted pupil delay, timeout increase, school operations or unrelated repair. New exact source focused/directed evidence then required final gates and NEW independent review before integration.'
+        r8_preserved_repair_scope: 'R8 metadata with preserved structural prevalidation: compileCircuit then simulationInputDigest in the same old order before continuation/input/horizon guards; simulation.ts pure accessor for the existing document-independent MODEL_SET_DIGEST and engine.ts metadata lookup replacing only the unnecessary numeric solve/quality in analyseCircuit(document).modelSetDigest. Preserve all actual scheduler/solve/quality/validation/state work and physical precision; no persistent cache, new runtime, timeout increase or foreign repair. Supporting existing simulation-contract/engine-timed tests plus external baseline parity; one exact focused gate and five production browser journeys before new independent review.'
+        r9_preserved_repair_scope: 'R9 host scheduling only in use-electronics-workbench.ts: retain 10ms wall-clock demand and 25000us complete-ready cap while removing requested-horizon React state updates that rerender the whole editor without a new result. Use current document/clock refs and controller demand directly; preserve source/runtime input and serialRX timestamp freshness, start/stop/restart/failure/unmount and simulationTimeMs consumers. Supporting focused mounted-hook tests and reviewed TEST-only synchronous LED hit oracle in existing ready-cadence spec. No Worker/solver/numerics/cache/budget/precision/timeout/pupil programme changes or foreign repair.'
+        r8_preserved_source_sha: 21e2ef06a5642a061d8fa13f8a75a308df13e649
+        r8_preserved_source_tree: c86eb2d10ec76b72e78a9741421d95d84b7e0aeb
+        r8_causal_report_sha256: 110edacf8d77edeb7d71f584975c715bfa8b9c2f2d38f16b032e9be7cd27a0b0
+        r8_proven_cause: 'Every advance repeats complete standalone analysis only for a module-constant registry digest. Retained GPIO71ready C=H0to1.75s over4155.7ms wall; evaluator elapsed3823.5ms is not sampled CPU. Speedup and school frequency remain unproved.'
+        r7_status: not_accepted_directed_failed
+        r7_actual_host_tick_ms: 10
+        r7_documentation_correction: 'Historical selected20ms retained above/in R7 history; actual controller-authorized source21e uses10ms and ready25000us. R8 does not change these values.'
+        implementation_acceptance: "Prove actual multi-REQUEST activation after H0, later requests and full256 output-history tail using owner production three-LED/millis documents; nonnull retained runtime and genuine prepared-quality receipt must execute on each eligible subsequent request. Exact result/queue/state/physical/quality/optical/null parity and malformed-history fault priority remain. Use saved actual continuations and a few directed activation probes before ONE later corrected-packet158 pair; no new profile or repeat of unchanged R26 pair. Author exactSHA/STOP, root actualdiff/evidence, NEW independent exact review, then viable exact built-editor12/ordinary/repository/new product review. All R25/R26 ownership/origin/snapshot/disposal invariants remain. Acceptance blocker OPEN."
+        next_action: "STOP explicitly requested by owner to limit token use. All authors/reviewers stopped; resume only on new explicit owner instruction and fresh Git/current/CI recovery. Do not run R27, new measurements, profiles, CI or deployment automatically. Preserved combinedsourcecdad26c and common1669d7b2 are in diagnostics refs; R27 branch clean at1669, no correction written. Existing acceptance blocker prevents unaccepted product integration. On owner resume, implement only confirmed passive event-history admission correction, prove actual subsequent-request owned/quality activation, NEW exact review, then corrected full158 and real browser acceptance. School/liveDB/Docker/network untouched."
+        r17_preserved_repair_scope: "Preserve exact1eff and its approved source/math; product still REQUEST_CHANGES. ONE bounded runtime write-action cost repair in arduino-program-runtime.ts: remove only redundant writes/lookups after existing pin-mode handling, retaining every action, instruction, time, budget, event, shadow/error, pullup/PWM and signed-zero/absent-entry semantics. Existing native profile identifies unchanged applyRuntimeAction cost; it does not measure individual Map.set. First verify equivalence and one short paired real-horizon cost comparison; retain only a measured improvement, no heavy CI for an unsupported micro-optimization. No instruction skipping, special sketch detection, clock rebasing, precision/timeout changes or new profiling. Focused regression and NEW exact independent source/math review before unchanged directed browser gate. FastLED/openBlockly remain required same-goal followups; no foreign/school/deployment changes."
+        repair_scope: "Only confirmed R26 acceptance defect: ordinaryOwnedContinuation wrongly rejects every nonempty passive output event history. Preserve cdad26c combined source, all reviews and negative pair. ONE repair author may edit only contexts/electronics/domain/arduino-circuit-scheduler.ts and existing contexts/electronics/testing/engine-timed-api.spec.ts. Permit originally validated passive output history without weakening old initial full runtime/schema/counter/sequence/time/kind or unloaded-source guards; retain every history entry and copy/append/trim order. No new input/peripheral/Serial/Servo/tone/source/producer admission, new module, runtime arithmetic, clock, physics, quality, timeout or precision change."
+        r9_candidate_sha: "9df144e48165ee330ea43f547e2d52782964bd54"
+        r9_candidate_branch: "codex/electronics-546-r9-host-demand"
+        r9_candidate_publication: "pushed_not_integrated_not_deployed"
+        r9_source_review_sha256: "676e1125c43043d93b2ca7f953321b908e8ed1f85c243703466bb7fa26867af1"
+        r9_focused_run: 38776233944
+        r9_focused_result: "focused job116564480462 SUCCESS;697 domain+447 editor;70 fresh Nx zero cache;workflow overallFAIL first browser ECR429 before tests"
+        r9_directed_run: 38777831169
+        r9_directed_result: "SUCCESS five cases;actual checkout/build9df;workflow-only head9bf2c328;Supporting evidence not ordinary acceptance"
+        r9_directed_zip_sha256: "5404f99f7166d83c29f2da14fc3ad0f198448f583b2446ef47fc1902dd1f45a3"
+        r9_ordinary_run: 38779639354
+        r9_ordinary_result: "FAIL A;155PASS3FAIL. GPIOinitial55readyC=H1.35s/wall4.2998/evaluator4.0358/UI0..5 before5s;reopenNOT_RUN. Owner100paint4.398Hz model/wallgap312.4ms;50paint7.703Hz gap421.8ms/halfmax163.1ms. Physical edges/quality/source valid;timestamps do not identify CPU hotspot or contention."
+        r9_ordinary_zip_sha256: "ea5b78ac64fdbdadbb77be8b7cf8d532dfe1052c9f9a6d69289c7da67da0a6be"
+        r9_general_run: 38776227730
+        r9_general_result: "FAIL;Gov/CodePASS;Access401PASS4FAIL S4 separate Scratch overlay ready/error at4719/4800 identical main d895 General38773851362 (C);Data NodeECR429 before build/tests/RLS (D). No foreign repair in546."
+        r9_product_review: "REQUEST_CHANGES exact9df;own ordinary timing criteria unmet;no acceptance or integration"
+        r9_product_review_sha256: "a271b9132ed3bc336c627a1426518c6b10af0739fc9a8b5892a56cc71a709c99"
+        r10_profile_frozen_source: "9df144e48165ee330ea43f547e2d52782964bd54"
+        r10_quality_allocation_proposal: "NOT_SELECTED;external pure predicate193/193 and fullquality191/191 parity plus129 late nonfinite challenges. WholeactualGPIO55horizons5pairs byteequal but candidate/baseline median1.0096, no whole calculation speedup. Preserve external proposal;no product patch or expensive CI for this hypothesis."
+        r10_boundaries: "Only546 original Arduino timing. No additional full inventory/profile/suite retry without changed cause. Separate R8 Blocks coordinate-only reset retained as distinct unimplemented residual;not mixed with current source. No school/installation/DB/network/backups/deployment or3000 capacity claims."
+        r11_final_status: "STOP_NO_PRODUCT_PATCH_NO_MEANINGFUL_WHOLE_GPIO_GAIN; cleanmerge5c99 preserved; root independently verified30originalhashes and recomputed24matchedpairs peralternative/137fullreturnparityeach."
+        r11_result_sha256: "20ffcbfad95522c249f3fab87f6c7ea5a9afa7090e937c9c1ddbf07ba89332be"
+        r11_negative_viability: "slice+pushGPIOmedianpaired1.039693/faster1of8;indexedcopy0.998373/faster4of8. No candidate/push/CI; no repeatedcopy/qualityhypothesis withoutnewcause."
+        r12_preserved_final_source: "f610333e6cbf6ac6ebbdbeb9b7edbfaf9ba417dc"
+        r12_source_review: "APPROVE source-only; SHA256250a90b16e570d16e87ab1a2afbc9656d2454600e708feea641d6e9305284a5d"
+        r12_independent_math: "7/7 PASS exact fronts for 2000/100/50/1ms, two delay1 versus delay2 and actual three-HIGH no-delay; full state/result/JSON/yield/partition. Independent40input provenance to final f610. SHA256c1ce30db55b700692854336e0e186f0c11c2329a89c7d3dd37c48f2ba06fd36b. Domain only, not browser realtime acceptance."
+        r12_focused_result: "Run38806724302 job116669380402 PASS707domain/464editor/70freshNx tasks, zero cache, NX_SKIP_NX_CACHE=true. Workflow FAIL directed browser3PASS2FAIL."
+        r12_product_review: "REQUEST_CHANGES exactf610. SHA2568b7b3b15f5487f2974fb396f8f3ab0dcdf07022382c7b859ad7046d996ab719a. Complete GPIO/Serial whole-save cookies-reopen PASS; owner100 paintLOW46.6ms below50; owner50 DOM21/23.9ms below25; all ready C=H/finitequality and original electrical D+4/D+5 correct. No-delay5.120modelms/1889.2wallms not realtime. Original32381234B/53entries CRC PASS SHA256c2446aa7fed7d23f72e929bba74f06cb343d0086aa6382259e04e457fb97b088. No ordinary rerun after directed failure."
+        r12_general_result: "Exact38806718110 FAIL Code electronics bundle211214/209000B, Data/Access skipped. Maina64 run38802258155 already210395/209000B; preserve both facts, no limit weakening or foreign saving repair. Not release/acceptance."
+        owner_fast_led_rule: "Owner2026-10-16: independent actual electrical LED conduction, frequency and phase per component/port, effects and mini-screens. Blink to display capability up to60Hz, then steady glow. A60Hz screen cannot display60 complete ON/OFF cycles. No global GPIO/delay inference or false slow alias; every electrical front preserved. This presentation repair is not implemented or selected by R13."
+        r13_preserved_candidate: "1f86af2242e1058dc656c194f19cbbf45d0c7953 tree9f4db99df30a9d3c3f42ecac04838f4f16d7c44c; pushed, not integrated or accepted."
+        r13_exact_review: "NEW source APPROVE_SOURCE_ONLY SHA90c68cb7b1bc09c90e25d976f35309c708882a799c2cb0faef965e751bd0f421; NEW product REQUEST_CHANGES SHA1303e372c501e0f36b10f305cca9f8728454a5904f20030c32deba4d75a4a9a6. No release or closure."
+        r13_actual_evidence: "Run38811329625 focused707domain/474editor/70freshNx tasks zero cache PASS, directed4PASS1FAIL. Exact General38811318101 FAIL electronics210346/209000B; Data/Access skipped. Original ZIP20543431B/59entries CRC PASS SHA8212e37e6bbd56896f7bc643a4174f7d2ad09e449ed1dc97c87771a82b11cdb2. Complete Save/cookies reopen GPIO+Serial PASS, readyC=H/finitequality and exact electrical fronts preserved.100ms DOM59.6..124.8/paint63.9..117.4 PASS/nativeONOFF.50ms first HIGH136.6DOM/103.2paint fails unchanged100ms max. No-delay4.608modelms/1913.9wallms not realtime. Ordinary suite not repeated after own directedFAIL."
+        r14_disposition: "Stopped before prototype/product edits/measurements. Clean77a652c718453d0a67ddcac4b7d1e81cde9a51b9 only inherits canonical01c3daf and preservedR13. No lost product patch. Owner2026-10-16 asks to rethink kernel; author and independent architect find owned-memory-only plan insufficient as primary direction."
+        r15_architecture_evidence: "Independent read-only challenge SHA8f5f0f725a873c422dc5200c05900c73f704d35e819bbb70f53af50d6aa33587. README ARD-3A8B2C describes1ms plusGPIO/input physical barriers; scheduler948 executes physics for every1us runtime due time. Runtime applyRuntimeAction suppresses unchangedHIGH output event and lazy readInputs obtains actualread-time samples. Canonical clock permits physicalcheckpoint<C and requires partition identity within same versions, not preserving old over-fine integration forever."
+        r15_scope_limits: "No new solver/interpreter or separate programme; existing scalar physics and single canonical scheduler. Initial strict eligible circuit can fall back for multiple boards or unproved capabilities rather than miscompute. Thermal threshold crossings must be deterministically bracketed on integer-us grid or original scalar recurrence retained; never cross an unhandled failure. No shared full-frame cache, skipped runtime instructions, future peer reads, stale Worker commits, incomplete electrical frames, altered pupil sketch or data migration. General bundle210346/209000 remains required own-composition repair; never raise budget. Previous source/math/100PASS retained, not acceptance for new code."
+        r15_followup_basis: "Exact30c4f5f56338b16cd29345f2884fe08cee2c3e86 preserved/pushed not integrated. Independent source APPROVE SHAab7ac5fa889fa7546b26cd47ca58b7110701d18cfa014a09de4f637656fcfc56 and13case math/fallback APPROVE SHAfcfc8fc1cf50c9f81f4380c4ddf6bcb63786e90fe967e52f059436809706f719. NEW product REQUEST_CHANGES SHAbfeee0d351d75744c8c04dfe31a76cbfd502323abacaf1db3f0663addc5a313f."
+        r15_exact_evidence: "Directed38818640245 focused715domain+478editor+70freshNx PASS; browser6PASS1FAIL. Original owner100/50 actual electrical edges/DOM/paint/native ON/OFF and independentports PASS; GPIO/Serial whole Save/cookies reopen PASS. No-delay65readyC=H model1580.9ms/wall2089.3ms gap508.4>250; synchronous compute1928.3ms, noCPUfunction attribution fromelapsed. Separate old light-only noDelay also model1395.8/wall1949.4 gap553.6. ZIP21662167B69entries CRC PASS SHA f5404ada8a624c388ecf40f769229a0ea3c6463a5ecff873b149e6fa6489288c."
+        r15_general_blocker: "ExactGeneral38818635173 GovernancePASS CodeFAIL unreviewed hygiene large source arduino-circuit-scheduler.ts56547B, parent46481B;Data/AccessSKIPPED. This own repair triggers narrow selected responsibility checkpoint, not arbitrary file splitting/threshold change. Main d4d5ec72 General38814837017 all4jobsSUCCESS. Earlier bundle limit remains unchanged and must pass, but newcandidate Code did not reach that check. No foreign baseline repair authorized."
+        r14_causal_basis: "R13 eliminates initialization debt but actual50 firstHIGH Worker14.7ms toLOW150.2ms afterH0, UI19.7 to156.3=136.6. H44900 requested58.9/ready120.9 compute56ms remainsHIGH; nextH69900 compute28.5ms becomesLOW. Post-H0 execution cost remains, exact CPU hotspot/runner contention not newly profiled. Source shows instructionBudget1 repeated runtime rehydration/serialization and generic physics/quality materialization per instruction; runtime-only context insufficient, coordinated owned lifetime prototype proposed independently. No claim of sufficient speed until whole-engine measurement."
+        r13_causal_basis: "Production hook starts wall origin before preflight/initial time-zero ready; ticks accumulate demand during initialization. Controller publishes each complete catch-up window immediately and pumps again. Actual100 H325LOW toH413600HIGH arrives51.8wallms, DOM52.6/paint46.6;50 H475LOW toH525HIGH arrives23wallms, DOM21. Exact startup origin/latestTarget not instrumented; first-zero-ready anchoring is a bounded causal candidate requiring actual browser proof, not guaranteed complete cure."
+        r12_causal_basis: "ActualR9noDelay2.048modelms/2072.2wallms; schedulerinstruction1us unconditionallyadvancesphysics/sampleevenidempotentHIGH. Delay100/50ordinarystillFAIL. ActualsolverordinaryLED/resistorMNAdependsdocument+actualGPIOThevenin+failedIDs, nottemperature/damagebelowfailure; purealgebraicreuse proposedwithfreshruntimeenvelope. No speedgainprovedyet and millionruntime/thermaloperationsremain; no claimof1000xspeedup."
+        r10_preserved_diagnostic_scope: "R10 diagnostic ONLY on frozen9df: exact production Worker/page CPU and page ThreadTime of one unchanged full GPIO initial/cookies-reopen journey. External files/workflow-only diagnostic ref; no product edits, skipped physics, changed tests/timeouts, fake continuation or hopeful suite rerun. Collect actual served Worker AND page JS bodies/hash/offset receipts so sampled frames are not mapped to an alternate bundle. Profile overhead is explicit, not acceptance throughput. New product repair requires concrete causal proposal and canonical controller selection."
+        r10_profile_run: 38792422095
+        r10_profile_result: "BOTH initial/reopened actualprofile CAPTURED_NOT_ACCEPTANCE/errorsnone;originalGPIOjourneysPASS. WorkflowFAIL onlyimage-arrayorder(D);sortedimmutableimageALLrecordsexact andWorkerhashbefore/after match. PostPython inside-imageperpagefilehashNOT_RUN;test-runnerimageIDnotretained. No rerun."
+        r10_profile_zip_sha256: "5040f49ccc6652070f00103d97335386237b64aa506cb44dc88531fab058cc0e"
+        r10_profile_report_sha256: "2c4bd5d0613226704840df3998f82da3bc84b814c21927d4e150950d9dcf7a57"
+        r10_actual_cause: "Exact executed/served immutableWorkerbody56e995... row-spread callback self20.17/20.26pct sampled elapsed;solveLinear parentself8.19/8.38pct inclusive28.36/28.64 overlap. ActualpageThreadTime1.318733/1.279043s;pagebodiesexactCDP=HTTP. SampledpercentnotexactCPU or schoolfrequency. Roots independently verified listedartifactSHA/bodymatches/imagerecords."
+        r10_copy_proposal_boundary: "External218numericcases and55wholeGPIOreturns/state/events/quality/continuation/digests equivalent. Single sequentialbaseline1513.77ms/proposal1445.84ms isweak;meaningfulspeedgainUNPROVED. Newauthor must establishviability before expensiveCI;no sufficiencypromise."
+        r11_owner_acceptance_boundary: "Latestowner requires mathematicallycorrectArduino andvisibleLEDacrossdelay2000/100/50/1,multiplecalls andno-delay. Existinginstruction-us-v1 formula exactD+4/D+5 period2D+9;notAVRcycleaccuracy. Built2000/1/manydelay journeysNOT_RUN;fastLEDtemporalpolicy notselected, no fabricatedelectricalaverage or proof every500Hzpulse renders onordinaryscreen. Currentrepair doesnotclosewholegoal."
+        r9_profile_run: 38766810620
+        r9_profile_source_sha: db96c92365913362ae225a09b41926f7015b30e0
+        r9_profile_report_sha256: ee778bddcd37f54e8763f3c6ab2dbf503f04dbd96436d3b83dd6ce38753ba8f7
+        r9_causal_boundary: 'Actual page ThreadTime3.242s over4.651s; source setState each10ms rerenders SchematicEditor even with stable runtime document/no new ready. Exact React sampled percentage and speedup unproved. Actual Worker solveStep54.71pct inclusive/quality16.37pct overlap; fixed preparation small, no further cache patch justified. Profile overhead and failed initial5000ms predicate preserved, reopened NOT_RUN.'
+        r9_baseline_classification: 'Main2af General38764896188 Gov/Code PASS, Data ECR Node429 before tests (D), Access S4 deferred host Account historical/known Blocks overlay expected ready received error at4800 (C unrelated). Neither repaired in Electronics; no release or acceptance claim from this baseline.'
+        r9_oracle_patch_sha256: 34952a3ab2828fe98d53e8bd3313c786a26e7b43bb4c25cdcba274b2c176ad72
+        r9_oracle_boundary: 'TEMP proposal only; one hit-test block, inverse git bytes exact; real DOM7/7 including opaque panel/hidden/opacity/decode negatives. Exact inline style restored before yielding; native browser frames still mandatory and observer cost must be retained in interpretation. No weakened timing/paint assertions.'
+        r8_candidate_sha: db96c92365913362ae225a09b41926f7015b30e0
+        r8_candidate_tree: d0636ec0abad217d4b6ebaa3b4c20ff27fda7925
+        r8_general_run: 38758753296
+        r8_general_conclusion: success
+        r8_directed_run: 38758878615
+        r8_directed_conclusion: failure
+        r8_independent_review: request_changes_source_approved_product_not_accepted
+        r8_residual_evidence: 'Owner100 DOM4.931Hz and native OFF/ON with steady fourth LED; generic8 reopened reaches1.4s not final LED, owner50 strict halves/duty fail, pointerEvents-none invalidates image hit oracle. Evaluator elapsed is not CPU utilization. Blocks100ms generation is correct; workspace-triggered generation restart remains unverified. Pending publication is cancelled on actual unmount, whereas ordinary close keeps the panel mounted and is a negative control. No school frequency or capacity claim.'
+        r8_diagnostic_boundary: 'New diagnostic e2e files and temporary CDP instrumentation only, separate workflow refs with frozen db96 build/source digests. Actual Blocks UI edits and Worker source receipts; initial/reopen profiler preserves existing5000/30000ms and original pupil actions. No product patch, test weakening, new stack, server or installation action.'
+        r7_owner_request: 'Owner current complaint: delayed LED startup, Arduino delay100ms appears near1s, three HIGH outputs d13/d12/d11 without delay fail. Controller explicitly selects one cadence repair; no school capacity claim.'
+        r7_source_baseline: c7b80c20b22e8b62eda086db3d2751df69fd56a9
+        r7_directed_run: 38633617297
+        r7_independent_review: request_changes
+        r7_proven_cause: 'Canonical 50ms half edges correct at50004/50005us and54 complete ready/0yielded;100ms host/window aliases10Hz: only11DOM phases,maxquiet1739.6ms. delay100 initialLOW@0 toHIGH@4us was initialization, not regular period. No-delay all3HIGH completes atC=H256us/DOM519ms, sustained rate and paint not yet proved.'
+        preserved_candidate_sha: 03344e9c6b74a064ab90fd8294199b4dde783ff5
+        preserved_candidate_tree: 727086ecacb0f2c039387bf5b46477553c6d5983
+        candidate_publication: published
+        candidate_acceptance: request_changes
+        controller_observed_at: '2026-10-13T19:13:54.343466+00:00'
+        acceptance_dependency_issue: 545
+        final_candidate_sha: eb8d4d3d1e6383a9dd87a8619205ebeae41ca867
+        final_candidate_tree: d392b4d53144752ea514caf36a826628372c293b
+        independent_review: request_changes
+        independent_evidence: docs/product/electronics/tasks/TASK-ELECTRONICS-SOLVER-PREPARATION-001.md#r6-actual-full-gpio-compute-localization-and-one-causal-repair
+        independent_review_original_sha256: b35d70b1b24e89087ec3638215e90a05dde881166d18554e5eadb1c267558589
+        exact_general_run: 38450075220
+        exact_general_conclusion: pending
+        exact_electronics_run: null
+        exact_electronics_conclusion: not_dispatched_after_directed_fail
+        browser_passed: 1
+        browser_failed: 1
+        residual_cause: Cookies-only reopened poll deadline22819.185ms; genuine ready7/UI7 upper bounds21455.795/21479.895ms; fullsnapshot final evaluate22588.763..22848.810ms crosses olddeadline29.625ms. Initial GPIO full0..7/Serial Save-reopen PASS; GPIO final draft NOT_REACHED. Preserve source0fd and old raw; one changed-cause observer repair needed.
+        residual_localization_head: 76252052130f9100f2654d2f656f342a36566c2b
+        residual_proposal_original_sha256: ec4db8d67151a59317d5544ea05ed3511abcd0615e094258be22e958f7d3da7b
+        residual_profile: One actual final0677 fullGPIO0..2s profile; observation callback9.5pct self, solveStep53.8pct inclusive, quality19.3pct/allNumbers12.5pct outside repair scope. No school or browser timing claim.
+        r6_preserved_implementation_acceptance: Fresh actual full-return corpus/parity versus0677 plus stale/dynamic/state challenges and focused gate before unchanged fullGPIO/Serial browser; no claimed sufficiency until actual directed and ordinary exact all8/newreview.
+        r7_preserved_implementation_acceptance: R7 complete ready C=H only, canonical whole/partition/runtime-state equivalence, actual loaded LED paint, strict HIGH/LOW wall halves/gaps/duty and model-wall rate. Both full generic and three owner programmes with unchanged timeouts; new exact focused/directed then required final gates and independent review.
+        r1_directed_probe: 66310186ec6eab8dee9634de3143fce0bc4f27ab
+        r1_directed_run: 38006467707
+        r1_directed_conclusion: failure
+        r1_failure_classification: 'D: full observation transport/poll deadline race; all8 genuine ready and UI already exist before old deadline; new compute defect NOT proved'
+        exact_candidate_general_run: 38450075220
+        exact_candidate_general_conclusion: pending
+        exact_candidate_electronics_run: null
+        exact_candidate_electronics_conclusion: not_dispatched_after_directed_fail
+        actual_new_failure: Directed6a GPIO initial0..5/0..7,15readyC=H0..1.4s/0yielded0fault, wallcompute4423.1ms/max551.2/UI8.3..21.7ms. Latefullsnapshot and stickyshrink explanations disproved; CPU-vs-host unmeasured. Piezo fullStop/PCM/SaveCAS2to3/cookies/finaldraft and valid11130877B118records passed; whole546 NOT accepted.
+        r6_preserved_next_action: NEW bounded R6 author inherits preservedeb and canonical selection. ONE actualprofile then controller actualcheck/proposal confirmation before ONE causal product patch within finite envelope. Fresh full-return parity versus currenteb/state/negative challenges; focusedgate NX_SKIP_NX_CACHE=true, selfreview, one unpublishedSHA STOP. Root actualproof and NEW independent source review; directed GPIO/Serial/piezo then exact General4/Electronics4 and NEW product review. Only546/noPortal/school.
+        r7_preserved_next_action: R7 implement the selected complete observation cadence repair after fresh canonical guard; meaningful controller/state/oracle challenges, new frozen focused gate and one five-case production browser run. Exact final General/ordinary gates and NEW independent review before integration. Author STOP; only546, no other module/school.
+        r3_profile_source_sha: 037ebb37a0609d247f19a96811a8b52c1960a9a5
+        r3_profile_proposal_original_sha256: 7280eda6cdcf9e769d10477379cfeacab955e72714efba2639fc1b9499fe66e6
+        r3_profile_manifest_sha256: b6b4c6933d8176eb870d5518f963939f6dba36a88e2e4d3dc8e02283f9e2c9c2
+        r3_profile_actual: ONE instrumented local fullGPIO17parts24wires/21ready C=H0to2s/0yielded; solveLinear14743calls907of2970selfSamples30.539pct. Coverage overhead; no speedup/browser/school/5s sufficiency claim.
+        r3_candidate_sha: 03344e9c6b74a064ab90fd8294199b4dde783ff5
+        r3_candidate_tree: 727086ecacb0f2c039387bf5b46477553c6d5983
+        r3_candidate_branch: codex/electronics-546-r3-linear-rows
+        r3_candidate_publication: published
+        r3_directed_probe_sha: 8893bc6c712d375641919a85f6fe26430580f2ea
+        r3_directed_run: 38014843498
+        r3_directed_conclusion: success_directed_not_final_acceptance
+        r3_root_actual: 64originals/3796foreignentries/11255fullreturns281groups/399GPIO-Serialraw verified; rebuilt40-input bundles and rootexecuted12038directcases. Directedfull17/24GPIOinitial21/reopen20ready all8GPIO+UI,Serialall8lines;wholeSave/rev+1/cookies-onlyfinaldraft equal,yieldednull. Finalmaincomposition/ordinaryall8/NEWreviewpending.
+        context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-SOLVER-PREPARATION-001.md
+        - docs/product/electronics/components/engine-worker-clock.yaml
+        candidate_branch: codex/electronics-546-r3-linear-rows
+        owner_conflict_approval: 'Owner reply2026-10-13: preserve both parts and verify newSHA; covers package two commands, focused workflow and parseElectronicsEngineDocument import only.'
+        approved_proposal_manifest_sha256: 230a207bbcc426eb9758d4858340bee6011ad79a048b08b27bb7fcf759dd4045
+        approved_package_sha256: df8bd641816b7af06313f4080928781b63044ec813045dbba1028e12feb9d295
+        approved_workflow_sha256: 709d9ce5a4cd6d44ca6e30c333a841ffdd50d8a133aafe49ac5ff890143fdf53
+        approved_controller_spec_sha256: 111be7d95de17c54f91b84e6557619f7b4348c0e600c7a97111b054dba2656ba
+        production_slices_since_hygiene556: 1
+        r4_independent_manifest_sha256: fc0f61b532eb4d37b22c1f424fd6755e63d7d4bde912b68939c162edeb2e9bac
+        r5_independent_manifest_sha256: f043fedd9e5bdf3928aa3ccc5e18ae5f97eb14c308ccbda18940f7fc73198c0c
+        r5_supporting_source_sha: eb8d4d3d1e6383a9dd87a8619205ebeae41ca867
+        r5_supporting_result: independent_directed_piezo_pass_not_task_acceptance
+        r5_directed_probe_sha: 6a5b0f64c0cefc0b56bda8f304a88477e63f26ca
+        r5_directed_run: 38450087992
+        r5_directed_conclusion: failure_gpio_pass_piezo
+        general_data_failed_job: 115481162329
+        general_data_failure_classification: 'D: pinnedNodeECR429 before PostgreSQL/tests/RLS; no foreign repair or retry'
     - task_id: TASK-ELECTRONICS-SCHEDULER-SAME-TIME-001
       issue: 540
       task:
@@ -9278,7 +9382,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: paused_for_owner_arduino_psu_wire_layer_priority
+      checkpoint: selected_test_only_finalization_phase_repair
       kind: repair
       owner_acceptance: pending
       program_issue: 452
@@ -9368,8 +9472,34 @@ parallel_lanes:
         result: ElectronicsFAIL;GeneralFULLSUCCESS fourjobs. Focused905domain698web57classroom/70freshNxPASS;benchmark217938RAWof218000PASS. Target0of16complete/PUT0,invalidBEFORE. GeneralPASS is not owneracceptance.
         actual_review_sha256: 3d16ef5bdb876dc27833575a0b72326f6708c892cfc346dd6ec378379936a41c
         proposal_review_sha256: 7637bafbcf63fa84e402e51c26f1e165960028899690ac581d81fa5319bfac88
-      owner_priority_pause: Owner selects TASK-ELECTRONICS-ARDUINO-PSU-WIRE-LAYER-001 first;preserve525history/candidates/contracts. No automatic525repair or rerun during this slice.
-      next_action: Resume525 only after fresh snapshot and a new controller-selected dependency. Product5f9 remains unpublished;548BUDGETBLOCKED/ownerKEEP544547 remain unchanged.
+      historical_owner_priority_pause: Owner previously selected679 first;history retained. New direct owner instruction permits independent UI implementation without waiting for Arduino qualification.
+      parallel_finalization_audit:
+        mode: READONLY_CAUSAL_AUDIT_ONLY
+        basis: Owner explicitly resumes disjoint UI work while Arduino682 and679 qualification continue independently.
+        source_sha: 40ca98ecc5f59bbf9655accc88ccf3e3649d5ca7
+        actual_review_sha256: 6ffc07ccd58e4129a6ea85d69361df88e3b762e753b4de4393c7d32da77e8200
+        scope: Audit entire remaining generator frequency-unit-value formatting/native commit/inspector visibility and Save/PUT accounting using cached exact40ca evidence and public source contracts. Safe extracted setter/normalization checks allowed;no browser/build/CI/newobserver/source edits.
+        known: Eight desktop expected generator.value1000 versus actual1000000 is categoryA oracle defect. Seven mobile hidden final inputs and Enter delivery remain UNKNOWN. Nine incidental original-page PUT records have base2 but no response/CAS/timing proof. Fifteen raw cases,zero complete;320XY absent.
+        deliverable: One bounded minimal repair proposal only after demonstrated cause,with remaining unknowns and exact proposed paths/actions. STOP;new canonical repair selection and NEW independent review before implementation or CI.
+        preservation: No core/hook/Serial/interactions/Stage/presentation/product changes. Preserve sole682 controller,679 qualification,548BUDGETBLOCKED/ownerKEEP544547OPEN and all history.
+        evidence: docs/product/electronics/evidence/instrument-525-finalization-audit-selection-20261021.md
+      finalization_phase_contract:
+        version: actual40ca_test_only_finalization_and_explicit_save_phases
+        audit_sha256: 6b8bf91ca660340f29057f7bcdc0ee7f130c493519ae05a759e62135b00b8bfb
+        proposal_review_sha256: 666d0ed6b575cc2f6081957b7d93ba1ed312ebdcc7e36033f3c6ac6291ae1f0a
+        authorization: ONE new TEST-ONLY author;only simulation spec and existing generated browserEvidenceSha256. No product persistence/core/hook/Serial/interactions/Stage/workflow/package/timer edit.
+        supersedes: Explicitly replace ALL old whole-case zeroPUT/onePUT/base2CAS2to3 and immutable seed-server assertions including per-rotation assertGeometry and older preserved contract text. Historical receipts remain immutable;never adopt observed documents as expected.
+        matrix: Preserve EXACT16 journeys/four widths/all mirror fixtures/four rotations/all4instruments8readouts/64configs perwidth and native order except explicitly selected inspector/checkpoint actions. Preserve CTM ordinaryR/owncenter/independent windowmeet,R3 storage,whole-document equality and unchanged deadlines.
+        expected_values: Independently declare generator.value1000000 and frequencyHz1000000,amplitude10,offset-5. Retain original final Enter once with durable actual delivery/state witness;no extra Enter.
+        inspector: Before final fills durably journal selected identity,shell class and Catalog aria-pressed. Only proven open Catalog permits ONE native close toggle;then require inspector/input visible. Unknown state fails;no forced fill or retry.
+        ledger: Durable Node-ack ledger before first app edit through both pages/context closures;every PUT identity/page/project/comparable timestamp/mutationId/baseRevision/fullbody plus response status/fullrevision/document or transportfailure,native Save/lifecycle boundaries,sequence/loss/errors. Every successful write requires independent full-document correctness,base+1 and contiguous confirmed revisions;unattributed writes UNKNOWN,not presumed autosave. No unexplained writes/failures.
+        server_checkpoints: Replace ALL frozen-seed server assertions including assertGeometry perrotation. Match captured server revision/full document to corresponding complete ledger ACK and independent expected/local checkpoint document;concurrent GET retains revision-specific document. Never adopt observed actual as expected or drop equality.
+        clean_boundary: After matrix before existing final three fills establish full acknowledged local/server equality and no unresolved write. Saved requires disabled Save;dirty permits ONE distinct native checkpoint Save with complete correlated PUT/CAS proof,not retry. Saving awaits observed completion under unchanged deadline then reevaluates;unknown/race fails with durable journal. No fixed sleep,mock clock,suppressed autosave or private state call.
+        final_save: From clean boundary retain existing three fills,require independent full expected/local document,visible enabled Save,no unresolved writes and confirmed current server revision R. Journal first dirty/native/request times on comparable clocks. EXACTLY ONE original final native Save produces EXACTLY ONE matched fullbody PUT baseR,status200,revisionR+1 and fresh full server equality. Complete before new60000ms autosave deadline within unchanged total deadline;automatic/lifecycle overlap fails causality without retry/relabeling.
+        reopen: Cookies-only fresh context/origins and pre-app local-session empty;postload localdraft empty plus exact fixture saved hint,journal before assertions. Full fresh GET/server/rendered equality and no extra write through both closures;complete only after final durable ledger and both contexts closed.
+        delivery: Freeze NEW full browser blob BEFORE/AFTER byte-identical;selfreview STOP,NEW exactSHA independent source/finalcomposition review before ONE justified existing strict run. All16complete plus NEWactualreview with causal mirror-only softfail before separate product AFTER. No acceptance/closure/release/deploy.
+        evidence: docs/product/electronics/evidence/instrument-525-finalization-repair-selection-20261021.md
+      next_action: Assign ONE bounded TEST-ONLY finalization repair author under finalization_phase_contract;freeze unpublished for NEW independent source review. Do not wait for unrelated679/682 qualification or edit their paths.
     execution_lease:
       executor_id: electronics-instrument-readouts-525
       holder: unassigned
