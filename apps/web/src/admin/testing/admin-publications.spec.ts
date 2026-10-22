@@ -24,6 +24,8 @@ const publication = {
   moderationVersion: 0,
   reason: null,
   moderatedAt: null,
+  featured: false,
+  editorialVersion: 0,
 };
 let root: Root;
 let host: HTMLDivElement;
@@ -167,6 +169,42 @@ describe('publications moderation', () => {
       expect(host.querySelector('a') !== null).toBe(hidden);
     },
   );
+  it('publishes a real editorial toggle only after a matching server receipt', async () => {
+    await mount();
+    vi.mocked(call).mockResolvedValueOnce({
+      ok: true, status: 200,
+      data: { publicationId: publication.publicationId, revisionId: publication.revisionId,
+        featured: true, editorialVersion: 1 },
+    });
+    await click('Выбор редакции');
+    expect(call).toHaveBeenLastCalledWith('/api/admin/v1/publications/publication-1/featured', {
+      method: 'POST',
+      body: JSON.stringify({ featured: true, expectedVersion: 0,
+        expectedRevisionId: publication.revisionId, expectedModerationVersion: 0 }),
+    });
+    expect(host.querySelector('[data-testid="admin-publication-featured"]')?.textContent).toContain(
+      'Выбор редакции',
+    );
+    vi.mocked(call).mockResolvedValueOnce({
+      ok: true, status: 200,
+      data: { publicationId: publication.publicationId, revisionId: publication.revisionId,
+        featured: false, editorialVersion: 2 },
+    });
+    await click('Снять отметку');
+    expect(button('Выбор редакции')).not.toBeNull();
+    expect(host.querySelector('[data-testid="admin-publication-featured"]')).toBeNull();
+  });
+
+  it('keeps a failed editorial request uncommitted and never shows it for hidden content', async () => {
+    await mount();
+    vi.mocked(call).mockResolvedValueOnce({
+      ok: false, status: 409, error: { code: 'conflict', message: 'Changed' },
+    });
+    await click('Выбор редакции');
+    expect(host.querySelector('[role="alert"]')?.textContent).toContain('изменилась');
+    expect(host.querySelector('[data-testid="admin-publication-featured"]')).toBeNull();
+  });
+
   it('blocks duplicate submissions and never invents success after a server error', async () => {
     await mount();
     await click('Скрыть');
