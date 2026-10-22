@@ -1985,7 +1985,7 @@ test('document Course Builder preserves the lesson, real save acknowledgements a
     await targetPage.screenshot({ path: `${evidence}/${name}-viewport-top.png`, fullPage: false });
 
     const text = targetEditor.getByLabel('Текст блока', { exact: true });
-    await text.evaluate((element) => element.scrollIntoView({ block: 'center' }));
+    await text.scrollIntoViewIfNeeded();
     const point = await hitTarget(text, name + ':body:text', false);
     await targetPage.mouse.click(point.x, point.y);
     await expect(text).toBeFocused();
