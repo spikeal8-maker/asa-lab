@@ -3546,11 +3546,18 @@ function layeredCrossingDocument(): SchematicDocument {
     { x: 720, y: 650 },
     'cross-resistor',
   ).document;
+  document = addComponentToDocument(
+    document,
+    'regulated-power-supply',
+    { x: 1100, y: 180 },
+    'cross-psu',
+  ).document;
   const crossingVertices = (componentId: string) => {
     const center = componentCenterInDocument(document, componentId);
+    const halfSpan = componentId === 'uno' || componentId === 'cross-psu' ? 20 : 80;
     return [
-      { x: center.x - 80, y: center.y },
-      { x: center.x + 80, y: center.y },
+      { x: center.x - halfSpan, y: center.y },
+      { x: center.x + halfSpan, y: center.y },
     ];
   };
   return {
@@ -3562,6 +3569,20 @@ function layeredCrossingDocument(): SchematicDocument {
         to: { componentId: 'battery', terminal: 'BAT+' },
         vertices: crossingVertices('uno'),
         color: '#e3212b',
+      },
+      {
+        id: 'psu-cross',
+        from: { componentId: 'led', terminal: 'cathode' },
+        to: { componentId: 'battery', terminal: 'BAT+' },
+        vertices: crossingVertices('cross-psu'),
+        color: '#9234c4',
+      },
+      {
+        id: 'battery-cross',
+        from: { componentId: 'led', terminal: 'anode' },
+        to: { componentId: 'battery', terminal: 'BAT-' },
+        vertices: crossingVertices('battery'),
+        color: '#21a4b8',
       },
       {
         id: 'led-cross',
@@ -3765,104 +3786,231 @@ wireVideoTest.describe('interaction: natural precise wire routing', () => {
     },
   );
 
-  wireVideoTest(
-    'F2 SVG layering keeps wires above breadboard and below Arduino/LED/resistor with matching pointer ownership',
-    async ({ page }) => {
-      await page.setViewportSize({ width: 1440, height: 1000 });
-      const fixture = layeredCrossingDocument();
-      await openEditor(page, fixture);
-      await page
-        .getByRole('button', {
-          name: '\u041f\u043e\u0434\u043e\u0433\u043d\u0430\u0442\u044c \u043f\u0440\u043e\u0435\u043a\u0442',
-          exact: true,
-        })
-        .click();
-
-      for (const [componentId, wireId] of [
-        ['uno', 'uno-cross'],
-        ['led', 'led-cross'],
-        ['cross-resistor', 'resistor-cross'],
-      ] as const) {
-        const body = part(page, componentId).locator('.workbench-part');
-        const box = await body.boundingBox();
-        if (!box) throw new Error('Missing foreground body ' + componentId);
-        const crossingWire = page.locator(
-          '[data-testid="wire-hit"][data-wire-id="' + wireId + '"]',
+  for (const input of ['mouse', 'touch'] as const) {
+    wireVideoTest(
+      `F2 SVG layering: native ${input} wires above breadboard/Uno/PSU and below battery/LED/resistor/terminals`,
+      async ({ page }) => {
+        // Three real wire crossings, negative hit cases, native input, Save and
+        // reopen form one full F2 journey; measured mouse/touch each take ~56s.
+        // Scope this finite budget to F2 only, leaving every other test unchanged.
+        wireVideoTest.setTimeout(90_000);
+        await page.setViewportSize({ width: 1440, height: 1000 });
+        const fixture = layeredCrossingDocument();
+        const { readDocument, readEditorDocument, errors } = await openEditor(
+          page,
+          fixture,
+          'domcontentloaded',
         );
-        const candidatePoints = await crossingWire.evaluate((element, bounds) => {
-          const path = element as SVGPathElement;
-          const matrix = path.getScreenCTM();
-          if (!matrix) return [];
-          const length = path.getTotalLength();
-          const points: Array<{ x: number; y: number }> = [];
-          for (let index = 1; index < 80; index += 1) {
-            const point = path.getPointAtLength((length * index) / 80).matrixTransform(matrix);
-            if (
-              point.x > bounds.x + 2 &&
-              point.x < bounds.x + bounds.width - 2 &&
-              point.y > bounds.y + 2 &&
-              point.y < bounds.y + bounds.height - 2
-            )
-              points.push({ x: point.x, y: point.y });
-          }
-          return points;
-        }, box);
-        expect(candidatePoints.length).toBeGreaterThan(0);
-
-        let componentOwnedPoint: { x: number; y: number } | null = null;
-        for (const point of candidatePoints) {
-          await page.mouse.click(point.x, point.y);
-          if (
-            await part(page, componentId).evaluate((node) =>
-              node.classList.contains('workbench-component-selected'),
-            )
-          ) {
-            componentOwnedPoint = point;
-            break;
-          }
-          await page.keyboard.press('Escape');
-        }
-        expect(
-          componentOwnedPoint,
-          'wire crossing must resolve pointer ownership to visible ' + componentId + ' artwork',
-        ).not.toBeNull();
-        await expect(page.getByTestId('wire-inspector-compact')).toHaveCount(0);
-        await page.keyboard.press('Escape');
-      }
-
-      const board = part(page, 'board').locator('.workbench-part');
-      const boardBox = await board.boundingBox();
-      if (!boardBox) throw new Error('Missing breadboard body');
-      const boardWire = page.locator('[data-testid="wire-hit"][data-wire-id="board-cross"]');
-      const selectablePoint = await boardWire.evaluate((element, bounds) => {
-        const path = element as SVGPathElement;
-        const matrix = path.getScreenCTM();
-        if (!matrix) return null;
-        const length = path.getTotalLength();
-        for (let index = 1; index < 240; index += 1) {
-          const point = path.getPointAtLength((length * index) / 240).matrixTransform(matrix);
-          if (
-            point.x <= bounds.x + 4 ||
-            point.x >= bounds.x + bounds.width - 4 ||
-            point.y <= bounds.y + 4 ||
-            point.y >= bounds.y + bounds.height - 4
-          )
-            continue;
-          const top = document.elementFromPoint(point.x, point.y);
-          const wireTarget = top?.closest<SVGElement>(
-            '[data-testid="wire-hit"], [data-testid="wire-segment"]',
+        const ready = async () => {
+          await expect(page.getByTestId('schematic-component')).toHaveCount(
+            fixture.components.length,
           );
-          if (wireTarget?.dataset['wireId'] === 'board-cross') return { x: point.x, y: point.y };
+          for (const component of fixture.components)
+            await expect(part(page, component.id)).toHaveAttribute('data-hit-mask-status', 'ready');
+        };
+        await ready();
+        await page.getByRole('button', { name: 'Подогнать проект', exact: true }).click();
+        const session = input === 'touch' ? await page.context().newCDPSession(page) : null;
+        if (session) await session.send('Emulation.setTouchEmulationEnabled', { enabled: true });
+        await page.evaluate(() => {
+          const probe = window as unknown as {
+            layeringDown: { trusted: boolean; pointerType: string; testId: string | null } | null;
+          };
+          probe.layeringDown = null;
+          window.addEventListener(
+            'pointerdown',
+            (event) => {
+              probe.layeringDown = {
+                trusted: event.isTrusted,
+                pointerType: event.pointerType,
+                testId: (event.target as Element).getAttribute('data-testid'),
+              };
+            },
+            true,
+          );
+        });
+        const press = async (from: { x: number; y: number }, to = from) => {
+          const targetTestId = await page.evaluate(
+            ({ x, y }) => document.elementFromPoint(x, y)?.getAttribute('data-testid') ?? null,
+            from,
+          );
+          await page.evaluate(() => {
+            (window as unknown as { layeringDown: unknown }).layeringDown = null;
+          });
+          if (session) {
+            await session.send('Input.dispatchTouchEvent', {
+              type: 'touchStart',
+              touchPoints: [{ ...from, id: 1 }],
+            });
+            if (to.x !== from.x || to.y !== from.y)
+              await session.send('Input.dispatchTouchEvent', {
+                type: 'touchMove',
+                touchPoints: [{ ...to, id: 1 }],
+              });
+            await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+          } else {
+            await page.mouse.move(from.x, from.y);
+            await page.mouse.down();
+            if (to.x !== from.x || to.y !== from.y) await page.mouse.move(to.x, to.y, { steps: 6 });
+            await page.mouse.up();
+          }
+          await frames(page);
+          expect(
+            await page.evaluate(
+              () => (window as unknown as { layeringDown: unknown }).layeringDown,
+            ),
+          ).toEqual({ trusted: true, pointerType: input, testId: targetTestId });
+        };
+        const screenPoint = async (point: { x: number; y: number }) =>
+          page.locator('.workbench-canvas').evaluate((element, world) => {
+            const point = new DOMPoint(world.x, world.y).matrixTransform(
+              (element as SVGSVGElement).getScreenCTM()!,
+            );
+            return { x: point.x, y: point.y };
+          }, point);
+        const owner = async (point: { x: number; y: number }) =>
+          page.evaluate(({ x, y }) => {
+            const top = document.elementFromPoint(x, y);
+            return {
+              wire: top?.closest('[data-wire-id]')?.getAttribute('data-wire-id') ?? null,
+              component:
+                top?.closest('[data-component-id]')?.getAttribute('data-component-id') ?? null,
+              terminal:
+                top?.closest('[data-terminal-id]')?.getAttribute('data-terminal-id') ?? null,
+              testId: top?.getAttribute('data-testid') ?? null,
+            };
+          }, point);
+        try {
+          // Native owner-image hits may reach a wire handler. Its alpha-aware
+          // foreground arbitration must still select the painted component.
+          for (const [componentId, wireId] of [
+            ['battery', 'battery-cross'],
+            ['led', 'led-cross'],
+            ['cross-resistor', 'resistor-cross'],
+          ] as const) {
+            const point = await screenPoint(componentCenterInDocument(fixture, componentId));
+            const hit = await owner(point);
+            expect(hit.terminal).toBeNull();
+            expect(hit.component === componentId || hit.wire === wireId).toBe(true);
+            await press(point);
+            await expect(part(page, componentId)).toHaveClass(/workbench-component-selected/);
+            await expect(page.getByTestId('wire-inspector-compact')).toHaveCount(0);
+            await expect(page.getByTestId('wire-endpoint')).toHaveCount(0);
+            expect(await readEditorDocument()).toEqual(fixture);
+            await page.keyboard.press('Escape');
+          }
+          for (const [componentId, wireId] of [
+            ['uno', 'uno-cross'],
+            ['cross-psu', 'psu-cross'],
+            ['board', 'board-cross'],
+          ] as const) {
+            const center = componentCenterInDocument(fixture, componentId);
+            const point = await screenPoint(center);
+            expect(await owner(point)).toMatchObject({ wire: wireId, terminal: null });
+            await press(point);
+            await expect(page.getByTestId('wire-endpoint')).toHaveCount(2);
+            await expect(page.getByTestId('wire-endpoint').first()).toHaveAttribute(
+              'data-wire-id',
+              wireId,
+            );
+            await expect(part(page, componentId)).not.toHaveClass(/workbench-component-selected/);
+            const vertex = page
+              .locator(`[data-testid="wire-vertex"][data-wire-id="${wireId}"]`)
+              .first();
+            const from = await locatorCenter(vertex);
+            expect(await owner(from)).toMatchObject({ wire: wireId, testId: 'wire-vertex' });
+            const before = await readEditorDocument();
+            const oldVertices = before.connections.find((wire) => wire.id === wireId)!.vertices!;
+            const to = { x: from.x + 27, y: from.y + 19 };
+            await press(from, to);
+            await expect
+              .poll(
+                async () =>
+                  (await readEditorDocument()).connections.find((wire) => wire.id === wireId)!
+                    .vertices,
+              )
+              .not.toEqual(oldVertices);
+            const after = await readEditorDocument();
+            expect(after.components).toEqual(fixture.components);
+            expect(after.connections).toHaveLength(fixture.connections.length);
+            for (const wire of before.connections) {
+              const changed = after.connections.find((item) => item.id === wire.id)!;
+              if (wire.id === wireId) {
+                expect({ ...changed, vertices: wire.vertices }).toEqual(wire);
+                expect(changed.vertices).toHaveLength(oldVertices.length);
+                expect(changed.vertices![1]).toEqual(oldVertices[1]);
+              } else expect(changed).toEqual(wire);
+            }
+            const moved = await locatorCenter(vertex);
+            expect(moved.x).toBeCloseTo(to.x, 0);
+            expect(moved.y).toBeCloseTo(to.y, 0);
+            await page.keyboard.press('Escape');
+            if (componentId !== 'board') {
+              // A body press away from the cable must not select any wire.
+              // Breadboard holes have their own terminal interaction contract.
+              // Use the existing bounded alpha-aware body point helper. The
+              // actual native pointer press and selection assertion below remain
+              // the oracle; an exposed grid pixel cannot silently pass them.
+              const bodyPoint = await pointOnBody(page, componentId);
+              expect(await owner(bodyPoint)).toMatchObject({
+                wire: null,
+                terminal: null,
+              });
+              await press(bodyPoint);
+              await expect(part(page, componentId)).toHaveClass(/workbench-component-selected/);
+              await expect(page.getByTestId('wire-inspector-compact')).toHaveCount(0);
+              await expect(page.getByTestId('wire-endpoint')).toHaveCount(0);
+              expect(await readEditorDocument()).toEqual(after);
+              await page.keyboard.press('Escape');
+            }
+          }
+          const routed = await readEditorDocument();
+          for (const componentId of ['uno', 'cross-psu', 'battery', 'led']) {
+            const terminal = page.locator(`[data-terminal-component-id="${componentId}"]`).first();
+            const point = await locatorCenter(terminal);
+            expect((await owner(point)).terminal).toBe(
+              await terminal.getAttribute('data-terminal-id'),
+            );
+            await press(point);
+            await expect(page.locator('.workbench-wire-preview')).toHaveCount(1);
+            await page.keyboard.press('Escape');
+            await expect(page.locator('.workbench-wire-preview')).toHaveCount(0);
+            expect(await readEditorDocument()).toEqual(routed);
+          }
+          const expected = await readEditorDocument();
+          const saved = page.waitForResponse(
+            (response) =>
+              new URL(response.url()).pathname === `/api/projects/${ID}/draft` &&
+              response.request().method() === 'PUT',
+          );
+          await page.getByRole('button', { name: 'Сохранить проект', exact: true }).click();
+          expect((await saved).status()).toBe(200);
+          await expect.poll(readDocument).toEqual(expected);
+          const paths = await page.getByTestId('schematic-wire').evaluateAll((nodes) =>
+            nodes.map((node) => ({
+              id: node.getAttribute('data-wire-id'),
+              d: node.getAttribute('d'),
+            })),
+          );
+          await page.reload();
+          await ready();
+          await expect.poll(readEditorDocument).toEqual(expected);
+          expect(
+            await page.getByTestId('schematic-wire').evaluateAll((nodes) =>
+              nodes.map((node) => ({
+                id: node.getAttribute('data-wire-id'),
+                d: node.getAttribute('d'),
+              })),
+            ),
+          ).toEqual(paths);
+          expect(errors).toEqual([]);
+          await page.screenshot({ path: `reports/interactions/f2-scene-layering-${input}.png` });
+        } finally {
+          await session?.detach();
         }
-        return null;
-      }, boardBox);
-      expect(selectablePoint).not.toBeNull();
-      await page.mouse.click(selectablePoint!.x, selectablePoint!.y);
-      await expect(page.getByTestId('wire-endpoint')).toHaveCount(2);
-
-      await page.screenshot({ path: 'reports/interactions/f2-scene-layering.png' });
-    },
-  );
+      },
+    );
+  }
 
   wireVideoTest(
     'R1_SOFT_WIRE_ASSIST + FREE_EXIT + ALT_DISABLE + CLICK_CLICK_CONNECT',
