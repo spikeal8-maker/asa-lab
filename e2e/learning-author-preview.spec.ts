@@ -1429,7 +1429,7 @@ test('Course history compares exact V1–V4 policies and structural before/after
 }) => {
   test.setTimeout(90000);
   const unique = crypto.randomUUID().replaceAll('-', '').slice(0, 18);
-  const title = 'Сравнение курса ' + unique;
+  const title = 'Сравнение курса 99 ' + unique;
   const browserErrors: string[] = [];
   page.on('pageerror', (error) => browserErrors.push(error.message));
   await page.goto('/#/');
@@ -1672,7 +1672,7 @@ test('Course history compares exact V1–V4 policies and structural before/after
   await expect(comparison).toContainText(
     'Курс «' + title + '» → Раздел «Основы» → Урок «Первые шаги» → Практическое задание 4',
   );
-  await expect(comparison).not.toContainText('99');
+  await expect(attempts.locator('dd')).toHaveText(['1', '2']);
   await expect(comparison).not.toContainText('Текущий черновик');
   await expect(comparison).not.toContainText(activityV1);
   await expect(comparison).not.toContainText(activityV2);
