@@ -972,4 +972,94 @@ describe('publication moderation with real runtime privileges and sessions', () 
     expect((await read()).json().publication.featured).toBe(true);
     expect(await original(source.projectId)).toEqual(before);
   });
+  it('retires a featured decision after Project or Account eligibility is restored', async () => {
+    const source = await publication();
+    const editor = await identity('policy-editor', 'verified');
+    const actionUrl = `/api/admin/v1/publications/${source.publicationId}/featured`;
+    const lifecycle = async () => {
+      const row = await admin.query<{ lifecycle_version: number }>(
+        'SELECT lifecycle_version FROM project_publication_editorial_lifecycle WHERE publication_id=$1',
+        [source.publicationId],
+      );
+      return row.rows[0]?.lifecycle_version ?? 0;
+    };
+    const setFeatured = async (expectedVersion: number, expectedLifecycleVersion: number) =>
+      inject(app, {
+        method: 'POST',
+        url: actionUrl,
+        cookies: { asa_session: editor.token },
+        payload: {
+          featured: true,
+          expectedVersion,
+          expectedRevisionId: source.revisionId,
+          expectedModerationVersion: 0,
+          expectedLifecycleVersion,
+        },
+      });
+    const publicDetail = async () =>
+      inject(app, { method: 'GET', url: `/api/public-projects/${source.publicationId}` });
+    const versionsBefore = (
+      await admin.query('SELECT to_jsonb(v) AS original FROM project_versions v WHERE project_id=$1', [
+        source.projectId,
+      ])
+    ).rows;
+    const draftBefore = (
+      await admin.query('SELECT to_jsonb(d) AS original FROM project_drafts d WHERE project_id=$1', [
+        source.projectId,
+      ])
+    ).rows;
+
+    const firstEpoch = await lifecycle();
+    expect((await setFeatured(0, firstEpoch)).statusCode).toBe(200);
+    expect((await publicDetail()).json().publication.featured).toBe(true);
+
+    const actor = {
+      principalId: source.owner.principalId,
+      userId: source.owner.teacher.teacherId,
+    };
+    const target = source.owner.teacher.tenantId;
+    expect((await repo.updateStatus(target, source.projectId, actor, 'archived'))?.status).toBe(
+      'archived',
+    );
+    expect((await publicDetail()).statusCode).toBe(404);
+    expect((await repo.updateStatus(target, source.projectId, actor, 'active'))?.status).toBe(
+      'active',
+    );
+    expect((await publicDetail()).json().publication.featured).toBe(false);
+    const restoredProjectEpoch = await lifecycle();
+    expect(restoredProjectEpoch).toBeGreaterThan(firstEpoch);
+    expect((await setFeatured(1, firstEpoch)).statusCode).toBe(409);
+    expect((await setFeatured(1, restoredProjectEpoch)).statusCode).toBe(200);
+    expect((await publicDetail()).json().publication.featured).toBe(true);
+
+    await admin.query("UPDATE accounts SET status='suspended' WHERE id=$1", [
+      source.owner.accountId,
+    ]);
+    expect((await publicDetail()).statusCode).toBe(404);
+    await admin.query("UPDATE accounts SET status='active' WHERE id=$1", [
+      source.owner.accountId,
+    ]);
+    expect((await publicDetail()).json().publication.featured).toBe(false);
+    const restoredAccountEpoch = await lifecycle();
+    expect(restoredAccountEpoch).toBeGreaterThan(restoredProjectEpoch);
+    expect((await setFeatured(2, restoredProjectEpoch)).statusCode).toBe(409);
+    expect((await setFeatured(2, restoredAccountEpoch)).statusCode).toBe(200);
+    expect((await publicDetail()).json().publication.featured).toBe(true);
+
+    expect(
+      (
+        await admin.query('SELECT to_jsonb(v) AS original FROM project_versions v WHERE project_id=$1', [
+          source.projectId,
+        ])
+      ).rows,
+    ).toEqual(versionsBefore);
+    expect(
+      (
+        await admin.query('SELECT to_jsonb(d) AS original FROM project_drafts d WHERE project_id=$1', [
+          source.projectId,
+        ])
+      ).rows,
+    ).toEqual(draftBefore);
+  });
+
 });
