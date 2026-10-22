@@ -2602,7 +2602,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
           {
             componentId,
             terminal: terminal as Terminal,
-            distance: Math.hypot(dx, dy),
+            distance: dx * dx + dy * dy,
           },
         ];
       })
