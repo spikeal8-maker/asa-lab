@@ -59,6 +59,7 @@ describe('0237 editorial choice forward upgrade', () => {
           );
           expect(readable.rows[0]?.featured).toBe(false);
         } finally {
+          await runtime.query('RESET ROLE');
           runtime.release();
         }
       } finally {
@@ -66,7 +67,7 @@ describe('0237 editorial choice forward upgrade', () => {
       }
     } finally {
       if (pool) await pool.end();
-      if (created) await owner.query('DROP DATABASE "' + database + '" WITH (FORCE)');
+      if (created) await owner.query('DROP DATABASE "' + database + '"');
       await owner.end();
     }
   }, 180_000);
