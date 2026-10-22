@@ -810,9 +810,9 @@ describe('publication moderation with real runtime privileges and sessions', () 
           payload,
         });
       expect((await request(ordinary.token, data(true, 0, 0))).statusCode).toBe(403);
-      await expect(runtime.query('SELECT * FROM project_publication_editorial')).rejects.toMatchObject(
-        { code: '42501' },
-      );
+      await expect(
+        runtime.query('SELECT * FROM project_publication_editorial'),
+      ).rejects.toMatchObject({ code: '42501' });
       const selected = await request(editor.token, data(true, 0, 0));
       expect(selected.statusCode).toBe(200);
       expect(selected.json()).toMatchObject({
@@ -827,22 +827,20 @@ describe('publication moderation with real runtime privileges and sessions', () 
       expect((await publicDetail()).json().publication).toMatchObject({ featured: true });
       const catalog = await inject(app, { method: 'GET', url: '/api/public-projects?limit=48' });
       expect(catalog.statusCode).toBe(200);
-      expect(
-        catalog.json().items.find(
-          (item: { publicationId: string }) => item.publicationId === source.publicationId,
-        ),
-      ).toMatchObject({ featured: true });
+      const catalogItem = catalog.json().items.find(
+        (item: { publicationId: string }) => item.publicationId === source.publicationId,
+      );
+      expect(catalogItem).toMatchObject({ featured: true });
       const adminList = await inject(app, {
         method: 'GET',
         url: '/api/admin/v1/publications',
         cookies: { asa_session: editor.token },
       });
       expect(adminList.statusCode).toBe(200);
-      expect(
-        adminList.json().items.find(
-          (item: { publicationId: string }) => item.publicationId === source.publicationId,
-        ),
-      ).toMatchObject({ featured: true, editorialVersion: 1 });
+      const adminItem = adminList.json().items.find(
+        (item: { publicationId: string }) => item.publicationId === source.publicationId,
+      );
+      expect(adminItem).toMatchObject({ featured: true, editorialVersion: 1 });
 
       await transition(
         editor.principalId,
@@ -883,9 +881,7 @@ describe('publication moderation with real runtime privileges and sessions', () 
           [source.publicationId],
         )
       ).rows;
-      const editorial = history.filter((event) =>
-        String(event.action).startsWith('publication.feat'),
-      );
+      const editorial = history.filter((event) => String(event.action).startsWith('publication.feat'));
       expect(editorial).toHaveLength(2);
       expect(editorial[0]).toMatchObject({
         action: 'publication.feature',
@@ -902,7 +898,6 @@ describe('publication moderation with real runtime privileges and sessions', () 
       expect(history.filter((event) => event.action === 'publication.restore')).toHaveLength(1);
     },
   );
-
   it('does not resurrect an editorial badge after revoke and same-revision republish', async () => {
     const source = await publication();
     const editor = await identity('revoke-featured-editor', 'verified');

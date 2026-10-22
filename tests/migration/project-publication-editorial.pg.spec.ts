@@ -26,25 +26,22 @@ describe('0237 editorial choice forward upgrade', () => {
       const admin = await pool.connect();
       try {
         await applyIsolatedTestPlan(admin, prefix);
-        const before = (
-          await admin.query('SELECT version, name, checksum FROM schema_migrations ORDER BY version')
-        ).rows;
+        const beforeHistory = await admin.query(
+          'SELECT version, name, checksum FROM schema_migrations ORDER BY version',
+        );
         const complete = plan.filter((item) => Number(item.version) <= 237);
         expect(await applyIsolatedTestPlan(admin, complete)).toBe(1);
         expect(await applyIsolatedTestPlan(admin, complete)).toBe(0);
-        expect(
-          (
-            await admin.query(
-              "SELECT version, name, checksum FROM schema_migrations WHERE version <> '0237' ORDER BY version",
-            )
-          ).rows,
-        ).toEqual(before);
-        expect((await admin.query('SELECT * FROM project_publication_editorial')).rows).toEqual(
-          [],
+        const preservedHistory = await admin.query(
+          "SELECT version, name, checksum FROM schema_migrations WHERE version <> '0237' ORDER BY version",
         );
-        expect(
-          (await admin.query('SELECT * FROM project_publication_editorial_lifecycle')).rows,
-        ).toEqual([]);
+        expect(preservedHistory.rows).toEqual(beforeHistory.rows);
+        const editorialRows = await admin.query('SELECT * FROM project_publication_editorial');
+        expect(editorialRows.rows).toEqual([]);
+        const lifecycleRows = await admin.query(
+          'SELECT * FROM project_publication_editorial_lifecycle',
+        );
+        expect(lifecycleRows.rows).toEqual([]);
         const runtime = await pool.connect();
         try {
           await runtime.query('SET ROLE asalab_app');
