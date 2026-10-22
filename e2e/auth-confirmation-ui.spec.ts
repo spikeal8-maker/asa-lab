@@ -673,6 +673,31 @@ for (const failure of ['invalid_token', 'delivery_unavailable', 'api_error'] as 
   });
 }
 
+for (const method of METHODS) {
+  test(`${method} starts without a blank browser popup and offers a deliberate bot link`, async ({
+    page,
+  }) => {
+    const state = await fixture(page, { nextPairing: 'pending' });
+    await visit(page, '/sign-in');
+    const initialPageCount = page.context().pages().length;
+    const label = method === 'max' ? 'MAX' : 'Telegram';
+    await page.getByRole('button', { name: `Войти через ${label}`, exact: true }).click();
+    const botLink = page.getByRole('link', { name: `Открыть ${label}`, exact: true });
+    await expect(botLink).toBeVisible();
+    await expect(botLink).toHaveAttribute(
+      'href',
+      method === 'max' ? /^https:\/\/max\.ru\// : /^https:\/\/t\.me\//,
+    );
+    await expect(botLink).toHaveAttribute('target', '_blank');
+    expect(page.context().pages()).toHaveLength(initialPageCount);
+    expect(
+      state.requests.filter((request) => request.path === `/api/auth/${method}/pairing/start`),
+    ).toHaveLength(1);
+    await page.getByRole('button', { name: 'Отмена', exact: true }).click();
+    await expect(botLink).toHaveCount(0);
+  });
+}
+
 test('a health update hides the dead button without clearing the password form', async ({
   page,
 }) => {
@@ -812,6 +837,9 @@ test('an unknown social identity can return to its existing password account wit
   await visit(page, '/sign-in');
   await page.getByLabel('Email или имя пользователя', { exact: true }).fill('existing-account');
   await page.getByRole('button', { name: 'Войти через MAX', exact: true }).click();
+  await expect(page.locator('.auth-social-registration')).toContainText(
+    'Если у вас уже есть аккаунт, не создавайте второй.',
+  );
   await page
     .getByRole('button', { name: 'У меня уже есть аккаунт — войти по паролю', exact: true })
     .click();

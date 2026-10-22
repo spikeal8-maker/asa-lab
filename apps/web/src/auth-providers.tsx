@@ -140,7 +140,6 @@ export function SocialAuthButtons({
   const [message, setMessage] = useState<string | null>(null);
   const generation = useRef(0);
   const pendingRequest = useRef<AbortController | null>(null);
-  const pendingPopup = useRef<Window | null>(null);
   const available = availableSocialProviders(providers);
   const availableRef = useRef(available);
   availableRef.current = available;
@@ -159,7 +158,6 @@ export function SocialAuthButtons({
     () => () => {
       generation.current += 1;
       pendingRequest.current?.abort();
-      pendingPopup.current?.close();
     },
     [],
   );
@@ -171,8 +169,6 @@ export function SocialAuthButtons({
     generation.current += 1;
     pendingRequest.current?.abort();
     pendingRequest.current = null;
-    pendingPopup.current?.close();
-    pendingPopup.current = null;
     setFlow(null);
     setStarting(null);
   }, [disabled]);
@@ -274,8 +270,6 @@ export function SocialAuthButtons({
     generation.current += 1;
     pendingRequest.current?.abort();
     pendingRequest.current = null;
-    pendingPopup.current?.close();
-    pendingPopup.current = null;
     setFlow(null);
     setStarting(null);
     setMessage(null);
@@ -284,36 +278,29 @@ export function SocialAuthButtons({
   async function start(provider: SocialAuthProvider): Promise<void> {
     if (pendingRequest.current || flow) return;
     const current = ++generation.current;
-    const popup = window.open('', '_blank');
-    if (popup) popup.opener = null;
-    pendingPopup.current = popup;
+    // Keep the browser on ASA Lab. Only a real click on the verified link opens a messenger.
     const controller = new AbortController();
     pendingRequest.current = controller;
     setStarting(provider);
     setMessage(null);
     const result = await api.startSocialPairing(provider, purpose, controller.signal);
     if (pendingRequest.current === controller) pendingRequest.current = null;
-    if (pendingPopup.current === popup) pendingPopup.current = null;
     if (current !== generation.current || controller.signal.aborted) {
-      popup?.close();
       return;
     }
     setStarting(null);
     if (!result.ok) {
-      popup?.close();
       setMessage(pairingFailure(result.error.code));
       callbacks.current.onUnavailable?.();
       return;
     }
     const launchUrl = socialLaunchUrl(provider, result.data.launchUrl);
     if (!launchUrl || !Number.isFinite(Date.parse(result.data.expiresAt))) {
-      popup?.close();
       setMessage('Не удалось открыть безопасную ссылку бота. Повторите попытку позже.');
       callbacks.current.onUnavailable?.();
       return;
     }
     if (!availableRef.current.some((entry) => entry.id === provider)) {
-      popup?.close();
       callbacks.current.onUnavailable?.();
       return;
     }
@@ -323,7 +310,6 @@ export function SocialAuthButtons({
       phase: 'pending',
       generation: current,
     });
-    if (popup) popup.location.href = launchUrl;
   }
 
   if (available.length === 0 && !flow && !starting && !message) return null;
@@ -391,12 +377,12 @@ export function SocialAuthButtons({
             <div className="auth-social-pending" role="status">
               <strong>Подтвердите действие в {SOCIAL_PROVIDER_LABELS[flow.provider]}</strong>
               <p>
-                Откройте бота, нажмите «Начать» и подтвердите запрос. Затем вернитесь на эту
-                страницу.
+                Нажмите «Открыть {SOCIAL_PROVIDER_LABELS[flow.provider]}» ниже, затем «Начать» и
+                подтвердите запрос в боте. Вернитесь в эту вкладку ASA Lab — вход завершится здесь.
               </p>
               <div className="auth-social-actions">
-                <a href={flow.pairing.launchUrl} target="_blank" rel="noreferrer">
-                  Открыть бота ещё раз
+                <a href={flow.pairing.launchUrl} target="_blank" rel="noopener noreferrer">
+                  Открыть {SOCIAL_PROVIDER_LABELS[flow.provider]}
                 </a>
                 <button type="button" className="link-button" onClick={cancel}>
                   Отмена
@@ -495,7 +481,13 @@ function SocialRegistrationForm({
     >
       <h2>Завершить регистрацию</h2>
       <p>
-        {SOCIAL_PROVIDER_LABELS[flow.provider]} подтверждён. Укажите данные нового аккаунта ASA Lab.
+        {SOCIAL_PROVIDER_LABELS[flow.provider]} подтвердил личность, но не связан с аккаунтом ASA
+        Lab.
+      </p>
+      <p>
+        Если у вас уже есть аккаунт, не создавайте второй. Войдите по паролю, затем подключите{' '}
+        {SOCIAL_PROVIDER_LABELS[flow.provider]} в разделе «Способы входа». Форму ниже заполняйте
+        только для действительно нового аккаунта.
       </p>
       {onUsePassword ? (
         <button
