@@ -47,11 +47,12 @@ export function Dropdown({
     if (!element.open) return;
 
     const anchor = trigger.getBoundingClientRect();
-    const stickyBottom = document.querySelector('.portal-header')?.getBoundingClientRect().bottom ?? 0;
+    const stickyBottom =
+      document.querySelector('.portal-header')?.getBoundingClientRect().bottom ?? 0;
     const availableAbove = Math.max(0, anchor.top - Math.max(8, stickyBottom) - 8);
     const availableBelow = Math.max(0, window.innerHeight - anchor.bottom - 8);
-    const openAbove = menu.getBoundingClientRect().height > availableBelow &&
-      availableAbove > availableBelow;
+    const openAbove =
+      menu.getBoundingClientRect().height > availableBelow && availableAbove > availableBelow;
     const space = openAbove ? availableAbove : availableBelow;
     element.dataset.dropdownPlacement = openAbove ? 'above' : 'below';
     menu.style.maxHeight = `${Math.floor(space)}px`;
