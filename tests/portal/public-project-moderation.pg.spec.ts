@@ -999,9 +999,10 @@ describe('publication moderation with real runtime privileges and sessions', () 
     const publicDetail = async () =>
       inject(app, { method: 'GET', url: `/api/public-projects/${source.publicationId}` });
     const versionsBefore = (
-      await admin.query('SELECT to_jsonb(v) AS original FROM project_versions v WHERE project_id=$1', [
-        source.projectId,
-      ])
+      await admin.query(
+        'SELECT to_jsonb(v) AS original FROM project_versions v WHERE project_id=$1',
+        [source.projectId],
+      )
     ).rows;
     const draftBefore = (
       await admin.query('SELECT document_json, revision FROM project_drafts WHERE project_id=$1', [
@@ -1036,9 +1037,7 @@ describe('publication moderation with real runtime privileges and sessions', () 
       source.owner.accountId,
     ]);
     expect((await publicDetail()).statusCode).toBe(404);
-    await admin.query("UPDATE accounts SET status='active' WHERE id=$1", [
-      source.owner.accountId,
-    ]);
+    await admin.query("UPDATE accounts SET status='active' WHERE id=$1", [source.owner.accountId]);
     expect((await publicDetail()).json().publication.featured).toBe(false);
     const restoredAccountEpoch = await lifecycle();
     expect(restoredAccountEpoch).toBeGreaterThan(restoredProjectEpoch);
@@ -1048,18 +1047,19 @@ describe('publication moderation with real runtime privileges and sessions', () 
 
     expect(
       (
-        await admin.query('SELECT to_jsonb(v) AS original FROM project_versions v WHERE project_id=$1', [
-          source.projectId,
-        ])
+        await admin.query(
+          'SELECT to_jsonb(v) AS original FROM project_versions v WHERE project_id=$1',
+          [source.projectId],
+        )
       ).rows,
     ).toEqual(versionsBefore);
     expect(
       (
-        await admin.query('SELECT document_json, revision FROM project_drafts WHERE project_id=$1', [
-          source.projectId,
-        ])
+        await admin.query(
+          'SELECT document_json, revision FROM project_drafts WHERE project_id=$1',
+          [source.projectId],
+        )
       ).rows,
     ).toEqual(draftBefore);
   });
-
 });
