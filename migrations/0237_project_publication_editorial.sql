@@ -47,6 +47,59 @@ WHEN (OLD.state IS DISTINCT FROM NEW.state OR
 EXECUTE FUNCTION public.project_publication_editorial_lifecycle_bump();
 REVOKE ALL ON FUNCTION public.project_publication_editorial_lifecycle_bump() FROM PUBLIC;
 
+-- Public eligibility can disappear and return without a publication-state
+-- mutation: archived→active project and suspended→active account. Any such
+-- transition retires the earlier editor decision, even for the same revision.
+-- The new counters are isolated from immutable Project/Version bytes.
+CREATE FUNCTION public.project_publication_editorial_project_policy_bump()
+RETURNS trigger
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
+BEGIN
+    -- The Project row is already locked by its canonical writer. Touch only
+    -- the separate publication lifecycle counter, never mutate the source.
+    INSERT INTO public.project_publication_editorial_lifecycle AS epoch
+        (publication_id, lifecycle_version)
+    SELECT state.id, 1 FROM public.project_publication_state state
+     WHERE state.project_id = NEW.id
+    ON CONFLICT (publication_id) DO UPDATE
+      SET lifecycle_version = epoch.lifecycle_version + 1;
+    RETURN NEW;
+END;
+$$;
+CREATE TRIGGER project_publication_editorial_project_policy_update
+AFTER UPDATE OF status, project_scope, classroom_id, owner_principal_id ON public.projects
+FOR EACH ROW
+WHEN (
+    OLD.status IS DISTINCT FROM NEW.status OR
+    OLD.project_scope IS DISTINCT FROM NEW.project_scope OR
+    OLD.classroom_id IS DISTINCT FROM NEW.classroom_id OR
+    OLD.owner_principal_id IS DISTINCT FROM NEW.owner_principal_id
+)
+EXECUTE FUNCTION public.project_publication_editorial_project_policy_bump();
+REVOKE ALL ON FUNCTION public.project_publication_editorial_project_policy_bump() FROM PUBLIC;
+
+CREATE FUNCTION public.project_publication_editorial_account_policy_bump()
+RETURNS trigger
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
+BEGIN
+    INSERT INTO public.project_publication_editorial_lifecycle AS epoch
+        (publication_id, lifecycle_version)
+    SELECT state.id, 1
+      FROM public.project_publication_state state
+      JOIN public.principals owner ON owner.id = state.owner_principal_id
+     WHERE owner.account_id = NEW.id
+     ORDER BY state.id
+    ON CONFLICT (publication_id) DO UPDATE
+      SET lifecycle_version = epoch.lifecycle_version + 1;
+    RETURN NEW;
+END;
+$$;
+CREATE TRIGGER project_publication_editorial_account_policy_update
+AFTER UPDATE OF status ON public.accounts
+FOR EACH ROW WHEN (OLD.status IS DISTINCT FROM NEW.status)
+EXECUTE FUNCTION public.project_publication_editorial_account_policy_bump();
+REVOKE ALL ON FUNCTION public.project_publication_editorial_account_policy_bump() FROM PUBLIC;
+
 -- A marker becomes invalid when the author republishes a different revision,
 -- moderation takes any subsequent action, or current public access is revoked.
 CREATE FUNCTION public.project_publication_featured(p_publication uuid, p_revision uuid)
