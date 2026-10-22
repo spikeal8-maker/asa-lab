@@ -334,6 +334,14 @@ for (const width of [1440, 390, 320]) {
       // The next real user-visible editorial slice operates after moderation
       // restore. An old featured mark must not survive a hide/restore cycle.
       expect((await guest.request.get(publicPath)).status()).toBe(200);
+      const editorialListResponse = await moderator.request.get(`${BASE}?offset=0&limit=25`);
+      expect(editorialListResponse.status()).toBe(200);
+      const editorialSnapshot = (await editorialListResponse.json()).items.find(
+        (item: { publicationId: string }) => item.publicationId === publicationId,
+      ) as { lifecycleVersion: number } | undefined;
+      expect(editorialSnapshot).toBeDefined();
+      const lifecycleVersion = editorialSnapshot!.lifecycleVersion;
+      expect(Number.isSafeInteger(lifecycleVersion)).toBe(true);
       const featureResponse = moderator.waitForResponse(
         (response) =>
           response.request().method() === 'POST' &&
@@ -347,9 +355,11 @@ for (const width of [1440, 390, 320]) {
         expectedVersion: 0,
         expectedRevisionId: revisionId,
         expectedModerationVersion: 2,
+        expectedLifecycleVersion: lifecycleVersion,
       });
       expect(await feature.json()).toMatchObject({
         publicationId, revisionId, featured: true, editorialVersion: 1,
+        lifecycleVersion,
       });
       await expect(row.getByTestId('admin-publication-featured')).toContainText('Выбор редакции');
       const publishedFeatured = await guest.request.get(publicPath);
@@ -384,8 +394,11 @@ for (const width of [1440, 390, 320]) {
         expectedVersion: 1,
         expectedRevisionId: revisionId,
         expectedModerationVersion: 2,
+        expectedLifecycleVersion: lifecycleVersion,
       });
-      expect(await unfeature.json()).toMatchObject({ featured: false, editorialVersion: 2 });
+      expect(await unfeature.json()).toMatchObject({
+        featured: false, editorialVersion: 2, lifecycleVersion,
+      });
       await expect(row.getByTestId('admin-publication-featured')).toHaveCount(0);
       await guest.reload();
       await expect(guest.getByTestId('public-project-featured')).toHaveCount(0);

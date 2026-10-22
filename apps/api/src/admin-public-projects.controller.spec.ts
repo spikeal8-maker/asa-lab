@@ -133,6 +133,13 @@ describe('administrative publication transport', () => {
       expectedVersion: 0,
       expectedModerationVersion: 0,
       expectedRevisionId: ID,
+      expectedLifecycleVersion: '0',
+    },
+    {
+      featured: true,
+      expectedVersion: 0,
+      expectedModerationVersion: 0,
+      expectedRevisionId: ID,
       actorId: ID,
     },
   ])('rejects malformed editorial actions %j', async (body) => {
@@ -148,10 +155,11 @@ describe('administrative publication transport', () => {
       expectedVersion: 0,
       expectedRevisionId: ID,
       expectedModerationVersion: 0,
+      expectedLifecycleVersion: 0,
     });
     expect(query).toHaveBeenLastCalledWith(
-      'SELECT public.admin_publication_feature_set($1,$2,$3,$4,$5,$6,$7) AS result',
-      [ID, ID, true, 'request-1', 0, ID, 0],
+      'SELECT public.admin_publication_feature_set($1,$2,$3,$4,$5,$6,$7,$8) AS result',
+      [ID, ID, true, 'request-1', 0, ID, 0, 0],
     );
   });
 

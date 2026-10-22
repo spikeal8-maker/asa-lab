@@ -26,6 +26,7 @@ const publication = {
   moderatedAt: null,
   featured: false,
   editorialVersion: 0,
+  lifecycleVersion: 0,
 };
 let root: Root;
 let host: HTMLDivElement;
@@ -179,6 +180,7 @@ describe('publications moderation', () => {
         revisionId: publication.revisionId,
         featured: true,
         editorialVersion: 1,
+        lifecycleVersion: 0,
       },
     });
     await click('Выбор редакции');
@@ -189,6 +191,7 @@ describe('publications moderation', () => {
         expectedVersion: 0,
         expectedRevisionId: publication.revisionId,
         expectedModerationVersion: 0,
+        expectedLifecycleVersion: 0,
       }),
     });
     expect(host.querySelector('[data-testid="admin-publication-featured"]')?.textContent).toContain(
@@ -202,6 +205,7 @@ describe('publications moderation', () => {
         revisionId: publication.revisionId,
         featured: false,
         editorialVersion: 2,
+        lifecycleVersion: 0,
       },
     });
     await click('Снять отметку');

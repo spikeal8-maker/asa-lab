@@ -783,10 +783,16 @@ describe('publication moderation with real runtime privileges and sessions', () 
     const editor = await identity('featured-editor', 'verified');
     const ordinary = await identity('featured-ordinary');
     const url = `/api/admin/v1/publications/${source.publicationId}/featured`;
+    const lifecycleResult = await admin.query<{ lifecycle_version: number }>(
+      'SELECT lifecycle_version FROM project_publication_editorial_lifecycle WHERE publication_id=$1',
+      [source.publicationId],
+    );
+    const lifecycleVersion = lifecycleResult.rows[0]?.lifecycle_version ?? 0;
     const data = (featured: boolean, editorialVersion: number, moderationVersion: number,
       revisionId = source.revisionId) => ({
       featured, expectedVersion: editorialVersion,
       expectedModerationVersion: moderationVersion, expectedRevisionId: revisionId,
+      expectedLifecycleVersion: lifecycleVersion,
     });
     const request = async (token: string, payload: ReturnType<typeof data>) =>
       inject(app, {

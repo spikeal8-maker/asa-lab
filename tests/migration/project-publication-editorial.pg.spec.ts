@@ -36,10 +36,13 @@ describe('0237 editorial choice forward upgrade', () => {
           await admin.query("SELECT version, name, checksum FROM schema_migrations WHERE version <> '0237' ORDER BY version")
         ).rows).toEqual(before);
         expect((await admin.query('SELECT * FROM project_publication_editorial')).rows).toEqual([]);
+        expect((await admin.query('SELECT * FROM project_publication_editorial_lifecycle')).rows).toEqual([]);
         const runtime = await pool.connect();
         try {
           await runtime.query('SET ROLE asalab_app');
           await expect(runtime.query('SELECT * FROM project_publication_editorial'))
+            .rejects.toMatchObject({ code: '42501' });
+          await expect(runtime.query('SELECT * FROM project_publication_editorial_lifecycle'))
             .rejects.toMatchObject({ code: '42501' });
           await expect(runtime.query('SELECT admin_publication_feature_set(NULL,NULL,true,NULL,0,NULL,0)'))
             .rejects.toMatchObject({ code: '42501' });
