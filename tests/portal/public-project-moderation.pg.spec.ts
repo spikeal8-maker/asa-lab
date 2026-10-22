@@ -1004,7 +1004,7 @@ describe('publication moderation with real runtime privileges and sessions', () 
       ])
     ).rows;
     const draftBefore = (
-      await admin.query('SELECT to_jsonb(d) AS original FROM project_drafts d WHERE project_id=$1', [
+      await admin.query('SELECT document_json, revision FROM project_drafts WHERE project_id=$1', [
         source.projectId,
       ])
     ).rows;
@@ -1055,7 +1055,7 @@ describe('publication moderation with real runtime privileges and sessions', () 
     ).toEqual(versionsBefore);
     expect(
       (
-        await admin.query('SELECT to_jsonb(d) AS original FROM project_drafts d WHERE project_id=$1', [
+        await admin.query('SELECT document_json, revision FROM project_drafts WHERE project_id=$1', [
           source.projectId,
         ])
       ).rows,
