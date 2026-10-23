@@ -1639,6 +1639,8 @@
   grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 10px 16px;
   padding-bottom: 16px;
+  /* Browser focus and keyboard navigation must not land under the sticky shell. */
+  scroll-margin-block-start: 56px;
 }
 
 .course-document-editor .course-compact-title h2 {
@@ -1693,6 +1695,7 @@
   width: auto;
   padding-inline: 12px;
   border-color: #c9d5db;
+  scroll-margin-block-start: 56px;
 }
 
 .course-document-editor .course-actions-menu > .dropdown-menu {

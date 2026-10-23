@@ -1960,6 +1960,22 @@ test('document Course Builder preserves the lesson, real save acknowledgements a
     // Keyboard focus may scroll the second header row into view; return to the
     // course actions control before measuring its real pointer ownership.
     await actions.scrollIntoViewIfNeeded();
+    // The sticky global bar is an occluder, not a clipping ancestor. A user can
+    // scroll the menu to the center before activating it; assert that the final
+    // position clears the sticky bar and still passes strict pointer sampling.
+    await actions.evaluate((button) => button.scrollIntoView({ block: 'center', behavior: 'instant' }));
+    await expect
+      .poll(
+        async () =>
+          actions.evaluate((button) => {
+            const rect = button.getBoundingClientRect();
+            const shellBottom =
+              document.querySelector('.portal-header')?.getBoundingClientRect().bottom ?? 0;
+            return rect.top >= shellBottom + 8 && rect.bottom <= innerHeight;
+          }),
+        { message: name + ': course actions stay clear of sticky global navigation' },
+      )
+      .toBe(true);
     await hitTarget(actions, name + ':top:course-menu');
     await actions.focus();
     await actions.press('Enter');
