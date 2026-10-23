@@ -4,13 +4,7 @@ import { catalogEntry } from '../electronics/component-catalog';
 import { WorkbenchHeader } from '../electronics/WorkbenchHeader';
 import { WorkbenchStage } from '../electronics/WorkbenchStage';
 import type { WorkbenchView } from '../electronics/workbench-model';
-import {
-  CloseIcon,
-  CodeIcon,
-  CommentIcon,
-  SaveIcon,
-  ShareIcon,
-} from '../electronics/workbench-icons';
+import { CloseIcon, CommentIcon, SaveIcon, ShareIcon } from '../electronics/workbench-icons';
 import {
   useElectronicsWorkbench,
   type ElectronicsWorkbenchController,
@@ -66,42 +60,34 @@ function initialArduinoDrawerWidth(): number {
   return clampArduinoDrawerWidth(preferred);
 }
 
-function SidePanel({
-  kind,
+function NotesPanel({
   title,
   onClose,
   notes,
   onNotesChange,
 }: {
-  kind: 'notes' | 'code';
   title: string;
   onClose: () => void;
   notes?: string;
   onNotesChange?: (value: string) => void;
 }): JSX.Element {
   return (
-    <aside className={`workbench-utility-panel ${kind}`} aria-label={title}>
+    <aside className="workbench-utility-panel notes" aria-label={title}>
       <header>
-        <span>{kind === 'notes' ? <CommentIcon /> : <CodeIcon />}</span>
+        <span>
+          <CommentIcon />
+        </span>
         <strong>{title}</strong>
         <button type="button" onClick={onClose} aria-label="Закрыть">
           <CloseIcon />
         </button>
       </header>
-      {kind === 'notes' ? (
-        <textarea
-          aria-label="Заметки проекта"
-          placeholder="Добавьте заметку к проекту…"
-          value={notes ?? ''}
-          onChange={(event) => onNotesChange?.(event.target.value)}
-        />
-      ) : (
-        <div className="workbench-code-empty">
-          <CodeIcon />
-          <strong>Нет программируемых компонентов</strong>
-          <p>Добавьте совместимую плату, чтобы открыть редактор кода.</p>
-        </div>
-      )}
+      <textarea
+        aria-label="Заметки проекта"
+        placeholder="Добавьте заметку к проекту…"
+        value={notes ?? ''}
+        onChange={(event) => onNotesChange?.(event.target.value)}
+      />
     </aside>
   );
 }
@@ -372,8 +358,7 @@ export function SchematicEditor({
           <WorkbenchSidebars controller={controller} />
         </Suspense>
         {notesOpen ? (
-          <SidePanel
-            kind="notes"
+          <NotesPanel
             title="Заметки"
             notes={notes}
             onNotesChange={updateNotes}

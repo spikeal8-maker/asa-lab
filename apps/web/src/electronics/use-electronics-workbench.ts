@@ -625,8 +625,20 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
       window.performance.clearMarks?.(name);
       window.performance.mark?.(name, { detail: { count } });
     };
+    let queuedReadiness: PendingOpticalObservation | null = null;
     const acceptAssetReadiness = (event: LedAssetReadiness) => {
-      if (currentSession()) recordOpticalAssetReadiness(pending, event);
+      if (!currentSession()) return;
+      recordOpticalAssetReadiness(pending, event);
+      const candidate = pending;
+      if (!candidate || queuedReadiness === candidate) return;
+      queuedReadiness = candidate;
+      // Native readiness can arrive during child render/layout. Leave that
+      // stack before checking the same frame's leases and parent layout ACK.
+      queueMicrotask(() => {
+        if (queuedReadiness !== candidate) return;
+        queuedReadiness = null;
+        if (pending === candidate) publishReady(candidate);
+      });
     };
     ledAssetReadinessRef.current = acceptAssetReadiness;
     const candidateAssets = (
@@ -751,6 +763,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
       const ready = () =>
         currentSession() &&
         session?.active === true &&
+        nativePreparationSource === nativePreparationSourceRef.current &&
         !publishing &&
         pending === candidate &&
         ledPresentation.preparedFrame === candidate.frame &&
