@@ -43,3 +43,11 @@ Scope: `apps/web/src/electronics/led-temporal-presentation.ts`, `apps/web/src/el
 Preserve physical instruction costs, integer microseconds, deterministic electrical state, native image/RAF barriers, independent outputs, input causality, Reset/Stop and all capacitor/heat/damage/Arduino state. No physics/timeout/tolerance weakening, workflow/dependency changes, other modules or deployment. Existing native timing assertions remain unchanged. Button hit-precondition and Serial end-to-end proof remain pending separate work; this slice does not establish their repair.
 
 One new author freezes code and focused evidence; a new independent reviewer checks the exact SHA and actual headroom. Then one justified exact-head native AFTER uses the existing workflow. Source review and unit success do not establish realtime or full programme acceptance.
+
+## Selected test completion repair after actual realtime result
+
+Exact9c native evidence reached all30ms/1s/20s electrical and visible phases, with model21862.6ms/wall21868.9ms. This is actual useful realtime evidence, not full acceptance: Node validation gap40861ms preceded page.evaluate timeout; button hit-precondition returned undefined before nativepress. Cold firstHIGH receipt-to-paint96.8ms remains unresolved.
+
+Freeze product9c. One bounded author may change only `e2e/electronics-interactions.spec.ts` and narrowly necessary existing regression coverage in `tests/electronics/classroom-qualification.spec.ts`: profile and remove demonstrated saved-journal validation overhead while preserving every predicate, every record, durable ACK-before-assertions and primary failure. No timeout/tolerance increase or sampling away records. Diagnose button coordinates/viewport/topmost element using source and actual saved evidence; only a proven intended-fixture/real-UI-fit precondition correction is permitted, never forced hit/private dispatch. If evidence is insufficient, retain focused geometry evidence to resolve the cause rather than invent a product defect.
+
+New independent exact-SHA review must compare old/new validation outcomes on saved raw plus negative mutations, check full intended document/CAS/native actions and runtime byteidentity. Then one justified existing exact-head AFTER;no unchanged rerun. Product/clock/physics/Serial/workflows/dependencies remain outside this slice.

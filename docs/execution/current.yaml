@@ -7336,17 +7336,17 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: native_b6_proven_slow_clock_bounded_realtime_repair_selected
+      checkpoint: realtime9c_native_result_harness_completion_repair_selected
       kind: repair
       owner_acceptance: pending
       context_hints:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-ARDUINO-REALTIME-001.md
       owner_request: Proportional real timing from30ms through20s; supported if/for/while/loop with externalLED/button and SerialMonitor TX/RX. No extra product explanations;remove LIMITED only after full capability proof.
-      selected_slice: Bounded product repair of proven slow LED temporal clock and demand. Remove deliberate slowed clock and per-ACK drift using monotonic wall time and bounded complete horizon windows only after measured compute headroom; preserve complete ready/native barriers and all canonical runtime state. New author and independent exact-SHA reviewer required.
+      selected_slice: Test-only bounded completion repair after actual9c realtime evidence. Profile saved raw journal validation;remove proven assertion overhead while retaining every invariant. Diagnose button native hit precondition using actual geometry;only evidence-based intended fixture/UI fit correction. Product frozen9c;new author and new independent reviewer required.
       boundaries: Exact model event timestamps/instruction costs are separate from wall pace/jitter/backlog/UI responsiveness;baseline timing may honestly FAIL. Intentionally red unit tests must not enter main. No full C++ claim or timeout/coverage weakening.
       next_selection: Button hit-precondition and functional Serial evidence remain separate pending work;no Serial implementation repair without demonstrated defect. Labels require capability-specific proof. Preserved546/R27 remain stopped.
       coordination: Other Arduino controller confirms no active timing/core/hook/LED writer and observation PAUSED;parallel679 Stage-only budget repair remains separate and not closed.525 paused with history retained.
-      observed_baseline: Exact b6b2930d strict39848135506 cancelled;focused/EOPT success. Native raw model2669.457ms over wall21852.2ms;1127ready/0yielded;electrical30.002ms and1000.002ms but visible297.6ms and8173.6ms. Source clock0.125 proven;1x headroom not proved. General39848135879 Account-only Access failure is unrelated. Raw causal report SHA256 1c12602eb5f12ab8105fac6cf8349da6f00fd1a4cce6922d298836b71ac5b36b.
+      observed_baseline: Exact9c864980 strict39904729751 cancelled,focused/EOPT success. Actual electrical30.002/1000.002/20000.002ms;visible31.2/955.7/19974.7ms;model21862.6/wall21868.9ms. Journal Nodegap40861ms then page.evaluate timeout;buttonhit undefined beforepress. Firstcoldpaint96.8ms remains unresolved;no blanket50ms claim. General39904729200 bundle218111/218000 is separate. Raw report SHA256 82cc39aaaa74a16eca72588db27155c6d65ddd9b04978b40783d89964653eeb8.
     execution_lease:
       executor_id: electronics-ready-cadence-539
       holder: unassigned
