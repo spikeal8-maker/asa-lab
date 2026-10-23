@@ -43,7 +43,7 @@ class RepairRegressionTest(unittest.TestCase):
                 if argv[0] == 'git':
                     return SimpleNamespace(returncode=0, stdout=sha+'\n', stderr='')
                 self.assertEqual(
-                    argv, ['pnpm','agent:preflight','--check','--json'])
+                    argv, ['pnpm','--silent','agent:preflight','--check','--json'])
                 return SimpleNamespace(returncode=0, stdout=json.dumps(payload), stderr='')
             with patch.object(c.shutil, 'which', return_value='pnpm'), \
                  patch.object(c.subprocess, 'run', side_effect=runner):
