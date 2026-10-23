@@ -2467,6 +2467,63 @@ describe('prospective repeated long-cycle stream and timing oracle', () => {
     },
   );
 
+  it.each([
+    'absent-generation',
+    'zero-generation',
+    'fractional-generation',
+    'mismatched-generation',
+    'switched-generation',
+    'foreign-fault',
+    'sample-before-window',
+    'sample-after-window',
+    'sample-out-of-order',
+    'missing-start',
+    'missing-end',
+  ] as const)('rejects independently demonstrated integrity fault %s', (fault) => {
+    const rows = fixture(1000);
+    const responses = rows.filter((row) => row.kind === 'browser' && row.data.kind === 'response');
+    const middle = responses[3]!;
+    if (fault === 'absent-generation') {
+      delete middle.data.generation;
+      delete middle.data.requestGeneration;
+    }
+    if (fault === 'zero-generation') middle.data.generation = middle.data.requestGeneration = 0;
+    if (fault === 'fractional-generation')
+      middle.data.generation = middle.data.requestGeneration = 1.5;
+    if (fault === 'mismatched-generation') middle.data.requestGeneration = 2;
+    if (fault === 'switched-generation')
+      for (const row of responses.slice(3)) row.data.generation = row.data.requestGeneration = 2;
+    if (fault === 'foreign-fault') {
+      const foreign = structuredClone(middle);
+      foreign.data.source = 'foreign-program';
+      foreign.data.ok = false;
+      foreign.data.advance = null;
+      rows.splice(rows.indexOf(middle), 0, foreign);
+      let sequence = 0;
+      for (const row of rows) if (row.kind === 'browser') row.data.sequence = ++sequence;
+      rows.at(-1)!.data.sent = rows.at(-1)!.data.acknowledged = sequence;
+    }
+    const observation = (
+      middle.data.advance as {
+        ledTemporal: {
+          fromMicroseconds: number;
+          toMicroseconds: number;
+          components: Array<{
+            samples: Array<{ atMicroseconds: number; brightness: number; current: number }>;
+          }>;
+        };
+      }
+    ).ledTemporal;
+    const samples = observation.components[0]!.samples;
+    if (fault === 'sample-before-window') samples.unshift({ ...samples[0]!, atMicroseconds: -1 });
+    if (fault === 'sample-after-window')
+      samples.push({ ...samples.at(-1)!, atMicroseconds: observation.toMicroseconds + 1 });
+    if (fault === 'sample-out-of-order') samples.splice(1, 0, { ...samples[0]! });
+    if (fault === 'missing-start') samples.shift();
+    if (fault === 'missing-end') samples.pop();
+    expect(audit(1000, rows).result.errorCount).toBeGreaterThan(0);
+  });
+
   it('streams every durable original, including a midstream bad result, without keeping full ready payloads in RAM', async () => {
     const directory = mkdtempSync(join(tmpdir(), 'asa-long-stream-'));
     const path = join(directory, 'raw.jsonl');

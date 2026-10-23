@@ -173,6 +173,7 @@ function createRealtime682LongAudit(phaseMs: number, source: string) {
   let onBrightness: number | undefined,
     priorElectrical: boolean | undefined,
     priorNative: boolean | undefined;
+  let boundGeneration: number | null = null;
   let lastHorizon = 0,
     lastReadyAt = 0,
     readyCount = 0;
@@ -202,11 +203,18 @@ function createRealtime682LongAudit(phaseMs: number, source: string) {
       row.at >= stopAt
     )
       stopTrusted = true;
+    if (row.kind === 'response' && row.source !== source && h0 !== null && stopAt === null)
+      fail('foreign-active-response');
     if (row.kind === 'response' && row.source === source) {
       const advance = row.advance as SimulationTimedAdvancePayload | null;
       if (
         row.ok !== true ||
+        !Number.isSafeInteger(row.generation) ||
+        Number(row.generation) <= 0 ||
+        !Number.isSafeInteger(row.requestGeneration) ||
+        Number(row.requestGeneration) <= 0 ||
         row.generation !== row.requestGeneration ||
+        (boundGeneration !== null && row.generation !== boundGeneration) ||
         !Number.isFinite(row.computeMs) ||
         Number(row.computeMs) < 0 ||
         !advance
@@ -234,6 +242,7 @@ function createRealtime682LongAudit(phaseMs: number, source: string) {
       if (h0 === null) {
         if (advance.committedHorizonMicroseconds !== 0) fail('missing-H0');
         h0 = row.at;
+        boundGeneration = Number(row.generation);
       }
       const observation = advance.ledTemporal;
       if (
@@ -249,13 +258,23 @@ function createRealtime682LongAudit(phaseMs: number, source: string) {
         fail('missing-electrical-evidence');
         return;
       }
+      if (
+        led.samples[0]!.atMicroseconds !== observation.fromMicroseconds ||
+        led.samples.at(-1)!.atMicroseconds !== observation.toMicroseconds
+      )
+        fail('missing-temporal-endpoint');
+      let priorSampleTime = -Infinity;
       for (const sample of led.samples) {
         if (
           !Number.isSafeInteger(sample.atMicroseconds) ||
+          sample.atMicroseconds < observation.fromMicroseconds ||
+          sample.atMicroseconds > observation.toMicroseconds ||
+          sample.atMicroseconds <= priorSampleTime ||
           !Number.isFinite(sample.brightness) ||
           !Number.isFinite(sample.current)
         )
-          fail('nonfinite-electrical-sample');
+          fail('invalid-electrical-sample');
+        priorSampleTime = sample.atMicroseconds;
         const high = sample.brightness > 0;
         if (high) onBrightness ??= Math.round(sample.brightness);
         if (high !== priorElectrical) {
