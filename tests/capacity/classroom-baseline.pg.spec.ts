@@ -88,6 +88,7 @@ describe.skipIf(process.env.ASA_CAPACITY_BASELINE !== '1')(
       // Observe the actual API reader; all repository/permission/SQL work still executes.
       const opened = vi.spyOn(OpenProjectUseCase.prototype, 'execute');
       const projectLoads = vi.spyOn(PgProjectRepository.prototype, 'load');
+      const draftTargets = vi.spyOn(PgProjectRepository.prototype, 'prepareDraftSave');
       let app: Awaited<ReturnType<typeof createApiApp>> | undefined;
       const records: Observation[] = [];
       const samples: {
@@ -523,7 +524,8 @@ describe.skipIf(process.env.ASA_CAPACITY_BASELINE !== '1')(
         );
         expect(
           projectLoads.mock.calls.filter((call) => call[3]?.includeVersions === false),
-        ).toHaveLength(acknowledged + retriedReceipts + conflicts * 2);
+        ).toHaveLength(conflicts);
+        expect(draftTargets).toHaveBeenCalledTimes(acknowledged + retriedReceipts + conflicts);
         success = true;
       } finally {
         const steadyEnded = now();
@@ -631,11 +633,14 @@ describe.skipIf(process.env.ASA_CAPACITY_BASELINE !== '1')(
               ).length,
           },
           draftReads: {
-            // The two stale attempts each require an initial read and a conflict fallback.
-            expectedWithoutHistory: acknowledged + retriedReceipts + conflicts * 2,
+            // Only conflict classification reads the old document. Ordinary saves
+            // prepare authorized metadata, not a full draft/history payload.
+            expectedWithoutHistory: conflicts,
             actualWithoutHistory: projectLoads.mock.calls.filter(
               (call) => call[3]?.includeVersions === false,
             ).length,
+            expectedMetadataPreparations: acknowledged + retriedReceipts + conflicts,
+            actualMetadataPreparations: draftTargets.mock.calls.length,
           },
           observedSlo,
           targetSlo: p.slo,
@@ -676,6 +681,7 @@ describe.skipIf(process.env.ASA_CAPACITY_BASELINE !== '1')(
         } finally {
           opened.mockRestore();
           projectLoads.mockRestore();
+          draftTargets.mockRestore();
           await observer.end();
           if (app) await app.close();
           else {

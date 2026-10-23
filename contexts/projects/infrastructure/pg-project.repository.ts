@@ -19,6 +19,7 @@ import type {
   ProjectActor,
   ProjectListFilter,
   ProjectRepositoryPort,
+  PreparedDraftSave,
   SaveDraftInput,
   SaveSnapshotInput,
 } from '../application/ports.js';
@@ -911,9 +912,70 @@ export class PgProjectRepository implements ProjectRepositoryPort {
     });
   }
 
+  async prepareDraftSave(
+    tenantId: string,
+    projectId: string,
+    actor: ProjectActor,
+  ): Promise<PreparedDraftSave | null> {
+    // Capture identity before awaiting; the returned writer accepts no identity.
+    const boundActor = structuredClone(actor);
+    const access = await this.projectContext(tenantId, projectId, boundActor);
+    if (!access) return null;
+    const moduleKey = await withTenantContext(this.pool, access.tenantId, async (client) => {
+      await this.transactionGuard?.(client, {
+        tenantId: access.tenantId,
+        actor: boundActor,
+        projectId,
+      });
+      const result = await client.query<{ module_key: string }>(
+        `SELECT p.module_key FROM projects p
+           JOIN project_drafts d ON d.tenant_id=p.tenant_id AND d.project_id=p.id
+          WHERE p.tenant_id=$1 AND p.id=$2 AND ${ACCESS_SQL}`,
+        [access.tenantId, projectId, boundActor.principalId, access.userId],
+      );
+      return result.rows[0]?.module_key;
+    });
+    if (moduleKey === undefined) return null;
+    return {
+      moduleKey,
+      save: (draft) =>
+        this.saveDraftInContext(
+          {
+            document: draft.document,
+            preview: draft.preview,
+            baseRevision: draft.baseRevision,
+            mutationId: draft.mutationId,
+            tenantId: access.tenantId,
+            projectId,
+            actor: boundActor,
+          },
+          access,
+          true,
+        ),
+    };
+  }
+
   async saveDraft(input: SaveDraftInput): Promise<ProjectDraft | null> {
     const access = await this.projectContext(input.tenantId, input.projectId, input.actor);
     if (access === null) return null;
+    return this.saveDraftInContext(input, access);
+  }
+
+  private async saveDraftInContext(
+    input: SaveDraftInput,
+    access: ResolvedProjectContext,
+    recheckContext = false,
+  ): Promise<ProjectDraft | null> {
+    // Prepared metadata is not authority: mutable classroom/legacy links must
+    // still resolve to this context in the statement performing CAS or replay.
+    const currentContextCte = recheckContext
+      ? `current_access AS MATERIALIZED (
+          SELECT 1 FROM project_context_for_principal($3,$2) current_context
+           WHERE current_context.tenant_id=$1
+             AND current_context.user_id IS NOT DISTINCT FROM $4::uuid
+        ),`
+      : '';
+    const currentContextSql = recheckContext ? 'AND EXISTS (SELECT 1 FROM current_access)' : '';
     return this.withEditorWriteContext(access.tenantId, input.projectId, async (client) => {
       await this.transactionGuard?.(client, {
         tenantId: access.tenantId,
@@ -921,7 +983,7 @@ export class PgProjectRepository implements ProjectRepositoryPort {
         projectId: input.projectId,
       });
       const updated = await client.query(
-        `WITH updated AS (
+        `WITH ${currentContextCte} updated AS (
           UPDATE project_drafts d
             SET document_json=$5, revision=revision+1, updated_at=now(),
                 updated_by=$4, updated_by_principal_id=$3,
@@ -933,6 +995,7 @@ export class PgProjectRepository implements ProjectRepositoryPort {
             AND p.status <> 'trashed'
             AND d.revision=$8
             AND ${EDIT_ACCESS_SQL}
+            ${currentContextSql}
           RETURNING d.project_id,d.document_json,d.revision,d.updated_at,
                     d.preview_json,d.preview_digest,false AS was_replayed
         ), replayed AS (
@@ -942,6 +1005,7 @@ export class PgProjectRepository implements ProjectRepositoryPort {
             JOIN projects p ON p.tenant_id=d.tenant_id AND p.id=d.project_id
            WHERE d.tenant_id=$1 AND d.project_id=$2
              AND p.status <> 'trashed' AND ${EDIT_ACCESS_SQL}
+             ${currentContextSql}
              AND d.revision=$8+1 AND d.last_mutation_id=$9::uuid
              AND d.document_json=$5::jsonb
              AND NOT EXISTS (SELECT 1 FROM updated)
