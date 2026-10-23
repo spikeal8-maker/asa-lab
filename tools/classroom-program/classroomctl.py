@@ -280,7 +280,7 @@ def trusted_preflight(root:Path,base_sha:str,task:dict):
     pnpm=shutil.which('pnpm')
     if not pnpm:raise ControlError('pnpm недоступен, real preflight NOT_RUN.')
     try:
-        p=subprocess.run([pnpm,'agent:preflight','--check','--json'],
+        p=subprocess.run([pnpm,'--silent','agent:preflight','--check','--json'],
              cwd=repo,capture_output=True,text=True,timeout=180,
              encoding='utf-8',errors='replace')
     except (OSError,subprocess.TimeoutExpired) as exc:
@@ -311,7 +311,7 @@ def trusted_preflight(root:Path,base_sha:str,task:dict):
         or snapshot.get('worktree_overlaps')
     ):
         raise ControlError('Preflight не подтверждает выбранный task, актуальный main и SAFE_TO_START.')
-    return {'command':'pnpm agent:preflight --check --json','git_head':expected,
+    return {'command':'pnpm --silent agent:preflight --check --json','git_head':expected,
       'origin_main_sha':expected,'selected_task':selected['id'],
       'exit_code':p.returncode,
       'output_sha256':hashlib.sha256(output.encode('utf-8')).hexdigest(),
