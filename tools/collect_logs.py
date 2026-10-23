@@ -1416,6 +1416,7 @@ class Collector:
         self.db.commit(); self.db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
         storage_bytes = sum(p.stat().st_size for p in self.base.rglob("*") if p.is_file())
         acknowledged = []
+        disposed = []
         if getattr(self, 'sampler', None) and self.sampler.spool:
             for metrics in getattr(self, 'metrics_pending', []):
                 sampling = metrics['sampling']
@@ -1423,9 +1424,24 @@ class Collector:
                 row = self.db.execute('SELECT seq,published FROM events WHERE id=?', (identity,)).fetchone()
                 if row and row[1] == 1 and any(bounds(meta)[0] <= row[0] <= bounds(meta)[1] for meta in segments):
                     acknowledged.append(metrics)
-            if len(acknowledged) != len(getattr(self, 'metrics_pending', [])):
-                for source in sources:
-                    if source['source'] == 'metrics':
+                elif metrics['sampledAt'] < cutoff:
+                    disposed.append((metrics, 'expired'))
+                elif not row and evicted.get('metrics'):
+                    disposed.append((metrics, 'quota_discarded'))
+            losses = self.sampler.loss_counters()
+            # Publish the loss warning before terminal spool disposal. If the
+            # catalog write fails, no disposition/ACK is committed and replay
+            # remains possible. Durable counters survive the later disposal.
+            for _, reason in disposed:
+                losses['droppedSamplesTotal'] += 1
+                losses['expiredSamplesTotal' if reason == 'expired' else 'quotaDiscardedSamplesTotal'] += 1
+            for source in sources:
+                if source['source'] == 'metrics':
+                    source['resourceLossCounters'] = losses
+                    if losses['droppedSamplesTotal']:
+                        source.update(state='pending', possibleCoverageGap=True,
+                            detail='Resource coverage incomplete; inspect durable dropped/expired/quota counters')
+                    elif len(acknowledged) != len(getattr(self, 'metrics_pending', [])):
                         source.update(state='pending', detail='Resource samples remain in durable spool until retained catalog publication')
         catalog = dict(version=1, readerFormat=self.reader_format, collectedAt=now(), retentionDays=self.config.get("retentionDays", 30), maxBytes=limit, bytes=total, rawBytes=sum(s.get("rawBytes", s["bytes"]) for s in segments), storageBytes=storage_bytes, activeStorageBytes=active_bytes(), retiredBytes=storage_bytes-active_bytes(), trimmed=bool(self.state("trimmedAt")), sources=sources, segments=segments)
         atomic_bytes(self.store / 'catalog.json', json.dumps(catalog, ensure_ascii=False).encode('utf-8'))
@@ -1434,6 +1450,9 @@ class Collector:
         if getattr(self, 'sampler', None) and self.sampler.spool:
             for metrics in acknowledged:
                 self.sampler.acknowledge(metrics['sampling'])
+                self.metrics_pending.remove(metrics)
+            for metrics, reason in disposed:
+                self.sampler.dispose(metrics['sampling'], reason)
                 self.metrics_pending.remove(metrics)
 
     def checkpoint(self, force=False):

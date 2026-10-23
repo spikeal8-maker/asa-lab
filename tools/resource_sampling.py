@@ -52,9 +52,33 @@ class ResourceSampler:
         finally: db.close()
 
     @staticmethod
-    def counter(db):
-        row = db.execute("SELECT value FROM counters WHERE name='dropped'").fetchone()
+    def counter(db, name='dropped'):
+        row = db.execute('SELECT value FROM counters WHERE name=?', (name,)).fetchone()
         return row[0] if row else 0
+
+    def loss_counters(self):
+        with self.lock, self.spool_db() as db:
+            return dict(droppedSamplesTotal=max(self.dropped, self.counter(db)),
+                expiredSamplesTotal=self.counter(db, 'expired'),
+                quotaDiscardedSamplesTotal=self.counter(db, 'quota_discarded'))
+
+    def dispose(self, sampling, reason):
+        """Record explicit terminal loss, never a successful publication ACK.
+
+        Expired/quota-discarded samples cannot be published on a later retry.
+        Deletion and monotonic reason counters commit together, so crash/replay
+        cannot silently lose the disposition or double-count it.
+        """
+        if reason not in ('expired', 'quota_discarded'): raise ValueError('Invalid resource sample disposition')
+        with self.lock:
+            with self.spool_db() as db:
+                changed = db.execute('DELETE FROM samples WHERE stream=? AND sequence=?',
+                    (sampling['streamId'], sampling['sequence'])).rowcount
+                if changed:
+                    dropped = max(self.dropped, self.counter(db)) + changed
+                    db.execute("INSERT OR REPLACE INTO counters VALUES('dropped',?)", (dropped,))
+                    db.execute('INSERT OR REPLACE INTO counters VALUES(?,?)', (reason, self.counter(db, reason) + changed))
+            if changed: self.dropped = max(self.dropped, dropped)
 
     def batch(self, limit=128):
         """Read without deleting: only a successful catalog publication may ACK.
@@ -70,6 +94,8 @@ class ResourceSampler:
             values = [json.loads(row[0]) for row in db.execute('SELECT payload FROM samples ORDER BY ordinal LIMIT ?', (limit,))]
             for value in values:
                 value['sampling']['droppedSamplesTotal'] = self.dropped
+                value['sampling']['expiredSamplesTotal'] = self.counter(db, 'expired')
+                value['sampling']['quotaDiscardedSamplesTotal'] = self.counter(db, 'quota_discarded')
                 if self.storage_error: value['sampling']['spoolError'] = self.storage_error
             return values
 

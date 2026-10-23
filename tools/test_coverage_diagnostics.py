@@ -161,15 +161,65 @@ class CoverageTests(unittest.TestCase):
                 with self.assertRaises(sqlite3.OperationalError): collector.telemetry()
             self.assertEqual(len(collector.sampler.batch()), 1)
             collector.telemetry()
-            # Explicit retention may remove a metrics segment; it must not
-            # silently authorize its deletion from the durable handoff spool.
+            # Terminal expiry is a recorded loss, never a publication ACK.
             with patch('collect_logs.timedelta', return_value=__import__('datetime').timedelta(days=-1)):
                 collector.publish()
-            self.assertEqual(len(collector.sampler.batch()), 1)
+            self.assertEqual(collector.sampler.batch(), [])
+            self.assertEqual(collector.sampler.loss_counters()['expiredSamplesTotal'], 1)
             source = next(s for s in json.loads((collector.store/'catalog.json').read_text(encoding='utf-8'))['sources'] if s['source']=='metrics')
-            self.assertEqual(source['state'], 'pending')
+            self.assertEqual(source['state'], 'pending'); self.assertTrue(source['possibleCoverageGap'])
             collector.telemetry(); collector.publish()
             self.assertEqual(collector.sampler.batch(), []); collector.db.close()
+
+    def test_expired_spool_prefix_advances_to_fresh_sample_after_restart_with_durable_loss_receipt(self):
+        from datetime import datetime, timedelta, timezone
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory); collector = Collector(root, {'retentionDays':1})
+            spool = collector.private/'resources.sqlite'
+            old = (datetime.now(timezone.utc)-timedelta(days=2)).isoformat()
+            stamp = [old]
+            collector.sampler = ResourceSampler(lambda *_: {'sampledAt':stamp[0]}, spool=spool, clock=lambda:0)
+            for i in range(128): collector.sampler.sample(i*60)
+            stamp[0] = now(); collector.sampler.sample(128*60)
+            with patch.object(collector.sampler, 'acknowledge', wraps=collector.sampler.acknowledge) as ack:
+                collector.telemetry(); collector.publish()
+                ack.assert_not_called()
+            self.assertEqual([v['sampling']['sequence'] for v in collector.sampler.batch()], [129])
+            self.assertEqual(collector.sampler.loss_counters(), dict(droppedSamplesTotal=128, expiredSamplesTotal=128, quotaDiscardedSamplesTotal=0))
+            collector.db.close()
+            collector = Collector(root, {'retentionDays':1})
+            collector.sampler = ResourceSampler(lambda *_: {'sampledAt':now()}, spool=spool)
+            collector.telemetry(); collector.publish(); collector.telemetry(); collector.publish()
+            self.assertEqual(collector.sampler.batch(), [])
+            catalog = json.loads((collector.store/'catalog.json').read_text(encoding='utf-8'))
+            self.assertEqual(sum(s['count'] for s in catalog['segments']), 1)
+            source = next(s for s in catalog['sources'] if s['source']=='metrics')
+            self.assertTrue(source['possibleCoverageGap']); self.assertEqual(source['state'],'pending')
+            self.assertEqual(source['resourceLossCounters']['expiredSamplesTotal'],128)
+            self.assertEqual(collector.db.execute('SELECT count(*) FROM events').fetchone()[0],1)
+            collector.db.close()
+
+    def test_quota_disposition_is_durable_idempotent_and_does_not_block_recovery(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory); collector = Collector(root, {'maxBytes':1})
+            spool = collector.private/'resources.sqlite'
+            collector.sampler = ResourceSampler(lambda *_:{'sampledAt':now()}, spool=spool, clock=lambda:0)
+            collector.sampler.sample(0); expired_reservation = collector.sampler.batch()[0]['sampling']
+            collector.telemetry()
+            with patch.object(collector.sampler,'acknowledge',wraps=collector.sampler.acknowledge) as ack:
+                collector.publish(); ack.assert_not_called()
+            self.assertEqual(collector.sampler.batch(),[])
+            collector.sampler.dispose(expired_reservation,'quota_discarded')
+            self.assertEqual(collector.sampler.loss_counters(),dict(droppedSamplesTotal=1,expiredSamplesTotal=0,quotaDiscardedSamplesTotal=1))
+            collector.db.close(); collector = Collector(root, {'maxBytes':1024**3})
+            collector.sampler = ResourceSampler(lambda *_:{'sampledAt':now()},spool=spool,clock=lambda:0)
+            collector.sampler.sample(0); collector.telemetry(); collector.publish()
+            self.assertEqual(collector.sampler.batch(),[])
+            catalog = json.loads((collector.store/'catalog.json').read_text(encoding='utf-8'))
+            self.assertEqual(sum(s['count'] for s in catalog['segments']),1)
+            source = next(s for s in catalog['sources'] if s['source']=='metrics')
+            self.assertEqual(source['resourceLossCounters']['quotaDiscardedSamplesTotal'],1)
+            self.assertTrue(source['possibleCoverageGap']); collector.db.close()
 
     def test_fresh_lanes_publish_before_slow_history_and_windows_work(self):
         with tempfile.TemporaryDirectory() as directory:

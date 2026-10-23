@@ -25,6 +25,14 @@
   ACK допускается только после durable commit основного индекса **и** успешной
   публикации catalog, содержащего соответствующий sample. Повтор после сбоя
   использует прежние stream/sequence и не создаёт повторного события.
+  Истёкший retention и явное вытеснение квотой имеют отдельный terminal loss
+  disposition: это **не** успешный ACK. После catalog с предупреждением запись
+  удаляется из spool атомарно с увеличением durable `droppedSamplesTotal` и
+  `expiredSamplesTotal`/`quotaDiscardedSamplesTotal`. Повтор disposition не
+  увеличивает счётчик второй раз. Так старые непубликуемые записи не блокируют
+  свежую запись за первой порцией из 128 элементов. Потери сохраняют
+  `possibleCoverageGap=true` и `pending`, включая перезапуск и восстановление
+  публикации свежих замеров; полнота покрытия не объявляется восстановленной.
 - Spool ограничен 16 МиБ или одной восьмой общего бюджета, если она меньше;
   payload занимает не более половины этого лимита, размер одной записи —
   максимум 256 КиБ. SQLite ограничивает число страниц; временный rollback journal
@@ -48,6 +56,9 @@ upgrade, повреждение истории, медленный диск ил
 
 Focused evidence: 103 Python tests, четыре платформенных skip; дополнительно
 четыре проверки SQL/catalog/quota recovery и работы background/checkpoint.
+После independent review: пять целевых проверок expiry-prefix128+fresh129,
+quota recovery/idempotence, SQL failure, catalog-crash replay и spool overflow
+прошли за 2,320 с. Это исправление terminal disposition не меняет правила ACK.
 Синтетические 512 gzip-сегментов с примерно 8 МиБ varied raw text: cold audit
 3,687 с, warm 0,375 с, restart 0,390 с, публикация свежей записи 0,641 с.
 Warm/restart не распаковывали retained gzip; compressed SHA и индекс проверялись.
