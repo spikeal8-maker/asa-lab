@@ -8146,7 +8146,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: integrate_reviewed_pr695_clock_observer_without_product_rewrite
+      checkpoint: repair_actual_clock_journal_and_qualify_six_native_cases
       kind: repair
       owner_acceptance: pending
       programme_issue: 452
@@ -8155,7 +8155,7 @@ parallel_lanes:
       context_hints:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-CLOCK-OBSERVER-001.md
       - docs/product/electronics/components/ui-assets-persistence.yaml
-      repair_scope: INTEGRATION ONLY exact reviewed PR695 clock test blob3f824213be5a2d18fee4c0e9009235f4a2cafb7b from02ed3ad0a5fa048a94bdefa09d0b41c438596741 onto current main. Only e2e/electronics-simulation-time.spec.ts source; preserve accepted541 product and all foreign work. No observer rewrite, physics/Worker/Header/CSS/cadence/auth/dependency/workflow changes.
+      repair_scope: TEST HARNESS A repair of actual512 request501 observer guard through lossless durable Node journal and bounded active retention without throwing before real Worker dispatch. Preserve observer attribution, every native action/assertion/deadline, four widths and accepted541 product. Separately selected six-case technical qualification is additive and does not change the full Electronics gate or release blockers.
       integration_candidate:
         pr: 695
         head: 02ed3ad0a5fa048a94bdefa09d0b41c438596741
@@ -8173,10 +8173,17 @@ parallel_lanes:
       independent_manifest_sha256: bd60d965610969794e94e6957d2ab7830599b2d8337794a289f9a7a1eb3d8a83
       actual_evidence: Root verified781external28Git. Actual39042ready37fractional; integer text00..04 only
         whole-horizon changes. No product regression proven.
-      next_action: New bounded integration author, fresh snapshot and real dirty-overlap check, preserve exact reviewed clock file and foreign main; new final integration/composition review before publication/qualification. One shared qualification candidate may contain separately reviewed679 and557 integration commits with new final composition review and one exact-SHA existing CI, preserving both PR histories. No new gate/waiver/workflow or duplicate broad unchanged run. Require actual four-width clock evidence and exact required gates; classify externalC/D without repairing unrelated modules. Merge/close only after mandatory acceptance, using owner's explicit programme authorization.
+      next_action: One bounded test-harness repair author for the two selected files; NEW exact source review. Separate bounded additive six-case runner/manual workflow author with exact discovery manifest, transport guard identity allowlist and adversarial tests; NEW independent review and final composition. One exact qualification run plus required General/focused/budget evidence, NEW actual six-case review, then technical issue closure only if all criteria pass. Full Electronics remains global verification; its cancellation is not PASS and global release/owner acceptance remain blocked. No repeated unchanged broad run.
       preservation: Full accepted541 task/revisions and accepted_slices exact.552975/source/nativebeforeafter
         originals and current startup/E06/foreign lanes preserved.
       school_actions: deferred_by_owner_no_action
+      qualification_selection:
+        evidence: docs/product/electronics/evidence/ui679-557-actual-repair-scoped-qualification-20261023.md
+        scope: Exactly two existing F2 mouse1440 and touch390x844 cases plus four existing clock1440/1024/390/320 cases; no new or omitted functional cases.
+        registration_boundary: Prospective scoped command selected below; gates.browser retains the existing registered global command until the additive package script exists and controller records the reviewed registration.
+        gate_contract: Named command pnpm gate:electronics-ui-679-557:browser locally, in CI and owner evidence; freeze exact full titles and paths from discovery, reject missing/extra/duplicate/skipped cases and require all six execution results PASS. Same existing native assertions, timing/storage/document/CAS requirements and raw/PNG evidence.
+        infrastructure_scope: Additive scoped runner and manual workflow only, package script/catalogue registration if necessary, exact new workflow/browser transport identity allowlist plus adversarial tests. Never edit the foreign dirty existing Electronics workflow, spoof workflow_ref, bypass image/PG/runtime provenance or lower assertions/timeouts/budget. Require fresh target-path overlap check before author writes.
+        closure_boundary: Explicit owner-programme technical acceptance for679/557 uses reviewed six-case qualification plus exact focused, raw budget and full General gates and NEW independent actual review. This does not accept or relabel the full Electronics workflow, grant physical owner acceptance, deployment or release, or clear any global/foreign blocker.
     accepted_slices:
     - task_id: TASK-ELECTRONICS-INTEGER-TIME-DISPLAY-001
       issue: 541
@@ -8377,22 +8384,29 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: owner_programme_pr694_real_acceptance_test_selected
+      checkpoint: repair_actual_f2_preapp_and_qualify_six_native_cases
       kind: repair
       owner_acceptance: pending
       context_hints:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-ARDUINO-PSU-WIRE-LAYER-001.md
-      repair_scope: TEST ONLY F2 acceptance repair atop independently approved integration88930020; replace mocked persistence proof with real authenticated projects, native Save/CAS and cookies-only fresh-context reopen. Preserve F2 wire/terminal/ordinary negatives and main Arduino coverage; add native PSU slider negative-control acceptance. No product repair is selected.
-      source_budget: ONLY F2 cases and minimal public test helpers in e2e/electronics-interactions.spec.ts; necessary generated browser metadata only if canonical generator requires it. No Stage/product/budget/workflow/dependency edits. Preserve original PR694 finite case budget; no timeout increase.
+      repair_scope: TEST HARNESS A repair of actual512 missing pre-app snapshot by installing initialization before genuine full document navigation, not hash-only navigation in an already loaded realm; preserve primary helper failure evidence durably. Preserve complete F2 real authentication, independent full document, CAS, cookies-only reopen, PSU slider and wire/terminal/ordinary negatives. No product repair is selected.
+      source_budget: ONLY F2 cases and minimal public test helpers in e2e/electronics-interactions.spec.ts; necessary generated browser metadata only if canonical generator requires it. No Stage/product/budget/dependency edits in the test-repair slice. The separately selected additive scoped qualification author has only the infrastructure scope below. Preserve original PR694 finite case budget; no timeout increase.
       rendering_contract: Render target bodies after breadboard bodies and BEFORE existing wire hit/paint layers;exclude exactly targets from later ordinary body map. Keep terminals and overlays above wires. Preserve other ordinary relative order,foreign Stage props/readiness/UnoL and complete document.
       interaction_contract: Same exact-kind predicate exempts ONLY targets from handleWirePointerDown foreground-body drag redirect;visible target-overlying wires retain wire behavior. Other ordinary redirects unchanged.
-      execution_boundary: One new bounded author repairs only selected F2 acceptance semantics on fresh main, freezes focused source checks and STOP; new independent exact-SHA source/integration review before publication. One justified exact-SHA native target verification plus required focused/General gates; no blind unchanged full-suite reruns. Cancelled overall browser never PASS; target evidence alone does not waive mandatory acceptance.
+      execution_boundary: One new bounded author repairs only selected F2 acceptance semantics on fresh main, freezes focused source checks and STOP; new independent exact-SHA source/integration review before publication. One exact-SHA six-case qualification under the explicit technical acceptance contract below plus required focused/General/raw-budget gates; no blind unchanged full-suite reruns. Cancelled full Electronics remains non-PASS and global release blocked.
       preservation: Owner programme679 then681 then557;681 observed CLOSED by owner spikeal8-maker on2026-10-23T17:02:17Z,do not reopen or close again and do not imply prior full General PASS. Preserve682 sole controller,548 budget blocker and ownerKEEP544547OPEN,all historical receipts/refs and foreign/protected work. Real dirty overlap STOP; known workflow exception disjoint only.
       real_acceptance_contract: Genuine UI authentication once per group, isolated real projects and cookies-only contexts; independently canonical fixture expected document validated against public normalization, never adopted from actual PUT/server. Native exactly one intended Save, one matching full-payload PUT with observed baseRevision and server CAS plus1; fresh GET and cookies-only fresh-context reopen prove full independent document. Journal actual storage and persistence evidence durably before assertions/teardown; fail closed on loss, unknown writes or races. Preserve mouse1440 and touch390x844, original finite budgets and native actions; no forced hits, extra Save retries, mocks or timeout increase. Native PSU slider control must remain usable with crossing wires; an actual product failure requires separate cause-based selection.
       integration_receipt: docs/product/electronics/evidence/arduino-psu-pr694-real-acceptance-selection-20261023.md
       candidate_pr: 694
       candidate_source_sha: 8fa878116c7b508ba12dcc3bca4341175e9c9168
-      next_action: Repair real F2 persistence and PSU-control acceptance, then obtain new independent source review before one justified exact-SHA verification; retain Draft until mandatory review/acceptance. If externalC/D prevents679 closure,record concrete blocker and advance independent681 verification then557 under separate canonical selection. No unreviewed Draft merge.
+      next_action: One bounded test-harness repair author for the two selected files; NEW exact source review. Separate bounded additive six-case runner/manual workflow author with exact discovery manifest, transport guard identity allowlist and adversarial tests; NEW independent review and final composition. One exact qualification run plus required General/focused/budget evidence, NEW actual six-case review, then technical issue closure only if all criteria pass. Full Electronics remains global verification; its cancellation is not PASS and global release/owner acceptance remain blocked. No repeated unchanged broad run.
+      qualification_selection:
+        evidence: docs/product/electronics/evidence/ui679-557-actual-repair-scoped-qualification-20261023.md
+        scope: Exactly two existing F2 mouse1440 and touch390x844 cases plus four existing clock1440/1024/390/320 cases; no new or omitted functional cases.
+        registration_boundary: Prospective scoped command selected below; gates.browser retains the existing registered global command until the additive package script exists and controller records the reviewed registration.
+        gate_contract: Named command pnpm gate:electronics-ui-679-557:browser locally, in CI and owner evidence; freeze exact full titles and paths from discovery, reject missing/extra/duplicate/skipped cases and require all six execution results PASS. Same existing native assertions, timing/storage/document/CAS requirements and raw/PNG evidence.
+        infrastructure_scope: Additive scoped runner and manual workflow only, package script/catalogue registration if necessary, exact new workflow/browser transport identity allowlist plus adversarial tests. Never edit the foreign dirty existing Electronics workflow, spoof workflow_ref, bypass image/PG/runtime provenance or lower assertions/timeouts/budget. Require fresh target-path overlap check before author writes.
+        closure_boundary: Explicit owner-programme technical acceptance for679/557 uses reviewed six-case qualification plus exact focused, raw budget and full General gates and NEW independent actual review. This does not accept or relabel the full Electronics workflow, grant physical owner acceptance, deployment or release, or clear any global/foreign blocker.
     execution_lease:
       executor_id: electronics-field-544
       holder: unassigned
