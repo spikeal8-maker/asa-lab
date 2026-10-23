@@ -12,6 +12,8 @@ components:
     - apps/web/src/electronics/ArduinoCodePanel.tsx
     - apps/web/src/electronics/arduino-blocks.ts
     tests:
+    - apps/web/src/electronics/testing/arduino-block-messages.spec.ts
+    - e2e/electronics-interactions.spec.ts
     - apps/web/src/electronics/testing/arduino-code-panel-persistence.spec.ts
     - apps/web/src/electronics/testing/arduino-code-contract.spec.ts
     symbols:

@@ -2059,6 +2059,71 @@ async function openEditor(
 
 const part = (page: Page, id: string) =>
   page.locator('[data-testid="schematic-component"][data-component-id="' + id + '"]');
+
+for (const width of [1440, 1024, 390, 320]) {
+  test(`Arduino workspace messages: repeated native menu and reopen at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 900 });
+    const fixture = documentFixture();
+    const initial = {
+      ...fixture,
+      components: fixture.components.map((component) =>
+        component.id === 'uno'
+          ? {
+              ...component,
+              stateProperties: { ...component.stateProperties, arduinoCodeMode: 'blocks' },
+            }
+          : component,
+      ),
+    } as SchematicDocument;
+    const { errors, readEditorDocument } = await openEditor(page, initial);
+    await page.getByRole('button', { name: 'Открыть редактор кода', exact: true }).click();
+    const code = page.getByRole('region', { name: 'Редактор кода Arduino' });
+    await expect(code).toBeVisible();
+    const background = code.locator('.blocklyMainBackground');
+    await expect(background).toBeVisible();
+    const openWorkspaceMenu = async () => {
+      const box = await background.boundingBox();
+      if (!box) throw new Error('Arduino workspace has no visible background');
+      // The flyout overlays the left side of this full-width SVG background.
+      // Send a real pointer gesture to its uncovered top-right workspace area.
+      await page.mouse.click(box.x + box.width - 25, box.y + 35, { button: 'right' });
+    };
+    const readProgram = async () => {
+      const doc = await readEditorDocument();
+      const state = doc.components.find((component) => component.id === 'uno')!.stateProperties!;
+      return { source: state.arduinoSource, workspace: JSON.parse(String(state.arduinoWorkspace)) };
+    };
+    await expect.poll(async () => (await readProgram()).source).toContain('void setup()');
+    const before = await readProgram();
+    for (let attempt = 0; attempt < 3; attempt++) {
+      await openWorkspaceMenu();
+      const menu = page.locator('.blocklyContextMenu');
+      await expect(menu).toBeVisible();
+      await expect(menu.getByText(/^Удалить \d+ блоки$/)).toBeVisible();
+      const box = await menu.boundingBox();
+      expect(box!.x).toBeGreaterThanOrEqual(0);
+      expect(box!.x + box!.width).toBeLessThanOrEqual(width + 1);
+      await page.keyboard.press('Escape');
+      await expect(menu).toBeHidden();
+    }
+    expect(await readProgram()).toEqual(before);
+    await page.getByRole('button', { name: 'Закрыть панель кода', exact: true }).click();
+    await page.getByRole('button', { name: 'Открыть редактор кода', exact: true }).click();
+    await openWorkspaceMenu();
+    await expect(
+      page.locator('.blocklyContextMenu').getByText(/^Удалить \d+ блоки$/),
+    ).toBeVisible();
+    await page.screenshot({ path: `reports/interactions/arduino-workspace-messages-${width}.png` });
+    await page.keyboard.press('Escape');
+    expect(await readProgram()).toEqual(before);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+      width,
+    );
+    expect(errors).toEqual([]);
+  });
+}
 const frames = (page: Page) =>
   page.evaluate(
     () =>
