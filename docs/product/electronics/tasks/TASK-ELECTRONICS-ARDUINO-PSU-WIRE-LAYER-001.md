@@ -136,3 +136,13 @@ Keep native mouse1440 and touch390x844, PSU slider and ordinary/terminal negativ
 real independent full-document Save/CAS and cookies-only fresh reopen. Preserve
 primary helper failures and journal evidence before teardown; never synthesize
 missing pre-app values or relax empty storage assertions.
+
+
+## 24 October: Exact PSU native control hit priority
+
+Exact995 proves invisible psu-cross hit geometry intercepts the real slider. Select a late transparent native SVG use referencing the actual validated main-body owner track through a scoped optional ID, same component transform and294x237 meet, existing setter once on pointerdown. Preview omits ID; missing/unresolved reference has no hit geometry. No new geometry or readiness state. Preserve wire paint, outside-control selection, terminals and ordinary behavior; no test-point workaround or global stroke reduction.
+
+The [cause-based selection](../evidence/ui679-557-causal-repair-selection-20261024.md)
+supersedes earlier conflicting no-product/no-follow-up restrictions only for this
+bounded repair. Owner API-separate targeted acceptance continues; no global PASS,
+physical owner acceptance, release or deployment is implied.

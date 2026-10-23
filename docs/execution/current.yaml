@@ -8147,8 +8147,8 @@ parallel_lanes:
       base_branch: main
       pr: null
       pr_draft: false
-      status: done
-      checkpoint: technically_accepted_four_clock_cases_owner_api_separation
+      status: in_progress
+      checkpoint: actual995_committed_dom_attribution_repair_selected
       kind: repair
       owner_acceptance: pending
       programme_issue: 452
@@ -8157,7 +8157,7 @@ parallel_lanes:
       context_hints:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-CLOCK-OBSERVER-001.md
       - docs/product/electronics/components/ui-assets-persistence.yaml
-      repair_scope: Completed test-observer repair and integrated source; exact07 actual four clock cases at1440/1024/390/320 each complete first, restart and cookies-only reopen phases with all original assertions. Owner explicitly accepts UI on targeted evidence while independent API failures remain separate. No product clock rewrite or broader release acceptance.
+      repair_scope: Passive public data-time-ms on the same existing Header span from actual committedSimulationTimeMs render input, with strict independent unique binding by document, DOM mount epoch, active worker/generation/session and horizon. Equivalent same-binding/horizon receipts retain all IDs; marker proves formatter input, not exact React frame. No math, core, hook, Worker, visible text or physics change.
       integration_candidate:
         pr: 695
         head: 02ed3ad0a5fa048a94bdefa09d0b41c438596741
@@ -8175,7 +8175,7 @@ parallel_lanes:
       independent_manifest_sha256: bd60d965610969794e94e6957d2ab7830599b2d8337794a289f9a7a1eb3d8a83
       actual_evidence: Root verified781external28Git. Actual39042ready37fractional; integer text00..04 only
         whole-horizon changes. No product regression proven.
-      next_action: Controller may close557 using explicit owner targeted-UI acceptance and NEW independent actual four-clock approval. No clock source rerun or rewrite is selected. Continue679 touch independently; it remains open. Preserve global General API failures, whole six-case5of6 FAILURE, full Electronics non-PASS and physical owner/release/deployment pending.
+      next_action: One bounded Header marker and clock observer author, NEW independent source review and four complete actual clock cases before reclosure. Prior07 acceptance and closeout remain immutable history; new995 causal attribution follow-up is in progress. API remains separate.
       preservation: Full accepted541 task/revisions and accepted_slices exact.552975/source/nativebeforeafter
         originals and current startup/E06/foreign lanes preserved.
       school_actions: deferred_by_owner_no_action
@@ -8207,6 +8207,11 @@ parallel_lanes:
         gate_contract: Named command pnpm gate:electronics-ui-679-557:browser locally, in CI and owner evidence; freeze exact full titles and paths from discovery, reject missing/extra/duplicate/skipped cases and require all six execution results PASS. Same existing native assertions, timing/storage/document/CAS requirements and raw/PNG evidence.
         infrastructure_scope: Additive scoped runner and manual workflow only, package script/catalogue registration if necessary, exact new workflow/browser transport identity allowlist plus adversarial tests. Never edit the foreign dirty existing Electronics workflow, spoof workflow_ref, bypass image/PG/runtime provenance or lower assertions/timeouts/budget. Require fresh target-path overlap check before author writes.
         closure_boundary: Owner explicitly decided API remains separate and UI is accepted on targeted checks. Issue557 requires all four complete clock cases and independent actual review; issue679 requires both complete real F2 cases and actual review. Programme completion still requires all six. Exact focused/raw budget remain required; General actual API failures remain recorded, not PASS, and no global/foreign blocker, physical owner acceptance, deployment or release is cleared.
+      causal_repair_selection:
+        evidence: docs/product/electronics/evidence/ui679-557-causal-repair-selection-20261024.md
+        actual_sha: 9957c9bc6b65ec4e1d6ac4cd1f42c056867f4d28
+        actual_run: 40023851278
+        independent_review_sha256: e3dbcf77190e0ee36262957b8feb47029c7dcfb549d24affb79b79426f5f8c89
     accepted_slices:
     - task_id: TASK-ELECTRONICS-INTEGER-TIME-DISPLAY-001
       issue: 541
@@ -8412,22 +8417,22 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: mouse_f2_accepted_touch_hit_unknown_passive_witness_pending
+      checkpoint: actual995_psu_native_control_hit_priority_repair_selected
       kind: repair
       owner_acceptance: pending
       context_hints:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-ARDUINO-PSU-WIRE-LAYER-001.md
-      repair_scope: TEST HARNESS A repair of actual512 missing pre-app snapshot by installing initialization before genuine full document navigation, not hash-only navigation in an already loaded realm; preserve primary helper failure evidence durably. Preserve complete F2 real authentication, independent full document, CAS, cookies-only reopen, PSU slider and wire/terminal/ordinary negatives. No product repair is selected.
-      source_budget: ONLY F2 cases and minimal public test helpers in e2e/electronics-interactions.spec.ts; necessary generated browser metadata only if canonical generator requires it. No Stage/product/budget/dependency edits in the test-repair slice. The separately selected additive scoped qualification author has only the infrastructure scope below. Preserve original PR694 finite case budget; no timeout increase.
+      repair_scope: Exact PSU hit priority via scoped SVG use reference to the actual validated owner track. Optional powerSwitchId only main body through ProductionVisual/OwnerPSU/runtimeMarkup; preview omits it. Late transparent use preserves existing component transform and294x237 meet, existing setter once on pointerdown and click stopped without duplicate toggle. No new control geometry or readiness state.
+      source_budget: Only WorkbenchStage, ProductionComponentVisual, production-asset-contracts and meaningful focused tests. No copied numeric control rect, artwork, owner asset, source cache, readiness callback state, core, hook, API or persistence edits. Actual RAW at most218000; fit remains UNKNOWN until exact benchmark.
       rendering_contract: Render target bodies after breadboard bodies and BEFORE existing wire hit/paint layers;exclude exactly targets from later ordinary body map. Keep terminals and overlays above wires. Preserve other ordinary relative order,foreign Stage props/readiness/UnoL and complete document.
       interaction_contract: Same exact-kind predicate exempts ONLY targets from handleWirePointerDown foreground-body drag redirect;visible target-overlying wires retain wire behavior. Other ordinary redirects unchanged.
-      execution_boundary: One new bounded author repairs only selected F2 acceptance semantics on fresh main, freezes focused source checks and STOP; new independent exact-SHA source/integration review before publication. One exact-SHA six-case qualification under the explicit technical acceptance contract below plus required focused/General/raw-budget gates; no blind unchanged full-suite reruns. Cancelled full Electronics remains non-PASS and global release blocked.
+      execution_boundary: One bounded PSU SVG use author, NEW independent source review and final composition with separately reviewed557 observer. Meaningful source/unit checks must prove missing-reference has no hit geometry; existing native browser case must prove the original PSU switch action at its unchanged point. No new browser case or interactions actuator edits. Require both full F2 cases, focused/raw budget and new actual/visual review; no blind unchanged full-suite rerun.
       preservation: Owner programme679 then681 then557;681 observed CLOSED by owner spikeal8-maker on2026-10-23T17:02:17Z,do not reopen or close again and do not imply prior full General PASS. Preserve682 sole controller,548 budget blocker and ownerKEEP544547OPEN,all historical receipts/refs and foreign/protected work. Real dirty overlap STOP; known workflow exception disjoint only.
       real_acceptance_contract: Genuine UI authentication once per group, isolated real projects and cookies-only contexts; independently canonical fixture expected document validated against public normalization, never adopted from actual PUT/server. Native exactly one intended Save, one matching full-payload PUT with observed baseRevision and server CAS plus1; fresh GET and cookies-only fresh-context reopen prove full independent document. Journal actual storage and persistence evidence durably before assertions/teardown; fail closed on loss, unknown writes or races. Preserve mouse1440 and touch390x844, original finite budgets and native actions; no forced hits, extra Save retries, mocks or timeout increase. Native PSU slider control must remain usable with crossing wires; an actual product failure requires separate cause-based selection.
       integration_receipt: docs/product/electronics/evidence/arduino-psu-pr694-real-acceptance-selection-20261023.md
       candidate_pr: 694
       candidate_source_sha: 8fa878116c7b508ba12dcc3bca4341175e9c9168
-      next_action: Keep679 open; mouse real F2 complete, touch hit target ancestry UNKNOWN before action. Continue only independently source-approved passive witness f31 at the unchanged point with no extra input or product verdict; obtain actual touch evidence before selecting any product repair. Owner separates foreign API failures from targeted UI acceptance; technical679 still requires both F2 cases complete. Do not repeat accepted557 qualification solely to prove the programme aggregate green.
+      next_action: One bounded PSU hit priority author, NEW independent source review, both complete real F2 cases and new actual visual review before679 closure. No forced input, changed test point, whole-body bypass or global wire-stroke reduction.
       owner_targeted_acceptance:
         evidence: docs/product/electronics/evidence/ui679-557-owner-targeted-acceptance-20261024.md
         decision: API оставить отдельно; принять UI по целевым проверкам
@@ -8456,6 +8461,11 @@ parallel_lanes:
         gate_contract: Named command pnpm gate:electronics-ui-679-557:browser locally, in CI and owner evidence; freeze exact full titles and paths from discovery, reject missing/extra/duplicate/skipped cases and require all six execution results PASS. Same existing native assertions, timing/storage/document/CAS requirements and raw/PNG evidence.
         infrastructure_scope: Additive scoped runner and manual workflow only, package script/catalogue registration if necessary, exact new workflow/browser transport identity allowlist plus adversarial tests. Never edit the foreign dirty existing Electronics workflow, spoof workflow_ref, bypass image/PG/runtime provenance or lower assertions/timeouts/budget. Require fresh target-path overlap check before author writes.
         closure_boundary: Owner explicitly decided API remains separate and UI is accepted on targeted checks. Issue557 requires all four complete clock cases and independent actual review; issue679 requires both complete real F2 cases and actual review. Programme completion still requires all six. Exact focused/raw budget remain required; General actual API failures remain recorded, not PASS, and no global/foreign blocker, physical owner acceptance, deployment or release is cleared.
+      causal_repair_selection:
+        evidence: docs/product/electronics/evidence/ui679-557-causal-repair-selection-20261024.md
+        actual_sha: 9957c9bc6b65ec4e1d6ac4cd1f42c056867f4d28
+        actual_run: 40023851278
+        independent_review_sha256: e3dbcf77190e0ee36262957b8feb47029c7dcfb549d24affb79b79426f5f8c89
     execution_lease:
       executor_id: electronics-field-544
       holder: unassigned
