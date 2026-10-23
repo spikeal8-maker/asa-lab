@@ -1,5 +1,6 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import type pg from 'pg';
+import { createApiApp } from '../../apps/api/dist/app.factory.js';
 import { classroomCodeHash } from '../../contexts/classroom/dist/index.js';
 import { buildTestApp, inject, type NestApp } from '../portal/app';
 
@@ -28,6 +29,7 @@ function candidate(index: number, salt = ''): string {
 
 describe('E1-FIX-01 StudentSeat admission anti-abuse', () => {
   let app: NestApp;
+  let fixturePool: pg.Pool;
   const seats: SeatFixture[] = [];
   const sessions = new Map<string, SeatFixture>();
 
@@ -157,6 +159,7 @@ describe('E1-FIX-01 StudentSeat admission anti-abuse', () => {
       }),
     } as unknown as pg.Pool;
 
+    fixturePool = pool;
     app = await buildTestApp(pool);
   });
 
@@ -366,5 +369,62 @@ describe('E1-FIX-01 StudentSeat admission anti-abuse', () => {
     expect(wrongCase.statusCode, wrongCase.body).toBe(401);
     const exactCase = await signIn(CLASS_A_CODE, ' Ab7k ', source);
     expect(exactCase.statusCode, exactCase.body).toBe(200);
+  });
+  it('emits the real HTTP admission reason for unknown sources without codes, addresses or cookies', async () => {
+    process.env.ASA_TRUSTED_PROXY_CIDRS = '172.16.0.0/12';
+    const lines: string[] = [];
+    const stdout = vi.spyOn(process.stdout, 'write').mockImplementation((chunk) => {
+      lines.push(String(chunk));
+      return true;
+    });
+    let loggedApp: NestApp | undefined;
+    try {
+      loggedApp = await createApiApp({ pool: fixturePool, webDist: null, logRequests: true });
+      for (let index = 0; index < 6; index++) {
+        await inject(loggedApp, {
+          method: 'POST',
+          url: '/api/class-join/studentseat',
+          remoteAddress: '172.19.0.4',
+          headers: sourceHeaders('172.19.0.1'),
+          payload: { code: CLASS_A_CODE, studentCode: 'QBAD1' },
+        });
+      }
+      const good = await inject(loggedApp, {
+        method: 'POST',
+        url: '/api/class-join/studentseat',
+        remoteAddress: '172.19.0.4',
+        headers: sourceHeaders('172.19.0.1'),
+        payload: { code: CLASS_A_CODE, studentCode: seats[0].code },
+      });
+      expect(good.statusCode).toBe(200);
+      const records = lines
+        .flatMap((line) => {
+          try {
+            return [JSON.parse(line)];
+          } catch {
+            return [];
+          }
+        })
+        .filter((row) => row.kind === 'http_response');
+      expect(records.find((row) => row.status === 429)).toMatchObject({
+        addressResolution: { state: 'unresolved', reason: 'trusted_hops_only' },
+        admission: {
+          credentialCheck: 'student_rejected',
+          blockedBudgets: ['candidate_class'],
+          limiterPhase: 'after_failed_validation',
+        },
+      });
+      expect(records.find((row) => row.status === 200)).toMatchObject({
+        admission: {
+          credentialCheck: 'student_accepted',
+          blockedBudgets: [],
+          limiterPhase: 'not_applied',
+        },
+      });
+      expect(lines.join('')).not.toMatch(/QBAD1|172\.19\.0\.|AAA BBB 222|asa_student_session/);
+    } finally {
+      await loggedApp?.close();
+      stdout.mockRestore();
+    }
   });
 });

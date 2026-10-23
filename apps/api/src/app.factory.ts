@@ -30,6 +30,7 @@ import { logSubsystem, safeLogPath } from './log-subsystems.js';
 import {
   diagnosticContext,
   requestFailures,
+  requestAdmissionDiagnostics,
   requestValidationReasons,
   recordServerFailure,
   ServerDiagnosticsFilter,
@@ -434,6 +435,7 @@ export async function createApiApp(
                 reasonCode: requestValidationReasons.get(request),
                 sessionDatabase,
                 addressResolution,
+                admission: requestAdmissionDiagnostics.get(request),
                 ...(databaseTrouble
                   ? { eventLoopDelaySinceStartMs: runtimeMetrics.snapshot(null).eventLoopDelayMs }
                   : {}),
