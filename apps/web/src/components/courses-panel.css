@@ -1742,7 +1742,7 @@
     0px,
     calc(
       100dvh - var(--portal-header-height, 56px) - var(--course-compact-header-height, 0px) - 24px -
-        48px - 16px
+        var(--course-outline-head-height, 64px) - 16px
     )
   );
 }

@@ -2035,10 +2035,17 @@ test('document Course Builder preserves the lesson, real save acknowledgements a
           return {
             stickyTop: Number.parseFloat(getComputedStyle(dialog).top),
             headingHeight: heading.getBoundingClientRect().height,
+            measuredHeadingHeight: Number.parseFloat(
+              getComputedStyle(dialog).getPropertyValue('--course-outline-head-height'),
+            ),
             scrollMax: Number.parseFloat(getComputedStyle(scroll).maxHeight),
             viewportHeight: innerHeight,
           };
         });
+      expect(
+        Math.abs(outlineBudget.headingHeight - outlineBudget.measuredHeadingHeight),
+        name + ': actual outline heading height is reflected in its sticky budget',
+      ).toBeLessThanOrEqual(1);
       expect(
         outlineBudget.stickyTop + outlineBudget.headingHeight + outlineBudget.scrollMax + 8,
         name + ': all inline outline controls fit in the sticky viewport budget',

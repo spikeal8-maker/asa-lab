@@ -867,6 +867,25 @@ function CourseEditor({
     media.addEventListener('change', update);
     return () => media.removeEventListener('change', update);
   }, []);
+  useEffect(() => {
+    const editor = compactHeaderRef.current?.closest('.course-document-editor');
+    const heading = editor?.querySelector('.course-outline-head');
+    if (!(editor instanceof HTMLElement) || !(heading instanceof HTMLElement)) return;
+    const updateHeight = () => {
+      editor.style.setProperty(
+        '--course-outline-head-height',
+        `${Math.ceil(heading.getBoundingClientRect().height)}px`,
+      );
+    };
+    updateHeight();
+    const observer =
+      typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(updateHeight);
+    observer?.observe(heading);
+    return () => {
+      observer?.disconnect();
+      editor.style.removeProperty('--course-outline-head-height');
+    };
+  }, [sections, wideLayout]);
   const [preview, setPreview] = useState(false);
   const previewTrigger = useRef<HTMLButtonElement>(null);
   const [publishedPreview, setPublishedPreview] = useState<PublishedAuthorVersion | null>(null);
