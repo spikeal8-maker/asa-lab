@@ -19,6 +19,7 @@ from deployment.contracts import DEFAULT_WINDOW, REPOSITORY, Blocked, atomic_jso
 from deployment.releases import apply_release_environment, assert_ci, discover_release, fetch_images, validate_resolved_images
 from deployment.system import Installation, operation_lock, run
 from deployment.collector import prepare as prepare_collector, reconcile as reconcile_collector, status as collector_status
+from deployment.contracts import proxy_provenance_diagnostic
 
 
 def clean_checkout(install):
@@ -36,6 +37,7 @@ def doctor(install, existing=True):
     print(f"DISK checkout_free_gib={free / 1024**3:.1f}; Docker data disk must also have space for images, objects and restore")
     collection = collector_status(install)
     print(f"COLLECTOR {collection['state']}: {collection['detail']}")
+    print('CLIENT_PROVENANCE ' + json.dumps(proxy_provenance_diagnostic(install.env), sort_keys=True))
     require(free >= 2 * 1024**3, "SPACE", "Less than 2 GiB free beside the checkout.")
     if existing:
         ready = install.readiness()

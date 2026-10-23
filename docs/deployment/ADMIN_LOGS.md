@@ -531,3 +531,65 @@ ingress-политики внешний посетитель останется 
 Диагностика браузера сохраняет отдельный предел 600 сообщений в минуту, но
 использует проверенный адрес посетителя, а не общий TCP-адрес Web-контейнера.
 Если адрес не определён, применяется общий ограниченный бюджет `unknown`.
+
+
+### Admission evidence and deployment provenance checks
+
+`asa doctor` prints `CLIENT_PROVENANCE` with the configured ingress/API trust
+boundaries. `loopback_only` means only local ingress is configured;
+`external_policy_unverified` means explicit external trust is configured. Neither
+state verifies a visitor IP (`verifiedVisitorIp` remains false). The command is
+read-only, does not discover and trust gateways, and does not edit `.env`.
+For Docker Desktop or an HTTP tunnel, verify the complete outer-proxy → tunnel →
+Caddy chain with a controlled external request and forged-header rejection before
+configuring only the attested peer CIDRs. A missing original address cannot be
+reconstructed inside the application. Never classify a Docker gateway as a pupil.
+
+HTTP terminal logs now carry finite server-owned `admission` evidence for
+StudentSeat sign-in and unsuccessful class resolution:
+
+- `credentialCheck`: `class_not_found`, `student_rejected` or `student_accepted`.
+- `blockedBudgets`: `candidate_class`, `source_class`, `source_total`, or
+  `class_lookup_source`; all exceeded budgets are reported, not their keys.
+- `limiterPhase`: `after_failed_validation` or `not_applied` for accepted sign-in.
+
+Together with `addressResolution`, this distinguishes a wrong-code rejection
+from a rate-limited wrong-code rejection behind an unresolved proxy or shared NAT.
+It does not prove earlier historical 429s rejected correct credentials. Thresholds
+and failure-only validation order are unchanged; accepted credentials are still
+validated even after failed-attempt budgets are exhausted. No IP, code, hash,
+cookie or body is included in this diagnostic. Missing `admission` does not mean
+success: parser failures, unavailable database and other routes can end before
+an admission decision. Existing anonymous Account pre-check limits can still
+share an `unknown` bucket when external provenance is missing; resolving ingress
+is required rather than inventing browser identities or relaxing protection.
+
+
+#### Observed external route, 24 October 2026
+
+Read-only inspection of the running external proxy configuration confirmed the
+route: public TLS ingress → Traefik → FRPS HTTP vhost → local FRP client →
+Docker-published Web port → Caddy → API. Host-header forwarding is enabled; FRPS
+requires TLS for its client transport. Local Caddy currently trusts only loopback
+ingress, while the Docker-published port presents a gateway peer. Server access
+is available; the remaining prerequisite is an attested forwarded-address chain
+and spoof-rejection test, not obtaining access to the proxy.
+
+The inspected outer route also has an independent rate limiter: average 600
+requests per minute, burst 300. Its higher-priority password login/registration
+route additionally applies average 60 per minute, burst 30. The inspected auth
+matcher does not include StudentSeat `/api/class-join` routes. These are external
+proxy limits, separate from application failure-only admission budgets. A shared
+school NAT can therefore encounter an outer-edge ceiling even when the API and
+database have spare capacity; this configuration alone is not evidence that the
+43 historical application 429s came from that edge limiter. Request correlation
+and effective source-key verification are required before attributing a failure
+or selecting new limits. No external policy was changed during this source slice.
+
+Before deploying an ingress change, preserve and review the exact existing
+proxy configuration, verify the effective source key and forwarded hops using a
+controlled visitor, test spoofed headers and direct entry, and prepare rollback.
+Do not blindly trust a Docker gateway CIDR on a reachable host port: all callers
+through that port may appear to have the same trusted peer. A proposed external
+rate policy must account for school NAT traffic and retain abuse protection;
+raising limits without these checks is not the application IP fix.

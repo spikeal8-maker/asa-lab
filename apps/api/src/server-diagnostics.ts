@@ -9,6 +9,15 @@ const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 const MODULES = new Set(['portal', 'scratch', 'electronics', 'auth']);
 export const requestFailures = new WeakMap<object, string>();
 export const requestValidationReasons = new WeakMap<object, string>();
+export interface AdmissionDiagnostics {
+  readonly credentialCheck: 'class_not_found' | 'student_rejected' | 'student_accepted';
+  readonly blockedBudgets: ReadonlyArray<
+    'candidate_class' | 'source_class' | 'source_total' | 'class_lookup_source'
+  >;
+  readonly limiterPhase: 'after_failed_validation' | 'not_applied';
+}
+// Server-owned classifications only; never retain the IP, codes or bucket keys.
+export const requestAdmissionDiagnostics = new WeakMap<object, AdmissionDiagnostics>();
 const VALIDATION_REASONS = new Set<string>([
   // Explicit API exposure policy; canonical classification stays in the module.
   'electronics_component_id',
