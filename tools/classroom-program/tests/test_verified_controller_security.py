@@ -48,6 +48,11 @@ class ClassroomSecurityGateTest(unittest.TestCase):
                     "user": {"login": "executor-bot"}, "body": "CTRL-00"}
         if path.endswith("/pulls/999/reviews?per_page=100"):
             return [{"state": "APPROVED", "commit_id": self.sha, "user": {"login": "independent-reviewer"}}]
+        if path.endswith("/issues/999/comments?per_page=100"):
+            # The real verifier now checks the latest authenticated Codex verdict
+            # even if an independent human approval exists. No Codex comment in
+            # this fixture means the exact-SHA human approval is decisive.
+            return []
         if path.endswith("/actions/runs/777"):
             return {"head_sha": self.sha, "conclusion": "success", "status": "completed",
                     "repository": {"full_name": g.REPOSITORY}, "name": "Classroom Program Controller Checks"}
