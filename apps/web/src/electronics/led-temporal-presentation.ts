@@ -282,11 +282,7 @@ export class LedTemporalPresentation {
         ? this.d
         : Math.min(
             this.a,
-            Math.max(
-              this.d,
-              this.e.m +
-                Math.floor(Math.max(0, wallMicroseconds - this.e.w)),
-            ),
+            Math.max(this.d, this.e.m + Math.floor(Math.max(0, wallMicroseconds - this.e.w))),
           );
     const times = new Set([target, this.a]);
     if (!this.l) {
@@ -515,8 +511,7 @@ export class LedTemporalPresentation {
         ? this.d
         : Math.min(
             this.a,
-            (this.e?.m ?? this.d) +
-              Math.floor(elapsed * ELECTRONICS_CLASSROOM_PACE),
+            (this.e?.m ?? this.d) + Math.floor(elapsed * ELECTRONICS_CLASSROOM_PACE),
           );
     const values = this.o(target);
     if (!values) {
