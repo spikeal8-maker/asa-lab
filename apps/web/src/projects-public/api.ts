@@ -13,6 +13,7 @@ export interface PublicProject {
   readonly moduleKey: string;
   readonly authorLabel: string;
   readonly featured: boolean;
+  readonly pinned: boolean;
   readonly publishedAt: string;
   readonly preview: {
     readonly url: string;

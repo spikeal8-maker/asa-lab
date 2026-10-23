@@ -67,6 +67,7 @@ interface PublicProjectRow {
   preview_width: number | null;
   preview_height: number | null;
   featured: boolean;
+  pinned: boolean;
 }
 
 /** An explicit allowlist: never spread a database row into a public response. */
@@ -84,6 +85,7 @@ function publicProject(row: PublicProjectRow, canCopy: boolean) {
     moduleKey: row.module_key,
     authorLabel: row.author_label,
     featured: row.featured === true,
+    pinned: row.pinned === true,
     publishedAt:
       row.published_at instanceof Date ? row.published_at.toISOString() : row.published_at,
     preview:
@@ -194,7 +196,7 @@ export class PublicProjectsController {
     const skip = boundedInteger(offset, 0, 0, 1000000);
     const take = boundedInteger(limit, 24, 1, 48);
     const result = await requirePool(this.pool).query<PublicProjectRow>(
-      'SELECT entry.*, public.project_publication_featured(entry.publication_id, entry.revision_id) AS featured FROM public.public_projects_read($1, $2, $3, $4, $5) entry',
+      'SELECT entry.*, public.project_publication_featured(entry.publication_id, entry.revision_id) AS featured, public.project_publication_pinned(entry.publication_id, entry.revision_id) AS pinned FROM public.public_projects_read($1, $2, $3, $4, $5) entry',
       [null, query?.trim() || null, moduleKey ?? null, take + 1, skip],
     );
     const page = result.rows.slice(0, take);
@@ -210,7 +212,7 @@ export class PublicProjectsController {
   async detail(@Param('publicationId') publicationId: string) {
     requireUuid(publicationId);
     const result = await requirePool(this.pool).query<PublicProjectRow>(
-      'SELECT entry.*, public.project_publication_featured(entry.publication_id, entry.revision_id) AS featured FROM public.public_projects_read($1, $2, $3, $4, $5) entry',
+      'SELECT entry.*, public.project_publication_featured(entry.publication_id, entry.revision_id) AS featured, public.project_publication_pinned(entry.publication_id, entry.revision_id) AS pinned FROM public.public_projects_read($1, $2, $3, $4, $5) entry',
       [publicationId, null, null, 1, 0],
     );
     const row = result.rows[0];

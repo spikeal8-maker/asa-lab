@@ -15,6 +15,8 @@ interface Publication {
   readonly reason: string | null;
   readonly moderatedAt: string | null;
   readonly featured: boolean;
+  readonly pinned: boolean;
+  readonly pinVersion: number;
   readonly editorialEligible: boolean;
   readonly editorialVersion: number;
   readonly lifecycleVersion: number;
@@ -183,7 +185,7 @@ export function AdminPublicationsPage({
     setItems((previous) =>
       previous.map((item) =>
         item.publicationId === result.data.publicationId
-          ? { ...item, ...result.data, featured: false, editorialEligible: false }
+          ? { ...item, ...result.data, featured: false, pinned: false, editorialEligible: false }
           : item,
       ),
     );
@@ -255,6 +257,67 @@ export function AdminPublicationsPage({
     );
   };
 
+  const togglePinned = async (item: Publication): Promise<void> => {
+    if (
+      busy.current ||
+      blocked.current ||
+      !item.editorialEligible ||
+      item.hidden ||
+      item.state !== 'public'
+    )
+      return;
+    busy.current = true;
+    setSaving(true);
+    setError(null);
+    const current = version.current;
+    const result = await call<{
+      publicationId: string;
+      revisionId: string;
+      pinned: boolean;
+      pinVersion: number;
+      lifecycleVersion: number;
+    }>(`${endpoint(item.publicationId)}/pin`, {
+      method: 'POST',
+      body: JSON.stringify({
+        pinned: !item.pinned,
+        expectedVersion: item.pinVersion,
+        expectedRevisionId: item.revisionId,
+        expectedModerationVersion: item.moderationVersion,
+        expectedLifecycleVersion: item.lifecycleVersion,
+      }),
+    });
+    if (current !== version.current) return;
+    busy.current = false;
+    setSaving(false);
+    if (!result.ok) {
+      if (result.status === 409)
+        setError('Закрепление изменилось. Обновите список перед повтором.');
+      else fail(result.status);
+      return;
+    }
+    if (
+      result.data.publicationId !== item.publicationId ||
+      result.data.revisionId !== item.revisionId ||
+      result.data.pinned === item.pinned ||
+      result.data.pinVersion !== item.pinVersion + 1 ||
+      result.data.lifecycleVersion !== item.lifecycleVersion
+    ) {
+      setError('Сервер не подтвердил закрепление. Обновите список.');
+      return;
+    }
+    setItems((previous) =>
+      previous.map((currentItem) =>
+        currentItem.publicationId === result.data.publicationId
+          ? {
+              ...currentItem,
+              pinned: result.data.pinned,
+              pinVersion: result.data.pinVersion,
+            }
+          : currentItem,
+      ),
+    );
+  };
+
   return (
     <section
       className="admin-publications"
@@ -303,6 +366,11 @@ export function AdminPublicationsPage({
                       : item.state}
                 </strong>
               </p>
+              {item.pinned && item.editorialEligible && !item.hidden ? (
+                <p className="admin-publication-pinned" data-testid="admin-publication-pinned">
+                  Закреплено
+                </p>
+              ) : null}
               {item.featured && item.editorialEligible && !item.hidden ? (
                 <p className="admin-publication-featured" data-testid="admin-publication-featured">
                   ★ Выбор редакции
@@ -317,6 +385,17 @@ export function AdminPublicationsPage({
               ) : null}
             </div>
             <div className="admin-publication-actions">
+              {item.editorialEligible && !item.hidden && item.state === 'public' ? (
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  disabled={loading || saving || denied || selected !== null}
+                  onClick={() => void togglePinned(item)}
+                  data-testid="admin-publication-pin-action"
+                >
+                  {item.pinned ? 'Открепить' : 'Закрепить'}
+                </button>
+              ) : null}
               {item.editorialEligible && !item.hidden && item.state === 'public' ? (
                 <button
                   type="button"

@@ -428,6 +428,66 @@ for (const width of [1440, 390, 320]) {
         after_version: '2',
         reason_text: 'Отметка редакции снята',
       });
+      // R8-03C: pinning is an independent administrative action and survives reload.
+      const pinResponse = moderator.waitForResponse(
+        (response) =>
+          response.request().method() === 'POST' &&
+          new URL(response.url()).pathname === `${BASE}/${publicationId}/pin`,
+      );
+      await row.getByRole('button', { name: 'Закрепить', exact: true }).click();
+      const pinReceipt = await pinResponse;
+      expect(pinReceipt.status()).toBe(200);
+      expect(pinReceipt.request().postDataJSON()).toEqual({
+        pinned: true,
+        expectedVersion: 0,
+        expectedRevisionId: revisionId,
+        expectedModerationVersion: 2,
+        expectedLifecycleVersion: lifecycleVersion,
+      });
+      expect(await pinReceipt.json()).toMatchObject({ pinned: true, pinVersion: 1 });
+      await expect(row.getByTestId('admin-publication-pinned')).toContainText('Закреплено');
+      await guest.goto('/#/explore');
+      await guest.reload();
+      const pinnedCard = guest.getByTestId('public-project-card').filter({
+        has: guest.getByRole('heading', { name: title, exact: true }),
+      });
+      await expect(pinnedCard.getByTestId('public-project-pinned')).toContainText('Закреплено');
+      await guest.screenshot({ path: `${EVIDENCE}/${width}-pinned-catalog.png`, fullPage: true });
+      await guest.goto(`/#/public-projects/${publicationId}`);
+      await guest.reload();
+      await expect(guest.getByTestId('public-project-pinned')).toContainText('Закреплено');
+      await guest.screenshot({ path: `${EVIDENCE}/${width}-pinned-detail.png`, fullPage: true });
+      const unpinResponse = moderator.waitForResponse(
+        (response) =>
+          response.request().method() === 'POST' &&
+          new URL(response.url()).pathname === `${BASE}/${publicationId}/pin`,
+      );
+      await row.getByRole('button', { name: 'Открепить', exact: true }).click();
+      const unpinReceipt = await unpinResponse;
+      expect(unpinReceipt.status()).toBe(200);
+      expect(unpinReceipt.request().postDataJSON()).toMatchObject({
+        pinned: false,
+        expectedVersion: 1,
+        expectedRevisionId: revisionId,
+        expectedModerationVersion: 2,
+        expectedLifecycleVersion: lifecycleVersion,
+      });
+      expect(await unpinReceipt.json()).toMatchObject({ pinned: false, pinVersion: 2 });
+      await guest.reload();
+      await expect(guest.getByTestId('public-project-pinned')).toHaveCount(0);
+      const pinnedAudit = await audit();
+      expect(pinnedAudit).toHaveLength(6);
+      expect(pinnedAudit[4]).toMatchObject({
+        action: 'publication.pin',
+        before_version: '0',
+        after_version: '1',
+      });
+      expect(pinnedAudit[5]).toMatchObject({
+        action: 'publication.unpin',
+        before_version: '1',
+        after_version: '2',
+      });
+
       expect(await original()).toEqual(draftBefore);
       expect(await projectRecord()).toEqual(projectBefore);
       expect(await frozen()).toEqual(versionsBefore);
