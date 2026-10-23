@@ -1735,6 +1735,18 @@
   max-height: calc(100dvh - 210px);
 }
 
+/* The inline outline stays accessible beneath both sticky headers, even when
+   its contents reach the scroller's maximum height. Modal outlines are separate. */
+.course-document-editor .course-outline-dialog[data-inline='true'] .course-outline-scroll {
+  max-height: max(
+    0px,
+    calc(
+      100dvh - var(--portal-header-height, 56px) -
+        var(--course-compact-header-height, 0px) - 24px - 48px - 16px
+    )
+  );
+}
+
 .course-document-editor .course-outline-section-head {
   grid-template-columns: minmax(0, 1fr) 44px;
 }

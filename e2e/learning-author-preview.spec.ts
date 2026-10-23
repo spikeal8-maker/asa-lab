@@ -2026,6 +2026,23 @@ test('document Course Builder preserves the lesson, real save acknowledgements a
       expect(outlineBox!.y, name + ': outline below sticky headers').toBeGreaterThanOrEqual(
         headerBox!.y + headerBox!.height + 8,
       );
+      const outlineBudget = await targetEditor
+        .locator('.course-outline-dialog[data-inline="true"]')
+        .evaluate((dialog) => {
+          const scroll = dialog.querySelector('.course-outline-scroll');
+          const heading = dialog.querySelector('.course-outline-head');
+          if (!scroll || !heading) throw new Error('Inline outline structure is missing');
+          return {
+            stickyTop: Number.parseFloat(getComputedStyle(dialog).top),
+            headingHeight: heading.getBoundingClientRect().height,
+            scrollMax: Number.parseFloat(getComputedStyle(scroll).maxHeight),
+            viewportHeight: innerHeight,
+          };
+        });
+      expect(
+        outlineBudget.stickyTop + outlineBudget.headingHeight + outlineBudget.scrollMax + 8,
+        name + ': all inline outline controls fit in the sticky viewport budget',
+      ).toBeLessThanOrEqual(outlineBudget.viewportHeight);
       const selectedLesson = targetEditor.locator('.course-outline [aria-current="page"]');
       await hitTarget(selectedLesson, name + ':body:sticky-selected-lesson');
       await hitTarget(
