@@ -253,33 +253,42 @@ function createRealtime682LongAudit(phaseMs: number, source: string) {
         fail('incomplete-temporal-window');
         return;
       }
-      const led = observation.components.find((entry) => entry.componentId === 'led0');
-      if (!led || led.truncated || led.samples.length === 0) {
-        fail('missing-electrical-evidence');
-        return;
-      }
+      const componentIds = observation.components.map((entry) => entry.componentId);
       if (
-        led.samples[0]!.atMicroseconds !== observation.fromMicroseconds ||
-        led.samples.at(-1)!.atMicroseconds !== observation.toMicroseconds
+        componentIds.length !== 3 ||
+        new Set(componentIds).size !== 3 ||
+        !['led0', 'led1', 'led2'].every((id) => componentIds.includes(id))
       )
-        fail('missing-temporal-endpoint');
-      let priorSampleTime = -Infinity;
-      for (const sample of led.samples) {
+        fail('invalid-temporal-component-ids');
+      for (const led of observation.components) {
+        if (led.truncated || led.samples.length === 0) {
+          fail('missing-electrical-evidence');
+          continue;
+        }
         if (
-          !Number.isSafeInteger(sample.atMicroseconds) ||
-          sample.atMicroseconds < observation.fromMicroseconds ||
-          sample.atMicroseconds > observation.toMicroseconds ||
-          sample.atMicroseconds <= priorSampleTime ||
-          !Number.isFinite(sample.brightness) ||
-          !Number.isFinite(sample.current)
+          led.samples[0]!.atMicroseconds !== observation.fromMicroseconds ||
+          led.samples.at(-1)!.atMicroseconds !== observation.toMicroseconds
         )
-          fail('invalid-electrical-sample');
-        priorSampleTime = sample.atMicroseconds;
-        const high = sample.brightness > 0;
-        if (high) onBrightness ??= Math.round(sample.brightness);
-        if (high !== priorElectrical) {
-          if (physical.length < 9) physical.push({ at: sample.atMicroseconds, high });
-          priorElectrical = high;
+          fail('missing-temporal-endpoint');
+        let priorSampleTime = -Infinity;
+        for (const sample of led.samples) {
+          if (
+            !Number.isSafeInteger(sample.atMicroseconds) ||
+            sample.atMicroseconds < observation.fromMicroseconds ||
+            sample.atMicroseconds > observation.toMicroseconds ||
+            sample.atMicroseconds <= priorSampleTime ||
+            !Number.isFinite(sample.brightness) ||
+            !Number.isFinite(sample.current)
+          )
+            fail('invalid-electrical-sample');
+          priorSampleTime = sample.atMicroseconds;
+          if (led.componentId !== 'led0') continue;
+          const high = sample.brightness > 0;
+          if (high) onBrightness ??= Math.round(sample.brightness);
+          if (high !== priorElectrical) {
+            if (physical.length < 9) physical.push({ at: sample.atMicroseconds, high });
+            priorElectrical = high;
+          }
         }
       }
       lastHorizon = advance.committedHorizonMicroseconds;

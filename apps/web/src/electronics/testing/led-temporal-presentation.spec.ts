@@ -2336,14 +2336,14 @@ describe('prospective repeated long-cycle stream and timing oracle', () => {
           ledTemporal: {
             fromMicroseconds: from,
             toMicroseconds: to,
-            components: [
-              {
-                componentId: 'led0',
-                truncated: false,
-                samples:
-                  from === to ? [sample(to, high)] : [sample(from, previous), sample(to, high)],
-              },
-            ],
+            components: [0, 1, 2].map((index) => ({
+              componentId: `led${index}`,
+              truncated: false,
+              samples:
+                from === to
+                  ? [sample(to, high && index === 0)]
+                  : [sample(from, previous && index === 0), sample(to, high && index === 0)],
+            })),
           },
         },
       });
@@ -2521,6 +2521,40 @@ describe('prospective repeated long-cycle stream and timing oracle', () => {
     if (fault === 'sample-out-of-order') samples.splice(1, 0, { ...samples[0]! });
     if (fault === 'missing-start') samples.shift();
     if (fault === 'missing-end') samples.pop();
+    expect(audit(1000, rows).result.errorCount).toBeGreaterThan(0);
+  });
+
+  it.each([
+    'before',
+    'after',
+    'fractional',
+    'order',
+    'nonfinite',
+    'missing-id',
+    'duplicate-id',
+  ] as const)('rejects corrupt inactive LED electrical evidence: %s', (fault) => {
+    const rows = fixture(1000);
+    const middle = rows.filter((row) => row.kind === 'browser' && row.data.kind === 'response')[3]!;
+    const observation = (
+      middle.data.advance as {
+        ledTemporal: {
+          fromMicroseconds: number;
+          toMicroseconds: number;
+          components: Array<{
+            componentId: string;
+            samples: Array<{ atMicroseconds: number; brightness: number }>;
+          }>;
+        };
+      }
+    ).ledTemporal;
+    const led = observation.components[1]!;
+    if (fault === 'before') led.samples[0]!.atMicroseconds = observation.fromMicroseconds - 1;
+    if (fault === 'after') led.samples.at(-1)!.atMicroseconds = observation.toMicroseconds + 1;
+    if (fault === 'fractional') led.samples[0]!.atMicroseconds += 0.5;
+    if (fault === 'order') led.samples.splice(1, 0, { ...led.samples[0]! });
+    if (fault === 'nonfinite') led.samples[0]!.brightness = NaN;
+    if (fault === 'missing-id') observation.components.splice(1, 1);
+    if (fault === 'duplicate-id') led.componentId = 'led0';
     expect(audit(1000, rows).result.errorCount).toBeGreaterThan(0);
   });
 
