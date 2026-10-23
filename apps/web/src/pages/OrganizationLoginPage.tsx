@@ -2,6 +2,7 @@ import { useId, useRef, useState, type FormEvent } from 'react';
 import { api, type BotProof, type SessionPayload } from '../api';
 import { AuthHomeBrand } from '../components/AuthHomeBrand';
 import { BotCheck } from '../components/BotCheck';
+import { authEntryErrorMessage } from '../auth-entry-error';
 
 export function OrganizationLoginPage({
   onSignedIn,
@@ -43,11 +44,7 @@ export function OrganizationLoginPage({
     }
     setBotProof(null);
     setBotReset((value) => value + 1);
-    setMessage(
-      result.status === 0
-        ? 'Сервер недоступен. Попробуйте ещё раз.'
-        : 'Неверный код организации, email или пароль.',
-    );
+    setMessage(authEntryErrorMessage(result, 'organization'));
     workspaceRef.current?.focus();
   }
 

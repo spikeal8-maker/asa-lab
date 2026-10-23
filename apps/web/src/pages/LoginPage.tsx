@@ -3,6 +3,7 @@ import { api, type BotProof, type SessionPayload } from '../api';
 import { AuthHomeBrand } from '../components/AuthHomeBrand';
 import { BotCheck } from '../components/BotCheck';
 import { SocialAuthButtons, useAuthProviders } from '../auth-providers';
+import { authEntryErrorMessage } from '../auth-entry-error';
 
 export function LoginPage({
   onSignedIn,
@@ -72,17 +73,7 @@ export function LoginPage({
     }
     setBotProof(null);
     setBotReset((value) => value + 1);
-    if (result.status === 400 || result.status === 401) {
-      setMessage('Неверные данные для входа.');
-    } else if (result.status === 0) {
-      setMessage(
-        result.error.code === 'auth_timeout'
-          ? result.error.message
-          : 'Сервер недоступен. Попробуйте ещё раз.',
-      );
-    } else {
-      setMessage('Ошибка сервера. Попробуйте ещё раз.');
-    }
+    setMessage(authEntryErrorMessage(result));
     identifierRef.current?.focus();
   }
 
