@@ -1,4 +1,6 @@
 from pathlib import Path
+import shutil
+import tempfile
 import sys
 import unittest
 from unittest.mock import patch
@@ -9,30 +11,36 @@ import github_queue as g
 
 class GithubQueueTest(unittest.TestCase):
     def setUp(self):
-        self.registry = g.registry(ROOT)
-        g.validate(self.registry, ROOT)
+        # Never let versioned production receipts influence bootstrap fixtures:
+        # after CTRL-00 is ACCEPTED_MAIN the same tests must remain green.
+        temporary = tempfile.TemporaryDirectory(prefix="classroom-queue-regression-")
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
+        shutil.copyfile(ROOT / "registry.json", self.root / "registry.json")
+        self.registry = g.registry(self.root)
+        g.validate(self.registry, self.root)
 
     def test_open_task_issue_reused_without_duplicate(self):
-        action, name, issue = g.choose(ROOT, self.registry, {'CTRL-00': {'state': 'open', 'number': 716, 'user': {'login': 'spikeal8-maker'}}})
+        action, name, issue = g.choose(self.root, self.registry, {'CTRL-00': {'state': 'open', 'number': 716, 'user': {'login': 'spikeal8-maker'}}})
         self.assertEqual((action, name, issue['number']), ('existing', 'CTRL-00', 716))
 
     def test_closed_issue_without_accepted_receipt_blocks_next(self):
         with self.assertRaisesRegex(g.QueueError, 'no ACCEPTED_MAIN'):
-            g.choose(ROOT, self.registry, {'CTRL-00': {'state': 'closed', 'number': 716}})
+            g.choose(self.root, self.registry, {'CTRL-00': {'state': 'closed', 'number': 716}})
 
     def test_no_issue_yields_only_first_ready_task(self):
-        action, name, issue = g.choose(ROOT, self.registry, {})
+        action, name, issue = g.choose(self.root, self.registry, {})
         self.assertEqual((action, name, issue), ('ready', 'CTRL-00', None))
 
     def test_two_open_tasks_block_unscoped_parallel_work(self):
         with self.assertRaisesRegex(g.QueueError, 'More than one open'):
-            g.choose(ROOT, self.registry, {
+            g.choose(self.root, self.registry, {
                 'CTRL-00': {'state': 'open', 'number': 716},
                 'QA-01': {'state': 'open', 'number': 717}})
 
     def test_unknown_issue_marker_blocks(self):
         with self.assertRaisesRegex(g.QueueError, 'Unexpected'):
-            g.choose(ROOT, self.registry, {'UNAPPROVED': {'state': 'open', 'number': 1}})
+            g.choose(self.root, self.registry, {'UNAPPROVED': {'state': 'open', 'number': 1}})
 
     @patch.object(g, 'github_json')
     def test_list_ignores_pr_and_unrelated_issues(self, api):
@@ -55,14 +63,14 @@ class GithubQueueTest(unittest.TestCase):
             self.fail('Unexpected ' + path)
         api.side_effect = reply
         with patch.object(g, 'checked_local_head', return_value=sha):
-            self.assertEqual(g.run(ROOT, 'spikeal8-maker/asa-lab', 'token', 'create', 715), ('created', 'CTRL-00'))
+            self.assertEqual(g.run(self.root, 'spikeal8-maker/asa-lab', 'token', 'create', 715), ('created', 'CTRL-00'))
 
     @patch.object(g, 'github_json')
     def test_changed_main_prevents_issue_write(self, api):
         api.return_value = {'object': {'sha': 'a' * 40}}
         with patch.object(g, 'checked_local_head', return_value='b' * 40):
             with self.assertRaisesRegex(g.QueueError, 'differs'):
-                g.run(ROOT, 'spikeal8-maker/asa-lab', 'token', 'create', 715)
+                g.run(self.root, 'spikeal8-maker/asa-lab', 'token', 'create', 715)
         self.assertFalse(any(call.args[0] == 'POST' for call in api.call_args_list))
 
 if __name__ == '__main__':
