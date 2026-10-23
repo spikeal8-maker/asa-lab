@@ -864,10 +864,11 @@ describe('mounted workbench host demand clock', () => {
       worker().callbacks!.onCommittedHorizon!(25_000);
       worker().callbacks!.onResult(next, undefined, 'dc-inputs-v1');
     });
-    expect(renders).toBeGreaterThan(before);
+    expect(renders).toBe(before);
     expect(workbench.result).toBe(ready);
     expect(workbench.simulationTimeMs).toBe(0);
-    expect(workbench.committedSimulationTimeMs).toBe(25);
+    // The canonical receipt is retained immediately; its UI metric joins the real RAF.
+    expect(workbench.committedSimulationTimeMs).toBe(0);
     expect(host.textContent).toBe('0:1');
     await frame();
     expect(workbench.result).toBe(next);
@@ -1449,6 +1450,74 @@ describe('mounted workbench LED temporal display', () => {
       expect(workbench.preparedComponentLedAsset(led)?.asset).toMatch(/_i080\.svg$/);
       expect(workbench.componentLedBrightness(led)).toBe(0);
       expect(workbench.simulationTimeMs).toBe(0);
+    },
+  );
+
+  it('coalesces four actual held receipts into one real RAF metric without four full Workbench renders', async () => {
+    await mount();
+    await loadMountedImages();
+    await act(async () => workbench.toggleSimulation());
+    await receive(observed([{ atMicroseconds: 0, brightness: 0, current: 0 }]), true);
+    await frame();
+    const before = renders;
+    worker().update.mockClear();
+    for (let index = 1; index <= 4; index++) {
+      await tick(10);
+      await receive(
+        observed([
+          { atMicroseconds: (index - 1) * 10_000, brightness: 0, current: 0 },
+          { atMicroseconds: index * 10_000, brightness: 0, current: 0 },
+        ]),
+      );
+    }
+    expect(worker().update.mock.calls.map((call) => call[1])).toEqual([
+      10_000, 20_000, 30_000, 40_000,
+    ]);
+    expect(renders - before).toBe(0);
+    expect(workbench.committedSimulationTimeMs).toBe(0);
+    expect(workbench.simulationTimeMs).toBe(0);
+    workbench.sendArduinoSerialRx('uno', 'unthrottled');
+    expect(worker().sendSerialRx).toHaveBeenLastCalledWith('uno', 'unthrottled', 40_000);
+    await frame();
+    expect(workbench.committedSimulationTimeMs).toBe(40);
+    expect(workbench.simulationTimeMs).toBe(40);
+    expect(renders - before).toBe(1);
+    assertCommitted(0, 'off');
+  });
+
+  it.each(['Stop', 'Reset', 'source', 'unmount'] as const)(
+    'cancels pending display-only committed time across %s without changing canonical inputs',
+    async (change) => {
+      await mount();
+      await loadMountedImages();
+      await act(async () => workbench.toggleSimulation());
+      await receive(observed([{ atMicroseconds: 0, brightness: 0, current: 0 }]), true);
+      await frame();
+      await tick(10);
+      await receive(
+        observed([
+          { atMicroseconds: 0, brightness: 0, current: 0 },
+          { atMicroseconds: 10_000, brightness: 0, current: 0 },
+        ]),
+      );
+      expect(workbench.committedSimulationTimeMs).toBe(0);
+      await act(async () => {
+        if (change === 'Stop') workbench.toggleSimulation();
+        if (change === 'Reset') workbench.resetArduinoRuntime('uno');
+        if (change === 'source')
+          workbench.updateArduinoProgram('uno', {
+            arduinoSource: 'void setup(){}void loop(){delay(77);}',
+          });
+        if (change === 'unmount') root.unmount();
+      });
+      const rendersAfterCancellation = renders;
+      await frame();
+      expect(workbench.committedSimulationTimeMs).toBe(0);
+      if (change === 'unmount') expect(renders).toBe(rendersAfterCancellation);
+      if (change === 'Reset') {
+        workbench.sendArduinoSerialRx('uno', 'after-reset');
+        expect(worker().sendSerialRx).toHaveBeenLastCalledWith('uno', 'after-reset', 0);
+      }
     },
   );
 

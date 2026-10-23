@@ -810,6 +810,10 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
       if (!currentSession()) return;
       animationFrame = window.requestAnimationFrame(presentLeds);
       if (!session?.active) return;
+      // Receipt state stays canonical immediately; only its displayed metric
+      // shares this real RAF with the optical vector instead of rendering every receipt.
+      if (nativePreparationSource === nativePreparationSourceRef.current)
+        setCommittedHorizonMicroseconds(latestCommittedHorizon);
       const wallMicroseconds = Math.round(window.performance.now() * 1000);
       const frame = ledPresentation.prepareFrame(wallMicroseconds);
       observeReanchor();
@@ -995,7 +999,6 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
         onCommittedHorizon: (horizon) => {
           if (!currentSession()) return;
           latestCommittedHorizon = horizon;
-          setCommittedHorizonMicroseconds(horizon);
         },
         onSerialProjection: (serial) => {
           if (!currentSession()) return;

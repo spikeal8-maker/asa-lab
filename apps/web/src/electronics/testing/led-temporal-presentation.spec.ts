@@ -1758,6 +1758,16 @@ describe('ordinary LED native readiness and the shared host publication barrier'
     expect(barrier.same(previous, frame, assets)).toBe(false);
   });
   function executeHostClosure(name: 'raf' | 'layout', state: Record<string, unknown>): void {
+    if (name === 'raf') {
+      // Bind the real RAF's new display-only metric dependencies. The actual
+      // mounted suite separately verifies source mismatch and lifecycle cancellation;
+      // these closure cases continue to challenge native cleanup and rollback.
+      const source = Object.freeze({ identity: 'closure-source' });
+      state.nativePreparationSource = source;
+      state.nativePreparationSourceRef = { current: source };
+      state.latestCommittedHorizon = 0;
+      state.setCommittedHorizonMicroseconds = () => {};
+    }
     const text = `${hostClosures.get('clearDisplay')!}\nconst presentLeds = ${hostClosures.get(name)!}; presentLeds();`;
     runInNewContext(
       ts.transpileModule(text, {
