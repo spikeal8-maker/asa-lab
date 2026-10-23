@@ -7336,13 +7336,13 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: source_approved_native_completion_bundle_neutral_repair_selected
+      checkpoint: native_ed_cold_readiness_publication_repair_selected
       kind: repair
       owner_acceptance: pending
       context_hints:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-ARDUINO-REALTIME-001.md
       owner_request: Proportional real timing from30ms through20s; supported if/for/while/loop with externalLED/button and SerialMonitor TX/RX. No extra product explanations;remove LIMITED only after full capability proof.
-      selected_slice: Separate behavior-neutral bundle repair in presenter only;rename internal private fields to recover unchanged218000-byte budget. Preserve independently approved9c realtime and a3d5 native completion byteidentity outside internal member renames. New author and independent review;exact build required before combined native AFTER.
+      selected_slice: Bounded cold LED readiness publication repair;remove avoidable post-native-ready RAF wait using cancellation-safe queued publication;retain native lease/joint layout ACK/distinct RAF limits. No cold-network guarantee or physics/timeout weakening. New author and independent reviewer;actual cold AFTER required.
       boundaries: Exact model event timestamps/instruction costs are separate from wall pace/jitter/backlog/UI responsiveness;baseline timing may honestly FAIL. Intentionally red unit tests must not enter main. No full C++ claim or timeout/coverage weakening.
       next_selection: Button hit-precondition and functional Serial evidence remain separate pending work;no Serial implementation repair without demonstrated defect. Labels require capability-specific proof. Preserved546/R27 remain stopped.
       coordination: Other Arduino controller confirms no active timing/core/hook/LED writer and observation PAUSED;parallel679 Stage-only budget repair remains separate and not closed.525 paused with history retained.
