@@ -102,13 +102,14 @@ describe('0236 additive publication moderation upgrade', () => {
         return result;
       };
       const before = await snapshot();
+      const moderationPlan = plan.filter((item) => Number(item.version) <= 236);
       const upgrade = await pool.connect();
       try {
         expect(
-          plan.filter((item) => Number(item.version) > 235).map((item) => item.version),
+          moderationPlan.filter((item) => Number(item.version) > 235).map((item) => item.version),
         ).toEqual(['0236']);
-        expect(await applyIsolatedTestPlan(upgrade, plan)).toBe(1);
-        expect(await applyIsolatedTestPlan(upgrade, plan)).toBe(0);
+        expect(await applyIsolatedTestPlan(upgrade, moderationPlan)).toBe(1);
+        expect(await applyIsolatedTestPlan(upgrade, moderationPlan)).toBe(0);
       } finally {
         upgrade.release();
       }

@@ -16,6 +16,8 @@ const expectedPending = [
   '0234',
   '0235',
   '0236',
+  '0237',
+  '0238',
 ];
 
 interface Identity {
