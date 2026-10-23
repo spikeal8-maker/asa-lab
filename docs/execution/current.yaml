@@ -6277,14 +6277,14 @@ parallel_lanes:
       - docs/product/projects/**
       - docs/review/PROJ_R7_01/**
     task:
-      id: TASK-PROJ-R8-03C-PINNED-CATALOG-001
-      issue: 702
+      id: TASK-PROJ-R8-03D-REPORT-INTAKE-001
+      issue: 713
       branch: main
       base_branch: main
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: pinned_catalog_scope_selected_after_692_source_merge
+      checkpoint: report_intake_selected_while_702_waits_external_general_ci
       owner_acceptance: pending
       owner_authorization: >-
         Owner's 2026-10-18 implementation assignment delegates the complete Public Projects
@@ -6292,7 +6292,12 @@ parallel_lanes:
         tested integration into main. Legacy Gallery publication retention is superseded;
         original Projects, drafts, versions, learning data and personal Collections are protected.
         No production cleanup or deployment is authorized by this selection.
+        Owner's 2026-10-24 continuation selects independent report-intake #713 while
+        #702/PR #704 remains OPEN/DRAFT and BLOCKED FOR MERGE by external General CI.
+        Do not modify #704 paths, merge #704, waive CI, or touch other product lanes.
       context_hints:
+        - docs/product/projects/tasks/PROJ-R8-03D-REPORT-INTAKE.md
+        - docs/product/projects/tasks/PROJ-R8-03.md
         - docs/product/projects/tasks/PROJ-R8-03C-PINNED-CATALOG.md
         - docs/product/projects/tasks/PROJ-R8-03B-EDITORIAL-FEATURED.md
         - docs/product/projects/tasks/PROJ-R8-03A-ADMIN-MODERATION.md
