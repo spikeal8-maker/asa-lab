@@ -7336,13 +7336,13 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: native_ed_cold_readiness_publication_repair_selected
+      checkpoint: interactive_sleeping_redundant_solve_repair_selected
       kind: repair
       owner_acceptance: pending
       context_hints:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-ARDUINO-REALTIME-001.md
       owner_request: Proportional real timing from30ms through20s; supported if/for/while/loop with externalLED/button and SerialMonitor TX/RX. No extra product explanations;remove LIMITED only after full capability proof.
-      selected_slice: Bounded cold LED readiness publication repair;remove avoidable post-native-ready RAF wait using cancellation-safe queued publication;retain native lease/joint layout ACK/distinct RAF limits. No cold-network guarantee or physics/timeout weakening. New author and independent reviewer;actual cold AFTER required.
+      selected_slice: Bounded interactive scheduler optimization;skip only redundant zero-duration observation solves when boards sleep and no input/sensor/tone/event is due after identical successful1ms physical step. Preserve legacy profile, physics quantum, all exact output/state/event times. New author, deterministic replay equality and independent review.
       boundaries: Exact model event timestamps/instruction costs are separate from wall pace/jitter/backlog/UI responsiveness;baseline timing may honestly FAIL. Intentionally red unit tests must not enter main. No full C++ claim or timeout/coverage weakening.
       next_selection: Button hit-precondition and functional Serial evidence remain separate pending work;no Serial implementation repair without demonstrated defect. Labels require capability-specific proof. Preserved546/R27 remain stopped.
       coordination: Other Arduino controller confirms no active timing/core/hook/LED writer and observation PAUSED;parallel679 Stage-only budget repair remains separate and not closed.525 paused with history retained.
