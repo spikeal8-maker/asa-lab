@@ -2070,8 +2070,9 @@ test('document Course Builder preserves the lesson, real save acknowledgements a
     await expect(add).toHaveAttribute('aria-expanded', 'true');
     // Opening at the end of the document must keep the popup inside the
     // viewport without scrolling its first choice into view artificially.
-    const addPopup = await targetEditor.locator('.lesson-block-add > .dropdown-menu').evaluate(
-      (menu) => {
+    const addPopup = await targetEditor
+      .locator('.lesson-block-add > .dropdown-menu')
+      .evaluate((menu) => {
         const rect = menu.getBoundingClientRect();
         const portalBottom =
           document.querySelector('.portal-header')?.getBoundingClientRect().bottom ?? 0;
@@ -2085,8 +2086,7 @@ test('document Course Builder preserves the lesson, real save acknowledgements a
           height: innerHeight,
           placement: menu.parentElement?.getAttribute('data-dropdown-placement'),
         };
-      },
-    );
+      });
     expect(addPopup.placement, name + ': add menu chooses a direction').toBe('above');
     expect(addPopup.left, name + ': add menu left').toBeGreaterThanOrEqual(0);
     expect(addPopup.right, name + ': add menu right').toBeLessThanOrEqual(addPopup.width);
