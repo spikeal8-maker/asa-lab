@@ -835,23 +835,50 @@ function CourseEditor({
   const [historyOpen, setHistoryOpen] = useState(false);
   const [outlineOpen, setOutlineOpen] = useState(false);
   const compactHeaderRef = useRef<HTMLElement>(null);
-  // The outline's sticky offset follows the actual responsive header height.
+  // The outline and focused block actions must clear the actual sticky
+  // course header even when a viewport change keeps the same summary focused.
   useEffect(() => {
     const header = compactHeaderRef.current;
     const editor = header?.closest('.course-document-editor');
     if (!header || !(editor instanceof HTMLElement)) return;
+    const revealFocusedBlockAction = () => {
+      const active = document.activeElement;
+      if (
+        !(active instanceof HTMLElement) ||
+        !editor.contains(active) ||
+        !active.matches('.lesson-block-menu > summary') ||
+        typeof active.scrollIntoView !== 'function'
+      )
+        return;
+      const stickyBottom = Math.max(
+        header.getBoundingClientRect().bottom,
+        document.querySelector('.portal-header')?.getBoundingClientRect().bottom ?? 0,
+      );
+      if (active.getBoundingClientRect().top < stickyBottom + 8) {
+        // The summary has a measured sticky-header scroll margin in course CSS.
+        // A focused control under a sticky header is not a usable control.
+        active.scrollIntoView({ block: 'start' });
+      }
+    };
     const updateOffset = () => {
       editor.style.setProperty(
         '--course-compact-header-height',
         `${Math.ceil(header.getBoundingClientRect().height)}px`,
       );
+      revealFocusedBlockAction();
     };
     updateOffset();
     const observer =
       typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(updateOffset);
     observer?.observe(header);
+    editor.addEventListener('focusin', revealFocusedBlockAction);
+    window.addEventListener('resize', updateOffset);
+    window.visualViewport?.addEventListener('resize', updateOffset);
     return () => {
       observer?.disconnect();
+      editor.removeEventListener('focusin', revealFocusedBlockAction);
+      window.removeEventListener('resize', updateOffset);
+      window.visualViewport?.removeEventListener('resize', updateOffset);
       editor.style.removeProperty('--course-compact-header-height');
     };
   }, []);

@@ -1879,6 +1879,13 @@
   text-transform: none;
 }
 
+/* Keep a focused block action below both sticky headers after layout changes. */
+.course-document-editor .lesson-block-menu > summary {
+  scroll-margin-block-start: calc(
+    var(--portal-header-height, 56px) + var(--course-compact-header-height, 0px) + 24px
+  );
+}
+
 .course-document-editor .lesson-block-menu .dropdown-menu button {
   display: block;
   width: 100%;

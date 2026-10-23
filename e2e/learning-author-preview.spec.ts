@@ -2172,6 +2172,14 @@ test('document Course Builder preserves the lesson, real save acknowledgements a
     expect(target!.width).toBeGreaterThanOrEqual(44);
     expect(target!.height).toBeGreaterThanOrEqual(44);
     await blockActions.focus();
+    const blockActionTop = await blockActions.evaluate((element) => element.getBoundingClientRect().top);
+    const stickyCourseBottom = await editor
+      .locator('.course-compact-header')
+      .evaluate((header) => header.getBoundingClientRect().bottom);
+    expect(
+      blockActionTop,
+      `${width}: focused block action clears the sticky course header`,
+    ).toBeGreaterThanOrEqual(stickyCourseBottom + 8);
     await hitTarget(blockActions, `${width}:block-menu`);
     await blockActions.press('Enter');
     await expect(blockActions).toHaveAttribute('aria-expanded', 'true');
