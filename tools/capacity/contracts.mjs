@@ -149,3 +149,59 @@ export function requestFailure(error, status) {
   if (error?.name === 'TimeoutError' || error?.name === 'AbortError') return 'timeout';
   return status === 0 ? 'transport' : 'response';
 }
+
+// Same-origin fixture jar, not a general browser implementation. Redirects and
+// external origins are forbidden by the caller. Honour server expiry and Path
+// so deleted Seat cookies cannot be resent beside a valid Account session.
+export class FixtureCookieJar {
+  cookies = new Map();
+  clear() {
+    this.cookies.clear();
+  }
+  values() {
+    return [...this.cookies.values()].map((cookie) => cookie.value);
+  }
+  receive(headers, responsePath, now = Date.now()) {
+    for (const header of headers) {
+      const [pair, ...attributes] = header.split(';');
+      const split = pair.indexOf('=');
+      if (split <= 0) throw new Error('invalid_fixture_cookie');
+      const name = pair.slice(0, split).trim(),
+        value = pair.slice(split + 1);
+      const attrs = new Map(
+        attributes.map((attribute) => {
+          const index = attribute.indexOf('=');
+          return index < 0
+            ? [attribute.trim().toLowerCase(), '']
+            : [attribute.slice(0, index).trim().toLowerCase(), attribute.slice(index + 1).trim()];
+        }),
+      );
+      const defaultPath = responsePath.slice(0, responsePath.lastIndexOf('/')) || '/';
+      const path = attrs.get('path')?.startsWith('/') ? attrs.get('path') : defaultPath;
+      const maxAge = attrs.get('max-age');
+      const expires = Date.parse(attrs.get('expires') || '');
+      const expiresAt =
+        maxAge !== undefined && /^-?\d+$/.test(maxAge)
+          ? now + Number(maxAge) * 1000
+          : Number.isFinite(expires)
+            ? expires
+            : Infinity;
+      const key = `${path}\n${name}`;
+      if (expiresAt <= now) this.cookies.delete(key);
+      else this.cookies.set(key, { name, value, path, expiresAt });
+    }
+  }
+  header(requestPath, now = Date.now()) {
+    for (const [key, cookie] of this.cookies) if (cookie.expiresAt <= now) this.cookies.delete(key);
+    return [...this.cookies.values()]
+      .filter(
+        ({ path }) =>
+          requestPath === path ||
+          (requestPath.startsWith(path) &&
+            (path.endsWith('/') || requestPath[path.length] === '/')),
+      )
+      .sort((a, b) => b.path.length - a.path.length)
+      .map(({ name, value }) => `${name}=${value}`)
+      .join('; ');
+  }
+}

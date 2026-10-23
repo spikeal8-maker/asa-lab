@@ -21,6 +21,7 @@ import {
   sessionIdentity,
   baselineSlo,
   requestFailure,
+  FixtureCookieJar,
 } from '../../tools/capacity/contracts.mjs';
 
 const ORIGIN = 'http://127.0.0.1:4612';
@@ -29,7 +30,7 @@ type Actor = {
   index: number;
   kind: 'account' | 'seat';
   module: 'blocks' | 'electronics';
-  jar: Map<string, string>;
+  jar: FixtureCookieJar;
   credentials: Data;
   identity?: string;
   project?: string;
@@ -125,7 +126,7 @@ describe.skipIf(process.env.ASA_CAPACITY_BASELINE !== '1')(
         index,
         kind: index % 2 === 0 ? 'account' : 'seat',
         module: index < b.blocks ? 'blocks' : 'electronics',
-        jar: new Map(),
+        jar: new FixtureCookieJar(),
         credentials: {},
       }));
       const active = new Set<number>();
@@ -172,18 +173,14 @@ describe.skipIf(process.env.ASA_CAPACITY_BASELINE !== '1')(
                         : 'application/json',
                   }
                 : {}),
-              cookie: [...actor.jar].map(([k, v]) => `${k}=${v}`).join('; '),
+              cookie: actor.jar.header(path),
               ...(capability ? { authorization: `Bearer ${capability}` } : {}),
               ...(method === 'POST' ? { 'idempotency-key': randomUUID() } : {}),
             },
             body: binary ? new Uint8Array(text as Buffer).buffer : (text as string | undefined),
           });
           status = response.status;
-          for (const cookie of response.headers.getSetCookie()) {
-            const pair = cookie.split(';')[0],
-              split = pair.indexOf('=');
-            actor.jar.set(pair.slice(0, split), pair.slice(split + 1));
-          }
+          actor.jar.receive(response.headers.getSetCookie(), path);
           const raw = Buffer.from(await response.arrayBuffer());
           responseComplete = true;
           receivedBytes = raw.length;
@@ -331,7 +328,7 @@ describe.skipIf(process.env.ASA_CAPACITY_BASELINE !== '1')(
           index: -1,
           kind: 'account',
           module: 'blocks',
-          jar: new Map(),
+          jar: new FixtureCookieJar(),
           credentials: {},
         };
         const registration = (index: number) => ({
