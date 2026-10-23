@@ -4553,6 +4553,8 @@ function f2ObserveLoadedDocument(localKey: string) {
 }
 
 async function f2RealEditor(page: Page, fixture: SchematicDocument, input: string) {
+  const { creatorViewFromLocation, creatorViewToHref } =
+    await import('../apps/web/src/creator-portal/navigation');
   f2Canonical(fixture);
   mkdirSync('reports/interactions', { recursive: true });
   const path = `reports/interactions/f2-real-${input}.jsonl`;
@@ -4736,7 +4738,18 @@ async function f2RealEditor(page: Page, fixture: SchematicDocument, input: strin
       expect(observed.errors).toEqual([]);
       expect(observed.saved).not.toBeNull();
       if (!observed.saved) throw new Error('Missing actual loaded document observation');
-      expect(new URL(observed.saved.href).hash).toBe(`#/home/${project.id}`);
+      const loadedURL = new URL(observed.saved.href);
+      const expectedView = {
+        kind: 'editor' as const,
+        projectId: project.id,
+        moduleKey: 'electronics' as const,
+        returnTo: { kind: 'home' as const },
+      };
+      const expectedURL = new URL(creatorViewToHref(expectedView), origin);
+      journal('loaded-document-route', { observed: loadedURL.href, expected: expectedURL.href });
+      expect(loadedURL.origin).toBe(origin);
+      expect(loadedURL.href).toBe(expectedURL.href);
+      expect(creatorViewFromLocation(loadedURL)).toEqual(expectedView);
       return observed.saved.document;
     };
     await page.addInitScript((key) => {
