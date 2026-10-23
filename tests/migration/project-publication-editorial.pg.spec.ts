@@ -21,15 +21,17 @@ describe('0238 editorial choice forward upgrade', () => {
       target.pathname = '/' + database;
       pool = new pg.Pool({ connectionString: target.href, max: 2 });
       const plan = planMigrations();
-      const prefix = plan.filter((item) => Number(item.version) <= 236);
-      expect(prefix.at(-1)?.version).toBe('0236');
+      const prefix = plan.filter((item) => Number(item.version) <= 237);
+      expect(prefix.at(-1)?.version).toBe('0237');
+      expect(prefix.at(-1)?.file).toBe('0237_student_seat_context_nonblocking_heartbeat.sql');
       const admin = await pool.connect();
       try {
         await applyIsolatedTestPlan(admin, prefix);
         const beforeHistory = await admin.query(
           'SELECT version, name, checksum FROM schema_migrations ORDER BY version',
         );
-        const complete = plan.filter((item) => Number(item.version) <= 237);
+        const complete = plan.filter((item) => Number(item.version) <= 238);
+        expect(complete.at(-1)?.file).toBe('0238_project_publication_editorial.sql');
         expect(await applyIsolatedTestPlan(admin, complete)).toBe(1);
         expect(await applyIsolatedTestPlan(admin, complete)).toBe(0);
         const preservedHistory = await admin.query(
