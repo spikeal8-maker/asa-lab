@@ -81,6 +81,42 @@ primary_lane:
     - docs/architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md
 
 parallel_lanes:
+  - id: electronics-arduino-log-error
+    parent_lane: electronics
+    worktree_id: arduino-point4-20261023
+    owned_paths:
+      - apps/web/src/electronics/ArduinoCodePanel.tsx
+    task:
+      id: TASK-ELECTRONICS-ARDUINO-LOG-ERROR-001
+      issue: 551
+      branch: main
+      base_branch: main
+      pr: null
+      status: in_progress
+      kind: repair
+      checkpoint: exact_release_error_mapped_implementation_selected
+      owner_acceptance: pending
+      owner_authorization: >-
+        Owner explicitly requests point 4 of the 23 October optimization plan:
+        diagnose and repair repeated Arduino browser errors, verify and publish
+        source to main, then stop. No deployment or next point.
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-ARDUINO-LOG-ERROR-001.md
+        - docs/product/electronics/components/ui-assets-persistence.yaml
+      repair_scope: >-
+        Exact release ArduinoCodePanel TypeError at 2325:53490 maps to
+        ScratchBlocks DELETE_X_BLOCKS message replacement. Repair the demonstrated
+        editor failure with bounded regression evidence; preserve workspace,
+        code, persistence and other Electronics programmes.
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
   - id: electronics-wire-contact-hit
     parent_lane: electronics
     worktree_id: electronics-wire-contact-hit-688
