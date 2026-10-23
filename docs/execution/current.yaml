@@ -8182,6 +8182,12 @@ parallel_lanes:
       qualification_selection:
         evidence: docs/product/electronics/evidence/ui679-557-actual-repair-scoped-qualification-20261023.md
         scope: Exactly two existing F2 mouse1440 and touch390x844 cases plus four existing clock1440/1024/390/320 cases; no new or omitted functional cases.
+        shared_profile_guard_repair:
+          evidence: docs/product/electronics/evidence/ui679-557-shared-profile-guard-selection-20261023.md
+          category: C published shared test-guard baseline mismatch, not product or scoped-gate failure
+          scope: Separate bounded baseline author after the scoped infrastructure author freezes the shared guard; update only the exact published original workflow profile allowlist and meaningful negative tests in tools/test_ci_image_transport.py, preserving the independent scoped workflow identity changes.
+          invariant: Preserve strict-real-time default and classroom-d13-v2/v3 plus published arduino-editor-error as the exact four allowed profiles. Reject unknown, narrowed or default-changed declarations; no workflow/profile deletion, identity spoof, relaxed image/runtime provenance or competing guard writer.
+          execution: Fresh target overlap check and explicit author handoff, one baseline commit and NEW independent review; scoped author owns only additive six-case workflow identity. No source product, workflow, dependency, cap or native assertion changes.
         registration_boundary: Prospective scoped command selected below; gates.browser retains the existing registered global command until the additive package script exists and controller records the reviewed registration.
         gate_contract: Named command pnpm gate:electronics-ui-679-557:browser locally, in CI and owner evidence; freeze exact full titles and paths from discovery, reject missing/extra/duplicate/skipped cases and require all six execution results PASS. Same existing native assertions, timing/storage/document/CAS requirements and raw/PNG evidence.
         infrastructure_scope: Additive scoped runner and manual workflow only, package script/catalogue registration if necessary, exact new workflow/browser transport identity allowlist plus adversarial tests. Never edit the foreign dirty existing Electronics workflow, spoof workflow_ref, bypass image/PG/runtime provenance or lower assertions/timeouts/budget. Require fresh target-path overlap check before author writes.
@@ -8405,6 +8411,12 @@ parallel_lanes:
       qualification_selection:
         evidence: docs/product/electronics/evidence/ui679-557-actual-repair-scoped-qualification-20261023.md
         scope: Exactly two existing F2 mouse1440 and touch390x844 cases plus four existing clock1440/1024/390/320 cases; no new or omitted functional cases.
+        shared_profile_guard_repair:
+          evidence: docs/product/electronics/evidence/ui679-557-shared-profile-guard-selection-20261023.md
+          category: C published shared test-guard baseline mismatch, not product or scoped-gate failure
+          scope: Separate bounded baseline author after the scoped infrastructure author freezes the shared guard; update only the exact published original workflow profile allowlist and meaningful negative tests in tools/test_ci_image_transport.py, preserving the independent scoped workflow identity changes.
+          invariant: Preserve strict-real-time default and classroom-d13-v2/v3 plus published arduino-editor-error as the exact four allowed profiles. Reject unknown, narrowed or default-changed declarations; no workflow/profile deletion, identity spoof, relaxed image/runtime provenance or competing guard writer.
+          execution: Fresh target overlap check and explicit author handoff, one baseline commit and NEW independent review; scoped author owns only additive six-case workflow identity. No source product, workflow, dependency, cap or native assertion changes.
         registration_boundary: Prospective scoped command selected below; gates.browser retains the existing registered global command until the additive package script exists and controller records the reviewed registration.
         gate_contract: Named command pnpm gate:electronics-ui-679-557:browser locally, in CI and owner evidence; freeze exact full titles and paths from discovery, reject missing/extra/duplicate/skipped cases and require all six execution results PASS. Same existing native assertions, timing/storage/document/CAS requirements and raw/PNG evidence.
         infrastructure_scope: Additive scoped runner and manual workflow only, package script/catalogue registration if necessary, exact new workflow/browser transport identity allowlist plus adversarial tests. Never edit the foreign dirty existing Electronics workflow, spoof workflow_ref, bypass image/PG/runtime provenance or lower assertions/timeouts/budget. Require fresh target-path overlap check before author writes.
