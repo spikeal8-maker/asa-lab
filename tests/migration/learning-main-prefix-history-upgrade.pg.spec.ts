@@ -66,7 +66,17 @@ const upgradeArtifacts = [
   ],
   [
     '0237',
-    '0237_teacher_home_canonical_read_jit.sql',
+    '0237_student_seat_context_nonblocking_heartbeat.sql',
+    '9b1663082dd7e2d32098a14f6e2b032a192efb397aa87b1eae4c468b30cc8ba1',
+  ],
+  [
+    '0238',
+    '0238_project_publication_editorial.sql',
+    '3ceff03616405346206a264172fa3ec3a178971f24db260772cceb550c9e7819',
+  ],
+  [
+    '0239',
+    '0239_teacher_home_canonical_read_jit.sql',
     '60dae5f444e08a479acdb98752b434b1114680d3f742aa31dfc0484bfe5c9dd5',
   ],
 ] as const;
@@ -458,7 +468,7 @@ async function seedOldContracts(pool: pg.Pool, client: pg.PoolClient) {
 }
 
 describe('joint AI, Courses, Portal and Projects supported-prefix upgrade', () => {
-  it('upgrades real 0225 data through all eleven migrations without losing history or refunding quota', async () => {
+  it('upgrades real 0225 data through all fourteen migrations without losing history or refunding quota', async () => {
     await withPrefixDatabase(async (pool, client, plan) => {
       const fixture = await seedOldContracts(pool, client);
       const beforeLedger = await ledger(pool);

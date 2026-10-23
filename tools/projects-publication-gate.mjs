@@ -19,6 +19,7 @@ for (const path of browser
       'tests/portal/public-project-copy.pg.spec.ts',
       'tests/portal/public-project-moderation.pg.spec.ts',
       'tests/migration/project-publication-moderation.pg.spec.ts',
+      'tests/migration/project-publication-editorial.pg.spec.ts',
       'tests/migration/ai-main-prefix-upgrade.pg.spec.ts',
       'apps/api/src/public-projects.spec.ts',
       'apps/api/src/public-project-copy.spec.ts',
@@ -180,6 +181,7 @@ if (browser) {
     'tests/portal/public-project-copy.pg.spec.ts',
     'tests/portal/public-project-moderation.pg.spec.ts',
     'tests/migration/project-publication-moderation.pg.spec.ts',
+    'tests/migration/project-publication-editorial.pg.spec.ts',
     'apps/api/src/public-projects.spec.ts',
     'apps/api/src/public-project-copy.spec.ts',
     'apps/api/src/admin-public-projects.controller.spec.ts',
@@ -189,7 +191,7 @@ if (browser) {
     '--maxWorkers=2',
   ]);
   run(['test:creator-portal']);
-  // Verify supported populated database upgrades from 0225 through 0236.
+  // Verify supported populated database upgrades from 0225 through 0238.
   run([
     'exec',
     'vitest',

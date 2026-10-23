@@ -218,6 +218,11 @@ export function PublicProjectsPage({
               >
                 <PublicationPreview publication={publication} />
                 <div className="public-project-card-body">
+                  {publication.featured ? (
+                    <span className="public-project-featured" data-testid="public-project-featured">
+                      ★ Выбор редакции
+                    </span>
+                  ) : null}
                   <h2 data-testid="public-project-card-title" title={publication.title}>
                     {publication.title}
                   </h2>

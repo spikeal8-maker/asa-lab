@@ -5239,7 +5239,7 @@ test('R2 short admin drawer scrolls navigation independently while profile, clos
   // Admin moderation adds one real platform-only section. The narrow drawer
   // must still scroll independently with all ten controls reachable.
   await expect(sidebar.locator('.portal-admin-subnav-item')).toHaveCount(10);
-  await expect(sidebar.getByRole('link', { name: 'Публикации', exact: true })).toHaveCount(1);
+  await expect(sidebar.getByRole('button', { name: 'Публикации', exact: true })).toHaveCount(1);
   await expect(sidebar.getByRole('button', { name: 'Закрыть меню', exact: true })).toBeInViewport();
   await expect(sidebar.getByRole('button', { name: 'Выбрать аватар в меню' })).toBeInViewport();
   const nav = sidebar.locator('.portal-nav');

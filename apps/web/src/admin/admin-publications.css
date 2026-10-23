@@ -90,3 +90,22 @@
     padding: 16px;
   }
 }
+
+.admin-publication-actions {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.admin-publication-featured {
+  color: #765615;
+  font-weight: 700;
+}
+@media (max-width: 600px) {
+  .admin-publication-actions {
+    width: 100%;
+  }
+  .admin-publication-actions button {
+    flex: 1 1 145px;
+  }
+}
