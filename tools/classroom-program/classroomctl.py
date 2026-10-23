@@ -280,18 +280,40 @@ def trusted_preflight(root:Path,base_sha:str,task:dict):
     pnpm=shutil.which('pnpm')
     if not pnpm:raise ControlError('pnpm недоступен, real preflight NOT_RUN.')
     try:
-        p=subprocess.run([pnpm,'agent:preflight','--check'],
+        p=subprocess.run([pnpm,'agent:preflight','--check','--json'],
              cwd=repo,capture_output=True,text=True,timeout=180,
              encoding='utf-8',errors='replace')
     except (OSError,subprocess.TimeoutExpired) as exc:
         raise ControlError('Real preflight execution failed') from exc
     output=p.stdout+'\n'+p.stderr
-    if p.returncode!=0 or not bool(re.search(r'(?m)^\s*(?:result\s*[:=]\s*)?SAFE_TO_START\s*$',p.stdout)) or any(
-       s in output for s in ['RECOVERY_REQUIRED','WAITING_HANDOFF']
+    if p.returncode!=0:
+        raise ControlError('Реальный pnpm agent:preflight --check --json вернул ошибку.')
+    try:
+        snapshot=json.loads(p.stdout)
+    except (ValueError,TypeError) as exc:
+        raise ControlError('Канонический preflight не вернул проверяемый JSON.') from exc
+    if not isinstance(snapshot,dict):
+        raise ControlError('Неправильная структура preflight.')
+    git=snapshot.get('git') or {}
+    if not isinstance(git,dict):
+        raise ControlError('Git preflight snapshot отсутствует.')
+    selected=snapshot.get('task') or {}
+    if not isinstance(selected,dict):
+        raise ControlError('Каноническая задача отсутствует в preflight.')
+    if (
+        snapshot.get('mode')!='SAFE_TO_START'
+        or selected.get('id')!=task['id']
+        or git.get('head')!=expected
+        or git.get('origin_main')!=expected
+        or (snapshot.get('remote_refresh') or {}).get('status')!='PASS'
+        or (snapshot.get('control_plane') or {}).get('status')!='PASS'
+        or snapshot.get('execution_blocking')
+        or snapshot.get('worktree_overlaps')
     ):
-        raise ControlError('Реальный pnpm agent:preflight --check не вернул SAFE_TO_START.')
-    return {'command':'pnpm agent:preflight --check','git_head':expected,
-      'origin_main_sha':expected,'exit_code':p.returncode,
+        raise ControlError('Preflight не подтверждает выбранный task, актуальный main и SAFE_TO_START.')
+    return {'command':'pnpm agent:preflight --check --json','git_head':expected,
+      'origin_main_sha':expected,'selected_task':selected['id'],
+      'exit_code':p.returncode,
       'output_sha256':hashlib.sha256(output.encode('utf-8')).hexdigest(),
       'verification':'EXECUTED_IN_CANONICAL_CHECKOUT','verified_at':stamp()}
 
