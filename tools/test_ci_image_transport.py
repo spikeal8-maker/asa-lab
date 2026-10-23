@@ -27,6 +27,7 @@ ORIGINAL_RECEIPT_SHA256 = "9b3b516e257aa31d3feb4a64c9dc8bfe7c33c9ad7d1be448245d8
 GENERAL_OVERLAY_NAME = "asa-general-postgres.yaml"
 GENERAL_OVERLAY_ARGUMENT = ' -f "$RUNNER_TEMP/' + GENERAL_OVERLAY_NAME + '"'
 FOCUSED = ".github/workflows/electronics-r4-m1-focused.yml"
+SCOPED_UI = ".github/workflows/electronics-ui-679-557.yml"
 ELECTRONICS_TRANSPORT = "docs/product/electronics/evidence/ci-image-transport-classroom-d13-receipt.json"
 ELECTRONICS_OVERLAY_NAME = "asa-electronics-postgres.yaml"
 ELECTRONICS_OVERLAY_ARGUMENT = ' -f "$RUNNER_TEMP/' + ELECTRONICS_OVERLAY_NAME + '"'
@@ -244,7 +245,7 @@ QUALIFICATION_TEST = {"run": "pnpm exec vitest run tests/electronics/classroom-q
 QUALIFICATION_INPUT = {"inputs": {"qualification_profile": {
     "description": "Explicit browser qualification; strict real-time remains the default",
     "required": False, "type": "choice", "default": "strict-real-time",
-    "options": ["strict-real-time", "classroom-d13-v2", "classroom-d13-v3"]}}}
+    "options": ["strict-real-time", "classroom-d13-v2", "classroom-d13-v3", "arduino-editor-error"]}}}
 QUALIFICATION_RUNNER = "tools/run-electronics-classroom-browser.mjs"
 QUALIFICATION_SUITE = ["e2e/electronics-simulation.spec.ts", "e2e/electronics-interactions.spec.ts",
     "e2e/electronics-simulation-time.spec.ts", "e2e/electronics-piezo-clock.spec.ts",
@@ -253,9 +254,10 @@ QUALIFICATION_SUITE = ["e2e/electronics-simulation.spec.ts", "e2e/electronics-in
 
 
 def qualification_contract(contract):
-    """Select three explicit qualifications of the same complete Electronics suite."""
+    """Keep the published four-profile declaration and strict/classroom gate bindings."""
     contract = deepcopy(contract)
     contract["required_triggers"]["workflow_dispatch"] = deepcopy(QUALIFICATION_INPUT)
+    contract["jobs"]["focused"]["controls"]["if"] = "${{ inputs.qualification_profile != 'arduino-editor-error' }}"
     paths = contract["required_triggers"]["pull_request"]["paths"]
     for path in [QUALIFICATION_RUNNER, "e2e/electronics-classroom-timing.spec.ts"]:
         if path not in paths:
@@ -573,9 +575,15 @@ def check_general_overlay(receipt):
 def require_electronics_job(browser_only=False):
     require_ci_amd64()
     jobs = ("browser",) if browser_only else ("browser", "review-images")
-    require(os.environ.get("GITHUB_JOB") in jobs
-            and ("/" + FOCUSED + "@") in os.environ.get("GITHUB_WORKFLOW_REF", ""),
-            "Classroom Docker proof is restricted to selected disposable Electronics jobs")
+    workflow_ref = os.environ.get("GITHUB_WORKFLOW_REF", "")
+    repository = os.environ.get("GITHUB_REPOSITORY", "")
+    scoped = (os.environ.get("GITHUB_JOB") == "browser"
+              and re.fullmatch(r"[^/\s@]+/[^/\s@]+", repository) is not None
+              and re.fullmatch(re.escape(repository + "/" + SCOPED_UI)
+                               + r"@refs/heads/[^\s@]+", workflow_ref) is not None)
+    require((os.environ.get("GITHUB_JOB") in jobs and ("/" + FOCUSED + "@") in workflow_ref)
+            or scoped,
+            "Docker proof is restricted to exact disposable Electronics workflow/job pairs")
 
 
 def electronics_overlay_path():
@@ -1071,6 +1079,22 @@ def check_electronics_challenges(receipt):
         results.append({"challenge": name, "expected_pass": passes, "result": "PASS", "rejection": error})
 
     runtime("exact classroom overlay preparation", lambda: prepare_electronics_postgres(effective))
+    scoped_context = {"GITHUB_REPOSITORY": "spikeal8-maker/asa-lab",
+        "GITHUB_WORKFLOW_REF": "spikeal8-maker/asa-lab/" + SCOPED_UI + "@refs/heads/main"}
+    runtime("exact scoped UI browser overlay", lambda: prepare_electronics_postgres(effective),
+            environment=scoped_context)
+    for name, changes in [
+        ("scoped wrong job", {"GITHUB_JOB": "review-images"}),
+        ("scoped unknown job", {"GITHUB_JOB": "focused"}),
+        ("scoped wrong repository", {"GITHUB_REPOSITORY": "other/repository"}),
+        ("scoped missing repository", {"GITHUB_REPOSITORY": ""}),
+        ("scoped spoof suffix", {"GITHUB_WORKFLOW_REF": scoped_context["GITHUB_WORKFLOW_REF"] + "@evil"}),
+        ("scoped spoof prefix", {"GITHUB_WORKFLOW_REF": "evil/" + scoped_context["GITHUB_WORKFLOW_REF"]}),
+        ("scoped unknown workflow", {"GITHUB_WORKFLOW_REF": "spikeal8-maker/asa-lab/.github/workflows/unknown.yml@refs/heads/main"}),
+    ]:
+        runtime(name, lambda: prepare_electronics_postgres(effective), False,
+                environment={**scoped_context, **changes})
+
     for name, env, system, architecture in [
         ("outside Actions", {"GITHUB_ACTIONS": "false"}, "Linux", "x86_64"),
         ("General job", {"GITHUB_JOB": "postgres-tests"}, "Linux", "x86_64"),
@@ -1120,7 +1144,7 @@ def check_electronics_challenges(receipt):
 
 
 def check_qualification_challenges(receipt):
-    """Keep all three exact profiles explicit and every mandatory gate binding."""
+    """Keep all four exact profiles explicit and every mandatory gate binding."""
     from contextlib import redirect_stdout
     from io import StringIO
     from unittest.mock import patch
@@ -1151,6 +1175,13 @@ def check_qualification_challenges(receipt):
         ("D2 browser budget cannot affect review images", lambda w: w["jobs"]["review-images"].update({"timeout-minutes": 50})),
         ("classroom cannot become default", lambda w: w["on"]["workflow_dispatch"]["inputs"]["qualification_profile"].update({"default": "classroom-d13-v2"})),
         ("unknown profile cannot be offered", lambda w: w["on"]["workflow_dispatch"]["inputs"]["qualification_profile"]["options"].append("unknown")),
+        ("focused cannot be disabled", lambda w: w["jobs"]["focused"].update({"if": False})),
+        ("focused cannot skip strict qualification", lambda w: w["jobs"]["focused"].update({"if": "${{ inputs.qualification_profile != 'strict-real-time' }}"})),
+        ("focused cannot use unknown profile condition", lambda w: w["jobs"]["focused"].update({"if": "${{ inputs.qualification_profile != 'unknown' }}"})),
+        ("strict remains selectable", lambda w: w["on"]["workflow_dispatch"]["inputs"]["qualification_profile"]["options"].remove("strict-real-time")),
+        ("published editor profile remains selectable", lambda w: w["on"]["workflow_dispatch"]["inputs"]["qualification_profile"]["options"].remove("arduino-editor-error")),
+        ("editor profile cannot become default", lambda w: w["on"]["workflow_dispatch"]["inputs"]["qualification_profile"].update({"default": "arduino-editor-error"})),
+        ("unknown cannot replace published editor profile", lambda w: w["on"]["workflow_dispatch"]["inputs"]["qualification_profile"]["options"].__setitem__(3, "unknown")),
         ("v3 cannot become default", lambda w: w["on"]["workflow_dispatch"]["inputs"]["qualification_profile"].update({"default": "classroom-d13-v3"})),
         ("historical v2 remains selectable", lambda w: w["on"]["workflow_dispatch"]["inputs"]["qualification_profile"]["options"].remove("classroom-d13-v2")),
         ("v3 remains separately selectable", lambda w: w["on"]["workflow_dispatch"]["inputs"]["qualification_profile"]["options"].remove("classroom-d13-v3")),
