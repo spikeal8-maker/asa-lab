@@ -2251,16 +2251,22 @@ test('document Course Builder preserves the lesson, real save acknowledgements a
       await page.setViewportSize({ width: 1024, height: 768 });
       await settleLayout();
       await expect(blockActions).toBeFocused();
-      const preservedTop = await blockActions.evaluate(
-        (element) => element.getBoundingClientRect().top,
-      );
+      const preservedBounds = await blockActions.evaluate((element) => ({
+        top: element.getBoundingClientRect().top,
+        bottom: element.getBoundingClientRect().bottom,
+        viewportHeight: window.innerHeight,
+      }));
       const preservedHeaderBottom = await editor
         .locator('.course-compact-header')
         .evaluate((header) => header.getBoundingClientRect().bottom);
       expect(
-        preservedTop,
+        preservedBounds.top,
         '1024: retained block focus clears the sticky course header after resize',
       ).toBeGreaterThanOrEqual(preservedHeaderBottom + 8);
+      expect(
+        preservedBounds.bottom,
+        '1024: retained block focus remains above the viewport bottom after resize',
+      ).toBeLessThanOrEqual(preservedBounds.viewportHeight - 8);
       await hitTarget(blockActions, '1024:block-menu-retained-focus-resize');
 
       await page.setViewportSize({ width, height });
