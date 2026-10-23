@@ -86,7 +86,10 @@ parallel_lanes:
     worktree_id: electronics-reverse-led-colour-718
     owned_paths:
       - apps/web/src/electronics/workbench.css
+      - apps/web/src/electronics/production-asset-contracts.ts
       - apps/web/src/electronics/testing/workbench-presentation.spec.ts
+      - apps/web/src/electronics/testing/production-assets.spec.ts
+      - e2e/electronics-simulation.spec.ts
       - docs/product/electronics/tasks/TASK-ELECTRONICS-REVERSE-LED-COLOUR-001.md
     task:
       id: TASK-ELECTRONICS-REVERSE-LED-COLOUR-001
@@ -110,10 +113,12 @@ parallel_lanes:
         - docs/product/electronics/tasks/TASK-ELECTRONICS-REVERSE-LED-COLOUR-001.md
         - docs/product/electronics/components/ui-assets-persistence.yaml
       repair_scope: >-
-        Remove reverse-polarity grayscale of ordinary LED package only,
-        preserving actual unlit brightness, electrical reverse diagnostics
-        and true burned/overcurrent behavior. One isolated stylesheet and
-        focused-presentation regression, with native browser BEFORE/AFTER.
+        Reverse-polarity currently forces grayscale in CSS AND substitutes a
+        red special warning SVG for every ordinary LED colour. Use the already
+        provided normal colour-specific owner SVG at zero brightness and
+        remove only the reverse grayscale; preserve diagnostic state and
+        true burned/overcurrent appearance. Adapt existing browser reverse
+        asset oracle surgically, retaining unrelated R3 mobile scenarios.
         No electronics solver, Worker, asset, save, or foreign subsystem edit.
     revisions:
       kind: observed_snapshot

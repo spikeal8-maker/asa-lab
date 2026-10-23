@@ -25,10 +25,13 @@ review: independent
 ` .workbench-led-visual.is-reverse .workbench-led-asset { filter: grayscale(1) brightness(0.88) contrast(0.82); }`.
 В `component-catalog.ts` состояние `reverse` уже даёт 0% яркости. Сначала подтвердить в native Chromium вычисленный фильтр, сохранённый owner SVG/href, классы/состояние и цвет корпуса при синтетической схеме, а затем его исчезновение с тем же сценарием AFTER. При невозможности получить реальный native BEFORE явно оставить `WAITING_NATIVE_BEFORE`, а не выдавать source observation за optical acceptance.
 
+**Установленная дополнительная причина:** `ordinaryLedAsset()` в `apps/web/src/electronics/production-asset-contracts.ts` возвращает `led_red_reverse_polarity.svg` для любого цвета и тем самым делает все reverse LED красными, а в special SVG отдельно имеется собственная маркировка полярности. Требование владельца — предупреждение только в панели. Поэтому исправлять ТОЛЬКО CSS недостаточно: использовать неизменённый owner SVG исходного цвета `led_<colour>_i000.svg`, но оставить `visualState=reverse` для информации и любой действительный `burned` / `overcurrent` отдельным состоянием. Эталонный старый e2e ожидает special URL и требует ограниченной корректировки вместе с кодом, без переписывания соседних сценариев.
+
 **Минимальный изменяемый набор:**
-- `apps/web/src/electronics/workbench.css` — убрать только принудительный reverse grayscale/contrast, не отрисовывать другое SVG;
-- `apps/web/src/electronics/testing/workbench-presentation.spec.ts` — обновить устаревшее CSS-ожидание и запретить обратный grey filter;
-- при необходимости одна собственная focused regression для `visualAsset(…,'reverse')` и нормального/thermal случаев; пользовательское e2e только в отдельном файле, не переписывать общие занятые e2e или артефакты без handoff.
+- `apps/web/src/electronics/workbench.css` — удалить единственный специальный grayscale selector;
+- `apps/web/src/electronics/production-asset-contracts.ts` — reverse → неизменённый штатный owner SVG с `i000` и выбранным цветом;
+- `apps/web/src/electronics/testing/workbench-presentation.spec.ts` и `testing/production-assets.spec.ts` — focused positive/negative цвета и повреждения;
+- `e2e/electronics-simulation.spec.ts` — только старое ошибочное ожидание special asset в уже существующем сценарии reverse и проверка computed filter, сохранить другие сценарии byte-exact. Перед этой правкой проверить отсутствие нового overlap/изменений от других ботов.
 
 **Положительные/отрицательные:** blue/red/green обратный корпус остаётся своего оттенка, brightness 0%; normal forward lit state не затухает и не красится, overcurrent/burned не сбрасывается; Stop/Run одинаковый документ, нет нового сохранения/Undo/Reset behavior. Проверить 1440 desktop, 390 mobile + 320 при touch/zoom (не обязательно добавлять управления).
 
