@@ -89,6 +89,7 @@ parallel_lanes:
       - apps/web/src/electronics/production-asset-contracts.ts
       - apps/web/src/electronics/testing/workbench-presentation.spec.ts
       - apps/web/src/electronics/testing/production-assets.spec.ts
+      - apps/web/src/electronics/testing/asset-recovery.spec.ts
       - e2e/electronics-simulation.spec.ts
       - docs/product/electronics/generated/component-coverage.json
       - docs/product/electronics/tasks/TASK-ELECTRONICS-REVERSE-LED-COLOUR-001.md
@@ -122,6 +123,9 @@ parallel_lanes:
         asset oracle surgically, retaining unrelated R3 mobile scenarios.
         Regenerate only browserEvidenceSha256 in canonical generated coverage
         after e2e source edits; preserve all other generated report bytes.
+        Preserve the mounted stopped-preview asset recovery test with a
+        distinct actual burned fault asset; reverse now correctly shares
+        the resident zero-brightness owner body SVG.
         No electronics solver, Worker, asset, save, or foreign subsystem edit.
     revisions:
       kind: observed_snapshot
