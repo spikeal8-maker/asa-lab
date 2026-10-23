@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, expect, it, vi } from 'vitest';
+import { enqueueArduinoSerialRx } from '../domain/arduino-serial-runtime.js';
 import {
   advanceArduinoRuntime,
   advanceClockedArduinoRuntime,
@@ -58,6 +59,92 @@ function pulseThrough(
 }
 
 describe('Arduino instruction-us-v1 execution clock (scheduler foundation)', () => {
+  // Issue 682: model-clock contracts, never evidence of browser realtime.
+  it.each([30, 1000, 20_000])(
+    'preserves exact delay(%i) duration plus GPIO instruction cost',
+    (delayMs) => {
+      const source = `void setup(){pinMode(13,OUTPUT);digitalWrite(13,HIGH);
+      delay(${delayMs});digitalWrite(13,LOW);}void loop(){delay(20000);}`;
+      const before = through(source, delayMs + 0.001);
+      expect(before.state.outputVoltages.d13).toBe(5);
+      const done = through(source, delayMs + 0.003, before.state);
+      expect(done.diagnostics).toEqual([]);
+      expect(done.events).toEqual([
+        // pinMode@0, HIGH@1, delay@2; delay itself consumes one us.
+        expect.objectContaining({
+          terminal: 'd13',
+          voltage: 0,
+          atMicroseconds: delayMs * 1000 + 3,
+        }),
+      ]);
+      const whole = through(source, delayMs + 0.003, undefined, undefined, 1);
+      expect(whole.state).toStrictEqual(done.state);
+      expect([...before.events, ...done.events]).toStrictEqual(whole.events);
+    },
+  );
+
+  it('keeps millis proportional across consecutive 30 ms, 1 s and 20 s waits', () => {
+    const source = `unsigned long first=99;unsigned long second=99;unsigned long third=99;
+      void setup(){delay(30);first=millis();delay(1000);second=millis();
+      delay(20000);third=millis();}void loop(){delay(20000);}`;
+    const whole = through(source, 21_031);
+    expect(whole.diagnostics).toEqual([]);
+    expect(whole.state.variables).toEqual({ first: 30, second: 1030, third: 21030 });
+    expect(whole.state.virtualTimeMs).toBe(21_031);
+    expect(through(source, 21_031, undefined, undefined, 1).state).toStrictEqual(whole.state);
+  });
+
+  it('reads timestamped button changes inside for/while/if/else across delay and JSON yields', () => {
+    const source = `int samples=0;void setup(){pinMode(13,OUTPUT);pinMode(2,INPUT);}
+      void loop(){for(int i=0;i<2;i++){int count=0;while(count<2){
+        if(digitalRead(2)){digitalWrite(13,HIGH);}else{digitalWrite(13,LOW);}
+        samples++;count++;delay(30);}}}`;
+    const reads: number[] = [];
+    const inputs: ArduinoInputReader = ({ simulationTimeMs }) => {
+      reads.push(simulationTimeMs);
+      return { d2: simulationTimeMs >= 30 && simulationTimeMs < 90 ? 5 : 0 };
+    };
+    const whole = through(source, 120, undefined, inputs);
+    expect(whole.diagnostics).toEqual([]);
+    expect(whole.state.variables.samples).toBe(4);
+    expect(reads).toHaveLength(4);
+    const edges = whole.events.filter(
+      (event) => event.kind === 'output-change' && event.terminal === 'd13',
+    );
+    expect(edges.map((event) => event.voltage)).toEqual([0, 5, 0]);
+    // The condition and its enter-scope instruction cost exactly one us each.
+    expect(edges[1]!.atMicroseconds).toBe(Math.round(reads[1]! * 1000) + 2);
+    expect(edges[2]!.atMicroseconds).toBe(Math.round(reads[3]! * 1000) + 2);
+    expect(reads[1]).toBeGreaterThanOrEqual(30);
+    expect(reads[3]).toBeGreaterThanOrEqual(90);
+    const partitioned = through(source, 120, undefined, inputs, 1);
+    expect(partitioned.state).toStrictEqual(whole.state);
+    expect(partitioned.events).toStrictEqual(whole.events);
+  });
+
+  it('delivers timestamped Serial RX through a yielding loop and prints the actual consumed byte', () => {
+    const source = `void setup(){Serial.begin(9600);pinMode(13,OUTPUT);}
+      void loop(){if(Serial.available()>0){int value=Serial.read();
+        Serial.println(value);digitalWrite(13,value==65);}delay(30);}`;
+    const started = through(source, 1);
+    expect(started.state.serial?.begun).toBe(true);
+    const queued = {
+      ...structuredClone(started.state),
+      serial: enqueueArduinoSerialRx(started.state.serial!, 15_000, 'A'),
+    };
+    const before = through(source, 29, queued);
+    expect(before.state.serial?.tx).toEqual([]);
+    const received = through(source, 31, before.state, undefined, 1);
+    expect(received.diagnostics).toEqual([]);
+    expect(received.state.serial?.tx.map((row) => row.text)).toEqual(['65\n']);
+    expect(received.state.serial?.rx).toEqual([]);
+    expect(received.state.outputVoltages.d13).toBe(5);
+    expect(received.state.serial!.tx[0]!.atMicroseconds).toBeGreaterThanOrEqual(30_000);
+    const whole = through(source, 31, queued);
+    expect(received.state).toStrictEqual(whole.state);
+    expect([...before.events, ...received.events]).toStrictEqual(whole.events);
+  });
+
   it('resolves prepared syntax against current scopes, types and ordered input reads', () => {
     const source = `unsigned int value=65535U;int constructor=3;int __proto__=4;
       int outside=0;int inside=0;int ordered=0;int skipped=0;unsigned long observed=0;
