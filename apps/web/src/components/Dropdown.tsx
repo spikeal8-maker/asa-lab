@@ -56,6 +56,17 @@ export function Dropdown({
     const space = openAbove ? availableAbove : availableBelow;
     element.dataset.dropdownPlacement = openAbove ? 'above' : 'below';
     menu.style.maxHeight = `${Math.floor(space)}px`;
+
+    // The Add Content popup can be wider than the remaining space to the
+    // right of its trigger (e.g. sidebar + course outline at 1024px).
+    // Clamp it within the viewport without weakening keyboard or hit targets.
+    menu.style.transform = '';
+    if (element.classList.contains('lesson-block-add')) {
+      const popup = menu.getBoundingClientRect();
+      const rightOverflow = Math.max(0, popup.right - (window.innerWidth - 8));
+      const shift = Math.min(rightOverflow, Math.max(0, popup.left - 8));
+      if (shift > 0) menu.style.transform = `translateX(-${Math.ceil(shift)}px)`;
+    }
   }
 
   useEffect(() => {
