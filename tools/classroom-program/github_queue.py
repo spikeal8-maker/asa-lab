@@ -143,10 +143,21 @@ def run(root: Path, repo: str, token: str, action: str, program_issue: int):
             'интегрированный main SHA и соответствующий receipt в репозитории. '
             'Закрывать только после ACCEPTED_MAIN, подтверждённого контролёром. '
             'Не начинать следующий срез самостоятельно.\n')
-    # A final read detects an issue opened between initial inspection and
-    # the write. GitHub Issue creation has no CAS: this is a conservative guard.
-    if get_program_issues(repo,token):
+    # Closed, ACCEPTED_MAIN tasks remain in state=all forever. Recheck the
+    # actual Issue snapshot, not its mere existence, before allocating a new
+    # card. A changed existing Issue or a newly opened task forces STOP.
+    def fingerprint(items):
+        return {
+            key: (value.get('number'),value.get('state'),value.get('updated_at'),
+                  value.get('body'),(value.get('user') or {}).get('login'))
+            for key,value in items.items()
+        }
+    latest=get_program_issues(repo,token)
+    if fingerprint(latest)!=fingerprint(issues):
         raise QueueError('Issue queue changed during create; abort without write')
+    current_state,current_task,_=choose(root,reg,latest)
+    if current_state!='ready' or current_task!=task_id:
+        raise QueueError('Next task ceased to be READY; abort without write')
     if current_main_sha(repo,token)!=checked_local_head():
         raise QueueError('GitHub main moved before issue create; abort')
     result = github_json('POST', f'/repos/{repo}/issues', token,
