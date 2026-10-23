@@ -59,11 +59,7 @@ afterEach(async () => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
-async function mount(
-  hidden = false,
-  nextOffset: number | null = null,
-  editorialEligible = true,
-) {
+async function mount(hidden = false, nextOffset: number | null = null, editorialEligible = true) {
   vi.mocked(call).mockResolvedValueOnce({
     ok: true,
     status: 200,

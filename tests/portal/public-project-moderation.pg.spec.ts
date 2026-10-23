@@ -1005,9 +1005,11 @@ describe('publication moderation with real runtime privileges and sessions', () 
         cookies: { asa_session: editor.token },
       });
       expect(response.statusCode).toBe(200);
-      return response.json().items.find(
-        (item: { publicationId: string }) => item.publicationId === source.publicationId,
-      );
+      return response
+        .json()
+        .items.find(
+          (item: { publicationId: string }) => item.publicationId === source.publicationId,
+        );
     };
     const versionsBefore = (
       await admin.query(

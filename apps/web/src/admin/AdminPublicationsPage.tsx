@@ -191,7 +191,14 @@ export function AdminPublicationsPage({
   };
 
   const toggleFeatured = async (item: Publication): Promise<void> => {
-    if (busy.current || blocked.current || !item.editorialEligible || item.hidden || item.state !== 'public') return;
+    if (
+      busy.current ||
+      blocked.current ||
+      !item.editorialEligible ||
+      item.hidden ||
+      item.state !== 'public'
+    )
+      return;
     busy.current = true;
     setSaving(true);
     setError(null);
