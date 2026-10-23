@@ -3093,6 +3093,9 @@
   stroke: #17232b;
   stroke-width: 2.2;
 }
+.workbench-led-visual.is-reverse .workbench-led-asset {
+  filter: none;
+}
 .workbench-led-explosion-outer {
   fill: #ffd21d;
   stroke: #ef9b00;

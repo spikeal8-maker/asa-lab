@@ -87,7 +87,6 @@ parallel_lanes:
     owned_paths:
       - apps/web/src/electronics/workbench.css
       - apps/web/src/electronics/production-asset-contracts.ts
-      - apps/web/src/electronics/testing/workbench-presentation.spec.ts
       - apps/web/src/electronics/testing/production-assets.spec.ts
       - apps/web/src/electronics/testing/asset-recovery.spec.ts
       - e2e/electronics-simulation.spec.ts
@@ -118,7 +117,9 @@ parallel_lanes:
         Reverse-polarity currently forces grayscale in CSS AND substitutes a
         red special warning SVG for every ordinary LED colour. Use the already
         provided normal colour-specific owner SVG at zero brightness and
-        remove only the reverse grayscale; preserve diagnostic state and
+        replace reverse grayscale with no filter (retain selector so an
+        independently owned presentation contract remains unchanged);
+        preserve diagnostic state and
         true burned/overcurrent appearance. Adapt existing browser reverse
         asset oracle surgically, retaining unrelated R3 mobile scenarios.
         Regenerate only browserEvidenceSha256 in canonical generated coverage
@@ -134,10 +135,16 @@ parallel_lanes:
       main:
         branch: main
         sha: ed307209cb7d9f8bffa3fa1ff4c08a1fe80a86fc
+      observed_at: '2026-10-23T22:50:32Z'
       observation_note: >-
-        Controller selection for L01, not a tested candidate. Refresh origin/main,
-        preflight, required bundle check, exact final CI and independent review
-        before claiming any technical completion.
+        Historical controller selection for L01 is not a tested candidate; fetch main
+        anew before writes, check independent active lanes and exact final CI,
+        bundle and required native browser review before claiming completion.
+    execution_lease:
+      executor_id: electronics-reverse-led-colour-718
+      holder: unassigned
+      acquired_at: null
+      expires_at: null
     gates:
       focused:
         workflow: Electronics R4-M1 Focused
