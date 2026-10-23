@@ -2,6 +2,12 @@
 .asa
 .codex-worktrees
 .github
+!.github/
+.github/*
+!.github/workflows/
+.github/workflows/*
+!.github/workflows/electronics-r4-m1-focused.yml
+!.github/workflows/electronics-ui-679-557.yml
 .nx
 .pnpm-store
 node_modules
