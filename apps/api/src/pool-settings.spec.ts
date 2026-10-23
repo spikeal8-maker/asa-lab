@@ -44,4 +44,15 @@ describe('database pool settings', () => {
     process.env['ASA_DB_POOL_MAX'] = '0';
     expect(() => poolSettings()).toThrow(/positive integer/);
   });
+
+  it.each(['10junk', '1.5', '1e2', '-1', ' 10', '2147483648'])(
+    'rejects ambiguous or overflowing pool settings: %s',
+    (raw) => {
+      for (const key of KEYS) {
+        process.env[key] = raw;
+        expect(() => poolSettings()).toThrow(new RegExp(key));
+        delete process.env[key];
+      }
+    },
+  );
 });

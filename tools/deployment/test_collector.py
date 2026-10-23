@@ -35,7 +35,7 @@ class CollectorLifecycleTests(unittest.TestCase):
             before = {str(p.relative_to(root)): p.read_bytes() for p in root.rglob('*') if p.is_file()}
             result = lifecycle.status(install)
             self.assertEqual(result['state'], 'unavailable')
-            with patch.object(install, 'identity', return_value={}), patch.object(install, 'readiness', return_value={'revision': 'a'*40, 'schema': 203}), patch('asa_manager.run'):
+            with patch.object(install, 'identity', return_value={}), patch.object(install, 'readiness', return_value={'revision': 'a'*40, 'schema': 203}), patch('asa_manager.run'), patch('asa_manager.check_resources'):
                 asa_manager.doctor(install)
             with patch.object(install, 'readiness', return_value={'revision': 'a'*40, 'schema': 203}), patch('asa_manager.doctor'), patch('asa_manager.clean_checkout'), patch('asa_manager.attest_editor_env'), patch('asa_manager.discover_release', return_value={'revision': 'a'*40, 'schema': 203}), patch('asa_manager.assert_ci'), patch('asa_manager.prepare_collector') as prepare, patch('asa_manager.reconcile_collector') as reconcile:
                 asa_manager.update(install, check=True)
