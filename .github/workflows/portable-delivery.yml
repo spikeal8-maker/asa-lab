@@ -30,6 +30,8 @@ jobs:
         with:
           python-version: '3.11'
       - run: python -m unittest discover -s tools/deployment -p "test_*.py" -v
+        env:
+          ASA_TEST_DOCKER_COMPOSE: ${{ runner.os == 'Linux' && '1' || '0' }}
       - run: python tools/test_collect_logs.py
       - name: Validate native Windows wrappers
         if: runner.os == 'Windows'

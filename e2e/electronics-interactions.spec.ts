@@ -6,6 +6,10 @@ import { test, expect, type Locator, type Page, type Request } from '@playwright
 import { parseElectronicsDocument } from '../contexts/electronics/domain/document';
 import { normalizeLoadedDocument } from '../apps/web/src/electronics/use-workbench-project-state';
 import {
+  creatorViewFromLocation,
+  creatorViewToHref,
+} from '../apps/web/src/creator-portal/navigation';
+import {
   clientToWorld,
   resolveWireVertexAssist,
   worldToClient,
@@ -5315,7 +5319,18 @@ async function f2RealEditor(page: Page, fixture: SchematicDocument, input: strin
       expect(observed.errors).toEqual([]);
       expect(observed.saved).not.toBeNull();
       if (!observed.saved) throw new Error('Missing actual loaded document observation');
-      expect(new URL(observed.saved.href).hash).toBe(`#/home/${project.id}`);
+      const loadedURL = new URL(observed.saved.href);
+      const expectedView = {
+        kind: 'editor' as const,
+        projectId: project.id,
+        moduleKey: 'electronics' as const,
+        returnTo: { kind: 'home' as const },
+      };
+      const expectedURL = new URL(creatorViewToHref(expectedView), origin);
+      journal('loaded-document-route', { observed: loadedURL.href, expected: expectedURL.href });
+      expect(loadedURL.origin).toBe(origin);
+      expect(loadedURL.href).toBe(expectedURL.href);
+      expect(creatorViewFromLocation(loadedURL)).toEqual(expectedView);
       return observed.saved.document;
     };
     await page.addInitScript((key) => {
