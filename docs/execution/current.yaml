@@ -84,11 +84,28 @@ parallel_lanes:
   - id: electronics-arduino-log-error
     parent_lane: electronics
     worktree_id: arduino-point4-20261023
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: 958f8d07639f928ef44049d4cbd57e6d2e397bdc
+      head_sha: null
+      observed_at: '2026-10-23T19:00:00Z'
+      main:
+        branch: main
+        sha: 57097c37214c8e66f54dd27ac18a1079c54fb278
+      observation_note: >-
+        Dated source selection for owner point 4; fetch main before writes.
+        Runtime implementation and exact-SHA acceptance remain pending.
+    execution_lease:
+      executor_id: arduino-point4-20261023
+      holder: unassigned
+      acquired_at: null
+      expires_at: null
+      reviewer_role_requires_lease: false
     owned_paths:
       - apps/web/src/electronics/ArduinoCodePanel.tsx
     task:
       id: TASK-ELECTRONICS-ARDUINO-LOG-ERROR-001
-      issue: 551
+      issue: 701
       branch: main
       base_branch: main
       pr: null
