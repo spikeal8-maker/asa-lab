@@ -228,9 +228,9 @@ function fastCycleBrightness(samples: readonly ElectronicsLedTemporalSample[], t
 
 /** Only accepted optical observations are retained; electrical results stay untouched. */
 export class LedTemporalPresentation {
-  private committed: number | null = null;
-  private histories = new Map<string, HeldHistory<ElectronicsLedTemporalSample>>();
-  private indicators = new Map<string, HeldHistory<ElectronicsArduinoIndicatorSample>>();
+  private end: number | null = null;
+  private leds = new Map<string, HeldHistory<ElectronicsLedTemporalSample>>();
+  private boardL = new Map<string, HeldHistory<ElectronicsArduinoIndicatorSample>>();
   private cursor: number | null = null;
   private origin: { wallMicroseconds: number; modelMicroseconds: number } | null = null;
   private sequence = 0;
@@ -267,10 +267,10 @@ export class LedTemporalPresentation {
    * because the accepted endpoint has returned LOW before the next paint.
    */
   get nextNativeAssetFrame(): LedNativeAssetFrame | null {
-    if (this.cursor === null || this.committed === null) return null;
-    const times = new Set([this.cursor, this.committed]);
+    if (this.cursor === null || this.end === null) return null;
+    const times = new Set([this.cursor, this.end]);
     if (!this.snapshot) {
-      for (const { samples } of this.histories.values()) {
+      for (const { samples } of this.leds.values()) {
         for (const sample of samples) {
           // Native brightness can change at a solved sample or when the
           // existing fast-cycle policy expires into the real held state.
@@ -278,7 +278,7 @@ export class LedTemporalPresentation {
             sample.atMicroseconds,
             sample.atMicroseconds + LED_PRESENTATION_PHASE_LIMIT_MICROSECONDS,
           ])
-            if (time > this.cursor && time < this.committed) times.add(time);
+            if (time > this.cursor && time < this.end) times.add(time);
         }
       }
     }
@@ -297,9 +297,9 @@ export class LedTemporalPresentation {
   }
 
   reset(): void {
-    this.committed = null;
-    this.histories.clear();
-    this.indicators.clear();
+    this.end = null;
+    this.leds.clear();
+    this.boardL.clear();
     this.cursor = null;
     this.origin = null;
     this.pending = null;
@@ -358,8 +358,8 @@ export class LedTemporalPresentation {
       }
       ids.add(indicator.componentId);
     }
-    if (this.committed !== observation.fromMicroseconds) {
-      if (this.committed !== null) this.reanchors++;
+    if (this.end !== observation.fromMicroseconds) {
+      if (this.end !== null) this.reanchors++;
       this.reset();
     }
     if (wallMicroseconds !== undefined && this.cursor === null) {
@@ -372,7 +372,7 @@ export class LedTemporalPresentation {
         (entry) => entry.componentId === component.componentId,
       );
       const final = component.samples.at(-1)!;
-      const previous = this.histories.get(component.componentId);
+      const previous = this.leds.get(component.componentId);
       if (
         !electrical ||
         electrical.brightness !== final.brightness ||
@@ -414,7 +414,7 @@ export class LedTemporalPresentation {
       nextIndicators.set(
         indicator.componentId,
         retainHistory(
-          this.indicators.get(indicator.componentId),
+          this.boardL.get(indicator.componentId),
           indicator,
           observation.fromMicroseconds,
           observation.toMicroseconds,
@@ -422,9 +422,9 @@ export class LedTemporalPresentation {
         ),
       );
     }
-    this.indicators = nextIndicators;
-    this.committed = observation.toMicroseconds;
-    this.histories = next;
+    this.boardL = nextIndicators;
+    this.end = observation.toMicroseconds;
+    this.leds = next;
     if (this.pending && [...this.pending.brightness.keys()].some((id) => !next.has(id)))
       this.pending = null;
     // Ingestion never advances or publishes the optical cursor. In particular,
@@ -439,12 +439,12 @@ export class LedTemporalPresentation {
       !result.quality?.passed ||
       !Number.isSafeInteger(atMicroseconds) ||
       atMicroseconds < 0 ||
-      (this.committed !== null && atMicroseconds < this.committed)
+      (this.end !== null && atMicroseconds < this.end)
     ) {
       this.reset();
       return;
     }
-    if (this.histories.size || this.indicators.size) this.reset();
+    if (this.leds.size || this.boardL.size) this.reset();
     this.snapshot = {
       atMicroseconds,
       brightness: new Map(
@@ -456,7 +456,7 @@ export class LedTemporalPresentation {
       ),
       arduinoLStates: new Map(),
     };
-    this.committed = atMicroseconds;
+    this.end = atMicroseconds;
     if (this.cursor === null) this.cursor = atMicroseconds;
   }
 
@@ -471,13 +471,13 @@ export class LedTemporalPresentation {
     const elapsed =
       this.origin === null ? 0 : Math.max(0, wallMicroseconds - this.origin.wallMicroseconds);
     if (this.pending) return this.pending;
-    if (this.cursor === null || this.committed === null) return null;
+    if (this.cursor === null || this.end === null) return null;
     const target = this.snapshot
       ? this.snapshot.atMicroseconds
       : this.shown === null
         ? this.cursor
         : Math.min(
-            this.committed,
+            this.end,
             (this.origin?.modelMicroseconds ?? this.cursor) +
               Math.floor(elapsed * ELECTRONICS_CLASSROOM_PACE),
           );
@@ -541,8 +541,7 @@ export class LedTemporalPresentation {
     if (this.snapshot) return this.snapshot;
     const brightness = this.atTime(atMicroseconds);
     const voltages = this.indicatorVoltagesAtTime(atMicroseconds);
-    if (brightness.size !== this.histories.size || voltages.size !== this.indicators.size)
-      return null;
+    if (brightness.size !== this.leds.size || voltages.size !== this.boardL.size) return null;
     return {
       atMicroseconds,
       brightness,
@@ -552,7 +551,7 @@ export class LedTemporalPresentation {
 
   private indicatorVoltagesAtTime(time: number): ReadonlyMap<string, number> {
     const voltages = new Map<string, number>();
-    for (const [id, { samples, completeSince }] of this.indicators) {
+    for (const [id, { samples, completeSince }] of this.boardL) {
       if (completeSince > time) continue;
       const last = this.throughTime(samples, time).at(-1);
       if (last) voltages.set(id, last.voltage);
@@ -562,7 +561,7 @@ export class LedTemporalPresentation {
 
   private atTime(time: number): ReadonlyMap<string, number> {
     const brightness = new Map<string, number>();
-    for (const [id, { samples, completeSince }] of this.histories) {
+    for (const [id, { samples, completeSince }] of this.leds) {
       if (completeSince > time) continue;
       const prefix = this.throughTime(samples, time);
       const last = prefix.at(-1);
