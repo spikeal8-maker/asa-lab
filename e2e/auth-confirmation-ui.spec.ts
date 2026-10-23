@@ -606,6 +606,12 @@ for (const width of [1440, 1024, 390, 320]) {
     await expect(
       page.getByRole('button', { name: 'Войти через Telegram', exact: true }),
     ).toBeVisible();
+    await expect(page.getByText('Войти через мессенджер', { exact: true })).toBeVisible();
+    if (width >= 931) await expect(page.locator('.auth-entry-intro')).toBeVisible();
+    else await expect(page.locator('.auth-entry-intro')).toBeHidden();
+    const providerBox = await page.locator('.auth-social').boundingBox();
+    const passwordBox = await page.locator('form:has(#identifier)').boundingBox();
+    expect(providerBox && passwordBox && providerBox.y < passwordBox.y).toBe(true);
     await screenshot(page, `login-${width}`);
     await visit(page, '/sign-up');
     await expect(
@@ -670,6 +676,32 @@ for (const failure of ['invalid_token', 'delivery_unavailable', 'api_error'] as 
     });
     await expect(page.getByRole('region', { name: 'Способы входа', exact: true })).toBeVisible();
     expect(state.requests.some((request) => request.path === '/api/auth/login')).toBe(true);
+  });
+}
+
+for (const method of METHODS) {
+  test(`${method} starts without a blank browser popup and offers a deliberate bot link`, async ({
+    page,
+  }) => {
+    const state = await fixture(page, { nextPairing: 'pending' });
+    await visit(page, '/sign-in');
+    const initialPageCount = page.context().pages().length;
+    const label = method === 'max' ? 'MAX' : 'Telegram';
+    await page.getByRole('button', { name: `Войти через ${label}`, exact: true }).click();
+    const botLink = page.getByRole('link', { name: `Открыть ${label}`, exact: true });
+    await expect(botLink).toBeVisible();
+    await expect(botLink).toHaveAttribute(
+      'href',
+      method === 'max' ? /^https:\/\/max\.ru\// : /^https:\/\/t\.me\//,
+    );
+    await expect(botLink).toHaveAttribute('target', '_blank');
+    expect(page.context().pages()).toHaveLength(initialPageCount);
+    await screenshot(page, `pending-${method}`);
+    expect(
+      state.requests.filter((request) => request.path === `/api/auth/${method}/pairing/start`),
+    ).toHaveLength(1);
+    await page.getByRole('button', { name: 'Отмена', exact: true }).click();
+    await expect(botLink).toHaveCount(0);
   });
 }
 
@@ -812,6 +844,9 @@ test('an unknown social identity can return to its existing password account wit
   await visit(page, '/sign-in');
   await page.getByLabel('Email или имя пользователя', { exact: true }).fill('existing-account');
   await page.getByRole('button', { name: 'Войти через MAX', exact: true }).click();
+  await expect(page.locator('.auth-social-registration')).toContainText(
+    'Если у вас уже есть аккаунт, не создавайте второй.',
+  );
   await page
     .getByRole('button', { name: 'У меня уже есть аккаунт — войти по паролю', exact: true })
     .click();
