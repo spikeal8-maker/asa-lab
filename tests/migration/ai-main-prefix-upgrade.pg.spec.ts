@@ -15,8 +15,10 @@ const expectedPending = [
   '0233',
   '0234',
   '0235',
-  '0236', // Published project moderation migration from current main.
-  '0237', // Ollama configuration additive, no change to historical messages or paid receipts.
+  '0236',
+  '0237',
+  '0238',
+  '0239', // Optional LAN Ollama; preserve older published migrations.
 ];
 
 interface Identity {

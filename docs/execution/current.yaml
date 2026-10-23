@@ -81,6 +81,59 @@ primary_lane:
     - docs/architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md
 
 parallel_lanes:
+  - id: electronics-arduino-log-error
+    parent_lane: electronics
+    worktree_id: arduino-point4-20261023
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: 958f8d07639f928ef44049d4cbd57e6d2e397bdc
+      head_sha: null
+      observed_at: '2026-10-23T19:00:00Z'
+      main:
+        branch: main
+        sha: 57097c37214c8e66f54dd27ac18a1079c54fb278
+      observation_note: >-
+        Dated source selection for owner point 4; fetch main before writes.
+        Runtime implementation and exact-SHA acceptance remain pending.
+    execution_lease:
+      executor_id: arduino-point4-20261023
+      holder: unassigned
+      acquired_at: null
+      expires_at: null
+      reviewer_role_requires_lease: false
+    owned_paths:
+      - apps/web/src/electronics/ArduinoCodePanel.tsx
+    task:
+      id: TASK-ELECTRONICS-ARDUINO-LOG-ERROR-001
+      issue: 701
+      branch: main
+      base_branch: main
+      pr: null
+      status: in_progress
+      kind: repair
+      checkpoint: exact_release_error_mapped_implementation_selected
+      owner_acceptance: pending
+      owner_authorization: >-
+        Owner explicitly requests point 4 of the 23 October optimization plan:
+        diagnose and repair repeated Arduino browser errors, verify and publish
+        source to main, then stop. No deployment or next point.
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-ARDUINO-LOG-ERROR-001.md
+        - docs/product/electronics/components/ui-assets-persistence.yaml
+      repair_scope: >-
+        Exact release ArduinoCodePanel TypeError at 2325:53490 maps to
+        ScratchBlocks DELETE_X_BLOCKS message replacement. Repair the demonstrated
+        editor failure with bounded regression evidence; preserve workspace,
+        code, persistence and other Electronics programmes.
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
   - id: electronics-wire-contact-hit
     parent_lane: electronics
     worktree_id: electronics-wire-contact-hit-688
@@ -6216,20 +6269,21 @@ parallel_lanes:
       - migrations/0234_public_projects.sql
       - migrations/0235_public_project_copy.sql
       - migrations/0236_project_publication_moderation.sql
+      - migrations/0238_project_publication_editorial.sql
       - tests/portal/**
       - e2e/project-hub.spec.ts
       - e2e/artifacts/project-hub/**
       - docs/product/projects/**
       - docs/review/PROJ_R7_01/**
     task:
-      id: TASK-PROJ-R8-03A-ADMIN-MODERATION-001
-      issue: 686
+      id: TASK-PROJ-R8-03B-EDITORIAL-FEATURED-001
+      issue: 691
       branch: main
       base_branch: main
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: admin_publication_hide_restore_selected
+      checkpoint: editorial_featured_badge_selected
       owner_acceptance: pending
       owner_authorization: >-
         Owner's 2026-10-18 implementation assignment delegates the complete Public Projects
@@ -6238,6 +6292,7 @@ parallel_lanes:
         original Projects, drafts, versions, learning data and personal Collections are protected.
         No production cleanup or deployment is authorized by this selection.
       context_hints:
+        - docs/product/projects/tasks/PROJ-R8-03B-EDITORIAL-FEATURED.md
         - docs/product/projects/tasks/PROJ-R8-03A-ADMIN-MODERATION.md
         - docs/product/projects/tasks/PROJ-R7-PUBLISHED-COPY.md
         - docs/product/projects/tasks/PROJ-R7-VISIBLE-PUBLICATION.md
@@ -7334,17 +7389,56 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: owner_realtime_priority_test_only_baseline_selected
+      checkpoint: short_visual_actual_fail_raf_metric_repair_selected
       kind: repair
       owner_acceptance: pending
       context_hints:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-ARDUINO-REALTIME-001.md
       owner_request: Proportional real timing from30ms through20s; supported if/for/while/loop with externalLED/button and SerialMonitor TX/RX. No extra product explanations;remove LIMITED only after full capability proof.
-      selected_slice: TEST-ONLY baseline model-clock and native wall-clock/button/Serial evidence;no pace flip or product repair. Reuse existing tests/gates;new author freeze unpublished and NEW independent review before test candidate branch CI.
+      selected_slice: Actual repeated20/30/50/100ms visual phases still fail despite exact electrical fronts. One bounded hook author may coalesce only displayed committed-time React state onto the existing real RAF, after reproducing redundant receipt renders. Canonical latest committed horizon, input delivery, Worker requests and physical state stay immediate and unchanged. All frozen short-phase checks remain required;independent review and verified main publication required.
       boundaries: Exact model event timestamps/instruction costs are separate from wall pace/jitter/backlog/UI responsiveness;baseline timing may honestly FAIL. Intentionally red unit tests must not enter main. No full C++ claim or timeout/coverage weakening.
-      next_selection: Product clock change requires new cause-based canonical selection;Serial repair requires proven regression;labels require capability-specific proof. Preserved546/R27 remain stopped, not resumed by this task.
+      next_selection: Button hit-precondition and functional Serial evidence remain separate pending work;no Serial implementation repair without demonstrated defect. Labels require capability-specific proof. Preserved546/R27 remain stopped.
       coordination: Other Arduino controller confirms no active timing/core/hook/LED writer and observation PAUSED;parallel679 Stage-only budget repair remains separate and not closed.525 paused with history retained.
-      observed_baseline: Remote0b472dfb;General39645888180 failed and strict39645898214 cancelled;laterGeneral39653390747 cancelled. Not1x/acceptance/release evidence. Wire679 raw editor218156 over218000 under separate repair.
+      observed_baseline: Exact9c864980 strict39904729751 cancelled,focused/EOPT success. Actual electrical30.002/1000.002/20000.002ms;visible31.2/955.7/19974.7ms;model21862.6/wall21868.9ms. Journal Nodegap40861ms then page.evaluate timeout;buttonhit undefined beforepress. Firstcoldpaint96.8ms remains unresolved;no blanket50ms claim. General39904729200 bundle218111/218000 is separate. Raw report SHA256 82cc39aaaa74a16eca72588db27155c6d65ddd9b04978b40783d89964653eeb8.
+      partial_publication_receipt:
+        authorization: Direct owner answer publish partial result and continue repair;no site update or full acceptance.
+        source_candidate: f90aa1f39bec12d7157453b08712f0fccf31af22
+        exact_browser_run: 39973236853
+        exact_general_run: 39973236287
+        independent_actual_verdict: partial_result_confirmed_full_acceptance_request_changes
+        accepted_boundary: One native30ms/1s/20s delay journey COMPLETE/PASS includingStop;model21849.6ms over wall21862.2ms.
+        remaining: Cold buttonLED publication134ms exceeds50ms;interactive model800ms over3380.7ms;buttoncaseResetStop not reached;GeneralAccess independentAccountFAIL;wholebrowser cancelled.
+        focused_eopt_governance_code_data: success
+        general_access: failure
+        bundle_bytes: 217993
+        bundle_ceiling_bytes: 218000
+        owner_acceptance: pending
+        release_claim: false
+        deployment: not_performed
+      interactive_publication_receipt:
+        authorization: Owner instructed publish partial result and continue repair;no site update or full acceptance.
+        source_candidate: 7a2adbd341ad9d3e0c852db4f6d2f7128973c763
+        exact_browser_run: 39983078374
+        exact_general_run: 39983077833
+        source_independent_review: approved_187_tests_and_all59_complete_result_byte_equality
+        actual_independent_review: partial_product_result_confirmed_full_acceptance_request_changes
+        recorded_interactive_model_ms: 1101.9
+        recorded_interactive_wall_ms: 1119.1
+        led_ready_to_native_witness_ms: 48.9
+        following_raf_ms: 65.8
+        remaining: Missing retained trustedpointerup rawtarget/pointerId;buttoncaseResetStop not reached;wholebrowser cancelled;combined exact-head gates pending.
+        preserved_foreign_baseline: eeebc411cf6ae87a3ce381448c7d8b775566d67a
+        preserved_baseline_general_run: 39986590703
+        preserved_baseline_general_conclusion: success
+        owner_acceptance: pending
+        deployment: not_performed_by_this_agent
+      preserved_pointer_candidate:
+        sha: d12cb64b64d83d42f91f37edb51c9f28242ac675
+        branch: codex/electronics-682-realtime-baseline
+        existing_browser_run: 39991802809
+        source_review: approved_65_tests_and14_negative_probes
+        acceptance: pending_terminal_native_result_no_cancelled_pass
+        priority_change: Owner explicitly selected visual short cycles;retain candidate and results without redo.
     execution_lease:
       executor_id: electronics-ready-cadence-539
       holder: unassigned
@@ -8052,19 +8146,24 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: bounded_passive_fractional_ready_integer_dom_observer_repair
+      checkpoint: integrate_reviewed_pr695_clock_observer_without_product_rewrite
       kind: repair
       owner_acceptance: pending
       programme_issue: 452
       dependency_for_issue: 552
-      selected_at: '2026-10-11T23:17:21.978668+00:00'
+      selected_at: '2026-10-23T18:28:07Z'
       context_hints:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-CLOCK-OBSERVER-001.md
       - docs/product/electronics/components/ui-assets-persistence.yaml
-      repair_scope: TEST ONLY e2e/electronics-simulation-time.spec.ts passive observer/oracle. Correct false
-        requirement that integer text change coincide with fractional committed horizon. Preserve all original
-        pupil assertions/budgets/SaveCAS/cookies and ready authority; no product/Header/clock/physics/auth/helper/dependency/workflow
-        changes.
+      repair_scope: INTEGRATION ONLY exact reviewed PR695 clock test blob3f824213be5a2d18fee4c0e9009235f4a2cafb7b from02ed3ad0a5fa048a94bdefa09d0b41c438596741 onto current main. Only e2e/electronics-simulation-time.spec.ts source; preserve accepted541 product and all foreign work. No observer rewrite, physics/Worker/Header/CSS/cadence/auth/dependency/workflow changes.
+      integration_candidate:
+        pr: 695
+        head: 02ed3ad0a5fa048a94bdefa09d0b41c438596741
+        source_blob: 3f824213be5a2d18fee4c0e9009235f4a2cafb7b
+        unchanged_main_base_blob: 10cc5e1f8355dd67ab85601a013139437634cc69
+        source_review: APPROVE
+        source_review_sha256: bf3a04b50673d7977561234954a581e7ffe9e84fb7fa9168447e9eed0b8abd57
+        selection_evidence: docs/product/electronics/evidence/clock-observer-557-pr695-integration-selection-20261023.md
       baseline_failure_category: C independent test observer; accepted541 product not reopened
       baseline_failure_sha: 975f1fefb9f54c9b418e12cca50aaa5afe866f2e
       baseline_failure_run: 38181611589
@@ -8074,10 +8173,7 @@ parallel_lanes:
       independent_manifest_sha256: bd60d965610969794e94e6957d2ab7830599b2d8337794a289f9a7a1eb3d8a83
       actual_evidence: Root verified781external28Git. Actual39042ready37fractional; integer text00..04 only
         whole-horizon changes. No product regression proven.
-      next_action: NEW bounded test-only author, own clean checkout/fresh preflight/card, actual saved trace/source
-        counterexamples and narrow checks. One unpublishedSHA STOP; root actual verification and NEW SOURCE
-        review; ONE directed real built4widths, final exact required gates/NEW PRODUCT review. No repeat
-        accepted541 product BEFORE; no hopeful unchanged reruns.
+      next_action: New bounded integration author, fresh snapshot and real dirty-overlap check, preserve exact reviewed clock file and foreign main; new final integration/composition review before publication/qualification. One shared qualification candidate may contain separately reviewed679 and557 integration commits with new final composition review and one exact-SHA existing CI, preserving both PR histories. No new gate/waiver/workflow or duplicate broad unchanged run. Require actual four-width clock evidence and exact required gates; classify externalC/D without repairing unrelated modules. Merge/close only after mandatory acceptance, using owner's explicit programme authorization.
       preservation: Full accepted541 task/revisions and accepted_slices exact.552975/source/nativebeforeafter
         originals and current startup/E06/foreign lanes preserved.
       school_actions: deferred_by_owner_no_action
@@ -8281,17 +8377,22 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: owner_priority_targeted_wire_layer_selected
+      checkpoint: owner_programme_pr694_real_acceptance_test_selected
       kind: repair
       owner_acceptance: pending
       context_hints:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-ARDUINO-PSU-WIRE-LAYER-001.md
-      repair_scope: Wires above bodies ONLY for exact kinds arduino-uno and regulated-power-supply;exclude batteries and every other ordinary kind.
-      source_budget: WorkbenchStage.tsx and existing presentation tests;component map only if canonical generator requires it. No hook/core/solver/LED/API/persistence/assets/workflow/dependency/cap edits.
+      repair_scope: TEST ONLY F2 acceptance repair atop independently approved integration88930020; replace mocked persistence proof with real authenticated projects, native Save/CAS and cookies-only fresh-context reopen. Preserve F2 wire/terminal/ordinary negatives and main Arduino coverage; add native PSU slider negative-control acceptance. No product repair is selected.
+      source_budget: ONLY F2 cases and minimal public test helpers in e2e/electronics-interactions.spec.ts; necessary generated browser metadata only if canonical generator requires it. No Stage/product/budget/workflow/dependency edits. Preserve original PR694 finite case budget; no timeout increase.
       rendering_contract: Render target bodies after breadboard bodies and BEFORE existing wire hit/paint layers;exclude exactly targets from later ordinary body map. Keep terminals and overlays above wires. Preserve other ordinary relative order,foreign Stage props/readiness/UnoL and complete document.
       interaction_contract: Same exact-kind predicate exempts ONLY targets from handleWirePointerDown foreground-body drag redirect;visible target-overlying wires retain wire behavior. Other ordinary redirects unchanged.
-      execution_boundary: One new author performs focused source/unit checks,self-review,freeze STOP;NEW independent exactSHA review before ordinary publication. Existing strict workflow provides exact runtime evidence. No localbrowser/heavybuild or source-only owneracceptance/closure/release/deploy claim.
-      preservation: Pause525 without losing history/contracts;548BUDGETBLOCKED and ownerKEEP544547OPEN unchanged. Foreign/protected work preserved;known workflow exception disjoint only;actual dirty overlap STOP.
+      execution_boundary: One new bounded author repairs only selected F2 acceptance semantics on fresh main, freezes focused source checks and STOP; new independent exact-SHA source/integration review before publication. One justified exact-SHA native target verification plus required focused/General gates; no blind unchanged full-suite reruns. Cancelled overall browser never PASS; target evidence alone does not waive mandatory acceptance.
+      preservation: Owner programme679 then681 then557;681 observed CLOSED by owner spikeal8-maker on2026-10-23T17:02:17Z,do not reopen or close again and do not imply prior full General PASS. Preserve682 sole controller,548 budget blocker and ownerKEEP544547OPEN,all historical receipts/refs and foreign/protected work. Real dirty overlap STOP; known workflow exception disjoint only.
+      real_acceptance_contract: Genuine UI authentication once per group, isolated real projects and cookies-only contexts; independently canonical fixture expected document validated against public normalization, never adopted from actual PUT/server. Native exactly one intended Save, one matching full-payload PUT with observed baseRevision and server CAS plus1; fresh GET and cookies-only fresh-context reopen prove full independent document. Journal actual storage and persistence evidence durably before assertions/teardown; fail closed on loss, unknown writes or races. Preserve mouse1440 and touch390x844, original finite budgets and native actions; no forced hits, extra Save retries, mocks or timeout increase. Native PSU slider control must remain usable with crossing wires; an actual product failure requires separate cause-based selection.
+      integration_receipt: docs/product/electronics/evidence/arduino-psu-pr694-real-acceptance-selection-20261023.md
+      candidate_pr: 694
+      candidate_source_sha: 8fa878116c7b508ba12dcc3bca4341175e9c9168
+      next_action: Repair real F2 persistence and PSU-control acceptance, then obtain new independent source review before one justified exact-SHA verification; retain Draft until mandatory review/acceptance. If externalC/D prevents679 closure,record concrete blocker and advance independent681 verification then557 under separate canonical selection. No unreviewed Draft merge.
     execution_lease:
       executor_id: electronics-field-544
       holder: unassigned

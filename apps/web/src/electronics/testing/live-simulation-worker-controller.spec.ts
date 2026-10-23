@@ -1562,8 +1562,8 @@ describe('Electronics canonical Worker controller', () => {
     await completeCanonicalStart(executor, 1);
     expect(readHostHorizonMicroseconds).not.toHaveBeenCalled();
 
-    controller.update(circuit, 6_250);
-    expect(executor.advances[1]!.requestedHorizonMicroseconds).toBe(6_250);
+    controller.update(circuit, 25_000);
+    expect(executor.advances[1]!.requestedHorizonMicroseconds).toBe(25_000);
     elapsedWallMicroseconds = 96_000;
     presentedMicroseconds = 2_000;
     controller.update(circuit, 8_250);
@@ -1572,22 +1572,25 @@ describe('Electronics canonical Worker controller', () => {
     // and ACK are covered by the mounted/browser tests; no host tick is sent.
     elapsedWallMicroseconds = 112_000;
     presentedMicroseconds = 4_000;
-    executor.advances[1]!.deferred.resolve(timedAdvance('ready', 6_250, 6_250));
+    executor.advances[1]!.deferred.resolve(timedAdvance('ready', 25_000, 25_000));
     await flush();
     expect(executor.advances).toHaveLength(3);
-    expect(executor.advances[2]!.requestedHorizonMicroseconds).toBe(10_250);
-    expect(executor.advances[2]!.requestedHorizonMicroseconds - presentedMicroseconds).toBe(6_250);
-    expect(executor.advances[2]!.state.continuation?.committedHorizonMicroseconds).toBe(6_250);
+    expect(executor.advances[2]!.requestedHorizonMicroseconds).toBe(50_000);
+    expect(executor.advances[2]!.requestedHorizonMicroseconds - presentedMicroseconds).toBe(46_000);
+    expect(executor.advances[2]!.state.continuation?.committedHorizonMicroseconds).toBe(25_000);
 
     // A long native/RAF hold supplies no new acknowledgement. Fresh wall time
     // cannot expand the cap or dispatch a second request alongside the first.
     elapsedWallMicroseconds = 1_000_000;
-    controller.update(circuit, 10_250);
+    controller.update(circuit, 54_000);
     expect(executor.advances).toHaveLength(3);
-    executor.advances[2]!.deferred.resolve(timedAdvance('ready', 10_250, 10_250));
+    executor.advances[2]!.deferred.resolve(timedAdvance('ready', 50_000, 50_000));
     await flush();
-    expect(executor.advances).toHaveLength(3);
-    expect(readHostHorizonMicroseconds).toHaveBeenCalledTimes(2);
+    expect(executor.advances[3]!.requestedHorizonMicroseconds).toBe(54_000);
+    executor.advances[3]!.deferred.resolve(timedAdvance('ready', 54_000, 54_000));
+    await flush();
+    expect(executor.advances).toHaveLength(4);
+    expect(readHostHorizonMicroseconds).toHaveBeenCalledTimes(3);
     controller.stop();
   });
 
