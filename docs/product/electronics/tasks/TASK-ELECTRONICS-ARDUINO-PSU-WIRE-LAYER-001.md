@@ -146,3 +146,19 @@ The [cause-based selection](../evidence/ui679-557-causal-repair-selection-202610
 supersedes earlier conflicting no-product/no-follow-up restrictions only for this
 bounded repair. Owner API-separate targeted acceptance continues; no global PASS,
 physical owner acceptance, release or deployment is implied.
+
+
+## 24 October: retain the cap and reduce the selected implementation
+
+The owner explicitly retained218000 RAW bytes and selected a separate bounded
+reduction. The [budget-preserving selection](../evidence/ui679-budget-preserving-repair-selection-20261024.md)
+supersedes only the unpublished SVG-use mechanism above. Preserve the reviewed
+clock attribution blobs, exact native switch point/actions and all document/CAS/
+storage checks. One combined source author may route the genuine wire pointerdown
+to the actual same-PSU switch owner with strict current ready/runtime true-or-false
+validation and existing public setter, and reduce only pure multimeter duplicate
+markup plus the selected duplicate PSU-knob branch with proved DOM/CSS/CTM
+equivalence. Unknown/invalid ownership or runtime never actuates. No synthetic
+events, invented geometry, cap increase, class-identity variant, core/hook/API or
+asset edits. NEW exact-source review, actual RAW<=218000 and all six native cases
+with independent actual review remain mandatory; proxy size is not acceptance.
