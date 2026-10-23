@@ -164,13 +164,13 @@ class ClassroomSecurityGateTest(unittest.TestCase):
 
     def test_queue_does_not_accept_existing_blocked_issue(self):
         with self.assertRaisesRegex(q.QueueError,"blocked task"):
-            q.choose(ROOT,self.reg,{"UI-06":{"state":"open","number":999,
+            q.choose(self.root,self.reg,{"UI-06":{"state":"open","number":999,
                 "user":{"login":"github-actions[bot]"},
                 "body":"<!-- ASA-CLASSROOM-QUEUE:task=UI-06;main="+"a"*40+" -->"}})
 
     def test_queue_rejects_untrusted_bootstrap_marker(self):
         with self.assertRaisesRegex(q.QueueError,"provenance"):
-            q.choose(ROOT,self.reg,{"CTRL-00":{"state":"open","number":999,
+            q.choose(self.root,self.reg,{"CTRL-00":{"state":"open","number":999,
                 "user":{"login":"spikeal8-maker"}}})
 
 
