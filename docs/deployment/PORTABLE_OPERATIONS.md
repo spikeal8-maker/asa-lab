@@ -241,3 +241,9 @@ node --test tools/blocks/deployment.test.mjs
 Полная сборка и проверка данных: workflow `ASA Portable Delivery Checks`.
 Workflow `ASA Portable Release` повторно проверяет публикуемые digest. Тяжёлый
 одноразовый стенд создаётся в GitHub Actions, не рядом с рабочей БД.
+
+## Повторяемая подготовка обслуживания
+
+Новая private `.env` включает независимый CLASSROOM_CODE_SECRET и разные32-byte encryption/lookup keyrings StudentCode в режиме compat. Они генерируются только при отсутствии `.env`; существующие и архивные ключи не ротируются настройкой обслуживания. `configure`/успешная установка создаёт private backupDirectory (0700 на POSIX) и сохраняет instanceId, окно и пользовательский путь. Символьные ссылки и небезопасные права останавливают настройку.
+
+При проверке обновления схема опубликованного выпуска не может быть ниже реально работающей БД; смена SHA требует forward ancestry. Старый recovery-план не даёт права на downgrade. GitHub main и deployment:stable — разные состояния: новое main устанавливается как выпуск только после его CI/публикации.

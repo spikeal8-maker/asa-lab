@@ -413,8 +413,10 @@ class UpdateBoundaryTests(unittest.TestCase):
         from unittest.mock import MagicMock
         with tempfile.TemporaryDirectory() as root:
             install = MagicMock()
-            install.state = Path(root)
+            install.root = install.state = Path(root)
+            install.settings = {}
             install.profile = 'dev'
+            install.readiness.return_value = {'revision':release()['revision'],'schema':release()['schema']}
             install.env = {'ASA_BLOCKS_PARENT_ORIGIN': 'http://127.0.0.1:4610',
                            'ASA_BLOCKS_RUNTIME_ORIGIN': 'http://127.0.0.1:4610'}
             with patch.object(asa_manager, 'doctor'), patch.object(asa_manager, 'clean_checkout'), \
@@ -429,8 +431,10 @@ class UpdateBoundaryTests(unittest.TestCase):
         from unittest.mock import MagicMock
         with tempfile.TemporaryDirectory() as root:
             install = MagicMock()
-            install.state = Path(root)
+            install.root = install.state = Path(root)
+            install.settings = {}
             install.profile = 'dev'
+            install.readiness.return_value = {'revision':release()['revision'],'schema':release()['schema']}
             install.env = {'ASA_UPDATE_ENTRY_ORIGIN': 'http://127.0.0.1:4610',
                            'ASA_BLOCKS_PARENT_ORIGIN': 'http://127.0.0.1:4610',
                            'ASA_BLOCKS_RUNTIME_ORIGIN': 'http://127.0.0.1:4610'}
@@ -457,7 +461,9 @@ class UpdateBoundaryTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as root:
             install = MagicMock()
             install.root = install.state = Path(root)
+            install.settings = {}
             install.profile = 'dev'
+            install.readiness.return_value = {'revision':release()['revision'],'schema':release()['schema']}
             install.env = {'ASA_UPDATE_ENTRY_ORIGIN': 'http://127.0.0.1:4610',
                            'ASA_BLOCKS_PARENT_ORIGIN': 'http://127.0.0.1:4610',
                            'ASA_BLOCKS_RUNTIME_ORIGIN': 'http://127.0.0.1:4610'}
