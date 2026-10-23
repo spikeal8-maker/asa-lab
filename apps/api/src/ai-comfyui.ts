@@ -82,7 +82,7 @@ function modelNames(payload: unknown): readonly string[] {
       typeof name === 'string' &&
       name.length > 0 &&
       name.length <= 255 &&
-      !/[\u0000-\u001f]/.test(name),
+      !Array.from(name).some((character) => character.charCodeAt(0) < 32),
   );
 }
 

@@ -71,6 +71,19 @@ describe('Ollama one action: verify before save', () => {
     expect(save).not.toHaveBeenCalled();
   });
 
+  it('rejects a stale model result when an administrator changes settings during inference', async () => {
+    const { service, get, save } = subject();
+    get
+      .mockReset()
+      .mockResolvedValueOnce(current)
+      .mockResolvedValueOnce({ ...current, revision: 5, enabled: false });
+    await expect(
+      service.applyOllamaSettings('principal', current, 'request-concurrent'),
+    ).rejects.toMatchObject({ code: 'ai_ollama_config_changed' });
+    expect(get).toHaveBeenCalledTimes(2);
+    expect(save).not.toHaveBeenCalled();
+  });
+
   it('stores a disabled selection without requesting GPU inference', async () => {
     const { service, save, fetchImpl } = subject();
     const result = await service.applyOllamaSettings(
