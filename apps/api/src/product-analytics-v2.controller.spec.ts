@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { FastifyRequest } from 'fastify';
-import type { ActiveContext, ActiveContextUseCase } from '@asa-lab/identity';
-import type { SeatContext, SeatContextUseCase } from './seat-context.js';
+import type { ActiveContext } from '@asa-lab/identity';
+import type { SeatContext } from './seat-context.js';
 import type { ProductAnalyticsService } from './product-analytics.service.js';
 import { ProductAnalyticsV2Controller } from './product-analytics-v2.controller.js';
 
@@ -18,13 +18,16 @@ const body = {
 };
 function fixture(account: ActiveContext | null, seat: SeatContext | null) {
   const writer = {
+    authenticatedRequest: vi.fn(
+      async (
+        _account: unknown,
+        _seat: unknown,
+        run: (a: ActiveContext | null, s: SeatContext | null) => Promise<unknown>,
+      ) => run(account, seat),
+    ),
     persistOperation: vi.fn(async () => ({ accepted: true, state: 'persisted', eventId: id })),
   };
-  const controller = new ProductAnalyticsV2Controller(
-    { resolve: vi.fn(async () => account) } as unknown as ActiveContextUseCase,
-    { resolve: vi.fn(async () => seat) } as unknown as SeatContextUseCase,
-    writer as unknown as ProductAnalyticsService,
-  );
+  const controller = new ProductAnalyticsV2Controller(writer as unknown as ProductAnalyticsService);
   const request = {
     cookies: { asa_session: 'account', asa_student_session: 'seat' },
     headers: {},

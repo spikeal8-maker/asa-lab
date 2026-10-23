@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { ActiveContextUseCase, ActiveContext } from '@asa-lab/identity';
+import type { ActiveContext } from '@asa-lab/identity';
 import type { FastifyRequest } from 'fastify';
 import { ProductAnalyticsController } from './product-analytics.controller.js';
 import type { ProductAnalyticsService } from './product-analytics.service.js';
-import type { SeatContext, SeatContextUseCase } from './seat-context.js';
+import type { SeatContext } from './seat-context.js';
 
 const ID = '11111111-1111-4111-8111-111111111111';
 function fixture(account: boolean, seat: boolean) {
@@ -13,15 +13,18 @@ function fixture(account: boolean, seat: boolean) {
     workspaceId: 'workspace',
   } as ActiveContext;
   const seatContext = { principalId: 'seat-principal', seatId: 'seat' } as SeatContext;
-  const activeContext = { resolve: vi.fn(async () => (account ? accountContext : null)) };
-  const seatContextUseCase = { resolve: vi.fn(async () => (seat ? seatContext : null)) };
   const analytics = {
+    authenticatedRequest: vi.fn(
+      async (
+        _account: unknown,
+        _seat: unknown,
+        run: (a: ActiveContext | null, s: SeatContext | null) => Promise<unknown>,
+      ) => run(account ? accountContext : null, seat ? seatContext : null),
+    ),
     startModuleSession: vi.fn(async () => false),
     touchModuleSession: vi.fn(async () => false),
   };
   const controller = new ProductAnalyticsController(
-    activeContext as unknown as ActiveContextUseCase,
-    seatContextUseCase as unknown as SeatContextUseCase,
     analytics as unknown as ProductAnalyticsService,
   );
   const request = {

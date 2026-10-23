@@ -2,27 +2,50 @@ import { expect, test, type Page, type TestInfo } from '@playwright/test';
 import { writeFile } from 'node:fs/promises';
 import type pg from 'pg';
 import type { SchematicDocument } from '../apps/web/src/api';
+import type {
+  ElectronicsSimulationWorkerRequest,
+  ElectronicsSimulationWorkerResponse,
+} from '../apps/web/src/electronics/simulation-worker-protocol';
 import { collectBrowserFailures } from './browser-failures';
 import { loginWithOrganization } from './organization-login';
 import { e2eAdminPool, seedTeacher } from './seed';
 
 type ClockFrame = {
   workerId: number;
+  requestId: string;
+  projectSessionId: string;
+  matchedActiveRequest: boolean;
   generationId: number;
   requestedMicroseconds: number;
   committedMicroseconds: number;
   status: string;
   computeMs: number | null;
   resultSolved: boolean | null;
+  resultFinite: boolean;
+  resultPassed: boolean;
+  computeMsFinite: boolean;
   receivedAt: number;
 };
 type ClockPublication = {
   text: string;
   publishedAt: number;
   frame: ClockFrame | null;
+  startup: boolean;
 };
+type ClockRequestReceipt = Readonly<{
+  workerId: number;
+  requestId: string;
+  kind: ElectronicsSimulationWorkerRequest['kind'];
+  generationId: number;
+  projectSessionId: string;
+  protocolVersion: ElectronicsSimulationWorkerRequest['protocolVersion'];
+  requestedHorizonMicroseconds?: number;
+  sentAt: number;
+}>;
 type ClockProbe = {
+  requests: ClockRequestReceipt[];
   frames: ClockFrame[];
+  settledSamples: ClockPublication[];
   publications: ClockPublication[];
   actions: Array<{ name: string; at: number }>;
 };
@@ -83,10 +106,17 @@ const initialDocument: SchematicDocument = {
 
 async function observeRealClock(page: Page) {
   await page.addInitScript(() => {
-    const probe: ClockProbe = { frames: [], publications: [], actions: [] };
+    const probe: ClockProbe = {
+      requests: [],
+      frames: [],
+      settledSamples: [],
+      publications: [],
+      actions: [],
+    };
     (window as ProbeWindow).__integerClockProbe = probe;
     let workerId = 0;
     let latestReady: ClockFrame | null = null;
+    let awaitingReady = true;
     let priorText = '';
     window.Worker = new Proxy(window.Worker, {
       construct(target, args, newTarget) {
@@ -94,39 +124,139 @@ async function observeRealClock(page: Page) {
         if ((args[1] as WorkerOptions | undefined)?.name !== 'asa-electronics-simulation')
           return worker;
         const id = ++workerId;
+        let active = true;
+        let binding: { generationId: number; projectSessionId: string } | null = null;
+        const pending = new Map<string, ClockRequestReceipt>();
         latestReady = null;
+        awaitingReady = true;
+        const invalidate = () => {
+          active = false;
+          pending.clear();
+          if (workerId === id) {
+            latestReady = null;
+            awaitingReady = true;
+          }
+        };
+        worker.terminate = new Proxy(worker.terminate, {
+          apply(target, thisArg, args) {
+            invalidate();
+            return Reflect.apply(target, thisArg, args);
+          },
+        });
         worker.postMessage = new Proxy(worker.postMessage, {
           apply(target, thisArg, messages) {
-            if ((messages[0] as { kind?: string })?.kind === 'preflight') latestReady = null;
+            const request = messages[0] as ElectronicsSimulationWorkerRequest;
+            const receipt: ClockRequestReceipt = Object.freeze({
+              workerId: id,
+              requestId: request.requestId,
+              kind: request.kind,
+              generationId: request.generationId,
+              projectSessionId: request.projectSessionId,
+              protocolVersion: request.protocolVersion,
+              ...(request.kind === 'advance'
+                ? { requestedHorizonMicroseconds: request.requestedHorizonMicroseconds }
+                : {}),
+              sentAt: performance.now(),
+            });
+            probe.requests.push(receipt);
+            if (probe.requests.length > 500)
+              throw new Error('Integer clock request observer overflow');
+            if (request.kind === 'cancel-generation') invalidate();
+            else if (active && workerId === id) {
+              if (request.kind === 'preflight') {
+                pending.clear();
+                latestReady = null;
+                awaitingReady = true;
+                binding = {
+                  generationId: receipt.generationId,
+                  projectSessionId: receipt.projectSessionId,
+                };
+              }
+              if (
+                request.kind === 'advance' &&
+                binding?.generationId === request.generationId &&
+                binding.projectSessionId === request.projectSessionId
+              )
+                pending.set(receipt.requestId, receipt);
+            }
             return Reflect.apply(target, thisArg, messages);
           },
         });
         worker.addEventListener('message', (event: MessageEvent) => {
-          const response = event.data as {
-            ok?: boolean;
-            kind?: string;
-            generationId?: number;
-            metrics?: { computeMs: number };
-            advance?: {
-              requestedHorizonMicroseconds: number;
-              committedHorizonMicroseconds: number;
-              executionStatus: string;
-              result?: { solved: boolean } | null;
-            };
-          };
+          const response = event.data as ElectronicsSimulationWorkerResponse;
           if (!response.ok || response.kind !== 'advance' || !response.advance) return;
+          const request = pending.get(response.requestId);
+          const matchedActiveRequest = Boolean(
+            active &&
+            workerId === id &&
+            request &&
+            request.kind === 'advance' &&
+            request.workerId === id &&
+            response.protocolVersion === request.protocolVersion &&
+            response.generationId === request.generationId &&
+            response.projectSessionId === request.projectSessionId &&
+            binding?.generationId === response.generationId &&
+            binding.projectSessionId === response.projectSessionId &&
+            response.advance.requestedHorizonMicroseconds === request.requestedHorizonMicroseconds,
+          );
+          if (matchedActiveRequest) pending.delete(response.requestId);
           const frame: ClockFrame = {
             workerId: id,
+            requestId: response.requestId,
+            projectSessionId: response.projectSessionId,
+            matchedActiveRequest,
             generationId: response.generationId ?? -1,
             requestedMicroseconds: response.advance.requestedHorizonMicroseconds,
             committedMicroseconds: response.advance.committedHorizonMicroseconds,
             status: response.advance.executionStatus,
             computeMs: response.metrics?.computeMs ?? null,
             resultSolved: response.advance.result?.solved ?? null,
+            resultFinite: response.advance.result?.quality?.finite === true,
+            resultPassed: response.advance.result?.quality?.passed === true,
+            computeMsFinite: Number.isFinite(response.metrics?.computeMs),
             receivedAt: performance.now(),
           };
           probe.frames.push(frame);
-          if (frame.status === 'ready') latestReady = frame;
+          if (
+            matchedActiveRequest &&
+            frame.status === 'ready' &&
+            frame.resultSolved === true &&
+            frame.resultFinite &&
+            frame.resultPassed &&
+            frame.computeMsFinite &&
+            Number.isSafeInteger(frame.committedMicroseconds) &&
+            frame.committedMicroseconds >= 0 &&
+            frame.committedMicroseconds === frame.requestedMicroseconds
+          ) {
+            latestReady = frame;
+            awaitingReady = false;
+            // Give React an opportunity to settle; this is DOM sampling, not
+            // proof that React committed this particular Worker response.
+            requestAnimationFrame(() =>
+              requestAnimationFrame(() => {
+                if (
+                  !active ||
+                  workerId !== id ||
+                  latestReady !== frame ||
+                  binding?.generationId !== frame.generationId ||
+                  binding.projectSessionId !== frame.projectSessionId
+                )
+                  return;
+                const text = document
+                  .querySelector('.workbench-simulation-time')
+                  ?.textContent?.trim();
+                if (text)
+                  probe.settledSamples.push({
+                    text,
+                    publishedAt: performance.now(),
+                    frame,
+                    startup: false,
+                  });
+                if (probe.settledSamples.length > 500)
+                  throw new Error('Integer clock settled observer overflow');
+              }),
+            );
+          }
           // A bounded observer must fail rather than silently lose evidence.
           if (probe.frames.length > 500) throw new Error('Integer clock observer overflow');
         });
@@ -140,7 +270,14 @@ async function observeRealClock(page: Page) {
         if (text !== priorText) {
           priorText = text;
           if (text)
-            probe.publications.push({ text, publishedAt: performance.now(), frame: latestReady });
+            probe.publications.push({
+              text,
+              publishedAt: performance.now(),
+              frame: latestReady,
+              startup: awaitingReady,
+            });
+          if (probe.publications.length > 500)
+            throw new Error('Integer clock publication overflow');
         }
       }).observe(document.documentElement, { childList: true, subtree: true, characterData: true });
     });
@@ -181,8 +318,8 @@ async function runStopWithRealClock(page: Page, phase: string, testInfo: TestInf
   await expect
     .poll(async () => {
       const probe = await observation(page);
-      return probe.publications
-        .slice(before.publications.length)
+      return probe.settledSamples
+        .slice(before.settledSamples.length)
         .some(
           (entry) =>
             entry.frame &&
@@ -191,10 +328,10 @@ async function runStopWithRealClock(page: Page, phase: string, testInfo: TestInf
         );
     })
     .toBe(true);
-  // Assert the original fractional publication immediately. BEFORE therefore
-  // fails on the actual decimal suffix, not on a deliberately longer wait.
-  const fractional = (await observation(page)).publications
-    .slice(before.publications.length)
+  // Fractional horizons need not change integer text. Sample them independently
+  // of MutationObserver publications, retaining the exact floor oracle below.
+  const fractional = (await observation(page)).settledSamples
+    .slice(before.settledSamples.length)
     .find(
       (entry) =>
         entry.frame &&
@@ -202,6 +339,15 @@ async function runStopWithRealClock(page: Page, phase: string, testInfo: TestInf
         entry.frame.committedMicroseconds % 1_000_000 !== 0,
     )!;
   expect(fractional.text).toMatch(/^Время моделирования: \d{2,}:\d{2}:\d{2}$/);
+  const fractionalSeconds = Math.floor(fractional.frame!.committedMicroseconds / 1_000_000);
+  const fractionalExpected = [
+    Math.floor(fractionalSeconds / 3600),
+    Math.floor(fractionalSeconds / 60) % 60,
+    fractionalSeconds % 60,
+  ]
+    .map((part) => String(part).padStart(2, '0'))
+    .join(':');
+  expect(fractional.text).toBe(`Время моделирования: ${fractionalExpected}`);
   await expect
     .poll(async () => {
       const probe = await observation(page);
@@ -262,6 +408,20 @@ async function runStopWithRealClock(page: Page, phase: string, testInfo: TestInf
   const after = await observation(page);
   const frames = after.frames.slice(before.frames.length);
   expect(
+    frames.some(
+      (frame) =>
+        frame.matchedActiveRequest &&
+        frame.status === 'ready' &&
+        frame.resultSolved === true &&
+        frame.resultFinite &&
+        frame.resultPassed &&
+        frame.computeMsFinite &&
+        frame.committedMicroseconds === frame.requestedMicroseconds &&
+        frame.committedMicroseconds > 0 &&
+        frame.committedMicroseconds % 1_000_000 !== 0,
+    ),
+  ).toBe(true);
+  expect(
     frames.some((frame) => frame.status === 'ready' && frame.committedMicroseconds === 0),
   ).toBe(true);
   for (const frame of frames) {
@@ -269,13 +429,32 @@ async function runStopWithRealClock(page: Page, phase: string, testInfo: TestInf
     expect(frame.committedMicroseconds).toBeLessThanOrEqual(frame.requestedMicroseconds);
     if (frame.status === 'ready')
       expect(frame.committedMicroseconds).toBe(frame.requestedMicroseconds);
-    if (frame.status === 'ready') expect(frame.resultSolved).toBe(true);
+    if (frame.status === 'ready') {
+      expect(frame.resultSolved).toBe(true);
+      expect(frame.resultFinite).toBe(true);
+      expect(frame.resultPassed).toBe(true);
+    }
     expect(frame.status).not.toBe('fault');
     expect(frame.computeMs).not.toBeNull();
+    expect(frame.computeMsFinite).toBe(true);
+    expect(Number.isFinite(frame.computeMs)).toBe(true);
   }
-  for (const publication of after.publications.slice(before.publications.length)) {
-    if (!publication.frame) continue;
+  for (const publication of [
+    ...after.publications.slice(before.publications.length),
+    ...after.settledSamples.slice(before.settledSamples.length),
+  ]) {
+    if (!publication.frame) {
+      expect(publication.startup).toBe(true);
+      expect(publication.text).toBe('Время моделирования: 00:00:00');
+      continue;
+    }
+    expect(publication.frame.matchedActiveRequest).toBe(true);
     expect(publication.frame.status).toBe('ready');
+    expect(publication.frame.resultSolved).toBe(true);
+    expect(publication.frame.resultFinite).toBe(true);
+    expect(publication.frame.resultPassed).toBe(true);
+    expect(publication.frame.computeMsFinite).toBe(true);
+    expect(Number.isFinite(publication.frame.computeMs)).toBe(true);
     const seconds = Math.floor(publication.frame.committedMicroseconds / 1_000_000);
     const expected = [Math.floor(seconds / 3600), Math.floor(seconds / 60) % 60, seconds % 60]
       .map((part) => String(part).padStart(2, '0'))
@@ -287,6 +466,7 @@ async function runStopWithRealClock(page: Page, phase: string, testInfo: TestInf
     phase,
     geometry,
     frames,
+    settledSamples: after.settledSamples.slice(before.settledSamples.length),
     publications: after.publications.slice(before.publications.length),
   };
 }

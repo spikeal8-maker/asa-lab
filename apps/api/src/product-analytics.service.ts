@@ -1,8 +1,15 @@
 import { randomUUID } from 'node:crypto';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { isIP } from 'node:net';
 import type pg from 'pg';
-import type { ActiveContext } from '@asa-lab/identity';
-import type { SeatContext } from './seat-context.js';
+import {
+  ActiveContextUseCase,
+  PgSessionV2Store,
+  PgSessionStore,
+  PgAccountDirectory,
+  type ActiveContext,
+} from '@asa-lab/identity';
+import { SeatContextUseCase, type SeatContext } from './seat-context.js';
 import type { ClientNetworkKind } from './client-address.js';
 import { AnalyticsDeliveryQueue, AnalyticsDeliveryError } from './analytics-delivery-queue.js';
 import { clientEnvironment } from './client-environment.js';
@@ -96,6 +103,59 @@ export function observationMetadata(input: ConnectionObservation) {
 /** Product decisions never wait for background observation writes. */
 export class ProductAnalyticsService {
   readonly queue: AnalyticsDeliveryQueue;
+  private readonly admitted = new AsyncLocalStorage<{
+    active: boolean;
+    writes: number;
+    writing: boolean;
+  }>();
+
+  /** Admit BEFORE any cookie lookup. Authority and write share one bounded
+   * worker and the isolated analytics pool, never the critical request pool.
+   * The callback must await its persistence operation before returning. */
+  authenticatedRequest<T>(
+    accountToken: string | undefined,
+    studentToken: string | undefined,
+    run: (account: ActiveContext | null, student: SeatContext | null) => Promise<T>,
+  ): Promise<T> {
+    if (this.admitted.getStore()?.active)
+      return Promise.reject(new AnalyticsDeliveryError('telemetry_unavailable'));
+    const admission = { active: true, writes: 0, writing: false };
+    return this.queue.submit(() =>
+      this.admitted.run(admission, async () => {
+        try {
+          if (!this.pool) throw new AnalyticsDeliveryError('telemetry_unavailable');
+          const account = await new ActiveContextUseCase(
+            new PgSessionV2Store(this.pool),
+            new PgSessionStore(this.pool),
+            new PgAccountDirectory(this.pool),
+          ).resolve(accountToken);
+          // Deliberately serial: no unbounded pg-pool waiting list, even with
+          // simultaneous Account and Seat cookies. No authorization cache.
+          const student = await new SeatContextUseCase(this.pool).resolve(studentToken);
+          const result = await run(account, student);
+          if (admission.writes !== 1) throw new AnalyticsDeliveryError('telemetry_unavailable');
+          return result;
+        } finally {
+          admission.active = false;
+        }
+      }),
+    );
+  }
+
+  private async submit<T>(run: () => Promise<T>): Promise<T> {
+    const admission = this.admitted.getStore();
+    if (!admission?.active) return this.queue.submit(run);
+    if (admission.writing || admission.writes !== 0)
+      throw new AnalyticsDeliveryError('telemetry_unavailable');
+    admission.writing = true;
+    try {
+      const result = await run();
+      admission.writes += 1;
+      return result;
+    } finally {
+      admission.writing = false;
+    }
+  }
   constructor(
     private readonly pool: pg.Pool | null,
     queue?: AnalyticsDeliveryQueue,
@@ -111,8 +171,9 @@ export class ProductAnalyticsService {
 
   private async confirmedLegacy(run: () => Promise<boolean>): Promise<boolean> {
     try {
-      return await this.queue.submit(run);
-    } catch {
+      return await this.submit(run);
+    } catch (error) {
+      if (this.admitted.getStore()?.active) throw error;
       return false;
     }
   }
@@ -222,7 +283,7 @@ export class ProductAnalyticsService {
     receivedAt: string,
   ): Promise<AnalyticsReceipt> {
     const frozen = structuredClone({ actor: actorValues(actor), semantic, metadata });
-    return this.queue.submit(() =>
+    return this.submit(() =>
       this.writeReceipt(
         eventId,
         frozen.actor,
