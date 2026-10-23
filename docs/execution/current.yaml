@@ -8147,8 +8147,8 @@ parallel_lanes:
       base_branch: main
       pr: null
       pr_draft: false
-      status: in_progress
-      checkpoint: repair_actual_clock_journal_and_qualify_six_native_cases
+      status: done
+      checkpoint: technically_accepted_four_clock_cases_owner_api_separation
       kind: repair
       owner_acceptance: pending
       programme_issue: 452
@@ -8157,7 +8157,7 @@ parallel_lanes:
       context_hints:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-CLOCK-OBSERVER-001.md
       - docs/product/electronics/components/ui-assets-persistence.yaml
-      repair_scope: TEST HARNESS A repair of actual512 request501 observer guard through lossless durable Node journal and bounded active retention without throwing before real Worker dispatch. Preserve observer attribution, every native action/assertion/deadline, four widths and accepted541 product. Separately selected six-case technical qualification is additive and does not change the full Electronics gate or release blockers.
+      repair_scope: Completed test-observer repair and integrated source; exact07 actual four clock cases at1440/1024/390/320 each complete first, restart and cookies-only reopen phases with all original assertions. Owner explicitly accepts UI on targeted evidence while independent API failures remain separate. No product clock rewrite or broader release acceptance.
       integration_candidate:
         pr: 695
         head: 02ed3ad0a5fa048a94bdefa09d0b41c438596741
@@ -8175,10 +8175,25 @@ parallel_lanes:
       independent_manifest_sha256: bd60d965610969794e94e6957d2ab7830599b2d8337794a289f9a7a1eb3d8a83
       actual_evidence: Root verified781external28Git. Actual39042ready37fractional; integer text00..04 only
         whole-horizon changes. No product regression proven.
-      next_action: One bounded test-harness repair author for the two selected files; NEW exact source review. Separate bounded additive six-case runner/manual workflow author with exact discovery manifest, transport guard identity allowlist and adversarial tests; NEW independent review and final composition. One exact qualification run plus required General/focused/budget evidence, NEW actual six-case review, then technical issue closure only if all criteria pass. Full Electronics remains global verification; its cancellation is not PASS and global release/owner acceptance remain blocked. No repeated unchanged broad run.
+      next_action: Controller may close557 using explicit owner targeted-UI acceptance and NEW independent actual four-clock approval. No clock source rerun or rewrite is selected. Continue679 touch independently; it remains open. Preserve global General API failures, whole six-case5of6 FAILURE, full Electronics non-PASS and physical owner/release/deployment pending.
       preservation: Full accepted541 task/revisions and accepted_slices exact.552975/source/nativebeforeafter
         originals and current startup/E06/foreign lanes preserved.
       school_actions: deferred_by_owner_no_action
+      owner_targeted_acceptance:
+        evidence: docs/product/electronics/evidence/ui679-557-owner-targeted-acceptance-20261024.md
+        decision: API оставить отдельно; принять UI по целевым проверкам
+        source_sha: 07c90ff0001a4d281ab0a507441ecdc654f39617
+        integrated_main: c29eabd4fa7a3a9a04838b0f86df609ea5c43ab6
+        scoped_run: 40021587497
+        scoped_actual: FAILURE overall five of six complete; clock four complete and mouse complete, touch incomplete
+        general_run: 40021586839
+        general_actual: FAILURE; Governance and Code PASS, Data and Access FAIL categoryC foreign telemetry42501 to503, not a UI acceptance barrier under explicit owner decision
+        data_actual: 6724tests and533files PASS except two foreign telemetry API tests; owned20tests PASS
+        independent_actual_review_sha256: 708cc3e523bd6e1faf732c8efaeaa15b6bbe231df0fde8c69b1ab75a61a3c5a1
+        independent_actual_checks: 6424
+        clock_technical_acceptance: four widths1440/1024/390/320 each first/restart/cookies-only-reopen COMPLETE; issue557 technical scope accepted, physical owner acceptance remains pending
+        f2_technical_acceptance: mouse COMPLETE with one Save full independent PUT and CAS2to3, server GET and cookies-only fresh reopen, visual PASS; touch before-action hit UNKNOWN, issue679 NOT accepted
+        preservation: General API blocker and full Electronics non-PASS retained; no release, deployment, physical owner acceptance or foreign API repair selected
       qualification_selection:
         evidence: docs/product/electronics/evidence/ui679-557-actual-repair-scoped-qualification-20261023.md
         scope: Exactly two existing F2 mouse1440 and touch390x844 cases plus four existing clock1440/1024/390/320 cases; no new or omitted functional cases.
@@ -8188,10 +8203,10 @@ parallel_lanes:
           scope: Separate bounded baseline author after the scoped infrastructure author freezes the shared guard; update only the exact published original workflow profile allowlist and meaningful negative tests in tools/test_ci_image_transport.py, preserving the independent scoped workflow identity changes.
           invariant: Preserve strict-real-time default and classroom-d13-v2/v3 plus published arduino-editor-error as the exact four allowed profiles. Reject unknown, narrowed or default-changed declarations; no workflow/profile deletion, identity spoof, relaxed image/runtime provenance or competing guard writer.
           execution: Fresh target overlap check and explicit author handoff, one baseline commit and NEW independent review; scoped author owns only additive six-case workflow identity. No source product, workflow, dependency, cap or native assertion changes.
-        registration_boundary: Prospective scoped command selected below; gates.browser retains the existing registered global command until the additive package script exists and controller records the reviewed registration.
+        registration_boundary: Registered scoped command now exists in mainc29eabd4 package script and reviewed manual workflow; lane browser records it below, with unchanged full Electronics retained as global verification.
         gate_contract: Named command pnpm gate:electronics-ui-679-557:browser locally, in CI and owner evidence; freeze exact full titles and paths from discovery, reject missing/extra/duplicate/skipped cases and require all six execution results PASS. Same existing native assertions, timing/storage/document/CAS requirements and raw/PNG evidence.
         infrastructure_scope: Additive scoped runner and manual workflow only, package script/catalogue registration if necessary, exact new workflow/browser transport identity allowlist plus adversarial tests. Never edit the foreign dirty existing Electronics workflow, spoof workflow_ref, bypass image/PG/runtime provenance or lower assertions/timeouts/budget. Require fresh target-path overlap check before author writes.
-        closure_boundary: Explicit owner-programme technical acceptance for679/557 uses reviewed six-case qualification plus exact focused, raw budget and full General gates and NEW independent actual review. This does not accept or relabel the full Electronics workflow, grant physical owner acceptance, deployment or release, or clear any global/foreign blocker.
+        closure_boundary: Owner explicitly decided API remains separate and UI is accepted on targeted checks. Issue557 requires all four complete clock cases and independent actual review; issue679 requires both complete real F2 cases and actual review. Programme completion still requires all six. Exact focused/raw budget remain required; General actual API failures remain recorded, not PASS, and no global/foreign blocker, physical owner acceptance, deployment or release is cleared.
     accepted_slices:
     - task_id: TASK-ELECTRONICS-INTEGER-TIME-DISPLAY-001
       issue: 541
@@ -8230,6 +8245,10 @@ parallel_lanes:
         commands:
         - pnpm gate:electronics-m1
       browser:
+        workflow: Electronics UI 679-557 scoped qualification
+        commands:
+        - pnpm gate:electronics-ui-679-557:browser
+      global_browser_verification:
         workflow: Electronics R4-M1 Focused
         commands:
         - pnpm gate:electronics-m1:browser
@@ -8310,6 +8329,7 @@ parallel_lanes:
           K0/T3/class/owner/deployment pending.'
       reason: Preserve complete accepted541 snapshot unchanged;557 is a separately selected test-observer
         baseline dependency, not reopened product.
+
   - id: electronics-field-grab
     parent_lane: electronics
     worktree_id: electronics-field-544-resume
@@ -8392,7 +8412,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: repair_actual_f2_preapp_and_qualify_six_native_cases
+      checkpoint: mouse_f2_accepted_touch_hit_unknown_passive_witness_pending
       kind: repair
       owner_acceptance: pending
       context_hints:
@@ -8407,7 +8427,22 @@ parallel_lanes:
       integration_receipt: docs/product/electronics/evidence/arduino-psu-pr694-real-acceptance-selection-20261023.md
       candidate_pr: 694
       candidate_source_sha: 8fa878116c7b508ba12dcc3bca4341175e9c9168
-      next_action: One bounded test-harness repair author for the two selected files; NEW exact source review. Separate bounded additive six-case runner/manual workflow author with exact discovery manifest, transport guard identity allowlist and adversarial tests; NEW independent review and final composition. One exact qualification run plus required General/focused/budget evidence, NEW actual six-case review, then technical issue closure only if all criteria pass. Full Electronics remains global verification; its cancellation is not PASS and global release/owner acceptance remain blocked. No repeated unchanged broad run.
+      next_action: Keep679 open; mouse real F2 complete, touch hit target ancestry UNKNOWN before action. Continue only independently source-approved passive witness f31 at the unchanged point with no extra input or product verdict; obtain actual touch evidence before selecting any product repair. Owner separates foreign API failures from targeted UI acceptance; technical679 still requires both F2 cases complete. Do not repeat accepted557 qualification solely to prove the programme aggregate green.
+      owner_targeted_acceptance:
+        evidence: docs/product/electronics/evidence/ui679-557-owner-targeted-acceptance-20261024.md
+        decision: API оставить отдельно; принять UI по целевым проверкам
+        source_sha: 07c90ff0001a4d281ab0a507441ecdc654f39617
+        integrated_main: c29eabd4fa7a3a9a04838b0f86df609ea5c43ab6
+        scoped_run: 40021587497
+        scoped_actual: FAILURE overall five of six complete; clock four complete and mouse complete, touch incomplete
+        general_run: 40021586839
+        general_actual: FAILURE; Governance and Code PASS, Data and Access FAIL categoryC foreign telemetry42501 to503, not a UI acceptance barrier under explicit owner decision
+        data_actual: 6724tests and533files PASS except two foreign telemetry API tests; owned20tests PASS
+        independent_actual_review_sha256: 708cc3e523bd6e1faf732c8efaeaa15b6bbe231df0fde8c69b1ab75a61a3c5a1
+        independent_actual_checks: 6424
+        clock_technical_acceptance: four widths1440/1024/390/320 each first/restart/cookies-only-reopen COMPLETE; issue557 technical scope accepted, physical owner acceptance remains pending
+        f2_technical_acceptance: mouse COMPLETE with one Save full independent PUT and CAS2to3, server GET and cookies-only fresh reopen, visual PASS; touch before-action hit UNKNOWN, issue679 NOT accepted
+        preservation: General API blocker and full Electronics non-PASS retained; no release, deployment, physical owner acceptance or foreign API repair selected
       qualification_selection:
         evidence: docs/product/electronics/evidence/ui679-557-actual-repair-scoped-qualification-20261023.md
         scope: Exactly two existing F2 mouse1440 and touch390x844 cases plus four existing clock1440/1024/390/320 cases; no new or omitted functional cases.
@@ -8417,10 +8452,10 @@ parallel_lanes:
           scope: Separate bounded baseline author after the scoped infrastructure author freezes the shared guard; update only the exact published original workflow profile allowlist and meaningful negative tests in tools/test_ci_image_transport.py, preserving the independent scoped workflow identity changes.
           invariant: Preserve strict-real-time default and classroom-d13-v2/v3 plus published arduino-editor-error as the exact four allowed profiles. Reject unknown, narrowed or default-changed declarations; no workflow/profile deletion, identity spoof, relaxed image/runtime provenance or competing guard writer.
           execution: Fresh target overlap check and explicit author handoff, one baseline commit and NEW independent review; scoped author owns only additive six-case workflow identity. No source product, workflow, dependency, cap or native assertion changes.
-        registration_boundary: Prospective scoped command selected below; gates.browser retains the existing registered global command until the additive package script exists and controller records the reviewed registration.
+        registration_boundary: Registered scoped command now exists in mainc29eabd4 package script and reviewed manual workflow; lane browser records it below, with unchanged full Electronics retained as global verification.
         gate_contract: Named command pnpm gate:electronics-ui-679-557:browser locally, in CI and owner evidence; freeze exact full titles and paths from discovery, reject missing/extra/duplicate/skipped cases and require all six execution results PASS. Same existing native assertions, timing/storage/document/CAS requirements and raw/PNG evidence.
         infrastructure_scope: Additive scoped runner and manual workflow only, package script/catalogue registration if necessary, exact new workflow/browser transport identity allowlist plus adversarial tests. Never edit the foreign dirty existing Electronics workflow, spoof workflow_ref, bypass image/PG/runtime provenance or lower assertions/timeouts/budget. Require fresh target-path overlap check before author writes.
-        closure_boundary: Explicit owner-programme technical acceptance for679/557 uses reviewed six-case qualification plus exact focused, raw budget and full General gates and NEW independent actual review. This does not accept or relabel the full Electronics workflow, grant physical owner acceptance, deployment or release, or clear any global/foreign blocker.
+        closure_boundary: Owner explicitly decided API remains separate and UI is accepted on targeted checks. Issue557 requires all four complete clock cases and independent actual review; issue679 requires both complete real F2 cases and actual review. Programme completion still requires all six. Exact focused/raw budget remain required; General actual API failures remain recorded, not PASS, and no global/foreign blocker, physical owner acceptance, deployment or release is cleared.
     execution_lease:
       executor_id: electronics-field-544
       holder: unassigned
@@ -8433,6 +8468,10 @@ parallel_lanes:
         commands:
         - pnpm gate:electronics-m1
       browser:
+        workflow: Electronics UI 679-557 scoped qualification
+        commands:
+        - pnpm gate:electronics-ui-679-557:browser
+      global_browser_verification:
         workflow: Electronics R4-M1 Focused
         commands:
         - pnpm gate:electronics-m1:browser
@@ -8711,6 +8750,7 @@ parallel_lanes:
             acceptance/release claims pending exact evidence/NEW review; K0/T3/class/school/deployment pending.'
       reason: Preserved unchanged while independently proven wheel dependency554 is executed;544 acceptance
         remains pending548.
+
   - id: electronics-ci
     parent_lane: electronics
     worktree_id: electronics-hygiene-556
