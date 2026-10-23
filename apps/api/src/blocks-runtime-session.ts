@@ -9,7 +9,7 @@ export interface BlocksRuntimeParentActor {
 }
 
 export type BlocksRuntimeSessionFailure =
-  'project_unavailable' | 'project_invalid' | 'dependency_unavailable';
+  'project_unavailable' | 'project_invalid' | 'dependency_unavailable' | 'forbidden_origin';
 
 export type BlocksRuntimeSessionResult =
   | {

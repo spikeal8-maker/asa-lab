@@ -1,0 +1,58 @@
+name: Installation entry aliases
+
+on:
+  pull_request:
+    paths:
+      - 'apps/api/src/origin-policy*'
+      - 'apps/api/src/blocks-runtime*'
+      - 'apps/api/src/blocks-multi-entry.spec.ts'
+      - 'apps/api/src/app.factory*'
+      - 'deployment/entry-profiles/**'
+      - 'tools/deployment/entry_profiles.py'
+      - 'tools/deployment/test_entry_profiles.py'
+      - 'tools/asa_manager.py'
+      - 'compose*.yaml'
+      - '.github/workflows/entry-aliases-focused.yml'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  contracts:
+    strategy:
+      matrix:
+        os: [ubuntu-24.04, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m unittest tools.deployment.test_entry_profiles tools.deployment.test_contracts
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec nx run api:typecheck --skip-nx-cache
+      - run: >-
+          pnpm exec vitest run apps/api/src/origin-policy.spec.ts
+          apps/api/src/blocks-runtime-config.spec.ts
+          apps/api/src/blocks-runtime-session.controller.spec.ts
+          apps/api/src/blocks-multi-entry.spec.ts
+          apps/api/src/blocks-runtime-transport.spec.ts
+          apps/api/src/blocks-runtime-cors.spec.ts
+          apps/api/src/blocks-runtime-request.spec.ts
+          apps/api/src/blocks-runtime-capability.spec.ts
+          apps/api/src/blocks-runtime-session.spec.ts
+          apps/api/src/blocks-runtime-persistence.service.spec.ts
+          apps/api/src/app.factory.spec.ts
+      - run: node --test tools/blocks/deployment.test.mjs

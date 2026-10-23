@@ -2,7 +2,10 @@ import type pg from 'pg';
 import { PgProjectRepository } from '@asa-lab/projects';
 import { BlocksRuntimeCapabilityService } from './blocks-runtime-capability.js';
 import { BlocksProjectRuntimeAuthority } from './blocks-runtime-authority.js';
-import { readBlocksRuntimeServerConfig } from './blocks-runtime-config.js';
+import {
+  BlocksRuntimeEntryOriginError,
+  readBlocksRuntimeEntryConfig,
+} from './blocks-runtime-config.js';
 import {
   BlocksRuntimeSessionService,
   type BlocksRuntimeParentActor,
@@ -13,6 +16,7 @@ export interface BlocksRuntimeSessionIssuerPort {
   issueEditor(
     actor: BlocksRuntimeParentActor,
     projectId: string,
+    origin: string | undefined,
   ): Promise<BlocksRuntimeSessionResult>;
 }
 
@@ -25,10 +29,11 @@ export class BlocksRuntimeSessionIssuer implements BlocksRuntimeSessionIssuerPor
   async issueEditor(
     actor: BlocksRuntimeParentActor,
     projectId: string,
+    origin: string | undefined,
   ): Promise<BlocksRuntimeSessionResult> {
     if (!this.pool) return { ok: false, code: 'dependency_unavailable' };
     try {
-      const config = readBlocksRuntimeServerConfig(this.env);
+      const config = readBlocksRuntimeEntryConfig(this.env, origin);
       const projects = new PgProjectRepository(this.pool);
       const authority = new BlocksProjectRuntimeAuthority(projects);
       const capability = new BlocksRuntimeCapabilityService({
@@ -41,7 +46,9 @@ export class BlocksRuntimeSessionIssuer implements BlocksRuntimeSessionIssuerPor
         capability,
         config.runtimeOrigin,
       ).issueEditor(actor, projectId);
-    } catch {
+    } catch (error) {
+      if (error instanceof BlocksRuntimeEntryOriginError)
+        return { ok: false, code: 'forbidden_origin' };
       return { ok: false, code: 'dependency_unavailable' };
     }
   }

@@ -37,6 +37,6 @@ describe('Blocks runtime app wiring', () => {
     expect(factorySource).toContain(
       'registerBlocksRuntimeTransport(fastify, blocksRuntimeOrigin);',
     );
-    expect(factorySource).toContain('const blocksRuntimeOrigin = optionalBlocksRuntimeOrigin();');
+    expect(factorySource).toContain('const blocksRuntimeOrigin = configuredBlocksRuntimeOrigin();');
   });
 });

@@ -8,6 +8,7 @@ import {
   blocksRuntimeRequestOrigin,
   optionalBlocksRuntimeOrigin,
   registerBlocksRuntimeTransport,
+  configuredBlocksRuntimeOrigin,
 } from './blocks-runtime-transport.js';
 
 const ORIGIN = 'http://127.0.0.1:4613';
@@ -19,6 +20,58 @@ afterEach(async () => {
 });
 
 describe('Blocks runtime transport', () => {
+  it('serves configured future-entry GET, PUT and OPTIONS with exact credentialless CORS', async () => {
+    app = Fastify();
+    const policy = configuredBlocksRuntimeOrigin({
+      ASA_BLOCKS_SAME_ORIGIN: 'true',
+      ASA_BLOCKS_RUNTIME_SIGNING_KEY: 'ab'.repeat(32),
+      ASA_PUBLIC_WEB_ORIGIN_PATTERNS: 'https://*.asa-lab.ru',
+    });
+    registerBlocksRuntimeTransport(app, policy);
+    app.addHook('onRequest', async (request, reply) => {
+      if (!applyBlocksRuntimeCors(request, reply, policy)) return reply.code(403).send();
+    });
+    app.get('/api/blocks/runtime/probe', async () => ({ ok: true }));
+    app.put('/api/blocks/runtime/probe', async () => ({ ok: true }));
+    const origin = 'https://new.pretest.asa-lab.ru';
+    for (const method of ['GET', 'PUT', 'OPTIONS'] as const) {
+      const response = await app.inject({
+        method,
+        url: '/api/blocks/runtime/probe',
+        headers: { origin, host: 'new.pretest.asa-lab.ru', 'sec-fetch-site': 'same-origin' },
+      });
+      expect(response.statusCode).toBe(method === 'OPTIONS' ? 204 : 200);
+      expect(response.headers['access-control-allow-origin']).toBe(origin);
+      expect(response.headers['access-control-allow-credentials']).toBeUndefined();
+    }
+    const asset = await app.inject({
+      method: 'GET',
+      url: '/api/blocks/runtime/probe',
+      headers: {
+        host: 'new.pretest.asa-lab.ru',
+        'sec-fetch-site': 'same-origin',
+        referer: `${origin}/internal/blocks/`,
+      },
+    });
+    expect(asset.statusCode).toBe(200);
+    for (const headers of [
+      { origin, host: 'other.asa-lab.ru', 'x-forwarded-host': 'new.pretest.asa-lab.ru' },
+      {
+        origin: 'https://new.pretest.asa-lab.ru.evil.test',
+        host: 'new.pretest.asa-lab.ru.evil.test',
+      },
+      { origin, host: 'new.pretest.asa-lab.ru', 'sec-fetch-site': 'cross-site' },
+      { origin: 'https://new.pretest.asa-lab.ru:8443', host: 'new.pretest.asa-lab.ru:8443' },
+    ]) {
+      const denied = await app.inject({
+        method: 'OPTIONS',
+        url: '/api/blocks/runtime/probe',
+        headers,
+      });
+      expect(denied.statusCode).toBe(403);
+      expect(denied.headers['access-control-allow-origin']).toBeUndefined();
+    }
+  });
   it.each([
     {
       origin: 'null',

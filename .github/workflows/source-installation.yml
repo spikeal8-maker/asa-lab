@@ -93,7 +93,7 @@ jobs:
       - name: Source and portable updater embedded-entry guard unit tests
         run: |
           node --test tools/deployment/test-editor-entry.mjs
-          python -m unittest tools.deployment.test_contracts
+          python -m unittest tools.deployment.test_contracts tools.deployment.test_entry_profiles
 
       - name: Real default-port Scratch journey from fresh install
         if: inputs.proof != 'clock'

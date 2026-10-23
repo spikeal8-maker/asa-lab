@@ -3,6 +3,8 @@ export interface MutationOriginInput {
   readonly allowedWebOrigin: string;
   readonly allowedLocalApiOrigin: string;
   readonly additionalAllowedOrigins?: readonly string[];
+  readonly allowedOriginPatterns?: readonly string[];
+  readonly requestHost?: string | undefined;
   readonly secFetchSite?: string | undefined;
 }
 
@@ -101,6 +103,40 @@ export function resolveAdditionalWebOrigins(raw: string | undefined): readonly s
   return [...new Set(origins)];
 }
 
+/** Explicitly delegated HTTPS DNS zones; never a bare wildcard, IP or arbitrary port. */
+export function resolveWebOriginPatterns(raw: string | undefined): readonly string[] {
+  const values =
+    raw
+      ?.split(',')
+      .map((value) => value.trim())
+      .filter(Boolean) ?? [];
+  if (values.length > 8) throw new Error('ASA_PUBLIC_WEB_ORIGIN_PATTERNS accepts at most 8 zones');
+  for (const value of values) {
+    if (!/^https:\/\/\*\.(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/.test(value)) {
+      throw new Error(
+        'ASA_PUBLIC_WEB_ORIGIN_PATTERNS requires HTTPS DNS zones: https://*.example.org',
+      );
+    }
+  }
+  return [...new Set(values)];
+}
+
+export function matchesWebOriginPattern(origin: string, patterns: readonly string[]): boolean {
+  const normalized = normalizeOrigin(origin);
+  if (!normalized) return false;
+  const parsed = new URL(normalized);
+  if (parsed.protocol !== 'https:' || parsed.port !== '') return false;
+  // Revalidate even programmatically supplied patterns; suffix includes the DNS label boundary.
+  return resolveWebOriginPatterns(patterns.join(',')).some((pattern) => {
+    const suffix = pattern.slice('https://*'.length);
+    const prefix = parsed.hostname.slice(0, -suffix.length);
+    return (
+      parsed.hostname.endsWith(suffix) &&
+      prefix.split('.').every((label) => /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(label))
+    );
+  });
+}
+
 /** The isolated Compose browser runner enters through Web's service name. */
 export function resolveIsolatedTestWebOrigin(
   raw: string | undefined,
@@ -160,5 +196,11 @@ export function isAllowedMutationOrigin(input: MutationOriginInput): boolean {
     return false;
   }
 
-  return allowedOrigins.includes(requestOrigin);
+  if (allowedOrigins.includes(requestOrigin)) return true;
+  // A delegated sibling must not submit browser mutations to a different host.
+  // Use the actual Host preserved by the ingress, never X-Forwarded-Host.
+  return (
+    input.requestHost?.toLowerCase() === new URL(requestOrigin).host &&
+    matchesWebOriginPattern(requestOrigin, input.allowedOriginPatterns ?? [])
+  );
 }

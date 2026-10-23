@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "id": "asa-owned",
+  "httpsOrigins": [
+    "https://asa-lab.ru",
+    "https://lab.alikinas.ru",
+    "https://172.23.104.170:4610",
+    "https://192.168.1.115:4610",
+    "https://94.29.44.211",
+    "https://161.104.46.160"
+  ],
+  "httpsSubdomainZones": ["https://*.asa-lab.ru"]
+}
