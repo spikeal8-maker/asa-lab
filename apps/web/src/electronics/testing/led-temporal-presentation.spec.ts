@@ -2123,3 +2123,126 @@ describe('dark H0 bootstrap remains an unacknowledged native candidate', () => {
     },
   );
 });
+
+describe('actual native observer render-opportunity callback ordering', () => {
+  const text = readFileSync(
+    new URL('../../../../../e2e/electronics-interactions.spec.ts', import.meta.url),
+    'utf8',
+  );
+  const start = text.indexOf('    let capturingShortCycles = false;');
+  const end =
+    text.indexOf('\n    requestAnimationFrame(paint);', start) +
+    '\n    requestAnimationFrame(paint);'.length;
+  const javascript = ts.transpileModule(text.slice(start, end), {
+    compilerOptions: { target: ts.ScriptTarget.ES2022 },
+  }).outputText;
+  function observer() {
+    let now = 0,
+      high = true;
+    const frames: Array<() => void> = [],
+      tasks: Array<() => void> = [];
+    const rows: Array<{
+      kind: string;
+      at: number;
+      witnessAt?: number;
+      witnessKind?: string;
+      leds?: Array<{ brightness: number }>;
+    }> = [];
+    const box = { left: 0, top: 0, right: 10, bottom: 10 };
+    const image = { getBoundingClientRect: () => box };
+    const visual = { getAttribute: () => (high ? '80' : '0') };
+    const root = {
+      querySelector: (selector: string) => (selector === '[data-led-brightness]' ? visual : image),
+    };
+    const host = {} as { __realtime682ShortCapture: () => void };
+    runInNewContext(javascript, {
+      host,
+      document: {
+        querySelector: (selector: string) =>
+          selector === '.arduino-serial-output'
+            ? null
+            : selector === '.workbench-stage'
+              ? image
+              : root,
+      },
+      performance: { now: () => now },
+      loaded: new Map([[image, { href: 'real-native.svg', at: 0 }]]),
+      href: () => 'real-native.svg',
+      visible: Boolean,
+      invalidate: () => {},
+      mutations: { takeRecords: () => [] },
+      requestAnimationFrame: (callback: () => void) => frames.push(callback),
+      setTimeout: (callback: () => void) => tasks.push(callback),
+      push: (kind: string, data: object) => rows.push({ kind, at: now, ...data }),
+    });
+    return {
+      rows,
+      arm: () => host.__realtime682ShortCapture(),
+      high: (value: boolean) => {
+        high = value;
+      },
+      raf: (at: number) => {
+        now = at;
+        const callback = frames.shift();
+        if (!callback) throw new Error('Observer RAF missing');
+        callback();
+      },
+      task: (at: number) => {
+        now = at;
+        const callback = tasks.shift();
+        if (!callback) throw new Error('Observer task missing');
+        callback();
+      },
+    };
+  }
+
+  it('rejects phantom HIGH seen by an early observer RAF but replaced LOW by the product in the same RAF batch', () => {
+    const actual = observer();
+    actual.arm();
+    actual.raf(16);
+    // The product RAF follows the observer and removes HIGH before render.
+    actual.high(false);
+    actual.task(16.8);
+    actual.raf(33);
+    expect(actual.rows.find((row) => row.kind === 'raf-snapshot')!.leds).toBeUndefined();
+    const witnessed = actual.rows.filter((row) => row.kind === 'paint');
+    expect(witnessed).toHaveLength(1);
+    expect(witnessed[0]!.leds![0]!.brightness).toBe(0);
+    expect(witnessed[0]!.witnessAt).toBe(16.8);
+    expect(witnessed[0]!.witnessKind).toBe('render-opportunity-task');
+  });
+
+  it('retains a legitimate single-frame HIGH without requiring two identical RAF samples', () => {
+    const actual = observer();
+    actual.arm();
+    actual.raf(16);
+    actual.task(16.8);
+    actual.raf(33);
+    actual.high(false);
+    actual.task(33.8);
+    actual.raf(50);
+    expect(
+      actual.rows.filter((row) => row.kind === 'paint').map((row) => row.leds![0]!.brightness),
+    ).toEqual([80, 0]);
+    expect(actual.rows.filter((row) => row.kind.startsWith('render-opportunity-'))).toEqual([]);
+  });
+
+  it('marks an unobserved short-cycle frame when its task misses the next RAF, and does not promote a stale task', () => {
+    const actual = observer();
+    actual.arm();
+    actual.raf(16);
+    actual.raf(33);
+    actual.task(33.8);
+    expect(actual.rows.some((row) => row.kind === 'render-opportunity-missed')).toBe(true);
+    expect(actual.rows.some((row) => row.kind === 'render-opportunity-late')).toBe(true);
+    expect(actual.rows.filter((row) => row.kind === 'paint')).toEqual([]);
+  });
+
+  it('does not raise workload gap failures for idle unarmed background sampling', () => {
+    const actual = observer();
+    actual.raf(16);
+    actual.raf(33);
+    actual.task(33.8);
+    expect(actual.rows.filter((row) => row.kind.startsWith('render-opportunity-'))).toEqual([]);
+  });
+});

@@ -1483,6 +1483,34 @@ describe('mounted workbench LED temporal display', () => {
     expect(workbench.componentArduinoLActive(initial.components[0]!)).toBe(false);
   });
 
+  it('presents the first short HIGH at RAF16 even when complete history already includes LOW20004 and end25000', async () => {
+    await mount();
+    await loadMountedImages();
+    await act(async () => workbench.toggleSimulation());
+    await receive(observed([{ atMicroseconds: 0, brightness: 0, current: 0 }]), true);
+    // Deliberately deliver a complete bounded future history before RAF16;
+    // do not let a latest-result LOW replace the earlier current HIGH.
+    const future = observed([
+      { atMicroseconds: 0, brightness: 0, current: 0 },
+      { atMicroseconds: 2, brightness: 80, current: 0.01 },
+      { atMicroseconds: 20_004, brightness: 0, current: 0 },
+      { atMicroseconds: 25_000, brightness: 0, current: 0 },
+    ]);
+    // Adversarial transport fixture: the hook receives a complete future window.
+    // This is not a claim that the current host naturally requests25ms at0ms.
+    await act(async () => {
+      worker().callbacks!.onCommittedHorizon!(25_000);
+      worker().callbacks!.onResult(future.result, future.observation, 'electrothermal-events-v2');
+    });
+    await loadMountedImages();
+    await frame(16);
+    assertCommitted(80, 'lit');
+    expect(workbench.componentArduinoLActive(initial.components[0]!)).toBe(true);
+    await frame(17);
+    assertCommitted(0, 'off');
+    expect(workbench.componentArduinoLActive(initial.components[0]!)).toBe(false);
+  });
+
   it('withholds the dark H0 bootstrap while its actual OFF native lease is unready', async () => {
     await mount();
     await act(async () => workbench.toggleSimulation());

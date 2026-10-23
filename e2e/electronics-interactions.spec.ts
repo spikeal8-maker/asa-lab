@@ -190,6 +190,7 @@ async function realtime682Journal(page: Page, path: string) {
     type Row = { sequence: number; kind: string; at: number; [key: string]: unknown };
     const host = window as unknown as Window & {
       __realtime682Batch: (rows: Row[]) => Promise<number>;
+      __realtime682ShortCapture: () => void;
       __realtime682Flush: () => Promise<{
         sent: number;
         acknowledged: number;
@@ -415,9 +416,15 @@ async function realtime682Journal(page: Page, path: string) {
       }
       return true;
     };
+    let capturingShortCycles = false;
+    host.__realtime682ShortCapture = () => {
+      capturingShortCycles = true;
+    };
     let previous: { at: number; leds: unknown[] } | null = null;
     let monitorSignature = '';
-    const paint = () => {
+    let renderTaskPending = false;
+    let renderTaskEpoch = 0;
+    const sampleRenderedOpportunity = () => {
       invalidate(mutations.takeRecords());
       const monitor = document.querySelector('.arduino-serial-output');
       const serial = {
@@ -428,8 +435,7 @@ async function realtime682Journal(page: Page, path: string) {
         monitorSignature = JSON.stringify(serial);
         push('monitor', serial);
       }
-      if (previous) push('paint', { witnessAt: previous.at, leds: previous.leds });
-      previous = {
+      return {
         at: performance.now(),
         leds: ['led0', 'led1', 'led2'].map((id) => {
           const root = document.querySelector(`[data-component-id="${id}"]`);
@@ -454,6 +460,34 @@ async function realtime682Journal(page: Page, path: string) {
           };
         }),
       };
+    };
+    const paint = () => {
+      // The observer may run before the product RAF callback. Its immediate
+      // timestamp is diagnostic only, never a sampled native vector.
+      push('raf-snapshot', { rafAt: performance.now(), epoch: renderTaskEpoch + 1 });
+      if (renderTaskPending && capturingShortCycles)
+        push('render-opportunity-missed', { epoch: renderTaskEpoch });
+      if (previous)
+        push('paint', {
+          witnessAt: previous.at,
+          witnessKind: 'render-opportunity-task',
+          leds: previous.leds,
+        });
+      previous = null;
+      const epoch = ++renderTaskEpoch;
+      renderTaskPending = true;
+      // Read the actual vector in a task after this RAF callback batch, never
+      // backdate a pre-product-RAF value and call it a visible frame. This is a
+      // render-opportunity DOM witness, not proof of physical display pixels.
+      setTimeout(() => {
+        if (epoch !== renderTaskEpoch) {
+          if (capturingShortCycles) push('render-opportunity-late', { epoch });
+          return;
+        }
+        renderTaskPending = false;
+        previous = sampleRenderedOpportunity();
+        push('render-task-snapshot', previous);
+      }, 0);
       requestAnimationFrame(paint);
     };
     requestAnimationFrame(paint);
@@ -718,6 +752,12 @@ test.describe('Issue 682 acknowledged native realtime baseline', () => {
           expect(p95, 'INFRASTRUCTURE: pre-Start RAF p95').toBeLessThanOrEqual(20);
         }
         await journal.barrier();
+        if (shortMs !== null)
+          await page.evaluate(() =>
+            (
+              window as unknown as { __realtime682ShortCapture: () => void }
+            ).__realtime682ShortCapture(),
+          );
         const startAt = await page.evaluate(() => performance.now());
         journal.retain('start-action', { source, at: startAt });
         await page.getByRole('button', { name: 'Начать моделирование', exact: true }).click();
@@ -849,6 +889,13 @@ test.describe('Issue 682 acknowledged native realtime baseline', () => {
         }
         if (shortMs !== null) {
           const h0 = ready[0]!;
+          expect(
+            journal.records.filter(
+              (row) =>
+                ['render-opportunity-missed', 'render-opportunity-late'].includes(row.kind) &&
+                row.at >= h0.at,
+            ),
+          ).toEqual([]);
           expect(h0.at - startAt).toBeLessThanOrEqual(5000);
           expect((h0.advance as SimulationTimedAdvancePayload).committedHorizonMicroseconds).toBe(
             0,
