@@ -103,9 +103,43 @@ def _verified_owner_comment(key: str, choice: str, url: str, access_token: str):
     )
 
 
+
+MAX_REVIEW_PAGES = 50
+REVIEW_PAGE_SIZE = 100
+
+
+def github_all_pages(path: str, access_token: str, *, max_pages: int = MAX_REVIEW_PAGES):
+    """Read every GitHub collection page, rejecting incomplete or unstable snapshots.
+
+    REST page 1 intentionally keeps the previous ?per_page=100 URL. Following
+    pages append &page=N; no API redirects or off-repository hosts are used.
+    """
+    if not path.endswith("?per_page=100") or not 1 <= max_pages <= MAX_REVIEW_PAGES:
+        raise RemoteProofError("Invalid bounded GitHub pagination request")
+    seen_ids = set()
+    entries = []
+    for page in range(1, max_pages + 1):
+        page_path = path if page == 1 else path + "&page=" + str(page)
+        batch = github_json(page_path, access_token)
+        if not isinstance(batch, list) or len(batch) > REVIEW_PAGE_SIZE or any(
+            not isinstance(entry, dict) for entry in batch
+        ):
+            raise RemoteProofError("Incomplete or malformed GitHub review collection")
+        for item in batch:
+            identity = item.get("id")
+            if identity is not None:
+                if identity in seen_ids:
+                    raise RemoteProofError("Duplicate GitHub review/comment across pages")
+                seen_ids.add(identity)
+        entries.extend(batch)
+        if len(batch) < REVIEW_PAGE_SIZE:
+            return entries
+    raise RemoteProofError("Review/comment pagination limit reached; cannot prove completeness")
+
+
 def _get_reviews(pr_number: int, commit_sha: str, author_login: str, needs_security: bool, access_token: str):
     """Use the latest authenticated exact-SHA reviewer verdict, never an old PASS."""
-    reviews = github_json(
+    reviews = github_all_pages(
         "/repos/" + REPOSITORY + "/pulls/" + str(pr_number) + "/reviews?per_page=100",
         access_token,
     )
@@ -114,12 +148,21 @@ def _get_reviews(pr_number: int, commit_sha: str, author_login: str, needs_secur
     exact = [x for x in reviews if x.get("commit_id") == commit_sha]
     if any(x.get("state") == "CHANGES_REQUESTED" for x in exact):
         raise RemoteProofError("Exact-SHA independent review contains change requests")
+    latest_by_reviewer = {}
+    for index, entry in enumerate(exact):
+        reviewer = (entry.get("user") or {}).get("login")
+        if not reviewer or reviewer == author_login:
+            continue
+        # Exact-SHA reviews without timestamps are still ordered by GitHub's
+        # paginated ascending API result order; latest entry wins on ties.
+        order = (entry.get("submitted_at") or "", entry.get("id") or 0, index)
+        previous = latest_by_reviewer.get(reviewer)
+        if previous is None or order > previous[0]:
+            latest_by_reviewer[reviewer] = (order, entry.get("state"))
     human_approved = any(
-        x.get("state") == "APPROVED"
-        and x.get("user", {}).get("login") not in {author_login, "", None}
-        for x in exact
+        state == "APPROVED" for _, state in latest_by_reviewer.values()
     )
-    comments = github_json(
+    comments = github_all_pages(
         "/repos/" + REPOSITORY + "/issues/" + str(pr_number) + "/comments?per_page=100",
         access_token,
     )

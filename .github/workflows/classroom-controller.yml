@@ -30,7 +30,8 @@ jobs:
         run: |
           python tools/classroom-program/build_registry.py
           git diff --exit-code -- tools/classroom-program/registry.json
-      - name: Check first safe slice only
+      - name: Inspect canonical next task without freezing at bootstrap
         shell: bash
         run: |
-          python tools/classroom-program/classroomctl.py next | grep '^CTRL-00'
+          # Isolated unit tests assert bootstrap and accepted CTRL-00 progression.
+          python tools/classroom-program/classroomctl.py next
