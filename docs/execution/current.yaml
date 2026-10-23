@@ -8245,7 +8245,7 @@ parallel_lanes:
         commands:
         - pnpm gate:electronics-m1
       browser:
-        workflow: Electronics UI679557 Qualification
+        workflow: Electronics UI 679-557 scoped qualification
         commands:
         - pnpm gate:electronics-ui-679-557:browser
       global_browser_verification:
@@ -8468,7 +8468,7 @@ parallel_lanes:
         commands:
         - pnpm gate:electronics-m1
       browser:
-        workflow: Electronics UI679557 Qualification
+        workflow: Electronics UI 679-557 scoped qualification
         commands:
         - pnpm gate:electronics-ui-679-557:browser
       global_browser_verification:
