@@ -236,7 +236,7 @@ export class LedTemporalPresentation {
   private b = new Map<string, HeldHistory<ElectronicsLedTemporalSample>>();
   private c = new Map<string, HeldHistory<ElectronicsArduinoIndicatorSample>>();
   private d: number | null = null;
-  private e: { wallMicroseconds: number; modelMicroseconds: number } | null = null;
+  private e: { w: number; m: number } | null = null;
   private f = 0;
   private g = 0;
   private h = 0;
@@ -284,8 +284,8 @@ export class LedTemporalPresentation {
             this.a,
             Math.max(
               this.d,
-              this.e.modelMicroseconds +
-                Math.floor(Math.max(0, wallMicroseconds - this.e.wallMicroseconds)),
+              this.e.m +
+                Math.floor(Math.max(0, wallMicroseconds - this.e.w)),
             ),
           );
     const times = new Set([target, this.a]);
@@ -384,7 +384,7 @@ export class LedTemporalPresentation {
     }
     if (wallMicroseconds !== undefined && this.d === null) {
       this.d = observation.fromMicroseconds;
-      this.e = { wallMicroseconds, modelMicroseconds: observation.fromMicroseconds };
+      this.e = { w: wallMicroseconds, m: observation.fromMicroseconds };
     }
     const next = new Map<string, HeldHistory<ElectronicsLedTemporalSample>>();
     for (const component of observation.components) {
@@ -506,7 +506,7 @@ export class LedTemporalPresentation {
    */
   prepareFrame(wallMicroseconds: number): LedPresentationFrame | null {
     this.h++;
-    const elapsed = this.e === null ? 0 : Math.max(0, wallMicroseconds - this.e.wallMicroseconds);
+    const elapsed = this.e === null ? 0 : Math.max(0, wallMicroseconds - this.e.w);
     if (this.k) return this.k;
     if (this.d === null || this.a === null) return null;
     const target = this.l
@@ -515,7 +515,7 @@ export class LedTemporalPresentation {
         ? this.d
         : Math.min(
             this.a,
-            (this.e?.modelMicroseconds ?? this.d) +
+            (this.e?.m ?? this.d) +
               Math.floor(elapsed * ELECTRONICS_CLASSROOM_PACE),
           );
     const values = this.o(target);
@@ -546,7 +546,7 @@ export class LedTemporalPresentation {
     this.d = frame.atMicroseconds;
     this.j = frame;
     this.k = null;
-    this.e ??= { wallMicroseconds, modelMicroseconds: frame.atMicroseconds };
+    this.e ??= { w: wallMicroseconds, m: frame.atMicroseconds };
     if (changed) this.i = this.h;
     return true;
   }
