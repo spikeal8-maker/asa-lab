@@ -847,7 +847,8 @@ function CourseEditor({
       );
     };
     updateOffset();
-    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(updateOffset);
+    const observer =
+      typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(updateOffset);
     observer?.observe(header);
     return () => {
       observer?.disconnect();

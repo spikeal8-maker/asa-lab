@@ -1915,9 +1915,7 @@
 .course-editor-dialog[data-inline='true'] {
   position: sticky;
   inset: auto;
-  top: calc(
-    var(--portal-header-height, 56px) + var(--course-compact-header-height, 0px) + 24px
-  );
+  top: calc(var(--portal-header-height, 56px) + var(--course-compact-header-height, 0px) + 24px);
   display: block;
   width: 100%;
   max-width: none;
