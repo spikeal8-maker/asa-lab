@@ -300,7 +300,7 @@ describe('Electronics canonical Worker controller', () => {
       controller.start('bootstrap', circuit, {
         onResult: vi.fn(),
         onFailure: vi.fn(),
-        readHostHorizonMicroseconds: read,
+        readHostHorizonMicroseconds: read as unknown as () => number | null,
       });
       await completeCanonicalStart(executor, 1);
       await flush();
@@ -410,7 +410,7 @@ describe('Electronics canonical Worker controller', () => {
       controller.start('bootstrap', circuit, {
         onResult: vi.fn(),
         onFailure: vi.fn(),
-        readHostHorizonMicroseconds: () => host,
+        readHostHorizonMicroseconds: (() => host) as unknown as () => number | null,
       });
       await completeCanonicalStart(executor, 1);
       host = 40000;
