@@ -2118,7 +2118,12 @@ for (const width of [1440, 1024, 390, 320]) {
       await expect(menu).toBeHidden();
     }
     expect(await readProgram()).toEqual(before);
-    await page.getByRole('button', { name: 'Закрыть панель кода', exact: true }).click();
+    await page
+      .getByRole('button', {
+        name: width >= 1024 ? 'Закрыть редактор кода' : 'Закрыть панель кода',
+        exact: true,
+      })
+      .click();
     await page.getByRole('button', { name: 'Открыть редактор кода', exact: true }).click();
     await openWorkspaceMenu();
     await expect(
