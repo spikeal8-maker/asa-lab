@@ -68,6 +68,7 @@ components:
     - contexts/electronics/domain/simulation.ts
     tests:
     - contexts/electronics/testing/solver.spec.ts
+    - contexts/electronics/testing/fet-dc-reference.spec.ts
     - contexts/electronics/testing/benchmark-corpus.spec.ts
     - contexts/electronics/testing/linear-system.spec.ts
     dependencies:

@@ -3491,12 +3491,16 @@ function solveCircuitStep(
       }
       const overdrive = Math.max(0, fetOverdrives.get(transistor.component.id) ?? 0);
       if (region === 'active') {
-        // Saturation region: drain current source Id = gm · (Vgs − Vth),
-        // gm = k · Vov from the previous iteration (fixed-point style).
-        const transconductance = transistor.transconductanceFactor * overdrive;
-        stampConductance(drain, source, FET_MIN_OHMIC_CONDUCTANCE);
+        // Newton tangent of the declared Id = k · (Vgs − Vth)² law.
+        // No extra drain conductance: it would add current absent from observation.
+        const transconductance = 2 * transistor.transconductanceFactor * overdrive;
         stampVccs(drain, source, gate, source, transconductance);
-        stampOffset(drain, source, transconductance * transistor.thresholdVoltage);
+        stampOffset(
+          drain,
+          source,
+          transconductance * transistor.thresholdVoltage +
+            transistor.transconductanceFactor * overdrive * overdrive,
+        );
       } else {
         // Ohmic (triode) region: drain–source behaves as a conductance k · Vov.
         const conductance = Math.max(
@@ -3641,7 +3645,9 @@ function solveCircuitStep(
       );
       const overdrive = gateVoltage - sourceVoltage - transistor.thresholdVoltage;
       const drainSourceDrop = drainVoltage - sourceVoltage;
-      fetOverdrives.set(transistor.component.id, Math.max(0, overdrive));
+      const previousOverdrive = fetOverdrives.get(transistor.component.id) ?? 0;
+      const nextOverdrive = Math.max(0, overdrive);
+      fetOverdrives.set(transistor.component.id, nextOverdrive);
       const nextRegion: TransistorOperatingRegion =
         overdrive <= 0.02
           ? 'cutoff'
@@ -3650,6 +3656,11 @@ function solveCircuitStep(
             : 'ohmic';
       if (nextRegion !== currentRegion) {
         transistorRegions.set(transistor.component.id, nextRegion);
+        changed = true;
+      }
+      // A stable region name does not mean its continuous operating point settled.
+      // Rebuild the next tangent/conductance until Vov changes by at most 1 nV.
+      if (nextRegion !== 'cutoff' && Math.abs(nextOverdrive - previousOverdrive) > 1e-9) {
         changed = true;
       }
     }
