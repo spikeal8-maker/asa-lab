@@ -245,7 +245,7 @@ QUALIFICATION_TEST = {"run": "pnpm exec vitest run tests/electronics/classroom-q
 QUALIFICATION_INPUT = {"inputs": {"qualification_profile": {
     "description": "Explicit browser qualification; strict real-time remains the default",
     "required": False, "type": "choice", "default": "strict-real-time",
-    "options": ["strict-real-time", "classroom-d13-v2", "classroom-d13-v3"]}}}
+    "options": ["strict-real-time", "classroom-d13-v2", "classroom-d13-v3", "arduino-editor-error"]}}}
 QUALIFICATION_RUNNER = "tools/run-electronics-classroom-browser.mjs"
 QUALIFICATION_SUITE = ["e2e/electronics-simulation.spec.ts", "e2e/electronics-interactions.spec.ts",
     "e2e/electronics-simulation-time.spec.ts", "e2e/electronics-piezo-clock.spec.ts",
@@ -254,9 +254,10 @@ QUALIFICATION_SUITE = ["e2e/electronics-simulation.spec.ts", "e2e/electronics-in
 
 
 def qualification_contract(contract):
-    """Select three explicit qualifications of the same complete Electronics suite."""
+    """Keep the published four-profile declaration and strict/classroom gate bindings."""
     contract = deepcopy(contract)
     contract["required_triggers"]["workflow_dispatch"] = deepcopy(QUALIFICATION_INPUT)
+    contract["jobs"]["focused"]["controls"]["if"] = "${{ inputs.qualification_profile != 'arduino-editor-error' }}"
     paths = contract["required_triggers"]["pull_request"]["paths"]
     for path in [QUALIFICATION_RUNNER, "e2e/electronics-classroom-timing.spec.ts"]:
         if path not in paths:
@@ -1143,7 +1144,7 @@ def check_electronics_challenges(receipt):
 
 
 def check_qualification_challenges(receipt):
-    """Keep all three exact profiles explicit and every mandatory gate binding."""
+    """Keep all four exact profiles explicit and every mandatory gate binding."""
     from contextlib import redirect_stdout
     from io import StringIO
     from unittest.mock import patch
@@ -1174,6 +1175,13 @@ def check_qualification_challenges(receipt):
         ("D2 browser budget cannot affect review images", lambda w: w["jobs"]["review-images"].update({"timeout-minutes": 50})),
         ("classroom cannot become default", lambda w: w["on"]["workflow_dispatch"]["inputs"]["qualification_profile"].update({"default": "classroom-d13-v2"})),
         ("unknown profile cannot be offered", lambda w: w["on"]["workflow_dispatch"]["inputs"]["qualification_profile"]["options"].append("unknown")),
+        ("focused cannot be disabled", lambda w: w["jobs"]["focused"].update({"if": False})),
+        ("focused cannot skip strict qualification", lambda w: w["jobs"]["focused"].update({"if": "${{ inputs.qualification_profile != 'strict-real-time' }}"})),
+        ("focused cannot use unknown profile condition", lambda w: w["jobs"]["focused"].update({"if": "${{ inputs.qualification_profile != 'unknown' }}"})),
+        ("strict remains selectable", lambda w: w["on"]["workflow_dispatch"]["inputs"]["qualification_profile"]["options"].remove("strict-real-time")),
+        ("published editor profile remains selectable", lambda w: w["on"]["workflow_dispatch"]["inputs"]["qualification_profile"]["options"].remove("arduino-editor-error")),
+        ("editor profile cannot become default", lambda w: w["on"]["workflow_dispatch"]["inputs"]["qualification_profile"].update({"default": "arduino-editor-error"})),
+        ("unknown cannot replace published editor profile", lambda w: w["on"]["workflow_dispatch"]["inputs"]["qualification_profile"]["options"].__setitem__(3, "unknown")),
         ("v3 cannot become default", lambda w: w["on"]["workflow_dispatch"]["inputs"]["qualification_profile"].update({"default": "classroom-d13-v3"})),
         ("historical v2 remains selectable", lambda w: w["on"]["workflow_dispatch"]["inputs"]["qualification_profile"]["options"].remove("classroom-d13-v2")),
         ("v3 remains separately selectable", lambda w: w["on"]["workflow_dispatch"]["inputs"]["qualification_profile"]["options"].remove("classroom-d13-v3")),
