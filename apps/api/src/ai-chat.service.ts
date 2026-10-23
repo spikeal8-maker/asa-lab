@@ -6,6 +6,16 @@ import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:
 import type pg from 'pg';
 import { AiTextHistoryStore } from './ai-text-history.js';
 import {
+  OLLAMA_SELECTION,
+  OllamaError,
+  ollamaBaseUrl,
+  validOllamaModel,
+  discoverOllama,
+  streamOllamaText,
+  type OllamaModel,
+  type OllamaSettings,
+} from './ai-ollama.js';
+import {
   AI_PRODUCT_FEATURES,
   buildAiTextRequest,
   getAiModelCatalog,
@@ -28,6 +38,7 @@ const ASSISTANT_INSTRUCTIONS =
   'Объясняй решения и не выдавай неподтверждённые результаты за факты.';
 
 export type { AiProvider, AiModel } from './ai-model-catalog.js';
+export type AiChatModel = AiModel | typeof OLLAMA_SELECTION;
 
 export interface AiProviderConfiguration {
   readonly provider: AiProvider;
@@ -116,6 +127,13 @@ interface RuntimeRow {
   readonly api_key_auth_tag: string | null;
 }
 
+interface OllamaRow {
+  readonly enabled: boolean;
+  readonly base_url: string;
+  readonly model: string;
+  readonly revision: string | number;
+  readonly updated_at?: Date | string | null;
+}
 interface AiServiceOptions {
   readonly encryptionKey?: string;
   readonly fetchImpl?: typeof fetch;
@@ -166,6 +184,204 @@ export class AiChatService {
     this.key = rootKey(options.encryptionKey ?? process.env['ASA_SETTINGS_ENCRYPTION_KEY']);
     this.fetchImpl = options.fetchImpl ?? fetch;
     this.history = new AiTextHistoryStore(pool);
+  }
+
+  private async ollamaRuntime(): Promise<OllamaRow> {
+    const result = await this.pool.query<OllamaRow>('SELECT * FROM ai_ollama_runtime()');
+    const row = result.rows[0];
+    // A missing or incompatible optional connection must never activate local
+    // inference or change the behavior of existing paid-provider fixtures.
+    if (
+      !row ||
+      typeof row.enabled !== 'boolean' ||
+      typeof row.base_url !== 'string' ||
+      !validOllamaModel(row.model) ||
+      !Number.isSafeInteger(Number(row.revision))
+    ) {
+      return { enabled: false, base_url: 'http://127.0.0.1:11434', model: '', revision: 0 };
+    }
+    return row;
+  }
+
+  async ollamaSettings(principalId: string): Promise<OllamaSettings> {
+    const result = await this.pool.query<OllamaRow>('SELECT * FROM ai_ollama_admin_get($1)', [
+      principalId,
+    ]);
+    const row = result.rows[0];
+    if (!row)
+      throw new AiServiceError('ai_ollama_unavailable', 503, 'Настройки Ollama недоступны.');
+    return {
+      enabled: row.enabled,
+      baseUrl: row.base_url,
+      model: row.model,
+      revision: Number(row.revision),
+      updatedAt: iso(row.updated_at ?? null),
+    };
+  }
+
+  async saveOllamaSettings(
+    principalId: string,
+    input: {
+      enabled: boolean;
+      baseUrl: string;
+      model: string;
+      revision: number;
+    },
+    requestId: string,
+  ): Promise<OllamaSettings> {
+    const baseUrl = ollamaBaseUrl(input.baseUrl);
+    if (
+      !validOllamaModel(input.model) ||
+      !Number.isSafeInteger(input.revision) ||
+      input.revision < 1
+    ) {
+      throw new AiServiceError('ai_ollama_config_invalid', 400, 'Неверные настройки Ollama.');
+    }
+    try {
+      await this.pool.query(
+        'SELECT ai_ollama_admin_set($1,$2,$3::varchar,$4::varchar,$5::bigint,$6::varchar)',
+        [principalId, input.enabled, baseUrl, input.model, input.revision, requestId],
+      );
+    } catch (problem) {
+      if ((problem as Error).message.includes('AI_OLLAMA_CONFIG_CHANGED')) {
+        throw new AiServiceError(
+          'ai_ollama_config_changed',
+          409,
+          'Настройки Ollama изменились. Обновите форму.',
+        );
+      }
+      if ((problem as { code?: string }).code === '42501') {
+        throw new AiServiceError('ai_admin_denied', 403, 'Нет доступа к настройкам Ollama.');
+      }
+      throw problem;
+    }
+    return this.ollamaSettings(principalId);
+  }
+
+  async ollamaModels(principalId: string, candidate?: string): Promise<readonly OllamaModel[]> {
+    const endpoint = candidate ?? (await this.ollamaSettings(principalId)).baseUrl;
+    return discoverOllama(endpoint, this.fetchImpl);
+  }
+
+  private async probeOllama(baseUrl: string, model: string): Promise<number> {
+    const models = await discoverOllama(baseUrl, this.fetchImpl);
+    if (!models.some((item) => item.name === model)) {
+      throw new AiServiceError(
+        'ai_ollama_model_missing',
+        503,
+        'Модель не установлена на сервере Ollama.',
+      );
+    }
+    const started = Date.now();
+    await streamOllamaText({
+      baseUrl,
+      model,
+      context: [{ role: 'user', content: 'Ответь кратко: OK' }],
+      instructions: 'Проверка соединения. Ответь одним словом.',
+      signal: new AbortController().signal,
+      onDelta: () => undefined,
+      fetchImpl: this.fetchImpl,
+    });
+    return Date.now() - started;
+  }
+
+  /** Verify a candidate before committing the configuration revision.
+   * A failed GPU probe never leaves the administrator with an unusable saved model.
+   */
+  async applyOllamaSettings(
+    principalId: string,
+    input: { enabled: boolean; baseUrl: string; model: string; revision: number },
+    requestId: string,
+  ): Promise<{
+    config: OllamaSettings;
+    verified: boolean;
+    test: { model: string; elapsedMs: number; testedAt: string } | null;
+  }> {
+    const current = await this.ollamaSettings(principalId);
+    if (!Number.isSafeInteger(input.revision) || input.revision !== current.revision) {
+      throw new AiServiceError(
+        'ai_ollama_config_changed',
+        409,
+        'Настройки изменились. Обновите страницу.',
+      );
+    }
+    const baseUrl = ollamaBaseUrl(input.baseUrl);
+    if (!validOllamaModel(input.model) || typeof input.enabled !== 'boolean') {
+      throw new AiServiceError('ai_ollama_config_invalid', 400, 'Проверьте настройки Ollama.');
+    }
+    const elapsedMs = input.enabled ? await this.probeOllama(baseUrl, input.model) : null;
+    const dirty =
+      current.enabled !== input.enabled ||
+      current.baseUrl !== baseUrl ||
+      current.model !== input.model;
+    const config = dirty
+      ? await this.saveOllamaSettings(principalId, { ...input, baseUrl }, requestId)
+      : await this.ollamaSettings(principalId);
+    // Even an unchanged configuration may be disabled by another administrator
+    // while inference runs. Never claim that a stale snapshot was verified.
+    if (
+      !dirty &&
+      (config.revision !== input.revision ||
+        config.enabled !== input.enabled ||
+        config.baseUrl !== baseUrl ||
+        config.model !== input.model)
+    ) {
+      throw new AiServiceError(
+        'ai_ollama_config_changed',
+        409,
+        'Настройки изменились. Обновите страницу.',
+      );
+    }
+    return {
+      config,
+      verified: elapsedMs !== null,
+      test:
+        elapsedMs === null
+          ? null
+          : { model: input.model, elapsedMs, testedAt: new Date().toISOString() },
+    };
+  }
+
+  async testOllama(
+    principalId: string,
+    revision: number,
+  ): Promise<{
+    model: string;
+    elapsedMs: number;
+    testedAt: string;
+    revision: number;
+  }> {
+    const config = await this.ollamaSettings(principalId);
+    if (config.revision !== revision) {
+      throw new AiServiceError('ai_ollama_config_changed', 409, 'Настройки Ollama изменились.');
+    }
+    const models = await discoverOllama(config.baseUrl, this.fetchImpl);
+    if (!models.some((item) => item.name === config.model)) {
+      throw new AiServiceError(
+        'ai_ollama_model_missing',
+        503,
+        'Модель не установлена на сервере Ollama.',
+      );
+    }
+    const started = Date.now();
+    await streamOllamaText({
+      baseUrl: config.baseUrl,
+      model: config.model,
+      context: [{ role: 'user', content: 'Ответь кратко: OK' }],
+      instructions: 'Проверка соединения. Ответь одним словом.',
+      signal: new AbortController().signal,
+      onDelta: () => undefined,
+      fetchImpl: this.fetchImpl,
+    });
+    const after = await this.ollamaSettings(principalId);
+    if (after.revision !== revision)
+      throw new AiServiceError('ai_ollama_config_changed', 409, 'Настройки изменились.');
+    return {
+      model: config.model,
+      elapsedMs: Date.now() - started,
+      testedAt: new Date().toISOString(),
+      revision,
+    };
   }
 
   async adminConfig(principalId: string): Promise<AiAdminConfig> {
@@ -387,26 +603,35 @@ export class AiChatService {
 
   async status(): Promise<{
     enabled: boolean;
-    provider: AiProvider;
-    model: AiModel;
-    availableModels: readonly AiModel[];
+    provider: AiProvider | 'ollama';
+    model: AiChatModel;
+    availableModels: readonly AiChatModel[];
     modelCatalog: AiModelCatalog;
     productFeatures: typeof AI_PRODUCT_FEATURES;
+    ollamaModel: string | null;
   }> {
-    const config = await this.runtime();
+    const [config, local] = await Promise.all([this.runtime(), this.ollamaRuntime()]);
     const modelCatalog = getAiModelCatalog();
+    const externalReady =
+      config.enabled &&
+      isModelForProvider(config.provider, config.model) &&
+      this.decrypt(config) !== null;
+    const localReady = local.enabled && validOllamaModel(local.model);
     return {
-      enabled:
-        config.enabled &&
-        isModelForProvider(config.provider, config.model) &&
-        this.decrypt(config) !== null,
-      provider: config.provider,
-      model: config.model,
-      availableModels: modelCatalog.models
-        .filter((model) => model.provider === config.provider && model.selectable)
-        .map((model) => model.id),
+      enabled: externalReady || localReady,
+      provider: !externalReady && localReady ? 'ollama' : config.provider,
+      model: !externalReady && localReady ? OLLAMA_SELECTION : config.model,
+      availableModels: [
+        ...(externalReady
+          ? modelCatalog.models
+              .filter((model) => model.provider === config.provider && model.selectable)
+              .map((model) => model.id)
+          : []),
+        ...(localReady ? [OLLAMA_SELECTION] : []),
+      ],
       modelCatalog,
       productFeatures: AI_PRODUCT_FEATURES,
+      ollamaModel: localReady ? local.model : null,
     };
   }
 
@@ -515,17 +740,32 @@ export class AiChatService {
       );
     }
     const runtime = await this.runtime();
-    this.requireSupportedModel(runtime);
-    if (!runtime.enabled) {
-      throw new AiServiceError('ai_disabled', 503, 'ИИ выключен администратором.');
+    // Legacy JSON transport follows the active external provider exactly.
+    // It falls back to independently configured local inference only when
+    // the external provider was deliberately switched off.
+    const useLocal = !runtime.enabled;
+    const local = useLocal ? await this.ollamaRuntime() : null;
+    if (useLocal) {
+      if (!local?.enabled)
+        throw new AiServiceError('ai_disabled', 503, 'ИИ выключен администратором.');
+    } else {
+      this.requireSupportedModel(runtime);
     }
-    const apiKey = this.requireProviderKey(runtime);
+    const apiKey = useLocal ? '' : this.requireProviderKey(runtime);
     const requestId = clientRequestId.toLowerCase();
     let accepted: boolean;
     try {
       const admitted = await this.pool.query<{ admitted: boolean }>(
-        'SELECT ai_text_begin_paid($1,$2,$3,$4::varchar,$5::bigint) AS admitted',
-        [principalId, threadId, requestId, prompt, runtime.configuration_version],
+        useLocal
+          ? 'SELECT ai_text_begin_local($1,$2,$3,$4::varchar,$5::bigint) AS admitted'
+          : 'SELECT ai_text_begin_paid($1,$2,$3,$4::varchar,$5::bigint) AS admitted',
+        [
+          principalId,
+          threadId,
+          requestId,
+          prompt,
+          useLocal ? local!.revision : runtime.configuration_version,
+        ],
       );
       accepted = admitted.rows[0]?.admitted === true;
     } catch (problem) {
@@ -561,7 +801,17 @@ export class AiChatService {
 
     try {
       const context = await this.history.generationContext(principalId, threadId, requestId);
-      const reply = await this.generate(runtime, apiKey, context);
+      const reply = useLocal
+        ? await streamOllamaText({
+            baseUrl: local!.base_url,
+            model: local!.model,
+            context,
+            instructions: ASSISTANT_INSTRUCTIONS,
+            signal: new AbortController().signal,
+            onDelta: () => undefined,
+            fetchImpl: this.fetchImpl,
+          })
+        : await this.generate(runtime, apiKey, context);
       await this.pool.query('SELECT ai_chat_finish($1,$2,$3,$4::varchar,$5::varchar)', [
         principalId,
         threadId,
@@ -571,7 +821,10 @@ export class AiChatService {
       ]);
       return { messages: await this.messages(principalId, threadId), replayed: false };
     } catch (problem) {
-      if (problem instanceof ProviderStreamError && problem.partialText.trim()) {
+      if (
+        (problem instanceof ProviderStreamError || problem instanceof OllamaError) &&
+        problem.partialText.trim()
+      ) {
         await this.pool.query('SELECT ai_chat_finish($1,$2,$3,$4::varchar,$5::varchar)', [
           principalId,
           threadId,
@@ -584,7 +837,7 @@ export class AiChatService {
           .query('SELECT ai_chat_abort($1,$2,$3)', [principalId, threadId, requestId])
           .catch(() => undefined);
       }
-      if (problem instanceof ProviderStreamError) {
+      if (problem instanceof ProviderStreamError || problem instanceof OllamaError) {
         throw new AiServiceError(problem.code, problem.status, problem.message);
       }
       if (problem instanceof AiServiceError) throw problem;
@@ -608,7 +861,7 @@ export class AiChatService {
     requestId: string,
     onDelta: (delta: string) => void,
     clientSignal: AbortSignal,
-    selectedModel?: AiModel,
+    selectedModel?: AiChatModel,
     regenerateFrom?: string,
   ): Promise<{
     readonly messages: readonly AiMessage[];
@@ -643,26 +896,45 @@ export class AiChatService {
       }
     }
     const runtime = await this.runtime();
-    const model = selectedModel ?? runtime.model;
-    if (!isModelForProvider(runtime.provider, model)) {
-      throw new AiServiceError(
-        'ai_model_invalid',
-        400,
-        'Модель не поддерживается выбранным провайдером.',
-      );
+    const useLocal =
+      selectedModel === OLLAMA_SELECTION || (selectedModel === undefined && !runtime.enabled);
+    // No additional SQL is performed for existing OpenAI/DeepSeek routes.
+    const local = useLocal ? await this.ollamaRuntime() : null;
+    const model = selectedModel ?? (useLocal ? OLLAMA_SELECTION : runtime.model);
+    if (useLocal) {
+      if (!local?.enabled || !validOllamaModel(local.model)) {
+        throw new AiServiceError('ai_disabled', 503, 'Локальная Ollama выключена администратором.');
+      }
+    } else {
+      if (!isModelForProvider(runtime.provider, model)) {
+        throw new AiServiceError(
+          'ai_model_invalid',
+          400,
+          'Модель не поддерживается выбранным провайдером.',
+        );
+      }
+      if (!runtime.enabled)
+        throw new AiServiceError('ai_disabled', 503, 'ИИ выключен администратором.');
     }
-    if (!runtime.enabled) {
-      throw new AiServiceError('ai_disabled', 503, 'ИИ выключен администратором.');
-    }
-    const apiKey = this.requireProviderKey(runtime);
+    const apiKey = useLocal ? '' : this.requireProviderKey(runtime);
 
     let admitted: boolean;
     try {
       const result = await this.pool.query<{ admitted: boolean }>(
         sourceId
-          ? 'SELECT ai_text_regenerate_begin($1,$2,$3,$4,$5::bigint) AS admitted'
-          : 'SELECT ai_text_begin_paid($1,$2,$3,$4::varchar,$5::bigint) AS admitted',
-        [principalId, threadId, requestId, sourceId ?? prompt, runtime.configuration_version],
+          ? useLocal
+            ? 'SELECT ai_text_regenerate_begin_local($1,$2,$3,$4,$5::bigint) AS admitted'
+            : 'SELECT ai_text_regenerate_begin($1,$2,$3,$4,$5::bigint) AS admitted'
+          : useLocal
+            ? 'SELECT ai_text_begin_local($1,$2,$3,$4::varchar,$5::bigint) AS admitted'
+            : 'SELECT ai_text_begin_paid($1,$2,$3,$4::varchar,$5::bigint) AS admitted',
+        [
+          principalId,
+          threadId,
+          requestId,
+          sourceId ?? prompt,
+          useLocal ? local!.revision : runtime.configuration_version,
+        ],
       );
       admitted = result.rows[0]?.admitted === true;
     } catch (problem) {
@@ -710,16 +982,26 @@ export class AiChatService {
     this.activeStreams.set(operationKey, { principalId, threadId, abort });
     try {
       const context = await this.history.generationContext(principalId, threadId, requestId);
-      const result = await streamProviderText({
-        fetchImpl: this.fetchImpl,
-        provider: runtime.provider,
-        model,
-        apiKey,
-        context,
-        instructions: ASSISTANT_INSTRUCTIONS,
-        signal: combined,
-        onDelta,
-      });
+      const result = useLocal
+        ? await streamOllamaText({
+            baseUrl: local!.base_url,
+            model: local!.model,
+            context,
+            instructions: ASSISTANT_INSTRUCTIONS,
+            signal: combined,
+            onDelta,
+            fetchImpl: this.fetchImpl,
+          })
+        : await streamProviderText({
+            fetchImpl: this.fetchImpl,
+            provider: runtime.provider,
+            model: model as AiModel,
+            apiKey,
+            context,
+            instructions: ASSISTANT_INSTRUCTIONS,
+            signal: combined,
+            onDelta,
+          });
 
       if (result.text.trim()) {
         await this.pool.query('SELECT ai_chat_finish($1,$2,$3,$4::varchar,$5::varchar)', [
@@ -740,7 +1022,10 @@ export class AiChatService {
         stopped: result.stopped,
       };
     } catch (problem) {
-      if (problem instanceof ProviderStreamError && problem.partialText.trim()) {
+      if (
+        (problem instanceof ProviderStreamError || problem instanceof OllamaError) &&
+        problem.partialText.trim()
+      ) {
         // Preserve a visible partial answer before releasing this request's SQL lease.
         await this.pool.query('SELECT ai_chat_finish($1,$2,$3,$4::varchar,$5::varchar)', [
           principalId,
@@ -754,7 +1039,7 @@ export class AiChatService {
           .query('SELECT ai_chat_abort($1,$2,$3)', [principalId, threadId, requestId])
           .catch(() => undefined);
       }
-      if (problem instanceof ProviderStreamError) {
+      if (problem instanceof ProviderStreamError || problem instanceof OllamaError) {
         throw new AiServiceError(problem.code, problem.status, problem.message);
       }
       if (problem instanceof AiServiceError) throw problem;
