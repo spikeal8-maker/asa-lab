@@ -1741,8 +1741,8 @@
   max-height: max(
     0px,
     calc(
-      100dvh - var(--portal-header-height, 56px) -
-        var(--course-compact-header-height, 0px) - 24px - 48px - 16px
+      100dvh - var(--portal-header-height, 56px) - var(--course-compact-header-height, 0px) - 24px -
+        48px - 16px
     )
   );
 }
