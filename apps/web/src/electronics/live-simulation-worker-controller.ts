@@ -622,7 +622,7 @@ export class ElectronicsLiveSimulationWorkerController {
     const isStartup = target === this.startupTarget;
     const completedDocument = this.dispatchedDocument;
     if (isStartup) {
-      this.firstPositiveObservation = false;
+      this.firstPositiveObservation = this.callbacks?.readHostHorizonMicroseconds !== undefined;
       this.startupTarget = null;
       this.callbacks?.onInitialReady?.(this.horizonOffsetMicroseconds);
       if (generationId !== this.generationId) return;

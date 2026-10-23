@@ -345,7 +345,7 @@ describe('Electronics canonical Worker controller', () => {
         // add a stale bootstrap after that reentrant valid command.
         expect(read).toHaveBeenCalledTimes(1);
         expect(executor.advances).toHaveLength(2);
-        expect(executor.advances[1]!.requestedHorizonMicroseconds).toBe(25000);
+        expect(executor.advances[1]!.requestedHorizonMicroseconds).toBe(1000);
         expect(
           executor.advances[1]!.document.components.find((c) => c.id === 'uno')!.stateProperties!
             .arduinoSource,
@@ -372,6 +372,77 @@ describe('Electronics canonical Worker controller', () => {
     await completeCanonicalStart(executor, 1);
     expect(read).toHaveBeenCalledTimes(1);
     expect(executor.advances).toHaveLength(1);
+    controller.dispose();
+  });
+
+  it('retains the first positive slice after both H0 clock reads round to zero', async () => {
+    const executor = new FakeExecutor();
+    const controller = new ElectronicsLiveSimulationWorkerController(executor);
+    let host = 0;
+    controller.start('bootstrap', circuit, {
+      onResult: vi.fn(),
+      onFailure: vi.fn(),
+      readHostHorizonMicroseconds: () => host,
+    });
+    await completeCanonicalStart(executor, 1);
+    expect(executor.advances).toHaveLength(1);
+    host = 40000;
+    controller.update(circuit, host);
+    expect(executor.advances.at(-1)!.requestedHorizonMicroseconds).toBe(1000);
+    for (const to of [1000, 26000, 40000]) {
+      const call = executor.advances.at(-1)!;
+      expect(call.requestedHorizonMicroseconds).toBe(to);
+      call.deferred.resolve(timedAdvance('ready', to, to));
+      await flush();
+    }
+    expect(executor.advances.map((call) => call.requestedHorizonMicroseconds)).toEqual([
+      0, 1000, 26000, 40000,
+    ]);
+    controller.dispose();
+  });
+
+  it.each([null, undefined, NaN, Infinity, -1, 0.5])(
+    'retains the first slice after invalid H0 host %s becomes lawful',
+    async (initial) => {
+      const executor = new FakeExecutor();
+      const controller = new ElectronicsLiveSimulationWorkerController(executor);
+      let host: number | null | undefined = initial;
+      controller.start('bootstrap', circuit, {
+        onResult: vi.fn(),
+        onFailure: vi.fn(),
+        readHostHorizonMicroseconds: () => host,
+      });
+      await completeCanonicalStart(executor, 1);
+      host = 40000;
+      controller.update(circuit, host);
+      expect(executor.advances.at(-1)!.requestedHorizonMicroseconds).toBe(1000);
+      controller.dispose();
+    },
+  );
+
+  it('preserves input priority and its canonical committed-time timestamp with a pending first slice', async () => {
+    const executor = new FakeExecutor();
+    const controller = new ElectronicsLiveSimulationWorkerController(executor);
+    let host = 0;
+    controller.start('bootstrap', circuit, {
+      onResult: vi.fn(),
+      onFailure: vi.fn(),
+      readHostHorizonMicroseconds: () => host,
+    });
+    await completeCanonicalStart(executor, 1);
+    host = 5000;
+    controller.update(
+      {
+        ...circuit,
+        components: circuit.components.map((c) => (c.id === 'button' ? { ...c, state: true } : c)),
+      },
+      host,
+    );
+    const call = executor.advances.at(-1)!;
+    expect(call.requestedHorizonMicroseconds).toBe(5000);
+    expect(call.inputEvents).toEqual([
+      { atMicroseconds: 1, targetId: 'button', operation: 'state', payload: true },
+    ]);
     controller.dispose();
   });
 
@@ -1725,7 +1796,7 @@ describe('Electronics canonical Worker controller', () => {
     elapsedWallMicroseconds = 80_000;
 
     controller.update(circuit, 25_000);
-    expect(executor.advances[1]!.requestedHorizonMicroseconds).toBe(25_000);
+    expect(executor.advances[1]!.requestedHorizonMicroseconds).toBe(1_000);
     elapsedWallMicroseconds = 96_000;
     presentedMicroseconds = 2_000;
     controller.update(circuit, 8_250);
@@ -1734,25 +1805,28 @@ describe('Electronics canonical Worker controller', () => {
     // and ACK are covered by the mounted/browser tests; no host tick is sent.
     elapsedWallMicroseconds = 112_000;
     presentedMicroseconds = 4_000;
-    executor.advances[1]!.deferred.resolve(timedAdvance('ready', 25_000, 25_000));
+    executor.advances[1]!.deferred.resolve(timedAdvance('ready', 1_000, 1_000));
     await flush();
     expect(executor.advances).toHaveLength(3);
-    expect(executor.advances[2]!.requestedHorizonMicroseconds).toBe(50_000);
-    expect(executor.advances[2]!.requestedHorizonMicroseconds - presentedMicroseconds).toBe(46_000);
-    expect(executor.advances[2]!.state.continuation?.committedHorizonMicroseconds).toBe(25_000);
+    expect(executor.advances[2]!.requestedHorizonMicroseconds).toBe(26_000);
+    expect(executor.advances[2]!.requestedHorizonMicroseconds - presentedMicroseconds).toBe(22_000);
+    expect(executor.advances[2]!.state.continuation?.committedHorizonMicroseconds).toBe(1_000);
 
     // A long native/RAF hold supplies no new acknowledgement. Fresh wall time
     // cannot expand the cap or dispatch a second request alongside the first.
     elapsedWallMicroseconds = 1_000_000;
     controller.update(circuit, 54_000);
     expect(executor.advances).toHaveLength(3);
-    executor.advances[2]!.deferred.resolve(timedAdvance('ready', 50_000, 50_000));
+    executor.advances[2]!.deferred.resolve(timedAdvance('ready', 26_000, 26_000));
     await flush();
-    expect(executor.advances[3]!.requestedHorizonMicroseconds).toBe(54_000);
-    executor.advances[3]!.deferred.resolve(timedAdvance('ready', 54_000, 54_000));
+    expect(executor.advances[3]!.requestedHorizonMicroseconds).toBe(51_000);
+    executor.advances[3]!.deferred.resolve(timedAdvance('ready', 51_000, 51_000));
     await flush();
-    expect(executor.advances).toHaveLength(4);
-    expect(readHostHorizonMicroseconds).toHaveBeenCalledTimes(3);
+    expect(executor.advances[4]!.requestedHorizonMicroseconds).toBe(54_000);
+    executor.advances[4]!.deferred.resolve(timedAdvance('ready', 54_000, 54_000));
+    await flush();
+    expect(executor.advances).toHaveLength(5);
+    expect(readHostHorizonMicroseconds).toHaveBeenCalledTimes(4);
     controller.stop();
   });
 
@@ -1768,16 +1842,21 @@ describe('Electronics canonical Worker controller', () => {
     await completeCanonicalStart(executor, 1);
     host = 75_000;
     controller.update(circuit, 1_000);
-    for (const horizon of [25_000, 50_000, 75_000]) {
+    for (const horizon of [1_000, 26_000, 51_000, 75_000]) {
       const request = executor.advances.at(-1)!;
       expect(request.requestedHorizonMicroseconds).toBe(horizon);
       expect(horizon - (request.state.continuation?.committedHorizonMicroseconds ?? 0)).toBe(
-        25_000,
+        horizon === 1_000
+          ? 1_000
+          : Math.min(
+              25_000,
+              75_000 - (request.state.continuation?.committedHorizonMicroseconds ?? 0),
+            ),
       );
       request.deferred.resolve(timedAdvance('ready', horizon, horizon));
       await flush();
     }
-    expect(executor.advances).toHaveLength(4);
+    expect(executor.advances).toHaveLength(5);
     controller.stop();
   });
 
@@ -1884,6 +1963,9 @@ describe('Electronics canonical Worker controller', () => {
     hostHorizon = 1_006_250;
     controller.update(changed, 1_003_000);
     expect(executor.advances.at(-1)!.generationId).toBe(2);
+    expect(executor.advances.at(-1)!.requestedHorizonMicroseconds).toBe(1_000);
+    executor.advances.at(-1)!.deferred.resolve(timedAdvance('ready', 1_000, 1_000));
+    await flush();
     expect(executor.advances.at(-1)!.requestedHorizonMicroseconds).toBe(6_250);
     expect(
       executor.advances.at(-1)!.document.components.find((item) => item.id === 'resistor')?.value,
