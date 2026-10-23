@@ -643,6 +643,7 @@ describe('owner-reference Electronics presentation contract', () => {
           `${predicateSource?.replace(': SchematicComponent', '').replace(': boolean', '')}; ${handlerSource}; handleWirePointerDown`,
           {
             c,
+            window: { document: { elementsFromPoint: () => [] } },
             componentAtClientPoint: () => component,
             lastWireClick: { current: null },
             pointerSequenceRef: { current: 1 },

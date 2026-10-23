@@ -476,6 +476,31 @@ export function WorkbenchStage({
       }
       return;
     }
+    if (foregroundComponent?.componentTypeId === 'regulated-power-supply') {
+      const control = window.document
+        .elementsFromPoint(event.clientX, event.clientY)
+        .find(
+          (element) =>
+            element.matches('rect.workbench-regulated-supply-power-switch') &&
+            element.closest('[data-component-id]')?.getAttribute('data-component-id') ===
+              foregroundComponent.id,
+        );
+      const runtime = control?.closest('.workbench-regulated-supply-runtime');
+      const owner = runtime?.closest('[data-component-id]');
+      const output = runtime?.getAttribute('data-output-enabled');
+      if (
+        owner?.getAttribute('data-component-id') === foregroundComponent.id &&
+        owner.querySelectorAll('.workbench-regulated-supply-runtime').length === 1 &&
+        (output === 'true' || output === 'false')
+      ) {
+        c.setRegulatedPowerSupplyControls(foregroundComponent.id, {
+          outputEnabled: output === 'false',
+        });
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
+    }
     event.stopPropagation();
     const previous = lastWireClick.current;
     const repeated =
