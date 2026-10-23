@@ -1963,7 +1963,9 @@ test('document Course Builder preserves the lesson, real save acknowledgements a
     // The sticky global bar is an occluder, not a clipping ancestor. A user can
     // scroll the menu to the center before activating it; assert that the final
     // position clears the sticky bar and still passes strict pointer sampling.
-    await actions.evaluate((button) => button.scrollIntoView({ block: 'center', behavior: 'instant' }));
+    await actions.evaluate((button) =>
+      button.scrollIntoView({ block: 'center', behavior: 'instant' }),
+    );
     await expect
       .poll(
         async () =>
