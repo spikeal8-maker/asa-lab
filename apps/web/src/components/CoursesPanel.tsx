@@ -834,6 +834,26 @@ function CourseEditor({
   const [saveTarget, setSaveTarget] = useState<HTMLDivElement | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [outlineOpen, setOutlineOpen] = useState(false);
+  const compactHeaderRef = useRef<HTMLElement>(null);
+  // The outline's sticky offset follows the actual responsive header height.
+  useEffect(() => {
+    const header = compactHeaderRef.current;
+    const editor = header?.closest('.course-document-editor');
+    if (!header || !(editor instanceof HTMLElement)) return;
+    const updateOffset = () => {
+      editor.style.setProperty(
+        '--course-compact-header-height',
+        `${Math.ceil(header.getBoundingClientRect().height)}px`,
+      );
+    };
+    updateOffset();
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(updateOffset);
+    observer?.observe(header);
+    return () => {
+      observer?.disconnect();
+      editor.style.removeProperty('--course-compact-header-height');
+    };
+  }, []);
   const [wideLayout, setWideLayout] = useState(
     () => window.matchMedia('(min-width: 761px)').matches,
   );
@@ -1365,7 +1385,7 @@ function CourseEditor({
     <fieldset disabled={restoreBusy} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
       <section className="course-system course-document-editor" data-testid="course-editor">
         <div className="course-editor-document" hidden={preview && assignVersion === null}>
-          <header className="course-compact-header">
+          <header className="course-compact-header" ref={compactHeaderRef}>
             <button
               type="button"
               className="course-back-button"

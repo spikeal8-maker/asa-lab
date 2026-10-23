@@ -2015,6 +2015,17 @@ test('document Course Builder preserves the lesson, real save acknowledgements a
     expect(stickyShell.bottom).toBeLessThanOrEqual(stickyShell.viewportHeight);
     viewportEvidence.push({ stage: name + ':body:sticky-shell', ...stickyShell });
     if (await targetEditor.locator('.course-outline-dialog[data-inline="true"]').count()) {
+      // Inline navigation may stick, but must not disappear under the portal
+      // or document headers when the long lesson scrolls.
+      const headerBox = await targetEditor.locator('.course-compact-header').boundingBox();
+      const outlineBox = await targetEditor
+        .locator('.course-outline-dialog[data-inline="true"]')
+        .boundingBox();
+      expect(headerBox, name + ': course sticky header').not.toBeNull();
+      expect(outlineBox, name + ': inline outline').not.toBeNull();
+      expect(outlineBox!.y, name + ': outline below sticky headers').toBeGreaterThanOrEqual(
+        headerBox!.y + headerBox!.height + 8,
+      );
       const selectedLesson = targetEditor.locator('.course-outline [aria-current="page"]');
       await hitTarget(selectedLesson, name + ':body:sticky-selected-lesson');
       await hitTarget(

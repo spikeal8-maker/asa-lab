@@ -1637,14 +1637,14 @@
 
 .course-document-editor .course-compact-header {
   position: sticky;
-  top: var(--portal-header-height, 56px);
+  top: calc(var(--portal-header-height, 56px) + 12px);
   z-index: 5;
   background: #fff;
   grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 10px 16px;
   padding-bottom: 16px;
-  /* The real portal bar grows on wide screens; the course actions stay visible below it. */
-  scroll-margin-block-start: calc(var(--portal-header-height, 56px) + 8px);
+  /* Keep natural browser focus scrolling clear of the responsive portal bar. */
+  scroll-margin-block-start: calc(var(--portal-header-height, 56px) + 12px);
 }
 
 .course-document-editor .course-compact-title h2 {
@@ -1699,7 +1699,7 @@
   width: auto;
   padding-inline: 12px;
   border-color: #c9d5db;
-  scroll-margin-block-start: calc(var(--portal-header-height, 56px) + 8px);
+  scroll-margin-block-start: calc(var(--portal-header-height, 56px) + 12px);
 }
 
 .course-document-editor .course-actions-menu > .dropdown-menu {
@@ -1915,7 +1915,9 @@
 .course-editor-dialog[data-inline='true'] {
   position: sticky;
   inset: auto;
-  top: 16px;
+  top: calc(
+    var(--portal-header-height, 56px) + var(--course-compact-header-height, 0px) + 24px
+  );
   display: block;
   width: 100%;
   max-width: none;
