@@ -8086,19 +8086,24 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: bounded_passive_fractional_ready_integer_dom_observer_repair
+      checkpoint: integrate_reviewed_pr695_clock_observer_without_product_rewrite
       kind: repair
       owner_acceptance: pending
       programme_issue: 452
       dependency_for_issue: 552
-      selected_at: '2026-10-11T23:17:21.978668+00:00'
+      selected_at: '2026-10-23T18:28:07Z'
       context_hints:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-CLOCK-OBSERVER-001.md
       - docs/product/electronics/components/ui-assets-persistence.yaml
-      repair_scope: TEST ONLY e2e/electronics-simulation-time.spec.ts passive observer/oracle. Correct false
-        requirement that integer text change coincide with fractional committed horizon. Preserve all original
-        pupil assertions/budgets/SaveCAS/cookies and ready authority; no product/Header/clock/physics/auth/helper/dependency/workflow
-        changes.
+      repair_scope: INTEGRATION ONLY exact reviewed PR695 clock test blob3f824213be5a2d18fee4c0e9009235f4a2cafb7b from02ed3ad0a5fa048a94bdefa09d0b41c438596741 onto current main. Only e2e/electronics-simulation-time.spec.ts source; preserve accepted541 product and all foreign work. No observer rewrite, physics/Worker/Header/CSS/cadence/auth/dependency/workflow changes.
+      integration_candidate:
+        pr: 695
+        head: 02ed3ad0a5fa048a94bdefa09d0b41c438596741
+        source_blob: 3f824213be5a2d18fee4c0e9009235f4a2cafb7b
+        unchanged_main_base_blob: 10cc5e1f8355dd67ab85601a013139437634cc69
+        source_review: APPROVE
+        source_review_sha256: bf3a04b50673d7977561234954a581e7ffe9e84fb7fa9168447e9eed0b8abd57
+        selection_evidence: docs/product/electronics/evidence/clock-observer-557-pr695-integration-selection-20261023.md
       baseline_failure_category: C independent test observer; accepted541 product not reopened
       baseline_failure_sha: 975f1fefb9f54c9b418e12cca50aaa5afe866f2e
       baseline_failure_run: 38181611589
@@ -8108,10 +8113,7 @@ parallel_lanes:
       independent_manifest_sha256: bd60d965610969794e94e6957d2ab7830599b2d8337794a289f9a7a1eb3d8a83
       actual_evidence: Root verified781external28Git. Actual39042ready37fractional; integer text00..04 only
         whole-horizon changes. No product regression proven.
-      next_action: NEW bounded test-only author, own clean checkout/fresh preflight/card, actual saved trace/source
-        counterexamples and narrow checks. One unpublishedSHA STOP; root actual verification and NEW SOURCE
-        review; ONE directed real built4widths, final exact required gates/NEW PRODUCT review. No repeat
-        accepted541 product BEFORE; no hopeful unchanged reruns.
+      next_action: New bounded integration author, fresh snapshot and real dirty-overlap check, preserve exact reviewed clock file and foreign main; new final integration/composition review before publication/qualification. One shared qualification candidate may contain separately reviewed679 and557 integration commits with new final composition review and one exact-SHA existing CI, preserving both PR histories. No new gate/waiver/workflow or duplicate broad unchanged run. Require actual four-width clock evidence and exact required gates; classify externalC/D without repairing unrelated modules. Merge/close only after mandatory acceptance, using owner's explicit programme authorization.
       preservation: Full accepted541 task/revisions and accepted_slices exact.552975/source/nativebeforeafter
         originals and current startup/E06/foreign lanes preserved.
       school_actions: deferred_by_owner_no_action
