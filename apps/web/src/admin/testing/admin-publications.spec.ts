@@ -59,7 +59,11 @@ afterEach(async () => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
-async function mount(hidden = false, nextOffset: number | null = null, editorialEligible = !hidden) {
+async function mount(
+  hidden = false,
+  nextOffset: number | null = null,
+  editorialEligible = !hidden,
+) {
   vi.mocked(call).mockResolvedValueOnce({
     ok: true,
     status: 200,
@@ -163,12 +167,14 @@ describe('publications moderation', () => {
           ok: true,
           status: 200,
           data: {
-            items: [{
-              ...publication,
-              hidden: false,
-              editorialEligible: true,
-              moderationVersion: 2,
-            }],
+            items: [
+              {
+                ...publication,
+                hidden: false,
+                editorialEligible: true,
+                moderationVersion: 2,
+              },
+            ],
             nextOffset: null,
           },
         });
@@ -189,10 +195,7 @@ describe('publications moderation', () => {
       expect(host.querySelector('dialog')).toBeNull();
       expect(host.querySelector('a') !== null).toBe(hidden);
       if (hidden) {
-        expect(call).toHaveBeenNthCalledWith(
-          3,
-          '/api/admin/v1/publications?offset=0&limit=25',
-        );
+        expect(call).toHaveBeenNthCalledWith(3, '/api/admin/v1/publications?offset=0&limit=25');
         expect(button('Выбор редакции')).toBeDefined();
       } else {
         expect(button('Выбор редакции')).toBeUndefined();
