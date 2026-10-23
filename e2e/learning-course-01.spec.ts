@@ -3549,8 +3549,16 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
     if (courseRunId === null) courseRunId = run.id;
     expect(run.id).toBe(courseRunId);
     if (options.reloadAfterExternalChange) {
-      // An admin SQL update does not notify the mounted player. Reload the
-      // document so SeatCourses fetches the current occurrence projection.
+      // A real resubmission can leave the learner in the Electronics editor.
+      // Return to the Course Player before reloading: reloading that editor
+      // never requests the course-run projection (confirmed by Chromium trace).
+      const courseUrl = '/#/learning?courseRun=' + encodeURIComponent(courseRunId);
+      if (!learner.page.url().endsWith(courseUrl)) {
+        await learner.page.goto(courseUrl);
+        await expect(learner.page.getByTestId('seat-course-player')).toBeVisible();
+      }
+      // An external teacher review does not notify a mounted Course Player.
+      // Keep the real successful browser GET requirement after the reload.
       const refreshed = learner.page.waitForResponse(
         (response) =>
           response.url().includes('/api/class-join/me/course-runs') &&
