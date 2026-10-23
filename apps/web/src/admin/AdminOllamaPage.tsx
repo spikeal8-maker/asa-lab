@@ -104,7 +104,7 @@ export function AdminOllamaPage({
       active = false;
       clearTimeout(timer);
     };
-  }, [baseUrl, saved?.revision]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [baseUrl, saved?.revision]);
 
   async function apply(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();

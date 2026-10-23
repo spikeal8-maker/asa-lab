@@ -316,7 +316,22 @@ export class AiChatService {
       current.model !== input.model;
     const config = dirty
       ? await this.saveOllamaSettings(principalId, { ...input, baseUrl }, requestId)
-      : current;
+      : await this.ollamaSettings(principalId);
+    // Even an unchanged configuration may be disabled by another administrator
+    // while inference runs. Never claim that a stale snapshot was verified.
+    if (
+      !dirty &&
+      (config.revision !== input.revision ||
+        config.enabled !== input.enabled ||
+        config.baseUrl !== baseUrl ||
+        config.model !== input.model)
+    ) {
+      throw new AiServiceError(
+        'ai_ollama_config_changed',
+        409,
+        'Настройки изменились. Обновите страницу.',
+      );
+    }
     return {
       config,
       verified: elapsedMs !== null,
