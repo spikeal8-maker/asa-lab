@@ -13,11 +13,11 @@ export const LED_PRESENTATION_PHASE_LIMIT_MICROSECONDS = 25_000;
 // Two complete cycles plus the current phase, including near the cadence limit.
 const HISTORY_MICROSECONDS = 5 * LED_PRESENTATION_PHASE_LIMIT_MICROSECONDS;
 const MAX_HISTORY_SAMPLES = 513;
-// One deliberately shared classroom clock. Electrical instruction time is unchanged.
-export const ELECTRONICS_CLASSROOM_PACE = 0.125;
+// One wall microsecond advances one physical microsecond; instruction time is unchanged.
+export const ELECTRONICS_CLASSROOM_PACE = 1;
 // Keep the requested future window within 50 ms of wall time at the shared pace.
 // This demand bound is separate from the unchanged optical phase classification.
-export const ELECTRONICS_CLASSROOM_LOOKAHEAD_MICROSECONDS = 6_250;
+export const ELECTRONICS_CLASSROOM_LOOKAHEAD_MICROSECONDS = 50_000;
 
 export function classroomRequestedHorizon(
   hostOffsetMicroseconds: number,
@@ -232,7 +232,7 @@ export class LedTemporalPresentation {
   private histories = new Map<string, HeldHistory<ElectronicsLedTemporalSample>>();
   private indicators = new Map<string, HeldHistory<ElectronicsArduinoIndicatorSample>>();
   private cursor: number | null = null;
-  private sampledAt: number | null = null;
+  private origin: { wallMicroseconds: number; modelMicroseconds: number } | null = null;
   private sequence = 0;
   private generation = 0;
   private raf = 0;
@@ -301,7 +301,7 @@ export class LedTemporalPresentation {
     this.histories.clear();
     this.indicators.clear();
     this.cursor = null;
-    this.sampledAt = null;
+    this.origin = null;
     this.pending = null;
     this.shown = null;
     this.snapshot = null;
@@ -362,8 +362,10 @@ export class LedTemporalPresentation {
       if (this.committed !== null) this.reanchors++;
       this.reset();
     }
-    if (wallMicroseconds !== undefined && this.cursor === null)
+    if (wallMicroseconds !== undefined && this.cursor === null) {
       this.cursor = observation.fromMicroseconds;
+      this.origin = { wallMicroseconds, modelMicroseconds: observation.fromMicroseconds };
+    }
     const next = new Map<string, HeldHistory<ElectronicsLedTemporalSample>>();
     for (const component of observation.components) {
       const electrical = result.components.find(
@@ -461,20 +463,24 @@ export class LedTemporalPresentation {
   /**
    * Prepare one frame from accepted history on the shared animation-frame path.
    * The caller must acknowledge its actual joint DOM commit. A pending native
-   * asset or React commit freezes this exact frame and discards elapsed wall
-   * time; no saved waiting-time debt is repaid in a subsequent phase.
+   * asset or React commit freezes this exact frame. The monotonic wall origin
+   * remains unchanged; after ACK only complete accepted history can catch up.
    */
   prepareFrame(wallMicroseconds: number): LedPresentationFrame | null {
     this.raf++;
-    const elapsed = this.sampledAt === null ? 0 : Math.max(0, wallMicroseconds - this.sampledAt);
-    this.sampledAt = wallMicroseconds;
+    const elapsed =
+      this.origin === null ? 0 : Math.max(0, wallMicroseconds - this.origin.wallMicroseconds);
     if (this.pending) return this.pending;
     if (this.cursor === null || this.committed === null) return null;
     const target = this.snapshot
       ? this.snapshot.atMicroseconds
       : this.shown === null
         ? this.cursor
-        : Math.min(this.committed, this.cursor + Math.floor(elapsed * ELECTRONICS_CLASSROOM_PACE));
+        : Math.min(
+            this.committed,
+            (this.origin?.modelMicroseconds ?? this.cursor) +
+              Math.floor(elapsed * ELECTRONICS_CLASSROOM_PACE),
+          );
     const values = this.frameAt(target);
     if (!values) {
       // Missing/truncated coverage cannot establish a displayable frame. Report
@@ -505,7 +511,7 @@ export class LedTemporalPresentation {
     this.cursor = frame.atMicroseconds;
     this.shown = frame;
     this.pending = null;
-    this.sampledAt = wallMicroseconds;
+    this.origin ??= { wallMicroseconds, modelMicroseconds: frame.atMicroseconds };
     if (changed) this.ackRaf = this.raf;
     return true;
   }
