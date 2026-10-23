@@ -44,6 +44,76 @@ function fixture(query: (sql: string, values?: unknown[]) => Promise<{ rows: obj
 }
 
 describe('telemetry admission includes authoritative cookie lookup', () => {
+  it.each([
+    'module session actor denied',
+    'module session context denied',
+    'module session identifier collision',
+  ])(
+    'keeps the legacy non-acceptance contract for %s without claiming persistence',
+    async (message) => {
+      const query = vi.fn(async (sql: string) => {
+        if (sql.includes('session_v2_context')) return { rows: [row] };
+        throw Object.assign(new Error(message), { code: '42501' });
+      });
+      const f = fixture(query);
+      try {
+        await expect(
+          f.v1.startModuleSession(request, { sessionId: id, projectId: id, moduleKey: 'blocks' }),
+        ).resolves.toEqual({ accepted: false, sessionId: id });
+        expect(query).toHaveBeenCalledTimes(2);
+        expect(f.queue.counters.persisted).toBe(0);
+        expect(f.queue.counters.rejected).toBe(1);
+      } finally {
+        await f.service.shutdown();
+      }
+    },
+  );
+
+  it.each([
+    ['42501', 'permission denied for function analytics_start_module_session'],
+    ['57014', 'canceling statement due to statement timeout'],
+    ['08006', 'connection failure'],
+    ['XX000', 'module session context denied'],
+  ])('retains unavailable for actual start delivery failure %s / %s', async (code, message) => {
+    const f = fixture(async (sql) => {
+      if (sql.includes('session_v2_context')) return { rows: [row] };
+      throw Object.assign(new Error(message), { code });
+    });
+    try {
+      await expect(
+        f.v1.startModuleSession(request, { sessionId: id, projectId: id, moduleKey: 'blocks' }),
+      ).rejects.toMatchObject({
+        status: 503,
+        response: { error: { code: 'telemetry_unavailable' } },
+      });
+      expect(f.queue.counters.persisted).toBe(0);
+      expect(f.queue.counters.rejected).toBe(1);
+    } finally {
+      await f.service.shutdown();
+    }
+  });
+
+  it('does not reinterpret another operation or V2 as legacy start non-acceptance', async () => {
+    const f = fixture(async (sql) => {
+      if (sql.includes('session_v2_context')) return { rows: [row] };
+      throw Object.assign(new Error('module session context denied'), { code: '42501' });
+    });
+    try {
+      await expect(f.v1.moduleOpened(request, { moduleKey: 'blocks' })).rejects.toMatchObject({
+        status: 503,
+        response: { error: { code: 'telemetry_unavailable' } },
+      });
+      await expect(f.v2.events(request, envelope)).rejects.toMatchObject({
+        status: 403,
+        response: { error: { code: 'context_denied' } },
+      });
+      expect(f.queue.counters.persisted).toBe(0);
+      expect(f.queue.counters.rejected).toBe(2);
+    } finally {
+      await f.service.shutdown();
+    }
+  });
+
   it('bounds auth work before SQL and returns capacity for both API versions without logging users out', async () => {
     let release!: () => void;
     const gate = new Promise<void>((resolve) => {

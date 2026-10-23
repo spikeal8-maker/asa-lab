@@ -224,7 +224,21 @@ export class ProductAnalyticsService {
           input.networkKind ?? 'unknown',
           input.userAgentSummary?.trim().slice(0, 128) || null,
         ],
-      );
+      ).catch((cause: unknown) => {
+        const sql = cause as { code?: unknown; message?: unknown } | null;
+        // Only these explicit policy refusals from this operation are expected
+        // non-acceptance. Missing grants, connection failures and timeouts must
+        // remain delivery failures. Throw through the queue so its persisted
+        // counter cannot report a denied operation as a durable write.
+        if (
+          sql?.code === '42501' &&
+          (sql.message === 'module session actor denied' ||
+            sql.message === 'module session context denied' ||
+            sql.message === 'module session identifier collision')
+        )
+          throw new AnalyticsDeliveryError('context_denied');
+        throw cause;
+      });
       const persistedId: unknown = result.rows[0]?.analytics_start_module_session;
       if (
         typeof persistedId !== 'string' ||
