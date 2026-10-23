@@ -239,16 +239,18 @@ def cmd_brief(root,reg,args):
         print('Создано:',out)
     else:print(doc)
 
+def preflight_ok(path):
+    if not Path(path).is_file():return False
+    pf=Path(path).read_text(encoding='utf-8',errors='replace')
+    return bool(re.search(r'(?m)^\s*(?:result\s*[:=]\s*)?SAFE_TO_START\s*$',pf)) and not any(v in pf for v in ['RECOVERY_REQUIRED','WAITING_HANDOFF'])
+
 def cmd_start(root,reg,args):
     t=tasks_map(reg).get(args.id)
     if not t:raise ControlError('Нет задачи '+args.id)
     if receipt(root,t['id'])['status']!='PLANNED':raise ControlError('Задача уже начата либо остановлена.')
     blocks=why_blocked(root,reg,t)
     if blocks:raise ControlError('BLOCKED: '+'; '.join(blocks))
-    if not Path(args.preflight).is_file():raise ControlError('Нужен реальный файл с результатом scoped preflight.')
-    pf=Path(args.preflight).read_text(encoding='utf-8',errors='replace')
-    if 'SAFE_TO_START' not in pf or 'RECOVERY_REQUIRED' in pf or 'WAITING_HANDOFF' in pf:
-        raise ControlError('Preflight не подтверждает SAFE_TO_START или содержит blocker.')
+    if not preflight_ok(args.preflight):raise ControlError('Preflight не подтверждает SAFE_TO_START отдельной строкой или содержит blocker.')
     rr=receipt(root,t['id']);rr['status']='IN_PROGRESS';rr['author']=args.actor;rr['base_sha']=sha(args.base_sha)
     rr['preflight']={'path':args.preflight,'sha256':hashlib.sha256(Path(args.preflight).read_bytes()).hexdigest(),'claim':'preflight transcript supplied; no independent attestation'}
     event(rr,'START',actor=args.actor,base_sha=rr['base_sha'])
@@ -296,10 +298,7 @@ def cmd_resume(root,reg,args):
     r=receipt(root,args.id)
     if r['status']!='STOPPED':raise ControlError('Возобновление разрешено только после STOP.')
     # Paused work needs a new preflight and one explicitly recorded repair cycle.
-    if not Path(args.preflight).is_file():raise ControlError('Нужен новый файл preflight.')
-    pf=Path(args.preflight).read_text(encoding='utf-8',errors='replace')
-    if 'SAFE_TO_START' not in pf or 'RECOVERY_REQUIRED' in pf or 'WAITING_HANDOFF' in pf:
-        raise ControlError('Новый preflight не подтвердил SAFE_TO_START.')
+    if not preflight_ok(args.preflight):raise ControlError('Новый preflight не подтвердил SAFE_TO_START отдельной строкой.')
     t=tasks_map(reg)[args.id]
     for other in reg['tasks']:
         if other['id']!=args.id and receipt(root,other['id'])['status'] in ('IN_PROGRESS','REVIEW') and paths_intersect(t['paths'],other['paths']):
