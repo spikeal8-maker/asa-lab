@@ -33,7 +33,13 @@ function modelsLabel(count: number): string {
   return 'Доступно · ' + count + ' ' + plural;
 }
 
-export function AdminOllamaPage({ onAccessDenied }: { readonly onAccessDenied: () => void }) {
+export function AdminOllamaPage({
+  onAccessDenied,
+  onUpdated,
+}: {
+  readonly onAccessDenied: () => void;
+  readonly onUpdated?: () => void;
+}) {
   const [saved, setSaved] = useState<OllamaConfig | null>(null);
   const [baseUrl, setBaseUrl] = useState('');
   const [model, setModel] = useState('');
@@ -125,6 +131,7 @@ export function AdminOllamaPage({ onAccessDenied }: { readonly onAccessDenied: (
       setBaseUrl(response.data.config.baseUrl);
       setModel(response.data.config.model);
       setEnabled(response.data.config.enabled);
+      onUpdated?.();
       setFeedback(
         response.data.verified && response.data.test
           ? 'Сохранено · ' +

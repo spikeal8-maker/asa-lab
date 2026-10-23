@@ -1095,27 +1095,25 @@ for (const width of [1440, 1024, 600, 390, 320]) {
   });
 }
 
-test('Platform admin configures GPT without returning secret in page', async ({ page }) => {
+test('Platform admin saves a separate cloud key without exposing it to the page', async ({
+  page,
+}) => {
   await fixture(page);
-  await page.goto('/#/admin/ai');
-  await expect(page.getByRole('heading', { name: 'ИИ и модели' })).toBeVisible();
-  await expect(page.getByText('Не задан', { exact: true })).toBeVisible();
+  await page.goto('/#/admin/ai', { waitUntil: 'domcontentloaded' });
+  await page
+    .getByRole('group', { name: 'Доступные ИИ-провайдеры' })
+    .getByRole('button', { name: /^OpenAI/ })
+    .click();
+  await page.getByRole('region', { name: 'Настройки OpenAI' }).waitFor();
   const secret = 'sk-ai-fake-test-secret-safe-value';
-  await page.getByLabel(/Новый API-ключ/).fill(secret);
-  await page.getByRole('button', { name: 'Сохранить настройки' }).click();
-  await expect(
-    page.getByText('Настройки сохранены. Новый API-ключ не возвращается в браузер.'),
-  ).toBeVisible();
-  await expect(
-    page
-      .getByRole('region', { name: 'Состояние ИИ', exact: true })
-      .getByText('Сохранён', { exact: true }),
-  ).toBeVisible();
-  await expect(
-    page
-      .getByRole('region', { name: 'Состояние ИИ', exact: true })
-      .getByText('Не задан', { exact: true }),
-  ).toHaveCount(0);
+  await page.getByRole('checkbox', { name: 'Включено' }).uncheck();
+  await page.getByLabel('Новый API-ключ').fill(secret);
+  await page.getByRole('button', { name: 'Сохранить выключенным' }).click();
+  await expect(page.getByText('Сохранено · облачные запросы выключены')).toBeVisible();
+  await expect(page.getByLabel('Новый API-ключ')).toHaveValue('');
+  await expect(page.getByRole('group', { name: 'Доступные ИИ-провайдеры' })).toContainText(
+    'Ключ сохранён',
+  );
   expect(await page.evaluate((value) => document.body.textContent?.includes(value), secret)).toBe(
     false,
   );
@@ -1232,31 +1230,24 @@ for (const width of [1440, 600, 390, 320]) {
         },
       });
     });
-    await page.goto('/#/admin/ai');
-    const verify = page.getByRole('button', { name: 'Проверить подключение', exact: true });
-    await expect(verify).toBeDisabled();
-    await page.getByLabel(/Новый API-ключ/).fill('sk-safe-test-value-not-real-key');
-    await page.getByRole('button', { name: 'Сохранить настройки', exact: true }).click();
-    await expect(
-      page
-        .getByRole('region', { name: 'Состояние ИИ', exact: true })
-        .getByText('Сохранён', { exact: true }),
-    ).toBeVisible();
-    await expect(
-      page
-        .getByRole('region', { name: 'Состояние ИИ', exact: true })
-        .getByText('Не задан', { exact: true }),
-    ).toHaveCount(0);
-    expect(tests).toHaveLength(0);
-    await expect(verify).toBeDisabled();
-    await page.getByLabel('Подтверждаю один платный проверочный запрос').check();
-    await verify.click();
-    await expect(page.getByText(/Модель gpt-5-mini ответила/)).toBeVisible();
+    await page.goto('/#/admin/ai', { waitUntil: 'domcontentloaded' });
+    await page
+      .getByRole('group', { name: 'Доступные ИИ-провайдеры' })
+      .getByRole('button', { name: /^OpenAI/ })
+      .click();
+    await page.getByRole('region', { name: 'Настройки OpenAI' }).waitFor();
+    await page.getByLabel('Новый API-ключ').fill('sk-safe-test-value-not-real-key');
+    const apply = page.getByRole('button', { name: 'Сохранить и проверить', exact: true });
+    await expect(apply).toBeDisabled();
+    await page.getByLabel('Разрешаю один платный запрос для проверки').check();
+    await apply.click();
+    await expect(page.getByText(/Подключено · OpenAI/)).toBeVisible();
     expect(tests).toEqual([{ acknowledgePaidRequest: true, configurationVersion: 2 }]);
-    await expect(verify).toBeDisabled();
+    await expect(page.getByLabel('Разрешаю один платный запрос для проверки')).not.toBeChecked();
+    await expect(apply).toBeDisabled();
     await page.getByLabel('Модель', { exact: true }).selectOption('gpt-4.1-mini');
-    await expect(page.getByText(/Модель gpt-5-mini ответила/)).toHaveCount(0);
-    await expect(verify).toBeDisabled();
+    await expect(page.getByText(/Подключено · OpenAI/)).toHaveCount(0);
+    await expect(apply).toBeDisabled();
     await expect
       .poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
       .toBe(true);
