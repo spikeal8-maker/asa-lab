@@ -718,9 +718,69 @@ requirements:
   verification:
     source_sha: 2c26781c83c247863ddb607b2988dceb95905aaf
     method: source_review
-    observed_result: Production Class Code secret currently falls back to DB credential material when explicit secret is absent; Student Code keyring is not yet wired through compose/updater. No production secret mutation was attempted.
+    observed_result: >-
+      Historical ledger observation associated with source_sha above: production
+      Class Code secret was reported to fall back to DB credential material when
+      an explicit secret was absent, and Student Code keyring wiring through
+      Compose/updater was reported missing. This preserves the earlier source
+      observation, not the state of the frozen candidate below, current main or
+      an installed system. No production secret mutation was attempted.
     product_fix_verified: false
     authenticated_live_journey: not_run
+    candidate_implementation_evidence:
+      observed_at: '2026-10-20'
+      source_sha: f0a3e95f5c5b804943eec0e8218d0a1113e99b8c
+      method: frozen_source_review_and_historical_exact_sha_ci_readback
+      observed_result: >-
+        This frozen credential candidate implements an explicit independent
+        production Class Code secret of at least 32 UTF-8 bytes, preserving
+        accepted secret bytes without trimming. It rejects a secret equal to
+        a configured database URL or its serialized/decoded password, including
+        retained serialized password bytes when percent decoding fails. It also
+        rejects reuse of Student Code key material in the supported encodings.
+        A shared validator guards API startup before the HTTP/database runtime,
+        readiness, the production launcher and resolved-Compose updater preflight.
+        Production requires compat/enforced mode and valid independent encryption
+        and lookup keyrings. Compose passes the six credential settings only to
+        the API; production/staging overlays select production semantics. Both
+        guarded updaters invoke preflight before backup/migration/replacement and
+        fence changes to the validator/helper. API TypeScript includes, checks
+        and emits the shared CJS module for the existing API image build.
+      source_paths_at_source_sha:
+      - apps/api/src/credential-configuration.cjs
+      - apps/api/src/classroom-code-secret.ts
+      - apps/api/src/main.ts
+      - apps/api/src/health.controller.ts
+      - apps/api/tsconfig.json
+      - Dockerfile.api
+      - compose.yaml
+      - compose.production.yaml
+      - compose.staging.yaml
+      - tools/deployment/credential-preflight.mjs
+      - tools/docker-update.sh
+      - tools/docker-update.ps1
+      - tools/production.mjs
+      historical_ci:
+      - workflow: ASA Lab Governance and Code Gates
+        run_id: 39417817995
+        conclusion: success
+        url: https://github.com/spikeal8-maker/asa-lab/actions/runs/39417817995
+      - workflow: Learning E1 Convergence
+        run_id: 39417817939
+        conclusion: success
+        url: https://github.com/spikeal8-maker/asa-lab/actions/runs/39417817939
+      evidence_boundary: >-
+        These completed runs belong to the exact frozen source_sha above.
+        They are historical candidate evidence, not a new execution receipt for
+        this documentation repair or a future integrated candidate, and do not
+        establish deployment, installed acceptance or current-main implementation.
+      unresolved_closures:
+      - Installed configuration and authenticated live credential journey.
+      - Authorized protected-storage rollout and compat-to-enforced transition.
+      - Class Code secret recovery/backup/restore and maintenance reissue of active codes and QR cards.
+      - Old-writer fence and compat API sole-writer verification during backfill.
+      - Populated backfill and zero unprotected/legacy-predictable active credentials.
+      - Unknown historical row-key credential-only failure and degraded-diagnostic acceptance.
   planned_scenarios:
   - CLASS-CODE-SECRET-REQUIRED-IN-PROD
   - DB-PASSWORD-ROTATION-PRESERVES-CLASS-CODE

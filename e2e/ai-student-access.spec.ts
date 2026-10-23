@@ -475,3 +475,178 @@ for (const invalid of ['wrong revision', 'non-JSON'] as const) {
     await noOverflow(page);
   });
 }
+
+for (const lostResponse of [false, true]) {
+  test(`Unsaved AI class rule survives Seat save${lostResponse ? ' and exact receipt retry' : ''}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 900 });
+    const fixture = await classroomFixture(page, 1, { classroomTitle, sidebar: 'collapsed' });
+    await page.unroute('**/*');
+    const diagnostics: Array<{ path: string; method: string; body: Record<string, unknown> }> = [];
+    // A client diagnostic is an accepted telemetry receipt, not a classroom mutation.
+    await page.route('**/api/diagnostics/client', async (route) => {
+      const request = route.request();
+      diagnostics.push({
+        path: new URL(request.url()).pathname,
+        method: request.method(),
+        body: request.postDataJSON() ?? {},
+      });
+      return route.fulfill({ status: 202, json: { accepted: true } });
+    });
+    const saved = teacherAccess(4);
+    const writes: Record<string, unknown>[] = [];
+    let reads = 0;
+    const receipts = new Map<string, { input: Record<string, unknown>; revision: number }>();
+    await page.route('**/api/ai/classrooms/' + classId + '/access', async (route) => {
+      if (route.request().method() === 'GET') {
+        reads += 1;
+        return route.fulfill({ json: saved });
+      }
+      expect(route.request().method()).toBe('PUT');
+      const input = route.request().postDataJSON() as Record<string, unknown>;
+      writes.push(input);
+      const previous = receipts.get(String(input.requestId));
+      if (previous) {
+        expect(input).toEqual(previous.input);
+        return route.fulfill({ json: { saved: true, revision: previous.revision } });
+      }
+      expect(input.expectedRevision).toBe(saved.revision);
+      if (input.kind === 'seat') {
+        expect(input.seatId).toBe(SEAT);
+        saved.students[0]!.override = String(input.override);
+        saved.students[0]!.canGenerate = input.override === 'allow';
+      } else {
+        expect(input.kind).toBe('classroom');
+        saved.mode = String(input.mode);
+        saved.minimumRating = Number(input.minimumRating);
+      }
+      saved.revision += 1;
+      receipts.set(String(input.requestId), { input, revision: saved.revision });
+      if (lostResponse && input.kind === 'seat') return route.abort('failed');
+      return route.fulfill({ json: { saved: true, revision: saved.revision } });
+    });
+    const access = await openTeacherSettings(page);
+    await expect(access.getByLabel('Правило класса')).toHaveValue('deny');
+    await access.getByLabel('Правило класса').selectOption('rating');
+    await expect(access.getByLabel('Минимальный рейтинг')).toHaveValue('50');
+    await access.getByLabel('Минимальный рейтинг').fill('83');
+    await access.locator('summary').click();
+    await access.getByLabel('Доступ для ' + name).selectOption('allow');
+    await access.getByRole('button', { name: 'Сохранить доступ: ' + name }).click();
+    if (lostResponse) {
+      await expect(access.getByRole('button', { name: 'Повторить сохранение' })).toBeVisible();
+      await expect(access.getByLabel('Правило класса')).toBeDisabled();
+      await expect(access.getByLabel('Правило класса')).toHaveValue('rating');
+      await expect(access.getByLabel('Минимальный рейтинг')).toHaveValue('83');
+      expect(writes).toHaveLength(1);
+      await access.getByRole('button', { name: 'Повторить сохранение' }).click();
+    }
+    await expect(access.getByText(/Доступ к ИИ сохранён/)).toBeVisible();
+    await expect(access.getByLabel('Правило класса')).toBeEnabled();
+    await expect(access.getByText('Доступ разрешён · Рейтинг: 73.5')).toBeVisible();
+    await expect(access.getByLabel('Правило класса')).toHaveValue('rating');
+    await expect(access.getByLabel('Минимальный рейтинг')).toHaveValue('83');
+    expect(saved).toMatchObject({ mode: 'deny', minimumRating: 50, revision: 5 });
+    expect(writes).toHaveLength(lostResponse ? 2 : 1);
+    expect(writes[0]).toMatchObject({
+      kind: 'seat',
+      seatId: SEAT,
+      override: 'allow',
+      expectedRevision: 4,
+    });
+    if (lostResponse) expect(writes[1]).toEqual(writes[0]);
+
+    await access.getByRole('button', { name: 'Сохранить правило класса' }).click();
+    await expect.poll(() => writes.length).toBe(lostResponse ? 3 : 2);
+    await expect(access.getByLabel('Правило класса')).toBeEnabled();
+    expect(writes).toHaveLength(lostResponse ? 3 : 2);
+    expect(writes.at(-1)).toMatchObject({
+      kind: 'classroom',
+      mode: 'rating',
+      minimumRating: 83,
+      expectedRevision: 5,
+    });
+    expect(writes.at(-1)!.requestId).not.toBe(writes[0]!.requestId);
+    expect(saved).toMatchObject({ mode: 'rating', minimumRating: 83, revision: 6 });
+
+    await access.getByLabel('Правило класса').selectOption('allow');
+    const readsBeforeReload = reads;
+    await page.reload();
+    // Prove the browser created a new document, not just SPA navigation.
+    expect(
+      await page.evaluate(
+        () => (performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming)?.type,
+      ),
+    ).toBe('reload');
+    await expect(page.getByRole('heading', { name: classroomTitle, exact: true })).toBeVisible();
+    // Reopen the classroom Settings on this reloaded document; do not navigate again.
+    const section = page.getByRole('combobox', { name: 'Раздел класса' });
+    if (await section.isVisible()) await section.selectOption('settings');
+    else
+      await page
+        .getByRole('navigation', { name: 'Разделы класса' })
+        .getByRole('button', { name: 'Настройки', exact: true })
+        .click();
+    const reloaded = page.locator('.classroom-ai-access');
+    await expect.poll(() => reads).toBeGreaterThan(readsBeforeReload);
+    await expect(reloaded.getByLabel('Правило класса')).toHaveValue('rating');
+    await expect(reloaded.getByLabel('Минимальный рейтинг')).toHaveValue('83');
+    expect(writes).toHaveLength(lostResponse ? 3 : 2);
+    if (lostResponse) {
+      // Verify one accepted client diagnostic, separate from classroom mutations.
+      expect(diagnostics).toHaveLength(1);
+      expect(diagnostics[0]).toMatchObject({
+        path: '/api/diagnostics/client',
+        method: 'POST',
+        body: { code: 'request_failed', module: 'portal', phase: 'request' },
+      });
+    } else {
+      expect(diagnostics).toEqual([]);
+    }
+    expect(fixture.mutations).toEqual([]);
+    expect(fixture.errors).toEqual([]);
+    await noOverflow(page);
+  });
+}
+
+test('Seat refresh adopts the current server class rule when the form has no draft', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const fixture = await classroomFixture(page, 1, { classroomTitle, sidebar: 'collapsed' });
+  await page.unroute('**/*');
+  const saved = teacherAccess();
+  const writes: Record<string, unknown>[] = [];
+  await page.route('**/api/ai/classrooms/' + classId + '/access', async (route) => {
+    if (route.request().method() === 'GET') return route.fulfill({ json: saved });
+    expect(route.request().method()).toBe('PUT');
+    const input = route.request().postDataJSON() as Record<string, unknown>;
+    writes.push(input);
+    expect(input).toMatchObject({
+      kind: 'seat',
+      seatId: SEAT,
+      override: 'allow',
+      expectedRevision: 0,
+    });
+    saved.students[0]!.override = 'allow';
+    saved.students[0]!.canGenerate = true;
+    // Another teacher changes the rule after the Seat write, before its refresh.
+    saved.mode = 'rating';
+    saved.minimumRating = 64;
+    saved.revision = 2;
+    return route.fulfill({ json: { saved: true, revision: 1 } });
+  });
+  const access = await openTeacherSettings(page);
+  await expect(access.getByLabel('Правило класса')).toHaveValue('deny');
+  await access.locator('summary').click();
+  await access.getByLabel('Доступ для ' + name).selectOption('allow');
+  await access.getByRole('button', { name: 'Сохранить доступ: ' + name }).click();
+  await expect(access.getByLabel('Правило класса')).toBeEnabled();
+  await expect(access.getByLabel('Правило класса')).toHaveValue('rating');
+  await expect(access.getByLabel('Минимальный рейтинг')).toHaveValue('64');
+  await expect(access.getByText('Доступ разрешён · Рейтинг: 73.5')).toBeVisible();
+  expect(writes).toHaveLength(1);
+  expect(fixture.mutations).toEqual([]);
+  expect(fixture.errors).toEqual([]);
+});

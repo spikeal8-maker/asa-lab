@@ -33,33 +33,38 @@ export function ClassroomAiAccess({
   const generation = useRef(0);
   const path = '/api/ai/classrooms/' + encodeURIComponent(classroomId) + '/access';
 
-  const load = useCallback(async () => {
-    const current = ++generation.current;
-    setLoading(true);
-    setError('');
-    const response = await call<unknown>(path);
-    if (generation.current !== current) return;
-    setLoading(false);
-    if (!response.ok) {
-      setSettings(null);
-      setError(
-        typeof response.error?.message === 'string' && response.error.message.trim()
-          ? response.error.message
-          : INVALID_SETTINGS,
-      );
-      return;
-    }
-    if (!isClassroomAccessSettings(response.data, classroomId)) {
-      setSettings(null);
-      setError(INVALID_SETTINGS);
-      return;
-    }
-    setSettings(response.data);
-    setMode(response.data.mode);
-    setMinimum(String(response.data.minimumRating));
-    setOverrides({});
-    setError('');
-  }, [path, classroomId]);
+  const load = useCallback(
+    async (preserveClassRule = false) => {
+      const current = ++generation.current;
+      setLoading(true);
+      setError('');
+      const response = await call<unknown>(path);
+      if (generation.current !== current) return;
+      setLoading(false);
+      if (!response.ok) {
+        setSettings(null);
+        setError(
+          typeof response.error?.message === 'string' && response.error.message.trim()
+            ? response.error.message
+            : INVALID_SETTINGS,
+        );
+        return;
+      }
+      if (!isClassroomAccessSettings(response.data, classroomId)) {
+        setSettings(null);
+        setError(INVALID_SETTINGS);
+        return;
+      }
+      setSettings(response.data);
+      if (!preserveClassRule) {
+        setMode(response.data.mode);
+        setMinimum(String(response.data.minimumRating));
+      }
+      setOverrides({});
+      setError('');
+    },
+    [path, classroomId],
+  );
   useEffect(() => {
     setSettings(null);
     setRetry(null);
@@ -104,7 +109,11 @@ export function ClassroomAiAccess({
     }
     setRetry(null);
     setNotice('Доступ к ИИ сохранён. Новые сообщения используют это правило.');
-    await load();
+    // Refresh the saved Seat and revision without replacing a separate class-rule draft.
+    const preserveClassRule =
+      input.kind === 'seat' &&
+      (mode !== settings.mode || minimum !== String(settings.minimumRating));
+    await load(preserveClassRule);
   }
   function change(values: Record<string, unknown>) {
     if (!settings) return;
