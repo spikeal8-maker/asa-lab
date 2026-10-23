@@ -7,6 +7,8 @@ do not preload that full specification or the Electronics source/test trees.
 
 > **Owner priority update 3.0 (08.10.2026):** [E01–E35 / K0–K8](ASA_ELECTRONICS_OWNER_REPAIR_PRIORITY_20261008.md) refines the existing programme #452. P0 E01 save recovery precedes visual work; K0 version/backup verification is read-only and parallel. The [save-recovery card](tasks/TASK-ELECTRONICS-SAVE-RECOVERY-001.md) defines E01; concrete task selection lives only in current.yaml, including separately selected dependencies. Suspended525 and accepted results remain preserved. This owner input grants no school deployment or live data operation.
 
+> **23 пользовательских замечания (23.10.2026):** [исполнительное ТЗ и очередь «от простого к сложному»](OWNER_23_EXECUTION_QUEUE.md) → [единый реестр #703](https://github.com/spikeal8-maker/asa-lab/issues/703) → конкретная активная task card. Этот порядок не меняет `docs/execution/current.yaml` и не разрешает трогать чужие lanes.
+
 ## 1. Confirm the selected task
 
 Follow root `AGENTS.md` and `START_HERE_FOR_AI.md`: run
