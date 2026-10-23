@@ -11,362 +11,218 @@
   "decisions": {
     "mobile_neighbors": {
       "title": "Имена предыдущего и следующего ученика на телефоне",
-      "choices": [
-        "picker_accessible",
-        "visible_abbreviated"
-      ],
-      "required_by": [
-        "UI-01"
-      ]
+      "choices": ["picker_accessible", "visible_abbreviated"],
+      "required_by": ["UI-01"]
     },
     "desktop_grades": {
       "title": "Быстрый просмотр оценок в desktop-профиле",
-      "choices": [
-        "compact_inline",
-        "grades_tab_only"
-      ],
-      "required_by": [
-        "UI-06"
-      ]
+      "choices": ["compact_inline", "grades_tab_only"],
+      "required_by": ["UI-06"]
     },
     "classroom_kpi_mobile": {
       "title": "Отображение всех шести/пяти показателей классов на мобильном",
-      "choices": [
-        "priority_plus_expand",
-        "single_rail_scroll"
-      ],
-      "required_by": [
-        "CLASS-02"
-      ]
+      "choices": ["priority_plus_expand", "single_rail_scroll"],
+      "required_by": ["CLASS-02"]
     },
     "hidden_journal_columns": {
       "title": "Семантика удаления столбца и видимости у ученика",
-      "choices": [
-        "teacher_hide_only",
-        "class_archive_for_all"
-      ],
-      "required_by": [
-        "JOUR-04A"
-      ]
+      "choices": ["teacher_hide_only", "class_archive_for_all"],
+      "required_by": ["JOUR-04A"]
     },
     "rating_missing": {
       "title": "Отсутствие данных фактора рейтинга",
-      "choices": [
-        "exclude_unavailable",
-        "zero_for_unavailable",
-        "block_score"
-      ],
-      "required_by": [
-        "RATE-01"
-      ]
+      "choices": ["exclude_unavailable", "zero_for_unavailable", "block_score"],
+      "required_by": ["RATE-01"]
     },
     "rating_rollout": {
       "title": "Ввод рейтинга v2 для существующих классов и порогов игр",
-      "choices": [
-        "per_class_opt_in",
-        "controlled_version_migration"
-      ],
-      "required_by": [
-        "RATE-01"
-      ]
+      "choices": ["per_class_opt_in", "controlled_version_migration"],
+      "required_by": ["RATE-01"]
     },
     "anti_rating": {
       "title": "Антирейтинг / педагогические сигналы риска",
-      "choices": [
-        "private_attention",
-        "private_penalty_metric"
-      ],
-      "required_by": [
-        "RATE-05"
-      ]
+      "choices": ["private_attention", "private_penalty_metric"],
+      "required_by": ["RATE-05"]
     },
     "student_publication": {
       "title": "Какие работы ученика разрешено публиковать",
-      "choices": [
-        "approved_free_works_only",
-        "moderated_classwork_with_grant"
-      ],
-      "required_by": [
-        "PUB-01"
-      ]
+      "choices": ["approved_free_works_only", "moderated_classwork_with_grant"],
+      "required_by": ["PUB-01"]
     },
     "notify_policy": {
       "title": "Тип уведомлений при изменении Safe Mode и игр",
-      "choices": [
-        "in_app_event",
-        "refresh_only_status"
-      ],
-      "required_by": [
-        "NOTIFY-02"
-      ]
+      "choices": ["in_app_event", "refresh_only_status"],
+      "required_by": ["NOTIFY-02"]
     }
   },
   "requirements": {
     "CLX-01": {
-      "tasks": [
-        "UI-03",
-        "UI-04",
-        "UI-05"
-      ],
+      "tasks": ["UI-03", "UI-04", "UI-05"],
       "verification": "NOT_RUN",
       "external": null
     },
     "CLX-02": {
-      "tasks": [
-        "NOTIFY-01",
-        "NOTIFY-02",
-        "I18N-01"
-      ],
+      "tasks": ["NOTIFY-01", "NOTIFY-02", "I18N-01"],
       "verification": "NOT_RUN",
       "external": null
     },
     "CLX-03": {
-      "tasks": [
-        "QA-01",
-        "JOUR-01",
-        "JOUR-02"
-      ],
+      "tasks": ["QA-01", "JOUR-01", "JOUR-02"],
       "verification": "NOT_RUN",
       "external": null
     },
     "CLX-04": {
-      "tasks": [
-        "RATE-04"
-      ],
+      "tasks": ["RATE-04"],
       "verification": "NOT_RUN",
       "external": null
     },
     "CLX-05": {
-      "tasks": [
-        "RATE-01"
-      ],
+      "tasks": ["RATE-01"],
       "verification": "NOT_RUN",
       "external": null
     },
     "CLX-06": {
-      "tasks": [
-        "RATE-01",
-        "RATE-02",
-        "RATE-03",
-        "RATE-05"
-      ],
+      "tasks": ["RATE-01", "RATE-02", "RATE-03", "RATE-05"],
       "verification": "NOT_RUN",
       "external": null
     },
     "CLX-07": {
-      "tasks": [
-        "SAFE-01"
-      ],
+      "tasks": ["SAFE-01"],
       "verification": "NOT_RUN",
       "external": null
     },
     "CLX-08": {
-      "tasks": [
-        "PUB-01",
-        "PUB-02",
-        "PUB-03"
-      ],
+      "tasks": ["PUB-01", "PUB-02", "PUB-03"],
       "verification": "NOT_RUN",
       "external": null
     },
     "CLX-09": {
-      "tasks": [
-        "DATA-01",
-        "DATA-02"
-      ],
+      "tasks": ["DATA-01", "DATA-02"],
       "verification": "NOT_RUN",
       "external": null
     },
     "CLX-10": {
-      "tasks": [
-        "JOUR-01",
-        "JOUR-02"
-      ],
+      "tasks": ["JOUR-01", "JOUR-02"],
       "verification": "NOT_RUN",
       "external": null
     },
     "CLX-11": {
-      "tasks": [
-        "JOUR-04A",
-        "JOUR-04B",
-        "JOUR-04C"
-      ],
+      "tasks": ["JOUR-04A", "JOUR-04B", "JOUR-04C"],
       "verification": "NOT_RUN",
       "external": null
     },
     "CLX-12": {
-      "tasks": [
-        "JOUR-03"
-      ],
+      "tasks": ["JOUR-03"],
       "verification": "NOT_RUN",
       "external": null
     },
     "CLX-13": {
-      "tasks": [
-        "QA-01"
-      ],
+      "tasks": ["QA-01"],
       "verification": "NOT_RUN",
       "external": null
     },
     "CLX-14": {
-      "tasks": [
-        "QA-01"
-      ],
+      "tasks": ["QA-01"],
       "verification": "NOT_RUN",
       "external": "Electronics merged PR #689; deployment/touch evidence must be checked by the Electronics owner"
     },
     "CLX-15": {
-      "tasks": [
-        "UI-01"
-      ],
+      "tasks": ["UI-01"],
       "verification": "NOT_RUN",
       "external": null
     },
     "CLX-16": {
-      "tasks": [
-        "UI-06",
-        "UI-07"
-      ],
+      "tasks": ["UI-06", "UI-07"],
       "verification": "NOT_RUN",
       "external": null
     },
     "CLX-17": {
-      "tasks": [
-        "UI-01",
-        "I18N-01"
-      ],
+      "tasks": ["UI-01", "I18N-01"],
       "verification": "NOT_RUN",
       "external": null
     },
     "КЛ-01": {
-      "tasks": [
-        "QA-02",
-        "QA-03"
-      ],
+      "tasks": ["QA-02", "QA-03"],
       "verification": "NOT_RUN",
       "external": null
     },
     "КЛ-02": {
-      "tasks": [
-        "QA-02"
-      ],
+      "tasks": ["QA-02"],
       "verification": "NOT_RUN",
       "external": null
     },
     "КЛ-03": {
-      "tasks": [
-        "QA-02"
-      ],
+      "tasks": ["QA-02"],
       "verification": "NOT_RUN",
       "external": null
     },
     "КЛ-04": {
-      "tasks": [
-        "CLASS-02"
-      ],
+      "tasks": ["CLASS-02"],
       "verification": "NOT_RUN",
       "external": null
     },
     "КЛ-05": {
-      "tasks": [
-        "QA-01",
-        "CLASS-02"
-      ],
+      "tasks": ["QA-01", "CLASS-02"],
       "verification": "NOT_RUN",
       "external": null
     },
     "КЛ-06": {
-      "tasks": [
-        "QA-03"
-      ],
+      "tasks": ["QA-03"],
       "verification": "NOT_RUN",
       "external": null
     },
     "КЛ-07": {
-      "tasks": [
-        "QA-01",
-        "CLASS-02"
-      ],
+      "tasks": ["QA-01", "CLASS-02"],
       "verification": "NOT_RUN",
       "external": null
     },
     "КЛ-08": {
-      "tasks": [
-        "CLASS-02"
-      ],
+      "tasks": ["CLASS-02"],
       "verification": "NOT_RUN",
       "external": null
     },
     "КЛ-09": {
-      "tasks": [
-        "CLASS-01",
-        "QA-03"
-      ],
+      "tasks": ["CLASS-01", "QA-03"],
       "verification": "NOT_RUN",
       "external": null
     },
     "КЛ-10": {
-      "tasks": [
-        "QA-01",
-        "UI-03"
-      ],
+      "tasks": ["QA-01", "UI-03"],
       "verification": "NOT_RUN",
       "external": null
     },
     "КЛ-11": {
-      "tasks": [
-        "QA-01"
-      ],
+      "tasks": ["QA-01"],
       "verification": "NOT_RUN",
       "external": null
     },
     "КЛ-12": {
-      "tasks": [
-        "QA-01",
-        "WORK-01"
-      ],
+      "tasks": ["QA-01", "WORK-01"],
       "verification": "NOT_RUN",
       "external": null
     },
     "КЛ-13": {
-      "tasks": [
-        "RATE-01",
-        "RATE-02"
-      ],
+      "tasks": ["RATE-01", "RATE-02"],
       "verification": "NOT_RUN",
       "external": null
     },
     "КЛ-14": {
-      "tasks": [
-        "JOUR-01",
-        "JOUR-02",
-        "JOUR-03"
-      ],
+      "tasks": ["JOUR-01", "JOUR-02", "JOUR-03"],
       "verification": "NOT_RUN",
       "external": null
     },
     "КЛ-15": {
-      "tasks": [
-        "NOTIFY-01",
-        "NOTIFY-02"
-      ],
+      "tasks": ["NOTIFY-01", "NOTIFY-02"],
       "verification": "NOT_RUN",
       "external": null
     },
     "КЛ-16": {
-      "tasks": [
-        "UI-03",
-        "UI-05"
-      ],
+      "tasks": ["UI-03", "UI-05"],
       "verification": "NOT_RUN",
       "external": null
     },
     "КЛ-17": {
-      "tasks": [
-        "UI-01",
-        "UI-08",
-        "I18N-01"
-      ],
+      "tasks": ["UI-01", "UI-08", "I18N-01"],
       "verification": "NOT_RUN",
       "external": null
     }
@@ -381,23 +237,12 @@
       "decisions": [],
       "one_result": "Создать единый норматив v1.3 и canonically select only the first bounded work; unresolved owner decisions remain explicit BLOCKED gates.",
       "source_scope": "`docs/product/`, `docs/execution/current.yaml`; контролёр",
-      "paths": [
-        "docs/product/**",
-        "docs/execution/current.yaml"
-      ],
+      "paths": ["docs/product/**", "docs/execution/current.yaml"],
       "acceptance": [
         "Текст v1.2 и GAP-01–17 reconciled; все 34 требования и 9 нерешённых продуктовых вопросов прослеживаемы; current.yaml не расширяет чужую задачу и не содержит фиктивных ACCEPTED."
       ],
-      "checks": [
-        "pnpm agent:preflight --check",
-        "pnpm control-plane:check"
-      ],
-      "gates": [
-        "source",
-        "focused",
-        "review",
-        "integration"
-      ],
+      "checks": ["pnpm agent:preflight --check", "pnpm control-plane:check"],
+      "gates": ["source", "focused", "review", "integration"],
       "handoff": "accepted exact source and integrated main SHA; no deployment assumed",
       "risk": "standard",
       "owner_area": "governance",
@@ -409,9 +254,7 @@
       "title": "Инвентаризация принятых возможностей КЛ-01…17, baseline built-browser/screenshots и геометрия",
       "area": "qa",
       "priority": "P1",
-      "depends_on": [
-        "CTRL-00"
-      ],
+      "depends_on": ["CTRL-00"],
       "decisions": [],
       "one_result": "Инвентаризация принятых возможностей КЛ-01…17, baseline built-browser/screenshots и геометрия",
       "source_scope": "существующие e2e/CI; QA",
@@ -423,40 +266,20 @@
       "acceptance": [
         "SHA, before screenshots, реальные размеры, список закрытых/открытых регрессий"
       ],
-      "checks": [
-        "real built React E2E",
-        "negative permissions/identity tests"
-      ],
-      "gates": [
-        "source",
-        "focused",
-        "review",
-        "integration",
-        "visual"
-      ],
+      "checks": ["real built React E2E", "negative permissions/identity tests"],
+      "gates": ["source", "focused", "review", "integration", "visual"],
       "handoff": "accepted exact source and integrated main SHA; no deployment assumed",
       "risk": "ui",
       "owner_area": "qa",
       "historical_source": "ASA_Lab_TZ_v1_2_EXECUTION_READINESS_REVIEW_2026-10-24.md §4",
-      "requirements": [
-        "CLX-03",
-        "CLX-13",
-        "CLX-14",
-        "КЛ-05",
-        "КЛ-07",
-        "КЛ-10",
-        "КЛ-11",
-        "КЛ-12"
-      ]
+      "requirements": ["CLX-03", "CLX-13", "CLX-14", "КЛ-05", "КЛ-07", "КЛ-10", "КЛ-11", "КЛ-12"]
     },
     {
       "id": "QA-02",
       "title": "Изолированная регрессия print/QR: 20 А4, actual output, decode и коды без leak",
       "area": "qa",
       "priority": "P1",
-      "depends_on": [
-        "CTRL-00"
-      ],
+      "depends_on": ["CTRL-00"],
       "decisions": [],
       "one_result": "Изолированная регрессия print/QR: 20 А4, actual output, decode и коды без leak",
       "source_scope": "`StudentAccessCards`/tests; Classroom QA",
@@ -465,38 +288,21 @@
         "e2e/**/classroom*",
         "docs/testing/**"
       ],
-      "acceptance": [
-        "отдельные печатные сценарии, без изменения данных; учесть #629"
-      ],
-      "checks": [
-        "real built React E2E",
-        "negative permissions/identity tests"
-      ],
-      "gates": [
-        "source",
-        "focused",
-        "review",
-        "integration",
-        "visual"
-      ],
+      "acceptance": ["отдельные печатные сценарии, без изменения данных; учесть #629"],
+      "checks": ["real built React E2E", "negative permissions/identity tests"],
+      "gates": ["source", "focused", "review", "integration", "visual"],
       "handoff": "accepted exact source and integrated main SHA; no deployment assumed",
       "risk": "ui",
       "owner_area": "qa",
       "historical_source": "ASA_Lab_TZ_v1_2_EXECUTION_READINESS_REVIEW_2026-10-24.md §4",
-      "requirements": [
-        "КЛ-01",
-        "КЛ-02",
-        "КЛ-03"
-      ]
+      "requirements": ["КЛ-01", "КЛ-02", "КЛ-03"]
     },
     {
       "id": "QA-03",
       "title": "Account join/request/approve/reject/message и Student Code/teacher operations: регрессия",
       "area": "qa",
       "priority": "P1",
-      "depends_on": [
-        "CTRL-00"
-      ],
+      "depends_on": ["CTRL-00"],
       "decisions": [],
       "one_result": "Account join/request/approve/reject/message и Student Code/teacher operations: регрессия",
       "source_scope": "Classroom join/tests; Classroom + Account owners",
@@ -505,38 +311,21 @@
         "apps/web/src/pages/ClassroomPage.tsx",
         "e2e/**/classroom*"
       ],
-      "acceptance": [
-        "реальные API/PG тесты на синтетической БД, сохранены личные проекты"
-      ],
-      "checks": [
-        "real built React E2E",
-        "negative permissions/identity tests"
-      ],
-      "gates": [
-        "source",
-        "focused",
-        "review",
-        "integration",
-        "visual"
-      ],
+      "acceptance": ["реальные API/PG тесты на синтетической БД, сохранены личные проекты"],
+      "checks": ["real built React E2E", "negative permissions/identity tests"],
+      "gates": ["source", "focused", "review", "integration", "visual"],
       "handoff": "accepted exact source and integrated main SHA; no deployment assumed",
       "risk": "ui",
       "owner_area": "qa",
       "historical_source": "ASA_Lab_TZ_v1_2_EXECUTION_READINESS_REVIEW_2026-10-24.md §4",
-      "requirements": [
-        "КЛ-01",
-        "КЛ-06",
-        "КЛ-09"
-      ]
+      "requirements": ["КЛ-01", "КЛ-06", "КЛ-09"]
     },
     {
       "id": "DATA-01",
       "title": "Исправить active journal roster для `removed` + PG negative cases",
       "area": "journal-data",
       "priority": "P0",
-      "depends_on": [
-        "CTRL-00"
-      ],
+      "depends_on": ["CTRL-00"],
       "decisions": [],
       "one_result": "Исправить active journal roster для `removed` + PG negative cases",
       "source_scope": "новая `migrations/NNNN_*.sql`, tests; classroom data",
@@ -544,73 +333,40 @@
         "migrations/*classroom*journal*.sql",
         "tests/courses/*classroom*journal*.pg.spec.ts"
       ],
-      "acceptance": [
-        "removed нет в активной таблице, история/связанный Account целы"
-      ],
-      "checks": [
-        "real PostgreSQL synthetic fixture",
-        "RLS and active/removed/history regression"
-      ],
-      "gates": [
-        "source",
-        "focused",
-        "review",
-        "integration",
-        "pg"
-      ],
+      "acceptance": ["removed нет в активной таблице, история/связанный Account целы"],
+      "checks": ["real PostgreSQL synthetic fixture", "RLS and active/removed/history regression"],
+      "gates": ["source", "focused", "review", "integration", "pg"],
       "handoff": "accepted exact source and integrated main SHA; no deployment assumed",
       "risk": "security",
       "owner_area": "journal-data",
       "historical_source": "ASA_Lab_TZ_v1_2_EXECUTION_READINESS_REVIEW_2026-10-24.md §4",
-      "requirements": [
-        "CLX-09"
-      ]
+      "requirements": ["CLX-09"]
     },
     {
       "id": "DATA-02",
       "title": "Аудит прочих active readers, исправлять только обнаруженные дефекты в отдельном срезе",
       "area": "journal-data",
       "priority": "P0",
-      "depends_on": [
-        "DATA-01"
-      ],
+      "depends_on": ["DATA-01"],
       "decisions": [],
       "one_result": "Аудит прочих active readers, исправлять только обнаруженные дефекты в отдельном срезе",
       "source_scope": "актуальные SQL reader functions, tests",
-      "paths": [
-        "migrations/*classroom*.sql",
-        "tests/courses/*classroom*.pg.spec.ts"
-      ],
-      "acceptance": [
-        "documented matrix active/historical, 403/tenant/grants safe"
-      ],
-      "checks": [
-        "real PostgreSQL synthetic fixture",
-        "RLS and active/removed/history regression"
-      ],
-      "gates": [
-        "source",
-        "focused",
-        "review",
-        "integration",
-        "pg"
-      ],
+      "paths": ["migrations/*classroom*.sql", "tests/courses/*classroom*.pg.spec.ts"],
+      "acceptance": ["documented matrix active/historical, 403/tenant/grants safe"],
+      "checks": ["real PostgreSQL synthetic fixture", "RLS and active/removed/history regression"],
+      "gates": ["source", "focused", "review", "integration", "pg"],
       "handoff": "accepted exact source and integrated main SHA; no deployment assumed",
       "risk": "security",
       "owner_area": "journal-data",
       "historical_source": "ASA_Lab_TZ_v1_2_EXECUTION_READINESS_REVIEW_2026-10-24.md §4",
-      "requirements": [
-        "CLX-09"
-      ]
+      "requirements": ["CLX-09"]
     },
     {
       "id": "SAFE-01",
       "title": "Авторитетное effectiveSafeMode через API/DTO, read-only UI с class/seat/effective",
       "area": "security",
       "priority": "P0",
-      "depends_on": [
-        "CTRL-00"
-      ],
+      "depends_on": ["CTRL-00"],
       "decisions": [],
       "one_result": "Авторитетное effectiveSafeMode через API/DTO, read-only UI с class/seat/effective",
       "source_scope": "Classroom API/UI, classroom profile/test",
@@ -619,39 +375,22 @@
         "apps/web/src/pages/ClassroomStudentPage.tsx",
         "apps/web/src/pages/ClassroomPage.tsx"
       ],
-      "acceptance": [
-        "3 комбинации + archival/403 и refresh, действующие запреты не меняются"
-      ],
-      "checks": [
-        "real PG + API and 320/390 UI",
-        "class OR seat policy permutations"
-      ],
-      "gates": [
-        "source",
-        "focused",
-        "review",
-        "integration",
-        "pg"
-      ],
+      "acceptance": ["3 комбинации + archival/403 и refresh, действующие запреты не меняются"],
+      "checks": ["real PG + API and 320/390 UI", "class OR seat policy permutations"],
+      "gates": ["source", "focused", "review", "integration", "pg"],
       "handoff": "accepted exact source and integrated main SHA; no deployment assumed",
       "risk": "security",
       "owner_area": "security",
       "historical_source": "ASA_Lab_TZ_v1_2_EXECUTION_READINESS_REVIEW_2026-10-24.md §4",
-      "requirements": [
-        "CLX-07"
-      ]
+      "requirements": ["CLX-07"]
     },
     {
       "id": "UI-01",
       "title": "Скомпоновать IdentityRail и desktop/mobile переходы между реальными учениками",
       "area": "student-profile",
       "priority": "P0",
-      "depends_on": [
-        "QA-01"
-      ],
-      "decisions": [
-        "mobile_neighbors"
-      ],
+      "depends_on": ["QA-01"],
+      "decisions": ["mobile_neighbors"],
       "one_result": "Скомпоновать IdentityRail и desktop/mobile переходы между реальными учениками",
       "source_scope": "`ClassroomStudentPage.tsx`, `classroom-student.css`, профильные e2e",
       "paths": [
@@ -659,38 +398,21 @@
         "apps/web/src/pages/classroom-student.css",
         "e2e/classroom-student-profile.spec.ts"
       ],
-      "acceptance": [
-        "видимые имена по принятому правилу, no stale profile, 1/100 roster, 320/390"
-      ],
-      "checks": [
-        "built React 320/390/1024/1440",
-        "real interaction, focus/keyboard/long names"
-      ],
-      "gates": [
-        "source",
-        "focused",
-        "review",
-        "integration",
-        "visual"
-      ],
+      "acceptance": ["видимые имена по принятому правилу, no stale profile, 1/100 roster, 320/390"],
+      "checks": ["built React 320/390/1024/1440", "real interaction, focus/keyboard/long names"],
+      "gates": ["source", "focused", "review", "integration", "visual"],
       "handoff": "accepted exact source and integrated main SHA; no deployment assumed",
       "risk": "ui",
       "owner_area": "student-profile",
       "historical_source": "ASA_Lab_TZ_v1_2_EXECUTION_READINESS_REVIEW_2026-10-24.md §4",
-      "requirements": [
-        "CLX-15",
-        "CLX-17",
-        "КЛ-17"
-      ]
+      "requirements": ["CLX-15", "CLX-17", "КЛ-17"]
     },
     {
       "id": "UI-02",
       "title": "SectionRail: заменить громоздкую навигацию существующих восьми разделов на mobile selector, без изменения бизнес-API",
       "area": "student-profile",
       "priority": "P0",
-      "depends_on": [
-        "UI-01"
-      ],
+      "depends_on": ["UI-01"],
       "decisions": [],
       "one_result": "SectionRail: заменить громоздкую навигацию существующих восьми разделов на mobile selector, без изменения бизнес-API",
       "source_scope": "те же frontend files, e2e",
@@ -702,17 +424,8 @@
       "acceptance": [
         "все прежние разделы достижимы, возвращение/back/focus, никакой пустой вкладки"
       ],
-      "checks": [
-        "built React 320/390/1024/1440",
-        "real interaction, focus/keyboard/long names"
-      ],
-      "gates": [
-        "source",
-        "focused",
-        "review",
-        "integration",
-        "visual"
-      ],
+      "checks": ["built React 320/390/1024/1440", "real interaction, focus/keyboard/long names"],
+      "gates": ["source", "focused", "review", "integration", "visual"],
       "handoff": "accepted exact source and integrated main SHA; no deployment assumed",
       "risk": "ui",
       "owner_area": "student-profile",
@@ -724,10 +437,7 @@
       "title": "Добавить **полностью рабочую** девятую вкладку «Настройки»: категории данных, доступа, безопасности, текущие callback; dirty guard",
       "area": "student-profile",
       "priority": "P0",
-      "depends_on": [
-        "UI-02",
-        "SAFE-01"
-      ],
+      "depends_on": ["UI-02", "SAFE-01"],
       "decisions": [],
       "one_result": "Добавить **полностью рабочую** девятую вкладку «Настройки»: категории данных, доступа, безопасности, текущие callback; dirty guard",
       "source_scope": "профиль/ClassroomPage/modals + focused tests; один frontend writer",
@@ -736,38 +446,21 @@
         "apps/web/src/pages/ClassroomPage.tsx",
         "apps/web/src/pages/classroom-student.css"
       ],
-      "acceptance": [
-        "существующие операции доступны, без ложного сохранения, каталог 4 категорий"
-      ],
-      "checks": [
-        "built React 320/390/1024/1440",
-        "real interaction, focus/keyboard/long names"
-      ],
-      "gates": [
-        "source",
-        "focused",
-        "review",
-        "integration",
-        "visual"
-      ],
+      "acceptance": ["существующие операции доступны, без ложного сохранения, каталог 4 категорий"],
+      "checks": ["built React 320/390/1024/1440", "real interaction, focus/keyboard/long names"],
+      "gates": ["source", "focused", "review", "integration", "visual"],
       "handoff": "accepted exact source and integrated main SHA; no deployment assumed",
       "risk": "ui",
       "owner_area": "student-profile",
       "historical_source": "ASA_Lab_TZ_v1_2_EXECUTION_READINESS_REVIEW_2026-10-24.md §4",
-      "requirements": [
-        "CLX-01",
-        "КЛ-10",
-        "КЛ-16"
-      ]
+      "requirements": ["CLX-01", "КЛ-10", "КЛ-16"]
     },
     {
       "id": "UI-04",
       "title": "Перенести Games Seat policy внутрь категории «Игры» и монтировать лениво; убрать верхний блок",
       "area": "student-profile",
       "priority": "P0",
-      "depends_on": [
-        "UI-03"
-      ],
+      "depends_on": ["UI-03"],
       "decisions": [],
       "one_result": "Перенести Games Seat policy внутрь категории «Игры» и монтировать лениво; убрать верхний блок",
       "source_scope": "профиль/`ClassroomGamesSettings.tsx` + game tests",
@@ -775,36 +468,21 @@
         "apps/web/src/pages/ClassroomStudentPage.tsx",
         "apps/web/src/components/ClassroomGamesSettings.tsx"
       ],
-      "acceptance": [
-        "inherit/allow/deny/threshold работают после reload, нет верхнего блока"
-      ],
-      "checks": [
-        "built React 320/390/1024/1440",
-        "real interaction, focus/keyboard/long names"
-      ],
-      "gates": [
-        "source",
-        "focused",
-        "review",
-        "integration",
-        "visual"
-      ],
+      "acceptance": ["inherit/allow/deny/threshold работают после reload, нет верхнего блока"],
+      "checks": ["built React 320/390/1024/1440", "real interaction, focus/keyboard/long names"],
+      "gates": ["source", "focused", "review", "integration", "visual"],
       "handoff": "accepted exact source and integrated main SHA; no deployment assumed",
       "risk": "ui",
       "owner_area": "student-profile",
       "historical_source": "ASA_Lab_TZ_v1_2_EXECUTION_READINESS_REVIEW_2026-10-24.md §4",
-      "requirements": [
-        "CLX-01"
-      ]
+      "requirements": ["CLX-01"]
     },
     {
       "id": "UI-05",
       "title": "Отдельно доказать reachability заслуг, секретных/class аватаров, helperClasses, карт доступа, role и старых полных функций",
       "area": "student-profile",
       "priority": "P0",
-      "depends_on": [
-        "UI-03"
-      ],
+      "depends_on": ["UI-03"],
       "decisions": [],
       "one_result": "Отдельно доказать reachability заслуг, секретных/class аватаров, helperClasses, карт доступа, role и старых полных функций",
       "source_scope": "профиль/`ClassroomParticipantPanels.tsx`/SeatAwards/tests",
@@ -815,74 +493,42 @@
       "acceptance": [
         "выдача/отзыв и правильные permissions на desktop/mobile без регрессии self-view"
       ],
-      "checks": [
-        "built React 320/390/1024/1440",
-        "real interaction, focus/keyboard/long names"
-      ],
-      "gates": [
-        "source",
-        "focused",
-        "review",
-        "integration",
-        "visual"
-      ],
+      "checks": ["built React 320/390/1024/1440", "real interaction, focus/keyboard/long names"],
+      "gates": ["source", "focused", "review", "integration", "visual"],
       "handoff": "accepted exact source and integrated main SHA; no deployment assumed",
       "risk": "ui",
       "owner_area": "student-profile",
       "historical_source": "ASA_Lab_TZ_v1_2_EXECUTION_READINESS_REVIEW_2026-10-24.md §4",
-      "requirements": [
-        "CLX-01",
-        "КЛ-16"
-      ]
+      "requirements": ["CLX-01", "КЛ-16"]
     },
     {
       "id": "UI-06",
       "title": "Компактные оценки **только выбранного teacher-раздела** с двумя page cursors; desktop режим по владельческому решению",
       "area": "student-profile",
       "priority": "P0",
-      "depends_on": [
-        "UI-02"
-      ],
-      "decisions": [
-        "desktop_grades"
-      ],
+      "depends_on": ["UI-02"],
+      "decisions": ["desktop_grades"],
       "one_result": "Компактные оценки **только выбранного teacher-раздела** с двумя page cursors; desktop режим по владельческому решению",
       "source_scope": "`ClassroomStudentPage`, `ClassroomParticipantPanels`, tests",
       "paths": [
         "apps/web/src/pages/ClassroomStudentPage.tsx",
         "apps/web/src/components/ClassroomParticipantPanels.tsx"
       ],
-      "acceptance": [
-        "0/1/30/100 manual+assigned, без дубля и teacher-history-кнопок"
-      ],
-      "checks": [
-        "built React 320/390/1024/1440",
-        "real interaction, focus/keyboard/long names"
-      ],
-      "gates": [
-        "source",
-        "focused",
-        "review",
-        "integration",
-        "visual"
-      ],
+      "acceptance": ["0/1/30/100 manual+assigned, без дубля и teacher-history-кнопок"],
+      "checks": ["built React 320/390/1024/1440", "real interaction, focus/keyboard/long names"],
+      "gates": ["source", "focused", "review", "integration", "visual"],
       "handoff": "accepted exact source and integrated main SHA; no deployment assumed",
       "risk": "ui",
       "owner_area": "student-profile",
       "historical_source": "ASA_Lab_TZ_v1_2_EXECUTION_READINESS_REVIEW_2026-10-24.md §4",
-      "requirements": [
-        "CLX-16"
-      ]
+      "requirements": ["CLX-16"]
     },
     {
       "id": "UI-07",
       "title": "Переход от ручной оценки к настоящему редактору, от результата задания — к реальному review",
       "area": "student-profile",
       "priority": "P0",
-      "depends_on": [
-        "UI-06",
-        "JOUR-03"
-      ],
+      "depends_on": ["UI-06", "JOUR-03"],
       "decisions": [],
       "one_result": "Переход от ручной оценки к настоящему редактору, от результата задания — к реальному review",
       "source_scope": "профиль/gradebook/nav; tests",
@@ -890,37 +536,21 @@
         "apps/web/src/pages/ClassroomStudentPage.tsx",
         "apps/web/src/components/ClassroomGradebook.tsx"
       ],
-      "acceptance": [
-        "edit current grade, NULL vs 0, 409; не перепутать два workflows"
-      ],
-      "checks": [
-        "built React 320/390/1024/1440",
-        "real interaction, focus/keyboard/long names"
-      ],
-      "gates": [
-        "source",
-        "focused",
-        "review",
-        "integration",
-        "visual"
-      ],
+      "acceptance": ["edit current grade, NULL vs 0, 409; не перепутать два workflows"],
+      "checks": ["built React 320/390/1024/1440", "real interaction, focus/keyboard/long names"],
+      "gates": ["source", "focused", "review", "integration", "visual"],
       "handoff": "accepted exact source and integrated main SHA; no deployment assumed",
       "risk": "ui",
       "owner_area": "student-profile",
       "historical_source": "ASA_Lab_TZ_v1_2_EXECUTION_READINESS_REVIEW_2026-10-24.md §4",
-      "requirements": [
-        "CLX-16"
-      ]
+      "requirements": ["CLX-16"]
     },
     {
       "id": "UI-08",
       "title": "Уплотнить teacher-only список работ без регрессии `ProjectCard`/`WorkPreview`, с реальными ACL/preview",
       "area": "student-profile",
       "priority": "P0",
-      "depends_on": [
-        "UI-02",
-        "QA-01"
-      ],
+      "depends_on": ["UI-02", "QA-01"],
       "decisions": [],
       "one_result": "Уплотнить teacher-only список работ без регрессии `ProjectCard`/`WorkPreview`, с реальными ACL/preview",
       "source_scope": "профиль/локальные project UI files",
@@ -928,36 +558,21 @@
         "apps/web/src/pages/ClassroomStudentPage.tsx",
         "apps/web/src/pages/classroom-student.css"
       ],
-      "acceptance": [
-        "один tap открывает реальную работу, сохранились preview и доступы"
-      ],
-      "checks": [
-        "built React 320/390/1024/1440",
-        "real interaction, focus/keyboard/long names"
-      ],
-      "gates": [
-        "source",
-        "focused",
-        "review",
-        "integration",
-        "visual"
-      ],
+      "acceptance": ["один tap открывает реальную работу, сохранились preview и доступы"],
+      "checks": ["built React 320/390/1024/1440", "real interaction, focus/keyboard/long names"],
+      "gates": ["source", "focused", "review", "integration", "visual"],
       "handoff": "accepted exact source and integrated main SHA; no deployment assumed",
       "risk": "ui",
       "owner_area": "student-profile",
       "historical_source": "ASA_Lab_TZ_v1_2_EXECUTION_READINESS_REVIEW_2026-10-24.md §4",
-      "requirements": [
-        "КЛ-17"
-      ]
+      "requirements": ["КЛ-17"]
     },
     {
       "id": "WORK-01",
       "title": "Спецификация и server-side filter/sort до pagination, total/hasMore после ACL",
       "area": "student-works",
       "priority": "P1",
-      "depends_on": [
-        "CTRL-00"
-      ],
+      "depends_on": ["CTRL-00"],
       "decisions": [],
       "one_result": "Спецификация и server-side filter/sort до pagination, total/hasMore после ACL",
       "source_scope": "participants API/SQL, PG tests",
@@ -966,37 +581,21 @@
         "migrations/*classroom*participants*.sql",
         "tests/courses/*classroom*.pg.spec.ts"
       ],
-      "acceptance": [
-        "waiting item №70 появляется в первой странице выбранного фильтра"
-      ],
-      "checks": [
-        "server pagination test with 100 mixed works",
-        "scope and ACL negative cases"
-      ],
-      "gates": [
-        "source",
-        "focused",
-        "review",
-        "integration",
-        "pg"
-      ],
+      "acceptance": ["waiting item №70 появляется в первой странице выбранного фильтра"],
+      "checks": ["server pagination test with 100 mixed works", "scope and ACL negative cases"],
+      "gates": ["source", "focused", "review", "integration", "pg"],
       "handoff": "accepted exact source and integrated main SHA; no deployment assumed",
       "risk": "security",
       "owner_area": "student-works",
       "historical_source": "ASA_Lab_TZ_v1_2_EXECUTION_READINESS_REVIEW_2026-10-24.md §4",
-      "requirements": [
-        "КЛ-12"
-      ]
+      "requirements": ["КЛ-12"]
     },
     {
       "id": "WORK-02",
       "title": "Подключить мобильную кнопку «Фильтры», архив/status/sort и честное сохранение состояния",
       "area": "student-works",
       "priority": "P1",
-      "depends_on": [
-        "UI-02",
-        "WORK-01"
-      ],
+      "depends_on": ["UI-02", "WORK-01"],
       "decisions": [],
       "one_result": "Подключить мобильную кнопку «Фильтры», архив/status/sort и честное сохранение состояния",
       "source_scope": "профиль/participant API client/test",
@@ -1004,20 +603,9 @@
         "apps/web/src/pages/ClassroomStudentPage.tsx",
         "apps/web/src/classroom-participants-api.ts"
       ],
-      "acceptance": [
-        "нет локальной псевдосортировки по первым 30, owner-visible UX"
-      ],
-      "checks": [
-        "server pagination test with 100 mixed works",
-        "scope and ACL negative cases"
-      ],
-      "gates": [
-        "source",
-        "focused",
-        "review",
-        "integration",
-        "visual"
-      ],
+      "acceptance": ["нет локальной псевдосортировки по первым 30, owner-visible UX"],
+      "checks": ["server pagination test with 100 mixed works", "scope and ACL negative cases"],
+      "gates": ["source", "focused", "review", "integration", "visual"],
       "handoff": "accepted exact source and integrated main SHA; no deployment assumed",
       "risk": "ui",
       "owner_area": "student-works",
@@ -1029,9 +617,7 @@
       "title": "Desktop anchored popover к ячейке с collision и focus",
       "area": "journal",
       "priority": "P0",
-      "depends_on": [
-        "CTRL-00"
-      ],
+      "depends_on": ["CTRL-00"],
       "decisions": [],
       "one_result": "Desktop anchored popover к ячейке с collision и focus",
       "source_scope": "`ManualClassroomJournal`, CSS, E2E",
@@ -1039,38 +625,21 @@
         "apps/web/src/components/ManualClassroomJournal.tsx",
         "apps/web/src/components/manual-classroom-journal.css"
       ],
-      "acceptance": [
-        "левый/правый/нижний край, scroll/resize, real save, no overlay"
-      ],
-      "checks": [
-        "real PG + journal browser journey",
-        "0/null/history/409/retry"
-      ],
-      "gates": [
-        "source",
-        "focused",
-        "review",
-        "integration",
-        "visual"
-      ],
+      "acceptance": ["левый/правый/нижний край, scroll/resize, real save, no overlay"],
+      "checks": ["real PG + journal browser journey", "0/null/history/409/retry"],
+      "gates": ["source", "focused", "review", "integration", "visual"],
       "handoff": "accepted exact source and integrated main SHA; no deployment assumed",
       "risk": "ui",
       "owner_area": "journal",
       "historical_source": "ASA_Lab_TZ_v1_2_EXECUTION_READINESS_REVIEW_2026-10-24.md §4",
-      "requirements": [
-        "CLX-03",
-        "CLX-10",
-        "КЛ-14"
-      ]
+      "requirements": ["CLX-03", "CLX-10", "КЛ-14"]
     },
     {
       "id": "JOUR-02",
       "title": "Mobile bottom sheet для существующего журнала, numeric keyboard, focus/back",
       "area": "journal",
       "priority": "P0",
-      "depends_on": [
-        "JOUR-01"
-      ],
+      "depends_on": ["JOUR-01"],
       "decisions": [],
       "one_result": "Mobile bottom sheet для существующего журнала, numeric keyboard, focus/back",
       "source_scope": "те же journal files, mobile e2e",
@@ -1078,38 +647,21 @@
         "apps/web/src/components/ManualClassroomJournal.tsx",
         "apps/web/src/components/manual-classroom-journal.css"
       ],
-      "acceptance": [
-        "320/390, keyboard, Esc/back, 44px targets"
-      ],
-      "checks": [
-        "real PG + journal browser journey",
-        "0/null/history/409/retry"
-      ],
-      "gates": [
-        "source",
-        "focused",
-        "review",
-        "integration",
-        "visual"
-      ],
+      "acceptance": ["320/390, keyboard, Esc/back, 44px targets"],
+      "checks": ["real PG + journal browser journey", "0/null/history/409/retry"],
+      "gates": ["source", "focused", "review", "integration", "visual"],
       "handoff": "accepted exact source and integrated main SHA; no deployment assumed",
       "risk": "ui",
       "owner_area": "journal",
       "historical_source": "ASA_Lab_TZ_v1_2_EXECUTION_READINESS_REVIEW_2026-10-24.md §4",
-      "requirements": [
-        "CLX-03",
-        "CLX-10",
-        "КЛ-14"
-      ]
+      "requirements": ["CLX-03", "CLX-10", "КЛ-14"]
     },
     {
       "id": "JOUR-03",
       "title": "Убрать mandatory reason на UI/API/SQL с сохранением immutable audit, receipt, notifications",
       "area": "journal",
       "priority": "P1",
-      "depends_on": [
-        "CTRL-00"
-      ],
+      "depends_on": ["CTRL-00"],
       "decisions": [],
       "one_result": "Убрать mandatory reason на UI/API/SQL с сохранением immutable audit, receipt, notifications",
       "source_scope": "новая SQL миграция, journal controller/client/editor/tests",
@@ -1118,74 +670,40 @@
         "apps/api/src/classroom-journal.controller.ts",
         "migrations/*classroom*journal*.sql"
       ],
-      "acceptance": [
-        "3→5 и 5→NULL без комментария, 409, replay, прежние записи целы"
-      ],
-      "checks": [
-        "real PG + journal browser journey",
-        "0/null/history/409/retry"
-      ],
-      "gates": [
-        "source",
-        "focused",
-        "review",
-        "integration",
-        "pg"
-      ],
+      "acceptance": ["3→5 и 5→NULL без комментария, 409, replay, прежние записи целы"],
+      "checks": ["real PG + journal browser journey", "0/null/history/409/retry"],
+      "gates": ["source", "focused", "review", "integration", "pg"],
       "handoff": "accepted exact source and integrated main SHA; no deployment assumed",
       "risk": "security",
       "owner_area": "journal",
       "historical_source": "ASA_Lab_TZ_v1_2_EXECUTION_READINESS_REVIEW_2026-10-24.md §4",
-      "requirements": [
-        "CLX-12",
-        "КЛ-14"
-      ]
+      "requirements": ["CLX-12", "КЛ-14"]
     },
     {
       "id": "JOUR-04A",
       "title": "Утвердить lifecycle hidden column и read-side по teacher/learner/rating/inbox",
       "area": "journal",
       "priority": "P1",
-      "depends_on": [
-        "CTRL-00"
-      ],
-      "decisions": [
-        "hidden_journal_columns"
-      ],
+      "depends_on": ["CTRL-00"],
+      "decisions": ["hidden_journal_columns"],
       "one_result": "Утвердить lifecycle hidden column и read-side по teacher/learner/rating/inbox",
       "source_scope": "product security decision + precise API matrix",
-      "paths": [
-        "docs/product/**"
-      ],
-      "acceptance": [
-        "нет двусмысленного «удалить» и нарушения истории/результатов"
-      ],
-      "checks": [
-        "real PG + journal browser journey",
-        "0/null/history/409/retry"
-      ],
-      "gates": [
-        "source",
-        "focused",
-        "review",
-        "integration"
-      ],
+      "paths": ["docs/product/**"],
+      "acceptance": ["нет двусмысленного «удалить» и нарушения истории/результатов"],
+      "checks": ["real PG + journal browser journey", "0/null/history/409/retry"],
+      "gates": ["source", "focused", "review", "integration"],
       "handoff": "accepted exact source and integrated main SHA; no deployment assumed",
       "risk": "standard",
       "owner_area": "journal",
       "historical_source": "ASA_Lab_TZ_v1_2_EXECUTION_READINESS_REVIEW_2026-10-24.md §4",
-      "requirements": [
-        "CLX-11"
-      ]
+      "requirements": ["CLX-11"]
     },
     {
       "id": "JOUR-04B",
       "title": "Implement archive/restore column с авторизацией и историей, new additive SQL",
       "area": "journal",
       "priority": "P1",
-      "depends_on": [
-        "JOUR-04A"
-      ],
+      "depends_on": ["JOUR-04A"],
       "decisions": [],
       "one_result": "Implement archive/restore column с авторизацией и историей, new additive SQL",
       "source_scope": "migrations/controller/PG tests",
@@ -1193,36 +711,21 @@
         "migrations/*classroom*journal*.sql",
         "apps/api/src/classroom-journal.controller.ts"
       ],
-      "acceptance": [
-        "active/historical views и deep links согласованы, нет physical DELETE"
-      ],
-      "checks": [
-        "real PG + journal browser journey",
-        "0/null/history/409/retry"
-      ],
-      "gates": [
-        "source",
-        "focused",
-        "review",
-        "integration",
-        "pg"
-      ],
+      "acceptance": ["active/historical views и deep links согласованы, нет physical DELETE"],
+      "checks": ["real PG + journal browser journey", "0/null/history/409/retry"],
+      "gates": ["source", "focused", "review", "integration", "pg"],
       "handoff": "accepted exact source and integrated main SHA; no deployment assumed",
       "risk": "security",
       "owner_area": "journal",
       "historical_source": "ASA_Lab_TZ_v1_2_EXECUTION_READINESS_REVIEW_2026-10-24.md §4",
-      "requirements": [
-        "CLX-11"
-      ]
+      "requirements": ["CLX-11"]
     },
     {
       "id": "JOUR-04C",
       "title": "Компактные 48–56px колонки и UI hide/restore, включая virtual",
       "area": "journal",
       "priority": "P1",
-      "depends_on": [
-        "JOUR-04B"
-      ],
+      "depends_on": ["JOUR-04B"],
       "decisions": [],
       "one_result": "Компактные 48–56px колонки и UI hide/restore, включая virtual",
       "source_scope": "journal React/CSS/tests",
@@ -1230,78 +733,46 @@
         "apps/web/src/components/ManualClassroomJournal.tsx",
         "apps/web/src/components/manual-classroom-journal.css"
       ],
-      "acceptance": [
-        "ширина/скролл/первые 10 слотов/восстановление/касаемость"
-      ],
-      "checks": [
-        "real PG + journal browser journey",
-        "0/null/history/409/retry"
-      ],
-      "gates": [
-        "source",
-        "focused",
-        "review",
-        "integration",
-        "visual"
-      ],
+      "acceptance": ["ширина/скролл/первые 10 слотов/восстановление/касаемость"],
+      "checks": ["real PG + journal browser journey", "0/null/history/409/retry"],
+      "gates": ["source", "focused", "review", "integration", "visual"],
       "handoff": "accepted exact source and integrated main SHA; no deployment assumed",
       "risk": "ui",
       "owner_area": "journal",
       "historical_source": "ASA_Lab_TZ_v1_2_EXECUTION_READINESS_REVIEW_2026-10-24.md §4",
-      "requirements": [
-        "CLX-11"
-      ]
+      "requirements": ["CLX-11"]
     },
     {
       "id": "RATE-01",
       "title": "Контракт новых weights/factor availability/version + shadow old/new, без смены legacy score",
       "area": "rating",
       "priority": "P1",
-      "depends_on": [
-        "CTRL-00"
-      ],
-      "decisions": [
-        "rating_missing",
-        "rating_rollout"
-      ],
+      "depends_on": ["CTRL-00"],
+      "decisions": ["rating_missing", "rating_rollout"],
       "one_result": "Контракт новых weights/factor availability/version + shadow old/new, без смены legacy score",
       "source_scope": "participants migration/API/PG tests",
       "paths": [
         "migrations/*classroom*participants*.sql",
         "apps/api/src/classroom-participants.controller.ts"
       ],
-      "acceptance": [
-        "старые классы получают прежние результаты/игры, no silent drift"
-      ],
+      "acceptance": ["старые классы получают прежние результаты/игры, no silent drift"],
       "checks": [
         "real PG and Games admission after scoring change",
         "legacy score parity and rollback"
       ],
-      "gates": [
-        "source",
-        "focused",
-        "review",
-        "integration",
-        "pg"
-      ],
+      "gates": ["source", "focused", "review", "integration", "pg"],
       "handoff": "accepted exact source and integrated main SHA; no deployment assumed",
       "risk": "security",
       "owner_area": "rating",
       "historical_source": "ASA_Lab_TZ_v1_2_EXECUTION_READINESS_REVIEW_2026-10-24.md §4",
-      "requirements": [
-        "CLX-05",
-        "CLX-06",
-        "КЛ-13"
-      ]
+      "requirements": ["CLX-05", "CLX-06", "КЛ-13"]
     },
     {
       "id": "RATE-02",
       "title": "Редактор весов и превью по запросу, без длинных плашек",
       "area": "rating",
       "priority": "P1",
-      "depends_on": [
-        "RATE-01"
-      ],
+      "depends_on": ["RATE-01"],
       "decisions": [],
       "one_result": "Редактор весов и превью по запросу, без длинных плашек",
       "source_scope": "`ClassroomParticipantPanels`, class settings UI/tests",
@@ -1316,67 +787,41 @@
         "real PG and Games admission after scoring change",
         "legacy score parity and rollback"
       ],
-      "gates": [
-        "source",
-        "focused",
-        "review",
-        "integration",
-        "visual"
-      ],
+      "gates": ["source", "focused", "review", "integration", "visual"],
       "handoff": "accepted exact source and integrated main SHA; no deployment assumed",
       "risk": "ui",
       "owner_area": "rating",
       "historical_source": "ASA_Lab_TZ_v1_2_EXECUTION_READINESS_REVIEW_2026-10-24.md §4",
-      "requirements": [
-        "CLX-06",
-        "КЛ-13"
-      ]
+      "requirements": ["CLX-06", "КЛ-13"]
     },
     {
       "id": "RATE-03",
       "title": "Изменить начисление за пустой вход, проверка UTC/edit/idle и game admission",
       "area": "rating",
       "priority": "P1",
-      "depends_on": [
-        "RATE-01"
-      ],
+      "depends_on": ["RATE-01"],
       "decisions": [],
       "one_result": "Изменить начисление за пустой вход, проверка UTC/edit/idle и game admission",
       "source_scope": "rating SQL/API + PG/integration; Games coordination",
-      "paths": [
-        "migrations/*classroom*participants*.sql",
-        "apps/api/src/games-access.ts"
-      ],
-      "acceptance": [
-        "no idle bonus, корректные 0 vs NULL, threshold не ломается молча"
-      ],
+      "paths": ["migrations/*classroom*participants*.sql", "apps/api/src/games-access.ts"],
+      "acceptance": ["no idle bonus, корректные 0 vs NULL, threshold не ломается молча"],
       "checks": [
         "real PG and Games admission after scoring change",
         "legacy score parity and rollback"
       ],
-      "gates": [
-        "source",
-        "focused",
-        "review",
-        "integration",
-        "pg"
-      ],
+      "gates": ["source", "focused", "review", "integration", "pg"],
       "handoff": "accepted exact source and integrated main SHA; no deployment assumed",
       "risk": "standard",
       "owner_area": "rating",
       "historical_source": "ASA_Lab_TZ_v1_2_EXECUTION_READINESS_REVIEW_2026-10-24.md §4",
-      "requirements": [
-        "CLX-06"
-      ]
+      "requirements": ["CLX-06"]
     },
     {
       "id": "RATE-04",
       "title": "Добавлять **по одному** новому фактору с подтверждёнными событиями; отдельная карточка на фактор",
       "area": "rating",
       "priority": "P1",
-      "depends_on": [
-        "RATE-01"
-      ],
+      "depends_on": ["RATE-01"],
       "decisions": [],
       "one_result": "Добавлять **по одному** новому фактору с подтверждёнными событиями; отдельная карточка на фактор",
       "source_scope": "rating SQL/API/UI/tests",
@@ -1384,36 +829,24 @@
         "migrations/*classroom*participants*.sql",
         "apps/api/src/classroom-participants.controller.ts"
       ],
-      "acceptance": [
-        "source/normalization/absence/abuse/ACL у каждого фактора доказаны"
-      ],
+      "acceptance": ["source/normalization/absence/abuse/ACL у каждого фактора доказаны"],
       "checks": [
         "real PG and Games admission after scoring change",
         "legacy score parity and rollback"
       ],
-      "gates": [
-        "source",
-        "focused",
-        "review",
-        "integration",
-        "pg"
-      ],
+      "gates": ["source", "focused", "review", "integration", "pg"],
       "handoff": "accepted exact source and integrated main SHA; no deployment assumed",
       "risk": "standard",
       "owner_area": "rating",
       "historical_source": "ASA_Lab_TZ_v1_2_EXECUTION_READINESS_REVIEW_2026-10-24.md §4",
-      "requirements": [
-        "CLX-04"
-      ]
+      "requirements": ["CLX-04"]
     },
     {
       "id": "NOTIFY-01",
       "title": "Проверить и сохранить текущие grade/result/inbox Seat/Account без создания новой системы",
       "area": "notifications",
       "priority": "P1",
-      "depends_on": [
-        "CTRL-00"
-      ],
+      "depends_on": ["CTRL-00"],
       "decisions": [],
       "one_result": "Проверить и сохранить текущие grade/result/inbox Seat/Account без создания новой системы",
       "source_scope": "Learning/Seat results, notifications tests",
@@ -1421,149 +854,81 @@
         "apps/web/src/components/SeatResults.tsx",
         "apps/web/src/components/StudentJournalResults.tsx"
       ],
-      "acceptance": [
-        "клик по оценке до разрешённого результата, refresh, no duplicates"
-      ],
-      "checks": [
-        "Seat/Account inbox result E2E",
-        "revoked/duplicate/privacy"
-      ],
-      "gates": [
-        "source",
-        "focused",
-        "review",
-        "integration"
-      ],
+      "acceptance": ["клик по оценке до разрешённого результата, refresh, no duplicates"],
+      "checks": ["Seat/Account inbox result E2E", "revoked/duplicate/privacy"],
+      "gates": ["source", "focused", "review", "integration"],
       "handoff": "accepted exact source and integrated main SHA; no deployment assumed",
       "risk": "standard",
       "owner_area": "notifications",
       "historical_source": "ASA_Lab_TZ_v1_2_EXECUTION_READINESS_REVIEW_2026-10-24.md §4",
-      "requirements": [
-        "CLX-02",
-        "КЛ-15"
-      ]
+      "requirements": ["CLX-02", "КЛ-15"]
     },
     {
       "id": "NOTIFY-02",
       "title": "Новые policy/moderation events только после принятого event-контракта с владельцем Learning/Projects",
       "area": "notifications",
       "priority": "P1",
-      "depends_on": [
-        "NOTIFY-01"
-      ],
-      "decisions": [
-        "notify_policy"
-      ],
+      "depends_on": ["NOTIFY-01"],
+      "decisions": ["notify_policy"],
       "one_result": "Новые policy/moderation events только после принятого event-контракта с владельцем Learning/Projects",
       "source_scope": "Learning owner + Classroom consumer",
       "paths": [
         "apps/api/src/learning-notifications.controller.ts",
         "apps/web/src/components/LearningInbox.tsx"
       ],
-      "acceptance": [
-        "соответствующие события из настоящего backend, read/unread/ACL"
-      ],
-      "checks": [
-        "Seat/Account inbox result E2E",
-        "revoked/duplicate/privacy"
-      ],
-      "gates": [
-        "source",
-        "focused",
-        "review",
-        "integration"
-      ],
+      "acceptance": ["соответствующие события из настоящего backend, read/unread/ACL"],
+      "checks": ["Seat/Account inbox result E2E", "revoked/duplicate/privacy"],
+      "gates": ["source", "focused", "review", "integration"],
       "handoff": "accepted exact source and integrated main SHA; no deployment assumed",
       "risk": "standard",
       "owner_area": "notifications",
       "historical_source": "ASA_Lab_TZ_v1_2_EXECUTION_READINESS_REVIEW_2026-10-24.md §4",
-      "requirements": [
-        "CLX-02",
-        "КЛ-15"
-      ]
+      "requirements": ["CLX-02", "КЛ-15"]
     },
     {
       "id": "PUB-01",
       "title": "Совместно с Public Projects утвердить publishability, privacy, class/seat policy, moderation и revoke",
       "area": "public-projects",
       "priority": "P2",
-      "depends_on": [
-        "CTRL-00"
-      ],
-      "decisions": [
-        "student_publication"
-      ],
+      "depends_on": ["CTRL-00"],
+      "decisions": ["student_publication"],
       "one_result": "Совместно с Public Projects утвердить publishability, privacy, class/seat policy, moderation и revoke",
       "source_scope": "Public Projects owner + owner decision",
-      "paths": [
-        "docs/product/projects/**"
-      ],
-      "acceptance": [
-        "серверная модель допуска и положительный E2E специфицированы"
-      ],
-      "checks": [
-        "positive publication and deny cases",
-        "read/detail/media/copy/revoke ACL"
-      ],
-      "gates": [
-        "source",
-        "focused",
-        "review",
-        "integration"
-      ],
+      "paths": ["docs/product/projects/**"],
+      "acceptance": ["серверная модель допуска и положительный E2E специфицированы"],
+      "checks": ["positive publication and deny cases", "read/detail/media/copy/revoke ACL"],
+      "gates": ["source", "focused", "review", "integration"],
       "handoff": "accepted exact source and integrated main SHA; no deployment assumed",
       "risk": "security",
       "owner_area": "public-projects",
       "historical_source": "ASA_Lab_TZ_v1_2_EXECUTION_READINESS_REVIEW_2026-10-24.md §4",
-      "requirements": [
-        "CLX-08"
-      ]
+      "requirements": ["CLX-08"]
     },
     {
       "id": "PUB-02",
       "title": "Реальный guarded publication request→moderation→public/read→revoke, с негативными сценариями",
       "area": "public-projects",
       "priority": "P2",
-      "depends_on": [
-        "PUB-01"
-      ],
+      "depends_on": ["PUB-01"],
       "decisions": [],
       "one_result": "Реальный guarded publication request→moderation→public/read→revoke, с негативными сценариями",
       "source_scope": "Public Projects backend, migrations, PG/E2E; **не Classroom UI бот**",
-      "paths": [
-        "apps/api/src/public-projects.controller.ts",
-        "migrations/*public_project*.sql"
-      ],
-      "acceptance": [
-        "happy path и все deny/read-side/media/copy/security тесты"
-      ],
-      "checks": [
-        "positive publication and deny cases",
-        "read/detail/media/copy/revoke ACL"
-      ],
-      "gates": [
-        "source",
-        "focused",
-        "review",
-        "integration",
-        "pg"
-      ],
+      "paths": ["apps/api/src/public-projects.controller.ts", "migrations/*public_project*.sql"],
+      "acceptance": ["happy path и все deny/read-side/media/copy/security тесты"],
+      "checks": ["positive publication and deny cases", "read/detail/media/copy/revoke ACL"],
+      "gates": ["source", "focused", "review", "integration", "pg"],
       "handoff": "accepted exact source and integrated main SHA; no deployment assumed",
       "risk": "security",
       "owner_area": "public-projects",
       "historical_source": "ASA_Lab_TZ_v1_2_EXECUTION_READINESS_REVIEW_2026-10-24.md §4",
-      "requirements": [
-        "CLX-08"
-      ]
+      "requirements": ["CLX-08"]
     },
     {
       "id": "PUB-03",
       "title": "Учительские настройки класса/Seat и точные статусы ученику по принятому API",
       "area": "public-projects",
       "priority": "P2",
-      "depends_on": [
-        "PUB-02"
-      ],
+      "depends_on": ["PUB-02"],
       "decisions": [],
       "one_result": "Учительские настройки класса/Seat и точные статусы ученику по принятому API",
       "source_scope": "Classroom UI, student settings, tests",
@@ -1571,36 +936,21 @@
         "apps/web/src/pages/ClassroomStudentPage.tsx",
         "apps/web/src/pages/ClassroomPage.tsx"
       ],
-      "acceptance": [
-        "policy persisted, no fake toggle, работает после refresh"
-      ],
-      "checks": [
-        "positive publication and deny cases",
-        "read/detail/media/copy/revoke ACL"
-      ],
-      "gates": [
-        "source",
-        "focused",
-        "review",
-        "integration",
-        "visual"
-      ],
+      "acceptance": ["policy persisted, no fake toggle, работает после refresh"],
+      "checks": ["positive publication and deny cases", "read/detail/media/copy/revoke ACL"],
+      "gates": ["source", "focused", "review", "integration", "visual"],
       "handoff": "accepted exact source and integrated main SHA; no deployment assumed",
       "risk": "security",
       "owner_area": "public-projects",
       "historical_source": "ASA_Lab_TZ_v1_2_EXECUTION_READINESS_REVIEW_2026-10-24.md §4",
-      "requirements": [
-        "CLX-08"
-      ]
+      "requirements": ["CLX-08"]
     },
     {
       "id": "UX-01",
       "title": "Отдельное решение по #577 shared tabs/toasts: перенос только нужного узкого примитива либо supersede",
       "area": "design-system",
       "priority": "P2",
-      "depends_on": [
-        "UI-02"
-      ],
+      "depends_on": ["UI-02"],
       "decisions": [],
       "one_result": "Отдельное решение по #577 shared tabs/toasts: перенос только нужного узкого примитива либо supersede",
       "source_scope": "shared UI owner, tests",
@@ -1608,20 +958,9 @@
         "apps/web/src/components/SystemTabs.tsx",
         "apps/web/src/components/system-tabs.css"
       ],
-      "acceptance": [
-        "не переносить 31-file PR, единые стили без regression других экранов"
-      ],
-      "checks": [
-        "consumer regression suite",
-        "shared UI visual snapshot"
-      ],
-      "gates": [
-        "source",
-        "focused",
-        "review",
-        "integration",
-        "visual"
-      ],
+      "acceptance": ["не переносить 31-file PR, единые стили без regression других экранов"],
+      "checks": ["consumer regression suite", "shared UI visual snapshot"],
+      "gates": ["source", "focused", "review", "integration", "visual"],
       "handoff": "accepted exact source and integrated main SHA; no deployment assumed",
       "risk": "ui",
       "owner_area": "design-system",
@@ -1674,25 +1013,12 @@
       "decisions": [],
       "one_result": "Все 34 требования + модификации, полный browser/PG/E2E/visual, и separate deployment gate",
       "source_scope": "QA/controller",
-      "paths": [
-        "e2e/**",
-        "docs/testing/**"
-      ],
+      "paths": ["e2e/**", "docs/testing/**"],
       "acceptance": [
         "Каждое КЛ-01…17 и CLX-01…17 имеет доказуемую проверку; отдельные built-browser/PG/review/owner/deployment результаты; нет незавершённых задач этого scope."
       ],
-      "checks": [
-        "real built React E2E",
-        "negative permissions/identity tests"
-      ],
-      "gates": [
-        "source",
-        "focused",
-        "review",
-        "integration",
-        "visual",
-        "pg"
-      ],
+      "checks": ["real built React E2E", "negative permissions/identity tests"],
+      "gates": ["source", "focused", "review", "integration", "visual", "pg"],
       "handoff": "accepted exact source and integrated main SHA; no deployment assumed",
       "risk": "ui",
       "owner_area": "qa",
@@ -1702,9 +1028,7 @@
     {
       "id": "CLASS-01",
       "title": "Компактный каталог настроек класса без одновременных длинных форм",
-      "depends_on": [
-        "QA-01"
-      ],
+      "depends_on": ["QA-01"],
       "area": "classroom-ui",
       "one_result": "Семь существующих категорий доступны без прокрутки множества открытых форм, состояние черновика не теряется",
       "acceptance": [
@@ -1717,75 +1041,43 @@
         "apps/web/src/pages/ClassroomPage.tsx",
         "apps/web/src/modules/classroom-open-compact.css"
       ],
-      "checks": [
-        "classroom screens 320/390/1024/1440",
-        "six/five KPI and buttons retained"
-      ],
-      "gates": [
-        "source",
-        "focused",
-        "review",
-        "integration",
-        "visual"
-      ],
+      "checks": ["classroom screens 320/390/1024/1440", "six/five KPI and buttons retained"],
+      "gates": ["source", "focused", "review", "integration", "visual"],
       "handoff": "accepted exact SHA",
       "risk": "ui",
       "owner_area": "classroom-ui",
       "historical_source": "ASA_Lab_TZ_v1_2_CRITICAL_AUDIT_2026-10-24.md §5",
-      "requirements": [
-        "КЛ-09"
-      ]
+      "requirements": ["КЛ-09"]
     },
     {
       "id": "CLASS-02",
       "title": "Шесть KPI «Мои классы» и пять KPI открытого класса доступны на 320px",
-      "depends_on": [
-        "QA-01"
-      ],
+      "depends_on": ["QA-01"],
       "area": "classroom-ui",
       "one_result": "Оба экрана имеют компактную измеренную сводку с достоверными числами",
       "acceptance": [
         "Ни один показатель не теряется и нет ложного 0 при ошибке; понятное раскрытие на 320/390, без гигантских KPI-карточек."
       ],
       "priority": "P0",
-      "decisions": [
-        "classroom_kpi_mobile"
-      ],
+      "decisions": ["classroom_kpi_mobile"],
       "source_scope": "Новая отдельная карточка по GAP-аудиту",
       "paths": [
         "apps/web/src/pages/DashboardPage.tsx",
         "apps/web/src/pages/ClassroomPage.tsx",
         "apps/web/src/modules/classroom-teacher-dashboard.css"
       ],
-      "checks": [
-        "classroom screens 320/390/1024/1440",
-        "six/five KPI and buttons retained"
-      ],
-      "gates": [
-        "source",
-        "focused",
-        "review",
-        "integration",
-        "visual"
-      ],
+      "checks": ["classroom screens 320/390/1024/1440", "six/five KPI and buttons retained"],
+      "gates": ["source", "focused", "review", "integration", "visual"],
       "handoff": "accepted exact SHA",
       "risk": "ui",
       "owner_area": "classroom-ui",
       "historical_source": "ASA_Lab_TZ_v1_2_CRITICAL_AUDIT_2026-10-24.md §5",
-      "requirements": [
-        "КЛ-04",
-        "КЛ-05",
-        "КЛ-07",
-        "КЛ-08"
-      ]
+      "requirements": ["КЛ-04", "КЛ-05", "КЛ-07", "КЛ-08"]
     },
     {
       "id": "I18N-01",
       "title": "Единые русские подписи и статусы ученика, игр, защиты, журнала",
-      "depends_on": [
-        "UI-04",
-        "NOTIFY-01"
-      ],
+      "depends_on": ["UI-04", "NOTIFY-01"],
       "area": "localization",
       "one_result": "Согласованные названия функций в student/teacher UI, без машинного английского",
       "acceptance": [
@@ -1798,42 +1090,25 @@
         "apps/web/src/pages/ClassroomStudentPage.tsx",
         "apps/web/src/components/ClassroomGamesSettings.tsx"
       ],
-      "checks": [
-        "ru-RU labels 320/390",
-        "teacher/seat approved messages"
-      ],
-      "gates": [
-        "source",
-        "focused",
-        "review",
-        "integration",
-        "visual"
-      ],
+      "checks": ["ru-RU labels 320/390", "teacher/seat approved messages"],
+      "gates": ["source", "focused", "review", "integration", "visual"],
       "handoff": "accepted exact SHA",
       "risk": "ui",
       "owner_area": "localization",
       "historical_source": "ASA_Lab_TZ_v1_2_CRITICAL_AUDIT_2026-10-24.md §5",
-      "requirements": [
-        "CLX-02",
-        "CLX-17",
-        "КЛ-17"
-      ]
+      "requirements": ["CLX-02", "CLX-17", "КЛ-17"]
     },
     {
       "id": "RATE-05",
       "title": "Педагогическая аналитика «Требуют внимания» вместо неутверждённых штрафных рейтингов",
-      "depends_on": [
-        "RATE-01"
-      ],
+      "depends_on": ["RATE-01"],
       "area": "rating",
       "one_result": "Отдельный приватный отчёт по проверенным сигналам неактивности и просрочки",
       "acceptance": [
         "Ни один ученик публично не маркируется негативно; серверный источник и права проверены."
       ],
       "priority": "P1",
-      "decisions": [
-        "anti_rating"
-      ],
+      "decisions": ["anti_rating"],
       "source_scope": "Новая отдельная карточка по GAP-аудиту",
       "paths": [
         "apps/web/src/components/ClassroomParticipantPanels.tsx",
@@ -1843,21 +1118,12 @@
         "real PG and Games admission after scoring change",
         "legacy score parity and rollback"
       ],
-      "gates": [
-        "source",
-        "focused",
-        "review",
-        "integration",
-        "visual",
-        "pg"
-      ],
+      "gates": ["source", "focused", "review", "integration", "visual", "pg"],
       "handoff": "accepted exact SHA",
       "risk": "ui",
       "owner_area": "rating",
       "historical_source": "ASA_Lab_TZ_v1_2_CRITICAL_AUDIT_2026-10-24.md §5",
-      "requirements": [
-        "CLX-06"
-      ]
+      "requirements": ["CLX-06"]
     }
   ],
   "state_semantics": {

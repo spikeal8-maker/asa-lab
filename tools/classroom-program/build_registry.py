@@ -109,5 +109,28 @@ req_map={
 for t in cards:t['requirements']=[k for k,v in req_map.items() if t['id'] in v]
 # Preserve owner-level unresolved issues; only relevant decisions gate relevant cards.
 registry={'schema_version':'1.0','program':'ASA-CLASSROOM-EXECUTION-20261024','repository':'spikeal8-maker/asa-lab','observed_main_sha':'98485087a977eea97f46d183245d0023e3201c4b','source_files':['sources/ASA_Lab_TZ_Classrooms_Teacher_Student_UI_v1_2_TWO_ROW_MOBILE_2026-10-24.md','sources/ASA_Lab_TZ_v1_2_CRITICAL_AUDIT_2026-10-24.md','sources/ASA_Lab_TZ_v1_2_EXECUTION_READINESS_REVIEW_2026-10-24.md'],'decisions':DECISIONS,'requirements':{k:{'tasks':v,'verification':'NOT_RUN','external':('Electronics merged PR #689; deployment/touch evidence must be checked by the Electronics owner' if k=='CLX-14' else None)} for k,v in req_map.items()},'tasks':cards,'state_semantics':{'ACCEPTED_MAIN':'Full evidence is recorded, review independent, and source commit is proven ancestor of origin/main by local git; not deployed or owner accepted','DEPLOYED_VERIFIED':'Separate owner-authorized deployment receipt; never inferred from main'}}
-(root/'registry.json').write_text(json.dumps(registry,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+# Match the repository's Prettier JSON layout (printWidth=100) without adding
+# a Node dependency to this self-contained deterministic Python generator.
+def pretty_registry_json(value, indent=0, first_column=None):
+  padding=' '*indent
+  child_padding=' '*(indent+2)
+  if isinstance(value,dict):
+    if not value:return '{}'
+    lines=[]
+    for key,item in value.items():
+      key_text=json.dumps(key,ensure_ascii=False)
+      prefix=child_padding+key_text+': '
+      lines.append(prefix+pretty_registry_json(item,indent+2,len(prefix)))
+    return '{\n'+',\n'.join(lines)+'\n'+padding+'}'
+  if isinstance(value,list):
+    if not value:return '[]'
+    if all(not isinstance(item,(dict,list)) for item in value):
+      compact='['+', '.join(json.dumps(item,ensure_ascii=False) for item in value)+']'
+      if (indent if first_column is None else first_column)+len(compact)<100:
+        return compact
+    return '[\n'+',\n'.join(child_padding+pretty_registry_json(item,indent+2) for item in value)+'\n'+padding+']'
+  return json.dumps(value,ensure_ascii=False)
+
+with (root/'registry.json').open('w',encoding='utf-8',newline='\n') as output:
+  output.write(pretty_registry_json(registry)+'\n')
 print('Built',len(cards),'tasks',len(req_map),'requirements',len(DECISIONS),'decisions')
