@@ -1,6 +1,15 @@
-import { appendFileSync, readFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { isDeepStrictEqual } from 'node:util';
 import { test, expect, type Locator, type Page, type Request } from '@playwright/test';
+import { parseElectronicsDocument } from '../contexts/electronics/domain/document';
+import { normalizeLoadedDocument } from '../apps/web/src/electronics/use-workbench-project-state';
+import {
+  clientToWorld,
+  resolveWireVertexAssist,
+  worldToClient,
+} from '../apps/web/src/electronics/workbench-geometry';
+import { STAGE_WIDTH, STAGE_HEIGHT } from '../apps/web/src/electronics/workbench-model';
 import { buildNetlist, terminalKey } from '../contexts/electronics/domain/netlist';
 import type { SchematicDocument } from '../apps/web/src/api';
 import { localProjectDraftKey } from '../apps/web/src/modules/project-local-draft';
@@ -4381,6 +4390,314 @@ function layeredCrossingDocument(): SchematicDocument {
   };
 }
 
+// F2 real persistence observer: public requests/responses only. Expected documents
+// are admitted before actions; neither request nor server bodies become the oracle.
+function f2Canonical(document: SchematicDocument) {
+  const parsed = parseElectronicsDocument(document);
+  expect(parsed.ok).toBe(true);
+  if (!parsed.ok) throw new Error(parsed.message);
+  expect(parsed.document).toEqual(document);
+  expect(normalizeLoadedDocument(document)).toEqual(document);
+  return document;
+}
+
+function f2LedgerHealthy(
+  rows: {
+    body: { document: SchematicDocument; baseRevision: number; mutationId: string };
+    phase: string;
+    acknowledgements: number;
+    status?: number;
+    revision?: number;
+    document?: SchematicDocument;
+  }[],
+  admitted: SchematicDocument[],
+  initialRevision: number,
+) {
+  const ids = new Set<string>();
+  let revision = initialRevision;
+  for (const row of rows) {
+    if (
+      !admitted.some((expected) => isDeepStrictEqual(expected, row.body.document)) ||
+      !row.body.mutationId ||
+      ids.has(row.body.mutationId) ||
+      row.body.baseRevision !== revision ||
+      row.acknowledgements !== 1 ||
+      row.status !== 200 ||
+      row.revision !== revision + 1 ||
+      !isDeepStrictEqual(row.document, row.body.document)
+    )
+      return false;
+    ids.add(row.body.mutationId);
+    revision++;
+  }
+  return true;
+}
+
+async function f2RealEditor(page: Page, fixture: SchematicDocument, input: string) {
+  f2Canonical(fixture);
+  mkdirSync('reports/interactions', { recursive: true });
+  const path = `reports/interactions/f2-real-${input}.jsonl`;
+  writeFileSync(path, '', { encoding: 'utf8', flush: true });
+  let sequence = 0;
+  const retentionErrors: string[] = [];
+  const journal = (kind: string, data: unknown) => {
+    try {
+      appendFileSync(
+        path,
+        `${JSON.stringify({ sequence: ++sequence, kind, nodeAt: Date.now(), data })}\n`,
+        { encoding: 'utf8', flush: true },
+      );
+    } catch (error) {
+      retentionErrors.push(String(error));
+    }
+  };
+  const requireRetention = () => expect(retentionErrors).toEqual([]);
+  const errors: string[] = [];
+  page.on('pageerror', (error) => {
+    errors.push(error.message);
+    journal('pageerror', error.message);
+  });
+  await page.goto('/#/home');
+  const origin = new URL(page.url()).origin;
+  const created = await page.context().request.post('/api/projects', {
+    headers: { origin, 'idempotency-key': crypto.randomUUID() },
+    data: {
+      scope: 'personal',
+      classroomId: null,
+      module: 'electronics',
+      title: `F2 real ${input}`,
+    },
+  });
+  expect(created.status()).toBe(201);
+  const { project } = (await created.json()) as { project: { id: string } };
+  const server = async (target = page) => {
+    const reply = await target.context().request.get(`/api/projects/${project.id}`);
+    const body = (await reply.json()) as {
+      draft: { document: SchematicDocument; revision: number };
+    };
+    journal('server-get', { status: reply.status(), body });
+    expect(reply.status()).toBe(200);
+    return body.draft;
+  };
+  const initial = await server();
+  const seeded = await page.context().request.put(`/api/projects/${project.id}/draft`, {
+    headers: { origin },
+    data: { document: fixture, baseRevision: initial.revision, mutationId: crypto.randomUUID() },
+  });
+  journal('fixture-seed', { status: seeded.status(), body: await seeded.json(), fixture });
+  expect(seeded.status()).toBe(200);
+  const baseline = await server();
+  expect(baseline.document).toEqual(fixture);
+  expect(baseline.revision).toBe(initial.revision + 1);
+  const me = await page.context().request.get('/api/auth/me');
+  expect(me.status()).toBe(200);
+  const identity = (await me.json()) as { user: { id: string } };
+  const localKey = localProjectDraftKey(project.id, identity.user.id, 'account');
+  const storage = async (target: Page) =>
+    target.evaluate(
+      (key) => ({
+        local: Object.entries(localStorage).filter(([name]) => name.startsWith(key)),
+        session: Object.entries(sessionStorage).filter(([name]) => name.startsWith(key)),
+      }),
+      localKey,
+    );
+  const admitted = [structuredClone(fixture)];
+  const admit = (document: SchematicDocument) => {
+    f2Canonical(document);
+    admitted.push(structuredClone(document));
+    journal('admitted', document);
+  };
+  type Row = Parameters<typeof f2LedgerHealthy>[0][number];
+  const rows: Row[] = [];
+  const requests = new Map<Request, Row>();
+  const pending: Promise<void>[] = [];
+  const finished = new Map<Request, () => void>();
+  const failures: string[] = [];
+  let phase = 'native-edit';
+  page.on('request', (request) => {
+    if (
+      request.method() !== 'PUT' ||
+      new URL(request.url()).pathname !== `/api/projects/${project.id}/draft`
+    )
+      return;
+    try {
+      const body = request.postDataJSON() as Row['body'];
+      const row: Row = { body, phase, acknowledgements: 0 };
+      rows.push(row);
+      requests.set(request, row);
+      pending.push(new Promise<void>((resolve) => finished.set(request, resolve)));
+      journal('put-request', row);
+      if (!admitted.some((expected) => isDeepStrictEqual(expected, body.document)))
+        failures.push('Unadmitted PUT document');
+    } catch (error) {
+      failures.push(String(error));
+    }
+  });
+  page.on('response', (response) => {
+    if (
+      response.request().method() !== 'PUT' ||
+      new URL(response.url()).pathname !== `/api/projects/${project.id}/draft`
+    )
+      return;
+    const row = requests.get(response.request());
+    if (!row) {
+      failures.push('Orphan PUT response');
+      journal('orphan-response', response.url());
+      return;
+    }
+    void (async () => {
+      try {
+        const body = (await response.json()) as {
+          draft: { document: SchematicDocument; revision: number };
+        };
+        row.acknowledgements++;
+        row.status = response.status();
+        row.revision = body.draft?.revision;
+        row.document = body.draft?.document;
+        journal('put-acknowledged', row);
+      } catch (error) {
+        failures.push(String(error));
+        journal('response-error', String(error));
+      } finally {
+        finished.get(response.request())?.();
+      }
+    })();
+  });
+  page.on('requestfailed', (request) => {
+    if (requests.has(request)) {
+      failures.push(`PUT failed: ${request.failure()?.errorText}`);
+      journal('put-failed', request.failure());
+      finished.get(request)?.();
+    }
+  });
+  const settle = async () => {
+    await frames(page);
+    await Promise.all(pending);
+    journal('ledger', { rows, admitted, failures });
+    requireRetention();
+    expect(failures).toEqual([]);
+    expect(f2LedgerHealthy(rows, admitted, baseline.revision)).toBe(true);
+  };
+  let confirmed = fixture;
+  const readEditorDocument = async (target = page): Promise<SchematicDocument> => {
+    const record = await target.evaluate((key) => {
+      const raw = localStorage.getItem(key);
+      return raw === null ? null : JSON.parse(raw);
+    }, localKey);
+    journal('local-document', record);
+    requireRetention();
+    if (record !== null) {
+      expect(record).toMatchObject({
+        schemaVersion: 3,
+        identityKind: 'account',
+        userId: identity.user.id,
+        projectId: project.id,
+        moduleKey: 'electronics',
+      });
+      expect(Number.isSafeInteger(record.baseRevision)).toBe(true);
+      return record.document as SchematicDocument;
+    }
+    // A missing recovery document is valid only after an independently matched
+    // acknowledged PUT. The fallback is never copied from a GET/request body.
+    const last = rows.at(-1);
+    if (last?.status === 200 && admitted.some((value) => isDeepStrictEqual(value, last.document))) {
+      confirmed = admitted.find((value) => isDeepStrictEqual(value, last.document))!;
+    }
+    return confirmed;
+  };
+  await page.addInitScript((key) => {
+    (window as unknown as { f2PreApp: unknown }).f2PreApp = {
+      local: Object.entries(localStorage).filter(([name]) => name.startsWith(key)),
+      session: Object.entries(sessionStorage).filter(([name]) => name.startsWith(key)),
+    };
+  }, localKey);
+  await page.goto(`/#/home/${project.id}`, { waitUntil: 'domcontentloaded' });
+  await expect(page.getByTestId('schematic-component')).toHaveCount(fixture.components.length);
+  const preApp = await page.evaluate(() => (window as unknown as { f2PreApp: unknown }).f2PreApp);
+  journal('initial-preapp', preApp);
+  expect(preApp).toEqual({ local: [], session: [] });
+  journal('initial-storage', await storage(page));
+  expect(await storage(page)).toEqual({
+    local: [],
+    session: [[`${localKey}:electronics-editor:`, 'saved']],
+  });
+  return {
+    project,
+    origin,
+    localKey,
+    storage,
+    journal,
+    requireRetention,
+    errors,
+    rows,
+    admitted,
+    admit,
+    settle,
+    server,
+    readEditorDocument,
+    requireComplete: () => {
+      requireRetention();
+      expect(failures).toEqual([]);
+      expect(f2LedgerHealthy(rows, admitted, baseline.revision)).toBe(true);
+      expect(rows.filter((row) => row.phase === 'intended-save')).toHaveLength(1);
+      expect(rows.filter((row) => row.phase === 'after-save')).toHaveLength(0);
+    },
+    finalSave: async (expected: SchematicDocument) => {
+      await settle();
+      const before = await server();
+      expect(before.revision).toBe(baseline.revision + rows.length);
+      const index = rows.length;
+      phase = 'intended-save';
+      await page.evaluate(() => {
+        (window as unknown as { f2SaveInput: unknown }).f2SaveInput = null;
+        window.addEventListener(
+          'pointerdown',
+          (event) => {
+            const button = (event.target as Element)?.closest('button');
+            (window as unknown as { f2SaveInput: unknown }).f2SaveInput = {
+              trusted: event.isTrusted,
+              pointerType: event.pointerType,
+              title: button?.getAttribute('title') ?? null,
+            };
+          },
+          { capture: true, once: true },
+        );
+      });
+      const response = page.waitForResponse(
+        (reply) =>
+          reply.request().method() === 'PUT' &&
+          new URL(reply.url()).pathname === `/api/projects/${project.id}/draft`,
+      );
+      const save = page.getByRole('button', { name: 'Сохранить проект', exact: true });
+      if (input === 'touch') await save.tap();
+      else await save.click();
+      const nativeSave = await page.evaluate(
+        () => (window as unknown as { f2SaveInput: unknown }).f2SaveInput,
+      );
+      journal('native-save', nativeSave);
+      expect(nativeSave).toEqual({
+        trusted: true,
+        pointerType: input,
+        title: 'Сохранить проект сейчас',
+      });
+      await response;
+      await settle();
+      journal('intended-save', { index, rows: rows.slice(index), expected });
+      expect(rows.slice(index)).toHaveLength(1);
+      expect(rows[index].phase).toBe('intended-save');
+      expect(rows[index].body.document).toEqual(expected);
+      expect(rows[index].body.baseRevision).toBe(before.revision);
+      expect(rows[index].revision).toBe(before.revision + 1);
+      const saved = await server();
+      expect(saved.document).toEqual(expected);
+      expect(saved.revision).toBe(before.revision + 1);
+      confirmed = structuredClone(expected);
+      phase = 'after-save';
+      return saved;
+    },
+  };
+}
+
 wireVideoTest.describe('interaction: natural precise wire routing', () => {
   wireVideoTest(
     'R2 TERMINAL/HIT/ENDPOINT geometry scales at 0.5/1/2/4 and keeps one centre',
@@ -4558,233 +4875,463 @@ wireVideoTest.describe('interaction: natural precise wire routing', () => {
     },
   );
 
-  for (const input of ['mouse', 'touch'] as const) {
-    wireVideoTest(
-      `F2 SVG layering: native ${input} wires above breadboard/Uno/PSU and below battery/LED/resistor/terminals`,
-      async ({ page }) => {
-        // Three real wire crossings, negative hit cases, native input, Save and
-        // reopen form one full F2 journey; measured mouse/touch each take ~56s.
-        // Scope this finite budget to F2 only, leaving every other test unchanged.
-        wireVideoTest.setTimeout(90_000);
-        await page.setViewportSize(
-          input === 'touch' ? { width: 390, height: 844 } : { width: 1440, height: 1000 },
-        );
-        const fixture = layeredCrossingDocument();
-        const { readDocument, readEditorDocument, errors } = await openEditor(
-          page,
-          fixture,
-          'domcontentloaded',
-        );
-        const ready = async () => {
-          await expect(page.getByTestId('schematic-component')).toHaveCount(
-            fixture.components.length,
+  wireVideoTest.describe('F2 real persistence', () => {
+    let pool: ReturnType<typeof e2eAdminPool>;
+    let cookies: import('@playwright/test').Cookie[];
+    wireVideoTest.beforeAll(async ({ browser, baseURL }, info) => {
+      pool = e2eAdminPool();
+      const context = await browser.newContext(baseURL ? { baseURL } : {});
+      try {
+        const login = await context.newPage();
+        await loginWithOrganization(login, await seedTeacher(pool, `f2-auth-${info.workerIndex}`));
+        cookies = await context.cookies();
+      } finally {
+        await context.close();
+      }
+    });
+    wireVideoTest.afterAll(async () => pool.end());
+    for (const input of ['mouse', 'touch'] as const) {
+      wireVideoTest(
+        `F2 SVG layering: native ${input} wires above breadboard/Uno/PSU and below battery/LED/resistor/terminals`,
+        async ({ page, browser }) => {
+          // Three real wire crossings, negative hit cases, native input, Save and
+          // reopen form one full F2 journey; measured mouse/touch each take ~56s.
+          // Scope this finite budget to F2 only, leaving every other test unchanged.
+          wireVideoTest.setTimeout(90_000);
+          await page.setViewportSize(
+            input === 'touch' ? { width: 390, height: 844 } : { width: 1440, height: 1000 },
           );
-          for (const component of fixture.components)
-            await expect(part(page, component.id)).toHaveAttribute('data-hit-mask-status', 'ready');
-        };
-        await ready();
-        await page.getByRole('button', { name: 'Подогнать проект', exact: true }).click();
-        const session = input === 'touch' ? await page.context().newCDPSession(page) : null;
-        if (session) await session.send('Emulation.setTouchEmulationEnabled', { enabled: true });
-        await page.evaluate(() => {
-          const probe = window as unknown as {
-            layeringDown: { trusted: boolean; pointerType: string; testId: string | null } | null;
+          await page.context().addCookies(cookies);
+          const fixture = f2Canonical(layeredCrossingDocument());
+          let expected = structuredClone(fixture);
+          const real = await f2RealEditor(page, fixture, input);
+          const { readEditorDocument, errors } = real;
+          const ready = async () => {
+            await expect(page.getByTestId('schematic-component')).toHaveCount(
+              fixture.components.length,
+            );
+            for (const component of fixture.components)
+              await expect(part(page, component.id)).toHaveAttribute(
+                'data-hit-mask-status',
+                'ready',
+              );
           };
-          probe.layeringDown = null;
-          window.addEventListener(
-            'pointerdown',
-            (event) => {
-              probe.layeringDown = {
-                trusted: event.isTrusted,
-                pointerType: event.pointerType,
-                testId: (event.target as Element).getAttribute('data-testid'),
-              };
-            },
-            true,
-          );
-        });
-        const press = async (from: { x: number; y: number }, to = from) => {
-          const targetTestId = await page.evaluate(
-            ({ x, y }) => document.elementFromPoint(x, y)?.getAttribute('data-testid') ?? null,
-            from,
-          );
+          await ready();
+          await page.getByRole('button', { name: 'Подогнать проект', exact: true }).click();
+          const session = input === 'touch' ? await page.context().newCDPSession(page) : null;
+          if (session) await session.send('Emulation.setTouchEmulationEnabled', { enabled: true });
           await page.evaluate(() => {
-            (window as unknown as { layeringDown: unknown }).layeringDown = null;
-          });
-          if (session) {
-            await session.send('Input.dispatchTouchEvent', {
-              type: 'touchStart',
-              touchPoints: [{ ...from, id: 1 }],
-            });
-            if (to.x !== from.x || to.y !== from.y)
-              await session.send('Input.dispatchTouchEvent', {
-                type: 'touchMove',
-                touchPoints: [{ ...to, id: 1 }],
-              });
-            await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-          } else {
-            await page.mouse.move(from.x, from.y);
-            await page.mouse.down();
-            if (to.x !== from.x || to.y !== from.y) await page.mouse.move(to.x, to.y, { steps: 6 });
-            await page.mouse.up();
-          }
-          await frames(page);
-          expect(
-            await page.evaluate(
-              () => (window as unknown as { layeringDown: unknown }).layeringDown,
-            ),
-          ).toEqual({ trusted: true, pointerType: input, testId: targetTestId });
-        };
-        const screenPoint = async (point: { x: number; y: number }) =>
-          page.locator('.workbench-canvas').evaluate((element, world) => {
-            const point = new DOMPoint(world.x, world.y).matrixTransform(
-              (element as SVGSVGElement).getScreenCTM()!,
-            );
-            return { x: point.x, y: point.y };
-          }, point);
-        const owner = async (point: { x: number; y: number }) =>
-          page.evaluate(({ x, y }) => {
-            const top = document.elementFromPoint(x, y);
-            return {
-              wire: top?.closest('[data-wire-id]')?.getAttribute('data-wire-id') ?? null,
-              component:
-                top?.closest('[data-component-id]')?.getAttribute('data-component-id') ?? null,
-              terminal:
-                top?.closest('[data-terminal-id]')?.getAttribute('data-terminal-id') ?? null,
-              testId: top?.getAttribute('data-testid') ?? null,
+            const probe = window as unknown as {
+              layeringDown: { trusted: boolean; pointerType: string; testId: string | null } | null;
             };
-          }, point);
-        try {
-          // Native owner-image hits may reach a wire handler. Its alpha-aware
-          // foreground arbitration must still select the painted component.
-          for (const [componentId, wireId] of [
-            ['battery', 'battery-cross'],
-            ['led', 'led-cross'],
-            ['cross-resistor', 'resistor-cross'],
-          ] as const) {
-            const point = await screenPoint(componentCenterInDocument(fixture, componentId));
-            const hit = await owner(point);
-            expect(hit.terminal).toBeNull();
-            expect(hit.component === componentId || hit.wire === wireId).toBe(true);
-            await press(point);
-            await expect(part(page, componentId)).toHaveClass(/workbench-component-selected/);
-            await expect(page.getByTestId('wire-inspector-compact')).toHaveCount(0);
-            await expect(page.getByTestId('wire-endpoint')).toHaveCount(0);
-            expect(await readEditorDocument()).toEqual(fixture);
-            await page.keyboard.press('Escape');
-          }
-          for (const [componentId, wireId] of [
-            ['uno', 'uno-cross'],
-            ['cross-psu', 'psu-cross'],
-            ['board', 'board-cross'],
-          ] as const) {
-            const center = componentCenterInDocument(fixture, componentId);
-            const point = await screenPoint(center);
-            expect(await owner(point)).toMatchObject({ wire: wireId, terminal: null });
-            await press(point);
-            await expect(page.getByTestId('wire-endpoint')).toHaveCount(2);
-            await expect(page.getByTestId('wire-endpoint').first()).toHaveAttribute(
-              'data-wire-id',
-              wireId,
+            probe.layeringDown = null;
+            window.addEventListener(
+              'pointerdown',
+              (event) => {
+                probe.layeringDown = {
+                  trusted: event.isTrusted,
+                  pointerType: event.pointerType,
+                  testId: (event.target as Element).getAttribute('data-testid'),
+                };
+              },
+              true,
             );
-            await expect(part(page, componentId)).not.toHaveClass(/workbench-component-selected/);
-            const vertex = page
-              .locator(`[data-testid="wire-vertex"][data-wire-id="${wireId}"]`)
-              .first();
-            const from = await locatorCenter(vertex);
-            expect(await owner(from)).toMatchObject({ wire: wireId, testId: 'wire-vertex' });
-            const before = await readEditorDocument();
-            const oldVertices = before.connections.find((wire) => wire.id === wireId)!.vertices!;
-            const to = { x: from.x + 27, y: from.y + 19 };
-            await press(from, to);
-            await expect
-              .poll(
-                async () =>
-                  (await readEditorDocument()).connections.find((wire) => wire.id === wireId)!
-                    .vertices,
-              )
-              .not.toEqual(oldVertices);
-            const after = await readEditorDocument();
-            expect(after.components).toEqual(fixture.components);
-            expect(after.connections).toHaveLength(fixture.connections.length);
-            for (const wire of before.connections) {
-              const changed = after.connections.find((item) => item.id === wire.id)!;
-              if (wire.id === wireId) {
-                expect({ ...changed, vertices: wire.vertices }).toEqual(wire);
-                expect(changed.vertices).toHaveLength(oldVertices.length);
-                expect(changed.vertices![1]).toEqual(oldVertices[1]);
-              } else expect(changed).toEqual(wire);
-            }
-            const moved = await locatorCenter(vertex);
-            expect(moved.x).toBeCloseTo(to.x, 0);
-            expect(moved.y).toBeCloseTo(to.y, 0);
-            await page.keyboard.press('Escape');
-            if (componentId !== 'board') {
-              // A body press away from the cable must not select any wire.
-              // Breadboard holes have their own terminal interaction contract.
-              // Use the existing bounded alpha-aware body point helper. The
-              // actual native pointer press and selection assertion below remain
-              // the oracle; an exposed grid pixel cannot silently pass them.
-              const bodyPoint = await pointOnBody(page, componentId);
-              expect(await owner(bodyPoint)).toMatchObject({
-                wire: null,
-                terminal: null,
+          });
+          const press = async (from: { x: number; y: number }, to = from) => {
+            const targetTestId = await page.evaluate(
+              ({ x, y }) => document.elementFromPoint(x, y)?.getAttribute('data-testid') ?? null,
+              from,
+            );
+            await page.evaluate(() => {
+              (window as unknown as { layeringDown: unknown }).layeringDown = null;
+            });
+            if (session) {
+              await session.send('Input.dispatchTouchEvent', {
+                type: 'touchStart',
+                touchPoints: [{ ...from, id: 1 }],
               });
-              await press(bodyPoint);
+              if (to.x !== from.x || to.y !== from.y)
+                await session.send('Input.dispatchTouchEvent', {
+                  type: 'touchMove',
+                  touchPoints: [{ ...to, id: 1 }],
+                });
+              await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+            } else {
+              await page.mouse.move(from.x, from.y);
+              await page.mouse.down();
+              if (to.x !== from.x || to.y !== from.y)
+                await page.mouse.move(to.x, to.y, { steps: 6 });
+              await page.mouse.up();
+            }
+            await frames(page);
+            const actual = await page.evaluate(
+              () => (window as unknown as { layeringDown: unknown }).layeringDown,
+            );
+            real.journal('native-pointer', { from, to, actual, targetTestId });
+            expect(actual).toEqual({ trusted: true, pointerType: input, testId: targetTestId });
+          };
+          const screenPoint = async (point: { x: number; y: number }) =>
+            page.locator('.workbench-canvas').evaluate((element, world) => {
+              const point = new DOMPoint(world.x, world.y).matrixTransform(
+                (element as SVGSVGElement).getScreenCTM()!,
+              );
+              return { x: point.x, y: point.y };
+            }, point);
+          const owner = async (point: { x: number; y: number }) =>
+            page.evaluate(({ x, y }) => {
+              const top = document.elementFromPoint(x, y);
+              return {
+                wire: top?.closest('[data-wire-id]')?.getAttribute('data-wire-id') ?? null,
+                component:
+                  top?.closest('[data-component-id]')?.getAttribute('data-component-id') ?? null,
+                terminal:
+                  top?.closest('[data-terminal-id]')?.getAttribute('data-terminal-id') ?? null,
+                testId: top?.getAttribute('data-testid') ?? null,
+              };
+            }, point);
+          let primaryError: unknown;
+          try {
+            // Native owner-image hits may reach a wire handler. Its alpha-aware
+            // foreground arbitration must still select the painted component.
+            for (const [componentId, wireId] of [
+              ['battery', 'battery-cross'],
+              ['led', 'led-cross'],
+              ['cross-resistor', 'resistor-cross'],
+            ] as const) {
+              const point = await screenPoint(componentCenterInDocument(fixture, componentId));
+              const hit = await owner(point);
+              expect(hit.terminal).toBeNull();
+              expect(hit.component === componentId || hit.wire === wireId).toBe(true);
+              await press(point);
               await expect(part(page, componentId)).toHaveClass(/workbench-component-selected/);
               await expect(page.getByTestId('wire-inspector-compact')).toHaveCount(0);
               await expect(page.getByTestId('wire-endpoint')).toHaveCount(0);
-              expect(await readEditorDocument()).toEqual(after);
+              expect(await readEditorDocument()).toEqual(fixture);
               await page.keyboard.press('Escape');
             }
-          }
-          const routed = await readEditorDocument();
-          for (const componentId of ['uno', 'cross-psu', 'battery', 'led']) {
-            const terminal = page.locator(`[data-terminal-component-id="${componentId}"]`).first();
-            const point = await locatorCenter(terminal);
-            expect((await owner(point)).terminal).toBe(
-              await terminal.getAttribute('data-terminal-id'),
-            );
-            await press(point);
-            await expect(page.locator('.workbench-wire-preview')).toHaveCount(1);
-            await page.keyboard.press('Escape');
-            await expect(page.locator('.workbench-wire-preview')).toHaveCount(0);
+            for (const [componentId, wireId] of [
+              ['uno', 'uno-cross'],
+              ['cross-psu', 'psu-cross'],
+              ['board', 'board-cross'],
+            ] as const) {
+              const center = componentCenterInDocument(fixture, componentId);
+              const point = await screenPoint(center);
+              expect(await owner(point)).toMatchObject({ wire: wireId, terminal: null });
+              await press(point);
+              await expect(page.getByTestId('wire-endpoint')).toHaveCount(2);
+              await expect(page.getByTestId('wire-endpoint').first()).toHaveAttribute(
+                'data-wire-id',
+                wireId,
+              );
+              await expect(part(page, componentId)).not.toHaveClass(/workbench-component-selected/);
+              const vertex = page
+                .locator(`[data-testid="wire-vertex"][data-wire-id="${wireId}"]`)
+                .first();
+              const vertexCenter = await locatorCenter(vertex);
+              const from = { x: Math.round(vertexCenter.x), y: Math.round(vertexCenter.y) };
+              real.journal('vertex-grab-quantization', {
+                vertexCenter,
+                from,
+                delta: { x: 27, y: 19 },
+              });
+              expect(await owner(from)).toMatchObject({ wire: wireId, testId: 'wire-vertex' });
+              const before = structuredClone(expected);
+              expect(await readEditorDocument()).toEqual(before);
+              const oldVertices = before.connections.find((wire) => wire.id === wireId)!.vertices!;
+              const to = { x: from.x + 27, y: from.y + 19 };
+              // Independent expected endpoint from the public pointer transform and
+              // the declared gesture, including the existing soft-assist hysteresis.
+              const geometry = await page
+                .locator('.workbench-canvas')
+                .evaluate((node, projectId) => {
+                  const rect = node.getBoundingClientRect();
+                  const viewport = JSON.parse(
+                    localStorage.getItem(`asa-electronics-viewport:${projectId}`)!,
+                  );
+                  return {
+                    rect: {
+                      left: rect.left,
+                      top: rect.top,
+                      width: rect.width,
+                      height: rect.height,
+                    },
+                    viewport,
+                  };
+                }, real.project.id);
+              expect(geometry.viewport).not.toBeNull();
+              const wire = before.connections.find((item) => item.id === wireId)!;
+              const previousComponent = before.components.find(
+                (item) => item.id === wire.from.componentId,
+              )!;
+              const previous = terminalPositionInDocument(
+                before,
+                previousComponent,
+                wire.from.terminal,
+              )!;
+              const next = wire.vertices![1];
+              const asScreen = (point: { x: number; y: number }) =>
+                worldToClient(point, geometry.rect, geometry.viewport, STAGE_WIDTH, STAGE_HEIGHT);
+              let assist: Parameters<typeof resolveWireVertexAssist>[3] = null;
+              let destination = next;
+              const steps = input === 'touch' ? 1 : 6;
+              for (let index = 1; index <= steps; index++) {
+                const screen = {
+                  x: from.x + ((to.x - from.x) * index) / steps,
+                  y: from.y + ((to.y - from.y) * index) / steps,
+                };
+                const resolved = resolveWireVertexAssist(
+                  asScreen(previous),
+                  asScreen(next),
+                  screen,
+                  assist,
+                );
+                assist = resolved.target;
+                destination = assist
+                  ? assist === 'previous-x-next-y'
+                    ? { x: previous.x, y: next.y }
+                    : { x: next.x, y: previous.y }
+                  : clientToWorld(
+                      screen.x,
+                      screen.y,
+                      geometry.rect,
+                      geometry.viewport,
+                      STAGE_WIDTH,
+                      STAGE_HEIGHT,
+                    );
+              }
+              expected = {
+                ...before,
+                connections: before.connections.map((item) =>
+                  item.id === wireId
+                    ? { ...item, vertices: [destination, ...item.vertices!.slice(1)] }
+                    : item,
+                ),
+              };
+              real.admit(expected);
+              real.journal('declared-drag', { wireId, from, to, geometry, destination, expected });
+              await press(from, to);
+              await expect
+                .poll(
+                  async () =>
+                    (await readEditorDocument()).connections.find((wire) => wire.id === wireId)!
+                      .vertices,
+                )
+                .not.toEqual(oldVertices);
+              const after = await readEditorDocument();
+              real.journal('drag-document', after);
+              expect(after).toEqual(expected);
+              expect(after.components).toEqual(fixture.components);
+              expect(after.connections).toHaveLength(fixture.connections.length);
+              for (const wire of before.connections) {
+                const changed = after.connections.find((item) => item.id === wire.id)!;
+                if (wire.id === wireId) {
+                  expect({ ...changed, vertices: wire.vertices }).toEqual(wire);
+                  expect(changed.vertices).toHaveLength(oldVertices.length);
+                  expect(changed.vertices![1]).toEqual(oldVertices[1]);
+                } else expect(changed).toEqual(wire);
+              }
+              const moved = await locatorCenter(vertex);
+              expect(moved.x).toBeCloseTo(to.x, 0);
+              expect(moved.y).toBeCloseTo(to.y, 0);
+              await page.keyboard.press('Escape');
+              if (componentId !== 'board') {
+                // A body press away from the cable must not select any wire.
+                // Breadboard holes have their own terminal interaction contract.
+                // Use the existing bounded alpha-aware body point helper. The
+                // actual native pointer press and selection assertion below remain
+                // the oracle; an exposed grid pixel cannot silently pass them.
+                const bodyPoint = await pointOnBody(page, componentId);
+                expect(await owner(bodyPoint)).toMatchObject({
+                  wire: null,
+                  terminal: null,
+                });
+                await press(bodyPoint);
+                await expect(part(page, componentId)).toHaveClass(/workbench-component-selected/);
+                await expect(page.getByTestId('wire-inspector-compact')).toHaveCount(0);
+                await expect(page.getByTestId('wire-endpoint')).toHaveCount(0);
+                expect(await readEditorDocument()).toEqual(after);
+                await page.keyboard.press('Escape');
+              }
+            }
+            const routed = structuredClone(expected);
             expect(await readEditorDocument()).toEqual(routed);
-          }
-          const expected = await readEditorDocument();
-          const saved = page.waitForResponse(
-            (response) =>
-              new URL(response.url()).pathname === `/api/projects/${ID}/draft` &&
-              response.request().method() === 'PUT',
-          );
-          await page.getByRole('button', { name: 'Сохранить проект', exact: true }).click();
-          expect((await saved).status()).toBe(200);
-          await expect.poll(readDocument).toEqual(expected);
-          const paths = await page.getByTestId('schematic-wire').evaluateAll((nodes) =>
-            nodes.map((node) => ({
-              id: node.getAttribute('data-wire-id'),
-              d: node.getAttribute('d'),
-            })),
-          );
-          await page.reload();
-          await ready();
-          await expect.poll(readEditorDocument).toEqual(expected);
-          expect(
-            await page.getByTestId('schematic-wire').evaluateAll((nodes) =>
+            for (const componentId of ['uno', 'cross-psu', 'battery', 'led']) {
+              const terminal = page
+                .locator(`[data-terminal-component-id="${componentId}"]`)
+                .first();
+              const point = await locatorCenter(terminal);
+              expect((await owner(point)).terminal).toBe(
+                await terminal.getAttribute('data-terminal-id'),
+              );
+              await press(point);
+              await expect(page.locator('.workbench-wire-preview')).toHaveCount(1);
+              await page.keyboard.press('Escape');
+              await expect(page.locator('.workbench-wire-preview')).toHaveCount(0);
+              expect(await readEditorDocument()).toEqual(routed);
+            }
+            // Existing runtime power slider must remain usable under crossing wires.
+            const slider = part(page, 'cross-psu').locator(
+              '.workbench-regulated-supply-power-slider',
+            );
+            const sliderPoint = await locatorCenter(slider);
+            const controlHit = await page.evaluate(({ x, y }) => {
+              const hit = document.elementFromPoint(x, y);
+              return {
+                slider: !!hit?.closest('.workbench-regulated-supply-power-switch'),
+                component:
+                  hit?.closest('[data-component-id]')?.getAttribute('data-component-id') ?? null,
+              };
+            }, sliderPoint);
+            real.journal('psu-slider-hit', { sliderPoint, controlHit });
+            expect(controlHit).toEqual({ slider: true, component: 'cross-psu' });
+            expected = {
+              ...expected,
+              components: expected.components.map((component) =>
+                component.id === 'cross-psu'
+                  ? {
+                      ...component,
+                      state: !component.stateProperties?.['outputEnabled'],
+                      stateProperties: {
+                        ...component.stateProperties,
+                        outputEnabled: !component.stateProperties?.['outputEnabled'],
+                      },
+                    }
+                  : component,
+              ),
+            };
+            real.admit(expected);
+            await press(sliderPoint);
+            await expect(
+              part(page, 'cross-psu').getByTestId('regulated-power-supply-runtime'),
+            ).toHaveAttribute(
+              'data-output-enabled',
+              String(
+                expected.components.find((component) => component.id === 'cross-psu')!
+                  .stateProperties!['outputEnabled'],
+              ),
+            );
+            await expect(page.getByTestId('wire-endpoint')).toHaveCount(0);
+            expect(await readEditorDocument()).toEqual(expected);
+            const saved = await real.finalSave(expected);
+            const paths = await page.getByTestId('schematic-wire').evaluateAll((nodes) =>
               nodes.map((node) => ({
                 id: node.getAttribute('data-wire-id'),
                 d: node.getAttribute('d'),
               })),
-            ),
-          ).toEqual(paths);
-          expect(errors).toEqual([]);
-          await page.screenshot({ path: `reports/interactions/f2-scene-layering-${input}.png` });
-        } finally {
-          await session?.detach();
-        }
-      },
-    );
-  }
+            );
+            const fresh = await browser.newContext({
+              baseURL: real.origin,
+              viewport:
+                input === 'touch' ? { width: 390, height: 844 } : { width: 1440, height: 1000 },
+              hasTouch: input === 'touch',
+            });
+            let freshError: unknown;
+            try {
+              await fresh.addCookies(await page.context().cookies());
+              const state = await fresh.storageState();
+              real.journal('fresh-storage-state', state.origins);
+              expect(state.origins).toEqual([]);
+              await fresh.addInitScript((key) => {
+                (window as unknown as { f2PreApp: unknown }).f2PreApp = {
+                  local: Object.entries(localStorage).filter(([name]) => name.startsWith(key)),
+                  session: Object.entries(sessionStorage).filter(([name]) => name.startsWith(key)),
+                };
+              }, real.localKey);
+              const reopened = await fresh.newPage();
+              reopened.on('pageerror', (error) => {
+                errors.push(error.message);
+                real.journal('reopen-pageerror', error.message);
+              });
+              await reopened.goto(`/#/home/${real.project.id}`, { waitUntil: 'domcontentloaded' });
+              await expect(reopened.getByTestId('schematic-component')).toHaveCount(
+                expected.components.length,
+              );
+              const preApp = await reopened.evaluate(
+                () => (window as unknown as { f2PreApp: unknown }).f2PreApp,
+              );
+              const postLoad = await real.storage(reopened);
+              const server = await real.server(reopened);
+              real.journal('fresh-reopen', { preApp, postLoad, server, expected });
+              expect(preApp).toEqual({ local: [], session: [] });
+              expect(postLoad).toEqual({
+                local: [],
+                session: [[`${real.localKey}:electronics-editor:`, 'saved']],
+              });
+              expect(server).toEqual(saved);
+              expect(await readEditorDocument(reopened)).toEqual(expected);
+              for (const component of expected.components) {
+                await expect(part(reopened, component.id)).toHaveAttribute(
+                  'data-x',
+                  String(component.position.x),
+                );
+                await expect(part(reopened, component.id)).toHaveAttribute(
+                  'data-y',
+                  String(component.position.y),
+                );
+                await expect(part(reopened, component.id)).toHaveAttribute(
+                  'data-hit-mask-status',
+                  'ready',
+                );
+              }
+              await reopened.getByRole('button', { name: 'Подогнать проект', exact: true }).click();
+              expect(
+                await reopened.getByTestId('schematic-wire').evaluateAll((nodes) =>
+                  nodes.map((node) => ({
+                    id: node.getAttribute('data-wire-id'),
+                    d: node.getAttribute('d'),
+                  })),
+                ),
+              ).toEqual(paths);
+              await expect(
+                part(reopened, 'cross-psu').getByTestId('regulated-power-supply-runtime'),
+              ).toHaveAttribute(
+                'data-output-enabled',
+                String(
+                  expected.components.find((component) => component.id === 'cross-psu')!
+                    .stateProperties!['outputEnabled'],
+                ),
+              );
+              await reopened.screenshot({
+                path: `reports/interactions/f2-real-reopened-${input}.png`,
+              });
+            } catch (error) {
+              freshError = error;
+            }
+            try {
+              await fresh.close();
+            } catch (error) {
+              freshError ??= error;
+            }
+            if (freshError) throw freshError;
+            await real.settle();
+            real.journal('accepted-before-close', { saved, expected, rows: real.rows, errors });
+            expect(errors).toEqual([]);
+            await page.screenshot({ path: `reports/interactions/f2-scene-layering-${input}.png` });
+          } catch (error) {
+            primaryError = error;
+            try {
+              real.journal('primary-failure', String(error));
+            } catch {
+              /* Preserve the primary failure. */
+            }
+          }
+          try {
+            await session?.detach();
+          } catch (error) {
+            primaryError ??= error;
+          }
+          try {
+            await page.context().close();
+          } catch (error) {
+            primaryError ??= error;
+          }
+          if (primaryError) throw primaryError;
+          real.journal('complete', { expected, rows: real.rows, errors, contextsClosed: true });
+          real.requireComplete();
+        },
+      );
+    }
+  });
 
   wireVideoTest(
     'R1_SOFT_WIRE_ASSIST + FREE_EXIT + ALT_DISABLE + CLICK_CLICK_CONNECT',
