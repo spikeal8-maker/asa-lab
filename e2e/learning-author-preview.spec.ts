@@ -1429,7 +1429,9 @@ test('Course history compares exact V1–V4 policies and structural before/after
 }) => {
   test.setTimeout(90000);
   const unique = crypto.randomUUID().replaceAll('-', '').slice(0, 18);
-  const title = 'Сравнение курса 99 ' + unique;
+  // Numeric defaults are checked across the comparison text; keep fixture metadata alphabetic.
+  const title =
+    'Сравнение курса ' + unique.replace(/\d/g, (digit) => String.fromCharCode(103 + Number(digit)));
   const browserErrors: string[] = [];
   page.on('pageerror', (error) => browserErrors.push(error.message));
   await page.goto('/#/');

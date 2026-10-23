@@ -1,6 +1,15 @@
-import { appendFileSync, readFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { isDeepStrictEqual } from 'node:util';
 import { test, expect, type Locator, type Page, type Request } from '@playwright/test';
+import { parseElectronicsDocument } from '../contexts/electronics/domain/document';
+import { normalizeLoadedDocument } from '../apps/web/src/electronics/use-workbench-project-state';
+import {
+  clientToWorld,
+  resolveWireVertexAssist,
+  worldToClient,
+} from '../apps/web/src/electronics/workbench-geometry';
+import { STAGE_WIDTH, STAGE_HEIGHT } from '../apps/web/src/electronics/workbench-model';
 import { buildNetlist, terminalKey } from '../contexts/electronics/domain/netlist';
 import type { SchematicDocument } from '../apps/web/src/api';
 import { localProjectDraftKey } from '../apps/web/src/modules/project-local-draft';
@@ -22,6 +31,7 @@ import {
 } from '../apps/web/src/electronics/workbench-document';
 import { loginWithOrganization } from './organization-login';
 import { e2eAdminPool, seedTeacher } from './seed';
+import type { SimulationTimedAdvancePayload } from '../apps/web/src/electronics/simulation-worker-protocol';
 
 configureProductionLibrary(
   JSON.parse(
@@ -31,6 +41,777 @@ configureProductionLibrary(
     ),
   ),
 );
+type Realtime682Record = {
+  sequence: number;
+  kind: string;
+  at: number;
+  [key: string]: unknown;
+};
+
+// Test-only passive transport. A batch remains pending until Node has flushed
+// its contiguous originals. Closed pages cannot erase already acknowledged data.
+async function realtime682Journal(page: Page, path: string) {
+  const records: Realtime682Record[] = [];
+  const errors: string[] = [];
+  let acknowledged = 0;
+  const retain = (kind: string, data: unknown) => {
+    try {
+      appendFileSync(path, `${JSON.stringify({ kind, nodeAt: Date.now(), data })}\n`, {
+        encoding: 'utf8',
+        flush: true,
+      });
+      return true;
+    } catch (error) {
+      errors.push(String(error));
+      return false;
+    }
+  };
+  writeFileSync(path, '', { encoding: 'utf8', flush: true });
+  retain('start', {
+    wallModelLimitMs: 250,
+    publicationLimitMs: 50,
+    acquisitionMs: 22_000,
+    probeOverhead: 'UNKNOWN_NONZERO',
+  });
+  await page.exposeBinding('__realtime682Batch', (_, batch: Realtime682Record[]) => {
+    if (!Array.isArray(batch) || batch.length === 0 || batch.length > 256)
+      throw new Error('Invalid baseline batch');
+    for (const row of batch) {
+      if (row.sequence !== acknowledged + 1 || !Number.isFinite(row.at))
+        throw new Error('Baseline journal sequence gap');
+      if (!retain('browser', row)) throw new Error('Baseline journal write failed; no ACK');
+      records.push(row);
+      acknowledged = row.sequence;
+    }
+    return acknowledged;
+  });
+  await page.addInitScript(() => {
+    type Row = { sequence: number; kind: string; at: number; [key: string]: unknown };
+    const host = window as unknown as Window & {
+      __realtime682Batch: (rows: Row[]) => Promise<number>;
+      __realtime682Flush: () => Promise<{
+        sent: number;
+        acknowledged: number;
+        dropped: number;
+        errors: string[];
+      }>;
+    };
+    let sequence = 0,
+      acknowledged = 0,
+      dropped = 0;
+    const pending: Row[] = [],
+      errors: string[] = [];
+    let flight: Promise<void> | null = null;
+    const flush = (): Promise<void> => {
+      if (flight) return flight;
+      if (!pending.length) return Promise.resolve();
+      const batch = pending.slice(0, 256);
+      flight = host
+        .__realtime682Batch(batch)
+        .then((ack) => {
+          if (ack !== batch.at(-1)!.sequence) throw new Error('Invalid Node ACK');
+          pending.splice(0, batch.length);
+          acknowledged = ack;
+        })
+        .catch((error) => {
+          errors.push(String(error));
+        })
+        .finally(() => {
+          flight = null;
+        });
+      return flight;
+    };
+    const push = (kind: string, data: Record<string, unknown>) => {
+      if (pending.length >= 10_000 || sequence >= 30_000) {
+        dropped++;
+        return;
+      }
+      pending.push({ sequence: ++sequence, kind, at: performance.now(), ...structuredClone(data) });
+      queueMicrotask(() => {
+        void flush();
+      });
+    };
+    host.__realtime682Flush = async () => {
+      const target = sequence;
+      while (acknowledged < target && errors.length === 0) await flush();
+      return { sent: target, acknowledged, dropped, errors: [...errors] };
+    };
+    const requests = new Map<string, { at: number; generation: number; source: string }>();
+    const OriginalWorker = window.Worker;
+    window.Worker = new Proxy(OriginalWorker, {
+      construct(target, args, newTarget) {
+        const worker = Reflect.construct(target, args, newTarget) as Worker;
+        if ((args[1] as WorkerOptions | undefined)?.name !== 'asa-electronics-simulation')
+          return worker;
+        const post = worker.postMessage.bind(worker);
+        worker.postMessage = ((...values: unknown[]) => {
+          const request = values[0] as {
+            kind: string;
+            requestId: string;
+            generationId: number;
+            requestedHorizonMicroseconds: number;
+            inputEvents?: unknown;
+            document?: SchematicDocument;
+          };
+          if (request.kind === 'advance') {
+            const source = String(
+              request.document?.components.find((row) => row.id === 'uno')?.stateProperties?.[
+                'arduinoSource'
+              ] ?? '',
+            );
+            requests.set(request.requestId, {
+              at: performance.now(),
+              generation: request.generationId,
+              source,
+            });
+            push('request', {
+              id: request.requestId,
+              generation: request.generationId,
+              source,
+              horizon: request.requestedHorizonMicroseconds,
+              inputs: request.inputEvents ?? [],
+            });
+          }
+          Reflect.apply(post, worker, values);
+        }) as Worker['postMessage'];
+        worker.addEventListener('message', (event: MessageEvent) => {
+          const response = event.data as {
+            ok: boolean;
+            kind?: string;
+            code?: string;
+            requestId: string;
+            generationId: number;
+            advance?: SimulationTimedAdvancePayload;
+            metrics?: { computeMs: number };
+          };
+          const request = requests.get(response.requestId);
+          if (!request) return;
+          requests.delete(response.requestId);
+          push('response', {
+            id: response.requestId,
+            generation: response.generationId,
+            requestGeneration: request.generation,
+            source: request.source,
+            requestAt: request.at,
+            ok: response.ok,
+            code: response.code ?? null,
+            computeMs: response.metrics?.computeMs ?? null,
+            advance: response.advance
+              ? {
+                  executionStatus: response.advance.executionStatus,
+                  requestedHorizonMicroseconds: response.advance.requestedHorizonMicroseconds,
+                  committedHorizonMicroseconds: response.advance.committedHorizonMicroseconds,
+                  result: response.advance.result,
+                  ledTemporal: response.advance.ledTemporal ?? null,
+                  serial: response.advance.serial,
+                  diagnostics: response.advance.diagnostics,
+                }
+              : null,
+          });
+        });
+        return worker;
+      },
+    });
+    const loaded = new WeakMap<Element, { href: string; at: number }>();
+    const href = (element: Element) =>
+      element.getAttribute('href') ??
+      element.getAttributeNS('http://www.w3.org/1999/xlink', 'href') ??
+      '';
+    const invalidate = (entries: MutationRecord[]) => {
+      for (const entry of entries)
+        if (entry.target instanceof SVGImageElement) loaded.delete(entry.target);
+    };
+    const mutations = new MutationObserver(invalidate);
+    mutations.observe(document, { attributes: true, attributeFilter: ['href'], subtree: true });
+    document.addEventListener(
+      'load',
+      (event) => {
+        const element = event.target;
+        if (element instanceof SVGImageElement) {
+          // A mutation queued before this genuine load must not erase that load
+          // later merely because MutationObserver delivery follows the event.
+          invalidate(mutations.takeRecords());
+          loaded.set(element, { href: href(element), at: performance.now() });
+          push('load', { href: href(element) });
+        }
+      },
+      true,
+    );
+    document.addEventListener(
+      'error',
+      (event) => {
+        if (event.target instanceof SVGImageElement) {
+          loaded.delete(event.target);
+          push('image-error', { href: href(event.target) });
+        }
+      },
+      true,
+    );
+    for (const type of ['pointerdown', 'pointerup', 'input', 'submit', 'click'])
+      document.addEventListener(
+        type,
+        (event) => {
+          const target = event.target as Element | null;
+          const component = target
+            ?.closest('[data-component-id]')
+            ?.getAttribute('data-component-id');
+          const monitor = target?.closest('.arduino-serial-monitor');
+          const control = target?.closest('button');
+          if (component === 'button-682' || monitor || control)
+            push('input', {
+              type,
+              trusted: event.isTrusted,
+              value: monitor && target instanceof HTMLInputElement ? target.value : null,
+              target:
+                component === 'button-682'
+                  ? component
+                  : monitor
+                    ? 'serial'
+                    : control?.textContent?.trim(),
+            });
+        },
+        true,
+      );
+    const visible = (element: Element | null | undefined) => {
+      if (!element?.isConnected) return false;
+      const box = element.getBoundingClientRect();
+      if (!(
+        box.width > 0 &&
+        box.height > 0 &&
+        box.left >= 0 &&
+        box.top >= 0 &&
+        box.right <= innerWidth &&
+        box.bottom <= innerHeight
+      ))
+        return false;
+      for (let node: Element | null = element; node; node = node.parentElement) {
+        const style = getComputedStyle(node);
+        if (
+          style.display === 'none' ||
+          style.visibility !== 'visible' ||
+          Number(style.opacity) === 0
+        )
+          return false;
+      }
+      return true;
+    };
+    let previous: { at: number; leds: unknown[] } | null = null;
+    let monitorSignature = '';
+    const paint = () => {
+      invalidate(mutations.takeRecords());
+      const monitor = document.querySelector('.arduino-serial-output');
+      const serial = {
+        texts: [...(monitor?.querySelectorAll(':scope > div') ?? [])].map((row) => row.textContent),
+        visible: visible(monitor),
+      };
+      if (JSON.stringify(serial) !== monitorSignature) {
+        monitorSignature = JSON.stringify(serial);
+        push('monitor', serial);
+      }
+      if (previous) push('paint', { witnessAt: previous.at, leds: previous.leds });
+      previous = {
+        at: performance.now(),
+        leds: ['led0', 'led1', 'led2'].map((id) => {
+          const root = document.querySelector(`[data-component-id="${id}"]`);
+          const visual = root?.querySelector('[data-led-brightness]');
+          const image = root?.querySelector<SVGImageElement>('image[data-led-asset-active="true"]');
+          const current = image ? loaded.get(image) : undefined;
+          const box = image?.getBoundingClientRect();
+          const stage = document.querySelector('.workbench-stage')?.getBoundingClientRect();
+          return {
+            id,
+            brightness: visual ? Number(visual.getAttribute('data-led-brightness')) : null,
+            href: image ? href(image) : null,
+            loadedAt: current?.href === (image ? href(image) : null) ? current.at : null,
+            visible:
+              visible(image) &&
+              !!box &&
+              !!stage &&
+              box.left >= stage.left &&
+              box.top >= stage.top &&
+              box.right <= stage.right &&
+              box.bottom <= stage.bottom,
+          };
+        }),
+      };
+      requestAnimationFrame(paint);
+    };
+    requestAnimationFrame(paint);
+  });
+  const barrier = async () => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const status = await Promise.race([
+        page.evaluate(() =>
+          (
+            window as unknown as {
+              __realtime682Flush: () => Promise<{
+                sent: number;
+                acknowledged: number;
+                dropped: number;
+                errors: string[];
+              }>;
+            }
+          ).__realtime682Flush(),
+        ),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(
+            () => reject(new Error('Node ACK barrier incomplete after 1500 ms')),
+            1500,
+          );
+        }),
+      ]);
+      if (!retain('ack-barrier', status)) throw new Error('Baseline journal retention failed');
+      if (
+        status.dropped ||
+        status.errors.length ||
+        status.sent > status.acknowledged ||
+        status.acknowledged > acknowledged
+      )
+        throw new Error('Incomplete baseline journal');
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  };
+  return { records, retain, barrier, errors };
+}
+
+function realtime682Fixture(source: string, button: boolean): SchematicDocument {
+  let document: SchematicDocument = {
+    schemaVersion: 4,
+    components: [],
+    connections: [],
+    viewport: { x: 0, y: 0, zoom: 1 },
+    simulation: { running: false, maxIterations: 24 },
+  };
+  for (const [type, id, x, y] of [
+    ['arduino-uno', 'uno', 230, 230],
+    ['resistor-axial', 'r0', 680, 200],
+    ['led-5mm', 'led0', 680, 330],
+    ['resistor-axial', 'r1', 820, 200],
+    ['led-5mm', 'led1', 820, 330],
+    ['resistor-axial', 'r2', 960, 200],
+    ['led-5mm', 'led2', 960, 330],
+    ...(button ? [['button-tactile-6mm', 'button-682', 900, 520]] : []),
+  ] as Array<[string, string, number, number]>)
+    document = addComponentToDocument(document, type, { x, y }, id).document;
+  document.components = document.components.map((row) =>
+    row.id === 'uno'
+      ? {
+          ...row,
+          stateProperties: {
+            ...row.stateProperties,
+            arduinoSource: source,
+            arduinoWorkspace: '',
+            arduinoCodeMode: 'text',
+            arduinoSerialOpen: true,
+            arduinoBaudRate: 9600,
+          },
+        }
+      : row.id.startsWith('r')
+        ? { ...row, value: 330 }
+        : row,
+  );
+  for (let index = 0; index < 3; index++)
+    document.connections.push(
+      {
+        id: `out-${index}`,
+        from: { componentId: 'uno', terminal: `d${13 - index}` as 'd13' },
+        to: { componentId: `r${index}`, terminal: 'lead-1' },
+      },
+      {
+        id: `load-${index}`,
+        from: { componentId: `r${index}`, terminal: 'lead-2' },
+        to: { componentId: `led${index}`, terminal: 'anode' },
+      },
+      {
+        id: `ground-${index}`,
+        from: { componentId: `led${index}`, terminal: 'cathode' },
+        to: { componentId: 'uno', terminal: 'power-gnd-1' },
+      },
+    );
+  if (button)
+    document.connections.push(
+      {
+        id: 'button-input',
+        from: { componentId: 'uno', terminal: 'd2' },
+        to: { componentId: 'button-682', terminal: 'SW-A1' },
+      },
+      {
+        id: 'button-ground',
+        from: { componentId: 'button-682', terminal: 'SW-B1' },
+        to: { componentId: 'uno', terminal: 'power-gnd-1' },
+      },
+    );
+  return document;
+}
+
+test.describe('Issue 682 acknowledged native realtime baseline', () => {
+  let pool: ReturnType<typeof e2eAdminPool>;
+  let cookies: import('@playwright/test').Cookie[];
+  test.beforeAll(async ({ browser, baseURL }, info) => {
+    pool = e2eAdminPool();
+    const context = await browser.newContext(baseURL === undefined ? {} : { baseURL });
+    try {
+      const page = await context.newPage();
+      await loginWithOrganization(
+        page,
+        await seedTeacher(pool, `realtime-682-${info.workerIndex}`),
+      );
+      cookies = await context.cookies();
+    } finally {
+      await context.close();
+    }
+  });
+  test.afterAll(async () => pool.end());
+  for (const mode of ['delays', 'button-serial'] as const)
+    test(`${mode}: strict real time and acknowledged native evidence`, async ({ page }, info) => {
+      const source =
+        mode === 'delays'
+          ? `void setup(){pinMode(13,OUTPUT);pinMode(12,OUTPUT);pinMode(11,OUTPUT);digitalWrite(12,LOW);digitalWrite(11,LOW);digitalWrite(13,HIGH);delay(30);digitalWrite(13,LOW);delay(1000);digitalWrite(13,HIGH);delay(20000);digitalWrite(13,LOW);}void loop(){delay(20000);}`
+          : `void setup(){pinMode(13,OUTPUT);pinMode(12,OUTPUT);pinMode(11,OUTPUT);pinMode(2,INPUT_PULLUP);Serial.begin(9600);}void loop(){if(digitalRead(2)==LOW){digitalWrite(13,HIGH);}else{digitalWrite(13,LOW);}if(Serial.available()>0){int received=Serial.read();Serial.println(received);digitalWrite(11,received==65);}delay(30);}`;
+      const journal = await realtime682Journal(page, info.outputPath('realtime-682-native.jsonl'));
+      let primary: unknown,
+        failed = false,
+        held = false;
+      const responses = () =>
+        journal.records.filter(
+          (row) =>
+            row.kind === 'response' &&
+            row.source === source &&
+            (row.advance as SimulationTimedAdvancePayload | null)?.executionStatus === 'ready',
+        );
+      const latest = (id: string) =>
+        (
+          responses().at(-1)?.advance as SimulationTimedAdvancePayload | undefined
+        )?.result?.components.find((row) => row.componentId === id)?.brightness ?? -1;
+      const nativeLevel = (index: number) => {
+        const led = (
+          journal.records.findLast((row) => row.kind === 'paint')?.leds as
+            | Array<{ brightness: number | null; loadedAt: number | null; visible: boolean }>
+            | undefined
+        )?.[index];
+        return led?.visible && led.loadedAt !== null && Number.isFinite(led.brightness)
+          ? Number(led.brightness! > 0)
+          : -1;
+      };
+      try {
+        await page.context().addCookies(cookies);
+        await page.setViewportSize({ width: 1600, height: 1000 });
+        await page.goto('/#/home');
+        const origin = new URL(page.url()).origin;
+        const created = await page.request.post('/api/projects', {
+          headers: { origin, 'idempotency-key': crypto.randomUUID() },
+          data: {
+            scope: 'personal',
+            classroomId: null,
+            module: 'electronics',
+            title: `Realtime682 ${mode}`,
+          },
+        });
+        expect(created.status()).toBe(201);
+        const id = ((await created.json()) as { project: { id: string } }).project.id;
+        const read = async () => {
+          const result = await page.request.get(`/api/projects/${id}`);
+          expect(result.status()).toBe(200);
+          return (await result.json()) as {
+            draft: { document: SchematicDocument; revision: number };
+          };
+        };
+        const initial = await read();
+        const fixture = realtime682Fixture(
+          'void setup(){}void loop(){delay(100);}',
+          mode === 'button-serial',
+        );
+        const seed = await page.request.put(`/api/projects/${id}/draft`, {
+          headers: { origin },
+          data: {
+            document: fixture,
+            baseRevision: initial.draft.revision,
+            mutationId: crypto.randomUUID(),
+          },
+        });
+        expect(seed.status()).toBe(200);
+        const before = await read();
+        await page.goto(`/#/home/${id}`);
+        await page.getByRole('button', { name: 'Открыть редактор кода', exact: true }).click();
+        await page.locator('.arduino-source-editor textarea').fill(source);
+        const savedResponse = page.waitForResponse(
+          (row) =>
+            new URL(row.url()).pathname === `/api/projects/${id}/draft` &&
+            row.request().method() === 'PUT',
+        );
+        await page.getByRole('button', { name: 'Сохранить проект', exact: true }).click();
+        expect((await savedResponse).status()).toBe(200);
+        const saved = await read();
+        journal.retain('saved', { before, saved, source });
+        expect(saved.draft.revision).toBe(before.draft.revision + 1);
+        expect(saved.draft.document).toEqual({
+          ...before.draft.document,
+          components: before.draft.document.components.map((row) =>
+            row.id === 'uno'
+              ? { ...row, stateProperties: { ...row.stateProperties, arduinoSource: source } }
+              : row,
+          ),
+        });
+        await page.getByRole('button', { name: 'Закрыть редактор кода', exact: true }).click();
+        await page.getByRole('button', { name: 'Подогнать проект', exact: true }).click();
+        const board = await part(page, 'uno').boundingBox(),
+          stage = await page.locator('.workbench-stage').boundingBox();
+        expect(
+          board &&
+            stage &&
+            Object.values(board).every(Number.isFinite) &&
+            board.x >= stage.x &&
+            board.y >= stage.y &&
+            board.x + board.width <= stage.x + stage.width &&
+            board.y + board.height <= stage.y + stage.height,
+        ).toBe(true);
+        await journal.barrier();
+        journal.retain('start-action', {
+          source,
+          at: await page.evaluate(() => performance.now()),
+        });
+        await page.getByRole('button', { name: 'Начать моделирование', exact: true }).click();
+        if (mode === 'delays') {
+          await expect
+            .poll(
+              () =>
+                (responses().at(-1)?.advance as SimulationTimedAdvancePayload | undefined)
+                  ?.committedHorizonMicroseconds ?? 0,
+              { timeout: 22_000 },
+            )
+            .toBeGreaterThanOrEqual(21_031_000);
+        } else {
+          await expect.poll(() => latest('led0')).toBe(0);
+          const box = await part(page, 'button-682').boundingBox();
+          const buttonStage = await page.locator('.workbench-stage').boundingBox();
+          journal.retain('button-geometry', { box, stage: buttonStage });
+          expect(
+            box &&
+              buttonStage &&
+              Object.values(box).every(Number.isFinite) &&
+              box.x >= buttonStage.x &&
+              box.y >= buttonStage.y &&
+              box.x + box.width <= buttonStage.x + buttonStage.width &&
+              box.y + box.height <= buttonStage.y + buttonStage.height,
+          ).toBe(true);
+          const point = { x: box!.x + box!.width / 2, y: box!.y + box!.height / 2 };
+          const buttonHit = await page.evaluate(
+            ({ x, y }) =>
+              document
+                .elementFromPoint(x, y)
+                ?.closest('[data-component-id]')
+                ?.getAttribute('data-component-id'),
+            point,
+          );
+          journal.retain('button-hit', { point, componentId: buttonHit });
+          expect(buttonHit).toBe('button-682');
+          await page.mouse.move(point.x, point.y);
+          await page.mouse.down();
+          held = true;
+          await expect.poll(() => latest('led0')).toBeGreaterThan(0);
+          await expect.poll(() => nativeLevel(0)).toBe(1);
+          await page.mouse.up();
+          held = false;
+          await expect.poll(() => latest('led0')).toBe(0);
+          await expect.poll(() => nativeLevel(0)).toBe(0);
+          await page.getByRole('button', { name: 'Открыть редактор кода', exact: true }).click();
+          await page
+            .getByRole('textbox', { name: 'Сообщение в последовательный порт', exact: true })
+            .fill('A');
+          await page.getByRole('button', { name: 'Отпр.', exact: true }).click();
+          await expect
+            .poll(() => {
+              const monitor = journal.records.findLast((row) => row.kind === 'monitor');
+              return monitor?.visible
+                ? (monitor.texts as string[]).map((value) => value.trim())
+                : null;
+            })
+            .toEqual(['65']);
+          await expect(page.locator('.arduino-serial-output > div')).toHaveText(['65']);
+          await expect.poll(() => latest('led2')).toBeGreaterThan(0);
+          await expect.poll(() => nativeLevel(2)).toBe(1);
+        }
+        await journal.barrier(); // All assertions below use acknowledged Node originals.
+        const ready = responses();
+        expect(ready.length).toBeGreaterThan(0);
+        const groups: Array<{ at: number; levels: string }> = [];
+        // Check every acknowledged record, but create a Playwright assertion step only
+        // on failure: thousands of successful steps otherwise consume the live test budget.
+        for (const row of journal.records.filter(
+          (row) => row.kind === 'response' && row.source === source,
+        )) {
+          const advance = row.advance as SimulationTimedAdvancePayload | null;
+          if (row.ok !== true) expect(row.ok).toBe(true);
+          if (!Object.is(row.generation, row.requestGeneration))
+            expect(row.generation).toBe(row.requestGeneration);
+          if (!Number.isFinite(row.computeMs)) expect(Number.isFinite(row.computeMs)).toBe(true);
+          if (advance?.executionStatus === 'fault')
+            expect(advance.executionStatus).not.toBe('fault');
+          if (advance?.executionStatus === 'yielded') {
+            if (advance.result !== null) expect(advance.result).toBeNull();
+            continue;
+          }
+          if (advance?.result?.solved !== true) expect(advance?.result?.solved).toBe(true);
+          if (advance?.result?.quality?.passed !== true)
+            expect(advance?.result?.quality?.passed).toBe(true);
+          if (!Array.isArray(advance?.diagnostics) || advance.diagnostics.length !== 0)
+            expect(advance?.diagnostics).toEqual([]);
+          if (
+            !Object.is(advance?.committedHorizonMicroseconds, advance?.requestedHorizonMicroseconds)
+          )
+            expect(advance?.committedHorizonMicroseconds).toBe(
+              advance?.requestedHorizonMicroseconds,
+            );
+          const levels = ['led0', 'led1', 'led2']
+            .map((id) =>
+              Number(
+                (advance!.result!.components.find((item) => item.componentId === id)?.brightness ??
+                  0) > 0,
+              ),
+            )
+            .join(',');
+          if (groups.at(-1)?.levels !== levels) groups.push({ at: row.at, levels });
+        }
+        const paint = journal.records.filter(
+          (row) => row.kind === 'paint' && Number(row.witnessAt) >= ready[0]!.at,
+        );
+        expect(paint.length).toBeGreaterThan(0);
+        for (const row of paint) {
+          const group = groups.findLast((group) => group.at <= Number(row.witnessAt));
+          if (!group || Number(row.witnessAt) - group.at <= 50) continue;
+          const leds = row.leds as Array<{
+            brightness: number;
+            loadedAt: number | null;
+            visible: boolean;
+          }>;
+          const loaded = leds.every((led) => led.visible && led.loadedAt !== null);
+          if (!loaded) expect(loaded).toBe(true);
+          const paintedLevels = leds.map((led) => Number(led.brightness > 0)).join(',');
+          if (paintedLevels !== group.levels) expect(paintedLevels).toBe(group.levels);
+        }
+        if (mode === 'delays') {
+          const first = ready[0]!,
+            last = ready.at(-1)!;
+          const startUs = (first.advance as SimulationTimedAdvancePayload)
+            .committedHorizonMicroseconds;
+          const modelMs =
+            ((last.advance as SimulationTimedAdvancePayload).committedHorizonMicroseconds -
+              startUs) /
+            1000;
+          journal.retain('clock-result', { modelMs, wallMs: last.at - first.at, groups });
+          expect(startUs).toBe(0);
+          expect(modelMs).toBeGreaterThanOrEqual(21_031);
+          expect(Math.abs(modelMs - (last.at - first.at))).toBeLessThanOrEqual(250);
+          const edges: Array<{ at: number; high: boolean }> = [];
+          for (const row of ready)
+            for (const sample of (
+              row.advance as SimulationTimedAdvancePayload
+            ).ledTemporal!.components.find(
+              (led: { componentId: string }) => led.componentId === 'led0',
+            )!.samples)
+              if (edges.at(-1)?.high !== sample.brightness > 0)
+                edges.push({ at: sample.atMicroseconds, high: sample.brightness > 0 });
+          const high = edges.findIndex((edge) => edge.high);
+          const actual = edges.slice(high, high + 4);
+          expect(actual.map((edge) => edge.high)).toEqual([true, false, true, false]);
+          const visible: Array<{ at: number; high: boolean }> = [];
+          for (const row of paint) {
+            const high = (row.leds as Array<{ brightness: number }>)[0]!.brightness > 0;
+            if (visible.at(-1)?.high !== high) visible.push({ at: Number(row.witnessAt), high });
+          }
+          const shown = visible.slice(visible.findIndex((edge) => edge.high));
+          expect(shown.slice(0, 4).map((edge) => edge.high)).toEqual([true, false, true, false]);
+          for (const [index, ms] of [30, 1000, 20_000].entries()) {
+            expect(actual[index + 1]!.at - actual[index]!.at).toBe(ms * 1000 + 2);
+            expect(Math.abs(shown[index + 1]!.at - shown[index]!.at - ms)).toBeLessThanOrEqual(250);
+          }
+        } else {
+          for (const type of ['pointerdown', 'pointerup'])
+            expect(
+              journal.records.some(
+                (row) =>
+                  row.kind === 'input' &&
+                  row.type === type &&
+                  row.target === 'button-682' &&
+                  row.trusted,
+              ),
+            ).toBe(true);
+          expect(
+            journal.records.some(
+              (row) =>
+                row.kind === 'input' &&
+                row.type === 'submit' &&
+                row.target === 'serial' &&
+                row.trusted,
+            ),
+          ).toBe(true);
+          const beforeReset = responses().at(-1)!;
+          journal.retain('reset-boundary', {
+            generation: beforeReset.generation,
+            sequence: beforeReset.sequence,
+          });
+          await page.getByTestId('arduino-reset-button').click();
+          await expect(page.locator('.arduino-serial-output > div')).toHaveCount(0);
+          await expect
+            .poll(() => {
+              const fresh = responses().find(
+                (row) =>
+                  row.sequence > beforeReset.sequence && row.generation !== beforeReset.generation,
+              );
+              const advance = fresh?.advance as SimulationTimedAdvancePayload | undefined;
+              return fresh &&
+                fresh.generation === fresh.requestGeneration &&
+                advance?.committedHorizonMicroseconds === 0
+                ? advance.result?.components.find((row) => row.componentId === 'led2')?.brightness
+                : null;
+            })
+            .toBe(0);
+          await expect.poll(() => nativeLevel(2)).toBe(0);
+        }
+        await page.getByRole('button', { name: 'Остановить моделирование', exact: true }).click();
+        await expect(
+          page.getByRole('button', { name: 'Начать моделирование', exact: true }),
+        ).toBeVisible();
+        await journal.barrier();
+        journal.retain('complete', { mode });
+      } catch (error) {
+        failed = true;
+        primary = error;
+        journal.retain('primary-error', String(error));
+      } finally {
+        journal.retain('node-final', {
+          failed,
+          acknowledgedRecords: journal.records.length,
+          errors: journal.errors,
+          completion: failed ? 'FAIL_OR_INCOMPLETE' : 'COMPLETE',
+        });
+        if (held && !page.isClosed()) {
+          let timer: ReturnType<typeof setTimeout> | undefined;
+          try {
+            await Promise.race([
+              page.mouse.up(),
+              new Promise<never>((_, reject) => {
+                timer = setTimeout(() => reject(new Error('Optional release incomplete')), 500);
+              }),
+            ]);
+          } catch (error) {
+            journal.retain('secondary-release-error', String(error));
+          } finally {
+            if (timer) clearTimeout(timer);
+          }
+        }
+        if (!page.isClosed())
+          await page
+            .screenshot({ path: info.outputPath('realtime-682.png'), timeout: 500 })
+            .catch((error) => journal.retain('optional-png-error', String(error)));
+      }
+      if (failed) throw primary;
+      if (journal.errors.length) throw new Error('Baseline retention incomplete');
+    });
+});
+
 const ID = '10000000-0000-4000-8000-000000000001';
 const touchVideoTest = test.extend({
   hasTouch: true,
@@ -1287,6 +2068,76 @@ async function openEditor(
 
 const part = (page: Page, id: string) =>
   page.locator('[data-testid="schematic-component"][data-component-id="' + id + '"]');
+
+for (const width of [1440, 1024, 390, 320]) {
+  test(`Arduino workspace messages: repeated native menu and reopen at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 900 });
+    const fixture = documentFixture();
+    const initial = {
+      ...fixture,
+      components: fixture.components.map((component) =>
+        component.id === 'uno'
+          ? {
+              ...component,
+              stateProperties: { ...component.stateProperties, arduinoCodeMode: 'blocks' },
+            }
+          : component,
+      ),
+    } as SchematicDocument;
+    const { errors, readEditorDocument } = await openEditor(page, initial);
+    await page.getByRole('button', { name: 'Открыть редактор кода', exact: true }).click();
+    const code = page.getByRole('region', { name: 'Редактор кода Arduino' });
+    await expect(code).toBeVisible();
+    const background = code.locator('.blocklyMainBackground');
+    await expect(background).toBeVisible();
+    const openWorkspaceMenu = async () => {
+      const box = await background.boundingBox();
+      if (!box) throw new Error('Arduino workspace has no visible background');
+      // The flyout overlays the left side of this full-width SVG background.
+      // Send a real pointer gesture to its uncovered top-right workspace area.
+      await page.mouse.click(box.x + box.width - 25, box.y + 35, { button: 'right' });
+    };
+    const readProgram = async () => {
+      const doc = await readEditorDocument();
+      const state = doc.components.find((component) => component.id === 'uno')!.stateProperties!;
+      return { source: state.arduinoSource, workspace: JSON.parse(String(state.arduinoWorkspace)) };
+    };
+    await expect.poll(async () => (await readProgram()).source).toContain('void setup()');
+    const before = await readProgram();
+    for (let attempt = 0; attempt < 3; attempt++) {
+      await openWorkspaceMenu();
+      const menu = page.locator('.blocklyContextMenu');
+      await expect(menu).toBeVisible();
+      await expect(menu.getByText(/^Удалить \d+ блоки$/)).toBeVisible();
+      const box = await menu.boundingBox();
+      expect(box!.x).toBeGreaterThanOrEqual(0);
+      expect(box!.x + box!.width).toBeLessThanOrEqual(width + 1);
+      await page.keyboard.press('Escape');
+      await expect(menu).toBeHidden();
+    }
+    expect(await readProgram()).toEqual(before);
+    await page
+      .getByRole('button', {
+        name: width >= 1024 ? 'Закрыть редактор кода' : 'Закрыть панель кода',
+        exact: true,
+      })
+      .click();
+    await page.getByRole('button', { name: 'Открыть редактор кода', exact: true }).click();
+    await openWorkspaceMenu();
+    await expect(
+      page.locator('.blocklyContextMenu').getByText(/^Удалить \d+ блоки$/),
+    ).toBeVisible();
+    await page.screenshot({ path: `reports/interactions/arduino-workspace-messages-${width}.png` });
+    await page.keyboard.press('Escape');
+    expect(await readProgram()).toEqual(before);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+      width,
+    );
+    expect(errors).toEqual([]);
+  });
+}
 const frames = (page: Page) =>
   page.evaluate(
     () =>
@@ -3546,11 +4397,18 @@ function layeredCrossingDocument(): SchematicDocument {
     { x: 720, y: 650 },
     'cross-resistor',
   ).document;
+  document = addComponentToDocument(
+    document,
+    'regulated-power-supply',
+    { x: 1100, y: 180 },
+    'cross-psu',
+  ).document;
   const crossingVertices = (componentId: string) => {
     const center = componentCenterInDocument(document, componentId);
+    const halfSpan = componentId === 'uno' || componentId === 'cross-psu' ? 20 : 80;
     return [
-      { x: center.x - 80, y: center.y },
-      { x: center.x + 80, y: center.y },
+      { x: center.x - halfSpan, y: center.y },
+      { x: center.x + halfSpan, y: center.y },
     ];
   };
   return {
@@ -3562,6 +4420,20 @@ function layeredCrossingDocument(): SchematicDocument {
         to: { componentId: 'battery', terminal: 'BAT+' },
         vertices: crossingVertices('uno'),
         color: '#e3212b',
+      },
+      {
+        id: 'psu-cross',
+        from: { componentId: 'led', terminal: 'cathode' },
+        to: { componentId: 'battery', terminal: 'BAT+' },
+        vertices: crossingVertices('cross-psu'),
+        color: '#9234c4',
+      },
+      {
+        id: 'battery-cross',
+        from: { componentId: 'led', terminal: 'anode' },
+        to: { componentId: 'battery', terminal: 'BAT-' },
+        vertices: crossingVertices('battery'),
+        color: '#21a4b8',
       },
       {
         id: 'led-cross',
@@ -3586,6 +4458,415 @@ function layeredCrossingDocument(): SchematicDocument {
       },
     ],
   };
+}
+
+// F2 real persistence observer: public requests/responses only. Expected documents
+// are admitted before actions; neither request nor server bodies become the oracle.
+function f2Canonical(document: SchematicDocument) {
+  const parsed = parseElectronicsDocument(document);
+  expect(parsed.ok).toBe(true);
+  if (!parsed.ok) throw new Error(parsed.message);
+  expect(parsed.document).toEqual(document);
+  expect(normalizeLoadedDocument(document)).toEqual(document);
+  return document;
+}
+
+function f2LedgerHealthy(
+  rows: {
+    body: { document: SchematicDocument; baseRevision: number; mutationId: string };
+    phase: string;
+    acknowledgements: number;
+    status?: number;
+    revision?: number;
+    document?: SchematicDocument;
+  }[],
+  admitted: SchematicDocument[],
+  initialRevision: number,
+) {
+  const ids = new Set<string>();
+  let revision = initialRevision;
+  for (const row of rows) {
+    if (
+      !admitted.some((expected) => isDeepStrictEqual(expected, row.body.document)) ||
+      !row.body.mutationId ||
+      ids.has(row.body.mutationId) ||
+      row.body.baseRevision !== revision ||
+      row.acknowledgements !== 1 ||
+      row.status !== 200 ||
+      row.revision !== revision + 1 ||
+      !isDeepStrictEqual(row.document, row.body.document)
+    )
+      return false;
+    ids.add(row.body.mutationId);
+    revision++;
+  }
+  return true;
+}
+
+function f2ObserveLoadedDocument(localKey: string) {
+  const stringify = JSON.stringify;
+  const setItem = Storage.prototype.setItem;
+  const state = {
+    candidate: null as unknown,
+    saved: null as unknown,
+    errors: [] as string[],
+  };
+  Object.defineProperty(window, 'f2LoadedDocument', { value: state });
+  JSON.stringify = new Proxy(stringify, {
+    apply(target, receiver, args) {
+      const result = Reflect.apply(target, receiver, args);
+      try {
+        const value = args[0];
+        if (
+          value &&
+          value.schemaVersion === 4 &&
+          Array.isArray(value.components) &&
+          Array.isArray(value.connections) &&
+          value.viewport &&
+          value.simulation
+        ) {
+          state.candidate = {
+            document: JSON.parse(Reflect.apply(stringify, JSON, [value])),
+            href: location.href,
+            stack: new Error().stack ?? null,
+          };
+        }
+      } catch (error) {
+        state.errors.push(String(error));
+      }
+      return result;
+    },
+  });
+  Storage.prototype.setItem = new Proxy(setItem, {
+    apply(target, receiver, args) {
+      const result = Reflect.apply(target, receiver, args);
+      if (
+        receiver === sessionStorage &&
+        args[0] === `${localKey}:electronics-editor:` &&
+        args[1] === 'saved'
+      ) {
+        state.saved = state.candidate;
+      }
+      return result;
+    },
+  });
+}
+
+async function f2RealEditor(page: Page, fixture: SchematicDocument, input: string) {
+  f2Canonical(fixture);
+  mkdirSync('reports/interactions', { recursive: true });
+  const path = `reports/interactions/f2-real-${input}.jsonl`;
+  writeFileSync(path, '', { encoding: 'utf8', flush: true });
+  let sequence = 0;
+  const retentionErrors: string[] = [];
+  const journal = (kind: string, data: unknown) => {
+    try {
+      appendFileSync(
+        path,
+        `${JSON.stringify({ sequence: ++sequence, kind, nodeAt: Date.now(), data })}\n`,
+        { encoding: 'utf8', flush: true },
+      );
+    } catch (error) {
+      retentionErrors.push(String(error));
+    }
+  };
+  const requireRetention = () => expect(retentionErrors).toEqual([]);
+  const errors: string[] = [];
+  page.on('pageerror', (error) => {
+    errors.push(error.message);
+    journal('pageerror', error.message);
+  });
+  try {
+    await page.goto('/#/home');
+    const origin = new URL(page.url()).origin;
+    const created = await page.context().request.post('/api/projects', {
+      headers: { origin, 'idempotency-key': crypto.randomUUID() },
+      data: {
+        scope: 'personal',
+        classroomId: null,
+        module: 'electronics',
+        title: `F2 real ${input}`,
+      },
+    });
+    expect(created.status()).toBe(201);
+    const { project } = (await created.json()) as { project: { id: string } };
+    const server = async (target = page) => {
+      const reply = await target.context().request.get(`/api/projects/${project.id}`);
+      const body = (await reply.json()) as {
+        draft: { document: SchematicDocument; revision: number };
+      };
+      journal('server-get', { status: reply.status(), body });
+      expect(reply.status()).toBe(200);
+      return body.draft;
+    };
+    const initial = await server();
+    const seeded = await page.context().request.put(`/api/projects/${project.id}/draft`, {
+      headers: { origin },
+      data: { document: fixture, baseRevision: initial.revision, mutationId: crypto.randomUUID() },
+    });
+    journal('fixture-seed', { status: seeded.status(), body: await seeded.json(), fixture });
+    expect(seeded.status()).toBe(200);
+    const baseline = await server();
+    expect(baseline.document).toEqual(fixture);
+    expect(baseline.revision).toBe(initial.revision + 1);
+    const me = await page.context().request.get('/api/auth/me');
+    expect(me.status()).toBe(200);
+    const identity = (await me.json()) as { user: { id: string } };
+    const localKey = localProjectDraftKey(project.id, identity.user.id, 'account');
+    const storage = async (target: Page) =>
+      target.evaluate(
+        (key) => ({
+          local: Object.entries(localStorage).filter(([name]) => name.startsWith(key)),
+          session: Object.entries(sessionStorage).filter(([name]) => name.startsWith(key)),
+        }),
+        localKey,
+      );
+    const admitted = [structuredClone(fixture)];
+    const admit = (document: SchematicDocument) => {
+      f2Canonical(document);
+      admitted.push(structuredClone(document));
+      journal('admitted', document);
+    };
+    type Row = Parameters<typeof f2LedgerHealthy>[0][number];
+    const rows: Row[] = [];
+    const requests = new Map<Request, Row>();
+    const pending: Promise<void>[] = [];
+    const finished = new Map<Request, () => void>();
+    const failures: string[] = [];
+    let phase = 'native-edit';
+    page.on('request', (request) => {
+      if (
+        request.method() !== 'PUT' ||
+        new URL(request.url()).pathname !== `/api/projects/${project.id}/draft`
+      )
+        return;
+      try {
+        const body = request.postDataJSON() as Row['body'];
+        const row: Row = { body, phase, acknowledgements: 0 };
+        rows.push(row);
+        requests.set(request, row);
+        pending.push(new Promise<void>((resolve) => finished.set(request, resolve)));
+        journal('put-request', row);
+        if (!admitted.some((expected) => isDeepStrictEqual(expected, body.document)))
+          failures.push('Unadmitted PUT document');
+      } catch (error) {
+        failures.push(String(error));
+      }
+    });
+    page.on('response', (response) => {
+      if (
+        response.request().method() !== 'PUT' ||
+        new URL(response.url()).pathname !== `/api/projects/${project.id}/draft`
+      )
+        return;
+      const row = requests.get(response.request());
+      if (!row) {
+        failures.push('Orphan PUT response');
+        journal('orphan-response', response.url());
+        return;
+      }
+      void (async () => {
+        try {
+          const body = (await response.json()) as {
+            draft: { document: SchematicDocument; revision: number };
+          };
+          row.acknowledgements++;
+          row.status = response.status();
+          row.revision = body.draft?.revision;
+          row.document = body.draft?.document;
+          journal('put-acknowledged', row);
+        } catch (error) {
+          failures.push(String(error));
+          journal('response-error', String(error));
+        } finally {
+          finished.get(response.request())?.();
+        }
+      })();
+    });
+    page.on('requestfailed', (request) => {
+      if (requests.has(request)) {
+        failures.push(`PUT failed: ${request.failure()?.errorText}`);
+        journal('put-failed', request.failure());
+        finished.get(request)?.();
+      }
+    });
+    const settle = async () => {
+      await frames(page);
+      await Promise.all(pending);
+      journal('ledger', { rows, admitted, failures });
+      requireRetention();
+      expect(failures).toEqual([]);
+      expect(f2LedgerHealthy(rows, admitted, baseline.revision)).toBe(true);
+    };
+    await page.addInitScript(f2ObserveLoadedDocument, localKey);
+    const readEditorDocument = async (target = page): Promise<SchematicDocument> => {
+      const record = await target.evaluate((key) => {
+        const raw = localStorage.getItem(key);
+        return raw === null ? null : JSON.parse(raw);
+      }, localKey);
+      journal('local-document', record);
+      requireRetention();
+      if (record !== null) {
+        expect(record).toMatchObject({
+          schemaVersion: 3,
+          identityKind: 'account',
+          userId: identity.user.id,
+          projectId: project.id,
+          moduleKey: 'electronics',
+        });
+        expect(Number.isSafeInteger(record.baseRevision)).toBe(true);
+        return record.document as SchematicDocument;
+      }
+      // Public serialization observes the actual document passed to load's history
+      // initialization. The subsequent fixture-scoped saved hint fences that load.
+      // This is per realm, never the source page's expected/acknowledged document.
+      const observed = await target.evaluate(
+        () =>
+          (
+            window as unknown as {
+              f2LoadedDocument: {
+                saved: { document: SchematicDocument; href: string; stack: string | null } | null;
+                errors: string[];
+              };
+            }
+          ).f2LoadedDocument,
+      );
+      journal('loaded-document', observed);
+      requireRetention();
+      expect(observed.errors).toEqual([]);
+      expect(observed.saved).not.toBeNull();
+      if (!observed.saved) throw new Error('Missing actual loaded document observation');
+      expect(new URL(observed.saved.href).hash).toBe(`#/home/${project.id}`);
+      return observed.saved.document;
+    };
+    await page.addInitScript((key) => {
+      (window as unknown as { f2PreApp: unknown }).f2PreApp = {
+        local: Object.entries(localStorage).filter(([name]) => name.startsWith(key)),
+        session: Object.entries(sessionStorage).filter(([name]) => name.startsWith(key)),
+      };
+    }, localKey);
+    const beforeNavigation = new URL(page.url());
+    const declaredNavigation = new URL(`/?f2-realm=${project.id}#/home/${project.id}`, origin);
+    journal('declared-document-navigation', {
+      before: beforeNavigation.href,
+      after: declaredNavigation.href,
+    });
+    expect(declaredNavigation.pathname + declaredNavigation.search).not.toBe(
+      beforeNavigation.pathname + beforeNavigation.search,
+    );
+    await page.goto(declaredNavigation.href, { waitUntil: 'domcontentloaded' });
+    await expect(page.getByTestId('schematic-component')).toHaveCount(fixture.components.length);
+    const preApp = await page.evaluate(() => (window as unknown as { f2PreApp: unknown }).f2PreApp);
+    journal('initial-preapp', preApp);
+    expect(preApp).toEqual({ local: [], session: [] });
+    journal('initial-storage', await storage(page));
+    expect(await storage(page)).toEqual({
+      local: [],
+      session: [[`${localKey}:electronics-editor:`, 'saved']],
+    });
+    return {
+      project,
+      origin,
+      localKey,
+      storage,
+      journal,
+      requireRetention,
+      errors,
+      rows,
+      admitted,
+      admit,
+      settle,
+      server,
+      readEditorDocument,
+      requireComplete: () => {
+        requireRetention();
+        expect(failures).toEqual([]);
+        expect(f2LedgerHealthy(rows, admitted, baseline.revision)).toBe(true);
+        expect(rows.filter((row) => row.phase === 'intended-save')).toHaveLength(1);
+        expect(rows.filter((row) => row.phase === 'after-save')).toHaveLength(0);
+      },
+      finalSave: async (expected: SchematicDocument) => {
+        await settle();
+        const before = await server();
+        expect(before.revision).toBe(baseline.revision + rows.length);
+        const index = rows.length;
+        phase = 'intended-save';
+        await page.evaluate(() => {
+          (window as unknown as { f2SaveInput: unknown }).f2SaveInput = null;
+          window.addEventListener(
+            'pointerdown',
+            (event) => {
+              const button = (event.target as Element)?.closest('button');
+              (window as unknown as { f2SaveInput: unknown }).f2SaveInput = {
+                trusted: event.isTrusted,
+                pointerType: event.pointerType,
+                title: button?.getAttribute('title') ?? null,
+              };
+            },
+            { capture: true, once: true },
+          );
+        });
+        const response = page.waitForResponse(
+          (reply) =>
+            reply.request().method() === 'PUT' &&
+            new URL(reply.url()).pathname === `/api/projects/${project.id}/draft`,
+        );
+        const save = page.getByRole('button', { name: 'Сохранить проект', exact: true });
+        if (input === 'touch') {
+          const box = await save.boundingBox();
+          expect(box).not.toBeNull();
+          if (!box) throw new Error('Native Save has no visible bounds');
+          const point = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+          expect(
+            await page.evaluate(
+              ({ x, y }) =>
+                document.elementFromPoint(x, y)?.closest('button')?.getAttribute('aria-label'),
+              point,
+            ),
+          ).toBe('Сохранить проект');
+          const session = await page.context().newCDPSession(page);
+          try {
+            await session.send('Input.dispatchTouchEvent', {
+              type: 'touchStart',
+              touchPoints: [{ id: 1, ...point }],
+            });
+            await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+          } finally {
+            await session.detach();
+          }
+        } else await save.click();
+        const nativeSave = await page.evaluate(
+          () => (window as unknown as { f2SaveInput: unknown }).f2SaveInput,
+        );
+        journal('native-save', nativeSave);
+        expect(nativeSave).toEqual({
+          trusted: true,
+          pointerType: input,
+          title: 'Сохранить проект сейчас',
+        });
+        await response;
+        await settle();
+        journal('intended-save', { index, rows: rows.slice(index), expected });
+        expect(rows.slice(index)).toHaveLength(1);
+        expect(rows[index].phase).toBe('intended-save');
+        expect(rows[index].body.document).toEqual(expected);
+        expect(rows[index].body.baseRevision).toBe(before.revision);
+        expect(rows[index].revision).toBe(before.revision + 1);
+        const saved = await server();
+        expect(saved.document).toEqual(expected);
+        expect(saved.revision).toBe(before.revision + 1);
+        phase = 'after-save';
+        return saved;
+      },
+    };
+  } catch (error) {
+    // The caller has not received the helper yet: retain its primary error here.
+    journal('helper-primary-error', {
+      message: String(error),
+      stack: error instanceof Error ? error.stack : null,
+    });
+    throw error;
+  }
 }
 
 wireVideoTest.describe('interaction: natural precise wire routing', () => {
@@ -3684,12 +4965,18 @@ wireVideoTest.describe('interaction: natural precise wire routing', () => {
             endpointCenter.y - endpointVisibleCenter.y,
           ),
         ).toBeLessThanOrEqual(0.5);
-        expect(Number(await componentHit.getAttribute('r'))).toBe(9);
+        expect(await componentHit.evaluate((element) => element.localName)).toBe('rect');
+        expect(Number(await componentHit.getAttribute('width'))).toBeCloseTo(9.2, 4);
+        expect(Number(await componentHit.getAttribute('rx'))).toBe(1.6);
+        expect(await breadboardHit.evaluate((element) => element.localName)).toBe('rect');
+        expect(Number(await breadboardHit.getAttribute('width'))).toBeCloseTo(9.2, 4);
         expect(Number(await componentDot.getAttribute('width'))).toBe(8);
-        expect(Number(await endpoint.getAttribute('r'))).toBe(9);
+        expect(Number(await endpoint.getAttribute('r'))).toBe(5);
         expect(Number(await endpointVisible.getAttribute('r'))).toBe(4);
-        expect(dotBox.width).toBeLessThan(hitBox.width);
-        expect(endpointVisibleBox.width).toBeLessThan(endpointBox.width);
+        // SVG bounding boxes may omit painted strokes, but the collision
+        // bounds must never extend beyond the drawn marker plus its outline.
+        expect(hitBox.width - dotBox.width).toBeLessThanOrEqual(1.4 * zoom);
+        expect(endpointBox.width - endpointVisibleBox.width).toBeLessThanOrEqual(2.2 * zoom);
 
         samples.set(zoom, {
           hit: hitBox.width,
@@ -3721,8 +5008,8 @@ wireVideoTest.describe('interaction: natural precise wire routing', () => {
         }
       }
 
-      // Prove that the retained collision geometry, not the smaller visible
-      // marker, owns pointer input near its outer edge.
+      // The rounded-rect terminal target covers the painted square corners
+      // without the former circular halo. The endpoint circle stays painted-size.
       await page.keyboard.press('Escape');
       const edgeTerminal = wireTerminal(page, 'led', 'cathode');
       const edgeTerminalBox = await edgeTerminal.boundingBox();
@@ -3759,104 +5046,464 @@ wireVideoTest.describe('interaction: natural precise wire routing', () => {
     },
   );
 
-  wireVideoTest(
-    'F2 SVG layering keeps wires above breadboard and below Arduino/LED/resistor with matching pointer ownership',
-    async ({ page }) => {
-      await page.setViewportSize({ width: 1440, height: 1000 });
-      const fixture = layeredCrossingDocument();
-      await openEditor(page, fixture);
-      await page
-        .getByRole('button', {
-          name: '\u041f\u043e\u0434\u043e\u0433\u043d\u0430\u0442\u044c \u043f\u0440\u043e\u0435\u043a\u0442',
-          exact: true,
-        })
-        .click();
-
-      for (const [componentId, wireId] of [
-        ['uno', 'uno-cross'],
-        ['led', 'led-cross'],
-        ['cross-resistor', 'resistor-cross'],
-      ] as const) {
-        const body = part(page, componentId).locator('.workbench-part');
-        const box = await body.boundingBox();
-        if (!box) throw new Error('Missing foreground body ' + componentId);
-        const crossingWire = page.locator(
-          '[data-testid="wire-hit"][data-wire-id="' + wireId + '"]',
-        );
-        const candidatePoints = await crossingWire.evaluate((element, bounds) => {
-          const path = element as SVGPathElement;
-          const matrix = path.getScreenCTM();
-          if (!matrix) return [];
-          const length = path.getTotalLength();
-          const points: Array<{ x: number; y: number }> = [];
-          for (let index = 1; index < 80; index += 1) {
-            const point = path.getPointAtLength((length * index) / 80).matrixTransform(matrix);
-            if (
-              point.x > bounds.x + 2 &&
-              point.x < bounds.x + bounds.width - 2 &&
-              point.y > bounds.y + 2 &&
-              point.y < bounds.y + bounds.height - 2
-            )
-              points.push({ x: point.x, y: point.y });
-          }
-          return points;
-        }, box);
-        expect(candidatePoints.length).toBeGreaterThan(0);
-
-        let componentOwnedPoint: { x: number; y: number } | null = null;
-        for (const point of candidatePoints) {
-          await page.mouse.click(point.x, point.y);
-          if (
-            await part(page, componentId).evaluate((node) =>
-              node.classList.contains('workbench-component-selected'),
-            )
-          ) {
-            componentOwnedPoint = point;
-            break;
-          }
-          await page.keyboard.press('Escape');
-        }
-        expect(
-          componentOwnedPoint,
-          'wire crossing must resolve pointer ownership to visible ' + componentId + ' artwork',
-        ).not.toBeNull();
-        await expect(page.getByTestId('wire-inspector-compact')).toHaveCount(0);
-        await page.keyboard.press('Escape');
+  wireVideoTest.describe('F2 real persistence', () => {
+    let pool: ReturnType<typeof e2eAdminPool>;
+    let cookies: import('@playwright/test').Cookie[];
+    wireVideoTest.beforeAll(async ({ browser, baseURL }, info) => {
+      pool = e2eAdminPool();
+      const context = await browser.newContext(baseURL ? { baseURL } : {});
+      try {
+        const login = await context.newPage();
+        await loginWithOrganization(login, await seedTeacher(pool, `f2-auth-${info.workerIndex}`));
+        cookies = await context.cookies();
+      } finally {
+        await context.close();
       }
-
-      const board = part(page, 'board').locator('.workbench-part');
-      const boardBox = await board.boundingBox();
-      if (!boardBox) throw new Error('Missing breadboard body');
-      const boardWire = page.locator('[data-testid="wire-hit"][data-wire-id="board-cross"]');
-      const selectablePoint = await boardWire.evaluate((element, bounds) => {
-        const path = element as SVGPathElement;
-        const matrix = path.getScreenCTM();
-        if (!matrix) return null;
-        const length = path.getTotalLength();
-        for (let index = 1; index < 240; index += 1) {
-          const point = path.getPointAtLength((length * index) / 240).matrixTransform(matrix);
-          if (
-            point.x <= bounds.x + 4 ||
-            point.x >= bounds.x + bounds.width - 4 ||
-            point.y <= bounds.y + 4 ||
-            point.y >= bounds.y + bounds.height - 4
-          )
-            continue;
-          const top = document.elementFromPoint(point.x, point.y);
-          const wireTarget = top?.closest<SVGElement>(
-            '[data-testid="wire-hit"], [data-testid="wire-segment"]',
+    });
+    wireVideoTest.afterAll(async () => pool.end());
+    for (const input of ['mouse', 'touch'] as const) {
+      wireVideoTest(
+        `F2 SVG layering: native ${input} wires above breadboard/Uno/PSU and below battery/LED/resistor/terminals`,
+        async ({ page, browser }) => {
+          // Three real wire crossings, negative hit cases, native input, Save and
+          // reopen form one full F2 journey; measured mouse/touch each take ~56s.
+          // Scope this finite budget to F2 only, leaving every other test unchanged.
+          wireVideoTest.setTimeout(90_000);
+          await page.setViewportSize(
+            input === 'touch' ? { width: 390, height: 844 } : { width: 1440, height: 1000 },
           );
-          if (wireTarget?.dataset['wireId'] === 'board-cross') return { x: point.x, y: point.y };
-        }
-        return null;
-      }, boardBox);
-      expect(selectablePoint).not.toBeNull();
-      await page.mouse.click(selectablePoint!.x, selectablePoint!.y);
-      await expect(page.getByTestId('wire-endpoint')).toHaveCount(2);
-
-      await page.screenshot({ path: 'reports/interactions/f2-scene-layering.png' });
-    },
-  );
+          await page.context().addCookies(cookies);
+          const fixture = f2Canonical(layeredCrossingDocument());
+          let expected = structuredClone(fixture);
+          const real = await f2RealEditor(page, fixture, input);
+          const { readEditorDocument, errors } = real;
+          const ready = async () => {
+            await expect(page.getByTestId('schematic-component')).toHaveCount(
+              fixture.components.length,
+            );
+            for (const component of fixture.components)
+              await expect(part(page, component.id)).toHaveAttribute(
+                'data-hit-mask-status',
+                'ready',
+              );
+          };
+          await ready();
+          await page.getByRole('button', { name: 'Подогнать проект', exact: true }).click();
+          const session = input === 'touch' ? await page.context().newCDPSession(page) : null;
+          if (session) await session.send('Emulation.setTouchEmulationEnabled', { enabled: true });
+          await page.evaluate(() => {
+            const probe = window as unknown as {
+              layeringDown: { trusted: boolean; pointerType: string; testId: string | null } | null;
+            };
+            probe.layeringDown = null;
+            window.addEventListener(
+              'pointerdown',
+              (event) => {
+                probe.layeringDown = {
+                  trusted: event.isTrusted,
+                  pointerType: event.pointerType,
+                  testId: (event.target as Element).getAttribute('data-testid'),
+                };
+              },
+              true,
+            );
+          });
+          const press = async (from: { x: number; y: number }, to = from) => {
+            const targetTestId = await page.evaluate(
+              ({ x, y }) => document.elementFromPoint(x, y)?.getAttribute('data-testid') ?? null,
+              from,
+            );
+            await page.evaluate(() => {
+              (window as unknown as { layeringDown: unknown }).layeringDown = null;
+            });
+            if (session) {
+              await session.send('Input.dispatchTouchEvent', {
+                type: 'touchStart',
+                touchPoints: [{ ...from, id: 1 }],
+              });
+              if (to.x !== from.x || to.y !== from.y)
+                await session.send('Input.dispatchTouchEvent', {
+                  type: 'touchMove',
+                  touchPoints: [{ ...to, id: 1 }],
+                });
+              await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+            } else {
+              await page.mouse.move(from.x, from.y);
+              await page.mouse.down();
+              if (to.x !== from.x || to.y !== from.y)
+                await page.mouse.move(to.x, to.y, { steps: 6 });
+              await page.mouse.up();
+            }
+            await frames(page);
+            const actual = await page.evaluate(
+              () => (window as unknown as { layeringDown: unknown }).layeringDown,
+            );
+            real.journal('native-pointer', { from, to, actual, targetTestId });
+            expect(actual).toEqual({ trusted: true, pointerType: input, testId: targetTestId });
+          };
+          const screenPoint = async (point: { x: number; y: number }) =>
+            page.locator('.workbench-canvas').evaluate((element, world) => {
+              const point = new DOMPoint(world.x, world.y).matrixTransform(
+                (element as SVGSVGElement).getScreenCTM()!,
+              );
+              return { x: point.x, y: point.y };
+            }, point);
+          const owner = async (point: { x: number; y: number }) =>
+            page.evaluate(({ x, y }) => {
+              const top = document.elementFromPoint(x, y);
+              return {
+                wire: top?.closest('[data-wire-id]')?.getAttribute('data-wire-id') ?? null,
+                component:
+                  top?.closest('[data-component-id]')?.getAttribute('data-component-id') ?? null,
+                terminal:
+                  top?.closest('[data-terminal-id]')?.getAttribute('data-terminal-id') ?? null,
+                testId: top?.getAttribute('data-testid') ?? null,
+              };
+            }, point);
+          let primaryError: unknown;
+          try {
+            // Native owner-image hits may reach a wire handler. Its alpha-aware
+            // foreground arbitration must still select the painted component.
+            for (const [componentId, wireId] of [
+              ['battery', 'battery-cross'],
+              ['led', 'led-cross'],
+              ['cross-resistor', 'resistor-cross'],
+            ] as const) {
+              const point = await screenPoint(componentCenterInDocument(fixture, componentId));
+              const hit = await owner(point);
+              expect(hit.terminal).toBeNull();
+              expect(hit.component === componentId || hit.wire === wireId).toBe(true);
+              await press(point);
+              await expect(part(page, componentId)).toHaveClass(/workbench-component-selected/);
+              await expect(page.getByTestId('wire-inspector-compact')).toHaveCount(0);
+              await expect(page.getByTestId('wire-endpoint')).toHaveCount(0);
+              expect(await readEditorDocument()).toEqual(fixture);
+              await page.keyboard.press('Escape');
+            }
+            for (const [componentId, wireId] of [
+              ['uno', 'uno-cross'],
+              ['cross-psu', 'psu-cross'],
+              ['board', 'board-cross'],
+            ] as const) {
+              const center = componentCenterInDocument(fixture, componentId);
+              const point = await screenPoint(center);
+              expect(await owner(point)).toMatchObject({ wire: wireId, terminal: null });
+              await press(point);
+              await expect(page.getByTestId('wire-endpoint')).toHaveCount(2);
+              await expect(page.getByTestId('wire-endpoint').first()).toHaveAttribute(
+                'data-wire-id',
+                wireId,
+              );
+              await expect(part(page, componentId)).not.toHaveClass(/workbench-component-selected/);
+              const vertex = page
+                .locator(`[data-testid="wire-vertex"][data-wire-id="${wireId}"]`)
+                .first();
+              const vertexCenter = await locatorCenter(vertex);
+              const from = { x: Math.round(vertexCenter.x), y: Math.round(vertexCenter.y) };
+              real.journal('vertex-grab-quantization', {
+                vertexCenter,
+                from,
+                delta: { x: 27, y: 19 },
+              });
+              expect(await owner(from)).toMatchObject({ wire: wireId, testId: 'wire-vertex' });
+              const before = structuredClone(expected);
+              expect(await readEditorDocument()).toEqual(before);
+              const oldVertices = before.connections.find((wire) => wire.id === wireId)!.vertices!;
+              const to = { x: from.x + 27, y: from.y + 19 };
+              // Independent expected endpoint from the public pointer transform and
+              // the declared gesture, including the existing soft-assist hysteresis.
+              const geometry = await page
+                .locator('.workbench-canvas')
+                .evaluate((node, projectId) => {
+                  const rect = node.getBoundingClientRect();
+                  const viewport = JSON.parse(
+                    localStorage.getItem(`asa-electronics-viewport:${projectId}`)!,
+                  );
+                  return {
+                    rect: {
+                      left: rect.left,
+                      top: rect.top,
+                      width: rect.width,
+                      height: rect.height,
+                    },
+                    viewport,
+                  };
+                }, real.project.id);
+              expect(geometry.viewport).not.toBeNull();
+              const wire = before.connections.find((item) => item.id === wireId)!;
+              const previousComponent = before.components.find(
+                (item) => item.id === wire.from.componentId,
+              )!;
+              const previous = terminalPositionInDocument(
+                before,
+                previousComponent,
+                wire.from.terminal,
+              )!;
+              const next = wire.vertices![1];
+              const asScreen = (point: { x: number; y: number }) =>
+                worldToClient(point, geometry.rect, geometry.viewport, STAGE_WIDTH, STAGE_HEIGHT);
+              let assist: Parameters<typeof resolveWireVertexAssist>[3] = null;
+              let destination = next;
+              const steps = input === 'touch' ? 1 : 6;
+              for (let index = 1; index <= steps; index++) {
+                const screen = {
+                  x: from.x + ((to.x - from.x) * index) / steps,
+                  y: from.y + ((to.y - from.y) * index) / steps,
+                };
+                const resolved = resolveWireVertexAssist(
+                  asScreen(previous),
+                  asScreen(next),
+                  screen,
+                  assist,
+                );
+                assist = resolved.target;
+                destination = assist
+                  ? assist === 'previous-x-next-y'
+                    ? { x: previous.x, y: next.y }
+                    : { x: next.x, y: previous.y }
+                  : clientToWorld(
+                      screen.x,
+                      screen.y,
+                      geometry.rect,
+                      geometry.viewport,
+                      STAGE_WIDTH,
+                      STAGE_HEIGHT,
+                    );
+              }
+              expected = {
+                ...before,
+                connections: before.connections.map((item) =>
+                  item.id === wireId
+                    ? { ...item, vertices: [destination, ...item.vertices!.slice(1)] }
+                    : item,
+                ),
+              };
+              real.admit(expected);
+              real.journal('declared-drag', { wireId, from, to, geometry, destination, expected });
+              await press(from, to);
+              await expect
+                .poll(
+                  async () =>
+                    (await readEditorDocument()).connections.find((wire) => wire.id === wireId)!
+                      .vertices,
+                )
+                .not.toEqual(oldVertices);
+              const after = await readEditorDocument();
+              real.journal('drag-document', after);
+              expect(after).toEqual(expected);
+              expect(after.components).toEqual(fixture.components);
+              expect(after.connections).toHaveLength(fixture.connections.length);
+              for (const wire of before.connections) {
+                const changed = after.connections.find((item) => item.id === wire.id)!;
+                if (wire.id === wireId) {
+                  expect({ ...changed, vertices: wire.vertices }).toEqual(wire);
+                  expect(changed.vertices).toHaveLength(oldVertices.length);
+                  expect(changed.vertices![1]).toEqual(oldVertices[1]);
+                } else expect(changed).toEqual(wire);
+              }
+              const moved = await locatorCenter(vertex);
+              expect(moved.x).toBeCloseTo(to.x, 0);
+              expect(moved.y).toBeCloseTo(to.y, 0);
+              await page.keyboard.press('Escape');
+              if (componentId !== 'board') {
+                // A body press away from the cable must not select any wire.
+                // Breadboard holes have their own terminal interaction contract.
+                // Use the existing bounded alpha-aware body point helper. The
+                // actual native pointer press and selection assertion below remain
+                // the oracle; an exposed grid pixel cannot silently pass them.
+                const bodyPoint = await pointOnBody(page, componentId);
+                expect(await owner(bodyPoint)).toMatchObject({
+                  wire: null,
+                  terminal: null,
+                });
+                await press(bodyPoint);
+                await expect(part(page, componentId)).toHaveClass(/workbench-component-selected/);
+                await expect(page.getByTestId('wire-inspector-compact')).toHaveCount(0);
+                await expect(page.getByTestId('wire-endpoint')).toHaveCount(0);
+                expect(await readEditorDocument()).toEqual(after);
+                await page.keyboard.press('Escape');
+              }
+            }
+            const routed = structuredClone(expected);
+            expect(await readEditorDocument()).toEqual(routed);
+            for (const componentId of ['uno', 'cross-psu', 'battery', 'led']) {
+              const terminal = page
+                .locator(`[data-terminal-component-id="${componentId}"]`)
+                .first();
+              const point = await locatorCenter(terminal);
+              expect((await owner(point)).terminal).toBe(
+                await terminal.getAttribute('data-terminal-id'),
+              );
+              await press(point);
+              await expect(page.locator('.workbench-wire-preview')).toHaveCount(1);
+              await page.keyboard.press('Escape');
+              await expect(page.locator('.workbench-wire-preview')).toHaveCount(0);
+              expect(await readEditorDocument()).toEqual(routed);
+            }
+            // Existing runtime power slider must remain usable under crossing wires.
+            const slider = part(page, 'cross-psu').locator(
+              '.workbench-regulated-supply-power-slider',
+            );
+            const sliderPoint = await locatorCenter(slider);
+            const controlHit = await page.evaluate(({ x, y }) => {
+              const hit = document.elementFromPoint(x, y);
+              return {
+                slider: !!hit?.closest('.workbench-regulated-supply-power-switch'),
+                component:
+                  hit?.closest('[data-component-id]')?.getAttribute('data-component-id') ?? null,
+              };
+            }, sliderPoint);
+            real.journal('psu-slider-hit', { sliderPoint, controlHit });
+            expect(controlHit).toEqual({ slider: true, component: 'cross-psu' });
+            expected = {
+              ...expected,
+              components: expected.components.map((component) =>
+                component.id === 'cross-psu'
+                  ? {
+                      ...component,
+                      state: !component.stateProperties?.['outputEnabled'],
+                      stateProperties: {
+                        ...component.stateProperties,
+                        outputEnabled: !component.stateProperties?.['outputEnabled'],
+                      },
+                    }
+                  : component,
+              ),
+            };
+            real.admit(expected);
+            await press(sliderPoint);
+            await expect(
+              part(page, 'cross-psu').getByTestId('regulated-power-supply-runtime'),
+            ).toHaveAttribute(
+              'data-output-enabled',
+              String(
+                expected.components.find((component) => component.id === 'cross-psu')!
+                  .stateProperties!['outputEnabled'],
+              ),
+            );
+            await expect(page.getByTestId('wire-endpoint')).toHaveCount(0);
+            expect(await readEditorDocument()).toEqual(expected);
+            const saved = await real.finalSave(expected);
+            const paths = await page.getByTestId('schematic-wire').evaluateAll((nodes) =>
+              nodes.map((node) => ({
+                id: node.getAttribute('data-wire-id'),
+                d: node.getAttribute('d'),
+              })),
+            );
+            const fresh = await browser.newContext({
+              baseURL: real.origin,
+              viewport:
+                input === 'touch' ? { width: 390, height: 844 } : { width: 1440, height: 1000 },
+              hasTouch: input === 'touch',
+            });
+            let freshError: unknown;
+            try {
+              await fresh.addCookies(await page.context().cookies());
+              const state = await fresh.storageState();
+              real.journal('fresh-storage-state', state.origins);
+              expect(state.origins).toEqual([]);
+              await fresh.addInitScript(f2ObserveLoadedDocument, real.localKey);
+              await fresh.addInitScript((key) => {
+                (window as unknown as { f2PreApp: unknown }).f2PreApp = {
+                  local: Object.entries(localStorage).filter(([name]) => name.startsWith(key)),
+                  session: Object.entries(sessionStorage).filter(([name]) => name.startsWith(key)),
+                };
+              }, real.localKey);
+              const reopened = await fresh.newPage();
+              reopened.on('pageerror', (error) => {
+                errors.push(error.message);
+                real.journal('reopen-pageerror', error.message);
+              });
+              await reopened.goto(`/#/home/${real.project.id}`, { waitUntil: 'domcontentloaded' });
+              await expect(reopened.getByTestId('schematic-component')).toHaveCount(
+                expected.components.length,
+              );
+              const preApp = await reopened.evaluate(
+                () => (window as unknown as { f2PreApp: unknown }).f2PreApp,
+              );
+              const postLoad = await real.storage(reopened);
+              const server = await real.server(reopened);
+              real.journal('fresh-reopen', { preApp, postLoad, server, expected });
+              expect(preApp).toEqual({ local: [], session: [] });
+              expect(postLoad).toEqual({
+                local: [],
+                session: [[`${real.localKey}:electronics-editor:`, 'saved']],
+              });
+              expect(server).toEqual(saved);
+              expect(await readEditorDocument(reopened)).toEqual(expected);
+              for (const component of expected.components) {
+                await expect(part(reopened, component.id)).toHaveAttribute(
+                  'data-x',
+                  String(component.position.x),
+                );
+                await expect(part(reopened, component.id)).toHaveAttribute(
+                  'data-y',
+                  String(component.position.y),
+                );
+                await expect(part(reopened, component.id)).toHaveAttribute(
+                  'data-hit-mask-status',
+                  'ready',
+                );
+              }
+              await reopened.getByRole('button', { name: 'Подогнать проект', exact: true }).click();
+              expect(
+                await reopened.getByTestId('schematic-wire').evaluateAll((nodes) =>
+                  nodes.map((node) => ({
+                    id: node.getAttribute('data-wire-id'),
+                    d: node.getAttribute('d'),
+                  })),
+                ),
+              ).toEqual(paths);
+              await expect(
+                part(reopened, 'cross-psu').getByTestId('regulated-power-supply-runtime'),
+              ).toHaveAttribute(
+                'data-output-enabled',
+                String(
+                  expected.components.find((component) => component.id === 'cross-psu')!
+                    .stateProperties!['outputEnabled'],
+                ),
+              );
+              await reopened.screenshot({
+                path: `reports/interactions/f2-real-reopened-${input}.png`,
+              });
+            } catch (error) {
+              freshError = error;
+            }
+            try {
+              await fresh.close();
+            } catch (error) {
+              freshError ??= error;
+            }
+            if (freshError) throw freshError;
+            await real.settle();
+            real.journal('accepted-before-close', { saved, expected, rows: real.rows, errors });
+            expect(errors).toEqual([]);
+            await page.screenshot({ path: `reports/interactions/f2-scene-layering-${input}.png` });
+          } catch (error) {
+            primaryError = error;
+            try {
+              real.journal('primary-failure', String(error));
+            } catch {
+              /* Preserve the primary failure. */
+            }
+          }
+          try {
+            await session?.detach();
+          } catch (error) {
+            primaryError ??= error;
+          }
+          try {
+            await page.context().close();
+          } catch (error) {
+            primaryError ??= error;
+          }
+          if (primaryError) throw primaryError;
+          real.journal('complete', { expected, rows: real.rows, errors, contextsClosed: true });
+          real.requireComplete();
+        },
+      );
+    }
+  });
 
   wireVideoTest(
     'R1_SOFT_WIRE_ASSIST + FREE_EXIT + ALT_DISABLE + CLICK_CLICK_CONNECT',

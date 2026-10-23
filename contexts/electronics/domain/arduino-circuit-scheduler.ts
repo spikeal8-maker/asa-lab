@@ -752,6 +752,31 @@ export function advanceArduinoCircuitClock(
             component.kind === 'led'))
       );
     });
+  // Keep the legacy 1 ms physical history for an interactive LED circuit. A
+  // sleeping MCU does not consume an electrical observation between input edges.
+  const sleepingButtonPhysics =
+    !eventPhysics &&
+    document.components.filter(isArduinoUno).length === 1 &&
+    document.components.every((component) => {
+      const model = electricalModelFor(component);
+      return (
+        model.support === 'supported' &&
+        model.version === 1 &&
+        model.profileVersion === 1 &&
+        ((model.id === 'arduino-uno' &&
+          model.profileId === 'arduino-uno-r3' &&
+          isArduinoUno(component)) ||
+          (model.id === 'resistor' &&
+            model.profileId === 'axial-resistor' &&
+            component.kind === 'resistor') ||
+          (model.id === 'ordinary-led' &&
+            model.profileId === 'generic-red-led' &&
+            component.kind === 'led') ||
+          (model.id === 'momentary-button' &&
+            model.profileId === 'tactile-button-6mm' &&
+            component.kind === 'button'))
+      );
+    });
   const profile = eventPhysics
     ? 'electrothermal-events-v2'
     : usesElectrothermalProfile(document)
@@ -1515,11 +1540,16 @@ export function advanceArduinoCircuitClock(
       physicalState = advanced.transientState;
       cachedFrame = undefined;
     }
-    // At a pure strict-v2 physics barrier the real step and its quality check
-    // above already ran. Only an actual MCU input read needs another observation;
-    // sleeping boards and write-only instructions consume no electrical frame.
+    // The physical step and its quality check above already ran. Strict-v2 can
+    // observe lazily at MCU reads; the narrow legacy button route may only skip
+    // an extra observation while the MCU sleeps past this input-free barrier.
     const lazyPhysicsObservation =
-      eventPhysics &&
+      (eventPhysics ||
+        (sleepingButtonPhysics &&
+          runnableBoards.every((board) => {
+            const runtime = states.get(board.id);
+            return runtime !== undefined && Math.round(runtime.resumeAtMs * 1000) > time;
+          }))) &&
       physicsDue &&
       !failureDue &&
       !sensorOutputChanged &&

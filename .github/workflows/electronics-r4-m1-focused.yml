@@ -45,6 +45,7 @@ on:
           - strict-real-time
           - classroom-d13-v2
           - classroom-d13-v3
+          - arduino-editor-error
 
 permissions:
   contents: read
@@ -58,6 +59,7 @@ concurrency:
 
 jobs:
   focused:
+    if: ${{ inputs.qualification_profile != 'arduino-editor-error' }}
     name: Shared solver, editor contracts and build
     runs-on: ubuntu-24.04
     timeout-minutes: 25
@@ -282,4 +284,62 @@ jobs:
           name: electronics-review-images-${{ github.run_id }}
           path: review-images
           if-no-files-found: error
+          retention-days: 14
+
+  editor-messages:
+    if: ${{ inputs.qualification_profile == 'arduino-editor-error' }}
+    name: Actual vendor messages and built editor (API fixture)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    env:
+      CI: 'true'
+      NX_SKIP_NX_CACHE: 'true'
+      VITE_ASA_BUILD_REVISION: ${{ github.sha }}
+      ASA_E2E_EXTERNAL: 'true'
+      ASA_E2E_BASE_URL: http://127.0.0.1:4612
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec nx build module-sdk
+      - name: Actual vendor regression and unchanged persistence
+        run: >-
+          pnpm exec vitest run
+          apps/web/src/electronics/testing/arduino-block-messages.spec.ts
+          apps/web/src/electronics/testing/arduino-code-panel-persistence.spec.ts
+          apps/web/src/electronics/testing/arduino-code-contract.spec.ts
+          --maxWorkers=1
+      - run: pnpm exec nx run web:typecheck
+      - run: pnpm exec nx run web:build
+      # The shared interactions file imports teacher seed helpers at discovery;
+      # this profile never calls them, but their compiled identity import exists.
+      - run: pnpm exec nx build identity
+      - run: pnpm exec playwright install --with-deps chromium
+      - name: Native workspace menus at four viewports
+        run: |
+          mkdir -p reports/interactions
+          pnpm exec vite preview -c apps/web/vite.config.ts --host 127.0.0.1 --port 4612 --strictPort > reports/arduino-preview.log 2>&1 &
+          preview_pid=$!
+          trap 'kill "$preview_pid"' EXIT
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:4612/ > /dev/null; then break; fi
+            sleep 1
+          done
+          curl --fail --silent http://127.0.0.1:4612/ > /dev/null
+          pnpm exec playwright test e2e/electronics-interactions.spec.ts --grep 'Arduino workspace messages:' --workers=1
+      - name: Preserve exact-run browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: arduino-editor-messages-${{ github.sha }}
+          path: reports
+          if-no-files-found: ignore
           retention-days: 14

@@ -30,13 +30,51 @@ export const WIRE_ASSIST_ENTER_ANGLE_DEG = 3;
 export const WIRE_ASSIST_EXIT_ANGLE_DEG = 5;
 
 export const TERMINAL_MARKER_SIZE = 8;
-export const TERMINAL_HIT_RADIUS = 9;
-export const TERMINAL_TOUCH_HIT_RADIUS = 14;
+// Terminal markers are rounded squares: the effective 1.2-unit idle stroke
+// paints to ±4.6 on each axis. The matching rounded-rect hit geometry in Stage
+// includes all painted corners without an invisible circular halo. Wiring hover
+// and breadboard square paint are slightly larger, so the shared target remains
+// conservatively inside those states. Touch and mouse use the same geometry.
+export const TERMINAL_HIT_RADIUS = TERMINAL_MARKER_SIZE / 2 + 0.6;
+export const TERMINAL_TOUCH_HIT_RADIUS = TERMINAL_HIT_RADIUS;
+// Match the existing rx=1 contact marker plus its 0.6-unit painted outline.
+export const TERMINAL_HIT_CORNER_RADIUS = 1.6;
 export const WIRE_ENDPOINT_VISIBLE_RADIUS = 4;
-export const WIRE_ENDPOINT_HIT_RADIUS = 9;
-export const WIRE_ENDPOINT_TOUCH_HIT_RADIUS = 14;
+// The wire end dot also has a 2-unit outline; do not capture outside its paint.
+export const WIRE_ENDPOINT_HIT_RADIUS = WIRE_ENDPOINT_VISIBLE_RADIUS + 1;
+export const WIRE_ENDPOINT_TOUCH_HIT_RADIUS = WIRE_ENDPOINT_HIT_RADIUS;
 export const WIRE_VERTEX_ASSIST_ENTER_DISTANCE_PX = 8;
 export const WIRE_VERTEX_ASSIST_EXIT_DISTANCE_PX = 12;
+
+/** Rounded SVG rect hit geometry, in the same coordinate units as its bounds. */
+export function roundedRectContainsOffset(
+  offsetX: number,
+  offsetY: number,
+  halfWidth: number,
+  halfHeight: number,
+  cornerRadiusX: number,
+  cornerRadiusY: number,
+): boolean {
+  const x = Math.abs(offsetX);
+  const y = Math.abs(offsetY);
+  if (
+    halfWidth <= 0 ||
+    halfHeight <= 0 ||
+    !Number.isFinite(x + y + halfWidth + halfHeight + cornerRadiusX + cornerRadiusY) ||
+    x > halfWidth ||
+    y > halfHeight
+  ) {
+    return false;
+  }
+  const rx = clamp(cornerRadiusX, 0, halfWidth);
+  const ry = clamp(cornerRadiusY, 0, halfHeight);
+  if (rx === 0 || ry === 0) return true;
+  const cornerDistance = Math.hypot(
+    Math.max(0, x - halfWidth + rx) / rx,
+    Math.max(0, y - halfHeight + ry) / ry,
+  );
+  return cornerDistance <= 1;
+}
 
 export function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));

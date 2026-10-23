@@ -2,6 +2,23 @@ schema_version: 1.0.0
 area: ui-assets-persistence
 purpose: Workbench presentation, component catalog/owner assets, inspector/help and project persistence boundaries.
 components:
+  electronics.ui.arduino-editor:
+    ownership: asa
+    risk: high
+    dependencies: []
+    contracts:
+    - docs/product/electronics/README.md#15-arduino-и-программирование
+    sources:
+    - apps/web/src/electronics/ArduinoCodePanel.tsx
+    - apps/web/src/electronics/arduino-blocks.ts
+    tests:
+    - apps/web/src/electronics/testing/arduino-block-messages.spec.ts
+    - e2e/electronics-interactions.spec.ts
+    - apps/web/src/electronics/testing/arduino-code-panel-persistence.spec.ts
+    - apps/web/src/electronics/testing/arduino-code-contract.spec.ts
+    symbols:
+    - ArduinoCodePanel
+    notes: Blockly message initialization and editor lifecycle; preserve generated code and saved workspace.
   electronics.ui.workbench:
     ownership: asa
     risk: medium

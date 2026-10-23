@@ -64,6 +64,21 @@ def attest_proxy_policy(env):
                 raise Blocked('PROXY_POLICY', f'Invalid CIDR in {key}.', 'Configure only the actual trusted proxy hops; never trust all sources.') from failure
 
 
+def proxy_provenance_diagnostic(env):
+    """Configuration is not evidence that an external visitor IP was preserved."""
+    attest_proxy_policy(env)
+    ingress = env.get('ASA_INGRESS_TRUSTED_PROXY_CIDRS', '127.0.0.1/32 ::1/128')
+    networks = [ipaddress.ip_network(value, strict=False) for value in ingress.split()]
+    loopback_only = all(network.is_loopback for network in networks)
+    return {
+        'state': 'loopback_only' if loopback_only else 'external_policy_unverified',
+        'verifiedVisitorIp': False,
+        'ingressPolicy': ingress,
+        'apiPolicy': env.get('ASA_TRUSTED_PROXY_CIDRS', '172.16.0.0/12'),
+        'action': 'Compare a controlled external visitor with protected analytics; verify the actual ingress peer and spoof rejection before trusting it. Unknown is not a visitor IP; do not trust all private networks.',
+    }
+
+
 def attest_database_targets(config, postgres_env, api_env=None):
     """Never migrate an external/different database behind a local dump."""
     services = config["services"]

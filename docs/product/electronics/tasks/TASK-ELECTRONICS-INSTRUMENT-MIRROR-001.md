@@ -12,6 +12,200 @@ review: independent
 
 # Existing instrument readouts remain readable under mirror
 
+## Selected TEST-ONLY finalization phase repair — 21 October 2026
+
+NEW independent proposal review selects one test-only repair in simulation spec
+and generated browserEvidenceSha256. The current.yaml finalization_phase_contract
+explicitly supersedes ALL older whole-case0/1PUT/base2→3 and immutable seed-server
+assertions, including per-rotation assertGeometry. History remains unchanged.
+Autosave remains enabled; every write is fully accounted, never ignored.
+
+Independently expect generator.value/frequencyHz1000000,amplitude10,offset-5.
+Retain original final Enter once with actual delivery/state journal. Before fills,
+record selected identity,shell class and Catalog aria-pressed;only proven open
+Catalog permits ONE native close toggle. Require visible inspector/input;
+unknown state fails without forced fill,extra Enter or retry.
+
+Durable Node-ack ledger starts before first app edit and spans both pages through
+both context closures. Record every PUT identity/page/project/comparable time,
+mutationId/baseRevision/full document;response status/full revision/document or
+transport failure;native Save/lifecycle boundaries;sequence/loss/errors. Successful
+writes require independent complete-document correctness,CAS+1 and contiguous
+confirmed revisions. Unattributed write is UNKNOWN. Match EVERY server checkpoint
+and rotation GET to its revision-specific ACK and independent expected/local
+document;never derive expected from observed server or drop whole equality.
+
+After matrix,before final fills,establish clean acknowledged full local/server
+equality and no unresolved writes. Saved requires disabled Save;dirty explicitly
+permits ONE distinct native checkpoint Save with complete correlated PUT/CAS
+proof. This is a newly selected action,not a retry. Saving awaits observed
+completion under unchanged deadline then reevaluates;unknown/race fails journal.
+
+Then retain existing three fills and require independent full expected/local
+identity,visible enabled Save,no unresolved writes and confirmed server R.
+EXACTLY ONE original final native Save must produce EXACTLY ONE matched full-body
+PUT baseR/status200/revisionR+1 and fresh full server equality. Journal first
+dirty/action/request times on comparable clocks;finish before the new60000ms
+autosave deadline within UNCHANGED total case deadline. Any automatic/lifecycle
+write overlapping this proof fails causality;no retry,relabeling,clock mock,
+suppressed autosave,private-state call or persistence implementation change.
+
+Preserve16journeys/64configs perwidth,native rotations/controls,CTMs/ordinaryR/
+owncenters/independent windowmeet,R3 storage and full local/expected/server/
+rendered documents. Cookies-only fresh reopen keeps empty origins/pre-app
+local-session,postload empty localdraft/exact saved hint,journal before asserts,
+fresh full GET and no extra write through BOTH closures. Complete only after
+final durable ledger and both contexts closed. No timeout/coverage weakening.
+
+NEW full browser blob BEFORE/AFTER byte-identical;selfreview STOP,NEW independent
+exactSHA source/finalcomposition review then ONE justified existing strict run.
+All16complete plus NEW actual review precede separately selected product AFTER.
+Preserve682/679 paths and ownerKEEP544547OPEN. No product/closure/release/deploy.
+See [receipt](../evidence/instrument-525-finalization-repair-selection-20261021.md).
+
+## Selected parallel read-only finalization audit — 21 October 2026
+
+Owner explicitly resumes UI work independently of Arduino qualification. This
+selection authorizes ONE read-only causal audit, not a test or product repair.
+Audit the whole remaining generator finalization flow: frequency/unit/value
+formatting, native commit, mobile inspector visibility and Save/PUT accounting.
+Use cached exact40ca raw/native evidence and public setter/normalization source;
+small extracted checks are allowed. No browser/build/CI/new observer or source
+edits. Do not modify core, hook, Serial, interactions, Stage or presentation.
+
+Desktop generator.value expected1000 versus actual1000000 is a proven test
+oracle defect. Mobile hidden final input/Enter delivery remains UNKNOWN;
+nine incidental PUT records do not prove completed Save/CAS. Fifteen cases
+observed, zero complete;320XY absent. Do not weaken whole-document, native
+Save1PUT/base2/CAS2to3, storage, coverage or deadlines to accept this baseline.
+
+Return one minimal cause-backed repair proposal, then STOP. A new canonical
+repair selection and independent review must precede edits/CI. Product AFTER
+still requires all16complete and a new actual review. Preserve independent682
+controller and679 qualification;548BUDGETBLOCKED/ownerKEEP544547OPEN unchanged.
+See [selection receipt](../evidence/instrument-525-finalization-audit-selection-20261021.md).
+
+## Selected TEST-ONLY segmented pan and waveform ownership — 21 October 2026
+
+Exact main1eeba369 / Electronics39604641081 has0/16 complete and PUT0.
+Eight desktop triangle actions now work; the existing sine reset hits its sibling
+icon. Eight mobile requests need dx456.09759521484375, greater than either320/390
+viewport: a single in-viewport endpoint pair is impossible. These are categoryA
+test actuator failures, not product panning defects. General39604623904 is fully
+successful; actual editor217938RAW/218000 passes. Neither is owner acceptance.
+
+Reuse the existing own-RECT CTM ownership helper for existing triangle AND sine
+calls only; retain their count, order, native clicks and waveform assertions.
+Do not add square calls. Require actual elementFromPoint control/descendant
+ownership; no eligible point means strict failure with journal.
+
+This selection explicitly supersedes ONLY the former single-pan constraint.
+Split the unchanged total dx/dy into geometrically minimal bounded segments,
+at most8, fitting actual viewport/canvas. Each segment retains middle down,
+four moves and up with owned start/end and journal. Last delta is the exact
+remainder; total displacement is unchanged. Geometric minimum does not promise
+an overlay-free pair: no eligible pair means strict failure, no retry or
+exploratory gesture. No force, private event, programmatic pan or fixture change.
+
+Keep all16 matrix journeys/poses/instruments/readouts, fixtures, strict R3 storage,
+whole local/expected/server/rendered documents, native Save1PUT/base2/CAS2to3,
+fresh cookies-only GET/reopen, CTM ordinaryR/own-center/windowmeet oracles,
+assertions and deadlines. Only simulation spec and generated browser hash change.
+No product/workflow/script/package/cap edits or timeout/coverage weakening.
+
+Freeze a NEW full browser blob BEFORE/AFTER byte-identical; NEW source and final
+composition reviews precede ONE justified existing strict BEFORE run. All16
+complete with causal mirror-only soft failures and NEW actual review remain
+mandatory before separate product AFTER selection. #548 BUDGETBLOCKED and owner
+KEEP #544/#547 OPEN remain unchanged. See [new receipt](../evidence/instrument-525-segmented-pan-selection-20261021.md).
+
+## Budget metric correction — 21 October 2026
+
+Editor cap218000 and actual217938 are RAWFILEbytes (margin62RAWbytes). Cached
+final two-module proxy: minified65052→65134 (+82),gzip20289→20343 (+54).
+The earlier unitless+54 is compressed,not raw;neither proxy is actualfullEditor
+delta. Never compare54gzipbytes with62RAWmargin or inferfit. Actual exact bundle
+measurement remains required;no525selection/source ownership/acceptance change.
+
+## TEST-ONLY new BEFORE matrix — product remains unpublished
+
+This section supersedes ONLY the previous executable feasibility budget with
+test authoring selected in current.yaml. Source5f9d07ae has independent
+SOURCE_FEASIBILITY_APPROVE,author20presentation and reviewer20+14contractsPASS;
+it remains UNPUBLISHED. Temp+54B is not actual fit or acceptance. Preserve that
+candidate until NEW actual BEFORE review and separate AFTER selection.
+
+Author ONLY e2e/electronics-simulation.spec.ts and existing
+docs/product/electronics/generated/component-coverage.json browserEvidenceSha256
+from the canonical generator (every other generated field unchanged). Append a
+new compact525block;all old cases/helpers/interactions byte-exact. Registered
+simulation precedes laterE11;no workflow,registration or execution-order edit.
+No product/Visual/unit/script/package/dependency/timeout/cap/core/hook/asset change.
+
+Use EXACT16isolatedjourneys:4widths times4explicit seeded mirror fixtures
+none/X/Y/XY. Each journey rotates the four-instrument group natively through
+0/90/180/270 using two existing45degree commands per90step;final270 document
+gets one nativeSave1PUT/base2/CAS+1/freshGET. Seeded mirror state is explicit,
+not a claimed native Y action:Header has horizontal flip only. Never invent a
+vertical button,private controller write or test-only DOM mutation. Keep native
+control/rotate order and original deadlines;no coverage reduction or retry.
+
+At EACH1440/1024/390/320 require64instrumentconfigs:4instruments times rotations
+0/90/180/270 times mirrors none/X/Y/XY,with all8existing textreadouts per pose.
+Journal raw finite body/glyph/window axes and each readout's own mirror center
+BEFORE expected SOFT orientation/own-center failures. Independent oracle keeps
+body R*M,glyph R about its own center;no hardcoded trace0,X-only shortcut or
+always-horizontal policy. Use real committed signed values/modes and native
+start/stop plus relevant mode/power/waveform controls;check applicable states.
+Preserve wholelocal/server/rendered/document IDs/wire/terminal/hit geometry.
+Where journey saves,native Save exactly1PUT/base2/CAS+1/freshGET,not a fake API.
+
+Genuine UI login once per group/worker;cookies-only fresh isolated context/project
+per journey. R3 storage:empty fresh origins and pre-app local/session,post-load
+local drafts empty/exact fixture-derived session saved pair. Journal BEFORE
+assertions;never infer expected key from discovered storage. Preserve primary
+failure,finally evidence and strict completion despite expected soft failures.
+
+NEW fullspec frozen BEFORE/AFTER byte-identical. Old ed4 browser has pertestlogin,
+missingR3/badsoftoracle and is not reusable wholesale. One UNPUBLISHED self-reviewed
+test candidate STOP;NEW source review then ONE cause-justified BEFORE. Complete
+525coverage/causal mirror failures and NEW actual review precede any separately
+selected AFTER. LaterE11hangD does not waive fullbrowser/repository gates:report
+target evidence versus fullgate honestly. No automatic product publication,
+closure/acceptance or deployment. Historical freezes/#549terminal/#548KEEP intact.
+See [dated selection receipt](../evidence/instrument-525-test-before-selection-20261021.md).
+
+## Mirror-only compact SOURCE FEASIBILITY — bounded exception
+
+This top section selects only the source/unit feasibility action under the
+owner's programme452 after canonical current.yaml acceptance. It does not
+waive old built-browser/full-gate product prerequisites or rewrite historical
+freezes. Old unpublished docs45f08340 and candidateed4ee969 are references,
+not accepted current source;compose minimal hunks on fresh main,never old files.
+
+Author only ProductionComponentVisual.tsx and production-asset-contracts.ts;
+meaningful regression in the existing workbench-presentation.spec.ts is allowed.
+Preserve ordinary rotation,each readout's own center/window,signed actual values/
+modes,body/terminals/hit/wire geometry,controls and complete document. No
+always-horizontal policy or ordinary-rotation decision is selected. Historical
+BEFOREee7d5eca/run37757863776 repo matrices cover rotation0 none/X/Y/XY only;
+never report full rotations as measured. Source unit rotation matrices remain
+source evidence,not new built-editor evidence.
+
+Current benchmark217938/218000 leaves62bytes;prototype+118does not fit. Attempt
+compact semantic equivalence with source/unit/small Temp estimate only. No
+actual bundle-fit/runtime/visual acceptance claim from an estimate. Future exact
+benchmark<=218000 and all existing acceptance gates remain required. No browser/
+workflow/dependency/cap/core/hook/LED/assets/foreign changes or adjacent cleanup.
+If no compact equivalent solution exists,STOP with budget proof,no capraise.
+
+One self-reviewed UNPUBLISHED candidate STOP;NEW independent source review then
+controller selects any future verification/evidence phase separately. No automatic
+main publication,CI/runtime acceptance,issue closure or deployment. Preserve
+#549terminal,#548dependencies/ownerKEEP544547 and all historical receipts.
+The [dated feasibility selection receipt](../evidence/instrument-525-source-feasibility-selection-20261021.md)
+records limits only,not a product result.
+
 Program: [#452](https://github.com/spikeal8-maker/asa-lab/issues/452). Bounded repair: [#525](https://github.com/spikeal8-maker/asa-lab/issues/525), one existing requirement of milestone [#466](https://github.com/spikeal8-maker/asa-lab/issues/466). Required hygiene checkpoint [#524](https://github.com/spikeal8-maker/asa-lab/issues/524) is technically accepted on reviewed candidate24ddd, integrated7fea. The canonical Electronics lane selects this concrete card before implementation.
 
 ## One user result

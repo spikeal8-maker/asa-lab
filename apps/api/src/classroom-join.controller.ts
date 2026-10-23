@@ -30,6 +30,7 @@ import { clientAddress, clientConnection } from './client-address.js';
 import { ProductAnalyticsService } from './product-analytics.service.js';
 import { requestReceivedAt } from './request-receipt.js';
 import { FixedWindowRateLimiter } from './rate-limit.js';
+import { requestAdmissionDiagnostics, type AdmissionDiagnostics } from './server-diagnostics.js';
 import {
   loadStudentCodeProtectionConfig,
   StudentCodeProtectionConfigError,
@@ -704,16 +705,29 @@ export class ClassroomJoinController {
   }
 
   private recordFailedAdmission(
+    request: FastifyRequest,
     reply: FastifyReply,
-    buckets: ReadonlyArray<{ limiter: FixedWindowRateLimiter; key: string }>,
+    credentialCheck: 'class_not_found' | 'student_rejected',
+    buckets: ReadonlyArray<{
+      limiter: FixedWindowRateLimiter;
+      key: string;
+      budget: AdmissionDiagnostics['blockedBudgets'][number];
+    }>,
   ): void {
     let retryAfterSeconds = 0;
+    const blockedBudgets: AdmissionDiagnostics['blockedBudgets'][number][] = [];
     for (const bucket of buckets) {
       const decision = bucket.limiter.consume(bucket.key);
       if (!decision.allowed) {
+        blockedBudgets.push(bucket.budget);
         retryAfterSeconds = Math.max(retryAfterSeconds, decision.retryAfterSeconds);
       }
     }
+    requestAdmissionDiagnostics.set(request, {
+      credentialCheck,
+      blockedBudgets,
+      limiterPhase: 'after_failed_validation',
+    });
     if (retryAfterSeconds === 0) return;
 
     reply.header('Retry-After', String(retryAfterSeconds));
@@ -757,8 +771,12 @@ export class ClassroomJoinController {
     );
     const row = result.rows[0];
     if (!row) {
-      this.recordFailedAdmission(reply, [
-        { limiter: this.invalidResolveBySource, key: clientAddress(request) },
+      this.recordFailedAdmission(request, reply, 'class_not_found', [
+        {
+          limiter: this.invalidResolveBySource,
+          key: clientAddress(request),
+          budget: 'class_lookup_source',
+        },
       ]);
       throw new HttpException(
         error('class_not_found', 'Не удалось найти класс. Проверьте код у педагога.'),
@@ -830,7 +848,9 @@ export class ClassroomJoinController {
     const classroomId = classRow?.classroom_id;
 
     if (!tenantId || !classroomId) {
-      this.recordFailedAdmission(reply, [{ limiter: this.invalidResolveBySource, key: source }]);
+      this.recordFailedAdmission(request, reply, 'class_not_found', [
+        { limiter: this.invalidResolveBySource, key: source, budget: 'class_lookup_source' },
+      ]);
       throw new HttpException(
         error('invalid_class_credentials', 'Код класса или код ученика не подошёл.'),
         401,
@@ -907,19 +927,29 @@ export class ClassroomJoinController {
     }
 
     if (!row) {
-      this.recordFailedAdmission(reply, [
+      this.recordFailedAdmission(request, reply, 'student_rejected', [
         {
           limiter: this.invalidStudentByCandidateClass,
           key: exactCandidateKey,
+          budget: 'candidate_class',
         },
-        { limiter: this.invalidStudentBySourceClass, key: `${source}:${classroomId}` },
-        { limiter: this.invalidStudentBySource, key: source },
+        {
+          limiter: this.invalidStudentBySourceClass,
+          key: `${source}:${classroomId}`,
+          budget: 'source_class',
+        },
+        { limiter: this.invalidStudentBySource, key: source, budget: 'source_total' },
       ]);
       throw new HttpException(
         error('invalid_class_credentials', 'Код класса или код ученика не подошёл.'),
         401,
       );
     }
+    requestAdmissionDiagnostics.set(request, {
+      credentialCheck: 'student_accepted',
+      blockedBudgets: [],
+      limiterPhase: 'not_applied',
+    });
     reply.setCookie(STUDENT_SESSION_COOKIE, token, {
       httpOnly: true,
       sameSite: 'lax',

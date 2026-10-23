@@ -446,10 +446,16 @@ export class PgProjectRepository implements ProjectRepositoryPort {
       const inserted = await client.query(
         `INSERT INTO projects
            (tenant_id, project_scope, classroom_id, module_key, title,
-            created_by, owner_principal_id, idempotency_key, request_fingerprint)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+            created_by, owner_principal_id, idempotency_key, request_fingerprint,
+            copied_from_project_id, copied_from_author, copied_from_title, copied_at,
+            copied_from_publication_id, copied_from_revision_id, copied_from_version_id,
+            copied_from_license, license)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,
+                 CASE WHEN $10::uuid IS NULL THEN NULL ELSE now() END,
+                 $13,$14,$15,$16::varchar,COALESCE($16::varchar,'reserved'::varchar))
          ON CONFLICT ${conflictTarget} DO NOTHING
-         RETURNING id, project_scope, classroom_id, module_key, title, status, created_at`,
+         RETURNING id, project_scope, classroom_id, module_key, title, status, created_at,
+                   copied_from_project_id, copied_from_author, copied_from_title, copied_at, license`,
         [
           projectTenantId,
           input.scope,
@@ -460,6 +466,13 @@ export class PgProjectRepository implements ProjectRepositoryPort {
           principalId,
           input.idempotencyKey,
           input.requestFingerprint,
+          input.publicationCopyOrigin?.projectId ?? null,
+          input.publicationCopyOrigin?.author ?? null,
+          input.publicationCopyOrigin?.title ?? null,
+          input.publicationCopyOrigin?.publicationId ?? null,
+          input.publicationCopyOrigin?.revisionId ?? null,
+          input.publicationCopyOrigin?.versionId ?? null,
+          input.publicationCopyOrigin?.license ?? null,
         ],
       );
       if (inserted.rows.length === 0) {

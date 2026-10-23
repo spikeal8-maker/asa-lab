@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import * as solver from '../domain/solver.js';
 import { createHash } from 'node:crypto';
 import {
   advanceArduinoCircuitClock,
@@ -1902,5 +1903,147 @@ describe('Arduino shared dc-inputs-v1 circuit clock', () => {
       advanceArduinoCircuitClock(busy, 100000, first.state!, { maxClockEvents: 8 }).state!
         .reachedMicroseconds,
     ).toBe(15);
+  });
+});
+
+describe('legacy interactive LED sleeping physics observation', () => {
+  const source =
+    'void setup(){pinMode(13,OUTPUT);pinMode(2,INPUT_PULLUP);Serial.begin(9600);}void loop(){digitalWrite(13,digitalRead(2)==LOW);if(Serial.available()>0){int received=Serial.read();Serial.println(received);}delay(30);}';
+  const document = () =>
+    circuit(
+      [
+        board('uno', source),
+        {
+          ...part('r', 'resistor', 330),
+          componentTypeId: 'resistor-axial',
+          pinIds: ['lead-1', 'lead-2'],
+        },
+        { ...part('led', 'led', 2), componentTypeId: 'led-5mm', pinIds: ['anode', 'cathode'] },
+        {
+          ...part('key', 'button'),
+          componentTypeId: 'button-tactile-6mm',
+          pinIds: ['SW-A1', 'SW-A2', 'SW-B1', 'SW-B2'],
+        },
+      ],
+      [
+        ['uno', 'd13', 'r', 'lead-1'],
+        ['r', 'lead-2', 'led', 'anode'],
+        ['led', 'cathode', 'uno', 'power-gnd-1'],
+        ['uno', 'd2', 'key', 'SW-A1'],
+        ['key', 'SW-B1', 'uno', 'power-gnd-1'],
+      ],
+    );
+  const inputs: ArduinoCircuitInputEvent[] = [
+    { atMicroseconds: 225001, componentId: 'key', property: 'state', value: true },
+    { atMicroseconds: 325001, componentId: 'key', property: 'state', value: false },
+    { atMicroseconds: 675001, componentId: 'uno', property: 'serialRx', value: 'A' },
+  ];
+  it('preserves every byte of 59 complete legacy frames, inputs, thermal history and Serial', () => {
+    let state: ArduinoCircuitClockState | undefined;
+    const frames: ArduinoCircuitClockAdvance[] = [];
+    for (let horizon = 0; horizon <= 1450000; horizon += 25000) {
+      const done = through(document(), horizon, state, inputs, 1024);
+      expect(done.executionStatus).toBe('ready');
+      expect(done.result?.quality.passed).toBe(true);
+      expect(done.state?.profile).toBe('electrothermal-v1');
+      frames.push(done);
+      state = JSON.parse(JSON.stringify(done.state));
+    }
+    expect(createHash('sha256').update(JSON.stringify(frames)).digest('hex')).toBe(
+      'e458e5d8f505221d9c9b0d5d2614d1fcb89a01b89ac9c2cf056c272446198164',
+    );
+  });
+  it.each([225000, 225001, 225002, 325000, 325001, 325002, 675000, 675001, 675002])(
+    'retains exact input and MCU wake barriers at %i us',
+    (horizon) => {
+      const doc = document();
+      const whole = through(doc, horizon, undefined, inputs, 1024);
+      const split = through(doc, horizon - 1, undefined, inputs, 7);
+      const done = through(doc, horizon, JSON.parse(JSON.stringify(split.state)), inputs, 1);
+      expect(done.state).toEqual(whole.state);
+      expect(done.result).toEqual(whole.result);
+      expect(done.diagnostics).toEqual(whole.diagnostics);
+    },
+  );
+  it('does not repeatedly observe an unchanged sleeping circuit at all 25 physics barriers', () => {
+    const spy = vi.spyOn(solver, 'solveRcCircuitWithHeldArduino');
+    try {
+      const first = through(document(), 1000, undefined, inputs, 1024);
+      spy.mockClear();
+      const done = through(document(), 25000, first.state!, inputs, 1024);
+      expect(done.executionStatus).toBe('ready');
+      expect(done.result?.quality.passed).toBe(true);
+      expect(spy.mock.calls.length).toBeGreaterThanOrEqual(24);
+      expect(spy.mock.calls.length).toBeLessThan(40);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+  it('never skips a failed physical solve while the MCU sleeps', () => {
+    const doc = document();
+    const first = through(doc, 1000, undefined, inputs, 1024);
+    const original = solver.solveRcCircuitWithHeldArduino;
+    const spy = vi.spyOn(solver, 'solveRcCircuitWithHeldArduino').mockImplementation((...args) => {
+      const result = original(...args);
+      return { ...result, solved: false };
+    });
+    try {
+      const done = advanceArduinoCircuitClock(doc, 25000, first.state!, {
+        inputs,
+        maxClockEvents: 1024,
+      });
+      expect(done.executionStatus).toBe('fault');
+      expect(done.result).toBeNull();
+      expect(done.state).toBeNull();
+    } finally {
+      spy.mockRestore();
+    }
+  });
+  it('loads changed source immediately instead of skipping its pending setup as sleeping', () => {
+    const doc = document();
+    const first = through(doc, 1000, undefined, inputs, 1024);
+    const replacement =
+      'void setup(){pinMode(13,OUTPUT);digitalWrite(13,HIGH);}void loop(){delay(30);}';
+    const changed = {
+      ...doc,
+      components: doc.components.map((component) =>
+        component.id === 'uno'
+          ? {
+              ...component,
+              stateProperties: { ...component.stateProperties, arduinoSource: replacement },
+            }
+          : component,
+      ),
+    };
+    const done = through(changed, 2000, first.state!, inputs, 1024);
+    expect(done.executionStatus).toBe('ready');
+    expect(done.state!.boards[0]!.loadedSource).toBe(replacement);
+    expect(runtime(done).outputVoltages.d13).toBe(5);
+    expect(done.events.some((event) => event.kind === 'output-change')).toBe(true);
+  });
+  it('keeps an unsupported extra model fail-closed outside the narrow sleeping eligibility', () => {
+    const doc = document();
+    const done = through(
+      {
+        ...doc,
+        components: [
+          ...doc.components,
+          { ...part('unknown', 'visual'), componentTypeId: 'unknown-component' },
+        ],
+      },
+      25000,
+      undefined,
+      inputs,
+    );
+    expect(done.executionStatus).toBe('fault');
+    expect(done.result).toBeNull();
+    expect(done.state).toBeNull();
+    expect(done.diagnostics[0]?.code).toBe('clocked_profile_unsupported');
+  });
+  it('Reset reproduces the complete initial canonical frame after button and Serial activity', () => {
+    const doc = document();
+    const initial = through(doc, 0, undefined, inputs);
+    through(doc, 800000, undefined, inputs);
+    expect(through(doc, 0, undefined, inputs)).toEqual(initial);
   });
 });

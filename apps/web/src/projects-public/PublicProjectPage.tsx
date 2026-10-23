@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { PortalLink } from '../components/PortalLink';
 import { useSchoolTime } from '../components/school-time';
 import { publicProjectsApi, type PublicProject } from './api';
+import { CopyPublicProject } from './CopyPublicProject';
 import { PublicationPreview } from './PublicationPreview';
 import { SharePublicationLink } from './SharePublicationLink';
 import { PUBLIC_PROJECT_LICENSES, publicModuleName } from './presentation';
@@ -112,6 +113,11 @@ export function PublicProjectPage({
             <span className="publication-module" data-module={publication.moduleKey}>
               {publicModuleName(publication.moduleKey)}
             </span>
+            {publication.featured ? (
+              <span className="public-project-featured" data-testid="public-project-featured">
+                ★ Выбор редакции
+              </span>
+            ) : null}
             <h1 data-testid="public-project-title">{publication.title}</h1>
             <p className="public-project-detail-author">{publication.authorLabel}</p>
             <p className="public-project-version">
@@ -131,6 +137,7 @@ export function PublicProjectPage({
                 ))}
               </ul>
             ) : null}
+            <CopyPublicProject key={publication.revisionId} publication={publication} />
             <div className="public-project-actions">
               {publication.preview ? (
                 <a

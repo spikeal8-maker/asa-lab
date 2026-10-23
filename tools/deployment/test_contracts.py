@@ -10,7 +10,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from deployment.contracts import (Blocked, DEFAULT_WINDOW, REGISTRY, SERVICES, atomic_json,
-                                  attest_database_targets, attest_embedded_editor, attest_proxy_policy, exact_origin, in_window, inventory_files, read_env, safe_member,
+                                  attest_database_targets, attest_embedded_editor, attest_proxy_policy, proxy_provenance_diagnostic, exact_origin, in_window, inventory_files, read_env, safe_member,
                                   validate_release, verify_backup, verify_embedded_entry_http)
 from deployment.backup import recovery_configuration
 from deployment.system import Installation, operation_lock, run
@@ -413,8 +413,10 @@ class UpdateBoundaryTests(unittest.TestCase):
         from unittest.mock import MagicMock
         with tempfile.TemporaryDirectory() as root:
             install = MagicMock()
-            install.state = Path(root)
+            install.root = install.state = Path(root)
+            install.settings = {}
             install.profile = 'dev'
+            install.readiness.return_value = {'revision':release()['revision'],'schema':release()['schema']}
             install.env = {'ASA_BLOCKS_PARENT_ORIGIN': 'http://127.0.0.1:4610',
                            'ASA_BLOCKS_RUNTIME_ORIGIN': 'http://127.0.0.1:4610'}
             with patch.object(asa_manager, 'doctor'), patch.object(asa_manager, 'clean_checkout'), \
@@ -429,8 +431,10 @@ class UpdateBoundaryTests(unittest.TestCase):
         from unittest.mock import MagicMock
         with tempfile.TemporaryDirectory() as root:
             install = MagicMock()
-            install.state = Path(root)
+            install.root = install.state = Path(root)
+            install.settings = {}
             install.profile = 'dev'
+            install.readiness.return_value = {'revision':release()['revision'],'schema':release()['schema']}
             install.env = {'ASA_UPDATE_ENTRY_ORIGIN': 'http://127.0.0.1:4610',
                            'ASA_BLOCKS_PARENT_ORIGIN': 'http://127.0.0.1:4610',
                            'ASA_BLOCKS_RUNTIME_ORIGIN': 'http://127.0.0.1:4610'}
@@ -457,7 +461,9 @@ class UpdateBoundaryTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as root:
             install = MagicMock()
             install.root = install.state = Path(root)
+            install.settings = {}
             install.profile = 'dev'
+            install.readiness.return_value = {'revision':release()['revision'],'schema':release()['schema']}
             install.env = {'ASA_UPDATE_ENTRY_ORIGIN': 'http://127.0.0.1:4610',
                            'ASA_BLOCKS_PARENT_ORIGIN': 'http://127.0.0.1:4610',
                            'ASA_BLOCKS_RUNTIME_ORIGIN': 'http://127.0.0.1:4610'}
@@ -505,6 +511,36 @@ class UpdateBoundaryTests(unittest.TestCase):
             with patch.object(asa_manager, "discover_release") as discover, self.assertRaises(Blocked):
                 asa_manager.update(install)
             discover.assert_not_called()
+
+
+class ProxyProvenanceDiagnosticTests(unittest.TestCase):
+    def test_default_is_explicitly_unverified_and_does_not_mutate_configuration(self):
+        env = {'POSTGRES_PASSWORD': 'never-emit-this'}
+        before = dict(env)
+        result = proxy_provenance_diagnostic(env)
+        self.assertEqual(result['state'], 'loopback_only')
+        self.assertFalse(result['verifiedVisitorIp'])
+        self.assertNotIn('never-emit-this', json.dumps(result))
+        self.assertEqual(env, before)
+
+    def test_explicit_private_gateway_is_configuration_not_proof(self):
+        result = proxy_provenance_diagnostic({'ASA_INGRESS_TRUSTED_PROXY_CIDRS': '172.19.0.1/32'})
+        self.assertEqual(result['state'], 'external_policy_unverified')
+        self.assertFalse(result['verifiedVisitorIp'])
+        for raw in ('0.0.0.0/0', '::/0', '127.0.0.1/32;secret'):
+            with self.assertRaises(Blocked):
+                proxy_provenance_diagnostic({'ASA_INGRESS_TRUSTED_PROXY_CIDRS': raw})
+
+    def test_doctor_reports_unverified_policy_without_config_write(self):
+        from types import SimpleNamespace
+        with tempfile.TemporaryDirectory() as directory:
+            install = SimpleNamespace(root=Path(directory), env={}, project='synthetic', profile='dev', identity=lambda **_: {})
+            output = io.StringIO()
+            with patch('asa_manager.run'), patch('asa_manager.collector_status', return_value={'state': 'unavailable', 'detail': 'test'}), patch('sys.stdout', output):
+                asa_manager.doctor(install, existing=False)
+            self.assertIn('CLIENT_PROVENANCE', output.getvalue())
+            self.assertIn('"verifiedVisitorIp": false', output.getvalue())
+            self.assertEqual(list(Path(directory).iterdir()), [])
 
 
 if __name__ == "__main__":

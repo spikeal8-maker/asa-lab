@@ -30,7 +30,19 @@ export interface ProjectAuthorization {
   readonly status: ProjectStatus;
 }
 
+/** Trusted exact-publication lineage, supplied only by the server source resolver. */
+export interface PublicationCopyOrigin {
+  readonly projectId: string;
+  readonly publicationId: string;
+  readonly revisionId: string;
+  readonly versionId: string;
+  readonly author: string;
+  readonly title: string;
+  readonly license: 'public-domain';
+}
+
 export interface CreateProjectInput {
+  readonly publicationCopyOrigin?: PublicationCopyOrigin;
   readonly tenantId: string;
   readonly scope: ProjectScope;
   readonly classroomId: string | null;

@@ -563,3 +563,54 @@
     padding-inline: 8px;
   }
 }
+
+.public-project-copy {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--asa-slate-200);
+  border-radius: 12px;
+  background: var(--asa-slate-100);
+}
+.public-project-copy p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.public-project-copy :is(button, a) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  max-width: 100%;
+  white-space: normal;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+.public-project-copy :is(button, a):focus-visible {
+  outline: 3px solid var(--asa-cyan-600);
+  outline-offset: 3px;
+}
+.public-project-copy button:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+/* Revision-bound editorial choice: the only special badge in the first R8-03B slice. */
+.public-project-featured {
+  display: inline-flex;
+  align-self: flex-start;
+  align-items: center;
+  max-width: 100%;
+  padding: 4px 9px;
+  border: 1px solid #d8b868;
+  border-radius: 7px;
+  background: #fff7e2;
+  color: #6b4d14;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}

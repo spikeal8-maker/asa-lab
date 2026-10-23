@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Header,
+  Headers,
   HttpCode,
   Inject,
   Param,
@@ -14,10 +15,13 @@ import {
 } from '@nestjs/common';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type pg from 'pg';
+import type { ModuleRegistry } from '@asa-lab/module-sdk';
+import { isValidProjectTitle } from '@asa-lab/projects';
+import { copyPublicProject, readPublicCopyAdmission } from './public-project-copy.js';
 import type { ActiveContextUseCase } from '@asa-lab/identity';
 import { SESSION_COOKIE, TOKENS } from './tokens.js';
 import { STUDENT_SESSION_COOKIE } from './seat-context.js';
-import { checkBodyShape } from './validation.js';
+import { checkBodyShape, checkIdempotencyKey } from './validation.js';
 import { publicationError, throwPublicationError } from './public-projects.errors.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -62,10 +66,11 @@ interface PublicProjectRow {
   preview_content_type: string | null;
   preview_width: number | null;
   preview_height: number | null;
+  featured: boolean;
 }
 
 /** An explicit allowlist: never spread a database row into a public response. */
-function publicProject(row: PublicProjectRow) {
+function publicProject(row: PublicProjectRow, canCopy: boolean) {
   return {
     publicationId: row.publication_id,
     revisionId: row.revision_id,
@@ -78,6 +83,7 @@ function publicProject(row: PublicProjectRow) {
     license: row.license,
     moduleKey: row.module_key,
     authorLabel: row.author_label,
+    featured: row.featured === true,
     publishedAt:
       row.published_at instanceof Date ? row.published_at.toISOString() : row.published_at,
     preview:
@@ -92,13 +98,14 @@ function publicProject(row: PublicProjectRow) {
         : null,
     capabilities: {
       viewer: 'static' as const,
-      canCopy: false as const,
+      canCopy,
       downloadFormats: [] as string[],
     },
   };
 }
 
 export interface OwnerPublicationStatus {
+  moderationReason?: string;
   publication: {
     publicationId: string;
     revisionId: string;
@@ -114,7 +121,61 @@ export interface OwnerPublicationStatus {
 
 @Controller('api/public-projects')
 export class PublicProjectsController {
-  constructor(@Inject(TOKENS.pool) private readonly pool: pg.Pool | null) {}
+  constructor(
+    @Inject(TOKENS.pool) private readonly pool: pg.Pool | null,
+    @Inject(TOKENS.activeContextUseCase) private readonly activeContext: ActiveContextUseCase,
+    @Inject(TOKENS.moduleRegistry) private readonly registry: ModuleRegistry,
+  ) {}
+
+  @Post(':publicationId/copy')
+  @HttpCode(200)
+  @Header('Cache-Control', 'no-store')
+  async copy(
+    @Req() request: FastifyRequest,
+    @Param('publicationId') publicationId: string,
+    @Headers('idempotency-key') idempotencyKey: unknown,
+    @Body() rawBody: unknown,
+  ) {
+    // Presence selects Seat even for empty/invalid credentials. Never fall back.
+    if (Object.prototype.hasOwnProperty.call(request.cookies, STUDENT_SESSION_COOKIE)) {
+      throw publicationError(
+        'copy_forbidden',
+        'Создать личную копию можно только из аккаунта.',
+        403,
+      );
+    }
+    const account = await this.activeContext.resolve(request.cookies[SESSION_COOKIE]);
+    if (!account) throw publicationError('unauthorized', 'Войдите в аккаунт.', 401);
+    requireUuid(publicationId);
+    const key = checkIdempotencyKey(idempotencyKey);
+    if (!key.ok || key.key.startsWith('learning:')) {
+      throw publicationError('invalid_idempotency_key', 'Укажите допустимый Idempotency-Key.', 400);
+    }
+    const shape = checkBodyShape(rawBody, ['revisionId', 'title']);
+    if (!shape.ok) throw publicationError('validation_error', shape.message, 400);
+    const revisionId = shape.body['revisionId'];
+    if (typeof revisionId !== 'string') {
+      throw publicationError('validation_error', 'Укажите опубликованную версию.', 400);
+    }
+    requireUuid(revisionId);
+    const title = shape.body['title'];
+    if ('title' in shape.body && !isValidProjectTitle(title)) {
+      throw publicationError('validation_error', 'Название должно содержать 1–255 знаков.', 400);
+    }
+    try {
+      return await copyPublicProject({
+        pool: requirePool(this.pool),
+        registry: this.registry,
+        principalId: account.principalId,
+        publicationId,
+        revisionId,
+        ...(typeof title === 'string' ? { title: title.trim() } : {}),
+        idempotencyKey: key.key,
+      });
+    } catch (cause) {
+      throwPublicationError(cause);
+    }
+  }
 
   @Get()
   @Header('Cache-Control', 'no-store')
@@ -133,11 +194,13 @@ export class PublicProjectsController {
     const skip = boundedInteger(offset, 0, 0, 1000000);
     const take = boundedInteger(limit, 24, 1, 48);
     const result = await requirePool(this.pool).query<PublicProjectRow>(
-      'SELECT * FROM public_projects_read($1, $2, $3, $4, $5)',
+      'SELECT entry.*, public.project_publication_featured(entry.publication_id, entry.revision_id) AS featured FROM public.public_projects_read($1, $2, $3, $4, $5) entry',
       [null, query?.trim() || null, moduleKey ?? null, take + 1, skip],
     );
+    const page = result.rows.slice(0, take);
+    const admitted = await readPublicCopyAdmission(requirePool(this.pool), this.registry, page);
     return {
-      items: result.rows.slice(0, take).map(publicProject),
+      items: page.map((row) => publicProject(row, admitted.has(row.publication_id))),
       nextOffset: result.rows.length > take ? skip + take : null,
     };
   }
@@ -147,12 +210,13 @@ export class PublicProjectsController {
   async detail(@Param('publicationId') publicationId: string) {
     requireUuid(publicationId);
     const result = await requirePool(this.pool).query<PublicProjectRow>(
-      'SELECT * FROM public_projects_read($1, $2, $3, $4, $5)',
+      'SELECT entry.*, public.project_publication_featured(entry.publication_id, entry.revision_id) AS featured FROM public.public_projects_read($1, $2, $3, $4, $5) entry',
       [publicationId, null, null, 1, 0],
     );
     const row = result.rows[0];
     if (!row) throw publicationError('not_available', 'Публикация недоступна.', 404);
-    return { publication: publicProject(row) };
+    const admitted = await readPublicCopyAdmission(requirePool(this.pool), this.registry, [row]);
+    return { publication: publicProject(row, admitted.has(row.publication_id)) };
   }
 
   @Get(':publicationId/image')

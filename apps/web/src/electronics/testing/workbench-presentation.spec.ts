@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { runInNewContext } from 'node:vm';
 import { describe, expect, it } from 'vitest';
 
 const electronicsRoot = resolve(process.cwd(), 'apps/web/src/electronics');
@@ -46,7 +47,7 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(stageSource).not.toContain('workbench-snap-link');
     expect(stageSource).toContain('TERMINAL_MARKER_SIZE');
     expect(stageSource).toContain('TERMINAL_HIT_RADIUS');
-    expect(stageSource).toContain('TERMINAL_TOUCH_HIT_RADIUS');
+    expect(geometrySource).toContain('TERMINAL_TOUCH_HIT_RADIUS = TERMINAL_HIT_RADIUS');
     expect(stageSource).not.toContain('width={10 / c.viewport.zoom}');
     expect(stageSource).not.toContain('r={8 / c.viewport.zoom}');
     expect(stageSource).toContain('vectorEffect="non-scaling-stroke"');
@@ -376,7 +377,7 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(stageSource).toContain('className="workbench-wire-endpoint-hit"');
     expect(geometrySource).toContain('TERMINAL_MARKER_SIZE = 8');
     expect(geometrySource).toContain('WIRE_ENDPOINT_VISIBLE_RADIUS = 4');
-    expect(geometrySource).toContain('WIRE_ENDPOINT_HIT_RADIUS = 9');
+    expect(geometrySource).toContain('WIRE_ENDPOINT_HIT_RADIUS = WIRE_ENDPOINT_VISIBLE_RADIUS + 1');
     expect(workbenchCss).toMatch(
       /\.workbench-inspector\.wire-selected\s*\{[^}]*border:\s*1px solid #cbd3d9;/s,
     );
@@ -541,6 +542,137 @@ describe('owner-reference Electronics presentation contract', () => {
       "selection?.kind === 'component' && selection.ids.length === 1",
     );
     expect(sidebarSource).toContain('Выбрано: ${c.selection.ids.length}');
+  });
+
+  it('puts only Uno and regulated supply beside the existing board below wires without duplicate bodies', () => {
+    const predicateSource = stageSource.match(
+      /function wiresAboveComponentBody\([^)]*\): boolean \{[\s\S]*?\n\}/,
+    )?.[0];
+    expect(predicateSource).toBeDefined();
+    const predicate = runInNewContext(
+      `${predicateSource?.replace(': SchematicComponent', '').replace(': boolean', '')}; wiresAboveComponentBody`,
+    ) as (component: { kind: string; componentTypeId?: string }) => boolean;
+    const components = [
+      { kind: 'breadboard', componentTypeId: 'breadboard-full' },
+      { kind: 'arduino', componentTypeId: 'arduino-uno' },
+      { kind: 'source', componentTypeId: 'regulated-power-supply' },
+      { kind: 'source', componentTypeId: 'battery-9v' },
+      { kind: 'source', componentTypeId: 'battery-aa' },
+      { kind: 'source', componentTypeId: 'signal-generator' },
+      { kind: 'resistor', componentTypeId: 'resistor' },
+      { kind: 'arduino', componentTypeId: 'other-arduino' },
+      { kind: 'arduino' },
+      { kind: 'wire' },
+    ];
+    expect(components.map(predicate)).toEqual([
+      true,
+      true,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+    ]);
+    const layer = (marker: string, next: string): string =>
+      stageSource.slice(stageSource.indexOf(marker), stageSource.indexOf(next));
+    expect(layer('data-testid="breadboard-body-layer"', 'workbench-wire-hit-layer')).toContain(
+      '.filter(wiresAboveComponentBody)',
+    );
+    const ordinaryBody = layer(
+      'data-testid="component-body-layer"',
+      'data-testid="terminal-overlay-layer"',
+    );
+    expect(ordinaryBody).toContain("component.kind !== 'wire'");
+    expect(ordinaryBody).not.toContain("component.kind !== 'breadboard'");
+    expect(ordinaryBody).toContain('!wiresAboveComponentBody(component)');
+    const orderingSource = stageSource.match(/const orderedComponents = \[[\s\S]*?\n {2}\];/)?.[0];
+    expect(orderingSource).toBeDefined();
+    const shuffled = [...components.slice(1), components[0]];
+    const ordered = runInNewContext(`${orderingSource}; orderedComponents`, {
+      document: { components: shuffled },
+    }) as typeof components;
+    expect(ordered).toEqual([components[0], ...components.slice(1)]);
+    const bodies = [
+      ...ordered.filter(predicate),
+      ...ordered.filter((component) => component.kind !== 'wire' && !predicate(component)),
+    ];
+    expect(new Set(bodies).size).toBe(components.length - 1);
+    expect(bodies).toHaveLength(components.length - 1);
+    const terminals = layer('data-testid="terminal-overlay-layer"', 'workbench-wire-editor-layer');
+    expect(terminals).not.toContain('wiresAboveComponentBody');
+    expect(terminals).toContain('renderComponentTerminalOverlay(component)');
+  });
+
+  it('keeps visible wires selectable over only Uno, regulated supply and the existing breadboard', () => {
+    const predicateSource = stageSource.match(
+      /function wiresAboveComponentBody\([^)]*\): boolean \{[\s\S]*?\n\}/,
+    )?.[0];
+    const handlerSource = stageSource
+      .slice(
+        stageSource.indexOf('  function handleWirePointerDown('),
+        stageSource.indexOf('  const orderedComponents'),
+      )
+      .replace(
+        /function handleWirePointerDown\([\s\S]*?\): void \{/,
+        'function handleWirePointerDown(event, wireId, segmentIndex) {',
+      );
+    for (const [kind, componentTypeId, overWire] of [
+      ['arduino', 'arduino-uno', true],
+      ['source', 'regulated-power-supply', true],
+      ['breadboard', 'breadboard-full', true],
+      ['source', 'battery-9v', false],
+      ['source', 'signal-generator', false],
+      ['resistor', 'resistor', false],
+      ['arduino', 'other-arduino', false],
+    ] as const) {
+      for (const shiftKey of [false, true]) {
+        const calls: unknown[][] = [];
+        const component = { id: 'part', kind, componentTypeId };
+        const c = {
+          pendingTerminal: null,
+          documentMutationEpoch: () => 0,
+          selectComponent: (...args: unknown[]) => calls.push(['component', ...args]),
+          startComponentDrag: () => calls.push(['drag']),
+          setSelection: (...args: unknown[]) => calls.push(['wire', ...args]),
+          startSegmentDrag: (...args: unknown[]) => calls.push(['segment', ...args]),
+        };
+        const handler = runInNewContext(
+          `${predicateSource?.replace(': SchematicComponent', '').replace(': boolean', '')}; ${handlerSource}; handleWirePointerDown`,
+          {
+            c,
+            componentAtClientPoint: () => component,
+            lastWireClick: { current: null },
+            pointerSequenceRef: { current: 1 },
+            isRepeatedClick: () => false,
+          },
+        ) as (event: unknown, wireId: string, segmentIndex?: number) => void;
+        const event = { clientX: 10, clientY: 20, shiftKey, stopPropagation: () => undefined };
+        handler(event, 'wire-1');
+        expect(calls).toEqual(
+          overWire
+            ? [['wire', { kind: 'wire', id: 'wire-1' }]]
+            : shiftKey
+              ? [['component', 'part', true]]
+              : [['drag']],
+        );
+        calls.length = 0;
+        handler(event, 'wire-1', 2);
+        expect(calls).toEqual(
+          overWire
+            ? [['segment', event, 'wire-1', 2]]
+            : shiftKey
+              ? [['component', 'part', true]]
+              : [['drag']],
+        );
+        calls.length = 0;
+        Object.assign(c, { pendingTerminal: { componentId: 'part', terminal: 'p' } });
+        handler(event, 'wire-1');
+        expect(calls).toEqual([]);
+      }
+    }
   });
 
   it('uses compact inline properties and real schematic/BOM export actions', () => {
@@ -763,7 +895,7 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(sidebarSource).toContain('Math.abs(dy) >= 1.25 * Math.abs(dx)');
     expect(sidebarSource).toContain("touch.mode = 'scrolling'");
     expect(sidebarSource).toContain("touch.mode = 'dragging'");
-    expect(stageSource).toContain('TERMINAL_TOUCH_HIT_RADIUS');
+    expect(geometrySource).toContain('TERMINAL_TOUCH_HIT_RADIUS = TERMINAL_HIT_RADIUS');
     expect(stageSource).toContain('TERMINAL_HIT_RADIUS');
   });
 

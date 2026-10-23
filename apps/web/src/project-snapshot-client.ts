@@ -11,6 +11,7 @@ export interface ProjectSnapshotInfo {
 
 export interface SaveProjectSnapshotOptions {
   unloading?: boolean;
+  signal?: AbortSignal;
 }
 
 export function saveProjectSnapshot(
@@ -25,6 +26,7 @@ export function saveProjectSnapshot(
       method: 'PUT',
       body: JSON.stringify({ imageDataUrl, sourceRevision }),
       ...(options.unloading === true ? { keepalive: true } : {}),
+      ...(options.signal ? { signal: options.signal } : {}),
     },
   );
 }

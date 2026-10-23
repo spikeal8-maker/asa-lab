@@ -1,5 +1,74 @@
 # Админ → Логи: критический разбор и контракт
 
+## Пункт 1: свежие журналы и сохранность ресурсных замеров (23 октября 2026)
+
+- Каждый checkpoint проверяет SHA-256 **фактических сжатых байтов** всех активных
+  сегментов и текущие пары sequence/ID частного индекса. Повторная распаковка
+  неизменной истории заменена подписанной локальной квитанцией: она связывает
+  эти доказательства с вычисленными из содержимого метаданными. Изменение файла,
+  индекса или подделка квитанции требуют полной проверки сегмента. Размер,
+  время изменения и file ID не являются доказательством целостности.
+- Ключ квитанций `.asa/diagnostics/private/segment-verification.key` локален
+  и не относится к входу пользователей. Потеря ключа приводит к повторной
+  полной проверке, а не доверию старому cache. Неизменные payload/ID, правила
+  retirement, восстановления compaction и ограничения хранения сохраняются.
+- Сначала собираются свежие Docker/БД события; исторические Docker и БД окна
+  обходятся по очереди: один контейнер и одна таблица за цикл. Новый live-курсор
+  БД начинается с последних пяти минут (запрос также покрывает недавнее окно),
+  а прежние курсоры и отдельная сверка всей retained-истории сохраняются.
+  Незавершённые окна остаются `pending`; новая live-полоса не доказывает
+  полноту исторического сбора. Checkpoint выполняется между завершёнными
+  порциями вне savepoint. Сбор Windows работает отдельным read-only worker:
+  только основной поток принимает результат и меняет SQLite/курсоры.
+- Ресурсный producer запускается до проверки истории. Его отдельный
+  `private/resources.sqlite` переживает задержки и перезапуск процесса.
+  ACK допускается только после durable commit основного индекса **и** успешной
+  публикации catalog, содержащего соответствующий sample. Повтор после сбоя
+  использует прежние stream/sequence и не создаёт повторного события.
+  Истёкший retention и явное вытеснение квотой имеют отдельный terminal loss
+  disposition: это **не** успешный ACK. После catalog с предупреждением запись
+  удаляется из spool атомарно с увеличением durable `droppedSamplesTotal` и
+  `expiredSamplesTotal`/`quotaDiscardedSamplesTotal`. Повтор disposition не
+  увеличивает счётчик второй раз. Так старые непубликуемые записи не блокируют
+  свежую запись за первой порцией из 128 элементов. Потери сохраняют
+  `possibleCoverageGap=true` и `pending`, включая перезапуск и восстановление
+  публикации свежих замеров; полнота покрытия не объявляется восстановленной.
+- Spool ограничен 16 МиБ или одной восьмой общего бюджета, если она меньше;
+  payload занимает не более половины этого лимита, размер одной записи —
+  максимум 256 КиБ. SQLite ограничивает число страниц; временный rollback journal
+  также учитывается общей физической квотой diagnostics. При переполнении старые
+  не подтверждённые образцы не вытесняются: новая потеря учитывается в устойчивом
+  `droppedSamplesTotal`. Ошибка диска обозначается фиксированным `spoolError`.
+  Недоступный spool сохраняется для расследования, core-сбор продолжается с явно
+  неполной ресурсной диагностикой. Это не гарантия доставки при заполненном диске.
+- Catalog содержит для источника `publicationAgeSeconds`, `coverageLagSeconds`
+  и `stale`. Свежая полоса старше 60 секунд получает `pending`, а не ложный `ok`.
+  Эти дополнительные поля не меняют reader format. Существующее поле `detail`
+  сообщает задержку также читателям, не отображающим новые числовые поля.
+
+Цель — публикация свежих событий в пределах 60 секунд при работающих адаптерах
+и потоке в пределах ограниченных порций. **Первое создание квитанций, legacy
+upgrade, повреждение истории, медленный диск или недоступные внешние команды
+могут превысить 60 секунд**; ресурсный spool сохраняет уже полученные образцы,
+но не восстанавливает не сделанные измерения. Ресурсные targets до проверки
+канонического Docker помечаются неполными. Сквозная производительность рабочей
+установки требует отдельного замера после разрешённого deployment.
+
+Focused evidence: 103 Python tests, четыре платформенных skip; дополнительно
+четыре проверки SQL/catalog/quota recovery и работы background/checkpoint.
+После independent review: пять целевых проверок expiry-prefix128+fresh129,
+quota recovery/idempotence, SQL failure, catalog-crash replay и spool overflow
+прошли за 2,320 с. Это исправление terminal disposition не меняет правила ACK.
+Синтетические 512 gzip-сегментов с примерно 8 МиБ varied raw text: cold audit
+3,687 с, warm 0,375 с, restart 0,390 с, публикация свежей записи 0,641 с.
+Warm/restart не распаковывали retained gzip; compressed SHA и индекс проверялись.
+Это ограниченный regression benchmark, **не** доказательство 60 секунд на
+27 тысячах production-сегментов или готовности к 5000 пользователям.
+
+Проверки: `python tools/test_collect_logs.py`,
+`python -m unittest discover -s tools -p test_coverage_diagnostics.py`,
+`python -m unittest tools.deployment.test_collector`.
+
 ## Разбор до реализации
 
 1. Docker stdout принадлежит контейнеру, а не установке. При замене контейнера
@@ -462,3 +531,65 @@ ingress-политики внешний посетитель останется 
 Диагностика браузера сохраняет отдельный предел 600 сообщений в минуту, но
 использует проверенный адрес посетителя, а не общий TCP-адрес Web-контейнера.
 Если адрес не определён, применяется общий ограниченный бюджет `unknown`.
+
+
+### Admission evidence and deployment provenance checks
+
+`asa doctor` prints `CLIENT_PROVENANCE` with the configured ingress/API trust
+boundaries. `loopback_only` means only local ingress is configured;
+`external_policy_unverified` means explicit external trust is configured. Neither
+state verifies a visitor IP (`verifiedVisitorIp` remains false). The command is
+read-only, does not discover and trust gateways, and does not edit `.env`.
+For Docker Desktop or an HTTP tunnel, verify the complete outer-proxy → tunnel →
+Caddy chain with a controlled external request and forged-header rejection before
+configuring only the attested peer CIDRs. A missing original address cannot be
+reconstructed inside the application. Never classify a Docker gateway as a pupil.
+
+HTTP terminal logs now carry finite server-owned `admission` evidence for
+StudentSeat sign-in and unsuccessful class resolution:
+
+- `credentialCheck`: `class_not_found`, `student_rejected` or `student_accepted`.
+- `blockedBudgets`: `candidate_class`, `source_class`, `source_total`, or
+  `class_lookup_source`; all exceeded budgets are reported, not their keys.
+- `limiterPhase`: `after_failed_validation` or `not_applied` for accepted sign-in.
+
+Together with `addressResolution`, this distinguishes a wrong-code rejection
+from a rate-limited wrong-code rejection behind an unresolved proxy or shared NAT.
+It does not prove earlier historical 429s rejected correct credentials. Thresholds
+and failure-only validation order are unchanged; accepted credentials are still
+validated even after failed-attempt budgets are exhausted. No IP, code, hash,
+cookie or body is included in this diagnostic. Missing `admission` does not mean
+success: parser failures, unavailable database and other routes can end before
+an admission decision. Existing anonymous Account pre-check limits can still
+share an `unknown` bucket when external provenance is missing; resolving ingress
+is required rather than inventing browser identities or relaxing protection.
+
+
+#### Observed external route, 24 October 2026
+
+Read-only inspection of the running external proxy configuration confirmed the
+route: public TLS ingress → Traefik → FRPS HTTP vhost → local FRP client →
+Docker-published Web port → Caddy → API. Host-header forwarding is enabled; FRPS
+requires TLS for its client transport. Local Caddy currently trusts only loopback
+ingress, while the Docker-published port presents a gateway peer. Server access
+is available; the remaining prerequisite is an attested forwarded-address chain
+and spoof-rejection test, not obtaining access to the proxy.
+
+The inspected outer route also has an independent rate limiter: average 600
+requests per minute, burst 300. Its higher-priority password login/registration
+route additionally applies average 60 per minute, burst 30. The inspected auth
+matcher does not include StudentSeat `/api/class-join` routes. These are external
+proxy limits, separate from application failure-only admission budgets. A shared
+school NAT can therefore encounter an outer-edge ceiling even when the API and
+database have spare capacity; this configuration alone is not evidence that the
+43 historical application 429s came from that edge limiter. Request correlation
+and effective source-key verification are required before attributing a failure
+or selecting new limits. No external policy was changed during this source slice.
+
+Before deploying an ingress change, preserve and review the exact existing
+proxy configuration, verify the effective source key and forwarded hops using a
+controlled visitor, test spoofed headers and direct entry, and prepare rollback.
+Do not blindly trust a Docker gateway CIDR on a reachable host port: all callers
+through that port may appear to have the same trusted peer. A proposed external
+rate policy must account for school NAT traffic and retain abuse protection;
+raising limits without these checks is not the application IP fix.

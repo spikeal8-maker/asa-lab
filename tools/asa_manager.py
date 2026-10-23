@@ -2,13 +2,16 @@
 """One operator entry point for portable installation and weekly maintenance."""
 
 import argparse
+import base64
 import datetime as dt
 import json
 import os
 from pathlib import Path
 import secrets
 import shutil
+import stat
 import sys
+import uuid
 from contextlib import nullcontext
 
 from deployment.backup import export_backup, recovery_configuration, restore_check
@@ -16,6 +19,7 @@ from deployment.contracts import DEFAULT_WINDOW, REPOSITORY, Blocked, atomic_jso
 from deployment.releases import apply_release_environment, assert_ci, discover_release, fetch_images, validate_resolved_images
 from deployment.system import Installation, operation_lock, run
 from deployment.collector import prepare as prepare_collector, reconcile as reconcile_collector, status as collector_status
+from deployment.contracts import proxy_provenance_diagnostic
 
 
 def clean_checkout(install):
@@ -33,6 +37,7 @@ def doctor(install, existing=True):
     print(f"DISK checkout_free_gib={free / 1024**3:.1f}; Docker data disk must also have space for images, objects and restore")
     collection = collector_status(install)
     print(f"COLLECTOR {collection['state']}: {collection['detail']}")
+    print('CLIENT_PROVENANCE ' + json.dumps(proxy_provenance_diagnostic(install.env), sort_keys=True))
     require(free >= 2 * 1024**3, "SPACE", "Less than 2 GiB free beside the checkout.")
     if existing:
         ready = install.readiness()
@@ -40,13 +45,39 @@ def doctor(install, existing=True):
     return records
 
 
+def backup_directory(install, *, create=False):
+    backup = Path(install.settings.get("backupDirectory", str(install.root / "backups")))
+    require(backup.is_absolute(), "BACKUP_PATH", "Backup directory must be absolute.")
+    for component in (backup, *backup.parents):
+        try:
+            metadata = component.lstat()
+        except FileNotFoundError:
+            continue
+        require(not component.is_symlink() and not getattr(metadata, 'st_file_attributes', 0) & getattr(stat, 'FILE_ATTRIBUTE_REPARSE_POINT', 0),
+                "BACKUP_PATH", "Backup directory must not traverse symlinks or reparse points.")
+    # Expand Windows 8.3 aliases without treating them as symlink traversal.
+    backup = backup.resolve()
+    if not backup.exists():
+        require(backup.parent.is_dir(), "BACKUP_DIRECTORY", "Backup parent directory must already exist.")
+        if create:
+            backup.mkdir(mode=0o700)
+    if backup.exists():
+        require(backup.is_dir(), "BACKUP_DIRECTORY", "Backup path is not a directory.")
+        if os.name != 'nt':
+            require(backup.stat().st_uid == os.getuid() and backup.stat().st_mode & 0o077 == 0,
+                    "BACKUP_PERMISSIONS", "Backup directory must belong to the operator and have mode 0700.")
+    return backup
+
+
 def save_settings(install, enabled=False):
     previous = install.settings
+    backup = backup_directory(install, create=True)
     atomic_json(install.state / "installation.json", {
         **previous, "format": "asa-installation-v1", "profile": install.profile,
         "project": install.project, "automaticUpdates": enabled,
         "window": previous.get("window", DEFAULT_WINDOW),
-        "backupDirectory": previous.get("backupDirectory", str(install.root / "backups")),
+        "backupDirectory": str(backup),
+        "instanceId": previous.get("instanceId") or uuid.uuid4().hex,
     })
 
 
@@ -59,6 +90,12 @@ def first_environment(root, profile):
               "MIGRATION_DATABASE_URL": f"postgres://asalab_admin:{admin}@postgres:5432/asalab",
               "MIGRATION_EXPECT_DATABASE": "asalab", "MIGRATION_CONFIRM": "APPLY:asalab",
               "APP_DATABASE_URL": f"postgres://asalab_app:{app}@postgres:5432/asalab",
+              "CLASSROOM_CODE_SECRET": secrets.token_hex(32),
+              "ASA_STUDENT_CODE_PROTECTION_MODE": "compat",
+              "ASA_STUDENT_CODE_ENCRYPTION_KEYS_JSON": json.dumps({"initial-v1": base64.b64encode(secrets.token_bytes(32)).decode()}, separators=(",", ":")),
+              "ASA_STUDENT_CODE_ENCRYPTION_ACTIVE_KEY_ID": "initial-v1",
+              "ASA_STUDENT_CODE_LOOKUP_KEYS_JSON": json.dumps({"initial-v1": base64.b64encode(secrets.token_bytes(32)).decode()}, separators=(",", ":")),
+              "ASA_STUDENT_CODE_LOOKUP_ACTIVE_KEY_ID": "initial-v1",
               "ASA_SETTINGS_ENCRYPTION_KEY": secrets.token_hex(32),
               "ASA_BLOCKS_RUNTIME_SIGNING_KEY": secrets.token_hex(32),
               "ASA_OBJECT_STORAGE_ENDPOINT": "http://minio:9000", "ASA_OBJECT_STORAGE_REGION": "us-east-1",
@@ -78,7 +115,7 @@ def first_environment(root, profile):
 
 def selected_source(install, release, *, existing):
     clean_checkout(install)
-    install.git("fetch", "origin", "main")
+    install.git("fetch", "origin", "main:refs/remotes/origin/main")
     revision = release["revision"]
     # A release must be in canonical main history; registry contents cannot choose arbitrary code.
     install.git("merge-base", "--is-ancestor", revision, "origin/main")
@@ -107,12 +144,19 @@ def update(install, *, check=False, scheduled=False, fresh=False):
             "Inspect logs and readiness, repair the cause, then explicitly acknowledge the failure.")
     doctor(install, existing=not fresh)
     clean_checkout(install)
+    backup_directory(install)
     attest_editor_env(install.env.get('ASA_UPDATE_ENTRY_ORIGIN'),
                       install.env.get('ASA_BLOCKS_PARENT_ORIGIN'),
                       install.env.get('ASA_BLOCKS_RUNTIME_ORIGIN'), install.profile)
     release = discover_release()
     assert_ci(release)
     before = None if fresh else install.readiness()
+    if before:
+        require(int(release['schema']) >= int(before['schema']), 'RELEASE_DOWNGRADE',
+                'Published release schema is older than the running database; refusing downgrade.')
+        if release['revision'] != before['revision']:
+            install.git('fetch', 'origin', 'main:refs/remotes/origin/main')
+            install.git('merge-base', '--is-ancestor', before['revision'], release['revision'])
     installed_path = install.state / "installed-release.json"
     installed = json.loads(installed_path.read_text(encoding="utf-8")) if installed_path.exists() else None
     same_release = bool(before and before['revision'] == release['revision'] and installed == release)

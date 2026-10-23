@@ -12,6 +12,7 @@ export interface PublicProject {
   readonly license: string;
   readonly moduleKey: string;
   readonly authorLabel: string;
+  readonly featured: boolean;
   readonly publishedAt: string;
   readonly preview: {
     readonly url: string;
@@ -38,6 +39,8 @@ export interface ProjectPublicationStatus {
   } | null;
   readonly canPublish: boolean;
   readonly reasonCode: string | null;
+  /** Owner-only administrative reason; never part of the public project DTO. */
+  readonly moderationReason?: string | null;
 }
 
 export interface PublicationMetadata {
@@ -50,6 +53,12 @@ export interface PublicationMetadata {
 export interface PublicProjectList {
   readonly items: readonly PublicProject[];
   readonly nextOffset: number | null;
+}
+
+export interface PublicProjectCopy {
+  readonly projectId: string;
+  readonly moduleKey: string;
+  readonly created: boolean;
 }
 
 /** Public reads use only the immutable publication namespace. */
@@ -65,6 +74,13 @@ export const publicProjectsApi = {
       `/api/public-projects/${encodeURIComponent(publicationId)}`,
       { cache: 'no-store' },
     ),
+  copy: (publicationId: string, revisionId: string, idempotencyKey: string, signal: AbortSignal) =>
+    call<PublicProjectCopy>(`/api/public-projects/${encodeURIComponent(publicationId)}/copy`, {
+      method: 'POST',
+      headers: { 'Idempotency-Key': idempotencyKey },
+      body: JSON.stringify({ revisionId }),
+      signal,
+    }),
   status: (projectId: string) =>
     call<ProjectPublicationStatus>(`/api/projects/${encodeURIComponent(projectId)}/publication`, {
       cache: 'no-store',
