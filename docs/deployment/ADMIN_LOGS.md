@@ -563,3 +563,33 @@ success: parser failures, unavailable database and other routes can end before
 an admission decision. Existing anonymous Account pre-check limits can still
 share an `unknown` bucket when external provenance is missing; resolving ingress
 is required rather than inventing browser identities or relaxing protection.
+
+
+#### Observed external route, 24 October 2026
+
+Read-only inspection of the running external proxy configuration confirmed the
+route: public TLS ingress → Traefik → FRPS HTTP vhost → local FRP client →
+Docker-published Web port → Caddy → API. Host-header forwarding is enabled; FRPS
+requires TLS for its client transport. Local Caddy currently trusts only loopback
+ingress, while the Docker-published port presents a gateway peer. Server access
+is available; the remaining prerequisite is an attested forwarded-address chain
+and spoof-rejection test, not obtaining access to the proxy.
+
+The inspected outer route also has an independent rate limiter: average 600
+requests per minute, burst 300. Its higher-priority password login/registration
+route additionally applies average 60 per minute, burst 30. The inspected auth
+matcher does not include StudentSeat `/api/class-join` routes. These are external
+proxy limits, separate from application failure-only admission budgets. A shared
+school NAT can therefore encounter an outer-edge ceiling even when the API and
+database have spare capacity; this configuration alone is not evidence that the
+43 historical application 429s came from that edge limiter. Request correlation
+and effective source-key verification are required before attributing a failure
+or selecting new limits. No external policy was changed during this source slice.
+
+Before deploying an ingress change, preserve and review the exact existing
+proxy configuration, verify the effective source key and forwarded hops using a
+controlled visitor, test spoofed headers and direct entry, and prepare rollback.
+Do not blindly trust a Docker gateway CIDR on a reachable host port: all callers
+through that port may appear to have the same trusted peer. A proposed external
+rate policy must account for school NAT traffic and retain abuse protection;
+raising limits without these checks is not the application IP fix.
