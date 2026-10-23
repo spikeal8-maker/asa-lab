@@ -2106,3 +2106,17 @@
     border-radius: 0;
   }
 }
+
+/* A two-row mobile document toolbar can cover most of a 320×568 viewport.
+   Keep the portal bar sticky, but let the course toolbar scroll away so a
+   long text block remains pointer- and keyboard-accessible while editing. */
+@media (max-width: 520px) {
+  .course-document-editor .course-compact-header {
+    position: static;
+    top: auto;
+  }
+
+  .course-document-editor .lesson-block-menu > summary {
+    scroll-margin-block-start: calc(var(--portal-header-height, 56px) + 16px);
+  }
+}
