@@ -854,9 +854,11 @@ function CourseEditor({
         header.getBoundingClientRect().bottom,
         document.querySelector('.portal-header')?.getBoundingClientRect().bottom ?? 0,
       );
-      if (active.getBoundingClientRect().top < stickyBottom + 8) {
-        // The summary has a measured sticky-header scroll margin in course CSS.
-        // A focused control under a sticky header is not a usable control.
+      const bounds = active.getBoundingClientRect();
+      if (bounds.top < stickyBottom + 8 || bounds.bottom > window.innerHeight - 8) {
+        // A responsive resize can leave the focused action either behind the
+        // sticky headers or entirely below the viewport. Both are unusable.
+        // The summary's measured sticky-header scroll margin reserves room.
         active.scrollIntoView({ block: 'start' });
       }
     };
