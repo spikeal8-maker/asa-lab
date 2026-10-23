@@ -186,6 +186,18 @@ async function fixture(page: Page, answer = 'Arduino — это платформ
       }
       return respond(route, result);
     }
+    if (path === '/api/admin/v1/ai/ollama' && method === 'GET') {
+      return respond(route, {
+        enabled: false,
+        baseUrl: 'http://127.0.0.1:11434',
+        model: 'ornith:9b',
+        revision: 1,
+        updatedAt: NOW,
+      });
+    }
+    if (path === '/api/admin/v1/ai/ollama/models' && method === 'POST') {
+      return respond(route, { models: [{ name: 'ornith:9b', size: 60000 }] });
+    }
     if (path === '/api/admin/v1/ai') {
       if (method === 'PUT') {
         const payload = req.postDataJSON() as {

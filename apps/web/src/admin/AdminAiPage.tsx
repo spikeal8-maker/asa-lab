@@ -119,17 +119,17 @@ export function AiAdminPage({
       Number(config!.paidOperationsPerHour) !== Number(quota) ||
       Boolean(keyInput.trim()) ||
       clearKey);
+  const mustClear = Boolean(clearKey && slot?.apiKeyConfigured);
   const canSubmit = Boolean(
     config &&
     model &&
     (keyReady || (!enabled && clearKey)) &&
     validQuota &&
     (!enabled || (Number(quota) > 0 && confirmPaid)) &&
-    config.encryptionReady &&
+    (config.encryptionReady || (!enabled && mustClear && !keyInput.trim())) &&
     !loading &&
     !busy,
   );
-  const mustClear = Boolean(clearKey && slot?.apiKeyConfigured);
   const keyLink =
     providerChoice === 'deepseek'
       ? 'https://platform.deepseek.com/api_keys'
@@ -354,7 +354,9 @@ export function AiAdminPage({
             </p>
           ) : null}
           {!config.encryptionReady ? (
-            <p className="asa-cloud-error">Шифрование ключей на сервере не настроено.</p>
+            <p className="asa-cloud-error" role="alert">
+              Шифрование ключей на сервере не настроено.
+            </p>
           ) : null}
 
           <div className="asa-cloud-bottom">

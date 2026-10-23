@@ -229,6 +229,34 @@ describe('Compact cloud provider connections', () => {
     expect(call).toHaveBeenCalledTimes(2);
   });
 
+  it('allows deleting a saved key without server encryption and without a paid test', async () => {
+    await renderCloud({ ...READY, enabled: true, encryptionReady: false }, 'deepseek');
+    expect(control<HTMLInputElement>('input[type=password]').disabled).toBe(true);
+    expect(button('Сохранить и проверить').disabled).toBe(true);
+    await toggle(checkbox('Удалить сохранённый ключ'));
+    expect(button('Сохранить выключенным').disabled).toBe(false);
+    vi.mocked(call).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      data: {
+        ...READY,
+        enabled: false,
+        apiKeyConfigured: false,
+        encryptionReady: false,
+        configurationVersion: 8,
+      },
+    });
+    await submit();
+    const args = vi.mocked(call).mock.calls.at(-1);
+    expect(args?.[0]).toBe('/api/admin/v1/ai');
+    expect(JSON.parse(String(args?.[1]?.body))).toMatchObject({
+      clearApiKey: true,
+      enabled: false,
+      provider: 'deepseek',
+    });
+    expect(vi.mocked(call).mock.calls.some(([url]) => url.endsWith('/test'))).toBe(false);
+  });
+
   it('exposes key deletion only under the advanced section and without cloud test', async () => {
     await renderCloud(READY, 'deepseek');
     expect(control<HTMLDetailsElement>('details').open).toBe(false);
