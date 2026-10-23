@@ -2172,7 +2172,9 @@ test('document Course Builder preserves the lesson, real save acknowledgements a
     expect(target!.width).toBeGreaterThanOrEqual(44);
     expect(target!.height).toBeGreaterThanOrEqual(44);
     await blockActions.focus();
-    const blockActionTop = await blockActions.evaluate((element) => element.getBoundingClientRect().top);
+    const blockActionTop = await blockActions.evaluate(
+      (element) => element.getBoundingClientRect().top,
+    );
     const stickyCourseBottom = await editor
       .locator('.course-compact-header')
       .evaluate((header) => header.getBoundingClientRect().bottom);
@@ -2240,6 +2242,29 @@ test('document Course Builder preserves the lesson, real save acknowledgements a
       await expect(blockActions).toHaveAttribute('aria-expanded', 'false');
       await expect(blockActions).toBeFocused();
       await page.setViewportSize({ width, height });
+      await settleLayout();
+
+      // Regression for a still-focused block action across a responsive
+      // viewport change: neither focus() nor scrollIntoView() may rescue it.
+      await page.setViewportSize({ width: 1024, height: 768 });
+      await settleLayout();
+      await expect(blockActions).toBeFocused();
+      const preservedTop = await blockActions.evaluate(
+        (element) => element.getBoundingClientRect().top,
+      );
+      const preservedHeaderBottom = await editor
+        .locator('.course-compact-header')
+        .evaluate((header) => header.getBoundingClientRect().bottom);
+      expect(
+        preservedTop,
+        '1024: retained block focus clears the sticky course header after resize',
+      ).toBeGreaterThanOrEqual(preservedHeaderBottom + 8);
+      await hitTarget(blockActions, '1024:block-menu-retained-focus-resize');
+
+      await page.setViewportSize({ width, height });
+      await settleLayout();
+      await expect(blockActions).toBeFocused();
+      await hitTarget(blockActions, '1440:block-menu-retained-focus-restored');
     }
     await openCourseLessonSettings(page);
     const settings = editor.getByRole('dialog', { name: 'Параметры урока', exact: true });
