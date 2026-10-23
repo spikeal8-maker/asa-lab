@@ -4,6 +4,7 @@ on:
     branches: [main]
     paths:
       - 'migrations/0216_session_context_nonblocking_heartbeat.sql'
+      - 'migrations/0237_student_seat_context_nonblocking_heartbeat.sql'
       - 'contexts/identity/infrastructure/pg-session-v2.store.ts'
       - 'contexts/identity/index.ts'
       - 'contexts/identity/testing/session-context-query.spec.ts'
@@ -12,6 +13,7 @@ on:
       - 'apps/api/src/server-diagnostics.ts'
       - 'apps/api/src/session-database-diagnostics*'
       - 'tests/account/session-context-contention.pg.spec.ts'
+      - 'tests/account/student-seat-session-contention.pg.spec.ts'
       - 'package.json'
       - '.github/workflows/session-context-database.yml'
   workflow_dispatch:
