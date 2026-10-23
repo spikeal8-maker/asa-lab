@@ -778,4 +778,306 @@ describe('publication moderation with real runtime privileges and sessions', () 
       code: '22023',
     });
   });
+  it('enforces editorial access and revision-bound lifecycle', async () => {
+    const source = await publication();
+    const editor = await identity('featured-editor', 'verified');
+    const ordinary = await identity('featured-ordinary');
+    const url = `/api/admin/v1/publications/${source.publicationId}/featured`;
+    const lifecycleResult = await admin.query<{ lifecycle_version: number }>(
+      'SELECT lifecycle_version FROM project_publication_editorial_lifecycle WHERE publication_id=$1',
+      [source.publicationId],
+    );
+    const lifecycleVersion = lifecycleResult.rows[0]?.lifecycle_version ?? 0;
+    const data = (
+      featured: boolean,
+      editorialVersion: number,
+      moderationVersion: number,
+      revisionId = source.revisionId,
+    ) => ({
+      featured,
+      expectedVersion: editorialVersion,
+      expectedModerationVersion: moderationVersion,
+      expectedRevisionId: revisionId,
+      expectedLifecycleVersion: lifecycleVersion,
+    });
+    const request = async (token: string, payload: ReturnType<typeof data>) =>
+      inject(app, {
+        method: 'POST',
+        url,
+        cookies: { asa_session: token },
+        payload,
+      });
+    expect((await request(ordinary.token, data(true, 0, 0))).statusCode).toBe(403);
+    await expect(
+      runtime.query('SELECT * FROM project_publication_editorial'),
+    ).rejects.toMatchObject({ code: '42501' });
+    const selected = await request(editor.token, data(true, 0, 0));
+    expect(selected.statusCode).toBe(200);
+    expect(selected.json()).toMatchObject({
+      publicationId: source.publicationId,
+      revisionId: source.revisionId,
+      featured: true,
+      editorialVersion: 1,
+    });
+    expect((await request(editor.token, data(true, 0, 0))).statusCode).toBe(409);
+    const publicDetail = async () =>
+      inject(app, { method: 'GET', url: `/api/public-projects/${source.publicationId}` });
+    expect((await publicDetail()).json().publication).toMatchObject({ featured: true });
+    const catalog = await inject(app, { method: 'GET', url: '/api/public-projects?limit=48' });
+    expect(catalog.statusCode).toBe(200);
+    const catalogItem = catalog
+      .json()
+      .items.find((item: { publicationId: string }) => item.publicationId === source.publicationId);
+    expect(catalogItem).toMatchObject({ featured: true });
+    const adminList = await inject(app, {
+      method: 'GET',
+      url: '/api/admin/v1/publications',
+      cookies: { asa_session: editor.token },
+    });
+    expect(adminList.statusCode).toBe(200);
+    const adminItem = adminList
+      .json()
+      .items.find((item: { publicationId: string }) => item.publicationId === source.publicationId);
+    expect(adminItem).toMatchObject({ featured: true, editorialVersion: 1 });
+
+    await transition(
+      editor.principalId,
+      source.publicationId,
+      true,
+      'Safety check',
+      randomUUID(),
+      0,
+      source.revisionId,
+    );
+    expect((await publicDetail()).statusCode).toBe(404);
+    expect((await request(editor.token, data(false, 1, 1))).statusCode).toBe(404);
+    await transition(
+      editor.principalId,
+      source.publicationId,
+      false,
+      'Reviewed',
+      randomUUID(),
+      1,
+      source.revisionId,
+    );
+    expect((await publicDetail()).json().publication.featured).toBe(false);
+    expect((await request(editor.token, data(true, 1, 0))).statusCode).toBe(409);
+    const again = await request(editor.token, data(true, 1, 2));
+    expect(again.statusCode).toBe(200);
+    expect((await publicDetail()).json().publication.featured).toBe(true);
+
+    const updated = await source.publish('Author-updated immutable metadata');
+    const newRevision = updated.publication.revisionId as string;
+    expect(newRevision).not.toBe(source.revisionId);
+    expect((await publicDetail()).json().publication.featured).toBe(false);
+    expect((await request(editor.token, data(false, 2, 2))).statusCode).toBe(409);
+    const history = (
+      await admin.query(
+        `SELECT action,actor_principal_id,reason_text,before_version,after_version
+          FROM administrative_audit_events WHERE target_type='project_publication' AND target_id=$1
+          ORDER BY occurred_at,id`,
+        [source.publicationId],
+      )
+    ).rows;
+    const editorial = history.filter((event) =>
+      String(event.action).startsWith('publication.feat'),
+    );
+    expect(editorial).toHaveLength(2);
+    expect(editorial[0]).toMatchObject({
+      action: 'publication.feature',
+      actor_principal_id: editor.principalId,
+      reason_text: 'Выбор редакции',
+      before_version: '0',
+      after_version: '1',
+    });
+    expect(editorial[1]).toMatchObject({
+      action: 'publication.feature',
+      before_version: '1',
+      after_version: '2',
+    });
+    expect(history.filter((event) => event.action === 'publication.restore')).toHaveLength(1);
+  });
+  it('prevents badge resurrection after revoke and republish', async () => {
+    const source = await publication();
+    const editor = await identity('revoke-featured-editor', 'verified');
+    const actionUrl = `/api/admin/v1/publications/${source.publicationId}/featured`;
+    const epoch = async (): Promise<number> => {
+      const result = await admin.query<{ lifecycle_version: number }>(
+        'SELECT lifecycle_version FROM project_publication_editorial_lifecycle WHERE publication_id=$1',
+        [source.publicationId],
+      );
+      return result.rows[0]?.lifecycle_version ?? 0;
+    };
+    const startEpoch = await epoch();
+    const action = async (editorialVersion: number, lifecycleVersion: number) =>
+      inject(app, {
+        method: 'POST',
+        url: actionUrl,
+        cookies: { asa_session: editor.token },
+        payload: {
+          featured: true,
+          expectedVersion: editorialVersion,
+          expectedRevisionId: source.revisionId,
+          expectedModerationVersion: 0,
+          expectedLifecycleVersion: lifecycleVersion,
+        },
+      });
+    const selected = await action(0, startEpoch);
+    expect(selected.statusCode).toBe(200);
+    expect(selected.json()).toMatchObject({
+      publicationId: source.publicationId,
+      revisionId: source.revisionId,
+      featured: true,
+      editorialVersion: 1,
+      lifecycleVersion: startEpoch,
+    });
+    const read = async () =>
+      inject(app, { method: 'GET', url: `/api/public-projects/${source.publicationId}` });
+    expect((await read()).json().publication.featured).toBe(true);
+
+    const before = await original(source.projectId);
+    const revoked = await runtime.query('SELECT project_publication_revoke($1,$2) AS ok', [
+      source.owner.principalId,
+      source.projectId,
+    ]);
+    expect(revoked.rows[0]?.ok).toBe(true);
+    expect((await read()).statusCode).toBe(404);
+
+    // The writer deliberately reuses the same immutable revision when content,
+    // preview and publication metadata have not changed.
+    const republished = await source.publish();
+    expect(republished.publication.revisionId).toBe(source.revisionId);
+    const nextEpoch = await epoch();
+    expect(nextEpoch).toBeGreaterThan(startEpoch);
+    const visible = await read();
+    expect(visible.statusCode).toBe(200);
+    expect(visible.json().publication.featured).toBe(false);
+    expect((await action(1, startEpoch)).statusCode).toBe(409);
+    const currentList = await inject(app, {
+      method: 'GET',
+      url: '/api/admin/v1/publications',
+      cookies: { asa_session: editor.token },
+    });
+    const row = currentList
+      .json()
+      .items.find((item: { publicationId: string }) => item.publicationId === source.publicationId);
+    expect(row).toMatchObject({
+      featured: false,
+      editorialVersion: 1,
+      lifecycleVersion: nextEpoch,
+    });
+    const newDecision = await action(1, nextEpoch);
+    expect(newDecision.statusCode).toBe(200);
+    expect(newDecision.json()).toMatchObject({ featured: true, editorialVersion: 2 });
+    expect((await read()).json().publication.featured).toBe(true);
+    expect(await original(source.projectId)).toEqual(before);
+  });
+  it('retires a featured decision after Project or Account eligibility is restored', async () => {
+    const source = await publication();
+    const editor = await identity('policy-editor', 'verified');
+    const actionUrl = `/api/admin/v1/publications/${source.publicationId}/featured`;
+    const lifecycle = async () => {
+      const row = await admin.query<{ lifecycle_version: number }>(
+        'SELECT lifecycle_version FROM project_publication_editorial_lifecycle WHERE publication_id=$1',
+        [source.publicationId],
+      );
+      return row.rows[0]?.lifecycle_version ?? 0;
+    };
+    const setFeatured = async (expectedVersion: number, expectedLifecycleVersion: number) =>
+      inject(app, {
+        method: 'POST',
+        url: actionUrl,
+        cookies: { asa_session: editor.token },
+        payload: {
+          featured: true,
+          expectedVersion,
+          expectedRevisionId: source.revisionId,
+          expectedModerationVersion: 0,
+          expectedLifecycleVersion,
+        },
+      });
+    const publicDetail = async () =>
+      inject(app, { method: 'GET', url: `/api/public-projects/${source.publicationId}` });
+    const adminItem = async () => {
+      const response = await inject(app, {
+        method: 'GET',
+        url: '/api/admin/v1/publications?limit=50',
+        cookies: { asa_session: editor.token },
+      });
+      expect(response.statusCode).toBe(200);
+      return response
+        .json()
+        .items.find(
+          (item: { publicationId: string }) => item.publicationId === source.publicationId,
+        );
+    };
+    const versionsBefore = (
+      await admin.query(
+        'SELECT to_jsonb(v) AS original FROM project_versions v WHERE project_id=$1',
+        [source.projectId],
+      )
+    ).rows;
+    const draftBefore = (
+      await admin.query('SELECT document_json, revision FROM project_drafts WHERE project_id=$1', [
+        source.projectId,
+      ])
+    ).rows;
+
+    const firstEpoch = await lifecycle();
+    expect((await setFeatured(0, firstEpoch)).statusCode).toBe(200);
+    expect((await publicDetail()).json().publication.featured).toBe(true);
+    expect(await adminItem()).toMatchObject({ featured: true, editorialEligible: true });
+
+    const actor = {
+      principalId: source.owner.principalId,
+      userId: source.owner.teacher.teacherId,
+    };
+    const target = source.owner.teacher.tenantId;
+    expect((await repo.updateStatus(target, source.projectId, actor, 'archived'))?.status).toBe(
+      'archived',
+    );
+    expect((await publicDetail()).statusCode).toBe(404);
+    expect(await adminItem()).toMatchObject({ featured: false, editorialEligible: false });
+    expect((await repo.updateStatus(target, source.projectId, actor, 'active'))?.status).toBe(
+      'active',
+    );
+    expect((await publicDetail()).json().publication.featured).toBe(false);
+    expect(await adminItem()).toMatchObject({ featured: false, editorialEligible: true });
+    const restoredProjectEpoch = await lifecycle();
+    expect(restoredProjectEpoch).toBeGreaterThan(firstEpoch);
+    expect((await setFeatured(1, firstEpoch)).statusCode).toBe(409);
+    expect((await setFeatured(1, restoredProjectEpoch)).statusCode).toBe(200);
+    expect((await publicDetail()).json().publication.featured).toBe(true);
+
+    await admin.query("UPDATE accounts SET status='suspended' WHERE id=$1", [
+      source.owner.accountId,
+    ]);
+    expect((await publicDetail()).statusCode).toBe(404);
+    expect(await adminItem()).toMatchObject({ featured: false, editorialEligible: false });
+    await admin.query("UPDATE accounts SET status='active' WHERE id=$1", [source.owner.accountId]);
+    expect((await publicDetail()).json().publication.featured).toBe(false);
+    expect(await adminItem()).toMatchObject({ featured: false, editorialEligible: true });
+    const restoredAccountEpoch = await lifecycle();
+    expect(restoredAccountEpoch).toBeGreaterThan(restoredProjectEpoch);
+    expect((await setFeatured(2, restoredProjectEpoch)).statusCode).toBe(409);
+    expect((await setFeatured(2, restoredAccountEpoch)).statusCode).toBe(200);
+    expect((await publicDetail()).json().publication.featured).toBe(true);
+
+    expect(
+      (
+        await admin.query(
+          'SELECT to_jsonb(v) AS original FROM project_versions v WHERE project_id=$1',
+          [source.projectId],
+        )
+      ).rows,
+    ).toEqual(versionsBefore);
+    expect(
+      (
+        await admin.query(
+          'SELECT document_json, revision FROM project_drafts WHERE project_id=$1',
+          [source.projectId],
+        )
+      ).rows,
+    ).toEqual(draftBefore);
+  });
 });
