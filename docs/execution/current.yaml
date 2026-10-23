@@ -7389,13 +7389,13 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: short_visual_actual_fail_raf_metric_repair_selected
+      checkpoint: short_receipt_after_running_long_cycle_coverage_selected
       kind: repair
       owner_acceptance: pending
       context_hints:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-ARDUINO-REALTIME-001.md
       owner_request: Proportional real timing from30ms through20s; supported if/for/while/loop with externalLED/button and SerialMonitor TX/RX. No extra product explanations;remove LIMITED only after full capability proof.
-      selected_slice: Actual repeated20/30/50/100ms visual phases still fail despite exact electrical fronts. One bounded hook author may coalesce only displayed committed-time React state onto the existing real RAF, after reproducing redundant receipt renders. Canonical latest committed horizon, input delivery, Worker requests and physical state stay immediate and unchanged. All frozen short-phase checks remain required;independent review and verified main publication required.
+      selected_slice: Preserve running17cce464 receipt-render AFTER and its frozen short-cycle checks. Owner additionally requires real repeated1000/5000/10000/20000ms verification. One test-only author adds three complete cycles per long period with exact electrical times and unchanged phase/drift bounds;no new product changes in this coverage slice. Independent review and verified main publication remain required.
       boundaries: Exact model event timestamps/instruction costs are separate from wall pace/jitter/backlog/UI responsiveness;baseline timing may honestly FAIL. Intentionally red unit tests must not enter main. No full C++ claim or timeout/coverage weakening.
       next_selection: Button hit-precondition and functional Serial evidence remain separate pending work;no Serial implementation repair without demonstrated defect. Labels require capability-specific proof. Preserved546/R27 remain stopped.
       coordination: Other Arduino controller confirms no active timing/core/hook/LED writer and observation PAUSED;parallel679 Stage-only budget repair remains separate and not closed.525 paused with history retained.
