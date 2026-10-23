@@ -5360,15 +5360,81 @@ wireVideoTest.describe('interaction: natural precise wire routing', () => {
               '.workbench-regulated-supply-power-slider',
             );
             const sliderPoint = await locatorCenter(slider);
-            const controlHit = await page.evaluate(({ x, y }) => {
+            const { controlHit, hitWitness } = await page.evaluate(({ x, y }) => {
               const hit = document.elementFromPoint(x, y);
-              return {
+              const controlHit = {
                 slider: !!hit?.closest('.workbench-regulated-supply-power-switch'),
                 component:
                   hit?.closest('[data-component-id]')?.getAttribute('data-component-id') ?? null,
               };
+              const identity = (element: Element | null) =>
+                element && {
+                  tag: element.tagName,
+                  namespace: element.namespaceURI,
+                  id: element.id,
+                  class: element.getAttribute('class')?.slice(0, 256) ?? null,
+                  testId: element.getAttribute('data-testid'),
+                  componentId: element.getAttribute('data-component-id'),
+                  wireId: element.getAttribute('data-wire-id'),
+                  terminalId: element.getAttribute('data-terminal-id'),
+                };
+              const geometry = (element: Element | null) => {
+                if (!element) return null;
+                const box = element.getBoundingClientRect();
+                const style = getComputedStyle(element);
+                const matrix =
+                  element instanceof SVGGraphicsElement ? element.getScreenCTM() : null;
+                const ctm = matrix
+                  ? [matrix.a, matrix.b, matrix.c, matrix.d, matrix.e, matrix.f]
+                  : null;
+                return {
+                  identity: identity(element),
+                  bounds: {
+                    x: box.x,
+                    y: box.y,
+                    width: box.width,
+                    height: box.height,
+                    left: box.left,
+                    top: box.top,
+                    right: box.right,
+                    bottom: box.bottom,
+                  },
+                  ctm,
+                  ctmFinite: ctm === null ? null : ctm.every(Number.isFinite),
+                  pointerEvents: style.pointerEvents,
+                  display: style.display,
+                  visibility: style.visibility,
+                };
+              };
+              const ancestry = [];
+              for (
+                let element = hit;
+                element && ancestry.length < 8;
+                element = element.parentElement
+              )
+                ancestry.push(identity(element));
+              const slider = document.querySelector(
+                '[data-component-id="cross-psu"] .workbench-regulated-supply-power-slider',
+              );
+              const hitWitness = {
+                top: identity(hit),
+                ancestry,
+                stack: document.elementsFromPoint(x, y).slice(0, 12).map(identity),
+                slider: geometry(slider),
+                control: geometry(
+                  slider?.closest('.workbench-regulated-supply-power-switch') ?? null,
+                ),
+                canvas: geometry(document.querySelector('.workbench-canvas')),
+                viewport: { width: innerWidth, height: innerHeight, scrollX, scrollY },
+                panels: Array.from(
+                  document.querySelectorAll('.workbench-inspector, .workbench-catalog'),
+                )
+                  .slice(0, 4)
+                  .map(geometry),
+              };
+              return { controlHit, hitWitness };
             }, sliderPoint);
-            real.journal('psu-slider-hit', { sliderPoint, controlHit });
+            real.journal('psu-slider-hit', { sliderPoint, controlHit, hitWitness });
             expect(controlHit).toEqual({ slider: true, component: 'cross-psu' });
             expected = {
               ...expected,
