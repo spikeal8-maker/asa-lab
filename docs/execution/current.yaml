@@ -85,10 +85,8 @@ parallel_lanes:
     parent_lane: electronics
     worktree_id: electronics-reverse-led-colour-718
     owned_paths:
-      - apps/web/src/electronics/workbench.css
       - apps/web/src/electronics/production-asset-contracts.ts
       - apps/web/src/electronics/testing/production-assets.spec.ts
-      - apps/web/src/electronics/testing/asset-recovery.spec.ts
       - e2e/electronics-simulation.spec.ts
       - docs/product/electronics/generated/component-coverage.json
       - docs/product/electronics/tasks/TASK-ELECTRONICS-REVERSE-LED-COLOUR-001.md
@@ -9270,7 +9268,6 @@ parallel_lanes:
     parent_lane: electronics
     worktree_id: electronics-spdt-shadow-547
     owned_paths:
-    - apps/web/src/electronics/workbench.css
     - e2e/electronics-switch-shadow.spec.ts
     - docs/product/electronics/tasks/TASK-ELECTRONICS-SPDT-ACTIVE-SHADOW-001.md
     task:
@@ -10981,7 +10978,6 @@ parallel_lanes:
     - apps/web/src/electronics/led-temporal-presentation.ts
     - apps/web/src/electronics/testing/led-temporal-presentation.spec.ts
     - apps/web/src/electronics/ProductionComponentVisual.tsx
-    - apps/web/src/electronics/testing/asset-recovery.spec.ts
     - tools/run-electronics-classroom-browser.mjs
     - tests/electronics/classroom-qualification.spec.ts
     - docs/product/electronics/tasks/TASK-ELECTRONICS-CLASSROOM-D13-001.md
@@ -11685,6 +11681,8 @@ integration:
   owner_lane: visual-programming
   shared_paths:
     - docs/execution/current.yaml
+    - apps/web/src/electronics/workbench.css
+    - apps/web/src/electronics/testing/asset-recovery.spec.ts
     - AGENTS.md
     - START_HERE_FOR_AI.md
     - package.json
