@@ -1,0 +1,36 @@
+name: Classroom Program Controller Checks
+
+on:
+  pull_request:
+    paths:
+      - 'tools/classroom-program/**'
+      - '.github/workflows/classroom-controller.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate requirements, dependencies and decisions
+        run: python tools/classroom-program/classroomctl.py validate
+      - name: Run all controller regression tests
+        run: python -m unittest discover -s tools/classroom-program/tests -v
+      - name: Rebuild registry and check deterministic output
+        shell: bash
+        run: |
+          python tools/classroom-program/build_registry.py
+          git diff --exit-code -- tools/classroom-program/registry.json
+      - name: Check first safe slice only
+        shell: bash
+        run: |
+          python tools/classroom-program/classroomctl.py next | grep '^CTRL-00'
