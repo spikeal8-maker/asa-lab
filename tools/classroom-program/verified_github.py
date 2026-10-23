@@ -104,56 +104,68 @@ def _verified_owner_comment(key: str, choice: str, url: str, access_token: str):
 
 
 def _get_reviews(pr_number: int, commit_sha: str, author_login: str, needs_security: bool, access_token: str):
-    # A genuine authenticated GitHub APPROVED review or clean GitHub-Codex bot
-    # state for the exact commit. In both cases the reviewer differs from author.
+    """Use the latest authenticated exact-SHA reviewer verdict, never an old PASS."""
     reviews = github_json(
         "/repos/" + REPOSITORY + "/pulls/" + str(pr_number) + "/reviews?per_page=100",
         access_token,
     )
     if not isinstance(reviews, list):
         raise RemoteProofError("Unexpected PR review response")
-    # A later requested change for the exact SHA supersedes an older
-    # approval: do not revive discarded approvals.
     exact = [x for x in reviews if x.get("commit_id") == commit_sha]
     if any(x.get("state") == "CHANGES_REQUESTED" for x in exact):
         raise RemoteProofError("Exact-SHA independent review contains change requests")
-    approved = any(
+    human_approved = any(
         x.get("state") == "APPROVED"
         and x.get("user", {}).get("login") not in {author_login, "", None}
         for x in exact
     )
-    if approved:
-        return
     comments = github_json(
         "/repos/" + REPOSITORY + "/issues/" + str(pr_number) + "/comments?per_page=100",
         access_token,
     )
     if not isinstance(comments, list):
         raise RemoteProofError("Unexpected review comments response")
-    for x in reversed(comments):
-        if x.get("user", {}).get("login") != "chatgpt-codex-connector[bot]":
+    # A Codex summary may be edited in place. Use updated_at rather than relying
+    # on creation order; do not silently skip a newer failed exact-SHA verdict.
+    latest = None
+    for comment in comments:
+        if (comment.get("user") or {}).get("login") != "chatgpt-codex-connector[bot]":
             continue
-        text = x.get("body") or ""
         marker = "<!-- codex-review-state:v1 "
-        if marker not in text:
+        body = comment.get("body") or ""
+        if marker not in body:
             continue
         try:
-            status = json.loads(text.split(marker, 1)[1].split(" -->", 1)[0])
-        except (ValueError, IndexError):
+            state = json.loads(body.split(marker, 1)[1].split(" -->", 1)[0])
+        except (ValueError, IndexError, TypeError):
             continue
-        code = status.get("code_review") or {}
-        security = status.get("security_review") or {}
-        checks = [code] + ([security] if needs_security else [])
+        if not isinstance(state, dict):
+            continue
+        code = state.get("code_review") or {}
+        security = state.get("security_review") or {}
+        if not isinstance(code, dict) or not isinstance(security, dict):
+            continue
+        if code.get("commit_sha") != commit_sha and security.get("commit_sha") != commit_sha:
+            continue
+        order = (comment.get("updated_at") or comment.get("created_at") or "",
+                 comment.get("id") or 0)
+        if latest is None or order > latest[0]:
+            latest = (order, code, security)
+    if latest is not None:
+        _, code, security = latest
+        required = [code] + ([security] if needs_security else [])
         if all(
-            y.get("commit_sha") == commit_sha
-            and y.get("status") == "completed"
-            and y.get("has_any_findings") is False
-            and y.get("has_unresolved_findings") is False
-            for y in checks
+            state.get("commit_sha") == commit_sha
+            and state.get("status") == "completed"
+            and state.get("has_any_findings") is False
+            and state.get("has_unresolved_findings") is False
+            for state in required
         ):
             return
+        raise RemoteProofError("Latest exact-SHA Codex review has findings or is incomplete")
+    if human_approved:
+        return
     raise RemoteProofError("No authenticated independent clean review for exact SHA")
-
 
 def _ci_run(ev: dict, commit_sha: str, kind: str, access_token: str):
     number = _matched(RUN_LINK, ev.get("uri"), kind)
