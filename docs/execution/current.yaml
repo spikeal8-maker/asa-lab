@@ -7336,13 +7336,13 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: realtime9c_native_result_harness_completion_repair_selected
+      checkpoint: source_approved_native_completion_bundle_neutral_repair_selected
       kind: repair
       owner_acceptance: pending
       context_hints:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-ARDUINO-REALTIME-001.md
       owner_request: Proportional real timing from30ms through20s; supported if/for/while/loop with externalLED/button and SerialMonitor TX/RX. No extra product explanations;remove LIMITED only after full capability proof.
-      selected_slice: Test-only bounded completion repair after actual9c realtime evidence. Profile saved raw journal validation;remove proven assertion overhead while retaining every invariant. Diagnose button native hit precondition using actual geometry;only evidence-based intended fixture/UI fit correction. Product frozen9c;new author and new independent reviewer required.
+      selected_slice: Separate behavior-neutral bundle repair in presenter only;rename internal private fields to recover unchanged218000-byte budget. Preserve independently approved9c realtime and a3d5 native completion byteidentity outside internal member renames. New author and independent review;exact build required before combined native AFTER.
       boundaries: Exact model event timestamps/instruction costs are separate from wall pace/jitter/backlog/UI responsiveness;baseline timing may honestly FAIL. Intentionally red unit tests must not enter main. No full C++ claim or timeout/coverage weakening.
       next_selection: Button hit-precondition and functional Serial evidence remain separate pending work;no Serial implementation repair without demonstrated defect. Labels require capability-specific proof. Preserved546/R27 remain stopped.
       coordination: Other Arduino controller confirms no active timing/core/hook/LED writer and observation PAUSED;parallel679 Stage-only budget repair remains separate and not closed.525 paused with history retained.
