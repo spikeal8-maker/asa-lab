@@ -841,6 +841,8 @@ function CourseEditor({
     const header = compactHeaderRef.current;
     const editor = header?.closest('.course-document-editor');
     if (!header || !(editor instanceof HTMLElement)) return;
+    let resizeFrame: number | null = null;
+    let settledResizeFrame: number | null = null;
     const revealFocusedBlockAction = () => {
       const active = document.activeElement;
       if (
@@ -859,7 +861,7 @@ function CourseEditor({
         // A responsive resize can leave the focused action either behind the
         // sticky headers or entirely below the viewport. Both are unusable.
         // The summary's measured sticky-header scroll margin reserves room.
-        active.scrollIntoView({ block: 'start' });
+        active.scrollIntoView({ block: 'start', behavior: 'instant' });
       }
     };
     const updateOffset = () => {
@@ -868,6 +870,19 @@ function CourseEditor({
         `${Math.ceil(header.getBoundingClientRect().height)}px`,
       );
       revealFocusedBlockAction();
+      // The viewport resize event may precede responsive grid reflow. Recheck
+      // the same focused action after the new layout has been painted; do not
+      // move focus or rely on a test-only scroll.
+      if (resizeFrame !== null) cancelAnimationFrame(resizeFrame);
+      if (settledResizeFrame !== null) cancelAnimationFrame(settledResizeFrame);
+      resizeFrame = requestAnimationFrame(() => {
+        resizeFrame = null;
+        revealFocusedBlockAction();
+        settledResizeFrame = requestAnimationFrame(() => {
+          settledResizeFrame = null;
+          revealFocusedBlockAction();
+        });
+      });
     };
     updateOffset();
     const observer =
@@ -877,6 +892,8 @@ function CourseEditor({
     window.addEventListener('resize', updateOffset);
     window.visualViewport?.addEventListener('resize', updateOffset);
     return () => {
+      if (resizeFrame !== null) cancelAnimationFrame(resizeFrame);
+      if (settledResizeFrame !== null) cancelAnimationFrame(settledResizeFrame);
       observer?.disconnect();
       editor.removeEventListener('focusin', revealFocusedBlockAction);
       window.removeEventListener('resize', updateOffset);
