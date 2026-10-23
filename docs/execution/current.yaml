@@ -8315,21 +8315,22 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: owner_programme_pr694_test_integration_selected
+      checkpoint: owner_programme_pr694_real_acceptance_test_selected
       kind: repair
       owner_acceptance: pending
       context_hints:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-ARDUINO-PSU-WIRE-LAYER-001.md
-      repair_scope: TEST ONLY controlled integration of PR694 exact 8fa878116c7b508ba12dcc3bca4341175e9c9168 F2 native mouse and 390x844 touch cases with current main; preserve both main Arduino coverage and existing F2. Existing wire-layer product is not selected for rewriting.
-      source_budget: ONLY e2e/electronics-interactions.spec.ts test integration; necessary generated browser metadata only if canonical generator requires it. No Stage/product/budget/workflow/dependency edits. Preserve original PR694 finite case budget; no timeout increase.
+      repair_scope: TEST ONLY F2 acceptance repair atop independently approved integration88930020; replace mocked persistence proof with real authenticated projects, native Save/CAS and cookies-only fresh-context reopen. Preserve F2 wire/terminal/ordinary negatives and main Arduino coverage; add native PSU slider negative-control acceptance. No product repair is selected.
+      source_budget: ONLY F2 cases and minimal public test helpers in e2e/electronics-interactions.spec.ts; necessary generated browser metadata only if canonical generator requires it. No Stage/product/budget/workflow/dependency edits. Preserve original PR694 finite case budget; no timeout increase.
       rendering_contract: Render target bodies after breadboard bodies and BEFORE existing wire hit/paint layers;exclude exactly targets from later ordinary body map. Keep terminals and overlays above wires. Preserve other ordinary relative order,foreign Stage props/readiness/UnoL and complete document.
       interaction_contract: Same exact-kind predicate exempts ONLY targets from handleWirePointerDown foreground-body drag redirect;visible target-overlying wires retain wire behavior. Other ordinary redirects unchanged.
-      execution_boundary: One new bounded author integrates reviewed F2 test hunks onto fresh main, freezes focused source checks and STOP; new independent exact-SHA source/integration review before publication. One justified exact-SHA native target verification plus required focused/General gates; no blind unchanged full-suite reruns. Cancelled overall browser never PASS; target evidence alone does not waive mandatory acceptance.
+      execution_boundary: One new bounded author repairs only selected F2 acceptance semantics on fresh main, freezes focused source checks and STOP; new independent exact-SHA source/integration review before publication. One justified exact-SHA native target verification plus required focused/General gates; no blind unchanged full-suite reruns. Cancelled overall browser never PASS; target evidence alone does not waive mandatory acceptance.
       preservation: Owner programme679 then681 then557;681 observed CLOSED by owner spikeal8-maker on2026-10-23T17:02:17Z,do not reopen or close again and do not imply prior full General PASS. Preserve682 sole controller,548 budget blocker and ownerKEEP544547OPEN,all historical receipts/refs and foreign/protected work. Real dirty overlap STOP; known workflow exception disjoint only.
-      integration_receipt: docs/product/electronics/evidence/arduino-psu-pr694-integration-selection-20261023.md
+      real_acceptance_contract: Genuine UI authentication once per group, isolated real projects and cookies-only contexts; independently canonical fixture expected document validated against public normalization, never adopted from actual PUT/server. Native exactly one intended Save, one matching full-payload PUT with observed baseRevision and server CAS plus1; fresh GET and cookies-only fresh-context reopen prove full independent document. Journal actual storage and persistence evidence durably before assertions/teardown; fail closed on loss, unknown writes or races. Preserve mouse1440 and touch390x844, original finite budgets and native actions; no forced hits, extra Save retries, mocks or timeout increase. Native PSU slider control must remain usable with crossing wires; an actual product failure requires separate cause-based selection.
+      integration_receipt: docs/product/electronics/evidence/arduino-psu-pr694-real-acceptance-selection-20261023.md
       candidate_pr: 694
       candidate_source_sha: 8fa878116c7b508ba12dcc3bca4341175e9c9168
-      next_action: Integrate existing F2 tests including already-present390x844 native touch; retain Draft until mandatory review/acceptance. If externalC/D prevents679 closure,record concrete blocker and advance independent681 verification then557 under separate canonical selection. No unreviewed Draft merge.
+      next_action: Repair real F2 persistence and PSU-control acceptance, then obtain new independent source review before one justified exact-SHA verification; retain Draft until mandatory review/acceptance. If externalC/D prevents679 closure,record concrete blocker and advance independent681 verification then557 under separate canonical selection. No unreviewed Draft merge.
     execution_lease:
       executor_id: electronics-field-544
       holder: unassigned

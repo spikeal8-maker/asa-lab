@@ -59,3 +59,38 @@ Record #681 as owner-closed without reopening or claiming every historical Gener
 run passed. Continue independent #557 under its own canonical selection if an
 external blocker prevents #679 closure. Draft PR state never authorises unreviewed
 merge. School installation, live data and network remain outside scope.
+
+
+## Selected delta: real F2 acceptance
+
+This delta supersedes the exact-integration-only authoring boundary above, not the
+product preservation contract. Independent composition review approved integrated
+source `88930020db9627b085c86f3257b3ff19809c2a95`, but identified that F2's mocked
+PUT ignores baseRevision, reload uses the same context, and PSU slider operation
+is absent. Those checks cannot establish real CAS, isolated reopen or PSU-control
+acceptance. Preserve this integration and its history; do not publish it as closure.
+
+Select one TEST-ONLY repair restricted to F2 cases and minimal public helpers in
+`e2e/electronics-interactions.spec.ts`, plus necessary generated browser metadata.
+Use genuine UI authentication once per group and isolated real projects/contexts.
+Expected fixture and edited documents must be independent and canonical under
+public server/client normalization; never derive expected from observed PUT/GET.
+Prove exactly one intended native Save and its one matching full-document PUT,
+observed baseRevision, acknowledged server revision plus one, fresh server GET and
+cookies-only fresh-context reopen with the full expected document. Journal actual
+storage/persistence evidence durably before assertions or teardown and fail closed
+on unknown writes, missing evidence or races. Fresh context must not inherit draft
+storage. Preserve primary errors; no forced input, retries or extra Save masking.
+
+Preserve mouse1440 and touch390x844 wire crossing/selection/drag, target body and
+terminal ordering/start/cancel and ordinary battery/LED/resistor negatives. Add
+native PSU slider usability as a negative control with crossing wires, without
+selecting product repair until actual evidence establishes a concrete cause.
+Keep original finite budgets and all unrelated main Arduino/F1 tests byte-exact;
+reuse small public helpers rather than wholesale harness transplantation. No
+workflow/script, dependency, cap, product, core/hook, API/persistence or asset edits.
+
+Freeze focused checks and exact source for NEW independent review, then one
+justified exact-SHA verification. Missing runtime stays NOT_RUN. Keep all acceptance
+blockers and issue679 OPEN until mandatory acceptance; cancelled broad CI does not
+waive a gate. Owner-closed681 remains closed; independent557 is next when eligible.
