@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
 import type { FastifyRequest } from 'fastify';
-import { hashSessionToken } from '@asa-lab/identity';
+import { hashSessionToken } from '../../contexts/identity/dist/index.js';
 import { seedTeacher, testAdminPool, testAppPool } from '../portal/helpers';
 import { ProductAnalyticsService } from '../../apps/api/src/product-analytics.service';
 import { ProductAnalyticsV2Controller } from '../../apps/api/src/product-analytics-v2.controller';
