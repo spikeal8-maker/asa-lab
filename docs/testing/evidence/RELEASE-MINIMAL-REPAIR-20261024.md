@@ -54,3 +54,24 @@ database and runs exactly `classroom-scratch-time.pg.spec.ts` and
 `activity-participations.pg.spec.ts`. Final exact-SHA CI and release evidence are
 required before production deployment; this author slice does not update any
 running installation.
+
+### Final focused acceptance
+
+[Actions run 40037441654](https://github.com/spikeal8-maker/asa-lab/actions/runs/40037441654)
+finished **SUCCESS** on exact source
+`de919261d75afce9626dc139cf889c7abae6580d`:
+
+- API build passed.
+- **28 unit tests** passed: 19 analytics admission/isolation tests and nine queue
+  tests, including expected refusals remaining rejected rather than persisted.
+- **47 PostgreSQL tests** passed: all 45 activity-participation tests and both
+  Scratch classroom-time tests. Existing foreign-session, closed-session replay,
+  module-mismatch, trashed-project, mixed-cookie and activity assertions remain.
+
+The first focused attempt had passed 46 of these 47 PostgreSQL tests; the final
+repair classified the remaining heartbeat denials without weakening assertions.
+Authentication, V2 response mappings and SQL access policies were not changed.
+
+This report update is documentation only. Full general CI, portable-release
+verification and the production deployment are still pending; this focused
+acceptance does not claim that the installed site has already been updated.
