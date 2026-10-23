@@ -20,6 +20,7 @@ from deployment.releases import apply_release_environment, assert_ci, discover_r
 from deployment.system import Installation, operation_lock, run
 from deployment.collector import prepare as prepare_collector, reconcile as reconcile_collector, status as collector_status
 from deployment.contracts import proxy_provenance_diagnostic
+from deployment.resources import check_resources
 
 
 def clean_checkout(install):
@@ -32,6 +33,7 @@ def doctor(install, existing=True):
     run(["docker", "version", "--format", "{{.Server.Version}}"], capture=True)
     run(["docker", "compose", "version"], capture=True)
     records = install.identity(existing=existing)
+    check_resources(install, records)
     free = shutil.disk_usage(install.root).free
     print(f"INSTALLATION root={install.root} project={install.project} profile={install.profile}")
     print(f"DISK checkout_free_gib={free / 1024**3:.1f}; Docker data disk must also have space for images, objects and restore")
@@ -187,7 +189,7 @@ def update(install, *, check=False, scheduled=False, fresh=False):
             exact_origin(install.env[key])
     apply_release_environment(install, release)
     validate_resolved_images(install, release)
-    install.identity(existing=not fresh)
+    check_resources(install, install.identity(existing=not fresh))
     # Download support images while the previous application remains available.
     install.compose("pull", "postgres", "minio-init")
     if scheduled:
