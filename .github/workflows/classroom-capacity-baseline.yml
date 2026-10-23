@@ -22,7 +22,7 @@ on:
       profile:
         description: Focused client recovery or the existing backend capacity baseline
         type: choice
-        options: [backend30, snapshot-recovery, proxy-admission, resource-budget]
+        options: [backend30, snapshot-recovery, proxy-admission, resource-budget, school-nat]
         default: backend30
 permissions:
   contents: read
@@ -81,6 +81,8 @@ jobs:
         run: |
           pnpm db:migrate
           psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -c "ALTER ROLE asalab_app WITH LOGIN PASSWORD 'capacity-ci-only'"
+      - name: Check prepared saves against current permissions and real PostgreSQL
+        run: pnpm exec vitest run tests/capacity/prepared-draft-save.pg.spec.ts
       - run: pnpm test:capacity:baseline
       - name: Preserve aggregate evidence even after a failed workload
         if: always()
@@ -176,3 +178,54 @@ jobs:
       - run: pnpm exec nx build api --skip-nx-cache
       - run: pnpm exec vitest run apps/api/src/pool-settings.spec.ts --maxWorkers=1
       - run: python -m unittest tools.deployment.test_resources tools.deployment.test_contracts tools.deployment.test_maintenance_bootstrap -v
+
+  school-nat:
+    if: github.event_name == 'workflow_dispatch' && inputs.profile == 'school-nat'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    services:
+      postgres:
+        image: postgres:17.7
+        env:
+          POSTGRES_DB: asa_school_nat_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: nat-ci-only
+        ports: ['127.0.0.1:5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d asa_school_nat_test"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    env:
+      NX_SKIP_NX_CACHE: 'true'
+      ASA_SCHOOL_NAT_TEST: '1'
+      TEST_DATABASE_URL: postgresql://postgres:nat-ci-only@127.0.0.1:5432/asa_school_nat_test
+      APP_TEST_DATABASE_URL: postgresql://asalab_app:nat-ci-only@127.0.0.1:5432/asa_school_nat_test
+      MIGRATION_DATABASE_URL: postgresql://postgres:nat-ci-only@127.0.0.1:5432/asa_school_nat_test
+      MIGRATION_EXPECT_DATABASE: asa_school_nat_test
+      MIGRATION_CONFIRM: APPLY:asa_school_nat_test
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec nx build api --skip-nx-cache
+      - run: pnpm exec vitest run apps/api/src/abuse-protection.spec.ts apps/api/src/school-nat-replay.spec.ts apps/api/src/server-diagnostics.spec.ts tests/security/student-seat-rate-limit.spec.ts --maxWorkers=1
+      - name: Migrate only this job's disposable database
+        run: |
+          pnpm db:migrate
+          psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -c "ALTER ROLE asalab_app WITH LOGIN PASSWORD 'nat-ci-only'"
+      - run: pnpm exec vitest run tests/capacity/school-nat.pg.spec.ts --maxWorkers=1
+      - name: Preserve bounded admission evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: school-nat-${{ github.sha }}
+          path: reports/capacity/school-nat.json
+          if-no-files-found: warn
+          retention-days: 14

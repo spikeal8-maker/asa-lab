@@ -19,6 +19,9 @@ import {
   quantiles,
   validateProfile,
   sessionIdentity,
+  baselineSlo,
+  requestFailure,
+  FixtureCookieJar,
 } from '../../tools/capacity/contracts.mjs';
 
 const ORIGIN = 'http://127.0.0.1:4612';
@@ -27,7 +30,7 @@ type Actor = {
   index: number;
   kind: 'account' | 'seat';
   module: 'blocks' | 'electronics';
-  jar: Map<string, string>;
+  jar: FixtureCookieJar;
   credentials: Data;
   identity?: string;
   project?: string;
@@ -43,6 +46,8 @@ type Observation = {
   durationMs: number;
   sentBytes: number;
   receivedBytes: number;
+  failure: string | null;
+  responseComplete: boolean;
 };
 function object(value: unknown): Data {
   if (!value || typeof value !== 'object' || Array.isArray(value))
@@ -70,10 +75,20 @@ describe.skipIf(process.env.ASA_CAPACITY_BASELINE !== '1')(
         connectionString: process.env.APP_TEST_DATABASE_URL,
         ...analyticsPoolSettings(),
       });
+      // One reserved observer connection; never borrow the application's pool.
+      const observer = new pg.Pool({
+        connectionString: process.env.TEST_DATABASE_URL,
+        max: 1,
+        connectionTimeoutMillis: 2000,
+        statement_timeout: 1000,
+        query_timeout: 1500,
+        options: '-c default_transaction_read_only=on',
+      });
       const loop = monitorEventLoopDelay({ resolution: 20 });
       // Observe the actual API reader; all repository/permission/SQL work still executes.
       const opened = vi.spyOn(OpenProjectUseCase.prototype, 'execute');
       const projectLoads = vi.spyOn(PgProjectRepository.prototype, 'load');
+      const draftTargets = vi.spyOn(PgProjectRepository.prototype, 'prepareDraftSave');
       let app: Awaited<ReturnType<typeof createApiApp>> | undefined;
       const records: Observation[] = [];
       const samples: {
@@ -81,8 +96,16 @@ describe.skipIf(process.env.ASA_CAPACITY_BASELINE !== '1')(
         poolTotal: number;
         poolIdle: number;
         poolWaiting: number;
+        analyticsTotal: number;
+        analyticsIdle: number;
+        analyticsWaiting: number;
+        databaseConnections: number;
+        blockedConnections: number;
+        lockWaiters: number;
         rssBytes: number;
       }[] = [];
+      let sampleErrors = 0;
+      let samplePending: Promise<void> | undefined;
       let sampler: ReturnType<typeof setInterval> | undefined;
       let phase = 'setup',
         inFlight = 0,
@@ -104,7 +127,7 @@ describe.skipIf(process.env.ASA_CAPACITY_BASELINE !== '1')(
         index,
         kind: index % 2 === 0 ? 'account' : 'seat',
         module: index < b.blocks ? 'blocks' : 'electronics',
-        jar: new Map(),
+        jar: new FixtureCookieJar(),
         credentials: {},
       }));
       const active = new Set<number>();
@@ -129,6 +152,8 @@ describe.skipIf(process.env.ASA_CAPACITY_BASELINE !== '1')(
         let status = 0,
           ok = false,
           receivedBytes = 0;
+        let failure: string | null = null;
+        let responseComplete = false;
         inFlight++;
         peakInFlight = Math.max(peakInFlight, inFlight);
         if (measuredActor) active.add(actor.index);
@@ -149,19 +174,16 @@ describe.skipIf(process.env.ASA_CAPACITY_BASELINE !== '1')(
                         : 'application/json',
                   }
                 : {}),
-              cookie: [...actor.jar].map(([k, v]) => `${k}=${v}`).join('; '),
+              cookie: actor.jar.header(path),
               ...(capability ? { authorization: `Bearer ${capability}` } : {}),
               ...(method === 'POST' ? { 'idempotency-key': randomUUID() } : {}),
             },
             body: binary ? new Uint8Array(text as Buffer).buffer : (text as string | undefined),
           });
           status = response.status;
-          for (const cookie of response.headers.getSetCookie()) {
-            const pair = cookie.split(';')[0],
-              split = pair.indexOf('=');
-            actor.jar.set(pair.slice(0, split), pair.slice(split + 1));
-          }
+          actor.jar.receive(response.headers.getSetCookie(), path);
           const raw = Buffer.from(await response.arrayBuffer());
+          responseComplete = true;
           receivedBytes = raw.length;
           if (!expected.includes(status)) throw new Error('unexpected_fixture_status');
           const data = response.headers.get('content-type')?.startsWith('image/png')
@@ -169,6 +191,9 @@ describe.skipIf(process.env.ASA_CAPACITY_BASELINE !== '1')(
             : object(JSON.parse(raw.toString('utf8')));
           ok = true;
           return { ...data, fixtureStatus: status };
+        } catch (error) {
+          failure = requestFailure(error, status);
+          throw error;
         } finally {
           records.push({
             phase: requestPhase,
@@ -178,10 +203,44 @@ describe.skipIf(process.env.ASA_CAPACITY_BASELINE !== '1')(
             durationMs: now() - started,
             sentBytes: text ? Buffer.byteLength(text) : 0,
             receivedBytes,
+            failure,
+            responseComplete,
           });
           inFlight--;
           if (measuredActor) active.delete(actor.index);
         }
+      }
+      function sample() {
+        if (samplePending) return samplePending;
+        samplePending = (async () => {
+          try {
+            const result = await observer.query(`
+              SELECT count(*)::int AS connections,
+                count(*) FILTER (WHERE cardinality(pg_blocking_pids(pid)) > 0)::int AS blocked,
+                count(*) FILTER (WHERE wait_event_type = 'Lock')::int AS lock_waiters
+              FROM pg_stat_activity WHERE datname = current_database() AND pid <> pg_backend_pid()
+            `);
+            const row = result.rows[0];
+            samples.push({
+              elapsedMs: Math.round(now() - steadyStarted),
+              poolTotal: runtime.totalCount,
+              poolIdle: runtime.idleCount,
+              poolWaiting: runtime.waitingCount,
+              analyticsTotal: analytics.totalCount,
+              analyticsIdle: analytics.idleCount,
+              analyticsWaiting: analytics.waitingCount,
+              databaseConnections: row.connections,
+              blockedConnections: row.blocked,
+              lockWaiters: row.lock_waiters,
+              rssBytes: process.memoryUsage().rss,
+            });
+          } catch {
+            sampleErrors++;
+          }
+        })().finally(() => {
+          samplePending = undefined;
+        });
+        return samplePending;
       }
       async function wave(work: (actor: Actor) => Promise<void>) {
         const results = await Promise.allSettled(actors.map(work));
@@ -270,7 +329,7 @@ describe.skipIf(process.env.ASA_CAPACITY_BASELINE !== '1')(
           index: -1,
           kind: 'account',
           module: 'blocks',
-          jar: new Map(),
+          jar: new FixtureCookieJar(),
           credentials: {},
         };
         const registration = (index: number) => ({
@@ -341,17 +400,10 @@ describe.skipIf(process.env.ASA_CAPACITY_BASELINE !== '1')(
         loop.enable();
         workloadCpu = process.cpuUsage();
         steadyStarted = now();
-        sampler = setInterval(
-          () =>
-            samples.push({
-              elapsedMs: Math.round(now() - steadyStarted),
-              poolTotal: runtime.totalCount,
-              poolIdle: runtime.idleCount,
-              poolWaiting: runtime.waitingCount,
-              rssBytes: process.memoryUsage().rss,
-            }),
-          b.sampleIntervalMs,
-        );
+        await sample();
+        sampler = setInterval(() => {
+          void sample();
+        }, b.sampleIntervalMs);
         await wave(async (actor) => {
           await call(
             actor,
@@ -450,6 +502,9 @@ describe.skipIf(process.env.ASA_CAPACITY_BASELINE !== '1')(
           );
           denied++;
         }
+        if (sampler) clearInterval(sampler);
+        await samplePending;
+        await sample();
         expect(acknowledged).toBe(b.sessions * b.saveWaves);
         expect(verified).toBe(acknowledged + 2);
         expect(conflicts).toBe(2);
@@ -460,6 +515,8 @@ describe.skipIf(process.env.ASA_CAPACITY_BASELINE !== '1')(
         expect(mediaReads).toBe(b.blocks);
         expect(identityChecks).toBe(b.sessions * (b.identityProbeSeconds.length + 1));
         expect(records.filter((r) => r.phase !== 'setup' && !r.ok)).toHaveLength(0);
+        expect(sampleErrors, 'database observation failed').toBe(0);
+        expect(samples.length, 'database observations missing').toBeGreaterThan(0);
         expect(opened).toHaveBeenCalledTimes(
           records.filter(
             (r) => r.operation === 'project_read' || r.operation === 'expected_ownership_denial',
@@ -467,11 +524,13 @@ describe.skipIf(process.env.ASA_CAPACITY_BASELINE !== '1')(
         );
         expect(
           projectLoads.mock.calls.filter((call) => call[3]?.includeVersions === false),
-        ).toHaveLength(acknowledged + retriedReceipts + conflicts * 2);
+        ).toHaveLength(conflicts);
+        expect(draftTargets).toHaveBeenCalledTimes(acknowledged + retriedReceipts + conflicts);
         success = true;
       } finally {
         const steadyEnded = now();
         if (sampler) clearInterval(sampler);
+        await samplePending;
         loop.disable();
         const elapsedSeconds = steadyStarted ? (steadyEnded - steadyStarted) / 1000 : 0;
         const measured = records.filter((r) => r.phase !== 'setup');
@@ -482,8 +541,15 @@ describe.skipIf(process.env.ASA_CAPACITY_BASELINE !== '1')(
               operation,
               {
                 offered: rows.length,
-                completed: rows.filter((r) => r.status !== 0).length,
+                headersReceived: rows.filter((r) => r.status !== 0).length,
+                completed: rows.filter((r) => r.responseComplete).length,
                 unexpected: rows.filter((r) => !r.ok).length,
+                failures: Object.fromEntries(
+                  ['timeout', 'transport', 'response'].map((kind) => [
+                    kind,
+                    rows.filter((r) => r.failure === kind).length,
+                  ]),
+                ),
                 status: Object.fromEntries(
                   [...new Set(rows.map((r) => r.status))].map((status) => [
                     status,
@@ -509,7 +575,7 @@ describe.skipIf(process.env.ASA_CAPACITY_BASELINE !== '1')(
           ).p95,
         };
         const report = {
-          schemaVersion: 1,
+          schemaVersion: 2,
           sourceSha: process.env.GITHUB_SHA,
           profileId: p.id,
           profileDigest: digest(p),
@@ -567,17 +633,31 @@ describe.skipIf(process.env.ASA_CAPACITY_BASELINE !== '1')(
               ).length,
           },
           draftReads: {
-            // The two stale attempts each require an initial read and a conflict fallback.
-            expectedWithoutHistory: acknowledged + retriedReceipts + conflicts * 2,
+            // Only conflict classification reads the old document. Ordinary saves
+            // prepare authorized metadata, not a full draft/history payload.
+            expectedWithoutHistory: conflicts,
             actualWithoutHistory: projectLoads.mock.calls.filter(
               (call) => call[3]?.includeVersions === false,
             ).length,
+            expectedMetadataPreparations: acknowledged + retriedReceipts + conflicts,
+            actualMetadataPreparations: draftTargets.mock.calls.length,
           },
           observedSlo,
           targetSlo: p.slo,
+          baselineSlo: baselineSlo({
+            correctness: success ? 'PASS' : 'FAIL',
+            observed: observedSlo,
+            targets: p.slo,
+            unexpected: measured.filter((r) => !r.ok).length,
+            samples: samples.length,
+            sampleErrors,
+          }),
           groups,
           resources: {
             sampleIntervalMs: b.sampleIntervalMs,
+            sampleErrors,
+            observerConnectionsReserved: 1,
+            databaseCountsExcludeObserver: true,
             samples,
             processCpuMicros: process.cpuUsage(workloadCpu),
             sharedEventLoopP95Ms: Number.isFinite(loop.percentile(95))
@@ -601,6 +681,8 @@ describe.skipIf(process.env.ASA_CAPACITY_BASELINE !== '1')(
         } finally {
           opened.mockRestore();
           projectLoads.mockRestore();
+          draftTargets.mockRestore();
+          await observer.end();
           if (app) await app.close();
           else {
             await runtime.end();
@@ -614,6 +696,7 @@ describe.skipIf(process.env.ASA_CAPACITY_BASELINE !== '1')(
             acknowledged,
             verified,
             capacityAcceptance: report.capacityAcceptance,
+            baselineSlo: report.baselineSlo.verdict,
           }),
         );
       }
