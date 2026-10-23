@@ -531,3 +531,35 @@ ingress-политики внешний посетитель останется 
 Диагностика браузера сохраняет отдельный предел 600 сообщений в минуту, но
 использует проверенный адрес посетителя, а не общий TCP-адрес Web-контейнера.
 Если адрес не определён, применяется общий ограниченный бюджет `unknown`.
+
+
+### Admission evidence and deployment provenance checks
+
+`asa doctor` prints `CLIENT_PROVENANCE` with the configured ingress/API trust
+boundaries. `loopback_only` means only local ingress is configured;
+`external_policy_unverified` means explicit external trust is configured. Neither
+state verifies a visitor IP (`verifiedVisitorIp` remains false). The command is
+read-only, does not discover and trust gateways, and does not edit `.env`.
+For Docker Desktop or an HTTP tunnel, verify the complete outer-proxy → tunnel →
+Caddy chain with a controlled external request and forged-header rejection before
+configuring only the attested peer CIDRs. A missing original address cannot be
+reconstructed inside the application. Never classify a Docker gateway as a pupil.
+
+HTTP terminal logs now carry finite server-owned `admission` evidence for
+StudentSeat sign-in and unsuccessful class resolution:
+
+- `credentialCheck`: `class_not_found`, `student_rejected` or `student_accepted`.
+- `blockedBudgets`: `candidate_class`, `source_class`, `source_total`, or
+  `class_lookup_source`; all exceeded budgets are reported, not their keys.
+- `limiterPhase`: `after_failed_validation` or `not_applied` for accepted sign-in.
+
+Together with `addressResolution`, this distinguishes a wrong-code rejection
+from a rate-limited wrong-code rejection behind an unresolved proxy or shared NAT.
+It does not prove earlier historical 429s rejected correct credentials. Thresholds
+and failure-only validation order are unchanged; accepted credentials are still
+validated even after failed-attempt budgets are exhausted. No IP, code, hash,
+cookie or body is included in this diagnostic. Missing `admission` does not mean
+success: parser failures, unavailable database and other routes can end before
+an admission decision. Existing anonymous Account pre-check limits can still
+share an `unknown` bucket when external provenance is missing; resolving ingress
+is required rather than inventing browser identities or relaxing protection.
