@@ -5,6 +5,7 @@ import argparse
 import csv
 import gzip
 import hashlib
+import hmac
 import io
 import json
 import os
@@ -350,7 +351,21 @@ class Collector:
         self.db.execute("PRAGMA journal_mode=WAL")
         self.db.executescript("""CREATE TABLE IF NOT EXISTS events(seq INTEGER PRIMARY KEY AUTOINCREMENT,id TEXT UNIQUE,time TEXT,source TEXT,payload TEXT,published INTEGER DEFAULT 0);
             CREATE TABLE IF NOT EXISTS state(key TEXT PRIMARY KEY,value TEXT);
-            CREATE TABLE IF NOT EXISTS sources(name TEXT PRIMARY KEY,payload TEXT);""")
+            CREATE TABLE IF NOT EXISTS sources(name TEXT PRIMARY KEY,payload TEXT);
+            CREATE TABLE IF NOT EXISTS segment_verification(name TEXT PRIMARY KEY,proof TEXT NOT NULL,metadata TEXT NOT NULL);""")
+        # A cache receipt is not authority by itself. Bind the exact compressed
+        # bytes AND current private sequence/identity mapping to this store's
+        # private key. Copied/edited cache rows require full verification again.
+        key = self.private / 'segment-verification.key'
+        from deployment.paths import plain_paths
+        plain_paths(self.root, (str(key.relative_to(self.root)),))
+        # The installation collector lock is already held by main(). Atomic
+        # replacement prevents a crash leaving a zero/partial-length key.
+        if not key.exists(): atomic_bytes(key, os.urandom(32), mode=0o600)
+        self.verification_key = key.read_bytes()
+        if len(self.verification_key) != 32:
+            self.db.close()
+            raise history_error('invalid private segment verification key')
         # Published JSONL is the durable payload. Keep only a binary digest and
         # sequence in its duplicate index, rather than a second copy of every log.
         try:
@@ -372,11 +387,14 @@ class Collector:
         permits that exception, never an unrecognized orphan filename.
         """
         try:
+            self.verified_metadata = {}
             files = {p.name: p for p in self.store.glob('seg-*.jsonl*') if SEGMENT_PATTERN.fullmatch(p.name)}
             retired = self.state('retired:segments', {})
             pending = self.state('compaction:pending')
             catalog = self.store/'catalog.json'
-            referenced = {s['file'] for s in json.loads(catalog.read_text(encoding='utf-8'))['segments']} if catalog.exists() else set()
+            metadata = {s['file']: s for s in json.loads(catalog.read_text(encoding='utf-8'))['segments']} if catalog.exists() else {}
+            referenced = set(metadata)
+            metadata.update(self.state('segments', {}))
             referenced.update(name for name in self.state('segments', {}) if name not in retired)
             if not referenced.issubset(files): raise ValueError('a referenced immutable segment is missing')
             sequence = self.db.execute("SELECT seq FROM sqlite_sequence WHERE name='events'").fetchone()
@@ -399,9 +417,33 @@ class Collector:
                 # Durable retirement authorizes eventual deletion, including
                 # compaction originals whose IDs now own different sequences.
                 if name in retired: continue
+                first, last = map(int, name.split('.')[0].split('-')[1:])
+                rows = self.db.execute('SELECT seq,id FROM events WHERE seq BETWEEN ? AND ? ORDER BY seq', (first,last)).fetchall()
+                indexed = [bytes.fromhex(row[1]) if isinstance(row[1],str) else row[1] for row in rows]
+                mapping = hashlib.sha256()
+                for row, identity in zip(rows, indexed):
+                    mapping.update(str(row[0]).encode('ascii') + b':' + identity)
+                # Hash actual file bytes on EVERY check: size/mtime/file IDs
+                # alone cannot detect same-size corruption or restored times.
+                digest = hashlib.sha256()
+                with file.open('rb') as stream:
+                    while chunk := stream.read(1024 * 1024): digest.update(chunk)
+                expected = metadata.get(name, {})
+                identity_proof = name + ':' + digest.hexdigest() + ':' + mapping.hexdigest() + ':'
+                cached = self.db.execute('SELECT proof,metadata FROM segment_verification WHERE name=?', (name,)).fetchone()
+                proof = hmac.new(self.verification_key, (identity_proof + cached[1]).encode('utf-8'), hashlib.sha256).hexdigest() if cached else None
+                if name != pending_name and cached and hmac.compare_digest(cached[0], proof):
+                    verified = json.loads(cached[1])
+                    if expected.get('sha256') and (expected['sha256'] != verified['sha256'] or expected.get('rawBytes') != verified['rawBytes']):
+                        raise ValueError(f'immutable segment checksum differs from retained metadata: {name}')
+                    self.verified_metadata[name] = verified
+                    covered.append((first,last))
+                    continue
                 opener = gzip.open if name.endswith('.gz') else open
                 with opener(file, 'rb') as stream: raw = stream.read(4*1024*1024+1)
                 if len(raw) > 4*1024*1024 or not raw.endswith(b'\n'): raise ValueError(f'invalid segment size or termination: {name}')
+                if expected.get('sha256') and (hashlib.sha256(raw).hexdigest() != expected['sha256'] or len(raw) != expected.get('rawBytes')):
+                    raise ValueError(f'immutable segment checksum differs from retained metadata: {name}')
                 entries = [json.loads(line) for line in raw.splitlines()]
                 ids = [bytes.fromhex(e['id']) for e in entries]
                 if not ids or any(len(identity) != 32 for identity in ids) or len(set(ids)) != len(ids): raise ValueError(f'invalid segment identities: {name}')
@@ -418,11 +460,18 @@ class Collector:
                             pending_ids.extend(bytes.fromhex(json.loads(line)['id']) for line in content.splitlines())
                     if ids != pending_ids: raise ValueError('pending compaction output identities differ from originals')
                     continue
-                first, last = map(int, name.split('.')[0].split('-')[1:])
-                rows = self.db.execute('SELECT seq,id FROM events WHERE seq BETWEEN ? AND ? ORDER BY seq', (first,last)).fetchall()
-                indexed = [bytes.fromhex(row[1]) if isinstance(row[1],str) else row[1] for row in rows]
                 if indexed != ids or rows[0][0] != first or rows[-1][0] != last:
                     raise ValueError(f'immutable segment identities differ from private index: {name}')
+                classified = [classify_event(e) for e in entries]
+                verified = dict(file=name, schema=2, sha256=hashlib.sha256(raw).hexdigest(), bytes=file.stat().st_size,
+                    rawBytes=len(raw), count=len(entries), first=min(e['time'] for e in entries), last=max(e['time'] for e in entries),
+                    sources=sorted({e['source'] for e in entries}), sourceRanges=self.source_ranges(entries),
+                    originRanges=self.source_ranges(entries, 'origin'), subsystems=sorted({e['subsystem'] for e in classified}),
+                    modules=sorted({e['module'] for e in classified}), levels=sorted({e['level'] for e in classified}))
+                encoded = json.dumps(verified, sort_keys=True, separators=(',', ':'))
+                proof = hmac.new(self.verification_key, (identity_proof + encoded).encode('utf-8'), hashlib.sha256).hexdigest()
+                self.db.execute('INSERT OR REPLACE INTO segment_verification VALUES(?,?,?)', (name, proof, encoded))
+                self.verified_metadata[name] = verified
                 covered.append((first,last))
             # Every published index row must still have an active immutable
             # payload. Merge overlapping replay prefixes without retaining IDs.
@@ -583,7 +632,7 @@ class Collector:
     def prune_database_observations(self):
         self.db.execute('DELETE FROM database_observations WHERE event_id NOT IN (SELECT id FROM events)')
 
-    def docker(self):
+    def docker(self, history=None):
         project = self.config.get("project", "asa-lab-dev")
         try:
             ids = self.command(["docker", "ps", "-aq", "--filter", f"label=com.docker.compose.project={project}"]).decode().split()
@@ -603,7 +652,11 @@ class Collector:
                 self.sampler.set_targets(tuple(c['Id'] for c in inspected if c.get('State', {}).get('Running', True)), canonical['Id'])
             self.postgres = canonical["Id"]
             self.containers = {}
-            for container in inspected:
+            # Historical catch-up gets one container per cycle. Fresh lanes
+            # always run first and never wait for all historical windows.
+            historical_target = self.state('docker:history:turn', 0) % len(inspected)
+            if history is True: self.set_state('docker:history:turn', historical_target + 1)
+            for position, container in enumerate(inspected):
                 labels = container["Config"].get("Labels") or {}
                 if labels.get("com.docker.compose.project.working_dir") != actual:
                     raise RuntimeError("Mixed installation roots; collection stopped")
@@ -630,7 +683,9 @@ class Collector:
                             self.reader_formats[cid] = 1
                     self.reader_format = self.reader_formats[cid]
                 created = datetime.fromisoformat(container["Created"].replace("Z", "+00:00"))
-                for recent in (True, False):
+                lanes = (True, False) if history is None else (not history,)
+                for recent in lanes:
+                    if history is True and position != historical_target: continue
                     key = "docker:" + cid + (":recent" if recent else "")
                     status_source = service + (":recent" if recent else "")
                     default = datetime.now(UTC) - (timedelta(minutes=5) if recent else timedelta(days=7))
@@ -641,7 +696,7 @@ class Collector:
                     until = min(datetime.now(UTC) - timedelta(seconds=2), start + timedelta(seconds=span))
                     if until <= start: continue
                     try:
-                        result = self.command(["docker", "logs", "--timestamps", "--since", start.isoformat(), "--until", until.isoformat(), cid], timeout=90, merge_errors=True)
+                        result = self.command(["docker", "logs", "--timestamps", "--since", start.isoformat(), "--until", until.isoformat(), cid], timeout=15 if history is not None else 90, merge_errors=True)
                     except Exception as exc:
                         self.set_state(key + ":span", max(1, span // 2))
                         self.status(status_source, "error", str(exc))
@@ -650,7 +705,11 @@ class Collector:
                         token, _, raw = line.partition(" ")
                         self.add(normalize(service, raw, timestamp(token, until.isoformat()), cid + ":" + line))
                     self.set_state(key, until.isoformat())
-                    self.status(status_source, "ok", "Fresh events" if recent else "History starts at container creation; removed containers cannot be recovered", until.isoformat())
+                    caught_up = until >= datetime.now(UTC)-timedelta(seconds=30)
+                    self.status(status_source, 'ok' if caught_up else 'pending',
+                        'Fresh events' if recent and caught_up else 'Historical Docker backlog; next window queued' if not caught_up else
+                        'History starts at container creation; removed containers cannot be recovered', until.isoformat())
+                    self.checkpoint()
             self.status("docker", "ok")
         except Exception as exc:
             if getattr(self, 'sampler', None): self.sampler.set_targets((), None)
@@ -717,25 +776,31 @@ class Collector:
             raise ValueError('Invalid database page row; cursor retained')
         return rows, meta['more'], [rows[-1][0][key] for key in keys] if rows else after
 
-    def database(self):
-        if time.time() - self.state("database:last", 0) < 120: return
+    def database(self, history=None):
+        last_key = 'database:last' if history is None else 'database:history:last' if history else 'database:fresh:last'
+        if time.time() - self.state(last_key, 0) < (120 if history is None else 20): return
         if not getattr(self, "postgres", None):
             self.status("database-events", "unavailable", "Canonical PostgreSQL was not identified")
             return
         tables = {table: rule['timeColumn'] for table, rule in DATABASE_DIAGNOSTICS['sources'].items()}
+        if history is True:
+            turn = self.state('database:history:turn', 0) % len(tables)
+            self.set_state('database:history:turn', turn + 1)
+            tables = dict([list(tables.items())[turn]])
         failures, pending = 0, 0
         for table, column in tables.items():
-            key = "db:" + table
+            key = ('db:live:' if history is False else 'db:') + table
             cutoff = datetime.now(UTC) - timedelta(days=self.config.get("retentionDays", 30))
-            for history in (False, True):
-                lane_key = 'db:history:' + table if history else key
-                source = ('database-history:' if history else 'database-events:') + table
-                if history and time.time() - self.state(lane_key + ':completed', 0) < 6 * 3600:
+            for historical in ((False, True) if history is None else (history,)):
+                lane_key = 'db:history:' + table if historical else key
+                source = ('database-history:' if historical else 'database-events:') + table
+                if historical and time.time() - self.state(lane_key + ':completed', 0) < 6 * 3600:
                     continue
-                span = self.state(lane_key + ':span', self.config.get('retentionDays', 30)*86400 if history else 6*3600)
+                span = self.state(lane_key + ':span', self.config.get('retentionDays', 30)*86400 if historical else 6*3600)
                 window = self.state(lane_key + ':window')
                 if window is None:
-                    start = max(cutoff, datetime.fromisoformat(self.state(lane_key, cutoff.isoformat()).replace('Z', '+00:00')))
+                    default_start = max(cutoff, datetime.now(UTC)-timedelta(minutes=5)) if history is False else cutoff
+                    start = max(cutoff, datetime.fromisoformat(self.state(lane_key, default_start.isoformat()).replace('Z', '+00:00')))
                     end = min(datetime.now(UTC), start + timedelta(seconds=span))
                     recent_end = datetime.now(UTC)
                     window = dict(start=start.isoformat(), end=end.isoformat(), recentEnd=recent_end.isoformat(),
@@ -745,7 +810,7 @@ class Collector:
                         return f'"{column}" BETWEEN {int(datetime.fromisoformat(start).timestamp()*1000)} AND {int(datetime.fromisoformat(end).timestamp()*1000)}'
                     return f'"{column}" BETWEEN TIMESTAMPTZ \'{start}\' AND TIMESTAMPTZ \'{end}\''
                 condition = between(window['start'], window['end'])
-                if not history: condition += ' OR ' + between(window['recentStart'], window['recentEnd'])
+                if not historical: condition += ' OR ' + between(window['recentStart'], window['recentEnd'])
                 # Keep the attempted window on errors too: an uncommitted page
                 # must be retried against the same upper bound, even after restart.
                 self.set_state(lane_key + ':window', window)
@@ -759,14 +824,14 @@ class Collector:
                         self.set_state(lane_key + ':window', {**window, 'after': after})
                     else:
                         self.set_state(lane_key + ':window', None)
-                        complete = history and datetime.fromisoformat(window['end']) >= datetime.now(UTC)-timedelta(seconds=30)
+                        complete = historical and datetime.fromisoformat(window['end']) >= datetime.now(UTC)-timedelta(seconds=30)
                         self.set_state(lane_key, cutoff.isoformat() if complete else window['end'])
                         if complete: self.set_state(lane_key + ':completed', time.time())
                     # A keyset time at a tie is not complete coverage through that
                     # timestamp. Only completed windows advance collectedThrough.
                     caught_up = not more and datetime.fromisoformat(window['end']) >= datetime.now(UTC)-timedelta(seconds=30)
                     if not caught_up: pending += 1
-                    detail = 'Database backlog; bounded page continuation queued' if more else 'Historical reconciliation complete' if history and caught_up else 'Fresh database events' if caught_up else 'Database backlog; next time window queued'
+                    detail = 'Database backlog; bounded page continuation queued' if more else 'Historical reconciliation complete' if historical and caught_up else 'Fresh database events' if caught_up else 'Database backlog; next time window queued'
                     self.status(source, 'ok' if caught_up else 'pending', detail,
                                 window['end'] if not more else None)
                     self.db.execute('RELEASE database_page')
@@ -775,8 +840,9 @@ class Collector:
                     failures += 1
                     self.set_state(lane_key + ':span', max(1, span // 2))
                     self.status(source, 'error', str(exc))
-        self.set_state("database:last", time.time())
-        self.status("database-events", 'error' if failures else 'pending' if pending else 'ok',
+                self.checkpoint()
+        self.set_state(last_key, time.time())
+        self.status('database-history' if history is True else "database-events", 'error' if failures else 'pending' if pending else 'ok',
                     f'{failures} table sources require attention' if failures else f'{pending} database sources have queued backlog' if pending else '')
 
     def files(self):
@@ -862,18 +928,37 @@ class Collector:
             except Exception as exc:
                 self.status(source, "error", str(exc))
 
-    def windows(self):
+    def windows(self, background=False):
         if os.name != "nt":
             self.status("windows", "unavailable", "Windows Event Log is not available on this host")
             return
-        if time.time() - self.state("windows:last", 0) < 120: return
+        worker = getattr(self, 'windows_worker', None)
+        if background and worker and worker.is_alive():
+            self.status('windows', 'pending', 'Windows collection is running independently of fresh application logs')
+            return
+        if not worker and time.time() - self.state("windows:last", 0) < 120: return
         since = (datetime.now(UTC) - timedelta(days=7)).isoformat()
         until = datetime.now(UTC).isoformat()
         script = Path(__file__).with_name("collect-windows-logs.ps1")
         try:
             cursor_file = self.private / "windows-cursors.json"
-            atomic_bytes(cursor_file, json.dumps(self.state("windows:cursors", {})).encode('utf-8'), mode=0o600)
-            data = self.command(["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(script), "-Since", since, "-Until", until, "-CursorFile", str(cursor_file)], timeout=180)
+            if background and worker:
+                self.windows_worker = None
+                data, failed = self.windows_result
+                self.windows_result = None
+                if failed: raise RuntimeError('Windows collection failed; cursor retained')
+            else:
+                atomic_bytes(cursor_file, json.dumps(self.state("windows:cursors", {})).encode('utf-8'), mode=0o600)
+                args = ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(script), "-Since", since, "-Until", until, "-CursorFile", str(cursor_file)]
+                if background:
+                    def collect():
+                        try: self.windows_result = (self.command(args, timeout=180), False)
+                        except Exception: self.windows_result = (None, True)
+                    self.windows_worker = threading.Thread(target=collect, name='asa-windows-logs', daemon=True)
+                    self.windows_worker.start()
+                    self.status('windows', 'pending', 'Windows collection started independently of fresh application logs')
+                    return
+                data = self.command(args, timeout=180)
             value = json.loads(data.decode("utf-8-sig"))
             for event in value.get("events", []):
                 source = "windows:" + event["channel"]
@@ -1207,9 +1292,15 @@ class Collector:
                 retired[name] = time.time()
             elif SEGMENT_PATTERN.fullmatch(name) and time.time() - at >= RETIRE_SECONDS:
                 (self.store / name).unlink(missing_ok=True)
+                self.db.execute('DELETE FROM segment_verification WHERE name=?', (name,))
                 retired.pop(name)
         previous = self.state("segments", {})
+        # Classification/range hints are derived from verified immutable bytes,
+        # never accepted merely because someone edited the cached state JSON.
+        previous.update(self.verified_metadata)
         system_metadata = self.state("classification:system_metadata", {})
+        for name, meta in self.verified_metadata.items():
+            system_metadata[name] = hashlib.sha256(('editor-classification-v1:' + json.dumps(meta, sort_keys=True)).encode()).hexdigest()
         while True:
             fetched = self.db.execute("SELECT seq,payload FROM events WHERE published=0 ORDER BY seq LIMIT 1000").fetchall()
             rows, events, byte_count = [], [], 0
@@ -1300,6 +1391,16 @@ class Collector:
             self.db.commit(); self.db.execute("VACUUM"); self.db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
         sources = [json.loads(r[0]) for r in self.db.execute("SELECT payload FROM sources ORDER BY name")]
         for source in sources:
+            current = datetime.now(UTC)
+            checked = datetime.fromisoformat(source['checkedAt'].replace('Z', '+00:00'))
+            source['publicationAgeSeconds'] = max(0, round((current-checked).total_seconds()))
+            through = source.get('collectedThrough')
+            source['coverageLagSeconds'] = max(0, round((current-datetime.fromisoformat(through.replace('Z', '+00:00'))).total_seconds())) if through else None
+            fresh_lane = source['source'] == 'metrics' or source['source'].endswith(':recent') or source['source'].startswith('database-events:')
+            source['stale'] = bool(source.get('applicable', True) and fresh_lane and
+                (source['publicationAgeSeconds'] > 60 or (source['coverageLagSeconds'] or 0) > 60))
+            if source['stale'] and source['state'] == 'ok':
+                source.update(state='pending', detail='Fresh source has not been checked within 60 seconds')
             event_source = source["source"].removesuffix(":recent")
             origin = event_source.split(":", 1)[1] if event_source.startswith(("database-events:", "database-history:")) else None
             ranges = [s.get("originRanges", {}).get(origin) if origin else s["sourceRanges"].get(event_source) for s in segments]
@@ -1314,23 +1415,74 @@ class Collector:
         if trimmed: self.set_state("trimmedAt", now())
         self.db.commit(); self.db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
         storage_bytes = sum(p.stat().st_size for p in self.base.rglob("*") if p.is_file())
+        acknowledged = []
+        if getattr(self, 'sampler', None) and self.sampler.spool:
+            for metrics in getattr(self, 'metrics_pending', []):
+                sampling = metrics['sampling']
+                identity = hashlib.sha256(('metrics\0' + sampling['streamId'] + ':' + str(sampling['sequence'])).encode()).digest()
+                row = self.db.execute('SELECT seq,published FROM events WHERE id=?', (identity,)).fetchone()
+                if row and row[1] == 1 and any(bounds(meta)[0] <= row[0] <= bounds(meta)[1] for meta in segments):
+                    acknowledged.append(metrics)
+            if len(acknowledged) != len(getattr(self, 'metrics_pending', [])):
+                for source in sources:
+                    if source['source'] == 'metrics':
+                        source.update(state='pending', detail='Resource samples remain in durable spool until retained catalog publication')
         catalog = dict(version=1, readerFormat=self.reader_format, collectedAt=now(), retentionDays=self.config.get("retentionDays", 30), maxBytes=limit, bytes=total, rawBytes=sum(s.get("rawBytes", s["bytes"]) for s in segments), storageBytes=storage_bytes, activeStorageBytes=active_bytes(), retiredBytes=storage_bytes-active_bytes(), trimmed=bool(self.state("trimmedAt")), sources=sources, segments=segments)
         atomic_bytes(self.store / 'catalog.json', json.dumps(catalog, ensure_ascii=False).encode('utf-8'))
+        # The resource spool remains replayable until both index and catalog
+        # are durable. A failure above must never acknowledge unpublished data.
+        if getattr(self, 'sampler', None) and self.sampler.spool:
+            for metrics in acknowledged:
+                self.sampler.acknowledge(metrics['sampling'])
+                self.metrics_pending.remove(metrics)
+
+    def checkpoint(self, force=False):
+        """Publish only at transaction-safe adapter boundaries, never recursively."""
+        if not getattr(self, 'checkpoint_enabled', False) or getattr(self, 'checkpoint_busy', False): return
+        if not force and time.monotonic() - getattr(self, 'last_checkpoint', 0) < 20: return
+        self.checkpoint_busy = True
+        try:
+            self.telemetry()
+            self.publish()
+            self.last_checkpoint = time.monotonic()
+        finally: self.checkpoint_busy = False
 
     def cycle(self):
-        if getattr(self, 'sampler', None): self.telemetry()
-        self.finish_compaction()
-        self.docker()
-        self.files()
-        self.database()
-        self.windows()
-        self.linux()
-        self.lifecycle()
-        self.telemetry()
-        self.publish()
+        self.checkpoint_enabled = True
+        try:
+            self.finish_compaction()
+            self.docker(history=False)
+            self.database(history=False)
+            self.checkpoint(force=True)
+            self.docker(history=True)
+            self.database(history=True)
+            self.checkpoint()
+            self.files()
+            self.windows(background=True)
+            self.linux()
+            self.lifecycle()
+            self.checkpoint(force=True)
+        finally: self.checkpoint_enabled = False
 
     def telemetry(self):
         if getattr(self, 'sampler', None):
+            if self.sampler.spool:
+                try: values = self.sampler.batch()
+                except (sqlite3.Error, OSError):
+                    self.status('metrics', 'error', 'resource_spool_read_failed; retained samples were not acknowledged')
+                    return
+                try:
+                    for metrics in values:
+                        metrics['sampling']['publicationLagMs'] = max(0, round((datetime.now(UTC)-datetime.fromisoformat(metrics['sampledAt'].replace('Z','+00:00'))).total_seconds()*1000))
+                        self.persist_metrics(metrics)
+                    self.db.commit()
+                except Exception:
+                    self.db.rollback()
+                    raise
+                self.metrics_pending = values
+                if self.sampler.storage_error:
+                    self.status('metrics', 'error', self.sampler.storage_error)
+                return
             for _ in range(self.sampler.capacity + 1):
                 metrics = self.sampler.acquire()
                 if metrics is None: break
@@ -1355,8 +1507,8 @@ class Collector:
     def persist_metrics(self, metrics):
         measured = metrics['sampledAt']
         sampling = metrics.get('sampling', {})
-        gapped = sampling.get('droppedSamplesTotal', 0) > 0 or sampling.get('missedIntervals', 0) > 0
-        delayed = sampling.get('publicationLagMs', 0) >= 120_000
+        gapped = sampling.get('droppedSamplesTotal', 0) > 0 or sampling.get('missedIntervals', 0) > 0 or bool(sampling.get('spoolError'))
+        delayed = sampling.get('publicationLagMs', 0) >= 60_000
         metrics['samplingCoverage'] = 'gapped' if gapped else 'delayed' if delayed else 'observed'
         if (gapped or delayed) and not metrics.get('incomplete'): metrics['level'] = 'warn'
         identity = f"{sampling['streamId']}:{sampling['sequence']}" if sampling.get('streamId') else measured
@@ -1512,9 +1664,34 @@ def main():
             try: write_process_health(args.root, identity)
             except OSError: pass  # A failed write becomes observably stale.
     threading.Thread(target=heartbeat, name='asa-collector-heartbeat', daemon=True).start()
+    sampler = None
+    if not args.once:
+        # Start capture before legacy history/index verification. The producer
+        # has its own bounded durable store and never touches the main index.
+        from types import SimpleNamespace
+        resource_context = SimpleNamespace(root=args.root, command=lambda *a, **kw: Collector.command(None, *a, **kw))
+        cpu_state = {}
+        def capture(containers, postgres):
+            nonlocal cpu_state
+            sample, cpu_state = Collector.sample_resources(resource_context, containers, postgres, cpu_state)
+            if not containers or not postgres:
+                sample.update(incomplete=True, level='warn', resourceTargetState='pending')
+            else: sample['resourceTargetState'] = 'verified'
+            return sample
+        try:
+            sampler = ResourceSampler(capture, spool=private/'resources.sqlite',
+                max_bytes=min(16 * 1024 * 1024, config.get('maxBytes', 1024**3) // 8))
+        except (sqlite3.Error, OSError):
+            # Continue core logs with explicitly degraded resource coverage.
+            # Never delete or replace an unreadable durable resource spool.
+            sampler = ResourceSampler(capture)
+            sampler.storage_error = 'resource_spool_unavailable'
+            sampler.dropped = 1
+        sampler.start()
     try:
         collector = Collector(args.root, config)
     except Exception as exc:
+        if sampler: sampler.stop()
         stop_heartbeat.set()
         write_collector_health(args.root, "error", detail=exc)
         raise
@@ -1523,18 +1700,7 @@ def main():
         except Exception as exc:
             write_collector_health(args.root, "error", detail=exc)
             raise
-    collector.sampler = None
-    if not args.once:
-        cpu_state = {}
-        def capture(containers, postgres):
-            nonlocal cpu_state
-            sample, cpu_state = collector.sample_resources(containers, postgres, cpu_state)
-            if not containers or not postgres:
-                sample.update(incomplete=True, level='warn', resourceTargetState='pending')
-            else: sample['resourceTargetState'] = 'verified'
-            return sample
-        collector.sampler = ResourceSampler(capture)
-        collector.sampler.start()
+    collector.sampler = sampler
     try:
         while True:
             cycle_start = time.monotonic()
