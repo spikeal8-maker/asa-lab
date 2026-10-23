@@ -1002,6 +1002,12 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
         },
         onSerialProjection: (serial) => {
           if (!currentSession()) return;
+          if (serial.length === 0) {
+            setArduinoSerialByBoard((current) =>
+              Object.keys(current).length === 0 ? current : {},
+            );
+            return;
+          }
           setArduinoSerialByBoard(
             Object.fromEntries(serial.map((entry) => [entry.componentId, entry])) as Readonly<
               Record<string, ElectronicsArduinoSerialProjection>

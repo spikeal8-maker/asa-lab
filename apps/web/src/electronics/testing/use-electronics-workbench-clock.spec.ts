@@ -1080,6 +1080,7 @@ describe('mounted workbench LED temporal display', () => {
     if (to > 0) expect(worker().update.mock.calls.at(-1)![1]).toBeGreaterThanOrEqual(to);
     expect(to - next.observation.fromMicroseconds).toBeLessThanOrEqual(25_000);
     await act(async () => {
+      worker().callbacks!.onSerialProjection!([]);
       if (initialReady) worker().callbacks!.onInitialReady!(0);
       worker().callbacks!.onCommittedHorizon!(to);
       worker().callbacks!.onResult(next.result, next.observation, 'electrothermal-events-v2');
@@ -1484,6 +1485,80 @@ describe('mounted workbench LED temporal display', () => {
     expect(renders - before).toBe(1);
     assertCommitted(0, 'off');
   });
+
+  it('publishes every nonempty Serial projection and clears it immediately without RAF', async () => {
+    await mount();
+    await act(async () => workbench.toggleSimulation());
+    const projection = {
+      componentId: 'uno',
+      begun: true,
+      baudRate: 9600,
+      tx: [],
+      rxPendingBytes: 0,
+    };
+    await act(async () => worker().callbacks!.onSerialProjection!([projection]));
+    expect(workbench.arduinoSerialByBoard.uno).toBe(projection);
+    const tx = { ...projection, tx: [{ sequence: 0, atMicroseconds: 1000, text: 'ready' }] };
+    await act(async () => worker().callbacks!.onSerialProjection!([tx]));
+    expect(workbench.arduinoSerialByBoard.uno).toBe(tx);
+    const rx = { ...tx, rxPendingBytes: 3, baudRate: 115200, begun: false };
+    await act(async () => worker().callbacks!.onSerialProjection!([rx]));
+    expect(workbench.arduinoSerialByBoard.uno).toBe(rx);
+    await act(async () => worker().callbacks!.onSerialProjection!([]));
+    expect(workbench.arduinoSerialByBoard).toEqual({});
+  });
+
+  it.each(['Reset', 'source'] as const)(
+    'preserves immediate empty Serial clearing after %s',
+    async (change) => {
+      await mount();
+      await act(async () => workbench.toggleSimulation());
+      await act(async () =>
+        worker().callbacks!.onSerialProjection!([
+          { componentId: 'uno', begun: true, baudRate: 9600, tx: [], rxPendingBytes: 2 },
+        ]),
+      );
+      await act(async () => {
+        if (change === 'Reset') workbench.resetArduinoRuntime('uno');
+        else
+          workbench.updateArduinoProgram('uno', {
+            arduinoSource: 'void setup(){}void loop(){delay(77);}',
+          });
+        // Controller owns generation filtering and projects [] immediately at generation entry.
+        worker().callbacks!.onSerialProjection!([]);
+      });
+      expect(workbench.arduinoSerialByBoard).toEqual({});
+    },
+  );
+
+  it.each(['Stop', 'unmount'] as const)(
+    'ignores stale Serial receipts after %s',
+    async (change) => {
+      await mount();
+      await act(async () => workbench.toggleSimulation());
+      const stale = worker().callbacks!;
+      const projection = {
+        componentId: 'uno',
+        begun: true,
+        baudRate: 9600,
+        tx: [],
+        rxPendingBytes: 1,
+      };
+      await act(async () => stale.onSerialProjection!([projection]));
+      await act(async () => {
+        if (change === 'Stop') workbench.toggleSimulation();
+        if (change === 'unmount') root.unmount();
+      });
+      const after = workbench.arduinoSerialByBoard;
+      const count = renders;
+      await act(async () => {
+        stale.onSerialProjection!([{ ...projection, rxPendingBytes: 99 }]);
+        stale.onSerialProjection!([]);
+      });
+      expect(workbench.arduinoSerialByBoard).toBe(after);
+      expect(renders).toBe(count);
+    },
+  );
 
   it.each(['Stop', 'Reset', 'source', 'unmount'] as const)(
     'cancels pending display-only committed time across %s without changing canonical inputs',
