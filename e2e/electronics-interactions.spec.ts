@@ -5,6 +5,10 @@ import { test, expect, type Locator, type Page, type Request } from '@playwright
 import { parseElectronicsDocument } from '../contexts/electronics/domain/document';
 import { normalizeLoadedDocument } from '../apps/web/src/electronics/use-workbench-project-state';
 import {
+  creatorViewFromLocation,
+  creatorViewToHref,
+} from '../apps/web/src/creator-portal/navigation';
+import {
   clientToWorld,
   resolveWireVertexAssist,
   worldToClient,
@@ -4553,8 +4557,6 @@ function f2ObserveLoadedDocument(localKey: string) {
 }
 
 async function f2RealEditor(page: Page, fixture: SchematicDocument, input: string) {
-  const { creatorViewFromLocation, creatorViewToHref } =
-    await import('../apps/web/src/creator-portal/navigation');
   f2Canonical(fixture);
   mkdirSync('reports/interactions', { recursive: true });
   const path = `reports/interactions/f2-real-${input}.jsonl`;
