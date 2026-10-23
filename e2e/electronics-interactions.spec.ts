@@ -4433,6 +4433,55 @@ function f2LedgerHealthy(
   return true;
 }
 
+function f2ObserveLoadedDocument(localKey: string) {
+  const stringify = JSON.stringify;
+  const setItem = Storage.prototype.setItem;
+  const state = {
+    candidate: null as unknown,
+    saved: null as unknown,
+    errors: [] as string[],
+  };
+  Object.defineProperty(window, 'f2LoadedDocument', { value: state });
+  JSON.stringify = new Proxy(stringify, {
+    apply(target, receiver, args) {
+      const result = Reflect.apply(target, receiver, args);
+      try {
+        const value = args[0];
+        if (
+          value &&
+          value.schemaVersion === 4 &&
+          Array.isArray(value.components) &&
+          Array.isArray(value.connections) &&
+          value.viewport &&
+          value.simulation
+        ) {
+          state.candidate = {
+            document: JSON.parse(Reflect.apply(stringify, JSON, [value])),
+            href: location.href,
+            stack: new Error().stack ?? null,
+          };
+        }
+      } catch (error) {
+        state.errors.push(String(error));
+      }
+      return result;
+    },
+  });
+  Storage.prototype.setItem = new Proxy(setItem, {
+    apply(target, receiver, args) {
+      const result = Reflect.apply(target, receiver, args);
+      if (
+        receiver === sessionStorage &&
+        args[0] === `${localKey}:electronics-editor:` &&
+        args[1] === 'saved'
+      ) {
+        state.saved = state.candidate;
+      }
+      return result;
+    },
+  });
+}
+
 async function f2RealEditor(page: Page, fixture: SchematicDocument, input: string) {
   f2Canonical(fixture);
   mkdirSync('reports/interactions', { recursive: true });
@@ -4578,7 +4627,7 @@ async function f2RealEditor(page: Page, fixture: SchematicDocument, input: strin
     expect(failures).toEqual([]);
     expect(f2LedgerHealthy(rows, admitted, baseline.revision)).toBe(true);
   };
-  let confirmed = fixture;
+  await page.addInitScript(f2ObserveLoadedDocument, localKey);
   const readEditorDocument = async (target = page): Promise<SchematicDocument> => {
     const record = await target.evaluate((key) => {
       const raw = localStorage.getItem(key);
@@ -4597,13 +4646,27 @@ async function f2RealEditor(page: Page, fixture: SchematicDocument, input: strin
       expect(Number.isSafeInteger(record.baseRevision)).toBe(true);
       return record.document as SchematicDocument;
     }
-    // A missing recovery document is valid only after an independently matched
-    // acknowledged PUT. The fallback is never copied from a GET/request body.
-    const last = rows.at(-1);
-    if (last?.status === 200 && admitted.some((value) => isDeepStrictEqual(value, last.document))) {
-      confirmed = admitted.find((value) => isDeepStrictEqual(value, last.document))!;
-    }
-    return confirmed;
+    // Public serialization observes the actual document passed to load's history
+    // initialization. The subsequent fixture-scoped saved hint fences that load.
+    // This is per realm, never the source page's expected/acknowledged document.
+    const observed = await target.evaluate(
+      () =>
+        (
+          window as unknown as {
+            f2LoadedDocument: {
+              saved: { document: SchematicDocument; href: string; stack: string | null } | null;
+              errors: string[];
+            };
+          }
+        ).f2LoadedDocument,
+    );
+    journal('loaded-document', observed);
+    requireRetention();
+    expect(observed.errors).toEqual([]);
+    expect(observed.saved).not.toBeNull();
+    if (!observed.saved) throw new Error('Missing actual loaded document observation');
+    expect(new URL(observed.saved.href).hash).toBe(`#/home/${project.id}`);
+    return observed.saved.document;
   };
   await page.addInitScript((key) => {
     (window as unknown as { f2PreApp: unknown }).f2PreApp = {
@@ -4669,8 +4732,29 @@ async function f2RealEditor(page: Page, fixture: SchematicDocument, input: strin
           new URL(reply.url()).pathname === `/api/projects/${project.id}/draft`,
       );
       const save = page.getByRole('button', { name: 'Сохранить проект', exact: true });
-      if (input === 'touch') await save.tap();
-      else await save.click();
+      if (input === 'touch') {
+        const box = await save.boundingBox();
+        expect(box).not.toBeNull();
+        if (!box) throw new Error('Native Save has no visible bounds');
+        const point = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+        expect(
+          await page.evaluate(
+            ({ x, y }) =>
+              document.elementFromPoint(x, y)?.closest('button')?.getAttribute('aria-label'),
+            point,
+          ),
+        ).toBe('Сохранить проект');
+        const session = await page.context().newCDPSession(page);
+        try {
+          await session.send('Input.dispatchTouchEvent', {
+            type: 'touchStart',
+            touchPoints: [{ id: 1, ...point }],
+          });
+          await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+        } finally {
+          await session.detach();
+        }
+      } else await save.click();
       const nativeSave = await page.evaluate(
         () => (window as unknown as { f2SaveInput: unknown }).f2SaveInput,
       );
@@ -4691,7 +4775,6 @@ async function f2RealEditor(page: Page, fixture: SchematicDocument, input: strin
       const saved = await server();
       expect(saved.document).toEqual(expected);
       expect(saved.revision).toBe(before.revision + 1);
-      confirmed = structuredClone(expected);
       phase = 'after-save';
       return saved;
     },
@@ -5231,6 +5314,7 @@ wireVideoTest.describe('interaction: natural precise wire routing', () => {
               const state = await fresh.storageState();
               real.journal('fresh-storage-state', state.origins);
               expect(state.origins).toEqual([]);
+              await fresh.addInitScript(f2ObserveLoadedDocument, real.localKey);
               await fresh.addInitScript((key) => {
                 (window as unknown as { f2PreApp: unknown }).f2PreApp = {
                   local: Object.entries(localStorage).filter(([name]) => name.startsWith(key)),
