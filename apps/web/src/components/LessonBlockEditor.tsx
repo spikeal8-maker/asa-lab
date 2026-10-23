@@ -668,6 +668,7 @@ export function LessonBlockEditor({
       <Dropdown
         className="lesson-block-add"
         label="+ Добавить содержимое"
+        fitViewport
         disabled={blocks.length >= MAX_LESSON_BLOCKS}
       >
         {(close) => (

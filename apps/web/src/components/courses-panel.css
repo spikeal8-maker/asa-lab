@@ -1567,6 +1567,30 @@
   position: relative;
   display: block;
 }
+/* The Add Content menu is a positioned popup: near the bottom of a short
+   viewport it must flip above the trigger, not flow underneath the fold. */
+.course-document-editor .lesson-block-add > .dropdown-menu {
+  position: absolute;
+  z-index: 45;
+  top: calc(100% + 4px);
+  bottom: auto;
+  left: 0;
+  right: auto;
+  width: min(640px, calc(100vw - 48px));
+  max-width: calc(100vw - 48px);
+  overflow-y: auto;
+}
+
+.course-document-editor .lesson-block-add[data-dropdown-placement='above'] > .dropdown-menu {
+  top: auto;
+  bottom: calc(100% + 4px);
+}
+
+.course-document-editor .lesson-block-add[data-dropdown-placement='below'] > .dropdown-menu {
+  top: calc(100% + 4px);
+  bottom: auto;
+}
+
 .lesson-block-add [role='menu'] {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
