@@ -5,6 +5,7 @@ import { createApiApp } from '../../apps/api/dist/app.factory.js';
 import { hashSessionToken } from '../../contexts/identity/dist/index.js';
 import { testAdminPool, testAppPool } from '../portal/helpers';
 import { FixtureCookieJar } from '../../tools/capacity/contracts.mjs';
+import { edit } from './documents';
 
 const ORIGIN = 'http://127.0.0.1:4610';
 type Data = Record<string, any>;
@@ -28,8 +29,15 @@ describe.skipIf(process.env.ASA_SCHOOL_NAT_TEST !== '1')('isolated school NAT ad
     const learners: { jar: FixtureCookieJar; project: string; revision: number; token: string }[] =
       [];
     let app: Awaited<ReturnType<typeof createApiApp>> | undefined;
+    let phase = 'setup';
+    let failure: unknown;
     let base = '';
     const teacher = new FixtureCookieJar();
+    async function drain(tasks: Promise<unknown>[]): Promise<void> {
+      const results = await Promise.allSettled(tasks);
+      const failed = results.find((result) => result.status === 'rejected');
+      if (failed?.status === 'rejected') throw failed.reason;
+    }
     const rejections: Data[] = [];
     const originalWrite = process.stdout.write.bind(process.stdout);
     vi.spyOn(process.stdout, 'write').mockImplementation((chunk: any, ...args: any[]) => {
@@ -176,18 +184,22 @@ describe.skipIf(process.env.ASA_SCHOOL_NAT_TEST !== '1')('isolated school NAT ad
       report.anonymousCeilingEnforced = true;
       // Ordinary project reads authenticate every pupil and seed the server's
       // budget evidence, including pupils joining after the shared-IP threshold.
-      await Promise.all(
+      phase = 'authenticated_project_reads';
+      await drain(
         learners.map((learner) => call(learner.jar, 'GET', `/api/projects/${learner.project}`)),
       );
-      const document = { schemaVersion: 1, components: [], connections: [] };
+      let document = edit('electronics', 1);
       for (let wave = 0; wave < 2; wave++) {
         if (wave === 1) {
-          // Expire only application admission timestamps, not network/PG timers.
-          // The actual database remains authoritative and uses its own clock.
-          const actualNow = Date.now.bind(Date);
-          vi.spyOn(Date, 'now').mockImplementation(() => actualNow() + 31_000);
+          phase = 'proof_expiry_wait';
+          // These objects capture Date.now at construction. A later spy would
+          // not advance their clocks, so use an actual bounded wall-clock wait.
+          await new Promise((resolve) => setTimeout(resolve, 31_000));
+          report.proofExpiryWaitMs = 31_000;
         }
-        await Promise.all(
+        phase = `save_read_wave_${wave + 1}`;
+        document = edit('electronics', wave + 1);
+        await drain(
           learners.map(async (learner) => {
             const saved = (
               await call(learner.jar, 'PUT', `/api/projects/${learner.project}/draft`, {
@@ -207,6 +219,7 @@ describe.skipIf(process.env.ASA_SCHOOL_NAT_TEST !== '1')('isolated school NAT ad
           }),
         );
       }
+      phase = 'revocation';
       const revoked = learners[0]!;
       await admin.query(
         'UPDATE classroom_student_sessions SET revoked_at=now() WHERE token_hash=$1',
@@ -225,13 +238,24 @@ describe.skipIf(process.env.ASA_SCHOOL_NAT_TEST !== '1')('isolated school NAT ad
       await call(anonymous, 'GET', `/api/projects/${learners[1]!.project}`, undefined, 401);
       report.anonymousReadRejected = true;
       report.verdict = 'PASS';
+    } catch (error) {
+      failure = error;
+      report.failurePhase = phase;
+      report.failureKind = 'fixture_assertion_or_request_failed';
+      throw error;
     } finally {
       vi.restoreAllMocks();
       report.admissionRejections = rejections;
+      // App shutdown owns the injected runtime pool. Drain all HTTP work above
+      // before closing it, and never let cleanup replace the first test error.
+      const cleanup = await Promise.allSettled([
+        app ? app.close() : Reflect.get(runtime, 'ended') ? Promise.resolve() : runtime.end(),
+        admin.end(),
+      ]);
+      report.cleanupFailures = cleanup.filter((result) => result.status === 'rejected').length;
       mkdirSync('reports/capacity', { recursive: true });
       writeFileSync('reports/capacity/school-nat.json', JSON.stringify(report, null, 2));
-      await app?.close();
-      await Promise.all([admin.end(), runtime.end()]);
+      if (!failure && report.cleanupFailures) throw new Error('fixture_cleanup_failed');
     }
   }, 120_000);
 });
