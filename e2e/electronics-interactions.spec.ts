@@ -5155,279 +5155,297 @@ async function f2RealEditor(page: Page, fixture: SchematicDocument, input: strin
     errors.push(error.message);
     journal('pageerror', error.message);
   });
-  await page.goto('/#/home');
-  const origin = new URL(page.url()).origin;
-  const created = await page.context().request.post('/api/projects', {
-    headers: { origin, 'idempotency-key': crypto.randomUUID() },
-    data: {
-      scope: 'personal',
-      classroomId: null,
-      module: 'electronics',
-      title: `F2 real ${input}`,
-    },
-  });
-  expect(created.status()).toBe(201);
-  const { project } = (await created.json()) as { project: { id: string } };
-  const server = async (target = page) => {
-    const reply = await target.context().request.get(`/api/projects/${project.id}`);
-    const body = (await reply.json()) as {
-      draft: { document: SchematicDocument; revision: number };
+  try {
+    await page.goto('/#/home');
+    const origin = new URL(page.url()).origin;
+    const created = await page.context().request.post('/api/projects', {
+      headers: { origin, 'idempotency-key': crypto.randomUUID() },
+      data: {
+        scope: 'personal',
+        classroomId: null,
+        module: 'electronics',
+        title: `F2 real ${input}`,
+      },
+    });
+    expect(created.status()).toBe(201);
+    const { project } = (await created.json()) as { project: { id: string } };
+    const server = async (target = page) => {
+      const reply = await target.context().request.get(`/api/projects/${project.id}`);
+      const body = (await reply.json()) as {
+        draft: { document: SchematicDocument; revision: number };
+      };
+      journal('server-get', { status: reply.status(), body });
+      expect(reply.status()).toBe(200);
+      return body.draft;
     };
-    journal('server-get', { status: reply.status(), body });
-    expect(reply.status()).toBe(200);
-    return body.draft;
-  };
-  const initial = await server();
-  const seeded = await page.context().request.put(`/api/projects/${project.id}/draft`, {
-    headers: { origin },
-    data: { document: fixture, baseRevision: initial.revision, mutationId: crypto.randomUUID() },
-  });
-  journal('fixture-seed', { status: seeded.status(), body: await seeded.json(), fixture });
-  expect(seeded.status()).toBe(200);
-  const baseline = await server();
-  expect(baseline.document).toEqual(fixture);
-  expect(baseline.revision).toBe(initial.revision + 1);
-  const me = await page.context().request.get('/api/auth/me');
-  expect(me.status()).toBe(200);
-  const identity = (await me.json()) as { user: { id: string } };
-  const localKey = localProjectDraftKey(project.id, identity.user.id, 'account');
-  const storage = async (target: Page) =>
-    target.evaluate(
-      (key) => ({
-        local: Object.entries(localStorage).filter(([name]) => name.startsWith(key)),
-        session: Object.entries(sessionStorage).filter(([name]) => name.startsWith(key)),
-      }),
-      localKey,
-    );
-  const admitted = [structuredClone(fixture)];
-  const admit = (document: SchematicDocument) => {
-    f2Canonical(document);
-    admitted.push(structuredClone(document));
-    journal('admitted', document);
-  };
-  type Row = Parameters<typeof f2LedgerHealthy>[0][number];
-  const rows: Row[] = [];
-  const requests = new Map<Request, Row>();
-  const pending: Promise<void>[] = [];
-  const finished = new Map<Request, () => void>();
-  const failures: string[] = [];
-  let phase = 'native-edit';
-  page.on('request', (request) => {
-    if (
-      request.method() !== 'PUT' ||
-      new URL(request.url()).pathname !== `/api/projects/${project.id}/draft`
-    )
-      return;
-    try {
-      const body = request.postDataJSON() as Row['body'];
-      const row: Row = { body, phase, acknowledgements: 0 };
-      rows.push(row);
-      requests.set(request, row);
-      pending.push(new Promise<void>((resolve) => finished.set(request, resolve)));
-      journal('put-request', row);
-      if (!admitted.some((expected) => isDeepStrictEqual(expected, body.document)))
-        failures.push('Unadmitted PUT document');
-    } catch (error) {
-      failures.push(String(error));
-    }
-  });
-  page.on('response', (response) => {
-    if (
-      response.request().method() !== 'PUT' ||
-      new URL(response.url()).pathname !== `/api/projects/${project.id}/draft`
-    )
-      return;
-    const row = requests.get(response.request());
-    if (!row) {
-      failures.push('Orphan PUT response');
-      journal('orphan-response', response.url());
-      return;
-    }
-    void (async () => {
+    const initial = await server();
+    const seeded = await page.context().request.put(`/api/projects/${project.id}/draft`, {
+      headers: { origin },
+      data: { document: fixture, baseRevision: initial.revision, mutationId: crypto.randomUUID() },
+    });
+    journal('fixture-seed', { status: seeded.status(), body: await seeded.json(), fixture });
+    expect(seeded.status()).toBe(200);
+    const baseline = await server();
+    expect(baseline.document).toEqual(fixture);
+    expect(baseline.revision).toBe(initial.revision + 1);
+    const me = await page.context().request.get('/api/auth/me');
+    expect(me.status()).toBe(200);
+    const identity = (await me.json()) as { user: { id: string } };
+    const localKey = localProjectDraftKey(project.id, identity.user.id, 'account');
+    const storage = async (target: Page) =>
+      target.evaluate(
+        (key) => ({
+          local: Object.entries(localStorage).filter(([name]) => name.startsWith(key)),
+          session: Object.entries(sessionStorage).filter(([name]) => name.startsWith(key)),
+        }),
+        localKey,
+      );
+    const admitted = [structuredClone(fixture)];
+    const admit = (document: SchematicDocument) => {
+      f2Canonical(document);
+      admitted.push(structuredClone(document));
+      journal('admitted', document);
+    };
+    type Row = Parameters<typeof f2LedgerHealthy>[0][number];
+    const rows: Row[] = [];
+    const requests = new Map<Request, Row>();
+    const pending: Promise<void>[] = [];
+    const finished = new Map<Request, () => void>();
+    const failures: string[] = [];
+    let phase = 'native-edit';
+    page.on('request', (request) => {
+      if (
+        request.method() !== 'PUT' ||
+        new URL(request.url()).pathname !== `/api/projects/${project.id}/draft`
+      )
+        return;
       try {
-        const body = (await response.json()) as {
-          draft: { document: SchematicDocument; revision: number };
-        };
-        row.acknowledgements++;
-        row.status = response.status();
-        row.revision = body.draft?.revision;
-        row.document = body.draft?.document;
-        journal('put-acknowledged', row);
+        const body = request.postDataJSON() as Row['body'];
+        const row: Row = { body, phase, acknowledgements: 0 };
+        rows.push(row);
+        requests.set(request, row);
+        pending.push(new Promise<void>((resolve) => finished.set(request, resolve)));
+        journal('put-request', row);
+        if (!admitted.some((expected) => isDeepStrictEqual(expected, body.document)))
+          failures.push('Unadmitted PUT document');
       } catch (error) {
         failures.push(String(error));
-        journal('response-error', String(error));
-      } finally {
-        finished.get(response.request())?.();
       }
-    })();
-  });
-  page.on('requestfailed', (request) => {
-    if (requests.has(request)) {
-      failures.push(`PUT failed: ${request.failure()?.errorText}`);
-      journal('put-failed', request.failure());
-      finished.get(request)?.();
-    }
-  });
-  const settle = async () => {
-    await frames(page);
-    await Promise.all(pending);
-    journal('ledger', { rows, admitted, failures });
-    requireRetention();
-    expect(failures).toEqual([]);
-    expect(f2LedgerHealthy(rows, admitted, baseline.revision)).toBe(true);
-  };
-  await page.addInitScript(f2ObserveLoadedDocument, localKey);
-  const readEditorDocument = async (target = page): Promise<SchematicDocument> => {
-    const record = await target.evaluate((key) => {
-      const raw = localStorage.getItem(key);
-      return raw === null ? null : JSON.parse(raw);
-    }, localKey);
-    journal('local-document', record);
-    requireRetention();
-    if (record !== null) {
-      expect(record).toMatchObject({
-        schemaVersion: 3,
-        identityKind: 'account',
-        userId: identity.user.id,
-        projectId: project.id,
-        moduleKey: 'electronics',
-      });
-      expect(Number.isSafeInteger(record.baseRevision)).toBe(true);
-      return record.document as SchematicDocument;
-    }
-    // Public serialization observes the actual document passed to load's history
-    // initialization. The subsequent fixture-scoped saved hint fences that load.
-    // This is per realm, never the source page's expected/acknowledged document.
-    const observed = await target.evaluate(
-      () =>
-        (
-          window as unknown as {
-            f2LoadedDocument: {
-              saved: { document: SchematicDocument; href: string; stack: string | null } | null;
-              errors: string[];
-            };
-          }
-        ).f2LoadedDocument,
-    );
-    journal('loaded-document', observed);
-    requireRetention();
-    expect(observed.errors).toEqual([]);
-    expect(observed.saved).not.toBeNull();
-    if (!observed.saved) throw new Error('Missing actual loaded document observation');
-    expect(new URL(observed.saved.href).hash).toBe(`#/home/${project.id}`);
-    return observed.saved.document;
-  };
-  await page.addInitScript((key) => {
-    (window as unknown as { f2PreApp: unknown }).f2PreApp = {
-      local: Object.entries(localStorage).filter(([name]) => name.startsWith(key)),
-      session: Object.entries(sessionStorage).filter(([name]) => name.startsWith(key)),
-    };
-  }, localKey);
-  await page.goto(`/#/home/${project.id}`, { waitUntil: 'domcontentloaded' });
-  await expect(page.getByTestId('schematic-component')).toHaveCount(fixture.components.length);
-  const preApp = await page.evaluate(() => (window as unknown as { f2PreApp: unknown }).f2PreApp);
-  journal('initial-preapp', preApp);
-  expect(preApp).toEqual({ local: [], session: [] });
-  journal('initial-storage', await storage(page));
-  expect(await storage(page)).toEqual({
-    local: [],
-    session: [[`${localKey}:electronics-editor:`, 'saved']],
-  });
-  return {
-    project,
-    origin,
-    localKey,
-    storage,
-    journal,
-    requireRetention,
-    errors,
-    rows,
-    admitted,
-    admit,
-    settle,
-    server,
-    readEditorDocument,
-    requireComplete: () => {
+    });
+    page.on('response', (response) => {
+      if (
+        response.request().method() !== 'PUT' ||
+        new URL(response.url()).pathname !== `/api/projects/${project.id}/draft`
+      )
+        return;
+      const row = requests.get(response.request());
+      if (!row) {
+        failures.push('Orphan PUT response');
+        journal('orphan-response', response.url());
+        return;
+      }
+      void (async () => {
+        try {
+          const body = (await response.json()) as {
+            draft: { document: SchematicDocument; revision: number };
+          };
+          row.acknowledgements++;
+          row.status = response.status();
+          row.revision = body.draft?.revision;
+          row.document = body.draft?.document;
+          journal('put-acknowledged', row);
+        } catch (error) {
+          failures.push(String(error));
+          journal('response-error', String(error));
+        } finally {
+          finished.get(response.request())?.();
+        }
+      })();
+    });
+    page.on('requestfailed', (request) => {
+      if (requests.has(request)) {
+        failures.push(`PUT failed: ${request.failure()?.errorText}`);
+        journal('put-failed', request.failure());
+        finished.get(request)?.();
+      }
+    });
+    const settle = async () => {
+      await frames(page);
+      await Promise.all(pending);
+      journal('ledger', { rows, admitted, failures });
       requireRetention();
       expect(failures).toEqual([]);
       expect(f2LedgerHealthy(rows, admitted, baseline.revision)).toBe(true);
-      expect(rows.filter((row) => row.phase === 'intended-save')).toHaveLength(1);
-      expect(rows.filter((row) => row.phase === 'after-save')).toHaveLength(0);
-    },
-    finalSave: async (expected: SchematicDocument) => {
-      await settle();
-      const before = await server();
-      expect(before.revision).toBe(baseline.revision + rows.length);
-      const index = rows.length;
-      phase = 'intended-save';
-      await page.evaluate(() => {
-        (window as unknown as { f2SaveInput: unknown }).f2SaveInput = null;
-        window.addEventListener(
-          'pointerdown',
-          (event) => {
-            const button = (event.target as Element)?.closest('button');
-            (window as unknown as { f2SaveInput: unknown }).f2SaveInput = {
-              trusted: event.isTrusted,
-              pointerType: event.pointerType,
-              title: button?.getAttribute('title') ?? null,
-            };
-          },
-          { capture: true, once: true },
+    };
+    await page.addInitScript(f2ObserveLoadedDocument, localKey);
+    const readEditorDocument = async (target = page): Promise<SchematicDocument> => {
+      const record = await target.evaluate((key) => {
+        const raw = localStorage.getItem(key);
+        return raw === null ? null : JSON.parse(raw);
+      }, localKey);
+      journal('local-document', record);
+      requireRetention();
+      if (record !== null) {
+        expect(record).toMatchObject({
+          schemaVersion: 3,
+          identityKind: 'account',
+          userId: identity.user.id,
+          projectId: project.id,
+          moduleKey: 'electronics',
+        });
+        expect(Number.isSafeInteger(record.baseRevision)).toBe(true);
+        return record.document as SchematicDocument;
+      }
+      // Public serialization observes the actual document passed to load's history
+      // initialization. The subsequent fixture-scoped saved hint fences that load.
+      // This is per realm, never the source page's expected/acknowledged document.
+      const observed = await target.evaluate(
+        () =>
+          (
+            window as unknown as {
+              f2LoadedDocument: {
+                saved: { document: SchematicDocument; href: string; stack: string | null } | null;
+                errors: string[];
+              };
+            }
+          ).f2LoadedDocument,
+      );
+      journal('loaded-document', observed);
+      requireRetention();
+      expect(observed.errors).toEqual([]);
+      expect(observed.saved).not.toBeNull();
+      if (!observed.saved) throw new Error('Missing actual loaded document observation');
+      expect(new URL(observed.saved.href).hash).toBe(`#/home/${project.id}`);
+      return observed.saved.document;
+    };
+    await page.addInitScript((key) => {
+      (window as unknown as { f2PreApp: unknown }).f2PreApp = {
+        local: Object.entries(localStorage).filter(([name]) => name.startsWith(key)),
+        session: Object.entries(sessionStorage).filter(([name]) => name.startsWith(key)),
+      };
+    }, localKey);
+    const beforeNavigation = new URL(page.url());
+    const declaredNavigation = new URL(`/?f2-realm=${project.id}#/home/${project.id}`, origin);
+    journal('declared-document-navigation', {
+      before: beforeNavigation.href,
+      after: declaredNavigation.href,
+    });
+    expect(declaredNavigation.pathname + declaredNavigation.search).not.toBe(
+      beforeNavigation.pathname + beforeNavigation.search,
+    );
+    await page.goto(declaredNavigation.href, { waitUntil: 'domcontentloaded' });
+    await expect(page.getByTestId('schematic-component')).toHaveCount(fixture.components.length);
+    const preApp = await page.evaluate(() => (window as unknown as { f2PreApp: unknown }).f2PreApp);
+    journal('initial-preapp', preApp);
+    expect(preApp).toEqual({ local: [], session: [] });
+    journal('initial-storage', await storage(page));
+    expect(await storage(page)).toEqual({
+      local: [],
+      session: [[`${localKey}:electronics-editor:`, 'saved']],
+    });
+    return {
+      project,
+      origin,
+      localKey,
+      storage,
+      journal,
+      requireRetention,
+      errors,
+      rows,
+      admitted,
+      admit,
+      settle,
+      server,
+      readEditorDocument,
+      requireComplete: () => {
+        requireRetention();
+        expect(failures).toEqual([]);
+        expect(f2LedgerHealthy(rows, admitted, baseline.revision)).toBe(true);
+        expect(rows.filter((row) => row.phase === 'intended-save')).toHaveLength(1);
+        expect(rows.filter((row) => row.phase === 'after-save')).toHaveLength(0);
+      },
+      finalSave: async (expected: SchematicDocument) => {
+        await settle();
+        const before = await server();
+        expect(before.revision).toBe(baseline.revision + rows.length);
+        const index = rows.length;
+        phase = 'intended-save';
+        await page.evaluate(() => {
+          (window as unknown as { f2SaveInput: unknown }).f2SaveInput = null;
+          window.addEventListener(
+            'pointerdown',
+            (event) => {
+              const button = (event.target as Element)?.closest('button');
+              (window as unknown as { f2SaveInput: unknown }).f2SaveInput = {
+                trusted: event.isTrusted,
+                pointerType: event.pointerType,
+                title: button?.getAttribute('title') ?? null,
+              };
+            },
+            { capture: true, once: true },
+          );
+        });
+        const response = page.waitForResponse(
+          (reply) =>
+            reply.request().method() === 'PUT' &&
+            new URL(reply.url()).pathname === `/api/projects/${project.id}/draft`,
         );
-      });
-      const response = page.waitForResponse(
-        (reply) =>
-          reply.request().method() === 'PUT' &&
-          new URL(reply.url()).pathname === `/api/projects/${project.id}/draft`,
-      );
-      const save = page.getByRole('button', { name: 'Сохранить проект', exact: true });
-      if (input === 'touch') {
-        const box = await save.boundingBox();
-        expect(box).not.toBeNull();
-        if (!box) throw new Error('Native Save has no visible bounds');
-        const point = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
-        expect(
-          await page.evaluate(
-            ({ x, y }) =>
-              document.elementFromPoint(x, y)?.closest('button')?.getAttribute('aria-label'),
-            point,
-          ),
-        ).toBe('Сохранить проект');
-        const session = await page.context().newCDPSession(page);
-        try {
-          await session.send('Input.dispatchTouchEvent', {
-            type: 'touchStart',
-            touchPoints: [{ id: 1, ...point }],
-          });
-          await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-        } finally {
-          await session.detach();
-        }
-      } else await save.click();
-      const nativeSave = await page.evaluate(
-        () => (window as unknown as { f2SaveInput: unknown }).f2SaveInput,
-      );
-      journal('native-save', nativeSave);
-      expect(nativeSave).toEqual({
-        trusted: true,
-        pointerType: input,
-        title: 'Сохранить проект сейчас',
-      });
-      await response;
-      await settle();
-      journal('intended-save', { index, rows: rows.slice(index), expected });
-      expect(rows.slice(index)).toHaveLength(1);
-      expect(rows[index].phase).toBe('intended-save');
-      expect(rows[index].body.document).toEqual(expected);
-      expect(rows[index].body.baseRevision).toBe(before.revision);
-      expect(rows[index].revision).toBe(before.revision + 1);
-      const saved = await server();
-      expect(saved.document).toEqual(expected);
-      expect(saved.revision).toBe(before.revision + 1);
-      phase = 'after-save';
-      return saved;
-    },
-  };
+        const save = page.getByRole('button', { name: 'Сохранить проект', exact: true });
+        if (input === 'touch') {
+          const box = await save.boundingBox();
+          expect(box).not.toBeNull();
+          if (!box) throw new Error('Native Save has no visible bounds');
+          const point = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+          expect(
+            await page.evaluate(
+              ({ x, y }) =>
+                document.elementFromPoint(x, y)?.closest('button')?.getAttribute('aria-label'),
+              point,
+            ),
+          ).toBe('Сохранить проект');
+          const session = await page.context().newCDPSession(page);
+          try {
+            await session.send('Input.dispatchTouchEvent', {
+              type: 'touchStart',
+              touchPoints: [{ id: 1, ...point }],
+            });
+            await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+          } finally {
+            await session.detach();
+          }
+        } else await save.click();
+        const nativeSave = await page.evaluate(
+          () => (window as unknown as { f2SaveInput: unknown }).f2SaveInput,
+        );
+        journal('native-save', nativeSave);
+        expect(nativeSave).toEqual({
+          trusted: true,
+          pointerType: input,
+          title: 'Сохранить проект сейчас',
+        });
+        await response;
+        await settle();
+        journal('intended-save', { index, rows: rows.slice(index), expected });
+        expect(rows.slice(index)).toHaveLength(1);
+        expect(rows[index].phase).toBe('intended-save');
+        expect(rows[index].body.document).toEqual(expected);
+        expect(rows[index].body.baseRevision).toBe(before.revision);
+        expect(rows[index].revision).toBe(before.revision + 1);
+        const saved = await server();
+        expect(saved.document).toEqual(expected);
+        expect(saved.revision).toBe(before.revision + 1);
+        phase = 'after-save';
+        return saved;
+      },
+    };
+  } catch (error) {
+    // The caller has not received the helper yet: retain its primary error here.
+    journal('helper-primary-error', {
+      message: String(error),
+      stack: error instanceof Error ? error.stack : null,
+    });
+    throw error;
+  }
 }
 
 wireVideoTest.describe('interaction: natural precise wire routing', () => {

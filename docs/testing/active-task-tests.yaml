@@ -157,3 +157,25 @@ tests:
     timeout_seconds: 3600
     owner: observability
     artifacts: [repository-report, ci-candidate-sha]
+
+  - id: TST-ELECTRONICS-UI-679-SCOPED-001
+    title: Six-case scoped qualification including issue 679 native acceptance
+    suite: e2e
+    level: system
+    phase_available: PHASE-5
+    required_for: [TASK-ELECTRONICS-ARDUINO-PSU-WIRE-LAYER-001]
+    command: pnpm gate:electronics-ui-679-557:browser
+    timeout_seconds: 3000
+    owner: electronics-team
+    artifacts: [electronics-ui-679-557, playwright-report, electronics-simulation]
+
+  - id: TST-ELECTRONICS-UI-557-SCOPED-001
+    title: Six-case scoped qualification including issue 557 native acceptance
+    suite: e2e
+    level: system
+    phase_available: PHASE-5
+    required_for: [TASK-ELECTRONICS-CLOCK-OBSERVER-001]
+    command: pnpm gate:electronics-ui-679-557:browser
+    timeout_seconds: 3000
+    owner: electronics-team
+    artifacts: [electronics-ui-679-557, playwright-report, electronics-simulation]
