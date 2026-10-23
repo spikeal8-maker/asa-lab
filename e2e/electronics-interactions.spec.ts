@@ -545,8 +545,7 @@ test.describe('Issue 682 acknowledged native realtime baseline', () => {
               : row,
           ),
         });
-        if (mode === 'delays')
-          await page.getByRole('button', { name: 'Закрыть редактор кода', exact: true }).click();
+        await page.getByRole('button', { name: 'Закрыть редактор кода', exact: true }).click();
         await page.getByRole('button', { name: 'Подогнать проект', exact: true }).click();
         const board = await part(page, 'uno').boundingBox(),
           stage = await page.locator('.workbench-stage').boundingBox();
@@ -577,18 +576,28 @@ test.describe('Issue 682 acknowledged native realtime baseline', () => {
         } else {
           await expect.poll(() => latest('led0')).toBe(0);
           const box = await part(page, 'button-682').boundingBox();
-          expect(box).not.toBeNull();
-          const point = { x: box!.x + box!.width / 2, y: box!.y + box!.height / 2 };
+          const buttonStage = await page.locator('.workbench-stage').boundingBox();
+          journal.retain('button-geometry', { box, stage: buttonStage });
           expect(
-            await page.evaluate(
-              ({ x, y }) =>
-                document
-                  .elementFromPoint(x, y)
-                  ?.closest('[data-component-id]')
-                  ?.getAttribute('data-component-id'),
-              point,
-            ),
-          ).toBe('button-682');
+            box &&
+              buttonStage &&
+              Object.values(box).every(Number.isFinite) &&
+              box.x >= buttonStage.x &&
+              box.y >= buttonStage.y &&
+              box.x + box.width <= buttonStage.x + buttonStage.width &&
+              box.y + box.height <= buttonStage.y + buttonStage.height,
+          ).toBe(true);
+          const point = { x: box!.x + box!.width / 2, y: box!.y + box!.height / 2 };
+          const buttonHit = await page.evaluate(
+            ({ x, y }) =>
+              document
+                .elementFromPoint(x, y)
+                ?.closest('[data-component-id]')
+                ?.getAttribute('data-component-id'),
+            point,
+          );
+          journal.retain('button-hit', { point, componentId: buttonHit });
+          expect(buttonHit).toBe('button-682');
           await page.mouse.move(point.x, point.y);
           await page.mouse.down();
           held = true;
@@ -598,6 +607,7 @@ test.describe('Issue 682 acknowledged native realtime baseline', () => {
           held = false;
           await expect.poll(() => latest('led0')).toBe(0);
           await expect.poll(() => nativeLevel(0)).toBe(0);
+          await page.getByRole('button', { name: 'Открыть редактор кода', exact: true }).click();
           await page
             .getByRole('textbox', { name: 'Сообщение в последовательный порт', exact: true })
             .fill('A');
@@ -618,22 +628,33 @@ test.describe('Issue 682 acknowledged native realtime baseline', () => {
         const ready = responses();
         expect(ready.length).toBeGreaterThan(0);
         const groups: Array<{ at: number; levels: string }> = [];
+        // Check every acknowledged record, but create a Playwright assertion step only
+        // on failure: thousands of successful steps otherwise consume the live test budget.
         for (const row of journal.records.filter(
           (row) => row.kind === 'response' && row.source === source,
         )) {
           const advance = row.advance as SimulationTimedAdvancePayload | null;
-          expect(row.ok).toBe(true);
-          expect(row.generation).toBe(row.requestGeneration);
-          expect(Number.isFinite(row.computeMs)).toBe(true);
-          expect(advance?.executionStatus).not.toBe('fault');
+          if (row.ok !== true) expect(row.ok).toBe(true);
+          if (!Object.is(row.generation, row.requestGeneration))
+            expect(row.generation).toBe(row.requestGeneration);
+          if (!Number.isFinite(row.computeMs)) expect(Number.isFinite(row.computeMs)).toBe(true);
+          if (advance?.executionStatus === 'fault')
+            expect(advance.executionStatus).not.toBe('fault');
           if (advance?.executionStatus === 'yielded') {
-            expect(advance.result).toBeNull();
+            if (advance.result !== null) expect(advance.result).toBeNull();
             continue;
           }
-          expect(advance?.result?.solved).toBe(true);
-          expect(advance?.result?.quality?.passed).toBe(true);
-          expect(advance?.diagnostics).toEqual([]);
-          expect(advance?.committedHorizonMicroseconds).toBe(advance?.requestedHorizonMicroseconds);
+          if (advance?.result?.solved !== true) expect(advance?.result?.solved).toBe(true);
+          if (advance?.result?.quality?.passed !== true)
+            expect(advance?.result?.quality?.passed).toBe(true);
+          if (!Array.isArray(advance?.diagnostics) || advance.diagnostics.length !== 0)
+            expect(advance?.diagnostics).toEqual([]);
+          if (
+            !Object.is(advance?.committedHorizonMicroseconds, advance?.requestedHorizonMicroseconds)
+          )
+            expect(advance?.committedHorizonMicroseconds).toBe(
+              advance?.requestedHorizonMicroseconds,
+            );
           const levels = ['led0', 'led1', 'led2']
             .map((id) =>
               Number(
@@ -656,8 +677,10 @@ test.describe('Issue 682 acknowledged native realtime baseline', () => {
             loadedAt: number | null;
             visible: boolean;
           }>;
-          expect(leds.every((led) => led.visible && led.loadedAt !== null)).toBe(true);
-          expect(leds.map((led) => Number(led.brightness > 0)).join(',')).toBe(group.levels);
+          const loaded = leds.every((led) => led.visible && led.loadedAt !== null);
+          if (!loaded) expect(loaded).toBe(true);
+          const paintedLevels = leds.map((led) => Number(led.brightness > 0)).join(',');
+          if (paintedLevels !== group.levels) expect(paintedLevels).toBe(group.levels);
         }
         if (mode === 'delays') {
           const first = ready[0]!,
