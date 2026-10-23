@@ -1095,8 +1095,7 @@ describe('mounted workbench LED temporal display', () => {
     expect(worker().update.mock.calls.at(-1)![1]).toBeGreaterThanOrEqual(toMicroseconds);
   }
 
-  // Keep the original physical edge times. An eighth-paced producer reaches
-  // those edges through real requested 6.25ms windows, not a future 25ms reply.
+  // Keep original physical edges and deliver only requested complete prefixes.
   async function receiveHeldPrefix(from: number, to: number, half: number) {
     expect(to).toBeGreaterThan(from);
     let last: ReturnType<typeof opticalReady> | undefined;
@@ -1110,7 +1109,7 @@ describe('mounted workbench LED temporal display', () => {
       // A held vector can ACK later cursor positions without a React render.
       // Publish this new result at the full requested endpoint on its first RAF;
       // no intermediate same-result render is required by the production hook.
-      await frame((next - cursor) / 1000 / 0.125);
+      await frame((next - cursor) / 1000);
       expect(workbench.simulationTimeMs).toBe(next / 1000);
       cursor = next;
     }
@@ -1121,7 +1120,7 @@ describe('mounted workbench LED temporal display', () => {
   // native renderer tests, invoke the real React-installed callback with an
   // induced record. No event is dispatched or Event.isTrusted property changed.
   // Real element/binding/readiness and React layout ACK run; browser paint does not.
-  async function loadMountedImages() {
+  async function loadMountedImages(beforePublication?: () => void) {
     const images = [...host.querySelectorAll<SVGImageElement>('image.workbench-led-asset')];
     expect(images.length).toBeGreaterThan(0);
     await act(async () => {
@@ -1136,6 +1135,9 @@ describe('mounted workbench LED temporal display', () => {
           throw new Error('Mounted image load callback is missing');
         callback({ nativeEvent: { target: image, isTrusted: true } });
       }
+      // Binding notifications are already queued; their readiness callback
+      // queues publication after this cancellation, never inside native load.
+      if (beforePublication) queueMicrotask(() => flushSync(beforePublication));
     });
   }
   function assertCommitted(
@@ -1173,8 +1175,10 @@ describe('mounted workbench LED temporal display', () => {
     expect(workbench.result).toBeNull();
     expect(workbench.componentLedBrightness(led)).toBe(0);
     await loadMountedImages();
-    // Readiness alone does not publish; the real hook's following layout does.
-    expect(workbench.result).toBeNull();
+    // A cold resource publishes through a queued flush/layout ACK without
+    // requiring an additional RAF after its actual mounted readiness.
+    expect(workbench.result).toBe(first.result);
+    assertCommitted(80, 'lit');
     await frame(16);
     expect(workbench.result).toBe(first.result);
     assertCommitted(80, 'lit');
@@ -1248,11 +1252,11 @@ describe('mounted workbench LED temporal display', () => {
       expect(workbench.simulationTimeMs).toBe(0);
       await frame(8);
       await frame(8);
-      // An induced native load runs the actual mounted binding. It is not a
-      // real-browser paint measurement and cannot acknowledge model progress.
+      // Induced native load runs the binding and queued parent layout ACK.
+      // No additional RAF is needed; this is not a browser paint measurement.
       await loadMountedImages();
-      expect(leds.map((item) => workbench.componentLedBrightness(item))).toEqual([0, 0, 0]);
-      expect(workbench.simulationTimeMs).toBe(0);
+      expect(leds.map((item) => workbench.componentLedBrightness(item))).toEqual(high);
+      expect(workbench.simulationTimeMs).toBe(1);
       await frame(8);
       expect(window.performance.now() - receivedAt).toBe(24);
       expect(leds.map((item) => workbench.componentLedBrightness(item))).toEqual(high);
@@ -1340,6 +1344,36 @@ describe('mounted workbench LED temporal display', () => {
         await frame();
         assertCommitted(0, 'off');
         expect(workbench.committedComponentLedAsset(led)?.token).not.toBe(warming.token);
+      }
+    },
+  );
+
+  it.each(['Stop', 'Reset', 'source', 'unmount'] as const)(
+    'cancels readiness publication queued before %s without another RAF',
+    async (cancellation) => {
+      await mount();
+      await loadMountedImages();
+      await act(async () => workbench.toggleSimulation());
+      await receive(opticalReady(0, 0, 100_000), true);
+      await frame();
+      await frame(16);
+      const before = frameSequence;
+      const pendingToken = workbench.preparedComponentLedAsset(led)!.token;
+      await loadMountedImages(() => {
+        if (cancellation === 'Stop') workbench.toggleSimulation();
+        else if (cancellation === 'Reset') workbench.resetArduinoRuntime('uno');
+        else if (cancellation === 'source')
+          workbench.updateArduinoProgram('uno', {
+            arduinoSource: 'void setup(){}void loop(){delay(777);}',
+          });
+        else root.render(null);
+      });
+      expect(frameSequence).toBe(before);
+      expect(workbench.committedComponentLedAsset(led)?.token).not.toBe(pendingToken);
+      if (cancellation === 'unmount') expect(host.querySelector('image')).toBeNull();
+      else {
+        expect(workbench.componentLedBrightness(led)).toBe(0);
+        expect(workbench.committedComponentLedAsset(led)).toBeUndefined();
       }
     },
   );
@@ -1484,28 +1518,24 @@ describe('mounted workbench LED temporal display', () => {
   });
 
   async function residentLowBoundary() {
-    await startOptical(25_000);
+    await startOptical(100_000);
     const high = workbench.committedComponentLedAsset(led);
     if (!high) throw new Error('The first HIGH must own a native lease');
     const off = [...host.querySelectorAll<SVGImageElement>('image.workbench-led-asset')].find(
       (image) => image !== high.element,
     );
     if (!off) throw new Error('The already-loaded resident OFF image is missing');
-    await receiveHeldPrefix(0, 18_750, 25_000);
-    await tick(18);
-    const low = opticalReady(25_000, 18_750, 25_000);
+    await receiveHeldPrefix(0, 93_750, 100_000);
+    const low = opticalReady(100_000, 93_750, 100_000);
     await receive(low);
-    // Two intervening shared frames still display HIGH. The following RAF
-    // reaches the real LOW edge and is eligible to prepare its resident asset.
-    await frame();
-    assertCommitted(80, 'lit');
-    await frame(16);
+    // The complete LOW has arrived at its real wall deadline. It must stay
+    // uncommitted until the next shared RAF verifies its resident native lease.
     assertCommitted(80, 'lit');
     expect(workbench.componentArduinoLActive(initial.components[0]!)).toBe(true);
     return { low, high, off };
   }
 
-  it('publishes a loaded resident asset within its preparation RAF after two full frames', async () => {
+  it('publishes a loaded resident asset within its first eligible preparation RAF at the real phase deadline', async () => {
     const { off } = await residentLowBoundary();
     const before = frameSequence;
     await frame(16);
@@ -1514,7 +1544,7 @@ describe('mounted workbench LED temporal display', () => {
     assertCommitted(0, 'off');
     expect(workbench.componentArduinoLActive(initial.components[0]!)).toBe(false);
     expect(workbench.committedComponentLedAsset(led)?.element).toBe(off);
-    expect(workbench.simulationTimeMs).toBe(25);
+    expect(workbench.simulationTimeMs).toBe(100);
   });
 
   for (const interruption of ['native invalidation', 'Stop', 'Suspense'] as const) {
@@ -1573,24 +1603,24 @@ describe('mounted workbench LED temporal display', () => {
         expect(host.textContent).not.toContain('pending');
       }
       await loadMountedImages();
-      // A native callback, including a fresh post-invalidation load, is not ACK.
-      expect(workbench.simulationTimeMs).toBe(beforeModelTime);
-      expect(workbench.componentLedBrightness(led)).toBe(80);
+      // Fresh readiness queues publication; the real parent layout performs ACK.
+      expect(workbench.simulationTimeMs).toBe(100);
+      expect(workbench.componentLedBrightness(led)).toBe(0);
       expect(workbench.preparedComponentLedAsset(led)?.token).toBe(pendingToken);
       await frame();
       assertCommitted(0, 'off');
       expect(workbench.componentArduinoLActive(initial.components[0]!)).toBe(false);
-      expect(workbench.simulationTimeMs).toBe(25);
+      expect(workbench.simulationTimeMs).toBe(100);
     });
   }
 
-  it('keeps temporal demand at 0.125 pace and within 6.25ms of the last actual native frame', async () => {
+  it('keeps temporal demand at 1 pace and within 50ms of the last actual native frame', async () => {
     const first = await startOptical(50_000);
     const before = renders;
     worker().update.mockClear();
     for (let turn = 0; turn < 10; turn++) await tick(10);
     expect(worker().update.mock.calls.map((call) => call[1])).toEqual([
-      5_000, 6_250, 6_250, 6_250, 6_250, 6_250, 6_250, 6_250, 6_250, 6_250,
+      40_000, 50_000, 50_000, 50_000, 50_000, 50_000, 50_000, 50_000, 50_000, 50_000,
     ]);
     expect(renders).toBe(before);
     expect(workbench.result).toBe(first.result);
@@ -1603,7 +1633,7 @@ describe('mounted workbench LED temporal display', () => {
     expect(workbench.simulationTimeMs).toBe(6.25);
     assertCommitted(80, 'lit');
     await tick(10);
-    expect(worker().update.mock.calls.at(-1)![1]).toBe(12_500);
+    expect(worker().update.mock.calls.at(-1)![1]).toBe(56_250);
   });
 
   it('publishes explicit HIGH and LOW only after shared RAF, native readiness and layout ACK', async () => {
@@ -1618,7 +1648,6 @@ describe('mounted workbench LED temporal display', () => {
     expect(workbench.result).toBe(beforeLow.result);
     assertCommitted(80, 'lit');
     await frame();
-    assertCommitted(80, 'lit');
     await frames(4);
     expect(workbench.result).toBe(low.result);
     assertCommitted(0, 'off');
@@ -1635,6 +1664,27 @@ describe('mounted workbench LED temporal display', () => {
     await frames(4);
     expect(workbench.result).toBe(high.result);
     assertCommitted(80, 'lit');
+  });
+
+  it('samples an actual 30ms phase at current wall time after native startup', async () => {
+    await startOptical(30_000);
+    await receiveHeldPrefix(0, 25_000, 30_000);
+    await requestedHorizon(50_000);
+    const low = opticalReady(50_000, 25_000, 30_000);
+    await receive(low);
+    assertCommitted(80, 'lit');
+    await frame();
+    await frame();
+    assertCommitted(0, 'off');
+    expect(workbench.simulationTimeMs).toBe(50);
+    await requestedHorizon(60_000);
+    const high = opticalReady(60_000, 50_000, 30_000);
+    await receive(high);
+    assertCommitted(0, 'off');
+    await frame();
+    await frame();
+    assertCommitted(80, 'lit');
+    expect(workbench.simulationTimeMs).toBe(60);
   });
 
   it('pairs the accepted mean with the actual result and clears it on Reset and Stop', async () => {
