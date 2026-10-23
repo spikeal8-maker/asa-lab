@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { planMigrations } from '../../tools/migrate.mjs';
 import { applyIsolatedTestPlan } from './isolated-postgres-plan';
 
-describe('0237 editorial choice forward upgrade', () => {
+describe('0238 editorial choice forward upgrade', () => {
   it('preserves prior schema history and denies direct restricted-role access', async () => {
     const source = process.env.TEST_DATABASE_URL;
     if (!source || !new URL(source).pathname.endsWith('_test'))
@@ -33,7 +33,7 @@ describe('0237 editorial choice forward upgrade', () => {
         expect(await applyIsolatedTestPlan(admin, complete)).toBe(1);
         expect(await applyIsolatedTestPlan(admin, complete)).toBe(0);
         const preservedHistory = await admin.query(
-          "SELECT version, name, checksum FROM schema_migrations WHERE version <> '0237' ORDER BY version",
+          "SELECT version, name, checksum FROM schema_migrations WHERE version <> '0238' ORDER BY version",
         );
         expect(preservedHistory.rows).toEqual(beforeHistory.rows);
         const editorialRows = await admin.query('SELECT * FROM project_publication_editorial');

@@ -6,7 +6,7 @@ PublicationRevision from Admin → Публикации. Catalog and public deta
 compact «★ Выбор редакции» while the selected revision is publicly eligible.
 This is NOT a sorting pin, nor a configurable badge family.
 
-Backend: additive migration 0237, CAS on editorialVersion, currentRevisionId
+Backend: additive migration 0238, CAS on editorialVersion, currentRevisionId
 and moderationVersion, Project→state lock order, verified administrator in Nest/SQL,
 append-only audit actor/action/target/request/version, no direct table access by
 app role. Badge expires after author revision update, hide/restore, revoke or

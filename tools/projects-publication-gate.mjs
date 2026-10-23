@@ -191,7 +191,7 @@ if (browser) {
     '--maxWorkers=2',
   ]);
   run(['test:creator-portal']);
-  // Verify supported populated database upgrades from 0225 through 0237.
+  // Verify supported populated database upgrades from 0225 through 0238.
   run([
     'exec',
     'vitest',

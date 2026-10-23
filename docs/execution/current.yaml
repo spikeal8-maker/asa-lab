@@ -6216,7 +6216,7 @@ parallel_lanes:
       - migrations/0234_public_projects.sql
       - migrations/0235_public_project_copy.sql
       - migrations/0236_project_publication_moderation.sql
-      - migrations/0237_project_publication_editorial.sql
+      - migrations/0238_project_publication_editorial.sql
       - tests/portal/**
       - e2e/project-hub.spec.ts
       - e2e/artifacts/project-hub/**
