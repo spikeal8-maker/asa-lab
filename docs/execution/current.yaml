@@ -8086,19 +8086,24 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: bounded_passive_fractional_ready_integer_dom_observer_repair
+      checkpoint: integrate_reviewed_pr695_clock_observer_without_product_rewrite
       kind: repair
       owner_acceptance: pending
       programme_issue: 452
       dependency_for_issue: 552
-      selected_at: '2026-10-11T23:17:21.978668+00:00'
+      selected_at: '2026-10-23T18:28:07Z'
       context_hints:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-CLOCK-OBSERVER-001.md
       - docs/product/electronics/components/ui-assets-persistence.yaml
-      repair_scope: TEST ONLY e2e/electronics-simulation-time.spec.ts passive observer/oracle. Correct false
-        requirement that integer text change coincide with fractional committed horizon. Preserve all original
-        pupil assertions/budgets/SaveCAS/cookies and ready authority; no product/Header/clock/physics/auth/helper/dependency/workflow
-        changes.
+      repair_scope: INTEGRATION ONLY exact reviewed PR695 clock test blob3f824213be5a2d18fee4c0e9009235f4a2cafb7b from02ed3ad0a5fa048a94bdefa09d0b41c438596741 onto current main. Only e2e/electronics-simulation-time.spec.ts source; preserve accepted541 product and all foreign work. No observer rewrite, physics/Worker/Header/CSS/cadence/auth/dependency/workflow changes.
+      integration_candidate:
+        pr: 695
+        head: 02ed3ad0a5fa048a94bdefa09d0b41c438596741
+        source_blob: 3f824213be5a2d18fee4c0e9009235f4a2cafb7b
+        unchanged_main_base_blob: 10cc5e1f8355dd67ab85601a013139437634cc69
+        source_review: APPROVE
+        source_review_sha256: bf3a04b50673d7977561234954a581e7ffe9e84fb7fa9168447e9eed0b8abd57
+        selection_evidence: docs/product/electronics/evidence/clock-observer-557-pr695-integration-selection-20261023.md
       baseline_failure_category: C independent test observer; accepted541 product not reopened
       baseline_failure_sha: 975f1fefb9f54c9b418e12cca50aaa5afe866f2e
       baseline_failure_run: 38181611589
@@ -8108,10 +8113,7 @@ parallel_lanes:
       independent_manifest_sha256: bd60d965610969794e94e6957d2ab7830599b2d8337794a289f9a7a1eb3d8a83
       actual_evidence: Root verified781external28Git. Actual39042ready37fractional; integer text00..04 only
         whole-horizon changes. No product regression proven.
-      next_action: NEW bounded test-only author, own clean checkout/fresh preflight/card, actual saved trace/source
-        counterexamples and narrow checks. One unpublishedSHA STOP; root actual verification and NEW SOURCE
-        review; ONE directed real built4widths, final exact required gates/NEW PRODUCT review. No repeat
-        accepted541 product BEFORE; no hopeful unchanged reruns.
+      next_action: New bounded integration author, fresh snapshot and real dirty-overlap check, preserve exact reviewed clock file and foreign main; new final integration/composition review before publication/qualification. One shared qualification candidate may contain separately reviewed679 and557 integration commits with new final composition review and one exact-SHA existing CI, preserving both PR histories. No new gate/waiver/workflow or duplicate broad unchanged run. Require actual four-width clock evidence and exact required gates; classify externalC/D without repairing unrelated modules. Merge/close only after mandatory acceptance, using owner's explicit programme authorization.
       preservation: Full accepted541 task/revisions and accepted_slices exact.552975/source/nativebeforeafter
         originals and current startup/E06/foreign lanes preserved.
       school_actions: deferred_by_owner_no_action
@@ -8315,17 +8317,22 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: owner_priority_targeted_wire_layer_selected
+      checkpoint: owner_programme_pr694_real_acceptance_test_selected
       kind: repair
       owner_acceptance: pending
       context_hints:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-ARDUINO-PSU-WIRE-LAYER-001.md
-      repair_scope: Wires above bodies ONLY for exact kinds arduino-uno and regulated-power-supply;exclude batteries and every other ordinary kind.
-      source_budget: WorkbenchStage.tsx and existing presentation tests;component map only if canonical generator requires it. No hook/core/solver/LED/API/persistence/assets/workflow/dependency/cap edits.
+      repair_scope: TEST ONLY F2 acceptance repair atop independently approved integration88930020; replace mocked persistence proof with real authenticated projects, native Save/CAS and cookies-only fresh-context reopen. Preserve F2 wire/terminal/ordinary negatives and main Arduino coverage; add native PSU slider negative-control acceptance. No product repair is selected.
+      source_budget: ONLY F2 cases and minimal public test helpers in e2e/electronics-interactions.spec.ts; necessary generated browser metadata only if canonical generator requires it. No Stage/product/budget/workflow/dependency edits. Preserve original PR694 finite case budget; no timeout increase.
       rendering_contract: Render target bodies after breadboard bodies and BEFORE existing wire hit/paint layers;exclude exactly targets from later ordinary body map. Keep terminals and overlays above wires. Preserve other ordinary relative order,foreign Stage props/readiness/UnoL and complete document.
       interaction_contract: Same exact-kind predicate exempts ONLY targets from handleWirePointerDown foreground-body drag redirect;visible target-overlying wires retain wire behavior. Other ordinary redirects unchanged.
-      execution_boundary: One new author performs focused source/unit checks,self-review,freeze STOP;NEW independent exactSHA review before ordinary publication. Existing strict workflow provides exact runtime evidence. No localbrowser/heavybuild or source-only owneracceptance/closure/release/deploy claim.
-      preservation: Pause525 without losing history/contracts;548BUDGETBLOCKED and ownerKEEP544547OPEN unchanged. Foreign/protected work preserved;known workflow exception disjoint only;actual dirty overlap STOP.
+      execution_boundary: One new bounded author repairs only selected F2 acceptance semantics on fresh main, freezes focused source checks and STOP; new independent exact-SHA source/integration review before publication. One justified exact-SHA native target verification plus required focused/General gates; no blind unchanged full-suite reruns. Cancelled overall browser never PASS; target evidence alone does not waive mandatory acceptance.
+      preservation: Owner programme679 then681 then557;681 observed CLOSED by owner spikeal8-maker on2026-10-23T17:02:17Z,do not reopen or close again and do not imply prior full General PASS. Preserve682 sole controller,548 budget blocker and ownerKEEP544547OPEN,all historical receipts/refs and foreign/protected work. Real dirty overlap STOP; known workflow exception disjoint only.
+      real_acceptance_contract: Genuine UI authentication once per group, isolated real projects and cookies-only contexts; independently canonical fixture expected document validated against public normalization, never adopted from actual PUT/server. Native exactly one intended Save, one matching full-payload PUT with observed baseRevision and server CAS plus1; fresh GET and cookies-only fresh-context reopen prove full independent document. Journal actual storage and persistence evidence durably before assertions/teardown; fail closed on loss, unknown writes or races. Preserve mouse1440 and touch390x844, original finite budgets and native actions; no forced hits, extra Save retries, mocks or timeout increase. Native PSU slider control must remain usable with crossing wires; an actual product failure requires separate cause-based selection.
+      integration_receipt: docs/product/electronics/evidence/arduino-psu-pr694-real-acceptance-selection-20261023.md
+      candidate_pr: 694
+      candidate_source_sha: 8fa878116c7b508ba12dcc3bca4341175e9c9168
+      next_action: Repair real F2 persistence and PSU-control acceptance, then obtain new independent source review before one justified exact-SHA verification; retain Draft until mandatory review/acceptance. If externalC/D prevents679 closure,record concrete blocker and advance independent681 verification then557 under separate canonical selection. No unreviewed Draft merge.
     execution_lease:
       executor_id: electronics-field-544
       holder: unassigned
