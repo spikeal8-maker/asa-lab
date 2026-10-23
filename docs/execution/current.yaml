@@ -7336,17 +7336,32 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: owner_realtime_priority_test_only_baseline_selected
+      checkpoint: interactive_sleeping_redundant_solve_repair_selected
       kind: repair
       owner_acceptance: pending
       context_hints:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-ARDUINO-REALTIME-001.md
       owner_request: Proportional real timing from30ms through20s; supported if/for/while/loop with externalLED/button and SerialMonitor TX/RX. No extra product explanations;remove LIMITED only after full capability proof.
-      selected_slice: TEST-ONLY baseline model-clock and native wall-clock/button/Serial evidence;no pace flip or product repair. Reuse existing tests/gates;new author freeze unpublished and NEW independent review before test candidate branch CI.
+      selected_slice: Bounded interactive scheduler optimization;skip only redundant zero-duration observation solves when boards sleep and no input/sensor/tone/event is due after identical successful1ms physical step. Preserve legacy profile, physics quantum, all exact output/state/event times. New author, deterministic replay equality and independent review.
       boundaries: Exact model event timestamps/instruction costs are separate from wall pace/jitter/backlog/UI responsiveness;baseline timing may honestly FAIL. Intentionally red unit tests must not enter main. No full C++ claim or timeout/coverage weakening.
-      next_selection: Product clock change requires new cause-based canonical selection;Serial repair requires proven regression;labels require capability-specific proof. Preserved546/R27 remain stopped, not resumed by this task.
+      next_selection: Button hit-precondition and functional Serial evidence remain separate pending work;no Serial implementation repair without demonstrated defect. Labels require capability-specific proof. Preserved546/R27 remain stopped.
       coordination: Other Arduino controller confirms no active timing/core/hook/LED writer and observation PAUSED;parallel679 Stage-only budget repair remains separate and not closed.525 paused with history retained.
-      observed_baseline: Remote0b472dfb;General39645888180 failed and strict39645898214 cancelled;laterGeneral39653390747 cancelled. Not1x/acceptance/release evidence. Wire679 raw editor218156 over218000 under separate repair.
+      observed_baseline: Exact9c864980 strict39904729751 cancelled,focused/EOPT success. Actual electrical30.002/1000.002/20000.002ms;visible31.2/955.7/19974.7ms;model21862.6/wall21868.9ms. Journal Nodegap40861ms then page.evaluate timeout;buttonhit undefined beforepress. Firstcoldpaint96.8ms remains unresolved;no blanket50ms claim. General39904729200 bundle218111/218000 is separate. Raw report SHA256 82cc39aaaa74a16eca72588db27155c6d65ddd9b04978b40783d89964653eeb8.
+      partial_publication_receipt:
+        authorization: Direct owner answer publish partial result and continue repair;no site update or full acceptance.
+        source_candidate: f90aa1f39bec12d7157453b08712f0fccf31af22
+        exact_browser_run: 39973236853
+        exact_general_run: 39973236287
+        independent_actual_verdict: partial_result_confirmed_full_acceptance_request_changes
+        accepted_boundary: One native30ms/1s/20s delay journey COMPLETE/PASS includingStop;model21849.6ms over wall21862.2ms.
+        remaining: Cold buttonLED publication134ms exceeds50ms;interactive model800ms over3380.7ms;buttoncaseResetStop not reached;GeneralAccess independentAccountFAIL;wholebrowser cancelled.
+        focused_eopt_governance_code_data: success
+        general_access: failure
+        bundle_bytes: 217993
+        bundle_ceiling_bytes: 218000
+        owner_acceptance: pending
+        release_claim: false
+        deployment: not_performed
     execution_lease:
       executor_id: electronics-ready-cadence-539
       holder: unassigned

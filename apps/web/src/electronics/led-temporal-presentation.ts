@@ -13,11 +13,11 @@ export const LED_PRESENTATION_PHASE_LIMIT_MICROSECONDS = 25_000;
 // Two complete cycles plus the current phase, including near the cadence limit.
 const HISTORY_MICROSECONDS = 5 * LED_PRESENTATION_PHASE_LIMIT_MICROSECONDS;
 const MAX_HISTORY_SAMPLES = 513;
-// One deliberately shared classroom clock. Electrical instruction time is unchanged.
-export const ELECTRONICS_CLASSROOM_PACE = 0.125;
+// One wall microsecond advances one physical microsecond; instruction time is unchanged.
+export const ELECTRONICS_CLASSROOM_PACE = 1;
 // Keep the requested future window within 50 ms of wall time at the shared pace.
 // This demand bound is separate from the unchanged optical phase classification.
-export const ELECTRONICS_CLASSROOM_LOOKAHEAD_MICROSECONDS = 6_250;
+export const ELECTRONICS_CLASSROOM_LOOKAHEAD_MICROSECONDS = 50_000;
 
 export function classroomRequestedHorizon(
   hostOffsetMicroseconds: number,
@@ -228,13 +228,13 @@ function fastCycleBrightness(samples: readonly ElectronicsLedTemporalSample[], t
 
 /** Only accepted optical observations are retained; electrical results stay untouched. */
 export class LedTemporalPresentation {
-  private committed: number | null = null;
-  private histories = new Map<string, HeldHistory<ElectronicsLedTemporalSample>>();
-  private indicators = new Map<string, HeldHistory<ElectronicsArduinoIndicatorSample>>();
+  private end: number | null = null;
+  private leds = new Map<string, HeldHistory<ElectronicsLedTemporalSample>>();
+  private boardL = new Map<string, HeldHistory<ElectronicsArduinoIndicatorSample>>();
   private cursor: number | null = null;
-  private sampledAt: number | null = null;
-  private sequence = 0;
-  private generation = 0;
+  private origin: { wallMicroseconds: number; modelMicroseconds: number } | null = null;
+  private seq = 0;
+  private gen = 0;
   private raf = 0;
   private ackRaf = -3;
   private shown: LedPresentationFrame | null = null;
@@ -267,10 +267,10 @@ export class LedTemporalPresentation {
    * because the accepted endpoint has returned LOW before the next paint.
    */
   get nextNativeAssetFrame(): LedNativeAssetFrame | null {
-    if (this.cursor === null || this.committed === null) return null;
-    const times = new Set([this.cursor, this.committed]);
+    if (this.cursor === null || this.end === null) return null;
+    const times = new Set([this.cursor, this.end]);
     if (!this.snapshot) {
-      for (const { samples } of this.histories.values()) {
+      for (const { samples } of this.leds.values()) {
         for (const sample of samples) {
           // Native brightness can change at a solved sample or when the
           // existing fast-cycle policy expires into the real held state.
@@ -278,7 +278,7 @@ export class LedTemporalPresentation {
             sample.atMicroseconds,
             sample.atMicroseconds + LED_PRESENTATION_PHASE_LIMIT_MICROSECONDS,
           ])
-            if (time > this.cursor && time < this.committed) times.add(time);
+            if (time > this.cursor && time < this.end) times.add(time);
         }
       }
     }
@@ -286,7 +286,7 @@ export class LedTemporalPresentation {
     for (const time of [...times].sort((left, right) => left - right)) {
       const frame = this.frameAt(time);
       if (!frame) return null;
-      last = { ...frame, generation: this.generation };
+      last = { ...frame, generation: this.gen };
       if (!this.shown || !sameLedBrightness(frame.brightness, this.shown.brightness)) return last;
     }
     return last;
@@ -297,17 +297,17 @@ export class LedTemporalPresentation {
   }
 
   reset(): void {
-    this.committed = null;
-    this.histories.clear();
-    this.indicators.clear();
+    this.end = null;
+    this.leds.clear();
+    this.boardL.clear();
     this.cursor = null;
-    this.sampledAt = null;
+    this.origin = null;
     this.pending = null;
     this.shown = null;
     this.snapshot = null;
     this.raf = 0;
     this.ackRaf = -3;
-    this.generation++;
+    this.gen++;
   }
 
   accept(
@@ -358,19 +358,21 @@ export class LedTemporalPresentation {
       }
       ids.add(indicator.componentId);
     }
-    if (this.committed !== observation.fromMicroseconds) {
-      if (this.committed !== null) this.reanchors++;
+    if (this.end !== observation.fromMicroseconds) {
+      if (this.end !== null) this.reanchors++;
       this.reset();
     }
-    if (wallMicroseconds !== undefined && this.cursor === null)
+    if (wallMicroseconds !== undefined && this.cursor === null) {
       this.cursor = observation.fromMicroseconds;
+      this.origin = { wallMicroseconds, modelMicroseconds: observation.fromMicroseconds };
+    }
     const next = new Map<string, HeldHistory<ElectronicsLedTemporalSample>>();
     for (const component of observation.components) {
       const electrical = result.components.find(
         (entry) => entry.componentId === component.componentId,
       );
       const final = component.samples.at(-1)!;
-      const previous = this.histories.get(component.componentId);
+      const previous = this.leds.get(component.componentId);
       if (
         !electrical ||
         electrical.brightness !== final.brightness ||
@@ -412,7 +414,7 @@ export class LedTemporalPresentation {
       nextIndicators.set(
         indicator.componentId,
         retainHistory(
-          this.indicators.get(indicator.componentId),
+          this.boardL.get(indicator.componentId),
           indicator,
           observation.fromMicroseconds,
           observation.toMicroseconds,
@@ -420,9 +422,9 @@ export class LedTemporalPresentation {
         ),
       );
     }
-    this.indicators = nextIndicators;
-    this.committed = observation.toMicroseconds;
-    this.histories = next;
+    this.boardL = nextIndicators;
+    this.end = observation.toMicroseconds;
+    this.leds = next;
     if (this.pending && [...this.pending.brightness.keys()].some((id) => !next.has(id)))
       this.pending = null;
     // Ingestion never advances or publishes the optical cursor. In particular,
@@ -437,12 +439,12 @@ export class LedTemporalPresentation {
       !result.quality?.passed ||
       !Number.isSafeInteger(atMicroseconds) ||
       atMicroseconds < 0 ||
-      (this.committed !== null && atMicroseconds < this.committed)
+      (this.end !== null && atMicroseconds < this.end)
     ) {
       this.reset();
       return;
     }
-    if (this.histories.size || this.indicators.size) this.reset();
+    if (this.leds.size || this.boardL.size) this.reset();
     this.snapshot = {
       atMicroseconds,
       brightness: new Map(
@@ -454,27 +456,31 @@ export class LedTemporalPresentation {
       ),
       arduinoLStates: new Map(),
     };
-    this.committed = atMicroseconds;
+    this.end = atMicroseconds;
     if (this.cursor === null) this.cursor = atMicroseconds;
   }
 
   /**
    * Prepare one frame from accepted history on the shared animation-frame path.
    * The caller must acknowledge its actual joint DOM commit. A pending native
-   * asset or React commit freezes this exact frame and discards elapsed wall
-   * time; no saved waiting-time debt is repaid in a subsequent phase.
+   * asset or React commit freezes this exact frame. The monotonic wall origin
+   * remains unchanged; after ACK only complete accepted history can catch up.
    */
   prepareFrame(wallMicroseconds: number): LedPresentationFrame | null {
     this.raf++;
-    const elapsed = this.sampledAt === null ? 0 : Math.max(0, wallMicroseconds - this.sampledAt);
-    this.sampledAt = wallMicroseconds;
+    const elapsed =
+      this.origin === null ? 0 : Math.max(0, wallMicroseconds - this.origin.wallMicroseconds);
     if (this.pending) return this.pending;
-    if (this.cursor === null || this.committed === null) return null;
+    if (this.cursor === null || this.end === null) return null;
     const target = this.snapshot
       ? this.snapshot.atMicroseconds
       : this.shown === null
         ? this.cursor
-        : Math.min(this.committed, this.cursor + Math.floor(elapsed * ELECTRONICS_CLASSROOM_PACE));
+        : Math.min(
+            this.end,
+            (this.origin?.modelMicroseconds ?? this.cursor) +
+              Math.floor(elapsed * ELECTRONICS_CLASSROOM_PACE),
+          );
     const values = this.frameAt(target);
     if (!values) {
       // Missing/truncated coverage cannot establish a displayable frame. Report
@@ -485,7 +491,7 @@ export class LedTemporalPresentation {
     }
     const frame: LedPresentationFrame = {
       ...values,
-      token: `${this.generation}:${++this.sequence}`,
+      token: `${this.gen}:${++this.seq}`,
     };
     if (this.shown && !sameOpticalFrame(this.shown, frame) && !this.canPublishDistinctFrame)
       return null;
@@ -505,7 +511,7 @@ export class LedTemporalPresentation {
     this.cursor = frame.atMicroseconds;
     this.shown = frame;
     this.pending = null;
-    this.sampledAt = wallMicroseconds;
+    this.origin ??= { wallMicroseconds, modelMicroseconds: frame.atMicroseconds };
     if (changed) this.ackRaf = this.raf;
     return true;
   }
@@ -515,7 +521,7 @@ export class LedTemporalPresentation {
     return this.shown?.brightness ?? new Map();
   }
 
-  private throughTime<T extends HeldPresentationSample>(samples: readonly T[], time: number) {
+  private tt<T extends HeldPresentationSample>(samples: readonly T[], time: number) {
     let end = samples.length - 1;
     while (end >= 0 && samples[end]!.atMicroseconds > time) end--;
     if (end < 0) return [];
@@ -534,9 +540,8 @@ export class LedTemporalPresentation {
   private frameAt(atMicroseconds: number): Omit<LedPresentationFrame, 'token'> | null {
     if (this.snapshot) return this.snapshot;
     const brightness = this.atTime(atMicroseconds);
-    const voltages = this.indicatorVoltagesAtTime(atMicroseconds);
-    if (brightness.size !== this.histories.size || voltages.size !== this.indicators.size)
-      return null;
+    const voltages = this.ivt(atMicroseconds);
+    if (brightness.size !== this.leds.size || voltages.size !== this.boardL.size) return null;
     return {
       atMicroseconds,
       brightness,
@@ -544,11 +549,11 @@ export class LedTemporalPresentation {
     };
   }
 
-  private indicatorVoltagesAtTime(time: number): ReadonlyMap<string, number> {
+  private ivt(time: number): ReadonlyMap<string, number> {
     const voltages = new Map<string, number>();
-    for (const [id, { samples, completeSince }] of this.indicators) {
+    for (const [id, { samples, completeSince }] of this.boardL) {
       if (completeSince > time) continue;
-      const last = this.throughTime(samples, time).at(-1);
+      const last = this.tt(samples, time).at(-1);
       if (last) voltages.set(id, last.voltage);
     }
     return voltages;
@@ -556,9 +561,9 @@ export class LedTemporalPresentation {
 
   private atTime(time: number): ReadonlyMap<string, number> {
     const brightness = new Map<string, number>();
-    for (const [id, { samples, completeSince }] of this.histories) {
+    for (const [id, { samples, completeSince }] of this.leds) {
       if (completeSince > time) continue;
-      const prefix = this.throughTime(samples, time);
+      const prefix = this.tt(samples, time);
       const last = prefix.at(-1);
       if (!last) continue;
       brightness.set(id, fastCycleBrightness(prefix, time) ?? last.brightness);

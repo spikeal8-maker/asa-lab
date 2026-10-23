@@ -262,7 +262,7 @@ function recordOwnerMillisAcquisition(
 // Raw browser timestamps, native witnesses and electrical times stay untouched.
 const OWNER_V3_PROFILE = 'classroom-d13-v3';
 const OWNER_V3_ENTRYPOINT = 'gate:electronics-classroom-d13-v3:browser';
-const OWNER_V3_PACE = 0.125;
+const OWNER_V3_PACE = 1;
 const OWNER_V3_REGISTRY_REVISION =
   'a794578587a78ead87eea54c20c4d486ba0561368bd4a8bbe194693ed4545c10';
 type OwnerV3Dimensions = Readonly<Record<string, string | number | readonly number[]>>;
@@ -741,7 +741,7 @@ type OwnerV3TimingEntry = {
   title: string;
   provenance: OwnerV3Provenance;
   bounds: OwnerV3Site['bounds'];
-  expectedPace: 0.125;
+  expectedPace: 1;
   modelMs: number | null;
   rawWallMs: number[];
   samples: Array<{
@@ -775,7 +775,7 @@ type OwnerV3AcquisitionEntry = {
   site: string;
   title: string;
   provenance: OwnerV3Provenance;
-  expectedPace: 0.125;
+  expectedPace: 1;
   horizonMicroseconds: number;
   strictLimitMs: 5000;
   acquisitionLimitMs: number;
@@ -800,7 +800,7 @@ type OwnerV3ReachedAcquisition = {
   dimensions: OwnerV3Dimensions;
   expectedSourceSha256: string;
   observedProvenance: OwnerV3Provenance | null;
-  expectedPace: 0.125;
+  expectedPace: 1;
   horizonMicroseconds: number;
   strictLimitMs: 5000;
   acquisitionLimitMs: number;
@@ -832,7 +832,7 @@ type OwnerV3Ledger = {
   title: string;
   expectedSourceSha: string;
   observerSha256: string;
-  expectedPace: 0.125;
+  expectedPace: 1;
   registryRevision: string;
   stages: Array<Omit<OwnerV3Provenance, 'dimensions'>>;
   entries: Array<OwnerV3TimingEntry | OwnerV3AcquisitionEntry>;
@@ -6836,7 +6836,7 @@ async function retainD2Ledger(info: import('@playwright/test').TestInfo): Promis
     acceptance: info.status === 'passed' && d2Ledger.completed ? 'PASS' : 'FAIL',
     actualStatus: info.status,
     budgets: { acquisitionMs: D2_WAIT_MS, nativeJointVectorMs: 20_000, caseMs: 840_000 },
-    fixedProductPace: 0.125,
+    fixedProductPace: 1,
   };
   writeFileSync(path, JSON.stringify(receipt, null, 2) + '\n');
   await info.attach('classroom-d2-d4-ledger', { path, contentType: 'application/json' });

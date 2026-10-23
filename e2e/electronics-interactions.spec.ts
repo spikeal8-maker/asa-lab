@@ -22,6 +22,7 @@ import {
 } from '../apps/web/src/electronics/workbench-document';
 import { loginWithOrganization } from './organization-login';
 import { e2eAdminPool, seedTeacher } from './seed';
+import type { SimulationTimedAdvancePayload } from '../apps/web/src/electronics/simulation-worker-protocol';
 
 configureProductionLibrary(
   JSON.parse(
@@ -31,6 +32,777 @@ configureProductionLibrary(
     ),
   ),
 );
+type Realtime682Record = {
+  sequence: number;
+  kind: string;
+  at: number;
+  [key: string]: unknown;
+};
+
+// Test-only passive transport. A batch remains pending until Node has flushed
+// its contiguous originals. Closed pages cannot erase already acknowledged data.
+async function realtime682Journal(page: Page, path: string) {
+  const records: Realtime682Record[] = [];
+  const errors: string[] = [];
+  let acknowledged = 0;
+  const retain = (kind: string, data: unknown) => {
+    try {
+      appendFileSync(path, `${JSON.stringify({ kind, nodeAt: Date.now(), data })}\n`, {
+        encoding: 'utf8',
+        flush: true,
+      });
+      return true;
+    } catch (error) {
+      errors.push(String(error));
+      return false;
+    }
+  };
+  writeFileSync(path, '', { encoding: 'utf8', flush: true });
+  retain('start', {
+    wallModelLimitMs: 250,
+    publicationLimitMs: 50,
+    acquisitionMs: 22_000,
+    probeOverhead: 'UNKNOWN_NONZERO',
+  });
+  await page.exposeBinding('__realtime682Batch', (_, batch: Realtime682Record[]) => {
+    if (!Array.isArray(batch) || batch.length === 0 || batch.length > 256)
+      throw new Error('Invalid baseline batch');
+    for (const row of batch) {
+      if (row.sequence !== acknowledged + 1 || !Number.isFinite(row.at))
+        throw new Error('Baseline journal sequence gap');
+      if (!retain('browser', row)) throw new Error('Baseline journal write failed; no ACK');
+      records.push(row);
+      acknowledged = row.sequence;
+    }
+    return acknowledged;
+  });
+  await page.addInitScript(() => {
+    type Row = { sequence: number; kind: string; at: number; [key: string]: unknown };
+    const host = window as unknown as Window & {
+      __realtime682Batch: (rows: Row[]) => Promise<number>;
+      __realtime682Flush: () => Promise<{
+        sent: number;
+        acknowledged: number;
+        dropped: number;
+        errors: string[];
+      }>;
+    };
+    let sequence = 0,
+      acknowledged = 0,
+      dropped = 0;
+    const pending: Row[] = [],
+      errors: string[] = [];
+    let flight: Promise<void> | null = null;
+    const flush = (): Promise<void> => {
+      if (flight) return flight;
+      if (!pending.length) return Promise.resolve();
+      const batch = pending.slice(0, 256);
+      flight = host
+        .__realtime682Batch(batch)
+        .then((ack) => {
+          if (ack !== batch.at(-1)!.sequence) throw new Error('Invalid Node ACK');
+          pending.splice(0, batch.length);
+          acknowledged = ack;
+        })
+        .catch((error) => {
+          errors.push(String(error));
+        })
+        .finally(() => {
+          flight = null;
+        });
+      return flight;
+    };
+    const push = (kind: string, data: Record<string, unknown>) => {
+      if (pending.length >= 10_000 || sequence >= 30_000) {
+        dropped++;
+        return;
+      }
+      pending.push({ sequence: ++sequence, kind, at: performance.now(), ...structuredClone(data) });
+      queueMicrotask(() => {
+        void flush();
+      });
+    };
+    host.__realtime682Flush = async () => {
+      const target = sequence;
+      while (acknowledged < target && errors.length === 0) await flush();
+      return { sent: target, acknowledged, dropped, errors: [...errors] };
+    };
+    const requests = new Map<string, { at: number; generation: number; source: string }>();
+    const OriginalWorker = window.Worker;
+    window.Worker = new Proxy(OriginalWorker, {
+      construct(target, args, newTarget) {
+        const worker = Reflect.construct(target, args, newTarget) as Worker;
+        if ((args[1] as WorkerOptions | undefined)?.name !== 'asa-electronics-simulation')
+          return worker;
+        const post = worker.postMessage.bind(worker);
+        worker.postMessage = ((...values: unknown[]) => {
+          const request = values[0] as {
+            kind: string;
+            requestId: string;
+            generationId: number;
+            requestedHorizonMicroseconds: number;
+            inputEvents?: unknown;
+            document?: SchematicDocument;
+          };
+          if (request.kind === 'advance') {
+            const source = String(
+              request.document?.components.find((row) => row.id === 'uno')?.stateProperties?.[
+                'arduinoSource'
+              ] ?? '',
+            );
+            requests.set(request.requestId, {
+              at: performance.now(),
+              generation: request.generationId,
+              source,
+            });
+            push('request', {
+              id: request.requestId,
+              generation: request.generationId,
+              source,
+              horizon: request.requestedHorizonMicroseconds,
+              inputs: request.inputEvents ?? [],
+            });
+          }
+          Reflect.apply(post, worker, values);
+        }) as Worker['postMessage'];
+        worker.addEventListener('message', (event: MessageEvent) => {
+          const response = event.data as {
+            ok: boolean;
+            kind?: string;
+            code?: string;
+            requestId: string;
+            generationId: number;
+            advance?: SimulationTimedAdvancePayload;
+            metrics?: { computeMs: number };
+          };
+          const request = requests.get(response.requestId);
+          if (!request) return;
+          requests.delete(response.requestId);
+          push('response', {
+            id: response.requestId,
+            generation: response.generationId,
+            requestGeneration: request.generation,
+            source: request.source,
+            requestAt: request.at,
+            ok: response.ok,
+            code: response.code ?? null,
+            computeMs: response.metrics?.computeMs ?? null,
+            advance: response.advance
+              ? {
+                  executionStatus: response.advance.executionStatus,
+                  requestedHorizonMicroseconds: response.advance.requestedHorizonMicroseconds,
+                  committedHorizonMicroseconds: response.advance.committedHorizonMicroseconds,
+                  result: response.advance.result,
+                  ledTemporal: response.advance.ledTemporal ?? null,
+                  serial: response.advance.serial,
+                  diagnostics: response.advance.diagnostics,
+                }
+              : null,
+          });
+        });
+        return worker;
+      },
+    });
+    const loaded = new WeakMap<Element, { href: string; at: number }>();
+    const href = (element: Element) =>
+      element.getAttribute('href') ??
+      element.getAttributeNS('http://www.w3.org/1999/xlink', 'href') ??
+      '';
+    const invalidate = (entries: MutationRecord[]) => {
+      for (const entry of entries)
+        if (entry.target instanceof SVGImageElement) loaded.delete(entry.target);
+    };
+    const mutations = new MutationObserver(invalidate);
+    mutations.observe(document, { attributes: true, attributeFilter: ['href'], subtree: true });
+    document.addEventListener(
+      'load',
+      (event) => {
+        const element = event.target;
+        if (element instanceof SVGImageElement) {
+          // A mutation queued before this genuine load must not erase that load
+          // later merely because MutationObserver delivery follows the event.
+          invalidate(mutations.takeRecords());
+          loaded.set(element, { href: href(element), at: performance.now() });
+          push('load', { href: href(element) });
+        }
+      },
+      true,
+    );
+    document.addEventListener(
+      'error',
+      (event) => {
+        if (event.target instanceof SVGImageElement) {
+          loaded.delete(event.target);
+          push('image-error', { href: href(event.target) });
+        }
+      },
+      true,
+    );
+    for (const type of ['pointerdown', 'pointerup', 'input', 'submit', 'click'])
+      document.addEventListener(
+        type,
+        (event) => {
+          const target = event.target as Element | null;
+          const component = target
+            ?.closest('[data-component-id]')
+            ?.getAttribute('data-component-id');
+          const monitor = target?.closest('.arduino-serial-monitor');
+          const control = target?.closest('button');
+          if (component === 'button-682' || monitor || control)
+            push('input', {
+              type,
+              trusted: event.isTrusted,
+              value: monitor && target instanceof HTMLInputElement ? target.value : null,
+              target:
+                component === 'button-682'
+                  ? component
+                  : monitor
+                    ? 'serial'
+                    : control?.textContent?.trim(),
+            });
+        },
+        true,
+      );
+    const visible = (element: Element | null | undefined) => {
+      if (!element?.isConnected) return false;
+      const box = element.getBoundingClientRect();
+      if (!(
+        box.width > 0 &&
+        box.height > 0 &&
+        box.left >= 0 &&
+        box.top >= 0 &&
+        box.right <= innerWidth &&
+        box.bottom <= innerHeight
+      ))
+        return false;
+      for (let node: Element | null = element; node; node = node.parentElement) {
+        const style = getComputedStyle(node);
+        if (
+          style.display === 'none' ||
+          style.visibility !== 'visible' ||
+          Number(style.opacity) === 0
+        )
+          return false;
+      }
+      return true;
+    };
+    let previous: { at: number; leds: unknown[] } | null = null;
+    let monitorSignature = '';
+    const paint = () => {
+      invalidate(mutations.takeRecords());
+      const monitor = document.querySelector('.arduino-serial-output');
+      const serial = {
+        texts: [...(monitor?.querySelectorAll(':scope > div') ?? [])].map((row) => row.textContent),
+        visible: visible(monitor),
+      };
+      if (JSON.stringify(serial) !== monitorSignature) {
+        monitorSignature = JSON.stringify(serial);
+        push('monitor', serial);
+      }
+      if (previous) push('paint', { witnessAt: previous.at, leds: previous.leds });
+      previous = {
+        at: performance.now(),
+        leds: ['led0', 'led1', 'led2'].map((id) => {
+          const root = document.querySelector(`[data-component-id="${id}"]`);
+          const visual = root?.querySelector('[data-led-brightness]');
+          const image = root?.querySelector<SVGImageElement>('image[data-led-asset-active="true"]');
+          const current = image ? loaded.get(image) : undefined;
+          const box = image?.getBoundingClientRect();
+          const stage = document.querySelector('.workbench-stage')?.getBoundingClientRect();
+          return {
+            id,
+            brightness: visual ? Number(visual.getAttribute('data-led-brightness')) : null,
+            href: image ? href(image) : null,
+            loadedAt: current?.href === (image ? href(image) : null) ? current.at : null,
+            visible:
+              visible(image) &&
+              !!box &&
+              !!stage &&
+              box.left >= stage.left &&
+              box.top >= stage.top &&
+              box.right <= stage.right &&
+              box.bottom <= stage.bottom,
+          };
+        }),
+      };
+      requestAnimationFrame(paint);
+    };
+    requestAnimationFrame(paint);
+  });
+  const barrier = async () => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const status = await Promise.race([
+        page.evaluate(() =>
+          (
+            window as unknown as {
+              __realtime682Flush: () => Promise<{
+                sent: number;
+                acknowledged: number;
+                dropped: number;
+                errors: string[];
+              }>;
+            }
+          ).__realtime682Flush(),
+        ),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(
+            () => reject(new Error('Node ACK barrier incomplete after 1500 ms')),
+            1500,
+          );
+        }),
+      ]);
+      if (!retain('ack-barrier', status)) throw new Error('Baseline journal retention failed');
+      if (
+        status.dropped ||
+        status.errors.length ||
+        status.sent > status.acknowledged ||
+        status.acknowledged > acknowledged
+      )
+        throw new Error('Incomplete baseline journal');
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  };
+  return { records, retain, barrier, errors };
+}
+
+function realtime682Fixture(source: string, button: boolean): SchematicDocument {
+  let document: SchematicDocument = {
+    schemaVersion: 4,
+    components: [],
+    connections: [],
+    viewport: { x: 0, y: 0, zoom: 1 },
+    simulation: { running: false, maxIterations: 24 },
+  };
+  for (const [type, id, x, y] of [
+    ['arduino-uno', 'uno', 230, 230],
+    ['resistor-axial', 'r0', 680, 200],
+    ['led-5mm', 'led0', 680, 330],
+    ['resistor-axial', 'r1', 820, 200],
+    ['led-5mm', 'led1', 820, 330],
+    ['resistor-axial', 'r2', 960, 200],
+    ['led-5mm', 'led2', 960, 330],
+    ...(button ? [['button-tactile-6mm', 'button-682', 900, 520]] : []),
+  ] as Array<[string, string, number, number]>)
+    document = addComponentToDocument(document, type, { x, y }, id).document;
+  document.components = document.components.map((row) =>
+    row.id === 'uno'
+      ? {
+          ...row,
+          stateProperties: {
+            ...row.stateProperties,
+            arduinoSource: source,
+            arduinoWorkspace: '',
+            arduinoCodeMode: 'text',
+            arduinoSerialOpen: true,
+            arduinoBaudRate: 9600,
+          },
+        }
+      : row.id.startsWith('r')
+        ? { ...row, value: 330 }
+        : row,
+  );
+  for (let index = 0; index < 3; index++)
+    document.connections.push(
+      {
+        id: `out-${index}`,
+        from: { componentId: 'uno', terminal: `d${13 - index}` as 'd13' },
+        to: { componentId: `r${index}`, terminal: 'lead-1' },
+      },
+      {
+        id: `load-${index}`,
+        from: { componentId: `r${index}`, terminal: 'lead-2' },
+        to: { componentId: `led${index}`, terminal: 'anode' },
+      },
+      {
+        id: `ground-${index}`,
+        from: { componentId: `led${index}`, terminal: 'cathode' },
+        to: { componentId: 'uno', terminal: 'power-gnd-1' },
+      },
+    );
+  if (button)
+    document.connections.push(
+      {
+        id: 'button-input',
+        from: { componentId: 'uno', terminal: 'd2' },
+        to: { componentId: 'button-682', terminal: 'SW-A1' },
+      },
+      {
+        id: 'button-ground',
+        from: { componentId: 'button-682', terminal: 'SW-B1' },
+        to: { componentId: 'uno', terminal: 'power-gnd-1' },
+      },
+    );
+  return document;
+}
+
+test.describe('Issue 682 acknowledged native realtime baseline', () => {
+  let pool: ReturnType<typeof e2eAdminPool>;
+  let cookies: import('@playwright/test').Cookie[];
+  test.beforeAll(async ({ browser, baseURL }, info) => {
+    pool = e2eAdminPool();
+    const context = await browser.newContext(baseURL === undefined ? {} : { baseURL });
+    try {
+      const page = await context.newPage();
+      await loginWithOrganization(
+        page,
+        await seedTeacher(pool, `realtime-682-${info.workerIndex}`),
+      );
+      cookies = await context.cookies();
+    } finally {
+      await context.close();
+    }
+  });
+  test.afterAll(async () => pool.end());
+  for (const mode of ['delays', 'button-serial'] as const)
+    test(`${mode}: strict real time and acknowledged native evidence`, async ({ page }, info) => {
+      const source =
+        mode === 'delays'
+          ? `void setup(){pinMode(13,OUTPUT);pinMode(12,OUTPUT);pinMode(11,OUTPUT);digitalWrite(12,LOW);digitalWrite(11,LOW);digitalWrite(13,HIGH);delay(30);digitalWrite(13,LOW);delay(1000);digitalWrite(13,HIGH);delay(20000);digitalWrite(13,LOW);}void loop(){delay(20000);}`
+          : `void setup(){pinMode(13,OUTPUT);pinMode(12,OUTPUT);pinMode(11,OUTPUT);pinMode(2,INPUT_PULLUP);Serial.begin(9600);}void loop(){if(digitalRead(2)==LOW){digitalWrite(13,HIGH);}else{digitalWrite(13,LOW);}if(Serial.available()>0){int received=Serial.read();Serial.println(received);digitalWrite(11,received==65);}delay(30);}`;
+      const journal = await realtime682Journal(page, info.outputPath('realtime-682-native.jsonl'));
+      let primary: unknown,
+        failed = false,
+        held = false;
+      const responses = () =>
+        journal.records.filter(
+          (row) =>
+            row.kind === 'response' &&
+            row.source === source &&
+            (row.advance as SimulationTimedAdvancePayload | null)?.executionStatus === 'ready',
+        );
+      const latest = (id: string) =>
+        (
+          responses().at(-1)?.advance as SimulationTimedAdvancePayload | undefined
+        )?.result?.components.find((row) => row.componentId === id)?.brightness ?? -1;
+      const nativeLevel = (index: number) => {
+        const led = (
+          journal.records.findLast((row) => row.kind === 'paint')?.leds as
+            | Array<{ brightness: number | null; loadedAt: number | null; visible: boolean }>
+            | undefined
+        )?.[index];
+        return led?.visible && led.loadedAt !== null && Number.isFinite(led.brightness)
+          ? Number(led.brightness! > 0)
+          : -1;
+      };
+      try {
+        await page.context().addCookies(cookies);
+        await page.setViewportSize({ width: 1600, height: 1000 });
+        await page.goto('/#/home');
+        const origin = new URL(page.url()).origin;
+        const created = await page.request.post('/api/projects', {
+          headers: { origin, 'idempotency-key': crypto.randomUUID() },
+          data: {
+            scope: 'personal',
+            classroomId: null,
+            module: 'electronics',
+            title: `Realtime682 ${mode}`,
+          },
+        });
+        expect(created.status()).toBe(201);
+        const id = ((await created.json()) as { project: { id: string } }).project.id;
+        const read = async () => {
+          const result = await page.request.get(`/api/projects/${id}`);
+          expect(result.status()).toBe(200);
+          return (await result.json()) as {
+            draft: { document: SchematicDocument; revision: number };
+          };
+        };
+        const initial = await read();
+        const fixture = realtime682Fixture(
+          'void setup(){}void loop(){delay(100);}',
+          mode === 'button-serial',
+        );
+        const seed = await page.request.put(`/api/projects/${id}/draft`, {
+          headers: { origin },
+          data: {
+            document: fixture,
+            baseRevision: initial.draft.revision,
+            mutationId: crypto.randomUUID(),
+          },
+        });
+        expect(seed.status()).toBe(200);
+        const before = await read();
+        await page.goto(`/#/home/${id}`);
+        await page.getByRole('button', { name: 'Открыть редактор кода', exact: true }).click();
+        await page.locator('.arduino-source-editor textarea').fill(source);
+        const savedResponse = page.waitForResponse(
+          (row) =>
+            new URL(row.url()).pathname === `/api/projects/${id}/draft` &&
+            row.request().method() === 'PUT',
+        );
+        await page.getByRole('button', { name: 'Сохранить проект', exact: true }).click();
+        expect((await savedResponse).status()).toBe(200);
+        const saved = await read();
+        journal.retain('saved', { before, saved, source });
+        expect(saved.draft.revision).toBe(before.draft.revision + 1);
+        expect(saved.draft.document).toEqual({
+          ...before.draft.document,
+          components: before.draft.document.components.map((row) =>
+            row.id === 'uno'
+              ? { ...row, stateProperties: { ...row.stateProperties, arduinoSource: source } }
+              : row,
+          ),
+        });
+        await page.getByRole('button', { name: 'Закрыть редактор кода', exact: true }).click();
+        await page.getByRole('button', { name: 'Подогнать проект', exact: true }).click();
+        const board = await part(page, 'uno').boundingBox(),
+          stage = await page.locator('.workbench-stage').boundingBox();
+        expect(
+          board &&
+            stage &&
+            Object.values(board).every(Number.isFinite) &&
+            board.x >= stage.x &&
+            board.y >= stage.y &&
+            board.x + board.width <= stage.x + stage.width &&
+            board.y + board.height <= stage.y + stage.height,
+        ).toBe(true);
+        await journal.barrier();
+        journal.retain('start-action', {
+          source,
+          at: await page.evaluate(() => performance.now()),
+        });
+        await page.getByRole('button', { name: 'Начать моделирование', exact: true }).click();
+        if (mode === 'delays') {
+          await expect
+            .poll(
+              () =>
+                (responses().at(-1)?.advance as SimulationTimedAdvancePayload | undefined)
+                  ?.committedHorizonMicroseconds ?? 0,
+              { timeout: 22_000 },
+            )
+            .toBeGreaterThanOrEqual(21_031_000);
+        } else {
+          await expect.poll(() => latest('led0')).toBe(0);
+          const box = await part(page, 'button-682').boundingBox();
+          const buttonStage = await page.locator('.workbench-stage').boundingBox();
+          journal.retain('button-geometry', { box, stage: buttonStage });
+          expect(
+            box &&
+              buttonStage &&
+              Object.values(box).every(Number.isFinite) &&
+              box.x >= buttonStage.x &&
+              box.y >= buttonStage.y &&
+              box.x + box.width <= buttonStage.x + buttonStage.width &&
+              box.y + box.height <= buttonStage.y + buttonStage.height,
+          ).toBe(true);
+          const point = { x: box!.x + box!.width / 2, y: box!.y + box!.height / 2 };
+          const buttonHit = await page.evaluate(
+            ({ x, y }) =>
+              document
+                .elementFromPoint(x, y)
+                ?.closest('[data-component-id]')
+                ?.getAttribute('data-component-id'),
+            point,
+          );
+          journal.retain('button-hit', { point, componentId: buttonHit });
+          expect(buttonHit).toBe('button-682');
+          await page.mouse.move(point.x, point.y);
+          await page.mouse.down();
+          held = true;
+          await expect.poll(() => latest('led0')).toBeGreaterThan(0);
+          await expect.poll(() => nativeLevel(0)).toBe(1);
+          await page.mouse.up();
+          held = false;
+          await expect.poll(() => latest('led0')).toBe(0);
+          await expect.poll(() => nativeLevel(0)).toBe(0);
+          await page.getByRole('button', { name: 'Открыть редактор кода', exact: true }).click();
+          await page
+            .getByRole('textbox', { name: 'Сообщение в последовательный порт', exact: true })
+            .fill('A');
+          await page.getByRole('button', { name: 'Отпр.', exact: true }).click();
+          await expect
+            .poll(() => {
+              const monitor = journal.records.findLast((row) => row.kind === 'monitor');
+              return monitor?.visible
+                ? (monitor.texts as string[]).map((value) => value.trim())
+                : null;
+            })
+            .toEqual(['65']);
+          await expect(page.locator('.arduino-serial-output > div')).toHaveText(['65']);
+          await expect.poll(() => latest('led2')).toBeGreaterThan(0);
+          await expect.poll(() => nativeLevel(2)).toBe(1);
+        }
+        await journal.barrier(); // All assertions below use acknowledged Node originals.
+        const ready = responses();
+        expect(ready.length).toBeGreaterThan(0);
+        const groups: Array<{ at: number; levels: string }> = [];
+        // Check every acknowledged record, but create a Playwright assertion step only
+        // on failure: thousands of successful steps otherwise consume the live test budget.
+        for (const row of journal.records.filter(
+          (row) => row.kind === 'response' && row.source === source,
+        )) {
+          const advance = row.advance as SimulationTimedAdvancePayload | null;
+          if (row.ok !== true) expect(row.ok).toBe(true);
+          if (!Object.is(row.generation, row.requestGeneration))
+            expect(row.generation).toBe(row.requestGeneration);
+          if (!Number.isFinite(row.computeMs)) expect(Number.isFinite(row.computeMs)).toBe(true);
+          if (advance?.executionStatus === 'fault')
+            expect(advance.executionStatus).not.toBe('fault');
+          if (advance?.executionStatus === 'yielded') {
+            if (advance.result !== null) expect(advance.result).toBeNull();
+            continue;
+          }
+          if (advance?.result?.solved !== true) expect(advance?.result?.solved).toBe(true);
+          if (advance?.result?.quality?.passed !== true)
+            expect(advance?.result?.quality?.passed).toBe(true);
+          if (!Array.isArray(advance?.diagnostics) || advance.diagnostics.length !== 0)
+            expect(advance?.diagnostics).toEqual([]);
+          if (
+            !Object.is(advance?.committedHorizonMicroseconds, advance?.requestedHorizonMicroseconds)
+          )
+            expect(advance?.committedHorizonMicroseconds).toBe(
+              advance?.requestedHorizonMicroseconds,
+            );
+          const levels = ['led0', 'led1', 'led2']
+            .map((id) =>
+              Number(
+                (advance!.result!.components.find((item) => item.componentId === id)?.brightness ??
+                  0) > 0,
+              ),
+            )
+            .join(',');
+          if (groups.at(-1)?.levels !== levels) groups.push({ at: row.at, levels });
+        }
+        const paint = journal.records.filter(
+          (row) => row.kind === 'paint' && Number(row.witnessAt) >= ready[0]!.at,
+        );
+        expect(paint.length).toBeGreaterThan(0);
+        for (const row of paint) {
+          const group = groups.findLast((group) => group.at <= Number(row.witnessAt));
+          if (!group || Number(row.witnessAt) - group.at <= 50) continue;
+          const leds = row.leds as Array<{
+            brightness: number;
+            loadedAt: number | null;
+            visible: boolean;
+          }>;
+          const loaded = leds.every((led) => led.visible && led.loadedAt !== null);
+          if (!loaded) expect(loaded).toBe(true);
+          const paintedLevels = leds.map((led) => Number(led.brightness > 0)).join(',');
+          if (paintedLevels !== group.levels) expect(paintedLevels).toBe(group.levels);
+        }
+        if (mode === 'delays') {
+          const first = ready[0]!,
+            last = ready.at(-1)!;
+          const startUs = (first.advance as SimulationTimedAdvancePayload)
+            .committedHorizonMicroseconds;
+          const modelMs =
+            ((last.advance as SimulationTimedAdvancePayload).committedHorizonMicroseconds -
+              startUs) /
+            1000;
+          journal.retain('clock-result', { modelMs, wallMs: last.at - first.at, groups });
+          expect(startUs).toBe(0);
+          expect(modelMs).toBeGreaterThanOrEqual(21_031);
+          expect(Math.abs(modelMs - (last.at - first.at))).toBeLessThanOrEqual(250);
+          const edges: Array<{ at: number; high: boolean }> = [];
+          for (const row of ready)
+            for (const sample of (
+              row.advance as SimulationTimedAdvancePayload
+            ).ledTemporal!.components.find(
+              (led: { componentId: string }) => led.componentId === 'led0',
+            )!.samples)
+              if (edges.at(-1)?.high !== sample.brightness > 0)
+                edges.push({ at: sample.atMicroseconds, high: sample.brightness > 0 });
+          const high = edges.findIndex((edge) => edge.high);
+          const actual = edges.slice(high, high + 4);
+          expect(actual.map((edge) => edge.high)).toEqual([true, false, true, false]);
+          const visible: Array<{ at: number; high: boolean }> = [];
+          for (const row of paint) {
+            const high = (row.leds as Array<{ brightness: number }>)[0]!.brightness > 0;
+            if (visible.at(-1)?.high !== high) visible.push({ at: Number(row.witnessAt), high });
+          }
+          const shown = visible.slice(visible.findIndex((edge) => edge.high));
+          expect(shown.slice(0, 4).map((edge) => edge.high)).toEqual([true, false, true, false]);
+          for (const [index, ms] of [30, 1000, 20_000].entries()) {
+            expect(actual[index + 1]!.at - actual[index]!.at).toBe(ms * 1000 + 2);
+            expect(Math.abs(shown[index + 1]!.at - shown[index]!.at - ms)).toBeLessThanOrEqual(250);
+          }
+        } else {
+          for (const type of ['pointerdown', 'pointerup'])
+            expect(
+              journal.records.some(
+                (row) =>
+                  row.kind === 'input' &&
+                  row.type === type &&
+                  row.target === 'button-682' &&
+                  row.trusted,
+              ),
+            ).toBe(true);
+          expect(
+            journal.records.some(
+              (row) =>
+                row.kind === 'input' &&
+                row.type === 'submit' &&
+                row.target === 'serial' &&
+                row.trusted,
+            ),
+          ).toBe(true);
+          const beforeReset = responses().at(-1)!;
+          journal.retain('reset-boundary', {
+            generation: beforeReset.generation,
+            sequence: beforeReset.sequence,
+          });
+          await page.getByTestId('arduino-reset-button').click();
+          await expect(page.locator('.arduino-serial-output > div')).toHaveCount(0);
+          await expect
+            .poll(() => {
+              const fresh = responses().find(
+                (row) =>
+                  row.sequence > beforeReset.sequence && row.generation !== beforeReset.generation,
+              );
+              const advance = fresh?.advance as SimulationTimedAdvancePayload | undefined;
+              return fresh &&
+                fresh.generation === fresh.requestGeneration &&
+                advance?.committedHorizonMicroseconds === 0
+                ? advance.result?.components.find((row) => row.componentId === 'led2')?.brightness
+                : null;
+            })
+            .toBe(0);
+          await expect.poll(() => nativeLevel(2)).toBe(0);
+        }
+        await page.getByRole('button', { name: 'Остановить моделирование', exact: true }).click();
+        await expect(
+          page.getByRole('button', { name: 'Начать моделирование', exact: true }),
+        ).toBeVisible();
+        await journal.barrier();
+        journal.retain('complete', { mode });
+      } catch (error) {
+        failed = true;
+        primary = error;
+        journal.retain('primary-error', String(error));
+      } finally {
+        journal.retain('node-final', {
+          failed,
+          acknowledgedRecords: journal.records.length,
+          errors: journal.errors,
+          completion: failed ? 'FAIL_OR_INCOMPLETE' : 'COMPLETE',
+        });
+        if (held && !page.isClosed()) {
+          let timer: ReturnType<typeof setTimeout> | undefined;
+          try {
+            await Promise.race([
+              page.mouse.up(),
+              new Promise<never>((_, reject) => {
+                timer = setTimeout(() => reject(new Error('Optional release incomplete')), 500);
+              }),
+            ]);
+          } catch (error) {
+            journal.retain('secondary-release-error', String(error));
+          } finally {
+            if (timer) clearTimeout(timer);
+          }
+        }
+        if (!page.isClosed())
+          await page
+            .screenshot({ path: info.outputPath('realtime-682.png'), timeout: 500 })
+            .catch((error) => journal.retain('optional-png-error', String(error)));
+      }
+      if (failed) throw primary;
+      if (journal.errors.length) throw new Error('Baseline retention incomplete');
+    });
+});
+
 const ID = '10000000-0000-4000-8000-000000000001';
 const touchVideoTest = test.extend({
   hasTouch: true,
