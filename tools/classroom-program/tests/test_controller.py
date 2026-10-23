@@ -6,6 +6,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch as mock_patch
 
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT))
@@ -42,7 +43,9 @@ class ControllerTest(unittest.TestCase):
     reasons=c.why_blocked(self.root,self.reg,t)
     self.assertTrue(any('desktop_grades' in x for x in reasons))
     c.atomic_json(c.decision_path(self.root,'desktop_grades'),{'choice':'compact_inline','evidence':'https://github.com/example/decision','recorded_by':'controller'})
-    self.assertEqual(c.why_blocked(self.root,self.reg,t),[])
+    self.assertTrue(any('desktop_grades' in x for x in c.why_blocked(self.root,self.reg,t)))
+    with mock_patch.object(c,'verify_owner_choice',return_value=True):
+      self.assertEqual(c.why_blocked(self.root,self.reg,t),[])
 
   def test_glob_scope_collision_blocks_concurrent_writer(self):
     a=c.tasks_map(self.reg)['UI-01'];b=c.tasks_map(self.reg)['UI-02']
@@ -78,7 +81,14 @@ class ControllerTest(unittest.TestCase):
     rr=c.receipt(self.root,sid)
     rr['evidence'].append(c.create_evidence('pg',sha,str(self.root/'preflight.txt'),'PASS','db-reviewer','test'))
     c.atomic_json(c.task_path(self.root,sid),rr)
-    self.assert_accept(sid,sha,repo)
+    # A synthetic text file can satisfy local structural checks, but it
+    # cannot authenticate PostgreSQL/CI/review proof.
+    with self.assertRaisesRegex(c.ControlError,'NOT VERIFIED'):
+      self.assert_accept(sid,sha,repo)
+    self.assertEqual(c.receipt(self.root,sid)['status'],'IN_PROGRESS')
+    # The real remote verifier is tested with strict GitHub API mocks below.
+    with mock_patch.object(c,'verify_acceptance',return_value={'verified':'GITHUB_API_VERIFIED'}):
+      self.assert_accept(sid,sha,repo)
     self.assertEqual(c.receipt(self.root,sid)['status'],'ACCEPTED_MAIN')
 
   def test_evidence_requires_real_sha_and_live_path_or_https(self):

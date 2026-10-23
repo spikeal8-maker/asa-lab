@@ -14,7 +14,7 @@ import subprocess
 import sys
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
-from classroomctl import registry, validate, status, receipt, markdown_brief, ControlError
+from classroomctl import registry, validate, status, receipt, markdown_brief, why_blocked, ControlError
 
 ROOT = Path(__file__).resolve().parent
 MARKER = re.compile(r'<!-- ASA-CLASSROOM-TASK:([A-Z0-9-]+) -->')
@@ -74,6 +74,18 @@ def choose(root: Path, reg: dict, issues: dict):
         raise QueueError('More than one open Classroom task Issue; controller reconciliation required')
     if open_issues:
         key, issue = open_issues[0]
+        task=next(t for t in reg['tasks'] if t['id']==key)
+        blockers=why_blocked(root,reg,task)
+        if blockers:
+            raise QueueError('Existing Issue attempts blocked task '+key+': '+'; '.join(blockers))
+        # Bootstrap issue was explicitly created by the repo owner. Later
+        # issues must originate from the main-only GitHub Actions controller.
+        who=issue.get('user',{}).get('login')
+        if key=='CTRL-00' and issue['number']==716 and who=='spikeal8-maker':
+            return 'existing', key, issue
+        marker='<!-- ASA-CLASSROOM-QUEUE:task='+key+';main='
+        if who!='github-actions[bot]' or marker not in (issue.get('body') or ''):
+            raise QueueError('Existing task Issue provenance not verified: '+key)
         return 'existing', key, issue
     ready = [t for t in reg['tasks'] if status(root, reg, t) == 'READY']
     ready.sort(key=lambda t: ({'P0': 0, 'P1': 1, 'P2': 2}.get(t['priority'], 3), t['id']))
@@ -123,6 +135,7 @@ def run(root: Path, repo: str, token: str, action: str, program_issue: int):
     if 'НЕ РАЗРЕШЕНО НАЧАТЬ' in brief:
         raise QueueError('Brief is blocked; abort without creating Issue')
     body = (f'<!-- ASA-CLASSROOM-TASK:{task_id} -->\n'
+            f'<!-- ASA-CLASSROOM-QUEUE:task={task_id};main={checked_local_head()} -->\n'
             f'**Программа:** #{program_issue}. **Следующая разрешённая карточка:** {task_id}.\n'
             '**Issue не выбирает active task в current.yaml автоматически.**\n\n'
             + brief + '\n---\n'
@@ -130,6 +143,12 @@ def run(root: Path, repo: str, token: str, action: str, program_issue: int):
             'интегрированный main SHA и соответствующий receipt в репозитории. '
             'Закрывать только после ACCEPTED_MAIN, подтверждённого контролёром. '
             'Не начинать следующий срез самостоятельно.\n')
+    # A final read detects an issue opened between initial inspection and
+    # the write. GitHub Issue creation has no CAS: this is a conservative guard.
+    if get_program_issues(repo,token):
+        raise QueueError('Issue queue changed during create; abort without write')
+    if current_main_sha(repo,token)!=checked_local_head():
+        raise QueueError('GitHub main moved before issue create; abort')
     result = github_json('POST', f'/repos/{repo}/issues', token,
                          {'title': f'[ASA CLASSROOM][{task_id}] {task["title"]}', 'body': body})
     url = result.get('html_url')

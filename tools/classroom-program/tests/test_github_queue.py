@@ -13,7 +13,7 @@ class GithubQueueTest(unittest.TestCase):
         g.validate(self.registry, ROOT)
 
     def test_open_task_issue_reused_without_duplicate(self):
-        action, name, issue = g.choose(ROOT, self.registry, {'CTRL-00': {'state': 'open', 'number': 716}})
+        action, name, issue = g.choose(ROOT, self.registry, {'CTRL-00': {'state': 'open', 'number': 716, 'user': {'login': 'spikeal8-maker'}}})
         self.assertEqual((action, name, issue['number']), ('existing', 'CTRL-00', 716))
 
     def test_closed_issue_without_accepted_receipt_blocks_next(self):

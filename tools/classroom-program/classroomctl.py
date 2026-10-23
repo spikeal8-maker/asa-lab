@@ -17,6 +17,8 @@ import re
 import subprocess
 import sys
 import tempfile
+import shutil
+from verified_github import verify_owner_choice, verify_acceptance, RemoteProofError
 
 ROOT=Path(__file__).resolve().parent
 SHA_RE=re.compile(r'^[a-fA-F0-9]{40}$')
@@ -58,7 +60,11 @@ def receipt(root:Path,id:str):
     v=read_json(task_path(root,id),{})
     return {'status':'PLANNED','events':[],'evidence':[],**v}
 
-def effective_decision(root:Path,id:str):return read_json(decision_path(root,id))
+def effective_decision(root:Path,id:str):
+    # A receipt can claim owner consent; it cannot grant it. The authoritative
+    # decision lives in an exact official GitHub issue comment by the owner.
+    claim = read_json(decision_path(root,id))
+    return claim if verify_owner_choice(id,claim) else None
 
 def validate(reg,root:Path):
     ids=tasks_map(reg)
@@ -89,7 +95,7 @@ def validate(reg,root:Path):
         rr=receipt(root,id)
         if rr['status'] not in STATES:raise ControlError('Неправильный статус у '+id)
     for key,d in reg['decisions'].items():
-        r=effective_decision(root,key)
+        r=read_json(decision_path(root,key))
         if r and (r.get('choice') not in d['choices'] or not r.get('evidence')):
             raise ControlError('Некорректный зафиксированный выбор '+key)
     return len(ids),len(reg['requirements']),len(reg['decisions'])
@@ -174,8 +180,12 @@ def create_evidence(kind,sha_value,uri,result,actor,note):
     return evidence
 
 def find_gate(rec,kind,code_sha):
-    hits=[e for e in rec['evidence'] if e['kind']==kind and e['result']=='PASS']
-    return next((x for x in reversed(hits) if kind=='integration' or x['sha']==code_sha),None)
+    # Old PASS after a later FAIL/STOP or a new repair cycle is never reusable.
+    cycle=rec.get('cycle',1)
+    hits=[e for e in rec['evidence']
+          if e['kind']==kind and e.get('cycle',1)==cycle
+          and (kind=='integration' or e['sha']==code_sha)]
+    return hits[-1] if hits and hits[-1]['result']=='PASS' else None
 
 def git_ancestor(repo,code_sha):
     try:
@@ -240,9 +250,50 @@ def cmd_brief(root,reg,args):
     else:print(doc)
 
 def preflight_ok(path):
+    # Legacy helper validates a transcript, NOT execution. Never use it to
+    # authorize a task transition.
     if not Path(path).is_file():return False
     pf=Path(path).read_text(encoding='utf-8',errors='replace')
     return bool(re.search(r'(?m)^\s*(?:result\s*[:=]\s*)?SAFE_TO_START\s*$',pf)) and not any(v in pf for v in ['RECOVERY_REQUIRED','WAITING_HANDOFF'])
+
+def trusted_preflight(root:Path,base_sha:str,task:dict):
+    # Run the real canonical command, check its exit status and bind the
+    # attestation to a specific current checkout. User-supplied files are only
+    # historical reports and must never authorize start/resume.
+    repo=root.parents[1]
+    if not (repo/'AGENTS.md').is_file() or not (repo/'docs/execution/current.yaml').is_file():
+        raise ControlError('Нет канонического checkout ASA Lab для preflight.')
+    state=(repo/'docs/execution/current.yaml').read_text(encoding='utf-8')
+    if not re.search(
+        r"(?m)^\s*id:\s*['\"]?"+re.escape(task['id'])+r"['\"]?\s*$",state
+    ):
+        raise ControlError('Текущая задача не выбрана в main docs/execution/current.yaml.')
+    expected=sha(base_sha)
+    for ref in ('HEAD','origin/main'):
+        try:
+            p=subprocess.run(['git','-C',str(repo),'rev-parse',ref],
+                capture_output=True,text=True,timeout=12)
+        except (FileNotFoundError,subprocess.TimeoutExpired) as exc:
+            raise ControlError('Невозможно подтвердить checkout '+ref) from exc
+        if p.returncode!=0 or p.stdout.strip().lower()!=expected:
+            raise ControlError('Git '+ref+' не совпадает с проверенным base SHA; STOP.')
+    pnpm=shutil.which('pnpm')
+    if not pnpm:raise ControlError('pnpm недоступен, real preflight NOT_RUN.')
+    try:
+        p=subprocess.run([pnpm,'agent:preflight','--check'],
+             cwd=repo,capture_output=True,text=True,timeout=180,
+             encoding='utf-8',errors='replace')
+    except (OSError,subprocess.TimeoutExpired) as exc:
+        raise ControlError('Real preflight execution failed') from exc
+    output=p.stdout+'\n'+p.stderr
+    if p.returncode!=0 or not bool(re.search(r'(?m)^\s*(?:result\s*[:=]\s*)?SAFE_TO_START\s*$',p.stdout)) or any(
+       s in output for s in ['RECOVERY_REQUIRED','WAITING_HANDOFF']
+    ):
+        raise ControlError('Реальный pnpm agent:preflight --check не вернул SAFE_TO_START.')
+    return {'command':'pnpm agent:preflight --check','git_head':expected,
+      'origin_main_sha':expected,'exit_code':p.returncode,
+      'output_sha256':hashlib.sha256(output.encode('utf-8')).hexdigest(),
+      'verification':'EXECUTED_IN_CANONICAL_CHECKOUT','verified_at':stamp()}
 
 def cmd_start(root,reg,args):
     t=tasks_map(reg).get(args.id)
@@ -250,9 +301,10 @@ def cmd_start(root,reg,args):
     if receipt(root,t['id'])['status']!='PLANNED':raise ControlError('Задача уже начата либо остановлена.')
     blocks=why_blocked(root,reg,t)
     if blocks:raise ControlError('BLOCKED: '+'; '.join(blocks))
-    if not preflight_ok(args.preflight):raise ControlError('Preflight не подтверждает SAFE_TO_START отдельной строкой или содержит blocker.')
+    attestation=trusted_preflight(root,args.base_sha,t)
     rr=receipt(root,t['id']);rr['status']='IN_PROGRESS';rr['author']=args.actor;rr['base_sha']=sha(args.base_sha)
-    rr['preflight']={'path':args.preflight,'sha256':hashlib.sha256(Path(args.preflight).read_bytes()).hexdigest(),'claim':'preflight transcript supplied; no independent attestation'}
+    rr['cycle']=1
+    rr['preflight']=attestation
     event(rr,'START',actor=args.actor,base_sha=rr['base_sha'])
     set_state(root,t['id'],rr);print('IN_PROGRESS',args.id,'— записан локальный контроль, product code не менялся.')
 
@@ -263,6 +315,7 @@ def cmd_record(root,reg,args):
     if args.kind not in tasks_map(reg)[args.id]['gates']:raise ControlError('Gate не требуется этой карточке.')
     if args.kind=='review' and args.actor==rr.get('author'):raise ControlError('Исполнитель не может быть независимым reviewer своей работы.')
     evidence=create_evidence(args.kind,args.sha,args.uri,args.result,args.actor,args.note)
+    evidence['cycle']=rr.get('cycle',1)
     rr['evidence'].append(evidence);event(rr,'EVIDENCE',kind=args.kind,result=args.result,sha=evidence['sha'],actor=args.actor)
     if evidence['result']=='FAIL':rr['status']='STOPPED';rr['stop_reason']=f'{args.kind} FAIL, требуются исправление и новый цикл'
     elif args.kind=='review':rr['status']='REVIEW'
@@ -273,7 +326,9 @@ def cmd_accept(root,reg,args):
     if args.id not in tasks_map(reg):raise ControlError('Нет задачи '+args.id)
     t=tasks_map(reg)[args.id];rr=receipt(root,args.id)
     if rr['status'] not in {'IN_PROGRESS','REVIEW'}:raise ControlError('Неправильный статус для приёмки.')
-    source=next((e for e in reversed(rr['evidence']) if e['kind']=='source' and e['result']=='PASS'),None)
+    source=next((e for e in reversed(rr['evidence'])
+          if e['kind']=='source' and e.get('cycle',1)==rr.get('cycle',1)),None)
+    if source and source['result']!='PASS':source=None
     if not source:raise ControlError('Нет SOURCE PASS.')
     code_sha=source['sha'];missing=[]
     for gate in t['gates']:
@@ -289,6 +344,14 @@ def cmd_accept(root,reg,args):
         raise ControlError('SOURCE SHA не является предком локального origin/main (или git недоступен). Сначала fast-forward/fetch. Для squash commit нужен отдельный контракт переноса SHA.')
     if integration['sha']!=sha(args.main_sha):raise ControlError('MAIN SHA не совпадает с записанным integration gate.')
     if not git_ancestor(Path(args.repo_root),integration['sha']):raise ControlError('Записанный integration main SHA не найден в origin/main.')
+    # All local/transcript URL labels above are only reports. Official remote
+    # CI, PR review and main ancestry MUST be authenticated before state writes.
+    authentic={kind:find_gate(rr,kind,code_sha) for kind in t['gates']}
+    try:
+        proof=verify_acceptance(reg,t,rr,sha(args.main_sha),code_sha,authentic)
+    except RemoteProofError as exc:
+        raise ControlError('GitHub evidence NOT VERIFIED: '+str(exc)) from exc
+    rr['remote_verification']=proof
     rr['status']='ACCEPTED_MAIN';rr['integrated_sha']=sha(args.main_sha);rr['accepted_at']=stamp()
     event(rr,'ACCEPTED_MAIN',sha=code_sha,main_sha=rr['integrated_sha'])
     set_state(root,args.id,rr);print('ACCEPTED_MAIN',args.id,'| нет утверждения о deployment/owner acceptance')
@@ -298,14 +361,15 @@ def cmd_resume(root,reg,args):
     r=receipt(root,args.id)
     if r['status']!='STOPPED':raise ControlError('Возобновление разрешено только после STOP.')
     # Paused work needs a new preflight and one explicitly recorded repair cycle.
-    if not preflight_ok(args.preflight):raise ControlError('Новый preflight не подтвердил SAFE_TO_START отдельной строкой.')
     t=tasks_map(reg)[args.id]
+    attestation=trusted_preflight(root,args.base_sha,t)
     for other in reg['tasks']:
         if other['id']!=args.id and receipt(root,other['id'])['status'] in ('IN_PROGRESS','REVIEW') and paths_intersect(t['paths'],other['paths']):
             raise ControlError('Конфликт автора путей с '+other['id'])
     r['status']='IN_PROGRESS';r['base_sha']=sha(args.base_sha);r['author']=args.actor
+    r['cycle']=r.get('cycle',1)+1
     r.pop('stop_reason',None)
-    r['preflight']={'path':args.preflight,'sha256':hashlib.sha256(Path(args.preflight).read_bytes()).hexdigest(),'claim':'recovery preflight supplied'}
+    r['preflight']=attestation
     event(r,'RESUME',actor=args.actor,base_sha=r['base_sha'])
     set_state(root,args.id,r);print('IN_PROGRESS',args.id,'— старые неуспешные evidence сохранены для аудита.')
 
@@ -351,6 +415,6 @@ def main():
         n,m,d=validate(reg,root)
         if args.command=='validate':print(f'PASS: {n} задач, {m} требований, {d} решений, зависимости без циклов.');return
         {'status':cmd_status,'next':cmd_next,'list':cmd_list,'show':cmd_show,'decisions':cmd_decisions,'decide':cmd_decide,'brief':cmd_brief,'start':cmd_start,'record':cmd_record,'accept':cmd_accept,'stop':cmd_stop,'resume':cmd_resume,'board':cmd_board}[args.command](root,reg,args)
-    except ControlError as e:print('STOP:',str(e),file=sys.stderr);sys.exit(2)
+    except (ControlError,RemoteProofError) as e:print('STOP:',str(e),file=sys.stderr);sys.exit(2)
 
 if __name__=='__main__':main()
