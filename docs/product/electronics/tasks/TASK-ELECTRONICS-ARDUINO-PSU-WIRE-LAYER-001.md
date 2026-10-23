@@ -162,3 +162,27 @@ equivalence. Unknown/invalid ownership or runtime never actuates. No synthetic
 events, invented geometry, cap increase, class-identity variant, core/hook/API or
 asset edits. NEW exact-source review, actual RAW<=218000 and all six native cases
 with independent actual review remain mandatory; proxy size is not acceptance.
+
+
+## 24 October: safe replacement after dynamic meter regression
+
+The [safe combined selection](../evidence/ui679-safe-budget-repair-selection-20261024.md)
+supersedes the preceding multimeter-compaction permission. Private f634 loses the
+actual owner button and focus on a normal readout update; restore multimeter
+byte-exact baseline984. Preserve f634 strict native same-owner PSU routing and
+honest F2 top-wire/resolved-owner journal, exact point/actions, full independent
+document, R3 storage and one Save/CAS.
+
+Only PSU/generator knob regions may share the raw arc-ratio helper and
+move/up/cancel factory, including selected PSU branch dedup. Preserve original
+clamp ordering, capture, state, exception and handler ordering. Omit only the existing PSU root SVG explicit default preserveAspectRatio prop;
+retain viewBox, x/y, dimensions, transforms and owner markup. Generator SVG
+attributes remain byte-exact. No meter/LED/FET/core/hook/API/
+persistence/asset/dependency/workflow/cap change. This remains679's budget
+dependency;681 stays closed. Preserve accepted961 clock blobs and sole682 controller.
+
+Independent proposal approval selects implementation only. Estimate217983 RAW
+with17 margin is not actual fit; jsdom/affine checks are not native CTM evidence.
+Require NEW final-source review, actual editor<=218000, all six original native
+cases and NEW actual/visual review. API remains separate under owner targeted UI
+acceptance; no full General PASS, physical acceptance, release or deployment.

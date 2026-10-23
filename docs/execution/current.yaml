@@ -8422,22 +8422,22 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: reviewed925_raw_budget_failure_bounded_reduction_selected
+      checkpoint: rejected_f634_safe_knob_and_svg_default_reduction_selected
       kind: repair
       owner_acceptance: pending
       context_hints:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-ARDUINO-PSU-WIRE-LAYER-001.md
-      repair_scope: One bounded budget-preserving author replaces unpublished SVG-use priority with native wire pointerdown routing to the same actual foreground PSU switch owner, strict current ready/runtime boolean string true or false and existing public setter once. Pure multimeter duplicate JSX reuses its existing escaped helper; selected duplicate PSU-knob branch is deduplicated with source equivalence. No525 mirror behavior.
-      source_budget: Actual925 General40028712983 Code FAIL solely editor218418 RAW versus218000, deficit418. Owner explicitly retained218000 and selected separate code reduction;681 stays CLOSED. Scope Stage, ProductionComponentVisual selected multimeter and PSU-knob regions, meaningful focused tests, F2 journal and necessary generated browser hash. Restore production-asset-contracts baseline if unchanged; preserve accepted961 clock three blobs exactly. Proxy estimate217881 is not actual fit.
+      repair_scope: One bounded safe replacement preserves f634 strict native same-owner PSU routing and honest F2 top-wire/resolved-owner journal. Restore multimeter byte-exact984 baseline. Share only PSU/generator raw arc-ratio math and move/up/cancel factory, retain PSU branch dedup and original clamp, capture, state, exception and handler ordering; omit only the PSU root explicit SVG default preserveAspectRatio prop; generator SVG attributes remain byte-exact.
+      source_budget: Owner keeps218000;681 stays CLOSED. Actual925 editor218418 RAW fails by418 despite scoped40030567353 six functional PASS. Private f634 rejected for dynamic multimeter owner-node/focus loss, never published or CI-qualified. Scope Stage/F2 preserved from f634, ProductionComponentVisual PSU/generator only, meaningful focused tests and necessary generated metadata; meter984 and accepted961 clock three blobs exact. Combined217983 estimate margin17 is proxy only, not actual fit.
       rendering_contract: Render target bodies after breadboard bodies and BEFORE existing wire hit/paint layers;exclude exactly targets from later ordinary body map. Keep terminals and overlays above wires. Preserve other ordinary relative order,foreign Stage props/readiness/UnoL and complete document.
       interaction_contract: Preserve native event, exact foreground owner and strict current ready/runtime true-or-false validation; absent or invalid evidence falls through without actuation. Route only an actual same-PSU switch under crossing wire, using existing pointerSequence and mutationEpoch fences, never synthetic events or private React. Preserve pending wire, terminal and ordinary precedence, wire paint and selection elsewhere.
-      execution_boundary: One bounded combined source author after canonical publication, NEW independent final-SHA review, then one exact Code/raw-size measurement and six native cases plus NEW actual/visual review. Pure multimeter and PSU-knob reductions require DOM identity, CSS and CTM/source equivalence, actual extracted handler and meaningful mounted checks. No blind variant, class-identity shortcut, geometry invention, cap raise or unrelated optimization.
+      execution_boundary: One bounded source author after canonical publication, NEW independent final-SHA review, then one justified exact Code/raw-size measurement and six original native cases plus NEW actual/visual review. Prove extracted knob math/event ordering and mounted control identity across updates; one omitted PSU SVG default retains viewport and require native visual/CTM qualification. Feasibility jsdom/affine proof is not native evidence. No meter compaction, blind variant, geometry invention, cap raise or unrelated optimization.
       preservation: Owner programme679 then681 then557;681 observed CLOSED by owner spikeal8-maker on2026-10-23T17:02:17Z,do not reopen or close again and do not imply prior full General PASS. Preserve682 sole controller,548 budget blocker and ownerKEEP544547OPEN,all historical receipts/refs and foreign/protected work. Real dirty overlap STOP; known workflow exception disjoint only.
       real_acceptance_contract: Genuine UI authentication once per group, isolated real projects and cookies-only contexts; independently canonical fixture expected document validated against public normalization, never adopted from actual PUT/server. Native exactly one intended Save, one matching full-payload PUT with observed baseRevision and server CAS plus1; fresh GET and cookies-only fresh-context reopen prove full independent document. Journal actual storage and persistence evidence durably before assertions/teardown; fail closed on loss, unknown writes or races. Preserve mouse1440 and touch390x844, original finite budgets and native actions; no forced hits, extra Save retries, mocks or timeout increase. Native PSU slider control must remain usable with crossing wires; an actual product failure requires separate cause-based selection.
       integration_receipt: docs/product/electronics/evidence/arduino-psu-pr694-real-acceptance-selection-20261023.md
       candidate_pr: 694
       candidate_source_sha: 8fa878116c7b508ba12dcc3bca4341175e9c9168
-      next_action: Implement reviewed bounded budget reduction, freeze source and focused evidence for NEW independent review, then actual editor RAW at most218000 and both F2 plus four clock cases before closure. Current925 functional run is measurement only and grants no acceptance.
+      next_action: Implement only newly reviewed safe combined proposal after canonical docs publication; freeze source and meaningful focused evidence for NEW independent review. Require actual editor RAW at most218000, both original F2 and four clock cases and NEW actual/visual review before679/557 closure. f634 remains rejected;925 functional PASS without size fit grants no acceptance.
       owner_targeted_acceptance:
         evidence: docs/product/electronics/evidence/ui679-557-owner-targeted-acceptance-20261024.md
         decision: API оставить отдельно; принять UI по целевым проверкам
@@ -8474,6 +8474,15 @@ parallel_lanes:
         general_run: 40028712983
         actual_editor_raw_bytes: 218418
         accepted_cap_bytes: 218000
+      safe_budget_repair_selection:
+        evidence: docs/product/electronics/evidence/ui679-safe-budget-repair-selection-20261024.md
+        independent_proposal_review_sha256: d8e939280b0cc1e546154fc5b21782c67fe63e737fbf5981adc3ccf03e372b37
+        rejected_private_source_sha: f634597eabcba82cad3b01201ad29f4c6ca640c7
+        rejection_review_sha256: 16f4d520d759c7fd106f3f6db15cfa394655e93082f339ac39cf54f875b59168
+        knob_feasibility_sha256: fdc11a42ba298514dd0a693a59ab3a6133c7393a98216b1d26fe514347622581
+        svg_default_feasibility_sha256: 53235961a9b02340d620af87c7607305b68bba9a2e91c5ea592135f3ee2f9cb4
+        estimated_editor_raw_bytes: 217983
+        actual_full_bundle_fit: NOT_RUN_NOT_PROVEN
       causal_repair_selection:
         evidence: docs/product/electronics/evidence/ui679-557-causal-repair-selection-20261024.md
         actual_sha: 9957c9bc6b65ec4e1d6ac4cd1f42c056867f4d28
