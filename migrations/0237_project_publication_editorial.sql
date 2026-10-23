@@ -149,7 +149,10 @@ BEGIN
                (COALESCE(editorial.featured,false) AND editorial.revision_id = revision.id
                  AND editorial.moderation_version = COALESCE(moderation.moderation_version,0)
                  AND editorial.lifecycle_version = COALESCE(epoch.lifecycle_version,0)
-                 AND NOT COALESCE(moderation.hidden,false)) AS featured
+                 AND NOT COALESCE(moderation.hidden,false)
+                 AND public.project_publication_readable(state.id)) AS featured,
+               (state.state = 'public' AND NOT COALESCE(moderation.hidden,false)
+                 AND public.project_publication_readable(state.id)) AS editorial_eligible
           FROM public.project_publication_state state
           JOIN public.project_publication_revisions revision
             ON revision.id = state.current_revision_id AND revision.publication_id = state.id
@@ -167,8 +170,8 @@ BEGIN
         'authorLabel', author_label, 'moduleKey', module_key, 'publishedAt', published_at,
         'state', state, 'hidden', hidden, 'moderationVersion', moderation_version,
         'reason', reason, 'moderatedAt', acted_at,
-        'featured', featured, 'editorialVersion', editorial_version,
-        'lifecycleVersion', lifecycle_version)
+        'featured', featured, 'editorialEligible', editorial_eligible,
+        'editorialVersion', editorial_version, 'lifecycleVersion', lifecycle_version)
         ORDER BY n) FILTER (WHERE n <= p_limit), '[]'::jsonb), count(*) > p_limit
       INTO v_items, v_more FROM numbered;
     RETURN jsonb_build_object('items', v_items, 'nextOffset', CASE WHEN v_more THEN p_offset + p_limit END);

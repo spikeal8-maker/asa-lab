@@ -25,6 +25,7 @@ const publication = {
   reason: null,
   moderatedAt: null,
   featured: false,
+  editorialEligible: true,
   editorialVersion: 0,
   lifecycleVersion: 0,
 };
@@ -58,7 +59,11 @@ afterEach(async () => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
-async function mount(hidden = false, nextOffset: number | null = null) {
+async function mount(
+  hidden = false,
+  nextOffset: number | null = null,
+  editorialEligible = true,
+) {
   vi.mocked(call).mockResolvedValueOnce({
     ok: true,
     status: 200,
@@ -67,6 +72,7 @@ async function mount(hidden = false, nextOffset: number | null = null) {
         {
           ...publication,
           hidden,
+          editorialEligible,
           moderationVersion: hidden ? 1 : 0,
           reason: hidden ? 'Нарушение' : null,
         },
@@ -211,6 +217,15 @@ describe('publications moderation', () => {
     await click('Снять отметку');
     expect(button('Выбор редакции')).not.toBeNull();
     expect(host.querySelector('[data-testid="admin-publication-featured"]')).toBeNull();
+  });
+
+  it('hides unavailable editorial controls even when an archived publication remains public', async () => {
+    await mount(false, null, false);
+    expect(button('Выбор редакции')).toBeUndefined();
+    expect(button('Снять отметку')).toBeUndefined();
+    expect(host.querySelector('a')).toBeNull();
+    expect(button('Скрыть')).toBeDefined();
+    expect(call).toHaveBeenCalledTimes(1);
   });
 
   it('keeps a failed editorial request uncommitted and never shows it for hidden content', async () => {

@@ -998,6 +998,17 @@ describe('publication moderation with real runtime privileges and sessions', () 
       });
     const publicDetail = async () =>
       inject(app, { method: 'GET', url: `/api/public-projects/${source.publicationId}` });
+    const adminItem = async () => {
+      const response = await inject(app, {
+        method: 'GET',
+        url: '/api/admin/v1/publications?limit=50',
+        cookies: { asa_session: editor.token },
+      });
+      expect(response.statusCode).toBe(200);
+      return response.json().items.find(
+        (item: { publicationId: string }) => item.publicationId === source.publicationId,
+      );
+    };
     const versionsBefore = (
       await admin.query(
         'SELECT to_jsonb(v) AS original FROM project_versions v WHERE project_id=$1',
@@ -1013,6 +1024,7 @@ describe('publication moderation with real runtime privileges and sessions', () 
     const firstEpoch = await lifecycle();
     expect((await setFeatured(0, firstEpoch)).statusCode).toBe(200);
     expect((await publicDetail()).json().publication.featured).toBe(true);
+    expect(await adminItem()).toMatchObject({ featured: true, editorialEligible: true });
 
     const actor = {
       principalId: source.owner.principalId,
@@ -1023,10 +1035,12 @@ describe('publication moderation with real runtime privileges and sessions', () 
       'archived',
     );
     expect((await publicDetail()).statusCode).toBe(404);
+    expect(await adminItem()).toMatchObject({ featured: false, editorialEligible: false });
     expect((await repo.updateStatus(target, source.projectId, actor, 'active'))?.status).toBe(
       'active',
     );
     expect((await publicDetail()).json().publication.featured).toBe(false);
+    expect(await adminItem()).toMatchObject({ featured: false, editorialEligible: true });
     const restoredProjectEpoch = await lifecycle();
     expect(restoredProjectEpoch).toBeGreaterThan(firstEpoch);
     expect((await setFeatured(1, firstEpoch)).statusCode).toBe(409);
@@ -1037,8 +1051,10 @@ describe('publication moderation with real runtime privileges and sessions', () 
       source.owner.accountId,
     ]);
     expect((await publicDetail()).statusCode).toBe(404);
+    expect(await adminItem()).toMatchObject({ featured: false, editorialEligible: false });
     await admin.query("UPDATE accounts SET status='active' WHERE id=$1", [source.owner.accountId]);
     expect((await publicDetail()).json().publication.featured).toBe(false);
+    expect(await adminItem()).toMatchObject({ featured: false, editorialEligible: true });
     const restoredAccountEpoch = await lifecycle();
     expect(restoredAccountEpoch).toBeGreaterThan(restoredProjectEpoch);
     expect((await setFeatured(2, restoredProjectEpoch)).statusCode).toBe(409);

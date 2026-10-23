@@ -15,6 +15,7 @@ interface Publication {
   readonly reason: string | null;
   readonly moderatedAt: string | null;
   readonly featured: boolean;
+  readonly editorialEligible: boolean;
   readonly editorialVersion: number;
   readonly lifecycleVersion: number;
 }
@@ -190,7 +191,7 @@ export function AdminPublicationsPage({
   };
 
   const toggleFeatured = async (item: Publication): Promise<void> => {
-    if (busy.current || blocked.current || item.hidden || item.state !== 'public') return;
+    if (busy.current || blocked.current || !item.editorialEligible || item.hidden || item.state !== 'public') return;
     busy.current = true;
     setSaving(true);
     setError(null);
@@ -291,21 +292,21 @@ export function AdminPublicationsPage({
                       : item.state}
                 </strong>
               </p>
-              {item.featured && !item.hidden ? (
+              {item.featured && item.editorialEligible && !item.hidden ? (
                 <p className="admin-publication-featured" data-testid="admin-publication-featured">
                   ★ Выбор редакции
                 </p>
               ) : null}
               {item.hidden && item.reason ? <p>Причина: {item.reason}</p> : null}
               {item.moderatedAt ? <p>Модерация: {dateTime(item.moderatedAt)}</p> : null}
-              {!item.hidden && item.state === 'public' ? (
+              {item.editorialEligible && !item.hidden && item.state === 'public' ? (
                 <a href={`/#/public-projects/${encodeURIComponent(item.publicationId)}`}>
                   Открыть публикацию
                 </a>
               ) : null}
             </div>
             <div className="admin-publication-actions">
-              {!item.hidden && item.state === 'public' ? (
+              {item.editorialEligible && !item.hidden && item.state === 'public' ? (
                 <button
                   type="button"
                   className="btn-secondary"
