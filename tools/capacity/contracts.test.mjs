@@ -7,6 +7,8 @@ import {
   quantiles,
   validateProfile,
   sessionIdentity,
+  baselineSlo,
+  requestFailure,
 } from './contracts.mjs';
 
 const env = {
@@ -85,4 +87,38 @@ test('semantic document digest survives PostgreSQL JSONB property order but dete
     digest({ a: true, z: [1, { x: 3, y: 2 }] }),
   );
   assert.notEqual(digest({ a: [1, 2] }), digest({ a: [2, 1] }));
+});
+
+test('baseline SLO separates latency violations, missing evidence and correctness failures', () => {
+  const input = {
+    correctness: 'PASS',
+    observed: { loginP95Ms: 2000, readP95Ms: 400, saveP95Ms: 700 },
+    targets: profile().slo,
+    unexpected: 0,
+    samples: 2,
+    sampleErrors: 0,
+  };
+  assert.equal(baselineSlo(input).verdict, 'PASS');
+  assert.equal(
+    baselineSlo({ ...input, observed: { ...input.observed, saveP95Ms: 701 } }).verdict,
+    'FAIL',
+  );
+  assert.equal(baselineSlo({ ...input, correctness: 'FAIL' }).verdict, 'FAIL');
+  assert.equal(baselineSlo({ ...input, unexpected: 1 }).verdict, 'FAIL');
+  for (const patch of [
+    { samples: 0 },
+    { sampleErrors: 1 },
+    { observed: { ...input.observed, readP95Ms: null } },
+    { observed: { ...input.observed, loginP95Ms: NaN } },
+  ])
+    assert.equal(baselineSlo({ ...input, ...patch }).verdict, 'INSUFFICIENT');
+  assert.equal(baselineSlo({ ...input, samples: 0, unexpected: 1 }).verdict, 'FAIL');
+});
+
+test('request failures distinguish bounded timeout, transport and response failures', () => {
+  assert.equal(requestFailure({ name: 'TimeoutError' }, 0), 'timeout');
+  assert.equal(requestFailure({ name: 'AbortError' }, 200), 'timeout');
+  assert.equal(requestFailure(new TypeError('fetch failed'), 0), 'transport');
+  assert.equal(requestFailure(new Error('unexpected_fixture_status'), 503), 'response');
+  assert.equal(requestFailure(new SyntaxError('invalid JSON'), 200), 'response');
 });

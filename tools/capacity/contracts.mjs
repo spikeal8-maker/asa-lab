@@ -112,3 +112,40 @@ export function sessionIdentity(kind, body, expected) {
     throw new Error('Capacity actor identity changed');
   return key;
 }
+
+// This evaluates only the executed backend baseline, never full platform capacity.
+export function baselineSlo({ correctness, observed, targets, unexpected, samples, sampleErrors }) {
+  const checks = Object.fromEntries(
+    [
+      ['loginP95Ms', 'loginP95Ms'],
+      ['readP95Ms', 'readP95Ms'],
+      ['saveP95Ms', 'writeP95Ms'],
+    ].map(([metric, target]) => [
+      metric,
+      {
+        observedMs: observed[metric],
+        targetMs: targets[target],
+        verdict:
+          !Number.isFinite(observed[metric]) || observed[metric] < 0
+            ? 'INSUFFICIENT'
+            : observed[metric] <= targets[target]
+              ? 'PASS'
+              : 'FAIL',
+      },
+    ]),
+  );
+  const failed =
+    correctness !== 'PASS' ||
+    unexpected > 0 ||
+    Object.values(checks).some((check) => check.verdict === 'FAIL');
+  const insufficient =
+    samples === 0 ||
+    sampleErrors > 0 ||
+    Object.values(checks).some((check) => check.verdict === 'INSUFFICIENT');
+  return { verdict: failed ? 'FAIL' : insufficient ? 'INSUFFICIENT' : 'PASS', checks };
+}
+
+export function requestFailure(error, status) {
+  if (error?.name === 'TimeoutError' || error?.name === 'AbortError') return 'timeout';
+  return status === 0 ? 'transport' : 'response';
+}
