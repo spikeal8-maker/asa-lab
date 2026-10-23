@@ -62,7 +62,7 @@ export class ProductAnalyticsController {
       );
     } catch (cause) {
       if (cause instanceof HttpException) throw cause;
-      // The legacy start endpoint promises a non-acceptance result for a
+      // The legacy session endpoints promise a non-acceptance result for a
       // refused project/session context. Handle it after the queued operation
       // has rejected, never as an apparently persisted SQL write.
       if (
@@ -152,13 +152,17 @@ export class ProductAnalyticsController {
     ) {
       throw new HttpException(error('validation_error', 'invalid module session heartbeat'), 400);
     }
-    return this.authenticated(request, async (actor) => {
-      const accepted = await this.analytics.touchModuleSession({
-        sessionId,
-        actor,
-        closed: closed === true,
-      });
-      return { accepted };
-    });
+    return this.authenticated(
+      request,
+      async (actor) => {
+        const accepted = await this.analytics.touchModuleSession({
+          sessionId,
+          actor,
+          closed: closed === true,
+        });
+        return { accepted };
+      },
+      () => ({ accepted: false }),
+    );
   }
 }

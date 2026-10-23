@@ -259,7 +259,18 @@ export class ProductAnalyticsService {
       const result = await this.pool!.query(
         'SELECT analytics_touch_module_session($1,$2,$3,$4,$5)',
         [input.sessionId, values[0], values[1], values[2], input.closed],
-      );
+      ).catch((cause: unknown) => {
+        const sql = cause as { code?: unknown; message?: unknown } | null;
+        // Keep a refused heartbeat distinct from an unavailable delivery, with
+        // the same queue rejection accounting as a refused session start.
+        if (
+          sql?.code === '42501' &&
+          (sql.message === 'module session denied' ||
+            sql.message === 'module session project denied')
+        )
+          throw new AnalyticsDeliveryError('context_denied');
+        throw cause;
+      });
       if (!Number.isInteger(result.rows[0]?.analytics_touch_module_session))
         throw new AnalyticsDeliveryError('telemetry_unavailable');
       return true;

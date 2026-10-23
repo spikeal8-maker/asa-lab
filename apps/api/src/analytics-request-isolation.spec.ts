@@ -44,6 +44,48 @@ function fixture(query: (sql: string, values?: unknown[]) => Promise<{ rows: obj
 }
 
 describe('telemetry admission includes authoritative cookie lookup', () => {
+  it.each(['module session denied', 'module session project denied'])(
+    'keeps legacy heartbeat refusal %s out of the persisted counter',
+    async (message) => {
+      const f = fixture(async (sql) => {
+        if (sql.includes('session_v2_context')) return { rows: [row] };
+        throw Object.assign(new Error(message), { code: '42501' });
+      });
+      try {
+        await expect(
+          f.v1.touchModuleSession(request, { sessionId: id, closed: true }),
+        ).resolves.toEqual({ accepted: false });
+        expect(f.queue.counters.persisted).toBe(0);
+        expect(f.queue.counters.rejected).toBe(1);
+      } finally {
+        await f.service.shutdown();
+      }
+    },
+  );
+
+  it.each([
+    ['42501', 'permission denied for function analytics_touch_module_session'],
+    ['57014', 'canceling statement due to statement timeout'],
+    ['08006', 'connection failure'],
+    ['XX000', 'module session project denied'],
+    ['42501', 'module session context denied'],
+  ])('retains unavailable for actual heartbeat failure %s / %s', async (code, message) => {
+    const f = fixture(async (sql) => {
+      if (sql.includes('session_v2_context')) return { rows: [row] };
+      throw Object.assign(new Error(message), { code });
+    });
+    try {
+      await expect(f.v1.touchModuleSession(request, { sessionId: id })).rejects.toMatchObject({
+        status: 503,
+        response: { error: { code: 'telemetry_unavailable' } },
+      });
+      expect(f.queue.counters.persisted).toBe(0);
+      expect(f.queue.counters.rejected).toBe(1);
+    } finally {
+      await f.service.shutdown();
+    }
+  });
+
   it.each([
     'module session actor denied',
     'module session context denied',
