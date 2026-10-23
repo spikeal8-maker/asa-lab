@@ -1,7 +1,10 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { runInNewContext } from 'node:vm';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { createElement } from 'react';
+import ts from 'typescript';
+import { regulatedPowerSupplyRuntimeMarkup } from '../production-asset-contracts';
 
 const electronicsRoot = resolve(process.cwd(), 'apps/web/src/electronics');
 const stageSource = readFileSync(resolve(electronicsRoot, 'WorkbenchStage.tsx'), 'utf8');
@@ -925,5 +928,132 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(shortcutsSource).toContain('.arduino-source-editor');
     expect(controllerModuleSource).not.toContain("event.key.toLowerCase() === 'c'");
     expect(controllerModuleSource).not.toContain("event.key.toLowerCase() === 'v'");
+  });
+});
+
+describe('PSU owner switch native priority', () => {
+  const owner = readFileSync(
+    resolve(
+      process.cwd(),
+      'apps/web/public/assets/electronics/component-database/components/power/regulated-power-supply/component.svg',
+    ),
+    'utf8',
+  );
+  const state = {
+    voltageSetpointVolt: 5,
+    currentLimitAmp: 1,
+    outputEnabled: false,
+    mode: 'off' as const,
+    voltageDisplay: '5 V',
+    currentDisplay: '1 A',
+  };
+  function actualUse(
+    component: unknown,
+    setRegulatedPowerSupplyControls: ReturnType<typeof vi.fn>,
+  ) {
+    const source = ts.createSourceFile(
+      'stage.tsx',
+      stageSource,
+      ts.ScriptTarget.Latest,
+      true,
+      ts.ScriptKind.TSX,
+    );
+    let control: ts.JsxSelfClosingElement | undefined;
+    function visit(node: ts.Node): void {
+      if (
+        ts.isJsxSelfClosingElement(node) &&
+        node.tagName.getText(source) === 'use' &&
+        node.getText(source).includes('psu-power-')
+      )
+        control = node;
+      ts.forEachChild(node, visit);
+    }
+    visit(source);
+    if (!control) throw new Error('missing native control reference');
+    const compiled = ts.transpileModule(`(${control.getText(source)})`, {
+      compilerOptions: { jsx: ts.JsxEmit.React, target: ts.ScriptTarget.ES2022 },
+    }).outputText;
+    return new Function('React', 'component', 'c', `return ${compiled}`)(
+      { createElement },
+      component,
+      { setRegulatedPowerSupplyControls },
+    ) as {
+      props: {
+        href: string;
+        opacity: number;
+        pointerEvents: string;
+        onPointerDown: (event: unknown) => void;
+        onClick: (event: unknown) => void;
+      };
+    };
+  }
+
+  it('references only the validated rendered owner track, never preview or malformed fallback', () => {
+    for (const id of ['psu-power-a', 'psu-power-b', 'psu-power-a #<&"']) {
+      const markup = regulatedPowerSupplyRuntimeMarkup(owner, { ...state, powerSwitchId: id });
+      const escaped = id
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;');
+      expect(markup.match(/id="psu-power-/g)).toHaveLength(1);
+      expect(markup).toContain(
+        `<rect id="${escaped}" class="workbench-regulated-supply-power-switch" x="14" y="202" width="67" height="26" rx="13"`,
+      );
+      expect(
+        regulatedPowerSupplyRuntimeMarkup(
+          owner.replace('width="67" height="26"', 'width="66" height="26"'),
+          { ...state, powerSwitchId: id },
+        ),
+      ).not.toContain('id="psu-power-');
+      expect(regulatedPowerSupplyRuntimeMarkup('', { ...state, powerSwitchId: id })).toBe('');
+    }
+    const preview = regulatedPowerSupplyRuntimeMarkup(owner, state);
+    expect(preview).not.toContain('id="psu-power-');
+    const mainVisual = stageSource.slice(
+      stageSource.indexOf('function renderComponentBody'),
+      stageSource.indexOf('function renderComponentTerminalOverlay'),
+    );
+    expect(mainVisual.match(/powerSwitchId=/g)).toHaveLength(1);
+    expect(stageSource.slice(0, stageSource.indexOf('function renderComponentBody'))).not.toContain(
+      'powerSwitchId=',
+    );
+  });
+
+  it('uses transparent rounded owner geometry and dispatches exactly once for either native pointer kind', () => {
+    for (const pointerType of ['mouse', 'touch']) {
+      for (const component of [
+        { id: 'a #<&"', state: false, stateProperties: { outputEnabled: true } },
+        { id: 'a #<&"', state: true, stateProperties: { outputEnabled: false } },
+        { id: 'a #<&"', state: true, stateProperties: {} },
+        { id: 'a #<&"', state: false, stateProperties: {} },
+      ]) {
+        const setter = vi.fn();
+        const element = actualUse(component, setter);
+        expect(decodeURIComponent(element.props.href.slice(1))).toBe(`psu-power-${component.id}`);
+        expect(element.props.opacity).toBe(0);
+        expect(element.props.pointerEvents).toBe('all');
+        const event = { pointerType, preventDefault: vi.fn(), stopPropagation: vi.fn() };
+        element.props.onPointerDown(event);
+        element.props.onClick(event);
+        const enabled =
+          typeof component.stateProperties.outputEnabled === 'boolean'
+            ? component.stateProperties.outputEnabled
+            : component.state;
+        expect(setter).toHaveBeenCalledExactlyOnceWith(component.id, { outputEnabled: !enabled });
+        expect(event.preventDefault).toHaveBeenCalledTimes(1);
+        expect(event.stopPropagation).toHaveBeenCalledTimes(2);
+      }
+    }
+    const terminalBody = stageSource.slice(
+      stageSource.indexOf('function renderComponentTerminalOverlay'),
+      stageSource.indexOf('const alignmentGuideAxes'),
+    );
+    expect(terminalBody.indexOf("entry.key === 'regulated-power-supply'")).toBeLessThan(
+      terminalBody.indexOf('Object.keys(entry.terminals)'),
+    );
+    expect(terminalBody).toContain('viewBox="0 0 294 237"');
+    expect(terminalBody).toContain('preserveAspectRatio="xMidYMid meet"');
+    expect(terminalBody).toContain('transform={componentTransform(component)}');
   });
 });

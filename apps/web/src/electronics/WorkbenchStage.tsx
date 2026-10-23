@@ -1007,6 +1007,7 @@ export function WorkbenchStage({
             pointerEvents="none"
           />
           <ProductionComponentVisual
+            powerSwitchId={`psu-power-${component.id}`}
             entry={entry}
             component={component}
             width={baseSize.width}
@@ -1130,6 +1131,7 @@ export function WorkbenchStage({
   function renderComponentTerminalOverlay(component: SchematicComponent): JSX.Element | null {
     const entry = catalogEntry(component);
     if (!entry?.asset || !entry.terminals) return null;
+    const baseSize = renderedSize(entry, 0);
     const selected = c.selection?.kind === 'component' && c.selection.ids.includes(component.id);
     if (component.kind === 'breadboard') {
       return (
@@ -1164,6 +1166,33 @@ export function WorkbenchStage({
         data-component-id={component.id}
         data-kind={component.kind}
       >
+        {entry.key === 'regulated-power-supply' ? (
+          <svg
+            transform={componentTransform(component)}
+            width={baseSize.width}
+            height={baseSize.height}
+            viewBox="0 0 294 237"
+            preserveAspectRatio="xMidYMid meet"
+            pointerEvents="none"
+          >
+            <use
+              href={`#${encodeURIComponent(`psu-power-${component.id}`)}`}
+              className="workbench-regulated-supply-power-switch"
+              opacity={0}
+              pointerEvents="all"
+              onPointerDown={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                c.setRegulatedPowerSupplyControls(component.id, {
+                  outputEnabled: !(typeof component.stateProperties?.['outputEnabled'] === 'boolean'
+                    ? component.stateProperties['outputEnabled']
+                    : component.state === true),
+                });
+              }}
+              onClick={(event) => event.stopPropagation()}
+            />
+          </svg>
+        ) : null}
         {Object.keys(entry.terminals).map((terminal) => {
           if (component.holeBindings?.[terminal]) return null;
           const terminalSpec = entry.terminals[terminal];

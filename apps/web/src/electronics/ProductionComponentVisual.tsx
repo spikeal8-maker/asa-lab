@@ -99,6 +99,7 @@ interface Props {
   readonly onArduinoReset?: (() => void) | undefined;
   readonly onMultimeterModeChange?:
     ((mode: 'dc-voltage' | 'dc-current' | 'resistance') => void) | undefined;
+  readonly powerSwitchId?: string | undefined;
   readonly onRegulatedPowerSupplyChange?:
     | ((patch: {
         readonly voltageSetpointVolt?: number;
@@ -1127,6 +1128,7 @@ function OwnerRegulatedPowerSupplyVisual({
   result,
   simulationRunning,
   onChange,
+  powerSwitchId,
 }: {
   readonly asset: string;
   readonly width: number;
@@ -1135,6 +1137,7 @@ function OwnerRegulatedPowerSupplyVisual({
   readonly result?: ComponentResult | undefined;
   readonly simulationRunning: boolean;
   readonly onChange?: Props['onRegulatedPowerSupplyChange'];
+  readonly powerSwitchId?: string | undefined;
 }): JSX.Element {
   const { source: ownerSvg, failed: ownerSvgFailed } = useOwnerSvgSource(asset);
   const [draggingKnob, setDraggingKnob] = useState<'voltage' | 'current' | null>(null);
@@ -1166,6 +1169,7 @@ function OwnerRegulatedPowerSupplyVisual({
     () =>
       ownerSvg
         ? regulatedPowerSupplyRuntimeMarkup(ownerSvg, {
+            powerSwitchId,
             voltageSetpointVolt,
             currentLimitAmp,
             outputEnabled,
@@ -1175,6 +1179,7 @@ function OwnerRegulatedPowerSupplyVisual({
           })
         : '',
     [
+      powerSwitchId,
       currentDisplay,
       currentLimitAmp,
       mode,
@@ -1756,6 +1761,7 @@ export function ProductionComponentVisual({
   onArduinoReset,
   onMultimeterModeChange,
   onRegulatedPowerSupplyChange,
+  powerSwitchId,
   onSignalGeneratorChange,
 }: Props): JSX.Element {
   const properties = component.stateProperties ?? {};
@@ -2259,6 +2265,7 @@ export function ProductionComponentVisual({
               result={result}
               simulationRunning={simulationRunning}
               onChange={onRegulatedPowerSupplyChange}
+              powerSwitchId={powerSwitchId}
             />
           ) : entry.key === 'signal-generator' ? (
             <OwnerSignalGeneratorVisual

@@ -387,7 +387,11 @@ export function WorkbenchHeader({
           </div>
         )}
         {c.simulationRunning ? (
-          <span className="workbench-simulation-time" aria-label="Время моделирования">
+          <span
+            className="workbench-simulation-time"
+            aria-label="Время моделирования"
+            data-time-ms={c.committedSimulationTimeMs}
+          >
             Время моделирования: {formatSimulationTime(c.committedSimulationTimeMs / 1000)}
           </span>
         ) : null}

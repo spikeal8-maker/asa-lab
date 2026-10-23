@@ -713,6 +713,7 @@ export function regulatedPowerSupplyKnobAngle(value: number, maximum: number): n
 export function regulatedPowerSupplyRuntimeMarkup(
   ownerSvg: string,
   input: {
+    readonly powerSwitchId?: string | undefined;
     readonly voltageSetpointVolt: number;
     readonly currentLimitAmp: number;
     readonly outputEnabled: boolean;
@@ -756,7 +757,7 @@ export function regulatedPowerSupplyRuntimeMarkup(
     )
     .replace(
       '<rect x="14" y="202" width="67" height="26" rx="13" fill="#C4C4C4"/>',
-      '<rect class="workbench-regulated-supply-power-switch" x="14" y="202" width="67" height="26" rx="13" fill="#C4C4C4"/>',
+      `<rect${input.powerSwitchId ? ` id="${escapeMultimeterDisplay(input.powerSwitchId)}"` : ''} class="workbench-regulated-supply-power-switch" x="14" y="202" width="67" height="26" rx="13" fill="#C4C4C4"/>`,
     )
     .replace(
       '<rect x="14" y="202" width="35" height="26" rx="13" fill="#4E5251"/>',
