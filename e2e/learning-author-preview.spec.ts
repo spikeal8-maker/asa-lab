@@ -1959,13 +1959,10 @@ test('document Course Builder preserves the lesson, real save acknowledgements a
     await hitTarget(previewButton, name + ':top:keyboard-preview');
     // Keyboard focus may scroll the second header row into view; return to the
     // course actions control before measuring its real pointer ownership.
+    // The course header must naturally remain below the sticky portal bar.
+    // Do not center the button artificially: this asserts the actual keyboard
+    // and browser-scrolling geometry, before unchanged strict pointer sampling.
     await actions.scrollIntoViewIfNeeded();
-    // The sticky global bar is an occluder, not a clipping ancestor. A user can
-    // scroll the menu to the center before activating it; assert that the final
-    // position clears the sticky bar and still passes strict pointer sampling.
-    await actions.evaluate((button) =>
-      button.scrollIntoView({ block: 'center', behavior: 'instant' }),
-    );
     await expect
       .poll(
         async () =>
