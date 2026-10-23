@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { createReadStream, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { createInterface } from 'node:readline';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { runInNewContext } from 'node:vm';
 import ts from 'typescript';
 import {
@@ -2254,5 +2257,307 @@ describe('actual native observer render-opportunity callback ordering', () => {
     actual.raf(33);
     actual.task(33.8);
     expect(actual.rows.filter((row) => row.kind.startsWith('render-opportunity-'))).toEqual([]);
+  });
+});
+
+describe('prospective repeated long-cycle stream and timing oracle', () => {
+  const text = readFileSync(
+    new URL('../../../../../e2e/electronics-interactions.spec.ts', import.meta.url),
+    'utf8',
+  );
+  const parsed = ts.createSourceFile(
+    'native.ts',
+    text,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  );
+  const names = [
+    'realtime682ShortCycleAudit',
+    'createRealtime682LongAudit',
+    'readRealtime682LongAudit',
+  ];
+  const declarations = names.map((name) =>
+    parsed.statements
+      .find((row) => ts.isFunctionDeclaration(row) && row.name?.text === name)!
+      .getText(parsed),
+  );
+  const javascript = ts.transpileModule(declarations.join('\n'), {
+    compilerOptions: { target: ts.ScriptTarget.ES2022 },
+  }).outputText;
+  type Envelope = { kind: string; data: Record<string, unknown> };
+  type Result = {
+    errors: string[];
+    errorCount: number;
+    sequence: number;
+    readyCount: number;
+    report: { expected: unknown[]; shown: unknown[] };
+  };
+  const functions = runInNewContext(
+    `${javascript}; ({createRealtime682LongAudit,readRealtime682LongAudit});`,
+    { createReadStream, createInterface },
+  ) as {
+    createRealtime682LongAudit: (
+      phase: number,
+      source: string,
+    ) => {
+      envelope: (row: Envelope) => void;
+      state: () => { retainedEdges: number };
+      finish: () => Result;
+    };
+    readRealtime682LongAudit: (path: string, phase: number, source: string) => Promise<Result>;
+  };
+  const source = 'prospective-long-cycle-fixture';
+  function fixture(phase: number) {
+    const envelopes: Envelope[] = [{ kind: 'start-action', data: { at: 990, source } }];
+    let sequence = 0,
+      from = 0,
+      previous = false;
+    const push = (kind: string, at: number, extra: Record<string, unknown>) =>
+      envelopes.push({ kind: 'browser', data: { sequence: ++sequence, kind, at, ...extra } });
+    const ready = (to: number, high: boolean, at: number) => {
+      const sample = (time: number, level: boolean) => ({
+        atMicroseconds: time,
+        brightness: level ? 70 : 0,
+        current: level ? 0.01 : 0,
+      });
+      push('response', at, {
+        source,
+        ok: true,
+        generation: 1,
+        requestGeneration: 1,
+        computeMs: 0.5,
+        advance: {
+          executionStatus: 'ready',
+          requestedHorizonMicroseconds: to,
+          committedHorizonMicroseconds: to,
+          diagnostics: [],
+          result: { solved: true, quality: { passed: true } },
+          ledTemporal: {
+            fromMicroseconds: from,
+            toMicroseconds: to,
+            components: [
+              {
+                componentId: 'led0',
+                truncated: false,
+                samples:
+                  from === to ? [sample(to, high)] : [sample(from, previous), sample(to, high)],
+              },
+            ],
+          },
+        },
+      });
+      from = to;
+      previous = high;
+    };
+    const paint = (at: number, high: boolean) =>
+      push('paint', at + 1000 / 60, {
+        witnessAt: at,
+        witnessKind: 'render-opportunity-task',
+        leds: [0, 1, 2].map((index) => ({
+          brightness: high && index === 0 ? 70 : 0,
+          loadedAt: 980,
+          visible: true,
+        })),
+      });
+    ready(0, false, 1000);
+    for (let index = 0; index < 7; index++) {
+      const time =
+        2 + Math.floor(index / 2) * (2 * phase * 1000 + 5) + (index % 2) * (phase * 1000 + 2);
+      ready(time, index % 2 === 0, 1000 + time / 1000 + 1);
+      paint(Math.ceil((1000 + time / 1000) / (1000 / 60)) * (1000 / 60), index % 2 === 0);
+    }
+    const stop = Number(envelopes.at(-1)!.data.at) + 5;
+    envelopes.push({ kind: 'long-stop-action', data: { at: stop } });
+    push('input', stop + 1, {
+      type: 'click',
+      trusted: true,
+      controlLabel: 'Остановить моделирование',
+    });
+    envelopes.push({ kind: 'long-stop-ui', data: { visible: true } });
+    envelopes.push({
+      kind: 'ack-barrier',
+      data: { sent: sequence, acknowledged: sequence, dropped: 0, errors: [] },
+    });
+    return envelopes;
+  }
+  const audit = (phase: number, rows: Envelope[]) => {
+    const state = functions.createRealtime682LongAudit(phase, source);
+    for (const row of rows) state.envelope(row);
+    return { result: state.finish(), retainedEdges: state.state().retainedEdges };
+  };
+
+  it.each([1000, 5000, 10000, 20000])(
+    'accepts three complete real-length %i ms cycles with the same absolute phase bounds',
+    (phase) => {
+      const { result, retainedEdges } = audit(phase, fixture(phase));
+      expect(result.errors).toEqual([]);
+      expect(result.errorCount).toBe(0);
+      expect(result.report.expected).toHaveLength(7);
+      expect(result.report.shown).toHaveLength(7);
+      expect(retainedEdges).toBeLessThanOrEqual(18);
+    },
+  );
+
+  it.each([
+    'lost-middle',
+    'mid-bad-ready',
+    'wrong-order',
+    'scaled-clock',
+    'drift',
+    'wrong-duty',
+    'cold-late',
+    'lost-ACK',
+    'missing-native',
+    'forged-Stop',
+    'reanchored-H0',
+    'extra-front',
+  ] as const)(
+    'rejects %s in the full original stream rather than the retained RAM tail',
+    (fault) => {
+      const rows = fixture(20_000);
+      const browser = rows.filter((row) => row.kind === 'browser');
+      if (fault === 'lost-middle') rows.splice(rows.indexOf(browser[4]!), 1);
+      if (fault === 'mid-bad-ready') {
+        const middle = browser.filter((row) => row.data.kind === 'response')[3]!;
+        (
+          (middle.data.advance as Record<string, unknown>).result as Record<string, unknown>
+        ).quality = { passed: false };
+      }
+      const paints = browser.filter((row) => row.data.kind === 'paint');
+      if (fault === 'wrong-order')
+        (paints[2]!.data.leds as Array<Record<string, unknown>>)[0]!.brightness = 0;
+      if (fault === 'scaled-clock')
+        for (const row of paints)
+          row.data.witnessAt = 1000 + (Number(row.data.witnessAt) - 1000) * 8;
+      if (fault === 'drift')
+        for (const [index, row] of paints.entries())
+          row.data.witnessAt = Number(row.data.witnessAt) + index * 10;
+      if (fault === 'wrong-duty')
+        for (const [index, row] of paints.entries())
+          if (index % 2) row.data.witnessAt = Number(row.data.witnessAt) + 100;
+      if (fault === 'cold-late')
+        paints[0]!.data.witnessAt = Number(paints[0]!.data.witnessAt) + 100;
+      if (fault === 'reanchored-H0') {
+        const middle = browser.filter((row) => row.data.kind === 'response')[3]!;
+        const advance = middle.data.advance as Record<string, unknown>;
+        advance.committedHorizonMicroseconds = 0;
+        advance.requestedHorizonMicroseconds = 0;
+      }
+      if (fault === 'extra-front') {
+        const first = paints[0]!;
+        const low = structuredClone(first),
+          high = structuredClone(first);
+        low.data.at = 1166.667;
+        low.data.witnessAt = 1150;
+        (low.data.leds as Array<Record<string, unknown>>)[0]!.brightness = 0;
+        high.data.at = 1183.334;
+        high.data.witnessAt = 1166.667;
+        rows.splice(rows.indexOf(first) + 1, 0, low, high);
+        let sequence = 0;
+        for (const row of rows) if (row.kind === 'browser') row.data.sequence = ++sequence;
+        rows.at(-1)!.data.sent = sequence;
+        rows.at(-1)!.data.acknowledged = sequence;
+      }
+      if (fault === 'lost-ACK') rows.at(-1)!.data.acknowledged = 1;
+      if (fault === 'missing-native')
+        (paints[2]!.data.leds as Array<Record<string, unknown>>)[0]!.loadedAt = null;
+      if (fault === 'forged-Stop') browser.at(-1)!.data.trusted = false;
+      expect(audit(20_000, rows).result.errorCount).toBeGreaterThan(0);
+    },
+  );
+
+  it('streams every durable original, including a midstream bad result, without keeping full ready payloads in RAM', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'asa-long-stream-'));
+    const path = join(directory, 'raw.jsonl');
+    try {
+      const rows = fixture(1000);
+      writeFileSync(path, rows.map((row) => JSON.stringify(row)).join('\n') + '\n');
+      const clean = await functions.readRealtime682LongAudit(path, 1000, source);
+      expect(clean.errors).toEqual([]);
+      const middle = rows.find(
+        (row) =>
+          row.kind === 'browser' &&
+          row.data.kind === 'response' &&
+          Number((row.data.advance as Record<string, unknown>).committedHorizonMicroseconds) > 2,
+      )!;
+      ((middle.data.advance as Record<string, unknown>).result as Record<string, unknown>).solved =
+        false;
+      writeFileSync(path, rows.map((row) => JSON.stringify(row)).join('\n') + '\n');
+      expect(
+        (await functions.readRealtime682LongAudit(path, 1000, source)).errorCount,
+      ).toBeGreaterThan(0);
+      writeFileSync(path, '{corrupted original}\n');
+      await expect(functions.readRealtime682LongAudit(path, 1000, source)).rejects.toThrow();
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('bounds only long-case Node retention at2048 while persisting and acknowledging all4096 originals', async () => {
+    const declaration = parsed.statements.find(
+      (row) => ts.isFunctionDeclaration(row) && row.name?.text === 'realtime682Journal',
+    )!;
+    const code = ts.transpileModule(declaration.getText(parsed), {
+      compilerOptions: { target: ts.ScriptTarget.ES2022 },
+    }).outputText;
+    for (const phase of [null, 20_000]) {
+      const durable: Array<{ kind: string; data: { sequence?: number } }> = [];
+      let binding: ((sender: unknown, batch: Array<Record<string, unknown>>) => number) | undefined;
+      let limit: number | undefined;
+      let observed = 0;
+      const make = runInNewContext(`${code}; realtime682Journal`, {
+        writeFileSync: () => {},
+        appendFileSync: (_path: string, line: string, options: { flush: boolean }) => {
+          expect(options.flush).toBe(true);
+          durable.push(JSON.parse(line));
+        },
+      }) as (
+        page: unknown,
+        path: string,
+        long?: { phaseMs: number; observe: () => void },
+      ) => Promise<{ records: Array<{ sequence: number }>; errors: string[] }>;
+      const page = {
+        exposeBinding: async (_name: string, callback: typeof binding) => {
+          binding = callback;
+        },
+        addInitScript: async (_callback: unknown, recordLimit: number) => {
+          limit = recordLimit;
+        },
+      };
+      const journal = await make(
+        page,
+        '/test/raw.jsonl',
+        phase === null
+          ? undefined
+          : {
+              phaseMs: phase,
+              observe: () => {
+                observed++;
+              },
+            },
+      );
+      for (let first = 1; first <= 4096; first += 256) {
+        const batch = Array.from({ length: 256 }, (_, index) => ({
+          sequence: first + index,
+          kind: 'diagnostic',
+          at: first + index,
+        }));
+        const ack = binding!({}, batch);
+        expect(ack).toBe(first + 255);
+        expect(durable.filter((row) => row.kind === 'browser').length).toBe(ack);
+      }
+      expect(
+        durable.filter((row) => row.kind === 'browser').map((row) => row.data.sequence),
+      ).toEqual(Array.from({ length: 4096 }, (_, index) => index + 1));
+      expect(journal.records.length).toBe(phase === null ? 4096 : 2048);
+      expect(journal.records[0]!.sequence).toBe(phase === null ? 1 : 2049);
+      expect(observed).toBe(phase === null ? 0 : 4096);
+      expect(limit).toBe(phase === null ? 30_000 : 76_000);
+      expect(() => binding!({}, [{ sequence: 4098, kind: 'diagnostic', at: 4098 }])).toThrow(
+        'sequence gap',
+      );
+      expect(journal.errors).toEqual([]);
+    }
   });
 });

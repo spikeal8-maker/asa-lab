@@ -1,4 +1,5 @@
-import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { createInterface } from 'node:readline';
+import { appendFileSync, createReadStream, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 import { test, expect, type Locator, type Page, type Request } from '@playwright/test';
@@ -85,13 +86,14 @@ function realtime682ShortCycleAudit(
   h0: number,
   electrical: ShortCycleEdge[],
   native: ShortCycleEdge[],
+  cycles = 10,
 ) {
   const frameMs = 1000 / 60,
     phaseBound = frameMs + 2,
     edgeBound = 2 * frameMs + 2;
   // instruction-us-v1: setup pinMode@0, loop entry@1, first HIGH@2;
   // HIGH phase delayUs+2, LOW phase delayUs+3, including next loop entry.
-  const expected = Array.from({ length: 21 }, (_, index) => ({
+  const expected = Array.from({ length: cycles * 2 + 1 }, (_, index) => ({
     at: 2 + Math.floor(index / 2) * (2 * phaseMs * 1000 + 5) + (index % 2) * (phaseMs * 1000 + 2),
     high: index % 2 === 0,
   }));
@@ -136,7 +138,7 @@ function realtime682ShortCycleAudit(
     if (shown[index - 1]!.high) lit += shown[index]!.at - shown[index - 1]!.at;
   const duration = (shown.at(-1)?.at ?? 0) - (shown[0]?.at ?? 0);
   const expectedDuration = (expected.at(-1)!.at - expected[0]!.at) / 1000;
-  const expectedDuty = (10 * (phaseMs * 1000 + 2)) / (expectedDuration * 1000);
+  const expectedDuty = (cycles * (phaseMs * 1000 + 2)) / (expectedDuration * 1000);
   const duty = lit / duration,
     dutyBound = Math.min(0.05, frameMs / expectedDuration + 0.02);
   if (!Number.isFinite(duty) || Math.abs(duty - expectedDuty) > dutyBound)
@@ -158,9 +160,231 @@ function realtime682ShortCycleAudit(
   };
 }
 
+function createRealtime682LongAudit(phaseMs: number, source: string) {
+  const errors: string[] = [];
+  let errorCount = 0,
+    sequence = 0,
+    lastAt = -Infinity;
+  let h0: number | null = null,
+    startAt: number | null = null,
+    stopAt: number | null = null;
+  let stopTrusted = false,
+    stopVisible = false;
+  let onBrightness: number | undefined,
+    priorElectrical: boolean | undefined,
+    priorNative: boolean | undefined;
+  let lastHorizon = 0,
+    lastReadyAt = 0,
+    readyCount = 0;
+  let acknowledgement: {
+    sent: number;
+    acknowledged: number;
+    dropped: number;
+    errors: unknown[];
+  } | null = null;
+  const physical: ShortCycleEdge[] = [],
+    native: ShortCycleEdge[] = [];
+  const fail = (reason: string) => {
+    errorCount++;
+    if (errors.length < 64) errors.push(reason);
+  };
+  const accept = (row: Realtime682Record) => {
+    if (row.sequence !== sequence + 1 || !Number.isFinite(row.at) || row.at < lastAt)
+      fail('stream-sequence-or-time');
+    sequence = row.sequence;
+    lastAt = row.at;
+    if (
+      row.kind === 'input' &&
+      row.type === 'click' &&
+      row.trusted === true &&
+      row.controlLabel === 'Остановить моделирование' &&
+      stopAt !== null &&
+      row.at >= stopAt
+    )
+      stopTrusted = true;
+    if (row.kind === 'response' && row.source === source) {
+      const advance = row.advance as SimulationTimedAdvancePayload | null;
+      if (
+        row.ok !== true ||
+        row.generation !== row.requestGeneration ||
+        !Number.isFinite(row.computeMs) ||
+        Number(row.computeMs) < 0 ||
+        !advance
+      ) {
+        fail('invalid-ready-envelope');
+        return;
+      }
+      if (advance.executionStatus === 'yielded') {
+        if (advance.result !== null) fail('yielded-result');
+        return;
+      }
+      if (
+        advance.executionStatus !== 'ready' ||
+        !advance.result?.solved ||
+        !advance.result.quality?.passed ||
+        !Array.isArray(advance.diagnostics) ||
+        advance.diagnostics.length !== 0 ||
+        advance.committedHorizonMicroseconds !== advance.requestedHorizonMicroseconds ||
+        !Number.isSafeInteger(advance.committedHorizonMicroseconds) ||
+        advance.committedHorizonMicroseconds < lastHorizon
+      ) {
+        fail('invalid-complete-result');
+        return;
+      }
+      if (h0 === null) {
+        if (advance.committedHorizonMicroseconds !== 0) fail('missing-H0');
+        h0 = row.at;
+      }
+      const observation = advance.ledTemporal;
+      if (
+        !observation ||
+        observation.fromMicroseconds !== lastHorizon ||
+        observation.toMicroseconds !== advance.committedHorizonMicroseconds
+      ) {
+        fail('incomplete-temporal-window');
+        return;
+      }
+      const led = observation.components.find((entry) => entry.componentId === 'led0');
+      if (!led || led.truncated || led.samples.length === 0) {
+        fail('missing-electrical-evidence');
+        return;
+      }
+      for (const sample of led.samples) {
+        if (
+          !Number.isSafeInteger(sample.atMicroseconds) ||
+          !Number.isFinite(sample.brightness) ||
+          !Number.isFinite(sample.current)
+        )
+          fail('nonfinite-electrical-sample');
+        const high = sample.brightness > 0;
+        if (high) onBrightness ??= Math.round(sample.brightness);
+        if (high !== priorElectrical) {
+          if (physical.length < 9) physical.push({ at: sample.atMicroseconds, high });
+          priorElectrical = high;
+        }
+      }
+      lastHorizon = advance.committedHorizonMicroseconds;
+      lastReadyAt = row.at;
+      readyCount++;
+    }
+    if (
+      h0 !== null &&
+      row.at >= h0 &&
+      (row.kind === 'render-opportunity-missed' || row.kind === 'render-opportunity-late')
+    )
+      fail('unobserved-render-opportunity');
+    if (
+      row.kind === 'paint' &&
+      h0 !== null &&
+      (!Number.isFinite(row.witnessAt) || Number(row.witnessAt) > row.at)
+    )
+      fail('invalid-native-time');
+    if (
+      row.kind === 'paint' &&
+      h0 !== null &&
+      Number(row.witnessAt) >= h0 &&
+      (stopAt === null || Number(row.witnessAt) < stopAt)
+    ) {
+      const leds = row.leds as
+        Array<{ brightness: number; loadedAt: number | null; visible: boolean }> | undefined;
+      if (
+        row.witnessKind !== 'render-opportunity-task' ||
+        !leds ||
+        leds.length !== 3 ||
+        leds.some(
+          (led) =>
+            !led.visible ||
+            !Number.isFinite(led.loadedAt) ||
+            led.loadedAt > Number(row.witnessAt) ||
+            !Number.isFinite(led.brightness),
+        ) ||
+        leds.slice(1).some((led) => led.brightness !== 0)
+      ) {
+        fail('missing-native-witness');
+        return;
+      }
+      const led = leds[0]!;
+      const high = led.brightness > 0;
+      if (high && led.brightness !== onBrightness) fail('incorrect-native-brightness');
+      if (high !== priorNative) {
+        if (native.length < 9) native.push({ at: Number(row.witnessAt), high });
+        priorNative = high;
+      }
+    }
+  };
+  const envelope = (row: { kind: string; data: unknown }) => {
+    if (row.kind === 'browser') accept(row.data as Realtime682Record);
+    if (row.kind === 'start-action') startAt = Number((row.data as { at: number }).at);
+    if (row.kind === 'long-stop-action') stopAt = Number((row.data as { at: number }).at);
+    if (row.kind === 'long-stop-ui')
+      stopVisible = (row.data as { visible: boolean }).visible === true;
+    if (row.kind === 'ack-barrier') acknowledgement = row.data as typeof acknowledgement;
+  };
+  const state = () => ({
+    h0,
+    nativeFronts: Math.max(0, native.length - (native[0]?.high === false ? 1 : 0)),
+    retainedEdges: physical.length + native.length,
+    sequence,
+  });
+  const finish = () => {
+    if (h0 === null || startAt === null || h0 - startAt < 0 || h0 - startAt > 5000)
+      fail('startup-boundary');
+    if (stopAt === null || !stopTrusted || !stopVisible) fail('missing-native-Stop');
+    if (
+      !acknowledgement ||
+      acknowledgement.sent !== sequence ||
+      acknowledgement.acknowledged !== sequence ||
+      acknowledgement.dropped !== 0 ||
+      !Array.isArray(acknowledgement.errors) ||
+      acknowledgement.errors.length !== 0
+    )
+      fail('incomplete-final-ACK');
+    if (
+      lastHorizon < 6 * phaseMs * 1000 + 17 ||
+      (h0 !== null && Math.abs(lastHorizon / 1000 - (lastReadyAt - h0)) > 250)
+    )
+      fail('model-wall-clock');
+    const report = realtime682ShortCycleAudit(phaseMs, h0 ?? NaN, physical, native, 3);
+    for (const error of report.errors) fail(error);
+    return {
+      errors,
+      errorCount,
+      report,
+      readyCount,
+      sequence,
+      h0,
+      lastHorizon,
+      lastReadyAt,
+      stopAt,
+      stopTrusted,
+      stopVisible,
+      acknowledgement,
+    };
+  };
+  return { accept, envelope, state, finish };
+}
+
+async function readRealtime682LongAudit(path: string, phaseMs: number, source: string) {
+  const audit = createRealtime682LongAudit(phaseMs, source);
+  const lines = createInterface({
+    input: createReadStream(path, { encoding: 'utf8' }),
+    crlfDelay: Infinity,
+  });
+  for await (const line of lines) {
+    if (!line || line.length > 1_048_576)
+      throw new Error('Invalid or oversized original journal line');
+    audit.envelope(JSON.parse(line) as { kind: string; data: unknown });
+  }
+  return audit.finish();
+}
+
 // Test-only passive transport. A batch remains pending until Node has flushed
 // its contiguous originals. Closed pages cannot erase already acknowledged data.
-async function realtime682Journal(page: Page, path: string) {
+async function realtime682Journal(
+  page: Page,
+  path: string,
+  long?: { phaseMs: number; observe: (row: Realtime682Record) => void },
+) {
   const records: Realtime682Record[] = [];
   const errors: string[] = [];
   let acknowledged = 0;
@@ -180,7 +404,7 @@ async function realtime682Journal(page: Page, path: string) {
   retain('start', {
     wallModelLimitMs: 250,
     publicationLimitMs: 50,
-    acquisitionMs: 22_000,
+    acquisitionMs: long ? 6 * long.phaseMs + 1000 : 22_000,
     probeOverhead: 'UNKNOWN_NONZERO',
   });
   await page.exposeBinding('__realtime682Batch', (_, batch: Realtime682Record[]) => {
@@ -191,14 +415,27 @@ async function realtime682Journal(page: Page, path: string) {
         throw new Error('Baseline journal sequence gap');
       if (!retain('browser', row)) throw new Error('Baseline journal write failed; no ACK');
       records.push(row);
+      if (long) {
+        if (records.length > 2048) records.splice(0, records.length - 2048);
+        long.observe(row);
+      }
       acknowledged = row.sequence;
     }
     return acknowledged;
   });
-  await page.addInitScript(() => {
+  const recordLimit = long ? Math.ceil(((6 * long.phaseMs + 30_000) / 1000) * 500) + 1000 : 30_000;
+  if (long)
+    retain('long-journal-contract', {
+      recordLimit,
+      retainedNodeRecords: 2048,
+      pendingBrowserRecords: 10_000,
+      batchLimit: 256,
+    });
+  await page.addInitScript((recordLimit: number) => {
     type Row = { sequence: number; kind: string; at: number; [key: string]: unknown };
     const host = window as unknown as Window & {
       __realtime682Batch: (rows: Row[]) => Promise<number>;
+      __realtime682StopRecording: () => void;
       __realtime682ShortCapture: () => void;
       __realtime682Flush: () => Promise<{
         sent: number;
@@ -206,6 +443,10 @@ async function realtime682Journal(page: Page, path: string) {
         dropped: number;
         errors: string[];
       }>;
+    };
+    let accepting = true;
+    host.__realtime682StopRecording = () => {
+      accepting = false;
     };
     let sequence = 0,
       acknowledged = 0,
@@ -233,7 +474,8 @@ async function realtime682Journal(page: Page, path: string) {
       return flight;
     };
     const push = (kind: string, data: Record<string, unknown>) => {
-      if (pending.length >= 10_000 || sequence >= 30_000) {
+      if (!accepting) return;
+      if (pending.length >= 10_000 || sequence >= recordLimit) {
         dropped++;
         return;
       }
@@ -389,6 +631,11 @@ async function realtime682Journal(page: Page, path: string) {
                 stage: Boolean(target?.closest('.workbench-stage')),
               },
               value: monitor && target instanceof HTMLInputElement ? target.value : null,
+              controlLabel:
+                control?.getAttribute('aria-label') ??
+                control?.getAttribute('title') ??
+                control?.textContent?.trim() ??
+                null,
               target:
                 component === 'button-682'
                   ? component
@@ -500,7 +747,7 @@ async function realtime682Journal(page: Page, path: string) {
       requestAnimationFrame(paint);
     };
     requestAnimationFrame(paint);
-  });
+  }, recordLimit);
   const barrier = async () => {
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
@@ -536,7 +783,16 @@ async function realtime682Journal(page: Page, path: string) {
       if (timer) clearTimeout(timer);
     }
   };
-  return { records, retain, barrier, errors };
+  const finish = async () => {
+    if (!long) throw new Error('Only the prospective long journal may stop recording');
+    await page.evaluate(() =>
+      (
+        window as unknown as { __realtime682StopRecording: () => void }
+      ).__realtime682StopRecording(),
+    );
+    await barrier();
+  };
+  return { records, retain, barrier, finish, errors };
 }
 
 function realtime682Fixture(source: string, button: boolean): SchematicDocument {
@@ -634,16 +890,29 @@ test.describe('Issue 682 acknowledged native realtime baseline', () => {
     'short30',
     'short50',
     'short100',
+    'long1000',
+    'long5000',
+    'long10000',
+    'long20000',
   ] as const)
     test(`${mode}: strict real time and acknowledged native evidence`, async ({ page }, info) => {
       const shortMs = mode.startsWith('short') ? Number(mode.slice(5)) : null;
+      const longMs = mode.startsWith('long') ? Number(mode.slice(4)) : null;
+      const phaseMs = shortMs ?? longMs;
+      if (longMs !== null) test.setTimeout(6 * longMs + 30_000);
       const source =
-        shortMs !== null
-          ? `void setup(){pinMode(13,OUTPUT);}void loop(){digitalWrite(13,HIGH);delay(${shortMs});digitalWrite(13,LOW);delay(${shortMs});}`
+        phaseMs !== null
+          ? `void setup(){pinMode(13,OUTPUT);}void loop(){digitalWrite(13,HIGH);delay(${phaseMs});digitalWrite(13,LOW);delay(${phaseMs});}`
           : mode === 'delays'
             ? `void setup(){pinMode(13,OUTPUT);pinMode(12,OUTPUT);pinMode(11,OUTPUT);digitalWrite(12,LOW);digitalWrite(11,LOW);digitalWrite(13,HIGH);delay(30);digitalWrite(13,LOW);delay(1000);digitalWrite(13,HIGH);delay(20000);digitalWrite(13,LOW);}void loop(){delay(20000);}`
             : `void setup(){pinMode(13,OUTPUT);pinMode(12,OUTPUT);pinMode(11,OUTPUT);pinMode(2,INPUT_PULLUP);Serial.begin(9600);}void loop(){if(digitalRead(2)==LOW){digitalWrite(13,HIGH);}else{digitalWrite(13,LOW);}if(Serial.available()>0){int received=Serial.read();Serial.println(received);digitalWrite(11,received==65);}delay(30);}`;
-      const journal = await realtime682Journal(page, info.outputPath('realtime-682-native.jsonl'));
+      const longAudit = longMs === null ? null : createRealtime682LongAudit(longMs, source);
+      const journalPath = info.outputPath('realtime-682-native.jsonl');
+      const journal = await realtime682Journal(
+        page,
+        journalPath,
+        longMs === null ? undefined : { phaseMs: longMs, observe: longAudit!.accept },
+      );
       let primary: unknown,
         failed = false,
         held = false;
@@ -740,7 +1009,7 @@ test.describe('Issue 682 acknowledged native realtime baseline', () => {
             board.x + board.width <= stage.x + stage.width &&
             board.y + board.height <= stage.y + stage.height,
         ).toBe(true);
-        if (shortMs !== null) {
+        if (phaseMs !== null) {
           const intervals = await page.evaluate(async () => {
             const frames: number[] = [];
             for (let index = 0; index < 31; index++)
@@ -761,7 +1030,7 @@ test.describe('Issue 682 acknowledged native realtime baseline', () => {
           expect(p95, 'INFRASTRUCTURE: pre-Start RAF p95').toBeLessThanOrEqual(20);
         }
         await journal.barrier();
-        if (shortMs !== null)
+        if (phaseMs !== null)
           await page.evaluate(() =>
             (
               window as unknown as { __realtime682ShortCapture: () => void }
@@ -770,253 +1039,293 @@ test.describe('Issue 682 acknowledged native realtime baseline', () => {
         const startAt = await page.evaluate(() => performance.now());
         journal.retain('start-action', { source, at: startAt });
         await page.getByRole('button', { name: 'Начать моделирование', exact: true }).click();
-        if (shortMs !== null) {
-          await expect
-            .poll(
-              () =>
-                (responses().at(-1)?.advance as SimulationTimedAdvancePayload | undefined)
-                  ?.committedHorizonMicroseconds ?? 0,
-            )
-            .toBeGreaterThanOrEqual(shortMs * 22_000 + 1000);
-        } else if (mode === 'delays') {
-          await expect
-            .poll(
-              () =>
-                (responses().at(-1)?.advance as SimulationTimedAdvancePayload | undefined)
-                  ?.committedHorizonMicroseconds ?? 0,
-              { timeout: 22_000 },
-            )
-            .toBeGreaterThanOrEqual(21_031_000);
-        } else {
-          await expect.poll(() => latest('led0')).toBe(0);
-          const box = await part(page, 'button-682').boundingBox();
-          const buttonStage = await page.locator('.workbench-stage').boundingBox();
-          journal.retain('button-geometry', { box, stage: buttonStage });
-          expect(
-            box &&
-              buttonStage &&
-              Object.values(box).every(Number.isFinite) &&
-              box.x >= buttonStage.x &&
-              box.y >= buttonStage.y &&
-              box.x + box.width <= buttonStage.x + buttonStage.width &&
-              box.y + box.height <= buttonStage.y + buttonStage.height,
-          ).toBe(true);
-          const point = { x: box!.x + box!.width / 2, y: box!.y + box!.height / 2 };
-          const buttonHit = await page.evaluate(
-            ({ x, y }) =>
-              document
-                .elementFromPoint(x, y)
-                ?.closest('[data-component-id]')
-                ?.getAttribute('data-component-id'),
-            point,
+        if (longMs !== null && longAudit) {
+          // The new long budget measures actual wall time. A model horizon alone
+          // cannot end acquisition; seven following-RAF native witnesses must arrive.
+          await expect.poll(() => longAudit.state().h0, { timeout: 5000 }).not.toBeNull();
+          const h0 = longAudit.state().h0!;
+          const remaining = await page.evaluate(
+            ({ h0, phaseMs }) => h0 + 6 * phaseMs + 1000 - performance.now(),
+            { h0, phaseMs: longMs },
           );
-          journal.retain('button-hit', { point, componentId: buttonHit });
-          expect(buttonHit).toBe('button-682');
-          await page.mouse.move(point.x, point.y);
-          await page.mouse.down();
-          held = true;
-          await expect.poll(() => latest('led0')).toBeGreaterThan(0);
-          await expect.poll(() => nativeLevel(0)).toBe(1);
-          await page.mouse.up();
-          held = false;
-          await expect.poll(() => latest('led0')).toBe(0);
-          await expect.poll(() => nativeLevel(0)).toBe(0);
-          await page.getByRole('button', { name: 'Открыть редактор кода', exact: true }).click();
-          await page
-            .getByRole('textbox', { name: 'Сообщение в последовательный порт', exact: true })
-            .fill('A');
-          await page.getByRole('button', { name: 'Отпр.', exact: true }).click();
+          expect(remaining).toBeGreaterThan(0);
           await expect
-            .poll(() => {
-              const monitor = journal.records.findLast((row) => row.kind === 'monitor');
-              return monitor?.visible
-                ? (monitor.texts as string[]).map((value) => value.trim())
-                : null;
-            })
-            .toEqual(['65']);
-          await expect(page.locator('.arduino-serial-output > div')).toHaveText(['65']);
-          await expect.poll(() => latest('led2')).toBeGreaterThan(0);
-          await expect.poll(() => nativeLevel(2)).toBe(1);
-        }
-        await journal.barrier(); // All assertions below use acknowledged Node originals.
-        const ready = responses();
-        expect(ready.length).toBeGreaterThan(0);
-        const groups: Array<{ at: number; levels: string }> = [];
-        // Check every acknowledged record, but create a Playwright assertion step only
-        // on failure: thousands of successful steps otherwise consume the live test budget.
-        for (const row of journal.records.filter(
-          (row) => row.kind === 'response' && row.source === source,
-        )) {
-          const advance = row.advance as SimulationTimedAdvancePayload | null;
-          if (row.ok !== true) expect(row.ok).toBe(true);
-          if (!Object.is(row.generation, row.requestGeneration))
-            expect(row.generation).toBe(row.requestGeneration);
-          if (!Number.isFinite(row.computeMs)) expect(Number.isFinite(row.computeMs)).toBe(true);
-          if (advance?.executionStatus === 'fault')
-            expect(advance.executionStatus).not.toBe('fault');
-          if (advance?.executionStatus === 'yielded') {
-            if (advance.result !== null) expect(advance.result).toBeNull();
-            continue;
-          }
-          if (advance?.result?.solved !== true) expect(advance?.result?.solved).toBe(true);
-          if (advance?.result?.quality?.passed !== true)
-            expect(advance?.result?.quality?.passed).toBe(true);
-          if (!Array.isArray(advance?.diagnostics) || advance.diagnostics.length !== 0)
-            expect(advance?.diagnostics).toEqual([]);
-          if (
-            !Object.is(advance?.committedHorizonMicroseconds, advance?.requestedHorizonMicroseconds)
-          )
-            expect(advance?.committedHorizonMicroseconds).toBe(
-              advance?.requestedHorizonMicroseconds,
-            );
-          const levels = ['led0', 'led1', 'led2']
-            .map((id) =>
-              Number(
-                (advance!.result!.components.find((item) => item.componentId === id)?.brightness ??
-                  0) > 0,
-              ),
-            )
-            .join(',');
-          if (groups.at(-1)?.levels !== levels) groups.push({ at: row.at, levels });
-        }
-        const paint = journal.records.filter(
-          (row) => row.kind === 'paint' && Number(row.witnessAt) >= ready[0]!.at,
-        );
-        expect(paint.length).toBeGreaterThan(0);
-        for (const row of paint) {
-          const group = groups.findLast((group) => group.at <= Number(row.witnessAt));
-          if (!group || Number(row.witnessAt) - group.at <= 50) continue;
-          const leds = row.leds as Array<{
-            brightness: number;
-            loadedAt: number | null;
-            visible: boolean;
-          }>;
-          const loaded = leds.every((led) => led.visible && led.loadedAt !== null);
-          if (!loaded) expect(loaded).toBe(true);
-          const paintedLevels = leds.map((led) => Number(led.brightness > 0)).join(',');
-          if (paintedLevels !== group.levels) expect(paintedLevels).toBe(group.levels);
-        }
-        if (shortMs !== null) {
-          const h0 = ready[0]!;
-          expect(
-            journal.records.filter(
-              (row) =>
-                ['render-opportunity-missed', 'render-opportunity-late'].includes(row.kind) &&
-                row.at >= h0.at,
-            ),
-          ).toEqual([]);
-          expect(h0.at - startAt).toBeLessThanOrEqual(5000);
-          expect((h0.advance as SimulationTimedAdvancePayload).committedHorizonMicroseconds).toBe(
-            0,
-          );
-          const electrical: ShortCycleEdge[] = [];
-          let onBrightness: number | undefined;
-          for (const row of ready)
-            for (const sample of (
-              row.advance as SimulationTimedAdvancePayload
-            ).ledTemporal!.components.find((led) => led.componentId === 'led0')!.samples) {
-              if (sample.brightness > 0) onBrightness ??= Math.round(sample.brightness);
-              if (electrical.at(-1)?.high !== sample.brightness > 0)
-                electrical.push({ at: sample.atMicroseconds, high: sample.brightness > 0 });
-            }
-          const native: ShortCycleEdge[] = [];
-          let seenHigh = false;
-          for (const row of paint) {
-            const led = (
-              row.leds as Array<{ brightness: number; loadedAt: number | null; visible: boolean }>
-            )[0]!;
-            seenHigh ||= led.brightness > 0;
-            if (seenHigh) {
-              if (!led.visible) expect(led.visible).toBe(true);
-              if (led.loadedAt === null) expect(led.loadedAt).not.toBeNull();
-              if (!Number.isFinite(led.brightness))
-                expect(Number.isFinite(led.brightness)).toBe(true);
-              if (led.brightness > 0 && led.brightness !== onBrightness)
-                expect(led.brightness).toBe(onBrightness);
-            }
-            const high = led.brightness > 0;
-            if (native.at(-1)?.high !== high) native.push({ at: Number(row.witnessAt), high });
-          }
-          const report = realtime682ShortCycleAudit(shortMs, h0.at, electrical, native);
-          journal.retain('short-cycle-result', { shortMs, h0, report });
-          expect(report.shown[0]!.at - h0.at).toBeLessThanOrEqual(50);
-          expect(report.errors).toEqual([]);
-        } else if (mode === 'delays') {
-          const first = ready[0]!,
-            last = ready.at(-1)!;
-          const startUs = (first.advance as SimulationTimedAdvancePayload)
-            .committedHorizonMicroseconds;
-          const modelMs =
-            ((last.advance as SimulationTimedAdvancePayload).committedHorizonMicroseconds -
-              startUs) /
-            1000;
-          journal.retain('clock-result', { modelMs, wallMs: last.at - first.at, groups });
-          expect(startUs).toBe(0);
-          expect(modelMs).toBeGreaterThanOrEqual(21_031);
-          expect(Math.abs(modelMs - (last.at - first.at))).toBeLessThanOrEqual(250);
-          const edges: Array<{ at: number; high: boolean }> = [];
-          for (const row of ready)
-            for (const sample of (
-              row.advance as SimulationTimedAdvancePayload
-            ).ledTemporal!.components.find(
-              (led: { componentId: string }) => led.componentId === 'led0',
-            )!.samples)
-              if (edges.at(-1)?.high !== sample.brightness > 0)
-                edges.push({ at: sample.atMicroseconds, high: sample.brightness > 0 });
-          const high = edges.findIndex((edge) => edge.high);
-          const actual = edges.slice(high, high + 4);
-          expect(actual.map((edge) => edge.high)).toEqual([true, false, true, false]);
-          const visible: Array<{ at: number; high: boolean }> = [];
-          for (const row of paint) {
-            const high = (row.leds as Array<{ brightness: number }>)[0]!.brightness > 0;
-            if (visible.at(-1)?.high !== high) visible.push({ at: Number(row.witnessAt), high });
-          }
-          const shown = visible.slice(visible.findIndex((edge) => edge.high));
-          expect(shown.slice(0, 4).map((edge) => edge.high)).toEqual([true, false, true, false]);
-          for (const [index, ms] of [30, 1000, 20_000].entries()) {
-            expect(actual[index + 1]!.at - actual[index]!.at).toBe(ms * 1000 + 2);
-            expect(Math.abs(shown[index + 1]!.at - shown[index]!.at - ms)).toBeLessThanOrEqual(250);
-          }
-        } else {
-          expect(realtime682ButtonRelease(journal.records)).toBe(true);
-          expect(
-            journal.records.some(
-              (row) =>
-                row.kind === 'input' &&
-                row.type === 'submit' &&
-                row.target === 'serial' &&
-                row.trusted,
-            ),
-          ).toBe(true);
-          const beforeReset = responses().at(-1)!;
-          journal.retain('reset-boundary', {
-            generation: beforeReset.generation,
-            sequence: beforeReset.sequence,
+            .poll(() => longAudit.state().nativeFronts, { timeout: remaining })
+            .toBeGreaterThanOrEqual(7);
+          await journal.barrier();
+          journal.retain('long-stop-action', { at: await page.evaluate(() => performance.now()) });
+          await page.getByRole('button', { name: 'Остановить моделирование', exact: true }).click();
+          await expect(
+            page.getByRole('button', { name: 'Начать моделирование', exact: true }),
+          ).toBeVisible();
+          journal.retain('long-stop-ui', { visible: true });
+          await journal.finish();
+          const report = await readRealtime682LongAudit(journalPath, longMs, source);
+          journal.retain('long-cycle-result', {
+            longMs,
+            report,
+            retainedNodeRecords: journal.records.length,
           });
-          await page.getByTestId('arduino-reset-button').click();
-          await expect(page.locator('.arduino-serial-output > div')).toHaveCount(0);
-          await expect
-            .poll(() => {
-              const fresh = responses().find(
-                (row) =>
-                  row.sequence > beforeReset.sequence && row.generation !== beforeReset.generation,
+          expect(report.errors).toEqual([]);
+          expect(report.errorCount).toBe(0);
+          expect(journal.records.length).toBeLessThanOrEqual(2048);
+          expect(journal.errors).toEqual([]);
+          journal.retain('complete', { mode });
+        } else {
+          if (shortMs !== null) {
+            await expect
+              .poll(
+                () =>
+                  (responses().at(-1)?.advance as SimulationTimedAdvancePayload | undefined)
+                    ?.committedHorizonMicroseconds ?? 0,
+              )
+              .toBeGreaterThanOrEqual(shortMs * 22_000 + 1000);
+          } else if (mode === 'delays') {
+            await expect
+              .poll(
+                () =>
+                  (responses().at(-1)?.advance as SimulationTimedAdvancePayload | undefined)
+                    ?.committedHorizonMicroseconds ?? 0,
+                { timeout: 22_000 },
+              )
+              .toBeGreaterThanOrEqual(21_031_000);
+          } else {
+            await expect.poll(() => latest('led0')).toBe(0);
+            const box = await part(page, 'button-682').boundingBox();
+            const buttonStage = await page.locator('.workbench-stage').boundingBox();
+            journal.retain('button-geometry', { box, stage: buttonStage });
+            expect(
+              box &&
+                buttonStage &&
+                Object.values(box).every(Number.isFinite) &&
+                box.x >= buttonStage.x &&
+                box.y >= buttonStage.y &&
+                box.x + box.width <= buttonStage.x + buttonStage.width &&
+                box.y + box.height <= buttonStage.y + buttonStage.height,
+            ).toBe(true);
+            const point = { x: box!.x + box!.width / 2, y: box!.y + box!.height / 2 };
+            const buttonHit = await page.evaluate(
+              ({ x, y }) =>
+                document
+                  .elementFromPoint(x, y)
+                  ?.closest('[data-component-id]')
+                  ?.getAttribute('data-component-id'),
+              point,
+            );
+            journal.retain('button-hit', { point, componentId: buttonHit });
+            expect(buttonHit).toBe('button-682');
+            await page.mouse.move(point.x, point.y);
+            await page.mouse.down();
+            held = true;
+            await expect.poll(() => latest('led0')).toBeGreaterThan(0);
+            await expect.poll(() => nativeLevel(0)).toBe(1);
+            await page.mouse.up();
+            held = false;
+            await expect.poll(() => latest('led0')).toBe(0);
+            await expect.poll(() => nativeLevel(0)).toBe(0);
+            await page.getByRole('button', { name: 'Открыть редактор кода', exact: true }).click();
+            await page
+              .getByRole('textbox', { name: 'Сообщение в последовательный порт', exact: true })
+              .fill('A');
+            await page.getByRole('button', { name: 'Отпр.', exact: true }).click();
+            await expect
+              .poll(() => {
+                const monitor = journal.records.findLast((row) => row.kind === 'monitor');
+                return monitor?.visible
+                  ? (monitor.texts as string[]).map((value) => value.trim())
+                  : null;
+              })
+              .toEqual(['65']);
+            await expect(page.locator('.arduino-serial-output > div')).toHaveText(['65']);
+            await expect.poll(() => latest('led2')).toBeGreaterThan(0);
+            await expect.poll(() => nativeLevel(2)).toBe(1);
+          }
+          await journal.barrier(); // All assertions below use acknowledged Node originals.
+          const ready = responses();
+          expect(ready.length).toBeGreaterThan(0);
+          const groups: Array<{ at: number; levels: string }> = [];
+          // Check every acknowledged record, but create a Playwright assertion step only
+          // on failure: thousands of successful steps otherwise consume the live test budget.
+          for (const row of journal.records.filter(
+            (row) => row.kind === 'response' && row.source === source,
+          )) {
+            const advance = row.advance as SimulationTimedAdvancePayload | null;
+            if (row.ok !== true) expect(row.ok).toBe(true);
+            if (!Object.is(row.generation, row.requestGeneration))
+              expect(row.generation).toBe(row.requestGeneration);
+            if (!Number.isFinite(row.computeMs)) expect(Number.isFinite(row.computeMs)).toBe(true);
+            if (advance?.executionStatus === 'fault')
+              expect(advance.executionStatus).not.toBe('fault');
+            if (advance?.executionStatus === 'yielded') {
+              if (advance.result !== null) expect(advance.result).toBeNull();
+              continue;
+            }
+            if (advance?.result?.solved !== true) expect(advance?.result?.solved).toBe(true);
+            if (advance?.result?.quality?.passed !== true)
+              expect(advance?.result?.quality?.passed).toBe(true);
+            if (!Array.isArray(advance?.diagnostics) || advance.diagnostics.length !== 0)
+              expect(advance?.diagnostics).toEqual([]);
+            if (
+              !Object.is(
+                advance?.committedHorizonMicroseconds,
+                advance?.requestedHorizonMicroseconds,
+              )
+            )
+              expect(advance?.committedHorizonMicroseconds).toBe(
+                advance?.requestedHorizonMicroseconds,
               );
-              const advance = fresh?.advance as SimulationTimedAdvancePayload | undefined;
-              return fresh &&
-                fresh.generation === fresh.requestGeneration &&
-                advance?.committedHorizonMicroseconds === 0
-                ? advance.result?.components.find((row) => row.componentId === 'led2')?.brightness
-                : null;
-            })
-            .toBe(0);
-          await expect.poll(() => nativeLevel(2)).toBe(0);
+            const levels = ['led0', 'led1', 'led2']
+              .map((id) =>
+                Number(
+                  (advance!.result!.components.find((item) => item.componentId === id)
+                    ?.brightness ?? 0) > 0,
+                ),
+              )
+              .join(',');
+            if (groups.at(-1)?.levels !== levels) groups.push({ at: row.at, levels });
+          }
+          const paint = journal.records.filter(
+            (row) => row.kind === 'paint' && Number(row.witnessAt) >= ready[0]!.at,
+          );
+          expect(paint.length).toBeGreaterThan(0);
+          for (const row of paint) {
+            const group = groups.findLast((group) => group.at <= Number(row.witnessAt));
+            if (!group || Number(row.witnessAt) - group.at <= 50) continue;
+            const leds = row.leds as Array<{
+              brightness: number;
+              loadedAt: number | null;
+              visible: boolean;
+            }>;
+            const loaded = leds.every((led) => led.visible && led.loadedAt !== null);
+            if (!loaded) expect(loaded).toBe(true);
+            const paintedLevels = leds.map((led) => Number(led.brightness > 0)).join(',');
+            if (paintedLevels !== group.levels) expect(paintedLevels).toBe(group.levels);
+          }
+          if (shortMs !== null) {
+            const h0 = ready[0]!;
+            expect(
+              journal.records.filter(
+                (row) =>
+                  ['render-opportunity-missed', 'render-opportunity-late'].includes(row.kind) &&
+                  row.at >= h0.at,
+              ),
+            ).toEqual([]);
+            expect(h0.at - startAt).toBeLessThanOrEqual(5000);
+            expect((h0.advance as SimulationTimedAdvancePayload).committedHorizonMicroseconds).toBe(
+              0,
+            );
+            const electrical: ShortCycleEdge[] = [];
+            let onBrightness: number | undefined;
+            for (const row of ready)
+              for (const sample of (
+                row.advance as SimulationTimedAdvancePayload
+              ).ledTemporal!.components.find((led) => led.componentId === 'led0')!.samples) {
+                if (sample.brightness > 0) onBrightness ??= Math.round(sample.brightness);
+                if (electrical.at(-1)?.high !== sample.brightness > 0)
+                  electrical.push({ at: sample.atMicroseconds, high: sample.brightness > 0 });
+              }
+            const native: ShortCycleEdge[] = [];
+            let seenHigh = false;
+            for (const row of paint) {
+              const led = (
+                row.leds as Array<{ brightness: number; loadedAt: number | null; visible: boolean }>
+              )[0]!;
+              seenHigh ||= led.brightness > 0;
+              if (seenHigh) {
+                if (!led.visible) expect(led.visible).toBe(true);
+                if (led.loadedAt === null) expect(led.loadedAt).not.toBeNull();
+                if (!Number.isFinite(led.brightness))
+                  expect(Number.isFinite(led.brightness)).toBe(true);
+                if (led.brightness > 0 && led.brightness !== onBrightness)
+                  expect(led.brightness).toBe(onBrightness);
+              }
+              const high = led.brightness > 0;
+              if (native.at(-1)?.high !== high) native.push({ at: Number(row.witnessAt), high });
+            }
+            const report = realtime682ShortCycleAudit(shortMs, h0.at, electrical, native);
+            journal.retain('short-cycle-result', { shortMs, h0, report });
+            expect(report.shown[0]!.at - h0.at).toBeLessThanOrEqual(50);
+            expect(report.errors).toEqual([]);
+          } else if (mode === 'delays') {
+            const first = ready[0]!,
+              last = ready.at(-1)!;
+            const startUs = (first.advance as SimulationTimedAdvancePayload)
+              .committedHorizonMicroseconds;
+            const modelMs =
+              ((last.advance as SimulationTimedAdvancePayload).committedHorizonMicroseconds -
+                startUs) /
+              1000;
+            journal.retain('clock-result', { modelMs, wallMs: last.at - first.at, groups });
+            expect(startUs).toBe(0);
+            expect(modelMs).toBeGreaterThanOrEqual(21_031);
+            expect(Math.abs(modelMs - (last.at - first.at))).toBeLessThanOrEqual(250);
+            const edges: Array<{ at: number; high: boolean }> = [];
+            for (const row of ready)
+              for (const sample of (
+                row.advance as SimulationTimedAdvancePayload
+              ).ledTemporal!.components.find(
+                (led: { componentId: string }) => led.componentId === 'led0',
+              )!.samples)
+                if (edges.at(-1)?.high !== sample.brightness > 0)
+                  edges.push({ at: sample.atMicroseconds, high: sample.brightness > 0 });
+            const high = edges.findIndex((edge) => edge.high);
+            const actual = edges.slice(high, high + 4);
+            expect(actual.map((edge) => edge.high)).toEqual([true, false, true, false]);
+            const visible: Array<{ at: number; high: boolean }> = [];
+            for (const row of paint) {
+              const high = (row.leds as Array<{ brightness: number }>)[0]!.brightness > 0;
+              if (visible.at(-1)?.high !== high) visible.push({ at: Number(row.witnessAt), high });
+            }
+            const shown = visible.slice(visible.findIndex((edge) => edge.high));
+            expect(shown.slice(0, 4).map((edge) => edge.high)).toEqual([true, false, true, false]);
+            for (const [index, ms] of [30, 1000, 20_000].entries()) {
+              expect(actual[index + 1]!.at - actual[index]!.at).toBe(ms * 1000 + 2);
+              expect(Math.abs(shown[index + 1]!.at - shown[index]!.at - ms)).toBeLessThanOrEqual(
+                250,
+              );
+            }
+          } else {
+            expect(realtime682ButtonRelease(journal.records)).toBe(true);
+            expect(
+              journal.records.some(
+                (row) =>
+                  row.kind === 'input' &&
+                  row.type === 'submit' &&
+                  row.target === 'serial' &&
+                  row.trusted,
+              ),
+            ).toBe(true);
+            const beforeReset = responses().at(-1)!;
+            journal.retain('reset-boundary', {
+              generation: beforeReset.generation,
+              sequence: beforeReset.sequence,
+            });
+            await page.getByTestId('arduino-reset-button').click();
+            await expect(page.locator('.arduino-serial-output > div')).toHaveCount(0);
+            await expect
+              .poll(() => {
+                const fresh = responses().find(
+                  (row) =>
+                    row.sequence > beforeReset.sequence &&
+                    row.generation !== beforeReset.generation,
+                );
+                const advance = fresh?.advance as SimulationTimedAdvancePayload | undefined;
+                return fresh &&
+                  fresh.generation === fresh.requestGeneration &&
+                  advance?.committedHorizonMicroseconds === 0
+                  ? advance.result?.components.find((row) => row.componentId === 'led2')?.brightness
+                  : null;
+              })
+              .toBe(0);
+            await expect.poll(() => nativeLevel(2)).toBe(0);
+          }
+          await page.getByRole('button', { name: 'Остановить моделирование', exact: true }).click();
+          await expect(
+            page.getByRole('button', { name: 'Начать моделирование', exact: true }),
+          ).toBeVisible();
+          await journal.barrier();
+          journal.retain('complete', { mode });
         }
-        await page.getByRole('button', { name: 'Остановить моделирование', exact: true }).click();
-        await expect(
-          page.getByRole('button', { name: 'Начать моделирование', exact: true }),
-        ).toBeVisible();
-        await journal.barrier();
-        journal.retain('complete', { mode });
       } catch (error) {
         failed = true;
         primary = error;
@@ -1024,7 +1333,8 @@ test.describe('Issue 682 acknowledged native realtime baseline', () => {
       } finally {
         journal.retain('node-final', {
           failed,
-          acknowledgedRecords: journal.records.length,
+          retainedNodeRecords: journal.records.length,
+          acknowledgedRecords: longAudit?.state().sequence ?? journal.records.length,
           errors: journal.errors,
           completion: failed ? 'FAIL_OR_INCOMPLETE' : 'COMPLETE',
         });
