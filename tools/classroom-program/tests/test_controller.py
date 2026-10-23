@@ -112,6 +112,12 @@ class ControllerTest(unittest.TestCase):
     self.assertIn('id="q"',s)
     self.assertIn('const program=',s)
     self.assertNotIn('/*__PROGRAM_DATA__*/',s)
+    if shutil.which('node'):
+      import re
+      js=re.search(r'<script>([\s\S]+)</script>',s).group(1)
+      checker=self.root/'board.js';checker.write_text(js)
+      validation=subprocess.run(['node','--check',str(checker)],capture_output=True,text=True)
+      self.assertEqual(validation.returncode,0,validation.stderr)
 
   def test_cli_rejects_unverified_preflight(self):
     x=subprocess.run([sys.executable,str(ROOT/'classroomctl.py'),'--data-dir',str(self.root),'start','CTRL-00','--base-sha','a'*40,'--actor','coder','--preflight',str(self.root/'failure.txt')],capture_output=True,text=True)
