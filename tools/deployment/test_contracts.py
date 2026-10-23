@@ -473,6 +473,7 @@ class UpdateBoundaryTests(unittest.TestCase):
                     patch.object(asa_manager, "assert_ci"), patch.object(asa_manager, "fetch_images"), \
                     patch.object(asa_manager, "selected_source"), patch.object(asa_manager, "Installation", return_value=install), \
                     patch.object(asa_manager, "apply_release_environment"), patch.object(asa_manager, "validate_resolved_images"), \
+                    patch.object(asa_manager, "check_resources"), \
                     patch.object(asa_manager, "export_backup", side_effect=Blocked("BACKUP", "disk full", "free space")) as backup, \
                     self.assertRaises(Blocked):
                 asa_manager.update(install)
@@ -488,6 +489,27 @@ class UpdateBoundaryTests(unittest.TestCase):
             asa_manager.update(install, scheduled=True)
             doctor.assert_not_called()
             discover.assert_not_called()
+
+    def test_selected_release_budget_blocks_before_backup_or_service_stop(self):
+        from unittest.mock import MagicMock
+        with tempfile.TemporaryDirectory() as root:
+            install = MagicMock(root=Path(root), state=Path(root), settings={}, profile='dev')
+            install.readiness.return_value = {'revision': release()['revision'], 'schema': release()['schema']}
+            install.env = {'ASA_UPDATE_ENTRY_ORIGIN': 'http://127.0.0.1:4610',
+                           'ASA_BLOCKS_PARENT_ORIGIN': 'http://127.0.0.1:4610',
+                           'ASA_BLOCKS_RUNTIME_ORIGIN': 'http://127.0.0.1:4610'}
+            with patch.object(asa_manager, 'doctor'), patch.object(asa_manager, 'clean_checkout'), \
+                    patch.object(asa_manager, 'discover_release', return_value=release()), \
+                    patch.object(asa_manager, 'prepare_collector', return_value={'readerGroupChanged': True}), \
+                    patch.object(asa_manager, 'assert_ci'), patch.object(asa_manager, 'fetch_images'), \
+                    patch.object(asa_manager, 'selected_source'), patch.object(asa_manager, 'Installation', return_value=install), \
+                    patch.object(asa_manager, 'apply_release_environment'), patch.object(asa_manager, 'validate_resolved_images'), \
+                    patch.object(asa_manager, 'check_resources', side_effect=Blocked('RESOURCE_CONNECTIONS', 'too many', 'reduce pool')), \
+                    patch.object(asa_manager, 'export_backup') as backup, self.assertRaises(Blocked) as failure:
+                asa_manager.update(install)
+            self.assertEqual(failure.exception.code, 'RESOURCE_CONNECTIONS')
+            backup.assert_not_called()
+            self.assertFalse(any(call.args[0] in ('up', 'stop') for call in install.compose.call_args_list))
 
     def test_red_ci_never_creates_backup_or_switches_services(self):
         from unittest.mock import MagicMock
@@ -536,7 +558,7 @@ class ProxyProvenanceDiagnosticTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             install = SimpleNamespace(root=Path(directory), env={}, project='synthetic', profile='dev', identity=lambda **_: {})
             output = io.StringIO()
-            with patch('asa_manager.run'), patch('asa_manager.collector_status', return_value={'state': 'unavailable', 'detail': 'test'}), patch('sys.stdout', output):
+            with patch('asa_manager.run'), patch('asa_manager.check_resources'), patch('asa_manager.collector_status', return_value={'state': 'unavailable', 'detail': 'test'}), patch('sys.stdout', output):
                 asa_manager.doctor(install, existing=False)
             self.assertIn('CLIENT_PROVENANCE', output.getvalue())
             self.assertIn('"verifiedVisitorIp": false', output.getvalue())

@@ -352,10 +352,14 @@ async function observeRealClock(page: Page, path: string) {
             // proof that React committed this particular Worker response.
             requestAnimationFrame(() =>
               requestAnimationFrame(() => {
+                const sampledFrame = latestReady;
                 if (
                   !active ||
                   workerId !== id ||
-                  latestReady !== frame ||
+                  !sampledFrame ||
+                  sampledFrame.workerId !== id ||
+                  sampledFrame.generationId !== frame.generationId ||
+                  sampledFrame.projectSessionId !== frame.projectSessionId ||
                   binding?.generationId !== frame.generationId ||
                   binding.projectSessionId !== frame.projectSessionId
                 )
@@ -367,7 +371,7 @@ async function observeRealClock(page: Page, path: string) {
                   probe.emit('settledSamples', {
                     text,
                     publishedAt: performance.now(),
-                    frame,
+                    frame: sampledFrame,
                     startup: false,
                   });
               }),

@@ -5,6 +5,20 @@
 Нужны Git, Python 3.11+ и работающий Docker с Compose и Linux containers (amd64).
 Node.js и pnpm нужны разработчику, но не серверу с готовыми образами.
 
+`doctor` также печатает `RESOURCE_BUDGET`: доступные Docker CPU/RAM, действующие
+лимиты контейнеров, выбранные/работающие параметры API и бюджет соединений
+PostgreSQL. В Docker Desktop это память Linux VM, а не вся RAM компьютера.
+Нехватка соединений блокирует update до остановки сервисов; отсутствие БД на
+новой установке выводится как неизвестный бюджет. Диагностика ничего не меняет.
+Пять параметров `ASA_DB_POOL_MAX`, `ASA_DB_CONNECTION_TIMEOUT_MS`,
+`ASA_DB_IDLE_TIMEOUT_MS`, `ASA_DB_STATEMENT_TIMEOUT_MS`, `ASA_DB_QUERY_TIMEOUT_MS`
+задаются в существующей частной `.env`, проходят строгую проверку и передаются
+в API при разрешённом обновлении. Defaults остаются 10/5000/30000/15000/15000.
+`ASA_DB_OPERATOR_CONNECTION_RESERVE=8` резервирует обычные слоты для сборщика,
+обслуживания и других клиентов; увеличьте его под внешние подключения. Не
+увеличивайте pool или `max_connections` вслепую. Полная формула и ограничения:
+[Connection pool](../architecture/CAPACITY_AND_SLO.md#102-connection-pool).
+
 Поддерживаемые команды install/update и source `asa-lab up` автоматически
 согласуют host collector; `doctor/check` ничего не устанавливают. Точная матрица
 Windows/Linux, права, автозапуск и признаки неполного сбора описаны в
