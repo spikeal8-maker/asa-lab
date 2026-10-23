@@ -1,5 +1,10 @@
 # ASA Lab — исполнимый контролёр программы «Классы»
 
+> **Основной режим — GitHub, а не ZIP/Windows.** [Программа #715](https://github.com/spikeal8-maker/asa-lab/issues/715) → [текущий ограниченный Issue #716](https://github.com/spikeal8-maker/asa-lab/issues/716) → выполнение ботом → exact-SHA CI/review → receipt в GitHub → следующая карточка. После отдельного review и интеграции [PR #712](https://github.com/spikeal8-maker/asa-lab/pull/712) в `main` появится [GitHub Actions → Classroom Program — Next GitHub Issue](https://github.com/spikeal8-maker/asa-lab/actions/workflows/classroom-program-next-issue.yml): действие `inspect` проверяет очередь, `create` создаёт ровно один следующий Issue при выполненных зависимостях. Действие **не запускает программирование** и **не меняет main**. До merge Actions workflow недоступен в default branch.
+
+Полный порядок: [GITHUB_FIRST.md](GITHUB_FIRST.md). Локальный CLI и HTML-доска ниже — вспомогательные инструменты и не являются канонической очередью поручений.
+
+
 **Рабочая версия 1.0 · 24.10.2026.** Не ещё одно ТЗ и не самостоятельный бот, который правит школьный сервер. Это исполнимый **реестр задач и доказательств**, который блокирует некорректный порядок и генерирует ограниченные поручения другим ботам. Код не использует внешние пакеты и не требует интернета для просмотра/проверки зависимостей.
 
 ## Состав
