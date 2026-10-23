@@ -45,11 +45,20 @@ for (const width of [1440, 390, 320]) {
   }) => {
     const db = e2eAdminPool();
     const contexts = await Promise.all(
-      [width, 1440, 1440].map((w) => browser.newContext({ viewport: { width: w, height: 1000 } })),
+      // Admin and public viewer use the tested viewport; the author remains on desktop.
+      [width, 1440, width].map((w) => browser.newContext({ viewport: { width: w, height: 1000 } })),
     );
     const [moderator, author, guest] = await Promise.all(
       contexts.map((context) => context.newPage()),
     );
+    const verifyPublicViewport = async () => {
+      const actual = await guest.evaluate(() => ({
+        viewport: window.innerWidth,
+        document: document.documentElement.scrollWidth,
+      }));
+      expect(actual.viewport).toBe(width);
+      expect(actual.document).toBeLessThanOrEqual(width);
+    };
     const failures = [moderator, author, guest].map((page) =>
       collectBrowserFailures(page, {
         allowAnonymousSessionProbe: true,
@@ -376,6 +385,7 @@ for (const width of [1440, 390, 320]) {
         has: guest.getByRole('heading', { name: title, exact: true }),
       });
       await expect(card.getByTestId('public-project-featured')).toContainText('Выбор редакции');
+      await verifyPublicViewport();
       await guest.screenshot({
         path: `${EVIDENCE}/${width}-featured-catalog.png`,
         fullPage: true,
@@ -383,6 +393,7 @@ for (const width of [1440, 390, 320]) {
       await guest.goto(`/#/public-projects/${publicationId}`);
       await guest.reload();
       await expect(guest.getByTestId('public-project-featured')).toContainText('Выбор редакции');
+      await verifyPublicViewport();
       await guest.screenshot({
         path: `${EVIDENCE}/${width}-featured-detail.png`,
         fullPage: true,
@@ -452,10 +463,12 @@ for (const width of [1440, 390, 320]) {
         has: guest.getByRole('heading', { name: title, exact: true }),
       });
       await expect(pinnedCard.getByTestId('public-project-pinned')).toContainText('Закреплено');
+      await verifyPublicViewport();
       await guest.screenshot({ path: `${EVIDENCE}/${width}-pinned-catalog.png`, fullPage: true });
       await guest.goto(`/#/public-projects/${publicationId}`);
       await guest.reload();
       await expect(guest.getByTestId('public-project-pinned')).toContainText('Закреплено');
+      await verifyPublicViewport();
       await guest.screenshot({ path: `${EVIDENCE}/${width}-pinned-detail.png`, fullPage: true });
       const unpinResponse = moderator.waitForResponse(
         (response) =>
