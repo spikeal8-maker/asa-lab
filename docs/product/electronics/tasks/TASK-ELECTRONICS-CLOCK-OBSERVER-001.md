@@ -80,3 +80,28 @@ fail the test honestly after recording the primary error. Preserve request/frame
 identity, generation/project/protocol/horizon attribution, every readiness and
 integer-floor assertion, all four widths, Stop/Reset, Save/CAS/cookies and original
 deadlines. No Worker/product-clock change or request/frame dropping is selected.
+
+
+## 24 October: explicit targeted UI acceptance
+
+The owner explicitly decided: «API оставить отдельно; принять UI по целевым
+проверкам». This prospectively supersedes the prior all-six/full-General issue557
+closure dependency only. It does not change the six-case runner, any functional
+assertion or global release requirements. Execution status remains in current.yaml.
+
+The [dated actual closeout](../evidence/ui679-557-owner-targeted-acceptance-20261024.md)
+records exact07 source integrated in mainc29eabd4, NEW independent actual review
+with6424 checks, and all four clock widths complete in first, restart and
+cookies-only-reopen phases. All original attribution, readiness, integer display,
+native Stop/Reset, full document, Save/CAS and fresh cookies reopen requirements
+remain. Mobile hidden clock width0 does not establish visible-clock appearance;
+568px was not tested. Accepted541 physics/Worker/product code is unchanged.
+
+Issue557 may be technically closed independently of the remaining679 touch case.
+Programme completion still requires all six existing cases. General remains FAIL
+because two foreign telemetry API tests return503 after PostgreSQL42501; Governance
+and Code passed. API repair remains a separate programme. This owner exception
+removes only the UI technical-closure barrier, never relabels General or the
+five-of-six scoped workflow PASS, and clears no global API/release blocker.
+Physical owner acceptance, release, deployment and school actions remain pending.
+No repeated clock source rewrite or CI run is selected by this closeout.
