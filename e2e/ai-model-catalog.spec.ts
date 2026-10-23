@@ -87,6 +87,52 @@ async function adminFixture(page: Page, initial = aiAdminFixture()) {
         },
       });
     }
+    if (path === '/api/admin/v1/ai/comfyui/status') {
+      return route.fulfill({
+        json: {
+          connected: true,
+          baseUrl: 'http://host.docker.internal:8188',
+          version: '0.42.1',
+          diffusionModels: ['flux-2-klein-4b-fp8.safetensors'],
+          textEncoders: ['qwen_3_4b_fp4_flux2.safetensors'],
+          vaeModels: ['flux2-vae.safetensors'],
+          fluxKlein4bFound: true,
+          checkedAt: NOW,
+        },
+      });
+    }
+    if (path === '/api/admin/v1/ai/ollama/apply') {
+      const input = request.postDataJSON() as Record<string, unknown>;
+      if (input['revision'] !== ollama.revision) {
+        return route.fulfill({
+          status: 409,
+          json: { error: { code: 'ai_ollama_config_changed', message: 'Настройки изменились.' } },
+        });
+      }
+      const exists = ['ornith:9b', 'gemma4:12b'].includes(String(input['model']));
+      if (input['enabled'] && !exists) {
+        return route.fulfill({
+          status: 503,
+          json: { error: { code: 'ai_ollama_model_missing', message: 'Модель не установлена.' } },
+        });
+      }
+      ollamaWrites.push(input);
+      ollama = {
+        enabled: input['enabled'] === true,
+        baseUrl: String(input['baseUrl']),
+        model: String(input['model']),
+        revision: ollama.revision + 1,
+        updatedAt: NOW,
+      };
+      if (ollama.enabled) ollamaTests.push({ revision: ollama.revision });
+      return route.fulfill({
+        json: {
+          config: ollama,
+          verified: ollama.enabled,
+          test: ollama.enabled ? { model: ollama.model, elapsedMs: 6560, testedAt: NOW } : null,
+        },
+      });
+    }
     if (path === '/api/admin/v1/ai/ollama/test') {
       const input = request.postDataJSON() as Record<string, unknown>;
       ollamaTests.push(input);
@@ -208,10 +254,14 @@ async function adminFixture(page: Page, initial = aiAdminFixture()) {
   };
 }
 
-async function openAdmin(page: Page) {
-  await page.goto('/#/admin/ai');
-  await expect(page.getByRole('heading', { name: 'ИИ и модели' })).toBeVisible();
-  await expect(page.getByLabel('Провайдер', { exact: true })).toBeVisible();
+async function openAdmin(page: Page, section: 'ollama' | 'cloud' = 'cloud') {
+  await page.goto('/#/admin/ai', { waitUntil: 'domcontentloaded' });
+  await expect(page.getByRole('tab', { name: 'Ollama' })).toBeVisible();
+  if (section === 'cloud') {
+    await page.getByRole('tab', { name: 'Облачные API' }).click();
+    await expect(page.getByRole('heading', { name: 'ИИ и модели' })).toBeVisible();
+    await expect(page.getByLabel('Провайдер', { exact: true })).toBeVisible();
+  }
   await expect(page.locator('.portal-global-error')).toHaveCount(0);
 }
 
@@ -459,31 +509,21 @@ for (const width of [1440, 390]) {
   }) => {
     await page.setViewportSize({ width, height: 900 });
     const fake = await adminFixture(page);
-    await openAdmin(page);
-
-    await expect(page.getByRole('tab', { name: 'Ключи' })).toBeVisible();
-    await page.getByRole('tab', { name: 'Ollama' }).click();
+    await openAdmin(page, 'ollama');
+    await expect(page.getByRole('tab', { name: 'Ollama' })).toBeVisible();
     const endpoint = page.getByLabel('Адрес Ollama');
     await expect(endpoint).toHaveValue('http://127.0.0.1:11434');
-    await expect(
-      page.getByRole('button', { name: 'Проверить реальный ответ модели' }),
-    ).toBeEnabled();
-
+    await expect(page.getByRole('button', { name: 'Сохранить выключенным' })).toBeEnabled();
     await endpoint.fill('http://192.168.1.20:11434');
-    await expect(
-      page.getByRole('button', { name: 'Проверить реальный ответ модели' }),
-    ).toBeDisabled();
-    await page.getByRole('button', { name: 'Найти установленные модели' }).click();
-    await expect(page.getByText('Ollama доступна. Найдено моделей: 2')).toBeVisible();
-    await page.getByLabel('Модель Ollama').fill('ornith:9b');
-    await page.getByLabel('Разрешить ответы через Ollama пользователям ASA Lab').check();
+    await expect(page.getByText('Доступно · 2 модели')).toBeVisible();
+    await page
+      .getByRole('group', { name: 'Установленные модели Ollama' })
+      .getByRole('button', { name: /ornith:9b/ })
+      .click();
+    await page.getByRole('checkbox', { name: 'Выключено' }).check();
 
-    await page.getByRole('button', { name: 'Сохранить настройки' }).click();
-    await expect(page.getByText('Настройки Ollama сохранены.', { exact: false })).toBeVisible();
-    await page.getByRole('button', { name: 'Проверить реальный ответ модели' }).click();
-    await expect(
-      page.getByText('Модель ornith:9b ответила за 6.6 с', { exact: false }),
-    ).toBeVisible();
+    await page.getByRole('button', { name: 'Сохранить и проверить' }).click();
+    await expect(page.getByText('Сохранено · ornith:9b · 6.6 с')).toBeVisible();
 
     // Preserve screenshots of the real rendered controls in the GitHub browser artifact.
     await page.screenshot({
@@ -492,20 +532,21 @@ for (const width of [1440, 390]) {
     });
 
     await page.getByRole('tab', { name: 'ComfyUI' }).click();
-    await expect(
-      page.getByRole('heading', { name: 'ComfyUI — генерация изображений' }),
-    ).toBeVisible();
-    await expect(page.getByText('Подключение ComfyUI и управление GPU пока не')).toBeVisible();
-    await page.getByRole('tab', { name: 'Ключи' }).click();
+    await expect(page.getByRole('heading', { name: 'ComfyUI' })).toBeVisible();
+    await expect(page.getByText('FLUX.2 Klein 4B')).toBeVisible();
+    await expect(page.getByText('Граф генерации ещё не проверен')).toBeVisible();
+    await page.getByRole('tab', { name: 'Облачные API' }).click();
     await expect(page.getByLabel('Провайдер', { exact: true })).toBeVisible();
     await page.getByRole('tab', { name: 'Ollama' }).click();
     await expect(page.getByLabel('Адрес Ollama')).toHaveValue('http://192.168.1.20:11434');
-    await expect(page.getByLabel('Модель Ollama')).toHaveValue('ornith:9b');
     await expect(
-      page.getByLabel('Разрешить ответы через Ollama пользователям ASA Lab'),
-    ).toBeChecked();
+      page
+        .getByRole('group', { name: 'Установленные модели Ollama' })
+        .getByRole('button', { name: /ornith:9b/ }),
+    ).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByRole('checkbox', { name: 'Включено' })).toBeChecked();
 
-    expect(fake.ollamaDiscoveries).toEqual([{ baseUrl: 'http://192.168.1.20:11434' }]);
+    expect(fake.ollamaDiscoveries).toContainEqual({ baseUrl: 'http://192.168.1.20:11434' });
     expect(fake.ollamaWrites).toEqual([
       {
         enabled: true,

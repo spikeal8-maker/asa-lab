@@ -1,36 +1,35 @@
-/* Native ASA admin sections: scoped controls and compact responsive tabs. */
+/* Compact AI administration: providers, concise settings, one apply action. */
 .asa-ai-admin-workspace {
-  min-width: 0;
   display: grid;
-  gap: 16px;
+  gap: 12px;
+  min-width: 0;
 }
 .asa-ai-admin-tabs {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  padding: 4px;
+  gap: 4px;
   border-bottom: 1px solid var(--border, #dce5ec);
+  padding: 0 0 7px;
 }
 .asa-ai-admin-tabs > button {
   border: 1px solid transparent;
-  border-radius: 9px 9px 0 0;
-  padding: 11px 18px;
+  border-radius: 8px;
+  min-height: 38px;
+  padding: 7px 14px;
   background: transparent;
   color: var(--ink-muted, #456172);
   font: inherit;
-  font-weight: 700;
+  font-size: 13px;
+  font-weight: 650;
   cursor: pointer;
-  min-height: 44px;
 }
 .asa-ai-admin-tabs > button.active {
-  border-color: var(--border, #dce5ec);
-  border-bottom-color: transparent;
   background: var(--surface, #fff);
+  border-color: var(--border, #dce5ec);
   color: var(--color-brand, #0877b3);
 }
-.asa-ai-admin-tabs > button:hover {
-  background: #f0f7fb;
+.asa-ai-admin-tabs > button:hover:not(.active) {
+  background: #ebf1f6;
 }
 .asa-ai-admin-tabs > button:focus-visible,
 .asa-ai-ollama button:focus-visible,
@@ -38,86 +37,328 @@
   outline: 2px solid var(--color-brand, #0877b3);
   outline-offset: 2px;
 }
-.asa-ai-ollama {
+.asa-ai-ollama,
+.asa-ai-comfy {
   display: grid;
-  gap: 16px;
+  gap: 14px;
   min-width: 0;
+  padding: 20px 24px;
   border: 1px solid var(--border, #dce5ec);
   border-radius: 12px;
-  padding: clamp(16px, 2vw, 26px);
   background: var(--surface, #fff);
-}
-.asa-ai-ollama .admin-section-heading {
-  margin: 0;
 }
 .asa-ai-ollama-form {
   display: grid;
-  gap: 20px;
-  max-width: 780px;
+  gap: 15px;
+  min-width: 0;
+}
+.asa-ai-provider-top {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border, #dce5ec);
+}
+.asa-ai-provider-identity {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: baseline;
+  min-width: 0;
+}
+.asa-ai-provider-identity h2 {
+  margin: 0;
+  font-size: 19px;
+  line-height: 1.3;
+}
+.asa-ai-provider-subtitle {
+  font-size: 12px;
+  color: var(--ink-muted, #607684);
+}
+.asa-ai-ollama-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.asa-ai-ollama-toggle input {
+  width: 17px;
+  height: 17px;
+  margin: 0;
+  flex-shrink: 0;
+}
+.asa-ai-ollama-settings {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) auto;
+  align-items: end;
+  gap: 12px;
 }
 .asa-ai-ollama-field {
   display: grid;
-  gap: 8px;
-  font-size: 14px;
+  gap: 6px;
   min-width: 0;
-}
-.asa-ai-ollama-field input {
-  width: 100%;
-  min-width: 0;
-  max-width: 100%;
-  border: 1px solid #afbdc7;
-  border-radius: 9px;
-  padding: 11px 14px;
-  min-height: 44px;
-  font: inherit;
-  background: var(--surface, #fff);
-  color: var(--text, #17344a);
-}
-.asa-ai-ollama-field small,
-.asa-ai-ollama-footnote {
   font-size: 13px;
-  line-height: 1.5;
-  color: var(--ink-muted, #607684);
-}
-.asa-ai-ollama-discovery,
-.asa-ai-ollama-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
-}
-.asa-ai-ollama-actions > button,
-.asa-ai-ollama-discovery button {
-  min-height: 44px;
-}
-.asa-ai-ollama-toggle {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-height: 44px;
   font-weight: 650;
 }
-.asa-ai-ollama-toggle input {
-  width: 20px;
-  height: 20px;
+.asa-ai-ollama-field input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 40px;
+  min-width: 0;
+  border: 1px solid #bac7d3;
+  border-radius: 8px;
+  padding: 8px 11px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text, #17344a);
+  background: var(--surface, #fff);
+}
+.asa-ai-ollama-connection,
+.asa-ai-comfy-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--ink-muted, #607684);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  min-height: 40px;
+}
+.asa-ai-status-dot {
+  height: 8px;
+  width: 8px;
+  border-radius: 50%;
+  background: #abb8c7;
   flex-shrink: 0;
 }
-.asa-ai-ollama-success {
-  padding: 12px;
+.asa-ai-status-dot.online {
+  background: #1a9668;
+}
+.asa-ai-status-dot.offline {
+  background: #d34c4c;
+}
+.asa-ai-status-dot.loading {
+  background: #d3a129;
+}
+.asa-ai-models-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 10px;
+}
+.asa-ai-models-title h3 {
+  margin: 0;
+  font-size: 14px;
+}
+.asa-ai-models-title > span {
+  color: var(--ink-muted, #607684);
+  font-size: 12px;
+}
+.asa-ai-ollama-model-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+.asa-ai-ollama-model-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  min-height: 40px;
+  padding: 8px 11px;
+  border: 1px solid #d6e0ea;
   border-radius: 8px;
-  background: #eff9f3;
-  color: #23633b;
+  background: var(--surface, #fff);
+  color: var(--text, #17344a);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
 }
-.asa-ai-ollama button:disabled {
+.asa-ai-ollama-model-option:hover:not(:disabled) {
+  border-color: #338ac2;
+}
+.asa-ai-ollama-model-option.is-selected {
+  border-color: #1681bf;
+  background: #eff8fd;
+}
+.asa-ai-ollama-model-name {
+  font-weight: 700;
+  font-size: 12px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.asa-ai-ollama-model-size {
+  margin-left: auto;
+  white-space: nowrap;
+  font-size: 11px;
+  color: var(--ink-muted, #607684);
+}
+.asa-ai-ollama-model-indicator {
+  width: 15px;
+  flex-shrink: 0;
+  color: #0877b3;
+  font-weight: 800;
+}
+.asa-ai-ollama-bottom {
+  display: flex;
+  gap: 13px;
+  flex-wrap: wrap;
+  align-items: center;
+  padding-top: 13px;
+  border-top: 1px solid var(--border, #dce5ec);
+}
+.asa-ai-ollama-primary {
+  min-height: 42px;
+  padding: 8px 19px;
+  border: 1px solid #086ca6;
+  border-radius: 8px;
+  background: #0879b5;
+  color: white;
+  font-weight: 700;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.asa-ai-ollama-primary:disabled {
+  opacity: 0.55;
   cursor: not-allowed;
-  opacity: 0.6;
 }
-@media (max-width: 480px) {
-  .asa-ai-admin-tabs > button {
-    flex: 1 1 auto;
-    padding: 9px 8px;
-  }
-  .asa-ai-ollama {
+.asa-ai-ollama-confirmed {
+  color: #176c50;
+  font-size: 12px;
+  font-weight: 650;
+}
+.asa-ai-ollama-error,
+.asa-ai-field-error {
+  margin: 0;
+  color: #b32929;
+  font-size: 12px;
+}
+.asa-ai-inline-retry {
+  border: 0;
+  background: transparent;
+  color: #0879b5;
+  cursor: pointer;
+  margin-left: 8px;
+  text-decoration: underline;
+}
+.asa-ai-ollama-help {
+  border-top: 1px solid var(--border, #dce5ec);
+  padding-top: 10px;
+  font-size: 12px;
+  color: var(--ink-muted, #607684);
+}
+.asa-ai-ollama-help summary {
+  cursor: pointer;
+  font-weight: 650;
+}
+.asa-ai-ollama-help p {
+  max-width: 760px;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+.asa-ai-ollama-help code {
+  margin: 0 5px;
+  font-size: 11px;
+}
+.asa-ai-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+  padding: 0;
+}
+.asa-ai-comfy {
+  gap: 16px;
+}
+.asa-ai-comfy-model {
+  display: grid;
+  gap: 5px;
+  border: 1px solid #bfdeef;
+  background: #f4fafe;
+  border-radius: 9px;
+  padding: 14px;
+}
+.asa-ai-comfy-eyebrow {
+  font-size: 11px;
+  font-weight: 650;
+  color: #416e86;
+}
+.asa-ai-comfy-model strong {
+  font-size: 19px;
+}
+.asa-ai-comfy-description {
+  font-size: 12px;
+  color: #416e86;
+}
+.asa-ai-comfy-files {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.asa-ai-comfy-files > div {
+  display: grid;
+  gap: 5px;
+  padding: 12px;
+  border: 1px solid var(--border, #dce5ec);
+  border-radius: 8px;
+  min-width: 0;
+}
+.asa-ai-comfy-files span {
+  font-size: 11px;
+  color: var(--ink-muted, #607684);
+}
+.asa-ai-comfy-files strong {
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.asa-ai-comfy-footer {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--ink-muted, #607684);
+  border-top: 1px solid var(--border, #dce5ec);
+  padding-top: 10px;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 660px) {
+  .asa-ai-ollama,
+  .asa-ai-comfy {
     padding: 14px;
+    gap: 12px;
+  }
+  .asa-ai-provider-identity {
+    display: grid;
+    gap: 2px;
+  }
+  .asa-ai-ollama-settings {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+  .asa-ai-ollama-connection {
+    min-height: 23px;
+  }
+  .asa-ai-ollama-model-options {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .asa-ai-comfy-files {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .asa-ai-ollama-primary {
+    width: 100%;
+  }
+  .asa-ai-ollama-bottom {
+    gap: 8px;
   }
 }

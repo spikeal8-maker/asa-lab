@@ -263,6 +263,70 @@ export class AiChatService {
     return discoverOllama(endpoint, this.fetchImpl);
   }
 
+  private async probeOllama(baseUrl: string, model: string): Promise<number> {
+    const models = await discoverOllama(baseUrl, this.fetchImpl);
+    if (!models.some((item) => item.name === model)) {
+      throw new AiServiceError(
+        'ai_ollama_model_missing',
+        503,
+        'Модель не установлена на сервере Ollama.',
+      );
+    }
+    const started = Date.now();
+    await streamOllamaText({
+      baseUrl,
+      model,
+      context: [{ role: 'user', content: 'Ответь кратко: OK' }],
+      instructions: 'Проверка соединения. Ответь одним словом.',
+      signal: new AbortController().signal,
+      onDelta: () => undefined,
+      fetchImpl: this.fetchImpl,
+    });
+    return Date.now() - started;
+  }
+
+  /** Verify a candidate before committing the configuration revision.
+   * A failed GPU probe never leaves the administrator with an unusable saved model.
+   */
+  async applyOllamaSettings(
+    principalId: string,
+    input: { enabled: boolean; baseUrl: string; model: string; revision: number },
+    requestId: string,
+  ): Promise<{
+    config: OllamaSettings;
+    verified: boolean;
+    test: { model: string; elapsedMs: number; testedAt: string } | null;
+  }> {
+    const current = await this.ollamaSettings(principalId);
+    if (!Number.isSafeInteger(input.revision) || input.revision !== current.revision) {
+      throw new AiServiceError(
+        'ai_ollama_config_changed',
+        409,
+        'Настройки изменились. Обновите страницу.',
+      );
+    }
+    const baseUrl = ollamaBaseUrl(input.baseUrl);
+    if (!validOllamaModel(input.model) || typeof input.enabled !== 'boolean') {
+      throw new AiServiceError('ai_ollama_config_invalid', 400, 'Проверьте настройки Ollama.');
+    }
+    const elapsedMs = input.enabled ? await this.probeOllama(baseUrl, input.model) : null;
+    const dirty =
+      current.enabled !== input.enabled ||
+      current.baseUrl !== baseUrl ||
+      current.model !== input.model;
+    const config = dirty
+      ? await this.saveOllamaSettings(principalId, { ...input, baseUrl }, requestId)
+      : current;
+    return {
+      config,
+      verified: elapsedMs !== null,
+      test:
+        elapsedMs === null
+          ? null
+          : { model: input.model, elapsedMs, testedAt: new Date().toISOString() },
+    };
+  }
+
   async testOllama(
     principalId: string,
     revision: number,

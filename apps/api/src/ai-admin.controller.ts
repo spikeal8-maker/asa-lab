@@ -14,6 +14,7 @@ import type { ActiveContextUseCase } from '@asa-lab/identity';
 import { AiChatService, AiServiceError, type AiProvider, type AiModel } from './ai-chat.service.js';
 import { isAiProvider, isModelForProvider } from './ai-model-catalog.js';
 import { OllamaError } from './ai-ollama.js';
+import { ComfyUiError, discoverComfyUi } from './ai-comfyui.js';
 import { AdminControlPlaneService } from './admin-control-plane.service.js';
 import { SESSION_COOKIE, TOKENS } from './tokens.js';
 
@@ -63,7 +64,11 @@ export class AiAdminController {
     try {
       return await call();
     } catch (problem) {
-      if (problem instanceof AiServiceError || problem instanceof OllamaError) {
+      if (
+        problem instanceof AiServiceError ||
+        problem instanceof OllamaError ||
+        problem instanceof ComfyUiError
+      ) {
         return reject(problem.code, problem.message, problem.status);
       }
       if ((problem as { code?: string }).code === '42501') {
@@ -183,6 +188,43 @@ export class AiAdminController {
         request.id,
       ),
     );
+  }
+
+  @Put('ollama/apply')
+  @HttpCode(200)
+  async applyOllama(@Req() request: FastifyRequest, @Body() raw: unknown) {
+    this.requireSameOrigin(request);
+    const principalId = await this.requirePlatformAdmin(request);
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+      return reject('ai_ollama_config_invalid', 'Неверные настройки Ollama.', 400);
+    }
+    const input = raw as Record<string, unknown>;
+    if (
+      typeof input['enabled'] !== 'boolean' ||
+      typeof input['baseUrl'] !== 'string' ||
+      typeof input['model'] !== 'string' ||
+      !Number.isSafeInteger(input['revision'])
+    ) {
+      return reject('ai_ollama_config_invalid', 'Неверные настройки Ollama.', 400);
+    }
+    return this.safe(() =>
+      this.ai.applyOllamaSettings(
+        principalId,
+        {
+          enabled: input['enabled'] as boolean,
+          baseUrl: input['baseUrl'] as string,
+          model: input['model'] as string,
+          revision: input['revision'] as number,
+        },
+        request.id,
+      ),
+    );
+  }
+
+  @Get('comfyui/status')
+  async comfyUiStatus(@Req() request: FastifyRequest) {
+    await this.requirePlatformAdmin(request);
+    return this.safe(() => discoverComfyUi());
   }
 
   @Post('ollama/models')
