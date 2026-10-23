@@ -186,6 +186,18 @@ async function fixture(page: Page, answer = 'Arduino — это платформ
       }
       return respond(route, result);
     }
+    if (path === '/api/admin/v1/ai/ollama' && method === 'GET') {
+      return respond(route, {
+        enabled: false,
+        baseUrl: 'http://127.0.0.1:11434',
+        model: 'ornith:9b',
+        revision: 1,
+        updatedAt: NOW,
+      });
+    }
+    if (path === '/api/admin/v1/ai/ollama/models' && method === 'POST') {
+      return respond(route, { models: [{ name: 'ornith:9b', size: 60000 }] });
+    }
     if (path === '/api/admin/v1/ai') {
       if (method === 'PUT') {
         const payload = req.postDataJSON() as {
@@ -1097,7 +1109,8 @@ for (const width of [1440, 1024, 600, 390, 320]) {
 
 test('Platform admin configures GPT without returning secret in page', async ({ page }) => {
   await fixture(page);
-  await page.goto('/#/admin/ai');
+  await page.goto('/#/admin/ai', { waitUntil: 'domcontentloaded' });
+  await page.getByRole('tab', { name: 'Облачные API' }).click();
   await expect(page.getByRole('heading', { name: 'ИИ и модели' })).toBeVisible();
   await expect(page.getByText('Не задан', { exact: true })).toBeVisible();
   const secret = 'sk-ai-fake-test-secret-safe-value';
@@ -1232,7 +1245,8 @@ for (const width of [1440, 600, 390, 320]) {
         },
       });
     });
-    await page.goto('/#/admin/ai');
+    await page.goto('/#/admin/ai', { waitUntil: 'domcontentloaded' });
+    await page.getByRole('tab', { name: 'Облачные API' }).click();
     const verify = page.getByRole('button', { name: 'Проверить подключение', exact: true });
     await expect(verify).toBeDisabled();
     await page.getByLabel(/Новый API-ключ/).fill('sk-safe-test-value-not-real-key');
