@@ -90,6 +90,7 @@ parallel_lanes:
       - apps/web/src/electronics/testing/workbench-presentation.spec.ts
       - apps/web/src/electronics/testing/production-assets.spec.ts
       - e2e/electronics-simulation.spec.ts
+      - docs/product/electronics/generated/component-coverage.json
       - docs/product/electronics/tasks/TASK-ELECTRONICS-REVERSE-LED-COLOUR-001.md
     task:
       id: TASK-ELECTRONICS-REVERSE-LED-COLOUR-001
@@ -119,6 +120,8 @@ parallel_lanes:
         remove only the reverse grayscale; preserve diagnostic state and
         true burned/overcurrent appearance. Adapt existing browser reverse
         asset oracle surgically, retaining unrelated R3 mobile scenarios.
+        Regenerate only browserEvidenceSha256 in canonical generated coverage
+        after e2e source edits; preserve all other generated report bytes.
         No electronics solver, Worker, asset, save, or foreign subsystem edit.
     revisions:
       kind: observed_snapshot
