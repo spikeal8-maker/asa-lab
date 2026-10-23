@@ -233,8 +233,8 @@ export class LedTemporalPresentation {
   private boardL = new Map<string, HeldHistory<ElectronicsArduinoIndicatorSample>>();
   private cursor: number | null = null;
   private origin: { wallMicroseconds: number; modelMicroseconds: number } | null = null;
-  private sequence = 0;
-  private generation = 0;
+  private seq = 0;
+  private gen = 0;
   private raf = 0;
   private ackRaf = -3;
   private shown: LedPresentationFrame | null = null;
@@ -286,7 +286,7 @@ export class LedTemporalPresentation {
     for (const time of [...times].sort((left, right) => left - right)) {
       const frame = this.frameAt(time);
       if (!frame) return null;
-      last = { ...frame, generation: this.generation };
+      last = { ...frame, generation: this.gen };
       if (!this.shown || !sameLedBrightness(frame.brightness, this.shown.brightness)) return last;
     }
     return last;
@@ -307,7 +307,7 @@ export class LedTemporalPresentation {
     this.snapshot = null;
     this.raf = 0;
     this.ackRaf = -3;
-    this.generation++;
+    this.gen++;
   }
 
   accept(
@@ -491,7 +491,7 @@ export class LedTemporalPresentation {
     }
     const frame: LedPresentationFrame = {
       ...values,
-      token: `${this.generation}:${++this.sequence}`,
+      token: `${this.gen}:${++this.seq}`,
     };
     if (this.shown && !sameOpticalFrame(this.shown, frame) && !this.canPublishDistinctFrame)
       return null;
@@ -521,7 +521,7 @@ export class LedTemporalPresentation {
     return this.shown?.brightness ?? new Map();
   }
 
-  private throughTime<T extends HeldPresentationSample>(samples: readonly T[], time: number) {
+  private tt<T extends HeldPresentationSample>(samples: readonly T[], time: number) {
     let end = samples.length - 1;
     while (end >= 0 && samples[end]!.atMicroseconds > time) end--;
     if (end < 0) return [];
@@ -540,7 +540,7 @@ export class LedTemporalPresentation {
   private frameAt(atMicroseconds: number): Omit<LedPresentationFrame, 'token'> | null {
     if (this.snapshot) return this.snapshot;
     const brightness = this.atTime(atMicroseconds);
-    const voltages = this.indicatorVoltagesAtTime(atMicroseconds);
+    const voltages = this.ivt(atMicroseconds);
     if (brightness.size !== this.leds.size || voltages.size !== this.boardL.size) return null;
     return {
       atMicroseconds,
@@ -549,11 +549,11 @@ export class LedTemporalPresentation {
     };
   }
 
-  private indicatorVoltagesAtTime(time: number): ReadonlyMap<string, number> {
+  private ivt(time: number): ReadonlyMap<string, number> {
     const voltages = new Map<string, number>();
     for (const [id, { samples, completeSince }] of this.boardL) {
       if (completeSince > time) continue;
-      const last = this.throughTime(samples, time).at(-1);
+      const last = this.tt(samples, time).at(-1);
       if (last) voltages.set(id, last.voltage);
     }
     return voltages;
@@ -563,7 +563,7 @@ export class LedTemporalPresentation {
     const brightness = new Map<string, number>();
     for (const [id, { samples, completeSince }] of this.leds) {
       if (completeSince > time) continue;
-      const prefix = this.throughTime(samples, time);
+      const prefix = this.tt(samples, time);
       const last = prefix.at(-1);
       if (!last) continue;
       brightness.set(id, fastCycleBrightness(prefix, time) ?? last.brightness);

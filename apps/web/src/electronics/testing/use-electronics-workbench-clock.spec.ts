@@ -1120,7 +1120,7 @@ describe('mounted workbench LED temporal display', () => {
   // native renderer tests, invoke the real React-installed callback with an
   // induced record. No event is dispatched or Event.isTrusted property changed.
   // Real element/binding/readiness and React layout ACK run; browser paint does not.
-  async function loadMountedImages() {
+  async function loadMountedImages(beforePublication?: () => void) {
     const images = [...host.querySelectorAll<SVGImageElement>('image.workbench-led-asset')];
     expect(images.length).toBeGreaterThan(0);
     await act(async () => {
@@ -1135,6 +1135,9 @@ describe('mounted workbench LED temporal display', () => {
           throw new Error('Mounted image load callback is missing');
         callback({ nativeEvent: { target: image, isTrusted: true } });
       }
+      // Binding notifications are already queued; their readiness callback
+      // queues publication after this cancellation, never inside native load.
+      if (beforePublication) queueMicrotask(() => flushSync(beforePublication));
     });
   }
   function assertCommitted(
@@ -1172,8 +1175,10 @@ describe('mounted workbench LED temporal display', () => {
     expect(workbench.result).toBeNull();
     expect(workbench.componentLedBrightness(led)).toBe(0);
     await loadMountedImages();
-    // Readiness alone does not publish; the real hook's following layout does.
-    expect(workbench.result).toBeNull();
+    // A cold resource publishes through a queued flush/layout ACK without
+    // requiring an additional RAF after its actual mounted readiness.
+    expect(workbench.result).toBe(first.result);
+    assertCommitted(80, 'lit');
     await frame(16);
     expect(workbench.result).toBe(first.result);
     assertCommitted(80, 'lit');
@@ -1247,11 +1252,11 @@ describe('mounted workbench LED temporal display', () => {
       expect(workbench.simulationTimeMs).toBe(0);
       await frame(8);
       await frame(8);
-      // An induced native load runs the actual mounted binding. It is not a
-      // real-browser paint measurement and cannot acknowledge model progress.
+      // Induced native load runs the binding and queued parent layout ACK.
+      // No additional RAF is needed; this is not a browser paint measurement.
       await loadMountedImages();
-      expect(leds.map((item) => workbench.componentLedBrightness(item))).toEqual([0, 0, 0]);
-      expect(workbench.simulationTimeMs).toBe(0);
+      expect(leds.map((item) => workbench.componentLedBrightness(item))).toEqual(high);
+      expect(workbench.simulationTimeMs).toBe(1);
       await frame(8);
       expect(window.performance.now() - receivedAt).toBe(24);
       expect(leds.map((item) => workbench.componentLedBrightness(item))).toEqual(high);
@@ -1339,6 +1344,36 @@ describe('mounted workbench LED temporal display', () => {
         await frame();
         assertCommitted(0, 'off');
         expect(workbench.committedComponentLedAsset(led)?.token).not.toBe(warming.token);
+      }
+    },
+  );
+
+  it.each(['Stop', 'Reset', 'source', 'unmount'] as const)(
+    'cancels readiness publication queued before %s without another RAF',
+    async (cancellation) => {
+      await mount();
+      await loadMountedImages();
+      await act(async () => workbench.toggleSimulation());
+      await receive(opticalReady(0, 0, 100_000), true);
+      await frame();
+      await frame(16);
+      const before = frameSequence;
+      const pendingToken = workbench.preparedComponentLedAsset(led)!.token;
+      await loadMountedImages(() => {
+        if (cancellation === 'Stop') workbench.toggleSimulation();
+        else if (cancellation === 'Reset') workbench.resetArduinoRuntime('uno');
+        else if (cancellation === 'source')
+          workbench.updateArduinoProgram('uno', {
+            arduinoSource: 'void setup(){}void loop(){delay(777);}',
+          });
+        else root.render(null);
+      });
+      expect(frameSequence).toBe(before);
+      expect(workbench.committedComponentLedAsset(led)?.token).not.toBe(pendingToken);
+      if (cancellation === 'unmount') expect(host.querySelector('image')).toBeNull();
+      else {
+        expect(workbench.componentLedBrightness(led)).toBe(0);
+        expect(workbench.committedComponentLedAsset(led)).toBeUndefined();
       }
     },
   );
@@ -1568,9 +1603,9 @@ describe('mounted workbench LED temporal display', () => {
         expect(host.textContent).not.toContain('pending');
       }
       await loadMountedImages();
-      // A native callback, including a fresh post-invalidation load, is not ACK.
-      expect(workbench.simulationTimeMs).toBe(beforeModelTime);
-      expect(workbench.componentLedBrightness(led)).toBe(80);
+      // Fresh readiness queues publication; the real parent layout performs ACK.
+      expect(workbench.simulationTimeMs).toBe(100);
+      expect(workbench.componentLedBrightness(led)).toBe(0);
       expect(workbench.preparedComponentLedAsset(led)?.token).toBe(pendingToken);
       await frame();
       assertCommitted(0, 'off');
