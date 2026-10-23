@@ -37,3 +37,46 @@ The owner's renewed finish/main/close programme now selects controlled integrati
 One new integration author composes only this exact clock file onto fresh main, preserving all foreign source and accepted541. No observer rewrite or product physics/Worker/Header/CSS/cadence/auth/dependency/workflow changes. A new independent reviewer checks the final integration SHA. Existing four-width successes are history; final exact required focused/general/browser gates and actual four-width review remain mandatory before closure. External C/D failures are classified separately; cancelled is neither PASS nor product FAIL.
 
 To avoid duplicate 50-minute broad runs, a shared qualification candidate may carry two separately source-reviewed679/557 integration commits, with a new final composition review and one exact-SHA existing CI. This adds no gate or waiver, changes neither PR scope, and authorizes no premature merge. Preserve PR histories, real dirty-overlap STOP, owner acceptance pending and no deployment. This dated integration selection supersedes only the earlier instruction to create a new observer author; its original causes and accepted541 history remain immutable.
+
+
+## 23 October: actual harness repair and scoped technical qualification
+
+This selection supersedes the earlier integration-only/no-new-gate boundary for
+this bounded continuation. Product code is already integrated through PR694 and
+PR695; it is not selected for another implementation. Execution status remains
+exclusively in `docs/execution/current.yaml`.
+
+[The dated actual receipt](../evidence/ui679-557-actual-repair-scoped-qualification-20261023.md)
+selects one test-harness repair author for the two existing test files and a
+separate additive six-case qualification author. Preserve all native actions,
+assertions, complete independent documents, Save/CAS, cookies/storage checks,
+viewports, acquisition deadlines and finite case budgets. No product repair,
+forced input, skipped coverage, timeout/cap increase or repeated unchanged broad
+run is authorized.
+
+Technical acceptance of these two issues requires the exact six existing cases,
+all PASS, exact focused and raw-budget evidence, full General gates and a NEW
+independent actual review. The command `pnpm gate:electronics-ui-679-557:browser` runs locally, in CI and
+owner evidence. Freeze exact full test titles/paths from discovery; reject extra,
+missing, duplicate or skipped cases, including at execution. The full Electronics
+gate remains global verification and its cancelled result stays non-PASS. This
+prospective scoped technical criterion does not claim full Electronics PASS,
+physical owner acceptance, release or deployment, and clears no foreign blocker.
+
+The separate qualification author may add one small runner/manual workflow and
+necessary script/catalogue registration and exact transport workflow/browser
+identity allowlist with adversarial tests. Preserve existing guarded image
+identity, PostgreSQL/migrations, API/Web startup, source/build and artifact
+provenance; no spoofed workflow identity. Do not edit the foreign dirty existing
+Electronics workflow or clean another worktree. Check all actual target overlaps
+before writes. New independent source and final composition reviews precede one
+justified exact-SHA qualification. Source publication alone is not acceptance.
+
+Clock390 actual request501 trips the test's 500-request observer guard before
+Reflect.apply, interrupting real dispatch. Select lossless durable Node journaling
+and bounded active retention, not a larger arbitrary cap. Observation must not
+throw in the production dispatch path; explicit capture/retention/loss errors
+fail the test honestly after recording the primary error. Preserve request/frame
+identity, generation/project/protocol/horizon attribution, every readiness and
+integer-floor assertion, all four widths, Stop/Reset, Save/CAS/cookies and original
+deadlines. No Worker/product-clock change or request/frame dropping is selected.

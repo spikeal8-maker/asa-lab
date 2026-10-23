@@ -42,6 +42,10 @@ const UNSUPPORTED_BLOCK = '#59636b';
 let registered = false;
 
 export function registerArduinoBlocks(): void {
+  // ScratchBlocks exports its translations without activating a locale. Its
+  // built-in menus call message.replace(), so initialise them before injection
+  // (including remounts where the Arduino block definitions already exist).
+  ScratchBlocks.ScratchMsgs.setLocale('ru');
   if (registered) return;
   registered = true;
   const definitions: Record<string, unknown>[] = [
