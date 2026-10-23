@@ -22,7 +22,7 @@ on:
       profile:
         description: Focused client recovery or the existing backend capacity baseline
         type: choice
-        options: [backend30, snapshot-recovery, proxy-admission, resource-budget]
+        options: [backend30, backend-soak, snapshot-recovery, proxy-admission, resource-budget]
         default: backend30
 permissions:
   contents: read
@@ -90,6 +90,75 @@ jobs:
         with:
           name: classroom-backend30-${{ github.sha }}
           path: reports/capacity/backend30.json
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Remove only this run's disposable object store
+        if: always()
+        run: node tools/capacity/object-store.mjs stop
+  backend-soak:
+    if: github.event_name == 'workflow_dispatch' && inputs.profile == 'backend-soak'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    services:
+      postgres:
+        image: postgres:17.7
+        env:
+          POSTGRES_DB: asa_capacity_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: capacity-ci-only
+        ports: ['127.0.0.1:5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d asa_capacity_test"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    env:
+      NX_SKIP_NX_CACHE: 'true'
+      ASA_CAPACITY_BASELINE: '1'
+      ASA_CAPACITY_SOAK: '1'
+      TEST_DATABASE_URL: postgresql://postgres:capacity-ci-only@127.0.0.1:5432/asa_capacity_test
+      APP_TEST_DATABASE_URL: postgresql://asalab_app:capacity-ci-only@127.0.0.1:5432/asa_capacity_test
+      MIGRATION_DATABASE_URL: postgresql://postgres:capacity-ci-only@127.0.0.1:5432/asa_capacity_test
+      MIGRATION_EXPECT_DATABASE: asa_capacity_test
+      MIGRATION_CONFIRM: APPLY:asa_capacity_test
+      ASA_BLOCKS_RUNTIME_ORIGIN: http://127.0.0.1:4612
+      ASA_BLOCKS_RUNTIME_SIGNING_KEY: '000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f'
+      ASA_OBJECT_STORAGE_ENDPOINT: http://127.0.0.1:19000
+      ASA_OBJECT_STORAGE_REGION: us-east-1
+      ASA_OBJECT_STORAGE_BUCKET: capacity-fixture
+      ASA_OBJECT_STORAGE_ACCESS_KEY: capacity-ci-only
+      ASA_OBJECT_STORAGE_SECRET_KEY: capacity-ci-only-synthetic
+      ASA_OBJECT_STORAGE_FORCE_PATH_STYLE: 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec nx build api --skip-nx-cache
+      - run: node --test tools/capacity/soak.test.mjs
+      - name: Build the repository's pinned disposable object-store image
+        run: docker build -f infra/minio/Dockerfile -t asa-capacity-minio:${{ github.run_id }} .
+      - name: Start this run's isolated object store and bucket
+        run: node tools/capacity/object-store.mjs
+      - name: Migrate this job's disposable test database
+        run: |
+          pnpm db:migrate
+          psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -c "ALTER ROLE asalab_app WITH LOGIN PASSWORD 'capacity-ci-only'"
+      - name: Verify instrumentation against real pg callback and promise borrowing
+        run: pnpm exec vitest run tests/capacity/pool-borrowing.pg.spec.ts
+      - name: Run up to three ten-minute stages without loading the working site
+        run: pnpm exec vitest run tests/capacity/backend-soak.pg.spec.ts
+      - name: Preserve aggregate evidence even after a failed workload
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: classroom-backend-soak-${{ github.sha }}
+          path: reports/capacity/backend-soak.json
           if-no-files-found: warn
           retention-days: 14
       - name: Remove only this run's disposable object store
