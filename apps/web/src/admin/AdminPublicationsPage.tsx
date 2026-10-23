@@ -183,11 +183,15 @@ export function AdminPublicationsPage({
     setItems((previous) =>
       previous.map((item) =>
         item.publicationId === result.data.publicationId
-          ? { ...item, ...result.data, featured: false }
+          ? { ...item, ...result.data, featured: false, editorialEligible: false }
           : item,
       ),
     );
     setSelected(null);
+    // Restoring moderation does not guarantee policy eligibility: an archived
+    // Project or suspended author still remains unreadable. Reload the secured
+    // server projection before offering any editorial actions or public links.
+    if (selected.hidden) await load();
   };
 
   const toggleFeatured = async (item: Publication): Promise<void> => {

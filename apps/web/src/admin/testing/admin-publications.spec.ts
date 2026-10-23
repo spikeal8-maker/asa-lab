@@ -59,7 +59,7 @@ afterEach(async () => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
-async function mount(hidden = false, nextOffset: number | null = null, editorialEligible = true) {
+async function mount(hidden = false, nextOffset: number | null = null, editorialEligible = !hidden) {
   vi.mocked(call).mockResolvedValueOnce({
     ok: true,
     status: 200,
@@ -156,8 +156,26 @@ describe('publications moderation', () => {
           moderationVersion: hidden ? 2 : 1,
         },
       });
+      // Eligibility is server-derived and must be reloaded after a restore;
+      // it cannot be inferred from moderation.hidden or the old cached row.
+      if (hidden) {
+        vi.mocked(call).mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          data: {
+            items: [{
+              ...publication,
+              hidden: false,
+              editorialEligible: true,
+              moderationVersion: 2,
+            }],
+            nextOffset: null,
+          },
+        });
+      }
       await act(async () => submit());
-      expect(call).toHaveBeenLastCalledWith(
+      expect(call).toHaveBeenNthCalledWith(
+        2,
         `/api/admin/v1/publications/publication-1/${hidden ? 'restore' : 'hide'}`,
         {
           method: 'POST',
@@ -170,6 +188,15 @@ describe('publications moderation', () => {
       );
       expect(host.querySelector('dialog')).toBeNull();
       expect(host.querySelector('a') !== null).toBe(hidden);
+      if (hidden) {
+        expect(call).toHaveBeenNthCalledWith(
+          3,
+          '/api/admin/v1/publications?offset=0&limit=25',
+        );
+        expect(button('Выбор редакции')).toBeDefined();
+      } else {
+        expect(button('Выбор редакции')).toBeUndefined();
+      }
     },
   );
   it('publishes a real editorial toggle only after a matching server receipt', async () => {
