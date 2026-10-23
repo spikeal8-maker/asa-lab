@@ -12,12 +12,21 @@ on:
       - 'apps/api/src/projects-save-status.spec.ts'
       - 'apps/api/src/electronics-save-validation.spec.ts'
       - 'apps/api/src/blocks-project-persistence.spec.ts'
+      - 'apps/web/src/modules/project-snapshot.ts'
+      - 'apps/web/src/modules/testing/project-snapshot.spec.ts'
       - 'package.json'
   workflow_dispatch:
+    inputs:
+      profile:
+        description: Focused client recovery or the existing backend capacity baseline
+        type: choice
+        options: [backend30, snapshot-recovery]
+        default: backend30
 permissions:
   contents: read
 jobs:
   backend30:
+    if: github.event_name != 'workflow_dispatch' || inputs.profile != 'snapshot-recovery'
     runs-on: ubuntu-24.04
     timeout-minutes: 12
     services:
@@ -82,3 +91,34 @@ jobs:
       - name: Remove only this run's disposable object store
         if: always()
         run: node tools/capacity/object-store.mjs stop
+  snapshot-recovery:
+    if: github.event_name == 'push' || inputs.profile == 'snapshot-recovery'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    env:
+      NX_SKIP_NX_CACHE: 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec nx build module-sdk --skip-nx-cache
+      - name: Snapshot revision races and existing draft recovery
+        run: >-
+          pnpm exec vitest run
+          apps/web/src/modules/testing/project-snapshot.spec.ts
+          apps/web/src/modules/testing/project-draft-mutation.spec.ts
+          apps/web/src/modules/testing/project-local-draft.spec.ts
+          apps/web/src/electronics/testing/workbench-project-state.spec.ts
+          apps/web/src/electronics/testing/workbench-autosave.spec.ts
+          apps/web/src/electronics/testing/electronics-document-merge.spec.ts
+          apps/web/src/electronics/testing/electronics-project-recovery.spec.ts
+          --maxWorkers=1
+      - run: pnpm exec nx run web:typecheck --skip-nx-cache
