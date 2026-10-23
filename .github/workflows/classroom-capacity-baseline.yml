@@ -14,6 +14,8 @@ on:
       - 'apps/api/src/blocks-project-persistence.spec.ts'
       - 'apps/web/src/modules/project-snapshot.ts'
       - 'apps/web/src/modules/testing/project-snapshot.spec.ts'
+      - 'apps/web/src/project-snapshot-client.ts'
+      - 'apps/web/src/modules/testing/project-snapshot-client.spec.ts'
       - 'package.json'
   workflow_dispatch:
     inputs:
@@ -114,6 +116,7 @@ jobs:
         run: >-
           pnpm exec vitest run
           apps/web/src/modules/testing/project-snapshot.spec.ts
+          apps/web/src/modules/testing/project-snapshot-client.spec.ts
           apps/web/src/modules/testing/project-draft-mutation.spec.ts
           apps/web/src/modules/testing/project-local-draft.spec.ts
           apps/web/src/electronics/testing/workbench-project-state.spec.ts

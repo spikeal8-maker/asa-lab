@@ -243,4 +243,25 @@ describe('project snapshot delivery', () => {
     expect(mocks.saveProjectSnapshot).toHaveBeenCalledTimes(1);
     expect(vi.getTimerCount()).toBe(0);
   });
+
+  it('aborts a stalled PUT, releases the slot and ignores a late success', async () => {
+    vi.useFakeTimers();
+    const response = deferred<{ ok: boolean }>();
+    registerProjectSnapshotSource('stalled-put', canvas, () => 4);
+    // Deliberately ignore abort here: even a noncooperative transport cannot ACK late.
+    mocks.saveProjectSnapshot.mockReturnValueOnce(response.promise);
+    const attempt = sendProjectSnapshot('stalled-put');
+    await Promise.resolve();
+    const signal = mocks.saveProjectSnapshot.mock.calls[0]![3].signal as AbortSignal;
+    expect(signal.aborted).toBe(false);
+    await vi.advanceTimersByTimeAsync(15_000);
+    expect(signal.aborted).toBe(true);
+    expect(await attempt).toBe(false);
+    response.resolve({ ok: true });
+    await Promise.resolve();
+    // Identical bytes remain unacknowledged after timeout, despite late success.
+    expect(await sendProjectSnapshot('stalled-put')).toBe(true);
+    expect(mocks.saveProjectSnapshot).toHaveBeenCalledTimes(2);
+    expect(vi.getTimerCount()).toBe(0);
+  });
 });

@@ -1,5 +1,6 @@
 import { api } from '../api';
 import { onSessionLoggedOut } from '../session-fetch';
+import { abortable } from '../auth-request';
 
 /**
  * The picture a project card shows, taken from the editor that drew it.
@@ -25,6 +26,8 @@ const FIRST_CAPTURE_MS = 4_000;
 const REPEAT_CAPTURE_MS = 60_000;
 /** A stalled SVG/image loader must not occupy the project's only attempt forever. */
 const CAPTURE_TIMEOUT_MS = 10_000;
+/** Also bound the PUT and response body; snapshot requests are not auth requests. */
+const DELIVERY_TIMEOUT_MS = 15_000;
 
 /**
  * A body sent during page unload is only guaranteed while it stays small.
@@ -171,9 +174,18 @@ async function sendSnapshot(projectId: string, options: { unloading?: boolean })
   )
     return false;
   if (options.unloading === true && captured.image.length > KEEPALIVE_LIMIT_BYTES) return false;
-  const result = await api
-    .saveProjectSnapshot(projectId, captured.image, captured.sourceRevision, options)
-    .catch(() => null);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), DELIVERY_TIMEOUT_MS);
+  const result = await abortable(
+    () =>
+      api.saveProjectSnapshot(projectId, captured.image, captured.sourceRevision, {
+        ...options,
+        signal: controller.signal,
+      }),
+    controller.signal,
+  )
+    .catch(() => null)
+    .finally(() => clearTimeout(timeout));
   // Only a server-confirmed image is deduplicated. A timeout, an offline
   // browser or a revision conflict must leave the same bytes eligible for the
   // next scheduled attempt.
