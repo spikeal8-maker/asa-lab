@@ -1,637 +1,402 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { call } from './admin-api';
 import { aiDiagnosticMessage } from './ai-error-message';
-import {
-  isAiAdminConfig,
-  type AiAdminConfig,
-  type AiProvider as Provider,
-} from './ai-model-config';
+import { isAiAdminConfig, type AiAdminConfig, type AiProvider } from './ai-model-config';
 import './ai-admin.css';
 
-const CONFIG_UNAVAILABLE =
-  'Настройки ИИ не загрузились. Проверьте версию API и миграции базы в «Админ → Система», затем повторите загрузку.';
-const CONFIG_INCOMPATIBLE =
-  'Версия настроек ИИ несовместима с этой формой. Требуется согласованное обновление Web, API и миграций базы (включая лимит платных операций). Проверьте «Админ → Система».';
-const CONFIG_REJECTED =
-  'Сохранение не подтверждено: сервер отклонил настройки ИИ. Проверьте модель и целочисленный лимит, затем повторите сохранение.';
-const TEST_RESULT_UNCERTAIN =
-  'Результат проверки не получен. Запрос мог быть оплачен; проверьте соединение перед повтором.';
+interface TestReceipt {
+  readonly provider: AiProvider;
+  readonly model: string;
+  readonly elapsedMs: number;
+  readonly testedAt: string;
+  readonly configurationVersion: number;
+}
 
-function failureMessage(status: number, code: string): string {
-  const diagnostic = aiDiagnosticMessage(code);
-  if (diagnostic) return diagnostic;
-  if (status === 401) return 'Сессия истекла. Войдите снова в аккаунт администратора платформы.';
-  if (code === 'ai_origin_denied' || code === 'ai_origin_required') {
-    return 'Сервер отклонил источник запроса. Откройте ASA по основному адресу установки; администратору сервера нужно проверить настройку origin.';
-  }
-  if (status === 403) {
-    return 'Для настройки ИИ нужна роль администратора платформы (platform_admin). Права администратора организации не дают этот доступ.';
-  }
-  if (code === 'ai_encryption_unavailable') {
-    return 'Сохранение ключа недоступно: администратору сервера нужно настроить ASA_SETTINGS_ENCRYPTION_KEY в окружении API, затем повторить загрузку.';
-  }
-  if (code === 'ai_config_invalid') return CONFIG_REJECTED;
-  if (
-    code === 'ai_config_unsupported' ||
-    code === 'ai_schema_unsupported' ||
-    code === 'ai_config_schema_unsupported'
-  ) {
-    return CONFIG_INCOMPATIBLE;
-  }
-  if (code.startsWith('ai_provider_') || code.startsWith('ai_response_'))
-    return 'Проверка модели не завершена. Проверьте состояние провайдера перед новым платным запросом.';
-  if (status === 404) return CONFIG_INCOMPATIBLE;
-  if (status >= 500 || code === 'ai_config_unavailable') return CONFIG_UNAVAILABLE;
-  if (status === 0)
-    return 'Сервер администрирования недоступен. Проверьте соединение и повторите загрузку.';
-  return 'Операция ИИ не подтверждена. Повторите загрузку настроек перед следующим действием.';
+function errorMessage(status: number, code: string): string {
+  const specific = aiDiagnosticMessage(code);
+  if (specific) return specific;
+  if (status === 401) return 'Сессия истекла. Войдите снова.';
+  if (status === 403) return 'Доступ к настройкам разрешён только администратору платформы.';
+  if (code === 'ai_config_schema_unsupported' || code === 'ai_config_unsupported' || status === 404)
+    return 'Версии API и настроек несовместимы. Проверьте обновление ASA Lab.';
+  if (code === 'ai_encryption_unavailable') return 'На сервере не настроено шифрование API-ключей.';
+  if (status === 0) return 'Нет соединения с сервером. Проверьте подключение.';
+  return 'Не удалось сохранить или проверить подключение. Обновите настройки и повторите.';
+}
+
+function providerName(provider: AiProvider): string {
+  return provider === 'deepseek' ? 'DeepSeek' : 'OpenAI';
 }
 
 export function AiAdminPage({
   onAccessDenied,
+  providerChoice = 'openai',
+  onUpdated,
 }: {
   readonly onAccessDenied: () => void;
-}): JSX.Element {
+  readonly providerChoice?: AiProvider;
+  readonly onUpdated?: () => void;
+}) {
   const [config, setConfig] = useState<AiAdminConfig | null>(null);
-  const [provider, setProvider] = useState<Provider>('openai');
   const [model, setModel] = useState('');
-  const [enabled, setEnabled] = useState(false);
-  const [paidOperationsPerHour, setPaidOperationsPerHour] = useState('0');
-  const [apiKey, setApiKey] = useState('');
+  const [keyInput, setKeyInput] = useState('');
   const [clearKey, setClearKey] = useState(false);
+  const [enabled, setEnabled] = useState(false);
+  const [quota, setQuota] = useState('0');
+  const [confirmPaid, setConfirmPaid] = useState(false);
+  const [busy, setBusy] = useState<'save' | 'check' | null>(null);
+  const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
   const [loading, setLoading] = useState(true);
-  const [loadAttempt, setLoadAttempt] = useState(0);
-  const [saving, setSaving] = useState(false);
-  const [testing, setTesting] = useState(false);
-  const requestBusy = useRef(false);
-  const [acknowledgeTest, setAcknowledgeTest] = useState(false);
-  const [connectionTest, setConnectionTest] = useState<{
-    provider: Provider;
-    model: string;
-    elapsedMs: number;
-    testedAt: string;
-    configurationVersion: number;
-  } | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [reload, setReload] = useState(0);
+  const inFlight = useRef(false);
 
   useEffect(() => {
-    let active = true;
+    let live = true;
     setLoading(true);
-    setConfig(null);
-    setApiKey('');
-    setMessage(null);
-    setConnectionTest(null);
-    setAcknowledgeTest(false);
-    setError(null);
     void call<unknown>('/api/admin/v1/ai')
-      .then((result) => {
-        if (!active) return;
-        if (!result.ok) {
-          setError(failureMessage(result.status, result.error.code));
-          if (result.status === 401) onAccessDenied();
+      .then((reply) => {
+        if (!live) return;
+        if (!reply.ok || !isAiAdminConfig(reply.data)) {
+          if (!reply.ok && (reply.status === 401 || reply.status === 403)) onAccessDenied();
+          setConfig(null);
+          setError(
+            reply.ok
+              ? 'Конфигурация ИИ несовместима с этой версией.'
+              : errorMessage(reply.status, reply.error.code),
+          );
           return;
         }
-        if (!isAiAdminConfig(result.data)) {
-          setError(CONFIG_INCOMPATIBLE);
-          return;
-        }
-        setConfig(result.data);
-        setProvider(result.data.provider);
-        setModel(result.data.model);
-        setEnabled(result.data.enabled);
-        setPaidOperationsPerHour(String(result.data.paidOperationsPerHour ?? 0));
-      })
-      .catch(() => {
-        if (active) setError(CONFIG_UNAVAILABLE);
+        setConfig(reply.data);
+        setError('');
       })
       .finally(() => {
-        if (active) setLoading(false);
+        if (live) setLoading(false);
       });
     return () => {
-      active = false;
+      live = false;
     };
-  }, [onAccessDenied, loadAttempt]);
+  }, [reload, onAccessDenied]);
 
-  function handleFailure(result: {
-    readonly status: number;
-    readonly error: { readonly code: string; readonly message: string };
-  }): void {
-    setError(failureMessage(result.status, result.error.code));
-    if (
-      result.status === 401 ||
-      (result.status === 403 &&
-        result.error.code !== 'ai_origin_denied' &&
-        result.error.code !== 'ai_origin_required')
-    ) {
-      setApiKey('');
-      setConfig(null);
-      if (result.status === 401) onAccessDenied();
-    }
-  }
+  // Changing providers must not expose or copy another provider's key.
+  useEffect(() => {
+    if (!config) return;
+    const slot = config.providerConfigurations.find((row) => row.provider === providerChoice);
+    const catalog = config.modelCatalog.providers.find((row) => row.id === providerChoice);
+    const storedModel = slot?.model;
+    const selectable = config.modelCatalog.models.some(
+      (row) => row.provider === providerChoice && row.id === storedModel && row.selectable,
+    );
+    setModel(selectable ? storedModel! : (catalog?.defaultModel ?? ''));
+    setKeyInput('');
+    setClearKey(false);
+    setEnabled(config.enabled && config.provider === providerChoice);
+    setQuota(String(config.paidOperationsPerHour));
+    setConfirmPaid(false);
+  }, [providerChoice, config]);
 
-  async function save(event: FormEvent<HTMLFormElement>): Promise<void> {
-    event.preventDefault();
-    if (!config || requestBusy.current || !validQuota || !selectedModel?.selectable || needsNewKey)
-      return;
-    requestBusy.current = true;
-    setSaving(true);
-    setConnectionTest(null);
-    setAcknowledgeTest(false);
-    setMessage(null);
-    setError(null);
-    try {
-      const result = await call<unknown>('/api/admin/v1/ai', {
-        method: 'PUT',
-        body: JSON.stringify({
-          enabled,
-          paidOperationsPerHour: Number(paidOperationsPerHour),
-          provider,
-          model,
-          configurationVersion: config.configurationVersion,
-          ...(apiKey.trim() ? { apiKey: apiKey.trim() } : {}),
-          ...(clearKey ? { clearApiKey: true } : {}),
-        }),
-      });
-      if (!result.ok) {
-        handleFailure(result);
-        return;
-      }
-      if (!isAiAdminConfig(result.data)) {
-        setApiKey('');
-        setConfig(null);
-        setError(CONFIG_INCOMPATIBLE);
-        return;
-      }
-      setConfig(result.data);
-      setProvider(result.data.provider);
-      setModel(result.data.model);
-      setEnabled(result.data.enabled);
-      setPaidOperationsPerHour(String(result.data.paidOperationsPerHour));
-      setApiKey('');
-      setClearKey(false);
-      setMessage('Настройки сохранены. Новый API-ключ не возвращается в браузер.');
-    } catch {
-      setError('Сохранение не подтверждено. Проверьте соединение и повторите загрузку настроек.');
-    } finally {
-      requestBusy.current = false;
-      setSaving(false);
-    }
-  }
+  useEffect(() => {
+    setNotice('');
+    setError('');
+  }, [providerChoice]);
 
-  const switched = config !== null && provider !== config.provider;
-  const selectedProvider = config?.providerConfigurations.find(
-    (item) => item.provider === provider,
-  );
-  const selectedModel = config?.modelCatalog.models.find(
-    (item) => item.id === model && item.provider === provider,
-  );
-  const savedModel = config?.modelCatalog.models.find(
-    (item) => item.id === config.model && item.provider === config.provider,
-  );
-  const needsNewKey = switched && !selectedProvider?.apiKeyConfigured && !apiKey.trim();
+  const slot = config?.providerConfigurations.find((row) => row.provider === providerChoice);
+  const options =
+    config?.modelCatalog.models.filter(
+      (row) => row.provider === providerChoice && row.selectable,
+    ) ?? [];
+  const keyReady = Boolean(keyInput.trim()) || Boolean(slot?.apiKeyConfigured && !clearKey);
   const validQuota =
-    paidOperationsPerHour.trim() !== '' &&
-    Number.isInteger(Number(paidOperationsPerHour)) &&
-    Number(paidOperationsPerHour) >= 0 &&
-    Number(paidOperationsPerHour) <= 2147483647;
-  const unsaved =
-    !config ||
-    !validQuota ||
-    provider !== config.provider ||
-    model !== config.model ||
-    enabled !== config.enabled ||
-    Number(paidOperationsPerHour) !== config.paidOperationsPerHour ||
-    Boolean(apiKey.trim()) ||
-    clearKey;
-  const canTest =
-    config !== null &&
-    !unsaved &&
-    config.paidOperationsPerHour > 0 &&
-    config.apiKeyConfigured &&
-    config.encryptionReady &&
-    selectedModel?.selectable === true;
+    /^\d+$/.test(quota) &&
+    Number.isSafeInteger(Number(quota)) &&
+    Number(quota) >= 0 &&
+    Number(quota) <= 2147483647;
+  const dirty =
+    Boolean(config) &&
+    (config!.provider !== providerChoice ||
+      config!.model !== model ||
+      config!.enabled !== enabled ||
+      Number(config!.paidOperationsPerHour) !== Number(quota) ||
+      Boolean(keyInput.trim()) ||
+      clearKey);
+  const mustClear = Boolean(clearKey && slot?.apiKeyConfigured);
+  const canSubmit = Boolean(
+    config &&
+    model &&
+    (keyReady || (!enabled && clearKey)) &&
+    validQuota &&
+    (!enabled || (Number(quota) > 0 && confirmPaid)) &&
+    (config.encryptionReady || (!enabled && mustClear && !keyInput.trim())) &&
+    !loading &&
+    !busy,
+  );
+  const keyLink =
+    providerChoice === 'deepseek'
+      ? 'https://platform.deepseek.com/api_keys'
+      : 'https://platform.openai.com/api-keys';
 
-  async function testConnection(): Promise<void> {
-    if (!config || !canTest || !acknowledgeTest || requestBusy.current) return;
-    requestBusy.current = true;
-    setTesting(true);
-    setConnectionTest(null);
-    setError(null);
-    setMessage(null);
+  async function apply(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!config || !canSubmit || inFlight.current) return;
+    inFlight.current = true;
+    setBusy('save');
+    setError('');
+    setNotice('');
+    let next = config;
+    let saved = false;
     try {
-      const result = await call<NonNullable<typeof connectionTest>>('/api/admin/v1/ai/test', {
+      if (dirty) {
+        const response = await call<unknown>('/api/admin/v1/ai', {
+          method: 'PUT',
+          body: JSON.stringify({
+            enabled,
+            paidOperationsPerHour: Number(quota),
+            provider: providerChoice,
+            model,
+            configurationVersion: config.configurationVersion,
+            ...(keyInput.trim() ? { apiKey: keyInput.trim() } : {}),
+            ...(mustClear ? { clearApiKey: true } : {}),
+          }),
+        });
+        if (!response.ok) {
+          if (response.status === 401 || response.status === 403) onAccessDenied();
+          setError(errorMessage(response.status, response.error.code));
+          return;
+        }
+        if (!isAiAdminConfig(response.data)) {
+          setError('Сервер вернул несовместимые настройки. Обновите страницу.');
+          return;
+        }
+        next = response.data;
+        saved = true;
+        // A key must disappear from input as soon as the server accepts it.
+        setKeyInput('');
+        setClearKey(false);
+        setConfig(next);
+        onUpdated?.();
+      }
+
+      if (!enabled) {
+        setNotice('Сохранено · облачные запросы выключены');
+        return;
+      }
+      // Explicit consent is required because a successful test may cost money
+      // and consumes the platform's real hourly paid-operation quota.
+      setBusy('check');
+      // Consent covers only this one potentially billable request, including errors.
+      setConfirmPaid(false);
+      const tested = await call<TestReceipt>('/api/admin/v1/ai/test', {
         method: 'POST',
         body: JSON.stringify({
           acknowledgePaidRequest: true,
-          configurationVersion: config.configurationVersion,
+          configurationVersion: next.configurationVersion,
         }),
       });
-      if (result.ok) {
-        const data = result.data;
-        if (
-          data &&
-          data.provider === config.provider &&
-          data.model === config.model &&
-          data.configurationVersion === config.configurationVersion &&
-          Number.isFinite(data.elapsedMs) &&
-          data.elapsedMs >= 0 &&
-          typeof data.testedAt === 'string' &&
-          Number.isFinite(Date.parse(data.testedAt))
-        )
-          setConnectionTest(data);
-        else setError(TEST_RESULT_UNCERTAIN);
-      } else if (result.status === 0) setError(TEST_RESULT_UNCERTAIN);
-      else handleFailure(result);
+      if (!tested.ok) {
+        if (tested.status === 401 || tested.status === 403) onAccessDenied();
+        setError(
+          (saved ? 'Настройки сохранены, но подключение не подтверждено. ' : '') +
+            errorMessage(tested.status, tested.error.code) +
+            (tested.status === 0 ? ' Проверочный запрос мог быть платным.' : ''),
+        );
+        return;
+      }
+      if (
+        tested.data.provider !== providerChoice ||
+        tested.data.model !== model ||
+        tested.data.configurationVersion !== next.configurationVersion
+      ) {
+        setError('Ответ проверки не соответствует текущим настройкам.');
+        return;
+      }
+      setNotice(
+        'Подключено · ' +
+          providerName(providerChoice) +
+          ' · ' +
+          (tested.data.elapsedMs / 1000).toFixed(1) +
+          ' с',
+      );
+      setConfirmPaid(false);
     } catch {
-      setError(TEST_RESULT_UNCERTAIN);
+      setError('Результат не подтверждён. Проверьте соединение перед повторным платным запросом.');
     } finally {
-      requestBusy.current = false;
-      setTesting(false);
-      setAcknowledgeTest(false);
+      inFlight.current = false;
+      setBusy(null);
     }
   }
 
-  useEffect(() => {
-    setConnectionTest(null);
-    setAcknowledgeTest(false);
-  }, [provider, model, enabled, paidOperationsPerHour, apiKey, clearKey]);
   return (
     <section
-      className="asa-ai-admin"
-      aria-labelledby="asa-ai-admin-title"
-      aria-busy={loading || saving || testing}
+      className="asa-cloud-connection"
+      aria-label={'Настройки ' + providerName(providerChoice)}
     >
-      <div className="admin-section-heading">
-        <div>
-          <h2 id="asa-ai-admin-title">ИИ и модели</h2>
-          <p>
-            Подключите официальный API DeepSeek или OpenAI. Настройки доступны только администратору
-            платформы; API-ключ хранится на сервере в зашифрованном виде и не возвращается в
-            браузер.
-          </p>
+      {loading ? (
+        <div role="status" className="asa-cloud-busy">
+          Загружаем настройки…
         </div>
-      </div>
-      {loading ? <p role="status">Загружаем настройки…</p> : null}
+      ) : null}
       {error ? (
-        <div className="admin-inline-error" role="alert">
-          <p>{error}</p>
-          <a href="/#/admin/system">Открыть «Система»</a>
-          {!loading ? (
-            <button
-              type="button"
-              className="btn-secondary"
-              disabled={saving || testing}
-              onClick={() => setLoadAttempt((attempt) => attempt + 1)}
-            >
-              Повторить загрузку
+        <div className="asa-cloud-error" role="alert">
+          {error}
+          {!config ? (
+            <button type="button" onClick={() => setReload((v) => v + 1)}>
+              Повторить
             </button>
           ) : null}
         </div>
       ) : null}
-      {message ? (
-        <p className="asa-ai-admin-success" role="status">
-          {message}
-        </p>
-      ) : null}
       {config ? (
-        <form onSubmit={(event) => void save(event)} className="asa-ai-admin-form">
-          <p className="asa-ai-admin-guide">
-            Введите API-ключ выбранного провайдера, задайте лимит больше 0 и сохраните настройки.
-            Затем подтвердите платную проверку подключения. Чтобы открыть ИИ пользователям, включите
-            разрешение ИИ-запросов и сохраните ещё раз.
-          </p>
-          <section className="asa-ai-admin-section" aria-labelledby="ai-status-title">
-            <h3 id="ai-status-title">Состояние ИИ</h3>
-            <div className="asa-ai-admin-status">
-              <div>
-                <span>Доступ по настройкам</span>
-                <strong>{config.enabled ? 'Включён' : 'Выключен'}</strong>
-              </div>
-              <div>
-                <span>API-ключ</span>
-                <strong>{config.apiKeyConfigured ? 'Сохранён' : 'Не задан'}</strong>
-              </div>
-              <div>
-                <span>Шифрование</span>
-                <strong>{config.encryptionReady ? 'Готово' : 'Требует настройки сервера'}</strong>
-              </div>
+        <form onSubmit={(event) => void apply(event)} className="asa-cloud-form">
+          <div className="asa-cloud-top">
+            <div>
+              <h2>{providerName(providerChoice)}</h2>
+              <span>
+                {slot?.apiKeyConfigured ? 'Ключ сохранён на сервере' : 'Требуется API-ключ'}
+              </span>
             </div>
-            <dl className="asa-ai-admin-summary">
-              <div>
-                <dt>Активный провайдер</dt>
-                <dd>
-                  {config.modelCatalog.providers.find((item) => item.id === config.provider)?.label}
-                </dd>
-              </div>
-              <div>
-                <dt>Сохранённая модель</dt>
-                <dd>{config.model}</dd>
-              </div>
-              <div>
-                <dt>Лимит ASA</dt>
-                <dd>
-                  {config.paidOperationsPerHour === 0
-                    ? '0 · платные запросы запрещены'
-                    : `${config.paidOperationsPerHour} операций за час`}
-                </dd>
-              </div>
-              <div>
-                <dt>Подключение</dt>
-                <dd>
-                  {connectionTest
-                    ? 'Ответ модели подтверждён'
-                    : config.apiKeyConfigured
-                      ? 'Ключ сохранён, подключение не проверено в этой сессии'
-                      : 'Сначала сохраните ключ'}
-                </dd>
-              </div>
-            </dl>
-          </section>
-          {config.migratedFromModel ? (
-            <p className="asa-ai-admin-warning" role="alert">
-              Модель {config.migratedFromModel} снята с обслуживания.{' '}
-              {config.apiKeyConfigured ? 'Сохранённый ключ перенесён на' : 'Выбрана новая модель'}{' '}
-              {config.model}; ИИ-запросы отключены. Выберите модель и сохраните настройки. Доступ к
-              новой модели подтверждается отдельной платной проверкой.
-            </p>
-          ) : null}
-          {savedModel && !savedModel.selectable ? (
-            <p className="asa-ai-admin-warning" role="alert">
-              Модель {savedModel.label} больше недоступна. Запросы к ней заблокированы. Выберите
-              доступную модель и сохраните настройки; ключ провайдера сохранится.
-            </p>
-          ) : null}
-          <section className="asa-ai-admin-section" aria-labelledby="ai-provider-title">
-            <h3 id="ai-provider-title">1. Провайдер и ключ</h3>
-            <section className="asa-ai-provider-slots" aria-label="Сохранённые ключи провайдеров">
-              {config.providerConfigurations.map((slot) => (
-                <p key={slot.provider}>
-                  <strong>
-                    {config.modelCatalog.providers.find((item) => item.id === slot.provider)?.label}
-                  </strong>
-                  <span>{slot.apiKeyConfigured ? 'Ключ сохранён' : 'Ключ не задан'}</span>
-                  {slot.keyFingerprint ? <code>{slot.keyFingerprint}</code> : null}
-                </p>
-              ))}
-              <small>
-                Ключи хранятся отдельно. Переключение провайдера сохраняет остальные ключи.
-              </small>
-            </section>
-            <label>
-              <span>Провайдер</span>
-              <select
-                aria-label="Провайдер"
-                value={provider}
-                disabled={saving || testing}
+            <label className="asa-cloud-enabled">
+              <input
+                type="checkbox"
+                checked={enabled}
                 onChange={(event) => {
-                  const next = event.target.value as Provider;
-                  const catalogProvider = config.modelCatalog.providers.find(
-                    (item) => item.id === next,
-                  );
-                  if (!catalogProvider) return;
-                  const saved = config.providerConfigurations.find(
-                    (item) => item.provider === next,
-                  );
-                  setProvider(next);
-                  setModel(
-                    config.modelCatalog.models.some(
-                      (item) =>
-                        item.id === saved?.model && item.provider === next && item.selectable,
-                    )
-                      ? saved!.model
-                      : catalogProvider.defaultModel,
-                  );
-                  setEnabled(false);
-                  setClearKey(false);
-                  setApiKey('');
+                  setEnabled(event.target.checked);
+                  setNotice('');
+                  setConfirmPaid(false);
                 }}
-              >
-                {config.modelCatalog.providers.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.label}
-                  </option>
-                ))}
-              </select>
+                disabled={!!busy || !config.encryptionReady}
+              />
+              {enabled ? 'Включено' : 'Выключено'}
             </label>
-            <label>
+          </div>
+
+          <div className="asa-cloud-fields">
+            <label className="asa-cloud-field">
               <span>Модель</span>
               <select
                 aria-label="Модель"
                 value={model}
-                disabled={saving || testing}
-                onChange={(event) => setModel(event.target.value)}
+                onChange={(event) => {
+                  setModel(event.target.value);
+                  setNotice('');
+                  setConfirmPaid(false);
+                }}
+                disabled={!!busy}
               >
-                {config.modelCatalog.models
-                  .filter((item) => item.provider === provider)
-                  .map((item) => (
-                    <option key={item.id} value={item.id} disabled={!item.selectable}>
-                      {item.label}
-                      {item.shutdownDate ? ` · до ${item.shutdownDate}` : ''}
-                    </option>
-                  ))}
+                {options.map((row) => (
+                  <option value={row.id} key={row.id}>
+                    {row.label}
+                  </option>
+                ))}
               </select>
             </label>
-            {selectedModel ? (
-              <details
-                className="asa-ai-model-capabilities"
-                aria-label="Возможности выбранной модели"
-              >
-                <summary>Возможности выбранной модели</summary>
-                <p>
-                  Модель принимает{' '}
-                  {selectedModel.inputModalities.includes('image')
-                    ? 'текст и изображения'
-                    : 'только текст'}
-                  .
-                </p>
-                <dl>
-                  {(
-                    [
-                      ['textChat', 'Текстовый чат'],
-                      ['streaming', 'Потоковые ответы'],
-                      ['imageInput', 'Загрузка изображений'],
-                      ['fileAttachments', 'Загрузка файлов'],
-                      ['imageGeneration', 'Генерация изображений'],
-                    ] as const
-                  ).map(([feature, label]) => (
-                    <div key={feature}>
-                      <dt>{label} в ASA Lab</dt>
-                      <dd>
-                        {config.modelCatalog.productFeatures[feature]
-                          ? 'Подключено'
-                          : 'Ещё не подключено'}
-                      </dd>
-                    </div>
-                  ))}
-                </dl>
-                <small>
-                  Каталог описывает возможности модели. Доступ вашего ключа проверяется отдельно.
-                </small>
-              </details>
-            ) : null}
-            {provider === 'deepseek' ? (
-              <p id="ai-provider-help">
-                Официальный DeepSeek API: https://api.deepseek.com/chat/completions. Используйте
-                ключ из <a href="https://platform.deepseek.com/api_keys">кабинета DeepSeek</a>.
-              </p>
-            ) : (
-              <p id="ai-provider-help">Используйте API-ключ из кабинета OpenAI.</p>
-            )}
-            <label>
-              <span>
-                Новый API-ключ{' '}
-                {switched && !selectedProvider?.apiKeyConfigured
-                  ? '(для выбранного провайдера)'
-                  : '(по необходимости)'}
-              </span>
+            <label className="asa-cloud-field">
+              <span>API-ключ {slot?.apiKeyConfigured ? '· замена' : ''}</span>
               <input
+                aria-label="Новый API-ключ"
                 type="password"
-                disabled={saving || testing || !config.encryptionReady}
-                value={apiKey}
-                onChange={(event) => {
-                  setApiKey(event.target.value);
-                  if (event.target.value) setClearKey(false);
-                }}
+                value={keyInput}
                 autoComplete="new-password"
-                aria-describedby="ai-provider-help"
-                required={(switched || enabled) && !selectedProvider?.apiKeyConfigured}
-                placeholder={
-                  selectedProvider?.apiKeyConfigured
-                    ? 'Оставьте пустым, чтобы сохранить прежний ключ'
-                    : 'Введите ключ API'
-                }
-                maxLength={2048}
                 spellCheck={false}
-              />
-            </label>
-            {selectedProvider?.keyFingerprint ? (
-              <p className="asa-ai-admin-fingerprint">
-                Отпечаток сохранённого ключа: {selectedProvider.keyFingerprint}
-              </p>
-            ) : null}
-            <label className="asa-ai-admin-check">
-              <input
-                type="checkbox"
-                checked={clearKey}
+                placeholder={slot?.apiKeyConfigured ? 'Ключ уже сохранён' : 'Вставьте API-ключ'}
                 onChange={(event) => {
-                  setClearKey(event.target.checked);
-                  if (event.target.checked) {
-                    setApiKey('');
-                    setEnabled(false);
-                  }
+                  setKeyInput(event.target.value);
+                  setClearKey(false);
+                  setNotice('');
                 }}
-                disabled={saving || testing || !selectedProvider?.apiKeyConfigured}
-              />
-              <span>Удалить сохранённый API-ключ</span>
-            </label>
-          </section>
-          <section className="asa-ai-admin-section" aria-labelledby="ai-access-title">
-            <h3 id="ai-access-title">2. Лимит и доступ</h3>
-            <label>
-              <span>Общий лимит платных ИИ-операций за час</span>
-              <input
-                type="number"
-                min={0}
-                max={2147483647}
-                step={1}
-                required
-                value={paidOperationsPerHour}
-                disabled={saving || testing}
-                onChange={(event) => setPaidOperationsPerHour(event.target.value)}
-                aria-describedby="ai-paid-operation-limit-help"
+                disabled={!!busy || !config.encryptionReady || clearKey}
+                maxLength={2048}
               />
             </label>
-            <p id="ai-paid-operation-limit-help">
-              По умолчанию 0: платные вызовы запрещены. Положительное целое число разрешает
-              указанное количество операций за последние 60 минут для всей платформы, включая
-              проверку подключения. Это количество операций, а не денежный бюджет. Ошибки и
-              остановленные запросы расходуют лимит; повтор принятого сообщения — нет.
-            </p>
-            <label className="asa-ai-admin-check">
-              <input
-                type="checkbox"
-                checked={enabled}
-                onChange={(event) => setEnabled(event.target.checked)}
-                disabled={saving || testing || clearKey || !config.encryptionReady}
-              />
-              <span>Разрешить ИИ-запросы для вошедших в аккаунт пользователей</span>
-            </label>
-            {!config.encryptionReady ? (
-              <p className="asa-ai-admin-warning" role="alert">
-                В окружении API необходимо настроить ASA_SETTINGS_ENCRYPTION_KEY. API-ключ модели
-                нельзя безопасно сохранять без серверного ключа шифрования.
-              </p>
-            ) : null}
-          </section>
-          <div className="asa-ai-admin-actions">
-            <button
-              type="submit"
-              className="btn-primary"
-              disabled={
-                saving ||
-                testing ||
-                loading ||
-                !validQuota ||
-                !selectedModel?.selectable ||
-                needsNewKey
-              }
-            >
-              {saving ? 'Сохраняем…' : 'Сохранить настройки'}
-            </button>
-            <small>
-              Настройки вступают в силу для следующих запросов. Использование API платное и
-              ограничено квотой.
-            </small>
           </div>
-          <section className="asa-ai-admin-section" aria-labelledby="ai-test-title">
-            <h3 id="ai-test-title">3. Проверка подключения</h3>
-            <p>
-              Сохранение ключа не проверяет доступ к модели. Проверка ниже отправляет один платный
-              запрос и не включает ИИ для пользователей.
-            </p>
-            <label className="asa-ai-admin-check">
+          <div className="asa-cloud-underfields">
+            <label className="asa-cloud-limit">
+              Лимит платных запросов/ч
+              <input
+                aria-label="Общий лимит платных ИИ-операций за час"
+                type="number"
+                min="0"
+                max="2147483647"
+                step="1"
+                value={quota}
+                onChange={(event) => {
+                  setQuota(event.target.value);
+                  setConfirmPaid(false);
+                  setNotice('');
+                }}
+                disabled={!!busy}
+              />
+            </label>
+            <span className="asa-cloud-key-help">
+              {slot?.apiKeyConfigured
+                ? 'Ключ сохранён и скрыт'
+                : 'Ключ можно получить в кабинете провайдера'}{' '}
+              ·{' '}
+              <a href={keyLink} target="_blank" rel="noopener noreferrer">
+                {providerChoice === 'deepseek' ? 'DeepSeek' : 'OpenAI'}
+              </a>
+            </span>
+          </div>
+
+          {enabled ? (
+            <label className="asa-cloud-consent">
               <input
                 type="checkbox"
-                checked={acknowledgeTest}
-                disabled={saving || testing || !canTest}
-                onChange={(event) => setAcknowledgeTest(event.target.checked)}
+                checked={confirmPaid}
+                onChange={(event) => setConfirmPaid(event.target.checked)}
+                disabled={!!busy || !keyReady || !validQuota || Number(quota) === 0}
               />
-              <span>Подтверждаю один платный проверочный запрос</span>
+              Разрешаю один платный запрос для проверки
             </label>
-            <button
-              type="button"
-              className="btn-secondary"
-              disabled={saving || testing || !canTest || !acknowledgeTest}
-              onClick={() => void testConnection()}
-            >
-              {testing ? 'Проверяем модель…' : 'Проверить подключение'}
+          ) : null}
+          {enabled && Number(quota) === 0 ? (
+            <p className="asa-cloud-note">
+              Чтобы включить облачную модель, задайте лимит больше нуля.
+            </p>
+          ) : null}
+          {!config.encryptionReady ? (
+            <p className="asa-cloud-error" role="alert">
+              Шифрование ключей на сервере не настроено.
+            </p>
+          ) : null}
+
+          <div className="asa-cloud-bottom">
+            <button className="asa-cloud-apply" type="submit" disabled={!canSubmit}>
+              {busy === 'check'
+                ? 'Проверяем ответ…'
+                : busy === 'save'
+                  ? 'Сохраняем…'
+                  : enabled
+                    ? 'Сохранить и проверить'
+                    : 'Сохранить выключенным'}
             </button>
-            {connectionTest ? (
-              <p role="status" className="asa-ai-admin-success">
-                Модель {connectionTest.model} ответила. Проверка заняла{' '}
-                {(connectionTest.elapsedMs / 1000).toFixed(1)} с. Провайдер:{' '}
-                {connectionTest.provider}. Проверено:{' '}
-                <time dateTime={connectionTest.testedAt}>
-                  {new Date(connectionTest.testedAt).toLocaleString('ru-RU')}
-                </time>
-                .
-              </p>
+            {notice ? (
+              <span className="asa-cloud-confirmed" role="status">
+                {notice}
+              </span>
             ) : null}
-            {unsaved ? <p>Сначала сохраните настройки для проверки.</p> : null}
-            {config.paidOperationsPerHour === 0 ? (
-              <p className="asa-ai-admin-warning">
-                Сохранённый лимит — 0: проверка и ИИ-запросы заблокированы. Установите лимит больше
-                0 и сохраните настройки, чтобы проверить подключение.
-              </p>
-            ) : validQuota && Number(paidOperationsPerHour) === 0 ? (
-              <p className="asa-ai-admin-warning">
-                Лимит 0 пока не сохранён. После сохранения он заблокирует проверку и ИИ-запросы.
-                Сейчас действует сохранённый лимит: {config.paidOperationsPerHour} операций за час.
-              </p>
+          </div>
+          <details className="asa-cloud-more">
+            <summary>Дополнительно</summary>
+            {slot?.apiKeyConfigured ? (
+              <label className="asa-cloud-consent">
+                <input
+                  type="checkbox"
+                  checked={clearKey}
+                  onChange={(event) => {
+                    setClearKey(event.target.checked);
+                    setKeyInput('');
+                    if (event.target.checked) setEnabled(false);
+                  }}
+                  disabled={!!busy}
+                />
+                Удалить сохранённый ключ этого провайдера
+              </label>
             ) : null}
-            {!config.apiKeyConfigured ? <p>Для проверки сохраните API-ключ.</p> : null}
-          </section>
+            <p>
+              Лимит относится только к платным облачным запросам. Ноль запрещает расходы. Локальная
+              Ollama работает независимо.
+            </p>
+          </details>
         </form>
       ) : null}
     </section>
