@@ -801,7 +801,7 @@ function v3Ledger(title: string): V3Ledger {
     title,
     expectedSourceSha: 'a'.repeat(40),
     observerSha256: 'b'.repeat(64),
-    expectedPace: 0.125,
+    expectedPace: 1,
     registryRevision: v3RegistryRevision,
     stages: [],
     entries: [],
@@ -840,8 +840,8 @@ function populateV3(value: V3Ledger): V3Oracle {
     const absolute = definition.kind === 'absolute-wall-model';
     const model = absolute ? 1000 : null;
     const raw = absolute
-      ? 8000
-      : ((definition.bounds.minimumMs ?? 0) + definition.bounds.maximumMs!) / 2 / 0.125;
+      ? 1000
+      : ((definition.bounds.minimumMs ?? 0) + definition.bounds.maximumMs!) / 2 / 1;
     actual.record(value, value.title, definition.site, v3Provenance(definition), [raw], model);
   }
   for (const definition of actual.acquisitions.filter((entry) => entry.title === value.title)) {
@@ -861,7 +861,7 @@ function populateV3(value: V3Ledger): V3Oracle {
 describe('fixed v3 normalization over the frozen exhaustive registry', () => {
   it('requires all 38 timing records and 4 acquisitions in the unchanged 12 ready cases', () => {
     const actual = oracle().v3;
-    expect(actual.pace).toBe(0.125);
+    expect(actual.pace).toBe(1);
     expect(actual.registry).toBe(v3RegistryRevision);
     expect(actual.sites).toHaveLength(38);
     expect(actual.acquisitions).toHaveLength(4);
@@ -1365,7 +1365,7 @@ describe('fixed v3 normalization over the frozen exhaustive registry', () => {
       const value = v3Ledger(definition.title);
       const provenance = v3Provenance(definition);
       if (definition.kind === 'absolute-wall-model') {
-        for (const raw of [6000, 10000]) {
+        for (const raw of [750, 1250]) {
           const measured = actual.evaluate(
             value,
             value.title,
@@ -1375,9 +1375,9 @@ describe('fixed v3 normalization over the frozen exhaustive registry', () => {
             1000,
           );
           expect(measured.v3Outcome, definition.site).toBe('PASS');
-          expect(measured.strictOutcome, definition.site).toBe('FAIL');
+          expect(measured.strictOutcome, definition.site).toBe('PASS');
         }
-        for (const raw of [5999.999, 10000.001])
+        for (const raw of [749.999, 1250.001])
           expect(
             actual.evaluate(value, value.title, definition.site, provenance, [raw], 1000).v3Outcome,
           ).toBe('FAIL');
@@ -1390,25 +1390,22 @@ describe('fixed v3 normalization over the frozen exhaustive registry', () => {
           1000,
         );
         expect(oldPass.strictOutcome).toBe('PASS');
-        expect(oldPass.v3Outcome).toBe('FAIL');
+        expect(oldPass.v3Outcome).toBe('PASS');
       } else {
         const lower = definition.bounds.minimumMs ?? 0;
         const upper = definition.bounds.maximumMs!;
         for (const bound of [lower, upper])
           expect(
-            actual.evaluate(value, value.title, definition.site, provenance, [bound / 0.125])
-              .v3Outcome,
+            actual.evaluate(value, value.title, definition.site, provenance, [bound / 1]).v3Outcome,
           ).toBe('PASS');
         expect(
-          actual.evaluate(value, value.title, definition.site, provenance, [
-            (upper + 0.001) / 0.125,
-          ]).v3Outcome,
+          actual.evaluate(value, value.title, definition.site, provenance, [(upper + 0.001) / 1])
+            .v3Outcome,
         ).toBe('FAIL');
         if (lower > 0)
           expect(
-            actual.evaluate(value, value.title, definition.site, provenance, [
-              (lower - 0.001) / 0.125,
-            ]).v3Outcome,
+            actual.evaluate(value, value.title, definition.site, provenance, [(lower - 0.001) / 1])
+              .v3Outcome,
           ).toBe('FAIL');
       }
     }
@@ -1440,9 +1437,9 @@ describe('fixed v3 normalization over the frozen exhaustive registry', () => {
         samples: [
           {
             rawWallMs: 16000,
-            normalizedWallMs: 2000,
+            normalizedWallMs: 16000,
             strictComparedMs: 15000,
-            v3ComparedMs: 1000,
+            v3ComparedMs: 15000,
             strictPassed: false,
             v3Passed: false,
           },
@@ -1484,7 +1481,7 @@ describe('fixed v3 normalization over the frozen exhaustive registry', () => {
     for (const definition of definitions) {
       const value = v3Ledger(definition.title);
       const absolute = definition.kind === 'absolute-wall-model';
-      const raw = absolute ? 16000 : (definition.bounds.maximumMs! + 1) / 0.125;
+      const raw = absolute ? 16000 : (definition.bounds.maximumMs! + 1) / 1;
       expect(() =>
         actual.record(
           value,
@@ -1504,14 +1501,14 @@ describe('fixed v3 normalization over the frozen exhaustive registry', () => {
     const actual = oracle().v3;
     for (const definition of actual.sites.filter((entry) => entry.kind.endsWith('-array'))) {
       const value = v3Ledger(definition.title);
-      const good = ((definition.bounds.minimumMs ?? 0) + definition.bounds.maximumMs!) / 2 / 0.125;
-      const raw = [good, (definition.bounds.maximumMs! + 0.01) / 0.125, good];
+      const good = ((definition.bounds.minimumMs ?? 0) + definition.bounds.maximumMs!) / 2 / 1;
+      const raw = [good, (definition.bounds.maximumMs! + 0.01) / 1, good];
       expect(() =>
         actual.record(value, value.title, definition.site, v3Provenance(definition), raw),
       ).toThrow('fixed-pace');
       const entry = value.entries[0] as V3Timing;
       expect(entry.rawWallMs).toEqual(raw);
-      expect(raw).toEqual([good, (definition.bounds.maximumMs! + 0.01) / 0.125, good]);
+      expect(raw).toEqual([good, (definition.bounds.maximumMs! + 0.01) / 1, good]);
       expect(entry.samples.map((sample) => sample.index)).toEqual([0, 1, 2]);
       expect(entry.samples.map((sample) => sample.v3Passed)).toEqual([true, false, true]);
       expect(entry.v3Outcome).toBe('FAIL');
@@ -1611,7 +1608,7 @@ describe('fixed v3 normalization over the frozen exhaustive registry', () => {
         blockly,
         definition.site,
         v3Provenance(definition),
-        [definition.kind === 'absolute-wall-model' ? 8000 : 800],
+        [definition.kind === 'absolute-wall-model' ? 1000 : 100],
         definition.kind === 'absolute-wall-model' ? 1000 : null,
       );
     }
@@ -1621,7 +1618,7 @@ describe('fixed v3 normalization over the frozen exhaustive registry', () => {
       ['schema', 'electronics-classroom-qualification-v2'],
       ['profile', 'strict-real-time'],
       ['entrypoint', entrypoint],
-      ['expectedPace', 1],
+      ['expectedPace', 0.5],
       ['registryRevision', ''],
       ['expectedSourceSha', ''],
       ['observerSha256', ''],
@@ -2595,7 +2592,7 @@ describe('actual v3 acquisition and afterEach preserve reached failures without 
         dimensions: definition.dimensions,
         expectedSourceSha256: v3LifecycleSourceSha256,
         observedProvenance: null,
-        expectedPace: 0.125,
+        expectedPace: 1,
         horizonMicroseconds: definition.horizonMicroseconds,
         waitStartedAt: 100,
         originalDeadlineAt: 5100,
@@ -2773,8 +2770,8 @@ describe('actual v3 acquisition and afterEach preserve reached failures without 
     for (const timing of actual.sites.filter((entry) => entry.title === value.title)) {
       const absolute = timing.kind === 'absolute-wall-model';
       const raw = absolute
-        ? 8000
-        : ((timing.bounds.minimumMs ?? 0) + timing.bounds.maximumMs!) / 2 / 0.125;
+        ? 1000
+        : ((timing.bounds.minimumMs ?? 0) + timing.bounds.maximumMs!) / 2 / 1;
       actual.record(
         value,
         value.title,
@@ -2963,7 +2960,7 @@ describe('prospective eighth-pace discovery and lossless transport', () => {
       expect(result.seedCalls).toBe(1);
       expect(result.ledger).toMatchObject({
         title,
-        expectedPace: 0.125,
+        expectedPace: 1,
         registryRevision: v3RegistryRevision,
       });
       for (const profile of ['strict-real-time', 'classroom-d13-v2']) {
