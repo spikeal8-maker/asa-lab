@@ -1452,6 +1452,92 @@ describe('mounted workbench LED temporal display', () => {
     },
   );
 
+  it('does not spend the first real 16ms RAF displaying an already resident OFF H0 and miss the first 20ms HIGH', async () => {
+    await mount();
+    await loadMountedImages();
+    await act(async () => workbench.toggleSimulation());
+    await receive(observed([{ atMicroseconds: 0, brightness: 0, current: 0 }]), true);
+    await requestedHorizon(10_000);
+    await receive(
+      observed([
+        { atMicroseconds: 0, brightness: 0, current: 0 },
+        { atMicroseconds: 2, brightness: 80, current: 0.01 },
+        { atMicroseconds: 10_000, brightness: 80, current: 0.01 },
+      ]),
+    );
+    await loadMountedImages();
+    // All resources are resident before the first actual RAF; no network/cold
+    // loading or changed physical timing can explain a lost first short phase.
+    await frame(6);
+    assertCommitted(80, 'lit');
+    expect(workbench.componentArduinoLActive(initial.components[0]!)).toBe(true);
+    await requestedHorizon(20_004);
+    await receive(
+      observed([
+        { atMicroseconds: 10_000, brightness: 80, current: 0.01 },
+        { atMicroseconds: 20_004, brightness: 0, current: 0 },
+      ]),
+    );
+    await frame(7);
+    assertCommitted(0, 'off');
+    expect(workbench.componentArduinoLActive(initial.components[0]!)).toBe(false);
+  });
+
+  it('withholds the dark H0 bootstrap while its actual OFF native lease is unready', async () => {
+    await mount();
+    await act(async () => workbench.toggleSimulation());
+    await receive(observed([{ atMicroseconds: 0, brightness: 0, current: 0 }]), true);
+    expect(workbench.committedComponentLedAsset(led)).toBeUndefined();
+    expect(workbench.result).toBeNull();
+    await loadMountedImages();
+    assertCommitted(0, 'off');
+  });
+
+  it.each(['Stop', 'Reset', 'source', 'unmount'] as const)(
+    'rejects dark H0 readiness queued across %s',
+    async (change) => {
+      await mount();
+      await act(async () => workbench.toggleSimulation());
+      await receive(observed([{ atMicroseconds: 0, brightness: 0, current: 0 }]), true);
+      expect(workbench.committedComponentLedAsset(led)).toBeUndefined();
+      const before = workbench.preparedComponentLedAsset(led)?.token;
+      await loadMountedImages(() => {
+        if (change === 'Stop') workbench.toggleSimulation();
+        if (change === 'Reset') workbench.resetArduinoRuntime('uno');
+        if (change === 'source')
+          workbench.updateArduinoProgram('uno', {
+            arduinoSource: 'void setup(){}void loop(){delay(77);}',
+          });
+        if (change === 'unmount') root.unmount();
+      });
+      expect(workbench.committedComponentLedAsset(led)).toBeUndefined();
+      if (change === 'Stop' || change === 'Reset')
+        expect(workbench.preparedComponentLedAsset(led)?.token).not.toBe(before);
+    },
+  );
+
+  it('prepares the actual current complete fast-cycle resource instead of its obsolete first HIGH without moving the display', async () => {
+    await mount();
+    await loadMountedImages();
+    await act(async () => workbench.toggleSimulation());
+    await receive(observed([{ atMicroseconds: 0, brightness: 0, current: 0 }]), true);
+    await frame();
+    const prior = workbench.committedComponentLedAsset(led)!;
+    await requestedHorizon(24_000);
+    const samples = [{ atMicroseconds: 0, brightness: 0, current: 0 }];
+    for (let at = 1; at < 24_000; at += 1000) {
+      const brightness = Math.floor((at - 1) / 1000) % 2 === 0 ? 80 : 0;
+      samples.push({ atMicroseconds: at, brightness, current: brightness ? 0.01 : 0 });
+    }
+    samples.push({ ...samples.at(-1)!, atMicroseconds: 24_000 });
+    await receive(observed(samples));
+    expect(workbench.preparedComponentLedAsset(led)?.asset).toMatch(/_i040\.svg$/);
+    expect(workbench.committedComponentLedAsset(led)).toBe(prior);
+    expect(prior.isActive()).toBe(true);
+    expect(workbench.componentLedBrightness(led)).toBe(0);
+    expect(workbench.simulationTimeMs).toBe(0);
+  });
+
   it('retires an existing speculative token on source layout without disturbing the displayed native lease', async () => {
     await mount();
     await loadMountedImages();

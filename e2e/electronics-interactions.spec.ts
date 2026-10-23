@@ -69,6 +69,86 @@ function realtime682ButtonRelease(records: Realtime682Record[]): boolean {
   return released && !down;
 }
 
+type ShortCycleEdge = { at: number; high: boolean };
+
+function realtime682ShortCycleAudit(
+  phaseMs: number,
+  h0: number,
+  electrical: ShortCycleEdge[],
+  native: ShortCycleEdge[],
+) {
+  const frameMs = 1000 / 60,
+    phaseBound = frameMs + 2,
+    edgeBound = 2 * frameMs + 2;
+  // instruction-us-v1: setup pinMode@0, loop entry@1, first HIGH@2;
+  // HIGH phase delayUs+2, LOW phase delayUs+3, including next loop entry.
+  const expected = Array.from({ length: 21 }, (_, index) => ({
+    at: 2 + Math.floor(index / 2) * (2 * phaseMs * 1000 + 5) + (index % 2) * (phaseMs * 1000 + 2),
+    high: index % 2 === 0,
+  }));
+  const errors: string[] = [];
+  const physical = electrical.slice(
+    electrical.findIndex((edge) => edge.high),
+    electrical.findIndex((edge) => edge.high) + expected.length,
+  );
+  const shown = native.slice(
+    native.findIndex((edge) => edge.high),
+    native.findIndex((edge) => edge.high) + expected.length,
+  );
+  if (physical.length !== expected.length || shown.length !== expected.length)
+    errors.push('missing-front');
+  const lateness: number[] = [],
+    phaseErrors: number[] = [],
+    periodErrors: number[] = [];
+  for (const [index, edge] of expected.entries()) {
+    if (physical[index]?.at !== edge.at || physical[index]?.high !== edge.high)
+      errors.push(`electrical-front-${index}`);
+    const visible = shown[index];
+    if (!visible) continue;
+    if (visible.high !== edge.high) errors.push(`native-order-${index}`);
+    const late = visible.at - (h0 + edge.at / 1000);
+    lateness.push(late);
+    if (late < -2 || late > edgeBound) errors.push(`edge-lateness-${index}`);
+    if (index > 0) {
+      const error = visible.at - shown[index - 1]!.at - (edge.at - expected[index - 1]!.at) / 1000;
+      phaseErrors.push(error);
+      if (Math.abs(error) > phaseBound) errors.push(`phase-duration-${index}`);
+    }
+    if (index > 1) {
+      const error = visible.at - shown[index - 2]!.at - (edge.at - expected[index - 2]!.at) / 1000;
+      periodErrors.push(error);
+      if (Math.abs(error) > phaseBound) errors.push(`period-${index}`);
+    }
+  }
+  const driftRange = lateness.length ? Math.max(...lateness) - Math.min(...lateness) : Infinity;
+  if (driftRange > edgeBound) errors.push('cumulative-drift');
+  let lit = 0;
+  for (let index = 1; index < shown.length; index++)
+    if (shown[index - 1]!.high) lit += shown[index]!.at - shown[index - 1]!.at;
+  const duration = (shown.at(-1)?.at ?? 0) - (shown[0]?.at ?? 0);
+  const expectedDuration = (expected.at(-1)!.at - expected[0]!.at) / 1000;
+  const expectedDuty = (10 * (phaseMs * 1000 + 2)) / (expectedDuration * 1000);
+  const duty = lit / duration,
+    dutyBound = Math.min(0.05, frameMs / expectedDuration + 0.02);
+  if (!Number.isFinite(duty) || Math.abs(duty - expectedDuty) > dutyBound)
+    errors.push('integrated-duty');
+  return {
+    errors,
+    expected,
+    physical,
+    shown,
+    lateness,
+    phaseErrors,
+    periodErrors,
+    driftRange,
+    duty,
+    expectedDuty,
+    dutyBound,
+    phaseBound,
+    edgeBound,
+  };
+}
+
 // Test-only passive transport. A batch remains pending until Node has flushed
 // its contiguous originals. Closed pages cannot erase already acknowledged data.
 async function realtime682Journal(page: Page, path: string) {
@@ -504,12 +584,22 @@ test.describe('Issue 682 acknowledged native realtime baseline', () => {
     }
   });
   test.afterAll(async () => pool.end());
-  for (const mode of ['delays', 'button-serial'] as const)
+  for (const mode of [
+    'delays',
+    'button-serial',
+    'short20',
+    'short30',
+    'short50',
+    'short100',
+  ] as const)
     test(`${mode}: strict real time and acknowledged native evidence`, async ({ page }, info) => {
+      const shortMs = mode.startsWith('short') ? Number(mode.slice(5)) : null;
       const source =
-        mode === 'delays'
-          ? `void setup(){pinMode(13,OUTPUT);pinMode(12,OUTPUT);pinMode(11,OUTPUT);digitalWrite(12,LOW);digitalWrite(11,LOW);digitalWrite(13,HIGH);delay(30);digitalWrite(13,LOW);delay(1000);digitalWrite(13,HIGH);delay(20000);digitalWrite(13,LOW);}void loop(){delay(20000);}`
-          : `void setup(){pinMode(13,OUTPUT);pinMode(12,OUTPUT);pinMode(11,OUTPUT);pinMode(2,INPUT_PULLUP);Serial.begin(9600);}void loop(){if(digitalRead(2)==LOW){digitalWrite(13,HIGH);}else{digitalWrite(13,LOW);}if(Serial.available()>0){int received=Serial.read();Serial.println(received);digitalWrite(11,received==65);}delay(30);}`;
+        shortMs !== null
+          ? `void setup(){pinMode(13,OUTPUT);}void loop(){digitalWrite(13,HIGH);delay(${shortMs});digitalWrite(13,LOW);delay(${shortMs});}`
+          : mode === 'delays'
+            ? `void setup(){pinMode(13,OUTPUT);pinMode(12,OUTPUT);pinMode(11,OUTPUT);digitalWrite(12,LOW);digitalWrite(11,LOW);digitalWrite(13,HIGH);delay(30);digitalWrite(13,LOW);delay(1000);digitalWrite(13,HIGH);delay(20000);digitalWrite(13,LOW);}void loop(){delay(20000);}`
+            : `void setup(){pinMode(13,OUTPUT);pinMode(12,OUTPUT);pinMode(11,OUTPUT);pinMode(2,INPUT_PULLUP);Serial.begin(9600);}void loop(){if(digitalRead(2)==LOW){digitalWrite(13,HIGH);}else{digitalWrite(13,LOW);}if(Serial.available()>0){int received=Serial.read();Serial.println(received);digitalWrite(11,received==65);}delay(30);}`;
       const journal = await realtime682Journal(page, info.outputPath('realtime-682-native.jsonl'));
       let primary: unknown,
         failed = false,
@@ -607,13 +697,39 @@ test.describe('Issue 682 acknowledged native realtime baseline', () => {
             board.x + board.width <= stage.x + stage.width &&
             board.y + board.height <= stage.y + stage.height,
         ).toBe(true);
+        if (shortMs !== null) {
+          const intervals = await page.evaluate(async () => {
+            const frames: number[] = [];
+            for (let index = 0; index < 31; index++)
+              frames.push(await new Promise<number>((resolve) => requestAnimationFrame(resolve)));
+            return frames.slice(1).map((at, index) => at - frames[index]!);
+          });
+          const ordered = [...intervals].sort((a, b) => a - b);
+          const median = (ordered[14]! + ordered[15]!) / 2,
+            p95 = ordered[28]!;
+          journal.retain('short-calibration', {
+            intervals,
+            median,
+            p95,
+            nominalFrameMs: 1000 / 60,
+          });
+          expect(median, 'INFRASTRUCTURE: pre-Start RAF median').toBeGreaterThanOrEqual(15);
+          expect(median, 'INFRASTRUCTURE: pre-Start RAF median').toBeLessThanOrEqual(18);
+          expect(p95, 'INFRASTRUCTURE: pre-Start RAF p95').toBeLessThanOrEqual(20);
+        }
         await journal.barrier();
-        journal.retain('start-action', {
-          source,
-          at: await page.evaluate(() => performance.now()),
-        });
+        const startAt = await page.evaluate(() => performance.now());
+        journal.retain('start-action', { source, at: startAt });
         await page.getByRole('button', { name: 'Начать моделирование', exact: true }).click();
-        if (mode === 'delays') {
+        if (shortMs !== null) {
+          await expect
+            .poll(
+              () =>
+                (responses().at(-1)?.advance as SimulationTimedAdvancePayload | undefined)
+                  ?.committedHorizonMicroseconds ?? 0,
+            )
+            .toBeGreaterThanOrEqual(shortMs * 22_000 + 1000);
+        } else if (mode === 'delays') {
           await expect
             .poll(
               () =>
@@ -731,7 +847,45 @@ test.describe('Issue 682 acknowledged native realtime baseline', () => {
           const paintedLevels = leds.map((led) => Number(led.brightness > 0)).join(',');
           if (paintedLevels !== group.levels) expect(paintedLevels).toBe(group.levels);
         }
-        if (mode === 'delays') {
+        if (shortMs !== null) {
+          const h0 = ready[0]!;
+          expect(h0.at - startAt).toBeLessThanOrEqual(5000);
+          expect((h0.advance as SimulationTimedAdvancePayload).committedHorizonMicroseconds).toBe(
+            0,
+          );
+          const electrical: ShortCycleEdge[] = [];
+          let onBrightness: number | undefined;
+          for (const row of ready)
+            for (const sample of (
+              row.advance as SimulationTimedAdvancePayload
+            ).ledTemporal!.components.find((led) => led.componentId === 'led0')!.samples) {
+              if (sample.brightness > 0) onBrightness ??= Math.round(sample.brightness);
+              if (electrical.at(-1)?.high !== sample.brightness > 0)
+                electrical.push({ at: sample.atMicroseconds, high: sample.brightness > 0 });
+            }
+          const native: ShortCycleEdge[] = [];
+          let seenHigh = false;
+          for (const row of paint) {
+            const led = (
+              row.leds as Array<{ brightness: number; loadedAt: number | null; visible: boolean }>
+            )[0]!;
+            seenHigh ||= led.brightness > 0;
+            if (seenHigh) {
+              if (!led.visible) expect(led.visible).toBe(true);
+              if (led.loadedAt === null) expect(led.loadedAt).not.toBeNull();
+              if (!Number.isFinite(led.brightness))
+                expect(Number.isFinite(led.brightness)).toBe(true);
+              if (led.brightness > 0 && led.brightness !== onBrightness)
+                expect(led.brightness).toBe(onBrightness);
+            }
+            const high = led.brightness > 0;
+            if (native.at(-1)?.high !== high) native.push({ at: Number(row.witnessAt), high });
+          }
+          const report = realtime682ShortCycleAudit(shortMs, h0.at, electrical, native);
+          journal.retain('short-cycle-result', { shortMs, h0, report });
+          expect(report.shown[0]!.at - h0.at).toBeLessThanOrEqual(50);
+          expect(report.errors).toEqual([]);
+        } else if (mode === 'delays') {
           const first = ready[0]!,
             last = ready.at(-1)!;
           const startUs = (first.advance as SimulationTimedAdvancePayload)

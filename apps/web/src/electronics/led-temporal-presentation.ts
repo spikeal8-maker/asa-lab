@@ -10,6 +10,10 @@ import type { SolveResult } from '../api';
 // A complete observation can be 25 ms apart. Two distinct phases must each fit
 // the available cadence; the monitor's frame rate cannot restore omitted states.
 export const LED_PRESENTATION_PHASE_LIMIT_MICROSECONDS = 25_000;
+// Optical averaging is separate from the complete-observation producer cadence.
+// A 20 ms held phase is visible at 60 Hz; genuinely sub-frame cycles retain
+// their integrated brightness from actual complete electrical history.
+const FAST_PHASE_MICROSECONDS = 16_667;
 // Two complete cycles plus the current phase, including near the cadence limit.
 const HISTORY_MICROSECONDS = 5 * LED_PRESENTATION_PHASE_LIMIT_MICROSECONDS;
 const MAX_HISTORY_SAMPLES = 513;
@@ -209,10 +213,10 @@ function fastCycleBrightness(samples: readonly ElectronicsLedTemporalSample[], t
   // about the programme, GPIO level or host timer supplies a missing edge.
   if (edges.length < 5) return undefined;
   const recent = edges.slice(-5);
-  if (to - recent[4]! >= LED_PRESENTATION_PHASE_LIMIT_MICROSECONDS) return undefined;
+  if (to - recent[4]! >= FAST_PHASE_MICROSECONDS) return undefined;
   for (let index = 1; index < recent.length; index++) {
     const phase = recent[index]! - recent[index - 1]!;
-    if (phase <= 0 || phase >= LED_PRESENTATION_PHASE_LIMIT_MICROSECONDS) return undefined;
+    if (phase <= 0 || phase >= FAST_PHASE_MICROSECONDS) return undefined;
   }
   const start = recent[0]!;
   const end = recent[4]!;
@@ -267,8 +271,24 @@ export class LedTemporalPresentation {
    * because the accepted endpoint has returned LOW before the next paint.
    */
   get nextNativeAssetFrame(): LedNativeAssetFrame | null {
+    return this.nextNativeAssetFrameAt();
+  }
+
+  /** Resource demand can follow wall time without preparing or acknowledging a frame. */
+  nextNativeAssetFrameAt(wallMicroseconds?: number): LedNativeAssetFrame | null {
     if (this.cursor === null || this.end === null) return null;
-    const times = new Set([this.cursor, this.end]);
+    const target =
+      wallMicroseconds === undefined || this.origin === null
+        ? this.cursor
+        : Math.min(
+            this.end,
+            Math.max(
+              this.cursor,
+              this.origin.modelMicroseconds +
+                Math.floor(Math.max(0, wallMicroseconds - this.origin.wallMicroseconds)),
+            ),
+          );
+    const times = new Set([target, this.end]);
     if (!this.snapshot) {
       for (const { samples } of this.leds.values()) {
         for (const sample of samples) {
@@ -276,9 +296,9 @@ export class LedTemporalPresentation {
           // existing fast-cycle policy expires into the real held state.
           for (const time of [
             sample.atMicroseconds,
-            sample.atMicroseconds + LED_PRESENTATION_PHASE_LIMIT_MICROSECONDS,
+            sample.atMicroseconds + FAST_PHASE_MICROSECONDS,
           ])
-            if (time > this.cursor && time < this.end) times.add(time);
+            if (time > target && time < this.end) times.add(time);
         }
       }
     }
@@ -458,6 +478,26 @@ export class LedTemporalPresentation {
     };
     this.end = atMicroseconds;
     if (this.cursor === null) this.cursor = atMicroseconds;
+  }
+
+  /**
+   * Bootstrap only a complete, entirely dark H0 that can reuse an actual native
+   * OFF vector. This is not an animation-frame tick or a presentation ACK.
+   */
+  prepareInitialFrame(): LedPresentationFrame | null {
+    if (this.shown || this.pending || this.cursor !== 0 || this.end !== 0 || this.snapshot)
+      return null;
+    const values = this.frameAt(0);
+    if (
+      !values ||
+      values.brightness.size === 0 ||
+      [...values.brightness.values()].some((value) => value !== 0) ||
+      [...values.arduinoLStates.values()].some(Boolean)
+    )
+      return null;
+    const frame = { ...values, token: `${this.gen}:${++this.seq}` };
+    this.pending = frame;
+    return frame;
   }
 
   /**

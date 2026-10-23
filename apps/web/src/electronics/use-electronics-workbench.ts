@@ -702,7 +702,36 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
           opticalPublicationRef.current === null &&
           ledPresentation.preparedFrame === null;
         if (!current() || !latestResult) return;
-        const frame = ledPresentation.nextNativeAssetFrame;
+        const initial = ledPresentation.prepareInitialFrame();
+        if (initial) {
+          // A resident dark H0 need not consume the first real display RAF.
+          // The same native leases and parent layout still own its sole ACK.
+          const assets = candidateAssets(initial, latestResult, document);
+          const candidate: PendingOpticalObservation = {
+            frame: initial,
+            result: latestResult,
+            assets,
+            readiness: new Map(),
+          };
+          pending = candidate;
+          nativePreparation = null;
+          flushSync(() => {
+            if (
+              currentSession() &&
+              session?.active &&
+              runtimeDocumentRef.current === document &&
+              nativePreparationSource === nativePreparationSourceRef.current &&
+              pending === candidate &&
+              ledPresentation.preparedFrame === initial
+            )
+              setLedAssetPreparation({ token: initial.token, assets });
+          });
+          publishReady(candidate);
+          return;
+        }
+        const frame = ledPresentation.nextNativeAssetFrameAt(
+          Math.round(window.performance.now() * 1000),
+        );
         if (!frame) return;
         const assets = candidateAssets(frame, latestResult, document);
         if (assets.size === 0) return;

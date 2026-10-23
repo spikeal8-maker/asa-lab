@@ -449,7 +449,7 @@ describe('accepted per-LED temporal presentation', () => {
     expect(presentation.sample().get('led')).toBe(40);
     const held = window(25_000, 50_000, [channel('led', [point(25_000, 0), point(50_000, 0)])]);
     presentation.accept(electrical(held), held, 200_000);
-    expect(presentation.nextNativeAssetFrame?.atMicroseconds).toBe(50_000);
+    expect(presentation.nextNativeAssetFrame?.atMicroseconds).toBe(41_667);
     expect(presentation.nextNativeAssetFrame?.brightness.get('led')).toBe(0);
     expect(presentation.sample().get('led')).toBe(40);
   });
@@ -1099,7 +1099,7 @@ describe('accepted per-LED temporal presentation', () => {
     },
   );
 
-  it.each([1000, 16_666, 24_999])(
+  it.each([1000, 16_666])(
     'shows a steady measured cycle mean at %i us phases without a window beat',
     (half) => {
       const presentation = new LedTemporalPresentation();
@@ -1207,9 +1207,9 @@ describe('accepted per-LED temporal presentation', () => {
   });
 
   it.each([0, 80])(
-    'expires a former fast cycle exactly 25,000 us after the last edge, held %i',
+    'expires a former fast cycle exactly 16,667 us after the last edge, held %i',
     (level) => {
-      for (const age of [24_999, 25_000]) {
+      for (const age of [16_666, 16_667]) {
         const presentation = new LedTemporalPresentation();
         // End at the existing edge into the requested held state, so no programme
         // change or structural reset is invented at an already committed time.
@@ -1220,7 +1220,7 @@ describe('accepted per-LED temporal presentation', () => {
           channel('led', [point(lastEdge, level), point(lastEdge + age, level)]),
         ]);
         const mean = presentation.accept(electrical(held), held).get('led');
-        if (age === 24_999) expect(mean).toBe(40);
+        if (age === 16_666) expect(mean).toBe(40);
         else expect(mean).toBeUndefined();
       }
     },
@@ -1935,4 +1935,191 @@ describe('ordinary LED native readiness and the shared host publication barrier'
     expect(live).toEqual([]);
     expect(rollback).toEqual([]);
   });
+});
+
+describe('owner repeated short optical phases', () => {
+  it.each([16_667, 20_000, 24_999, 30_000, 50_000, 100_000])(
+    'keeps every complete %i us phase binary over twelve cycles',
+    (phase) => {
+      const presenter = new LedTemporalPresentation();
+      // Complete windows retain every physical edge even when a window spans phases.
+      for (let from = 0; from < phase * 24; from += 25_000) {
+        const to = Math.min(from + 25_000, phase * 24);
+        const observation = window(from, to, [square(from, to, phase)]);
+        presenter.accept(electrical(observation), observation, from);
+        if (from === 0) drawFrame(presenter, 0);
+        for (let at = from + 1000; at <= to; at += 1000) {
+          const values = drawFrame(presenter, at);
+          expect(values.get('led')).toBe(Math.floor(at / phase) % 2 === 0 ? 80 : 0);
+        }
+      }
+      expect(presenter.reanchorCount).toBe(0);
+    },
+  );
+
+  it('requests the current complete phase instead of an obsolete fast-cycle transient without advancing state', () => {
+    const presenter = new LedTemporalPresentation();
+    const observation = window(0, 25_000);
+    presenter.accept(electrical(observation), observation, 0);
+    drawFrame(presenter, 0);
+    const before = {
+      frame: presenter.displayedFrame,
+      cursor: presenter.presentedMicroseconds,
+      pending: presenter.preparedFrame,
+      distinct: presenter.canPublishDistinctFrame,
+    };
+    const demand = presenter.nextNativeAssetFrameAt(24_000)!;
+    expect(demand.atMicroseconds).toBe(24_000);
+    expect(demand.brightness.get('led')).toBe(40);
+    expect({
+      frame: presenter.displayedFrame,
+      cursor: presenter.presentedMicroseconds,
+      pending: presenter.preparedFrame,
+      distinct: presenter.canPublishDistinctFrame,
+    }).toEqual(before);
+  });
+
+  it('still prepares the nearest upcoming slow edge when the current native vector is resident', () => {
+    const presenter = new LedTemporalPresentation();
+    const observation = window(0, 25_000, [
+      channel('led', [point(0, 0), point(20_000, 80), point(25_000, 80)]),
+    ]);
+    presenter.accept(electrical(observation), observation, 0);
+    drawFrame(presenter, 0);
+    expect(presenter.nextNativeAssetFrameAt(10_000)?.atMicroseconds).toBe(20_000);
+    expect(presenter.nextNativeAssetFrameAt(10_000)?.brightness.get('led')).toBe(80);
+  });
+});
+
+describe('native repeated-phase oracle with prospective instruction timing', () => {
+  const text = readFileSync(
+    new URL('../../../../../e2e/electronics-interactions.spec.ts', import.meta.url),
+    'utf8',
+  );
+  const parsed = ts.createSourceFile(
+    'native.ts',
+    text,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  );
+  const declaration = parsed.statements.find(
+    (row) => ts.isFunctionDeclaration(row) && row.name?.text === 'realtime682ShortCycleAudit',
+  )!;
+  const javascript = ts.transpileModule(declaration.getText(parsed), {
+    compilerOptions: { target: ts.ScriptTarget.ES2022 },
+  }).outputText;
+  type Edge = { at: number; high: boolean };
+  const audit = runInNewContext(`${javascript}; realtime682ShortCycleAudit`) as (
+    ms: number,
+    h0: number,
+    electrical: Edge[],
+    native: Edge[],
+  ) => { errors: string[]; phaseErrors: number[] };
+  const physical = (ms: number) =>
+    Array.from({ length: 21 }, (_, index) => ({
+      at: 2 + Math.floor(index / 2) * (2 * ms * 1000 + 5) + (index % 2) * (ms * 1000 + 2),
+      high: index % 2 === 0,
+    }));
+  const native = (ms: number) =>
+    physical(ms).map((edge) => ({
+      ...edge,
+      at: Math.ceil((1000 + edge.at / 1000) / (1000 / 60)) * (1000 / 60),
+    }));
+
+  it.each([20, 30, 50, 100])(
+    'accepts exactly ten actual %i ms cycles quantized to 60 Hz, with no widened tolerance',
+    (ms) => {
+      expect(audit(ms, 1000, physical(ms), native(ms)).errors).toEqual([]);
+    },
+  );
+
+  it.each([
+    'cold65ms',
+    'lost-front',
+    'extra-front',
+    'late-worker',
+    'drift',
+    'wrong-duty',
+    'wrong-electrical-time',
+  ] as const)('rejects %s rather than reanchoring or hiding first phases', (fault) => {
+    const electrical = physical(30),
+      shown = native(30);
+    if (fault === 'cold65ms') shown[1]!.at = shown[0]!.at + 65.3;
+    if (fault === 'lost-front') shown.splice(1, 2);
+    if (fault === 'extra-front')
+      shown.splice(
+        1,
+        0,
+        { at: shown[0]!.at + 5, high: false },
+        { at: shown[0]!.at + 10, high: true },
+      );
+    if (fault === 'late-worker') for (const edge of shown) edge.at += 100;
+    if (fault === 'drift') for (const [index, edge] of shown.entries()) edge.at += index * 3;
+    if (fault === 'wrong-duty')
+      for (const [index, edge] of shown.entries()) if (index % 2) edge.at += 18;
+    if (fault === 'wrong-electrical-time') electrical[1]!.at++;
+    expect(audit(30, 1000, electrical, shown).errors.length).toBeGreaterThan(0);
+  });
+});
+
+describe('dark H0 bootstrap remains an unacknowledged native candidate', () => {
+  it('does not count a fictitious RAF or reset the wall epoch', () => {
+    const presenter = new LedTemporalPresentation();
+    const h0 = window(0, 0, [channel('led', [point(0, 0)])]);
+    presenter.accept(electrical(h0), h0, 100_000);
+    const initial = presenter.prepareInitialFrame()!;
+    expect(initial.atMicroseconds).toBe(0);
+    expect(presenter.displayedFrame).toBeNull();
+    expect(presenter.prepareInitialFrame()).toBeNull();
+    expect(presenter.acknowledgeFrame(initial, 100_000)).toBe(true);
+    expect(presenter.canPublishDistinctFrame).toBe(false);
+    const high = window(0, 16_000, [
+      channel('led', [point(0, 0), point(2, 80), point(16_000, 80)]),
+    ]);
+    presenter.accept(electrical(high), high, 116_000);
+    const first = presenter.prepareFrame(116_000)!;
+    expect(first.atMicroseconds).toBe(16_000);
+    expect(first.brightness.get('led')).toBe(80);
+    expect(presenter.canPublishDistinctFrame).toBe(true);
+  });
+  it.each(['nonzero', 'partial', 'rejected', 'board-L'] as const)(
+    'rejects %s H0 rather than bypassing the normal RAF',
+    (state) => {
+      const presenter = new LedTemporalPresentation();
+      let observation = window(0, state === 'partial' ? 1 : 0, [
+        channel(
+          'led',
+          state === 'partial'
+            ? [point(0, 0), point(1, 0)]
+            : [point(0, state === 'nonzero' ? 80 : 0)],
+        ),
+      ]);
+      let result = electrical(observation);
+      if (state === 'rejected') result = { ...result, solved: false };
+      if (state === 'board-L') {
+        observation = {
+          ...observation,
+          arduinoIndicators: [
+            { componentId: 'uno', truncated: false, samples: [{ atMicroseconds: 0, voltage: 5 }] },
+          ],
+        };
+        result = {
+          ...result,
+          components: [
+            ...result.components,
+            {
+              componentId: 'uno',
+              current: 0,
+              voltageDrop: 5,
+              terminalVoltages: { d13: 5 },
+            },
+          ],
+        };
+      }
+      presenter.accept(result, observation, 0);
+      expect(presenter.prepareInitialFrame()).toBeNull();
+      expect(presenter.preparedFrame).toBeNull();
+    },
+  );
 });
