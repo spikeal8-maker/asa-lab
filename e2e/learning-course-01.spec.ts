@@ -3057,7 +3057,7 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
   const suffix = ++sequence;
   const electronicsTitle = `D5 Electronics Activity ${suffix}`;
   const threeDTitle = `D5 3D Activity ${suffix}`;
-  const courseTitle = `D5 Activity blocks ${suffix}`;
+  const courseTitle = `Автоматический ночник · ${suffix}`;
   const manualTitle = `D5 Manual material ${suffix}`;
   const manualImage = readFileSync('apps/web/public/landing/electronics-simulation.png');
   const manualPdf = Buffer.from('%PDF-1.4\nD5 exact manual PDF\n%%EOF');
@@ -3628,6 +3628,14 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
     (await learner.page.request.get(`${materialBase}/file/${newerManual.fileHash}`)).status(),
   ).toBe(404);
   await expect(manual.getByRole('button', { name: /Начать|Отправить/ })).toHaveCount(0);
+  // Both practical works belong to one published CourseVersion, but the
+  // informational lesson must also have its own durable completion.
+  const markTheory = player.getByRole('button', { name: 'Отметить пройденным', exact: true });
+  await expect(markTheory).toBeVisible();
+  await markTheory.click();
+  await expect(
+    player.getByRole('button', { name: 'Отметить непройденным', exact: true }),
+  ).toBeVisible();
 
   let electronicsCard = player
     .locator('.lesson-activity-block')
@@ -4006,6 +4014,123 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
   await learner.page.screenshot({
     path: `${a1EvidenceDir}/unavailable-390.png`,
     fullPage: false,
+  });
+  // Complete the same real course: two different submitted project identities,
+  // return one attempt, accept the other, resubmit and verify canonical journal.
+  await learner.page.unroute(`**/api/learning/projects/${threeDEvidence.projectId}/context`);
+  await learner.page.setViewportSize({ width: 1440, height: 900 });
+  await openCourse();
+  threeDCard = player.locator('.lesson-activity-block').filter({ hasText: threeDTitle });
+  const threeDSubmit = learner.page.waitForResponse(
+    (response) =>
+      response.request().method() === 'POST' &&
+      new URL(response.url()).pathname ===
+        `/api/learning/projects/${threeDEvidence.projectId}/submit`,
+  );
+  learner.page.once('dialog', (dialog) => void dialog.accept());
+  await threeDCard.getByRole('button', { name: 'Сдать', exact: true }).click();
+  expect((await threeDSubmit).ok()).toBe(true);
+
+  const bothSubmitted = await openCourse();
+  expect(occurrenceFromCourseRun(bothSubmitted, electronicsTitle)).toMatchObject({
+    projectId: electronicsEvidence.projectId,
+    canonicalState: { workflowState: 'submitted' },
+  });
+  expect(occurrenceFromCourseRun(bothSubmitted, threeDTitle)).toMatchObject({
+    projectId: threeDEvidence.projectId,
+    canonicalState: { workflowState: 'submitted' },
+  });
+  await learner.page.screenshot({
+    path: `${evidenceDir}/nightlight-both-practices-submitted.png`,
+    fullPage: true,
+  });
+
+  await page.goto('/#/classrooms/' + classroomId);
+  await page
+    .getByRole('navigation', { name: 'Разделы класса' })
+    .getByRole('button', { name: 'Журнал', exact: true })
+    .click();
+  await page.getByRole('button', { name: 'Задания', exact: true }).click();
+  const electronicsCell = page.getByRole('button', {
+    name: new RegExp('D5 learner · ' + electronicsTitle),
+  });
+  const threeDCell = page.getByRole('button', {
+    name: new RegExp('D5 learner · ' + threeDTitle),
+  });
+  await electronicsCell.click();
+  const review = page.getByRole('region', { name: 'Проверка сдачи' });
+  const originalEvidenceId = await review.getByTestId('submission-version-id').innerText();
+  await review
+    .getByLabel('Причина возврата или исправления')
+    .fill('Проверьте подключение фоторезистора и сдайте исправленную схему.');
+  await review.getByRole('button', { name: 'Вернуть на доработку', exact: true }).click();
+  await expect(review.getByText('Ревизия 1 · На доработке')).toBeVisible();
+  await page.getByRole('button', { name: 'Закрыть проверку', exact: true }).click();
+  await threeDCell.click();
+  await review.getByRole('button', { name: 'Принять выполнение', exact: true }).click();
+  await expect(threeDCell).toContainText('Выполнено');
+
+  const mixedStatus = await openCourse({ reloadAfterExternalChange: true });
+  expect(occurrenceFromCourseRun(mixedStatus, electronicsTitle).canonicalState?.workflowState).toBe(
+    'changes_requested',
+  );
+  expect(occurrenceFromCourseRun(mixedStatus, threeDTitle).canonicalState?.workflowState).toBe(
+    'completed',
+  );
+  electronicsCard = player.locator('.lesson-activity-block').filter({ hasText: electronicsTitle });
+  await expect(electronicsCard).toContainText('Нужна доработка');
+  await electronicsCard.getByRole('button', { name: 'Открыть работу', exact: true }).click();
+  const brief = learner.page.getByTestId('assignment-brief');
+  await expect(brief).toBeVisible();
+  await editRealProject(learner.page, 'electronics');
+  const resubmit = brief.getByRole('button', { name: 'Отправить повторно', exact: true });
+  await expect(resubmit).toBeEnabled();
+  await resubmit.click();
+  await expect(brief.locator('.assignment-brief-footer')).toContainText('На проверке');
+
+  await page.goto('/#/classrooms/' + classroomId);
+  await page
+    .getByRole('navigation', { name: 'Разделы класса' })
+    .getByRole('button', { name: 'Журнал', exact: true })
+    .click();
+  await page.getByRole('button', { name: 'Задания', exact: true }).click();
+  await electronicsCell.click();
+  await expect(review.getByTestId('submission-version-id')).not.toHaveText(originalEvidenceId);
+  await review.getByRole('button', { name: 'Принять выполнение', exact: true }).click();
+  await expect(electronicsCell).toContainText('Выполнено');
+  await expect(threeDCell).toContainText('Выполнено');
+  await page.screenshot({
+    path: `${evidenceDir}/nightlight-teacher-accepted-both-in-journal.png`,
+    fullPage: true,
+  });
+
+  const finalRun = await openCourse({ reloadAfterExternalChange: true });
+  for (const [title, projectId] of [
+    [electronicsTitle, electronicsEvidence.projectId],
+    [threeDTitle, threeDEvidence.projectId],
+  ] as const) {
+    expect(occurrenceFromCourseRun(finalRun, title)).toMatchObject({
+      projectId,
+      canonicalState: { workflowState: 'completed' },
+    });
+  }
+  await expect(
+    player.getByRole('button', { name: 'Отметить непройденным', exact: true }),
+  ).toBeVisible();
+  await learner.page.reload();
+  const restored = await openCourse();
+  for (const [title, projectId] of [
+    [electronicsTitle, electronicsEvidence.projectId],
+    [threeDTitle, threeDEvidence.projectId],
+  ] as const) {
+    expect(occurrenceFromCourseRun(restored, title)).toMatchObject({
+      projectId,
+      canonicalState: { workflowState: 'completed' },
+    });
+  }
+  await learner.page.screenshot({
+    path: `${evidenceDir}/nightlight-learner-accepted-and-reloaded.png`,
+    fullPage: true,
   });
 
   learnerFailures.assertEmpty();
