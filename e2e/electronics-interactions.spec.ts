@@ -3794,7 +3794,9 @@ wireVideoTest.describe('interaction: natural precise wire routing', () => {
         // reopen form one full F2 journey; measured mouse/touch each take ~56s.
         // Scope this finite budget to F2 only, leaving every other test unchanged.
         wireVideoTest.setTimeout(90_000);
-        await page.setViewportSize({ width: 1440, height: 1000 });
+        await page.setViewportSize(
+          input === 'touch' ? { width: 390, height: 844 } : { width: 1440, height: 1000 },
+        );
         const fixture = layeredCrossingDocument();
         const { readDocument, readEditorDocument, errors } = await openEditor(
           page,
