@@ -8315,17 +8315,21 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: owner_priority_targeted_wire_layer_selected
+      checkpoint: owner_programme_pr694_test_integration_selected
       kind: repair
       owner_acceptance: pending
       context_hints:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-ARDUINO-PSU-WIRE-LAYER-001.md
-      repair_scope: Wires above bodies ONLY for exact kinds arduino-uno and regulated-power-supply;exclude batteries and every other ordinary kind.
-      source_budget: WorkbenchStage.tsx and existing presentation tests;component map only if canonical generator requires it. No hook/core/solver/LED/API/persistence/assets/workflow/dependency/cap edits.
+      repair_scope: TEST ONLY controlled integration of PR694 exact 8fa878116c7b508ba12dcc3bca4341175e9c9168 F2 native mouse and 390x844 touch cases with current main; preserve both main Arduino coverage and existing F2. Existing wire-layer product is not selected for rewriting.
+      source_budget: ONLY e2e/electronics-interactions.spec.ts test integration; necessary generated browser metadata only if canonical generator requires it. No Stage/product/budget/workflow/dependency edits. Preserve original PR694 finite case budget; no timeout increase.
       rendering_contract: Render target bodies after breadboard bodies and BEFORE existing wire hit/paint layers;exclude exactly targets from later ordinary body map. Keep terminals and overlays above wires. Preserve other ordinary relative order,foreign Stage props/readiness/UnoL and complete document.
       interaction_contract: Same exact-kind predicate exempts ONLY targets from handleWirePointerDown foreground-body drag redirect;visible target-overlying wires retain wire behavior. Other ordinary redirects unchanged.
-      execution_boundary: One new author performs focused source/unit checks,self-review,freeze STOP;NEW independent exactSHA review before ordinary publication. Existing strict workflow provides exact runtime evidence. No localbrowser/heavybuild or source-only owneracceptance/closure/release/deploy claim.
-      preservation: Pause525 without losing history/contracts;548BUDGETBLOCKED and ownerKEEP544547OPEN unchanged. Foreign/protected work preserved;known workflow exception disjoint only;actual dirty overlap STOP.
+      execution_boundary: One new bounded author integrates reviewed F2 test hunks onto fresh main, freezes focused source checks and STOP; new independent exact-SHA source/integration review before publication. One justified exact-SHA native target verification plus required focused/General gates; no blind unchanged full-suite reruns. Cancelled overall browser never PASS; target evidence alone does not waive mandatory acceptance.
+      preservation: Owner programme679 then681 then557;681 observed CLOSED by owner spikeal8-maker on2026-10-23T17:02:17Z,do not reopen or close again and do not imply prior full General PASS. Preserve682 sole controller,548 budget blocker and ownerKEEP544547OPEN,all historical receipts/refs and foreign/protected work. Real dirty overlap STOP; known workflow exception disjoint only.
+      integration_receipt: docs/product/electronics/evidence/arduino-psu-pr694-integration-selection-20261023.md
+      candidate_pr: 694
+      candidate_source_sha: 8fa878116c7b508ba12dcc3bca4341175e9c9168
+      next_action: Integrate existing F2 tests including already-present390x844 native touch; retain Draft until mandatory review/acceptance. If externalC/D prevents679 closure,record concrete blocker and advance independent681 verification then557 under separate canonical selection. No unreviewed Draft merge.
     execution_lease:
       executor_id: electronics-field-544
       holder: unassigned
