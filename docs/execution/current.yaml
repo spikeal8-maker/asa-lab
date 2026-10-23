@@ -81,6 +81,64 @@ primary_lane:
     - docs/architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md
 
 parallel_lanes:
+  - id: electronics-reverse-led-colour
+    parent_lane: electronics
+    worktree_id: electronics-reverse-led-colour-718
+    owned_paths:
+      - apps/web/src/electronics/workbench.css
+      - apps/web/src/electronics/testing/workbench-presentation.spec.ts
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-REVERSE-LED-COLOUR-001.md
+    task:
+      id: TASK-ELECTRONICS-REVERSE-LED-COLOUR-001
+      issue: 718
+      programme_issue: 452
+      branch: main
+      base_branch: main
+      pr: null
+      status: in_progress
+      kind: repair
+      risk: low
+      semantic_change: 'yes'
+      checkpoint: selected_source_mechanism_confirmed_native_before_and_preflight_pending
+      owner_acceptance: pending
+      owner_authorization: >-
+        Owner requested controller execution of all 23 Electronics corrections via
+        #452/#703 and canonical queue. L01 owner LED reverse colour is the
+        first available independent minimal UI slice after P0 read-only triage;
+        source publication only, no school deployment or real student data.
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-REVERSE-LED-COLOUR-001.md
+        - docs/product/electronics/components/ui-assets-persistence.yaml
+      repair_scope: >-
+        Remove reverse-polarity grayscale of ordinary LED package only,
+        preserving actual unlit brightness, electrical reverse diagnostics
+        and true burned/overcurrent behavior. One isolated stylesheet and
+        focused-presentation regression, with native browser BEFORE/AFTER.
+        No electronics solver, Worker, asset, save, or foreign subsystem edit.
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: ed307209cb7d9f8bffa3fa1ff4c08a1fe80a86fc
+      head_sha: null
+      main:
+        branch: main
+        sha: ed307209cb7d9f8bffa3fa1ff4c08a1fe80a86fc
+      observation_note: >-
+        Controller selection for L01, not a tested candidate. Refresh origin/main,
+        preflight, required bundle check, exact final CI and independent review
+        before claiming any technical completion.
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1
+      browser:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1:browser
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
   - id: electronics-arduino-log-error
     parent_lane: electronics
     worktree_id: arduino-point4-20261023
