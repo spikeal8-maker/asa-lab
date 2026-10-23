@@ -41,6 +41,7 @@ export default defineConfig({
     // Keep every test, the lock and the 60/90-second limits unchanged.
     projects: [
       {
+        extends: true,
         test: {
           name: 'parallel',
           include: [
@@ -61,6 +62,7 @@ export default defineConfig({
         },
       },
       {
+        extends: true,
         test: {
           name: 'serialized-submissions',
           include: [
