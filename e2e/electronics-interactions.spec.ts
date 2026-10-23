@@ -39,6 +39,36 @@ type Realtime682Record = {
   [key: string]: unknown;
 };
 
+function realtime682ButtonRelease(records: Realtime682Record[]): boolean {
+  let down: Realtime682Record | undefined;
+  let released = false;
+  for (const row of records) {
+    if (
+      row.kind !== 'input' ||
+      !['pointerdown', 'pointerup', 'pointercancel'].includes(String(row.type))
+    )
+      continue;
+    if (row.target !== 'button-682' && row.pointerOrigin !== 'button-682') continue;
+    if (row.type === 'pointerdown' && row.target === 'button-682') {
+      if (down || !row.trusted || !Number.isInteger(row.pointerId) || row.buttons !== 1)
+        return false;
+      down = row;
+    } else if (row.type !== 'pointerdown') {
+      if (
+        !down ||
+        !row.trusted ||
+        row.pointerId !== down.pointerId ||
+        row.type === 'pointercancel' ||
+        row.buttons !== 0
+      )
+        return false;
+      released = true;
+      down = undefined;
+    }
+  }
+  return released && !down;
+}
+
 // Test-only passive transport. A batch remains pending until Node has flushed
 // its contiguous originals. Closed pages cannot erase already acknowledged data.
 async function realtime682Journal(page: Page, path: string) {
@@ -238,7 +268,8 @@ async function realtime682Journal(page: Page, path: string) {
       },
       true,
     );
-    for (const type of ['pointerdown', 'pointerup', 'input', 'submit', 'click'])
+    const buttonPointers = new Set<number>();
+    for (const type of ['pointerdown', 'pointerup', 'pointercancel', 'input', 'submit', 'click'])
       document.addEventListener(
         type,
         (event) => {
@@ -248,18 +279,36 @@ async function realtime682Journal(page: Page, path: string) {
             ?.getAttribute('data-component-id');
           const monitor = target?.closest('.arduino-serial-monitor');
           const control = target?.closest('button');
-          if (component === 'button-682' || monitor || control)
+          const pointer = event as PointerEvent;
+          const release = type === 'pointerup' || type === 'pointercancel';
+          const trackedRelease = release && buttonPointers.has(pointer.pointerId);
+          if (type === 'pointerdown' && component === 'button-682' && event.isTrusted)
+            buttonPointers.add(pointer.pointerId);
+          if (component === 'button-682' || monitor || control || trackedRelease) {
             push('input', {
               type,
               trusted: event.isTrusted,
+              pointerOrigin: trackedRelease || component === 'button-682' ? 'button-682' : null,
+              pointerId: type.startsWith('pointer') ? pointer.pointerId : null,
+              buttons: type.startsWith('pointer') ? pointer.buttons : null,
+              rawTarget: {
+                tag: target?.tagName ?? null,
+                id: target?.id ?? null,
+                className: target?.getAttribute('class') ?? null,
+                component: component ?? null,
+                stage: Boolean(target?.closest('.workbench-stage')),
+              },
               value: monitor && target instanceof HTMLInputElement ? target.value : null,
               target:
                 component === 'button-682'
                   ? component
                   : monitor
                     ? 'serial'
-                    : control?.textContent?.trim(),
+                    : (control?.textContent?.trim() ??
+                      (target?.closest('.workbench-stage') ? 'stage' : null)),
             });
+          }
+          if (release) buttonPointers.delete(pointer.pointerId);
         },
         true,
       );
@@ -719,16 +768,7 @@ test.describe('Issue 682 acknowledged native realtime baseline', () => {
             expect(Math.abs(shown[index + 1]!.at - shown[index]!.at - ms)).toBeLessThanOrEqual(250);
           }
         } else {
-          for (const type of ['pointerdown', 'pointerup'])
-            expect(
-              journal.records.some(
-                (row) =>
-                  row.kind === 'input' &&
-                  row.type === type &&
-                  row.target === 'button-682' &&
-                  row.trusted,
-              ),
-            ).toBe(true);
+          expect(realtime682ButtonRelease(journal.records)).toBe(true);
           expect(
             journal.records.some(
               (row) =>
