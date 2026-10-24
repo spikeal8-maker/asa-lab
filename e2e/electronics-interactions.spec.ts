@@ -2763,13 +2763,13 @@ test.describe('asset recovery in the built editor', () => {
     const doc = documentFixture();
     doc.components = doc.components.map((component) =>
       component.id === 'led'
-        ? { ...component, stateProperties: { ...component.stateProperties, ledFault: 'reverse' } }
+        ? { ...component, stateProperties: { ...component.stateProperties, ledFault: 'burned' } }
         : component,
     );
     let badBodies = 0;
     let retries = 0;
     await page.route(
-      (url) => url.pathname.endsWith('/led_red_reverse_polarity.svg'),
+      (url) => url.pathname.endsWith('/led_red_burned.svg'),
       async (route) => {
         const url = new URL(route.request().url());
         if (url.searchParams.has('asa-image-retry')) retries += 1;
