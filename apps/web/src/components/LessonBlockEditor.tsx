@@ -39,10 +39,7 @@ function mediaPreviewReady(block: LessonBlock): boolean {
   return false;
 }
 
-type MediaLessonBlock = Extract<
-  LessonBlock,
-  { type: 'image' | 'video' | 'audio' | 'file' }
->;
+type MediaLessonBlock = Extract<LessonBlock, { type: 'image' | 'video' | 'audio' | 'file' }>;
 
 function isMediaLessonBlock(block: LessonBlock): block is MediaLessonBlock {
   return (
@@ -717,7 +714,9 @@ export function LessonBlockEditor({
                 />
               </div>
             ) : null}
-              {isMediaLessonBlock(block) ? <InlineMediaPreview block={block} index={index} /> : null}
+              {isMediaLessonBlock(block) ? (
+                <InlineMediaPreview block={block} index={index} />
+              ) : null}
           </article>
         ))}
       </div>

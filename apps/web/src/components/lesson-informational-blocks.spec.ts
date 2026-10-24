@@ -680,7 +680,13 @@ describe('informational lesson blocks', () => {
 
   it('refuses an unpublishable image source before mounting any network-backed media', async () => {
     const blocks: LessonBlock[] = [
-      { id: 'invalid-media', type: 'image', url: 'https://example.edu/image.png', alt: '', caption: '' },
+      {
+        id: 'invalid-media',
+        type: 'image',
+        url: 'https://example.edu/image.png',
+        alt: '',
+        caption: '',
+      },
     ];
     expect(lessonBlocksValid(blocks)).toBe(false);
     await mountEditor(blocks);

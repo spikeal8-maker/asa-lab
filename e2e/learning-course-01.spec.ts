@@ -4723,6 +4723,12 @@ test('Course media errors survive saved author preview and learner delivery with
   const videoTitle = 'Сохранённое видео платформы';
   const audioTitle = 'Сохранённое аудио платформы';
   const fileLabel = 'Памятка к сохранённому уроку';
+  // Only exact provisional URLs are allowed to fail while previewing an unsaved lesson.
+  const initialMediaUrls = [
+    '/assets/initial-' + suffix + '.png',
+    '/assets/initial-' + suffix + '.webm',
+    '/assets/initial-' + suffix + '.wav',
+  ];
   const media = [
     {
       url: imageUrl,
@@ -4746,7 +4752,11 @@ test('Course media errors survive saved author preview and learner delivery with
   // publication, assignment and learner responses always come from the API.
   async function observeMedia(target: Page) {
     const origin = new URL(target.url()).origin;
-    const expectedUrls = new Set(media.map((item) => new URL(item.url, origin).href));
+    const expectedUrls = new Set(
+      [...media.map((item) => item.url), ...initialMediaUrls].map(
+        (url) => new URL(url, origin).href,
+      ),
+    );
     const requestCounts = new Map<string, number>();
     const responses = new Map<string, number[]>();
     const consoleErrors: string[] = [];
@@ -5098,6 +5108,7 @@ test('Course media errors survive saved author preview and learner delivery with
   // The author sees the actual learner media renderer without saving or
   // publishing. Missing resources expose the same native error and retry,
   // and the HTTPS PDF stays a link: it must not make a speculative request.
+  const beforeAuthorMediaPreview = await outline();
   const authorImage = editor.getByRole('region', {
     name: 'Предпросмотр вложения блока 2',
     exact: true,
@@ -5125,9 +5136,7 @@ test('Course media errors survive saved author preview and learner delivery with
   );
   await authorImage.getByRole('button', { name: 'Повторить загрузку', exact: true }).click();
   expect((await authorImageRetry).status()).toBe(404);
-  expect(authorObserver.requestCounts.get(imageUrl)).toBeGreaterThan(
-    previousAuthorImageRequests,
-  );
+  expect(authorObserver.requestCounts.get(imageUrl)).toBeGreaterThan(previousAuthorImageRequests);
   await expect(authorImage.getByRole('alert')).toHaveText('Не удалось загрузить изображение');
   const authorFile = editor.getByRole('region', {
     name: 'Предпросмотр вложения блока 3',
@@ -5143,6 +5152,9 @@ test('Course media errors survive saved author preview and learner delivery with
   await expect(
     editor.getByRole('region', { name: 'Предпросмотр вложения блока 5' }).locator('audio'),
   ).toHaveAttribute('src', audioUrl);
+  expect(await outline(), 'inline author preview must not write the draft').toEqual(
+    beforeAuthorMediaPreview,
+  );
 
   const save = page.waitForResponse(
     (response) =>
