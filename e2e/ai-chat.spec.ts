@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { expect, test, type Page, type Route } from '@playwright/test';
 import { aiAdminFixture } from '../apps/web/src/admin/testing/ai-admin-config.fixture';
 
@@ -245,6 +245,79 @@ async function fixture(page: Page, answer = 'Arduino — это платформ
     submittedKey: () => keyWasSubmitted,
   };
 }
+
+
+test('AI composer uploads a real file once and restores the saved attachment after reload', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 850 });
+  const fake = await fixture(page, 'В коде указан INPUT, нужен OUTPUT.');
+  const bytes = Buffer.from('void setup() { pinMode(13, INPUT); }\n');
+  const hash = createHash('sha256').update(bytes).digest('hex');
+  const uploadId = randomUUID();
+  let uploadCount = 0;
+  let sentIds: readonly string[] = [];
+  await page.route('**/api/ai/attachments**', async (route) => {
+    const request = route.request();
+    const path = new URL(request.url()).pathname;
+    if (path === '/api/ai/attachments' && request.method() === 'POST') {
+      expect(request.postDataJSON()).toMatchObject({
+        uploadId,
+        fileName: 'sketch.ino',
+        sizeBytes: bytes.length,
+        sha256: hash,
+      });
+      return route.fulfill({
+        json: { uploadId, sha256: hash, state: 'reserved' },
+      });
+    }
+    if (path === '/api/ai/attachments/' + uploadId + '/bytes' && request.method() === 'PUT') {
+      uploadCount += 1;
+      expect(request.postDataBuffer()).toEqual(bytes);
+      expect(request.headers()['content-type']).toBe('application/vnd.asa.ai-attachment');
+      return route.fulfill({ json: { uploadId, sha256: hash, state: 'ready' } });
+    }
+    return route.fallback();
+  });
+  await page.route('**/api/ai/threads/*/attachments*', async (route) => {
+    const ids = new URL(route.request().url()).searchParams.get('requestIds')?.split(',') ?? [];
+    return route.fulfill({
+      json: {
+        items: ids.map((requestId) => ({
+          requestId,
+          attachments: requestId === fake.requests[0]
+            ? [{ uploadId, fileName: 'sketch.ino', sizeBytes: bytes.length, mediaType: 'text/plain', kind: 'text' }]
+            : [],
+        })),
+      },
+    });
+  });
+  await page.route('**/api/ai/threads/*/messages/stream', async (route) => {
+    sentIds = (route.request().postDataJSON() as { attachmentIds?: string[] }).attachmentIds ?? [];
+    return route.fallback();
+  });
+
+  fake.release();
+  await page.goto('/#/ai');
+  await page.locator('input[type=file][accept]').setInputFiles({
+    name: 'sketch.ino',
+    mimeType: 'text/plain',
+    buffer: bytes,
+  });
+  await expect(page.locator('.chat-attachment-drafts')).toContainText('sketch.ino');
+  await expect(page.locator('.chat-attachment-drafts')).toContainText('text/plain');
+  await page.getByRole('textbox', { name: 'Сообщение ИИ' }).fill('Найди ошибку в коде');
+  await page.getByRole('button', { name: 'Отправить сообщение' }).click();
+  await expect(page.locator('.chat-attached-history')).toContainText('sketch.ino');
+  expect(uploadCount).toBe(1);
+  expect(sentIds).toEqual([uploadId]);
+  expect(fake.requests).toHaveLength(1);
+  await page.reload();
+  await page.getByRole('button', { name: 'Найди ошибку в коде', exact: true }).click();
+  await expect(page.locator('.chat-attached-history')).toContainText('sketch.ino');
+  await expect(page.locator('.chat-turns')).toContainText('В коде указан INPUT, нужен OUTPUT.');
+  expect(uploadCount).toBe(1);
+});
 
 for (const selection of ['single', 'switch', 'switch-error', 'retry'] as const) {
   test(`AI waits for selected history before sending: ${selection}`, async ({ page }) => {
