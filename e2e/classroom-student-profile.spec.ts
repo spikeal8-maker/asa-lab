@@ -754,14 +754,19 @@ test('all nine sections, honest loaded-only filtering, private works, archive an
     populated: true,
   });
   await state.open();
+  let currentSettings = await openTeacherSettings(page, 'Защита ученика');
   await expect(
-    page.getByRole('checkbox', { name: `Защита: ${longName}`, exact: true }),
+    currentSettings.getByRole('checkbox', {
+      name: `Защита ученика в настройках: ${longName}`,
+    }),
   ).not.toBeChecked();
   const suspended = page.locator('.classroom-student-identity-rail .classroom-student-suspended');
   await expect(suspended).toHaveCount(1);
   await expect(suspended).toHaveText('Доступ приостановлен');
   await expect(suspended).toBeVisible();
-  await expect(page.getByRole('combobox', { name: 'Роль в классе' })).toHaveValue('helper');
+  currentSettings = await openTeacherSettings(page, 'Данные и роль');
+  await expect(currentSettings.getByRole('combobox', { name: 'Роль ученика в настройках' })).toHaveValue('helper');
+  await openTeacherTab(page, 'all');
   const tabs = page.getByRole('navigation', { name: 'Разделы профиля' });
   for (const width of [1440, 1024, 390, 320]) {
     await page.setViewportSize({ width, height: 900 });
@@ -870,12 +875,14 @@ test('single learner is disabled, archived is read-only, profile loading/error/r
   await shot(page, 'profile-error');
   await page.getByRole('button', { name: 'Повторить', exact: true }).click();
   await expect(page.locator('.classroom-student-navigation button:disabled')).toHaveCount(2);
-  await expect(page.getByRole('combobox', { name: 'Роль в классе' })).toBeDisabled();
+  let archivedSettings = await openTeacherSettings(page, 'Данные и роль');
+  await expect(archivedSettings.getByRole('combobox', { name: 'Роль ученика в настройках' })).toBeDisabled();
+  archivedSettings = await openTeacherSettings(page, 'Защита ученика');
+  await expect(archivedSettings.getByRole('checkbox', {
+    name: `Защита ученика в настройках: ${longName}`,
+  })).toBeChecked();
   await expect(
-    page.getByRole('checkbox', { name: `Защита: ${longName}`, exact: true }),
-  ).toBeChecked();
-  await expect(
-    page.getByText('Класс в архиве. Изменения недоступны.', { exact: true }),
+    archivedSettings.getByText('Класс в архиве. Изменения недоступны.', { exact: true }),
   ).toBeVisible();
   await noOverflow(page);
   await shot(page, 'profile-archived-empty');
@@ -1305,23 +1312,25 @@ test('pending role mutations cannot repopulate another learner or a logged-out p
     return route.fulfill({ json: { ok: true } });
   });
   await state.open();
-  await page.getByRole('combobox', { name: 'Роль в классе' }).selectOption('helper');
+  let roleRegion = await openTeacherSettings(page, 'Данные и роль');
+  await roleRegion.getByRole('combobox', { name: 'Роль ученика в настройках' }).selectOption('helper');
   await expect.poll(() => roles.length).toBe(1);
   await expect(page.getByRole('button', { name: /История/ })).toHaveCount(0);
   await page.getByRole('button', { name: /Следующий ученик:/ }).click();
   await expect(page.locator('.classroom-student-picker-name')).toHaveText('Ученик 02');
-  await expect(page.getByRole('combobox', { name: 'Роль в классе' })).toHaveValue('student');
+  roleRegion = await openTeacherSettings(page, 'Данные и роль');
+  await expect(roleRegion.getByRole('combobox', { name: 'Роль ученика в настройках' })).toHaveValue('student');
   const beforeOldReply = state.requests.filter((request) => request.kind === 'profile').length;
   const oldReply = page.waitForResponse((response) =>
     response.url().endsWith('/participants/actions/role'),
   );
   roles[0]!.release();
   await (await oldReply).finished();
-  await expect(page.getByRole('combobox', { name: 'Роль в классе' })).toHaveValue('student');
+  await expect(roleRegion.getByRole('combobox', { name: 'Роль ученика в настройках' })).toHaveValue('student');
   expect(state.requests.filter((request) => request.kind === 'profile')).toHaveLength(
     beforeOldReply,
   );
-  await page.getByRole('combobox', { name: 'Роль в классе' }).selectOption('helper');
+  await roleRegion.getByRole('combobox', { name: 'Роль ученика в настройках' }).selectOption('helper');
   await expect.poll(() => roles.length).toBe(2);
   expect(roles.map(({ seatId, role }) => ({ seatId, role }))).toEqual([
     { seatId: 'seat-0', role: 'helper' },
@@ -1338,7 +1347,7 @@ test('pending role mutations cannot repopulate another learner or a logged-out p
   await (await lastReply).finished();
   await page.evaluate(() => window.dispatchEvent(new Event('focus')));
   await expect(page.locator('main.classroom-student')).toHaveCount(0);
-  await expect(page.getByRole('combobox', { name: 'Роль в классе' })).toHaveCount(0);
+  await expect(page.getByRole('combobox', { name: 'Роль ученика в настройках' })).toHaveCount(0);
   expect(state.requests).toHaveLength(beforeLogoutReply);
   expect(state.errors).toEqual([]);
 });
@@ -1533,7 +1542,7 @@ test('UI-03: four real student settings categories preserve permissions and one 
   await expect.poll(() => roleAction).toMatchObject({ seatId: 'seat-0', role: 'helper' });
   // The synthetic profile GET still reports "student"; the UI must not forge a role.
   await expect(role).toHaveValue('student');
-  await expect(region).toContainText('Рейтинг класса');
+  await expect(region).not.toContainText('Рейтинг класса');
 
   const access = categories.getByRole('button', { name: /^Коды и доступ/ });
   await access.click();
@@ -1563,9 +1572,9 @@ test('UI-03: four real student settings categories preserve permissions and one 
   const games = categories.getByRole('button', { name: /^Игровые разрешения/ });
   await games.click();
   await expect(categories.locator('button[aria-expanded="true"]')).toHaveCount(1);
-  await region.getByRole('button', { name: 'Перейти к действующим игровым разрешениям' }).click();
-  await expect(page.locator('.classroom-student-games-region')).toBeFocused();
-  await expect(page.getByRole('group', { name: 'Игры ученика', exact: true })).toBeVisible();
+  await expect(page.locator('.classroom-student-games-region')).toHaveCount(0);
+  await expect(region.locator('.classroom-games-settings')).toHaveCount(1);
+  await expect(region.getByRole('group', { name: 'Игры ученика', exact: true })).toBeVisible();
   await noOverflow(page);
   expect(state.errors).toEqual([]);
 });
