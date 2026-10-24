@@ -68,7 +68,10 @@ export function lessonComplete(lesson: SeatCourseRunLesson): boolean {
   if (lesson.kind === 'material') {
     if (!lesson.completedAt) return false;
     const practices = lessonPracticeProgress(lesson);
-    return practices.total === practices.completed;
+    // If a published visible Activity lacks its assigned runtime occurrence,
+    // completion is unproven. Do not manufacture a due practice in the counter,
+    // but also do not silently mark the whole lesson complete.
+    return practices.unavailable === 0 && practices.total === practices.completed;
   }
   return lesson.canonicalState
     ? lesson.canonicalState.selectedResult?.completionValue === true
