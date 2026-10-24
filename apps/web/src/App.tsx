@@ -109,7 +109,12 @@ const ModuleEditorHost = lazy(() =>
 );
 import { AppBootShell } from './components/AppBootShell';
 import { PageDeliveryBoundary } from './components/PageDeliveryBoundary';
-import { isMaxLaunchLocation, leaveMaxLaunch, readMaxInitData, type MaxBridgeLoadResult } from './max-auth';
+import {
+  isMaxLaunchLocation,
+  leaveMaxLaunch,
+  readMaxInitData,
+  type MaxBridgeLoadResult,
+} from './max-auth';
 import { onSessionLoggedOut } from './session-fetch';
 import { onAccountVerificationRequired } from './auth-verification';
 import './auth-verification.css';
