@@ -84,6 +84,11 @@ const upgradeArtifacts = [
     '0240_teacher_home_canonical_read_jit.sql',
     '60dae5f444e08a479acdb98752b434b1114680d3f742aa31dfc0484bfe5c9dd5',
   ],
+  [
+    '0241',
+    '0241_project_publication_pins.sql',
+    '1dd6cb6eebd25257fa55b9acf493a4ecde4c4d0d5ea8998d4fd63e02b0d62908',
+  ],
 ] as const;
 
 type Plan = ReturnType<typeof planMigrations>;
@@ -473,7 +478,7 @@ async function seedOldContracts(pool: pg.Pool, client: pg.PoolClient) {
 }
 
 describe('joint AI, Courses, Portal and Projects supported-prefix upgrade', () => {
-  it('upgrades real 0225 data through all fifteen migrations without losing history or refunding quota', async () => {
+  it('upgrades real 0225 data through all pinned migrations without losing history or refunding quota', async () => {
     await withPrefixDatabase(async (pool, client, plan) => {
       const fixture = await seedOldContracts(pool, client);
       const beforeLedger = await ledger(pool);
@@ -525,7 +530,7 @@ describe('joint AI, Courses, Portal and Projects supported-prefix upgrade', () =
         ),
       ).toEqual(upgradeArtifacts.map(([version]) => version));
 
-      expect(await applyIsolatedTestPlan(client, plan)).toBe(15);
+      expect(await applyIsolatedTestPlan(client, plan)).toBe(upgradeArtifacts.length);
       const afterLedger = await ledger(pool);
       expect(afterLedger.filter((row) => Number(row.version) <= 225)).toEqual(beforeLedger);
       expect(
