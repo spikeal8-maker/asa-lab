@@ -48,7 +48,7 @@ jobs:
               assert steps[name] == 'success', name
           assert by_name['PostgreSQL tests and RLS']['conclusion'] == 'failure'
           log = subprocess.check_output(['gh','api','--allow-escape-sequences','repos/spikeal8-maker/asa-lab/actions/jobs/121004351840/logs'], text=True)
-          log = re.sub(r'\[[0-?]*[ -/]*[@-~]', '', log)
+          log = re.sub(r'\x1b\[[0-?]*[ -/]*[@-~]', '', log)
           assert '7027 passed' in log and 'Failed Tests 2' in log
           assert 'learning-main-prefix-history-upgrade.pg.spec.ts' in log and 'expected 16 to be 15' in log
           assert 'engine-timed-api.spec.ts' in log and 'Test timed out in 5000ms' in log
