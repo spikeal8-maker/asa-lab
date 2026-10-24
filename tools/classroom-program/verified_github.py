@@ -196,14 +196,24 @@ def _get_reviews(pr_number: int, commit_sha: str, author_login: str, needs_secur
     if any(type(entry.get("id")) is not int or entry["id"] <= 0 for entry in exact):
         raise RemoteProofError("Invalid or missing authenticated GitHub review ID")
     latest_by_reviewer = {}
+    permitted_states = {"APPROVED", "CHANGES_REQUESTED", "PENDING", "DISMISSED", "COMMENTED"}
     for entry in exact:
         reviewer = (entry.get("user") or {}).get("login")
         if not reviewer:
             raise RemoteProofError("Review has no authenticated GitHub reviewer")
+        state = entry.get("state")
+        if state not in permitted_states:
+            raise RemoteProofError("Unknown exact-SHA GitHub review state")
         order = entry["id"]
         previous = latest_by_reviewer.get(reviewer)
-        if previous is None or order > previous[0]:
-            latest_by_reviewer[reviewer] = (order, entry.get("state"))
+        if previous is not None and order < previous[0]:
+            continue
+        # COMMENTED is not a review decision. It cannot revoke a previous
+        # change request, pending re-review, or approval; only a decisive
+        # APPROVED, CHANGES_REQUESTED, DISMISSED or PENDING can change it.
+        if state == "COMMENTED" and previous is not None:
+            state = previous[1]
+        latest_by_reviewer[reviewer] = (order, state)
     if any(
         state in {"PENDING", "CHANGES_REQUESTED"}
         for _, state in latest_by_reviewer.values()
@@ -219,9 +229,11 @@ def _get_reviews(pr_number: int, commit_sha: str, author_login: str, needs_secur
     )
     if not isinstance(comments, list):
         raise RemoteProofError("Unexpected review comments response")
-    # A Codex summary may be edited in place. Use updated_at rather than relying
-    # on creation order; do not silently skip a newer failed exact-SHA verdict.
-    latest = None
+    # A Codex summary may be edited in place. Track Code and Security
+    # independently: a new code-only update must never erase an outstanding
+    # security failure (and vice versa). Only an exact-SHA verdict of the same
+    # review kind can supersede a previous exact-SHA result.
+    latest = {}
     for comment in comments:
         if (comment.get("user") or {}).get("login") != "chatgpt-codex-connector[bot]":
             continue
@@ -230,34 +242,57 @@ def _get_reviews(pr_number: int, commit_sha: str, author_login: str, needs_secur
         if marker not in body:
             continue
         try:
-            state = json.loads(body.split(marker, 1)[1].split(" -->", 1)[0])
-        except (ValueError, IndexError, TypeError):
-            continue
-        if not isinstance(state, dict):
-            continue
-        code = state.get("code_review") or {}
-        security = state.get("security_review") or {}
+            parsed = json.loads(body.split(marker, 1)[1].split(" -->", 1)[0])
+        except (ValueError, IndexError, TypeError) as error:
+            raise RemoteProofError("Malformed authenticated Codex review state") from error
+        if not isinstance(parsed, dict):
+            raise RemoteProofError("Authenticated Codex review state is not an object")
+        comment_id = comment.get("id")
+        if type(comment_id) is not int or comment_id <= 0:
+            raise RemoteProofError("Authenticated Codex review comment lacks a valid ID")
+        order = (
+            comment.get("updated_at") or comment.get("created_at") or "",
+            comment_id,
+        )
+        code = parsed.get("code_review") or {}
+        security = parsed.get("security_review") or {}
         if not isinstance(code, dict) or not isinstance(security, dict):
-            continue
-        if code.get("commit_sha") != commit_sha and security.get("commit_sha") != commit_sha:
-            continue
-        order = (comment.get("updated_at") or comment.get("created_at") or "",
-                 comment.get("id") or 0)
-        if latest is None or order > latest[0]:
-            latest = (order, code, security)
-    if latest is not None:
+            raise RemoteProofError("Malformed authenticated Code/Security review details")
+        for kind, verdict in (("code_review", code), ("security_review", security)):
+            exact_sha = verdict.get("commit_sha") == commit_sha
+            # A failed/in-progress security result without an explicit SHA is
+            # still applicable if the same authenticated summary targets this
+            # exact source SHA in its code review. Null SHA cannot attest PASS.
+            implicit_security_block = (
+                kind == "security_review"
+                and verdict.get("commit_sha") is None
+                and code.get("commit_sha") == commit_sha
+                and (
+                    verdict.get("has_any_findings") is True
+                    or verdict.get("has_unresolved_findings") is True
+                    or verdict.get("status") in {"running", "in_progress", "pending"}
+                )
+            )
+            if not exact_sha and not implicit_security_block:
+                continue
+            previous = latest.get(kind)
+            if previous is None or order > previous[0]:
+                latest[kind] = (order, verdict)
+    if latest:
         if "chatgpt-codex-connector[bot]" in excluded:
             raise RemoteProofError("Codex code contributor cannot independently review itself")
-        _, code, security = latest
-        # Security review may be optional for some task types, but an actual
-        # exact-SHA negative or incomplete security verdict is NEVER optional.
-        # The bot cannot authorize the task with clean code review while its
-        # explicit security finding remains unresolved.
-        if (security.get("has_any_findings") is True
-                or security.get("has_unresolved_findings") is True) and                 security.get("commit_sha") in (None, commit_sha):
+        code = latest.get("code_review", (None, {}))[1]
+        security = latest.get("security_review", (None, {}))[1]
+        if (
+            security.get("has_any_findings") is True
+            or security.get("has_unresolved_findings") is True
+        ):
             raise RemoteProofError("Latest exact-SHA Codex security review has findings")
+        # An actual started security review is authoritative even for a task
+        # whose policy does not require one. Running, pending, incomplete, or
+        # explicitly failed security can never be overwritten by code-only PASS.
         required = [code]
-        if needs_security or security.get("commit_sha") == commit_sha:
+        if needs_security or "security_review" in latest:
             required.append(security)
         if all(
             state.get("commit_sha") == commit_sha
