@@ -302,6 +302,7 @@ function createRealtime682LongAudit(phaseMs: number, source: string) {
     if (
       h0 !== null &&
       row.at >= h0 &&
+      (stopAt === null || row.at < stopAt) &&
       (row.kind === 'render-opportunity-missed' || row.kind === 'render-opportunity-late')
     )
       fail('unobserved-render-opportunity');
@@ -440,20 +441,31 @@ async function realtime682Journal(
     probeOverhead: 'UNKNOWN_NONZERO',
   });
   await page.exposeBinding('__realtime682Batch', (_, batch: Realtime682Record[]) => {
-    if (!Array.isArray(batch) || batch.length === 0 || batch.length > 256)
-      throw new Error('Invalid baseline batch');
-    for (const row of batch) {
-      if (row.sequence !== acknowledged + 1 || !Number.isFinite(row.at))
-        throw new Error('Baseline journal sequence gap');
-      if (!retain('browser', row)) throw new Error('Baseline journal write failed; no ACK');
-      records.push(row);
-      if (long) {
-        if (records.length > 2048) records.splice(0, records.length - 2048);
-        long.observe(row);
+    if (errors.length) throw new Error('Baseline journal failed; no ACK');
+    try {
+      if (!Array.isArray(batch) || batch.length === 0 || batch.length > 256)
+        throw new Error('Invalid baseline batch');
+      for (const [index, row] of batch.entries()) {
+        if (row.sequence !== acknowledged + index + 1 || !Number.isFinite(row.at))
+          throw new Error('Baseline journal sequence gap');
       }
-      acknowledged = row.sequence;
+      const originals = batch
+        .map((data) => `${JSON.stringify({ kind: 'browser', nodeAt: Date.now(), data })}\n`)
+        .join('');
+      appendFileSync(path, originals, { encoding: 'utf8', flush: true });
+      for (const row of batch) {
+        records.push(row);
+        if (long) {
+          if (records.length > 2048) records.splice(0, records.length - 2048);
+          long.observe(row);
+        }
+      }
+      acknowledged = batch.at(-1)!.sequence;
+      return acknowledged;
+    } catch (error) {
+      errors.push(String(error));
+      throw error;
     }
-    return acknowledged;
   });
   const recordLimit = long ? Math.ceil(((6 * long.phaseMs + 30_000) / 1000) * 500) + 1000 : 30_000;
   if (long)

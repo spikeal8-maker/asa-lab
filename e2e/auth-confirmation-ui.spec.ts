@@ -615,6 +615,12 @@ for (const width of [1440, 1024, 390, 320]) {
     state.nextPairing = 'registration_required';
     await page.getByRole('button', { name: 'Создать через MAX', exact: true }).click();
     await expect(
+      page.getByRole('region', { name: 'Выбор аккаунта ASA Lab', exact: true }),
+    ).toBeVisible();
+    await expect(page.locator('.auth-social-registration')).toHaveCount(0);
+    await screenshot(page, `social-account-choice-${width}`);
+    await page.getByRole('button', { name: 'Создать новый аккаунт', exact: true }).click();
+    await expect(
       page.getByRole('heading', { name: 'Завершить регистрацию', exact: true }),
     ).toBeVisible();
     await expect(page.locator('.auth-social-registration input[type="date"]')).toHaveValue('');
@@ -757,6 +763,7 @@ test('new social registration collects a real birth date and backup password', a
   const state = await fixture(page, { nextPairing: 'registration_required' });
   await visit(page, '/sign-in');
   await page.getByRole('button', { name: 'Войти через Telegram', exact: true }).click();
+  await page.getByRole('button', { name: 'Создать новый аккаунт', exact: true }).click();
   const form = page.locator('.auth-social-registration');
   await expect(form.getByLabel('Дата рождения', { exact: true })).toHaveValue('');
   await expect(page.locator('input#identifier')).toBeHidden();
@@ -812,15 +819,76 @@ test('an unknown social identity can return to its existing password account wit
   await visit(page, '/sign-in');
   await page.getByLabel('Email или имя пользователя', { exact: true }).fill('existing-account');
   await page.getByRole('button', { name: 'Войти через MAX', exact: true }).click();
-  await page
-    .getByRole('button', { name: 'У меня уже есть аккаунт — войти по паролю', exact: true })
-    .click();
+  await page.getByRole('button', { name: 'Войти в существующий аккаунт', exact: true }).click();
   await expect(page.getByLabel('Email или имя пользователя', { exact: true })).toHaveValue(
     'existing-account',
   );
   await expect(page.locator('.auth-social-registration')).toHaveCount(0);
   expect(state.requests.filter((request) => request.path.endsWith('/register'))).toHaveLength(0);
 });
+
+for (const width of [1440, 390]) {
+  test(`MAX account choice preserves existing password login at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: width < 600 ? 720 : 900 });
+    const state = await fixture(page, { nextPairing: 'registration_required' });
+    await visit(page, '/sign-in');
+    await page.getByLabel('Email или имя пользователя', { exact: true }).fill('existing-account');
+    await page.getByRole('button', { name: 'Войти через MAX', exact: true }).click();
+    const choice = page.getByRole('region', { name: 'Выбор аккаунта ASA Lab', exact: true });
+    await expect(choice).toContainText('После входа подключите MAX');
+    await expect(page.locator('.auth-social-registration')).toHaveCount(0);
+    expect(state.signedIn).toBe(false);
+    expect(state.linked.max).toBe(false);
+    await screenshot(page, `max-existing-choice-${width}`);
+    await choice.getByRole('button', { name: 'Войти в существующий аккаунт', exact: true }).click();
+    await expect(page.getByLabel('Email или имя пользователя', { exact: true })).toHaveValue(
+      'existing-account',
+    );
+    await passwordLogin(page, 'existing-account');
+    await expect.poll(() => state.signedIn).toBe(true);
+    expect(state.requests.filter((request) => request.path === '/api/auth/login')).toHaveLength(1);
+    expect(
+      state.requests.filter((request) => request.path.endsWith('/pairing/register')),
+    ).toHaveLength(0);
+    expect(state.linked.max).toBe(false);
+    expect(state.verifiedProvider).toBeNull();
+  });
+
+  test(`MAX account choice creates an account only after selection at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: width < 600 ? 720 : 900 });
+    const state = await fixture(page, { nextPairing: 'registration_required' });
+    await visit(page, '/sign-in');
+    await page.getByRole('button', { name: 'Войти через MAX', exact: true }).click();
+    await expect(
+      page.getByRole('region', { name: 'Выбор аккаунта ASA Lab', exact: true }),
+    ).toBeVisible();
+    await expect(page.locator('.auth-social-registration')).toHaveCount(0);
+    expect(
+      state.requests.filter((request) => request.path.endsWith('/pairing/register')),
+    ).toHaveLength(0);
+    await screenshot(page, `max-new-choice-${width}`);
+    await page.getByRole('button', { name: 'Создать новый аккаунт', exact: true }).click();
+    const form = page.locator('.auth-social-registration');
+    await form.getByLabel('Email', { exact: true }).fill('max-new-account@example.test');
+    await form.getByLabel('Имя пользователя', { exact: true }).fill('max-new-account');
+    await form.getByLabel('Дата рождения', { exact: true }).fill('1988-03-01');
+    await form.getByLabel('Пароль для входа', { exact: true }).fill('backup-password-2026');
+    await form.getByLabel('Повторите пароль', { exact: true }).fill('backup-password-2026');
+    await screenshot(page, `max-new-registration-${width}`);
+    await form.getByRole('button', { name: 'Создать аккаунт и войти', exact: true }).click();
+    await expect.poll(() => state.signedIn).toBe(true);
+    expect(state.linked.max).toBe(true);
+    expect(
+      state.requests.filter((request) => request.path === '/api/auth/max/pairing/start'),
+    ).toHaveLength(1);
+    expect(
+      state.requests.filter((request) => request.path === '/api/auth/max/pairing/register'),
+    ).toHaveLength(1);
+    expect(state.requests.filter((request) => request.path === '/api/auth/login')).toHaveLength(0);
+  });
+}
 
 test('a revoked identity is a terminal error and stops polling', async ({ page }) => {
   await page.clock.install();
@@ -1079,6 +1147,7 @@ test('a stalled registration can return to password login without accepting its 
   await holdAuthRequest(page, '/api/auth/telegram/pairing/register', 'POST');
   await visit(page, '/sign-in');
   await page.getByRole('button', { name: 'Войти через Telegram', exact: true }).click();
+  await page.getByRole('button', { name: 'Создать новый аккаунт', exact: true }).click();
   const form = page.locator('.auth-social-registration');
   await form.getByLabel('Email', { exact: true }).fill('new-account@example.test');
   await form.getByLabel('Имя пользователя', { exact: true }).fill('new-account');
