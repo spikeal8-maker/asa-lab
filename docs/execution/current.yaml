@@ -81,54 +81,6 @@ primary_lane:
     - docs/architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md
 
 parallel_lanes:
-  - id: electronics-e11-psu-native-test
-    parent_lane: electronics
-    worktree_id: electronics-e11-psu-native-20261024
-    owned_paths:
-      - e2e/electronics-selection-outline.spec.ts
-      - docs/product/electronics/tasks/TASK-ELECTRONICS-E11-PSU-NATIVE-CLICK-001.md
-    task:
-      id: TASK-ELECTRONICS-E11-PSU-NATIVE-CLICK-001
-      issue: 549
-      programme_issue: 452
-      branch: main
-      base_branch: main
-      pr: null
-      status: in_progress
-      kind: repair
-      risk: low
-      semantic_change: 'no'
-      checkpoint: selected_one_author_test_only_psu_pointer_oracle
-      owner_acceptance: pending
-      owner_authorization: >-
-        Owner 2026-10-24 explicitly selected a separate one-author E11 test-only
-        native PSU click correction to unblock #549/#731 after real 1440/390/320
-        physical mouse baseline and source review. Keep full Save/CAS and 30s deadline.
-      context_hints:
-        - docs/product/electronics/tasks/TASK-ELECTRONICS-E11-PSU-NATIVE-CLICK-001.md
-        - docs/product/electronics/OWNER_23_EXECUTION_QUEUE.md
-      repair_scope: >-
-        Apply only SHA256-verified D2-R2 native PSU patch to original E11 physical
-        click (true false true). Use page.mouse move/down/up at real boundingBox:
-        visible wire intercepts locator.click before pointer dispatch. No force,
-        element.click, browser error suppression, stubs or timeout inflation;
-        no Stage/Worker/Save/Auth changes. Preserve distinct overlapping
-        historical #729 and product #731 PRs. Publish test-only branch from main.
-        Full E11 with real Chromium 1440/390/320, independent review and CI
-        required for acceptance.
-    gates:
-      focused:
-        workflow: Electronics R4-M1 Focused
-        commands:
-          - pnpm gate:electronics-m1
-      browser:
-        workflow: Electronics R4-M1 Focused
-        commands:
-          - pnpm gate:electronics-m1:browser
-      general:
-        workflow: ASA Lab Governance and Code Gates
-        commands:
-          - pnpm gate:repository
   - id: electronics-browser-partition-722
     parent_lane: electronics
     worktree_id: electronics-browser-partition-722
@@ -6507,7 +6459,8 @@ parallel_lanes:
     task:
       id: TASK-PROJ-R8-03C-PINNED-CATALOG-001
       issue: 702
-      branch: codex/projects-pin-20261023
+      branch: main
+      candidate_branch: codex/projects-pin-20261023
       base_branch: main
       pr: 704
       pr_draft: true
@@ -10161,16 +10114,32 @@ parallel_lanes:
     - apps/web/src/electronics/NativeOpticalComponentVisual.tsx
     - apps/web/src/electronics/testing/native-optical-lamp-presentation.spec.ts
     - docs/product/electronics/tasks/TASK-ELECTRONICS-LAMP-COMMITTED-001.md
+    - docs/product/electronics/tasks/TASK-ELECTRONICS-E11-PSU-NATIVE-CLICK-001.md
     task:
-      id: TASK-ELECTRONICS-LAMP-COMMITTED-001
-      previous_task_id: TASK-ELECTRONICS-SELECTION-OUTLINE-001
+      id: TASK-ELECTRONICS-E11-PSU-NATIVE-CLICK-001
+      previous_task_id: TASK-ELECTRONICS-LAMP-COMMITTED-001
+      historical_previous_task_id: TASK-ELECTRONICS-SELECTION-OUTLINE-001
       issue: 549
       branch: main
       base_branch: main
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: committed_lamp_optics_product_slice_selected
+      checkpoint: native_e11_psu_test_only_slice_selected_after_lamp_pr731
+      native_psu_test_only:
+        status: in_progress
+        scope: e2e/electronics-selection-outline.spec.ts only
+        candidate_pr: 741
+        candidate_head_at_selection: c55c749ae99c828ad7fda9f095f49887711c182a
+        verify_final_pr_head_each_time: true
+        sole_author: agent/e11-549-native-psu-test-20261024
+        original_patch_sha256: 05FC438C905F25C98E2158A36EC8EEFC958E16A82B799C922BB182E2F231AD3D
+        original_patch_diff: +11/-5 native pointer in one spec only
+        lamp_product_pr: 731
+        lamp_product_head_at_selection: 780c745f32925f3b61a16b4d982262941a40f164
+        required_gates: exact_shas_independent_review_original_e11_1440_390_320
+        no_merge_until: real_worker_svg_led_uno_save_cas_cookies_reopen_auth_max_and_review
+        school_deployment: prohibited
       previous_checkpoint: r6_one_synthetic_before_postfinal_lamp_visual_mismatch
       previous_r6_selection_checkpoint: r6_post_final_snapshot_test_only_diagnostic_selected
       previous_r5_diagnosis: r5_diagnosis_terminal_no_proven_cause
@@ -10219,31 +10188,38 @@ parallel_lanes:
         acceptance: committed_only_no_speculative_lamp_frame_led_uno_lease_unchanged
         school_deployment: prohibited
       context_hints:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-E11-PSU-NATIVE-CLICK-001.md
       - docs/product/electronics/tasks/TASK-ELECTRONICS-LAMP-COMMITTED-001.md
       - docs/product/electronics/tasks/TASK-ELECTRONICS-SELECTION-OUTLINE-001.md
       - docs/product/electronics/components/ui-assets-persistence.yaml
       program_issue: 452
       owner_problem: E11
+      previous_lamp_repair_scope: >-
+        Product candidate PR731 subscribed incandescent lamp SVG only to
+        acknowledged Worker optics. Its code remains Draft pending complete
+        real E11 browser acceptance, independent review and mandatory CI.
       repair_scope: >-
-        One separately selected minimal product repair of stale incandescent-lamp
-        SVG presentation: subscribe the lamp to only ACK-committed optical results,
-        without enrolling it in proposed LED/Uno layout/asset lease or whole-stage
-        rerenders. Capture meaningful new mounted React/DOM regression BEFORE then
-        product AFTER with exact source tests, real Chromium 1440/390/320 and new
-        independent review. Preserve old R5/R6 test/oracle evidence and post-final
-        UNKNOWN; absolutely no second R6 experiment, physics, Worker, CAS or SVG edits.
+        One bounded test-only correction of the original E11 PSU switch action:
+        when visible wire-hit overlays SVG rectangle, Playwright locator.click
+        rejects actionability before a physical user event. Keep true-false-true
+        data-output-enabled assertions, use page.mouse move/down/up on measured
+        boundingBox center, preserve full 30s original test, real Worker/LED/Uno,
+        Save/CAS and cookies-only reopen. Not a Stage/Worker/physics change.
+        No edits to historical Draft PR729 or lamp product PR731.
       source_budget: >-
-        Exactly NativeOpticalComponentVisual.tsx plus one new mounted DOM
-        regression native-optical-lamp-presentation.spec.ts; controller-only
-        current.yaml and TASK-ELECTRONICS-LAMP-COMMITTED-001.md. Existing Draft
-        PR729 test-only R6 runtime remains FAIL and is not a product acceptance.
-        Preserve all Worker, physics, geometry, CAS, Save/reopen and deadlines.
+        Only e2e/electronics-selection-outline.spec.ts one minimal test change
+        (+11/-5) in candidate PR741, this current.yaml routing and
+        TASK-ELECTRONICS-E11-PSU-NATIVE-CLICK-001.md. No changes to
+        NativeOpticalComponentVisual.tsx, lamp regression, WorkbenchStage,
+        Auth, network, browser failures, timeout, Save/CAS, solver or other lanes.
+        Existing separate Auth MAX PR740 must satisfy its own gates first.
       published_before_source_sha: e14229f93c7400fb39ae880cc9889aefdc8dcfb6
       frozen_browser_blob: c4e05c1109dbac9a74ef1548a208178a10789878
       frozen_browser_bytes: 64509
       frozen_browser_lines: 1516
       frozen_browser_sha256: b4c37d707c078d54fcd0a5419f0a382e9d9eb7306b00e31e8ec9df43f2268002
-      independent_source_review: SOURCE_APPROVE
+      previous_lamp_independent_source_review: SOURCE_APPROVE
+      independent_source_review: pending_for_native_e11_exact_sha
       before_strict_run: 39490329377
       before_general_run: 39490297942
       runtime_acceptance: INCOMPLETE_BEFORE_3of16_R5_TERMINAL_NO_PROVEN_CAUSE
