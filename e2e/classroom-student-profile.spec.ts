@@ -1303,6 +1303,12 @@ test('mobile work filters share a row and one card fills the grid while multiple
       const sectionRect = (await sectionSelect.boundingBox())!;
       expect(sectionRect.width).toBeLessThanOrEqual(192);
       expect(sectionRect.height).toBeGreaterThanOrEqual(44);
+      const sharedWidth = Math.min(sectionRect.x + sectionRect.width, target.x + target.width)
+        - Math.max(sectionRect.x, target.x);
+      const sharedHeight = Math.min(sectionRect.y + sectionRect.height, target.y + target.height)
+        - Math.max(sectionRect.y, target.y);
+      expect(sharedWidth > 0 && sharedHeight > 0, 'Info tap target must never overlap section selector')
+        .toBe(false);
       expect(
         await sectionSelect.evaluate((element) => getComputedStyle(element).borderTopWidth),
       ).toBe('0px');
@@ -1324,7 +1330,8 @@ test('mobile work filters share a row and one card fills the grid while multiple
       }
       if (width === 320) {
         expect(summary.y).toBeLessThanOrEqual(archive.y);
-        expect((await toolbar.boundingBox())!.height).toBeLessThanOrEqual(75);
+        // Two 44px touch-safe rows: metrics/info then archive/status.
+        expect((await toolbar.boundingBox())!.height).toBeLessThanOrEqual(94);
       }
     } else await expect(head.locator('#student-works')).toBeVisible();
     await noOverflow(page);
