@@ -833,7 +833,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px;
+  /* Vertical padding is not allowed to outgrow a zero-height conversation row
+   * while the software keyboard reserves most of the visual viewport. */
+  padding: 0 24px;
 }
 
 .asa-ai-layout .asa-ai-start-copy {
@@ -938,7 +940,7 @@
   }
 
   .asa-ai-layout .chat-start-state {
-    padding: 12px;
+    padding: 0 12px;
   }
 
   .asa-ai-layout .chat-composer-dock {
