@@ -486,6 +486,44 @@ async function fixture(
   return state;
 }
 
+test('ordinary Home and Projects never request unavailable MAX Mini App SDK', async ({
+  page,
+}) => {
+  const sdkRequests: string[] = [];
+  page.on('request', (request) => {
+    if (request.url().startsWith('https://st.max.ru/js/')) sdkRequests.push(request.url());
+  });
+  await page.route('https://st.max.ru/**', (route) => route.abort('failed'));
+  await fixture(page);
+
+  const durationsMs: Record<string, number> = {};
+  for (const path of ['/home', '/projects']) {
+    const start = Date.now();
+    await visit(page, path);
+    durationsMs[path] = Date.now() - start;
+    await expect(page.locator('body')).toBeVisible();
+  }
+  expect(sdkRequests).toEqual([]);
+  await test.info().attach('ordinary-navigation-with-blocked-max-sdk', {
+    body: JSON.stringify({ durationsMs, sdkRequests }),
+    contentType: 'application/json',
+  });
+});
+
+test('MAX Mini App launch requests the real bridge and reports network failure', async ({
+  page,
+}) => {
+  let sdkRequests = 0;
+  await page.route('https://st.max.ru/js/max-web-app.js', (route) => {
+    sdkRequests += 1;
+    return route.abort('failed');
+  });
+  await fixture(page);
+  await page.goto('/max-login', { waitUntil: 'load' });
+  await expect(page.getByText(/Не удалось загрузить SDK MAX/)).toBeVisible();
+  expect(sdkRequests).toBe(1);
+});
+
 let navigationSequence = 0;
 async function visit(page: Page, route: string): Promise<void> {
   // A new document reads the fixture's current authenticated actor explicitly.
