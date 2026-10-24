@@ -3,6 +3,7 @@ import type { LessonBlock } from '../api';
 import { CanonicalPracticePicker } from './CanonicalPracticePicker';
 import { CanonicalManualMaterialPicker } from './CanonicalManualMaterialPicker';
 import { Dropdown } from './Dropdown';
+import { LessonBlocks } from './LessonBlocks';
 import { GrowingTextarea } from './GrowingTextarea';
 
 const ASSET_URL = /^\/assets\/[A-Za-z0-9][A-Za-z0-9/_.%-]*$/;
@@ -28,6 +29,14 @@ function localMediaUrl(value: string): boolean {
 
 function fileUrl(value: string): boolean {
   return value.startsWith('https://') || localMediaUrl(value);
+}
+
+/** Preview only links that the existing CourseVersion validator can publish. */
+function mediaPreviewReady(block: LessonBlock): boolean {
+  if (block.type === 'image' || block.type === 'video' || block.type === 'audio')
+    return localMediaUrl(block.url);
+  if (block.type === 'file') return fileUrl(block.url) && block.label.trim().length > 0;
+  return false;
 }
 
 function nextId(): string {
@@ -661,6 +670,34 @@ export function LessonBlockEditor({
                 />
               </div>
             ) : null}
+              {(block.type === 'image' ||
+                block.type === 'video' ||
+                block.type === 'audio' ||
+                block.type === 'file') &&
+              mediaPreviewReady(block) ? (
+                <div
+                  className="lesson-block-edit-preview"
+                  role="region"
+                  aria-label={`Предпросмотр вложения блока ${index + 1}`}
+                >
+                  <small>Как увидит ученик</small>
+                  <LessonBlocks
+                    blocks={[{ ...block, hidden: false }]}
+                    compact
+                    mediaScopeKey={`course-editor:${block.id}`}
+                  />
+                </div>
+              ) : (block.type === 'image' ||
+                  block.type === 'video' ||
+                  block.type === 'audio' ||
+                  block.type === 'file') &&
+                block.url.trim() ? (
+                <p className="lesson-block-url-hint" role="status">
+                  {block.type === 'file'
+                    ? 'Укажите название файла и ссылку HTTPS или /assets/…'
+                    : 'Для предпросмотра используйте ссылку на медиа /assets/…'}
+                </p>
+              ) : null}
           </article>
         ))}
       </div>
