@@ -7471,13 +7471,13 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: actual_eight_fail_h0_host_demand_bootstrap_repair_selected
+      checkpoint: actual_eight_fail_duplicate_owned_request_digest_repair_selected
       kind: repair
       owner_acceptance: pending
       context_hints:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-ARDUINO-REALTIME-001.md
       owner_request: Proportional real timing from30ms through20s; supported if/for/while/loop with externalLED/button and SerialMonitor TX/RX. No extra product explanations;remove LIMITED only after full capability proof.
-      selected_slice: Actual dcf8 all eight repeated native cases fail. Select one bounded controller repair of H0 completion returning before authoritative host demand is read, causing39.2ms initial idle plus46.2ms first25ms computation. Read already elapsed host time promptly after genuine H0 and use one bounded first positive1000us observation with full remaining demand retained. No invented future time, origin reset, input or yielded loss. Independent review and all eight actual browser cases remain required; continuing compute and native lag remain open.
+      selected_slice: Actual998 all eight native cases still fail despite lawful H0 dispatch improvement. Real batched engine replay proves1312 digest calls for656 requests with656 byte-identical input pairs; digest accounts for17.2percent sampled evaluator CPU. Select one math-identical removal of duplicate per-request digest through existing immutable owned-request capability, preserving validation order and direct scheduler fallback. No global cache, mutable identity reuse, physics/cadence/clock/timeout change. Whole canonical result equivalence, independent review and all eight actual browser cases required.
       boundaries: Exact model event timestamps/instruction costs are separate from wall pace/jitter/backlog/UI responsiveness;baseline timing may honestly FAIL. Intentionally red unit tests must not enter main. No full C++ claim or timeout/coverage weakening.
       next_selection: Button hit-precondition and functional Serial evidence remain separate pending work;no Serial implementation repair without demonstrated defect. Labels require capability-specific proof. Preserved546/R27 remain stopped.
       coordination: Other Arduino controller confirms no active timing/core/hook/LED writer and observation PAUSED;parallel679 Stage-only budget repair remains separate and not closed.525 paused with history retained.
