@@ -10,24 +10,11 @@
   white-space: normal;
   overflow-wrap: anywhere;
 }
-.classroom-student .participant-role select {
-  min-height: 44px;
-  max-width: 100%;
-  font-size: 16px;
-}
 .classroom-student .participant-role-hint {
   font-size: 16px;
   overflow-wrap: anywhere;
 }
 
-.classroom-student-hero {
-  display: flex;
-  align-items: flex-start;
-  gap: 18px;
-  margin-bottom: 26px;
-  padding-bottom: 22px;
-  border-bottom: 1px solid #e0e7ea;
-}
 
 .classroom-student-avatar {
   display: block;
@@ -52,22 +39,8 @@
   color: var(--ink-muted);
 }
 
-.classroom-student-hero code {
-  padding: 2px 6px;
-  border-radius: 5px;
-  background: #eef3f7;
-  font-size: 13px;
-}
 
-.classroom-student-badges {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
 
-.classroom-student-badges:not(:empty) {
-  margin-top: 12px;
-}
 
 /* The works get the room; the record is a rail beside them. On a phone the
    rail becomes the next section down. */
@@ -93,9 +66,6 @@
 }
 
 @media (max-width: 560px) {
-  .classroom-student-hero {
-    gap: 14px;
-  }
 
   .classroom-student-avatar {
     width: 48px;
@@ -420,15 +390,6 @@
   outline: 2px solid #0878ab;
   outline-offset: 2px;
 }
-.classroom-student .classroom-student-hero {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 20px;
-  margin: 0 0 8px;
-  padding: 8px 0 12px;
-  border-bottom: 1px solid var(--student-line);
-}
 .classroom-student-heading-row {
   flex: 1 1 280px;
   min-width: 0;
@@ -457,30 +418,6 @@
 .classroom-student-suspended {
   color: #ad441c;
 }
-.classroom-student-meta-row,
-.classroom-student-meta-actions,
-.classroom-student .participant-main-stats {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px 12px;
-  min-width: 0;
-}
-.classroom-student-meta-row {
-  flex: 1 1 450px;
-}
-.classroom-student-stat {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 4px;
-  color: var(--student-ink);
-}
-.classroom-student-stat strong {
-  font-size: 17px;
-}
-.classroom-student-stat small {
-  font-size: 12px;
-}
 .classroom-student .participant-rating {
   margin: 0;
   font-size: 12px;
@@ -491,71 +428,6 @@
   align-items: center;
   padding: 0;
   white-space: normal;
-}
-.classroom-student .participant-role {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  margin: 0;
-  font-size: 12px;
-}
-.classroom-student .participant-role select {
-  min-height: 44px;
-  height: 44px;
-  width: auto;
-  padding: 4px 7px;
-  font-size: 13px;
-}
-.classroom-student .classroom-student-badges {
-  align-items: center;
-  gap: 6px;
-  margin: 0;
-}
-.classroom-student-safety {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 44px;
-  margin: 0;
-  color: #346851;
-  font-size: 12px;
-}
-.classroom-student-safety input {
-  width: 18px;
-  height: 18px;
-  margin: 0;
-  accent-color: #267050;
-}
-.classroom-student-settings,
-.classroom-student-actions > summary {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 44px;
-  min-height: 44px;
-  padding: 4px 10px;
-  border: 1px solid #d8e2e8;
-  border-radius: 8px;
-  background: #fff;
-  color: #345367;
-  cursor: pointer;
-}
-.classroom-student-settings:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-.classroom-student-actions {
-  position: relative;
-}
-.classroom-student-actions .dropdown-menu {
-  right: 0;
-  left: auto;
-  max-width: min(280px, calc(100vw - 32px));
-}
-.classroom-student-actions .dropdown-menu button {
-  min-height: 44px;
-  white-space: normal;
-  overflow-wrap: anywhere;
 }
 .classroom-student [aria-label='Аватары класса']:focus-visible {
   outline: 2px solid #2676a2;
@@ -676,14 +548,6 @@
 .classroom-student .participant-visibility-note {
   margin: 4px 0 8px;
   font-size: 12px;
-}
-.classroom-student .participant-helper-classes {
-  padding: 8px;
-  font-size: 12px;
-}
-.classroom-student .participant-helper-classes h2 {
-  margin: 0;
-  font-size: 14px;
 }
 .classroom-student .teacher-profile-grades {
   display: grid;
@@ -818,9 +682,6 @@
   .classroom-student-navigation {
     grid-column: 2;
     width: 100%;
-  }
-  .classroom-student .classroom-student-hero {
-    gap: 6px;
   }
   .classroom-student .classroom-student-works-head h2 {
     width: 100%;
@@ -1305,8 +1166,7 @@
   }
 }
 
-/* UI-03: four compact, server-backed student-settings categories. Only the
-   selected category has an editor; legacy hero controls remain for UI-04. */
+/* Compact Settings categories; editors exist only when their category is opened. */
 .classroom-student .classroom-student-settings-entry {
   display: block;
   min-width: 0;
@@ -1468,10 +1328,6 @@
   margin: 4px 0 0;
   padding-left: 18px;
 }
-.classroom-student-games-region:focus-visible {
-  outline: 2px solid #2676a2;
-  outline-offset: 3px;
-}
 @container teacher-profile (max-width: 599px) {
   .classroom-student .classroom-student-settings-entry h2 {
     margin: 0 0 4px;
@@ -1492,25 +1348,28 @@
   }
 }
 
-/* UI-03 narrow Settings: show the four editable categories immediately after
-   the two local rails. Legacy summary controls still exist in other sections,
-   and are relocated for every section by the separate UI-04 slice. */
+/* SectionRail labels the active section on narrow viewports; no duplicated heading. */
 @container teacher-profile (max-width: 599px) {
-  /* SectionRail already says "Настройки"; a second heading wastes vertical space. */
   .portal-content.classroom-student[data-student-section='settings']
     .classroom-student-settings-entry
     > h2 {
     display: none;
   }
-  .portal-content.classroom-student[data-student-section='settings'] .classroom-student-hero,
-  .portal-content.classroom-student[data-student-section='settings'] .teacher-profile-grades,
-  .portal-content.classroom-student[data-student-section='settings'] .participant-helper-classes,
-  .portal-content.classroom-student[data-student-section='settings']
-    .classroom-student-games-region {
-    display: none;
+  .portal-content.classroom-student
+    .classroom-student-section-rail[data-has-action='false'] {
+    grid-template-columns: minmax(0, 1fr);
   }
-  .portal-content.classroom-student[data-student-section='settings'][data-settings-category='games']
-    .classroom-student-games-region {
-    display: block;
-  }
+}
+
+.classroom-student-work-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin: 4px 0 8px;
+  color: #526a78;
+  font-size: 12px;
+}
+.classroom-student-work-summary strong {
+  color: var(--student-ink);
+  font-variant-numeric: tabular-nums;
 }

@@ -622,7 +622,12 @@ export function ClassroomStudentPage({
   const profileReady =
     profile?.student.id === seatId && loadedScope === [classroomId, seatId].join(':');
   const sectionRail = (
-    <div className="classroom-student-section-rail" role="group" aria-label="Разделы ученика">
+    <div
+      className="classroom-student-section-rail"
+      data-has-action={showsWorks || tab === 'merits' ? 'true' : 'false'}
+      role="group"
+      aria-label="Разделы ученика"
+    >
       <label className="classroom-student-section-select">
         <span className="classroom-student-visually-hidden">Раздел профиля</span>
         <select
@@ -760,49 +765,6 @@ export function ClassroomStudentPage({
     >
       {navigationRow}
       {sectionRail}
-      <section className="classroom-student-hero participant-hero" aria-label="Профиль ученика">
-        <div className="classroom-student-meta-row">
-          <div className="participant-main-stats" aria-label="Показатели ученика">
-            <span className="classroom-student-stat">
-              <strong>{metrics.totalWorks}</strong>
-              <small>Работы</small>
-            </span>
-            <span className="classroom-student-stat">
-              <strong>{profile.submittedCount}</strong>
-              <small>Сдано</small>
-            </span>
-            <span className="classroom-student-stat">
-              <strong>{profile.awaitingReview}</strong>
-              <small>Ждут</small>
-            </span>
-            <ParticipantRating metrics={metrics} settings={settings} />
-          </div>
-          <SeatAwardRow keys={awardKeys} size="small" />
-        </div>
-      </section>
-      <ParticipantGradeHistory
-        key={`${classroomId}:${seatId}:summary`}
-        classroomId={classroomId}
-        seatId={seatId}
-        compact
-        variant="teacherProfile"
-      />
-      {metrics.role === 'helper' ? (
-        <section className="participant-helper-classes" aria-label="Классы помощника">
-          <h2>Классы помощника</h2>
-          {(profile.helperClasses ?? []).length === 0 ? (
-            <p>Нет действующих классов помощника, доступных вам обоим.</p>
-          ) : (
-            <ul>
-              {profile.helperClasses.map((entry) => (
-                <li key={entry.id}>
-                  <a href={`#/classrooms/${entry.id}`}>{entry.title}</a> · Помощник
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-      ) : null}
       <nav
         className="participant-tabs"
         aria-label="Разделы профиля"
@@ -901,13 +863,6 @@ export function ClassroomStudentPage({
                     <div>
                       <dt>Ученик</dt>
                       <dd>{student.displayLabel}</dd>
-                    </div>
-                    <div>
-                      <dt>Рейтинг класса</dt>
-                      <dd>
-                        {metrics.score === null ? 'Нет данных' : metrics.score.toFixed(2)}
-                        {metrics.rank === null ? '' : ` · место ${metrics.rank}`}
-                      </dd>
                     </div>
                   </dl>
                   <div className="classroom-student-settings-actions">
@@ -1073,6 +1028,11 @@ export function ClassroomStudentPage({
               <small id="student-filter-scope">по загруженным</small>
             </label>
           </div>
+          <p className="classroom-student-work-summary" aria-label="Показатели работ ученика">
+            <span>Работ: <strong>{metrics.totalWorks}</strong></span>
+            <span>Сдано: <strong>{profile.submittedCount}</strong></span>
+            <span>Ждут: <strong>{profile.awaitingReview}</strong></span>
+          </p>
           {works && works.visibleWorks < works.totalWorks ? (
             <p className="participant-visibility-note">
               Часть личных работ закрыта для преподавателя ({works.visibleWorks} из{' '}
@@ -1158,6 +1118,7 @@ export function ClassroomStudentPage({
       ) : null}
       {tab === 'merits' ? (
         <>
+          <SeatAwardRow keys={awardKeys} size="small" />
           <SeatAwardPanel
             classroomId={classroomId}
             seatId={seatId}
@@ -1191,6 +1152,7 @@ export function ClassroomStudentPage({
       {tab === 'activity' ? (
         <section className="classroom-student-section">
           <h2>Активность</h2>
+          <ParticipantRating metrics={metrics} settings={settings} />
           <p>
             Последний вход:{' '}
             {student.lastActiveAt ? time.longDateTime(student.lastActiveAt) : 'ещё не входил'}
