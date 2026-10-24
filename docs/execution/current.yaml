@@ -85,7 +85,6 @@ parallel_lanes:
     parent_lane: electronics
     worktree_id: electronics-browser-partition-722
     owned_paths:
-      - .github/workflows/electronics-r4-m1-focused.yml
       - docs/product/electronics/tasks/TASK-ELECTRONICS-BROWSER-PARTITION-001.md
     task:
       id: TASK-ELECTRONICS-BROWSER-PARTITION-001
@@ -104,6 +103,11 @@ parallel_lanes:
         Owner #452/#703/#718 expressly commissioned bounded CI-only browser
         gate repair, preserving all cases, physics, and foreign ongoing tasks.
         No deployment, school data, server, Docker host or network operations.
+      shared_path_coordination: >-
+        Only the exact Electronics R4-M1 CI workflow is touched by bounded
+        #722 maintenance. It belongs to integration.shared_paths, not an
+        exclusive Electronics owned_path; single writer, exact before/after
+        diff, no change to other shared workflow files or gate semantics.
       context_hints:
         - docs/product/electronics/tasks/TASK-ELECTRONICS-BROWSER-PARTITION-001.md
         - docs/product/electronics/OWNER_23_EXECUTION_QUEUE.md
@@ -125,8 +129,8 @@ parallel_lanes:
       observed_at: '2026-10-24T09:19:42.722Z'
       observation_note: >-
         CI-only work selected after verified cancelled exact PR #719 browser
-        run #40047454221; historical baseline only. Fetch current main and
-        exact candidate before writes, check overlaps, CI and review.
+        run #40047454221; historical baseline only. Always fetch main from GitHub freshly and
+        check exact candidate before writes, check overlaps, CI and review.
     execution_lease:
       executor_id: electronics-browser-partition-722
       holder: unassigned
