@@ -30,6 +30,26 @@ const send = (onDelta = vi.fn()) =>
 afterEach(() => vi.resetAllMocks());
 
 describe('native AI SSE transport', () => {
+  it('carries only the selected upload IDs for this exact request and Seat', async () => {
+    const result = { messages: [], replayed: false, stopped: false };
+    respond([frame('done', result)]);
+    await expect(streamAiRequest(
+      'thread', 'Прочитай файл', 'request', vi.fn(),
+      new AbortController().signal, 'ollama-local',
+      { 'x-asa-ai-seat': 'learner-seat' },
+      ['44444444-4444-4444-8444-444444444444'],
+    )).resolves.toEqual(result);
+    const [url, init] = vi.mocked(fetchWithSessionRefresh).mock.calls[0]!;
+    expect(url).toBe('/api/ai/threads/thread/messages/stream');
+    expect((init?.headers as Record<string, string>)['x-asa-ai-seat']).toBe('learner-seat');
+    expect(JSON.parse(String(init?.body))).toEqual({
+      message: 'Прочитай файл',
+      requestId: 'request',
+      model: 'ollama-local',
+      attachmentIds: ['44444444-4444-4444-8444-444444444444'],
+    });
+  });
+
   it('preserves UTF-8 characters and CRLF delimiters split across byte chunks', async () => {
     const result = { messages: [{ content: 'Ответ 🧪' }], replayed: false, stopped: false };
     const payload = (frame('delta', { text: 'Привет 🧪' }) + frame('done', result)).replace(
