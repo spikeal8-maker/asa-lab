@@ -13,6 +13,7 @@ import { loginWithOrganization } from './organization-login';
 import { e2eAdminPool, seedTeacher } from './seed';
 
 type ClockFrame = {
+  documentId: string;
   workerId: number;
   requestId: string;
   projectSessionId: string;
@@ -33,6 +34,12 @@ type ClockPublication = {
   publishedAt: number;
   frame: ClockFrame | null;
   startup: boolean;
+  documentId: string;
+  marker: string | null;
+  mountId: number;
+  mountBindingStable: boolean;
+  binding: Pick<ClockFrame, 'workerId' | 'generationId' | 'projectSessionId'> | null;
+  equivalentRequestIds?: string[];
 };
 type ClockRequestReceipt = Readonly<{
   workerId: number;
@@ -234,6 +241,36 @@ async function observeRealClock(page: Page, path: string) {
     let latestReady: ClockFrame | null = null;
     let awaitingReady = true;
     let priorText = '';
+    let priorMount = 0;
+    let activeBinding: ClockPublication['binding'] = null;
+    let nextMount = 0;
+    const mounts = new WeakMap<Element, { id: number; binding: string | null }>();
+    const sample = (): ClockPublication | null => {
+      const elements = document.querySelectorAll('.workbench-simulation-time');
+      if (!elements.length) return null;
+      if (elements.length !== 1) {
+        errors.push('Ambiguous clock DOM mount');
+        return null;
+      }
+      const element = elements[0];
+      const key = activeBinding ? JSON.stringify(activeBinding) : null;
+      let mount = mounts.get(element);
+      if (!mount) {
+        mount = { id: ++nextMount, binding: key };
+        mounts.set(element, mount);
+      } else if (mount.binding === null && key !== null) mount.binding = key;
+      return {
+        text: element.textContent?.trim() ?? '',
+        marker: element.getAttribute('data-time-ms'),
+        documentId,
+        mountId: mount.id,
+        mountBindingStable: mount.binding === key,
+        binding: activeBinding ? { ...activeBinding } : null,
+        publishedAt: performance.now(),
+        frame: null,
+        startup: awaitingReady,
+      };
+    };
     window.Worker = new Proxy(window.Worker, {
       construct(target, args, newTarget) {
         const worker = Reflect.construct(target, args, newTarget) as Worker;
@@ -245,12 +282,14 @@ async function observeRealClock(page: Page, path: string) {
         const pending = new Map<string, ClockRequestReceipt>();
         latestReady = null;
         awaitingReady = true;
+        activeBinding = null;
         const invalidate = () => {
           active = false;
           pending.clear();
           if (workerId === id) {
             latestReady = null;
             awaitingReady = true;
+            activeBinding = null;
           }
         };
         worker.terminate = new Proxy(worker.terminate, {
@@ -286,6 +325,7 @@ async function observeRealClock(page: Page, path: string) {
                     generationId: receipt.generationId,
                     projectSessionId: receipt.projectSessionId,
                   };
+                  activeBinding = { workerId: id, ...binding };
                 }
                 if (
                   request.kind === 'advance' &&
@@ -319,6 +359,7 @@ async function observeRealClock(page: Page, path: string) {
           );
           if (matchedActiveRequest) pending.delete(response.requestId);
           const frame: ClockFrame = {
+            documentId,
             workerId: id,
             requestId: response.requestId,
             projectSessionId: response.projectSessionId,
@@ -364,16 +405,8 @@ async function observeRealClock(page: Page, path: string) {
                   binding.projectSessionId !== frame.projectSessionId
                 )
                   return;
-                const text = document
-                  .querySelector('.workbench-simulation-time')
-                  ?.textContent?.trim();
-                if (text)
-                  probe.emit('settledSamples', {
-                    text,
-                    publishedAt: performance.now(),
-                    frame: sampledFrame,
-                    startup: false,
-                  });
+                const publication = sample();
+                if (publication) probe.emit('settledSamples', publication);
               }),
             );
           }
@@ -383,22 +416,81 @@ async function observeRealClock(page: Page, path: string) {
     });
     document.addEventListener('DOMContentLoaded', () => {
       new MutationObserver(() => {
-        const text =
-          document.querySelector('.workbench-simulation-time')?.textContent?.trim() ?? '';
-        if (text !== priorText) {
+        const publication = sample();
+        const text = publication?.text ?? '';
+        const mount = publication?.mountId ?? 0;
+        if (text !== priorText || mount !== priorMount) {
           priorText = text;
-          if (text)
-            probe.emit('publications', {
-              text,
-              publishedAt: performance.now(),
-              frame: latestReady,
-              startup: awaitingReady,
-            });
+          priorMount = mount;
+          if (publication) probe.emit('publications', publication);
         }
-      }).observe(document.documentElement, { childList: true, subtree: true, characterData: true });
+      }).observe(document.documentElement, {
+        childList: true,
+        subtree: true,
+        characterData: true,
+        attributes: true,
+        attributeFilter: ['data-time-ms'],
+      });
     });
   });
 }
+
+// BEGIN CLOCK COMMIT ATTRIBUTION: extracted by focused adversarial tests.
+function attributeClockPublication(
+  publication: ClockPublication,
+  frames: ClockFrame[],
+): ClockPublication {
+  const milliseconds = Number(publication.marker);
+  if (
+    publication.marker === null ||
+    publication.marker.trim() === '' ||
+    !Number.isFinite(milliseconds) ||
+    milliseconds < 0 ||
+    !publication.documentId ||
+    !Number.isSafeInteger(publication.mountId) ||
+    publication.mountId < 1 ||
+    !publication.mountBindingStable
+  )
+    throw new Error('Missing/invalid clock commit input or mount binding');
+  const seconds = Math.floor(milliseconds / 1000);
+  const expected = [Math.floor(seconds / 3600), Math.floor(seconds / 60) % 60, seconds % 60]
+    .map((part) => String(part).padStart(2, '0'))
+    .join(':');
+  if (publication.text !== `Время моделирования: ${expected}`)
+    throw new Error('Clock committed input/text mismatch');
+  if (publication.startup && milliseconds === 0) {
+    // Explicit startup, not evidence that any particular ready frame committed.
+    return { ...publication, frame: null, equivalentRequestIds: [] };
+  }
+  const binding = publication.binding;
+  if (!binding) throw new Error('Clock commit has no active binding');
+  const candidates = frames.filter(
+    (frame) =>
+      frame.documentId === publication.documentId &&
+      frame.workerId === binding.workerId &&
+      frame.generationId === binding.generationId &&
+      frame.projectSessionId === binding.projectSessionId &&
+      frame.matchedActiveRequest &&
+      frame.status === 'ready' &&
+      frame.resultSolved === true &&
+      frame.resultFinite &&
+      frame.resultPassed &&
+      frame.computeMsFinite &&
+      Number.isSafeInteger(frame.committedMicroseconds) &&
+      frame.committedMicroseconds >= 0 &&
+      frame.committedMicroseconds === frame.requestedMicroseconds &&
+      frame.committedMicroseconds / 1000 === milliseconds &&
+      Number.isFinite(frame.receivedAt) &&
+      frame.receivedAt <= publication.publishedAt,
+  );
+  if (!candidates.length) throw new Error('Clock commit input has no equivalent ready provenance');
+  return {
+    ...publication,
+    frame: candidates[candidates.length - 1],
+    equivalentRequestIds: candidates.map((frame) => frame.requestId),
+  };
+}
+// END CLOCK COMMIT ATTRIBUTION
 
 async function observation(page: Page) {
   const store = clockStores.get(page);
@@ -414,7 +506,32 @@ async function observation(page: Page) {
   const retained = store.documents.get(barrier.documentId);
   expect(retained?.sequence ?? 0).toBeGreaterThanOrEqual(barrier.sequence);
   expect(barrier.ack.hash).toBe(barrier.sequence ? retained?.hashes[barrier.sequence - 1] : '');
-  return structuredClone(store.probe);
+  const result = structuredClone(store.probe);
+  const readyByInput = new Map<string, ClockFrame[]>();
+  const key = (documentId: string, binding: ClockPublication['binding'], milliseconds: number) =>
+    JSON.stringify([
+      documentId,
+      binding?.workerId,
+      binding?.generationId,
+      binding?.projectSessionId,
+      milliseconds,
+    ]);
+  for (const frame of result.frames) {
+    const input = key(frame.documentId, frame, frame.committedMicroseconds / 1000);
+    const group = readyByInput.get(input) ?? [];
+    group.push(frame);
+    readyByInput.set(input, group);
+  }
+  for (const kind of ['publications', 'settledSamples'] as const)
+    result[kind] = result[kind].map((publication) =>
+      attributeClockPublication(
+        publication,
+        readyByInput.get(
+          key(publication.documentId, publication.binding, Number(publication.marker)),
+        ) ?? [],
+      ),
+    );
+  return result;
 }
 
 async function markAction(page: Page, name: string) {

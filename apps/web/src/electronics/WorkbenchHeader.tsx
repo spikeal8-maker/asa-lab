@@ -153,7 +153,11 @@ function SimulationClock({
 }) {
   const microseconds = useSyncExternalStore(port.subscribeClock, port.readClock, port.readClock);
   return (
-    <span className="workbench-simulation-time" aria-label="Время моделирования">
+    <span
+      className="workbench-simulation-time"
+      aria-label="Время моделирования"
+      data-time-ms={microseconds / 1000}
+    >
       Время моделирования: {formatSimulationTime(microseconds / 1_000_000)}
     </span>
   );
