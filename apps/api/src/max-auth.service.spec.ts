@@ -313,7 +313,56 @@ describe('MAX browser capability and account lifecycle', () => {
     expect(query.mock.calls[0]?.[1]?.[6]).toBe('same-account');
   });
 
-  it('requires a real fallback password and preserves ordinary registration hashing', async () => {
+  it('registers a native MAX Account without manufacturing email or password credentials', async () => {
+    const { service, query } = readyService(
+      vi.fn(async () => ({ rows: [{ result: 'authenticated', account_id: 'external-account' }] })),
+    );
+    const input = {
+      username: 'u_external',
+      displayName: 'Имя MAX',
+      birthDate: '1990-04-12',
+      country: 'RU',
+    };
+    await expect(
+      service.registerPairing(PAIRING, NONCE, { ...input, birthDate: '' }),
+    ).resolves.toMatchObject({ status: 'validation_error' });
+    await expect(
+      service.registerPairing(PAIRING, NONCE, { ...input, birthDate: '2020-01-01' }),
+    ).resolves.toMatchObject({ status: 'age_routed' });
+    await expect(service.registerPairing(PAIRING, undefined, input)).resolves.toMatchObject({
+      status: 'unavailable',
+    });
+    await expect(
+      service.registerPairing(PAIRING, NONCE, {
+        ...input,
+        email: 'unused@example.test',
+        password: 'not-configured-secret',
+      }),
+    ).resolves.toMatchObject({ status: 'validation_error' });
+    expect(query).not.toHaveBeenCalled();
+    await expect(service.registerPairing(PAIRING, NONCE, input)).resolves.toMatchObject({
+      status: 'authenticated',
+      accountId: 'external-account',
+    });
+    expect(query).toHaveBeenCalledWith(
+      expect.stringContaining('auth_max_pairing_register_external'),
+      [
+        expect.any(String),
+        expect.any(String),
+        'Имя MAX',
+        'u_external',
+        '1990-04-12',
+        'RU',
+        expect.any(String),
+        expect.any(String),
+        SESSION_TTL_HOURS,
+      ],
+    );
+    expect(JSON.stringify(query.mock.calls)).not.toContain('@');
+    expect(JSON.stringify(query.mock.calls)).not.toContain('scrypt-');
+  });
+
+  it('keeps the legacy raw Mini App contract strict and preserves its ordinary registration hashing', async () => {
     const { service, query } = readyService(
       vi.fn(async () => ({ rows: [{ result: 'authenticated', account_id: 'new-account' }] })),
     );

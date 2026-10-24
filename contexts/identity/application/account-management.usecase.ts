@@ -260,6 +260,7 @@ export class AccountManagementUseCase {
     if (
       currentRequired &&
       (typeof input.currentPassword !== 'string' ||
+        typeof context.passwordHash !== 'string' ||
         !(await verifyPasswordAsync(input.currentPassword, context.passwordHash)))
     ) {
       return { ok: false, code: 'current_password_invalid' };
