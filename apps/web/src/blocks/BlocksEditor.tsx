@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { saveProjectSnapshot } from '../project-snapshot-client';
 import { BlocksEditorShell } from './BlocksEditorShell';
 import { BlocksRuntimeBridge, requireExactHttpOrigin } from './runtime-protocol';
@@ -77,7 +77,9 @@ export function BlocksEditor({
       });
   }, []);
 
-  useEffect(() => {
+  // Subscribe during commit: an iframe can finish navigating before passive
+  // effects run. Missing that one load event leaves bootstrap waiting forever.
+  useLayoutEffect(() => {
     if (!runtimeOrigin) return undefined;
     const frame = iframeRef.current;
     if (!frame) return undefined;
