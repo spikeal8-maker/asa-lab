@@ -13,6 +13,11 @@ import {
 import { ParticipantGradeHistory } from '../ClassroomParticipantPanels';
 import { ClassroomStudentPage } from '../../pages/ClassroomStudentPage';
 import { notifySessionLoggedOut } from '../../session-fetch';
+import {
+  hasSettingsDraft,
+  registerAuxiliarySettingsDraft,
+  requestSettingsNavigation,
+} from '../settings-navigation';
 
 let root: Root, host: HTMLDivElement;
 const ok = <T>(data: T): ApiResult<T> => ({ ok: true, status: 200, data });
@@ -1400,4 +1405,26 @@ it('renders one navigation row, truthful safety, all eight keyboard-reachable se
   expect(host.querySelectorAll('.classroom-student-settings-editor')).toHaveLength(1);
   await act(async () => settingsCategories[2]!.click());
   expect(host.querySelector('.classroom-student-settings-editor')).toBeNull();
+});
+
+it('guards SPA navigation when an external teacher games draft is unsaved', () => {
+  let dirty = true;
+  const unregister = registerAuxiliarySettingsDraft(() => dirty);
+  const leave = vi.fn();
+  const confirm = vi.spyOn(window, 'confirm').mockReturnValueOnce(false).mockReturnValueOnce(true);
+  try {
+    expect(hasSettingsDraft()).toBe(true);
+    requestSettingsNavigation(leave);
+    expect(leave).not.toHaveBeenCalled();
+    expect(hasSettingsDraft()).toBe(true);
+    requestSettingsNavigation(leave);
+    expect(leave).toHaveBeenCalledOnce();
+    dirty = false;
+    requestSettingsNavigation(leave);
+    expect(leave).toHaveBeenCalledTimes(2);
+    expect(confirm).toHaveBeenCalledTimes(2);
+  } finally {
+    unregister();
+  }
+  expect(hasSettingsDraft()).toBe(false);
 });
