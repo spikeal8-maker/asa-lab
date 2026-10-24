@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act, createElement, type ComponentProps } from 'react';
+import { act, createElement, useLayoutEffect, type ComponentProps } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BlocksEditor } from '../BlocksEditor';
@@ -131,24 +131,32 @@ let container: HTMLDivElement | null = null;
 
 async function renderEditor(
   overrides: Partial<ComponentProps<typeof BlocksEditor>> = {},
+  onLayout?: (iframe: HTMLIFrameElement) => void,
 ): Promise<HTMLIFrameElement> {
   container = document.createElement('div');
   document.body.append(container);
   root = createRoot(container);
 
+  const editor = createElement(BlocksEditor, {
+    projectId: PROJECT_ID,
+    recoveryPrincipalKey: '33333333-3333-4333-8333-333333333333',
+    onBack: vi.fn(),
+    onHomeClick: vi.fn(),
+    accountLabel: 'ASA test user',
+    accountInitials: 'AT',
+    onAccountClick: vi.fn(),
+    ...overrides,
+  });
+  function CommitProbe() {
+    useLayoutEffect(() => {
+      const iframe = container!.querySelector('iframe');
+      if (!iframe) throw new Error('Scratch iframe missing during commit');
+      onLayout?.(iframe);
+    }, []);
+    return editor;
+  }
   await act(async () => {
-    root?.render(
-      createElement(BlocksEditor, {
-        projectId: PROJECT_ID,
-        recoveryPrincipalKey: '33333333-3333-4333-8333-333333333333',
-        onBack: vi.fn(),
-        onHomeClick: vi.fn(),
-        accountLabel: 'ASA test user',
-        accountInitials: 'AT',
-        onAccountClick: vi.fn(),
-        ...overrides,
-      }),
-    );
+    root?.render(onLayout ? createElement(CommitProbe) : editor);
     await flushAsync();
   });
   const iframe = container.querySelector('iframe');
@@ -190,6 +198,57 @@ afterEach(async () => {
 });
 
 describe('BlocksEditor runtime session bootstrap', () => {
+  it('bootstraps when iframe load completes during commit before passive effects', async () => {
+    const fetchMock = vi.fn<typeof fetch>(
+      async (input, options) => telemetryResponse(input, options) ?? jsonResponse(session()),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    let postMessage!: ReturnType<typeof spyOnPostMessage>;
+    const iframe = await renderEditor({}, (frame) => {
+      postMessage = spyOnPostMessage(frame);
+      frame.dispatchEvent(new Event('load'));
+    });
+    const grants = fetchMock.mock.calls.filter(([url]) =>
+      String(url).endsWith('/blocks/runtime-session'),
+    );
+    expect(grants).toHaveLength(1);
+    expect(initCalls(postMessage)).toHaveLength(1);
+    const init = initCalls(postMessage)[0]![0] as Record<string, unknown>;
+    await dispatchChild(iframe, init, { messageType: 'ASA_BLOCKS_STATUS', status: 'editor-ready' });
+    expect(
+      container!.querySelector<HTMLElement>('[data-asa-blocks-loading-overlay]')?.dataset.state,
+    ).toBe('ready');
+  });
+
+  it('binds activity after ancestor identity layout even when frame load arrives during commit', async () => {
+    const telemetry: Array<Record<string, unknown>> = [];
+    vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+    setTelemetryContext(null, false, 'unknown');
+    vi.stubGlobal(
+      'fetch',
+      vi.fn<typeof fetch>(async (input, options) => {
+        if (String(input) === '/api/analytics/v2/module-session') {
+          telemetry.push(JSON.parse(options?.body as string) as Record<string, unknown>);
+        }
+        return telemetryResponse(input, options) ?? jsonResponse(session());
+      }),
+    );
+    let postMessage!: ReturnType<typeof spyOnPostMessage>;
+    const iframe = await renderEditor({ telemetryActor: TELEMETRY_ACTOR }, (frame) => {
+      // React runs descendant layout effects before this ancestor identity proof.
+      setTelemetryContext(TELEMETRY_ACTOR, true, 'editor.blocks');
+      postMessage = spyOnPostMessage(frame);
+      frame.dispatchEvent(new Event('load'));
+    });
+    expect(initCalls(postMessage)).toHaveLength(1);
+    const init = initCalls(postMessage)[0]![0] as Record<string, unknown>;
+    await dispatchChild(iframe, init, { messageType: 'ASA_BLOCKS_STATUS', status: 'editor-ready' });
+    expect(telemetry).toHaveLength(0);
+    await dispatchChild(iframe, init, { messageType: 'ASA_BLOCKS_USER_ACTIVITY' });
+    expect(telemetry.filter((event) => event['operation'] === 'start')).toHaveLength(1);
+    expect(telemetry[0]?.['actorExpectation']).toEqual(TELEMETRY_ACTOR);
+  });
+
   it.each(['project', 'principal'] as const)(
     'closes analytics and binds a fresh iframe on %s change',
     async (change: 'project' | 'principal') => {

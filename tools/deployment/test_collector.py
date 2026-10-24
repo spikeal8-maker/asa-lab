@@ -35,7 +35,7 @@ class CollectorLifecycleTests(unittest.TestCase):
             before = {str(p.relative_to(root)): p.read_bytes() for p in root.rglob('*') if p.is_file()}
             result = lifecycle.status(install)
             self.assertEqual(result['state'], 'unavailable')
-            with patch.object(install, 'identity', return_value={}), patch.object(install, 'readiness', return_value={'revision': 'a'*40, 'schema': 203}), patch('asa_manager.run'):
+            with patch.object(install, 'identity', return_value={}), patch.object(install, 'readiness', return_value={'revision': 'a'*40, 'schema': 203}), patch('asa_manager.run'), patch('asa_manager.check_resources'):
                 asa_manager.doctor(install)
             with patch.object(install, 'readiness', return_value={'revision': 'a'*40, 'schema': 203}), patch('asa_manager.doctor'), patch('asa_manager.clean_checkout'), patch('asa_manager.attest_editor_env'), patch('asa_manager.discover_release', return_value={'revision': 'a'*40, 'schema': 203}), patch('asa_manager.assert_ci'), patch('asa_manager.prepare_collector') as prepare, patch('asa_manager.reconcile_collector') as reconcile:
                 asa_manager.update(install, check=True)
@@ -111,6 +111,52 @@ class CollectorLifecycleTests(unittest.TestCase):
                     xml.replace('machine\\operator', 'machine\\other'), xml.replace('<UserId>machine\\operator</UserId>', '<UserId></UserId>')]
         for changed in variants:
             with self.subTest(changed=changed[-200:]), self.assertRaises(Blocked): lifecycle.verify_windows_task(changed, identity)
+
+    def test_windows_accepts_implicit_or_explicit_lua_without_weakening_identity(self):
+        identity = {'root': str(Path(tempfile.gettempdir()) / 'asa-owned'),
+                    'owner': 'machine\\operator', 'ownerSid': 'S-1-5-21-1234'}
+        xml = lifecycle.windows_xml(identity, sys.executable)
+        implicit = xml.replace('<RunLevel>LeastPrivilege</RunLevel>', '')
+        for candidate in (xml, implicit):
+            with self.subTest(explicit=candidate == xml):
+                lifecycle.verify_windows_task(candidate, identity)
+                lifecycle.verify_windows_task(candidate.replace('machine\\operator', 'operator'), identity, identity['ownerSid'])
+                for changed in (
+                    candidate.replace('machine\\operator', 'machine\\other'),
+                    candidate.replace('--root', '--foreign-root'),
+                    candidate.replace('InteractiveToken', 'Password'),
+                    candidate.replace(str(sys.executable), str(Path(tempfile.gettempdir()) / 'foreign-python.exe')),
+                    candidate.replace(f'<WorkingDirectory>{identity["root"]}</WorkingDirectory>', '<WorkingDirectory>foreign</WorkingDirectory>'),
+                ):
+                    with self.subTest(changed=changed[-180:]), self.assertRaises(Blocked):
+                        lifecycle.verify_windows_task(changed, identity)
+                with self.assertRaises(Blocked):
+                    lifecycle.verify_windows_task(candidate.replace('machine\\operator', 'operator'), identity, 'S-1-5-21-foreign')
+
+    def test_windows_rejects_ambiguous_or_elevated_runlevels_and_principals(self):
+        identity = {'root': str(Path(tempfile.gettempdir()) / 'asa-owned'), 'owner': 'machine\\operator'}
+        xml = lifecycle.windows_xml(identity, sys.executable)
+        level = '<RunLevel>LeastPrivilege</RunLevel>'
+        malformed = [
+            xml.replace(level, f'<RunLevel>{value}</RunLevel>')
+            for value in ('HighestAvailable', '', '0', 'Limited', 'Unknown')
+        ] + [
+            xml.replace(level, level + level),
+            xml.replace(level, level + '<RunLevel>HighestAvailable</RunLevel>'),
+            xml.replace(level, '<RunLevel>HighestAvailable</RunLevel>' + level),
+            xml.replace(level, '<RunLevel>LeastPrivilege<Unexpected /></RunLevel>'),
+            xml.replace(level, '<RunLevel unexpected="true">LeastPrivilege</RunLevel>'),
+            xml.replace(level, '<RunLevel xmlns="">HighestAvailable</RunLevel>'),
+            xml.replace('<LogonType>', '<UserId>machine\\other</UserId><LogonType>'),
+            xml.replace('</LogonType>', '</LogonType><LogonType>Password</LogonType>'),
+            xml.replace('</Principal>', '<GroupId>S-1-5-32-544</GroupId></Principal>'),
+            xml.replace('</Principals>', '<Principal id="Other" /></Principals>'),
+            xml.replace('</Principals>', '</Principals><Principals />'),
+        ]
+        for changed in malformed:
+            with self.subTest(changed=changed[-220:]), self.assertRaises(Blocked) as error:
+                lifecycle.verify_windows_task(changed, identity)
+            self.assertEqual(error.exception.code, 'COLLECTOR_RUNNER_IDENTITY')
 
     def test_systemd_rejects_comments_duplicates_extra_commands_and_root_user(self):
         identity = {'root': '/srv/asa', 'owner': 'operator', 'mode': 'system'}

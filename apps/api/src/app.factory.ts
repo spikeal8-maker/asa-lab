@@ -43,6 +43,7 @@ import {
   resolveLocalApiOrigin,
 } from './origin-policy.js';
 import { createMutationSessionResolver, MutationAbuseProtection } from './abuse-protection.js';
+import { requestMutationAdmission } from './mutation-session-proof.js';
 import { registerAiAttachmentTransport } from './ai-attachments/transport.js';
 import { assertTrustedProxyConfiguration } from './client-address.js';
 import {
@@ -177,8 +178,13 @@ export interface ApiFactoryOptions {
 function positiveInteger(name: string, fallback: number): number {
   const raw = process.env[name];
   if (raw === undefined || raw === '') return fallback;
-  const value = Number.parseInt(raw, 10);
-  if (!Number.isInteger(value) || value <= 0) {
+  const value = Number(raw);
+  if (
+    !/^[0-9]+$/.test(raw) ||
+    !Number.isSafeInteger(value) ||
+    value <= 0 ||
+    value > 2_147_483_647
+  ) {
     throw new Error(`${name} must be a positive integer, got: ${raw}`);
   }
   return value;
@@ -436,6 +442,7 @@ export async function createApiApp(
                 sessionDatabase,
                 addressResolution,
                 admission: requestAdmissionDiagnostics.get(request),
+                mutationAdmission: requestMutationAdmission.get(request),
                 ...(databaseTrouble
                   ? { eventLoopDelaySinceStartMs: runtimeMetrics.snapshot(null).eventLoopDelayMs }
                   : {}),
@@ -451,6 +458,7 @@ export async function createApiApp(
     });
 
     fastify.addHook('onRequest', async (request, reply) => {
+      mutationAbuseProtection.observe(request);
       noteRequestReceipt(request);
       void reply.header('x-request-id', request.id);
       const path = (request.raw.url ?? '/').split('?')[0];

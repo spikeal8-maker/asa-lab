@@ -25,13 +25,22 @@ const versions = [4, 3].map((version_no) => ({
   created_at: '2026-10-18T09:30:00Z',
 }));
 
-function fixture({ accessible = true, draftExists = true, historyFails = false } = {}) {
+function fixture({
+  accessible = true,
+  draftExists = true,
+  historyFails = false,
+  writeDenied = false,
+} = {}) {
   const history = vi.fn(async () => {
     if (historyFails) throw new Error('history query unavailable');
     return { rows: versions };
   });
   const query = vi.fn(async (...args: [sql: string, values?: readonly unknown[]]) => {
     const [sql] = args;
+    if (sql.includes('project_editor_has_immutable_learning_origin'))
+      return { rows: [{ has_origin: false }] };
+    if (sql.includes('UPDATE project_drafts d'))
+      return { rows: writeDenied ? [] : [{ ...row, project_id: row.id, was_replayed: false }] };
     if (sql.includes('FROM project_versions')) return history();
     if (sql.includes('FROM projects p')) return { rows: draftExists ? [row] : [] };
     return { rows: [], command: sql === 'COMMIT' ? 'COMMIT' : '' };
@@ -117,5 +126,87 @@ describe('draft saves omit unused history without changing the authorized projec
     expect(f.history).toHaveBeenCalledTimes(1);
     expect(f.query).toHaveBeenCalledWith('ROLLBACK');
     expect(f.release).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('identity-bound draft save preparation', () => {
+  const mutation = {
+    document: row.document_json,
+    preview: null,
+    baseRevision: 7,
+    mutationId: '00000000-0000-4000-8000-000000000007',
+  };
+
+  it('removes one pool acquisition and the old document transfer, preserving write predicates', async () => {
+    const original = fixture();
+    await original.repository.load('active-tenant', row.id, actor, { includeVersions: false });
+    await original.repository.saveDraft({
+      ...mutation,
+      tenantId: 'active-tenant',
+      projectId: row.id,
+      actor,
+    });
+    expect(original.context.mock.calls.length + original.connect.mock.calls.length).toBe(4);
+
+    const optimized = fixture();
+    const target = await optimized.repository.prepareDraftSave('active-tenant', row.id, actor);
+    expect(target?.moduleKey).toBe('electronics');
+    await expect(target!.save(mutation)).resolves.toMatchObject({ revision: 7 });
+    expect(optimized.context.mock.calls.length + optimized.connect.mock.calls.length).toBe(3);
+    expect(optimized.history).not.toHaveBeenCalled();
+    const metadata = optimized.query.mock.calls.find(([sql]) =>
+      sql.includes('SELECT p.module_key'),
+    )!;
+    expect(metadata[0]).not.toMatch(/document_json|preview_json|project_versions/);
+    expect(metadata[0]).toContain('JOIN project_drafts');
+    const write = optimized.query.mock.calls.find(([sql]) =>
+      sql.includes('UPDATE project_drafts d'),
+    )!;
+    expect(write[0]).toContain('project_context_for_principal($3,$2)');
+    expect(write[0]).toContain('current_context.user_id IS NOT DISTINCT FROM $4::uuid');
+    expect(write[0]).toContain('d.revision=$8');
+    expect(write[0]).toContain('d.last_mutation_id=$9::uuid');
+    expect(optimized.release).toHaveBeenCalledTimes(2);
+  });
+
+  it('binds principal, project and resolved tenant, ignoring extra caller identity fields', async () => {
+    const f = fixture();
+    const mutableActor = { ...actor };
+    const target = await f.repository.prepareDraftSave('wrong-active-tenant', row.id, mutableActor);
+    mutableActor.principalId = 'attacker';
+    await target!.save({
+      ...mutation,
+      tenantId: 'attacker-tenant',
+      projectId: 'attacker-project',
+      actor: mutableActor,
+    } as typeof mutation);
+    const write = f.query.mock.calls.find(([sql]) => sql.includes('UPDATE project_drafts d'))!;
+    expect(write[1]?.slice(0, 4)).toEqual([
+      'resolved-tenant',
+      row.id,
+      actor.principalId,
+      'resolved-user',
+    ]);
+    expect(write[1]).not.toContain('attacker');
+  });
+
+  it.each([{ accessible: false }, { draftExists: false }])(
+    'does not return a writer after denial: %j',
+    async (options) => {
+      const f = fixture(options);
+      expect(await f.repository.prepareDraftSave('active-tenant', row.id, actor)).toBeNull();
+      expect(f.query.mock.calls.some(([sql]) => sql.includes('UPDATE project_drafts d'))).toBe(
+        false,
+      );
+    },
+  );
+
+  it('does not turn a rejected current write into a save acknowledgement', async () => {
+    const f = fixture({ writeDenied: true });
+    const target = await f.repository.prepareDraftSave('active-tenant', row.id, actor);
+    expect(await target!.save(mutation)).toBeNull();
+    expect(
+      f.query.mock.calls.some(([sql]) => sql.includes('classroom_activity_record_project')),
+    ).toBe(false);
   });
 });

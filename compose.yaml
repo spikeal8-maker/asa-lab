@@ -162,6 +162,11 @@ services:
       ASA_WEB_PORT: ${ASA_WEB_PORT:-4610}
       ASA_EXPECTED_SCHEMA_VERSION: ${ASA_EXPECTED_SCHEMA_VERSION:-}
       APP_DATABASE_URL: ${APP_DATABASE_URL:-postgres://asalab_app:asa-local-runtime-change-me@postgres:5432/asalab}
+      ASA_DB_POOL_MAX: ${ASA_DB_POOL_MAX:-10}
+      ASA_DB_CONNECTION_TIMEOUT_MS: ${ASA_DB_CONNECTION_TIMEOUT_MS:-5000}
+      ASA_DB_IDLE_TIMEOUT_MS: ${ASA_DB_IDLE_TIMEOUT_MS:-30000}
+      ASA_DB_STATEMENT_TIMEOUT_MS: ${ASA_DB_STATEMENT_TIMEOUT_MS:-15000}
+      ASA_DB_QUERY_TIMEOUT_MS: ${ASA_DB_QUERY_TIMEOUT_MS:-15000}
       ASA_SETTINGS_ENCRYPTION_KEY: ${ASA_SETTINGS_ENCRYPTION_KEY:-}
       CLASSROOM_CODE_SECRET: ${CLASSROOM_CODE_SECRET:-}
       ASA_STUDENT_CODE_PROTECTION_MODE: ${ASA_STUDENT_CODE_PROTECTION_MODE:-off}
@@ -193,6 +198,9 @@ services:
     networks:
       - application
       - database
+    # LAN Ollama may run on the Docker host GPU; never expose its API through web.
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
     security_opt:
       - no-new-privileges:true
     cap_drop:

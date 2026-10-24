@@ -76,7 +76,12 @@ const upgradeArtifacts = [
   ],
   [
     '0239',
-    '0239_teacher_home_canonical_read_jit.sql',
+    '0239_ai_ollama_local.sql',
+    '74e91546e9dd8e71ded2741575bb51be6e0125ca8f71933140db73c707164f22',
+  ],
+  [
+    '0240',
+    '0240_teacher_home_canonical_read_jit.sql',
     '60dae5f444e08a479acdb98752b434b1114680d3f742aa31dfc0484bfe5c9dd5',
   ],
 ] as const;
@@ -468,7 +473,7 @@ async function seedOldContracts(pool: pg.Pool, client: pg.PoolClient) {
 }
 
 describe('joint AI, Courses, Portal and Projects supported-prefix upgrade', () => {
-  it('upgrades real 0225 data through all fourteen migrations without losing history or refunding quota', async () => {
+  it('upgrades real 0225 data through all fifteen migrations without losing history or refunding quota', async () => {
     await withPrefixDatabase(async (pool, client, plan) => {
       const fixture = await seedOldContracts(pool, client);
       const beforeLedger = await ledger(pool);
@@ -520,7 +525,7 @@ describe('joint AI, Courses, Portal and Projects supported-prefix upgrade', () =
         ),
       ).toEqual(upgradeArtifacts.map(([version]) => version));
 
-      expect(await applyIsolatedTestPlan(client, plan)).toBe(14);
+      expect(await applyIsolatedTestPlan(client, plan)).toBe(15);
       const afterLedger = await ledger(pool);
       expect(afterLedger.filter((row) => Number(row.version) <= 225)).toEqual(beforeLedger);
       expect(

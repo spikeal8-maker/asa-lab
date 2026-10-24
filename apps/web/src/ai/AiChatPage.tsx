@@ -55,7 +55,8 @@ interface AiStatus {
   readonly canGenerate?: boolean;
   readonly providerEnabled?: boolean;
   readonly enabled: boolean;
-  readonly provider: 'openai' | 'deepseek';
+  readonly provider: 'openai' | 'deepseek' | 'ollama';
+  readonly ollamaModel?: string | null;
   readonly model: string;
   readonly availableModels?: readonly string[];
 }
@@ -1024,7 +1025,9 @@ export function AiChatPage({
                 >
                   {status?.availableModels?.map((name) => (
                     <option key={name} value={name}>
-                      {name}
+                      {name === 'ollama-local'
+                        ? 'Ollama · ' + (status.ollamaModel || 'локальная модель')
+                        : name}
                     </option>
                   ))}
                 </select>
