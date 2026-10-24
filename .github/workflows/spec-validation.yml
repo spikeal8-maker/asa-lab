@@ -36,7 +36,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           python3 - <<'PY'
-          import json, subprocess
+          import json, re, subprocess
           def api(path):
               return json.loads(subprocess.check_output(['gh','api','repos/spikeal8-maker/asa-lab/'+path]))
           jobs = api('actions/runs/40137755268/jobs?per_page=100')['jobs']
@@ -47,7 +47,8 @@ jobs:
           for name in ['Run pnpm test:access-a','Access A launcher contracts','Complete Access A journeys and isolated whole NAT admission']:
               assert steps[name] == 'success', name
           assert by_name['PostgreSQL tests and RLS']['conclusion'] == 'failure'
-          log = subprocess.check_output(['gh','api','repos/spikeal8-maker/asa-lab/actions/jobs/121004351840/logs'], text=True)
+          log = subprocess.check_output(['gh','api','--allow-escape-sequences','repos/spikeal8-maker/asa-lab/actions/jobs/121004351840/logs'], text=True)
+          log = re.sub(r'\[[0-?]*[ -/]*[@-~]', '', log)
           assert '7027 passed' in log and 'Failed Tests 2' in log
           assert 'learning-main-prefix-history-upgrade.pg.spec.ts' in log and 'expected 16 to be 15' in log
           assert 'engine-timed-api.spec.ts' in log and 'Test timed out in 5000ms' in log
