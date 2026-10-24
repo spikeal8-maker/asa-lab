@@ -540,7 +540,7 @@ describe('joint AI, Courses, Portal and Projects supported-prefix upgrade', () =
         ),
       ).toEqual(upgradeArtifacts.map(([version]) => version));
 
-      expect(await applyIsolatedTestPlan(client, plan)).toBe(15);
+      expect(await applyIsolatedTestPlan(client, plan)).toBe(upgradeArtifacts.length);
       const afterLedger = await ledger(pool);
       expect(afterLedger.filter((row) => Number(row.version) <= 225)).toEqual(beforeLedger);
       expect(
