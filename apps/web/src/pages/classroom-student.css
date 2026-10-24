@@ -1002,3 +1002,195 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+
+/* UI-01: one real identity/navigation rail. The original picker, roster request,
+   focus restoration, and previous/next callbacks are the same live controls. */
+.classroom-student .classroom-student-identity-rail {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 56px;
+  margin: 0 0 6px;
+  padding: 3px 0;
+  box-sizing: border-box;
+  border-bottom: 1px solid var(--student-line);
+}
+.classroom-student .classroom-student-identity-rail .classroom-student-back {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  width: auto;
+  min-width: 44px;
+  height: 44px;
+  min-height: 44px;
+  margin: 0;
+  padding: 0 8px;
+  white-space: nowrap;
+}
+.classroom-student .classroom-student-identity-rail .classroom-student-navigation {
+  display: grid;
+  grid-column: 2;
+  grid-template-columns: minmax(44px, 1fr) minmax(160px, 2fr) minmax(44px, 1fr);
+  align-items: center;
+  gap: 4px;
+  justify-self: start;
+  width: min(100%, 860px);
+  max-width: 100%;
+  min-width: 0;
+}
+.classroom-student .classroom-student-identity-rail .classroom-student-navigation > button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-width: 44px;
+  max-width: none;
+  height: 44px;
+  min-height: 44px;
+  margin: 0;
+  padding: 0 6px;
+  white-space: nowrap;
+}
+.classroom-student .classroom-student-identity-rail .classroom-student-heading-row,
+.classroom-student .classroom-student-identity-rail .classroom-student-picker,
+.classroom-student .classroom-student-identity-rail .classroom-student-picker-heading {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  margin: 0;
+}
+.classroom-student .classroom-student-identity-rail .classroom-student-picker-heading {
+  font-size: 14px;
+  line-height: 1.15;
+}
+.classroom-student .classroom-student-identity-rail .classroom-student-picker-opener {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 44px;
+  max-width: 100%;
+  height: 44px;
+  min-height: 44px;
+  padding: 2px 4px;
+}
+.classroom-student .classroom-student-identity-rail .classroom-student-avatar {
+  flex: 0 0 36px;
+  width: 36px;
+  height: 36px;
+}
+.classroom-student-picker-text {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  min-width: 0;
+}
+.classroom-student .classroom-student-identity-rail .classroom-student-picker-name {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  line-height: 17px;
+}
+.classroom-student-rail-state {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  min-width: 0;
+  overflow: hidden;
+  color: #526a78;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 13px;
+}
+.classroom-student-rail-state > span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.classroom-student-rail-state .classroom-student-suspended {
+  color: #ad441c;
+}
+.classroom-student .classroom-student-identity-rail .classroom-student-picker-chevron {
+  font-size: 12px;
+}
+.classroom-student-rail-loading {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  min-height: 44px;
+  overflow: hidden;
+  color: #526a78;
+  font-size: 12px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.classroom-student .classroom-student-identity-rail .classroom-student-picker-popup button {
+  max-width: none;
+}
+@container teacher-profile (max-width: 599px) {
+  .classroom-student .classroom-student-identity-rail {
+    grid-template-columns: 44px minmax(0, 1fr);
+    gap: 2px;
+    height: 50px;
+    min-height: 50px;
+    max-height: 50px;
+    padding: 0;
+  }
+  .classroom-student .classroom-student-identity-rail .classroom-student-back {
+    width: 44px;
+    padding: 0;
+    font-size: 20px;
+  }
+  .classroom-student-identity-rail .classroom-student-back-label,
+  .classroom-student .classroom-student-identity-rail .student-pager-name {
+    display: none;
+  }
+  .classroom-student .classroom-student-identity-rail .classroom-student-navigation {
+    grid-template-columns: 44px minmax(0, 1fr) 44px;
+    gap: 2px;
+    width: 100%;
+  }
+  .classroom-student .classroom-student-identity-rail .classroom-student-navigation > button {
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    font-size: 23px;
+  }
+  .classroom-student .classroom-student-identity-rail .classroom-student-avatar {
+    flex-basis: 28px;
+    width: 28px;
+    height: 28px;
+  }
+  .classroom-student .classroom-student-identity-rail .classroom-student-picker-opener {
+    gap: 4px;
+    padding: 2px;
+  }
+  .classroom-student .classroom-student-identity-rail .classroom-student-picker-name {
+    font-size: 12px;
+    line-height: 15px;
+  }
+  .classroom-student .classroom-student-identity-rail .classroom-student-picker-popup {
+    left: -92px;
+    width: min(360px, calc(100cqw - 18px));
+    min-width: 0;
+    max-width: none;
+  }
+}
+@container teacher-profile (max-width: 350px) {
+  .classroom-student .classroom-student-identity-rail {
+    height: 56px;
+    min-height: 56px;
+    max-height: 56px;
+  }
+}
