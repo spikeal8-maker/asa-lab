@@ -28,6 +28,17 @@
   background: color-mix(in srgb, var(--ai-text) 5%, transparent);
 }
 
+.asa-ai-layout .chat-toolbar .asa-ai-school-scope-label {
+  display: inline-block;
+  max-width: min(22vw, 150px);
+  margin-inline-start: auto;
+  overflow: hidden;
+  color: var(--ai-muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .ai-chat-scope-state {
   max-width: 720px;
   margin: 0 auto;

@@ -74,6 +74,10 @@ export function AiChatWorkspace() {
           ))}
         </select>
       </label>
+    ) : current ? (
+      <span className="asa-ai-school-scope-label" title={current.classroomTitle}>
+        Школьный чат
+      </span>
     ) : null;
   return (
     <AiChatPage

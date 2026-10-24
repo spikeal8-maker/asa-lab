@@ -878,7 +878,8 @@
 
 .asa-ai-layout .chat-composer-dock {
   padding: 6px 24px max(12px, env(safe-area-inset-bottom));
-  overflow: visible;
+  /* On-screen keyboards must shrink the dock rather than cover messages. */
+  overflow-y: auto;
 }
 
 .asa-ai-layout .chat-composer-wrap {
@@ -905,8 +906,9 @@
 @media (max-width: 1023px) {
   .portal-shell > .asa-ai-layout,
   .portal-shell:has(.portal-sidebar.collapsed) > .asa-ai-layout {
-    width: 100%;
-    margin: 0;
+    /* Respect safe edge gutters; remove the frame, not the usable margins. */
+    width: calc(100% - 24px);
+    margin: 0 12px;
   }
 }
 

@@ -223,11 +223,26 @@ export function AiChatPage({
   }, []);
 
   useEffect(() => {
-    // When the owner expands ASA navigation, yield its workspace width by
-    // collapsing the *separate* chat history. The chat can be reopened later.
-    const closeForPortal = (): void => setSideOpen(false);
-    window.addEventListener('asa-ai-portal-sidebar-expanded', closeForPortal);
-    return () => window.removeEventListener('asa-ai-portal-sidebar-expanded', closeForPortal);
+    // ASA navigation is a sibling React tree. Observe its *actual* state so
+    // history never competes for width when the site panel expands, including
+    // when navigation is restored by another control or during hydration.
+    const portalSidebar = document.getElementById('portal-sidebar');
+    if (!portalSidebar) return;
+    const sync = (): void => {
+      if (
+        window.matchMedia('(min-width: 1120px)').matches &&
+        !portalSidebar.classList.contains('collapsed')
+      )
+        setSideOpen(false);
+    };
+    const observer = new MutationObserver(sync);
+    observer.observe(portalSidebar, { attributes: true, attributeFilter: ['class'] });
+    window.addEventListener('asa-ai-portal-sidebar-expanded', sync);
+    sync();
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('asa-ai-portal-sidebar-expanded', sync);
+    };
   }, []);
 
   useEffect(() => {
@@ -1196,7 +1211,7 @@ export function AiChatPage({
                   ) : null}
                   {busy ? (
                     <div className="chat-runtime-note" role="status">
-                      Печатает…
+                      Модель формирует ответ…
                     </div>
                   ) : null}
                 </div>
