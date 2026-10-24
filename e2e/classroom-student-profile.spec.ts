@@ -681,9 +681,15 @@ test('production profile stays compact with long Russian identity on desktop, sp
       lineHeight: '15.6px',
     });
     const summaryBox = (await summary.boundingBox())!;
-    expect(summaryBox.height, 'dense grade overview including paging').toBeLessThanOrEqual(
-      width <= 600 ? 100 : 84,
+    // Two 44px rows plus a 4px gap are required for the real pagination controls.
+    // Do not shrink touch targets to meet an obsolete 84px grade-strip baseline.
+    expect(summaryBox.height, 'two accessible grade overview rows').toBeLessThanOrEqual(
+      width <= 600 ? 100 : 92,
     );
+    for (const control of await summary.locator('button').all()) {
+      const rect = await control.boundingBox();
+      if (rect) expect(rect.height, 'grade action touch target').toBeGreaterThanOrEqual(44);
+    }
     await expect(page.getByRole('button', { name: /История/ })).toHaveCount(0);
     const names = page.locator('.student-pager-name');
     await expect(names).toHaveText(['Петрова Анна', 'Иванов Иван']);
