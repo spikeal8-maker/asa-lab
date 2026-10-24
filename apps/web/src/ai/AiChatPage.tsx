@@ -680,7 +680,7 @@ export function AiChatPage({
           controller.signal,
           selectedModel || status.model,
           aiScopeHeaders(seatId),
-          uploadIds,
+          ...(uploadIds.length ? [uploadIds] as const : [] as const),
         );
         if (version !== selectedVersion.current) return;
         setStreamedText('');
