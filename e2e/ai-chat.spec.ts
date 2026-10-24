@@ -338,6 +338,10 @@ test('AI composer uploads a real file once and restores the saved attachment aft
   await page.getByRole('button', { name: 'Найди ошибку в коде', exact: true }).click();
   await expect(page.locator('.chat-attached-history')).toContainText('sketch.ino');
   await expect(page.locator('.chat-turns')).toContainText('В коде указан INPUT, нужен OUTPUT.');
+  // Reselecting the same current thread clears the rendered history; it must
+  // also invalidate its loaded-ID cache so its file chips are fetched again.
+  await page.getByRole('button', { name: 'Найди ошибку в коде', exact: true }).click();
+  await expect(page.locator('.chat-attached-history')).toContainText('sketch.ino');
   expect(uploadCount).toBe(1);
 });
 
@@ -459,6 +463,19 @@ test('AI retains all attachment chips while paging over 125 user messages', asyn
   expect(namesOnScreen.join(' ')).toContain('newest.png');
   expect(fetched.every((batch) => batch.length > 0 && batch.length <= 50)).toBe(true);
   expect(new Set(fetched.flat()).size).toBe(125);
+  // Reopen the same selected conversation and paginate again. All historical
+  // attachments must reappear rather than remain marked loaded but hidden.
+  await page.getByRole('button', { name: 'История файлов', exact: true }).click();
+  await expect(turns).toHaveCount(50);
+  await expect(page.locator('.chat-attached-history')).toContainText('newest.png');
+  await older.click();
+  await expect(turns).toHaveCount(100);
+  await older.click();
+  await expect(turns).toHaveCount(125);
+  const reopened = (await page.locator('.chat-attached-history').allTextContents()).join(' ');
+  for (const filename of ['oldest.png', 'middle.png', 'newest.png']) {
+    expect(reopened).toContain(filename);
+  }
 });
 
 for (const selection of ['single', 'switch', 'switch-error', 'retry'] as const) {
